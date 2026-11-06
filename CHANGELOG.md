@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-06
+
+- **Under the hood:** New features can be switched on for the web and iPhone apps separately, without an update. ([#340](https://github.com/FujiwaraChoki/supoclip/pull/340))
+
 ## 2026-11-05
 
 - **Fixed:** The homepage shows TikTok publishing and scheduling as available alongside YouTube, with updated pricing details and FAQ answers. Instagram remains marked as coming soon. ([#339](https://github.com/FujiwaraChoki/supoclip/pull/339))
@@ -12,7 +16,6 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Under the hood:** Preview deployments use an upload timeout within the hosting platform's supported limit. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Under the hood:** Updated sign-in, video-processing, and developer tools to address published security vulnerabilities. ([#338](https://github.com/FujiwaraChoki/supoclip/pull/338))
-- **Under the hood:** New features can be switched on for the web and iPhone apps separately, without an update.
 
 ## 2026-11-03
 
