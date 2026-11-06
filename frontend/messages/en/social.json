@@ -125,5 +125,6 @@
   "refreshPrivacy": "Refresh options",
   "loadingPrivacy": "Checking TikTok publishing options…",
   "privacyLoadFailed": "Couldn’t load publishing options. Refresh and try again.",
-  "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options."
+  "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options.",
+  "tiktokPrivateAccountRequired": "TikTok hasn’t approved SupoClip’s app yet, so it only accepts private posts from accounts set to Private. In TikTok, turn on Settings and privacy → Privacy → Private account before publishing."
 }

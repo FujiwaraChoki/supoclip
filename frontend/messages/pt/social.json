@@ -125,5 +125,6 @@
   "refreshPrivacy": "Atualizar opções",
   "loadingPrivacy": "Verificando as opções do TikTok…",
   "privacyLoadFailed": "Não foi possível carregar as opções. Atualize e tente novamente.",
-  "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções."
+  "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções.",
+  "tiktokPrivateAccountRequired": "O TikTok ainda não aprovou o app do SupoClip, então só aceita publicações privadas de contas privadas. Antes de publicar, ative no TikTok Configurações e privacidade → Privacidade → Conta privada."
 }

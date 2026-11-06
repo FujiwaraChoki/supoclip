@@ -6,9 +6,12 @@ Upload: ``/v2/post/publish/video/init/`` + chunked PUT to the returned upload
 URL, then ``/v2/post/publish/status/fetch/`` until the post exists.
 Metrics: ``/v2/video/query/`` (requires the ``video.list`` scope).
 
-Unaudited TikTok apps can only post with ``SELF_ONLY`` visibility and to a
-handful of accounts per day; the creator-info query tells us which privacy
-levels the connected account is allowed to use. TikTok has no "unlisted"
+Unaudited TikTok apps (``TIKTOK_APP_AUDITED`` unset) can only post with
+``SELF_ONLY`` visibility, only from accounts set to private in TikTok, and for
+up to five accounts per day. TikTok rejects anything else at
+``/video/init/``; no request parameter lifts this, only TikTok's app audit.
+The creator-info query tells us which privacy levels the connected account
+is allowed to use. TikTok has no "unlisted"
 equivalent (friends-only is a different audience), so only public and
 private are offered.
 """
@@ -66,6 +69,18 @@ CHUNK_SIZE = 50 * 1024 * 1024
 
 TERMINAL_FAILURE_STATUSES = {"FAILED"}
 
+UNAUDITED_PRIVATE_ACCOUNT_ERROR = "unaudited_client_can_only_post_to_private_accounts"
+UNAUDITED_PRIVATE_ACCOUNT_MESSAGE = (
+    "TikTok only accepts posts from private TikTok accounts until it approves "
+    "SupoClip's app. In TikTok, open Settings and privacy → Privacy and turn on "
+    "Private account, then retry this post. It will be visible only to you; "
+    "switch the account and the video back to public in TikTok afterwards if you want."
+)
+ACTIVE_USER_CAP_MESSAGE = (
+    "TikTok's daily limit of accounts posting through SupoClip has been reached. "
+    "Retry this post tomorrow."
+)
+
 
 class TikTokProvider(SocialProvider):
     name = "tiktok"
@@ -81,6 +96,10 @@ class TikTokProvider(SocialProvider):
     @property
     def is_configured(self) -> bool:
         return bool(self.config.tiktok_client_key and self.config.tiktok_client_secret)
+
+    @property
+    def audited(self) -> bool:
+        return bool(self.config.tiktok_app_audited)
 
     @property
     def uses_pkce(self) -> bool:
@@ -246,6 +265,11 @@ class TikTokProvider(SocialProvider):
                 f"TikTok does not allow '{request.privacy_level}' posts for this account "
                 f"right now. Allowed: {readable}. Check this account’s privacy settings "
                 "in TikTok, then refresh its publishing options."
+            )
+        if not self.audited and privacy != "SELF_ONLY":
+            raise SocialProviderError(
+                "TikTok only allows private posts from SupoClip until it approves "
+                "SupoClip's app. Choose Private and try again."
             )
         max_duration = creator_info.get("max_video_post_duration_sec")
 
@@ -448,6 +472,10 @@ class TikTokProvider(SocialProvider):
                 f"TikTok rejected the credentials while trying to {action}: {message}",
                 reauth=True,
             )
+        if code_text == UNAUDITED_PRIVATE_ACCOUNT_ERROR:
+            raise SocialProviderError(UNAUDITED_PRIVATE_ACCOUNT_MESSAGE)
+        if code_text == "reached_active_user_cap":
+            raise SocialProviderError(ACTIVE_USER_CAP_MESSAGE)
         retryable = response.status_code >= 500 or code_text in {
             "rate_limit_exceeded",
             "spam_risk_too_many_posts",

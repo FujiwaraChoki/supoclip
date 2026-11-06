@@ -356,6 +356,16 @@ it("never offers public when TikTok reports only private for the account", async
   expect(requests[0].privacy_level).toBe("private");
 });
 
+it("tells users of an unaudited TikTok app to make their account private", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("publishing-options")
+    ? Response.json({ privacy_levels: ["private"], requires_private_account: true })
+    : Response.json({ caption: "Caption" })));
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[tikTokConnection()]} providers={[tikTokProvider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  expect(await screen.findByText(/Private account before publishing/)).toBeInTheDocument();
+  expect(screen.queryByText(/Public isn’t available/)).toBeNull();
+});
+
 it("blocks posting if current TikTok permissions cannot be loaded", async () => {
   const fetcher = vi.fn(async (url: string) => url.includes("publishing-options")
     ? Response.json({ detail: "TikTok is unavailable" }, { status: 503 })

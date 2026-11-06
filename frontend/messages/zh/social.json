@@ -125,5 +125,6 @@
   "refreshPrivacy": "刷新选项",
   "loadingPrivacy": "正在检查 TikTok 发布选项…",
   "privacyLoadFailed": "无法加载发布选项，请刷新后重试。",
-  "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。"
+  "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。",
+  "tiktokPrivateAccountRequired": "TikTok 尚未批准 SupoClip 的应用，因此只接受来自私密账号的仅自己可见发布。发布前，请在 TikTok 中开启「设置和隐私 → 隐私 → 私密账号」。"
 }
