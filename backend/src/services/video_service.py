@@ -69,7 +69,7 @@ from ..clip_duration import clip_duration
 from ..config import get_config
 from ..workflows.contracts import PlanCache, PlanContext, WorkflowResult, WorkflowSpec
 from ..workflows.durations import workflow_budget
-from ..media.source_limits import normalize_source_media
+from ..media.source_limits import normalize_source_media, probe_media_duration
 from ..media.upload_ingest import (
     materialize_stored_upload,
     persist_local_upload,
@@ -574,20 +574,8 @@ class VideoService:
 
     @staticmethod
     def _get_file_duration(path: Path) -> Optional[float]:
-        """Return video duration in seconds via ffprobe, or None on failure."""
-        try:
-            result = subprocess.run(
-                [
-                    "ffprobe", "-v", "error",
-                    "-show_entries", "format=duration",
-                    "-of", "csv=p=0",
-                    str(path),
-                ],
-                capture_output=True, text=True, check=True,
-            )
-            return float(result.stdout.strip())
-        except Exception:
-            return None
+        """Return media duration in seconds via ffprobe, or None on failure."""
+        return probe_media_duration(path)
 
     @staticmethod
     def _build_fallback_segment(

@@ -251,6 +251,69 @@ def _has_audio(path: Path) -> bool:
     return result.returncode == 0 and "audio" in result.stdout
 
 
+def _format_name(path: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=format_name", "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def probe_media_duration(path: Path) -> float | None:
+    """Length of a local media file in seconds, or None when it can't be read.
+
+    Raw ADTS AAC (what YouTube's HLS audio arrives as) has no duration header,
+    so ffprobe estimates one from the bitrate and can be minutes short. Read
+    the last packet instead.
+    """
+    path = Path(path)
+    if _format_name(path) == "aac":
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "a:0",
+                 "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", str(path)],
+                capture_output=True, text=True, timeout=300,
+            )
+            last = result.stdout.strip().splitlines()[-1].split(",")
+            return float(last[0]) + (float(last[1]) if len(last) > 1 and last[1] else 0.0)
+        except (OSError, subprocess.TimeoutExpired, IndexError, ValueError):
+            pass
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=60, check=True,
+        )
+        return float(result.stdout.strip())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def contain_raw_aac(path: Path) -> Path:
+    """Copy raw ADTS AAC into an MP4 in place, so its length is exact.
+
+    Any other file is returned untouched. A failed remux leaves the original,
+    which still plays, and ``probe_media_duration`` still reads it correctly.
+    """
+    path = Path(path)
+    if not path.is_file() or _format_name(path) != "aac":
+        return path
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.m4a")
+    try:
+        wrote = _run_ffmpeg([
+            "ffmpeg", "-v", "error", "-y", "-i", str(path),
+            "-map", "0:a:0", "-c", "copy", "-bsf:a", "aac_adtstoasc",
+            "-movflags", "+faststart", "-f", "mp4", str(temporary),
+        ])
+        if wrote and temporary.exists() and temporary.stat().st_size > 0:
+            _replace_source(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
+
+
 def _video_filters(
     *,
     scale: tuple[int, int] | None,
