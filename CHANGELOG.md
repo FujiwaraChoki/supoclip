@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-07
 
-- **Changed:** TikTok publishing is paused for now, with a short note in Social settings, while an issue with TikTok is fixed.
+- **Changed:** TikTok publishing is paused for now, with a short note in Social settings, while an issue with TikTok is fixed. ([#343](https://github.com/FujiwaraChoki/supoclip/pull/343))
 
 ## 2026-11-06
 
