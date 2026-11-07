@@ -53,6 +53,26 @@ class YouTubeGeoRestrictedError(YouTubeDownloadError):
         )
 
 
+class YouTubeAgeRestrictedError(YouTubeDownloadError):
+    """YouTube wants a signed-in adult account and no provider could download the video."""
+
+    def __init__(self):
+        super().__init__(
+            "This YouTube video is age-restricted, so YouTube only lets signed-in accounts "
+            "download it, and we could not. Upload the video file or choose a different source."
+        )
+
+
+def is_age_restricted_failure(errors: list[str]) -> bool:
+    """True when a provider reported YouTube's age gate.
+
+    Only the provider's own failure text counts: ``Sign in to confirm your age``
+    from yt-dlp, never a generic sign-in or bot check.
+    """
+    text = " ".join(errors).lower()
+    return "confirm your age" in text or "age-restricted" in text
+
+
 def _exception_chain(exc: BaseException):
     """yt-dlp also retains its extractor error in DownloadError.exc_info."""
     pending = [exc]
