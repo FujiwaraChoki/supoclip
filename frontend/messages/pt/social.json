@@ -111,7 +111,9 @@
     "reconnect": "Reconectar",
     "disconnect": "Desconectar",
     "analytics": "Análises",
-    "analyticsHint": "Visualizações, curtidas e comentários dos seus clipes publicados, por plataforma, gancho e duração."
+    "analyticsHint": "Visualizações, curtidas e comentários dos seus clipes publicados, por plataforma, gancho e duração.",
+    "tiktokPaused": "A publicação no TikTok está pausada enquanto corrigimos um problema com o TikTok. As suas outras plataformas funcionam normalmente.",
+    "paused": "Pausado"
   },
   "accounts": "Contas",
   "accountsHint": "Selecione uma ou mais contas. O título, a legenda e as hashtags são compartilhados.",
@@ -126,5 +128,6 @@
   "loadingPrivacy": "Verificando as opções do TikTok…",
   "privacyLoadFailed": "Não foi possível carregar as opções. Atualize e tente novamente.",
   "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções.",
-  "tiktokPrivateAccountRequired": "O TikTok ainda não aprovou o app do SupoClip, então só aceita publicações privadas de contas privadas. Antes de publicar, ative no TikTok Configurações e privacidade → Privacidade → Conta privada."
+  "tiktokPrivateAccountRequired": "O TikTok ainda não aprovou o app do SupoClip, então só aceita publicações privadas de contas privadas. Antes de publicar, ative no TikTok Configurações e privacidade → Privacidade → Conta privada.",
+  "tiktokPaused": "A publicação no TikTok está pausada enquanto corrigimos um problema com o TikTok. As suas outras plataformas funcionam normalmente."
 }

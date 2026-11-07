@@ -25,6 +25,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
+from .. import feature_flags
+from ..feature_flags import PLATFORMS, TIKTOK_PUBLISHING, Platform
 from .billing_service import BillingService
 from ..media_storage import STORAGE_ERRORS, MediaStorage, is_s3, media_work
 from ..repositories.clip_repository import ClipRepository
@@ -44,6 +46,11 @@ from ..utils.async_helpers import run_in_thread
 from ..workers.job_queue import DuplicateJobError, JobQueue
 
 logger = logging.getLogger(__name__)
+
+TIKTOK_PAUSED_MESSAGE = (
+    "TikTok publishing is paused while we fix an issue with TikTok. "
+    "Your other platforms work as usual."
+)
 
 PUBLISH_JOB_NAME = "publish_social_post"
 OAUTH_STATE_TTL_SECONDS = 600
@@ -101,8 +108,10 @@ class SocialService:
         db: AsyncSession,
         config: Optional[Config] = None,
         queue_adapter=None,
+        platform: Platform = "web",
     ):
         self.db = db
+        self.platform = platform
         self.config = config or get_config()
         self.queue_adapter = queue_adapter or JobQueue
         self.repo = SocialRepository
@@ -148,6 +157,28 @@ class SocialService:
         summary = await BillingService(self.db, self.config).get_usage_summary(user_id)
         return bool(summary.get("can_schedule_posts"))
 
+    async def provider_paused(self, name: str, user_id: Optional[str]) -> bool:
+        """TikTok is paused by the ``tiktok_publishing`` feature flag (switched in /admin)."""
+        if (name or "").strip().lower() != "tiktok":
+            return False
+        return not await feature_flags.is_enabled(
+            self.db, TIKTOK_PUBLISHING, platform=self.platform, user_id=user_id
+        )
+
+    async def _ensure_not_paused(
+        self, name: str, user_id: Optional[str], *, any_platform: bool = False
+    ) -> None:
+        """Refuse a paused platform. The worker has no platform, so either one being on lets it publish."""
+        if (name or "").strip().lower() != "tiktok":
+            return
+        platforms = PLATFORMS if any_platform else (self.platform,)
+        for platform in platforms:
+            if await feature_flags.is_enabled(
+                self.db, TIKTOK_PUBLISHING, platform=platform, user_id=user_id
+            ):
+                return
+        raise SocialProviderUnavailable(TIKTOK_PAUSED_MESSAGE)
+
     def _provider(self, name: str) -> SocialProvider:
         normalized = (name or "").strip().lower()
         if normalized not in SUPPORTED_PROVIDERS:
@@ -182,6 +213,7 @@ class SocialService:
         if account.get("status") == "reauth_required":
             raise SocialValidationError("Reconnect this account before publishing.")
         provider = self._provider(account["provider"])
+        await self._ensure_not_paused(account["provider"], user_id)
         levels = list(provider.supported_privacy_levels)
         if provider.name == "tiktok":
             from ..social.tiktok import PRIVACY_MAP
@@ -211,6 +243,7 @@ class SocialService:
         self, user_id: str, provider_name: str, *, client: Optional[str] = None
     ) -> Dict[str, Any]:
         provider = self._provider(provider_name)
+        await self._ensure_not_paused(provider_name, user_id)
         state = secrets.token_urlsafe(32)
         if client in MOBILE_CLIENTS:
             state = MOBILE_STATE_PREFIX + state
@@ -239,6 +272,7 @@ class SocialService:
         self, user_id: str, provider_name: str, *, code: str, state: str
     ) -> Dict[str, Any]:
         provider = self._provider(provider_name)
+        await self._ensure_not_paused(provider_name, user_id)
         if not code or not state:
             raise SocialValidationError("Missing OAuth code or state")
         state_row = await self.repo.consume_oauth_state(self.db, state)
@@ -446,6 +480,7 @@ class SocialService:
                 f"Reconnect your {account['provider']} account before publishing."
             )
         provider = self._provider(account["provider"])
+        await self._ensure_not_paused(account["provider"], user_id)
 
         normalized_privacy = (privacy_level or provider.default_privacy_level).strip().lower()
         if normalized_privacy not in PRIVACY_LEVELS:
@@ -576,6 +611,7 @@ class SocialService:
         if not post.get("social_account_id"):
             raise SocialValidationError("The account for this post was disconnected.")
         self._provider(post["provider"])
+        await self._ensure_not_paused(post["provider"], user_id)
         if post["provider"] == "tiktok":
             options = await self.publishing_options(user_id, post["social_account_id"])
             if post.get("privacy_level") not in options["privacy_levels"]:
@@ -734,6 +770,7 @@ class SocialService:
         # above can still have their status resolved without uploading again.
         try:
             provider = self._provider(post["provider"])
+            await self._ensure_not_paused(post["provider"], post["user_id"], any_platform=True)
             if not await self.has_access(post["user_id"]):
                 raise SocialProviderUnavailable(
                     "Social publishing isn't available on your account yet."

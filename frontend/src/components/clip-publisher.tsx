@@ -357,6 +357,9 @@ export function ClipPublishButton({
     return chosen && privacyOptionsFor(provider).includes(chosen) ? chosen : defaultPrivacyFor(provider);
   };
   const anyProviderConfigured = providers.some((provider) => provider.configured);
+  const pausedConnected = providers.some(
+    (provider) => provider.paused && connections.some((connection) => connection.provider === provider.provider && connection.status !== "revoked"),
+  );
   const privacyOptionsForAccount = (id: string) => activeConnections.find((c) => c.id === id)?.provider === "tiktok"
     ? accountPrivacy[id]?.levels ?? [] : privacyOptionsFor(providerForAccount(id));
   const privacyReady = pendingConnections.every((connection) => {
@@ -564,6 +567,10 @@ export function ClipPublishButton({
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
+            )}
+
+            {pausedConnected && (
+              <p role="status" className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">{t("tiktokPaused")}</p>
             )}
 
             {activeConnections.length === 0 ? (

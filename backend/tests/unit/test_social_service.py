@@ -291,6 +291,19 @@ class FakeProvider(SocialProvider):
         return self.metrics
 
 
+@pytest.fixture(autouse=True)
+def tiktok_flag(monkeypatch):
+    """The ``tiktok_publishing`` flag, on unless a test pauses TikTok. Records each check."""
+    state = {"on": True, "checks": []}
+
+    async def is_enabled(db, key, *, platform, user_id=None):
+        state["checks"].append((key, platform, user_id))
+        return state["on"]
+
+    monkeypatch.setattr(social_module.feature_flags, "is_enabled", is_enabled)
+    return state
+
+
 @pytest.fixture
 def provider(monkeypatch):
     fake = FakeProvider()
@@ -1518,3 +1531,58 @@ async def test_tiktok_retry_does_not_queue_a_visibility_the_account_no_longer_al
         await service.retry_post('user-1', post['id'])
     assert service.repo.posts[post['id']]['status'] == 'failed'
     assert service.queue_adapter.jobs == before_jobs
+
+
+# ----------------------------------------------------------------------
+# TikTok paused by the tiktok_publishing feature flag
+# ----------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_paused_tiktok_blocks_connecting_options_and_publishing(service, tiktok_flag):
+    account = await _connect(service)
+    service.repo.accounts[account["id"]]["provider"] = "tiktok"
+    tiktok_flag["on"] = False
+    paused = social_module.TIKTOK_PAUSED_MESSAGE
+    with pytest.raises(social_module.SocialProviderUnavailable, match="paused"):
+        await service.start_connection("user-1", "tiktok")
+    with pytest.raises(social_module.SocialProviderUnavailable, match="paused"):
+        await service.complete_connection("user-1", "tiktok", code="good-code", state="old")
+    with pytest.raises(social_module.SocialProviderUnavailable, match="paused"):
+        await service.publishing_options("user-1", account["id"])
+    jobs_before = len(service.queue_adapter.jobs)
+    with pytest.raises(social_module.SocialProviderUnavailable) as exc:
+        await service.create_post("user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+                                  title=None, caption=None, hashtags=None, privacy_level="private", scheduled_for=None)
+    assert str(exc.value) == paused
+    assert len(service.queue_adapter.jobs) == jobs_before
+    assert service.repo.states == {}
+
+
+@pytest.mark.asyncio
+async def test_pause_only_affects_tiktok(service, tiktok_flag):
+    tiktok_flag["on"] = False
+    assert await service.provider_paused("tiktok", "user-1") is True
+    assert await service.provider_paused("youtube", "user-1") is False
+    assert (await _connect(service))["provider"] == "youtube"
+    assert all(key == "tiktok_publishing" for key, _, _ in tiktok_flag["checks"])
+
+
+@pytest.mark.asyncio
+async def test_pause_is_checked_for_the_callers_platform(service, tiktok_flag):
+    service.platform = "ios"
+    await service.provider_paused("tiktok", "user-1")
+    assert tiktok_flag["checks"][-1] == ("tiktok_publishing", "ios", "user-1")
+
+
+@pytest.mark.asyncio
+async def test_queued_tiktok_post_fails_readably_while_paused(service, tiktok_flag):
+    account = await _connect(service)
+    post = await service.create_post("user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+                                     title=None, caption=None, hashtags=None, privacy_level="private", scheduled_for=None)
+    service.repo.posts[post["id"]]["provider"] = "tiktok"
+    service.repo.accounts[account["id"]]["provider"] = "tiktok"
+    tiktok_flag["on"] = False
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "failed"
+    assert result["error_message"] == social_module.TIKTOK_PAUSED_MESSAGE
+    # The worker has no platform: it asked about both before refusing.
+    assert {platform for _, platform, _ in tiktok_flag["checks"][-2:]} == {"web", "ios"}

@@ -111,7 +111,9 @@
     "reconnect": "重新连接",
     "disconnect": "断开连接",
     "analytics": "数据分析",
-    "analyticsHint": "已发布片段的观看、点赞和评论，按平台、钩子和时长查看。"
+    "analyticsHint": "已发布片段的观看、点赞和评论，按平台、钩子和时长查看。",
+    "tiktokPaused": "我们正在修复 TikTok 的一个问题，TikTok 发布暂时暂停。其他平台照常可用。",
+    "paused": "已暂停"
   },
   "accounts": "账号",
   "accountsHint": "选择一个或多个账号。标题、文案和话题标签将共用。",
@@ -126,5 +128,6 @@
   "loadingPrivacy": "正在检查 TikTok 发布选项…",
   "privacyLoadFailed": "无法加载发布选项，请刷新后重试。",
   "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。",
-  "tiktokPrivateAccountRequired": "TikTok 尚未批准 SupoClip 的应用，因此只接受来自私密账号的仅自己可见发布。发布前，请在 TikTok 中开启「设置和隐私 → 隐私 → 私密账号」。"
+  "tiktokPrivateAccountRequired": "TikTok 尚未批准 SupoClip 的应用，因此只接受来自私密账号的仅自己可见发布。发布前，请在 TikTok 中开启「设置和隐私 → 隐私 → 私密账号」。",
+  "tiktokPaused": "我们正在修复 TikTok 的一个问题，TikTok 发布暂时暂停。其他平台照常可用。"
 }

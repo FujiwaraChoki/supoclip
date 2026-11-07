@@ -195,6 +195,12 @@ function SocialSettingsContent() {
       {/* Connect */}
       <section className="mb-10">
         <h2 className={SECTION_HEADING}>{t("page.connectHeading")}</h2>
+        {!isFetching && providers.some((provider) => provider.paused) && (
+          <Alert className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{t("page.tiktokPaused")}</AlertDescription>
+          </Alert>
+        )}
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
@@ -228,7 +234,7 @@ function SocialSettingsContent() {
                         <p className="text-sm font-medium">{provider.display_name}</p>
                         {!provider.configured && (
                           <Badge variant="secondary" className="font-normal text-muted-foreground">
-                            {t("page.comingSoon")}
+                            {provider.paused ? t("page.paused") : t("page.comingSoon")}
                           </Badge>
                         )}
                       </div>
@@ -245,7 +251,7 @@ function SocialSettingsContent() {
                           </button>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs space-y-2" sideOffset={6}>
-                          {!provider.configured && <p>{t("page.verificationNote")}</p>}
+                          {!provider.configured && <p>{provider.paused ? t("page.tiktokPaused") : t("page.verificationNote")}</p>}
                           <p>{t(`page.${provider.provider}Note`)}</p>
                         </TooltipContent>
                       </Tooltip>

@@ -111,7 +111,9 @@
     "reconnect": "Reconnect",
     "disconnect": "Disconnect",
     "analytics": "Analytics",
-    "analyticsHint": "Views, likes and comments from your published clips, by platform, hook and length."
+    "analyticsHint": "Views, likes and comments from your published clips, by platform, hook and length.",
+    "tiktokPaused": "TikTok publishing is paused while we fix an issue with TikTok. Your other platforms work as usual.",
+    "paused": "Paused"
   },
   "accounts": "Accounts",
   "accountsHint": "Select one or more accounts. Your title, caption and hashtags are shared.",
@@ -126,5 +128,6 @@
   "loadingPrivacy": "Checking TikTok publishing options…",
   "privacyLoadFailed": "Couldn’t load publishing options. Refresh and try again.",
   "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options.",
-  "tiktokPrivateAccountRequired": "TikTok hasn’t approved SupoClip’s app yet, so it only accepts private posts from accounts set to Private. In TikTok, turn on Settings and privacy → Privacy → Private account before publishing."
+  "tiktokPrivateAccountRequired": "TikTok hasn’t approved SupoClip’s app yet, so it only accepts private posts from accounts set to Private. In TikTok, turn on Settings and privacy → Privacy → Private account before publishing.",
+  "tiktokPaused": "TikTok publishing is paused while we fix an issue with TikTok. Your other platforms work as usual."
 }

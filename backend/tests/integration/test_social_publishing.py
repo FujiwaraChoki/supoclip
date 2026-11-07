@@ -381,3 +381,32 @@ async def test_refreshed_tokens_cannot_revive_a_disconnected_account(
     account = await service.repo.get_account_with_tokens(db_session, account_id)
     assert account["status"] == "revoked"
     assert account["access_token_encrypted"] == ""
+
+
+@pytest.mark.asyncio
+async def test_providers_report_tiktok_paused_by_its_flag(app, client, auth_headers, feature_flag, monkeypatch):
+    from src import feature_flags
+
+    config = app.state.config
+    monkeypatch.setattr(config, "social_publishing_access", "all")
+    monkeypatch.setattr(config, "social_publishing_providers", frozenset({"youtube", "tiktok"}))
+    for field in ("youtube_oauth_client_id", "youtube_oauth_client_secret", "tiktok_client_key", "tiktok_client_secret"):
+        monkeypatch.setattr(config, field, "test-credential")
+
+    async def providers():
+        feature_flags.clear_cache()
+        response = await client.get("/social/providers", headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {row["provider"]: row for row in response.json()["providers"]}
+
+    # Seeded off: TikTok reads as unconfigured (older clients hide it) and paused.
+    rows = await providers()
+    assert rows["tiktok"]["configured"] is False and rows["tiktok"]["paused"] is True
+    assert rows["youtube"]["configured"] is True and "paused" not in rows["youtube"]
+    blocked = await client.post("/social/connections/tiktok/authorize", headers=auth_headers)
+    assert blocked.status_code == 503 and "paused" in blocked.json()["detail"]
+
+    await feature_flag("tiktok_publishing", web_enabled=True)
+    rows = await providers()
+    assert rows["tiktok"]["configured"] is True and "paused" not in rows["tiktok"]
+    feature_flags.clear_cache()

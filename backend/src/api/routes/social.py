@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth_headers import get_authenticated_user_id, resolve_authenticated_user_id
+from ...feature_flags import client_platform
 from ...config import get_config
 from ...database import get_db
 from ...media_storage import is_s3
@@ -30,7 +31,9 @@ router = APIRouter(prefix="/social", tags=["social"])
 
 def _service(request: Request, db: AsyncSession) -> SocialService:
     queue_adapter = getattr(request.app.state, "queue_adapter", None)
-    return SocialService(db, get_config(), queue_adapter=queue_adapter)
+    return SocialService(
+        db, get_config(), queue_adapter=queue_adapter, platform=client_platform(request)
+    )
 
 
 async def _user_id(request: Request, db: AsyncSession) -> str:
@@ -83,6 +86,15 @@ async def list_providers(request: Request, db: AsyncSession = Depends(get_db)):
     enabled = await service.has_access(user_id)
     if not enabled:
         providers = [{**provider, "configured": False} for provider in providers]
+    else:
+        # A paused platform reads as unconfigured, so older clients (iOS) hide it;
+        # `paused` lets the web explain why.
+        providers = [
+            {**provider, "configured": False, "paused": True}
+            if provider["configured"] and await service.provider_paused(provider["provider"], user_id)
+            else provider
+            for provider in providers
+        ]
     can_schedule = enabled and await service.can_schedule(user_id)
     return {"enabled": enabled, "can_schedule": can_schedule, "providers": providers}
 
