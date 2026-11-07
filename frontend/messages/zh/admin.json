@@ -142,5 +142,19 @@
     "editAction": "编辑",
     "hide": "隐藏",
     "publish": "发布"
+  },
+  "flags": {
+    "title": "功能开关",
+    "description": "无需部署即可按平台开启功能。更改约 15 秒内生效。",
+    "flag": "开关",
+    "web": "网页",
+    "ios": "iOS",
+    "adminsBypass": "管理员始终可用",
+    "adminsBypassHint": "关闭时管理员仍可在所有平台使用",
+    "updated": "更新时间",
+    "updatedBy": "{date}，{email}",
+    "empty": "暂无功能开关。",
+    "toggle": "{platform} 上的 {flag}",
+    "updateFailed": "无法更新开关"
   }
 }

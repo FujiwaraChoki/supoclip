@@ -142,5 +142,19 @@
     "editAction": "Editar",
     "hide": "Ocultar",
     "publish": "Publicar"
+  },
+  "flags": {
+    "title": "Feature flags",
+    "description": "Activa funciones por plataforma sin desplegar. Los cambios llegan a la API en unos 15 segundos.",
+    "flag": "Flag",
+    "web": "Web",
+    "ios": "iOS",
+    "adminsBypass": "Admins siempre",
+    "adminsBypassHint": "Los admins la tienen en todas las plataformas aunque esté desactivada",
+    "updated": "Actualizado",
+    "updatedBy": "{date} por {email}",
+    "empty": "Aún no hay feature flags.",
+    "toggle": "{flag} en {platform}",
+    "updateFailed": "No se pudo actualizar el flag"
   }
 }

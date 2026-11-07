@@ -142,5 +142,19 @@
     "editAction": "Ubah",
     "hide": "Sembunyikan",
     "publish": "Publikasikan"
+  },
+  "flags": {
+    "title": "Feature flag",
+    "description": "Aktifkan fitur per platform tanpa deploy. Perubahan sampai ke API dalam sekitar 15 detik.",
+    "flag": "Flag",
+    "web": "Web",
+    "ios": "iOS",
+    "adminsBypass": "Admin selalu",
+    "adminsBypassHint": "Admin mendapatkannya di semua platform meski sedang nonaktif",
+    "updated": "Diperbarui",
+    "updatedBy": "{date} oleh {email}",
+    "empty": "Belum ada feature flag.",
+    "toggle": "{flag} di {platform}",
+    "updateFailed": "Gagal memperbarui flag"
   }
 }

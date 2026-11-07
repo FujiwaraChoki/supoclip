@@ -101,6 +101,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   app_settings  AppSetting[]
+  feature_flags_updated FeatureFlag[]
   acquisition   UserAcquisition?
   affiliate     Affiliate?  @relation("AffiliateApplicant")
   reviewed_affiliates Affiliate[] @relation("AffiliateReviewer")
@@ -160,6 +161,24 @@ model Affiliate {
 
   @@index([status, created_at])
   @@map("affiliates")
+}
+
+// Feature flags per platform (backend/src/feature_flags.py), switched in /admin.
+model FeatureFlag {
+  key           String   @id @db.VarChar(64)
+  description   String   @default("")
+  web_enabled   Boolean  @default(false)
+  ios_enabled   Boolean  @default(false)
+  // Admins get the feature on every platform while it is off for everyone else.
+  admins_bypass Boolean  @default(true)
+  updated_by    String?  @db.VarChar(36)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  updated_by_user User?  @relation(fields: [updated_by], references: [id], onDelete: SetNull)
+
+  @@index([updated_by], map: "idx_feature_flags_updated_by")
+  @@map("feature_flags")
 }
 
 model AppSetting {

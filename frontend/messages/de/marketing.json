@@ -341,7 +341,7 @@
   "publish": {
     "eyebrow": "Neu: Veröffentlichen",
     "title": "Einmal clippen. Die ganze Woche posten.",
-    "body": "Verbinde deinen YouTube-Kanal und jeder Clip erscheint nach seinem eigenen Zeitplan. Wähle eine Uhrzeit, prüfe den KI-Titelentwurf und SupoClip postet für dich.",
+    "body": "Verbinde deinen YouTube-Kanal oder dein TikTok-Konto und veröffentliche jeden Clip nach deinem Zeitplan. Wähle eine Uhrzeit, prüfe den von der KI entworfenen Titel und die Beschreibung, und SupoClip postet für dich.",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -419,9 +419,9 @@
     "usageExample": {
       "videos": "Etwa {count} Quellvideos im Monat. Aus jedem werden mehrere Clips."
     },
-    "publishYoutube": "Clips auf YouTube Shorts posten",
-    "schedulingYoutube": "Clips für YouTube Shorts planen",
-    "schedulingSoon": "Planen für TikTok und Instagram"
+    "publishPlatforms": "Clips auf YouTube Shorts und TikTok posten",
+    "schedulingPlatforms": "Clips auf YouTube Shorts und TikTok planen",
+    "schedulingSoon": "Planen für Instagram"
   },
   "faq": {
     "eyebrow": "FAQ",
@@ -442,7 +442,7 @@
       },
       "publishing": {
         "question": "Kann SupoClip auf TikTok und Instagram posten?",
-        "answer": "Heute kannst du direkt auf YouTube Shorts veröffentlichen: sofort mit Pro oder geplant mit Creator. TikTok und Instagram kommen bald. Bis dahin lädst du Clips mit den Export-Presets für TikTok und Reels herunter und lädst sie selbst hoch."
+        "answer": "Ja, du kannst direkt auf TikTok und YouTube Shorts veröffentlichen oder Posts mit Creator planen. Instagram-Veröffentlichungen kommen bald. Bis dahin lädst du Clips mit dem Reels-Export-Preset herunter und lädst sie selbst auf Instagram hoch."
       },
       "watermark": {
         "question": "Haben die Clips ein Wasserzeichen?",

@@ -341,7 +341,7 @@
   "publish": {
     "eyebrow": "新功能：发布",
     "title": "剪一次，发一周。",
-    "body": "连接你的 YouTube 频道，每个片段都能按自己的时间发布。选好时间，看一眼 AI 起草的标题，SupoClip 会替你发布。",
+    "body": "连接你的 YouTube 频道或 TikTok 账号，为每个片段安排发布时间。选择时间，检查 AI 起草的标题和描述，SupoClip 就会替你发布。",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -419,9 +419,9 @@
     "usageExample": {
       "videos": "每月约 {count} 个原视频，每个都能剪出多个片段。"
     },
-    "publishYoutube": "将片段发布到 YouTube Shorts",
-    "schedulingYoutube": "排期发布到 YouTube Shorts",
-    "schedulingSoon": "排期发布到 TikTok 和 Instagram"
+    "publishPlatforms": "发布片段到 YouTube Shorts 和 TikTok",
+    "schedulingPlatforms": "定时发布片段到 YouTube Shorts 和 TikTok",
+    "schedulingSoon": "定时发布到 Instagram"
   },
   "faq": {
     "eyebrow": "常见问题",
@@ -442,7 +442,7 @@
       },
       "publishing": {
         "question": "SupoClip 能发布到 TikTok 和 Instagram 吗？",
-        "answer": "目前可以直接发布到 YouTube Shorts：Pro 可立即发布，Creator 可排期发布。TikTok 和 Instagram 即将推出。在此之前，可以用 TikTok 和 Reels 导出预设下载片段，再自行上传。"
+        "answer": "可以，你可以直接发布到 TikTok 和 YouTube Shorts，也可以使用 Creator 定时发布。Instagram 发布功能即将推出。在此之前，可以用 Reels 导出预设下载片段，再自行上传到 Instagram。"
       },
       "watermark": {
         "question": "片段会带水印吗？",

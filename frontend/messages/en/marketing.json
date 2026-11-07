@@ -341,7 +341,7 @@
   "publish": {
     "eyebrow": "New: publishing",
     "title": "Clip it once. Post it all week.",
-    "body": "Connect your YouTube channel and every clip can go out on its own schedule. Pick a time, review the AI-drafted title, and SupoClip posts it for you.",
+    "body": "Connect your YouTube channel or TikTok account and every clip can go out on its own schedule. Pick a time, review the AI-drafted title and caption, and SupoClip posts it for you.",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -419,9 +419,9 @@
     "usageExample": {
       "videos": "About {count} source videos a month. Each one becomes several clips."
     },
-    "publishYoutube": "Post clips to YouTube Shorts",
-    "schedulingYoutube": "Schedule clips to YouTube Shorts",
-    "schedulingSoon": "Scheduling to TikTok and Instagram"
+    "publishPlatforms": "Post clips to YouTube Shorts and TikTok",
+    "schedulingPlatforms": "Schedule clips to YouTube Shorts and TikTok",
+    "schedulingSoon": "Scheduling to Instagram"
   },
   "faq": {
     "eyebrow": "FAQ",
@@ -442,7 +442,7 @@
       },
       "publishing": {
         "question": "Can SupoClip post to TikTok and Instagram?",
-        "answer": "Today you can publish straight to YouTube Shorts: right away on Pro, or on a schedule with Creator. TikTok and Instagram are coming soon. Until then, download clips with the TikTok and Reels export presets and upload them yourself."
+        "answer": "Yes, you can publish straight to TikTok and YouTube Shorts, or schedule posts with Creator. Instagram publishing is coming soon. Until then, download clips with the Reels export preset and upload them to Instagram yourself."
       },
       "watermark": {
         "question": "Do clips have a watermark?",

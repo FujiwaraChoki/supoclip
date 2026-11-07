@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { AdminUserToggle } from "@/components/admin/admin-user-toggle";
 import { LegacyHdToggle } from "@/components/admin/legacy-hd-toggle";
+import { FeatureFlagSwitch } from "@/components/admin/feature-flag-switch";
 import { formatBillingPlanName } from "@/lib/billing-plans";
 import { AffiliateReviewActions } from "@/components/admin/affiliate-review-actions";
 import {
@@ -120,6 +121,7 @@ export default async function AdminPage({
     selectedUser,
     selectedUserTasks,
     affiliates,
+    featureFlags,
   ] = await Promise.all([
     loadRuntimeSettings(),
     prisma.user.count(),
@@ -249,6 +251,18 @@ export default async function AdminPage({
         user: { select: { email: true, name: true } },
       },
     }),
+    prisma.featureFlag.findMany({
+      orderBy: { key: "asc" },
+      select: {
+        key: true,
+        description: true,
+        web_enabled: true,
+        ios_enabled: true,
+        admins_bypass: true,
+        updated_at: true,
+        updated_by_user: { select: { email: true } },
+      },
+    }),
   ]);
 
   // Pending applications first; each group newest first.
@@ -285,6 +299,36 @@ export default async function AdminPage({
           </div>
         ))}
       </section>
+
+      <div id="feature-flags" className="scroll-mt-6">
+        <Panel title={t("flags.title")} description={t("flags.description")}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y">
+              <thead className="bg-muted/40"><tr><th className={th}>{t("flags.flag")}</th><th className={th}>{t("flags.web")}</th><th className={th}>{t("flags.ios")}</th><th className={th} title={t("flags.adminsBypassHint")}>{t("flags.adminsBypass")}</th><th className={th}>{t("flags.updated")}</th></tr></thead>
+              <tbody className="divide-y">
+                {featureFlags.length === 0 ? (
+                  <tr><td className={cn(td, "text-muted-foreground")} colSpan={5}>{t("flags.empty")}</td></tr>
+                ) : featureFlags.map((flag) => (
+                  <tr key={flag.key} className="align-top hover:bg-muted/30">
+                    <td className={td}>
+                      <p className="font-mono font-medium">{flag.key}</p>
+                      {flag.description && <p className="max-w-md text-xs text-muted-foreground">{flag.description}</p>}
+                    </td>
+                    <td className={td}><FeatureFlagSwitch flagKey={flag.key} field="web_enabled" checked={flag.web_enabled} label={t("flags.toggle", { flag: flag.key, platform: t("flags.web") })} /></td>
+                    <td className={td}><FeatureFlagSwitch flagKey={flag.key} field="ios_enabled" checked={flag.ios_enabled} label={t("flags.toggle", { flag: flag.key, platform: t("flags.ios") })} /></td>
+                    <td className={td}><FeatureFlagSwitch flagKey={flag.key} field="admins_bypass" checked={flag.admins_bypass} label={t("flags.toggle", { flag: flag.key, platform: t("flags.adminsBypass") })} /></td>
+                    <td className={cn(td, "whitespace-nowrap text-xs text-muted-foreground")}>
+                      {flag.updated_by_user
+                        ? t("flags.updatedBy", { date: flag.updated_at.toLocaleString(dateLocale), email: flag.updated_by_user.email })
+                        : flag.updated_at.toLocaleString(dateLocale)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </div>
 
       <div id="affiliates" className="scroll-mt-6">
         <Panel

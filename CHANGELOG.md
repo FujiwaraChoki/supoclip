@@ -7,9 +7,11 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-06
 
 - **Fixed:** When YouTube audio comes through the backup download route, the video's length is read correctly, so clips from its last minutes are no longer dropped. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+- **Under the hood:** New features can be switched on for the web and iPhone apps separately, without an update. ([#340](https://github.com/FujiwaraChoki/supoclip/pull/340))
 
 ## 2026-11-05
 
+- **Fixed:** The homepage shows TikTok publishing and scheduling as available alongside YouTube, with updated pricing details and FAQ answers. Instagram remains marked as coming soon. ([#339](https://github.com/FujiwaraChoki/supoclip/pull/339))
 - **Improved:** Generations show a short, varied notice when a video takes longer than usual. The notice survives a page refresh, replaces the time estimate during delays, and clears when processing continues. ([#336](https://github.com/FujiwaraChoki/supoclip/pull/336))
 - **Improved:** Pro includes 10 AI edits per month and Creator includes 100. The editor shows the remaining allowance and reset date, and failed requests restore the edit. ([#335](https://github.com/FujiwaraChoki/supoclip/pull/335))
 - **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))

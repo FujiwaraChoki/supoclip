@@ -142,5 +142,19 @@
     "editAction": "Editar",
     "hide": "Ocultar",
     "publish": "Publicar"
+  },
+  "flags": {
+    "title": "Feature flags",
+    "description": "Ative recursos por plataforma sem deploy. As mudanças chegam à API em cerca de 15 segundos.",
+    "flag": "Flag",
+    "web": "Web",
+    "ios": "iOS",
+    "adminsBypass": "Admins sempre",
+    "adminsBypassHint": "Admins têm o recurso em todas as plataformas mesmo desativado",
+    "updated": "Atualizado",
+    "updatedBy": "{date} por {email}",
+    "empty": "Nenhuma feature flag ainda.",
+    "toggle": "{flag} em {platform}",
+    "updateFailed": "Não foi possível atualizar a flag"
   }
 }

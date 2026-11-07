@@ -153,6 +153,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 **Task lifecycle:**
 - `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`
 - `GET /tasks/workflows` — What the user can make (workflow gate and limits)
+- `GET /feature-flags` — Feature flags evaluated for the caller and platform
 - `GET /tasks/` — List user tasks
 - `GET /tasks/{id}` — Get task with clips
 - `GET /tasks/{id}/progress` — SSE real-time progress stream
@@ -294,6 +295,22 @@ TEMP_DIR=/tmp                        # Temp file storage
 DATABASE_URL=postgresql+asyncpg://...
 BETTER_AUTH_SECRET=...               # Frontend auth secret
 ```
+
+## Feature flags
+
+`feature_flags` table (key, `web_enabled`, `ios_enabled`, `admins_bypass`, description, `updated_by`):
+switch a feature per platform without a deploy, in the `/admin` "Feature Flags" panel
+(`/api/admin/feature-flags/[key]`, written with Prisma). `backend/src/feature_flags.py` reads them with a
+15-second in-process cache; a missing row or unreadable table falls back to `DEFAULT_FLAGS` (off, admins bypass).
+
+- **Platform:** `x-supoclip-client: ios` from the iOS app (`AuthInterceptor`), forwarded by the web proxies
+  (`backendTraceHeaders` in `server/backend-api.ts`); anything else, API keys and MCP included, is web.
+- **On** = the platform column, or the caller is an admin and `admins_bypass` is set.
+- `GET /feature-flags` (proxied at `/api/feature-flags`) returns the evaluated booleans for the caller.
+- **`workflows`:** seeded off on web and iOS (admins bypass). It gates the creation workflows (series, topic,
+  recap, trailer) once they ship, on top of the `WORKFLOWS_ACCESS` env gate: both must allow.
+- Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
+  `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 
 ## Common Workflows
 
