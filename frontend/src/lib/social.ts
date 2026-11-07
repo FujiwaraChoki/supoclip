@@ -14,6 +14,8 @@ export interface SocialProviderStatus {
   provider: SocialProviderId;
   display_name: string;
   configured: boolean;
+  /** Turned off for now by the `tiktok_publishing` feature flag; reported as unconfigured too. */
+  paused?: boolean;
   supported_privacy_levels: SocialPrivacyLevel[];
   default_privacy_level?: SocialPrivacyLevel;
   setup_hint: string | null;

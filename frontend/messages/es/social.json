@@ -111,7 +111,9 @@
     "reconnect": "Reconectar",
     "disconnect": "Desconectar",
     "analytics": "Analítica",
-    "analyticsHint": "Vistas, me gusta y comentarios de tus clips publicados, por plataforma, gancho y duración."
+    "analyticsHint": "Vistas, me gusta y comentarios de tus clips publicados, por plataforma, gancho y duración.",
+    "tiktokPaused": "La publicación en TikTok está en pausa mientras solucionamos un problema con TikTok. Tus otras plataformas funcionan con normalidad.",
+    "paused": "En pausa"
   },
   "accounts": "Cuentas",
   "accountsHint": "Selecciona una o varias cuentas. El título, la descripción y los hashtags se comparten.",
@@ -126,5 +128,6 @@
   "loadingPrivacy": "Comprobando las opciones de TikTok…",
   "privacyLoadFailed": "No se pudieron cargar las opciones. Actualiza e inténtalo de nuevo.",
   "tiktokPublicUnavailable": "La visibilidad pública no está disponible para esta cuenta de TikTok. Revisa su privacidad en TikTok y actualiza las opciones.",
-  "tiktokPrivateAccountRequired": "TikTok aún no ha aprobado la app de SupoClip, así que solo acepta publicaciones privadas de cuentas privadas. Antes de publicar, activa en TikTok Ajustes y privacidad → Privacidad → Cuenta privada."
+  "tiktokPrivateAccountRequired": "TikTok aún no ha aprobado la app de SupoClip, así que solo acepta publicaciones privadas de cuentas privadas. Antes de publicar, activa en TikTok Ajustes y privacidad → Privacidad → Cuenta privada.",
+  "tiktokPaused": "La publicación en TikTok está en pausa mientras solucionamos un problema con TikTok. Tus otras plataformas funcionan con normalidad."
 }

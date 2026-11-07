@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-07
+
+- **Changed:** TikTok publishing is paused for now, with a short note in Social settings, while an issue with TikTok is fixed. ([#343](https://github.com/FujiwaraChoki/supoclip/pull/343))
+
 ## 2026-11-06
 
 - **Fixed:** When YouTube audio comes through the backup download route, the video's length is read correctly, so clips from its last minutes are no longer dropped. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))

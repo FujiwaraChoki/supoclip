@@ -152,7 +152,7 @@ async def test_evaluated_flags_looks_up_the_user_once():
         [workflows_row(), {"key": "other", "web_enabled": False, "ios_enabled": False, "admins_bypass": True, "description": ""}],
         admins={"boss"},
     )
-    assert await feature_flags.evaluated_flags(db, platform="web", user_id="boss") == {"other": True, "workflows": True}
+    assert await feature_flags.evaluated_flags(db, platform="web", user_id="boss") == {"other": True, "tiktok_publishing": False, "workflows": True}
     assert db.user_reads == 1
 
 

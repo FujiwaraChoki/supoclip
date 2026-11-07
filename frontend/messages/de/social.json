@@ -111,7 +111,9 @@
     "reconnect": "Erneut verbinden",
     "disconnect": "Trennen",
     "analytics": "Analysen",
-    "analyticsHint": "Aufrufe, Likes und Kommentare deiner veröffentlichten Clips, nach Plattform, Hook und Länge."
+    "analyticsHint": "Aufrufe, Likes und Kommentare deiner veröffentlichten Clips, nach Plattform, Hook und Länge.",
+    "tiktokPaused": "Das Veröffentlichen auf TikTok ist pausiert, während wir ein Problem mit TikTok beheben. Deine anderen Plattformen funktionieren wie gewohnt.",
+    "paused": "Pausiert"
   },
   "accounts": "Konten",
   "accountsHint": "Wähle ein oder mehrere Konten. Titel, Beschreibung und Hashtags gelten für alle.",
@@ -126,5 +128,6 @@
   "loadingPrivacy": "TikTok-Veröffentlichungsoptionen werden geprüft…",
   "privacyLoadFailed": "Veröffentlichungsoptionen konnten nicht geladen werden. Bitte aktualisieren.",
   "tiktokPublicUnavailable": "Öffentlich ist für dieses TikTok-Konto nicht verfügbar. Prüfe die Datenschutzeinstellungen in TikTok und aktualisiere die Optionen.",
-  "tiktokPrivateAccountRequired": "TikTok hat die App von SupoClip noch nicht freigegeben und akzeptiert daher nur private Beiträge von privaten Konten. Aktiviere vor dem Veröffentlichen in TikTok Einstellungen und Datenschutz → Datenschutz → Privates Konto."
+  "tiktokPrivateAccountRequired": "TikTok hat die App von SupoClip noch nicht freigegeben und akzeptiert daher nur private Beiträge von privaten Konten. Aktiviere vor dem Veröffentlichen in TikTok Einstellungen und Datenschutz → Datenschutz → Privates Konto.",
+  "tiktokPaused": "Das Veröffentlichen auf TikTok ist pausiert, während wir ein Problem mit TikTok beheben. Deine anderen Plattformen funktionieren wie gewohnt."
 }

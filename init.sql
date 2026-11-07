@@ -334,6 +334,14 @@ VALUES (
     false,
     true
 );
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'tiktok_publishing',
+    'TikTok connecting and publishing. Off shows TikTok as paused with a short notice. Turn on once TikTok''s Direct Post audit passes.',
+    false,
+    false,
+    false
+);
 
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);

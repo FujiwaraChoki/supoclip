@@ -311,6 +311,10 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
 - **`workflows`:** seeded off on web and iOS (admins bypass) until the iOS build with workflows is approved.
   It sits on top of `WORKFLOWS_ACCESS`: both must allow. Off hides workflows in `GET /tasks/workflows` for that
   platform and makes create/resume with a workflow 403 `WORKFLOW_NOT_AVAILABLE` before any charge.
+- **`tiktok_publishing`:** seeded off on web and iOS, no admin bypass, until TikTok audits the app's Direct Post
+  access (unaudited, TikTok rejects posts from public accounts). Off, `/social/providers` reports TikTok `configured: false,
+  paused: true` (the web shows a short notice; iOS hides it) and connect/options/publish/retry return 503. Self-hosters
+  with their own audited TikTok app turn it on in /admin.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
   `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 
