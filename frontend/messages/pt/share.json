@@ -9,5 +9,13 @@
   "topVirality": "maior pontuação de viralidade",
   "ctaTitle": "Transforme seus vídeos longos em clipes como estes.",
   "ctaBody": "O SupoClip encontra os melhores momentos, enquadra quem fala e escreve as legendas. Código aberto e grátis para hospedar você mesmo.",
-  "try": "Experimentar o SupoClip"
+  "try": "Experimentar o SupoClip",
+  "workflowBadge": {
+    "series": "Série · {count, plural, one {# parte} other {# partes}}",
+    "topic": "Tema: {topic}",
+    "recap": "Resumo",
+    "trailer": "Trailer"
+  },
+  "partLabel": "Parte {n}",
+  "totalDuration": "{duration} no total"
 }

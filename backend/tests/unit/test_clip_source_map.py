@@ -50,6 +50,7 @@ class _FakeClipRepo:
         end_time: str,
         duration: float,
         text: str,
+        workflow_meta=None,
     ):
         self.clip.update(
             {

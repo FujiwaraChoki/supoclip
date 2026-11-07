@@ -110,3 +110,13 @@ async def test_retry_does_not_confuse_display_order_with_completed_plan_position
     clips = await ClipRepository.get_clips_by_task(db_session, task_id)
     assert [clip["id"] for clip in clips[:2]] == ids
     assert [clip["clip_order"] for clip in clips] == [1, 2, 3, 4]
+
+
+async def test_discarded_clips_are_no_longer_completed_positions(db_session, tmp_path):
+    task_id, _ids, _original = await make_task(db_session, tmp_path, status="queued")
+    key = checkpoint_input_key("upload://input.mp4", "upload", "fast", "auto", object())
+    await TaskCheckpointRepository.save(db_session, task_id, key, {"completed_positions": [1, 2], "transcript": "kept"})
+
+    await TaskCheckpointRepository.forget_completed_positions(db_session, task_id)
+
+    assert await TaskCheckpointRepository.get(db_session, task_id, key) == {"transcript": "kept"}

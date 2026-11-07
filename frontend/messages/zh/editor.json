@@ -373,5 +373,7 @@
     "subscriptionRequired": "AI 编辑需要 Pro 或 Creator 套餐。",
     "upgradeCreator": "升级至 Creator",
     "viewPlans": "查看套餐"
-  }
+  },
+  "partLabel": "第 {n} 集",
+  "partClipLabel": "第 {n} 集 · {title}"
 }

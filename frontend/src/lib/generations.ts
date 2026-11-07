@@ -1,4 +1,6 @@
-export interface GenerationSummary {
+import type { WorkflowSummaryFields } from "@/lib/workflows";
+
+export interface GenerationSummary extends WorkflowSummaryFields {
   id: string;
   user_id: string;
   source_id: string;

@@ -7,6 +7,7 @@ from ..repositories.edit_transaction import serialized_task_edit
 from typing import Dict, Any, Optional
 import logging
 from pathlib import Path
+import copy
 import json
 import tempfile
 
@@ -25,6 +26,7 @@ from ..media.common import MAX_RENDERED_CLIP_SECONDS
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..broll import broll_overlays_for, shift_broll_placements
 from ..clip_source_map import (
+    normalize_source_ranges,
     load_clip_broll,
     load_clip_source_ranges,
     save_clip_broll,
@@ -47,10 +49,111 @@ from ..youtube_source import (
     restore_clip_timeline,
 )
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip_duration
+from ..media.render_ranges import burned_hook_title, point_labels_for
 from ..stream_source import download_stream_sections
 from .video_service import resolve_upload_for_edit
 
 logger = logging.getLogger(__name__)
+
+
+def fill_output_starts(items: Any, group_output_starts: list) -> None:
+    """Set each recap point / trailer beat's start on the rendered clip timeline."""
+    for item in items if isinstance(items, list) else []:
+        index = item.get("range_index") if isinstance(item, dict) else None
+        if isinstance(index, int) and 0 <= index < len(group_output_starts):
+            start = group_output_starts[index]
+            item["output_start"] = round(float(start), 3) if start is not None else None
+
+
+# Keys that describe a clip's planned cuts; a clip holding other footage drops them.
+PLANNED_META_KEYS = ("planned", "ranges", "junction_fades", "max_seconds", "points", "beats")
+# Rounding slack when checking that a played piece lies inside a planned range.
+PLAN_EDGE_TOLERANCE_SECONDS = 0.05
+
+
+def _overlap(piece: tuple, planned_range: tuple) -> float:
+    return min(float(piece[1]), float(planned_range[1])) - max(float(piece[0]), float(planned_range[0]))
+
+
+def _follows_plan(pieces: list, planned: list) -> bool:
+    """Every played piece comes from one of the planned ranges (trims and splits only).
+
+    A merge adds footage the plan never chose; such a clip is re-cut like any
+    edited clip instead of being pulled back onto its first clip's plan.
+    """
+    return bool(planned) and all(
+        any(
+            float(piece[0]) >= float(start) - PLAN_EDGE_TOLERANCE_SECONDS
+            and float(piece[1]) <= float(end) + PLAN_EDGE_TOLERANCE_SECONDS
+            for start, end in planned
+        )
+        for piece in pieces
+    )
+
+
+def _unplanned_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Workflow metadata of a clip that no longer plays its planned cuts (series title, part title, ...)."""
+    return {key: value for key, value in meta.items() if key not in PLANNED_META_KEYS}
+
+
+def _range_groups(pieces: list, planned: list) -> list[int]:
+    """Index of the planned range each played piece came from.
+
+    Cleanup only cuts inside a planned range, so a piece overlaps the range
+    it was cut from most; trailer ranges may play out of source order.
+    """
+    return [
+        max(range(len(planned)), key=lambda index: _overlap(piece, planned[index]))
+        for piece in pieces
+    ]
+
+
+def _narrow_planned_meta(meta: Dict[str, Any], pieces: list, offsets: list) -> Optional[Dict[str, Any]]:
+    """Workflow metadata for a clip that now plays only ``pieces`` (after a trim or split).
+
+    ``ranges`` keeps the planned ranges these pieces still cover, trimmed to
+    them, with the fades between them. Recap points and trailer beats keep
+    their place on the new timeline (``output_start``) or go with their range.
+    None when the pieces include footage outside the plan (a merged clip).
+    """
+    planned = normalize_source_ranges(meta.get("ranges"))
+    if not planned or not pieces:
+        return dict(meta)
+    if not _follows_plan(pieces, planned):
+        return None
+    fades = [float(value) for value in meta.get("junction_fades") or []]
+    groups = _range_groups(pieces, planned)
+    kept: list[int] = []
+    narrowed: list[tuple[float, float]] = []
+    starts: Dict[int, float] = {}
+    for group, (start, end) in enumerate(planned):
+        members = [index for index, owner in enumerate(groups) if owner == group]
+        if not members:
+            continue
+        kept.append(group)
+        narrowed.append((
+            max(start, min(pieces[index][0] for index in members)),
+            min(end, max(pieces[index][1] for index in members)),
+        ))
+        starts[group] = max(0.0, float(offsets[members[0]])) if members[0] < len(offsets) else 0.0
+    result = dict(meta)
+    result["ranges"] = [[round(start, 6), round(end, 6)] for start, end in narrowed]
+    result["junction_fades"] = [
+        fades[kept[index] - 1] if kept[index] - 1 == kept[index - 1] and kept[index] <= len(fades) else 0.0
+        for index in range(1, len(kept))
+    ]
+    for key in ("points", "beats"):
+        if isinstance(meta.get(key), list):
+            result[key] = [
+                {
+                    **item,
+                    "range_index": kept.index(item["range_index"]),
+                    "output_start": round(starts[item["range_index"]], 3),
+                }
+                for item in meta[key]
+                if isinstance(item, dict) and item.get("range_index") in kept
+            ]
+    return result
 
 
 class ClipEditingMixin:
@@ -160,6 +263,30 @@ class ClipEditingMixin:
                 if include_broll and not should_recompute_cleanup
                 else []
             )
+            meta = clip.get("workflow_meta") or {}
+            if meta.get("planned") and normalize_source_ranges(meta.get("ranges")):
+                planned_segment = await run_in_thread(
+                    self._planned_regeneration_segment,
+                    clip,
+                    source_ranges,
+                    broll,
+                    should_recompute_cleanup,
+                )
+                if planned_segment is not None:
+                    segments.append(planned_segment)
+                    continue
+            # Workflow clips re-cut like any edited clip (a merged part) keep
+            # their role and part number; a series still needs every part.
+            workflow_fields = (
+                {
+                    "workflow_role": clip.get("workflow_role"),
+                    "part_number": clip.get("part_number"),
+                    "workflow_meta": _unplanned_meta(meta),
+                    "required": clip.get("workflow_role") in ("part", "recap", "trailer"),
+                }
+                if clip.get("workflow_role") or meta
+                else {}
+            )
             bounds = source_range_bounds(source_ranges)
             if bounds:
                 start_time = self._seconds_to_mmss(bounds[0])
@@ -189,6 +316,7 @@ class ClipEditingMixin:
                     "hook_type": clip.get("hook_type"),
                     "hook_title": clip.get("hook_title"),
                     "broll": broll,
+                    **workflow_fields,
                 }
             )
 
@@ -254,14 +382,43 @@ class ClipEditingMixin:
             if source_type in {"youtube", "twitch", "kick"}:
                 self._cleanup_source_video(video_path, source_type, source_url)
 
-        if not clips_info:
-            # Replacing the rows with nothing would delete every clip.
+        rendered_indexes = {int(clip_info.get("clip_id") or 0) - 1 for clip_info in clips_info}
+        missing_required = [
+            segment for index, segment in enumerate(segments)
+            if segment.get("required") and index not in rendered_indexes
+        ]
+        if not clips_info or missing_required:
+            # Replacing the rows with nothing (or a series without a part)
+            # would lose clips the user has.
             raise ValueError("Could not regenerate the clips. Your existing clips are unchanged.")
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
 
         clip_ids = []
         for i, clip_info in enumerate(clips_info):
+            index = int(clip_info.get("clip_id") or 0) - 1
+            segment = segments[index] if 0 <= index < len(segments) else {}
+            workflow_fields: Dict[str, Any] = {}
+            if "workflow_role" in segment and not segment.get("planned"):
+                workflow_fields = {
+                    "workflow_role": segment.get("workflow_role"),
+                    "part_number": segment.get("part_number"),
+                    "workflow_meta": segment.get("workflow_meta"),
+                }
+            elif segment.get("planned"):
+                meta = copy.deepcopy(segment.get("workflow_meta") or {})
+                group_output_starts = clip_info.get("group_output_starts") or []
+                fill_output_starts(meta.get("points"), group_output_starts)
+                fill_output_starts(meta.get("beats"), group_output_starts)
+                bounds = source_range_bounds(normalize_source_ranges(meta.get("ranges")))
+                if bounds:
+                    clip_info["start_time"] = self._seconds_to_mmss(bounds[0])
+                    clip_info["end_time"] = self._seconds_to_mmss(bounds[1])
+                workflow_fields = {
+                    "workflow_role": segment.get("workflow_role"),
+                    "part_number": segment.get("part_number"),
+                    "workflow_meta": meta,
+                }
             clip_id = await self.clip_repo.create_clip(
                 self.db,
                 task_id=task_id,
@@ -282,10 +439,75 @@ class ClipEditingMixin:
                 shareability_score=clip_info.get("shareability_score", 0),
                 hook_type=clip_info.get("hook_type"),
                 hook_title=clip_info.get("hook_title"),
+                **workflow_fields,
             )
             clip_ids.append(clip_id)
 
         await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+
+    def _planned_regeneration_segment(
+        self,
+        clip: Dict[str, Any],
+        source_ranges: list,
+        broll: list,
+        recompute_cleanup: bool,
+    ) -> Optional[Dict[str, Any]]:
+        """Re-render a workflow clip on its planned cuts, never the AI-bounds path.
+
+        With unchanged cleanup the stored ranges and their offsets play again.
+        Changed cleanup (or a lost source map) cleans the planned ranges anew,
+        trimmed to what the clip still plays after the user's edits. None when
+        the clip holds footage outside its plan (merged): it re-renders as an
+        edited clip.
+        """
+        file_path = clip.get("file_path")
+        metadata_path = (
+            MediaStorage().local_path(file_path, metadata_only=True)
+            if isinstance(file_path, str) and file_path
+            else None
+        )
+        stored = load_clip_source_ranges(metadata_path) if metadata_path else None
+        offsets = (
+            load_clip_output_offsets(metadata_path, source_ranges)
+            if stored
+            else [0.0] * len(source_ranges)
+        )
+        meta = _narrow_planned_meta(clip.get("workflow_meta") or {}, source_ranges, offsets)
+        if meta is None:
+            return None
+        planned = normalize_source_ranges(meta.get("ranges"))
+        # The plan was accepted at its budget; new cleanup settings may leave
+        # more pause in it, and cutting the end would drop words between parts.
+        planned_seconds = sum(end - start for start, end in planned)
+        segment: Dict[str, Any] = {
+            "start_time": self._seconds_to_mmss(planned[0][0]),
+            "end_time": self._seconds_to_mmss(planned[0][1]),
+            "planned": True,
+            "required": clip.get("workflow_role") in ("part", "recap", "trailer"),
+            "max_seconds": max(float(meta.get("max_seconds") or 0.0), planned_seconds),
+            "workflow_role": clip.get("workflow_role"),
+            "part_number": clip.get("part_number"),
+            "workflow_meta": meta,
+            "text": clip.get("text") or "",
+            "relevance_score": clip.get("relevance_score", 0.5),
+            "reasoning": clip.get("reasoning") or "Regenerated with updated settings",
+            "virality_score": clip.get("virality_score", 0),
+            "hook_score": clip.get("hook_score", 0),
+            "engagement_score": clip.get("engagement_score", 0),
+            "value_score": clip.get("value_score", 0),
+            "shareability_score": clip.get("shareability_score", 0),
+            "hook_type": clip.get("hook_type"),
+            "hook_title": clip.get("hook_title"),
+            "broll": broll,
+        }
+        if recompute_cleanup or not stored:
+            segment["source_ranges"] = planned
+            segment["junction_fades"] = meta.get("junction_fades") or []
+        else:
+            segment["keep_ranges"] = source_ranges
+            segment["output_offsets"] = offsets
+            segment["range_groups"] = _range_groups(source_ranges, planned)
+        return segment
 
 
     @serialized_task_edit
@@ -327,6 +549,16 @@ class ClipEditingMixin:
         new_start = self._seconds_to_mmss(start_seconds)
         new_end = self._seconds_to_mmss(end_seconds)
 
+        # A recap's points and a trailer's beats are placed on the clip
+        # timeline; the trimmed clip keeps only what it still plays, at its
+        # new time. Unplanned metadata (series titles) survives as it is.
+        meta = clip.get("workflow_meta") or {}
+        trimmed_meta: Optional[Dict[str, Any]] = None
+        if meta.get("planned"):
+            trimmed_meta = _narrow_planned_meta(meta, trimmed_ranges, trimmed_offsets)
+            if trimmed_meta is None:
+                trimmed_meta = _unplanned_meta(meta)
+
         await self.clip_repo.update_clip(
             self.db,
             clip_id,
@@ -336,6 +568,7 @@ class ClipEditingMixin:
             new_end,
             clip_duration,
             clip.get("text") or "",
+            workflow_meta=trimmed_meta,
         )
         return (await self.clip_repo.get_clip_by_id(self.db, clip_id)) or {}
 
@@ -380,6 +613,31 @@ class ClipEditingMixin:
             0.1, await run_in_thread(rendered_clip_duration, second_path, second_ranges)
         )
 
+        workflow_fields: Dict[str, Any] = {}
+        first_meta: Optional[Dict[str, Any]] = None
+        meta = clip.get("workflow_meta") or {}
+        if clip.get("workflow_role") or meta:
+            # Both halves are still part N of the series (or a piece of the
+            # recap); each half's metadata describes only what it plays.
+            def half_meta(ranges: list, offsets: list, half: int) -> Dict[str, Any]:
+                narrowed = (
+                    _narrow_planned_meta(meta, ranges, offsets)
+                    if meta.get("planned")
+                    else dict(meta)
+                )
+                if narrowed is None:
+                    # A merged clip's half may be footage its plan never held.
+                    narrowed = _unplanned_meta(meta)
+                narrowed["split"] = half
+                return narrowed
+
+            first_meta = half_meta(first_ranges, first_offsets, 1)
+            workflow_fields = {
+                "workflow_role": clip.get("workflow_role"),
+                "part_number": clip.get("part_number"),
+                "workflow_meta": half_meta(second_ranges, second_offsets, 2),
+            }
+
         await self.clip_repo.update_clip(
             self.db,
             clip_id,
@@ -389,6 +647,7 @@ class ClipEditingMixin:
             self._seconds_to_mmss(first_bounds[1]),
             first_duration,
             clip.get("text") or "",
+            workflow_meta=first_meta,
         )
 
         await self.clip_repo.make_room_for_clip(
@@ -413,6 +672,7 @@ class ClipEditingMixin:
             shareability_score=clip.get("shareability_score", 0),
             hook_type=clip.get("hook_type"),
             hook_title=clip.get("hook_title"),
+            **workflow_fields,
         )
 
         await self.clip_repo.reorder_task_clips(self.db, task_id)
@@ -480,6 +740,8 @@ class ClipEditingMixin:
             end_time,
             duration,
             text,
+            # The merged clip no longer plays one part's planned cuts or labels.
+            workflow_meta=_unplanned_meta(first["workflow_meta"]) if first.get("workflow_meta") else None,
         )
 
         for clip in ordered[1:]:
@@ -577,6 +839,13 @@ class ClipEditingMixin:
             broll = load_clip_broll(input_path)
             broll_overlays = await broll_overlays_for(broll)
             render_report: Dict[str, Any] = {}
+            # Workflow clips keep their planned junctions (fades, out-of-order beats).
+            output_offsets = None
+            if (clip.get("workflow_meta") or {}).get("planned") and len(local_ranges) == len(source_ranges):
+                output_offsets = load_clip_output_offsets(input_path, source_ranges)
+            offsets_kwargs = {"output_offsets": output_offsets} if output_offsets is not None else {}
+            point_labels = point_labels_for(clip.get("workflow_meta"))
+            labels_kwargs = {"point_labels": point_labels} if point_labels else {}
             with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
                 clean_path = Path(temporary) / "clean.mp4"
                 rendered = await run_in_thread(
@@ -584,7 +853,7 @@ class ClipEditingMixin:
                     add_subtitles=False,
                     output_format=settings.get("output_format", "vertical"),
                     keep_ranges=local_ranges,
-                    hook_title=clip.get("hook_title"),
+                    hook_title=burned_hook_title(clip),
                     font_family=task.get("font_family") or None,
                     font_size=task.get("font_size") or None,
                     font_color=task.get("font_color") or None,
@@ -592,6 +861,8 @@ class ClipEditingMixin:
                     extend_to_sentence=False,
                     layout_report=render_report,
                     broll_overlays=broll_overlays,
+                    **offsets_kwargs,
+                    **labels_kwargs,
                 )
                 if not rendered:
                     raise ValueError("Could not prepare the clip for caption editing")
@@ -607,6 +878,7 @@ class ClipEditingMixin:
                     transcript_video_path=transcript_video_path,
                     source_ranges=local_ranges,
                     position_y=position_y,
+                    output_offsets=output_offsets,
                 )
                 if output_short_side:
                     try:
@@ -616,7 +888,7 @@ class ClipEditingMixin:
         finally:
             if downloaded_source is not None:
                 self._cleanup_source_video(downloaded_source, source_type, source_url)
-        save_clip_source_ranges(output_path, source_ranges)
+        save_clip_source_ranges(output_path, source_ranges, output_offsets)
         save_clip_caption_settings(output_path, {
             "font_size": font_size if font_size is not None else task.get("font_size"),
             "position": position,
@@ -626,7 +898,7 @@ class ClipEditingMixin:
         save_clip_broll(output_path, broll)
         # Re-rendering also corrects durations stored before they were probed.
         rendered_duration = await run_in_thread(
-            rendered_clip_duration, output_path, source_ranges
+            rendered_clip_duration, output_path, source_ranges, output_offsets
         )
 
         await self.clip_repo.update_clip(
@@ -681,6 +953,12 @@ class ClipEditingMixin:
 
         start_seconds = parse_timestamp_to_seconds(clip["start_time"])
         end_seconds = parse_timestamp_to_seconds(clip["end_time"])
+        # A workflow clip's planned ranges; its labels span every jump in between.
+        # Labels reaching past them (a merge added footage) win.
+        planned = normalize_source_ranges((clip.get("workflow_meta") or {}).get("ranges"))
+        planned_bounds = source_range_bounds(planned)
+        if planned_bounds and start_seconds >= planned_bounds[0] - 1.0 and end_seconds <= planned_bounds[1] + 1.0:
+            return planned
         return [(start_seconds, end_seconds)]
 
 

@@ -82,6 +82,17 @@ jobs:
       - name: Run frontend unit tests
         run: cd frontend && pnpm run test:coverage
 
+  mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v4
+      - name: Run MCP server tests
+        run: cd mcp && uv run --with pytest pytest tests -q
+
   e2e:
     # Playwright 1.59 does not support ubuntu-latest's Ubuntu 26.04 image.
     runs-on: ubuntu-24.04

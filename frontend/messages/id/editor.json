@@ -373,5 +373,7 @@
     "subscriptionRequired": "Pengeditan AI memerlukan Pro atau Creator.",
     "upgradeCreator": "Tingkatkan ke Creator",
     "viewPlans": "Lihat paket"
-  }
+  },
+  "partLabel": "Bagian {n}",
+  "partClipLabel": "Bagian {n} · {title}"
 }

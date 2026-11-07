@@ -9,5 +9,13 @@
   "topVirality": "höchster Viralitätswert",
   "ctaTitle": "Mach aus deinen langen Videos Clips wie diese.",
   "ctaBody": "SupoClip findet die besten Momente, rahmt die sprechende Person ein und schreibt die Untertitel. Open Source und kostenlos selbst zu hosten.",
-  "try": "SupoClip ausprobieren"
+  "try": "SupoClip ausprobieren",
+  "workflowBadge": {
+    "series": "Serie · {count, plural, one {# Teil} other {# Teile}}",
+    "topic": "Thema: {topic}",
+    "recap": "Zusammenfassung",
+    "trailer": "Trailer"
+  },
+  "partLabel": "Teil {n}",
+  "totalDuration": "{duration} gesamt"
 }

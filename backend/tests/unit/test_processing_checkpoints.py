@@ -9,6 +9,7 @@ from src.config import Config, set_config_override
 from src.repositories.task_checkpoint_repository import checkpoint_input_key
 from src.services import video_service as module
 from src.services.video_service import VideoService
+from src.workflows.contracts import WorkflowOptions, WorkflowSpec
 
 
 @pytest.fixture
@@ -64,10 +65,10 @@ def pipeline(tmp_path, monkeypatch):
     async def save(patch):
         state["checkpoint"].update(copy.deepcopy(patch))
 
-    async def run():
+    async def run(**kwargs):
         return await VideoService.process_video_complete(
             "https://youtu.be/abcdefghijk", "youtube", task_id="task-1",
-            checkpoint=copy.deepcopy(state["checkpoint"]), checkpoint_callback=save,
+            checkpoint=copy.deepcopy(state["checkpoint"]), checkpoint_callback=save, **kwargs,
         )
 
     yield SimpleNamespace(run=run, state=state, source=source, words=words,
@@ -215,3 +216,84 @@ async def test_worker_does_not_mask_storage_failure_after_geo_sections(pipeline,
     assert result.value is error
     assert error.__context__ is None
     fallback.assert_awaited_once()
+
+
+@pytest.fixture
+def series(pipeline, monkeypatch):
+    p = pipeline
+    p.state["fail_sections"] = False
+    planned = SimpleNamespace(
+        segments=[{"start_time": "00:00", "end_time": "00:50", "workflow_meta": {"title": "One"}, "planned": True}],
+        plan={"version": "wf-v1", "workflow": "series"},
+        summary="A story", key_topics=["story"], to_cache_json=lambda: '{"version": "wf-v1"}',
+    )
+    plan = AsyncMock(return_value=planned)
+    monkeypatch.setattr(VideoService, "_plan_workflow_segments", plan)
+    monkeypatch.setattr(VideoService, "_log_static_parts", lambda *_: None)
+    kwargs = {"workflow_spec": WorkflowSpec("series", WorkflowOptions(part_count=2), "short")}
+    return SimpleNamespace(p=p, plan=plan, run=lambda: p.run(**kwargs))
+
+
+@pytest.mark.asyncio
+async def test_workflow_retry_finishes_the_frozen_plan_without_planning_again(series):
+    first = await series.run()
+    assert first["workflow_plan_restored"] is False
+    series.plan.return_value = SimpleNamespace(segments=[], plan={"different": True})
+
+    second = await series.run()
+
+    series.plan.assert_awaited_once()
+    assert second["workflow_plan_restored"] is True
+    assert second["segments_to_render"] == first["segments_to_render"]
+    assert second["workflow_plan"] == first["workflow_plan"]
+    assert (second["summary"], second["analysis_json"]) == (first["summary"], first["analysis_json"])
+    assert "candidates" not in series.p.state["checkpoint"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("requested, expected", [(None, 2), (1, 1), (3, 3)])
+async def test_highlights_max_clips_replaces_the_default_count(pipeline, requested, expected):
+    p = pipeline
+    p.state["fail_sections"] = False
+    # The default for this source is 2; the setting goes below it, or up to MAX_CLIPS above it.
+    p.config.max_clips = 3 if requested == 3 else 2
+    moments = [
+        {"start_time": f"00:{start:02d}", "end_time": f"00:{start + 20:02d}", "text": "Hello",
+         "relevance_score": .9, "virality": {"total_score": 80}}
+        for start in (0, 20, 30)
+    ]
+    from src.services.video_service import VideoService as Service
+
+    Service.analyze_transcript.return_value.most_relevant_segments = moments
+    advanced = {"max_clips": requested} if requested else {}
+    result = await p.run(workflow_spec=WorkflowSpec("highlights", WorkflowOptions(advanced=advanced), "auto"))
+    assert len(result["segments_to_render"]) == expected
+
+
+@pytest.mark.asyncio
+async def test_a_retry_keeps_the_cold_open_of_the_frozen_plan(series):
+    cold_open = {"first_unit": 40, "last_unit": 41, "range_count": 1, "from_part": 3}
+    series.plan.return_value.segments[0]["workflow_meta"]["cold_open"] = cold_open
+    series.plan.return_value.segments[0]["source_ranges"] = [[120.0, 125.0], [0.0, 50.0]]
+    first = await series.run()
+    series.plan.return_value = SimpleNamespace(segments=[], plan={"different": True})
+
+    second = await series.run()
+
+    assert second["workflow_plan_restored"] is True
+    restored = second["segments_to_render"][0]
+    assert restored["workflow_meta"]["cold_open"] == cold_open
+    assert restored["source_ranges"] == first["segments_to_render"][0]["source_ranges"]
+
+
+@pytest.mark.asyncio
+async def test_new_word_timings_discard_a_frozen_workflow_plan(series):
+    await series.run()
+    series.p.source.with_suffix(".transcript_cache.json").unlink()
+    series.p.state["checkpoint"].pop("transcript")
+    series.p.state["checkpoint"].pop("transcript_data")
+
+    result = await series.run()
+
+    assert series.plan.await_count == 2
+    assert result["workflow_plan_restored"] is False

@@ -144,6 +144,29 @@ These settings affect clip generation speed, throughput, and defaults.
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 
+### Workflows
+
+Series, topic, recap and trailer runs (and creator instructions on Highlights)
+are gated separately from the rest of processing. Set these on **both the API
+and the worker**; `docker-compose.yml` passes them to both. See
+[workflows.md](workflows.md) for what each workflow makes.
+
+The env gate is the ceiling. The `workflows` feature flag (`feature_flags`
+table, switched in `/admin` without a deploy) also has to be on for the
+caller's platform, web or iOS; admins bypass it by default. Both must allow a
+request. The migration seeds it off on web and iOS, so after deploying, an
+admin turns it on per platform. See
+[workflows.md](workflows.md#the-workflows-feature-flag).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `WORKFLOWS_ACCESS` | `admins` | `admins` (admins plus `WORKFLOWS_ALLOWED_EMAILS`), `all`, or `off`. Anyone outside the gate only sees Highlights; the API answers other workflows, and resumes of workflow tasks, with 403 `WORKFLOW_NOT_AVAILABLE`. Jobs already queued finish. Self-hosters usually want `all` |
+| `WORKFLOWS_ALLOWED_EMAILS` | empty | Comma-separated emails admitted when access is `admins`. Only accounts with a verified email match |
+| `WORKFLOWS_PUBLIC` | empty | Comma-separated workflows (for example `trailer,topic`) open to every user while `WORKFLOWS_ACCESS` is `admins`, with instructions and advanced settings. Ignored by `off` and `all`. |
+| `WORKFLOW_TOPIC_MAX_CLIPS` | `15` | Most clips one topic run returns |
+| `WORKFLOW_PLAN_TIMEOUT_SECONDS` | `1800` | Wall-clock limit for planning one workflow (capped at 6 hours); a plan that runs over fails with `plan_failed` and the minutes are refunded |
+| `WORKFLOW_FULL_CONTEXT_MAX_WORDS` | model default | Transcript size, in English-word equivalents, up to which the whole video is outlined in one model call; longer videos are outlined in windows and merged. Empty uses 40,000 for hosted models and a smaller limit for `ollama:` models |
+
 ### Processing modes
 
 Current code and defaults emphasize a `fast` mode. If you expose additional modes such as `balanced` or `quality`, make sure the frontend and backend behavior stay aligned.

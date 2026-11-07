@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-06
 
+- **Fixed:** When YouTube audio comes through the backup download route, the video's length is read correctly, so clips from its last minutes are no longer dropped. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
 - **Under the hood:** New features can be switched on for the web and iPhone apps separately, without an update. ([#340](https://github.com/FujiwaraChoki/supoclip/pull/340))
 
 ## 2026-11-05
@@ -15,6 +16,14 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **Improved:** Pro includes 10 AI edits per month and Creator includes 100. The editor shows the remaining allowance and reset date, and failed requests restore the edit. ([#335](https://github.com/FujiwaraChoki/supoclip/pull/335))
 - **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Under the hood:** Preview deployments use an upload timeout within the hosting platform's supported limit. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
+- **Fixed:** Clips stitched together after cutting pauses no longer risk a frozen picture while the audio keeps playing. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+- **Under the hood:** Groundwork for new ways to turn a video into clips, not yet available to everyone. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+- **Improved:** The create screen keeps length, captions, framing, cleanup, and B-roll in one Settings menu, so the composer stays on one line. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
+- **Improved:** The create screen remembers your captions, framing, cleanup, B-roll, length, and other settings on your account, and Settings has a one-click reset. Topics, instructions, and part counts still start fresh for each video. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
+- **New:** A short, skippable tour walks you through new features once, on the real page, so you can find them without reading release notes. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
+- **Fixed:** Long Chinese, Japanese, and Korean titles stay inside the frame instead of running off both edges. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
+- **Fixed:** Clips no longer carry chapter markers or extra data tracks from an uploaded MKV file. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
+- **Fixed:** Failed generations no longer show file paths or technical processing errors. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
 - **Under the hood:** Updated sign-in, video-processing, and developer tools to address published security vulnerabilities. ([#338](https://github.com/FujiwaraChoki/supoclip/pull/338))
 
 ## 2026-11-03

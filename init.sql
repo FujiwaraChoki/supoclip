@@ -23,6 +23,7 @@ CREATE TABLE users (
     notify_on_completion BOOLEAN NOT NULL DEFAULT true,
     default_clip_length VARCHAR(10) NOT NULL DEFAULT 'auto'
         CONSTRAINT users_default_clip_length_check CHECK (default_clip_length IN ('auto', 'short', 'medium', 'long')),
+    create_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     product_updates_unsubscribed_at TIMESTAMP WITH TIME ZONE,
     -- Monetization and billing fields
     is_admin BOOLEAN NOT NULL DEFAULT false,
@@ -85,6 +86,12 @@ CREATE TABLE tasks (
     share_token VARCHAR(64),
     share_enabled BOOLEAN NOT NULL DEFAULT false,
 
+    -- Workflow: what the task makes, its options and the persisted plan
+    workflow VARCHAR(20) NOT NULL DEFAULT 'highlights'
+        CONSTRAINT tasks_workflow_check CHECK (workflow IN ('highlights', 'series', 'topic', 'recap', 'trailer')),
+    workflow_options JSONB NOT NULL DEFAULT '{}'::jsonb,
+    workflow_plan JSONB,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -111,6 +118,11 @@ CREATE TABLE generated_clips (
     shareability_score INTEGER DEFAULT 0,
     hook_type VARCHAR(50),
     hook_title VARCHAR(200),         -- AI-written on-screen headline
+
+    -- Workflow role (part, topic, recap, trailer), series part number, plan metadata
+    workflow_role VARCHAR(20),
+    part_number INTEGER,
+    workflow_meta JSONB NOT NULL DEFAULT '{}'::jsonb,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -274,6 +286,7 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX idx_tasks_processing_mode ON tasks(processing_mode);
 CREATE INDEX idx_tasks_completed_at ON tasks(completed_at);
+CREATE INDEX idx_tasks_user_workflow ON tasks(user_id, workflow);
 CREATE UNIQUE INDEX idx_tasks_share_token ON tasks(share_token) WHERE share_token IS NOT NULL;
 CREATE INDEX idx_sources_created_at ON sources(created_at);
 CREATE INDEX idx_processing_cache_source_url ON processing_cache(source_url);
@@ -285,6 +298,19 @@ CREATE INDEX idx_session_userId ON session("userId");
 CREATE INDEX idx_account_userId ON account("userId");
 CREATE INDEX idx_verification_identifier ON verification(identifier);
 CREATE INDEX idx_app_settings_updated_by ON app_settings(updated_by);
+-- One row per account and feature tour (frontend/src/lib/feature-tours.ts).
+-- A row means the tour was shown, and how it ended says whether it helped.
+CREATE TABLE user_feature_tours (
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tour_id VARCHAR(64) NOT NULL,
+    shown_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    dismissed_at TIMESTAMP WITH TIME ZONE,
+    -- The last step reached, counted from the first real step, or null until the tour ends.
+    last_step INTEGER,
+    PRIMARY KEY (user_id, tour_id)
+);
+CREATE INDEX ix_user_feature_tours_tour ON user_feature_tours (tour_id);
 -- Feature flags, switched per platform from /admin without a deploy.
 -- Read by backend/src/feature_flags.py, which caches them for a few seconds.
 -- admins_bypass keeps a flag on for admins on every platform while it is off for everyone else.

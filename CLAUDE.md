@@ -47,9 +47,14 @@ pnpm run build        # Prisma generate + Next.js build
 pnpm run lint
 ```
 
-### No tests
+### Tests
 
-The project currently has no test files.
+```bash
+cd backend && .venv/bin/pytest                  # unit + integration (needs Postgres/Redis; TEST_DATABASE_URL)
+cd backend && .venv/bin/pytest --no-cov tests/unit/test_workflow_options.py   # one file (coverage gate is in addopts)
+cd frontend && pnpm run test                    # vitest; pnpm run lint && pnpm exec tsc --noEmit
+cd mcp && uv run --with pytest pytest tests -q
+```
 
 ## Architecture
 
@@ -132,6 +137,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
 | `src/editor_document.py` | Clip studio draft model (segments, words, captions, framing, B-roll) and server render |
+| `src/workflows/` | Workflows (series, topic, recap, trailer): contracts, options/gate, units, outline, planners, solvers |
 | `src/services/ai_edit_service.py` | Studio AI editing: Sonnet 5.5 plans typed operations, applied and validated here |
 | `src/workers/ai_worker.py` | Light ARQ worker for AI edits (`supoclip_ai` queue, own container) |
 | `src/broll.py` | Pexels API B-roll integration |
@@ -145,7 +151,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 ## API Endpoints (routes in `api/routes/`)
 
 **Task lifecycle:**
-- `POST /start-with-progress` — Create task, enqueue to worker (returns task_id)
+- `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`
+- `GET /tasks/workflows` — What the user can make on this platform (workflows flag, env gate, limits)
 - `GET /feature-flags` — Feature flags evaluated for the caller and platform
 - `GET /tasks/` — List user tasks
 - `GET /tasks/{id}` — Get task with clips
@@ -241,6 +248,12 @@ table (one per user, `slug` cleared on decline).
   "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
   The app's paywall opens Apple's redeem sheet ("Have a creator code?").
 
+## Feature tours
+
+When a change gives existing users something new to find, add a tour: an entry in
+`frontend/src/lib/feature-tours.ts`, `data-tour` on its target, and text in
+`frontend/messages/*/tours.json`. Explain the feature, don't just point at it. Rules and steps: `docs/feature-tours.md`.
+
 ## Environment Variables
 
 Required in `.env` (root) or `backend/.env`:
@@ -268,6 +281,12 @@ INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagra
 SOCIAL_PERFORMANCE_MIN_POSTS=3       # Measured posts before AI selection is personalized
 SOCIAL_PUBLISHING_ACCESS=off         # Rollout gate: off (default) | admins (admins + allowlist) | all
 SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=admins
+WORKFLOWS_ACCESS=admins              # Series/topic/recap/trailer + instructions: off | admins | all (self-host: all)
+WORKFLOWS_ALLOWED_EMAILS=            # Comma-separated beta emails when access=admins
+WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=admins, e.g. trailer,topic
+WORKFLOW_TOPIC_MAX_CLIPS=15          # Most clips a topic run returns
+WORKFLOW_PLAN_TIMEOUT_SECONDS=1800   # Planning wall clock; past it the task fails with plan_failed
+WORKFLOW_FULL_CONTEXT_MAX_WORDS=0    # Words read in one outline call; 0 = provider default
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
@@ -288,8 +307,9 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   (`backendTraceHeaders` in `server/backend-api.ts`); anything else, API keys and MCP included, is web.
 - **On** = the platform column, or the caller is an admin and `admins_bypass` is set.
 - `GET /feature-flags` (proxied at `/api/feature-flags`) returns the evaluated booleans for the caller.
-- **`workflows`:** seeded off on web and iOS (admins bypass). It gates the creation workflows (series, topic,
-  recap, trailer) once they ship, on top of the `WORKFLOWS_ACCESS` env gate: both must allow.
+- **`workflows`:** seeded off on web and iOS (admins bypass) until the iOS build with workflows is approved.
+  It sits on top of `WORKFLOWS_ACCESS`: both must allow. Off hides workflows in `GET /tasks/workflows` for that
+  platform and makes create/resume with a workflow 403 `WORKFLOW_NOT_AVAILABLE` before any charge.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
   `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 
@@ -334,6 +354,30 @@ edit and source time. Preview and browser export draw through `lib/editor/render
 AI worker → Claude Sonnet 5.5 returns typed operations (`keep_ranges`, `remove_words`, `set`, `add_broll`, ...) →
 `apply_plan` clamps and validates → the browser applies the result as one undoable change (never over edits made
 meanwhile). Keep the output schema free of optional fields: the API rejects schemas whose grammar is too large.
+
+### Workflows (series, topic clips, recap, trailer)
+
+`tasks.workflow` picks what a task makes: `highlights` (default, unchanged), `series` (Part 1..N of one
+story, adjacent parts share one exact cut), `topic` (every strong moment about `workflow_options.topic`),
+`recap` (one clip of the main points) or `trailer` (one teaser that never reveals the payoff). Free-text
+`instructions` steer any workflow. Code lives in `backend/src/workflows/`; full design in `docs/workflows.md`.
+
+- **Units, not timestamps:** the transcript becomes numbered sentence units (clauses for trailers); the model
+  returns unit ids and code converts them to word-exact seconds. A cached **source outline** (chapters, points,
+  arcs, payoffs) is shared by every planner. Each planner is draft → validate → one repair → deterministic solve
+  → critique → re-solve; budgets, contiguity and spoilers never depend on the model.
+- **Locked render:** planned segments (`source_ranges`, `planned: True`) skip snapping, end extension and the
+  cold-open teaser; multi-range clips use explicit output offsets everywhere. The plan is saved to
+  `tasks.workflow_plan` before rendering; clips carry `workflow_role`, `part_number`, `workflow_meta`.
+- **Invariant:** highlights without instructions is byte-identical (prompts, cache keys, job args, render path).
+- **Fail loud, refund:** a workflow that can't deliver raises `WorkflowError` (`topic_not_found` with suggested
+  topics, `no_story`, `trailer_unbuildable`, …); its clips are deleted so the minutes are refunded, and
+  `error_code` drives the task page's next-step screen. Series/recap/trailer are all-or-nothing.
+- **Gate:** `WORKFLOWS_ACCESS=off|admins|all` (default `admins`, plus verified `WORKFLOWS_ALLOWED_EMAILS`), checked on
+  create and resume; self-hosters set `all`. The `workflows` feature flag (below) must also be on for the platform. Also `WORKFLOW_TOPIC_MAX_CLIPS`, `WORKFLOW_PLAN_TIMEOUT_SECONDS`, `WORKFLOW_FULL_CONTEXT_MAX_WORDS`.
+- **Frontend:** contract in `lib/workflows.ts`; results in `components/app/series-view.tsx`,
+  `hero-clip-view.tsx` and `workflow-failure.tsx`. MCP: `workflow`/`topic`/`part_count`/`instructions` on
+  `supoclip_create_clip_task`, plus `supoclip_list_workflows`.
 
 ### Modifying AI clip selection
 
@@ -399,6 +443,7 @@ high-cap fallback actors are not called. Runbook: `docs/youtube-download.md`.
 - **Auth:** a per-user API key in `SUPOCLIP_API_KEY` (see API keys above).
   Self-hosters may instead use `SUPOCLIP_USER_ID` (+ `SUPOCLIP_AUTH_SECRET` when
   signing is enforced).
-- **Tools:** create/list/get/wait/cancel/resume/delete tasks, list/download/
-  export clips, and public discovery (templates, transitions, fonts, B-roll).
+- **Tools:** create/list/get/wait/cancel/resume/delete tasks (any workflow),
+  list workflows, list/download/export clips, and public discovery
+  (templates, transitions, fonts, B-roll).
 - Run with `cd mcp && uv run supoclip-mcp`. Details in `mcp/README.md`.

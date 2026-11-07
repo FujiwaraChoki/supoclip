@@ -54,6 +54,7 @@ from .media.captions import (
     ass_fonts_dir,
     build_assemblyai_ass_subtitles,
 )
+from .media.render_ranges import burned_hook_title, point_labels_for, resolve_render_ranges, segment_bounds
 from .media.reframing import (
     render_reframed_clip_ffmpeg,
 )
@@ -66,6 +67,7 @@ from .media.speaker_framing import (
 )
 from .media.ffmpeg import (
     build_audio_output_args,
+    NO_CHAPTERS,
     build_final_video_encode_args,
     burn_ass_subtitles_ffmpeg,
     clamp_even,
@@ -275,14 +277,25 @@ def create_optimized_clip(
     extend_to_sentence: bool = True,
     layout_report: Optional[Dict[str, Any]] = None,
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
+    output_offsets: Optional[List[float]] = None,
+    point_labels: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
 
     ``broll_overlays`` are stock cutaways (path, start, duration on the clip
     timeline) composited under the captions. If that render fails the clip is
     rendered without them; ``layout_report["broll_applied"]`` says which.
+
+    ``output_offsets`` (one per kept range) fixes where each range starts on
+    the clip timeline, for workflow clips with planned junction fades. The
+    stitch, captions and speaker framing all follow them. Without them the
+    renderer's default crossfades apply.
+
+    ``point_labels`` are a recap's on-screen points ({"text", "start"} on the
+    clip timeline), burned in with the captions.
     """
     try:
+        labels_kwargs = {"point_labels": point_labels} if point_labels else {}
         if keep_ranges:
             effective_keep_ranges = normalize_source_ranges(keep_ranges)
         else:
@@ -308,6 +321,13 @@ def create_optimized_clip(
         if duration <= 0:
             logger.error(f"Invalid clip duration: {duration:.1f}s")
             return False
+        if output_offsets is not None and len(output_offsets) != len(effective_keep_ranges):
+            raise ValueError(
+                f"{len(output_offsets)} output offsets for {len(effective_keep_ranges)} kept ranges"
+            )
+        # Planned offsets reach every consumer of the clip timeline; legacy
+        # calls keep their original arguments.
+        offsets_kwargs = {"output_offsets": output_offsets} if output_offsets is not None else {}
 
         keep_original = output_format == "original"
         logger.info(
@@ -320,9 +340,11 @@ def create_optimized_clip(
         if (
             not add_subtitles
             and not hook_title
+            and not point_labels
             and not broll_overlays
             and keep_original
             and len(effective_keep_ranges) == 1
+            and (output_offsets is None or len(output_offsets) == 1)
             and extend_to_sentence
             and source_within_output_limits(video_path)
         ):
@@ -334,6 +356,7 @@ def create_optimized_clip(
                     "-ss", str(fast_path_start),
                     "-i", str(video_path),
                     *audio_stream_map_args(select_audio_stream_index(video_path)),
+                    *NO_CHAPTERS,
                     "-t", str(fast_path_end - fast_path_start),
                     "-c", "copy",
                     "-movflags", "+faststart",
@@ -359,6 +382,7 @@ def create_optimized_clip(
                 video_path,
                 effective_keep_ranges,
                 source_clip_path,
+                **offsets_kwargs,
             ):
                 raise RuntimeError("ffmpeg source-range render failed")
 
@@ -394,7 +418,7 @@ def create_optimized_clip(
                 if get_config().speaker_framing:
                     try:
                         speaker_turns, speaker_words = build_clip_speaker_turns(
-                            video_path, effective_keep_ranges
+                            video_path, effective_keep_ranges, **offsets_kwargs
                         )
                     except Exception as exc:
                         logger.warning("Speaker turn extraction failed: %s", exc)
@@ -428,7 +452,7 @@ def create_optimized_clip(
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
-            if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
+            if (add_subtitles or hook_title or point_labels) and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
                 end_time,
@@ -445,6 +469,8 @@ def create_optimized_clip(
                 position_y_override=caption_y,
                 avoid_band=source_caption_band,
                 caption_layout_report=layout_report,
+                **offsets_kwargs,
+                **labels_kwargs,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -512,16 +538,7 @@ def create_clips_from_segments(
                 f"Processing segment {i + 1}: start='{segment.get('start_time')}', end='{segment.get('end_time')}'"
             )
 
-            provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
-            provided_source_ranges = normalize_source_ranges(segment.get("source_ranges"))
-            provided_bounds = source_range_bounds(
-                provided_keep_ranges or provided_source_ranges
-            )
-            if provided_bounds:
-                start_seconds, end_seconds = provided_bounds
-            else:
-                start_seconds = parse_timestamp_to_seconds(segment["start_time"])
-                end_seconds = parse_timestamp_to_seconds(segment["end_time"])
+            start_seconds, end_seconds = segment_bounds(segment)
 
             duration = end_seconds - start_seconds
             logger.info(
@@ -540,35 +557,20 @@ def create_clips_from_segments(
             )
             clip_path = output_dir / clip_filename
 
-            if provided_keep_ranges:
-                keep_ranges = provided_keep_ranges
-            elif provided_source_ranges:
-                keep_ranges = build_keep_ranges_from_source_ranges(
-                    video_path,
-                    provided_source_ranges,
-                    cleanup_settings,
-                )
-            else:
-                start_seconds = snap_clip_start_to_sentence(
-                    video_path, start_seconds, end_seconds
-                )
-                keep_ranges = build_clip_keep_ranges(
-                    video_path, start_seconds, end_seconds, cleanup_settings
-                )
-            keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
-            clip_text = segment["text"]
-            if not provided_keep_ranges and not provided_source_ranges:
-                keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
-            # Rewind and sentence extension happen before this, so the stored
-            # ranges — and the render, which must not extend them again — stay
-            # inside the selected duration cap.
-            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
-            if not provided_keep_ranges and not provided_source_ranges:
-                # Snapping, cleanup, the teaser and the cap change what is
-                # spoken; keep the stored text word-for-word with the timeline.
-                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            # A planned (workflow) clip carries its own cap; highlights use the preset's.
+            resolved = resolve_render_ranges(
+                video_path,
+                segment,
+                cleanup_settings,
+                float(segment.get("max_seconds") or max_clip_seconds),
+            )
+            keep_ranges = resolved.keep_ranges
+            output_offsets = resolved.output_offsets
+            clip_text = resolved.text
+            start_seconds, end_seconds = resolved.bounds
 
             layout_report: Dict[str, Any] = {}
+            point_labels = point_labels_for(segment.get("workflow_meta"), resolved.group_output_starts)
             success = create_optimized_clip(
                 video_path,
                 start_seconds,
@@ -581,15 +583,19 @@ def create_clips_from_segments(
                 caption_template,
                 output_format,
                 keep_ranges,
-                hook_title=segment.get("hook_title"),
+                hook_title=burned_hook_title(segment),
                 extend_to_sentence=False,
                 layout_report=layout_report,
                 broll_overlays=segment.get("broll_overlays"),
+                **({"output_offsets": output_offsets} if output_offsets is not None else {}),
+                **({"point_labels": point_labels} if point_labels else {}),
             )
 
             if success:
                 from .media.ffmpeg import output_offsets_for_ranges
-                save_clip_source_ranges(clip_path, keep_ranges, output_offsets_for_ranges(keep_ranges))
+                save_clip_source_ranges(
+                    clip_path, keep_ranges, output_offsets or output_offsets_for_ranges(keep_ranges)
+                )
                 save_clip_broll(
                     clip_path,
                     segment.get("broll") if layout_report.get("broll_applied") else [],
@@ -600,7 +606,7 @@ def create_clips_from_segments(
                     )
                 # Crossfades overlap neighbouring ranges, so the file is
                 # shorter than the kept source; store what actually plays.
-                cleaned_duration = rendered_clip_duration(clip_path, keep_ranges)
+                cleaned_duration = rendered_clip_duration(clip_path, keep_ranges, output_offsets)
                 clip_info = {
                     "clip_id": i + 1,
                     "filename": clip_filename,
@@ -620,6 +626,8 @@ def create_clips_from_segments(
                     "hook_type": segment.get("hook_type"),
                     "hook_title": segment.get("hook_title"),
                     "keep_ranges": keep_ranges,
+                    "output_offsets": output_offsets,
+                    "group_output_starts": resolved.group_output_starts,
                 }
                 clips_info.append(clip_info)
                 logger.info(f"Created clip {i + 1}: {cleaned_duration:.1f}s")

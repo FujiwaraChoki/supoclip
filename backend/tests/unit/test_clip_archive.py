@@ -153,6 +153,69 @@ async def test_second_concurrent_download_is_rejected(client, redis_store):
     assert redis_store == {"clip_archive:owner": "another-download"}
 
 
+async def test_series_parts_are_named_and_ordered_by_part_number(client, tmp_path):
+    http, service, _clips, _db = client
+    service.task_repo.get_task_by_id.return_value = {
+        "id": "task", "user_id": "owner", "status": "completed",
+        "source_title": "Morning Routine", "workflow": "series",
+    }
+    files = {}
+    for name in ("p1", "p2a", "p2b", "p3"):
+        files[name] = tmp_path / f"{name}.mp4"
+        files[name].write_bytes(name.encode())
+    part = {"workflow_role": "part"}
+    # Clip order drifted from the story (a part was moved); the archive follows the parts.
+    service.clip_repo.get_clips_by_task.return_value = [
+        {**part, "id": "c3", "part_number": 3, "clip_order": 1, "file_path": str(files["p3"]),
+         "hook_title": "Part 3: The Payoff", "workflow_meta": {"title": "The Payoff"}},
+        {**part, "id": "c1", "part_number": 1, "clip_order": 2, "file_path": str(files["p1"]),
+         "hook_title": "Part 1: Why: sleep? matters", "workflow_meta": {}},
+        {**part, "id": "c2a", "part_number": 2, "clip_order": 3, "file_path": str(files["p2a"]),
+         "hook_title": "Part 2: The Turn", "workflow_meta": {"title": "The Turn"}},
+        {**part, "id": "c2b", "part_number": 2, "clip_order": 4, "file_path": str(files["p2b"]),
+         "hook_title": "Part 2: The Turn", "workflow_meta": {"title": "The Turn", "split": 2}},
+        {**part, "id": "c4", "part_number": 4, "clip_order": 5, "file_path": str(tmp_path / "gone.mp4"),
+         "hook_title": "Part 4: Missing", "workflow_meta": {"title": "Missing"}},
+    ]
+
+    response = await http.get("/tasks/task/clips/zip")
+
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.namelist() == [
+            "Part 01 - Why sleep matters.mp4",
+            "Part 02.1 - The Turn.mp4",
+            "Part 02.2 - The Turn.mp4",
+            "Part 03 - The Payoff.mp4",
+        ]
+        assert archive.read("Part 03 - The Payoff.mp4") == b"p3"
+
+
+def test_series_names_keep_part_numbers_and_strip_unsafe_characters():
+    names = clip_archive.series_entry_names([
+        {"part_number": 1, "hook_title": "Teil 1 – Der Anfang", "workflow_meta": {}},
+        {"part_number": 3, "hook_title": "第3部分：结局", "workflow_meta": {}},
+        {"part_number": 10, "hook_title": None, "workflow_meta": {"title": " a/b\\c <d>.. "}},
+        {"part_number": None, "hook_title": "Extra", "workflow_meta": {}},
+        {"part_number": 11, "hook_title": None, "workflow_meta": {}},
+    ])
+
+    assert names == [
+        "Part 01 - Der Anfang.mp4",
+        "Part 03 - 结局.mp4",
+        "Part 10 - a b c d.mp4",
+        "Clip 04 - Extra.mp4",
+        "Part 11.mp4",
+    ]
+
+
+def test_other_workflows_keep_clip_order_names():
+    clips = [{"id": "1", "hook_title": "B", "part_number": None}, {"id": "2", "hook_title": "A"}]
+
+    assert clip_archive.order_for_archive(clips, "topic") == clips
+    assert clip_archive.archive_entry_names(clips) == ["01-b.mp4", "02-a.mp4"]
+
+
 def test_entry_names_are_ordered_unique_and_keep_non_latin_titles():
     names = clip_archive.archive_entry_names([
         {"id": "1", "hook_title": "Same title"},

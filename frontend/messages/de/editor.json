@@ -373,5 +373,7 @@
     "subscriptionRequired": "KI-Bearbeitung erfordert Pro oder Creator.",
     "upgradeCreator": "Auf Creator upgraden",
     "viewPlans": "Tarife ansehen"
-  }
+  },
+  "partLabel": "Teil {n}",
+  "partClipLabel": "Teil {n} · {title}"
 }

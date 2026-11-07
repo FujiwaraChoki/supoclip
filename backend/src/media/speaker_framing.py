@@ -134,16 +134,20 @@ def build_speaker_turns(
 
 
 def build_clip_speaker_turns(
-    video_path: Path, keep_ranges: Sequence[Tuple[float, float]]
+    video_path: Path,
+    keep_ranges: Sequence[Tuple[float, float]],
+    output_offsets: Optional[List[float]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Speaker turns and diarized words for a clip, on the output timeline.
 
+    ``output_offsets`` are the clip's explicit range starts (workflow clips);
+    without them the renderer's default crossfades apply.
     Returns ([], []) when the transcript has no usable speaker labels.
     """
     transcript_data = load_cached_transcript_data(video_path)
     if not transcript_data:
         return [], []
-    words = get_words_for_keep_ranges(transcript_data, list(keep_ranges))
+    words = get_words_for_keep_ranges(transcript_data, list(keep_ranges), output_offsets)
     if not words or not any(word.get("speaker") for word in words):
         return [], []
     return build_speaker_turns(words), words

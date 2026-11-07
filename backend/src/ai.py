@@ -27,6 +27,7 @@ from pydantic import AliasChoices, BaseModel, Field, field_validator
 from .config import Config, get_config
 from .clip_duration import clip_duration
 from .runtime_settings import apply_settings_to_process_env
+from .workflows.prompts import instructions_block
 
 logger = logging.getLogger(__name__)
 
@@ -785,9 +786,15 @@ def _performance_history_section(performance_context: str | None) -> str:
 
 
 def build_candidate_rerank_prompt(
-    candidates: List[TranscriptSegment], performance_context: str | None = None
+    candidates: List[TranscriptSegment],
+    performance_context: str | None = None,
+    *,
+    instructions: str | None = None,
 ) -> str:
-    """Describe every candidate in full so the reranker can compare them."""
+    """Describe every candidate in full so the reranker can compare them.
+
+    ``instructions`` (the creator's steering text) follows the candidates.
+    """
     blocks = []
     for candidate_id, segment in enumerate(candidates):
         duration = _parse_transcript_timestamp_seconds(
@@ -799,11 +806,14 @@ def build_candidate_rerank_prompt(
             f"hook_title: {segment.hook_title or '(none)'}\n"
             f"text: {segment.text}"
         )
-    return (
+    prompt = (
         f"Rank these {len(candidates)} clip candidates from the same video, best first.\n\n"
         + "\n\n".join(blocks)
         + _performance_history_section(performance_context)
     )
+    if instructions:
+        prompt += "\n\n" + instructions_block(instructions)
+    return prompt
 
 
 def build_transcript_analysis_prompt(
@@ -812,11 +822,15 @@ def build_transcript_analysis_prompt(
     window: tuple[int, int] | None = None,
     performance_context: str | None = None,
     clip_length: str = "auto",
+    *,
+    instructions: str | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis.
 
     ``window`` marks the prompt as one (start, end) slice of a longer source.
     ``performance_context`` is the creator's measured audience history, if any.
+    ``instructions`` (the creator's steering text) goes just before the
+    transcript; without it the prompt is unchanged.
     """
     bounds = clip_duration(clip_length)
     segment_target = ANALYSIS_WINDOW_SEGMENT_TARGET if window else "2-5"
@@ -836,6 +850,7 @@ def build_transcript_analysis_prompt(
             "Use these as hints only. They should influence ranking, but every final segment "
             "must still be a coherent contiguous transcript range."
         )
+    instructions_section = f"{instructions_block(instructions)}\n\n" if instructions else ""
 
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 {window_note}
@@ -878,7 +893,7 @@ JSON-only output requirements:
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
 - Do not return segments shorter than {bounds.minimum} seconds or longer than {bounds.maximum} seconds.
 
-Transcript:
+{instructions_section}Transcript:
 {transcript}"""
 
 
@@ -1381,7 +1396,10 @@ def apply_candidate_ranking(
 
 
 async def rerank_candidates(
-    candidates: List[TranscriptSegment], performance_context: str | None = None
+    candidates: List[TranscriptSegment],
+    performance_context: str | None = None,
+    *,
+    instructions: str | None = None,
 ) -> List[TranscriptSegment]:
     """Compare all candidates in one call; keep first-pass order if that fails.
 
@@ -1394,7 +1412,9 @@ async def rerank_candidates(
         agent = get_rerank_agent()
         result = await _run_transcript_analysis(
             agent,
-            build_candidate_rerank_prompt(candidates, performance_context),
+            build_candidate_rerank_prompt(
+                candidates, performance_context, **({"instructions": instructions} if instructions else {})
+            ),
             timeout_seconds=RERANK_TIMEOUT_SECONDS,
         )
         reranked = apply_candidate_ranking(candidates, result.output)
@@ -1414,6 +1434,8 @@ async def _analyze_transcript_windows(
     clip_signals: Optional[str],
     performance_context: Optional[str] = None,
     clip_length: str = "auto",
+    *,
+    instructions: Optional[str] = None,
 ) -> List[TranscriptAnalysis]:
     """Analyse windows with bounded concurrency, tolerating some failures.
 
@@ -1431,6 +1453,7 @@ async def _analyze_transcript_windows(
                 window=(window["start"], window["end"]),
                 performance_context=performance_context,
                 clip_length=clip_length,
+                **({"instructions": instructions} if instructions else {}),
             )
             result = await _run_transcript_analysis(agent, prompt)
             return result.output
@@ -1648,13 +1671,18 @@ async def get_most_relevant_parts_by_transcript(
     performance_context: str | None = None,
     clip_length: str = "auto",
     include_reserve: bool = False,
+    *,
+    instructions: str | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring.
 
     Short transcripts are analysed in one call. Long ones are split into
     overlapping windows analysed concurrently, then deduplicated and reranked
     in one comparative call so scores are comparable across windows.
+    ``instructions`` (the creator's steering text) reaches every user prompt
+    when set; system prompts and agents never change.
     """
+    steering = {"instructions": instructions} if instructions else {}
     logger.info(
         f"Starting AI analysis of transcript ({len(transcript)} chars)"
     )
@@ -1673,13 +1701,14 @@ async def get_most_relevant_parts_by_transcript(
                     clip_signals=clip_signals,
                     performance_context=performance_context,
                     clip_length=clip_length,
+                    **steering,
                 )
             )
             analyses = [result.output]
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
             analyses = await _analyze_transcript_windows(
-                agent, windows, clip_signals, performance_context, clip_length
+                agent, windows, clip_signals, performance_context, clip_length, **steering
             )
 
         candidates: List[TranscriptSegment] = []
@@ -1697,7 +1726,7 @@ async def get_most_relevant_parts_by_transcript(
         # near-duplicates; then compare across windows in one rerank call.
         candidates = dedupe_overlapping_segments(candidates)
         if len(windows) > 1:
-            candidates = await rerank_candidates(candidates, performance_context)
+            candidates = await rerank_candidates(candidates, performance_context, **steering)
 
         source_seconds = max(
             (line["end_seconds"] for line in transcript_lines), default=0
