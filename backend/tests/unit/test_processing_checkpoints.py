@@ -215,3 +215,64 @@ async def test_worker_does_not_mask_storage_failure_after_geo_sections(pipeline,
     assert result.value is error
     assert error.__context__ is None
     fallback.assert_awaited_once()
+
+
+AGE_GATE = (
+    "ERROR: [youtube] abcdefghijk: Sign in to confirm your age. "
+    "This video may be inappropriate for some users."
+)
+
+
+def _failing_download(*reasons):
+    def download(*_args, errors=None, **_kwargs):
+        if errors is not None:
+            errors.extend(reasons)
+        return None
+
+    return download
+
+
+@pytest.mark.asyncio
+async def test_age_gate_after_proxy_audio_names_the_restriction(pipeline, monkeypatch):
+    from unittest.mock import Mock
+    from src import youtube_source
+    from src.youtube_proxy import YouTubeAgeRestrictedError
+    p = pipeline
+    p.config.youtube_source_cache = False
+    monkeypatch.setattr(module, "download_analysis_source", youtube_source.download_analysis_source)
+    monkeypatch.setattr(youtube_source, "download_audio_for_job", Mock(side_effect=RuntimeError(AGE_GATE)))
+    monkeypatch.setattr(module, "download_youtube_video", _failing_download(
+        "API Router returned the wrong video identity.",
+        "YouTube download API returned HTTP 403.",
+        AGE_GATE,
+    ))
+
+    with pytest.raises(YouTubeAgeRestrictedError, match="age-restricted"):
+        await p.run()
+    p.transcription.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_age_gate_without_proxy_names_the_restriction(pipeline, monkeypatch):
+    from src.youtube_proxy import YouTubeAgeRestrictedError
+    p = pipeline
+    monkeypatch.setattr(module, "proxy_configured", lambda *_: False)
+    monkeypatch.setattr(VideoService, "download_video", AsyncMock(side_effect=_failing_download(AGE_GATE)))
+
+    with pytest.raises(YouTubeAgeRestrictedError):
+        await p.run()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", [
+    "ERROR: [youtube] abcdefghijk: Sign in to confirm you're not a bot.",
+    "YouTube download API returned HTTP 403.",
+])
+async def test_other_download_failures_stay_generic(pipeline, monkeypatch, reason):
+    p = pipeline
+    monkeypatch.setattr(module, "proxy_configured", lambda *_: False)
+    monkeypatch.setattr(VideoService, "download_video", AsyncMock(side_effect=_failing_download(reason)))
+
+    with pytest.raises(Exception) as result:
+        await p.run()
+    assert str(result.value) == "Failed to download video"

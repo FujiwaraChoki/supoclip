@@ -29,7 +29,9 @@ from ..youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    YouTubeAgeRestrictedError,
     YouTubeGeoRestrictedError,
+    is_age_restricted_failure,
     proxy_configured,
     public_download_error,
 )
@@ -991,6 +993,8 @@ class VideoService:
                         )
 
                 video_id = get_youtube_video_id(url)
+                # Provider failure reasons, so a final failure can say why.
+                download_errors: list[str] = []
                 cached_full = (
                     await run_in_thread(cached_full_media, video_id, download_quality)
                     if video_id else None
@@ -1004,7 +1008,8 @@ class VideoService:
                                 url,
                                 video_id,
                                 lambda **kwargs: download_youtube_video(
-                                    url, 3, task_id, download_quality, **kwargs
+                                    url, 3, task_id, download_quality,
+                                    errors=download_errors, **kwargs,
                                 ),
                                 task_id=task_id,
                                 budget=job_budget,
@@ -1031,10 +1036,12 @@ class VideoService:
                     audio_first = False
                     video_path = cached_full or await VideoService.download_video(
                         url, task_id=task_id, quality=download_quality, budget=job_budget,
-                        progress_callback=progress_callback,
+                        errors=download_errors, progress_callback=progress_callback,
                     )
                 video_path = preserve_geo_restriction(video_path, metadata_error)
                 if not video_path:
+                    if is_age_restricted_failure(download_errors):
+                        raise YouTubeAgeRestrictedError()
                     raise Exception("Failed to download video")
             elif source_type in {"twitch", "kick"}:
                 # The API preflight already measured the source (and the task

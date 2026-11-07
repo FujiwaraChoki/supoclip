@@ -20,6 +20,7 @@ from ..editor_document import (
 from ..utils.async_helpers import run_in_thread
 from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
 from ..stream_source import download_stream_sections
+from ..youtube_proxy import is_age_restricted_failure
 
 
 async def cap_export_for_plan(task_id: str, path: Path) -> None:
@@ -63,7 +64,7 @@ def youtube_download_failure(errors: list[str]) -> str:
     """
     text = " ".join(errors).lower()
     lead = "No saved copy of this YouTube video is left on the server, and downloading it again failed"
-    if "confirm your age" in text or "age-restricted" in text:
+    if is_age_restricted_failure(errors):
         return f"{lead}: YouTube requires sign-in because the video is age-restricted."
     if "not a bot" in text:
         return f"{lead}: YouTube asked this server to sign in to confirm it is not a bot. Retry later."

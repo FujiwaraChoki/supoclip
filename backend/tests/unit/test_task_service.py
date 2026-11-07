@@ -830,3 +830,22 @@ async def test_geo_restriction_has_specific_task_error_and_actionable_message():
     assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "youtube_geo_restricted"
     assert service.task_repo.update_task_status.await_args.kwargs["progress_message"] == str(YouTubeGeoRestrictedError())
     assert progress.await_args.args == (0, str(YouTubeGeoRestrictedError()), "error")
+
+
+@pytest.mark.asyncio
+async def test_age_restriction_has_specific_task_error_and_actionable_message():
+    from src.youtube_proxy import YouTubeAgeRestrictedError
+
+    service = build_task_service()
+    service.video_service.process_video_complete.side_effect = YouTubeAgeRestrictedError()
+    progress = AsyncMock()
+
+    with pytest.raises(YouTubeAgeRestrictedError):
+        await service.process_task(
+            task_id="task-1", url="https://www.youtube.com/watch?v=abcdefghijk",
+            source_type="youtube", user_id="user-1", progress_callback=progress,
+        )
+
+    assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "youtube_age_restricted"
+    assert service.task_repo.update_task_status.await_args.kwargs["progress_message"] == str(YouTubeAgeRestrictedError())
+    assert progress.await_args.args == (0, str(YouTubeAgeRestrictedError()), "error")
