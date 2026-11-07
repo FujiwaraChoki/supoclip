@@ -17,7 +17,7 @@ export const NAMESPACES = [
   "billing",
   "home",
   "library",
-  "task",
+  "task", "tours",
   "editor",
   "social",
   "analytics",

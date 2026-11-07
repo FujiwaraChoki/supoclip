@@ -76,6 +76,14 @@
   "broll": "B-Roll",
   "brollHint": "Fügt Stock-Footage von Pexels ein, wo der Sprecher etwas Zeigbares nennt",
   "cleanup": "Bereinigung",
+  "composerSettings": {
+    "chip": "Einstellungen",
+    "tour": "Tour starten",
+    "limits": "Upload-Limits und Details",
+    "reset": "Alle Einstellungen zurücksetzen",
+    "on": "An",
+    "off": "Aus"
+  },
   "cleanupTitle": "Clip-Bereinigung",
   "cleanupBody": "Kürzt Leerlauf und schneidet Fülllaute beim Rendern heraus.",
   "shortenPauses": "Lange Pausen kürzen",
@@ -246,12 +254,90 @@
     "SOURCE_TOO_SHORT_FOR_RECAP": "Dieses Video ist schon kurz. Zusammenfassungen funktionieren bei Videos über 3 Minuten.",
     "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailer funktionieren bei Videos über 3 Minuten.",
     "SOURCE_TOO_SHORT_FOR_TOPIC": "Dieses Video ist zu kurz für eine Themensuche. Probier stattdessen Highlights.",
-    "WORKFLOW_NOT_AVAILABLE": "Diese Option ist für dein Konto noch nicht verfügbar."
+    "WORKFLOW_NOT_AVAILABLE": "Diese Option ist für dein Konto noch nicht verfügbar.",
+    "INVALID_WORKFLOW_SETTING": "Diese erweiterte Einstellung wird nicht unterstützt."
   },
   "palette": {
     "series": "Neue Serie",
     "topic": "Neue Themensuche",
     "recap": "Neue Zusammenfassung",
     "trailer": "Neuer Trailer"
+  },
+  "advanced": {
+    "chip": "Erweitert",
+    "title": "Erweitert",
+    "body": "Die Standardwerte passen für die meisten Videos. Ändere nur, wofür du einen Grund hast.",
+    "auto": "Automatisch",
+    "reset": "Auf Standard zurücksetzen",
+    "outOfRange": "Gib eine ganze Zahl von {min} bis {max} ein.",
+    "settings": {
+      "hook_title": {
+        "label": "Titel im Video",
+        "hint": "Blendet den Titel in den ersten Sekunden ein."
+      },
+      "junction_style": {
+        "label": "Schnitte zwischen Abschnitten",
+        "hint": "Wie die Teile eines Clips verbunden werden."
+      },
+      "cold_open": {
+        "label": "Cold Open",
+        "hint": "Teil 1 beginnt mit einem Satz von später aus der Serie und springt dann zum Anfang."
+      },
+      "part_labels": {
+        "label": "Teilnummern in Titeln",
+        "hint": "Jeder Titel beginnt mit „Teil 2:“."
+      },
+      "endings": {
+        "label": "Enden der Teile",
+        "hint": "Wo jeder Teil aufhört."
+      },
+      "coverage": {
+        "label": "Woraus geschnitten wird",
+        "hint": "Wie viel des Videos das Ergebnis abdeckt."
+      },
+      "max_clips": {
+        "label": "Anzahl der Clips",
+        "hint": "Höchstens so viele Clips werden erstellt."
+      },
+      "match": {
+        "label": "Themenübereinstimmung",
+        "hint": "Was passiert, wenn das Video deinem Thema nur nahekommt."
+      },
+      "on_screen_points": {
+        "label": "Punkte im Bild zeigen",
+        "hint": "Nennt jeden Punkt als Text, wenn er beginnt."
+      },
+      "target_seconds": {
+        "label": "Länge in Sekunden",
+        "hint": "Ersetzt die oben gewählte Länge."
+      },
+      "max_points": {
+        "label": "Höchstens so viele Punkte",
+        "hint": "Weniger Punkte lassen jedem mehr Raum, die Zusammenfassung kann kürzer werden."
+      },
+      "spoilers": {
+        "label": "Spoiler",
+        "hint": "Ob der Trailer Sätze nutzen darf, die das Ende verraten."
+      },
+      "ending": {
+        "label": "Letzter Satz",
+        "hint": "Womit der Trailer endet."
+      }
+    },
+    "choices": {
+      "auto": "Automatisch",
+      "soft": "Weiche Blende",
+      "hard": "Harter Schnitt",
+      "cliffhanger": "Lust auf den nächsten Teil machen",
+      "natural": "Den Gedanken zu Ende führen",
+      "best_chapters": "Die besten Kapitel",
+      "start_to_finish": "Der Reihe nach, von Anfang an",
+      "whole_video": "Das ganze Video",
+      "best_moments": "Nur die besten Momente",
+      "broad": "Ähnliche Treffer erlauben",
+      "strict": "Nur das genaue Thema",
+      "relaxed": "Erlaubt",
+      "question": "Eine Frage"
+    }
   }
 }

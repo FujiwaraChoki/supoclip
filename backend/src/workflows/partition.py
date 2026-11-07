@@ -219,7 +219,9 @@ class _Solver:
         forced: frozenset[tuple[int, int]] = frozenset(),
         chapter_ends: Sequence[int] = (),
         jumps: Sequence[tuple[int, int]] = (),
+        natural_endings: bool = False,
     ):
+        self.natural_endings = natural_endings
         self.index = index
         self.span = span
         self.budget = budget
@@ -265,19 +267,26 @@ class _Solver:
         if self.llm_end_times:
             end = unit.end
             nearest = min(abs(end - time) for time in self.llm_end_times)
-            weight = LOOP_DISTANCE_WEIGHT if asks or hook else LLM_DISTANCE_WEIGHT
+            weight = LOOP_DISTANCE_WEIGHT if (asks or hook) and not self.natural_endings else LLM_DISTANCE_WEIGHT
             cost += weight * min(3.0, nearest / 5.0)
         if uid in self.llm_ends:
             cost -= 1.0
-        if asks:
-            # An open question, not a host's segue into the next chapter.
-            cost -= QUESTION_BONUS
-        if hook:
-            cost -= FORWARD_HOOK_BONUS
-        elif resolution_closer(unit.text, index.language):
-            cost += RESOLUTION_COST
-        elif not asks:
-            cost += FLAT_END_COST
+        if self.natural_endings:
+            # The creator wants parts that finish their thought: a closing line is the goal.
+            if resolution_closer(unit.text, index.language):
+                cost -= QUESTION_BONUS
+            elif asks or hook:
+                cost += RESOLUTION_COST
+        else:
+            if asks:
+                # An open question, not a host's segue into the next chapter.
+                cost -= QUESTION_BONUS
+            if hook:
+                cost -= FORWARD_HOOK_BONUS
+            elif resolution_closer(unit.text, index.language):
+                cost += RESOLUTION_COST
+            elif not asks:
+                cost += FLAT_END_COST
         if chapter_end:
             cost -= CHAPTER_END_BONUS
         elif uid + 1 in self._chapter_end_set or uid + 2 in self._chapter_end_set:
@@ -470,8 +479,11 @@ def partition_series(
     forced_skips: Sequence[tuple[int, int]] = (),
     chapter_ends: Sequence[int] = (),
     jumps: Sequence[tuple[int, int]] = (),
+    natural_endings: bool = False,
 ) -> PartitionResult:
     """Split ``span`` (unit ids) into consecutive series parts.
+
+    ``natural_endings`` prefers cuts where a thought closes over open questions.
 
     ``part_count`` None picks 2..max parts, leaning toward the model's count
     (``len(llm_ends)``). Relaxation ladder when nothing fits: drop the critique
@@ -494,7 +506,7 @@ def partition_series(
     forced_units = {uid for low, high in validate_skips(index, span, forced_skips) for uid in range(low, high + 1)}
     # A model skip merged into a sponsor read is kept with it.
     forced = frozenset(skip for skip in valid_skips if any(uid in forced_units for uid in range(skip[0], skip[1] + 1)))
-    solver = _Solver(index, span, budget, llm_ends, constraints, cleanup, forced, chapter_ends, jumps)
+    solver = _Solver(index, span, budget, llm_ends, constraints, cleanup, forced, chapter_ends, jumps, natural_endings)
     variants = _skip_variants(valid_skips, index, forced)
 
     # The least restrictive rung (only the forced skips) decides whether two

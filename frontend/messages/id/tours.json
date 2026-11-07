@@ -1,0 +1,50 @@
+{
+  "new": "Baru",
+  "next": "Berikutnya",
+  "back": "Kembali",
+  "done": "Selesai",
+  "start": "Tunjukkan 👀",
+  "notNow": "Nanti saja",
+  "progress": "{current} dari {total}",
+  "workflows": {
+    "intro": {
+      "title": "Memperkenalkan alur kerja",
+      "body": "Alur kerja memungkinkanmu memilih apa yang dibuat sebelum mulai. Selain sorotan, satu video kini bisa menjadi serial bernomor, semua klip tentang satu topik, rangkuman, atau trailer. Ini sekilas tentang masing-masing, cukup satu menit."
+    },
+    "highlights": {
+      "title": "Sorotan",
+      "body": "Yang sudah kamu kenal: momen terbaik, masing-masing bisa berdiri sendiri. Ini tetap menjadi pilihan default."
+    },
+    "series": {
+      "title": "Serial",
+      "body": "Mengubah video panjang menjadi bagian bernomor yang diputar berurutan, dan tiap bagian membuat orang ingin menonton berikutnya. Cocok untuk cerita dan tutorial."
+    },
+    "topic": {
+      "title": "Topik",
+      "body": "Sebutkan satu subjek dan dapatkan setiap momen kuat tentangnya, seperti “harga” dalam wawancara panjang. Ketik di baris yang muncul di bawah tautanmu."
+    },
+    "recap": {
+      "title": "Rangkuman",
+      "body": "Satu video pendek yang mencakup poin utama seluruh video, dengan poin-poinnya tampil di layar."
+    },
+    "trailer": {
+      "title": "Trailer",
+      "body": "Satu pratinjau pendek yang dibuat agar orang menonton video lengkapnya, tanpa membocorkan akhir cerita."
+    },
+    "instructions": {
+      "title": "Beri arahanmu sendiri",
+      "body": "Apa pun pilihanmu, tambahkan catatan seperti “hanya momen lucu” dan klipnya akan mengikutinya."
+    },
+    "settings": {
+      "title": "Semua yang lain ada di sini",
+      "body": "Durasi, teks, pembingkaian, pembersihan, dan B-roll kini ada dalam satu menu. Kami mengingat pilihanmu, jadi cukup diatur sekali."
+    }
+  },
+  "composer-settings": {
+    "settings": {
+      "title": "Semua yang lain ada di sini",
+      "body": "Durasi, teks, pembingkaian, pembersihan, dan B-roll kini ada dalam satu menu. Kami mengingat pilihanmu, jadi cukup diatur sekali."
+    }
+  },
+  "skip": "Lewati"
+}

@@ -391,3 +391,35 @@ async def test_caption_edit_of_a_planned_clip_keeps_its_stored_offsets(isolated_
     assert captured["render"]["output_offsets"] == OFFSETS
     assert captured["overlay"]["output_offsets"] == OFFSETS
     assert captured["overlay"]["source_ranges"] == CLEANED
+
+
+@pytest.mark.asyncio
+async def test_merged_parts_drop_the_plan_they_no_longer_play(isolated_clip_edits, monkeypatch, tmp_path):
+    first_path, second_path, merged_path = (tmp_path / name for name in ("1.mp4", "2.mp4", "merged.mp4"))
+    for path in (first_path, second_path, merged_path):
+        path.write_bytes(b"clip")
+    save_clip_source_ranges(first_path, [(100.0, 160.0)], [0.0])
+    save_clip_source_ranges(second_path, [(160.0, 215.0)], [0.0])
+    meta = {"planned": True, "ranges": [[100.0, 160.0]], "junction_fades": [], "max_seconds": 155.0,
+            "series_title": "The story", "part_count": 4, "title": "Start"}
+    clips = {
+        "one": _clip(first_path, id="one", task_id="task-1", clip_order=1, workflow_meta=meta),
+        "two": _clip(second_path, id="two", task_id="task-1", clip_order=2, workflow_meta={**meta, "title": "Next"}),
+    }
+    service = _service(monkeypatch, list(clips.values()), [], {}, CLEANUP_OFF)
+    service.clip_repo.get_clip_by_id = AsyncMock(side_effect=lambda _db, clip_id: clips[clip_id])
+    service.clip_repo.update_clip = AsyncMock()
+    service.clip_repo.delete_clip = AsyncMock()
+    service.clip_repo.reorder_task_clips = AsyncMock()
+    monkeypatch.setattr(clip_service_module, "merge_clip_files", lambda *_args: merged_path)
+    monkeypatch.setattr(clip_service_module, "rendered_clip_duration", lambda *_args: 115.0)
+    monkeypatch.setattr(
+        clip_service_module, "MediaStorage",
+        lambda: type("Storage", (), {"local_path": staticmethod(lambda path, **_kwargs: Path(path))})(),
+    )
+
+    await service.merge_clips("task-1", ["one", "two"])
+
+    assert service.clip_repo.update_clip.await_args.kwargs["workflow_meta"] == {
+        "series_title": "The story", "part_count": 4, "title": "Start",
+    }

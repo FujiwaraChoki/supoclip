@@ -48,6 +48,7 @@ describe("/api/preferences", () => {
       fontColor: "#123456",
       notifyOnCompletion: false,
       clipLength: "auto",
+      createSettings: {},
     });
   });
 
@@ -124,6 +125,7 @@ describe("/api/preferences", () => {
       fontColor: "#FFFFFF",
       notifyOnCompletion: true,
       clipLength: "auto",
+      createSettings: {},
     });
   });
   it.each([{ fontSize: 0 }, { fontSize: null }, { fontSize: 24.5 }, { fontFamily: false }, { fontColor: "" }, null, []])("rejects invalid falsy or non-object preferences: %j", async (body) => {
@@ -160,4 +162,17 @@ it.each([null, "", "custom", 120, true, {}])("rejects invalid clip length: %j", 
   }) as never);
   expect(response.status).toBe(400);
   expect(update).not.toHaveBeenCalled();
+
+});
+
+it("stores only well-formed create settings", async () => {
+  vi.mocked(getServerSession).mockResolvedValue({ user: { id: "user-1" } } as never);
+  const update = vi.fn().mockResolvedValue({ create_settings: { includeBroll: true } });
+  vi.mocked(getPrismaClient).mockReturnValue({ user: { update } } as never);
+  const request = (body: unknown) => new Request("http://localhost/api/preferences", { method: "PATCH", body: JSON.stringify(body) }) as never;
+
+  const response = await PATCH(request({ createSettings: { includeBroll: true, topic: "secret", outputFormat: "square" } }));
+  expect(response.status).toBe(200);
+  expect(update.mock.calls[0][0].data).toEqual({ create_settings: { includeBroll: true } });
+  expect((await PATCH(request({ createSettings: ["nope"] }))).status).toBe(400);
 });

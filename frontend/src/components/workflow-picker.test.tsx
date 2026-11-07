@@ -86,10 +86,16 @@ describe("WorkflowPicker", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("draws decorative glyphs with at most one brand accent", () => {
+  it("draws a decorative picture of each output, colored only through the selected card", () => {
     const { container } = render(<>{WORKFLOWS.map((id) => <WorkflowGlyph key={id} id={id} />)}</>);
-    for (const glyph of container.querySelectorAll(":scope > span")) expect(glyph).toHaveAttribute("aria-hidden");
-    expect(container.querySelectorAll(".bg-brand")).toHaveLength(1);
+    const glyphs = container.querySelectorAll(":scope > span");
+    expect(glyphs).toHaveLength(WORKFLOWS.length);
+    for (const glyph of glyphs) {
+      expect(glyph).toHaveAttribute("aria-hidden");
+      expect(glyph.querySelector("svg")).not.toBeNull();
+    }
+    expect(new Set([...glyphs].map((glyph) => glyph.innerHTML)).size).toBe(WORKFLOWS.length);
+    expect(container.querySelector(".text-brand, .bg-brand")).toBeNull();
   });
 });
 

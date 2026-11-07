@@ -38,10 +38,13 @@ export function heroMoments(workflow: "recap" | "trailer", clip: WallClip, plan?
   const sourceOf = (rangeIndex: number) => finite(ranges[rangeIndex]?.[0]);
   if (workflow === "recap") {
     if (meta.points?.length) {
-      return meta.points.map((point, i) => ({
-        key: `p${i}`, label: point.label, kind: point.kind,
-        outputStart: finite(point.output_start), sourceStart: sourceOf(point.range_index),
-      }));
+      // One entry per range: a point with a setup has two, but it is one point.
+      return meta.points
+        .map((point, i) => ({
+          key: `p${i}`, label: point.label, kind: point.kind,
+          outputStart: finite(point.output_start), sourceStart: sourceOf(point.range_index),
+        }))
+        .filter((moment, i, all) => i === 0 || moment.label !== all[i - 1].label);
     }
     return (plan?.points ?? []).map((point, i) => ({
       key: `p${i}`, label: point.label,
@@ -58,6 +61,10 @@ export function heroMoments(workflow: "recap" | "trailer", clip: WallClip, plan?
     key: `b${i}`, label: beat.role, role: beat.role,
     outputStart: finite(beat.output_start), sourceStart: finite(beat.ranges?.[0]?.[0]),
   }));
+}
+
+function isFraming(moment: HeroMoment): moment is HeroMoment & { kind: "opener" | "closer" } {
+  return (moment.kind === "opener" && moment.label === "Intro") || (moment.kind === "closer" && moment.label === "Takeaway");
 }
 
 /** The moment playing at `time`: the last one that started at or before it. */
@@ -100,6 +107,8 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
 
   const momentLabel = (moment: HeroMoment) => {
     if (moment.role) return t.has(`beatRoles.${moment.role}`) ? t(`beatRoles.${moment.role}`) : moment.role;
+    // The planner's untranslated placeholder names: the kind already says it, in the viewer's language.
+    if (isFraming(moment)) return t(`pointKinds.${moment.kind}`);
     return moment.label;
   };
 
@@ -146,7 +155,7 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
         {moments.length > 0 && (
           <div className="mt-8">
             <h3 className="text-sm font-semibold">
-              {workflow === "recap" ? t("coversPoints", { count: moments.length }) : t("beatsTitle")}
+              {workflow === "recap" ? t("coversPoints", { count: moments.filter((moment) => moment.kind !== "opener" && moment.kind !== "closer").length || moments.length }) : t("beatsTitle")}
             </h3>
             <ol className="mt-3 space-y-1">
               {moments.map((moment, i) => {
@@ -158,7 +167,7 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-baseline gap-x-2">
                         <span className="text-sm font-medium leading-snug">{label}</span>
-                        {moment.kind && moment.kind !== "point" && (
+                        {moment.kind && moment.kind !== "point" && !isFraming(moment) && (
                           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t(`pointKinds.${moment.kind}`)}</span>
                         )}
                       </span>

@@ -303,6 +303,11 @@ def ffmpeg_escape_filter_path(path: Path) -> str:
     return ffmpeg_escape_filter_value(str(path))
 
 
+# A source's chapters describe the whole video. Copied into a clip they keep the
+# source's times, and MP4 stores them as a text track as long as the source.
+NO_CHAPTERS = ("-map_chapters", "-1")
+
+
 def build_final_video_encode_args(
     crf: int = FINAL_VIDEO_CRF,
     preset: str = FINAL_VIDEO_PRESET,
@@ -315,6 +320,7 @@ def build_final_video_encode_args(
     needs 4.2 or x264 rejects the stream.
     """
     return [
+        *NO_CHAPTERS,
         "-c:v", "libx264",
         "-preset", preset,
         "-crf", str(crf),
@@ -697,6 +703,7 @@ def render_ranges_crossfade_ffmpeg(
             "ffmpeg", "-y", *input_args,
             "-filter_complex", ";".join(parts),
             *map_args,
+            *NO_CHAPTERS,
             "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
             "-pix_fmt", "yuv420p",
         ]
@@ -762,6 +769,7 @@ def render_source_ranges_ffmpeg(
             "-i",
             str(video_path),
             *audio_stream_map_args(audio_stream),
+            *NO_CHAPTERS,
             "-t",
             f"{end - start:.3f}",
             "-c:v",
@@ -838,6 +846,7 @@ def render_source_ranges_ffmpeg(
             "-filter_complex",
             ";".join(filter_parts),
             *map_args,
+            *NO_CHAPTERS,
             "-c:v",
             "libx264",
             "-preset",

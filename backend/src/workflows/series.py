@@ -32,12 +32,14 @@ from .language import forward_hook, is_acknowledgement, opens_with_back_referenc
 from .llm import build_agent, is_cancellation, run, run_with_repair
 from .outline import chapter_ranges
 from .partition import SKIP_MIN_SECONDS, PartitionConstraints, PartitionResult, partition_series, validate_skips
+from ..media.timeline import seconds_to_mmss
 from .planning import PlanInput, base_plan, planned_segment, rounded_ranges
 from .prompts import (
     outline_block,
     series_critique_system,
     series_draft_system,
     series_list_skips_system,
+    series_cold_open_system,
     series_open_system,
     series_parts_clause,
     series_retitle_system,
@@ -45,7 +47,7 @@ from .prompts import (
     transcript_block,
     with_instructions,
 )
-from .schemas import SeriesCopy, SeriesCritique, SeriesDraft, SeriesListSkips, SeriesOpen, SeriesScope
+from .schemas import SeriesColdOpen, SeriesCopy, SeriesCritique, SeriesDraft, SeriesListSkips, SeriesOpen, SeriesScope
 from .titles import compose_title, heard_share, strip_numbering, title_words
 from .units import UnitIndex, format_clock
 
@@ -88,6 +90,11 @@ SKIP_MAX_SHARE = 0.4
 PART_JUNCTION_FADE = 0.10
 # Intro and outro chapters rated above this carry story and stay in the series.
 FRAMING_MAX_IMPORTANCE = 2
+# A cold open is one or two sentences from later in the series.
+COLD_OPEN_MIN_SECONDS = 3.0
+COLD_OPEN_MAX_SECONDS = 9.0
+COLD_OPEN_MAX_UNITS = 3
+COLD_OPEN_MAX_CANDIDATES = 24
 # Part 1 may step past a slow warm-up, never past story the later parts need:
 # at most this much speech before start_unit (or this share of the material).
 LEAD_TRIM_MAX_SECONDS = 60.0
@@ -1366,6 +1373,97 @@ async def _series_open(pi: PlanInput, material: _Material, start: int) -> int:
     return chosen.start_unit if chosen.start_unit in candidates else start
 
 
+@dataclass(frozen=True)
+class _ColdOpen:
+    first: int
+    last: int
+    from_part: int
+    seconds: float
+
+
+def cold_open_candidates(pi: PlanInput, result: PartitionResult, budget: Budget) -> list[_ColdOpen]:
+    """Lines a series could flash forward to before Part 1: whole sentences from later parts.
+
+    Never from the last part of a longer series, never a payoff, never one that
+    leans on what came before, and never so long that Part 1 leaves its budget.
+    """
+    index, cleanup = pi.index, pi.cleanup
+    payoffs = {
+        uid for payoff in pi.outline.outline.payoffs for uid in range(payoff.first_unit, payoff.last_unit + 1)
+    }
+    room = budget.max - float(result.seconds[0])
+    count = len(result.parts)
+    later = range(2, count + 1) if count == 2 else range(2, count)
+    found: list[_ColdOpen] = []
+    for number in later:
+        first_unit, last_unit = result.parts[number - 1]
+        skipped = {uid for low, high in result.skips_by_part[number - 1] for uid in range(low, high + 1)}
+        # A two-part series keeps its second half for the ending.
+        stop = (first_unit + last_unit) // 2 if count == 2 else last_unit
+        for first in range(first_unit, stop + 1):
+            unit = index.unit(first)
+            if (
+                first in skipped
+                or first in payoffs
+                or not unit.starts_sentence
+                or opens_with_back_reference(unit.text, index.language, strict=True)
+                or unresolved_reference(unit.text, index.language)
+            ):
+                continue
+            for last in range(first, min(stop, first + COLD_OPEN_MAX_UNITS - 1) + 1):
+                if last in skipped or last in payoffs:
+                    break
+                seconds = index.speech_seconds(first, last, (), cleanup)
+                if seconds > min(COLD_OPEN_MAX_SECONDS, room):
+                    break
+                if seconds >= COLD_OPEN_MIN_SECONDS and index.boundary_strength(last) >= STRONG_BOUNDARY:
+                    found.append(_ColdOpen(first, last, number, seconds))
+                    break
+    if len(found) <= COLD_OPEN_MAX_CANDIDATES:
+        return found
+    # Evenly across the series: the prompt can't read them all.
+    step = len(found) / COLD_OPEN_MAX_CANDIDATES
+    return [found[int(position * step)] for position in range(COLD_OPEN_MAX_CANDIDATES)]
+
+
+async def _cold_open(pi: PlanInput, result: PartitionResult, budget: Budget, series_title: str) -> Optional[_ColdOpen]:
+    """The flash-forward before Part 1, chosen by the model; None leaves Part 1 as it is, and says so."""
+    index = pi.index
+    candidates = cold_open_candidates(pi, result, budget)
+    chosen: Optional[_ColdOpen] = None
+    if candidates:
+        lines = "\n".join(
+            f"{number}. (Part {item.from_part}) {index.text(item.first, item.last)}"
+            for number, item in enumerate(candidates, start=1)
+        )
+        opening = index.text(*result.parts[0])[:400]
+        prompt = with_instructions(
+            f"Series: {series_title}\n\nPart 1 starts: {opening}\n\nCandidates:\n{lines}", pi.instructions
+        )
+        agent = build_agent(SeriesColdOpen, series_cold_open_system(pi.language_name), structural=True)
+        try:
+            picked = (await run(agent, prompt, stats=pi.stats, stage="series_cold_open")).output
+        except Exception as error:
+            if is_cancellation(error):
+                raise
+            logger.warning("Series cold open pick failed (%s)", type(error).__name__)
+        else:
+            if 1 <= picked.candidate <= len(candidates):
+                chosen = candidates[picked.candidate - 1]
+    if chosen is None:
+        pi.note("COLD_OPEN_SKIPPED")
+    return chosen
+
+
+def _start_to_finish(pi: PlanInput, content: tuple[int, int], limit: float) -> _Material:
+    """The video in order from its first content, as far as the parts can hold: no chapter is chosen or dropped."""
+    index = pi.index
+    end = _trim_to_limit(index, content[0], content[1], limit, pi.cleanup)
+    if end < content[1]:
+        pi.note("STORY_ARC_SELECTED", _clock_range(index, content[0], end))
+    return _material(pi, (content[0], end))
+
+
 # -- entry point ------------------------------------------------------------------------------
 
 
@@ -1379,7 +1477,11 @@ async def plan_series(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, An
     limit = span_limit(budget, requested)
     fits = index.speech_seconds(*content, (), pi.cleanup) <= limit
     scope: Optional[_Scope] = None
-    if fits and has_throughline(pi, content):
+    start_to_finish = pi.setting("coverage") == "start_to_finish"
+    natural_endings = pi.setting("endings") == "natural"
+    if start_to_finish:
+        material = _start_to_finish(pi, content, limit)
+    elif fits and has_throughline(pi, content):
         material = _leave_out_padding(pi, _material(pi, content, limit), budget)
     else:
         if fits:
@@ -1397,7 +1499,9 @@ async def plan_series(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, An
     allowed = (scope.keep + scope.spare) if scope is not None else None
     # A list ends on its last item, wherever the payoffs are.
     listed = scope is not None and bool(scope.list_items)
-    if not listed:
+    if start_to_finish:
+        pass  # the creator asked for the video as it runs: the finale is wherever the room ends
+    elif not listed:
         material = validate_finale(pi, material, budget, limit, allowed=allowed)
     else:
         material = await _list_skips(pi, material, limit)
@@ -1434,6 +1538,7 @@ async def plan_series(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, An
     result = partition_series(
         index, span, skips, budget, requested, llm_ends, None, pi.cleanup,
         forced_skips=material.forced_skips, chapter_ends=ends_of_chapters, jumps=material.left_out,
+        natural_endings=natural_endings,
     )
     # Unit ids only (never transcript text), so an eval can tell who moved a cut.
     logger.info(
@@ -1469,7 +1574,7 @@ async def plan_series(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, An
         revised_skips = list(fixed.skips)
         forced = list(material.forced_skips)
         jumps = list(material.left_out)
-        if not critique.finale_lands and fixed.span_end is None and not listed:
+        if not critique.finale_lands and fixed.span_end is None and not listed and not start_to_finish:
             # The viewer says the series stops rather than finishes: one more look at where it ends.
             refinaled = validate_finale(pi, _Material(span=(span[0], span[1]), forced_skips=forced, skip_reasons=material.skip_reasons), budget, limit, allowed=allowed, force=True)
             if refinaled.span != revised_span:
@@ -1487,6 +1592,7 @@ async def plan_series(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, An
                     forced_skips=[skip for skip in forced if skip[1] < revised_span[1]],
                     chapter_ends=ends_of_chapters,
                     jumps=[skip for skip in jumps if skip[1] < revised_span[1]],
+                    natural_endings=natural_endings,
                 )
             except WorkflowError as error:
                 # The critique only polishes a plan that already works.
@@ -1523,7 +1629,8 @@ async def plan_series(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, An
     if index.coarse:
         pi.note("COARSE_TRANSCRIPT")
     premise = (_clean(draft.premise) if draft is not None else "") or (scope.premise if scope is not None else "")
-    return _segments(pi, result, copies, series_title, budget, premise)
+    cold_open = await _cold_open(pi, result, budget, series_title) if pi.setting("cold_open") else None
+    return _segments(pi, result, copies, series_title, budget, premise, cold_open)
 
 
 def _segments(
@@ -1533,6 +1640,7 @@ def _segments(
     series_title: str,
     budget: Budget,
     premise: str = "",
+    cold_open: Optional[_ColdOpen] = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     index = pi.index
     count = len(result.parts)
@@ -1542,14 +1650,31 @@ def _segments(
         zip(result.parts, result.skips_by_part, result.seconds, copies), start=1
     ):
         ranges = index.ranges_for(first, last, skips)
-        hook_title = compose_title(copy.title, prefix=part_label(pi.language, number))
+        prefix = part_label(pi.language, number) if pi.setting("part_labels") else ""
+        hook_title = compose_title(copy.title, prefix=prefix)
+        fades = [PART_JUNCTION_FADE] * (len(ranges) - 1)
+        text = index.text(first, last, skips)
+        extra_meta: dict[str, Any] = {}
+        own_start = ranges[0]
+        if number == 1 and cold_open is not None:
+            flash = index.ranges_for(cold_open.first, cold_open.last)
+            # The jump into the story is a hard cut; the line plays again when the series gets there.
+            fades = [PART_JUNCTION_FADE] * (len(flash) - 1) + [0.0] + fades
+            ranges = list(flash) + list(ranges)
+            text = f"{index.text(cold_open.first, cold_open.last)} … {text}"
+            extra_meta["cold_open"] = {
+                "first_unit": cold_open.first,
+                "last_unit": cold_open.last,
+                "range_count": len(flash),
+                "from_part": cold_open.from_part,
+            }
         segments.append(
             planned_segment(
                 ranges=ranges,
-                junction_fades=[PART_JUNCTION_FADE] * (len(ranges) - 1),
+                junction_fades=fades,
                 max_seconds=budget.render_cap,
                 required=True,
-                text=index.text(first, last, skips),
+                text=text,
                 hook_title=hook_title,
                 reasoning=copy.delivers,
                 workflow_role="part",
@@ -1563,9 +1688,14 @@ def _segments(
                     "post_caption": copy.post_caption,
                     "first_unit": first,
                     "last_unit": last,
+                    **extra_meta,
                 },
             )
         )
+        if extra_meta:
+            # The part still starts where its story starts, in labels and file names.
+            segments[-1]["start_time"] = seconds_to_mmss(own_start[0])
+            segments[-1]["end_time"] = seconds_to_mmss(own_start[1])
         plan_parts.append(
             {
                 "part_number": number,
@@ -1576,7 +1706,8 @@ def _segments(
                 "first_unit": first,
                 "last_unit": last,
                 "ranges": rounded_ranges(ranges),
-                "seconds": round(seconds, 1),
+                "seconds": round(seconds + (cold_open.seconds if number == 1 and cold_open else 0.0), 1),
+                **extra_meta,
             }
         )
     plan = base_plan(pi, title=series_title)

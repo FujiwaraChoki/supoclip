@@ -1,5 +1,6 @@
 """Captions helpers for the video pipeline."""
 
+import unicodedata
 from typing import Any
 from typing import Dict
 from typing import Iterable
@@ -304,6 +305,23 @@ def ensure_glyph_coverage(
     return GLYPH_FALLBACK_FONT, template
 
 
+def _title_width(text: str) -> int:
+    """Width in average Latin characters: a Han, kana or Hangul character is about two."""
+    return sum(2 if unicodedata.east_asian_width(character) in "WF" else 1 for character in text)
+
+
+def _title_lines(title: str, max_chars: int) -> List[str]:
+    """One or two lines. Text written without spaces breaks between characters."""
+    words = title.split()
+    if len(words) != 1 or _title_width(title) <= max_chars or _title_width(title) == len(title):
+        return _balance_title_lines(words, max_chars)
+    middle = min(
+        range(1, len(title)),
+        key=lambda i: max(_title_width(title[:i]), _title_width(title[i:])),
+    )
+    return [title[:middle], title[middle:]]
+
+
 def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
     """Split title words into one line, or two lines balanced around the middle."""
     text = " ".join(words)
@@ -319,6 +337,66 @@ def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
             best_longest = longest
             best_lines = [first, second]
     return best_lines
+
+
+# How long a recap's point stays on screen, and the least worth showing.
+POINT_LABEL_SECONDS = 3.0
+POINT_LABEL_MIN_SECONDS = 1.2
+
+
+def build_point_label_ass(
+    labels: List[Dict[str, Any]],
+    template: Dict[str, Any],
+    video_width: int,
+    video_height: int,
+    output_duration: float,
+    font_name: str,
+    caption_font_px: int,
+    position_y: Optional[float] = None,
+    hook_end: float = 0.0,
+) -> Tuple[str, List[str]]:
+    """Text naming each point of a recap, on a dark backing, for about 3 s as the point starts.
+
+    It sits where the hook title sits, the place the layouts keep clear of the
+    captions and faces, so a label that would meet the title waits for it to go.
+    ``labels`` are {"text", "start"} on the clip timeline, in play order.
+    """
+    primary = hex_to_ass_color(template.get("font_color"), "#FFFFFF")
+    base_px = min(64, max(34, int(round(caption_font_px * 0.8))))
+    usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
+    margin_v = max(48, int(video_height * HOOK_TITLE_TOP_MARGIN_FRAC))
+    backing_px = max(6, base_px // 4)
+
+    style_line = (
+        f"Style: Point,{font_name},{base_px},{primary},&H000000FF,&H59000000,&H59000000,"
+        f"1,0,0,0,100,100,0,0,3,{backing_px},0,8,60,60,{margin_v},1"
+    )
+    events: List[str] = []
+    starts = [max(0.0, float(label["start"])) for label in labels]
+    for position, label in enumerate(labels):
+        raw = " ".join(str(label.get("text") or "").split())
+        if not raw:
+            continue
+        text_value = raw.upper() if template.get("uppercase") else raw
+        start = max(starts[position], hook_end)
+        end = min(
+            start + POINT_LABEL_SECONDS,
+            output_duration,
+            starts[position + 1] - 0.05 if position + 1 < len(labels) else output_duration,
+        )
+        if end - start < POINT_LABEL_MIN_SECONDS:
+            continue
+        max_chars = max(10, int(usable_width / (base_px * 0.52)))
+        lines = _title_lines(text_value, max_chars)
+        longest = max(_title_width(line) for line in lines)
+        size = f"\\fs{max(24, int(usable_width / (longest * 0.52)))}" if longest > max_chars else ""
+        placement = f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})" if position_y is not None else ""
+        body = "\\N".join(escape_ass_text(line) for line in lines)
+        events.append(
+            f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Point,,0,0,0,,"
+            f"{{\\fad(120,160){placement}{size}}}{body}"
+        )
+    return style_line, events
 
 
 def build_hook_title_ass(
@@ -358,8 +436,8 @@ def build_hook_title_ass(
         base_px = int(editor_style["base_px"])
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
-    lines = _balance_title_lines(title_text.split(), max_chars)
-    longest = max(len(line) for line in lines)
+    lines = _title_lines(title_text, max_chars)
+    longest = max(_title_width(line) for line in lines)
     hook_px = base_px
     if longest > max_chars:
         fitted = int(usable_width / (longest * 0.52))
@@ -488,6 +566,7 @@ def build_assemblyai_ass_subtitles(
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
     output_offsets: Optional[List[float]] = None,
+    point_labels: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -507,6 +586,7 @@ def build_assemblyai_ass_subtitles(
     into the source; the spoken captions move clear of it. ``output_offsets``
     are a workflow clip's explicit range starts on the clip timeline (planned
     junction fades); without them the renderer's default crossfades apply.
+    ``point_labels`` are a recap's on-screen points (``build_point_label_ass``).
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -530,14 +610,16 @@ def build_assemblyai_ass_subtitles(
                 passage_breaks = _passage_breaks(transcript_data, keep_ranges)
         else:
             relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
-    if not relevant_words and not hook_title:
+    if not relevant_words and not hook_title and not point_labels:
         logger.warning("No words or hook title available for ASS subtitles")
         return False
 
     effective_font_family, template = ensure_glyph_coverage(
         effective_font_family,
         template,
-        [hook_title or ""] + [str(word.get("text", "")) for word in relevant_words],
+        [hook_title or ""]
+        + [str(label.get("text", "")) for label in point_labels or []]
+        + [str(word.get("text", "")) for word in relevant_words],
     )
 
     # --- styling knobs (new template fields, all optional) ---
@@ -603,14 +685,14 @@ def build_assemblyai_ass_subtitles(
 
     hook_style_block = ""
     hook_events: List[str] = []
+    if keep_ranges and output_offsets:
+        last_start, last_end = normalize_source_ranges(keep_ranges)[-1]
+        output_duration = max(0.0, float(output_offsets[-1]) + last_end - last_start)
+    elif keep_ranges:
+        output_duration = rendered_ranges_duration(keep_ranges)
+    else:
+        output_duration = max(0.0, clip_end - clip_start)
     if hook_title:
-        if keep_ranges and output_offsets:
-            last_start, last_end = normalize_source_ranges(keep_ranges)[-1]
-            output_duration = max(0.0, float(output_offsets[-1]) + last_end - last_start)
-        elif keep_ranges:
-            output_duration = rendered_ranges_duration(keep_ranges)
-        else:
-            output_duration = max(0.0, clip_end - clip_start)
         hook_style_line, hook_events = build_hook_title_ass(
             hook_title,
             template,
@@ -625,6 +707,20 @@ def build_assemblyai_ass_subtitles(
             editor_style=hook_editor_style,
         )
         hook_style_block = f"{hook_style_line}\n"
+    if point_labels:
+        point_style_line, point_events = build_point_label_ass(
+            point_labels,
+            template,
+            video_width,
+            video_height,
+            output_duration,
+            font_name,
+            font_px,
+            position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
+            hook_end=min(HOOK_TITLE_SECONDS, output_duration) + 0.1 if hook_title else 0.0,
+        )
+        hook_style_block += f"{point_style_line}\n"
+        hook_events = hook_events + point_events
 
     # Contextual emoji + emphasis annotations over the whole clip word list.
     emoji_by_idx, emphasis_idx = annotate_caption_words(

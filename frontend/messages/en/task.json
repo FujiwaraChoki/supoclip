@@ -202,7 +202,8 @@
     "TOPIC_BROADENED": "\"{topic}\" is broad for this video, so we took it to mean: {interpretation}",
     "TARGET_SHORTENED": "The video is short, so the recap is shorter too.",
     "COARSE_TRANSCRIPT": "This transcript has no word timings, so cuts are less precise.",
-    "SPONSOR_SKIPPED": "We left out a sponsor read."
+    "SPONSOR_SKIPPED": "We left out a sponsor read.",
+    "COLD_OPEN_SKIPPED": "No line was strong enough for a cold open, so Part 1 starts at the beginning."
   },
   "workflowErrors": {
     "topic_not_found": {

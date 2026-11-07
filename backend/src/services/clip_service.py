@@ -49,6 +49,7 @@ from ..youtube_source import (
     restore_clip_timeline,
 )
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip_duration
+from ..media.render_ranges import burned_hook_title, point_labels_for
 from ..stream_source import download_stream_sections
 from .video_service import resolve_upload_for_edit
 
@@ -739,6 +740,8 @@ class ClipEditingMixin:
             end_time,
             duration,
             text,
+            # The merged clip no longer plays one part's planned cuts or labels.
+            workflow_meta=_unplanned_meta(first["workflow_meta"]) if first.get("workflow_meta") else None,
         )
 
         for clip in ordered[1:]:
@@ -841,6 +844,8 @@ class ClipEditingMixin:
             if (clip.get("workflow_meta") or {}).get("planned") and len(local_ranges) == len(source_ranges):
                 output_offsets = load_clip_output_offsets(input_path, source_ranges)
             offsets_kwargs = {"output_offsets": output_offsets} if output_offsets is not None else {}
+            point_labels = point_labels_for(clip.get("workflow_meta"))
+            labels_kwargs = {"point_labels": point_labels} if point_labels else {}
             with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
                 clean_path = Path(temporary) / "clean.mp4"
                 rendered = await run_in_thread(
@@ -848,7 +853,7 @@ class ClipEditingMixin:
                     add_subtitles=False,
                     output_format=settings.get("output_format", "vertical"),
                     keep_ranges=local_ranges,
-                    hook_title=clip.get("hook_title"),
+                    hook_title=burned_hook_title(clip),
                     font_family=task.get("font_family") or None,
                     font_size=task.get("font_size") or None,
                     font_color=task.get("font_color") or None,
@@ -857,6 +862,7 @@ class ClipEditingMixin:
                     layout_report=render_report,
                     broll_overlays=broll_overlays,
                     **offsets_kwargs,
+                    **labels_kwargs,
                 )
                 if not rendered:
                     raise ValueError("Could not prepare the clip for caption editing")

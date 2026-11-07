@@ -174,6 +174,11 @@ class SeriesOpen(BaseModel):
     stop_scroll_score: int = Field(description="1-5: how hard that sentence stops a stranger")
 
 
+class SeriesColdOpen(BaseModel):
+    reasoning: str = Field(description="At most 40 words")
+    candidate: int = Field(description="The number of the best line, -1 when none is strong enough")
+
+
 class PartCopy(BaseModel):
     part: int
     title: str
@@ -260,7 +265,7 @@ class TopicRanking(BaseModel):
 
 
 class RecapPoint(BaseModel):
-    label: str = Field(description="2-6 words, shown in the UI")
+    label: str = Field(description="2-5 words shown on screen as this point plays: says what the point is, not a quote")
     subject: str = Field(description="1-3 words copied exactly from the transcript: what this point is about")
     first_unit: int = Field(description="Fullest clear statement")
     last_unit: int
@@ -284,7 +289,7 @@ class RecapDraft(BaseModel):
 class RecapFinalBeat(BaseModel):
     first_unit: int
     last_unit: int
-    label: str = Field(description="2-6 words naming the beat")
+    label: str = Field(description="2-5 words shown on screen as this beat plays: says what the point is, not a quote")
 
 
 class RecapFinalCut(BaseModel):

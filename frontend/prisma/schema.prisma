@@ -75,6 +75,8 @@ model User {
   default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
   notify_on_completion Boolean  @default(true)
   default_clip_length  String   @default("auto") @db.VarChar(10)
+  // What the create screen remembers between videos (lib/create-settings.ts).
+  create_settings      Json     @default("{}") @db.JsonB
   product_updates_unsubscribed_at DateTime? @db.Timestamptz
 
   // Monetization and billing
@@ -107,6 +109,7 @@ model User {
   social_posts        SocialPost[]
 
   @@map("users")
+  feature_tours UserFeatureTour[]
 }
 
 // First-touch campaign attribution, written once shortly after sign-up.
@@ -419,4 +422,19 @@ model RevenueCatWebhookEvent {
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@map("revenuecat_webhook_events")
+}
+
+/// One row per account and feature tour (lib/feature-tours.ts): shown, then completed or dismissed.
+model UserFeatureTour {
+  user_id      String    @db.VarChar(36)
+  tour_id      String    @db.VarChar(64)
+  shown_at     DateTime  @default(now()) @db.Timestamptz
+  completed_at DateTime? @db.Timestamptz
+  dismissed_at DateTime? @db.Timestamptz
+  last_step    Int?
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, tour_id])
+  @@index([tour_id], map: "ix_user_feature_tours_tour")
+  @@map("user_feature_tours")
 }

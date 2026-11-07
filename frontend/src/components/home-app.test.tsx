@@ -46,8 +46,11 @@ const billingSummary = {
 const workflowsInfo = {
   enabled: true,
   workflows: [
-    { id: "highlights", available: true, min_source_seconds: 0 },
-    { id: "series", available: true, min_source_seconds: 120, part_count: { min: 2, max: 10 }, lengths: { auto: [45, 150], short: [30, 60], medium: [45, 90], long: [90, 175] } },
+    { id: "highlights", available: true, min_source_seconds: 0, settings: [{ key: "max_clips", type: "int", default: null, min: 1, max: 20 }] },
+    { id: "series", available: true, min_source_seconds: 120, settings: [
+      { key: "cold_open", type: "bool", default: false },
+      { key: "endings", type: "enum", default: "cliffhanger", choices: ["cliffhanger", "natural"] },
+    ], part_count: { min: 2, max: 10 }, lengths: { auto: [45, 150], short: [30, 60], medium: [45, 90], long: [90, 175] } },
     { id: "topic", available: true, min_source_seconds: 60 },
     { id: "recap", available: true, min_source_seconds: 180, lengths: { auto: null, short: 45, medium: 75, long: 120 } },
     { id: "trailer", available: true, min_source_seconds: 180, lengths: { auto: 30, short: 20, medium: 40, long: 60 } },
@@ -63,11 +66,14 @@ const LEGACY_KEYS = [
   "include_broll", "cut_long_pauses", "pause_threshold_ms", "remove_filler_words", "filtered_words",
 ];
 
-let workflowsResponse: () => Response;
+let workflowsResponse: () => Response | Promise<Response>;
 let createResponse: () => Response;
 let savedClipLength: string;
 let created: Record<string, unknown>[];
 let preferenceSaves: unknown[];
+let settingsSaves: Array<{ createSettings: Record<string, unknown>; fontFamily?: string }>;
+let savedCreateSettings: unknown;
+let savedFontFamily: string;
 let storage: Map<string, string>;
 
 beforeEach(() => {
@@ -80,6 +86,9 @@ beforeEach(() => {
   savedClipLength = "medium";
   created = [];
   preferenceSaves = [];
+  settingsSaves = [];
+  savedCreateSettings = undefined;
+  savedFontFamily = "TikTokSans-Regular";
   storage = new Map();
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => storage.get(key) ?? null,
@@ -95,8 +104,11 @@ beforeEach(() => {
       return createResponse();
     }
     if (url.includes("/api/preferences")) {
-      if (init?.method === "PATCH") preferenceSaves.push(JSON.parse(String(init.body)));
-      return Response.json({ clipLength: savedClipLength });
+      if (init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body));
+        (body.createSettings ? settingsSaves : preferenceSaves).push(body);
+      }
+      return Response.json({ clipLength: savedClipLength, createSettings: savedCreateSettings, fontFamily: savedFontFamily });
     }
     if (url.includes("/api/tasks")) return Response.json({ tasks: [] });
     if (url.includes("/api/fonts")) return Response.json({ fonts: [] });
@@ -140,6 +152,17 @@ function pasteIntoUrl(text: string) {
   fireEvent.change(input, { target: { value: text } });
 }
 
+const settingsChip = () => screen.getByRole("button", { name: /^Settings:/ });
+
+function openSettings() {
+  if (!screen.queryByRole("tablist", { name: "Settings" })) fireEvent.click(settingsChip());
+}
+
+function openSection(name: RegExp) {
+  openSettings();
+  fireEvent.click(screen.getByRole("tab", { name }));
+}
+
 function pick(name: RegExp) {
   fireEvent.click(screen.getByRole("radio", { name }));
 }
@@ -156,7 +179,10 @@ it("states the upload limit and rejects a file over it before upload", async () 
   render(<HomeApp />, { wrapper: TooltipProvider });
 
   expect(await screen.findByText(/Uploads up to 2 GB/)).toBeInTheDocument();
-  expect(screen.getByText(/above 1080p or 60 fps are scaled down automatically/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Upload limits and details" }));
+  const details = within(await screen.findByRole("dialog"));
+  expect(details.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+  expect(details.getByText(/above 1080p or 60 fps are scaled down automatically/)).toBeInTheDocument();
 
   const input = document.getElementById("video-upload") as HTMLInputElement;
   fireEvent.change(input, { target: { files: [videoFile("talk.mp4", 2_000_000_001)] } });
@@ -221,6 +247,77 @@ describe("when the server does not offer workflows", () => {
   }
 });
 
+describe("before the server says what's offered", () => {
+  it("won't send a saved series as plain highlights", async () => {
+    storage.set("supoclip.workflow", "series");
+    let settle: (response: Response) => void = () => {};
+    workflowsResponse = () => new Promise<Response>((resolve) => { settle = resolve; });
+    render(<HomeApp />, { wrapper: TooltipProvider });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/tasks/workflows"))).toBe(true));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/pr"))).toBe(true));
+    await act(async () => {});
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    expect(screen.getByRole("button", { name: /Generate/ })).toBeDisabled();
+
+    await act(async () => { settle(Response.json(workflowsInfo)); });
+    expect(screen.getByRole("radio", { name: /Series/ })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("doesn't hold back someone making plain highlights", async () => {
+    storage.set("supoclip.workflow", "highlights");
+    workflowsResponse = () => new Promise<Response>(() => {});
+    render(<HomeApp />, { wrapper: TooltipProvider });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/tasks/workflows"))).toBe(true));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/pr"))).toBe(true));
+    await act(async () => {});
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+  });
+});
+
+describe("when only some workflows are open to everyone", () => {
+  const partial = () => Response.json({
+    ...workflowsInfo,
+    workflows: workflowsInfo.workflows.map((entry) => {
+      const open = entry.id === "trailer" || entry.id === "topic";
+      return {
+        ...entry,
+        available: open || entry.id === "highlights",
+        customizable: open,
+        settings: open ? [{ key: "spoilers", type: "enum", default: "strict", choices: ["strict", "relaxed"] }] : [],
+      };
+    }),
+  });
+
+  it("offers instructions and settings only on the open workflows", async () => {
+    workflowsResponse = partial;
+    await renderHome();
+
+    expect(screen.getByRole("radio", { name: /Series/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Recap/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Instructions" })).not.toBeInTheDocument();
+    openSettings();
+    expect(screen.queryByRole("tab", { name: /Advanced/ })).not.toBeInTheDocument();
+
+    // Words after a link stay put: plain highlights can't take instructions.
+    pasteIntoUrl(`${LINK} only the funny bits`);
+    expect(urlInput().value).toBe(`${LINK} only the funny bits`);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+  });
+
+  it("shows them once an open workflow is chosen", async () => {
+    workflowsResponse = partial;
+    await renderHome();
+    fireEvent.click(screen.getByRole("radio", { name: /Trailer/ }));
+    expect(await screen.findByRole("button", { name: "Instructions" })).toBeInTheDocument();
+    openSettings();
+    expect(screen.getByRole("tab", { name: /Advanced/ })).toBeInTheDocument();
+  });
+});
+
 describe("when workflows are enabled", () => {
   it("sends today's request for plain highlights", async () => {
     await renderHome();
@@ -250,17 +347,17 @@ describe("when workflows are enabled", () => {
     expect(screen.getByText("Drop in a long video. Get back a numbered series that keeps people watching.")).toBeInTheDocument();
     expect(storage.get("supoclip.workflow")).toBe("series");
 
-    fireEvent.click(screen.getByRole("button", { name: "Part length" }));
+    openSection(/Part length/);
     fireEvent.click(await screen.findByRole("radio", { name: "Long (1.5–3 min)" }));
-    expect(screen.getByRole("button", { name: "Part length" })).toHaveTextContent("Long (1.5–3 min)");
+    expect(settingsChip()).toHaveTextContent("Long (1.5–3 min)");
 
-    fireEvent.click(screen.getByRole("button", { name: /Parts: Auto/ }));
+    openSection(/Number of parts/);
     const parts = await screen.findByRole("radiogroup", { name: "Number of parts" });
     expect(within(parts).getAllByRole("radio").map((radio) => radio.getAttribute("aria-label"))).toEqual([
       "Auto", "2 parts", "3 parts", "4 parts", "5 parts", "6 parts", "8 parts", "10 parts",
     ]);
     fireEvent.click(within(parts).getByRole("radio", { name: "3 parts" }));
-    expect(screen.getByRole("button", { name: /Parts: 3/ })).toBeInTheDocument();
+    expect(settingsChip()).toHaveTextContent("Parts: 3");
 
     fireEvent.change(urlInput(), { target: { value: LINK } });
     const body = await submit("Generate series");
@@ -268,6 +365,48 @@ describe("when workflows are enabled", () => {
     expect(body).not.toHaveProperty("instructions");
     expect(preferenceSaves).toEqual([]);
     expect(analytics.track).toHaveBeenCalledWith("task_created", expect.objectContaining({ workflow: "series", has_instructions: false, part_count: 3 }));
+  });
+
+  it("keeps Advanced closed and leaves the request as it was until something changes", async () => {
+    await renderHome();
+    pick(/Series/);
+    expect(screen.queryByLabelText("Cold open")).not.toBeInTheDocument();
+    openSection(/Advanced/);
+    expect(await screen.findByRole("switch", { name: "Cold open" })).not.toBeChecked();
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate series");
+    expect(body).not.toHaveProperty("workflow_options");
+  });
+
+  it("sends only the settings that changed, counts them, and resets", async () => {
+    await renderHome();
+    pick(/Series/);
+    openSection(/Advanced/);
+    const cold = await screen.findByRole("switch", { name: "Cold open" });
+    fireEvent.click(cold);
+    expect(screen.getByRole("tab", { name: /Advanced/ })).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(screen.getByRole("tab", { name: /Advanced/ })).not.toHaveTextContent("1");
+    expect(cold).not.toBeChecked();
+    fireEvent.click(cold);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate series");
+    expect(body.workflow_options).toEqual({ advanced: { cold_open: true } });
+  });
+
+  it("holds the form while a number is out of range, and sends highlights' clip count without a workflow", async () => {
+    await renderHome();
+    pick(/Highlights/);
+    openSection(/Advanced/);
+    const clips = await screen.findByRole("spinbutton", { name: "Number of clips" });
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    fireEvent.change(clips, { target: { value: "99" } });
+    expect(screen.getByText("Enter a whole number from 1 to 20.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate clips" })).toBeDisabled();
+    fireEvent.change(clips, { target: { value: "3" } });
+    const body = await submit("Generate clips");
+    expect(body).not.toHaveProperty("workflow");
+    expect(body.workflow_options).toEqual({ advanced: { max_clips: 3 } });
   });
 
   it("omits the part count for an automatic series", async () => {
@@ -283,13 +422,13 @@ describe("when workflows are enabled", () => {
   it("keeps recap and trailer lengths to this generation and leaves the saved clip length alone", async () => {
     await renderHome();
     pick(/Recap/);
-    fireEvent.click(screen.getByRole("button", { name: "Recap length" }));
+    openSection(/Recap length/);
     expect(await screen.findByText("Total length of the recap.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "Short (about 45s)" }));
     expect(preferenceSaves).toEqual([]);
 
     pick(/Highlights/);
-    expect(screen.getByRole("button", { name: "Clip length" })).toHaveTextContent("Medium (30–60s)");
+    expect(settingsChip()).toHaveTextContent("Medium (30–60s)");
 
     pick(/Recap/);
     fireEvent.change(urlInput(), { target: { value: LINK } });
@@ -368,7 +507,7 @@ describe("when workflows are enabled", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Make a 3-part series instead?" }));
     expect(screen.getByRole("radio", { name: /Series/ })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("button", { name: /Parts: 3/ })).toBeInTheDocument();
+    expect(settingsChip()).toHaveTextContent("Parts: 3");
     expect(screen.queryByRole("button", { name: /instead\?/ })).not.toBeInTheDocument();
 
     const body = await submit("Generate series");
@@ -493,7 +632,7 @@ describe("when workflows are enabled", () => {
     await renderHome();
     await waitFor(() => expect(screen.getByRole("radio", { name: /Trailer/ })).toHaveAttribute("aria-checked", "true"));
     expect(navigation.replace).toHaveBeenCalledWith("/", { scroll: false });
-    expect(screen.getByRole("button", { name: "Trailer length" })).toHaveTextContent("Auto (about 30s)");
+    expect(settingsChip()).toHaveTextContent("Auto (about 30s)");
   });
 
   it("remembers the last workflow", async () => {
@@ -536,7 +675,7 @@ describe("when workflows are enabled", () => {
     durations.seconds = 200;
     await renderHome();
     pick(/Series/);
-    fireEvent.click(screen.getByRole("button", { name: /Parts: Auto/ }));
+    openSection(/Number of parts/);
     fireEvent.click(within(await screen.findByRole("radiogroup", { name: "Number of parts" })).getByRole("radio", { name: "6 parts" }));
     fireEvent.change(document.getElementById("video-upload") as HTMLInputElement, { target: { files: [videoFile("talk.mp4", 1000)] } });
     expect(await screen.findByText("This video fits at most 3 parts. Choose fewer parts or Auto.")).toBeInTheDocument();
@@ -560,7 +699,7 @@ describe("when workflows are enabled", () => {
     fireEvent.change(document.getElementById("video-upload") as HTMLInputElement, { target: { files: [videoFile("talk.mp4", 1000)] } });
     await screen.findByText(/ready to upload/);
     await act(async () => {});
-    fireEvent.click(screen.getByRole("button", { name: /Parts: Auto/ }));
+    openSection(/Number of parts/);
     const parts = await screen.findByRole("radiogroup", { name: "Number of parts" });
     // Auto parts are at least 45 s: 200 s holds three (3 × 45 × 1.25 ≤ 200).
     expect(within(parts).getByRole("radio", { name: "3 parts" })).toBeEnabled();
@@ -592,5 +731,61 @@ describe("when workflows are enabled", () => {
       pick(new RegExp(workflow, "i"));
       expect(screen.getByRole("button", { name: buttons[workflow] })).toBeInTheDocument();
     }
+  });
+});
+
+describe("remembering settings between videos", () => {
+
+  it("comes back with what was saved and sends it without being touched", async () => {
+    savedCreateSettings = {
+      workflow: "recap",
+      captionTemplate: "minimal",
+      outputFormat: "vertical_fit",
+      cutLongPauses: false,
+      filteredWords: "um, like",
+      lengths: { recap: "short" },
+    };
+    await renderHome();
+    await waitFor(() => expect(settingsChip()).toHaveTextContent("Short"));
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Make recap");
+    expect(body).toMatchObject({ workflow: "recap", caption_template: "minimal", output_format: "vertical_fit", cut_long_pauses: false, filtered_words: ["um", "like"], clip_length: "short" });
+    expect(settingsSaves).toEqual([]);
+  });
+
+  it("ignores saved values it can't use", async () => {
+    savedCreateSettings = { workflow: "montage", outputFormat: "square", pauseThresholdMs: 1, lengths: { recap: "huge" }, advanced: { highlights: { max_clips: 999 } } };
+    await renderHome();
+    pick(/Highlights/);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(body.output_format).toBe("vertical");
+    expect(body.pause_threshold_ms).toBe(1200);
+    expect(body).not.toHaveProperty("workflow_options");
+  });
+
+  it("saves a change, including Advanced, but not the topic, instructions, or part count", async () => {
+    await renderHome();
+    pick(/Series/);
+    openSection(/Advanced/);
+    fireEvent.click(await screen.findByRole("switch", { name: "Cold open" }));
+    openSection(/Number of parts/);
+    fireEvent.click(await screen.findByRole("radio", { name: "3 parts" }));
+    await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
+    const saved = settingsSaves[settingsSaves.length - 1].createSettings;
+    expect(saved).toMatchObject({ workflow: "series", advanced: { series: { cold_open: true } } });
+    expect(JSON.stringify(saved)).not.toMatch(/partCount|part_count|instructions|topic/);
+  });
+
+  it("resets everything it remembers, and saves that", async () => {
+    savedCreateSettings = { captionTemplate: "minimal", includeBroll: true, advanced: { series: { cold_open: true } } };
+    savedFontFamily = "Inter";
+    await renderHome();
+    openSettings();
+    fireEvent.click(await screen.findByRole("button", { name: "Reset all settings" }));
+    await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
+    const last = settingsSaves[settingsSaves.length - 1];
+    expect(last.createSettings).toMatchObject({ captionTemplate: "default", includeBroll: false, advanced: {} });
+    expect(last.fontFamily).toBe("TikTokSans-Regular");
   });
 });
