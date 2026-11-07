@@ -125,5 +125,6 @@
   "refreshPrivacy": "Perbarui opsi",
   "loadingPrivacy": "Memeriksa opsi publikasi TikTok…",
   "privacyLoadFailed": "Opsi publikasi tidak dapat dimuat. Perbarui dan coba lagi.",
-  "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi."
+  "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi.",
+  "tiktokPrivateAccountRequired": "TikTok belum menyetujui aplikasi SupoClip, jadi hanya menerima postingan privat dari akun privat. Sebelum memublikasikan, aktifkan Pengaturan dan privasi → Privasi → Akun privat di TikTok."
 }

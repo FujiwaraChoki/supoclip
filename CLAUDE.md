@@ -277,6 +277,7 @@ APIFY_EXPENSIVE_FALLBACKS=false      # Skip high-cap Apify fallback actors
 PEXELS_API_KEY=...                   # B-roll stock footage
 YOUTUBE_OAUTH_CLIENT_ID=...          # Social publishing: Google OAuth client (+ _SECRET)
 TIKTOK_CLIENT_KEY=...                # Social publishing: TikTok app (+ TIKTOK_CLIENT_SECRET)
+TIKTOK_APP_AUDITED=false             # true only after TikTok's audit; unaudited = private posts from private accounts
 INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagram Login (+ _SECRET)
 SOCIAL_PERFORMANCE_MIN_POSTS=3       # Measured posts before AI selection is personalized
 SOCIAL_PUBLISHING_ACCESS=off         # Rollout gate: off (default) | admins (admins + allowlist) | all

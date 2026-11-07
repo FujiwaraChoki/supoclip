@@ -1457,6 +1457,7 @@ async def test_tiktok_options_are_account_specific_and_reject_unowned_accounts(s
     account = await _connect(service)
     service.repo.accounts[account['id']]['provider'] = 'tiktok'
     provider.name = 'tiktok'
+    provider.audited = True
     provider.supported_privacy_levels = ('public', 'private')
     calls = []
     def creator_info(token):
@@ -1466,8 +1467,9 @@ async def test_tiktok_options_are_account_specific_and_reject_unowned_accounts(s
     with pytest.raises(SocialNotFound):
         await service.publishing_options('other-user', account['id'])
     assert calls == []
+    provider.audited = True
     result = await service.publishing_options('user-1', account['id'])
-    assert result == {'privacy_levels': ['private'], 'requires_privacy_selection': True}
+    assert result == {'privacy_levels': ['private'], 'requires_privacy_selection': True, 'requires_private_account': False}
     assert len(calls) == 1
     service.repo.accounts[account['id']]['revoked_at'] = datetime.now(timezone.utc)
     with pytest.raises(SocialNotFound):
@@ -1475,10 +1477,25 @@ async def test_tiktok_options_are_account_specific_and_reject_unowned_accounts(s
     assert len(calls) == 1
 
 
+async def test_unaudited_tiktok_offers_only_private_and_flags_the_account_requirement(service, provider):
+    account = await _connect(service)
+    service.repo.accounts[account['id']]['provider'] = 'tiktok'
+    provider.name = 'tiktok'
+    provider.audited = False
+    provider.supported_privacy_levels = ('public', 'private')
+    provider.query_creator_info = lambda token: {'privacy_level_options': ['PUBLIC_TO_EVERYONE', 'SELF_ONLY']}
+    result = await service.publishing_options('user-1', account['id'])
+    assert result == {'privacy_levels': ['private'], 'requires_privacy_selection': True, 'requires_private_account': True}
+    with pytest.raises(SocialValidationError, match='does not currently allow'):
+        await service.create_post('user-1', task_id='task-1', clip_id='clip-1', social_account_id=account['id'], title=None, caption=None, hashtags=[], privacy_level='public', scheduled_for=None)
+    assert service.repo.posts == {}
+
+
 async def test_tiktok_public_is_rejected_before_post_or_job_is_created(service, provider):
     account = await _connect(service)
     service.repo.accounts[account['id']]['provider'] = 'tiktok'
     provider.name = 'tiktok'
+    provider.audited = True
     provider.supported_privacy_levels = ('public', 'private')
     provider.query_creator_info = lambda token: {'privacy_level_options': ['SELF_ONLY']}
     with pytest.raises(SocialValidationError, match='does not currently allow'):
@@ -1493,6 +1510,7 @@ async def test_tiktok_retry_does_not_queue_a_visibility_the_account_no_longer_al
     service.repo.posts[post['id']].update(provider='tiktok', status='failed')
     service.repo.accounts[account['id']]['provider'] = 'tiktok'
     provider.name = 'tiktok'
+    provider.audited = True
     provider.supported_privacy_levels = ('public', 'private')
     provider.query_creator_info = lambda token: {'privacy_level_options': ['SELF_ONLY']}
     before_jobs = list(service.queue_adapter.jobs)

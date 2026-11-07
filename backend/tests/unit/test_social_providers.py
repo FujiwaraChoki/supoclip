@@ -243,8 +243,78 @@ def test_legacy_privacy_error_keeps_actual_failure_without_guessed_audit_status(
     actual = "TikTok does not allow 'public' posts for this account right now. Allowed: followers, friends, private."
     suffix = " (Unaudited TikTok apps can only post privately until TikTok approves the app.)"
     assert present_post_error("tiktok", actual + suffix) == actual
-    real_api_error = "unaudited_client_can_only_post_to_private_accounts"
-    assert present_post_error("tiktok", real_api_error) == real_api_error
+
+
+def test_stored_unaudited_tiktok_failures_show_how_to_post():
+    from src.repositories.social_repository import present_post_error
+    stored = (
+        "Failed to start the TikTok upload: Unaudited clients can only post to a private "
+        "account (unaudited_client_can_only_post_to_private_accounts)"
+    )
+    shown = present_post_error("tiktok", stored)
+    assert "Private account" in shown
+    assert "unaudited_client" not in shown
+    assert present_post_error("youtube", stored) == stored
+
+
+def _tiktok_init_error(code, message="blocked"):
+    return {
+        ("POST", "creator_info/query"): FakeResponse(
+            200, {"data": {"privacy_level_options": ["SELF_ONLY"]}, "error": {"code": "ok"}}
+        ),
+        ("POST", "video/init"): FakeResponse(
+            403, {"data": {}, "error": {"code": code, "message": message}}
+        ),
+    }
+
+
+def test_tiktok_unaudited_private_account_error_explains_the_account_setting(clip_file):
+    from src.social.base import PublishRequest
+
+    session = FakeSession(
+        _tiktok_init_error(
+            "unaudited_client_can_only_post_to_private_accounts",
+            "Unaudited clients can only post to a private account",
+        )
+    )
+    with pytest.raises(SocialProviderError) as exc:
+        TikTokProvider(_config(), session=session).publish(
+            "token", PublishRequest(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="private")
+        )
+    assert "Private account" in str(exc.value)
+    assert not exc.value.retryable and not exc.value.reauth
+    init_body = next(call for call in session.calls if "video/init" in call[1])[2]["json"]
+    assert init_body["post_info"]["privacy_level"] == "SELF_ONLY"
+    assert not any(call[0] == "PUT" for call in session.calls)
+
+
+def test_tiktok_active_user_cap_says_to_retry_tomorrow(clip_file):
+    from src.social.base import PublishRequest
+
+    session = FakeSession(_tiktok_init_error("reached_active_user_cap"))
+    with pytest.raises(SocialProviderError, match="tomorrow") as exc:
+        TikTokProvider(_config(), session=session).publish(
+            "token", PublishRequest(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="private")
+        )
+    assert not exc.value.retryable
+
+
+def test_unaudited_tiktok_never_starts_a_public_upload(clip_file):
+    from src.social.base import PublishRequest
+
+    session = FakeSession(
+        {
+            ("POST", "creator_info/query"): FakeResponse(
+                200,
+                {"data": {"privacy_level_options": ["PUBLIC_TO_EVERYONE", "SELF_ONLY"]}, "error": {"code": "ok"}},
+            )
+        }
+    )
+    with pytest.raises(SocialProviderError, match="Choose Private"):
+        TikTokProvider(_config(), session=session).publish(
+            "token", PublishRequest(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="public")
+        )
+    assert len(session.calls) == 1
 
 
 def test_tiktok_publish_persists_handle_before_checking_status(clip_file):
@@ -274,7 +344,7 @@ def test_tiktok_publish_persists_handle_before_checking_status(clip_file):
             ),
         }
     )
-    provider = TikTokProvider(_config(), session=session)
+    provider = TikTokProvider(_config(tiktok_app_audited=True), session=session)
     from src.social.base import PublishRequest
 
     result = provider.publish(

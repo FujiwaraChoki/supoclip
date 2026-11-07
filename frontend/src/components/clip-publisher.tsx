@@ -317,7 +317,7 @@ export function ClipPublishButton({
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [privacyByAccount, setPrivacyByAccount] = useState<Record<string, SocialPrivacyLevel | "">>({});
-  const [accountPrivacy, setAccountPrivacy] = useState<Record<string, { levels: SocialPrivacyLevel[]; loading?: boolean; error?: string }>>({});
+  const [accountPrivacy, setAccountPrivacy] = useState<Record<string, { levels: SocialPrivacyLevel[]; requiresPrivateAccount?: boolean; loading?: boolean; error?: string }>>({});
   const optionsEpoch = useRef(0);
   const optionRequests = useRef<Record<string, number>>({});
   const [schedule, setSchedule] = useState(false);
@@ -376,7 +376,7 @@ export function ClipPublishButton({
       const levels = ALL_PRIVACY_LEVELS.filter((level) => Array.isArray(data?.privacy_levels) && data.privacy_levels.includes(level));
       if (levels.length === 0) throw new Error(t("privacyLoadFailed"));
       if (epoch === optionsEpoch.current && request === optionRequests.current[id]) {
-        setAccountPrivacy((previous) => ({ ...previous, [id]: { levels } }));
+        setAccountPrivacy((previous) => ({ ...previous, [id]: { levels, requiresPrivateAccount: data?.requires_private_account === true } }));
       }
     } catch (error) {
       if (epoch === optionsEpoch.current && request === optionRequests.current[id]) {
@@ -674,7 +674,7 @@ export function ClipPublishButton({
                       {connection.provider === "tiktok" && <p className="text-xs text-muted-foreground">{t("tiktokPrivate")}</p>}
                       {connection.provider === "tiktok" && accountPrivacy[connection.id]?.loading && <p className="text-xs text-muted-foreground">{t("loadingPrivacy")}</p>}
                       {accountPrivacy[connection.id]?.error && <p role="alert" className="text-xs text-destructive">{accountPrivacy[connection.id].error}</p>}
-                      {connection.provider === "tiktok" && !accountPrivacy[connection.id]?.loading && !accountPrivacy[connection.id]?.error && accountPrivacy[connection.id]?.levels.length && !accountPrivacy[connection.id].levels.includes("public") ? <p className="text-xs text-muted-foreground">{t("tiktokPublicUnavailable")}</p> : null}
+                      {connection.provider === "tiktok" && !accountPrivacy[connection.id]?.loading && !accountPrivacy[connection.id]?.error && accountPrivacy[connection.id]?.levels.length ? accountPrivacy[connection.id].requiresPrivateAccount ? <p className="text-xs text-muted-foreground">{t("tiktokPrivateAccountRequired")}</p> : !accountPrivacy[connection.id].levels.includes("public") ? <p className="text-xs text-muted-foreground">{t("tiktokPublicUnavailable")}</p> : null : null}
                     </div>
                   );
                 })}

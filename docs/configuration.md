@@ -354,8 +354,14 @@ Platform review notes (the APIs themselves are free):
 - **YouTube**: uploads from an unverified Google project are forced private
   until the project passes the YouTube API compliance audit. Check the project's
   current upload quota in Google Cloud before enabling publishing for users.
-- **TikTok**: unaudited apps can only post with `private` visibility and for a
-  handful of accounts per day. Public posting requires TikTok's app audit.
+- **TikTok**: unaudited apps can only post with `private` (`SELF_ONLY`)
+  visibility, only from TikTok accounts that are themselves set to Private at
+  the time of posting, and for up to 5 accounts per 24 hours. A public account
+  gets `unaudited_client_can_only_post_to_private_accounts` even for a private
+  post; no API parameter avoids this. Public posting from public accounts
+  requires TikTok's app audit. Leave `TIKTOK_APP_AUDITED` unset (false) until
+  the audit passes: SupoClip then offers only Private and tells users to switch
+  their account to Private. Set it to `true` after approval.
 - **Instagram**: requires a professional (Business or Creator) account. Meta App
   Review is needed before accounts outside the app's testers can connect.
 
