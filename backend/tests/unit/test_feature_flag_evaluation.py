@@ -7,7 +7,10 @@ import pytest
 from starlette.requests import Request
 
 from src import feature_flags
+from src.config import Config, set_config_override
 from src.feature_flags import FeatureFlag, client_platform, evaluate
+from src.workflows.contracts import WORKFLOWS
+from src.workflows.options import allowed_workflows, workflow_allowed_for
 
 
 def request_with(headers: dict[str, str]) -> Request:
@@ -59,6 +62,15 @@ def fresh_cache():
     feature_flags.clear_cache()
     yield
     feature_flags.clear_cache()
+
+
+@pytest.fixture
+def workflows_for_all():
+    config = Config()
+    config.workflows_access = "all"
+    set_config_override(config)
+    yield config
+    set_config_override(None)
 
 
 @pytest.mark.parametrize(
@@ -142,3 +154,25 @@ async def test_evaluated_flags_looks_up_the_user_once():
     )
     assert await feature_flags.evaluated_flags(db, platform="web", user_id="boss") == {"other": True, "workflows": True}
     assert db.user_reads == 1
+
+
+@pytest.mark.asyncio
+async def test_workflow_gate_needs_the_flag_and_the_env_gate(workflows_for_all):
+    db = FakeDb([workflows_row(web=False, ios=True)])
+    assert await workflow_allowed_for(db, "u", "series", platform="web") is False
+    assert await allowed_workflows(db, "u", platform="web") == frozenset()
+    assert await workflow_allowed_for(db, "u", "series", platform="ios") is True
+    assert await allowed_workflows(db, "u", platform="ios") == frozenset(WORKFLOWS)
+
+    workflows_for_all.workflows_access = "off"
+    assert await workflow_allowed_for(db, "u", "series", platform="ios") is False
+    assert await allowed_workflows(db, "u", platform="ios") == frozenset()
+
+
+@pytest.mark.asyncio
+async def test_public_workflows_also_wait_for_the_flag(workflows_for_all):
+    workflows_for_all.workflows_access = "admins"
+    workflows_for_all.workflows_public = frozenset({"recap"})
+    db = FakeDb([workflows_row(web=False, ios=True)])
+    assert await allowed_workflows(db, "u", platform="web") == frozenset()
+    assert await allowed_workflows(db, "u", platform="ios") == frozenset({"recap"})

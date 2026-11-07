@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from sqlalchemy import text
 
+from .. import feature_flags
 from ..config import get_config
 from .contracts import WORKFLOWS, WorkflowOptions, WorkflowSpec
 from .durations import (
@@ -260,13 +261,32 @@ def _public_workflows() -> frozenset[str]:
     return frozenset(WORKFLOWS) & config.workflows_public
 
 
-async def workflow_allowed_for(db, user_id: str, workflow: str) -> bool:
-    """May this user make ``workflow`` with options? Plain highlights never ask."""
+async def workflows_flag_on(db, user_id: str, platform: feature_flags.Platform) -> bool:
+    """The ``workflows`` feature flag for this platform (admins may bypass it)."""
+    return await feature_flags.is_enabled(
+        db, feature_flags.WORKFLOWS, platform=platform, user_id=user_id
+    )
+
+
+async def workflow_allowed_for(
+    db, user_id: str, workflow: str, *, platform: feature_flags.Platform
+) -> bool:
+    """May this user make ``workflow`` with options on ``platform``? Plain highlights never ask.
+
+    Both gates must allow it: the ``workflows`` feature flag for the platform,
+    then the WORKFLOWS_ACCESS env gate (with WORKFLOWS_PUBLIC).
+    """
+    if not await workflows_flag_on(db, user_id, platform):
+        return False
     return workflow in _public_workflows() or await workflows_enabled_for(db, user_id)
 
 
-async def allowed_workflows(db, user_id: str) -> frozenset[str]:
+async def allowed_workflows(
+    db, user_id: str, *, platform: feature_flags.Platform
+) -> frozenset[str]:
     """Every workflow ``workflow_allowed_for`` admits, for ``workflows_info``."""
+    if not await workflows_flag_on(db, user_id, platform):
+        return frozenset()
     if await workflows_enabled_for(db, user_id):
         return frozenset(WORKFLOWS)
     return _public_workflows()

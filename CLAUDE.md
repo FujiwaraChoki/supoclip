@@ -152,7 +152,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 
 **Task lifecycle:**
 - `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`
-- `GET /tasks/workflows` — What the user can make (workflow gate and limits)
+- `GET /tasks/workflows` — What the user can make on this platform (workflows flag, env gate, limits)
 - `GET /feature-flags` — Feature flags evaluated for the caller and platform
 - `GET /tasks/` — List user tasks
 - `GET /tasks/{id}` — Get task with clips
@@ -307,8 +307,9 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   (`backendTraceHeaders` in `server/backend-api.ts`); anything else, API keys and MCP included, is web.
 - **On** = the platform column, or the caller is an admin and `admins_bypass` is set.
 - `GET /feature-flags` (proxied at `/api/feature-flags`) returns the evaluated booleans for the caller.
-- **`workflows`:** seeded off on web and iOS (admins bypass). It gates the creation workflows (series, topic,
-  recap, trailer) once they ship, on top of the `WORKFLOWS_ACCESS` env gate: both must allow.
+- **`workflows`:** seeded off on web and iOS (admins bypass) until the iOS build with workflows is approved.
+  It sits on top of `WORKFLOWS_ACCESS`: both must allow. Off hides workflows in `GET /tasks/workflows` for that
+  platform and makes create/resume with a workflow 403 `WORKFLOW_NOT_AVAILABLE` before any charge.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
   `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 
@@ -373,7 +374,7 @@ story, adjacent parts share one exact cut), `topic` (every strong moment about `
   topics, `no_story`, `trailer_unbuildable`, …); its clips are deleted so the minutes are refunded, and
   `error_code` drives the task page's next-step screen. Series/recap/trailer are all-or-nothing.
 - **Gate:** `WORKFLOWS_ACCESS=off|admins|all` (default `admins`, plus verified `WORKFLOWS_ALLOWED_EMAILS`), checked on
-  create and resume; self-hosters set `all`. Also `WORKFLOW_TOPIC_MAX_CLIPS`, `WORKFLOW_PLAN_TIMEOUT_SECONDS`, `WORKFLOW_FULL_CONTEXT_MAX_WORDS`.
+  create and resume; self-hosters set `all`. The `workflows` feature flag (below) must also be on for the platform. Also `WORKFLOW_TOPIC_MAX_CLIPS`, `WORKFLOW_PLAN_TIMEOUT_SECONDS`, `WORKFLOW_FULL_CONTEXT_MAX_WORDS`.
 - **Frontend:** contract in `lib/workflows.ts`; results in `components/app/series-view.tsx`,
   `hero-clip-view.tsx` and `workflow-failure.tsx`. MCP: `workflow`/`topic`/`part_count`/`instructions` on
   `supoclip_create_clip_task`, plus `supoclip_list_workflows`.

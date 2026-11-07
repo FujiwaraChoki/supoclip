@@ -35,6 +35,7 @@ from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
+from ...feature_flags import client_platform
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
@@ -592,7 +593,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         workflow_spec = parse_workflow_request(data, clip_length)
     except WorkflowRequestError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
-    if not workflow_spec.legacy and not await workflow_allowed_for(db, user_id, workflow_spec.workflow):
+    if not workflow_spec.legacy and not await workflow_allowed_for(
+        db, user_id, workflow_spec.workflow, platform=client_platform(request)
+    ):
         error = workflow_not_available()
         raise HTTPException(status_code=error.status, detail=error.to_detail())
     workflow_options = workflow_spec.options.to_json()
@@ -789,9 +792,9 @@ async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_d
 
 @router.get("/workflows")
 async def get_workflows(request: Request, db: AsyncSession = Depends(get_db)):
-    """What the authenticated user can make, with each workflow's limits."""
+    """What the authenticated user can make on this platform, with each workflow's limits."""
     user_id = await _get_user_id_from_headers(request, db)
-    return workflows_info(await allowed_workflows(db, user_id))
+    return workflows_info(await allowed_workflows(db, user_id, platform=client_platform(request)))
 
 
 @router.get("/shared/{share_token}")
@@ -1573,7 +1576,9 @@ async def resume_task(
             # The rollout gate holds for resumes too: switching it off (or
             # leaving the allowlist) stops a workflow task from running again.
             spec = workflow_spec_from_task(task, "auto")  # the length never decides the gate
-            if not spec.legacy and not await workflow_allowed_for(db, task["user_id"], spec.workflow):
+            if not spec.legacy and not await workflow_allowed_for(
+                db, task["user_id"], spec.workflow, platform=client_platform(request)
+            ):
                 error = workflow_not_available()
                 raise HTTPException(status_code=error.status, detail=error.to_detail())
 

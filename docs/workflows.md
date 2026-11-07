@@ -40,6 +40,39 @@ The gate keeps the deploy safe: ship with `admins`, deploy the worker and API
 together, then switch to `all`. An old worker never sees a workflow task from a
 regular user in between.
 
+### The `workflows` feature flag
+
+On top of the env gate, the `workflows` row in the `feature_flags` table
+switches workflows per platform without a deploy (admins flip it in the
+`/admin` "Feature Flags" panel). **Both must allow a request:**
+
+```
+allowed = flag on for this platform (or caller is an admin and admins_bypass)
+          AND WORKFLOWS_ACCESS admits the user (admins/allowlist/all, or WORKFLOWS_PUBLIC)
+```
+
+- **Platform** comes from the `x-supoclip-client` header: `ios` from the iOS
+  app (the web proxies forward it), anything else, including API keys and the
+  MCP server, is `web`.
+- **Off** means `GET /tasks/workflows` reports `enabled: false` for that
+  platform (every client then shows plain highlights only), and create or resume
+  with a workflow gets the same 403 `WORKFLOW_NOT_AVAILABLE`, before any charge.
+- **`admins_bypass`** (default on) keeps the flag on for admins everywhere, so
+  they can test while it's off. With `WORKFLOWS_ACCESS=admins`, opening the flag
+  still only reaches admins and the allowlist: set `all` (or `WORKFLOWS_PUBLIC`)
+  for everyone.
+- The migration seeds the row web off, iOS off, admins bypass on, and never
+  overwrites a row that exists. A missing row, or a table that can't be read,
+  counts as that default (closed, admins bypass).
+- The backend caches flags for 15 seconds per process, so a switch takes up to
+  that long to reach every request. Resumes are checked against the platform
+  that asks for the resume.
+
+Generic flags live in `backend/src/feature_flags.py`; `GET /feature-flags`
+returns `{"platform", "flags": {key: bool}}` evaluated for the caller. It
+reports only the flag: workflows clients keep reading `GET /tasks/workflows`,
+which combines both gates.
+
 ## How a workflow runs
 
 The API validates the request (`workflows/options.py`), checks the source length
@@ -623,7 +656,9 @@ Rejections happen before anything is charged (`detail = {"code", "message", ...}
  "topic_max_chars": 120, "instructions_max_chars": 500}
 ```
 
-`enabled` false means only highlights without instructions.
+`enabled` false means only highlights without instructions. It is evaluated for the
+caller's platform (`x-supoclip-client`), so the `workflows` feature flag can hide
+workflows on web while iOS has them, or the reverse.
 
 ### Read paths
 
