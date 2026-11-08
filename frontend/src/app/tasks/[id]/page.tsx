@@ -66,6 +66,7 @@ import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clip
 import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/components/app/series-view";
 import { HeroClipView } from "@/components/app/hero-clip-view";
 import { DownloadAllButton } from "@/components/app/download-all-button";
+import { CaptionLater } from "@/components/app/caption-later";
 import { buildRecreateBody, createActionId, isWorkflowErrorCode, WorkflowFailure } from "@/components/app/workflow-failure";
 import { availableWorkflows, useWorkflowsInfo } from "@/components/workflow-picker";
 import { intlLocale } from "@/i18n/config";
@@ -987,6 +988,10 @@ export default function TaskPage() {
 
       <div className="mt-8">
         {reconnecting && <p role="status" className="mb-4 text-sm text-muted-foreground">{readOnly ? t("reconnectingOther") : t("reconnectingOwn")}</p>}
+
+        {hasClips && !readOnly && task?.add_subtitles === false && (
+          <CaptionLater taskId={task.id} clips={clips} templates={availableTemplates} onDone={fetchTaskStatus} />
+        )}
 
         {isActive && task ? (
           <div className="space-y-8">

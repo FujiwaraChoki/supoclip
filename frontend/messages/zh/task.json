@@ -280,5 +280,15 @@
       "bumps": "路上有点小颠簸，我们正在处理，再给我们一点时间。",
       "slower": "这次的节奏比平时慢一点，我们还在继续努力。"
     }
+  },
+  "captionLater": {
+    "title": "为所选片段添加字幕",
+    "body": "此视频生成时没有字幕。选择需要字幕的片段和样式。",
+    "clip": "片段 {number}",
+    "style": "字幕样式",
+    "action": "{count, plural, =0 {添加字幕} other {为 # 个片段添加字幕}}",
+    "working": "正在添加字幕 {done}/{total}…",
+    "done": "{count, plural, other {已为 # 个片段添加字幕}}",
+    "failed": "{count, plural, other {# 个片段添加字幕失败}}"
   }
 }

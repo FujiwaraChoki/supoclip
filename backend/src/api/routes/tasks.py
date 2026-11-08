@@ -55,6 +55,7 @@ from ...clip_cleanup import (
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...media.layout_choice import VALID_LAYOUTS
+from ...caption_templates import CAPTION_TEMPLATES
 from ...admin_auth import require_admin_user, user_is_admin
 from ...source_submission import SourceAttempt
 from ...workflows.contracts import workflow_spec_from_task
@@ -1302,7 +1303,14 @@ async def update_clip_captions(
     """Update clip caption text, timing style and highlighted words."""
     try:
         payload = await _read_json_object(request)
-        caption_text = str(payload.get("caption_text", "")).strip()
+        # Without caption_text the clip is captioned with its own transcript, so a
+        # clip generated without captions can get them (in any template) later.
+        caption_text = (
+            str(payload["caption_text"]).strip() if "caption_text" in payload else None
+        )
+        caption_template = payload.get("caption_template")
+        if caption_template is not None and caption_template not in CAPTION_TEMPLATES:
+            raise ValueError("Unknown caption template")
         position = str(payload.get("position", "bottom"))
         highlight_words = payload.get("highlight_words") or []
         if not isinstance(highlight_words, list):
@@ -1334,6 +1342,7 @@ async def update_clip_captions(
             [str(word) for word in highlight_words],
             font_size=font_size,
             position_y=position_y,
+            caption_template=caption_template,
         )
         return {"clip": updated_clip}
     except YouTubeGeoRestrictedError as exc:

@@ -756,16 +756,21 @@ class ClipEditingMixin:
         self,
         task_id: str,
         clip_id: str,
-        caption_text: str,
+        caption_text: Optional[str],
         position: str,
         highlight_words: list[str],
         *,
         font_size: Optional[int] = None,
         position_y: Optional[float] = None,
+        caption_template: Optional[str] = None,
     ) -> Dict[str, Any]:
         clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
+        # No text given: caption the clip with what is spoken in it. This is how a
+        # clip generated without captions gets them later.
+        if caption_text is None:
+            caption_text = str(clip.get("text") or "").strip()
 
         input_path = await run_in_thread(MediaStorage().local_path, clip["file_path"])
         if not input_path.exists():
@@ -774,6 +779,7 @@ class ClipEditingMixin:
         task = await self.task_repo.get_task_by_id(self.db, task_id)
         if not task:
             raise ValueError("Task not found")
+        template_name = caption_template or task.get("caption_template") or "default"
 
         transcript_video_path: Optional[Path] = None
         source_url = task.get("source_url")
@@ -857,7 +863,7 @@ class ClipEditingMixin:
                     font_family=task.get("font_family") or None,
                     font_size=task.get("font_size") or None,
                     font_color=task.get("font_color") or None,
-                    caption_template=task.get("caption_template") or "default",
+                    caption_template=template_name,
                     extend_to_sentence=False,
                     layout_report=render_report,
                     broll_overlays=broll_overlays,
@@ -874,7 +880,7 @@ class ClipEditingMixin:
                     font_family=task.get("font_family") or None,
                     font_size=font_size if font_size is not None else task.get("font_size") or None,
                     font_color=task.get("font_color") or None,
-                    caption_template=task.get("caption_template") or "default",
+                    caption_template=template_name,
                     transcript_video_path=transcript_video_path,
                     source_ranges=local_ranges,
                     position_y=position_y,
