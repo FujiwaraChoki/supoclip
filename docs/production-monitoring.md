@@ -9,7 +9,8 @@ It does not submit jobs, change services, send email or purchase credits.
 The snapshot also reads `/health/storage`. With an independent media mirror
 configured, the worker probes each provider every minute, including a signed
 download, and reports any pending replicas. A stale probe, failed provider, or
-replication backlog returns 503 so an external uptime monitor can detect it.
+replica pending for five minutes or more returns 503 so an external uptime
+monitor can detect it. Replicas still in flight stay 200.
 Container liveness stays independent, avoiding restart loops during an outage.
 
 OpenRouter's key spending allowance is separate from account funds. Available
