@@ -709,3 +709,70 @@ def test_editor_restores_generated_layout_when_raw_media_is_already_local(storag
     storage.restore_editor(directory, media=True)
     assert (directory / "clean.mp4").read_bytes() == b"wide source"
     assert (directory / "layout.mp4").read_bytes() == b"full content composition"
+
+
+def _gone(operation):
+    return ClientError({"Error": {"Code": "NoSuchUpload"}}, operation)
+
+
+def test_completion_retry_after_a_lost_response_recovers_the_stored_object(storage):
+    storage._client = Mock()
+    size = PART_BYTES + 1
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "done", "parts": [
+        {"partNumber": 1, "etag": "a"}, {"partNumber": 2, "etag": "b"},
+    ]}
+    # The first attempt completed: the multipart session is gone, the object is stored.
+    storage.client.list_parts.side_effect = _gone("ListParts")
+    storage.client.head_object.return_value = {"ContentLength": size, "Metadata": {"expected-size": str(size)}}
+
+    assert storage.complete_upload("owner", payload, size=size) == {"video_path": url}
+    storage.client.complete_multipart_upload.assert_not_called()
+    storage.client.delete_object.assert_not_called()
+
+
+def test_completion_retry_after_an_abort_reports_the_upload_gone(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "aborted", "parts": [{"partNumber": 1, "etag": "a"}]}
+    storage.client.list_parts.side_effect = _gone("ListParts")
+    storage.client.head_object.side_effect = ClientError({"Error": {"Code": "404"}}, "HeadObject")
+
+    with pytest.raises(ValueError, match="restart the upload"):
+        storage.complete_upload("owner", payload, size=5)
+    storage.client.delete_object.assert_not_called()
+
+
+def test_completion_recovery_rejects_an_object_of_another_size(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "done", "parts": [{"partNumber": 1, "etag": "a"}]}
+    storage.client.list_parts.side_effect = _gone("ListParts")
+    # Stored object agrees with its own metadata but not with the authorized size.
+    storage.client.head_object.return_value = {"ContentLength": 4, "Metadata": {"expected-size": "4"}}
+
+    with pytest.raises(ValueError, match="invalid size"):
+        storage.complete_upload("owner", payload, size=5)
+    storage.client.delete_object.assert_called_once()
+
+
+def test_completion_recovery_never_looks_at_another_users_upload(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "done", "parts": [{"partNumber": 1, "etag": "a"}]}
+
+    with pytest.raises(ValueError, match="belong"):
+        storage.complete_upload("intruder", payload, size=5)
+    storage.client.list_parts.assert_not_called()
+    storage.client.head_object.assert_not_called()
+
+
+def test_other_list_failures_still_fail_completion(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "open", "parts": [{"partNumber": 1, "etag": "a"}]}
+    storage.client.list_parts.side_effect = ClientError({"Error": {"Code": "SlowDown"}}, "ListParts")
+
+    with pytest.raises(ClientError):
+        storage.complete_upload("owner", payload, size=5)
+    storage.client.head_object.assert_not_called()

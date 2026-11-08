@@ -26,6 +26,10 @@ from ...repositories.upload_repository import (
     get_upload,
     finish_upload,
     claim_stored_upload,
+    claim_completion,
+    completion_digest,
+    release_completion,
+    UploadCompletionConflict,
     UploadIdempotencyConflict,
     UploadLimitReached,
 )
@@ -499,15 +503,35 @@ async def refresh_upload_parts(request: Request, db: AsyncSession = Depends(get_
         raise HTTPException(400, str(exc)) from None
 
 
+# Storage refused the parts list itself; the multipart upload is still open.
+_PARTS_REJECTED = {"InvalidPart", "InvalidPartOrder", "EntityTooSmall", "MalformedXML"}
+
+
 @router.post("/upload/complete")
 async def complete_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    """Complete a direct upload. A retry after a lost response returns the same path."""
+    from botocore.exceptions import ClientError
+
     user_id = await _get_authenticated_user_id(request, db)
     try:
         payload = await request.json()
         session = await get_upload(db, user_id, payload)
-        result = await run_in_thread(MediaStorage().complete_upload, user_id, payload, size=session.size)
+        digest = completion_digest(MediaStorage.completion_parts(payload, size=session.size))
+        await claim_completion(db, session.id, digest)
+        try:
+            result = await run_in_thread(MediaStorage().complete_upload, user_id, payload, size=session.size)
+        except ValueError:
+            # Nothing was completed, or what was is gone: let a corrected list try.
+            await release_completion(db, session.id, digest)
+            raise
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] in _PARTS_REJECTED:
+                await release_completion(db, session.id, digest)
+            raise
         await finish_upload(db, session.id, 'completed')
         return result
+    except UploadCompletionConflict as exc:
+        raise HTTPException(409, str(exc)) from None
     except (ValueError, TypeError, AttributeError, KeyError) as exc:
         raise HTTPException(400, str(exc)) from None
 
