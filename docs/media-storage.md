@@ -69,6 +69,14 @@ Expired part URLs can be refreshed during the session's one-day lifetime without
 restarting the upload. Expired sessions retain their capacity until the worker
 successfully aborts them. Completion is
 retryable after an interrupted response or a temporary validation request failure.
+Before asking storage to complete, the API records a digest of the request's part
+numbers and ETags on the session. When a retry finds the multipart session already
+gone (an earlier attempt completed it), it returns the same `video_path` if the
+stored object is under the user's prefix and exactly the authorized size; if the
+object is gone too (the upload was aborted), the client must restart. A retry that
+names different parts is `409` and never reported stored. Storage rejecting the
+parts list (`InvalidPart` and similar) clears the digest so a corrected list can
+complete.
 Uploads authorized before the session-tracking upgrade must be restarted; their
 abort endpoint remains available. Previously issued URLs keep their original
 expiry, and bucket lifecycle cleanup still reclaims abandoned multipart data.
@@ -96,6 +104,16 @@ upload and the same options (fonts, captions, clip length, cleanup, and so on)
 returns the task that is already queued or processing, or one that completed
 in the last two minutes, and does not enqueue a second job. A lost response
 can be retried safely. Changing an option starts a new task.
+
+A task request with an `Idempotency-Key` (any source, not only uploads) is
+recorded in `task_idempotency_keys` in the same transaction as the task and its
+minute charge, unique per user and key. For 24 hours a repeat returns that task
+(`Task already queued`) however long ago it finished, and even if it was deleted,
+since charges survive deletion. The same key with a different request (source,
+title or any option after normalization) is `409 IDEMPOTENCY_KEY_REUSED`. Paid
+creates check the key again under the per-user admission lock, so a retry that
+waited on the original gets its task rather than a `402`. Concurrent requests with
+one key make one task: the loser rolls back its task and source.
 
 ### Proxy timeouts
 
