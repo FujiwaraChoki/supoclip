@@ -147,6 +147,10 @@ COPY --from=builder --chown=nextjs:nodejs \
     /app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
 
+# Raises Node's 300-second limit for receiving a request, which cut off slow
+# streamed uploads to /api/upload with a 408 (see the file).
+COPY --chown=nextjs:nodejs frontend/server-request-timeout.cjs ./server-request-timeout.cjs
+
 USER nextjs
 
 EXPOSE 3107
@@ -155,4 +159,4 @@ ENV PORT=3107
 ENV HOSTNAME="0.0.0.0"
 
 # Start the application
-CMD ["node", "server.js"]
+CMD ["node", "--require", "./server-request-timeout.cjs", "server.js"]

@@ -82,4 +82,43 @@ describe("/api/upload", () => {
       "idempotency-key": "retry-key-1",
     }));
   });
+
+  function uploadRequest(signal?: AbortSignal) {
+    return new Request("http://app/api/upload", {
+      method: "POST",
+      headers: {
+        "content-length": "10",
+        "content-type": "multipart/form-data; boundary=abc",
+      },
+      body: "file-bytes",
+      signal,
+    });
+  }
+
+  it("answers 502 with JSON when the API cannot be reached", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+
+    const response = await POST(uploadRequest());
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      detail: "The upload could not be stored. Please try again.",
+    });
+    expect(error).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not log a server error when the client hung up mid-upload", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const client = new AbortController();
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => {
+      client.abort();
+      throw new TypeError("terminated");
+    }));
+
+    const response = await POST(uploadRequest(client.signal));
+
+    expect(response.status).toBe(499);
+    expect(error).not.toHaveBeenCalled();
+  });
 });

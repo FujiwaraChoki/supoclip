@@ -120,6 +120,17 @@ proxy_send_timeout 1h;
 `sudo nginx -t && sudo systemctl reload nginx`. Presigned S3 uploads do not
 pass through these locations; only the small authorize and complete requests do.
 
+Behind nginx, the Next.js server that serves `/api/upload` has its own limit.
+Node gives an HTTP server 300 seconds to receive a whole request and then
+answers 408, and Next's standalone `server.js` keeps that default. With request
+buffering off, a phone that needs more than five minutes to send the file got a
+408 after 300-330 seconds. The production image starts Next with
+`node --require ./server-request-timeout.cjs server.js`, which raises the limit
+to one hour to match nginx. `SERVER_REQUEST_TIMEOUT_MS` overrides it (`0`
+disables it). It only counts while the request is still arriving, so response
+streams are unaffected, and the 60-second header limit stays. `next start` and
+`next dev` do not load it.
+
 Database `file_path` fields contain `s3://bucket/key`, never expiring signed URLs.
 Clip IDs and API routes remain stable. Ownership checks or enabled share tokens
 authorize playback before the API redirects to a signed S3 URL. The frontend
