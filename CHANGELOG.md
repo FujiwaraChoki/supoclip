@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-08
+
+- **Fixed:** When the AI provider's content filter blocks a video's analysis, the task now says so and suggests what to try, instead of asking you to retry. ([#347](https://github.com/FujiwaraChoki/supoclip/pull/347))
+- **Under the hood:** Published YouTube videos that were deleted are checked for new stats once a day instead of every hour. ([#347](https://github.com/FujiwaraChoki/supoclip/pull/347))
+
 ## 2026-11-07
 
 - **Fixed:** TikTok publishing is paused for now, with a short note in Social settings, while an issue with TikTok is fixed. ([#343](https://github.com/FujiwaraChoki/supoclip/pull/343))
