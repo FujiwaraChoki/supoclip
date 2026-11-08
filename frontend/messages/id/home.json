@@ -49,6 +49,14 @@
   "customCaptionColor": "Warna caption kustom",
   "livePreview": "Pratinjau langsung",
   "framing": "Framing",
+  "layoutTitle": "Tata letak Auto 9:16",
+  "layoutOptions": {
+    "auto": { "label": "Otomatis", "hint": "Memilih tata letak terbaik per adegan" },
+    "reaction_top": { "label": "Webcam di atas", "hint": "Webcam di atas, game atau video di bawah" },
+    "reaction_bottom": { "label": "Webcam di bawah", "hint": "Game atau video di atas, webcam di bawah" },
+    "stack": { "label": "Dua bertumpuk", "hint": "Dua orang, satu di atas yang lain" },
+    "speaker": { "label": "Pembicara aktif", "hint": "Hanya menampilkan yang sedang bicara" }
+  },
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",

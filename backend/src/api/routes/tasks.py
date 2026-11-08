@@ -54,6 +54,7 @@ from ...clip_cleanup import (
     updated_cleanup_settings,
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
+from ...media.layout_choice import VALID_LAYOUTS
 from ...admin_auth import require_admin_user, user_is_admin
 from ...source_submission import SourceAttempt
 from ...workflows.contracts import workflow_spec_from_task
@@ -325,8 +326,11 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    layout: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
+    if isinstance(layout, str) and layout in VALID_LAYOUTS and layout != "auto":
+        merged["layout"] = layout
 
     if isinstance(source_url, str) and source_url:
         merged["url"] = source_url
@@ -585,6 +589,12 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
+    layout = data.get("layout", "auto")
+    if layout not in VALID_LAYOUTS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"layout must be one of: {', '.join(sorted(VALID_LAYOUTS))}",
+        )
     try:
         clip_length = validate_clip_length(data.get("clip_length", "auto"))
     except ValueError as exc:
@@ -616,6 +626,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         "clip_length": clip_length,
         "cleanup_settings": cleanup_settings,
     }
+    if layout != "auto":
+        # Only a chosen layout changes the key; the default keeps its old one.
+        upload_options["layout"] = layout
     if not workflow_spec.legacy:
         # Plain highlights keep their existing key. The key is a hash, so topic
         # and instructions never leave the process.
@@ -710,6 +723,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         output_format=output_format,
                         add_subtitles=add_subtitles,
                         cleanup_settings=cleanup_settings,
+                        layout=layout,
                     ),
                     db=db,
                 )

@@ -49,6 +49,14 @@
   "customCaptionColor": "Eigene Untertitelfarbe",
   "livePreview": "Live-Vorschau",
   "framing": "Bildausschnitt",
+  "layoutTitle": "Layout für Auto 9:16",
+  "layoutOptions": {
+    "auto": { "label": "Automatisch", "hint": "Wählt pro Szene das beste Layout" },
+    "reaction_top": { "label": "Webcam oben", "hint": "Webcam oben, Spiel oder Video unten" },
+    "reaction_bottom": { "label": "Webcam unten", "hint": "Spiel oder Video oben, Webcam unten" },
+    "stack": { "label": "Zwei übereinander", "hint": "Zwei Personen untereinander" },
+    "speaker": { "label": "Aktiver Sprecher", "hint": "Zeigt nur, wer gerade spricht" }
+  },
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",

@@ -31,7 +31,15 @@ export interface CaptionStyle {
 }
 /** Template styling the editor's own caption controls don't cover. */
 export interface CaptionLook {
-  animation: "none" | "karaoke" | "pop" | "fade" | "bounce";
+  animation:
+    | "none"
+    | "karaoke"
+    | "pop"
+    | "fade"
+    | "bounce"
+    | "flicker"
+    | "glitch"
+    | "typewriter";
   wordPop: boolean;
   wordBox: boolean;
   wordBoxColor: string | null;

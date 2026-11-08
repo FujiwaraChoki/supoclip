@@ -261,6 +261,11 @@ function drawCaptions(
     scale = keyframes(t, [[0, 0.7], [0.12, 1.12], [0.24, 1]]);
   else if (look.animation === "fade")
     alpha = Math.max(0, Math.min(1, t / 0.12, remaining / 0.12));
+  else if (look.animation === "flicker")
+    alpha = t < 0.33 && [[0.04, 0.07], [0.11, 0.14], [0.18, 0.22]].some(([from, to]) => t >= from && t < to) ? 0.1 : t < 0.04 ? 0 : 1;
+  else if (look.animation === "glitch")
+    scale = keyframes(t, [[0, 1.06], [0.07, 0.96], [0.14, 1.03], [0.22, 1]]);
+  const typed = look.animation === "typewriter" ? activeWordIndex(group, time) : group.length;
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -291,6 +296,11 @@ function drawCaptions(
       const text = label(word.text),
         textWidth = ctx.measureText(text).width,
         isActive = word === active;
+      // Typewriter keeps unspoken words in the layout but does not draw them.
+      if (group.indexOf(word) > typed) {
+        x += textWidth + space;
+        continue;
+      }
       if (isActive && look.wordBox) {
         ctx.fillStyle = look.wordBoxColor ?? style.accent;
         ctx.beginPath();

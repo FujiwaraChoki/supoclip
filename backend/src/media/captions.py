@@ -752,7 +752,7 @@ def build_assemblyai_ass_subtitles(
     measure = caption_text_measurer(effective_font_family, font_px)
     space_width = measure(" ")
     edge_px = max(style_bord, box_bord if word_box else 0) + shadow_px
-    peak_scale = {"pop": 1.06, "bounce": 1.12}.get(animation, 1.0)
+    peak_scale = {"pop": 1.06, "bounce": 1.12, "glitch": 1.06}.get(animation, 1.0)
     available_width = (get_subtitle_max_width(video_width) - 2 * edge_px) / peak_scale
     emoji_width = space_width + font_px * 1.2
 
@@ -882,6 +882,27 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 events.append(
                     f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{prefix}{entrance}{line}"
                 )
+        elif animation == "typewriter":
+            # Words appear one by one. Unspoken words stay in the line but fully
+            # transparent, so the centred line never shifts as it fills in.
+            for local_i, word in enumerate(chunk):
+                start = float(word["start"])
+                end = (
+                    float(chunk[local_i + 1]["start"])
+                    if local_i + 1 < len(chunk)
+                    else chunk_end
+                )
+                if end <= start:
+                    end = start + 0.05
+                parts = []
+                for local_j, other in enumerate(chunk):
+                    gj = indices[local_j]
+                    color = emphasis_color if (enable_emphasis and gj in emphasis_idx) else primary
+                    alpha = "\\alpha&H00&" if local_j <= local_i else "\\alpha&HFF&"
+                    parts.append(f"{{{font_tag}\\c{color}{alpha}}}{render_text(gj, other)}")
+                events.append(
+                    f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{prefix}{' '.join(parts)}"
+                )
         else:
             start = float(chunk[0]["start"])
             end = chunk_end
@@ -900,6 +921,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             scale_steps = {"pop": (88, 106, 130, 250), "bounce": (70, 112, 120, 240)}
             if animation == "fade":
                 effect = "{\\fad(120,120)}"
+            elif animation == "flicker":
+                # Neon tube switching on: a few quick drops in opacity.
+                effect = (
+                    "{\\alpha&HFF&\\t(0,40,\\alpha&H00&)\\t(70,110,\\alpha&HFF&)"
+                    "\\t(140,180,\\alpha&H00&)\\t(220,260,\\alpha&H90&)\\t(290,330,\\alpha&H00&)}"
+                )
+            elif animation == "glitch":
+                # Digital glitch: letter-spacing and tilt jitter that settle at once.
+                effect = (
+                    "{\\fsp10\\frz2\\fscx106\\t(0,70,\\fsp-3\\frz-2\\fscx96)"
+                    "\\t(70,140,\\fsp4\\frz1\\fscx103)\\t(140,220,\\fsp0\\frz0\\fscx100)}"
+                )
             elif animation in scale_steps:
                 low, peak, rise, settle = scale_steps[animation]
                 low, peak, full = (scaled(p, chunk_scale) for p in (low, peak, 100))

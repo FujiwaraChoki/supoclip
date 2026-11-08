@@ -135,8 +135,10 @@ def measure_reaction_inset(
 def build_reaction_layout(
     width: int, height: int, duration: float, face: Box, inset: Box,
     samples: Sequence[FaceFrame], scene_cuts: Sequence[float] = (),
+    reactor_position: str = 'top',
 ) -> Dict[str, Any]:
-    """Reactor above source; source closeups follow faces outside the inset.
+    """Reactor above source (or below with ``reactor_position='bottom'``);
+    source closeups follow faces outside the inset.
 
     Wide shots with two stable source faces use two guest panels, for three
     faces total. Uncertain and face-free shots keep a wide source view.
@@ -266,14 +268,20 @@ def build_reaction_layout(
         graph.append(f'[part{i}]{crop},setsar=1[p{i}]')
         enable = f'gte(t\\,{start:.3f})*lt(t\\,{end:.3f})'
         graph.append(f"[base{i}][p{i}]overlay=(W-w)/2:(H-h)/2:enable='{enable}'[base{i+1}]")
-    graph.append(f'[reactor][base{len(runs)}]vstack=inputs=2[vout]')
-    return {'kind': 'reaction', 'video_filter': ';'.join(graph), 'caption_y': REACTOR_HEIGHT / 1920,
+    if reactor_position == 'bottom':
+        graph.append(f'[base{len(runs)}][reactor]vstack=inputs=2[vout]')
+        caption_y = SOURCE_HEIGHT / 1920
+    else:
+        graph.append(f'[reactor][base{len(runs)}]vstack=inputs=2[vout]')
+        caption_y = REACTOR_HEIGHT / 1920
+    return {'kind': 'reaction', 'video_filter': ';'.join(graph), 'caption_y': caption_y,
             'inset': inset, 'source_runs': runs, 'upscale': 1080 / rw}
 
 
 def choose_reaction_layout(
     path: Path, width: int, height: int, duration: float, samples: Sequence[FaceFrame],
     scene_cuts: Sequence[float] = (),
+    reactor_position: str = 'top',
 ) -> Optional[Dict[str, Any]]:
     face = find_reactor_face(width, height, samples)
     if face is None:
@@ -281,4 +289,6 @@ def choose_reaction_layout(
     inset = measure_reaction_inset(path, width, height, duration, face)
     if inset is None:
         return None
-    return build_reaction_layout(width, height, duration, face, inset, samples, scene_cuts)
+    return build_reaction_layout(
+        width, height, duration, face, inset, samples, scene_cuts, reactor_position
+    )

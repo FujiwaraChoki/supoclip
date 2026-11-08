@@ -1535,6 +1535,34 @@ def describe_vertical_layout(
     # and speaker labels. Separate it before dominant-face tracking can confuse
     # the inset with the source, or a full-frame fallback discards it.
     from .reaction_layout import choose_reaction_layout, find_reactor_face
+    from .layout_choice import current_layout
+
+    chosen = current_layout()
+    if chosen == "stack":
+        forced = choose_talking_head_layout(width, height, face_samples, scene_cuts)
+        if forced and forced["kind"] == "stack":
+            return _described("stack", forced["video_filter"], "complex", forced["caption_y"])
+        logger.info("Chosen layout 'stack' not possible for this clip; using auto")
+    elif chosen == "speaker" and speaker_words:
+        from .speaker_framing import build_speaker_filter_plan
+
+        try:
+            forced_plan = build_speaker_filter_plan(
+                input_path, width, height, crop_w, crop_h, duration,
+                speaker_turns or [], speaker_words,
+            )
+        except Exception as exc:
+            logger.warning("Chosen layout 'speaker' failed (%s); using auto", exc)
+            forced_plan = None
+        if forced_plan:
+            forced_filter, forced_mode = forced_plan
+            return _described(
+                "overlap" if forced_mode == "complex" else "speaker",
+                forced_filter, forced_mode, 0.5 if forced_mode == "complex" else None,
+            )
+        logger.info("Chosen layout 'speaker' not possible for this clip; using auto")
+    elif chosen == "speaker":
+        logger.info("Chosen layout 'speaker' needs speaker turns; using auto")
 
     if find_reactor_face(width, height, face_samples):
         # Tiny faces in the source wide shot need more detail than the normal
@@ -1558,7 +1586,8 @@ def describe_vertical_layout(
         except Exception as exc:
             logger.debug("Reaction detail analysis unavailable: %s", exc)
     reaction = choose_reaction_layout(
-        input_path, width, height, duration, face_samples, scene_cuts
+        input_path, width, height, duration, face_samples, scene_cuts,
+        reactor_position="bottom" if chosen == "reaction_bottom" else "top",
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))

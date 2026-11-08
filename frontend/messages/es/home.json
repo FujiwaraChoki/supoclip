@@ -49,6 +49,14 @@
   "customCaptionColor": "Color de subtítulos personalizado",
   "livePreview": "Vista previa en vivo",
   "framing": "Encuadre",
+  "layoutTitle": "Diseño del 9:16 automático",
+  "layoutOptions": {
+    "auto": { "label": "Automático", "hint": "Elige el mejor diseño por escena" },
+    "reaction_top": { "label": "Webcam arriba", "hint": "Webcam arriba, juego o vídeo abajo" },
+    "reaction_bottom": { "label": "Webcam abajo", "hint": "Juego o vídeo arriba, webcam abajo" },
+    "stack": { "label": "Dos apilados", "hint": "Dos personas, una sobre la otra" },
+    "speaker": { "label": "Quien habla", "hint": "Muestra solo a quien habla" }
+  },
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",
