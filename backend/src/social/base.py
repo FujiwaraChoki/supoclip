@@ -58,6 +58,7 @@ class SocialProviderError(Exception):
         reauth: bool = False,
         rejected: bool = False,
         outcome_unknown: bool = False,
+        not_found: bool = False,
     ):
         # Messages reach logs, the database and API responses.
         super().__init__(redact(message))
@@ -72,6 +73,10 @@ class SocialProviderError(Exception):
         # (e.g. a timeout after the video was sent). Retrying automatically
         # could publish it twice, so only the user may retry.
         self.outcome_unknown = outcome_unknown
+        # ``not_found`` means the platform answered but no longer returns the
+        # post (deleted or removed). Unlike a failed request, asking again
+        # within hours will not change that.
+        self.not_found = not_found
 
 
 @dataclass

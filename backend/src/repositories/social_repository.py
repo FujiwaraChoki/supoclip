@@ -815,6 +815,7 @@ class SocialRepository:
         refreshed_before: datetime,
         max_age_days: int,
         limit: int = 200,
+        exclude_post_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         result = await db.execute(
             text(
@@ -829,6 +830,7 @@ class SocialRepository:
                   AND a.status = 'active'
                   AND p.published_at >= NOW() - (:max_age_days * INTERVAL '1 day')
                   AND (p.last_metrics_at IS NULL OR p.last_metrics_at <= :refreshed_before)
+                  AND NOT (p.id = ANY(CAST(:exclude_post_ids AS varchar[])))
                 ORDER BY p.last_metrics_at ASC NULLS FIRST
                 LIMIT :limit
                 """
@@ -837,6 +839,7 @@ class SocialRepository:
                 "refreshed_before": refreshed_before,
                 "max_age_days": max_age_days,
                 "limit": limit,
+                "exclude_post_ids": list(exclude_post_ids or []),
             },
         )
         return [SocialRepository.serialize_post(row) for row in result.fetchall()]
