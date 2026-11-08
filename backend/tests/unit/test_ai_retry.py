@@ -126,3 +126,64 @@ async def test_entire_run_has_deadline(monkeypatch):
         await ai._run_transcript_analysis(agent, "prompt")
     assert cancelled.is_set()
     assert agent.run.await_count == 1
+
+
+def _content_filter_error(model_name="claude-haiku-5-5"):
+    return ModelHTTPError(400, model_name, {
+        "type": "error",
+        "error": {"type": "invalid_request_error", "message": "Output blocked by content filtering policy"},
+    })
+
+
+async def test_content_filter_block_is_not_retried_and_says_what_happened(
+    monkeypatch, retry_sleep, caplog
+):
+    agent = SimpleNamespace(run=AsyncMock(side_effect=_content_filter_error()))
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
+
+    with pytest.raises(ai.TranscriptAnalysisContentFiltered) as caught:
+        await ai.get_most_relevant_parts_by_transcript("[00:00 - 00:30] Some speech.")
+
+    # One call, no retry and no other model: the filter is never sidestepped.
+    assert agent.run.await_count == 1
+    retry_sleep.assert_not_awaited()
+    assert not isinstance(caught.value, RuntimeError)
+    assert "content filter" in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert "Output blocked" not in caplog.text
+
+
+async def test_content_filter_block_in_every_window_fails_with_the_same_error(
+    monkeypatch, retry_sleep
+):
+    transcript = "\n".join(
+        f"[{minute:02d}:00 - {minute:02d}:30] Line {minute}." for minute in range(0, 40)
+    )
+    agent = SimpleNamespace(run=AsyncMock(side_effect=_content_filter_error()))
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
+
+    with pytest.raises(ai.TranscriptAnalysisContentFiltered):
+        await ai.get_most_relevant_parts_by_transcript(transcript)
+
+    assert agent.run.await_count == len(ai.split_transcript_into_windows(transcript))
+    retry_sleep.assert_not_awaited()
+
+
+@pytest.mark.parametrize("error", [
+    ModelHTTPError(400, "configured-model", {"message": "max_tokens is too large"}),
+    ModelHTTPError(400, "configured-model"),
+    ModelHTTPError(403, "configured-model", {"message": "content filtering policy"}),
+    ValueError("content filtering policy"),
+])
+def test_only_400_content_filter_replies_count_as_filtered(error):
+    assert not ai._is_content_filtered_error(error)
+
+
+def test_wrapped_content_filter_reply_is_recognized():
+    try:
+        try:
+            raise _content_filter_error()
+        except ModelHTTPError as inner:
+            raise RuntimeError("wrapped") from inner
+    except RuntimeError as outer:
+        assert ai._is_content_filtered_error(outer)

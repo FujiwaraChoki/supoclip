@@ -410,3 +410,21 @@ async def test_providers_report_tiktok_paused_by_its_flag(app, client, auth_head
     rows = await providers()
     assert rows["tiktok"]["configured"] is True and "paused" not in rows["tiktok"]
     feature_flags.clear_cache()
+
+
+@pytest.mark.asyncio
+async def test_due_metrics_skip_posts_the_platform_no_longer_returns(social_setup, client, db_session, auth_headers):
+    _provider, payload = social_setup
+    response = await client.post("/social/posts", headers=auth_headers, json=payload)
+    post = response.json()["post"]
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    await service.publish_post(post["id"])
+    repo = service.repo
+    due = dict(refreshed_before=datetime.now(timezone.utc), max_age_days=60)
+
+    assert [p["id"] for p in await repo.list_posts_for_metrics_refresh(db_session, **due)] == [post["id"]]
+    assert [p["id"] for p in await repo.list_posts_for_metrics_refresh(db_session, **due, exclude_post_ids=[])] == [post["id"]]
+    assert await repo.list_posts_for_metrics_refresh(db_session, **due, exclude_post_ids=[post["id"], "other"]) == []
+    # Nothing about the post changes while it is skipped.
+    row = await repo.get_post(db_session, post["id"])
+    assert row["status"] == "published" and row["external_post_id"]

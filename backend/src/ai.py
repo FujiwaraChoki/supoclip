@@ -59,6 +59,9 @@ MIN_FINAL_CLIPS = 5
 MAX_FINAL_CLIPS = 20
 SECONDS_PER_FINAL_CLIP = 5 * 60
 TRANSIENT_MODEL_STATUS_CODES = {408, 429, 500, 502, 503, 504, 529}
+# Provider safety filters answer 400 with one of these phrases (Anthropic:
+# "Output blocked by content filtering policy").
+CONTENT_FILTER_MARKERS = ("content filtering policy", "content_filter", "content filter")
 HOOK_TITLE_MAX_CHARS = 64
 HOOK_TITLE_MAX_WORDS = 10
 # The transcript formatter does not wrap minutes into hours, so sources of 100+
@@ -1109,6 +1112,34 @@ def _repair_segment_bounds(
     return repaired_start, repaired_end
 
 
+class TranscriptAnalysisContentFiltered(Exception):
+    """The provider's safety filter blocked the analysis. Never retried or rerouted.
+
+    Not a RuntimeError, so the task page shows this message instead of the
+    generic "retry" one.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The AI provider's content filter blocked the analysis of this video, "
+            "so no clips were made. Retrying the same video will likely be blocked "
+            "again. Try a different video, or upload a shorter part of this one."
+        )
+
+
+def _is_content_filtered_error(error: BaseException) -> bool:
+    """Recognize a provider safety-filter refusal, including SDK wrappers."""
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, ModelHTTPError) and current.status_code == 400:
+            body = str(current.body or "").lower()
+            return any(marker in body for marker in CONTENT_FILTER_MARKERS)
+        current = current.__cause__
+    return False
+
+
 def _is_transient_model_error(error: Exception) -> bool:
     """Recognize provider overload and transport failures, including SDK wrappers."""
     current: BaseException | None = error
@@ -1754,6 +1785,11 @@ async def get_most_relevant_parts_by_transcript(
         return final_analysis
 
     except Exception as e:
+        if _is_content_filtered_error(e):
+            # Rerouting the same transcript to another model would sidestep the
+            # filter, so the task fails with a message that says what happened.
+            logger.warning("AI analysis blocked by the provider's content filter")
+            raise TranscriptAnalysisContentFiltered() from None
         logger.error(f"Error in transcript analysis: {e}")
         raise RuntimeError(f"Transcript analysis failed: {str(e)}") from e
 

@@ -41,7 +41,7 @@ from ..youtube_proxy import YouTubeGeoRestrictedError
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_duration import clip_duration, validate_clip_length
-from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
+from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION, TranscriptAnalysisContentFiltered
 from ..clip_source_map import load_clip_caption_settings, normalize_source_ranges, source_range_bounds
 from ..media.timeline import seconds_to_mmss
 from ..workflows.boundaries import cleanup_key
@@ -1000,6 +1000,8 @@ class TaskService(ClipEditingMixin):
                 error_code = e.code
             elif isinstance(e, YouTubeGeoRestrictedError):
                 error_code = "youtube_geo_restricted"
+            elif isinstance(e, TranscriptAnalysisContentFiltered):
+                error_code = "analysis_content_filtered"
             elif "download" in message or "youtube" in message:
                 error_code = "download_error"
             elif "analysis" in message:

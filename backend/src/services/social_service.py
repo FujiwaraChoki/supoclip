@@ -66,6 +66,11 @@ PUBLISH_JOB_TIMEOUT_SECONDS = 3600
 # timeout so a live upload is never swept.
 STALE_PUBLISHING_SECONDS = 2 * PUBLISH_JOB_TIMEOUT_SECONDS
 MAX_HASHTAGS = 30
+# A post the platform no longer returns (deleted, removed) is asked about once
+# a day instead of on every hourly refresh. Redis markers expire on their own,
+# and the post itself is never changed, so a video that comes back is measured.
+METRICS_UNAVAILABLE_RETRY_SECONDS = 24 * 3600
+METRICS_UNAVAILABLE_KEY_PREFIX = "social:metrics-unavailable:"
 # The views chart only appears once there are this many days of measurements.
 VIEWS_CHART_MIN_DAYS = 3
 # OAuth states started from the native app carry this prefix, so the web
@@ -94,6 +99,21 @@ class SocialProviderUnavailable(SocialError):
 
 class SocialValidationError(SocialError):
     status_code = 400
+
+
+class SocialPostUnavailable(SocialValidationError):
+    """The platform no longer returns a published post (deleted or removed)."""
+
+
+def _fetch_metrics_or_unavailable(fetch, *args):
+    """Runs in the worker thread. A missing post comes back as a value, so the
+    thread helper does not log an expected answer as an error."""
+    try:
+        return fetch(*args)
+    except SocialProviderError as exc:
+        if exc.not_found:
+            return exc
+        raise
 
 
 class SocialPlanRequired(SocialError):
@@ -999,6 +1019,7 @@ class SocialService:
         try:
             access_token = await self._get_valid_access_token(account)
             metrics = await self._call_provider(
+                _fetch_metrics_or_unavailable,
                 provider.fetch_metrics,
                 access_token,
                 post["external_post_id"],
@@ -1010,6 +1031,10 @@ class SocialService:
                     self.db, account["id"], "reauth_required", str(exc)
                 )
             raise SocialValidationError(str(exc)) from exc
+        if isinstance(metrics, SocialProviderError):
+            await self._set_metrics_unavailable(post["id"], True)
+            raise SocialPostUnavailable(str(metrics))
+        await self._set_metrics_unavailable(post["id"], False)
         await self.repo.insert_metrics(self.db, post["id"], metrics.as_dict(), metrics.raw)
         share_url = (metrics.raw or {}).get("share_url")
         if not post.get("external_url") and isinstance(share_url, str) and share_url.startswith("https://"):
@@ -1018,6 +1043,38 @@ class SocialService:
             await self.repo.update_post(self.db, post["id"], external_url=share_url)
         refreshed = await self.repo.get_post(self.db, post["id"]) or post
         return refreshed
+
+    async def _metrics_redis(self):
+        get_pool = getattr(self.queue_adapter, "get_pool", None)
+        return await get_pool() if get_pool else None
+
+    async def _set_metrics_unavailable(self, post_id: str, unavailable: bool) -> None:
+        """Best effort: without Redis, missing posts are simply asked about hourly."""
+        try:
+            redis = await self._metrics_redis()
+            if redis is None:
+                return
+            key = f"{METRICS_UNAVAILABLE_KEY_PREFIX}{post_id}"
+            if unavailable:
+                await redis.set(key, "1", ex=METRICS_UNAVAILABLE_RETRY_SECONDS)
+            else:
+                await redis.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not update the metrics marker for post %s (%s)", post_id, type(exc).__name__)
+
+    async def _unavailable_metrics_post_ids(self) -> List[str]:
+        try:
+            redis = await self._metrics_redis()
+            if redis is None:
+                return []
+            post_ids = []
+            async for key in redis.scan_iter(match=f"{METRICS_UNAVAILABLE_KEY_PREFIX}*", count=500):
+                key = key.decode() if isinstance(key, bytes) else key
+                post_ids.append(key[len(METRICS_UNAVAILABLE_KEY_PREFIX):])
+            return post_ids
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not read metrics markers (%s); refreshing every due post", type(exc).__name__)
+            return []
 
     async def refresh_due_metrics(self, limit: int = 200) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(
@@ -1028,12 +1085,20 @@ class SocialService:
             refreshed_before=cutoff,
             max_age_days=self.config.social_metrics_max_post_age_days,
             limit=limit,
+            exclude_post_ids=await self._unavailable_metrics_post_ids(),
         )
         refreshed = 0
         for post in posts:
             try:
                 await self.refresh_post_metrics(post)
                 refreshed += 1
+            except SocialPostUnavailable as exc:
+                logger.info(
+                    "Metrics unavailable for post %s: %s; checking again in %sh",
+                    post["id"],
+                    exc,
+                    METRICS_UNAVAILABLE_RETRY_SECONDS // 3600,
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "Metrics refresh failed for post %s (%s): %s",

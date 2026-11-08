@@ -260,6 +260,12 @@ refunded automatically), `progress_message` explains it in English, and
 | `render_incomplete` | A required part, recap or trailer failed to render | Resume |
 | `transcript_untimed` | The transcript has no timings to cut on | Upload the file instead |
 
+Any task can also end with `analysis_content_filtered`: the AI provider's
+content filter blocked the transcript analysis. SupoClip does not retry it or
+switch models to get around the filter, the task has no clips (so the minutes
+are refunded), and a resume will likely be blocked again. Try a different video
+or a shorter part.
+
 A cancelled series keeps the parts already rendered; resuming re-renders from
 the cached plan. Resume needs no extra fields for any workflow: the worker reads
 `workflow` and `workflow_options` from the task.

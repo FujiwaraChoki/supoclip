@@ -189,6 +189,30 @@ def test_youtube_metrics_and_reauth_detection():
     assert exc.value.reauth is True
 
 
+def test_youtube_metrics_mark_only_an_empty_answer_as_not_found():
+    session = FakeSession(
+        {
+            ("GET", "/videos"): [
+                FakeResponse(200, {"items": []}),
+                FakeResponse(503, {"error": {"message": "Backend Error", "code": 503}}),
+                FakeResponse(403, {"error": {"message": "Quota exceeded", "code": 403}}),
+            ]
+        }
+    )
+    provider = YouTubeProvider(_config(), session=session)
+
+    with pytest.raises(SocialProviderError) as missing:
+        provider.fetch_metrics("token", "vid", {})
+    assert missing.value.not_found is True
+    assert missing.value.retryable is False
+
+    for _ in range(2):
+        with pytest.raises(SocialProviderError) as transient:
+            provider.fetch_metrics("token", "vid", {})
+        assert transient.value.not_found is False
+        assert transient.value.retryable is True
+
+
 # ----------------------------------------------------------------------
 # TikTok
 # ----------------------------------------------------------------------

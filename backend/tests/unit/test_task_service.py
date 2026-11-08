@@ -857,3 +857,24 @@ def test_download_errors_keep_their_wording():
 
     assert user_facing_error(StreamSourceError("This VOD is private")) == "This VOD is private"
     assert user_facing_error(YouTubeGeoRestrictedError()) == str(YouTubeGeoRestrictedError())
+
+
+@pytest.mark.asyncio
+async def test_content_filter_block_has_specific_task_error_and_honest_message():
+    from src.ai import TranscriptAnalysisContentFiltered
+
+    service = build_task_service()
+    service.video_service.process_video_complete.side_effect = TranscriptAnalysisContentFiltered()
+    progress = AsyncMock()
+
+    with pytest.raises(TranscriptAnalysisContentFiltered):
+        await service.process_task(
+            task_id="task-1", url="upload://source.mp4", source_type="upload",
+            user_id="user-1", progress_callback=progress,
+        )
+
+    message = str(TranscriptAnalysisContentFiltered())
+    assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "analysis_content_filtered"
+    assert service.task_repo.update_task_status.await_args.kwargs["progress_message"] == message
+    assert "content filter" in message and "Retry generation to try again" not in message
+    assert progress.await_args.args == (0, message, "error")

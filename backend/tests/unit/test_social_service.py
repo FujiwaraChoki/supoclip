@@ -1586,3 +1586,134 @@ async def test_queued_tiktok_post_fails_readably_while_paused(service, tiktok_fl
     assert result["error_message"] == social_module.TIKTOK_PAUSED_MESSAGE
     # The worker has no platform: it asked about both before refusing.
     assert {platform for _, platform, _ in tiktok_flag["checks"][-2:]} == {"web", "ios"}
+
+
+# ----------------------------------------------------------------------
+# Posts the platform no longer returns
+# ----------------------------------------------------------------------
+class FakeRedis:
+    def __init__(self):
+        self.values = {}
+
+    async def set(self, key, value, ex=None):
+        self.values[key] = (value, ex)
+
+    async def delete(self, key):
+        self.values.pop(key, None)
+
+    async def scan_iter(self, match=None, count=None):
+        prefix = match.rstrip("*")
+        for key in list(self.values):
+            if key.startswith(prefix):
+                yield key.encode()
+
+
+class RedisQueue(FakeQueue):
+    def __init__(self, redis):
+        super().__init__()
+        self.redis = redis
+
+    async def get_pool(self):
+        if isinstance(self.redis, Exception):
+            raise self.redis
+        return self.redis
+
+
+def _missing_video(*_args):
+    raise SocialProviderError("Video not found on YouTube (it may have been deleted)", not_found=True)
+
+
+@pytest.mark.asyncio
+async def test_missing_post_is_marked_for_a_day_and_never_changed(service, provider, monkeypatch, caplog):
+    redis = FakeRedis()
+    service.queue_adapter = RedisQueue(redis)
+    published = await service.publish_post((await _queued_post(service))["id"])
+    before = dict(service.repo.posts[published["id"]])
+    monkeypatch.setattr(provider, "fetch_metrics", _missing_video)
+
+    with pytest.raises(social_module.SocialPostUnavailable) as caught:
+        await service.refresh_post_metrics(published, user_id="user-1")
+
+    # The manual refresh route still answers 400 with the platform's reason.
+    assert isinstance(caught.value, SocialValidationError)
+    assert "not found" in str(caught.value)
+    key = f"{social_module.METRICS_UNAVAILABLE_KEY_PREFIX}{published['id']}"
+    assert redis.values[key] == ("1", social_module.METRICS_UNAVAILABLE_RETRY_SECONDS)
+    # Reversible: status, link and earlier metrics stay as they were.
+    assert service.repo.posts[published["id"]] == before
+    assert service.repo.metrics == []
+    # An expected answer is not logged as a thread error.
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+@pytest.mark.asyncio
+async def test_measured_post_clears_its_missing_marker(service, provider):
+    redis = FakeRedis()
+    service.queue_adapter = RedisQueue(redis)
+    published = await service.publish_post((await _queued_post(service))["id"])
+    key = f"{social_module.METRICS_UNAVAILABLE_KEY_PREFIX}{published['id']}"
+    redis.values[key] = ("1", 60)
+
+    await service.refresh_post_metrics(published, user_id="user-1")
+
+    assert key not in redis.values
+    assert len(service.repo.metrics) == 1
+
+
+@pytest.mark.asyncio
+async def test_transient_metrics_failure_is_not_treated_as_missing(service, provider, monkeypatch):
+    redis = FakeRedis()
+    service.queue_adapter = RedisQueue(redis)
+    published = await service.publish_post((await _queued_post(service))["id"])
+
+    def unavailable(*_args):
+        raise SocialProviderError("Failed to load YouTube statistics: Backend Error", retryable=True)
+
+    monkeypatch.setattr(provider, "fetch_metrics", unavailable)
+    with pytest.raises(SocialValidationError) as caught:
+        await service.refresh_post_metrics(published)
+
+    assert not isinstance(caught.value, social_module.SocialPostUnavailable)
+    assert redis.values == {}
+
+
+@pytest.mark.asyncio
+async def test_due_refresh_skips_marked_posts_and_logs_missing_ones_quietly(
+    service, provider, monkeypatch, caplog
+):
+    redis = FakeRedis()
+    service.queue_adapter = RedisQueue(redis)
+    published = await service.publish_post((await _queued_post(service))["id"])
+    redis.values[f"{social_module.METRICS_UNAVAILABLE_KEY_PREFIX}post-gone"] = ("1", 60)
+    calls = []
+
+    async def list_due(db, *, refreshed_before, max_age_days, limit, exclude_post_ids):
+        calls.append(exclude_post_ids)
+        return [published]
+
+    service.repo.list_posts_for_metrics_refresh = list_due
+    monkeypatch.setattr(provider, "fetch_metrics", _missing_video)
+
+    with caplog.at_level("INFO"):
+        assert await service.refresh_due_metrics() == 0
+
+    assert calls == [["post-gone"]]
+    assert f"{social_module.METRICS_UNAVAILABLE_KEY_PREFIX}{published['id']}" in redis.values
+    assert not [r for r in caplog.records if r.levelno >= 30]
+    assert "checking again in 24h" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_due_refresh_without_redis_refreshes_every_due_post(service, provider, caplog):
+    service.queue_adapter = RedisQueue(ConnectionError("redis down"))
+    published = await service.publish_post((await _queued_post(service))["id"])
+    calls = []
+
+    async def list_due(db, *, refreshed_before, max_age_days, limit, exclude_post_ids):
+        calls.append(exclude_post_ids)
+        return [published]
+
+    service.repo.list_posts_for_metrics_refresh = list_due
+
+    assert await service.refresh_due_metrics() == 1
+    assert calls == [[]]

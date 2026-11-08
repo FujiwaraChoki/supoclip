@@ -262,7 +262,11 @@ class YouTubeProvider(SocialProvider):
         self._raise_for_status(response, "load YouTube statistics")
         items = response.json().get("items") or []
         if not items:
-            raise SocialProviderError("Video not found on YouTube (it may have been deleted)")
+            # The owner's token also sees private and unlisted videos, so an
+            # empty answer means deleted, removed, or another channel's token.
+            raise SocialProviderError(
+                "Video not found on YouTube (it may have been deleted)", not_found=True
+            )
         stats = items[0].get("statistics", {})
         return PostMetrics(
             views=_to_int(stats.get("viewCount")),
