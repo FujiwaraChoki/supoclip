@@ -175,14 +175,15 @@ class MediaStorage:
             raise ValueError("Invalid S3 upload reference")
         return self.reference(self.key("sources", relative))
 
-    def validate_source(self, upload_url: str, user_id: str) -> str:
+    def validate_source(self, upload_url: str, user_id: str, *, expected_size: int | None = None) -> str:
         reference = self.source_reference(upload_url)
         if not self.parse(reference).startswith(self.key("sources", owner_key(user_id)) + "/"):
             raise ValueError("Uploaded video does not belong to this user")
         metadata = self.client.head_object(Bucket=self.bucket, Key=self.parse(reference))
         size = metadata["ContentLength"]
         expected = metadata.get("Metadata", {}).get("expected-size")
-        if size <= 0 or (expected and size != int(expected)):
+        if (size <= 0 or (expected and size != int(expected))
+                or (expected_size is not None and size != expected_size)):
             raise ValueError("Uploaded video has an invalid size")
         if size > self.config.max_video_upload_bytes:
             raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
@@ -565,8 +566,9 @@ class MediaStorage:
         if sum(seen.values()) != size:
             raise ValueError("Uploaded video has an invalid size")
 
-    def complete_upload(self, user_id: str, payload: dict, *, size: int | None = None):
-        key = self.owned_upload_key(payload["video_path"], user_id)
+    @staticmethod
+    def completion_parts(payload: dict, *, size: int | None = None) -> list[dict]:
+        """The ``parts`` of a complete request, checked for shape and count."""
         parts = payload["parts"]
         if (not isinstance(parts, list) or not parts or len(parts) > 10000
                 or any(not isinstance(p, dict) or type(p.get("partNumber")) is not int for p in parts)
@@ -575,8 +577,27 @@ class MediaStorage:
             raise ValueError("Invalid multipart upload parts")
         if size is not None and len(parts) != (size + PART_BYTES - 1) // PART_BYTES:
             raise ValueError("Multipart upload does not contain every expected part")
+        return parts
+
+    def complete_upload(self, user_id: str, payload: dict, *, size: int | None = None):
+        """Complete a multipart upload. Repeating it after success is safe.
+
+        When the multipart session is already gone, an earlier attempt either
+        completed it (and only its response was lost) or it was aborted. The
+        stored object then answers: it must exist, sit under this user's
+        prefix, and have exactly the authorized size. Callers that need the
+        retry to name the same parts compare that themselves (the API records
+        a digest of the parts before completing).
+        """
+        key = self.owned_upload_key(payload["video_path"], user_id)
+        parts = self.completion_parts(payload, size=size)
         if size is not None:
-            self._require_declared_part_sizes(key, payload["uploadId"], size)
+            try:
+                self._require_declared_part_sizes(key, payload["uploadId"], size)
+            except ClientError as exc:
+                if exc.response["Error"]["Code"] != "NoSuchUpload":
+                    raise
+                return self._completed_upload(user_id, payload["video_path"], key, size)
         try:
             self.client.complete_multipart_upload(Bucket=self.bucket, Key=key, UploadId=payload["uploadId"],
                 MultipartUpload={"Parts": [{"PartNumber": p["partNumber"], "ETag": p["etag"]} for p in parts]})
@@ -585,8 +606,12 @@ class MediaStorage:
             # the completed object remains, but the multipart session is gone.
             if exc.response["Error"]["Code"] != "NoSuchUpload":
                 raise
+        return self._completed_upload(user_id, payload["video_path"], key, size)
+
+    def _completed_upload(self, user_id: str, video_path: str, key: str, size: int | None):
+        """Check the completed object, deleting it if it isn't the authorized upload."""
         try:
-            self.validate_source(payload["video_path"], user_id)
+            self.validate_source(video_path, user_id, expected_size=size)
         except ValueError:
             self.client.delete_object(Bucket=self.bucket, Key=key)
             raise
@@ -594,7 +619,7 @@ class MediaStorage:
             if exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
                 raise ValueError("Upload is unavailable; restart the upload") from None
             raise
-        return {"video_path": payload["video_path"]}
+        return {"video_path": video_path}
 
     def abort_upload(self, user_id: str, payload: dict):
         try:

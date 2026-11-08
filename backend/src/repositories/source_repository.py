@@ -84,6 +84,18 @@ class SourceRepository:
         }
 
     @staticmethod
+    async def delete_unused_source(db: AsyncSession, source_id: str) -> None:
+        """Delete a source that no task points at (one made for a task that never committed)."""
+        await db.execute(
+            text("""
+                DELETE FROM sources
+                WHERE id = :source_id AND NOT EXISTS (SELECT 1 FROM tasks WHERE source_id = :source_id)
+            """),
+            {"source_id": source_id},
+        )
+        await db.commit()
+
+    @staticmethod
     async def update_source_title(db: AsyncSession, source_id: str, title: str) -> None:
         """Update the title of a source."""
         await db.execute(

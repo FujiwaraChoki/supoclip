@@ -1,5 +1,6 @@
 """Trusted multipart sessions and admission limits shared across API workers."""
 
+import hashlib
 import json
 import os
 import re
@@ -61,6 +62,45 @@ async def get_upload(db, user_id: str, payload, *, for_abort=False):
     if row is None:
         raise ValueError("Upload expired or is unavailable; restart the upload")
     return row
+
+
+class UploadCompletionConflict(ValueError):
+    """A complete request named different parts than the one already recorded."""
+
+
+def completion_digest(parts) -> str:
+    """Digest of a complete request's part numbers and ETags (quotes ignored)."""
+    canonical = [[part["partNumber"], part["etag"].strip().strip('"')] for part in parts]
+    return hashlib.sha256(json.dumps(canonical, separators=(",", ":")).encode()).hexdigest()
+
+
+async def claim_completion(db, session_id: str, digest: str):
+    """Record which parts this session completes with, before asking storage.
+
+    The first complete request's parts stick. A repeat with the same parts
+    passes, so a retry after a lost response can recover the stored object;
+    a different list raises ``UploadCompletionConflict``. Concurrent requests
+    queue on the row, so only one list is ever recorded.
+    """
+    claimed = (await db.execute(text("""
+        UPDATE media_upload_sessions SET completion_parts_sha256 = :digest
+        WHERE id = :id AND (completion_parts_sha256 IS NULL OR completion_parts_sha256 = :digest)
+        RETURNING id
+    """), {"id": session_id, "digest": digest})).first()
+    await db.commit()
+    if claimed is None:
+        raise UploadCompletionConflict(
+            "This upload was already completed with different parts. Restart the upload."
+        )
+
+
+async def release_completion(db, session_id: str, digest: str):
+    """Forget a recorded parts list that storage refused, so a corrected one can try."""
+    await db.execute(text("""
+        UPDATE media_upload_sessions SET completion_parts_sha256 = NULL
+        WHERE id = :id AND completion_parts_sha256 = :digest AND state <> 'completed'
+    """), {"id": session_id, "digest": digest})
+    await db.commit()
 
 
 async def finish_upload(db, session_id: str, state: str):

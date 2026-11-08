@@ -27,6 +27,11 @@ from ... import clip_archive
 from ...repositories.generation_allowance_guard import generation_allowance_guard, GenerationAllowanceBusy
 from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
 from ...repositories.task_repository import TaskRepository
+from ...repositories.task_idempotency_repository import (
+    TaskIdempotencyConflict,
+    TaskIdempotencyReplay,
+    find_task_for_key,
+)
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
@@ -536,6 +541,31 @@ def _queued_upload_task(task_id: str, job_id: str | None) -> Dict[str, Any]:
     }
 
 
+def _task_idempotency(request: Request, options: Dict[str, Any], title: Any) -> tuple[str, str] | None:
+    """``(key, request_hash)`` when the client sent an Idempotency-Key.
+
+    The hash covers the normalized options and title, so a retry that only
+    spells an option differently is still the same request.
+    """
+    key = _request_idempotency_key(request)
+    if not key:
+        return None
+    payload = json.dumps({"options": options, "title": title}, sort_keys=True, separators=(",", ":"), default=str)
+    return key, hashlib.sha256(payload.encode()).hexdigest()
+
+
+async def _replay_task(db, user_id: str, idempotency: tuple[str, str]) -> Dict[str, Any] | None:
+    """The response for a task this key already created, if any."""
+    try:
+        row = await find_task_for_key(db, user_id, *idempotency)
+    except TaskIdempotencyConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "IDEMPOTENCY_KEY_REUSED", "message": str(exc)},
+        ) from None
+    return None if row is None else _queued_upload_task(row.id, row.job_id)
+
+
 @router.post("/")
 async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     """
@@ -622,6 +652,13 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         upload_options["workflow"] = workflow_spec.workflow
         upload_options["workflow_options"] = workflow_options
     upload_request_key = _upload_request_key(request, raw_source["url"], upload_options)
+    # A keyed request answers with the task the key made, however long ago
+    # within retention. Unkeyed upload retries keep the short-window dedupe.
+    idempotency = _task_idempotency(request, upload_options, raw_source.get("title"))
+    if idempotency and db is not None:
+        replay = await _replay_task(db, user_id, idempotency)
+        if replay is not None:
+            return replay
     if upload_request_key and db is not None:
         existing = await TaskRepository.find_recent_upload_task(db, user_id, upload_request_key)
         if existing is not None:
@@ -672,23 +709,38 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         async with generation_allowance_guard(
             db, user_id, enabled=runtime_config.monetization_enabled
         ):
+            if idempotency:
+                # Admissions are serialized here. A retry that waited on the
+                # original must get its task, not a limit error after its charge.
+                replay = await _replay_task(db, user_id, idempotency)
+                if replay is not None:
+                    return replay
             await billing_service.assert_can_create_task(user_id, duration_seconds)
             # Create task
-            task_id = await task_service.create_task_with_source(
-                user_id=user_id,
-                url=raw_source["url"],
-                title=source_title,
-                font_family=font_family,
-                font_size=font_size,
-                font_color=font_color,
-                caption_template=caption_template,
-                include_broll=include_broll,
-                processing_mode=processing_mode,
-                source_duration_seconds=math.ceil(duration_seconds),
-                upload_request_key=upload_request_key,
-                workflow=workflow_spec.workflow,
-                workflow_options=workflow_options,
-            )
+            try:
+                task_id = await task_service.create_task_with_source(
+                    user_id=user_id,
+                    url=raw_source["url"],
+                    title=source_title,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    include_broll=include_broll,
+                    processing_mode=processing_mode,
+                    source_duration_seconds=math.ceil(duration_seconds),
+                    upload_request_key=upload_request_key,
+                    workflow=workflow_spec.workflow,
+                    workflow_options=workflow_options,
+                    idempotency=idempotency,
+                )
+            except TaskIdempotencyReplay:
+                # A concurrent request with this key committed its task first
+                # (self-hosted creates aren't serialized). Ours rolled back.
+                replay = await _replay_task(db, user_id, idempotency)
+                if replay is None:
+                    raise
+                return replay
             if getattr(task_service, "reused_upload_task", False):
                 return _queued_upload_task(
                     task_id, getattr(task_service, "reused_upload_job_id", None)
