@@ -61,7 +61,7 @@ interface CaptionTemplate {
 
 
 const FRAMING_IDS = OUTPUT_FORMATS;
-const LAYOUT_IDS = ["auto", "reaction_top", "reaction_bottom", "stack", "speaker"] as const;
+const LAYOUT_IDS = ["auto", "reaction_top", "reaction_bottom", "reaction_dynamic", "stack", "speaker"] as const;
 type LayoutChoice = (typeof LAYOUT_IDS)[number];
 
 const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];

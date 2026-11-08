@@ -54,6 +54,7 @@
     "auto": { "label": "Automatic", "hint": "Picks the best layout per scene" },
     "reaction_top": { "label": "Webcam on top", "hint": "Webcam above, game or video below" },
     "reaction_bottom": { "label": "Webcam below", "hint": "Game or video above, webcam below" },
+    "reaction_dynamic": { "label": "Webcam, game, both", "hint": "Switches by speech: webcam opens, game in the pauses" },
     "stack": { "label": "Two stacked", "hint": "Two people, one above the other" },
     "speaker": { "label": "Active speaker", "hint": "Shows only whoever is talking" }
   },

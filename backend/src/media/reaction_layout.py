@@ -136,6 +136,8 @@ def build_reaction_layout(
     width: int, height: int, duration: float, face: Box, inset: Box,
     samples: Sequence[FaceFrame], scene_cuts: Sequence[float] = (),
     reactor_position: str = 'top',
+    src_label: str = '0:v',
+    out_label: str = 'vout',
 ) -> Dict[str, Any]:
     """Reactor above source (or below with ``reactor_position='bottom'``);
     source closeups follow faces outside the inset.
@@ -191,7 +193,7 @@ def build_reaction_layout(
     ry = clamp_even(int(face[1] + face[3] / 2 - rh * .44), int(iy), int(iy + ih - rh))
     # Remove the inset from the source background too, avoiding a ghost copy.
     graph = [
-        '[0:v]split=3[reactor_src][source_bg][source_src]',
+        f'[{src_label}]split=3[reactor_src][source_bg][source_src]',
         f'[reactor_src]crop={rw}:{rh}:{rx}:{ry},scale=1080:{REACTOR_HEIGHT}:flags=lanczos,'
         f'{UPSCALE_SHARPEN_FILTER},setsar=1[reactor]',
         f'[source_bg]drawbox=x={int(ix)}:y=0:w={int(iw)}:h={int(ih)}:color=black:t=fill,'
@@ -269,26 +271,40 @@ def build_reaction_layout(
         enable = f'gte(t\\,{start:.3f})*lt(t\\,{end:.3f})'
         graph.append(f"[base{i}][p{i}]overlay=(W-w)/2:(H-h)/2:enable='{enable}'[base{i+1}]")
     if reactor_position == 'bottom':
-        graph.append(f'[base{len(runs)}][reactor]vstack=inputs=2[vout]')
+        graph.append(f'[base{len(runs)}][reactor]vstack=inputs=2[{out_label}]')
         caption_y = SOURCE_HEIGHT / 1920
     else:
-        graph.append(f'[reactor][base{len(runs)}]vstack=inputs=2[vout]')
+        graph.append(f'[reactor][base{len(runs)}]vstack=inputs=2[{out_label}]')
         caption_y = REACTOR_HEIGHT / 1920
     return {'kind': 'reaction', 'video_filter': ';'.join(graph), 'caption_y': caption_y,
-            'inset': inset, 'source_runs': runs, 'upscale': 1080 / rw}
+            'inset': inset, 'source_runs': runs, 'upscale': 1080 / rw,
+            'reactor_crop': (rw, rh, rx, ry)}
 
 
 def choose_reaction_layout(
     path: Path, width: int, height: int, duration: float, samples: Sequence[FaceFrame],
     scene_cuts: Sequence[float] = (),
     reactor_position: str = 'top',
+    speech_words: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Optional[Dict[str, Any]]:
+    """``speech_words`` (output-timeline words) switch on the dynamic layout:
+    webcam, game or both depending on the speech. Without a window to show it
+    falls back to the plain split."""
     face = find_reactor_face(width, height, samples)
     if face is None:
         return None
     inset = measure_reaction_inset(path, width, height, duration, face)
     if inset is None:
         return None
+    if speech_words:
+        from .reaction_dynamic import build_dynamic_reaction_layout
+
+        dynamic = build_dynamic_reaction_layout(
+            width, height, duration, face, inset, samples, scene_cuts,
+            speech_words, reactor_position,
+        )
+        if dynamic:
+            return dynamic
     return build_reaction_layout(
         width, height, duration, face, inset, samples, scene_cuts, reactor_position
     )

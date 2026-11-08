@@ -54,6 +54,7 @@
     "auto": { "label": "Automatisch", "hint": "Wählt pro Szene das beste Layout" },
     "reaction_top": { "label": "Webcam oben", "hint": "Webcam oben, Spiel oder Video unten" },
     "reaction_bottom": { "label": "Webcam unten", "hint": "Spiel oder Video oben, Webcam unten" },
+    "reaction_dynamic": { "label": "Webcam, Spiel, beides", "hint": "Wechselt mit der Sprache: Webcam zum Start, Spiel in den Pausen" },
     "stack": { "label": "Zwei übereinander", "hint": "Zwei Personen untereinander" },
     "speaker": { "label": "Aktiver Sprecher", "hint": "Zeigt nur, wer gerade spricht" }
   },

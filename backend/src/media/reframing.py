@@ -1443,6 +1443,7 @@ def build_vertical_filter_plan(
     height: int,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
+    speech_words: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[str, str, Optional[float]]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
@@ -1452,7 +1453,7 @@ def build_vertical_filter_plan(
     template default.
     """
     described = describe_vertical_layout(
-        input_path, width, height, speaker_turns, speaker_words
+        input_path, width, height, speaker_turns, speaker_words, speech_words
     )
     return described["video_filter"], described["mode"], described["caption_y"]
 
@@ -1463,6 +1464,7 @@ def describe_vertical_layout(
     height: int,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
+    speech_words: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Same plan as ``build_vertical_filter_plan``, plus a layout ``kind``.
 
@@ -1588,6 +1590,7 @@ def describe_vertical_layout(
     reaction = choose_reaction_layout(
         input_path, width, height, duration, face_samples, scene_cuts,
         reactor_position="bottom" if chosen == "reaction_bottom" else "top",
+        speech_words=speech_words if chosen == "reaction_dynamic" else None,
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))

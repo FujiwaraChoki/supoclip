@@ -10,7 +10,9 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator, Optional
 
-VALID_LAYOUTS = {"auto", "reaction_top", "reaction_bottom", "stack", "speaker"}
+VALID_LAYOUTS = {
+    "auto", "reaction_top", "reaction_bottom", "reaction_dynamic", "stack", "speaker",
+}
 
 _forced_layout: ContextVar[str] = ContextVar("forced_layout", default="auto")
 
