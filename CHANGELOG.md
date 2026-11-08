@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-08
 
+- **Fixed:** Retrying a generation after a dropped connection no longer creates and charges a second one, and a video upload whose final step lost its answer no longer has to be sent again. ([#349](https://github.com/FujiwaraChoki/supoclip/pull/349))
 - **Fixed:** Uploading a video from the iPhone app no longer fails when sending the file takes longer than five minutes. ([#348](https://github.com/FujiwaraChoki/supoclip/pull/348))
 
 ## 2026-11-07
