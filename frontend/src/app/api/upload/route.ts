@@ -66,7 +66,22 @@ export async function POST(request: Request) {
     body: request.body,
     duplex: "half",
   };
-  const upstream = await fetch(`${normalizedApiUrl}/upload`, init);
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${normalizedApiUrl}/upload`, init);
+  } catch (error) {
+    // The client hung up mid-upload: the body stream fails, so the forward
+    // fails too, and the API discards the partial file. Nobody reads this
+    // response, and it is not a server error, so don't log or report it.
+    if (request.signal?.aborted) {
+      return new Response(null, { status: 499 });
+    }
+    console.error("Upload could not be forwarded to the API", error);
+    return NextResponse.json(
+      { detail: "The upload could not be stored. Please try again." },
+      { status: 502 },
+    );
+  }
 
   return new Response(upstream.body, {
     status: upstream.status,
