@@ -462,6 +462,18 @@ class TaskService(ClipEditingMixin):
         except Exception as exc:  # the worker can still resolve everything itself
             logger.warning("Could not seed stream source details: %s", exc)
 
+    async def _bind_task_layout(self, task_id: str) -> str:
+        """Make the layout chosen at creation the one the renderer uses.
+
+        ``get_task_by_id`` does not return ``source_metadata``, so it is loaded
+        explicitly. Always binds (``auto`` when none), so a job never inherits
+        the previous job's choice.
+        """
+        from ..media.layout_choice import bind_layout
+
+        metadata = await self.task_repo.load_source_metadata(self.db, task_id)
+        return bind_layout(metadata.get("layout") if isinstance(metadata, dict) else None)
+
     @exclusive_task_run
     @media_work
     async def process_task(
@@ -509,12 +521,7 @@ class TaskService(ClipEditingMixin):
             # honour it with the ARQ job arguments unchanged.
             task_row = await self.task_repo.get_task_by_id(self.db, task_id) or {}
             spec = workflow_spec_from_task(task_row, clip_length)
-            from ..media.layout_choice import bind_layout
-
-            task_metadata = task_row.get("source_metadata")
-            bind_layout(
-                task_metadata.get("layout") if isinstance(task_metadata, dict) else None
-            )
+            await self._bind_task_layout(task_id)
             prior_outputs = bool(await self.clip_repo.get_clips_by_task(self.db, task_id))
             # New tasks already have an atomic acceptance charge. Recover queued
             # legacy jobs with missing durations before doing paid processing.
