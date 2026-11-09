@@ -152,7 +152,10 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
                 }
             ]
 
-        async def delete_clips_by_task(self, _db, _task_id: str):
+        async def delete_clip(self, _db, _clip_id: str):
+            return None
+
+        async def reorder_task_clips(self, _db, _task_id: str):
             return None
 
         async def create_clip(self, _db, **_kwargs):
@@ -247,7 +250,10 @@ async def test_regenerate_all_clips_recomputes_cleanup_from_source_ranges(isolat
                 }
             ]
 
-        async def delete_clips_by_task(self, _db, _task_id: str):
+        async def delete_clip(self, _db, _clip_id: str):
+            return None
+
+        async def reorder_task_clips(self, _db, _task_id: str):
             return None
 
         async def create_clip(self, _db, **_kwargs):

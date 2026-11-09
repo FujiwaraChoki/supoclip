@@ -14,6 +14,7 @@ import logging
 import shutil
 import subprocess
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,8 @@ logger = logging.getLogger(__name__)
 
 CACHE_DIRNAME = "youtube-cache"
 WORK_DIRNAME = "youtube-work"
+# Longer than any render; older work directories were abandoned by a crash.
+WORK_DIR_MAX_AGE_SECONDS = 24 * 60 * 60
 MANIFEST_NAME = "manifest.json"
 # v2 rejects auto-dub tracks before language_preference. Cached v1 audio is discarded.
 AUDIO_POLICY = "original-v2"
@@ -991,14 +994,35 @@ def _concat_local(files: list[Path], dest: Path, *, durations: Optional[list[flo
 
 
 def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
+    """A new directory for one render's timeline.
+
+    Renders of one task can overlap (a retried edit), so a directory is never
+    shared or reused: clearing a shared one deleted the source of a render
+    still in progress. Directories a crashed render left behind are swept
+    once they are older than any render.
+    """
     from .youtube_proxy import sticky_session_id
 
+    root = Path(get_config().temp_dir) / WORK_DIRNAME
+    _sweep_abandoned_work_dirs(root)
     name = sticky_session_id(task_id, video_id)
-    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}"
-    if directory.exists():
-        shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = root / f"{video_id}-{name}-{uuid.uuid4().hex[:12]}"
+    directory.mkdir(parents=True)
     return directory
+
+
+def _sweep_abandoned_work_dirs(root: Path) -> None:
+    cutoff = time.time() - WORK_DIR_MAX_AGE_SECONDS
+    try:
+        entries = list(root.iterdir())
+    except FileNotFoundError:
+        return
+    for entry in entries:
+        try:
+            if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                shutil.rmtree(entry, ignore_errors=True)
+        except OSError:
+            continue
 
 
 def materialize_clip_source(

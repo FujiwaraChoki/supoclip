@@ -42,7 +42,8 @@ def _service(monkeypatch, clips, rendered, captured, cleanup):
     })
     service.task_repo.update_task_clips = AsyncMock()
     service.clip_repo.get_clips_by_task = AsyncMock(return_value=clips)
-    service.clip_repo.delete_clips_by_task = AsyncMock()
+    service.clip_repo.delete_clip = AsyncMock()
+    service.clip_repo.reorder_task_clips = AsyncMock()
     service.clip_repo.create_clip = AsyncMock(return_value="new-clip")
 
     async def settings(_task_id):
@@ -133,7 +134,8 @@ async def test_regenerate_never_drops_a_series_part(isolated_clip_edits, monkeyp
     with pytest.raises(ValueError, match="existing clips are unchanged"):
         await service.regenerate_all_clips_for_task("task-1", None, None, None, "default")
 
-    service.clip_repo.delete_clips_by_task.assert_not_awaited()
+    service.clip_repo.delete_clip.assert_not_awaited()
+    service.clip_repo.create_clip.assert_not_awaited()
 
 
 def test_lost_source_map_falls_back_to_the_planned_ranges(tmp_path):

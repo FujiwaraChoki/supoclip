@@ -736,7 +736,7 @@ async def test_regeneration_that_renders_nothing_keeps_the_existing_clips(isolat
         {"id": "clip", "task_id": "task", "file_path": str(tmp_path / "clip.mp4"),
          "start_time": "00:00", "end_time": "00:05", "text": "hello"}
     ])
-    service.clip_repo.delete_clips_by_task = AsyncMock()
+    service.clip_repo.delete_clip = AsyncMock()
     service._load_task_source_settings = AsyncMock(return_value={"output_format": "vertical", "add_subtitles": True})
     service.video_service.resolve_local_video_path = lambda _url: source
     service.video_service.prepare_source = AsyncMock(return_value=source)
@@ -745,7 +745,7 @@ async def test_regeneration_that_renders_nothing_keeps_the_existing_clips(isolat
     with pytest.raises(ValueError, match="existing clips are unchanged"):
         await service.regenerate_all_clips_for_task("task", None, None, None, "default")
 
-    service.clip_repo.delete_clips_by_task.assert_not_awaited()
+    service.clip_repo.delete_clip.assert_not_awaited()
 
 
 @requires_ffmpeg

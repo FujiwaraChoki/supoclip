@@ -26,6 +26,8 @@ from ... import clip_archive
 
 from ...repositories.generation_allowance_guard import generation_allowance_guard, GenerationAllowanceBusy
 from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
+from ...repositories.edit_transaction import RegenerationBusy
+from ...services.clip_service import ClipsChangedDuringRegeneration
 from ...repositories.task_repository import TaskRepository
 from ...database import get_db
 from ...database import AsyncSessionLocal
@@ -1431,6 +1433,12 @@ async def apply_task_settings(
             db=db,
         )
         return {"task": task, "message": "Task settings updated"}
+    except RegenerationBusy as exc:
+        # A retry of a request whose regeneration is still running (e.g. after
+        # a proxy timeout). That run keeps going and saves its result.
+        raise HTTPException(status_code=409, detail=str(exc), headers={"Retry-After": "10"}) from None
+    except ClipsChangedDuringRegeneration as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     except YouTubeGeoRestrictedError as exc:
         raise HTTPException(
             status_code=422,

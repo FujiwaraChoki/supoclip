@@ -83,7 +83,7 @@ async def test_edits_serialize_before_reading_clip_state(
         second.cache_repo.get_cache = AsyncMock(return_value={"video_path": str(original)})
         second._load_task_source_settings = AsyncMock(return_value={"output_format": "original"})
         second.video_service.create_video_clips = AsyncMock(return_value=[{
-            "filename": original.name, "path": str(original), "start_time": "00:00",
+            "clip_id": 1, "filename": original.name, "path": str(original), "start_time": "00:00",
             "end_time": "00:10", "duration": 10,
         }])
         job_one = asyncio.create_task(first.split_clip(task_id, ids[-1], 3))
@@ -105,7 +105,8 @@ async def test_edits_serialize_before_reading_clip_state(
         await asyncio.wait_for(asyncio.gather(job_one, job_two), 10)
 
     clips = await ClipRepository.get_clips_by_task(db_session, task_id)
-    expected_counts = {"split": 5, "trim": 4, "delete": 3, "merge": 3, "regenerate": 1, "captions": 4}
+    # Regenerate renders only the first clip here; the clips it did not render stay.
+    expected_counts = {"split": 5, "trim": 4, "delete": 3, "merge": 3, "regenerate": 4, "captions": 4}
     assert len(clips) == expected_counts[other_edit]
     assert [clip["clip_order"] for clip in clips] == list(range(1, len(clips) + 1))
     stored = await db_session.execute(text("SELECT generated_clips_ids FROM tasks WHERE id=:id"), {"id": task_id})

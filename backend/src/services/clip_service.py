@@ -3,7 +3,9 @@
 The mixin uses TaskService's repositories, configuration, and cache key contract.
 """
 
+from ..repositories import edit_transaction
 from ..repositories.edit_transaction import serialized_task_edit
+from ..repositories.media_repository import queue_delete
 from typing import Dict, Any, Optional
 import logging
 from pathlib import Path
@@ -40,7 +42,7 @@ from ..clip_source_map import (
     trim_source_ranges,
 )
 
-from ..media_storage import MediaStorage
+from ..media_storage import MediaStorage, media_work
 from ..youtube_source import (
     load_time_map,
     local_ranges_for,
@@ -54,6 +56,14 @@ from ..stream_source import download_stream_sections
 from .video_service import resolve_upload_for_edit
 
 logger = logging.getLogger(__name__)
+
+
+class ClipsChangedDuringRegeneration(ValueError):
+    def __init__(self):
+        super().__init__(
+            "Your clips changed while the new settings were being applied, so nothing "
+            "was replaced. Apply the settings again."
+        )
 
 
 def fill_output_starts(items: Any, group_output_starts: list) -> None:
@@ -165,7 +175,6 @@ class ClipEditingMixin:
         await self.clip_repo.delete_clip(self.db, clip_id)
         await self.clip_repo.reorder_task_clips(self.db, task_id)
 
-    @serialized_task_edit
     async def update_task_settings(
         self,
         task_id: str,
@@ -177,17 +186,18 @@ class ClipEditingMixin:
         apply_to_existing: bool,
         cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Update task-level settings and optionally regenerate all clips."""
-        await self.task_repo.update_task_settings(
-            self.db,
-            task_id,
-            font_family,
-            font_size,
-            font_color,
-            caption_template,
-            include_broll,
-        )
+        """Update task-level settings and optionally regenerate all clips.
 
+        When regenerating, the settings are saved together with the new clips,
+        so a regeneration that fails leaves both unchanged.
+        """
+        task_settings = {
+            "font_family": font_family,
+            "font_size": font_size,
+            "font_color": font_color,
+            "caption_template": caption_template,
+            "include_broll": include_broll,
+        }
         if apply_to_existing:
             await self.regenerate_all_clips_for_task(
                 task_id,
@@ -196,12 +206,16 @@ class ClipEditingMixin:
                 font_color,
                 caption_template,
                 cleanup_settings=cleanup_settings,
+                task_settings=task_settings,
             )
+        else:
+            async with edit_transaction.task_edit_transaction(self.db, task_id):
+                await self.task_repo.update_task_settings(self.db, task_id, **task_settings)
 
         return await self.get_task_with_clips(task_id) or {}
 
 
-    @serialized_task_edit
+    @media_work
     async def regenerate_all_clips_for_task(
         self,
         task_id: str,
@@ -210,8 +224,50 @@ class ClipEditingMixin:
         font_color: Optional[str],
         caption_template: str,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        task_settings: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Regenerate all clips in a task using existing segment boundaries."""
+        """Regenerate all clips in a task using existing segment boundaries.
+
+        The clips are read, then replaced, in two short edit transactions. The
+        download and render in between can take many minutes and hold no
+        transaction or row lock: the replacement goes ahead only if the clips
+        are still the ones that were rendered. ``task_settings`` are saved with
+        the new clips.
+        """
+        async with edit_transaction.task_regeneration_guard(self.db, task_id):
+            async with edit_transaction.task_edit_transaction(self.db, task_id):
+                plan = await self._regeneration_plan(task_id, cleanup_settings, task_settings)
+                if plan is None and task_settings:
+                    await self.task_repo.update_task_settings(self.db, task_id, **task_settings)
+            if plan is None:
+                return
+
+            clips_info = await self._render_regeneration(
+                task_id, plan, font_family, font_size, font_color, caption_template
+            )
+            try:
+                rendered_indexes = {int(clip_info.get("clip_id") or 0) - 1 for clip_info in clips_info}
+                missing_required = [
+                    segment for index, segment in enumerate(plan["segments"])
+                    if segment.get("required") and index not in rendered_indexes
+                ]
+                if not clips_info or missing_required:
+                    # Replacing the rows with nothing (or a series without a part)
+                    # would lose clips the user has.
+                    raise ValueError("Could not regenerate the clips. Your existing clips are unchanged.")
+                async with edit_transaction.task_edit_transaction(self.db, task_id):
+                    await self._replace_regenerated_clips(task_id, plan, clips_info, task_settings)
+            except BaseException:
+                await self._discard_regenerated_files(clips_info)
+                raise
+
+    async def _regeneration_plan(
+        self,
+        task_id: str,
+        cleanup_settings: Optional[Dict[str, Any]],
+        task_settings: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """The clips to re-render and how; None when the task has no clips."""
         task = await self.task_repo.get_task_by_id(self.db, task_id)
         if not task:
             raise ValueError("Task not found")
@@ -249,10 +305,14 @@ class ClipEditingMixin:
 
         clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
         if not clips:
-            return
+            return None
 
         download_quality, output_short_side = await self._media_limits(task.get("user_id"))
-        include_broll = bool(task.get("include_broll"))
+        include_broll = (
+            bool(task_settings["include_broll"])
+            if task_settings
+            else bool(task.get("include_broll"))
+        )
         segments = []
         for clip in clips:
             source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
@@ -320,6 +380,38 @@ class ClipEditingMixin:
                 }
             )
 
+        return {
+            "clips": copy.deepcopy(clips),
+            "segments": segments,
+            "task": task,
+            "metadata": metadata,
+            "source_url": source_url,
+            "source_type": source_type,
+            "output_format": output_format,
+            "add_subtitles": add_subtitles,
+            "cleanup_settings": normalized_cleanup_settings,
+            "download_quality": download_quality,
+            "output_short_side": output_short_side,
+            "include_broll": include_broll,
+        }
+
+    async def _render_regeneration(
+        self,
+        task_id: str,
+        plan: Dict[str, Any],
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
+        caption_template: str,
+    ) -> list:
+        """Download the source and render every planned segment (no database access)."""
+        segments = plan["segments"]
+        task = plan["task"]
+        metadata = plan["metadata"]
+        source_url = plan["source_url"]
+        source_type = plan["source_type"]
+        download_quality = plan["download_quality"]
+        output_short_side = plan["output_short_side"]
         video_path: Path
         if source_type == "youtube":
             downloaded = await self.video_service.download_video(
@@ -359,9 +451,9 @@ class ClipEditingMixin:
                 font_size,
                 font_color,
                 caption_template,
-                output_format,
-                add_subtitles,
-                normalized_cleanup_settings,
+                plan["output_format"],
+                plan["add_subtitles"],
+                plan["cleanup_settings"],
                 max_short_side=output_short_side,
                 # Merged and trimmed clips can run past a short preset; only
                 # cap them as tightly as they were before presets existed.
@@ -369,7 +461,7 @@ class ClipEditingMixin:
                     clip_duration(normalize_clip_length(metadata.get("clip_length"))).maximum,
                     MAX_RENDERED_CLIP_SECONDS,
                 ),
-                include_broll=include_broll,
+                include_broll=plan["include_broll"],
             )
             if time_map:
                 for clip_info in clips_info:
@@ -381,23 +473,31 @@ class ClipEditingMixin:
         finally:
             if source_type in {"youtube", "twitch", "kick"}:
                 self._cleanup_source_video(video_path, source_type, source_url)
+        return clips_info
 
-        rendered_indexes = {int(clip_info.get("clip_id") or 0) - 1 for clip_info in clips_info}
-        missing_required = [
-            segment for index, segment in enumerate(segments)
-            if segment.get("required") and index not in rendered_indexes
-        ]
-        if not clips_info or missing_required:
-            # Replacing the rows with nothing (or a series without a part)
-            # would lose clips the user has.
-            raise ValueError("Could not regenerate the clips. Your existing clips are unchanged.")
+    async def _replace_regenerated_clips(
+        self,
+        task_id: str,
+        plan: Dict[str, Any],
+        clips_info: list,
+        task_settings: Optional[Dict[str, Any]],
+    ) -> None:
+        segments = plan["segments"]
+        clips = plan["clips"]
+        if await self.clip_repo.get_clips_by_task(self.db, task_id) != clips:
+            raise ClipsChangedDuringRegeneration()
+        if task_settings:
+            await self.task_repo.update_task_settings(self.db, task_id, **task_settings)
 
-        await self.clip_repo.delete_clips_by_task(self.db, task_id)
-
-        clip_ids = []
-        for i, clip_info in enumerate(clips_info):
+        # A clip that did not render stays as it is, in its place; only the
+        # rendered ones are replaced.
+        for clip_info in clips_info:
             index = int(clip_info.get("clip_id") or 0) - 1
-            segment = segments[index] if 0 <= index < len(segments) else {}
+            if not 0 <= index < len(segments):
+                continue
+            segment = segments[index]
+            replaced = clips[index]
+            await self.clip_repo.delete_clip(self.db, replaced["id"])
             workflow_fields: Dict[str, Any] = {}
             if "workflow_role" in segment and not segment.get("planned"):
                 workflow_fields = {
@@ -419,7 +519,7 @@ class ClipEditingMixin:
                     "part_number": segment.get("part_number"),
                     "workflow_meta": meta,
                 }
-            clip_id = await self.clip_repo.create_clip(
+            await self.clip_repo.create_clip(
                 self.db,
                 task_id=task_id,
                 filename=clip_info["filename"],
@@ -431,7 +531,7 @@ class ClipEditingMixin:
                 relevance_score=clip_info.get("relevance_score", 0.5),
                 reasoning=clip_info.get("reasoning")
                 or "Regenerated with updated settings",
-                clip_order=i + 1,
+                clip_order=replaced.get("clip_order") or index + 1,
                 virality_score=clip_info.get("virality_score", 0),
                 hook_score=clip_info.get("hook_score", 0),
                 engagement_score=clip_info.get("engagement_score", 0),
@@ -441,9 +541,21 @@ class ClipEditingMixin:
                 hook_title=clip_info.get("hook_title"),
                 **workflow_fields,
             )
-            clip_ids.append(clip_id)
 
-        await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+        await self.clip_repo.reorder_task_clips(self.db, task_id)
+
+    async def _discard_regenerated_files(self, clips_info: list) -> None:
+        """Queue renders that never replaced a clip for deletion."""
+        paths = [clip_info["path"] for clip_info in clips_info if clip_info.get("path")]
+        if not paths:
+            return
+        try:
+            await self.db.rollback()
+            for path in paths:
+                await queue_delete(self.db, str(path))
+            await self.db.commit()
+        except Exception:
+            logger.exception("Could not queue discarded clip renders for deletion")
 
     def _planned_regeneration_segment(
         self,
