@@ -4,6 +4,13 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-09
+
+- **New:** Choose how the vertical frame is laid out before you create clips: webcam on top or below the game, two people stacked, only whoever is speaking, or a layout that switches between the webcam, the game and both as people talk. ([#350](https://github.com/FujiwaraChoki/supoclip/pull/350))
+- **New:** Four caption styles, Tags, Neon Flicker, Retro Glitch and Typewriter, with flicker, glitch and typewriter animations. ([#350](https://github.com/FujiwaraChoki/supoclip/pull/350))
+- **New:** Create clips without captions, then add captions to only the clips you pick, in any style, from the generation page. ([#350](https://github.com/FujiwaraChoki/supoclip/pull/350))
+- **Fixed:** A webcam cut out over the game, in any corner of the video, is now found when you choose a webcam layout. ([#350](https://github.com/FujiwaraChoki/supoclip/pull/350))
+
 ## 2026-11-07
 
 - **Fixed:** TikTok publishing is paused for now, with a short note in Social settings, while an issue with TikTok is fixed. ([#343](https://github.com/FujiwaraChoki/supoclip/pull/343))
