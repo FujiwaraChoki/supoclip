@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-09
+
+- **Fixed:** Link previews for SupoClip on social sites and in chat apps use the SupoClip typefaces again instead of a fallback font. ([#351](https://github.com/FujiwaraChoki/supoclip/pull/351))
+
 ## 2026-11-08
 
 - **Fixed:** Uploading a video from the iPhone app no longer fails when sending the file takes longer than five minutes. ([#348](https://github.com/FujiwaraChoki/supoclip/pull/348))
