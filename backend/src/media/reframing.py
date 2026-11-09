@@ -1566,7 +1566,7 @@ def describe_vertical_layout(
     elif chosen == "speaker":
         logger.info("Chosen layout 'speaker' needs speaker turns; using auto")
 
-    if find_reactor_face(width, height, face_samples):
+    if find_reactor_face(width, height, face_samples) or chosen.startswith("reaction_"):
         # Tiny faces in the source wide shot need more detail than the normal
         # 480px tracking pass. Keep its detections too: a profile/occluded face
         # can be visible to only one of the two scales. The pass only reads
@@ -1595,6 +1595,21 @@ def describe_vertical_layout(
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
         return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
+    if chosen.startswith("reaction_"):
+        # The user asked for a webcam layout the strict detector could not find
+        # (e.g. the player cut out over the game in a lower corner): accept a
+        # small steady face in any corner as the webcam.
+        from .corner_reaction import choose_corner_reaction_layout
+
+        corner = choose_corner_reaction_layout(
+            width, height, duration, face_samples,
+            reactor_position="bottom" if chosen == "reaction_bottom" else "top",
+            speech_words=speech_words if chosen == "reaction_dynamic" else None,
+        )
+        if corner:
+            logger.info("Chosen layout '%s': corner webcam found", chosen)
+            return _described("reaction", corner["video_filter"], "complex", corner["caption_y"])
+        logger.info("Chosen layout '%s': no webcam found; using auto", chosen)
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
         return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
