@@ -6,8 +6,14 @@ from functools import wraps
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..media_storage import media_work
+from .session_lock_connection import session_lock_connection
 
 _EDIT_TASK = "supoclip_edit_task"
+
+
+class RegenerationBusy(Exception):
+    def __init__(self):
+        super().__init__("Your clips are already being updated with new settings. Wait for that to finish.")
 
 
 async def commit_unless_editing(db: AsyncSession) -> None:
@@ -51,6 +57,27 @@ async def task_edit_transaction(db: AsyncSession, task_id: str, *, processing: b
         raise
     finally:
         db.info.pop(_EDIT_TASK, None)
+
+
+@asynccontextmanager
+async def task_regeneration_guard(db: AsyncSession, task_id: str):
+    """One whole-task re-render at a time, without holding a transaction.
+
+    A row lock must not span a download and render: PostgreSQL ends idle
+    transactions, which drops the lock while the render keeps going. This
+    session advisory lock lives on its own idle connection and is released when
+    that connection closes. The final swap still re-checks the clips under the
+    row lock, so losing this lock can only cost a duplicate render.
+    """
+    async with session_lock_connection(db) as connection:
+        locked = await connection.scalar(
+            text("SELECT pg_try_advisory_lock(hashtextextended(:task_id, 913466))"),
+            {"task_id": task_id},
+        )
+        await connection.commit()
+        if not locked:
+            raise RegenerationBusy()
+        yield
 
 
 def serialized_task_edit(method):

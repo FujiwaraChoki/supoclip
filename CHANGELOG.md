@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-09
+
+- **Fixed:** Applying new caption settings to all clips of a long video no longer fails partway or loses a clip. A clip that can't be re-rendered keeps its current version, and trying again while the update is still running says so instead of starting a second one. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+
 ## 2026-11-08
 
 - **Fixed:** Uploading a video from the iPhone app no longer fails when sending the file takes longer than five minutes. ([#348](https://github.com/FujiwaraChoki/supoclip/pull/348))
