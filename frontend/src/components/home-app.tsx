@@ -61,6 +61,8 @@ interface CaptionTemplate {
 
 
 const FRAMING_IDS = OUTPUT_FORMATS;
+const LAYOUT_IDS = ["auto", "reaction_top", "reaction_bottom", "reaction_dynamic", "stack", "speaker"] as const;
+type LayoutChoice = (typeof LAYOUT_IDS)[number];
 
 const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];
 
@@ -161,6 +163,7 @@ export default function HomeApp() {
   const [captionTemplate, setCaptionTemplate] = useState("default");
   const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
+  const [layout, setLayout] = useState<LayoutChoice>("auto");
   const [clipLength, setClipLength] = useState<ClipLength>("auto");
   const [clipLengthSaveError, setClipLengthSaveError] = useState(false);
   const [isClipLengthLoading, setIsClipLengthLoading] = useState(false);
@@ -773,6 +776,8 @@ export default function HomeApp() {
         if (activeWorkflow === "topic") options.topic = normalizeTopic(topic);
         if (activeWorkflow === "series" && partCount !== "auto") options.part_count = partCount;
       }
+      // Auto sends exactly the request it always has.
+      if (outputFormat === "vertical" && layout !== "auto") request.layout = layout;
       if (advancedCount > 0) options.advanced = advancedChanges;
       if (Object.keys(options).length > 0) request.workflow_options = options;
       if (sentInstructions) request.instructions = sentInstructions;
@@ -1251,6 +1256,26 @@ export default function HomeApp() {
                       </button>
                     ))}
                   </div>
+                  {outputFormat === "vertical" && (
+                    <div className="mt-4">
+                      <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("layoutTitle")}</p>
+                      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("layoutTitle")}>
+                        {LAYOUT_IDS.map((id) => (
+                          <button
+                            key={id}
+                            type="button"
+                            role="radio"
+                            aria-checked={layout === id}
+                            onClick={() => setLayout(id)}
+                            className={cn("rounded-xl border p-3 text-left transition-colors hover:bg-accent", layout === id && "border-foreground ring-1 ring-foreground")}
+                          >
+                            <span className="block text-sm font-medium">{t(`layoutOptions.${id}.label`)}</span>
+                            <span className="block text-xs text-muted-foreground">{t(`layoutOptions.${id}.hint`)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                     </>
                   ) },
                   { id: "cleanup", label: t("cleanup"), icon: <Wand2 />, count: cleanupCount, content: (

@@ -49,6 +49,15 @@
   "customCaptionColor": "Cor de legenda personalizada",
   "livePreview": "Prévia ao vivo",
   "framing": "Enquadramento",
+  "layoutTitle": "Layout do 9:16 automático",
+  "layoutOptions": {
+    "auto": { "label": "Automático", "hint": "Escolhe o melhor layout por cena" },
+    "reaction_top": { "label": "Webcam em cima", "hint": "Webcam em cima, jogo ou vídeo embaixo" },
+    "reaction_bottom": { "label": "Webcam embaixo", "hint": "Jogo ou vídeo em cima, webcam embaixo" },
+    "reaction_dynamic": { "label": "Webcam, jogo e os dois", "hint": "Alterna pela fala: abre na webcam, jogo nas pausas" },
+    "stack": { "label": "Dois empilhados", "hint": "Duas pessoas, uma acima da outra" },
+    "speaker": { "label": "Quem fala", "hint": "Mostra só quem está falando" }
+  },
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",

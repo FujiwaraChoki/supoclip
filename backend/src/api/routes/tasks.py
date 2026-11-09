@@ -54,6 +54,8 @@ from ...clip_cleanup import (
     updated_cleanup_settings,
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
+from ...media.layout_choice import VALID_LAYOUTS
+from ...caption_templates import CAPTION_TEMPLATES
 from ...admin_auth import require_admin_user, user_is_admin
 from ...source_submission import SourceAttempt
 from ...workflows.contracts import workflow_spec_from_task
@@ -325,8 +327,11 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    layout: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
+    if isinstance(layout, str) and layout in VALID_LAYOUTS and layout != "auto":
+        merged["layout"] = layout
 
     if isinstance(source_url, str) and source_url:
         merged["url"] = source_url
@@ -585,6 +590,12 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
+    layout = data.get("layout", "auto")
+    if layout not in VALID_LAYOUTS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"layout must be one of: {', '.join(sorted(VALID_LAYOUTS))}",
+        )
     try:
         clip_length = validate_clip_length(data.get("clip_length", "auto"))
     except ValueError as exc:
@@ -616,6 +627,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         "clip_length": clip_length,
         "cleanup_settings": cleanup_settings,
     }
+    if layout != "auto":
+        # Only a chosen layout changes the key; the default keeps its old one.
+        upload_options["layout"] = layout
     if not workflow_spec.legacy:
         # Plain highlights keep their existing key. The key is a hash, so topic
         # and instructions never leave the process.
@@ -710,6 +724,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         output_format=output_format,
                         add_subtitles=add_subtitles,
                         cleanup_settings=cleanup_settings,
+                        layout=layout,
                     ),
                     db=db,
                 )
@@ -1288,7 +1303,14 @@ async def update_clip_captions(
     """Update clip caption text, timing style and highlighted words."""
     try:
         payload = await _read_json_object(request)
-        caption_text = str(payload.get("caption_text", "")).strip()
+        # Without caption_text the clip is captioned with its own transcript, so a
+        # clip generated without captions can get them (in any template) later.
+        caption_text = (
+            str(payload["caption_text"]).strip() if "caption_text" in payload else None
+        )
+        caption_template = payload.get("caption_template")
+        if caption_template is not None and caption_template not in CAPTION_TEMPLATES:
+            raise ValueError("Unknown caption template")
         position = str(payload.get("position", "bottom"))
         highlight_words = payload.get("highlight_words") or []
         if not isinstance(highlight_words, list):
@@ -1320,6 +1342,7 @@ async def update_clip_captions(
             [str(word) for word in highlight_words],
             font_size=font_size,
             position_y=position_y,
+            caption_template=caption_template,
         )
         return {"clip": updated_clip}
     except YouTubeGeoRestrictedError as exc:

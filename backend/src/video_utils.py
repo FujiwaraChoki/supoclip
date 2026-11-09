@@ -422,9 +422,25 @@ def create_optimized_clip(
                         )
                     except Exception as exc:
                         logger.warning("Speaker turn extraction failed: %s", exc)
+                speech_words = None
+                from .media.layout_choice import current_layout
+
+                if current_layout() == "reaction_dynamic":
+                    # The dynamic reaction layout follows when words are spoken.
+                    try:
+                        from .media.transcription import load_cached_transcript_data
+                        from .media.timeline import get_words_for_keep_ranges
+
+                        speech_words = get_words_for_keep_ranges(
+                            load_cached_transcript_data(video_path) or {},
+                            list(effective_keep_ranges), **offsets_kwargs,
+                        ) or None
+                    except Exception as exc:
+                        logger.warning("Speech timing for dynamic layout failed: %s", exc)
                 try:
                     video_filter, mode, caption_y = build_vertical_filter_plan(
-                        source_clip_path, src_w, src_h, speaker_turns, speaker_words
+                        source_clip_path, src_w, src_h, speaker_turns, speaker_words,
+                        speech_words=speech_words,
                     )
                     vertical_plan = (video_filter, mode)
                 except Exception as exc:

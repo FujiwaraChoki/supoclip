@@ -49,6 +49,15 @@
   "customCaptionColor": "自定义字幕颜色",
   "livePreview": "实时预览",
   "framing": "构图",
+  "layoutTitle": "自动 9:16 的布局",
+  "layoutOptions": {
+    "auto": { "label": "自动", "hint": "按场景选择最佳布局" },
+    "reaction_top": { "label": "摄像头在上", "hint": "摄像头在上，游戏或视频在下" },
+    "reaction_bottom": { "label": "摄像头在下", "hint": "游戏或视频在上，摄像头在下" },
+    "reaction_dynamic": { "label": "摄像头、游戏、两者", "hint": "随说话切换：先摄像头，停顿时显示游戏" },
+    "stack": { "label": "两人上下", "hint": "两个人，一上一下" },
+    "speaker": { "label": "当前发言人", "hint": "只显示正在说话的人" }
+  },
   "framingOptions": {
     "vertical": {
       "label": "自动 9:16",

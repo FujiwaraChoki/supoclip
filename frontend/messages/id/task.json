@@ -280,5 +280,15 @@
       "bumps": "Ada beberapa rintangan di perjalanan. Sedang kami atasi—butuh sedikit waktu lagi.",
       "slower": "Prosesnya sedikit lebih lambat dari biasanya. Kami masih mengerjakannya."
     }
+  },
+  "captionLater": {
+    "title": "Beri teks pada klip pilihan",
+    "body": "Video ini dibuat tanpa teks. Pilih klip yang perlu teks dan sebuah gaya.",
+    "clip": "Klip {number}",
+    "style": "Gaya teks",
+    "action": "{count, plural, =0 {Tambah teks} other {Beri teks pada # klip}}",
+    "working": "Memberi teks {done} dari {total}…",
+    "done": "{count, plural, other {# klip diberi teks}}",
+    "failed": "{count, plural, other {# klip gagal diberi teks}}"
   }
 }
