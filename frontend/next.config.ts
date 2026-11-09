@@ -21,6 +21,11 @@ const posthogRewrites = isPostHogEnabled
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_BUILD_DIR || ".next",
   output: 'standalone',
+  // The share images read their bundled fonts from disk.
+  outputFileTracingIncludes: {
+    "/opengraph-image": ["./assets/fonts/*.woff"],
+    "/twitter-image": ["./assets/fonts/*.woff"],
+  },
   // Keep canonical tags in the initial <head>, including for Googlebot.
   htmlLimitedBots: /.*/,
   // PostHog's API paths end in a slash (e.g. /e/); don't redirect them.
