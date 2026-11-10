@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-10
 
+- **Fixed:** The homepage and sign-in pages no longer reload themselves on load for visitors who turned on "reduce motion" on their device. ([#358](https://github.com/FujiwaraChoki/supoclip/pull/358))
 - **Fixed:** Submitting a video that is already queued or processing opens that generation instead of starting a second one. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 - **Under the hood:** Each account renders one video at a time by default, maintenance jobs run on their own worker, and a long queue wait is reported to error tracking. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 
