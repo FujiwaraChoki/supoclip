@@ -114,7 +114,22 @@ class DownloadBudgetExceeded(YouTubeDownloadError):
 
 
 class PartialDownloadUnavailable(YouTubeDownloadError):
-    """The formats cannot be sliced without an ffmpeg network fetch."""
+    """Only the section path failed; a full-file proxy download may still work.
+
+    Usually the formats cannot be sliced without an ffmpeg network fetch.
+    """
+
+
+class HlsPlaylistUnavailable(PartialDownloadUnavailable):
+    """YouTube refused the chosen format's media playlist (404, 410, ...).
+
+    The route itself worked, so callers may still try a full-file download
+    through the same proxy session.
+    """
+
+
+class HlsPlaylistTransportError(YouTubeDownloadError):
+    """The proxy connection failed while fetching a media playlist."""
 
 
 class DownloadDeadlineExceeded(YouTubeDownloadError):
@@ -427,7 +442,8 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
     for error in _exception_chain(exc):
         if isinstance(error, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
             return False
-        if isinstance(error, (DownloadDeadlineExceeded, TimeoutError, ConnectionError)):
+        if isinstance(error, (DownloadDeadlineExceeded, HlsPlaylistTransportError,
+                              TimeoutError, ConnectionError)):
             transient = True
         message = str(error).lower()
         if any(marker in message for marker in (
@@ -518,6 +534,15 @@ def _is_video_format(fmt: dict) -> bool:
     return fmt.get("vcodec") not in (None, "none") and (fmt.get("height") or 0) > 0
 
 
+def _not_known_broken(formats: list[dict]) -> list[dict]:
+    """Drop formats yt-dlp already tested and could not download.
+
+    yt-dlp tests the HLS formats of new uploads during extraction and keeps a
+    failed one in ``formats`` with ``__working`` False. Its playlist then 404s.
+    """
+    return [fmt for fmt in formats if fmt.get("__working") is not False]
+
+
 def _is_audio_only(fmt: dict) -> bool:
     # YouTube HLS audio renditions can omit CODECS in their master playlist.
     # yt-dlp still explicitly marks them video-free; do not discard them.
@@ -555,7 +580,10 @@ def _has_media_timing(fmt: dict) -> bool:
 
 def pick_video_format(formats: list[dict], height: int | None = None) -> Optional[dict]:
     limit = capped_height(height)
-    candidates = [fmt for fmt in formats if _is_video_format(fmt) and (fmt.get("height") or 0) <= limit]
+    candidates = [
+        fmt for fmt in _not_known_broken(formats)
+        if _is_video_format(fmt) and (fmt.get("height") or 0) <= limit
+    ]
     if not candidates:
         return None
 
@@ -749,7 +777,7 @@ def pick_audio_format(
     source_language: Optional[str] = None,
     original_audio: Optional[tuple[Optional[str], bool]] = None,
 ) -> Optional[dict]:
-    candidates = [fmt for fmt in formats if _is_audio_only(fmt)]
+    candidates = [fmt for fmt in _not_known_broken(formats) if _is_audio_only(fmt)]
     if not candidates:
         return None
     if original_audio is None:
@@ -832,7 +860,11 @@ def pick_hls_audio_format(
     excluded = {str(item) for item in (exclude_ids or set()) if item not in (None, "")}
 
     def allowed(fmt: dict) -> bool:
-        return "m3u8" in (fmt.get("protocol") or "") and str(fmt.get("format_id") or "") not in excluded
+        return (
+            "m3u8" in (fmt.get("protocol") or "")
+            and str(fmt.get("format_id") or "") not in excluded
+            and fmt.get("__working") is not False
+        )
 
     hls_audio = [fmt for fmt in formats if allowed(fmt) and _is_audio_only(fmt)]
     if hls_audio:
@@ -975,6 +1007,26 @@ def parse_hls_fragments(playlist: str, base_url: str, duration: float) -> list[d
     return fragments
 
 
+def _playlist_fetch_error(exc: BaseException) -> YouTubeDownloadError:
+    """Classify a failed playlist fetch without chaining its raw, URL-bearing cause.
+
+    A refusal of this one playlist leaves the full-file proxy download open.
+    Transport failures get the usual new-session retry; when that also fails,
+    the proxy itself is the problem.
+    """
+    from yt_dlp.networking.exceptions import HTTPError, TransportError
+
+    message = "Could not fetch the HLS media playlist through the proxy: " + public_download_error(exc)
+    status = exc.status if isinstance(exc, HTTPError) else None
+    # 407 is the proxy refusing us, 408/429 are throttling: all proxy-wide.
+    if (status is not None and 400 <= status < 500 and status not in (407, 408, 429)) \
+            or isinstance(exc, UnicodeDecodeError):
+        return HlsPlaylistUnavailable(message)
+    if isinstance(exc, (TransportError, TimeoutError, ConnectionError)) or is_transient_proxy_error(exc):
+        return HlsPlaylistTransportError(message)
+    return YouTubeDownloadError(message)
+
+
 def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: float) -> dict:
     if "m3u8" not in (fmt.get("protocol") or "") or _has_media_timing(fmt):
         return fmt
@@ -996,8 +1048,8 @@ def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: fl
         fragments = parse_hls_fragments(payload.decode("utf-8"), base_url, duration)
     except (DownloadBudgetExceeded, DownloadDeadlineExceeded, PartialDownloadUnavailable):
         raise
-    except Exception:
-        raise YouTubeDownloadError("Could not fetch the HLS media playlist through the proxy") from None
+    except Exception as exc:
+        raise _playlist_fetch_error(exc) from None
     return dict(fmt, fragments=fragments)
 
 

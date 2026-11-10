@@ -706,7 +706,9 @@ class VideoService:
                     raise
                 except Exception as exc:
                     section_error = exc
-                    # Only unsupported slicing warrants a full proxy attempt.
+                    # Section-only failures (unsliceable formats, a refused
+                    # playlist) still allow a full proxy attempt; proxy-wide
+                    # failures go straight to the independent providers.
                     bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
                     if errors is not None and not isinstance(exc, PartialDownloadUnavailable):
                         errors.append(public_download_error(exc))
@@ -1669,6 +1671,8 @@ class VideoService:
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
                         )
                     else:
+                        # A section-only failure keeps the proxy (and the region the
+                        # job recovered) for the full file; a proxy-wide one skips it.
                         video_path = await VideoService.download_video(
                             url, task_id=task_id, quality=download_quality, budget=job_budget,
                             skip_proxy=not isinstance(section_error, PartialDownloadUnavailable),
