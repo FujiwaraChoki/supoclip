@@ -45,16 +45,11 @@ from ...source_identity import (
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
-from ...youtube_utils import (
-    YOUTUBE_UNFINISHED_LIVE_STATUSES,
-    async_get_youtube_video_info,
-    canonical_youtube_url,
-    has_verified_duration,
-    normalize_live_status,
-)
+from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url, has_verified_duration
 from ...youtube_proxy import YouTubeGeoRestrictedError
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
+    StreamDurationUnavailableError,
     StreamSourceError,
     fetch_stream_info,
 )
@@ -85,28 +80,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-_LIVE_BROADCAST_MESSAGES = {
-    "is_live": (
-        "This YouTube video is a live stream that is still broadcasting, so it has "
-        "no length yet. Wait until the broadcast ends and YouTube finishes "
-        "processing the replay, then try again. No minutes were used."
-    ),
-    "is_upcoming": (
-        "This YouTube video is a scheduled live stream that hasn't started yet. "
-        "Wait until the broadcast ends and the replay is available, then try "
-        "again. No minutes were used."
-    ),
-    "post_live": (
-        "This live stream just ended and YouTube is still processing the replay. "
-        "Try again once the full replay is available. No minutes were used."
-    ),
-}
+class _DurationUnavailable(Exception):
+    """Metadata came back, but with no positive length."""
 
 
-class _LiveBroadcastError(Exception):
-    def __init__(self, live_status: str):
-        super().__init__(live_status)
-        self.live_status = live_status
+def _duration_unavailable_error(platform: str) -> HTTPException:
+    # Zero/missing length is what an in-progress livestream reports, but a
+    # provider glitch can too, so this says "may be", never "is".
+    return HTTPException(
+        status_code=422,
+        detail={
+            "code": "VIDEO_DURATION_UNAVAILABLE",
+            "message": (
+                f"We couldn't verify this {platform} video's length. It may be a "
+                "livestream that's still in progress, which isn't supported yet. "
+                "If it's a finished video, try again shortly; otherwise wait until "
+                "the stream ends and use the completed recording. No minutes were used."
+            ),
+        },
+    )
 
 
 async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
@@ -119,24 +111,13 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             async_get_youtube_video_info(url, deadline=time.monotonic() + timeout_seconds),
             timeout=timeout_seconds,
         )
-        live_status = normalize_live_status((metadata or {}).get("live_status"))
-        if live_status in YOUTUBE_UNFINISHED_LIVE_STATUSES or (
-            live_status == "post_live" and not has_verified_duration(metadata)
-        ):
-            raise _LiveBroadcastError(live_status)
+        if metadata is None:
+            raise ValueError("No metadata provider answered")
         if not has_verified_duration(metadata):
-            raise ValueError("Missing or invalid video duration")
+            raise _DurationUnavailable()
         duration = metadata["duration"]
-    except _LiveBroadcastError as exc:
-        logger.info("Rejected YouTube preflight for unfinished broadcast (%s)", exc.live_status)
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "VIDEO_IS_LIVE",
-                "message": _LIVE_BROADCAST_MESSAGES[exc.live_status],
-                "live_status": exc.live_status,
-            },
-        ) from None
+    except _DurationUnavailable:
+        raise _duration_unavailable_error("YouTube") from None
     except YouTubeGeoRestrictedError as exc:
         raise HTTPException(
             status_code=422,
@@ -197,9 +178,11 @@ async def _preflight_stream_source(url: str, source: str, duration_limit: int) -
             run_in_thread(fetch_stream_info, url, deadline_seconds=STREAM_PREFLIGHT_DEADLINE_SECONDS),
             timeout=STREAM_PREFLIGHT_DEADLINE_SECONDS + 5,
         )
-        duration = (metadata or {}).get("duration")
-        if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
-            raise ValueError("Invalid video duration")
+        if not has_verified_duration(metadata):
+            raise _DurationUnavailable()
+        duration = metadata["duration"]
+    except (StreamDurationUnavailableError, _DurationUnavailable):
+        raise _duration_unavailable_error(source.title()) from None
     except StreamSourceError as exc:
         raise HTTPException(status_code=422, detail={"code": "VIDEO_UNAVAILABLE", "message": str(exc)}) from None
     except Exception:

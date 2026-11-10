@@ -260,8 +260,7 @@ def test_fetch_video_info_with_youtube_data_api_normalizes_response(monkeypatch)
     def fake_get(url, params=None, timeout=None):
         assert params["key"] == "youtube-key"
         assert params["id"] == "abcdefghijk"
-        assert params["part"] == "snippet,contentDetails,statistics,liveStreamingDetails"
-        assert "liveBroadcastContent" in params["fields"]
+        assert params["part"] == "snippet,contentDetails,statistics"
         assert "fields" in params
         assert timeout == (10, 30)
         return FakeResponse(
@@ -308,7 +307,6 @@ def test_fetch_video_info_with_youtube_data_api_normalizes_response(monkeypatch)
             "resolution": None,
             "fps": None,
             "filesize": None,
-            "live_status": None,
         }
     finally:
         set_config_override(None)
