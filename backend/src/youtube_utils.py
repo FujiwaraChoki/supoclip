@@ -6,6 +6,7 @@ Optimized for free yt-dlp downloads with optional Apify fallback.
 import asyncio
 from datetime import datetime
 import logging
+import math
 import json
 import uuid
 import re
@@ -152,7 +153,49 @@ def _empty_video_info(video_id: Optional[str] = None) -> Dict[str, Any]:
         "resolution": None,
         "fps": None,
         "filesize": None,
+        "live_status": None,
     }
+
+
+# yt-dlp's live_status vocabulary. Anything else from a provider is dropped,
+# so only these values can steer the preflight.
+YOUTUBE_LIVE_STATUSES = frozenset(
+    {"is_live", "is_upcoming", "post_live", "was_live", "not_live"}
+)
+# Broadcasts whose length isn't known yet: there is nothing to clip or bill.
+YOUTUBE_UNFINISHED_LIVE_STATUSES = frozenset({"is_live", "is_upcoming"})
+
+
+def normalize_live_status(value: Any) -> Optional[str]:
+    return value if isinstance(value, str) and value in YOUTUBE_LIVE_STATUSES else None
+
+
+def _ytdlp_live_status(info: Dict[str, Any]) -> Optional[str]:
+    status = normalize_live_status(info.get("live_status"))
+    if status is None and info.get("is_live") is True:
+        status = "is_live"
+    return status
+
+
+def _data_api_live_status(snippet: Dict[str, Any], live_details: Dict[str, Any]) -> Optional[str]:
+    content = snippet.get("liveBroadcastContent")
+    if content == "live":
+        return "is_live"
+    if content == "upcoming":
+        return "is_upcoming"
+    if content == "none":
+        return "was_live" if live_details.get("actualEndTime") else "not_live"
+    return None
+
+
+def has_verified_duration(video_info: Optional[Dict[str, Any]]) -> bool:
+    duration = (video_info or {}).get("duration")
+    return (
+        not isinstance(duration, bool)
+        and isinstance(duration, (int, float))
+        and math.isfinite(duration)
+        and duration > 0
+    )
 
 
 def _parse_iso8601_duration_to_seconds(value: str) -> int:
@@ -342,6 +385,7 @@ def _fetch_video_info_with_ytdlp(
         "resolution": info.get("resolution"),
         "fps": info.get("fps"),
         "filesize": info.get("filesize"),
+        "live_status": _ytdlp_live_status(info),
     }
 
 
@@ -368,15 +412,16 @@ def _fetch_video_info_with_youtube_data_api(
     response = requests.get(
         YOUTUBE_DATA_API_URL,
         params={
-            "part": "snippet,contentDetails,statistics",
+            "part": "snippet,contentDetails,statistics,liveStreamingDetails",
             "id": video_id,
             "key": api_key,
             "fields": (
                 "items(id,"
-                "snippet(title,description,channelTitle,publishedAt,"
+                "snippet(title,description,channelTitle,publishedAt,liveBroadcastContent,"
                 "thumbnails(default(url),medium(url),high(url),standard(url),maxres(url))),"
                 "contentDetails(duration),"
-                "statistics(viewCount,likeCount))"
+                "statistics(viewCount,likeCount),"
+                "liveStreamingDetails(actualEndTime))"
             ),
         },
         timeout=timeout,
@@ -393,6 +438,7 @@ def _fetch_video_info_with_youtube_data_api(
     snippet = item.get("snippet") or {}
     content_details = item.get("contentDetails") or {}
     statistics = item.get("statistics") or {}
+    live_details = item.get("liveStreamingDetails") or {}
     normalized = _empty_video_info(item.get("id") or video_id)
     normalized.update(
         {
@@ -406,6 +452,8 @@ def _fetch_video_info_with_youtube_data_api(
             "view_count": _parse_optional_int(statistics.get("viewCount")),
             "like_count": _parse_optional_int(statistics.get("likeCount")),
             "thumbnail": _pick_best_thumbnail(snippet.get("thumbnails")),
+            # Live and upcoming broadcasts report P0D; the status says why.
+            "live_status": _data_api_live_status(snippet, live_details),
         }
     )
     return normalized
@@ -455,6 +503,9 @@ def get_youtube_video_info(
     providers = [primary_provider, secondary_provider]
     last_error: Optional[Exception] = None
     geo_error: Optional[Exception] = None
+    # A result without a usable duration. The other provider gets one try
+    # (same deadline) before this is returned and the caller fails closed.
+    incomplete: Optional[Dict[str, Any]] = None
 
     for index, provider in enumerate(providers):
         try:
@@ -480,6 +531,22 @@ def get_youtube_video_info(
                     else _fetch_video_info_with_ytdlp(url, **options)
                 )
 
+            if (
+                not has_verified_duration(video_info)
+                and video_info.get("live_status") not in YOUTUBE_UNFINISHED_LIVE_STATUSES
+            ):
+                logger.warning(
+                    "YouTube metadata provider %s returned no duration for %s "
+                    "(live_status=%s)",
+                    provider,
+                    video_id,
+                    video_info.get("live_status"),
+                )
+                if incomplete is None or (
+                    video_info.get("live_status") and not incomplete.get("live_status")
+                ):
+                    incomplete = video_info
+                continue
             if index == 0:
                 logger.info(
                     "Fetched YouTube metadata for %s using primary provider %s",
@@ -513,6 +580,8 @@ def get_youtube_video_info(
                     exc,
                 )
 
+    if incomplete is not None:
+        return incomplete
     if last_error:
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
         if errors is not None:

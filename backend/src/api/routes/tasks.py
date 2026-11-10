@@ -45,7 +45,13 @@ from ...source_identity import (
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
-from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url
+from ...youtube_utils import (
+    YOUTUBE_UNFINISHED_LIVE_STATUSES,
+    async_get_youtube_video_info,
+    canonical_youtube_url,
+    has_verified_duration,
+    normalize_live_status,
+)
 from ...youtube_proxy import YouTubeGeoRestrictedError
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
@@ -79,6 +85,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
+_LIVE_BROADCAST_MESSAGES = {
+    "is_live": (
+        "This YouTube video is a live stream that is still broadcasting, so it has "
+        "no length yet. Wait until the broadcast ends and YouTube finishes "
+        "processing the replay, then try again. No minutes were used."
+    ),
+    "is_upcoming": (
+        "This YouTube video is a scheduled live stream that hasn't started yet. "
+        "Wait until the broadcast ends and the replay is available, then try "
+        "again. No minutes were used."
+    ),
+    "post_live": (
+        "This live stream just ended and YouTube is still processing the replay. "
+        "Try again once the full replay is available. No minutes were used."
+    ),
+}
+
+
+class _LiveBroadcastError(Exception):
+    def __init__(self, live_status: str):
+        super().__init__(live_status)
+        self.live_status = live_status
+
+
 async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
     """Check duration before creating a task or consuming a generation."""
     # wait_for cancels the awaiting task when this elapses. A yt-dlp call already
@@ -89,11 +119,24 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             async_get_youtube_video_info(url, deadline=time.monotonic() + timeout_seconds),
             timeout=timeout_seconds,
         )
-        duration = (metadata or {}).get("duration")
-        if isinstance(duration, bool) or not isinstance(duration, (int, float)):
-            raise ValueError("Missing video duration")
-        if not math.isfinite(duration) or duration <= 0:
-            raise ValueError("Invalid video duration")
+        live_status = normalize_live_status((metadata or {}).get("live_status"))
+        if live_status in YOUTUBE_UNFINISHED_LIVE_STATUSES or (
+            live_status == "post_live" and not has_verified_duration(metadata)
+        ):
+            raise _LiveBroadcastError(live_status)
+        if not has_verified_duration(metadata):
+            raise ValueError("Missing or invalid video duration")
+        duration = metadata["duration"]
+    except _LiveBroadcastError as exc:
+        logger.info("Rejected YouTube preflight for unfinished broadcast (%s)", exc.live_status)
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "VIDEO_IS_LIVE",
+                "message": _LIVE_BROADCAST_MESSAGES[exc.live_status],
+                "live_status": exc.live_status,
+            },
+        ) from None
     except YouTubeGeoRestrictedError as exc:
         raise HTTPException(
             status_code=422,
