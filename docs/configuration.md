@@ -157,10 +157,10 @@ These settings affect clip generation speed, throughput, and defaults.
 
 Local Whisper runs on the CPU by default. On a Linux self-host with an NVIDIA GPU and the NVIDIA container runtime:
 
-1. Keep `BACKEND_CPU_ONLY=false` so the image installs CUDA PyTorch, then build it: `docker compose build worker`.
-2. Start the worker with the GPU override: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d worker`.
+1. Keep `BACKEND_CPU_ONLY=false`, then build the worker with the GPU override: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml build worker`.
+2. Start the worker with the same override: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d worker`.
 
-The pinned PyTorch build ships CUDA kernels for compute capability 7.5 and newer, so Pascal cards (for example the GTX 10 series) cannot use it. Keep the CPU path or switch to AssemblyAI on those machines.
+The pinned CUDA PyTorch covers compute capability 7.5 and newer. Pascal cards (for example the GTX 10 series) need an older CUDA build: set `GPU_TORCH_VERSION=2.6.0` and `GPU_TORCH_WHEEL_INDEX=https://download.pytorch.org/whl/cu124`, then rebuild. Leave both empty on newer GPUs.
 
 ### Workflows
 

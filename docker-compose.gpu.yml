@@ -9,6 +9,10 @@
 # CPU-only hosts keep working.
 services:
   worker:
+    build:
+      args:
+        TORCH_VERSION: ${GPU_TORCH_VERSION:-}
+        TORCH_WHEEL_INDEX: ${GPU_TORCH_WHEEL_INDEX:-}
     deploy:
       resources:
         reservations:
