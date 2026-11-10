@@ -18,6 +18,7 @@ from src import stream_source, youtube_utils
 from src.api.routes import tasks
 from src.config import Config, set_config_override
 from src.services.video_service import VideoService
+from src.youtube_proxy import YouTubeGeoRestrictedError
 from src.youtube_utils import (
     YOUTUBE_METADATA_PROVIDER_DATA_API,
     YOUTUBE_METADATA_PROVIDER_YTDLP,
@@ -166,6 +167,44 @@ async def test_youtube_active_live_stream_gets_maybe_live_message(youtube_config
         await tasks.create_task(creation.request, db=None)
     assert error.value.status_code == 422
     assert_maybe_live_message(error.value.detail, "YouTube")
+    assert_nothing_charged(creation)
+
+
+@pytest.mark.asyncio
+async def test_youtube_data_api_item_without_duration_gets_maybe_live_message(youtube_config, monkeypatch, creation):
+    youtube_config.youtube_metadata_provider = YOUTUBE_METADATA_PROVIDER_DATA_API
+    item = {"id": "abcdefghijk", "snippet": {"title": "Video"}, "contentDetails": {}}
+    monkeypatch.setattr(youtube_utils.requests, "get", Mock(return_value=FakeResponse({"items": [item]})))
+    fallback = Mock(side_effect=RuntimeError("network unavailable"))
+    monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_ytdlp", fallback)
+
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(creation.request, db=None)
+
+    fallback.assert_called_once()
+    assert error.value.status_code == 422
+    assert_maybe_live_message(error.value.detail, "YouTube")
+    assert_nothing_charged(creation)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("primary", [YOUTUBE_METADATA_PROVIDER_DATA_API, YOUTUBE_METADATA_PROVIDER_YTDLP])
+async def test_youtube_geo_restriction_takes_precedence_over_zero_duration(youtube_config, monkeypatch, creation, primary):
+    youtube_config.youtube_metadata_provider = primary
+    item = {"id": "abcdefghijk", "contentDetails": {"duration": "P0D"}}
+    data_api = Mock(return_value=FakeResponse({"items": [item]}))
+    monkeypatch.setattr(youtube_utils.requests, "get", data_api)
+    ytdlp = Mock(side_effect=YouTubeGeoRestrictedError())
+    monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_ytdlp", ytdlp)
+
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(creation.request, db=None)
+
+    data_api.assert_called_once()
+    ytdlp.assert_called_once()
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "YOUTUBE_GEO_RESTRICTED"
+    assert "Upload the video file" in error.value.detail["message"]
     assert_nothing_charged(creation)
 
 

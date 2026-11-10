@@ -403,16 +403,14 @@ def _fetch_video_info_with_youtube_data_api(
 
     item = items[0]
     snippet = item.get("snippet") or {}
-    content_details = item.get("contentDetails") or {}
+    raw_duration = (item.get("contentDetails") or {}).get("duration")
     statistics = item.get("statistics") or {}
     normalized = _empty_video_info(item.get("id") or video_id)
     normalized.update(
         {
             "title": snippet.get("title"),
             "description": snippet.get("description", ""),
-            "duration": _parse_iso8601_duration_to_seconds(
-                content_details.get("duration", "")
-            ),
+            "duration": _parse_iso8601_duration_to_seconds(raw_duration) if raw_duration is not None else None,
             "uploader": snippet.get("channelTitle"),
             "upload_date": _normalize_upload_date(snippet.get("publishedAt")),
             "view_count": _parse_optional_int(statistics.get("viewCount")),
@@ -536,7 +534,7 @@ def get_youtube_video_info(
                     exc,
                 )
 
-    if incomplete is not None:
+    if incomplete is not None and geo_error is None:
         return incomplete
     if last_error:
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
