@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-10
 
-- **Fixed:** A video with only music, sound effects or silence now fails with a clear "no speech detected" message instead of a generic transcription error, and no longer offers a retry that would fail the same way. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** A video with only music, sound effects or silence now fails with a clear "no speech detected" message instead of a generic transcription error, and no longer offers a retry that would fail the same way. ([#355](https://github.com/FujiwaraChoki/supoclip/pull/355))
 - **Fixed:** Submitting a video that is already queued or processing opens that generation instead of starting a second one. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 - **Under the hood:** Each account renders one video at a time by default, maintenance jobs run on their own worker, and a long queue wait is reported to error tracking. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 
