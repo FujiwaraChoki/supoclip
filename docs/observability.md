@@ -46,7 +46,17 @@ go to the logs.
 |----------|---------|
 | `POSTHOG_PROJECT_TOKEN` | Project token (`phc_...`). Empty disables PostHog. |
 | `POSTHOG_HOST` | Ingest host, default `https://eu.i.posthog.com`. |
-| `SUPOCLIP_SERVICE` | `backend` or `worker`; set by docker-compose. |
+| `SUPOCLIP_SERVICE` | `backend`, `worker`, or `cron-worker`; set by docker-compose. |
+
+A video-queue job that waits longer than `QUEUE_DELAY_ALERT_SECONDS` (default
+10 minutes) before a worker starts it sends one PostHog exception,
+`$exception_fingerprint` `queue_delay_exceeded`, with `queue_depth` and
+`wait_seconds`. The worker sends at most one of these per
+`QUEUE_DELAY_ALERT_INTERVAL_SECONDS` (default 15 minutes), which is what the
+critical-alert webhook should match. The distinct id is `supoclip-worker`.
+The event has no account id. A job that waited only because that account was
+already rendering does not use this clock: it is queued again with a new
+enqueue time.
 
 ## Shipping logs to Axiom
 

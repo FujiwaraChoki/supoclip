@@ -19,6 +19,7 @@ import re
 import secrets
 import math
 import asyncio
+from datetime import datetime, timezone
 import hashlib
 import time
 from ...utils.async_helpers import run_in_thread
@@ -36,6 +37,11 @@ from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...feature_flags import client_platform
+from ...source_identity import (
+    duplicate_source_response,
+    source_admission_lock,
+    source_key_for_url,
+)
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
@@ -627,6 +633,17 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         if existing is not None:
             return _queued_upload_task(existing.id, existing.job_id)
 
+    # Same video already queued or rendering: hand back that task. This is
+    # before preflight and before any minute charge. Callers that unit-test
+    # the route without a database skip the lookup.
+    source_key = None
+    if db is not None:
+        source_key = await source_key_for_url(db, user_id, raw_source["url"].strip())
+        if source_key:
+            existing = await TaskRepository.find_active_source_task(db, user_id, source_key)
+            if existing is not None:
+                return duplicate_source_response(str(existing.id), existing.job_id)
+
     try:
         billing_service = BillingService(db)
         billing = await billing_service.assert_can_create_task(user_id)
@@ -673,22 +690,30 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             db, user_id, enabled=runtime_config.monetization_enabled
         ):
             await billing_service.assert_can_create_task(user_id, duration_seconds)
-            # Create task
-            task_id = await task_service.create_task_with_source(
-                user_id=user_id,
-                url=raw_source["url"],
-                title=source_title,
-                font_family=font_family,
-                font_size=font_size,
-                font_color=font_color,
-                caption_template=caption_template,
-                include_broll=include_broll,
-                processing_mode=processing_mode,
-                source_duration_seconds=math.ceil(duration_seconds),
-                upload_request_key=upload_request_key,
-                workflow=workflow_spec.workflow,
-                workflow_options=workflow_options,
-            )
+            async with source_admission_lock(db, user_id, source_key):
+                if source_key:
+                    existing = await TaskRepository.find_active_source_task(
+                        db, user_id, source_key
+                    )
+                    if existing is not None:
+                        return duplicate_source_response(str(existing.id), existing.job_id)
+                # Create task while the source lock is held, so a second
+                # request waits and then finds this row instead of charging.
+                task_id = await task_service.create_task_with_source(
+                    user_id=user_id,
+                    url=raw_source["url"],
+                    title=source_title,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    include_broll=include_broll,
+                    processing_mode=processing_mode,
+                    source_duration_seconds=math.ceil(duration_seconds),
+                    upload_request_key=upload_request_key,
+                    workflow=workflow_spec.workflow,
+                    workflow_options=workflow_options,
+                )
             if getattr(task_service, "reused_upload_task", False):
                 return _queued_upload_task(
                     task_id, getattr(task_service, "reused_upload_job_id", None)
@@ -703,6 +728,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         {
                             "processing_job_id": processing_job_id,
                             "clip_length": clip_length,
+                            "enqueued_at": datetime.now(timezone.utc).isoformat(),
+                            **({"source_key": source_key} if source_key else {}),
                             **_stream_resolution_metadata(stream_metadata),
                         },
                         source_url=raw_source["url"],

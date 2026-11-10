@@ -33,8 +33,8 @@ uv sync
 # API server (uses refactored entry point)
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
-# Worker process (required for video processing)
-arq src.workers.tasks.WorkerSettings
+# Worker process (required for video processing). Also starts the cron worker.
+python -m src.workers.run_workers
 ```
 
 ### Frontend (local)

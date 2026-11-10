@@ -15,6 +15,7 @@
     "downloadAll": "Tidak dapat mengunduh klip. Silakan coba lagi.",
     "createTask": "Tidak bisa memulai generasi baru"
   },
+  "alreadyProcessing": "Video ini sedang diproses.",
   "toasts": {
     "settingsApplied": "Pengaturan generasi diterapkan",
     "cancelled": "Generasi dibatalkan",

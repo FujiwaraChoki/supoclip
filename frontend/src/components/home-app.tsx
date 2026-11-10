@@ -37,6 +37,7 @@ import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { track } from "@/lib/datafast";
+import { taskPathFromCreate } from "@/lib/task-create";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults, STOCK_FONT_DEFAULTS } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
@@ -797,7 +798,8 @@ export default function HomeApp() {
       }
 
       const startResult = await startResponse.json();
-      track("task_created", {
+      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
+      if (!alreadyProcessing) track("task_created", {
         // Analytics keeps ten fields, so workflow runs lead with theirs; plain highlights reports as before.
         ...(activeWorkflow !== "highlights" || sentInstructions ? {
           workflow: activeWorkflow,
@@ -815,7 +817,7 @@ export default function HomeApp() {
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
-      window.location.href = `/tasks/${startResult.task_id}`;
+      window.location.href = taskPathFromCreate(startResult);
     } catch (error) {
       console.error("Error processing video:", error);
       setError(error instanceof Error ? error.message : t("errors.processVideo"));

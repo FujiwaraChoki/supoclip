@@ -5,10 +5,8 @@ Worker tasks - background jobs processed by arq workers.
 import logging
 from typing import Dict, Any, Optional
 import json
-from arq import Retry, cron
+from arq import Retry
 from arq.worker import func
-from .media_cleanup import cleanup_media, sweep_orphaned_media
-from .media_replication import check_media_storage, replicate_pending_media
 from ..repositories.task_run_guard import TaskRunBusy
 
 from ..observability import configure_logging, set_trace_id, set_user_id
@@ -59,11 +57,38 @@ async def process_video_task(
     set_user_id(user_id)
     logger.info(f"Worker processing task {task_id}")
 
+    from .video_admission import admit_video_job, release_video_slot
+
+    job_args = (
+        task_id,
+        url,
+        source_type,
+        user_id,
+        font_family,
+        font_size,
+        font_color,
+        caption_template,
+        processing_mode,
+        output_format,
+        add_subtitles,
+        cleanup_settings,
+        clip_length,
+    )
+
     # Create progress tracker
     progress = ProgressTracker(ctx["redis"], task_id)
 
     async with AsyncSessionLocal() as db:
         await load_runtime_settings_cache(db)
+        decision = await admit_video_job(
+            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args
+        )
+        if decision != "run":
+            logger.info("Video task %s admission=%s", task_id, decision)
+            return {"task_id": task_id, "admission": decision}
+
+        # Admission only read. Close that transaction before the render writes.
+        await db.commit()
         task_service = TaskService(db)
 
         try:
@@ -130,6 +155,9 @@ async def process_video_task(
                 logger.exception("Failed to persist dead-letter payload")
             # Error will be caught by arq and task status will be updated
             raise
+        finally:
+            # The slot is held only while this process is actually rendering.
+            await release_video_slot(ctx["redis"], user_id, task_id)
 
 
 async def _social_service(db):
@@ -241,15 +269,9 @@ class WorkerSettings:
     max_tries = 3  # Retry failed jobs up to 3 times
     job_timeout = 10800  # 3 hour timeout for video processing
 
-    # Worker pool settings
+    # Worker pool settings. Cron jobs live on CronWorkerSettings so they never
+    # take one of these slots or pile up behind a long render.
     max_jobs = 4  # Process up to 4 jobs simultaneously
-    cron_jobs = [
-        cron(check_media_storage, second=20, run_at_startup=True, timeout=120),
-        cron(replicate_pending_media, second=40, run_at_startup=True, timeout=1800),
-        cron(cleanup_media, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, run_at_startup=True),
-        cron(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
-        # Every minute: promote due scheduled posts and poll async publishes.
-        cron(dispatch_scheduled_social_posts, second=0, timeout=300),
-        # Hourly: pull audience metrics back for the performance loop.
-        cron(refresh_social_metrics, minute=7, second=0, timeout=1800),
-    ]
+    cron_jobs = []
+
+    from .queue_delay import on_video_job_start as on_job_start

@@ -15,6 +15,7 @@
     "downloadAll": "Die Clips konnten nicht heruntergeladen werden. Bitte versuche es erneut.",
     "createTask": "Die neue Generierung konnte nicht gestartet werden"
   },
+  "alreadyProcessing": "Dieses Video wird bereits verarbeitet.",
   "toasts": {
     "settingsApplied": "Generierungseinstellungen übernommen",
     "cancelled": "Generierung abgebrochen",
