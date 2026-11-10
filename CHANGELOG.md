@@ -8,6 +8,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 - **New:** Any OpenAI-compatible service can be the LLM provider with `LLM=custom:<model>` and a base URL, configured from the environment or the admin settings panel. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
 - **Fixed:** Self-hosted Docker installs render the app again; the web container now loads the interface text from the checkout instead of an older copy bundled in the image. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Under the hood:** Self-hosted installs with a supported NVIDIA GPU can opt into GPU transcription for local Whisper. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
 - **Fixed:** When we can't verify a YouTube, Twitch or Kick video's length, the message explains that the stream may still be live and suggests using the completed recording. For YouTube, we check a second source for the length. If that check confirms a region restriction, we suggest uploading the video file. ([#356](https://github.com/FujiwaraChoki/supoclip/pull/356))
 - **Fixed:** Submitting a video that is already queued or processing opens that generation instead of starting a second one. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 - **Under the hood:** Each account renders one video at a time by default, maintenance jobs run on their own worker, and a long queue wait is reported to error tracking. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))

@@ -153,6 +153,15 @@ These settings affect clip generation speed, throughput, and defaults.
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 
+### GPU transcription (Whisper)
+
+Local Whisper runs on the CPU by default. On a Linux self-host with an NVIDIA GPU and the NVIDIA container runtime:
+
+1. Keep `BACKEND_CPU_ONLY=false` so the image installs CUDA PyTorch, then build it: `docker compose build worker`.
+2. Start the worker with the GPU override: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d worker`.
+
+The pinned PyTorch build ships CUDA kernels for compute capability 7.5 and newer, so Pascal cards (for example the GTX 10 series) cannot use it. Keep the CPU path or switch to AssemblyAI on those machines.
+
 ### Workflows
 
 Series, topic, recap and trailer runs (and creator instructions on Highlights)
