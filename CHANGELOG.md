@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-10
 
-- **Fixed:** Pasting a YouTube live stream that is still broadcasting or hasn't started yet now says to wait until the broadcast ends, instead of asking you to try again. A finished video whose length one source can't read is checked with a second source before giving up. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** Pasting a YouTube live stream that is still broadcasting or hasn't started yet now says to wait until the broadcast ends, instead of asking you to try again. A finished video whose length one source can't read is checked with a second source before giving up. ([#356](https://github.com/FujiwaraChoki/supoclip/pull/356))
 - **Fixed:** Submitting a video that is already queued or processing opens that generation instead of starting a second one. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 - **Under the hood:** Each account renders one video at a time by default, maintenance jobs run on their own worker, and a long queue wait is reported to error tracking. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
 
