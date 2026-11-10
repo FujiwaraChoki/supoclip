@@ -389,3 +389,43 @@ def test_editor_seeds_the_generated_emphasis_as_highlights():
     emphasis = generated_emphasis(words, {"caption_template": "default"})
     assert {words[i]["text"] for i in emphasis} >= {"90%"}
     assert "of" not in {words[i]["text"] for i in emphasis}
+
+
+async def test_combine_job_reports_while_it_fetches_its_inputs(tmp_path, monkeypatch, editor_store):
+    """Downloading many clips on a cold cache must not look like a dead worker."""
+    import asyncio
+    import time
+
+    from src.config import Config
+    from src.editor_state import STALE_RENDER_SECONDS, reap_jobs
+    from src.services import editor_service
+
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr("src.config.get_config", lambda: config)
+    document = EditDocument.model_validate({"segments": [{"id": "s", "start": 0, "end": 1}]}).model_dump()
+    key = editor_store.put_ready("task", "clip1", "clip1.mp4", {"duration": 1}, document)
+    job = "a" * 32
+    entry = {"id": "clip1", "filename": "clip1.mp4", "document": document,
+             "state": {"width": 320, "height": 180, "hasAudio": False}, "ranges": [[0, 1]]}
+    await editor_store.create_job(key, job, "combine", {"inputs": [entry]})
+    seen = {}
+
+    async def slow_fetch(_storage, _directory, **_kwargs):
+        # As if the download had been running for longer than the stale window.
+        editor_store.jobs_by_id[job]["updated"] -= STALE_RENDER_SECONDS + 60
+        await asyncio.sleep(1.5)
+        await reap_jobs(key)
+        seen["status"] = editor_store.jobs_by_id[job]["status"]
+        seen["idle"] = time.time() - editor_store.jobs_by_id[job]["updated"]
+        raise FileNotFoundError("stop here; the fetch is what this test is about")
+
+    @asynccontextmanager
+    async def sessions():
+        yield SimpleNamespace(commit=AsyncMock(), execute=AsyncMock())
+
+    monkeypatch.setattr("src.database.AsyncSessionLocal", sessions)
+    monkeypatch.setattr(editor_service, "restore_session_media", slow_fetch)
+    await combine_editor({}, "task", "clip1", "clip1.mp4", job)
+    assert seen["status"] == "rendering" and seen["idle"] < 5
+    assert (await editor_store.job(key, job))["status"] == "failed"

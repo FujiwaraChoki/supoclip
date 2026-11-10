@@ -861,6 +861,16 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
     try:
         directory.mkdir(parents=True, exist_ok=True)
         entries = job["request"]["inputs"]
+        # On a machine with a cold cache, fetching many clips can outlast the
+        # heartbeat window. Report while it happens so the job is not taken
+        # for a dead worker's.
+        async with tracked_render(job) as fetching:
+            for entry in entries:
+                await restore_session_media(
+                    storage, editor_dir(get_config().temp_dir, task_id, entry["id"], entry["filename"])
+                )
+            if fetching.stop.is_set():
+                raise InterruptedError()
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
         all_broll = []
         combined_offsets = []
@@ -873,7 +883,6 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             source_dir = editor_dir(
                 get_config().temp_dir, task_id, entry["id"], entry["filename"]
             )
-            await restore_session_media(storage, source_dir)
             commands += ["-i", str(source_dir / "clean.mp4")]
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
