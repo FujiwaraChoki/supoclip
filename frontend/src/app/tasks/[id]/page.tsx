@@ -941,8 +941,9 @@ export default function TaskPage() {
                 {t("cancel")}
               </Button>
             )}
-            {/* Workflow failures and an unfinished series offer their own next step in the body. */}
-            {((task.status === "cancelled" && !seriesIncomplete) || (task.status === "error" && !failureCode)) && (
+            {/* Workflow failures and an unfinished series offer their own next step in the body.
+                A video with no speech fails the same way every time, so it offers no retry. */}
+            {((task.status === "cancelled" && !seriesIncomplete) || (task.status === "error" && !failureCode && task.error_code !== "no_speech")) && (
               <Button size="sm" disabled={pendingAction !== null} onClick={handleResume}>
                 <RotateCcw className="size-4" />{t("retryGeneration")}
               </Button>

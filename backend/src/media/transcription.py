@@ -31,6 +31,37 @@ from .ffmpeg import (
 )
 
 
+NO_SPEECH_MESSAGE = (
+    "We couldn't detect any speech in this video. SupoClip picks clips from "
+    "what is said, so a video with only music, sound effects or silence can't "
+    "be clipped. Try a video where someone is talking."
+)
+
+# AssemblyAI's wording when a file has an audio track but nothing spoken in
+# it, e.g. "language_detection cannot be performed on files with no spoken
+# audio." A missing audio stream is a different failure and is not matched.
+_NO_SPEECH_PROVIDER_MARKERS = ("no spoken audio",)
+
+
+class NoSpeechDetectedError(Exception):
+    """The audio was transcribed but contains no speech to clip.
+
+    A plain ``Exception`` so ``user_facing_error`` shows the message; running
+    the same file again gives the same result, so it is terminal.
+    """
+
+    error_code = "no_speech"
+
+    def __init__(self, message: str = NO_SPEECH_MESSAGE):
+        super().__init__(message)
+
+
+def is_no_speech_provider_error(detail: Optional[str]) -> bool:
+    """True only for the provider's explicit "no spoken audio" rejection."""
+    text = (detail or "").lower()
+    return any(marker in text for marker in _NO_SPEECH_PROVIDER_MARKERS)
+
+
 def _prepare_audio_for_transcription(video_path: Path) -> Path:
     """Extract a compact audio-only file for transcription."""
     audio_path = video_path.with_name(f"{video_path.stem}.transcription.mp3")
@@ -388,8 +419,17 @@ def _get_transcript_with_assemblyai(
             raise RuntimeError("AssemblyAI transcription did not return a transcript")
 
         if transcript.status == aai.TranscriptStatus.error:
+            if is_no_speech_provider_error(transcript.error):
+                logger.warning("AssemblyAI found no speech: %s", transcript.error)
+                raise NoSpeechDetectedError()
             logger.error(f"AssemblyAI transcription failed: {transcript.error}")
             raise Exception(f"Transcription failed: {transcript.error}")
+
+        # With a configured language there is no detection step, so music or
+        # silence completes with no words instead of the error above.
+        if not getattr(transcript, "words", None):
+            logger.warning("AssemblyAI transcript completed with no words")
+            raise NoSpeechDetectedError()
 
         response = getattr(transcript, "json_response", None) or {}
         logger.info(
@@ -407,6 +447,8 @@ def _get_transcript_with_assemblyai(
         )
         return result
 
+    except NoSpeechDetectedError:
+        raise
     except Exception as e:
         logger.error(f"Error in AssemblyAI transcription: {e}")
         raise
