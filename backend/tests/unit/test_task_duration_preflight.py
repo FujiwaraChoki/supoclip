@@ -59,14 +59,28 @@ async def test_plan_boundary_and_longer_entitlement_are_accepted(monkeypatch, cr
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("metadata", [None, {}, {"duration": None}, {"duration": 0}, {"duration": -1}, {"duration": float("nan")}, {"duration": True}])
-async def test_unverifiable_duration_does_not_consume_generation(monkeypatch, creation, metadata):
+@pytest.mark.parametrize(
+    "metadata,status,code",
+    [
+        # No provider answered: a fetch failure.
+        (None, 503, "VIDEO_METADATA_UNAVAILABLE"),
+        # A provider answered without a usable length.
+        ({}, 422, "VIDEO_DURATION_UNAVAILABLE"),
+        ({"duration": None}, 422, "VIDEO_DURATION_UNAVAILABLE"),
+        ({"duration": 0}, 422, "VIDEO_DURATION_UNAVAILABLE"),
+        ({"duration": -1}, 422, "VIDEO_DURATION_UNAVAILABLE"),
+        ({"duration": float("nan")}, 422, "VIDEO_DURATION_UNAVAILABLE"),
+        ({"duration": True}, 422, "VIDEO_DURATION_UNAVAILABLE"),
+    ],
+)
+async def test_unverifiable_duration_does_not_consume_generation(monkeypatch, creation, metadata, status, code):
     request, service, queue, _billing = creation
     monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value=metadata))
     with pytest.raises(HTTPException) as error:
         await tasks.create_task(request, db=None)
-    assert error.value.status_code == 503
-    assert error.value.detail["code"] == "VIDEO_METADATA_UNAVAILABLE"
+    assert error.value.status_code == status
+    assert error.value.detail["code"] == code
+    assert "No minutes were used" in error.value.detail["message"]
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
 

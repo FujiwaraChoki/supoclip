@@ -6,6 +6,7 @@ Optimized for free yt-dlp downloads with optional Apify fallback.
 import asyncio
 from datetime import datetime
 import logging
+import math
 import json
 import uuid
 import re
@@ -153,6 +154,17 @@ def _empty_video_info(video_id: Optional[str] = None) -> Dict[str, Any]:
         "fps": None,
         "filesize": None,
     }
+
+
+def has_verified_duration(video_info: Optional[Dict[str, Any]]) -> bool:
+    """A finite, positive length. Live and upcoming streams report 0 (P0D)."""
+    duration = (video_info or {}).get("duration")
+    return (
+        not isinstance(duration, bool)
+        and isinstance(duration, (int, float))
+        and math.isfinite(duration)
+        and duration > 0
+    )
 
 
 def _parse_iso8601_duration_to_seconds(value: str) -> int:
@@ -391,16 +403,14 @@ def _fetch_video_info_with_youtube_data_api(
 
     item = items[0]
     snippet = item.get("snippet") or {}
-    content_details = item.get("contentDetails") or {}
+    raw_duration = (item.get("contentDetails") or {}).get("duration")
     statistics = item.get("statistics") or {}
     normalized = _empty_video_info(item.get("id") or video_id)
     normalized.update(
         {
             "title": snippet.get("title"),
             "description": snippet.get("description", ""),
-            "duration": _parse_iso8601_duration_to_seconds(
-                content_details.get("duration", "")
-            ),
+            "duration": _parse_iso8601_duration_to_seconds(raw_duration) if raw_duration is not None else None,
             "uploader": snippet.get("channelTitle"),
             "upload_date": _normalize_upload_date(snippet.get("publishedAt")),
             "view_count": _parse_optional_int(statistics.get("viewCount")),
@@ -455,6 +465,9 @@ def get_youtube_video_info(
     providers = [primary_provider, secondary_provider]
     last_error: Optional[Exception] = None
     geo_error: Optional[Exception] = None
+    # A result without a usable length. The other provider gets one try
+    # (same deadline) before this is returned and the caller fails closed.
+    incomplete: Optional[Dict[str, Any]] = None
 
     for index, provider in enumerate(providers):
         try:
@@ -480,6 +493,14 @@ def get_youtube_video_info(
                     else _fetch_video_info_with_ytdlp(url, **options)
                 )
 
+            if not has_verified_duration(video_info):
+                logger.warning(
+                    "YouTube metadata provider %s returned no duration for %s",
+                    provider,
+                    video_id,
+                )
+                incomplete = incomplete or video_info
+                continue
             if index == 0:
                 logger.info(
                     "Fetched YouTube metadata for %s using primary provider %s",
@@ -513,6 +534,8 @@ def get_youtube_video_info(
                     exc,
                 )
 
+    if incomplete is not None and geo_error is None:
+        return incomplete
     if last_error:
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
         if errors is not None:
