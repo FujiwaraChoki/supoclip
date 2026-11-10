@@ -9,6 +9,7 @@ import logging
 from sqlalchemy import text
 
 from ..editor_document import editor_dir
+from ..local_volume import volume_id
 from ..media_storage import MediaStorage, is_s3
 from .session_lock_connection import session_lock_connection
 
@@ -38,20 +39,29 @@ def guard_source_creation(method):
 
 
 async def queue_delete(db, file_path: str, *, prefix=False):
+    volume = None
     if not file_path.startswith("s3://"):
+        temp_dir = MediaStorage().config.temp_dir
         path = Path(file_path).resolve()
-        root = Path(MediaStorage().config.temp_dir).resolve()
+        root = Path(temp_dir).resolve()
         if path == root or not path.is_relative_to(root):
             logging.getLogger(__name__).warning("Skipped media cleanup outside TEMP_DIR")
             return
+        # The same path on another machine is a different file. Only a
+        # process that mounts this disk may carry the deletion out.
+        volume = volume_id(temp_dir)
     await db.execute(text("""
-        INSERT INTO media_deletions (file_path, is_prefix, hold_token)
-        VALUES (:path, :prefix, :hold) ON CONFLICT (file_path) DO UPDATE
+        INSERT INTO media_deletions (file_path, is_prefix, hold_token, local_volume)
+        VALUES (:path, :prefix, :hold, :volume) ON CONFLICT (file_path) DO UPDATE
         SET created_at = EXCLUDED.created_at,
             next_attempt_at = NOW(), attempts = 0,
             is_prefix = media_deletions.is_prefix OR EXCLUDED.is_prefix,
-            hold_token = COALESCE(media_deletions.hold_token, EXCLUDED.hold_token)
-    """), {"path": file_path, "prefix": prefix, "hold": db.info.get("media_deletion_hold")})
+            hold_token = COALESCE(media_deletions.hold_token, EXCLUDED.hold_token),
+            -- Scratch directories have the same path on every machine. The
+            -- latest request owns the row; each machine's own sweep queues
+            -- its copy again if it is still there.
+            local_volume = EXCLUDED.local_volume
+    """), {"path": file_path, "prefix": prefix, "hold": db.info.get("media_deletion_hold"), "volume": volume})
 
 
 async def queue_clip_delete(db, clip):
@@ -59,7 +69,7 @@ async def queue_clip_delete(db, clip):
     storage = MediaStorage()
     directory = editor_dir(storage.config.temp_dir, clip["task_id"], clip["id"], clip["filename"])
     await queue_delete(db, str(directory), prefix=True)
-    if storage.enabled or is_s3(clip["file_path"]) or (directory / ".s3-manifest").exists():
+    if storage.bucket and (storage.enabled or is_s3(clip["file_path"]) or (directory / ".s3-manifest").exists()):
         await queue_delete(db, storage.editor_reference(directory), prefix=True)
 
 

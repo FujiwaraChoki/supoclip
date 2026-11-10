@@ -409,6 +409,11 @@ class MediaStorage:
         """Streaming body of a stored object (``read(n)``/``close()``), not cached locally."""
         return self.client.get_object(Bucket=self.bucket, Key=self.parse(reference))["Body"]
 
+    def fetch(self, reference: str, path: Path) -> bool:
+        """Download one object to ``path``. False when it does not exist."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return self._download(self.parse(reference), path, optional=True)
+
     def exists(self, reference: str) -> bool:
         try:
             self.client.head_object(Bucket=self.bucket, Key=self.parse(reference))
@@ -640,37 +645,33 @@ class MediaStorage:
     def editor_reference(self, directory: Path, filename: str = "") -> str:
         return self.reference(self.key("editor", directory.name, filename).rstrip("/"))
 
-    def save_editor(self, directory: Path, *, metadata_only=False, blocking=True):
+    def _editor_stamps(self, directory: Path) -> dict:
+        manifest = directory / ".s3-manifest"
+        return json.loads(manifest.read_text()) if manifest.exists() else {}
+
+    def _stamp_editor_file(self, directory: Path, stamps: dict, path: Path):
+        # The cache sweeper only evicts a file whose stamp shows this exact
+        # content is in object storage.
+        stat = path.stat()
+        stamps[path.name] = [stat.st_size, stat.st_mtime_ns]
+        atomic_json(directory / ".s3-manifest", stamps)
+
+    def publish_editor_media(self, directory: Path, names=("clean.mp4", "layout.mp4", "thumbnails.jpg")):
+        """Upload a prepared session's media.
+
+        The caller marks the session ready only after this returns, so any
+        machine that sees a ready session can fetch what it needs to render.
+        """
         if not self.enabled:
             return
-        directory.mkdir(parents=True, exist_ok=True)
         with (directory / ".sync").open("a") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
-            except BlockingIOError:
-                return
-            manifest = directory / ".s3-manifest"
-            stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
-            for path in sorted(directory.iterdir(), key=lambda p: (p.suffix != ".json", p.name)):
-                if not path.is_file() or path.name.startswith(".") or path.suffix not in {".json", ".jpg", ".mp4"}:
-                    continue
-                if metadata_only and path.suffix != ".json":
-                    continue
-                if path.name.startswith("export-") and path.suffix == ".mp4":
-                    job = directory / f"job-{path.stem.removeprefix('export-')}.json"
-                    if not job.exists() or json.loads(job.read_text()).get("status") != "completed":
-                        continue
-                if path.name == "clean.mp4":
-                    asset = directory / "asset.json"
-                    if not asset.exists() or json.loads(asset.read_text()).get("status") != "ready":
-                        continue
-                stat = path.stat()
-                stamp = [stat.st_size, stat.st_mtime_ns]
-                if stamps.get(path.name) == stamp:
-                    continue
-                self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
-                stamps[path.name] = stamp
-                atomic_json(manifest, stamps)
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            stamps = self._editor_stamps(directory)
+            for name in names:
+                path = directory / name
+                if path.is_file():
+                    self.upload_file(path, self.parse(self.editor_reference(directory, name)))
+                    self._stamp_editor_file(directory, stamps, path)
 
     def persist_editor_export(self, directory: Path, job_id: str):
         if not self.enabled:
@@ -678,73 +679,64 @@ class MediaStorage:
         path = directory / f"export-{job_id}.mp4"
         with (directory / ".sync").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            manifest = directory / ".s3-manifest"
-            stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
             self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
-            stat = path.stat()
-            stamps[path.name] = [stat.st_size, stat.st_mtime_ns]
-            atomic_json(manifest, stamps)
+            self._stamp_editor_file(directory, self._editor_stamps(directory), path)
 
-    def restore_editor(self, directory: Path, *, media=False, s3_backed=False):
+    def restore_editor_media(self, directory: Path, *, has_layout=False):
+        """Put the session's source video into this machine's scratch directory.
+
+        The lease keeps the cache sweeper away until the surrounding render
+        finishes. The lock only orders processes on this machine that fill the
+        same directory; another machine has its own copy.
+        """
         directory.mkdir(parents=True, exist_ok=True)
         leases = _workspace.get()
-        if media and leases is not None:
+        if leases is not None:
             with leases["lock"]:
                 if directory not in leases.setdefault("editors", {}):
                     handle = (directory / ".media-lease").open("a")
                     fcntl.flock(handle, fcntl.LOCK_SH)
                     leases["editors"][directory] = handle
         (directory / ".access").touch()
-        asset = directory / "asset.json"
-        if asset.exists():
-            metadata = json.loads(asset.read_text())
-            ready = metadata.get("status") == "ready"
-            drafts_ready = not ready or all((directory / name).exists() for name in ("draft.json", "original.json"))
-            media_ready = ((directory / "clean.mp4").exists()
-                           and (not metadata.get("hasLayout") or (directory / "layout.mp4").exists()))
-            if drafts_ready and (not media or media_ready):
-                return
-        manifest = directory / ".s3-manifest"
-        if not self.bucket or (not self.enabled and not manifest.exists() and not s3_backed):
-            return
-        prefix = self.parse(self.editor_reference(directory)) + "/"
-        stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
-        checked = directory / ".s3-checked"
-        if not media and checked.exists() and time.time() - checked.stat().st_mtime < 300:
-            return
-        # Shared local state is authoritative; avoid waiting on a video upload
-        # (or contacting S3) on every editor poll when the needed files exist.
-        if stamps and all((directory / name).exists() for name in stamps
-                          if not name.endswith(".mp4") or (media and name in {"clean.mp4", "layout.mp4"})):
+        wanted = ["clean.mp4"] + (["layout.mp4"] if has_layout else [])
+        if not self.bucket or all((directory / name).exists() for name in wanted):
             return
         with (directory / ".sync").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            manifest = directory / ".s3-manifest"
-            stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
+            stamps = self._editor_stamps(directory)
+            for name in wanted:
+                path = directory / name
+                if path.exists():
+                    continue
+                if self._download(self.parse(self.editor_reference(directory, name)), path, optional=True):
+                    self._stamp_editor_file(directory, stamps, path)
+
+    def restore_legacy_editor_state(self, directory: Path, *, s3_backed=False):
+        """Fetch the JSON an earlier release kept beside the media in object storage.
+
+        Editor state now lives in the database. This only feeds the one-time
+        import of a session that has no row yet; files already on this disk
+        are newer than their object storage snapshot and are left alone.
+        """
+        directory.mkdir(parents=True, exist_ok=True)
+        if (directory / "asset.json").exists():
+            return
+        if not self.bucket or (not self.enabled and not s3_backed and not (directory / ".s3-manifest").exists()):
+            return
+        checked = directory / ".s3-checked"
+        if checked.exists() and time.time() - checked.stat().st_mtime < 300:
+            return
+        prefix = self.parse(self.editor_reference(directory)) + "/"
+        with (directory / ".sync").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
             for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
                 for obj in page.get("Contents", []):
                     name = obj["Key"].removeprefix(prefix)
-                    if "/" in name or name.startswith(".") or not name:
+                    if "/" in name or name.startswith(".") or not name.endswith(".json"):
                         continue
-                    path = directory / name
-                    if path.exists() or (path.suffix == ".mp4" and (not media or name not in {"clean.mp4", "layout.mp4"})):
-                        continue
-                    self._download(obj["Key"], path)
-                    stat = path.stat()
-                    stamps[path.name] = [stat.st_size, stat.st_mtime_ns]
-                    atomic_json(manifest, stamps)
+                    if not (directory / name).exists():
+                        self._download(obj["Key"], directory / name)
             checked.touch()
-
-    def sync_editor_drafts(self):
-        root = Path(self.config.temp_dir) / "editor"
-        if not self.enabled or not root.exists():
-            return
-        for directory in root.iterdir():
-            if directory.is_dir():
-                try:
-                    self.save_editor(directory, blocking=False)
-                except STORAGE_ERRORS:
-                    logging.getLogger(__name__).warning("Editor snapshot sync will retry")
 
     def sweep_cache(self):
         root = Path(self.config.temp_dir) / "media-cache"

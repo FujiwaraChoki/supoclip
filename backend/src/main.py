@@ -68,8 +68,16 @@ def create_app(
                 await load_runtime_settings_cache(db)
             logger.info("✅ Runtime settings loaded")
 
-            await queue_adapter.get_pool()
+            pool = await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
+            try:
+                # A worker compares this with its own disk before it renders
+                # clips that only this API's disk could serve.
+                from .local_volume import API_VOLUME_KEY, volume_id
+
+                await pool.set(API_VOLUME_KEY, volume_id(runtime_config.temp_dir))
+            except Exception:
+                logger.warning("Could not publish the API media volume id", exc_info=True)
 
             yield
         finally:

@@ -406,7 +406,7 @@ async def test_editor_state_seeds_generated_broll_into_old_drafts(client, monkey
     assert [(b["start"], b["end"]) for b in state["original"]["broll"]] == [(4.0, 7.0)]
 
 
-async def test_combine_migrates_legacy_inputs_without_reintroducing_removed_broll(client, monkeypatch):
+async def test_combine_migrates_legacy_inputs_without_reintroducing_removed_broll(client, monkeypatch, editor_store):
     http, draft, tmp_path = client
     directory = editor_dir(str(tmp_path), "task", "clip", "clip.mp4")
     old = {k: v for k, v in draft.items() if k != "broll"}
@@ -424,7 +424,9 @@ async def test_combine_migrates_legacy_inputs_without_reintroducing_removed_brol
     response = await http.post("/tasks/task/editor/combine", json={"clip_ids": ["clip", "other"]})
 
     assert response.status_code == 202
-    request = json.loads((directory / f"request-{response.json()['id']}.json").read_text())
+    job = editor_store.jobs_by_id[response.json()["id"]]
+    assert job["kind"] == "combine" and job["status"] == "queued"
+    request = job["request"]
     assert request["inputs"][0]["document"]["broll"] == opened["draft"]["document"]["broll"]
     assert request["inputs"][1]["document"]["broll"] == []
 

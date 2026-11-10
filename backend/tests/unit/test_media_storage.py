@@ -375,21 +375,35 @@ def test_delete_is_idempotent_and_removes_sidecars(storage, tmp_path):
         storage.delete("/etc/passwd")
 
 
-def test_editor_restore_does_not_reupload_unchanged_media(storage, tmp_path):
+def other_machine(storage, tmp_path):
+    """The same bucket seen from a machine with its own, empty disk."""
+    config = Config()
+    config.media_storage = "s3"
+    config.media_s3_bucket = storage.bucket
+    config.temp_dir = str(tmp_path / "other-machine")
+    return MediaStorage(config, storage.client)
+
+
+def test_prepared_editor_media_reaches_a_machine_with_an_empty_disk(storage, tmp_path):
     directory = tmp_path / "editor" / ("a" * 64)
     directory.mkdir(parents=True)
     (directory / "clean.mp4").write_bytes(b"editor preview")
+    (directory / "thumbnails.jpg").write_bytes(b"strip")
+    # Session state is rows now; a stray file must never be published as state.
     (directory / "draft.json").write_text('{"revision": 1}')
-    (directory / "asset.json").write_text('{"status": "ready"}')
     storage.client.upload_file = Mock(wraps=storage.client.upload_file)
-    storage.save_editor(directory)
-    assert storage.client.upload_file.call_count == 3
-    (directory / "clean.mp4").unlink()
-    (directory / "draft.json").unlink()
-    storage.restore_editor(directory, media=True)
-    storage.save_editor(directory)
-    assert storage.client.upload_file.call_count == 3
-    assert (directory / "clean.mp4").read_bytes() == b"editor preview"
+    storage.publish_editor_media(directory)
+    stored = {key.rsplit("/", 1)[1] for key in storage.client.objects}
+    assert stored == {"clean.mp4", "thumbnails.jpg"}
+
+    remote = other_machine(storage, tmp_path)
+    remote_directory = Path(remote.config.temp_dir) / "editor" / directory.name
+    remote.restore_editor_media(remote_directory)
+    assert (remote_directory / "clean.mp4").read_bytes() == b"editor preview"
+    # A second render on that machine reuses its copy, and nothing is uploaded again.
+    storage.client.download_file = Mock(side_effect=AssertionError("Already cached"))
+    remote.restore_editor_media(remote_directory)
+    assert storage.client.upload_file.call_count == 2
 
 
 def test_youtube_word_timings_can_be_restored_without_the_original_download(storage, tmp_path):
@@ -465,16 +479,14 @@ def test_caption_reads_cache_absence_and_do_not_fetch_transcript_sidecars(storag
     assert storage.caption_settings(other) is None
 
 
-def test_editor_snapshot_skips_unfinished_exports_and_restores_only_preview(storage, tmp_path):
+def test_only_a_finished_export_is_stored_and_restore_fetches_only_the_source(storage, tmp_path):
     directory = tmp_path / "editor" / ("c" * 64)
     directory.mkdir(parents=True)
-    (directory / "asset.json").write_text('{"status": "ready"}')
     (directory / "clean.mp4").write_bytes(b"preview")
     job = "d" * 32
     output = directory / f"export-{job}.mp4"
     output.write_bytes(b"unfinished")
-    (directory / f"job-{job}.json").write_text('{"status": "rendering"}')
-    storage.save_editor(directory)
+    storage.publish_editor_media(directory)
     export_key = storage.parse(storage.editor_reference(directory, output.name))
     assert export_key not in storage.client.objects
     output.write_bytes(b"finished")
@@ -482,13 +494,20 @@ def test_editor_snapshot_skips_unfinished_exports_and_restores_only_preview(stor
     assert storage.client.objects[export_key] == b"finished"
     (directory / "clean.mp4").unlink()
     output.unlink()
-    storage.restore_editor(directory, media=True)
+    storage.restore_editor_media(directory)
     assert (directory / "clean.mp4").read_bytes() == b"preview"
     assert not output.exists()
+    # Media stored while S3 was the default is still fetched after a switch to local.
     storage.enabled = False
     (directory / "clean.mp4").unlink()
-    storage.restore_editor(directory, media=True)
+    storage.restore_editor_media(directory)
     assert (directory / "clean.mp4").read_bytes() == b"preview"
+
+
+def test_missing_editor_media_is_reported_by_absence_not_an_exception(storage, tmp_path):
+    directory = tmp_path / "editor" / ("e" * 64)
+    storage.restore_editor_media(directory, has_layout=True)
+    assert not (directory / "clean.mp4").exists()
 
 
 async def test_legacy_cached_path_takes_a_lease_until_last_reader_finishes(storage):
@@ -593,28 +612,58 @@ def test_optional_reader_blocks_lease_release_until_metadata_read_finishes(stora
         assert path.with_suffix(".source_map.json").exists()
 
 
-def test_local_editor_metadata_without_manifest_skips_s3(storage, tmp_path):
+def test_legacy_editor_state_on_this_disk_is_not_replaced_from_s3(storage, tmp_path):
     directory = tmp_path / "editor" / ("b" * 64)
     directory.mkdir(parents=True)
     for name, value in [('asset.json', '{"status": "ready"}'), ('original.json', '{}'), ('draft.json', '{}')]:
         (directory / name).write_text(value)
     storage.client.get_paginator = Mock(side_effect=OSError("offline"))
-    storage.restore_editor(directory)
-    storage.enabled = False
-    storage.restore_editor(directory, s3_backed=True)
+    storage.restore_legacy_editor_state(directory)
+    storage.restore_legacy_editor_state(directory, s3_backed=True)
     storage.client.get_paginator.assert_not_called()
+    # Local storage that never used the bucket has nothing to look for.
+    fresh = tmp_path / "editor" / ("9" * 64)
+    storage.enabled = False
+    storage.restore_legacy_editor_state(fresh)
+    storage.client.get_paginator.assert_not_called()
+
+
+def test_legacy_editor_state_is_fetched_once_for_import_and_media_is_left_in_s3(storage, tmp_path):
+    """Sessions an earlier release snapshotted to S3 must open on a machine without its disk."""
+    directory = tmp_path / "editor" / ("8" * 64)
+    prefix = storage.parse(storage.editor_reference(directory)) + "/"
+    storage.client.objects.update({
+        prefix + "asset.json": b'{"status": "ready", "duration": 2}',
+        prefix + "draft.json": b'{"revision": 3, "document": {}}',
+        prefix + "original.json": b"{}",
+        prefix + "clean.mp4": b"large video",
+    })
+    storage.restore_legacy_editor_state(directory)
+    assert sorted(p.name for p in directory.glob("*.json")) == ["asset.json", "draft.json", "original.json"]
+    assert not (directory / "clean.mp4").exists()
+
+    from src.editor_state import read_legacy_state
+
+    legacy = read_legacy_state(directory)
+    assert legacy["asset"]["status"] == "ready" and legacy["draft"]["revision"] == 3
+    # An unprepared clip is polled often; the bucket is not listed every time.
+    empty = tmp_path / "editor" / ("7" * 64)
+    storage.client.get_paginator = Mock(wraps=storage.client.get_paginator)
+    storage.restore_legacy_editor_state(empty)
+    storage.restore_legacy_editor_state(empty)
+    assert storage.client.get_paginator.call_count == 1
+    assert read_legacy_state(empty) is None
 
 
 async def test_active_editor_render_is_protected_from_cache_pruning(storage, tmp_path):
     directory = tmp_path / "editor" / ("c" * 64)
     directory.mkdir(parents=True)
-    (directory / 'asset.json').write_text('{"status": "ready"}')
     (directory / 'clean.mp4').write_bytes(b'preview')
-    storage.save_editor(directory)
+    storage.publish_editor_media(directory)
 
     @media_work
     async def render():
-        await asyncio.to_thread(storage.restore_editor, directory, media=True)
+        await asyncio.to_thread(storage.restore_editor_media, directory)
         old = time.time() - storage.config.media_cache_ttl_seconds - 1
         os.utime(directory / '.access', (old, old))
         storage.sweep_editor_cache()
@@ -623,22 +672,23 @@ async def test_active_editor_render_is_protected_from_cache_pruning(storage, tmp
     await render()
     storage.sweep_editor_cache()
     assert not (directory / 'clean.mp4').exists()
+    # The evicted copy comes back from object storage for the next render.
+    storage.restore_editor_media(directory)
+    assert (directory / 'clean.mp4').read_bytes() == b'preview'
 
 
-def test_snapshot_retry_continues_after_boto3_wrapped_error(storage, tmp_path):
-    from boto3.exceptions import S3UploadFailedError
-    first, second = tmp_path / 'editor' / 'first', tmp_path / 'editor' / 'second'
-    for directory in (first, second):
-        directory.mkdir(parents=True)
-        (directory / 'draft.json').write_text('{}')
-    original = storage.save_editor
-    def save(directory, **kwargs):
-        if directory == first:
-            raise S3UploadFailedError('SlowDown')
-        return original(directory, **kwargs)
-    storage.save_editor = save
-    storage.sync_editor_drafts()
-    assert storage.parse(storage.editor_reference(second, 'draft.json')) in storage.client.objects
+def test_unpublished_editor_media_is_never_evicted(storage, tmp_path):
+    directory = tmp_path / "editor" / ("6" * 64)
+    directory.mkdir(parents=True)
+    (directory / "clean.mp4").write_bytes(b"published")
+    storage.publish_editor_media(directory)
+    # Rendered again after publishing: this content is not in object storage.
+    (directory / "clean.mp4").write_bytes(b"newer and not yet published")
+    old = time.time() - storage.config.media_cache_ttl_seconds - 1
+    (directory / ".access").touch()
+    os.utime(directory / ".access", (old, old))
+    storage.sweep_editor_cache()
+    assert (directory / "clean.mp4").read_bytes() == b"newer and not yet published"
 
 
 def test_signed_parts_enforce_exact_bytes_and_refresh_declared_size(storage):
@@ -699,13 +749,10 @@ def test_orphan_scan_reclaims_interrupted_proxy_attempt(storage, tmp_path):
 def test_editor_restores_generated_layout_when_raw_media_is_already_local(storage, tmp_path):
     directory = tmp_path / "editor" / ("f" * 64)
     directory.mkdir(parents=True)
-    (directory / "asset.json").write_text('{"status":"ready","hasLayout":true}')
-    for name in ["draft.json", "original.json"]:
-        (directory / name).write_text('{}')
     (directory / "clean.mp4").write_bytes(b"wide source")
     (directory / "layout.mp4").write_bytes(b"full content composition")
-    storage.save_editor(directory)
+    storage.publish_editor_media(directory)
     (directory / "layout.mp4").unlink()
-    storage.restore_editor(directory, media=True)
+    storage.restore_editor_media(directory, has_layout=True)
     assert (directory / "clean.mp4").read_bytes() == b"wide source"
     assert (directory / "layout.mp4").read_bytes() == b"full content composition"

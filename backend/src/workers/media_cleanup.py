@@ -1,4 +1,10 @@
-"""Retry committed deletions and reclaim media left by interrupted jobs."""
+"""Retry committed deletions and reclaim media left by interrupted jobs.
+
+Object storage and the database are shared, so one scheduler handles them.
+Local files are not: every machine keeps its own ``TEMP_DIR``. Each process
+only deletes local paths queued for the disk it mounts, and every video
+worker runs ``maintain_local_scratch`` for its own machine.
+"""
 
 from contextlib import nullcontext
 import logging
@@ -12,6 +18,7 @@ from ..database import AsyncSessionLocal
 from ..media_storage import MediaStorage, VIDEO_SUFFIXES, STORAGE_ERRORS, is_s3
 from botocore.exceptions import ClientError
 from ..editor_document import editor_dir
+from ..local_volume import volume_id
 from ..repositories.media_repository import source_guard, queue_delete
 from ..youtube_utils import get_youtube_video_id
 from ..utils.async_helpers import run_in_thread
@@ -148,13 +155,22 @@ def _companion_originals(storage: MediaStorage, reference: str) -> list[str]:
     return found
 
 
-async def drain_deletions(db, storage: MediaStorage, *, limit=100):
+async def drain_deletions(db, storage: MediaStorage, *, limit=100, shared=True):
+    """Carry out due deletions this process is able to perform.
+
+    A local path can only be removed from the disk it was queued on. ``shared``
+    adds object storage references and rows from before disks were recorded;
+    one scheduler handles those. A video worker passes False and only cleans
+    its own disk.
+    """
+    volume = volume_id(storage.config.temp_dir)
     for _ in range(limit):
         result = await db.execute(text("""
             SELECT file_path, is_prefix FROM media_deletions
             WHERE hold_token IS NULL AND next_attempt_at <= clock_timestamp()
+              AND (local_volume = :volume OR (:shared AND local_volume IS NULL))
             ORDER BY next_attempt_at, created_at FOR UPDATE SKIP LOCKED LIMIT 1
-        """))
+        """), {"volume": volume, "shared": shared})
         item = result.first()
         if item is None:
             await db.rollback()
@@ -180,7 +196,12 @@ async def drain_deletions(db, storage: MediaStorage, *, limit=100):
 
 
 def orphan_candidates(storage: MediaStorage):
-    """Group files by video/directory, avoiding separate deletion of sidecars."""
+    yield from local_orphan_candidates(storage)
+    yield from stored_orphan_candidates(storage)
+
+
+def local_orphan_candidates(storage: MediaStorage):
+    """Old files on this machine's disk. Sidecars follow their video."""
     cutoff = time.time() - storage.config.media_orphan_grace_seconds
     root = Path(storage.config.temp_dir)
     for folder in ("uploads", "clips", "exports"):
@@ -199,6 +220,16 @@ def orphan_candidates(storage: MediaStorage):
             elif path.is_dir() and path.name.startswith(("proxy-", "apify-", "rapidapi-", "oxy-", "videoscale-", "ytdl-")):
                 if max((modified(p) for p in entries(path)), default=0) < cutoff:
                     yield str(path), True
+    editor = root / "editor"
+    if editor.exists():
+        for directory in entries(editor):
+            if directory.is_dir() and max((modified(p) for p in entries(directory)), default=0) < cutoff:
+                yield str(directory), True
+
+
+def stored_orphan_candidates(storage: MediaStorage):
+    """Old objects in the bucket, grouped by upload or render directory."""
+    cutoff = time.time() - storage.config.media_orphan_grace_seconds
     if storage.enabled:
         for page in storage.client.get_paginator("list_objects_v2").paginate(Bucket=storage.bucket, Prefix=storage.key("transcripts") + "/"):
             for obj in page.get("Contents", []):
@@ -231,11 +262,6 @@ def orphan_candidates(storage: MediaStorage):
         for directory, last_write in groups.items():
             if last_write < cutoff:
                 yield storage.reference(prefix + directory), True
-    editor = root / "editor"
-    if editor.exists():
-        for directory in entries(editor):
-            if directory.is_dir() and max((modified(p) for p in entries(directory)), default=0) < cutoff:
-                yield str(directory), True
 
 
 def entries(directory):
@@ -261,10 +287,88 @@ async def cleanup_media(ctx):
 
         await expire_clip_exports(db, storage)
         await drain_deletions(db, storage)
+        await forget_lost_volumes(db, storage)
+        await delete_orphaned_editor_sessions(db, storage)
+    from ..font_registry import publish_local_user_fonts
+
+    # Fonts uploaded before they were kept in object storage are only on the
+    # API's disk. Store them so workers on other machines can render with them.
+    await run_in_thread(publish_local_user_fonts)
+    await sweep_local_caches(storage)
+
+
+async def copy_pending_uploads(ctx):
+    """Finish copying stored uploads to object storage.
+
+    The API starts each copy after its upload response. This catches the ones
+    an API restart or a storage error left behind, so a task waiting on
+    another machine's worker is not stuck on a file only this disk has.
+    """
+    from ..media.upload_ingest import persist_pending_uploads
+
+    return {"copied": await persist_pending_uploads()}
+
+
+async def sweep_local_caches(storage: MediaStorage) -> None:
     await run_in_thread(storage.sweep_cache)
     await run_in_thread(storage.sync_source_metadata)
-    await run_in_thread(storage.sync_editor_drafts)
     await run_in_thread(storage.sweep_editor_cache)
+
+
+async def delete_orphaned_editor_sessions(db, storage: MediaStorage) -> int:
+    """Remove editing sessions whose clip file no longer exists.
+
+    A session is kept by the same rule as its media: some clip still has this
+    task, id and filename. The grace period covers a combined clip, whose
+    session is written just before its clip row.
+    """
+    result = await db.execute(text("""
+        DELETE FROM editor_sessions s
+        WHERE s.updated_at < NOW() - make_interval(secs => :grace)
+          AND NOT EXISTS (
+              SELECT 1 FROM generated_clips c
+              WHERE c.id = s.clip_id AND c.task_id = s.task_id AND c.filename = s.filename
+          )
+    """), {"grace": storage.config.media_orphan_grace_seconds})
+    await db.commit()
+    return result.rowcount or 0
+
+
+async def forget_lost_volumes(db, storage: MediaStorage) -> None:
+    """Drop deletions queued for a disk that has not collected them in a month.
+
+    That machine is gone or was rebuilt. If it returns, its own orphan sweep
+    finds whatever is still on its disk.
+    """
+    await db.execute(text("""
+        DELETE FROM media_deletions
+        WHERE local_volume IS NOT NULL AND local_volume <> :volume
+          AND created_at < NOW() - INTERVAL '30 days'
+    """), {"volume": volume_id(storage.config.temp_dir)})
+    await db.commit()
+
+
+async def maintain_local_scratch(*, orphans: bool = False) -> None:
+    """Housekeeping for the disk of the machine this worker runs on.
+
+    The scheduler's jobs run on one machine and only see that machine's
+    files. A worker elsewhere has to collect its own queued deletions, expired
+    caches and abandoned renders. On the scheduler's own machine this repeats
+    work the scheduler already does, which is harmless.
+    """
+    storage = MediaStorage()
+    async with AsyncSessionLocal() as db:
+        await drain_deletions(db, storage, shared=False)
+        if orphans:
+            candidates = await run_in_thread(lambda: list(local_orphan_candidates(storage)))
+            await queue_orphans(db, storage, candidates)
+            await drain_deletions(db, storage, shared=False)
+        from ..repositories.clip_export_repository import ClipExportRepository
+        from ..services.clip_export_service import sweep_local_export_dirs
+
+        live_ids = await ClipExportRepository.live_ids(db)
+    await run_in_thread(sweep_local_export_dirs, storage, live_ids)
+    await sweep_local_caches(storage)
 
 
 def _finished_local_upload(storage, video_path: str) -> Path | None:
@@ -376,15 +480,19 @@ async def _abort_expired_multipart_uploads(db, storage):
             break
 
 
+async def queue_orphans(db, storage: MediaStorage, candidates) -> None:
+    index = await reference_index(db, storage)
+    for number, (reference, prefix) in enumerate(candidates, start=1):
+        if not await referenced(db, reference, storage, prefix=prefix, index=index):
+            await queue_delete(db, reference, prefix=prefix)
+        if number % 100 == 0:
+            await db.commit()
+    await db.commit()
+
+
 async def sweep_orphaned_media(ctx):
     storage = MediaStorage()
     candidates = await run_in_thread(lambda: list(orphan_candidates(storage)))
     async with AsyncSessionLocal() as db:
-        index = await reference_index(db, storage)
-        for number, (reference, prefix) in enumerate(candidates, start=1):
-            if not await referenced(db, reference, storage, prefix=prefix, index=index):
-                await queue_delete(db, reference, prefix=prefix)
-            if number % 100 == 0:
-                await db.commit()
-        await db.commit()
+        await queue_orphans(db, storage, candidates)
         await drain_deletions(db, storage)
