@@ -34,6 +34,7 @@ services:
       - "127.0.0.1:${FRONTEND_PORT:-3001}:3107"
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/messages:/app/messages
       - ./frontend/public:/app/public
       - ./frontend/prisma:/app/prisma
       - ./CHANGELOG.md:/app/CHANGELOG.md:ro
