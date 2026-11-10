@@ -218,6 +218,53 @@ async def test_worker_does_not_mask_storage_failure_after_geo_sections(pipeline,
     fallback.assert_awaited_once()
 
 
+def _section_failure(kind):
+    from src import youtube_proxy as proxy
+    detail = "Could not fetch the HLS media playlist through the proxy: "
+    return {
+        "refused_playlist": proxy.HlsPlaylistUnavailable(detail + "HTTP Error 404: Not Found"),
+        "unsliceable": proxy.PartialDownloadUnavailable("HLS playlist needs the full-file fallback"),
+        "playlist_transport": proxy.HlsPlaylistTransportError(detail + "Tunnel connection failed: 502"),
+        "deadline": proxy.DownloadDeadlineExceeded("Residential proxy download attempt timed out"),
+        "unknown_playlist": proxy.YouTubeDownloadError(detail + "unexpected"),
+        "bot_check": RuntimeError("Sign in to confirm you're not a bot"),
+    }[kind]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,keeps_proxy", [
+    ("refused_playlist", True),
+    ("unsliceable", True),
+    ("playlist_transport", False),
+    ("deadline", False),
+    ("unknown_playlist", False),
+    ("bot_check", False),
+])
+async def test_full_fallback_keeps_the_proxy_only_after_section_only_failures(
+    pipeline, monkeypatch, kind, keeps_proxy,
+):
+    p = pipeline
+    seen = {}
+
+    def materialize(*_args, **kwargs):
+        seen["budget"] = kwargs["budget"]
+        raise _section_failure(kind)
+
+    full_file = p.source.parent / "full.mp4"
+    full_file.write_bytes(b"full")
+    fallback = AsyncMock(return_value=full_file)
+    monkeypatch.setattr(module, "materialize_clip_source", materialize)
+    monkeypatch.setattr(VideoService, "download_video", fallback)
+
+    result = await p.run()
+
+    assert result["video_path"] == str(full_file)
+    fallback.assert_awaited_once()
+    assert fallback.await_args.kwargs["skip_proxy"] is (not keeps_proxy)
+    # One job budget: the recovered region and the byte limit carry over.
+    assert fallback.await_args.kwargs["budget"] is seen["budget"]
+
+
 @pytest.fixture
 def series(pipeline, monkeypatch):
     p = pipeline
