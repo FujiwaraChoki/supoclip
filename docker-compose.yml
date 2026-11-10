@@ -127,6 +127,9 @@ services:
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
+      # Spool large uploads on the same volume as the final file so the
+      # hardlink path is used instead of a second multi-gigabyte copy.
+      - TMPDIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
       - MEDIA_S3_PREFIX=${MEDIA_S3_PREFIX:-media}
@@ -322,6 +325,9 @@ services:
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
+      # Spool large uploads on the same volume as the final file so the
+      # hardlink path is used instead of a second multi-gigabyte copy.
+      - TMPDIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
       - MEDIA_S3_PREFIX=${MEDIA_S3_PREFIX:-media}
