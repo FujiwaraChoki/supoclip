@@ -1,0 +1,45 @@
+# A video worker on its own machine. Read docs/render-worker.md first.
+#
+# It shares PostgreSQL, Redis and the media bucket with the application host
+# and nothing else: no upload, clip or font volume is mounted from there.
+# Everything under /app/uploads is this machine's own scratch space.
+name: supoclip-render
+services:
+  worker:
+    # The same backend release the API runs. No source bind mount.
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE to the backend release image}
+    platform: linux/amd64
+    # The video worker only. Scheduled jobs stay on the application host.
+    command: [".venv/bin/python", "-m", "src.workers.run_workers"]
+    # Lets the worker reach PostgreSQL and Redis on this host's loopback
+    # (a private tunnel or forward). Use a normal network instead if they are
+    # reachable at a private address.
+    network_mode: host
+    env_file:
+      - path: ${WORKER_ENV_FILE:?Set WORKER_ENV_FILE to the worker's private env file}
+        format: raw
+    environment:
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
+      SUPOCLIP_SERVICE: worker
+      TEMP_DIR: /app/uploads
+      # Required: with local storage a worker can only serve the API from a shared disk.
+      MEDIA_STORAGE: s3
+      DATABASE_URL: ${WORKER_DATABASE_URL:?Set WORKER_DATABASE_URL to the shared PostgreSQL}
+      REDIS_HOST: ${WORKER_REDIS_HOST:-127.0.0.1}
+      REDIS_PORT: ${WORKER_REDIS_PORT:-6379}
+      EMBED_CRON_WORKER: "0"
+    volumes:
+      # Downloads, caches and renders in progress. Safe to lose: anything
+      # durable is in the bucket or the database before a job reports it.
+      - type: bind
+        source: ${WORKER_SCRATCH_PATH:?Set WORKER_SCRATCH_PATH to a directory on the local disk}
+        target: /app/uploads
+    restart: unless-stopped
+    # A render that is cut off is retried by the queue; give running ones time to finish.
+    stop_grace_period: 3h
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
