@@ -373,9 +373,14 @@ async def test_resume_respects_the_gate(
     client, app, db_session, auth_headers, youtube_duration, workflows_for_all, monkeypatch
 ):
     await create_user(db_session, user_id="user-1")
+    # The second generation has to wait until the first leaves the queue: the
+    # same video cannot be submitted twice while one is still queued.
     series = (await create_body(client, auth_headers, workflow="series")).json()["task_id"]
+    await db_session.execute(text("UPDATE tasks SET status = 'error' WHERE id = :id"), {"id": series})
+    await db_session.commit()
     plain = (await create_body(client, auth_headers, workflow="highlights")).json()["task_id"]
-    await db_session.execute(text("UPDATE tasks SET status = 'error' WHERE id IN (:a, :b)"), {"a": series, "b": plain})
+    assert plain != series
+    await db_session.execute(text("UPDATE tasks SET status = 'error' WHERE id = :id"), {"id": plain})
     await db_session.commit()
     enqueue = AsyncMock(return_value="resumed-job")
     monkeypatch.setattr("src.api.routes.tasks.JobQueue.enqueue_processing_job", enqueue)

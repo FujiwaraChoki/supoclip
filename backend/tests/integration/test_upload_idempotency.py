@@ -165,7 +165,7 @@ async def test_idempotency_key_reuses_one_file_and_rejects_a_different_file(
 
 
 @pytest.mark.asyncio
-async def test_task_retry_reuses_the_upload_until_options_change(
+async def test_task_retry_reuses_the_upload_until_the_first_finishes(
     client, app, auth_headers, db_session, tmp_path, monkeypatch,
 ):
     await create_user(db_session, user_id="user-1")
@@ -197,13 +197,33 @@ async def test_task_retry_reuses_the_upload_until_options_change(
     ]
     assert len(added) == 1
 
+    # A different length does not start a second render while the first is queued.
     changed = await client.post(
         "/tasks/",
         headers=auth_headers,
         json={"source": {"url": video_path}, "clip_length": "short"},
     )
     assert changed.status_code == 200, changed.text
-    assert changed.json()["task_id"] != first.json()["task_id"]
+    assert changed.json()["task_id"] == first.json()["task_id"]
+    assert changed.json()["duplicate"] is True
+    added = [
+        job for job in queued[before:]
+        if job["function_name"] == "process_video_task"
+    ]
+    assert len(added) == 1
+
+    await db_session.execute(
+        text("UPDATE tasks SET status = 'completed' WHERE id = :id"),
+        {"id": first.json()["task_id"]},
+    )
+    await db_session.commit()
+    after = await client.post(
+        "/tasks/",
+        headers=auth_headers,
+        json={"source": {"url": video_path}, "clip_length": "short"},
+    )
+    assert after.status_code == 200, after.text
+    assert after.json()["task_id"] != first.json()["task_id"]
     added = [
         job for job in queued[before:]
         if job["function_name"] == "process_video_task"
@@ -237,32 +257,31 @@ async def test_task_retry_dedupe_includes_workflow_topic_and_instructions(
         {"instructions": "Focus on the founders"},
         {"workflow": "series", "workflow_options": {"part_count": 3}},
     ]
-    task_ids = []
-    for variant in variants:
+    first = await client.post("/tasks/", headers=auth_headers, json={"source": source, **variants[0]})
+    assert first.status_code == 200, first.text
+    task_id = first.json()["task_id"]
+    assert first.json()["message"] == "Task created and queued for processing"
+    for variant in variants[1:]:
         response = await client.post("/tasks/", headers=auth_headers, json={"source": source, **variant})
         assert response.status_code == 200, response.text
-        assert response.json()["message"] == "Task created and queued for processing"
-        task_ids.append(response.json()["task_id"])
-    assert len(set(task_ids)) == len(variants)
+        assert response.json()["task_id"] == task_id
+        assert response.json()["duplicate"] is True
 
-    # Retries still match, including spelling differences that normalize away.
-    retries = [
-        ({"workflow": "highlights"}, task_ids[0]),
-        ({"workflow": "topic", "workflow_options": {"topic": "  pricing "}}, task_ids[3]),
-        ({"instructions": "Skip the  sponsor read\n"}, task_ids[5]),
-        ({"workflow": "series", "workflow_options": {"part_count": "3"}}, task_ids[7]),
-        ({"workflow": "series", "workflow_options": {"part_count": "auto", "topic": "ignored"}}, task_ids[1]),
-    ]
-    for variant, task_id in retries:
-        response = await client.post("/tasks/", headers=auth_headers, json={"source": source, **variant})
-        assert response.status_code == 200, response.text
-        assert (response.json()["task_id"], response.json()["message"]) == (task_id, "Task already queued")
-
+    # Once that render is finished, another workflow can start. The request
+    # key stays a hash, so the topic is not stored in it.
+    await db_session.execute(text("UPDATE tasks SET status = 'completed' WHERE id = :id"), {"id": task_id})
+    await db_session.commit()
+    follow = await client.post(
+        "/tasks/",
+        headers=auth_headers,
+        json={"source": source, "workflow": "topic", "workflow_options": {"topic": "pricing"}},
+    )
+    assert follow.status_code == 200, follow.text
+    assert follow.json()["task_id"] != task_id
     stored = (await db_session.execute(text(
         "SELECT source_metadata->>'upload_request_key' FROM tasks WHERE id = ANY(:ids)"
-    ), {"ids": task_ids})).scalars().all()
-    # The key is a hash: topic and instructions never appear in it.
-    assert all(len(key) == 64 and "pricing" not in key for key in stored)
+    ), {"ids": [task_id, follow.json()["task_id"]]})).scalars().all()
+    assert all(key and len(key) == 64 and "pricing" not in key for key in stored)
 
 
 @pytest.mark.asyncio

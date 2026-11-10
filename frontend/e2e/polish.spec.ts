@@ -54,6 +54,17 @@ test("full-frame framing can be selected and submitted on mobile", async ({ page
 });
 
 
+test("a duplicate submission opens the generation already in progress", async ({ page }) => {
+  await page.route("**/api/tasks/one", route => route.fulfill({ json: { ...generation, status: "processing", clips_count: 0 } }));
+  await page.route("**/api/tasks/one/clips", route => route.fulfill({ json: { clips: [] } }));
+  await page.route("**/api/tasks/one/progress", route => route.fulfill({ status: 503 }));
+  await page.goto("/tasks/one?already=1");
+  await expect(page.getByText("This video is already being processed.")).toBeVisible();
+  await page.screenshot({ path: "test-results/already-processing.png" });
+  await page.goto("/tasks/one");
+  await expect(page.getByText("This video is already being processed.")).toHaveCount(0);
+});
+
 test("results send editing to the selected clip and expose one status badge", async ({ page }) => {
   await page.goto("/tasks/one");
   await expect(page.getByRole("heading", { name: generation.source_title })).toBeVisible();

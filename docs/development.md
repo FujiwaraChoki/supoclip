@@ -57,7 +57,7 @@ Run the worker separately:
 ```bash
 cd backend
 source .venv/bin/activate
-arq src.workers.tasks.WorkerSettings
+python -m src.workers.run_workers
 ```
 
 ## Frontend Development Notes

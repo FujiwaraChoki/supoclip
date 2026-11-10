@@ -11,7 +11,8 @@ import { getClipUrl, requestAction, EXPORT_PRESETS } from "@/lib/clip-actions";
 import { clipExportFilePath, pollClipExport, triggerFileDownload } from "@/lib/clip-export";
 import { downloadAllClips } from "@/lib/clip-archive";
 import { trackClipExport } from "@/lib/clip-export-tracking";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { taskPathFromCreate } from "@/lib/task-create";
 import { Button } from "@/components/ui/button";
 import { PageLoading, PageError } from "@/components/app/page-state";
 import { Input } from "@/components/ui/input";
@@ -187,6 +188,8 @@ export default function TaskPage() {
   const copyText = useCopyText();
   const locale = useLocale();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const alreadyProcessing = searchParams.get("already") === "1";
   const router = useRouter();
   const { data: session } = useSession();
   const [task, setTask] = useState<TaskDetails | null>(null);
@@ -705,9 +708,9 @@ export default function TaskPage() {
         }
         throw new Error(formatSupportMessage(info));
       }
-      const created = (await response.json()) as { task_id?: string };
+      const created = (await response.json()) as { task_id?: string; duplicate?: boolean; code?: string };
       if (!created.task_id) throw new Error(t("errors.createTask"));
-      window.location.href = `/tasks/${created.task_id}`;
+      window.location.href = taskPathFromCreate(created);
     });
   };
 
@@ -986,6 +989,9 @@ export default function TaskPage() {
       )}
 
       <div className="mt-8">
+        {alreadyProcessing && task && (task.status === "queued" || task.status === "processing") && (
+          <p role="status" className="mb-4 text-sm text-muted-foreground">{t("alreadyProcessing")}</p>
+        )}
         {reconnecting && <p role="status" className="mb-4 text-sm text-muted-foreground">{readOnly ? t("reconnectingOther") : t("reconnectingOwn")}</p>}
 
         {isActive && task ? (

@@ -15,6 +15,7 @@
     "downloadAll": "Não foi possível baixar os clipes. Tente novamente.",
     "createTask": "Não foi possível iniciar a nova geração"
   },
+  "alreadyProcessing": "Este vídeo já está sendo processado.",
   "toasts": {
     "settingsApplied": "Configurações da geração aplicadas",
     "cancelled": "Geração cancelada",

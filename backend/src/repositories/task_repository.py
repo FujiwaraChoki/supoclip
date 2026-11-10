@@ -185,6 +185,54 @@ class TaskRepository:
         return result.first()
 
     @staticmethod
+    async def find_active_source_task(db: AsyncSession, user_id: str, source_key: str):
+        """This account's queued or processing task for the same video, if any.
+
+        Tasks created before ``source_key`` was stored are matched by
+        recomputing the key from the saved source URL.
+        """
+        if not user_id or not source_key:
+            return None
+        direct = await db.execute(
+            text(
+                """
+                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id
+                FROM tasks t
+                WHERE t.user_id = :user
+                  AND t.status IN ('queued', 'processing')
+                  AND t.source_metadata->>'source_key' = :key
+                ORDER BY t.created_at ASC
+                LIMIT 1
+                """
+            ),
+            {"user": user_id, "key": source_key},
+        )
+        found = direct.first()
+        if found is not None:
+            return found
+
+        from ..source_identity import source_key_for_url
+
+        rows = await db.execute(
+            text(
+                """
+                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id, s.url AS source_url
+                FROM tasks t
+                JOIN sources s ON s.id = t.source_id
+                WHERE t.user_id = :user
+                  AND t.status IN ('queued', 'processing')
+                  AND COALESCE(t.source_metadata->>'source_key', '') = ''
+                ORDER BY t.created_at ASC
+                """
+            ),
+            {"user": user_id},
+        )
+        for row in rows:
+            if await source_key_for_url(db, user_id, row.source_url or "") == source_key:
+                return row
+        return None
+
+    @staticmethod
     async def get_task_by_id(
         db: AsyncSession, task_id: str
     ) -> Optional[Dict[str, Any]]:

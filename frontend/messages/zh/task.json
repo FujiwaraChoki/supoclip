@@ -15,6 +15,7 @@
     "downloadAll": "无法下载片段，请重试。",
     "createTask": "无法开始新的生成"
   },
+  "alreadyProcessing": "这个视频正在处理。",
   "toasts": {
     "settingsApplied": "已应用生成设置",
     "cancelled": "已取消生成",

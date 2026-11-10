@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "task-1" }),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: { user: { id: "user-1" } }, isPending: false }),

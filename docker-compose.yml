@@ -301,7 +301,10 @@ services:
     container_name: supoclip-worker
     # Same platform override as the backend service.
     platform: "${BACKEND_PLATFORM:-linux/amd64}"
-    command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
+    # Starts the video worker and, unless EMBED_CRON_WORKER=0, the cron worker.
+    # `docker compose up --no-build` of backend, worker, and frontend keeps
+    # scheduled jobs running without a separate service.
+    command: [".venv/bin/python", "-m", "src.workers.run_workers"]
     volumes:
       - ./backend/src:/app/src
       - uploads:/app/uploads
@@ -435,6 +438,11 @@ services:
       - WORKFLOW_TOPIC_MAX_CLIPS=${WORKFLOW_TOPIC_MAX_CLIPS:-15}
       - WORKFLOW_PLAN_TIMEOUT_SECONDS=${WORKFLOW_PLAN_TIMEOUT_SECONDS:-1800}
       - WORKFLOW_FULL_CONTEXT_MAX_WORDS=${WORKFLOW_FULL_CONTEXT_MAX_WORDS:-}
+      - VIDEO_JOB_USER_CONCURRENCY=${VIDEO_JOB_USER_CONCURRENCY:-1}
+      - VIDEO_JOB_DEFER_SECONDS=${VIDEO_JOB_DEFER_SECONDS:-20}
+      - QUEUE_DELAY_ALERT_SECONDS=${QUEUE_DELAY_ALERT_SECONDS:-600}
+      - QUEUE_DELAY_ALERT_INTERVAL_SECONDS=${QUEUE_DELAY_ALERT_INTERVAL_SECONDS:-900}
+      - EMBED_CRON_WORKER=${EMBED_CRON_WORKER:-1}
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -448,6 +456,41 @@ services:
 
     healthcheck:
       test: ["CMD", ".venv/bin/arq", "--check", "src.workers.tasks.WorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional split of the cron process. Not started by a normal `up`.
+  # The worker service already runs it (EMBED_CRON_WORKER=1). To use this
+  # service instead: COMPOSE_PROFILES=cron and EMBED_CRON_WORKER=0.
+  # It uses the same backend image build as the worker. A deploy that only
+  # loads prebuilt backend/worker/frontend images does not need this service.
+  cron-worker:
+    profiles: ["cron"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_CPU_ONLY: ${BACKEND_CPU_ONLY:-false}
+    container_name: supoclip-cron-worker
+    platform: "${BACKEND_PLATFORM:-linux/amd64}"
+    command: [".venv/bin/arq", "src.workers.cron_worker.CronWorkerSettings"]
+    volumes:
+      - ./backend/src:/app/src
+      - uploads:/app/uploads
+      - clips:/app/clips
+      - ./backend/fonts:/app/fonts
+      - ./backend/transitions:/app/transitions
+    environment: *worker-environment
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", ".venv/bin/arq", "--check", "src.workers.cron_worker.CronWorkerSettings"]
       interval: 30s
       timeout: 10s
       retries: 3

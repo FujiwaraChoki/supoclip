@@ -20,7 +20,7 @@ Local app commands:
 - `cd frontend && pnpm run build && pnpm run start`: production build + serve.
 - `cd frontend && pnpm run lint`: run ESLint.
 - `cd backend && uv sync && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000`: run API locally.
-- `cd backend && .venv/bin/arq src.workers.tasks.WorkerSettings`: run the worker.
+- `cd backend && .venv/bin/python -m src.workers.run_workers`: run the video worker and the cron worker.
 
 ## Coding Style & Naming Conventions
 - Python: 4-space indentation, type hints where practical, `snake_case` for functions/modules.

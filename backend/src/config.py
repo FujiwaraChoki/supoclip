@@ -165,6 +165,25 @@ class Config:
         self.processing_task_timeout_seconds = int(
             os.getenv("PROCESSING_TASK_TIMEOUT_SECONDS", "14400")
         )
+        # One account can hold at most this many video renders at once. The
+        # worker has a handful of CPU slots, and one render can run for hours,
+        # so the default is 1: a second video from the same account waits
+        # instead of taking another slot. Raise it (for example to 2) to let
+        # an account render two videos at the same time.
+        self.video_job_user_concurrency = max(
+            1, self._get_int_env("VIDEO_JOB_USER_CONCURRENCY", 1)
+        )
+        self.video_job_defer_seconds = min(
+            300, max(5, self._get_int_env("VIDEO_JOB_DEFER_SECONDS", 20))
+        )
+        # Pickup delay (enqueue until a worker starts the job) that raises a
+        # PostHog exception. Rate-limited so a backed-up queue pages once.
+        self.queue_delay_alert_seconds = max(
+            1, self._get_int_env("QUEUE_DELAY_ALERT_SECONDS", 600)
+        )
+        self.queue_delay_alert_interval_seconds = max(
+            1, self._get_int_env("QUEUE_DELAY_ALERT_INTERVAL_SECONDS", 900)
+        )
 
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
