@@ -47,6 +47,7 @@ from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url
 from ...youtube_proxy import YouTubeGeoRestrictedError
+from ...media.transcription import NO_SPEECH_MESSAGE, NoSpeechDetectedError
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
     StreamSourceError,
@@ -1599,6 +1600,12 @@ async def resume_task(
                 raise HTTPException(
                     status_code=400,
                     detail="Only cancelled/error/queued tasks can be retried",
+                )
+            if task.get("status") == "error" and task.get("error_code") == NoSpeechDetectedError.error_code:
+                # The same file gives the same transcript; another run only bills a transcription.
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "NO_SPEECH", "message": NO_SPEECH_MESSAGE},
                 )
             # The rollout gate holds for resumes too: switching it off (or
             # leaving the allowlist) stops a workflow task from running again.

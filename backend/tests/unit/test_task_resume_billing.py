@@ -153,3 +153,26 @@ async def test_resume_preserves_original_clip_length(resume_context):
     tasks._load_task_source_metadata.return_value = {"clip_length": "long"}
     await tasks.resume_task("task-1", SimpleNamespace(), db=None)
     assert queue.await_args.args[-1] == "long"
+
+
+@pytest.mark.asyncio
+async def test_no_speech_failure_is_not_resubmitted_unchanged(resume_context):
+    task, repo, billing_guard, queue, redis = resume_context
+    task["error_code"] = "no_speech"
+    with pytest.raises(HTTPException) as error:
+        await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "NO_SPEECH"
+    billing_guard.assert_not_awaited()
+    repo.update_task_status.assert_not_awaited()
+    redis.delete.assert_not_awaited()
+    queue.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generic_transcription_failure_can_still_be_retried(resume_context):
+    task, _repo, _billing_guard, queue, _redis = resume_context
+    task["error_code"] = "transcription_error"
+    result = await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    assert result["job_id"] == "job-1"
+    queue.assert_awaited_once()

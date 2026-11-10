@@ -857,3 +857,36 @@ def test_download_errors_keep_their_wording():
 
     assert user_facing_error(StreamSourceError("This VOD is private")) == "This VOD is private"
     assert user_facing_error(YouTubeGeoRestrictedError()) == str(YouTubeGeoRestrictedError())
+
+
+@pytest.mark.asyncio
+async def test_no_speech_has_its_own_task_error_and_actionable_message():
+    from src.media.transcription import NO_SPEECH_MESSAGE, NoSpeechDetectedError
+
+    service = build_task_service()
+    service.video_service.process_video_complete.side_effect = NoSpeechDetectedError()
+    progress = AsyncMock()
+
+    with pytest.raises(NoSpeechDetectedError):
+        await service.process_task(
+            task_id="task-1", url="/uploads/music.mp4",
+            source_type="upload", user_id="user-1", progress_callback=progress,
+        )
+
+    assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "no_speech"
+    assert service.task_repo.update_task_status.await_args.kwargs["progress_message"] == NO_SPEECH_MESSAGE
+    assert progress.await_args.args == (0, NO_SPEECH_MESSAGE, "error")
+
+
+@pytest.mark.asyncio
+async def test_generic_transcription_failure_keeps_transcription_error_code():
+    service = build_task_service()
+    service.video_service.process_video_complete.side_effect = Exception("Transcription failed: Internal server error")
+
+    with pytest.raises(Exception):
+        await service.process_task(
+            task_id="task-1", url="/uploads/talk.mp4",
+            source_type="upload", user_id="user-1", progress_callback=AsyncMock(),
+        )
+
+    assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "transcription_error"

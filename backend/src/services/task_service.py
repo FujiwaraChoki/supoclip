@@ -44,6 +44,7 @@ from ..clip_duration import clip_duration, validate_clip_length
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings, normalize_source_ranges, source_range_bounds
 from ..media.timeline import seconds_to_mmss
+from ..media.transcription import NoSpeechDetectedError
 from ..workflows.boundaries import cleanup_key
 from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_from_task
 from ..workflows.errors import WorkflowError
@@ -1000,6 +1001,8 @@ class TaskService(ClipEditingMixin):
                 error_code = e.code
             elif isinstance(e, YouTubeGeoRestrictedError):
                 error_code = "youtube_geo_restricted"
+            elif isinstance(e, NoSpeechDetectedError):
+                error_code = NoSpeechDetectedError.error_code
             elif "download" in message or "youtube" in message:
                 error_code = "download_error"
             elif "analysis" in message:

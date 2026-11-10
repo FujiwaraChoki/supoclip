@@ -231,6 +231,18 @@ describe("task page workflows", () => {
     expect(screen.getByRole("heading", { name: "Chapter 1" })).toBeInTheDocument();
   });
 
+  it("offers no retry when the video has no speech", async () => {
+    serve(task({ status: "error", error_code: "transcription_error" }), []);
+    const { unmount } = renderPage();
+    expect(await screen.findByRole("button", { name: "Retry generation" })).toBeInTheDocument();
+    unmount();
+
+    serve(task({ status: "error", error_code: "no_speech" }), []);
+    renderPage();
+    expect((await screen.findAllByText("Founder interview")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Retry generation" })).not.toBeInTheDocument();
+  });
+
   it("drops parts the server deleted when a series fails", async () => {
     const parts = [1, 2].map((n) => clip(n, { workflow_role: "part", part_number: n }));
     serve(task({ status: "processing", workflow: "series" }), parts);
