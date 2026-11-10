@@ -270,19 +270,21 @@ def create_app(
     @app.get("/health/storage")
     async def check_storage_health():
         """Read cached worker probes; public requests never perform writes."""
-        import json
-        from pathlib import Path
+        from .media_replication_ledger import read_storage_health
 
         config = get_config()
         if not getattr(config, "media_fallback_enabled", False):
             return {"status": "unmonitored", "replication": "disabled"}
         try:
-            report = json.loads((Path(config.temp_dir) / "media-replication" / "health.json").read_text())
+            # The probe runs on the cron host; the report is in PostgreSQL so any API host can answer.
+            async with AsyncSessionLocal() as session:
+                report = await read_storage_health(session)
             if time.time() - report["checked_at"] > 180:
                 report = {"status": "unhealthy", "reason": "stale_probe"}
-        except (OSError, ValueError, KeyError):
+        except Exception:
+            # A missing or malformed report and an unreachable database look the same to a monitor.
             report = {"status": "unhealthy", "reason": "probe_unavailable"}
-        return JSONResponse(status_code=200 if report["status"] == "healthy" else 503, content=report,
+        return JSONResponse(status_code=200 if report.get("status") == "healthy" else 503, content=report,
                             headers={"Cache-Control": "no-store"})
 
     return app
