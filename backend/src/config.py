@@ -55,6 +55,12 @@ class Config:
         self.youtube_metadata_provider = self._normalize_youtube_metadata_provider(
             os.getenv("YOUTUBE_METADATA_PROVIDER", "yt_dlp")
         )
+        # When the configured metadata provider fails, the other one is tried.
+        # Set false to use only the configured provider: a GOOGLE_API_KEY
+        # without YouTube Data API access makes every fallback a 401.
+        self.youtube_metadata_fallback = self._get_bool_env(
+            "YOUTUBE_METADATA_FALLBACK", True
+        )
         # Task creation waits this long for YouTube length metadata. 30s matches
         # the Twitch/Kick preflight deadline and covers yt-dlp's deno step when
         # the backend runs under amd64 emulation.
