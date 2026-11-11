@@ -91,6 +91,18 @@ class StreamTooLongError(StreamSourceError):
     """The source is longer than the plan allows; nothing more is downloaded."""
 
 
+class StreamDurationUnavailableError(StreamSourceError):
+    """A provider answered but reported no length (0 or missing).
+
+    Kept apart from network/provider failures: an in-progress livestream VOD
+    looks like this, so the caller can say so without claiming it is live.
+    """
+
+
+class _NoDuration(RuntimeError):
+    pass
+
+
 class ProviderSkipped(RuntimeError):
     """A provider is not configured or does not support this URL."""
 
@@ -576,6 +588,7 @@ def fetch_stream_info(url: str, *, deadline_seconds: float = PREFLIGHT_DEADLINE_
     source, _kind, source_id = detect_stream_source(url)
     deadline = time.monotonic() + deadline_seconds
     failures: list[str] = []
+    no_duration = False
     for provider in _provider_order(source):
         if provider in APIFY_PROVIDERS and (not allow_actors or provider not in PREFLIGHT_ACTORS):
             continue
@@ -590,8 +603,8 @@ def fetch_stream_info(url: str, *, deadline_seconds: float = PREFLIGHT_DEADLINE_
             else:
                 info = _extract(url, provider, session=f"preflight{source_id}", deadline=deadline)
             duration = _number(info.get("duration"))
-            if not duration:
-                raise RuntimeError("provider returned no duration")
+            if not duration or duration <= 0:
+                raise _NoDuration("provider returned no duration")
             result = {"id": source_id, "title": info.get("title"), "duration": duration, "provider": provider}
             if provider in APIFY_PROVIDERS:
                 result["media_url"] = info["media_url"]
@@ -603,9 +616,12 @@ def fetch_stream_info(url: str, *, deadline_seconds: float = PREFLIGHT_DEADLINE_
         except Exception as exc:
             if provider in YTDLP_PROVIDERS and _is_private_error(exc):
                 raise StreamSourceError(PRIVATE_VOD_MESSAGE) from exc
+            no_duration = no_duration or isinstance(exc, _NoDuration)
             failures.append(f"{provider}: {_redact(exc)}")
             logger.warning("Stream metadata provider failed provider=%s source=%s: %s", provider, source, _redact(exc))
     logger.error("All stream metadata providers failed source=%s failures=%s", source, "; ".join(failures))
+    if no_duration:
+        raise StreamDurationUnavailableError(FETCH_FAILED_MESSAGE)
     raise StreamSourceError(FETCH_FAILED_MESSAGE)
 
 
