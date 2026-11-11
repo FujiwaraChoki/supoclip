@@ -245,8 +245,13 @@ provider becomes unavailable mid-upload.
 The worker retries pending replicas every minute and probes both stores every
 minute with an upload, read, signed browser-style GET and deletion. The public
 `GET /health/storage` endpoint reads the cached result, performs no writes, and
-returns 503 for a failed provider, pending replication, or a probe older than
-three minutes. It remains separate from liveness so a provider outage doesn't
+returns 503 for a failed provider, a replica pending for five minutes or more, or
+a probe older than three minutes. Younger pending replicas are normal: every
+write is pending while its second upload runs, and a completed browser upload
+waits up to a minute for the next retry batch. The report still lists them under
+`replication`, with `grace_seconds`. A newer revision or a retried copy keeps
+the time the object first fell out of sync, so a replica that keeps failing
+cannot look new. It remains separate from liveness so a provider outage doesn't
 cause pointless container restarts. Monitor this endpoint externally; the worker
 also logs degraded results. A healthy web/Redis/database check alone does not
 prove that video delivery works.

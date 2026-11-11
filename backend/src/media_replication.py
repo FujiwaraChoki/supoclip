@@ -30,6 +30,12 @@ logger = logging.getLogger(__name__)
 ERRORS = (Boto3Error, BotoCoreError, ClientError, OSError)
 TRANSFER = TransferConfig(max_concurrency=2, multipart_chunksize=64 * 1024 * 1024)
 MISSING = {"404", "NoSuchKey", "NotFound"}
+# Health tolerates a replica this young. Every write is pending while its
+# second upload runs, and a completed browser upload waits for the next
+# minute's retry batch (up to ~60s, then a 45s batch budget plus transfer).
+# Five minutes covers those plus a retry; a stuck replica still turns the
+# check red within one more probe. Failed provider probes are never tolerated.
+REPLICATION_GRACE_SECONDS = 300
 
 
 def sha256_file(path: Path) -> str:
@@ -65,6 +71,14 @@ class ReplicatedMediaClient:
             fcntl.flock(lock, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
             yield directory
 
+    @staticmethod
+    def _pending_since(directory):
+        """When this key fell out of sync; a newer revision must not reset it."""
+        try:
+            return json.loads((directory / "pending.json").read_text())["created_at"]
+        except (OSError, ValueError, KeyError, TypeError):
+            return time.time()
+
     def _save(self, directory, manifest):
         temporary = directory / (uuid.uuid4().hex + ".manifest")
         try:
@@ -89,6 +103,7 @@ class ReplicatedMediaClient:
         if not adopt and shutil.disk_usage(self.root).free < path.stat().st_size + 256 * 1024 * 1024:
             raise OSError("Insufficient disk space for durable media replication")
         temporary = path if adopt else directory / (uuid.uuid4().hex + ".part")
+        since = self._pending_since(directory)
         try:
             if adopt:
                 with temporary.open("rb") as stream:
@@ -106,7 +121,7 @@ class ReplicatedMediaClient:
             manifest = {"operation": "upload", "key": key, "payload": payload.name,
                         "size": payload.stat().st_size, "sha256": digest,
                         "extra": extra, "pending": list(self.stores) if pending is None else list(pending),
-                        "created_at": time.time()}
+                        "created_at": since}
             self._save(directory, manifest)
             self._prune_payloads(directory, keep=payload.name)
             return manifest
@@ -277,13 +292,15 @@ class ReplicatedMediaClient:
             result = self._multipart("complete_multipart_upload", **kwargs)
             source, _ = self._upload_identity(kwargs["UploadId"])
             self._save(directory, {"operation": "copy", "key": kwargs["Key"], "source": source,
-                                   "pending": [n for n in self.stores if n != source], "created_at": time.time()})
+                                   "pending": [n for n in self.stores if n != source],
+                                   "created_at": self._pending_since(directory)})
             return result
 
     def delete_object(self, *, Bucket, Key):
         self._scope(Bucket)
         with self._locked(Key) as directory:
-            manifest = {"operation": "delete", "key": Key, "pending": list(self.stores), "created_at": time.time()}
+            manifest = {"operation": "delete", "key": Key, "pending": list(self.stores),
+                        "created_at": self._pending_since(directory)}
             self._save(directory, manifest)
             self._prune_payloads(directory)
             _, error = self._apply(directory, manifest)
@@ -486,7 +503,9 @@ class ReplicatedMediaClient:
                     results[name] = {"status": "unhealthy", "error": "canary_cleanup_failed"}
         pending = self.pending_status()
         healthy = sum(r["status"] == "healthy" for r in results.values())
-        status = "healthy" if healthy == 2 and not pending["pending"] else "degraded" if healthy else "unhealthy"
-        report = {"status": status, "checked_at": time.time(), "providers": results, "replication": pending}
+        backlog = pending["oldest_pending_seconds"] >= REPLICATION_GRACE_SECONDS
+        status = "healthy" if healthy == 2 and not backlog else "degraded" if healthy else "unhealthy"
+        report = {"status": status, "checked_at": time.time(), "providers": results,
+                  "replication": {**pending, "grace_seconds": REPLICATION_GRACE_SECONDS}}
         atomic_json(self.root / "health.json", report)
         return report

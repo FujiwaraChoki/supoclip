@@ -376,3 +376,73 @@ def test_health_probes_signed_delivery_and_reports_partial_failure(mirrored, mon
     assert report["status"] == "degraded"
     assert report["providers"]["fallback"]["status"] == "healthy"
     assert "credentials" not in json.dumps(report)
+
+
+@pytest.fixture
+def probe(mirrored, monkeypatch):
+    from src import media_replication
+    primary, fallback = stores(mirrored)
+    def fetch(request, timeout):
+        store = primary if "aws.example" in request.full_url else fallback
+        return Body(store.objects[request.full_url.split("/", 4)[4]])
+    monkeypatch.setattr(media_replication, "urlopen", fetch)
+    return lambda: mirrored.health_check("media")
+
+
+def backdate_pending(client, seconds):
+    for path in client.root.glob("*/pending.json"):
+        manifest = json.loads(path.read_text())
+        manifest["created_at"] = time.time() - seconds
+        path.write_text(json.dumps(manifest))
+
+
+def test_in_flight_replica_does_not_fail_health_when_both_stores_work(mirrored, probe):
+    # A completed browser upload waits for the next retry batch: production saw
+    # 0-74s of this with both providers healthy, which used to return 503.
+    mirrored.complete_multipart_upload(Bucket="original", Key="media/sources/video.mp4", UploadId="upload-1")
+    backdate_pending(mirrored, 74)
+    report = probe()
+    assert report["status"] == "healthy"
+    assert report["replication"]["pending"] == 1
+    assert report["replication"]["grace_seconds"] == 300
+
+
+@pytest.mark.parametrize("age", [300, 3600])
+def test_replication_backlog_past_grace_still_degrades_health(mirrored, probe, age):
+    mirrored.complete_multipart_upload(Bucket="original", Key="media/sources/video.mp4", UploadId="upload-1")
+    backdate_pending(mirrored, age)
+    report = probe()
+    assert report["status"] == "degraded"
+    assert report["replication"]["oldest_pending_seconds"] >= 300
+
+
+def test_failed_provider_is_not_hidden_by_replication_grace(mirrored, probe):
+    primary, fallback = stores(mirrored)
+    fallback.failure = "InvalidAccessKeyId"
+    assert probe()["status"] == "degraded"
+    primary.failure = "InvalidAccessKeyId"
+    assert probe()["status"] == "unhealthy"
+
+
+def test_new_revisions_do_not_reset_a_stuck_replica_age(mirrored, tmp_path, probe):
+    # An editor draft saved every few seconds while R2 rejects writes must not
+    # look freshly pending forever.
+    stores(mirrored)[1].failure = "SlowDown"
+    upload(mirrored, tmp_path, b"v1")
+    backdate_pending(mirrored, 600)
+    upload(mirrored, tmp_path, b"v2")
+    assert mirrored.pending_status()["oldest_pending_seconds"] >= 600
+    stores(mirrored)[1].failure = None
+    assert probe()["status"] == "degraded"
+    mirrored.sync_pending()
+    assert probe()["status"] == "healthy"
+
+
+def test_mirroring_a_browser_upload_keeps_its_original_pending_age(mirrored):
+    mirrored.complete_multipart_upload(Bucket="original", Key="media/sources/video.mp4", UploadId="upload-1")
+    backdate_pending(mirrored, 600)
+    stores(mirrored)[1].failure = "SlowDown"
+    mirrored.sync_pending()
+    manifest = json.loads(next(mirrored.root.glob("*/pending.json")).read_text())
+    assert manifest["operation"] == "upload"
+    assert mirrored.pending_status()["oldest_pending_seconds"] >= 600
