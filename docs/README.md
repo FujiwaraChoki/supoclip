@@ -17,6 +17,9 @@ If you are new to the project, start here:
   - Local development commands
   - First-run checklist
   - Production-minded setup notes
+- [Video workers on other machines](./render-worker.md)
+  - What is shared (PostgreSQL, Redis, the bucket) and what is local scratch
+  - Worker-only Compose file and checks
 - [Configuration](./configuration.md)
   - Required API keys
   - DataFast analytics settings

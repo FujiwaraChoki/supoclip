@@ -132,13 +132,24 @@ async def admit_video_job(ctx, db, *, task_id: str, user_id: str, job_args: tupl
     if acquired:
         return "run"
 
+    await defer_video_job(db, task_id, job_args, config.video_job_defer_seconds)
+    logger.info(
+        "Deferred video task %s for %ss; account is at the concurrency cap",
+        task_id,
+        config.video_job_defer_seconds,
+    )
+    return "deferred"
+
+
+async def defer_video_job(db, task_id: str, job_args: tuple, seconds: int) -> None:
+    """Queue one later attempt of this job. The current attempt must then return."""
     new_job_id = f"{task_id}:{secrets.token_hex(16)}"
     await JobQueue.enqueue_job(
         "process_video_task",
         *job_args,
         _job_id=new_job_id,
         _queue_name=DEFAULT_QUEUE_NAME,
-        _defer_by=config.video_job_defer_seconds,
+        _defer_by=seconds,
     )
     try:
         await TaskRepository.save_source_metadata(
@@ -149,9 +160,42 @@ async def admit_video_job(ctx, db, *, task_id: str, user_id: str, job_args: tupl
         # failed save retries the current one instead of running twice.
         await _drop_job(new_job_id)
         raise
-    logger.info(
-        "Deferred video task %s for %ss; account is at the concurrency cap",
-        task_id,
-        config.video_job_defer_seconds,
-    )
+
+
+UPLOAD_WAIT_KEY = "upload_wait:{task_id}"
+UPLOAD_WAIT_MESSAGE = "Saving your upload..."
+UPLOAD_LOST_MESSAGE = "The uploaded video could not be saved. Upload it again to retry."
+
+
+async def hold_for_upload(ctx, db, *, task_id: str, user_id: str, url: str, job_args: tuple) -> str:
+    """Return ``run``, ``deferred``, or ``failed`` for a job whose source is an upload.
+
+    An upload is written to the API's disk first and copied to object storage
+    afterwards. A worker on another machine can only read that copy. Until it
+    exists the job goes back on the queue, without holding a worker slot or
+    the account's render slot. A copy that never arrives fails the task, which
+    releases its minutes.
+    """
+    import time
+
+    from ..media.upload_ingest import upload_copy_pending
+
+    if not url.startswith("upload://") or not await upload_copy_pending(url):
+        return "run"
+    redis = ctx["redis"]
+    config = get_config()
+    key = UPLOAD_WAIT_KEY.format(task_id=task_id)
+    await redis.set(key, str(time.time()), nx=True, ex=24 * 60 * 60)
+    started = float(_decode(await redis.get(key) or time.time()))
+    await release_video_slot(redis, user_id, task_id)
+    if time.time() - started > config.upload_copy_wait_seconds:
+        logger.error("Upload for task %s never reached object storage", task_id)
+        await TaskRepository.update_task_status(
+            db, task_id, "error", progress=0, progress_message=UPLOAD_LOST_MESSAGE,
+            expected_statuses=["queued", "processing"],
+        )
+        await redis.delete(key)
+        return "failed"
+    await defer_video_job(db, task_id, job_args, config.video_job_defer_seconds)
+    logger.info("Deferred video task %s; its upload is still being copied to object storage", task_id)
     return "deferred"

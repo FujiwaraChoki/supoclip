@@ -2,7 +2,6 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-import json
 import subprocess
 import uuid
 
@@ -12,7 +11,9 @@ from sqlalchemy import text
 from src.editor_document import atomic_json, editor_dir
 from src.media_storage import MediaStorage
 from src.repositories.clip_repository import ClipRepository
-from src.services.editor_service import prepare_editor, combine_editor, read_state
+from src.editor_state import editor_key, get_store
+from src.services.editor_service import prepare_editor, combine_editor
+from tests.fixtures.editor_store import stored_state
 from src.workers.media_cleanup import drain_deletions, reference_index, referenced
 from tests.fixtures.factories import create_user, create_source, create_task
 from tests.integration.test_media_deletion_transactions import media_backend
@@ -158,14 +159,14 @@ async def test_failed_combine_queues_staged_objects_and_uploads_outside_edit_loc
         clip_id = await ClipRepository.create_clip(db_session, task['id'], f'clip-{number}.mp4', str(source_path), '00:00', '00:01', 1, 'hello', 0, '', number)
         await db_session.commit()
         await prepare_editor({}, task['id'], clip_id, f'clip-{number}.mp4')
-        state = read_state(editor_dir(storage.config.temp_dir, task['id'], clip_id, f'clip-{number}.mp4'))
+        state = await stored_state(task['id'], clip_id, f'clip-{number}.mp4')
         assert state['status'] == 'ready'
         entries.append({'id': clip_id, 'filename': f'clip-{number}.mp4', 'document': state['draft']['document'],
                         'state': {k: state[k] for k in ('width', 'height', 'hasAudio')}, 'ranges': [[0, 1]]})
     directory = editor_dir(storage.config.temp_dir, task['id'], entries[0]['id'], entries[0]['filename'])
     job = uuid.uuid4().hex
-    atomic_json(directory / f'request-{job}.json', {'inputs': entries})
-    atomic_json(directory / f'job-{job}.json', {'status': 'queued'})
+    key = editor_key(task['id'], entries[0]['id'], entries[0]['filename'])
+    assert await get_store().create_job(key, job, 'combine', {'inputs': entries})
     inside = False
     @asynccontextmanager
     async def observed_transaction(*args, **kwargs):
@@ -186,7 +187,10 @@ async def test_failed_combine_queues_staged_objects_and_uploads_outside_edit_loc
         raise RuntimeError('Injected pre-commit failure')
     monkeypatch.setattr(ClipRepository, 'reorder_task_clips', fail_commit)
     await combine_editor({}, task['id'], entries[0]['id'], entries[0]['filename'], job)
-    assert json.loads((directory / f'job-{job}.json').read_text())['status'] == 'failed'
+    assert (await get_store().job(key, job))['status'] == 'failed'
+    # The half-built clip's editing session does not outlive the failed combine.
+    sessions = (await db_session.execute(text('SELECT COUNT(*) FROM editor_sessions WHERE task_id = :task'), {'task': task['id']})).scalar()
+    assert sessions == 2
     assert len(await ClipRepository.get_clips_by_task(db_session, task['id'])) == 2
     await drain_deletions(db_session, storage)
     assert not (directory / f'export-{job}.mp4').exists()

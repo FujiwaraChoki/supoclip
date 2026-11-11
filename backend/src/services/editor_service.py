@@ -1,11 +1,19 @@
-"""Background preparation and rendering for the clip studio."""
+"""Background preparation and rendering for the clip studio.
 
+A job may run on any worker. It reads its session and request from the
+database, fetches media from object storage into this machine's scratch
+directory, and publishes what it renders before reporting it.
+"""
+
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 import functools
 import json
 import logging
 import re
 import subprocess
+import threading
 import uuid
 from typing import get_args
 
@@ -15,8 +23,13 @@ from ..editor_document import (
     EditDocument,
     atomic_json,
     editor_dir,
-    editor_lock,
     render_document,
+)
+from ..editor_state import (
+    PREPARE_HEARTBEAT_SECONDS,
+    editor_key,
+    ensure_session,
+    get_store,
 )
 from ..utils.async_helpers import run_in_thread
 from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
@@ -73,17 +86,6 @@ def youtube_download_failure(errors: list[str]) -> str:
     if "http error 429" in text or "too many requests" in text:
         return f"{lead}: YouTube is rate limiting this server. Retry later."
     return f"{lead}. Retry later."
-
-
-def read_state(directory: Path):
-    path = directory / "asset.json"
-    if not path.exists():
-        return {"status": "unprepared"}
-    state = json.loads(path.read_text())
-    if state.get("status") == "ready":
-        state["draft"] = json.loads((directory / "draft.json").read_text())
-        state["original"] = json.loads((directory / "original.json").read_text())
-    return state
 
 
 def make_assets(directory: Path):
@@ -462,6 +464,92 @@ def caption_looks() -> dict:
     return looks
 
 
+@asynccontextmanager
+async def _prepare_heartbeat(key: str):
+    """Keep a running preparation distinguishable from one whose worker died."""
+
+    async def beat():
+        while True:
+            await asyncio.sleep(PREPARE_HEARTBEAT_SECONDS)
+            try:
+                await get_store().touch_prepare(key)
+            except Exception:
+                logging.getLogger(__name__).warning("Editor preparation heartbeat failed", exc_info=True)
+
+    task = asyncio.create_task(beat())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+class RenderJob:
+    """Progress and cancellation between a render thread and its job row."""
+
+    def __init__(self, job: dict):
+        self.job_id = job["id"]
+        self.claim = job["claim"]
+        self.stop = threading.Event()
+        self.progress = 0
+
+    def report(self, percent: int) -> None:
+        self.progress = percent
+
+    async def pump(self) -> None:
+        store = get_store()
+        while not self.stop.is_set():
+            await asyncio.sleep(1)
+            try:
+                # False: the user cancelled, or the job is no longer ours.
+                if not await store.beat_job(self.job_id, self.claim, self.progress):
+                    self.stop.set()
+            except Exception:
+                logging.getLogger(__name__).warning("Editor job heartbeat failed", exc_info=True)
+
+
+@asynccontextmanager
+async def tracked_render(claimed: dict):
+    job = RenderJob(claimed)
+    task = asyncio.create_task(job.pump())
+    try:
+        yield job
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+async def claim_job(task_id: str, clip_id: str, filename: str, job_id: str) -> dict | None:
+    """Take a queued job for this worker, or None when there is nothing to do."""
+    from ..config import get_config
+
+    store = get_store()
+    job = await store.start_job(job_id)
+    if job is None and not await store.job_exists(job_id):
+        # Queued by a release that kept jobs as files next to the draft.
+        key = editor_key(task_id, clip_id, filename)
+        directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+        await ensure_session(key, directory, task_id=task_id, clip_id=clip_id, filename=filename, s3_backed=True)
+        job = await store.start_job(job_id)
+    return job
+
+
+async def release_job(job: dict) -> None:
+    """Hand an interrupted job back to the queue's own retry."""
+    try:
+        await asyncio.shield(get_store().requeue_job(job["id"], job["claim"]))
+    except BaseException:
+        logging.getLogger(__name__).warning("Could not release editor job %s", job["id"], exc_info=True)
+
+
+async def restore_session_media(storage, directory: Path, *, has_layout: bool = False) -> None:
+    await run_in_thread(storage.restore_editor_media, directory, has_layout=has_layout)
+    if not (directory / "clean.mp4").exists():
+        raise FileNotFoundError("The editor's source video is no longer stored")
+
+
 @media_work
 async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..database import AsyncSessionLocal
@@ -476,14 +564,22 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..clip_source_map import load_clip_caption_settings, load_clip_output_offsets, clip_source_map_path
     from ..youtube_source import local_ranges_for
 
+    key = editor_key(task_id, clip_id, filename)
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+    store = get_store()
     storage = MediaStorage()
     downloaded_source = None
     source_url = None
+    source_type = None
     source = None
+    service = None
     try:
-        await run_in_thread(storage.restore_editor, directory)
-        async with AsyncSessionLocal() as db:
+        current = await store.load(key)
+        if current and current["asset"].get("status") == "ready":
+            # A retried or duplicate job. The session is already usable.
+            return
+        await store.begin_prepare(key, task_id, clip_id, filename)
+        async with _prepare_heartbeat(key), AsyncSessionLocal() as db:
             service = TaskService(db)
             clip = await service.clip_repo.get_clip_by_id(db, clip_id)
             task = await service.task_repo.get_task_by_id(db, task_id)
@@ -553,6 +649,13 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
 
                     source = await resolve_upload_for_edit(service.video_service, source_url)
             if not source or not source.exists():
+                from ..media.upload_ingest import upload_copy_pending
+
+                if source_type not in {"youtube", "twitch", "kick"} and await upload_copy_pending(source_url or ""):
+                    # The file is on the API's disk and not in object storage yet.
+                    raise EditorPrepareError(
+                        "This upload is still being saved. Try again in a minute."
+                    )
                 raise EditorPrepareError(
                     "The original source is unavailable. Restore the source file to edit this clip."
                 )
@@ -642,75 +745,92 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 .validate_duration(duration)
                 .model_dump()
             )
-            with editor_lock(directory):
-                if not (directory / "draft.json").exists():
-                    atomic_json(
-                        directory / "draft.json", {"revision": 0, "document": initial}
-                    )
-                    atomic_json(directory / "original.json", initial)
-                atomic_json(directory / "asset.json", metadata)
+            # Ready means every worker can fetch this media, so publish first.
+            await run_in_thread(storage.publish_editor_media, directory)
+            await store.finish_prepare(key, task_id, clip_id, filename, metadata, initial)
     except Exception as exc:
         logging.getLogger(__name__).exception("Editor preparation failed")
-        atomic_json(
-            directory / "asset.json",
-            {
-                "status": "failed",
-                "error": str(exc) if isinstance(exc, EditorPrepareError) else PREPARE_FAILED,
-            },
+        await store.fail_prepare(
+            key,
+            task_id,
+            clip_id,
+            filename,
+            str(exc) if isinstance(exc, EditorPrepareError) else PREPARE_FAILED,
         )
     finally:
-        if downloaded_source is not None:
+        if downloaded_source is not None and service is not None:
             service._cleanup_source_video(downloaded_source, source_type, source_url)
         elif source is not None:
-            await run_in_thread(storage.save_source_metadata, source)
-        await run_in_thread(storage.save_editor, directory)
+            try:
+                await run_in_thread(storage.save_source_metadata, source)
+            except STORAGE_ERRORS:
+                logging.getLogger(__name__).warning("Source timings retained for upload retry")
 
 
 @media_work
 async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: str):
     from ..config import get_config
     from ..database import AsyncSessionLocal
+    from ..repositories.media_repository import queue_delete
     from .task_service import TaskService
 
+    job = await claim_job(task_id, clip_id, filename, job_id)
+    if job is None:
+        return
+    key = editor_key(task_id, clip_id, filename)
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+    store = get_store()
+    storage = MediaStorage()
+    output = directory / f"export-{job_id}.mp4"
+    closed = False
     try:
-        await run_in_thread(MediaStorage().restore_editor, directory, media=True)
+        session = await store.load(key)
+        if not session or session["asset"].get("status") != "ready":
+            raise ValueError("Editor session is not ready")
         async with AsyncSessionLocal() as db:
             service = TaskService(db)
             clip = await service.clip_repo.get_clip_by_id(db, clip_id)
             if not clip or clip["task_id"] != task_id:
                 raise ValueError("Clip no longer exists")
-        payload = json.loads((directory / f"request-{job_id}.json").read_text())
-        if (directory / f"cancel-{job_id}").exists():
-            raise InterruptedError()
+        payload = job["request"]
         document = EditDocument.model_validate(payload["document"])
-        broll_files = await document_footage(document)
-        await run_in_thread(
-            render_document, directory, job_id, document, payload["preset"], broll_files
-        )
-        await cap_export_for_plan(task_id, directory / f"export-{job_id}.mp4")
-        await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
-        atomic_json(
-            directory / f"job-{job_id}.json", {"status": "completed", "progress": 100}
-        )
+        async with tracked_render(job) as render:
+            await restore_session_media(storage, directory, has_layout=bool(session["asset"].get("hasLayout")))
+            broll_files = await document_footage(document)
+            await run_in_thread(
+                render_document,
+                directory,
+                job_id,
+                document,
+                payload["preset"],
+                broll_files,
+                should_cancel=render.stop.is_set,
+                on_progress=render.report,
+            )
+            await cap_export_for_plan(task_id, output)
+            await run_in_thread(storage.persist_editor_export, directory, job_id)
+        finished = await store.finish_job(job_id, job["claim"], "completed")
+        closed = True
+        if not finished and storage.enabled:
+            # Cancelled or timed out while the file uploaded. Nothing links to it.
+            async with AsyncSessionLocal() as db:
+                await queue_delete(db, storage.editor_reference(directory, output.name))
+                await db.commit()
     except InterruptedError:
-        atomic_json(
-            directory / f"job-{job_id}.json", {"status": "cancelled", "progress": 0}
-        )
+        closed = True
+        await store.finish_job(job_id, job["claim"], "cancelled")
     except Exception:
-        import logging
-
+        closed = True
         logging.getLogger(__name__).exception("Editor export failed")
-        atomic_json(
-            directory / f"job-{job_id}.json",
-            {
-                "status": "failed",
-                "error": "Export failed. Your draft is safe; retry the export.",
-                "progress": 0,
-            },
+        await store.finish_job(
+            job_id, job["claim"], "failed", error="Export failed. Your draft is safe; retry the export."
         )
     finally:
-        await run_in_thread(MediaStorage().save_editor, directory)
+        if not closed:
+            await release_job(job)
+        if storage.enabled:
+            # The download comes from object storage; this copy was scratch.
+            output.unlink(missing_ok=True)
 
 
 @media_work
@@ -726,16 +846,31 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
     from ..editor_document import mapped_broll, mapped_words, run_render
     from .task_service import TaskService
 
+    job = await claim_job(task_id, clip_id, filename, job_id)
+    if job is None:
+        return
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+    store = get_store()
     storage = MediaStorage()
     committed = False
+    closed = False
     destination = None
+    destination_key = None
     clip_path = None
     reference = None
     try:
-        await run_in_thread(MediaStorage().restore_editor, directory)
-        payload = json.loads((directory / f"request-{job_id}.json").read_text())
-        entries = payload["inputs"]
+        directory.mkdir(parents=True, exist_ok=True)
+        entries = job["request"]["inputs"]
+        # On a machine with a cold cache, fetching many clips can outlast the
+        # heartbeat window. Report while it happens so the job is not taken
+        # for a dead worker's.
+        async with tracked_render(job) as fetching:
+            for entry in entries:
+                await restore_session_media(
+                    storage, editor_dir(get_config().temp_dir, task_id, entry["id"], entry["filename"])
+                )
+            if fetching.stop.is_set():
+                raise InterruptedError()
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
         all_broll = []
         combined_offsets = []
@@ -748,7 +883,6 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             source_dir = editor_dir(
                 get_config().temp_dir, task_id, entry["id"], entry["filename"]
             )
-            await run_in_thread(MediaStorage().restore_editor, source_dir, media=True)
             commands += ["-i", str(source_dir / "clean.mp4")]
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
@@ -801,7 +935,6 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
         document = EditDocument.model_validate(initial).validate_duration(cursor)
         with tempfile.TemporaryDirectory(prefix="combine_", dir=directory) as temp:
             work = Path(temp)
-            # Cancellation/progress files share the parent job for both render passes.
             commands += [
                 "-filter_complex",
                 ";".join(filters),
@@ -821,92 +954,115 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 "+faststart",
                 str(work / "clean.mp4"),
             ]
-            await run_in_thread(run_render, commands, directory, job_id, cursor)
-            if (directory / f"cancel-{job_id}").exists():
-                raise InterruptedError()
-            # A symlink allows the second rendering pass to observe cancellation.
-            (work / f"cancel-{job_id}").symlink_to(directory / f"cancel-{job_id}")
-            broll_files = await document_footage(document)
-            await run_in_thread(render_document, work, job_id, document, "tiktok", broll_files)
-            await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
-            new_filename = f"combined_{uuid.uuid4().hex}.mp4"
-            clip_path = Path(get_config().temp_dir) / "clips" / new_filename
-            clip_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(work / f"export-{job_id}.mp4", clip_path)
-            save_clip_source_ranges(clip_path, ranges, combined_offsets)
-            save_clip_broll(clip_path, [
-                editor_piece_to_placement(piece)
-                for piece in mapped_broll(document)
-                if piece["footage"].key in broll_files
-            ])
-            metadata = await run_in_thread(make_assets, work)
-            # Finish durable export delivery before committing the new clip.
-            # Cleanup may reclaim clip_path immediately after that commit.
-            shutil.copy2(work / f"export-{job_id}.mp4", directory / f"export-{job_id}.mp4")
-            await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
-            reference = await run_in_thread(storage.persist_clip, str(clip_path), task_id)
-            new_id = str(uuid.uuid4())
-            destination = editor_dir(get_config().temp_dir, task_id, new_id, new_filename)
-            destination.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(work / "clean.mp4", destination / "clean.mp4")
-            shutil.copy2(work / "thumbnails.jpg", destination / "thumbnails.jpg")
-            atomic_json(destination / "draft.json", {"revision": 0, "document": document.model_dump()})
-            atomic_json(destination / "original.json", document.model_dump())
-            atomic_json(destination / "asset.json", metadata)
-            await run_in_thread(storage.save_editor, destination)
-            async with AsyncSessionLocal() as db:
-                service = TaskService(db)
-                async with task_edit_transaction(db, task_id):
-                    clips = await service.clip_repo.get_clips_by_task(db, task_id)
-                    if not all(
-                        any(
-                            c["id"] == entry["id"]
-                            and c["filename"] == entry["filename"]
-                            for c in clips
+            async with tracked_render(job) as render:
+                # Two passes share one job: joining the cuts, then drawing the draft.
+                await run_in_thread(
+                    run_render,
+                    commands,
+                    directory,
+                    job_id,
+                    cursor,
+                    should_cancel=render.stop.is_set,
+                    on_progress=lambda percent: render.report(percent // 2),
+                )
+                if render.stop.is_set():
+                    raise InterruptedError()
+                broll_files = await document_footage(document)
+                await run_in_thread(
+                    render_document,
+                    work,
+                    job_id,
+                    document,
+                    "tiktok",
+                    broll_files,
+                    should_cancel=render.stop.is_set,
+                    on_progress=lambda percent: render.report(50 + percent // 2),
+                )
+                await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
+                new_filename = f"combined_{uuid.uuid4().hex}.mp4"
+                clip_path = Path(get_config().temp_dir) / "clips" / new_filename
+                clip_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(work / f"export-{job_id}.mp4", clip_path)
+                save_clip_source_ranges(clip_path, ranges, combined_offsets)
+                save_clip_broll(clip_path, [
+                    editor_piece_to_placement(piece)
+                    for piece in mapped_broll(document)
+                    if piece["footage"].key in broll_files
+                ])
+                metadata = await run_in_thread(make_assets, work)
+                # Finish durable export delivery before committing the new clip.
+                # Cleanup may reclaim clip_path immediately after that commit.
+                shutil.copy2(work / f"export-{job_id}.mp4", directory / f"export-{job_id}.mp4")
+                await run_in_thread(storage.persist_editor_export, directory, job_id)
+                reference = await run_in_thread(storage.persist_clip, str(clip_path), task_id)
+                new_id = str(uuid.uuid4())
+                destination = editor_dir(get_config().temp_dir, task_id, new_id, new_filename)
+                destination.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(work / "clean.mp4", destination / "clean.mp4")
+                shutil.copy2(work / "thumbnails.jpg", destination / "thumbnails.jpg")
+                # The new clip opens in the studio without another preparation.
+                await run_in_thread(storage.publish_editor_media, destination)
+                destination_key = editor_key(task_id, new_id, new_filename)
+                await store.finish_prepare(
+                    destination_key, task_id, new_id, new_filename, metadata, document.model_dump()
+                )
+                async with AsyncSessionLocal() as db:
+                    service = TaskService(db)
+                    async with task_edit_transaction(db, task_id):
+                        clips = await service.clip_repo.get_clips_by_task(db, task_id)
+                        if not all(
+                            any(
+                                c["id"] == entry["id"]
+                                and c["filename"] == entry["filename"]
+                                for c in clips
+                            )
+                            for entry in entries
+                        ):
+                            raise ValueError("An input clip changed while combining")
+                        new_id = await service.clip_repo.create_clip(
+                            db,
+                            task_id,
+                            new_filename,
+                            reference,
+                            "00:00",
+                            service._seconds_to_mmss(cursor),
+                            cursor,
+                            " ".join(w["text"] for w in all_words),
+                            0,
+                            "Combined in the clip editor",
+                            max(c["clip_order"] for c in clips) + 1,
+                            clip_id=new_id,
                         )
-                        for entry in entries
-                    ):
-                        raise ValueError("An input clip changed while combining")
-                    new_id = await service.clip_repo.create_clip(
-                        db,
-                        task_id,
-                        new_filename,
-                        reference,
-                        "00:00",
-                        service._seconds_to_mmss(cursor),
-                        cursor,
-                        " ".join(w["text"] for w in all_words),
-                        0,
-                        "Combined in the clip editor",
-                        max(c["clip_order"] for c in clips) + 1,
-                        clip_id=new_id,
-                    )
-                    if reference != str(clip_path):
-                        from ..repositories.media_repository import queue_delete
-                        await queue_delete(db, str(clip_path))
-                    await service.clip_repo.reorder_task_clips(db, task_id)
-                committed = True
-        atomic_json(
-            directory / f"job-{job_id}.json",
-            {"status": "completed", "progress": 100, "clip_id": new_id},
-        )
+                        if reference != str(clip_path):
+                            from ..repositories.media_repository import queue_delete
+                            await queue_delete(db, str(clip_path))
+                        await service.clip_repo.reorder_task_clips(db, task_id)
+                    committed = True
+        await store.finish_job(job_id, job["claim"], "completed", result={"clip_id": new_id})
+        closed = True
     except InterruptedError:
-        atomic_json(
-            directory / f"job-{job_id}.json", {"status": "cancelled", "progress": 0}
-        )
+        closed = True
+        await store.finish_job(job_id, job["claim"], "cancelled")
     except Exception:
-        import logging
-
+        closed = True
         logging.getLogger(__name__).exception("Combining editor drafts failed")
-        atomic_json(
-            directory / f"job-{job_id}.json",
-            {
-                "status": "failed",
-                "progress": 0,
-                "error": "Could not combine drafts. The original clips are unchanged.",
-            },
+        await store.finish_job(
+            job_id,
+            job["claim"],
+            "failed",
+            error="Could not combine drafts. The original clips are unchanged.",
         )
     finally:
+        if not closed and committed:
+            # Interrupted after the clip was saved. A retry would save it twice.
+            try:
+                await asyncio.shield(
+                    store.finish_job(job_id, job["claim"], "completed", result={"clip_id": new_id})
+                )
+            except BaseException:
+                logging.getLogger(__name__).warning("Could not close combine job %s", job_id, exc_info=True)
+        elif not closed:
+            await release_job(job)
         if not committed:
             # Queue exact staged objects. A fresh DB reference check protects
             # against a commit that succeeded before its response was lost.
@@ -921,7 +1077,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                     if path:
                         await queue_delete(db, path, prefix=prefix)
                 await db.commit()
-        try:
-            await run_in_thread(storage.save_editor, directory)
-        except STORAGE_ERRORS:
-            logging.getLogger(__name__).warning("Editor job snapshot retained for upload retry")
+            if destination_key:
+                await store.delete(destination_key)
+        elif storage.enabled:
+            # The download comes from object storage; this copy was scratch.
+            (directory / f"export-{job_id}.mp4").unlink(missing_ok=True)

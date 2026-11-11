@@ -522,36 +522,117 @@ def _persist_named(video_id: str, path: Path) -> None:
         logger.warning("Could not store YouTube cache file %s: %s", path.name, redact_secrets(str(exc)))
 
 
-def _restore_remote_cache(video_id: str, directory: Path) -> None:
-    if (directory / MANIFEST_NAME).exists():
-        return
-    storage = _storage()
-    if storage is None:
-        return
-    manifest_path = directory / MANIFEST_NAME
-    try:
-        found = storage._download(
-            storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME),
-            manifest_path,
-            optional=True,
-        )
-    except Exception as exc:
-        logger.warning("Could not restore YouTube cache for %s: %s", video_id, redact_secrets(str(exc)))
-        return
-    if not found:
-        return
-    manifest = _load_manifest(directory, video_id)
+# Each machine keeps its own copy of this cache and mirrors it to object
+# storage. The stored manifest is the union of what every machine cached, so a
+# machine that has not downloaded a section can fetch it from storage instead
+# of going back to YouTube.
+REMOTE_REFRESH_SECONDS = 300
+REMOTE_CHECKED_NAME = ".remote-checked"
+
+
+def _manifest_files(manifest: dict) -> list[str]:
     names = []
-    if manifest.get("audio"):
-        names.append(manifest["audio"])
-        names.append(str(Path(manifest["audio"]).with_suffix(".transcript_cache.json").name))
-    if manifest.get("full"):
-        names.append(manifest["full"])
-        names.append(str(Path(manifest["full"]).with_suffix(".transcript_cache.json").name))
+    for kind in ("audio", "full"):
+        if manifest.get(kind):
+            names.append(manifest[kind])
+            names.append(str(Path(manifest[kind]).with_suffix(".transcript_cache.json").name))
     for item in manifest.get("ranges") or []:
         if item.get("file"):
             names.append(item["file"])
-    for name in names:
+    return names
+
+
+def _merge_manifests(local: dict, remote: dict, usable: Optional[Callable[[str], bool]] = None) -> dict:
+    """``local`` plus the entries only ``remote`` has. ``usable`` filters those by file name."""
+    usable = usable or (lambda _name: True)
+    merged = dict(local)
+    if remote.get("audio_policy") != AUDIO_POLICY:
+        # Audio and sections chosen under an earlier policy are not reused.
+        remote = {"full": remote.get("full"), "full_height": remote.get("full_height")}
+    if not merged.get("audio") and remote.get("audio") and usable(remote["audio"]):
+        merged["audio"] = remote["audio"]
+    if remote.get("full") and usable(remote["full"]):
+        try:
+            better = int(remote.get("full_height") or 0) > int(merged.get("full_height") or 0)
+        except (TypeError, ValueError):
+            better = False
+        if not merged.get("full") or better:
+            merged["full"] = remote["full"]
+            merged["full_height"] = remote.get("full_height")
+    known = {item.get("file") for item in merged.get("ranges") or []}
+    merged["ranges"] = list(merged.get("ranges") or []) + [
+        item for item in remote.get("ranges") or []
+        if item.get("file") and item["file"] not in known and usable(item["file"])
+    ]
+    return merged
+
+
+def _remote_manifest(storage, video_id: str, directory: Path) -> Optional[dict]:
+    """The manifest in object storage, or None when there is none."""
+    temporary = directory / f".{MANIFEST_NAME}.remote"
+    try:
+        if not storage._download(storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME), temporary, optional=True):
+            return None
+        return json.loads(temporary.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _persist_manifest(video_id: str, directory: Path) -> None:
+    """Add this machine's entries to the stored manifest without dropping another machine's."""
+    storage = _storage()
+    path = directory / MANIFEST_NAME
+    if storage is None or not path.exists():
+        return
+    from contextlib import ExitStack
+
+    temporary = directory / f".{MANIFEST_NAME}.upload"
+    try:
+        with ExitStack() as stack:
+            try:
+                from . import sync_db
+
+                # Two machines reading, merging and writing at once would each
+                # lose the other's entry.
+                stack.enter_context(sync_db.advisory_lock(f"youtube-cache:{video_id}"))
+            except Exception:
+                logger.warning("YouTube cache manifest stored without a cross-machine lock")
+            remote = _remote_manifest(storage, video_id, directory)
+            local = _load_manifest(directory, video_id)
+            temporary.write_text(json.dumps(_merge_manifests(local, remote) if remote else local), encoding="utf-8")
+            storage.upload_file(temporary, storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME))
+    except Exception as exc:
+        logger.warning("Could not store YouTube cache manifest: %s", redact_secrets(str(exc)))
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _restore_remote_cache(video_id: str, directory: Path) -> None:
+    """Fetch cached files this machine lacks. Called with the cache lock held."""
+    storage = _storage()
+    if storage is None:
+        return
+    checked = directory / REMOTE_CHECKED_NAME
+    have_manifest = (directory / MANIFEST_NAME).exists()
+    try:
+        # A machine with its own manifest still looks for what others added,
+        # but not on every call: each job asks several times.
+        if have_manifest and time.time() - checked.stat().st_mtime < REMOTE_REFRESH_SECONDS:
+            return
+    except OSError:
+        pass
+    try:
+        remote = _remote_manifest(storage, video_id, directory)
+    except Exception as exc:
+        logger.warning("Could not restore YouTube cache for %s: %s", video_id, redact_secrets(str(exc)))
+        return
+    checked.touch()
+    if not remote:
+        return
+    local = _load_manifest(directory, video_id)
+    for name in _manifest_files(_merge_manifests(local, remote)):
         dest = directory / name
         if dest.exists():
             continue
@@ -559,6 +640,10 @@ def _restore_remote_cache(video_id: str, directory: Path) -> None:
             storage._download(storage.key(CACHE_DIRNAME, video_id, name), dest, optional=True)
         except Exception as exc:
             logger.warning("Could not restore %s for %s: %s", name, video_id, redact_secrets(str(exc)))
+    # Only entries whose file arrived are recorded, so a failed fetch is tried again.
+    merged = _merge_manifests(local, remote, usable=lambda name: (directory / name).is_file())
+    if merged != local or not have_manifest:
+        _save_manifest(directory, merged)
 
 
 def _pieces(directory: Path, manifest: dict) -> list[CachedPiece]:
@@ -700,7 +785,7 @@ def adopt_full_download(
     transcript = dest.with_suffix(".transcript_cache.json")
     if transcript.exists():
         _persist_named(video_id, transcript)
-    _persist_named(video_id, directory / MANIFEST_NAME)
+    _persist_manifest(video_id, directory)
     log_youtube_attempt(
         provider="cache",
         video_id=video_id,
@@ -872,7 +957,7 @@ def download_audio_for_job(
         manifest["audio"] = downloaded.name
         _save_manifest(directory, manifest)
     _persist_named(video_id, downloaded)
-    _persist_named(video_id, directory / MANIFEST_NAME)
+    _persist_manifest(video_id, directory)
     return downloaded
 
 
@@ -1067,7 +1152,7 @@ def materialize_clip_source(
             })
             _save_manifest(directory, manifest)
             _persist_named(video_id, target)
-            _persist_named(video_id, directory / MANIFEST_NAME)
+            _persist_manifest(video_id, directory)
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)

@@ -79,8 +79,11 @@ That route streams the body to the API and does not buffer it first. The API
 answers as soon as the file is fsynced under `TEMP_DIR/uploads` and returns
 `upload://{id}.ext`. It does not transcode on this request. In S3 mode the
 original is copied to the bucket after the response, and again at the start of
-processing if that copy has not finished (`Storing upload...` at 12%). The
-local file stays on the shared uploads volume so the worker can read it. Video
+processing if that copy has not finished (`Storing upload...` at 12%). A worker
+on the API's machine reads the local file. A worker on another machine waits
+for the copy and reads it from the bucket; the scheduler's `copy_pending_uploads`
+job finishes a copy that an API restart interrupted (see
+[Video workers on other machines](./render-worker.md)). Video
 above 1080p or 60 fps is still scaled in the worker (`Preparing video...` at
 15%), and the capped master is stored beside the original.
 
@@ -166,23 +169,26 @@ in the same bucket, or under `TEMP_DIR/clip-exports/{export_id}/` when object
 storage is off. Those files are deleted after 7 days, and sooner when the clip
 or task is deleted. The worker's existing media cleanup cron does that deletion.
 
-Editor assets and changed draft/job documents are copied to S3. Unchanged media is
-not uploaded on every draft save. Missing local editor assets can be restored from
-S3. Unused, successfully uploaded local editor videos expire from the cache; drafts
-remain available. The API and worker still share `TEMP_DIR` for operational editor
-state, file locks, progress and cancellation. This change does not remove that
-coordination requirement for an installation with multiple hosts.
-Exports become downloadable after rendering and their S3 upload finish. Autosave
-returns the committed local revision even if its snapshot upload fails; the worker
-retries changed draft snapshots and unfinished asset uploads. Autosave uses the
-draft's file lock and revision check, so clip renders do not block it. Complete
-local editor state remains usable during an S3 outage. Processing caches keep durable source references,
-and readers of older materialized cache paths also acquire file leases.
+Editor sessions, drafts and export jobs are rows in PostgreSQL
+(`editor_sessions`, `editor_jobs`), including job progress and cancellation.
+Editor media (the prepared source, thumbnails, exports) is copied to S3. A clip
+is ready for editing only after its media upload finishes, so any worker can
+render it; exports become downloadable after rendering and their upload finish.
+A worker's `TEMP_DIR/editor/` holds a cache of that media, restored from S3 when
+missing, and uploaded videos that go unused expire from it. Autosave is a
+revision check on the draft row: it does not touch S3 and clip renders do not
+block it, so drafts stay editable during an S3 outage. Sessions written as files
+by earlier releases are imported the first time they are opened. Processing
+caches keep durable source references, and readers of older materialized cache
+paths also acquire file leases.
 
 Deleting/replacing clips queues their previous files, sidecars and obsolete editor
 directories in PostgreSQL in the same transaction. Deleting a task also queues
 its uploaded source. Every five minutes the worker processes committed deletions,
 checks that no live records still reference the file, and retries failed deletions.
+A queued local path records the disk it is on and is deleted only by a process
+that mounts that disk; each video worker collects the ones for its own machine.
+Editor sessions are removed once no clip has their task, clip and filename.
 Individual failures back off without blocking unrelated deletion requests.
 Uploaded sources shared by multiple tasks are removed after the last task is
 deleted. A source lock serializes new S3 task admission with source deletion.
@@ -204,14 +210,19 @@ bucket private; give its runtime token object read/write permission on that
 bucket only. Configure browser CORS for the same frontend origins and methods
 as the primary bucket. Do not change existing database `s3://` references.
 
-With credentials present, new server uploads are copied to both stores. The
-shared `TEMP_DIR/media-replication/` outbox fsyncs each payload before attempting
-delivery. An upload succeeds when at least one provider accepts it, retaining a
-durable local copy until the second provider catches up. If both fail the caller
-receives an error, but completed output stays in the outbox for retry. Keep space
-available on the shared volume; replication never silently drops files to make
-room. Both stores receive deletions, with durable tombstones preventing a queued
-upload from recreating a deleted file. Per-object file locks serialize revisions.
+With credentials present, new server uploads are sent to both stores. An upload
+succeeds when at least one provider accepts it. What the other provider still
+owes is a row in PostgreSQL (`media_replication_ops`) naming the exact revision,
+and the replication job copies it from the provider that has it, so no machine
+has to keep the file and any machine can finish the copy. If both providers
+refuse, the caller receives an error and nothing is retried on its behalf. Both
+stores receive deletions, with durable tombstones preventing a pending copy from
+recreating a deleted file. A per-object PostgreSQL advisory lock serializes
+revisions across machines, which requires a direct connection or a session-mode
+pooler. The copy uses `TEMP_DIR/media-replication/scratch/` on the machine that
+runs it; keep room there for the largest object. Entries left in the earlier
+file outbox are imported on the first replication pass on the machine that has
+them.
 
 Backfill all existing objects before enabling read failover:
 
@@ -253,8 +264,9 @@ prove that video delivery works.
 
 Rollback delivery with `MEDIA_FAILOVER_ENABLED=false` while keeping replication
 credentials configured. Before removing fallback credentials entirely, ensure
-the outbox is drained and AWS has every object written during failover. Never
-discard the outbox as cache, and retain normal account-deletion processing.
+pending replication is drained (`/health/storage` reports no pending work) and
+AWS has every object written during failover. Retain normal account-deletion
+processing.
 
 ## Migrating existing local files
 

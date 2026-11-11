@@ -9,6 +9,8 @@ This repository contains the web app, processing backend, and MCP client:
 
 Infra and bootstrap files live at the root: `docker-compose.yml`, `init.sql`, `.env.example`, and `start.sh`.
 
+A video worker may run on a different machine from the API (`docs/render-worker.md`). State that another process needs belongs in PostgreSQL, Redis, or the media bucket. Files under `TEMP_DIR` are scratch for the machine that wrote them.
+
 ## Build, Test, and Development Commands
 Use Docker for full-stack development:
 - `docker-compose up -d --build`: start frontend, backend, worker, Postgres, and Redis.
