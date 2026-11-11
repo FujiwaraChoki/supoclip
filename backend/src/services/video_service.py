@@ -94,6 +94,12 @@ from ..media.render_ranges import (
     segment_bounds,
 )
 from ..media.timeline import get_words_for_keep_ranges
+from ..media.transcription import save_transcript_cache_data
+from ..media.srt_transcript import (
+    SrtSubtitleError,
+    format_srt_for_analysis,
+    load_srt_transcript_cache,
+)
 from ..media.visual_suitability import (
     is_visually_static,
     segment_static_fraction,
@@ -1340,6 +1346,7 @@ class VideoService:
         plan_cache: Optional[PlanCache] = None,
         outline_cache_key: Optional[str] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        srt_path: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -1521,25 +1528,46 @@ class VideoService:
                     await run_in_thread(temporary.replace, sidecar)
                 finally:
                     temporary.unlink(missing_ok=True)
-            # Database text alone cannot recreate timed captions or cleanup.
-            # Repair older caches whose word-timing sidecar was removed.
-            needs_word_timings = (
-                bool(transcript)
-                and getattr(runtime_config, "transcription_provider", "assemblyai") != "youtube_captions"
-                and not (load_cached_transcript_data(video_path) or {}).get("words")
-            )
-            if not transcript or needs_word_timings:
-                transcript = await VideoService.generate_transcript(
-                    video_path,
-                    processing_mode=processing_mode,
-                    source_url=url if source_type == "youtube" else None,
+            if srt_path is not None:
+                # User-supplied subtitles are the transcript: no speech provider
+                # runs and no word-timing repair is needed.
+                if not (isinstance(transcript_data, dict) and transcript_data.get("words")):
+                    try:
+                        transcript_data = await run_in_thread(
+                            load_srt_transcript_cache,
+                            srt_path,
+                            duration_seconds=file_duration,
+                            language_code=getattr(runtime_config, "transcription_language", "") or None,
+                        )
+                    except SrtSubtitleError as exc:
+                        raise RuntimeError(str(exc)) from exc
+                    await run_in_thread(save_transcript_cache_data, video_path, transcript_data)
+                if not transcript:
+                    # Providers hand the analysis step one newline-joined
+                    # "[MM:SS - MM:SS] text" string, never a list of lines.
+                    transcript = "\n".join(
+                        await run_in_thread(format_srt_for_analysis, transcript_data)
+                    )
+            else:
+                # Database text alone cannot recreate timed captions or cleanup.
+                # Repair older caches whose word-timing sidecar was removed.
+                needs_word_timings = (
+                    bool(transcript)
+                    and getattr(runtime_config, "transcription_provider", "assemblyai") != "youtube_captions"
+                    and not (load_cached_transcript_data(video_path) or {}).get("words")
                 )
-                if checkpoint.get("analysis") or checkpoint.get("workflow_final"):
-                    # Never combine new word timings with an old clip plan.
-                    await save_checkpoint({
-                        "analysis": None, "candidates": None, "segments": None, "workflow_final": None,
-                    })
-                    cached_analysis_json = None
+                if not transcript or needs_word_timings:
+                    transcript = await VideoService.generate_transcript(
+                        video_path,
+                        processing_mode=processing_mode,
+                        source_url=url if source_type == "youtube" else None,
+                    )
+                    if checkpoint.get("analysis") or checkpoint.get("workflow_final"):
+                        # Never combine new word timings with an old clip plan.
+                        await save_checkpoint({
+                            "analysis": None, "candidates": None, "segments": None, "workflow_final": None,
+                        })
+                        cached_analysis_json = None
 
             # Commit paid work before any subsequent storage, analysis or download
             # can fail. The DB copy also repairs an absent word-timing sidecar.

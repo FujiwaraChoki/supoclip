@@ -1,0 +1,22 @@
+# Opt-in GPU support for local Whisper transcription.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d worker
+#
+# Requires an NVIDIA GPU with a working driver, the NVIDIA container runtime
+# enabled in Docker, and an image built with CUDA PyTorch (BACKEND_CPU_ONLY=false,
+# the default). Without the override, the worker starts with no GPU reservation so
+# CPU-only hosts keep working.
+services:
+  worker:
+    build:
+      args:
+        TORCH_VERSION: ${GPU_TORCH_VERSION:-}
+        TORCH_WHEEL_INDEX: ${GPU_TORCH_WHEEL_INDEX:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

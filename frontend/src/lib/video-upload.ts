@@ -11,6 +11,39 @@ export function maxVideoUploadBytes(): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_VIDEO_UPLOAD_BYTES;
 }
 
+/** Default subtitle cap: 5 MB. Matches the backend SRT_MAX_UPLOAD_BYTES. */
+export const MAX_SRT_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+export function maxSrtUploadBytes(): number {
+  const raw = process.env.NEXT_PUBLIC_MAX_SRT_UPLOAD_BYTES;
+  if (!raw) return MAX_SRT_UPLOAD_BYTES;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : MAX_SRT_UPLOAD_BYTES;
+}
+
+export function isSrtFileName(name: string): boolean {
+  return /\.srt$/i.test(name.trim());
+}
+
+/** Upload a `.srt` file and return the reference to send with the task. */
+export async function uploadSrtFile(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("srt", file);
+  const response = await fetch("/api/upload/srt", { method: "POST", body: formData });
+  if (!response.ok) {
+    const fallbackMessage =
+      response.status === 413
+        ? "This subtitle file is too large. Pick a smaller .srt file."
+        : `Subtitle upload error: ${response.status}`;
+    throw new Error(formatSupportMessage(await parseApiError(response, fallbackMessage)));
+  }
+  const result = await response.json();
+  if (typeof result.srt_path !== "string" || !result.srt_path) {
+    throw new Error("Subtitle upload finished without a file reference. Please try again.");
+  }
+  return result.srt_path;
+}
+
 export function formatUploadLimit(bytes: number): string {
   if (bytes >= 1e9) {
     const gigabytes = bytes / 1e9;

@@ -30,6 +30,8 @@ from ...repositories.upload_repository import (
     UploadLimitReached,
 )
 from ...utils.async_helpers import run_in_thread
+from ...media.srt_transcript import SrtSubtitleError
+from ...srt_uploads import SRT_MAX_UPLOAD_BYTES, SRT_SUFFIX, store_srt_bytes
 from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService, grants_paid_access
@@ -456,6 +458,50 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
             await form_data.close()
         if published is not None and not keep_published:
             published.unlink(missing_ok=True)
+
+
+@router.post("/upload/srt")
+async def upload_srt(request: Request, db: AsyncSession = Depends(get_db)):
+    """Store a user-supplied ``.srt`` so a task can skip transcription.
+
+    The subtitle is validated here (at least one readable cue) so a broken file
+    fails at upload time rather than inside a queued task.
+    """
+    form_data = None
+    try:
+        user_id = await _get_authenticated_user_id(request, db)
+        form_data = await _read_limited_upload_form(request, SRT_MAX_UPLOAD_BYTES)
+        srt_file = cast(Any, form_data.get("srt"))
+        if not getattr(srt_file, "filename", None) or not hasattr(srt_file, "read"):
+            raise HTTPException(status_code=400, detail="No subtitle file provided")
+
+        upload = cast(UploadFile, srt_file)
+        if Path(upload.filename or "").suffix.lower() != SRT_SUFFIX:
+            raise HTTPException(
+                status_code=400, detail="Only .srt subtitle files are supported"
+            )
+
+        raw = await upload.read(SRT_MAX_UPLOAD_BYTES + 1)
+        if not raw:
+            raise HTTPException(status_code=400, detail="The subtitle file is empty")
+        if len(raw) > SRT_MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413, detail=upload_too_large_detail(SRT_MAX_UPLOAD_BYTES)
+            )
+
+        reference, cue_count = await run_in_thread(store_srt_bytes, user_id, raw)
+        logger.info("Stored subtitle %s (%d cues)", reference, cue_count)
+        return {"srt_path": reference, "cues": cue_count}
+    except SrtSubtitleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error uploading subtitles: %s", e)
+        raise HTTPException(status_code=500, detail=f"Error uploading subtitles: {str(e)}")
+    finally:
+        if form_data is not None:
+            await form_data.close()
 
 
 @router.post("/upload/authorize")

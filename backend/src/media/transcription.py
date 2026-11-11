@@ -9,8 +9,10 @@ import assemblyai as aai
 from ..config import get_config
 import httpx
 import json
+import os
 import re
 import time
+import uuid
 from .common import (
     ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
     ANALYSIS_LONG_UTTERANCE_MAX_WORDS,
@@ -500,6 +502,25 @@ def cache_transcript_data(video_path: Path, transcript) -> None:
         json.dump(cache_data, f)
 
     logger.info(f"Cached {len(words_data)} words to {cache_path}")
+
+
+def save_transcript_cache_data(video_path: Path, cache_data: Dict[str, Any]) -> Path:
+    """Write already-built transcript cache data beside the video, atomically.
+
+    Used when the transcript does not come from a speech provider (a
+    user-supplied ``.srt``): every later stage reads the same sidecar either way.
+    """
+    cache_path = video_path.with_suffix(".transcript_cache.json")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = cache_path.with_name(f".{cache_path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with open(temporary, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f)
+        os.replace(temporary, cache_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    logger.info("Cached %d words to %s", len(cache_data.get("words") or []), cache_path)
+    return cache_path
 
 
 def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:

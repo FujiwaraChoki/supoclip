@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -29,7 +30,7 @@ SETTING_METADATA = {
     },
     "LLM": {
         "label": "LLM model",
-        "description": "Provider and model, for example openai:gpt-5.2.",
+        "description": "Provider and model, for example openai:gpt-5.2, or custom:model for an OpenAI-compatible endpoint.",
         "input_type": "text",
     },
     "OPENAI_API_KEY": {
@@ -60,6 +61,16 @@ SETTING_METADATA = {
     "OLLAMA_API_KEY": {
         "label": "Ollama API key",
         "description": "Optional, used by hosted Ollama-compatible providers.",
+        "input_type": "password",
+    },
+    "CUSTOM_LLM_BASE_URL": {
+        "label": "Custom LLM base URL",
+        "description": "Endpoint for custom:* models, for example https://your-gateway.example.com/v1.",
+        "input_type": "text",
+    },
+    "CUSTOM_LLM_API_KEY": {
+        "label": "Custom LLM API key",
+        "description": "Optional, used by custom:* models when the endpoint requires a key.",
         "input_type": "password",
     },
     "YOUTUBE_DATA_API_KEY": {
@@ -161,8 +172,15 @@ async def update_runtime_settings(
         )
 
     if "LLM" in payload.updates:
+        pending_config = get_config()
+        pending_base_url = payload.updates.get("CUSTOM_LLM_BASE_URL", "").strip()
+        if pending_base_url:
+            # Validate against the base URL saved in this same request, so a
+            # panel save that switches to custom:* works in one submit.
+            pending_config = copy.copy(pending_config)
+            pending_config.custom_llm_base_url = pending_base_url
         config_error = _get_missing_llm_key_error(
-            payload.updates["LLM"].strip(), get_config()
+            payload.updates["LLM"].strip(), pending_config
         )
         if config_error and "API_KEY is not set" not in config_error:
             raise HTTPException(status_code=400, detail=config_error)

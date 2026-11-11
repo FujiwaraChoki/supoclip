@@ -15,14 +15,17 @@
     "uploadFontRetry": "Gagal mengunggah font. Coba lagi, ya.",
     "processVideo": "Gagal memproses video. Coba lagi, ya.",
     "fileTooLarge": "File ini {size}, melebihi batas unggah {limit}. Coba ekspor yang lebih pendek atau file yang lebih kecil.",
-    "api": "Error API: {status}"
+    "api": "Error API: {status}",
+    "notSrt": "Itu sepertinya bukan file subtitle. Pilih file .srt.",
+    "srtTooLarge": "File subtitle ini melebihi batas {limit}. Pilih file .srt yang lebih kecil."
   },
   "status": {
     "uploading": "Mengunggah video…",
     "checkingLength": "Memeriksa durasi video…",
     "starting": "Memulai generasi…",
     "working": "Sedang bekerja…",
-    "uploadingFont": "Mengunggah…"
+    "uploadingFont": "Mengunggah…",
+    "uploadingSubtitles": "Mengunggah subtitle..."
   },
   "drop": "Lepas untuk mengunggah videomu",
   "readyToUpload": "{size} · siap diunggah",
@@ -339,5 +342,11 @@
       "relaxed": "Diizinkan",
       "question": "Sebuah pertanyaan"
     }
+  },
+  "srt": {
+    "chip": "Tambah subtitle (.srt)",
+    "hint": "Opsional — lewati transkripsi",
+    "replacesTranscription": "Subtitle kamu dipakai sebagai pengganti transkripsi",
+    "remove": "Hapus subtitle"
   }
 }

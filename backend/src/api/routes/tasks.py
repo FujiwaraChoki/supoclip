@@ -33,6 +33,8 @@ from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
+from ...media.srt_transcript import SrtSubtitleError
+from ...srt_uploads import srt_digest, validate_srt_reference
 from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
@@ -357,6 +359,8 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    srt_path: Any = None,
+    srt_digest: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -368,6 +372,10 @@ def _merge_task_source_metadata(
         merged["output_format"] = output_format
     if isinstance(add_subtitles, bool):
         merged["add_subtitles"] = add_subtitles
+    if isinstance(srt_path, str) and srt_path:
+        merged["srt_path"] = srt_path
+    if isinstance(srt_digest, str) and srt_digest:
+        merged["srt_digest"] = srt_digest
     if cleanup_settings:
         merged.update(cleanup_settings)
 
@@ -596,6 +604,21 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     attempt.note_user(user_id)
     attempt.note_workflow(data.get("workflow"))
 
+    # Optional user-supplied subtitles: resolve the reference now so a missing
+    # or foreign file is a 400 before any minute is charged.
+    srt_path: Optional[str] = None
+    srt_digest_value: Optional[str] = None
+    raw_srt = data.get("srt_path")
+    if raw_srt not in (None, ""):
+        if not isinstance(raw_srt, str):
+            raise HTTPException(status_code=400, detail="srt_path must be a string")
+        srt_path = raw_srt.strip()
+        try:
+            validate_srt_reference(srt_path, user_id)
+            srt_digest_value = srt_digest(srt_path)
+        except SrtSubtitleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+
     # Get font options
     font_options = data.get("font_options", {})
     if not isinstance(font_options, dict):
@@ -653,6 +676,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         # and instructions never leave the process.
         upload_options["workflow"] = workflow_spec.workflow
         upload_options["workflow_options"] = workflow_options
+    if srt_digest_value:
+        # Subtitle-backed and transcribed runs of the same upload are separate
+        # generations; only runs that carry subtitles change the key.
+        upload_options["srt_digest"] = srt_digest_value
     upload_request_key = _upload_request_key(request, raw_source["url"], upload_options)
     if upload_request_key and db is not None:
         existing = await TaskRepository.find_recent_upload_task(db, user_id, upload_request_key)
@@ -665,6 +692,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     source_key = None
     if db is not None:
         source_key = await source_key_for_url(db, user_id, raw_source["url"].strip())
+        if source_key and srt_digest_value:
+            source_key = f"{source_key}|srt:{srt_digest_value}"
         if source_key:
             existing = await TaskRepository.find_active_source_task(db, user_id, source_key)
             if existing is not None:
@@ -684,6 +713,13 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             if not str(raw_source["url"]).strip().lower().startswith(("http://", "https://")):
                 raise
             raise HTTPException(status_code=422, detail=str(exc)) from None
+        if srt_digest_value and source_type in {"youtube", "twitch", "kick"}:
+            # YouTube/stream sources download partial ranges, which shifts the
+            # timeline the subtitle timestamps were written against.
+            raise HTTPException(
+                status_code=400,
+                detail="A subtitle file can only be used with an uploaded video",
+            )
         if source_type == "youtube":
             # Shorts, live, share and embed links all become watch?v=ID, so the
             # stored source, downloads and caches see one form per video.
@@ -763,6 +799,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         output_format=output_format,
                         add_subtitles=add_subtitles,
                         cleanup_settings=cleanup_settings,
+                        srt_path=srt_path,
+                        srt_digest=srt_digest_value,
                     ),
                     db=db,
                 )

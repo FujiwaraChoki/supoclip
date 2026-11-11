@@ -16,11 +16,13 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.profiles.anthropic import AnthropicModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
@@ -439,7 +441,15 @@ def build_transcript_system_prompt(clip_length: str = "auto") -> str:
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {
+    "google",
+    "google-gla",
+    "openai",
+    "openrouter",
+    "anthropic",
+    "ollama",
+    "custom",
+}
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -457,7 +467,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*."
+            "Use google-gla:*, openai:*, openrouter:*, anthropic:*, ollama:*, or custom:*."
         )
 
     if not provider_model_name:
@@ -465,6 +475,21 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
             "Selected LLM is missing a model name. "
             "Use the format provider:model, for example ollama:gpt-oss:20b."
         )
+
+    if provider == "custom":
+        base_url = runtime_config.custom_llm_base_url
+        if not base_url:
+            return (
+                "Selected LLM provider is a custom OpenAI-compatible endpoint, but "
+                "CUSTOM_LLM_BASE_URL is not set. Set CUSTOM_LLM_BASE_URL to the endpoint, "
+                "for example https://your-gateway.example.com/v1."
+            )
+        if not base_url.startswith(("http://", "https://")):
+            return (
+                "CUSTOM_LLM_BASE_URL must start with http:// or https://, "
+                f"got '{base_url}'."
+            )
+        return None
 
     if provider in {"google", "google-gla"} and not runtime_config.google_api_key:
         return (
@@ -542,6 +567,16 @@ def _build_transcript_model(
                 "max_tokens": 8192,
             },
         )
+    if provider == "custom":
+        # Chat Completions, not the Responses API: compatible gateways
+        # implement /v1/chat/completions.
+        return OpenAIChatModel(
+            provider_model_name,
+            provider=OpenAIProvider(
+                base_url=runtime_config.custom_llm_base_url,
+                api_key=runtime_config.custom_llm_api_key or None,
+            ),
+        )
     if provider != "ollama":
         return model_name
 
@@ -575,6 +610,8 @@ def get_transcript_agent(clip_length: str = "auto") -> Agent[None, TranscriptAna
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.custom_llm_base_url,
+        runtime_config.custom_llm_api_key,
     )
     if _transcript_agent is None or _transcript_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -655,6 +692,8 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.custom_llm_base_url,
+        runtime_config.custom_llm_api_key,
     )
     if _rerank_agent is None or _rerank_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -730,6 +769,8 @@ def get_broll_agent() -> Agent[None, BRollPlan]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.custom_llm_base_url,
+        runtime_config.custom_llm_api_key,
     )
     if _broll_agent is None or _broll_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())

@@ -34,6 +34,7 @@ services:
       - "127.0.0.1:${FRONTEND_PORT:-3001}:3107"
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/messages:/app/messages
       - ./frontend/public:/app/public
       - ./frontend/prisma:/app/prisma
       - ./CHANGELOG.md:/app/CHANGELOG.md:ro
@@ -126,6 +127,9 @@ services:
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
+      # Spool large uploads on the same volume as the final file so the
+      # hardlink path is used instead of a second multi-gigabyte copy.
+      - TMPDIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
       - MEDIA_S3_PREFIX=${MEDIA_S3_PREFIX:-media}
@@ -196,6 +200,8 @@ services:
       - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - CUSTOM_LLM_BASE_URL=${CUSTOM_LLM_BASE_URL:-}
+      - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY:-}
       - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
       - TRANSCRIPTION_LANGUAGE=${TRANSCRIPTION_LANGUAGE:-}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
@@ -319,6 +325,9 @@ services:
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
+      # Spool large uploads on the same volume as the final file so the
+      # hardlink path is used instead of a second multi-gigabyte copy.
+      - TMPDIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
       - MEDIA_S3_PREFIX=${MEDIA_S3_PREFIX:-media}
@@ -389,6 +398,8 @@ services:
       - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - CUSTOM_LLM_BASE_URL=${CUSTOM_LLM_BASE_URL:-}
+      - CUSTOM_LLM_API_KEY=${CUSTOM_LLM_API_KEY:-}
       - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
       - TRANSCRIPTION_LANGUAGE=${TRANSCRIPTION_LANGUAGE:-}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}

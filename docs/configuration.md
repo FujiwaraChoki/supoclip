@@ -65,8 +65,12 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 | `OPENROUTER_API_KEY` | If using OpenRouter | Required for `openrouter:*` models (see [OpenRouter analysis](openrouter-analysis.md)) |
 | `OLLAMA_BASE_URL` | If using Ollama remotely | Base URL for Ollama-compatible endpoints |
 | `OLLAMA_API_KEY` | Optional | Used for hosted Ollama providers such as Ollama Cloud |
+| `CUSTOM_LLM_BASE_URL` | If using `custom:*` | Endpoint for any OpenAI-compatible gateway, for example `https://your-gateway.example.com/v1` |
+| `CUSTOM_LLM_API_KEY` | Optional | Key for the `custom:*` endpoint; leave empty for gateways that need none |
 
 The backend can infer a default LLM from whichever API key is present, but setting `LLM` explicitly is safer and easier to debug.
+
+Any OpenAI-compatible gateway works as `LLM=custom:<model>`. The model name keeps everything after the first colon, so `LLM=custom:deepseek-v4.1-flash:free` sends `deepseek-v4.1-flash:free` to `CUSTOM_LLM_BASE_URL`.
 
 ## Core Application Settings
 
@@ -149,6 +153,37 @@ These settings affect clip generation speed, throughput, and defaults.
 | `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Creator (`scale`) subscriptions, in seconds |
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
+
+### GPU transcription (Whisper)
+
+Local Whisper runs on the CPU by default. On a Linux self-host with an NVIDIA GPU and the NVIDIA container runtime:
+
+1. Keep `BACKEND_CPU_ONLY=false`, then build the worker with the GPU override: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml build worker`.
+2. Start the worker with the same override: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d worker`.
+
+The pinned CUDA PyTorch covers compute capability 7.5 and newer. Pascal cards (for example the GTX 10 series) need an older CUDA build: set `GPU_TORCH_VERSION=2.6.0` and `GPU_TORCH_WHEEL_INDEX=https://download.pytorch.org/whl/cu124`, then rebuild. Leave both empty on newer GPUs.
+
+### Your own subtitles (.srt)
+
+The home page accepts an optional `.srt` file next to an uploaded video. With
+one, the task never transcribes: no AssemblyAI call and no Whisper run, and the
+clip captions are the text from the file. Without one, everything behaves as
+before. No environment variable is needed.
+
+- Upload the file first: `POST /upload/srt` (multipart field `srt`, at most
+  5 MB) returns `{"srt_path": "srt://<owner>/<sha256>.srt", "cues": N}`. The
+  file is stored content-addressed under `{TEMP_DIR}/uploads/srt/<owner>/`,
+  and only its owner can use that reference.
+- Pass `srt_path` to `POST /tasks/` with the same task. Subtitle files work
+  with uploaded videos only: YouTube/stream sources download partial ranges,
+  which would shift the timings, so a task with both is refused (400).
+- Cue timings are spread proportionally across each cue's own window, so
+  cues are the finest timing available: karaoke captions refresh per cue
+  rather than per word, and clip boundaries snap to cue edges. Speaker
+  framing stays off, exactly as it is for other providers without speakers.
+- Subtitle-backed runs get their own analysis and checkpoint keys
+  (`|srt:<sha256>`), so the same upload can be generated again with different
+  subtitles, or without them, without reusing the wrong transcript.
 
 ### Workflows
 

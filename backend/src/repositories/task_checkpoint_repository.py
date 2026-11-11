@@ -11,7 +11,8 @@ from .edit_transaction import TaskCancelled, commit_unless_editing
 
 
 def checkpoint_input_key(url: str, source_type: str, processing_mode: str,
-                         clip_length: str, config: Any) -> str:
+                         clip_length: str, config: Any,
+                         srt_digest: str | None = None) -> str:
     # Provider/language changes invalidate word timings. Rendering preferences
     # don't: retries keep completed clips and apply current styling to new ones.
     inputs = {
@@ -21,6 +22,10 @@ def checkpoint_input_key(url: str, source_type: str, processing_mode: str,
         "transcription_language": getattr(config, "transcription_language", ""),
         "whisper_model": getattr(config, "whisper_model", ""),
     }
+    # Only subtitle-backed runs change the key: adding a constant null field
+    # would re-hash every existing task and repeat work already paid for.
+    if srt_digest:
+        inputs["srt_digest"] = srt_digest
     return hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
 
 

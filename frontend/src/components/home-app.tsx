@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
-  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo, SlidersHorizontal,
+  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileText, FileVideo, SlidersHorizontal,
   Info, ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
@@ -15,7 +15,7 @@ import { OUTPUT_FORMATS, parseCreateSettings, type CreateSettings, type LengthWo
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
 import { changedSettings, invalidSetting, WorkflowAdvancedSettings, type AdvancedValues } from "@/components/workflow-advanced";
-import { FONT_SEARCH_THRESHOLD, formatUploadLimit, getYouTubeThumbnailUrl, maxVideoUploadBytes, readVideoDuration, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
+import { FONT_SEARCH_THRESHOLD, formatUploadLimit, getYouTubeThumbnailUrl, isSrtFileName, maxSrtUploadBytes, maxVideoUploadBytes, readVideoDuration, uploadSrtFile, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
 import { VideoDownloadStatus } from "@/components/app/video-download-status";
@@ -142,9 +142,12 @@ export default function HomeApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // Optional user-supplied subtitles: with a file the app never transcribes.
+  const [srtFile, setSrtFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const srtInputRef = useRef<HTMLInputElement | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const { data: session, isPending } = useSession();
   const sourceType: "youtube" | "upload" = file ? "upload" : "youtube";
@@ -405,6 +408,24 @@ export default function HomeApp() {
     }
     if (!next && fileInputRef.current) fileInputRef.current.value = "";
     if (!next) requestAnimationFrame(() => urlInputRef.current?.focus());
+    // Subtitles belong to one video; removing the video removes them too.
+    if (!next) attachSrt(null);
+  };
+
+  const attachSrt = (next: File | null) => {
+    if (next && !isSrtFileName(next.name)) {
+      setError(t("errors.notSrt"));
+      if (srtInputRef.current) srtInputRef.current.value = "";
+      return;
+    }
+    if (next && next.size > maxSrtUploadBytes()) {
+      setError(t("errors.srtTooLarge", { limit: formatUploadLimit(maxSrtUploadBytes()) }));
+      if (srtInputRef.current) srtInputRef.current.value = "";
+      return;
+    }
+    setError(null);
+    setSrtFile(next);
+    if (!next && srtInputRef.current) srtInputRef.current.value = "";
   };
 
   // The tour shows each workflow on the real page, then puts back what was selected.
@@ -753,6 +774,14 @@ export default function HomeApp() {
         videoUrl = await uploadVideoFile(file, uploadLimitBytes);
       }
 
+      // Subtitles are uploaded before the task exists. A failed upload stops
+      // here rather than quietly transcribing the video instead.
+      let srtReference: string | null = null;
+      if (sourceType === "upload" && file && srtFile) {
+        setStatusMessage(t("status.uploadingSubtitles"));
+        srtReference = await uploadSrtFile(srtFile);
+      }
+
       const request: Record<string, unknown> = {
         source: { url: videoUrl, title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null },
         font_options: fontOptions,
@@ -767,6 +796,7 @@ export default function HomeApp() {
         remove_filler_words: removeFillerWords,
         filtered_words: normalizedFilteredWords,
       };
+      if (srtReference) request.srt_path = srtReference;
       // Plain highlights without instructions sends exactly the request it always has.
       const options: WorkflowOptions = {};
       if (activeWorkflow !== "highlights") {
@@ -963,6 +993,48 @@ export default function HomeApp() {
                 </>
               )}
             </div>
+
+            {sourceType === "upload" && file && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2 sm:px-4">
+                <input
+                  id="srt-upload"
+                  type="file"
+                  accept=".srt,application/x-subrip,text/plain"
+                  ref={srtInputRef}
+                  onChange={(event) => attachSrt(event.target.files?.[0] ?? null)}
+                  disabled={controlsDisabled}
+                  className="hidden"
+                />
+                {srtFile ? (
+                  <span className="flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-muted/60 py-0.5 pl-2.5 pr-1 text-xs">
+                    <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="truncate">{srtFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => attachSrt(null)}
+                      disabled={isLoading}
+                      aria-label={t("srt.remove")}
+                      className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => srtInputRef.current?.click()}
+                    disabled={controlsDisabled}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                  >
+                    <FileText className="size-3.5" aria-hidden />
+                    {t("srt.chip")}
+                  </button>
+                )}
+                <span className="text-xs text-muted-foreground/70">
+                  {srtFile ? t("srt.replacesTranscription") : t("srt.hint")}
+                </span>
+              </div>
+            )}
 
             {activeWorkflow === "topic" && (
               <div className="relative flex items-start gap-2 pb-2 pl-[3.5rem] pr-3 sm:pl-[3.75rem] sm:pr-4">

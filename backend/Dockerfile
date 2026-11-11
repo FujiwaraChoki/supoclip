@@ -33,11 +33,21 @@ COPY pyproject.toml uv.lock* ./
 
 # New self-hosted setups can select CPU wheels without changing legacy builds.
 ARG BACKEND_CPU_ONLY=false
+# Opt-in fallback for GPUs the pinned CUDA build does not cover (for example
+# Pascal/sm_61). Set both to install a different CUDA PyTorch from its own wheel
+# index, e.g. TORCH_VERSION=2.6.0 and
+# TORCH_WHEEL_INDEX=https://download.pytorch.org/whl/cu124.
+ARG TORCH_VERSION=
+ARG TORCH_WHEEL_INDEX=
 RUN uv venv .venv && \
     if [ "$BACKEND_CPU_ONLY" = "true" ]; then \
       uv sync --frozen --extra cpu; \
     else \
       uv sync --frozen --extra cuda; \
+    fi
+RUN if [ -n "$TORCH_VERSION" ]; then \
+      uv pip install --python /app/.venv/bin/python "torch==${TORCH_VERSION}" \
+        --index-url "$TORCH_WHEEL_INDEX"; \
     fi
 
 # yt-dlp and its PO-token plugin are installed from uv.lock above.

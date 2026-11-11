@@ -4,8 +4,16 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-11
+
+- **New:** Uploaded videos can use your own `.srt` subtitle file instead of transcription. With a subtitle attached, the video skips Whisper or AssemblyAI entirely, and the burned captions and clip selection come from your text rather than a machine transcript. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
+
 ## 2026-11-10
 
+- **New:** Any OpenAI-compatible service can be the LLM provider with `LLM=custom:<model>` and a base URL, configured from the environment or the admin settings panel. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
+- **Fixed:** Self-hosted Docker installs render the app again; the web container now loads the interface text from the checkout instead of an older copy bundled in the image. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
+- **Fixed:** Uploading a video no longer fails when the app is opened at `127.0.0.1` instead of `localhost`, and a large upload needs only its own size in free disk space instead of twice as much. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
+- **Under the hood:** Self-hosted installs with an NVIDIA GPU can opt into GPU transcription for local Whisper, including Pascal cards such as the GTX 10 series via an older CUDA PyTorch build. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
 - **Improved:** A studio export or clip preparation whose server stops unexpectedly is now retried or shown as failed within a few minutes, instead of staying in progress. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
 - **Under the hood:** Video rendering can run on additional servers. Studio drafts and exports are kept in the database, and uploads, fonts and finished videos are shared through storage instead of one server's disk. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
 - **Fixed:** When we can't verify a YouTube, Twitch or Kick video's length, the message explains that the stream may still be live and suggests using the completed recording. For YouTube, we check a second source for the length. If that check confirms a region restriction, we suggest uploading the video file. ([#356](https://github.com/FujiwaraChoki/supoclip/pull/356))
