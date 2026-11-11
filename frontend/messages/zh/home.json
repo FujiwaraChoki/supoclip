@@ -15,14 +15,17 @@
     "uploadFontRetry": "字体上传失败。请再试一次。",
     "processVideo": "视频处理失败。请再试一次。",
     "fileTooLarge": "这个文件有 {size}，超过了 {limit} 的上传上限。请换一个更短的导出或更小的文件。",
-    "api": "API 错误：{status}"
+    "api": "API 错误：{status}",
+    "notSrt": "这看起来不是字幕文件。请选择 .srt 文件。",
+    "srtTooLarge": "该字幕文件超过 {limit} 限制。请选择更小的 .srt 文件。"
   },
   "status": {
     "uploading": "正在上传视频…",
     "checkingLength": "正在检查视频时长…",
     "starting": "正在开始生成…",
     "working": "处理中…",
-    "uploadingFont": "正在上传…"
+    "uploadingFont": "正在上传…",
+    "uploadingSubtitles": "正在上传字幕..."
   },
   "drop": "松开即可上传视频",
   "readyToUpload": "{size} · 可以上传",
@@ -339,5 +342,11 @@
       "relaxed": "允许",
       "question": "一个问题"
     }
+  },
+  "srt": {
+    "chip": "添加字幕 (.srt)",
+    "hint": "可选 — 跳过转录",
+    "replacesTranscription": "使用你的字幕替代转录",
+    "remove": "移除字幕"
   }
 }

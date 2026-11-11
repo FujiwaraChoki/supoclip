@@ -15,14 +15,17 @@
     "uploadFontRetry": "No se pudo subir la fuente. Inténtalo de nuevo.",
     "processVideo": "No se pudo procesar el video. Inténtalo de nuevo.",
     "fileTooLarge": "Este archivo pesa {size} y supera el límite de subida de {limit}. Prueba con una exportación más corta o un archivo más pequeño.",
-    "api": "Error de API: {status}"
+    "api": "Error de API: {status}",
+    "notSrt": "Eso no parece un archivo de subtítulos. Elige un archivo .srt.",
+    "srtTooLarge": "Este archivo de subtítulos supera el límite de {limit}. Elige un .srt más pequeño."
   },
   "status": {
     "uploading": "Subiendo video…",
     "checkingLength": "Revisando la duración del video…",
     "starting": "Iniciando la generación…",
     "working": "Trabajando…",
-    "uploadingFont": "Subiendo…"
+    "uploadingFont": "Subiendo…",
+    "uploadingSubtitles": "Subiendo subtítulos..."
   },
   "drop": "Suelta para subir tu video",
   "readyToUpload": "{size} · listo para subir",
@@ -339,5 +342,11 @@
       "relaxed": "Permitidos",
       "question": "Una pregunta"
     }
+  },
+  "srt": {
+    "chip": "Añadir subtítulos (.srt)",
+    "hint": "Opcional: se omite la transcripción",
+    "replacesTranscription": "Se usarán tus subtítulos en lugar de la transcripción",
+    "remove": "Quitar subtítulos"
   }
 }

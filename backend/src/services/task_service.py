@@ -25,6 +25,7 @@ from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from ..repositories.task_checkpoint_repository import TaskCheckpointRepository, checkpoint_input_key
+from ..srt_uploads import resolve_srt_path, srt_digest
 from .video_service import VideoService
 from .clip_service import ClipEditingMixin, fill_output_starts
 from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
@@ -159,7 +160,8 @@ class TaskService(ClipEditingMixin):
 
     @staticmethod
     def _build_cache_key(
-        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None
+        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None,
+        srt_digest: Optional[str] = None,
     ) -> str:
         payload = (
             f"{source_type}|{processing_mode}|"
@@ -169,6 +171,10 @@ class TaskService(ClipEditingMixin):
         # request never reuses a 720p source. Full quality keeps the old key.
         if quality and source_type == "youtube":
             payload += f"|q{quality}"
+        # A supplied .srt produces a different transcript, so it never shares
+        # the entry of a Whisper/AssemblyAI run of the same upload.
+        if srt_digest:
+            payload += f"|srt:{srt_digest}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     @staticmethod
@@ -509,6 +515,16 @@ class TaskService(ClipEditingMixin):
             # honour it with the ARQ job arguments unchanged.
             task_row = await self.task_repo.get_task_by_id(self.db, task_id) or {}
             spec = workflow_spec_from_task(task_row, clip_length)
+            # A user-supplied subtitle rides in the task's source metadata, so
+            # queued jobs, resumes and retries all find it without new ARQ args.
+            task_metadata = await self.task_repo.load_source_metadata(self.db, task_id) or {}
+            srt_reference = task_metadata.get("srt_path")
+            srt_digest_value = task_metadata.get("srt_digest")
+            srt_path: Optional[Path] = None
+            if isinstance(srt_reference, str) and srt_reference:
+                srt_path = resolve_srt_path(srt_reference)
+                if not isinstance(srt_digest_value, str) or not srt_digest_value:
+                    srt_digest_value = srt_digest(srt_reference)
             prior_outputs = bool(await self.clip_repo.get_clips_by_task(self.db, task_id))
             # New tasks already have an atomic acceptance charge. Recover queued
             # legacy jobs with missing durations before doing paid processing.
@@ -528,7 +544,7 @@ class TaskService(ClipEditingMixin):
             # a final downscale; 1080p plans keep the renderer's output.
             download_quality, output_short_side = reduced_media_limits(billing)
             cache_key = self._build_cache_key(
-                url, source_type, processing_mode, download_quality
+                url, source_type, processing_mode, download_quality, srt_digest_value
             )
             if spec.legacy:
                 analysis_cache_key = self._build_analysis_cache_key(cache_key, clip_length)
@@ -561,7 +577,9 @@ class TaskService(ClipEditingMixin):
             )
             if performance_context:
                 cached_analysis_json = None
-            input_key = checkpoint_input_key(url, source_type, processing_mode, clip_length, self.config)
+            input_key = checkpoint_input_key(
+                url, source_type, processing_mode, clip_length, self.config, srt_digest_value
+            )
             checkpoint = await self.checkpoint_repo.get(self.db, task_id, input_key)
             cache_hit = bool(
                 (checkpoint.get("transcript") or cached_transcript)
@@ -662,6 +680,7 @@ class TaskService(ClipEditingMixin):
                 clip_length=clip_length,
                 checkpoint=checkpoint,
                 checkpoint_callback=save_checkpoint,
+                srt_path=srt_path,
                 **workflow_kwargs,
             )
             stage_timings["pipeline_seconds"] = round(

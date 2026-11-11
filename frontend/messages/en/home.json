@@ -15,14 +15,17 @@
     "uploadFontRetry": "Failed to upload font. Please try again.",
     "processVideo": "Failed to process video. Please try again.",
     "fileTooLarge": "This file is {size}, which is over the {limit} upload limit. Try a shorter export or a smaller file.",
-    "api": "API error: {status}"
+    "api": "API error: {status}",
+    "notSrt": "That doesn't look like a subtitle file. Choose a .srt file.",
+    "srtTooLarge": "This subtitle file is over the {limit} limit. Pick a smaller .srt file."
   },
   "status": {
     "uploading": "Uploading video…",
     "checkingLength": "Checking video length…",
     "starting": "Starting generation…",
     "working": "Working…",
-    "uploadingFont": "Uploading…"
+    "uploadingFont": "Uploading…",
+    "uploadingSubtitles": "Uploading subtitles..."
   },
   "drop": "Drop to upload your video",
   "readyToUpload": "{size} · ready to upload",
@@ -339,5 +342,11 @@
       "relaxed": "Allowed",
       "question": "A question"
     }
+  },
+  "srt": {
+    "chip": "Add subtitles (.srt)",
+    "hint": "Optional — skips transcription",
+    "replacesTranscription": "Using your subtitles instead of transcription",
+    "remove": "Remove subtitles"
   }
 }

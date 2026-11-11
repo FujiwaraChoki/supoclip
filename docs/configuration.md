@@ -162,6 +162,28 @@ Local Whisper runs on the CPU by default. On a Linux self-host with an NVIDIA GP
 
 The pinned CUDA PyTorch covers compute capability 7.5 and newer. Pascal cards (for example the GTX 10 series) need an older CUDA build: set `GPU_TORCH_VERSION=2.6.0` and `GPU_TORCH_WHEEL_INDEX=https://download.pytorch.org/whl/cu124`, then rebuild. Leave both empty on newer GPUs.
 
+### Your own subtitles (.srt)
+
+The home page accepts an optional `.srt` file next to an uploaded video. With
+one, the task never transcribes: no AssemblyAI call and no Whisper run, and the
+clip captions are the text from the file. Without one, everything behaves as
+before. No environment variable is needed.
+
+- Upload the file first: `POST /upload/srt` (multipart field `srt`, at most
+  5 MB) returns `{"srt_path": "srt://<owner>/<sha256>.srt", "cues": N}`. The
+  file is stored content-addressed under `{TEMP_DIR}/uploads/srt/<owner>/`,
+  and only its owner can use that reference.
+- Pass `srt_path` to `POST /tasks/` with the same task. Subtitle files work
+  with uploaded videos only: YouTube/stream sources download partial ranges,
+  which would shift the timings, so a task with both is refused (400).
+- Cue timings are spread proportionally across each cue's own window, so
+  cues are the finest timing available: karaoke captions refresh per cue
+  rather than per word, and clip boundaries snap to cue edges. Speaker
+  framing stays off, exactly as it is for other providers without speakers.
+- Subtitle-backed runs get their own analysis and checkpoint keys
+  (`|srt:<sha256>`), so the same upload can be generated again with different
+  subtitles, or without them, without reusing the wrong transcript.
+
 ### Workflows
 
 Series, topic, recap and trailer runs (and creator instructions on Highlights)
