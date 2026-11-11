@@ -57,22 +57,30 @@ only drawn by the server export.
 
 ## Persistence and operation
 
-No database migration or additional service is required. Deploy the frontend,
-API, and worker together and restart the worker so it registers `prepare_editor`,
-`export_editor`, and `combine_editor`.
+No additional service is required. Deploy the frontend, API, and worker together
+and restart the worker so it registers `prepare_editor`, `export_editor`, and
+`combine_editor`.
 
-The API and worker must share the existing `TEMP_DIR` volume. Editor files live
-under `TEMP_DIR/editor/<hash-of-task-clip-and-source-version>/`:
+Editor state is in PostgreSQL, one session per task, clip and clip filename:
 
-- `clean.mp4`, thumbnails, and waveform metadata: prepared media cache.
-- `original.json`: initial editing baseline.
-- `draft.json`: current document and optimistic revision number.
-- Export request snapshots, progress/status, cancellation markers, and MP4 outputs.
+- `editor_sessions`: preparation state and media metadata, the initial editing
+  baseline, and the current draft with its optimistic revision number.
+- `editor_jobs`: export and combine jobs with the document they render, their
+  status, progress, and cancel request.
 
-Back up this volume with generated clips. Removing it removes saved drafts and
-exports. Undo history and saved caption presets are local to the browser; the
-current draft is shared across devices. A changed original filename creates a new
-editing baseline rather than applying old offsets to different media.
+Editor media is separate. `clean.mp4`, thumbnails and export MP4s are stored
+under `media/editor/<session>/` in the bucket when object storage is on, and
+under `TEMP_DIR/editor/<session>/` otherwise. With object storage that directory
+is only a cache on whichever machine rendered last, so the API and workers do
+not need to share it. With local storage they must share `TEMP_DIR`, on one
+machine.
+
+Drafts are covered by the database backup. Sessions written as files by earlier
+releases (`draft.json`, `original.json`, `asset.json`, `job-*.json`) are imported
+the first time the clip is opened; after that the files are ignored. Undo history
+and saved caption presets are local to the browser; the current draft is shared
+across devices. A changed original filename creates a new editing baseline rather
+than applying old offsets to different media.
 
 Preparation may redownload a YouTube source that generation cleanup removed.
 Unavailable sources show a retryable error; the editor does not overlay a second

@@ -48,7 +48,9 @@ from ...font_registry import (
     find_user_font_path,
     get_available_fonts as list_available_fonts,
     get_user_fonts_dir,
+    publish_user_font,
     sanitize_font_stem,
+    unpublish_user_font,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -247,6 +249,15 @@ async def upload_font(
             suffix += 1
 
         await _write_upload_to_disk(uploaded_file, target_path, MAX_FONT_UPLOAD_BYTES)
+        try:
+            # Workers on other machines read the font from object storage.
+            await run_in_thread(publish_user_font, target_path, user_id)
+        except STORAGE_ERRORS:
+            target_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=503,
+                detail="Font storage is temporarily unavailable. Try again.",
+            ) from None
 
         logger.info(f"Uploaded font: {target_path.name}")
 
@@ -289,6 +300,11 @@ async def delete_font(
 
         deleted_name = font_path.stem
         font_path.unlink(missing_ok=True)
+        try:
+            await run_in_thread(unpublish_user_font, font_path.name, user_id)
+        except STORAGE_ERRORS:
+            # The font is gone for this user either way; the object is unused.
+            logger.warning("Deleted font could not be removed from object storage")
         logger.info("Deleted custom font %s for user %s", font_path.name, user_id)
         return {"font_name": deleted_name, "message": "Font deleted successfully"}
     except HTTPException:

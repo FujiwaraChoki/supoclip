@@ -85,6 +85,10 @@ utils/               → Thread pool helpers for blocking operations (async_help
 - Blocking operations (video processing, downloads, transcription) wrapped in `run_in_thread()` to avoid blocking the async event loop
 - Progress tracking uses Redis pub/sub → SSE to frontend
 - Task status flow: `queued → processing → completed/error/cancelled`
+- **No shared disk between the API and a worker.** A video worker may run on another machine
+  (`docs/render-worker.md`). State another process needs goes in PostgreSQL, Redis or the bucket,
+  never in a file under `TEMP_DIR`; that directory is each machine's own scratch. A job publishes
+  its output before it reports it. Local storage (`MEDIA_STORAGE=local`) still means one machine.
 
 ### Video Processing Pipeline
 
@@ -133,6 +137,11 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workers/tasks.py` | ARQ worker task definitions |
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
+| `src/workers/video_admission.py` | Per-account render slots; holds a job until its upload is in the bucket |
+| `src/workers/media_cleanup.py` | Deletion outbox, orphan sweeps, per-machine scratch cleanup |
+| `src/editor_state.py` | Clip studio sessions, drafts and export/combine jobs in PostgreSQL |
+| `src/local_volume.py` | Id of the disk behind `TEMP_DIR`; tags rows that name a local path |
+| `src/media_replication_ledger.py`, `src/sync_db.py` | Pending two-bucket replication in PostgreSQL, usable from boto threads |
 | `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
 | `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
@@ -291,8 +300,9 @@ WORKFLOW_FULL_CONTEXT_MAX_WORDS=0    # Words read in one outline call; 0 = provi
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
+UPLOAD_COPY_WAIT_SECONDS=1800        # Worker on another machine: wait for an upload to reach the bucket
 AI_EDIT_DAILY_LIMIT=150              # Studio AI edits per user per day (needs ANTHROPIC_API_KEY)
-TEMP_DIR=/tmp                        # Temp file storage
+TEMP_DIR=/tmp                        # Uploads, caches, renders; per machine when MEDIA_STORAGE=s3
 DATABASE_URL=postgresql+asyncpg://...
 BETTER_AUTH_SECRET=...               # Frontend auth secret
 ```
@@ -354,6 +364,11 @@ inspector on top, a full-width sequence timeline (`timeline.tsx`: V1 segments, B
 edit time) below. Drafts are `EditDocument`s on the `clean.mp4` (source) timeline; `sequence`/`locate` map between
 edit and source time. Preview and browser export draw through `lib/editor/render.ts`, the server export through
 `render_document`. Generated clips' B-roll opens as editable items (`broll-panel.tsx`).
+
+**State:** sessions, drafts (revision compare-and-swap) and export/combine jobs are rows (`editor_state.py`:
+`editor_sessions`, `editor_jobs`). A job row carries the document it renders, its progress (worker heartbeat) and
+the cancel request. Editor media goes to `media/editor/<session>/` in the bucket before a session is marked ready;
+`TEMP_DIR/editor/<session>/` is a per-machine cache. Unit tests use `tests/fixtures/editor_store.py`.
 
 **AI editing:** the "AI edit" field under the viewer (`ai-prompt.tsx`, ⌘J) posts `POST .../editor/ai` → Redis → `ai_edit_job` on the
 AI worker → Claude Sonnet 5.5 returns typed operations (`keep_ranges`, `remove_words`, `set`, `add_broll`, ...) →

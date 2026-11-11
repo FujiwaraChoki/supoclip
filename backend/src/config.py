@@ -176,6 +176,11 @@ class Config:
         self.video_job_defer_seconds = min(
             300, max(5, self._get_int_env("VIDEO_JOB_DEFER_SECONDS", 20))
         )
+        # How long a worker on another machine waits for an upload to be
+        # copied from the API's disk to object storage before failing the task.
+        self.upload_copy_wait_seconds = max(
+            60, self._get_int_env("UPLOAD_COPY_WAIT_SECONDS", 1800)
+        )
         # Pickup delay (enqueue until a worker starts the job) that raises a
         # PostHog exception. Rate-limited so a backed-up queue pages once.
         self.queue_delay_alert_seconds = max(

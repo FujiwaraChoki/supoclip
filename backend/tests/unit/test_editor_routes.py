@@ -8,10 +8,11 @@ import pytest
 from src.api.routes import editor
 from src.database import get_db
 from src.editor_document import EditDocument, atomic_json, editor_dir
+from src.editor_state import editor_key
 
 
 @pytest.fixture
-async def client(tmp_path, monkeypatch):
+async def client(tmp_path, monkeypatch, editor_store):
     task = {"id": "task", "user_id": "owner", "status": "completed"}
     clip = {"id": "clip", "task_id": "task", "filename": "clip.mp4", "file_path": str(tmp_path / "clip.mp4")}
     service = SimpleNamespace(
@@ -34,9 +35,7 @@ async def client(tmp_path, monkeypatch):
     doc = EditDocument.model_validate(
         {"segments": [{"id": "one", "start": 0, "end": 2}]}
     ).model_dump()
-    atomic_json(directory / "draft.json", {"revision": 0, "document": doc})
-    atomic_json(directory / "original.json", doc)
-    atomic_json(directory / "asset.json", {"status": "ready", "duration": 2})
+    editor_store.put_ready("task", "clip", "clip.mp4", {"duration": 2}, doc)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as http:
@@ -87,7 +86,7 @@ async def test_revision_and_basis_prevent_stale_writes(client):
     ).status_code == 400
 
 
-async def test_export_snapshot_cancel_and_private_download(client):
+async def test_export_snapshot_cancel_and_private_download(client, editor_store):
     http, service, doc, directory = client
     response = await http.post(
         "/tasks/task/clips/clip/editor/exports",
@@ -95,14 +94,21 @@ async def test_export_snapshot_cancel_and_private_download(client):
     )
     assert response.status_code == 202
     job = response.json()["id"]
-    assert (directory / f"request-{job}.json").exists()
+    # The job carries the document it will render; no file on this machine does.
+    stored = editor_store.jobs_by_id[job]
+    assert stored["request"] == {"document": doc, "preset": "reels"}
+    assert not directory.exists() or not list(directory.glob("*.json"))
+    queued = editor.JobQueue.enqueue_job.await_args
+    assert queued.args == ("export_editor", "task", "clip", "clip.mp4", job)
+    assert queued.kwargs == {"_job_id": f"editor-job:{job}"}
     assert (
         await http.get(f"/tasks/task/clips/clip/editor/exports/{job}/file")
     ).status_code == 409
-    assert (
-        await http.delete(f"/tasks/task/clips/clip/editor/exports/{job}")
-    ).status_code == 200
-    assert (directory / f"cancel-{job}").exists()
+    cancelled = await http.delete(f"/tasks/task/clips/clip/editor/exports/{job}")
+    assert cancelled.status_code == 200 and cancelled.json() == {"status": "cancelled"}
+    assert stored["status"] == "cancelled" and stored["cancel_requested"]
+    # A worker that receives the queue job afterwards finds nothing to claim.
+    assert await editor_store.start_job(job) is None
     assert (
         await http.get("/tasks/task/clips/clip/editor/media/draft.json")
     ).status_code == 404
@@ -125,29 +131,103 @@ async def test_failed_enqueue_is_retryable(client, monkeypatch):
     assert state["jobs"][0]["status"] == "failed"
 
 
-@pytest.mark.parametrize("wrapped", [False, True])
-async def test_autosave_returns_new_revision_when_snapshot_sync_is_unavailable(client, monkeypatch, wrapped):
-    from botocore.exceptions import EndpointConnectionError
-    from boto3.exceptions import S3UploadFailedError
+async def test_autosave_does_not_depend_on_object_storage_or_local_files(client, monkeypatch, editor_store):
     http, service, doc, directory = client
-    failure = S3UploadFailedError("SlowDown") if wrapped else EndpointConnectionError(endpoint_url="https://storage.test")
-    monkeypatch.setattr(editor.MediaStorage, "save_editor", lambda *a, **k: (_ for _ in ()).throw(failure))
+
+    def unavailable(*args, **kwargs):
+        raise AssertionError("Saving a draft must not touch media storage")
+
+    monkeypatch.setattr(editor.MediaStorage, "client", property(unavailable))
     payload = {"basis": "clip.mp4", "revision": 0, "document": doc}
     saved = await http.patch("/tasks/task/clips/clip/editor", json=payload)
     assert saved.status_code == 200
     assert saved.json()["revision"] == 1
     payload["revision"] = 1
     assert (await http.patch("/tasks/task/clips/clip/editor", json=payload)).json()["revision"] == 2
+    assert not directory.exists() or not list(directory.glob("*.json"))
 
 
-async def test_local_preview_and_export_survive_storage_outage(client, monkeypatch):
+async def test_a_session_written_as_files_is_imported_once_with_its_jobs(client, editor_store):
+    """Drafts saved by the file-based editor must open after the upgrade."""
+    http, service, doc, directory = client
+    editor_store.sessions.clear()
+    edited = {**doc, "muted": True}
+    atomic_json(directory / "draft.json", {"revision": 7, "document": edited})
+    atomic_json(directory / "original.json", doc)
+    atomic_json(directory / "asset.json", {"status": "ready", "duration": 2})
+    job = "a" * 32
+    atomic_json(directory / f"job-{job}.json", {"status": "completed", "progress": 100})
+    atomic_json(directory / f"request-{job}.json", {"document": doc, "preset": "tiktok"})
+
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["status"] == "ready"
+    assert state["draft"]["revision"] == 7 and state["draft"]["document"]["muted"] is True
+    assert state["original"]["muted"] is False
+    assert state["jobs"] == [{"id": job, "status": "completed", "progress": 100}]
+
+    # From here the stored session is the truth; the old files are ignored.
+    payload = {"basis": "clip.mp4", "revision": 7, "document": doc}
+    assert (await http.patch("/tasks/task/clips/clip/editor", json=payload)).json()["revision"] == 8
+    atomic_json(directory / "draft.json", {"revision": 99, "document": edited})
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["draft"]["revision"] == 8 and state["draft"]["document"]["muted"] is False
+
+
+async def test_only_one_request_starts_a_preparation(client, editor_store):
+    http, service, doc, directory = client
+    editor_store.sessions.clear()
+    first = await http.post("/tasks/task/clips/clip/editor/prepare")
+    second = await http.post("/tasks/task/clips/clip/editor/prepare")
+    assert first.status_code == second.status_code == 202
+    assert first.json() == second.json() == {"status": "preparing"}
+    assert editor.JobQueue.enqueue_job.await_count == 1
+    assert (await http.get("/tasks/task/clips/clip/editor")).json()["status"] == "preparing"
+
+
+async def test_a_preparation_whose_worker_died_can_be_retried(client, editor_store):
+    from src.editor_state import STALE_PREPARE_SECONDS
+
+    http, service, doc, directory = client
+    editor_store.sessions.clear()
+    await http.post("/tasks/task/clips/clip/editor/prepare")
+    key = editor_key("task", "clip", "clip.mp4")
+    await editor_store.begin_prepare(key, "task", "clip", "clip.mp4")
+    assert (await http.get("/tasks/task/clips/clip/editor")).json()["status"] == "preparing"
+    # The worker stopped heartbeating a while ago.
+    editor_store.sessions[key]["updated"] -= STALE_PREPARE_SECONDS + 1
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["status"] == "failed" and "interrupted" in state["error"]
+    assert (await http.post("/tasks/task/clips/clip/editor/prepare")).json() == {"status": "preparing"}
+    assert editor.JobQueue.enqueue_job.await_count == 2
+
+
+async def test_a_render_whose_worker_died_frees_its_slot(client, editor_store):
+    from src.editor_state import STALE_RENDER_SECONDS
+
+    http, service, doc, directory = client
+    body = {"basis": "clip.mp4", "document": doc}
+    jobs = [(await http.post("/tasks/task/clips/clip/editor/exports", json=body)).json()["id"] for _ in range(3)]
+    assert (await http.post("/tasks/task/clips/clip/editor/exports", json=body)).status_code == 429
+    assert await editor_store.start_job(jobs[0]) is not None
+    editor_store.jobs_by_id[jobs[0]]["updated"] -= STALE_RENDER_SECONDS + 1
+    status = (await http.get(f"/tasks/task/clips/clip/editor/exports/{jobs[0]}")).json()
+    assert status["status"] == "failed" and "stopped" in status["error"]
+    assert (await http.post("/tasks/task/clips/clip/editor/exports", json=body)).status_code == 202
+
+
+async def test_local_preview_and_export_survive_storage_outage(client, monkeypatch, editor_store):
     from botocore.exceptions import EndpointConnectionError
     http, service, doc, directory = client
-    (directory / ".s3-manifest").write_text('{}')
+    directory.mkdir(parents=True, exist_ok=True)
     (directory / "clean.mp4").write_bytes(b"local preview")
     job = "f" * 32
-    atomic_json(directory / f"job-{job}.json", {"status": "completed"})
+    key = editor_key("task", "clip", "clip.mp4")
+    await editor_store.create_job(key, job, "export", {"document": doc, "preset": "tiktok"})
+    claim = (await editor_store.start_job(job))["claim"]
+    await editor_store.finish_job(job, claim, "completed")
     (directory / f"export-{job}.mp4").write_bytes(b"local export")
+    monkeypatch.setattr(editor.MediaStorage, "enabled", True, raising=False)
+    monkeypatch.setattr(editor.MediaStorage, "editor_reference", lambda self, directory, name="": f"s3://bucket/media/editor/{name}")
     monkeypatch.setattr(editor.MediaStorage, "exists", lambda *a: (_ for _ in ()).throw(EndpointConnectionError(endpoint_url="https://storage.test")))
     preview = await http.get("/tasks/task/clips/clip/editor/media/clean.mp4")
     export = await http.get(f"/tasks/task/clips/clip/editor/exports/{job}/file")
@@ -156,7 +236,7 @@ async def test_local_preview_and_export_survive_storage_outage(client, monkeypat
     assert export.content == b"local export"
 
 
-async def test_old_drafts_regain_template_animation_and_hook_title(client):
+async def test_old_drafts_regain_template_animation_and_hook_title(client, editor_store):
     http, service, doc, directory = client
     service.task_repo.get_task_by_id.return_value = {
         "id": "task",
@@ -171,7 +251,7 @@ async def test_old_drafts_regain_template_animation_and_hook_title(client):
     # A draft saved before the editor kept the template and hook title.
     old = {**doc, "captions": {k: v for k, v in doc["captions"].items() if k not in {"template", "karaoke", "uppercase"}}}
     old.pop("hookTitle")
-    atomic_json(directory / "draft.json", {"revision": 3, "document": old})
+    editor_store.put_ready("task", "clip", "clip.mp4", {"duration": 2}, old, revision=3)
 
     state = (await http.get("/tasks/task/clips/clip/editor")).json()
     captions = state["draft"]["document"]["captions"]
@@ -183,7 +263,7 @@ async def test_old_drafts_regain_template_animation_and_hook_title(client):
 
     # Drafts that already chose these values keep them.
     current = {**doc, "hookTitle": "", "captions": {**doc["captions"], "karaoke": False}}
-    atomic_json(directory / "draft.json", {"revision": 4, "document": current})
+    editor_store.put_ready("task", "clip", "clip.mp4", {"duration": 2}, current, revision=4)
     state = (await http.get("/tasks/task/clips/clip/editor")).json()
     assert state["draft"]["document"]["hookTitle"] == ""
     assert state["draft"]["document"]["captions"]["karaoke"] is False

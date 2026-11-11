@@ -1,15 +1,14 @@
 """Versioned, non-destructive clip drafts and deterministic render instructions.
 
-Editor files live beside generated media on the shared temp volume. Originals are
-never modified. A file lock and revision check protect concurrent API workers.
+Originals are never modified. Drafts, their revisions and render jobs are rows
+(see ``editor_state``). A session's directory under ``TEMP_DIR/editor`` only
+caches its media on the machine that is rendering it.
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Literal
-import fcntl
 import hashlib
 import json
 import os
@@ -205,35 +204,8 @@ def atomic_json(path: Path, value: dict):
         temporary.unlink(missing_ok=True)
 
 
-@contextmanager
-def editor_lock(directory: Path):
-    directory.mkdir(parents=True, exist_ok=True)
-    with (directory / ".lock").open("a") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
-
-
 class RevisionConflict(ValueError):
     pass
-
-
-def save_document(
-    directory: Path, document: EditDocument, revision: int, duration: float
-):
-    document.validate_duration(duration)
-    with editor_lock(directory):
-        path = directory / "draft.json"
-        current = json.loads(path.read_text()) if path.exists() else {"revision": 0}
-        if revision != current["revision"]:
-            raise RevisionConflict(
-                "This clip was edited in another tab. Reload the saved draft before continuing."
-            )
-        payload = {"revision": revision + 1, "document": document.model_dump()}
-        atomic_json(path, payload)
-        return payload
 
 
 def output_size(document: EditDocument, width: int, height: int):
@@ -406,9 +378,20 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         )
 
 
-def run_render(command: list[str], directory: Path, job_id: str, duration: float):
-    """Poll a cancellable child without buffering unbounded ffmpeg logs."""
-    status_path = directory / f"job-{job_id}.json"
+def run_render(
+    command: list[str],
+    directory: Path,
+    job_id: str,
+    duration: float,
+    *,
+    should_cancel=None,
+    on_progress=None,
+):
+    """Poll a cancellable child without buffering unbounded ffmpeg logs.
+
+    ``should_cancel`` and ``on_progress`` belong to the job's owner, which
+    keeps the job row. The files written here are this process's scratch.
+    """
     progress_path = directory / f"progress-{job_id}.txt"
     log_path = directory / f"log-{job_id}.txt"
     with log_path.open("w+") as log:
@@ -425,7 +408,7 @@ def run_render(command: list[str], directory: Path, job_id: str, duration: float
         )
         try:
             while process.poll() is None:
-                if (directory / f"cancel-{job_id}").exists():
+                if should_cancel is not None and should_cancel():
                     raise InterruptedError("Export cancelled")
                 percent = 0
                 if progress_path.exists():
@@ -443,7 +426,8 @@ def run_render(command: list[str], directory: Path, job_id: str, duration: float
                                 )
                             except ValueError:
                                 pass
-                atomic_json(status_path, {"status": "rendering", "progress": percent})
+                if on_progress is not None:
+                    on_progress(percent)
                 time.sleep(0.25)
             if process.returncode:
                 log.seek(0)
@@ -466,6 +450,9 @@ def render_document(
     document: EditDocument,
     preset: str,
     broll_files: dict[str, Path] | None = None,
+    *,
+    should_cancel=None,
+    on_progress=None,
 ):
     """Render a draft. ``broll_files`` maps footage keys to local files; B-roll
     whose footage is missing is left out rather than failing the export."""
@@ -594,9 +581,14 @@ def render_document(
     ]
     try:
         run_render(
-            command, directory, job_id, sum(s.end - s.start for s in document.segments)
+            command,
+            directory,
+            job_id,
+            sum(s.end - s.start for s in document.segments),
+            should_cancel=should_cancel,
+            on_progress=on_progress,
         )
-        if (directory / f"cancel-{job_id}").exists():
+        if should_cancel is not None and should_cancel():
             raise InterruptedError("Export cancelled")
         temporary.replace(output)
     except BaseException:

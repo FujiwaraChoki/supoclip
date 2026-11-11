@@ -9,6 +9,7 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from ..local_volume import volume_id
 from ..media.upload_limits import upload_too_large_detail
 from ..utils.async_helpers import run_in_thread
 
@@ -235,9 +236,9 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
     try:
         await db.execute(text("""
             INSERT INTO media_upload_sessions
-                (id, user_id, size, state, video_path, content_sha256, idempotency_key)
+                (id, user_id, size, state, video_path, content_sha256, idempotency_key, staging_volume)
             VALUES
-                (:id, :owner, :size, 'completed', :path, :digest, :key)
+                (:id, :owner, :size, 'completed', :path, :digest, :key, :volume)
         """), {
             "id": session_id,
             "owner": user_id,
@@ -245,6 +246,8 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
             "path": video_path,
             "digest": digest,
             "key": idempotency_key,
+            # Until the copy to object storage finishes, the bytes are only here.
+            "volume": volume_id(config.temp_dir),
         })
         await _remember_idempotency_key(db, user_id, session_id, idempotency_key)
         await db.commit()
@@ -289,10 +292,22 @@ async def get_stored_upload(db, video_path: str):
     if not isinstance(video_path, str) or not video_path.startswith("upload://"):
         return None
     return (await db.execute(text("""
-        SELECT id, user_id, video_path, storage_reference FROM media_upload_sessions
+        SELECT id, user_id, video_path, storage_reference, staging_volume FROM media_upload_sessions
         WHERE video_path = :path AND state = 'completed'
         ORDER BY created_at DESC LIMIT 1
     """), {"path": video_path})).first()
+
+
+async def list_uncopied_uploads(db, volume: str, limit: int = 100) -> list[str]:
+    """Stored uploads on this disk (or of unknown disk) that object storage does not have."""
+    rows = await db.execute(text("""
+        SELECT video_path FROM media_upload_sessions
+        WHERE state = 'completed' AND storage_reference IS NULL
+          AND video_path LIKE 'upload://%' AND video_path NOT LIKE 'upload://s3/%'
+          AND (staging_volume = :volume OR staging_volume IS NULL)
+        ORDER BY created_at DESC LIMIT :limit
+    """), {"volume": volume, "limit": limit})
+    return [row.video_path for row in rows]
 
 
 async def save_storage_reference(db, session_id: str, video_path: str, reference: str) -> None:

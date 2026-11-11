@@ -20,8 +20,8 @@ from src.services.editor_service import (
     apply_editor_layout,
     editor_preserved_layout,
     prepare_editor,
-    read_state,
 )
+from tests.fixtures.editor_store import stored_state
 
 
 def word(start, end, speaker):
@@ -446,7 +446,7 @@ async def test_prepare_keeps_split_and_stacked_layouts_in_preview_and_export(
     await prepare_editor({}, "task", "clip", "clip.mp4")
 
     directory = editor_dir(str(tmp_path), "task", "clip", "clip.mp4")
-    state = read_state(directory)
+    state = await stored_state("task", "clip", "clip.mp4")
     assert state["status"] == "ready", state
     assert calls and calls[0]["output_format"] == "original"
     framing = state["draft"]["document"]["framing"]
@@ -495,7 +495,7 @@ async def test_prepare_without_a_layout_keeps_the_source_crop(
     await prepare_editor({}, "task", "clip", "clip.mp4")
 
     directory = editor_dir(str(tmp_path), "task", "clip", "clip.mp4")
-    state = read_state(directory)
+    state = await stored_state("task", "clip", "clip.mp4")
     assert state["status"] == "ready", state
     assert calls and calls[0]["output_format"] == "original"
     assert state["draft"]["document"]["framing"]["aspect"] == aspect

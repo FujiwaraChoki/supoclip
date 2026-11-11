@@ -10,6 +10,12 @@ The worker container starts this process next to the video worker. The
 optional ``cron-worker`` Compose service (profile ``cron``) is the same
 process on its own; set ``EMBED_CRON_WORKER=0`` on the video worker when
 using it.
+
+Run it on the machine that hosts the API. Uploads and user fonts are written
+to that machine's disk first, and ``copy_pending_uploads`` and
+``cleanup_media`` are what move the leftovers into object storage. A video
+worker on another machine sets ``EMBED_CRON_WORKER=0`` and keeps its own disk
+tidy with ``maintain_local_scratch``.
 """
 
 import os
@@ -21,7 +27,7 @@ from arq.connections import RedisSettings  # noqa: E402
 
 from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
-from .media_cleanup import cleanup_media, sweep_orphaned_media  # noqa: E402
+from .media_cleanup import cleanup_media, copy_pending_uploads, sweep_orphaned_media  # noqa: E402
 from .media_replication import check_media_storage, replicate_pending_media  # noqa: E402
 from .tasks import (  # noqa: E402
     dispatch_scheduled_social_posts,
@@ -62,6 +68,7 @@ class CronWorkerSettings:
             run_at_startup=True,
         ),
         scheduled(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
+        scheduled(copy_pending_uploads, second=10, run_at_startup=True, timeout=1800),
         scheduled(dispatch_scheduled_social_posts, second=0, timeout=300),
         scheduled(refresh_social_metrics, minute=7, second=0, timeout=1800),
     ]

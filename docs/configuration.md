@@ -79,7 +79,7 @@ The backend can infer a default LLM from whichever API key is present, but setti
 | `BETTER_AUTH_SECRET` | Dev secret | Frontend auth secret; must be changed in non-local environments |
 | `DISABLE_SIGN_UP` | `false` | Prevents creation of new user accounts when set |
 | `NEXT_PUBLIC_LANDING_ONLY_MODE` | `false` | Restricts the UI to the landing page only |
-| `TEMP_DIR` | `/app/uploads` in Docker | Temporary backend working directory for uploads and processing |
+| `TEMP_DIR` | `/app/uploads` in Docker | Working directory for uploads, caches and renders. With `MEDIA_STORAGE=local` the API and workers must share it; with `s3` each machine has its own |
 | `MEDIA_STORAGE` | `local` | `s3` stores durable media in a private bucket; see [Media storage](media-storage.md) for configuration, retention and migration |
 | `CORS_ORIGINS` | `http://localhost:3107,http://sp.localhost:3107,http://supoclip.localhost:3107` | Allowed browser origins for backend requests, including direct browser video uploads |
 
@@ -141,7 +141,8 @@ These settings affect clip generation speed, throughput, and defaults.
 | `VIDEO_JOB_DEFER_SECONDS` | `20` | How long a video over the per-account cap waits before a worker checks again (5–300). The waiting job is not charged again |
 | `QUEUE_DELAY_ALERT_SECONDS` | `600` | Pickup delay, from enqueue until a worker starts the job, that reports `queue_delay_exceeded` to PostHog |
 | `QUEUE_DELAY_ALERT_INTERVAL_SECONDS` | `900` | Minimum time between those queue-delay reports |
-| `EMBED_CRON_WORKER` | `1` | When `1`, the worker process also starts the cron worker on queue `supoclip_cron`. Set `0` only if the optional Compose `cron-worker` service (profile `cron`) is running instead |
+| `EMBED_CRON_WORKER` | `1` | When `1`, the worker process also starts the cron worker on queue `supoclip_cron`. Set `0` if the optional Compose `cron-worker` service (profile `cron`) is running instead, and on video workers that run on a different machine from the API |
+| `UPLOAD_COPY_WAIT_SECONDS` | `1800` | How long a video worker on another machine waits for an upload to be copied from the API's disk to object storage before the task fails (minimum 60). See [Video workers on other machines](./render-worker.md) |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
 | `MAX_VIDEO_UPLOAD_BYTES` | `4000000000` | Maximum uploaded file size, in bytes (4 GB). Checked in the browser before the upload starts, and again by the API and presigned upload session so it cannot be bypassed. Set `NEXT_PUBLIC_MAX_VIDEO_UPLOAD_BYTES` to the same value so the pre-upload check matches before the billing summary loads. Sources above 1080p or 60 fps are scaled down to that ceiling before transcription and rendering; plans with a lower output resolution still receive that lower resolution |
 | `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |
