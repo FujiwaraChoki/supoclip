@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-11
 
-- **Fixed:** Self-hosters whose `GOOGLE_API_KEY` is a Gemini-only key no longer see a failed YouTube Data API request on every submission. Set `YOUTUBE_METADATA_FALLBACK=false` to use only the configured metadata provider.
+- **Fixed:** Self-hosters whose `GOOGLE_API_KEY` is a Gemini-only key no longer see a failed YouTube Data API request on every submission. Set `YOUTUBE_METADATA_FALLBACK=false` to use only the configured metadata provider. ([#362](https://github.com/FujiwaraChoki/supoclip/pull/362))
 
 ## 2026-11-10
 
