@@ -40,7 +40,7 @@ try:  # Python 3.10 lacks typing.Literal niceties only in edge cases; import is 
 except ImportError:  # pragma: no cover
     from typing_extensions import Literal  # type: ignore
 
-from .client import AuthNotConfiguredError, SupoClipClient, SupoClipError
+from .client import AuthNotConfiguredError, SupoClipClient, SupoClipError, path_id
 from .config import load_settings
 
 SETTINGS = load_settings()
@@ -234,6 +234,10 @@ def _workflow_fields(workflow: str, topic: str, part_count: int, instructions: s
     if cleaned_instructions:
         fields["instructions"] = cleaned_instructions
     return fields
+
+
+def _clip_path(task_id: str, clip_id: str, leaf: str) -> str:
+    return f"/tasks/{path_id(task_id, 'task_id')}/clips/{path_id(clip_id, 'clip_id')}/{leaf}"
 
 
 def _safe_filename(name: str, default: str) -> str:
@@ -660,7 +664,7 @@ async def supoclip_get_task(
         ``error_code``; their clips carry ``workflow_role`` (part/topic/recap/
         trailer), ``part_number`` (series) and ``workflow_meta``.
     """
-    data = await _client().request("GET", f"/tasks/{task_id}")
+    data = await _client().request("GET", f"/tasks/{path_id(task_id, 'task_id')}")
     return _json(data)
 
 
@@ -704,7 +708,7 @@ async def supoclip_wait_for_task(
     deadline = time.monotonic() + timeout_seconds
     last: dict = {}
     while True:
-        last = await _client().request("GET", f"/tasks/{task_id}")
+        last = await _client().request("GET", f"/tasks/{path_id(task_id, 'task_id')}")
         status = str(last.get("status", "unknown"))
         progress = last.get("progress", 0)
 
@@ -759,7 +763,7 @@ async def supoclip_list_clips(
         str: JSON ``{"task_id", "clips": [{"id", "filename", "start_time",
         "end_time", "virality_score", ...}], "total_clips": int}``.
     """
-    data = await _client().request("GET", f"/tasks/{task_id}/clips")
+    data = await _client().request("GET", f"/tasks/{path_id(task_id, 'task_id')}/clips")
     return _json(data)
 
 
@@ -801,7 +805,7 @@ async def supoclip_download_clip(
     """
     out_name = _safe_filename(filename or "", default=f"clip_{clip_id}.mp4")
     result = await _client().download(
-        f"/tasks/{task_id}/clips/{clip_id}/file", SETTINGS.download_dir, out_name
+        _clip_path(task_id, clip_id, "file"), SETTINGS.download_dir, out_name
     )
     return _json(result)
 
@@ -845,7 +849,7 @@ async def supoclip_export_clip(
     """
     out_name = _safe_filename(filename or "", default=f"clip_{clip_id}_{preset}.mp4")
     result = await _client().download(
-        f"/tasks/{task_id}/clips/{clip_id}/export",
+        _clip_path(task_id, clip_id, "export"),
         SETTINGS.download_dir,
         out_name,
         params={"preset": preset},
@@ -878,7 +882,7 @@ async def supoclip_cancel_task(
     Returns:
         str: JSON ``{"message": str}``.
     """
-    data = await _client().request("POST", f"/tasks/{task_id}/cancel")
+    data = await _client().request("POST", f"/tasks/{path_id(task_id, 'task_id')}/cancel")
     return _json(data)
 
 
@@ -904,7 +908,7 @@ async def supoclip_resume_task(
     Returns:
         str: JSON ``{"message": str, "job_id": str}``.
     """
-    data = await _client().request("POST", f"/tasks/{task_id}/resume")
+    data = await _client().request("POST", f"/tasks/{path_id(task_id, 'task_id')}/resume")
     return _json(data)
 
 
@@ -932,7 +936,7 @@ async def supoclip_delete_task(
     Returns:
         str: JSON ``{"message": str}``.
     """
-    data = await _client().request("DELETE", f"/tasks/{task_id}")
+    data = await _client().request("DELETE", f"/tasks/{path_id(task_id, 'task_id')}")
     return _json(data)
 
 
