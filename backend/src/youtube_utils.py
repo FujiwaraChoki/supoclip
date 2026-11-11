@@ -463,6 +463,8 @@ def get_youtube_video_info(
         else YOUTUBE_METADATA_PROVIDER_YTDLP
     )
     providers = [primary_provider, secondary_provider]
+    if not config.youtube_metadata_fallback:
+        providers = [primary_provider]
     last_error: Optional[Exception] = None
     geo_error: Optional[Exception] = None
     # A result without a usable length. The other provider gets one try

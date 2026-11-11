@@ -455,6 +455,7 @@ YouTube metadata lookup is configurable independently from the download provider
 | Variable | Default | Purpose |
 |---|---|---|
 | `YOUTUBE_METADATA_PROVIDER` | `yt_dlp` | Primary metadata provider: `yt_dlp` or `youtube_data_api` |
+| `YOUTUBE_METADATA_FALLBACK` | `true` | Try the other metadata provider when the primary one fails. Set `false` when `GOOGLE_API_KEY` has no YouTube Data API access |
 | `YOUTUBE_DATA_API_KEY` | empty | Preferred credential for the YouTube Data API metadata path |
 | `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` | `30` | How long task creation waits for YouTube length metadata. Blank or invalid values use 30. Values above 180 are capped at 180. |
 

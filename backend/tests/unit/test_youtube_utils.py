@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pytest
 import requests
 
@@ -432,6 +434,27 @@ def test_get_youtube_video_info_falls_back_to_data_api_on_ytdlp_failure(monkeypa
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
         assert result == {"title": "Fallback API", "duration": 60}
+    finally:
+        set_config_override(None)
+
+
+def test_get_youtube_video_info_skips_fallback_when_disabled(monkeypatch):
+    config = Config()
+    config.youtube_metadata_provider = YOUTUBE_METADATA_PROVIDER_YTDLP
+    config.youtube_metadata_fallback = False
+
+    set_config_override(config)
+    try:
+        monkeypatch.setattr(
+            "src.youtube_utils._fetch_video_info_with_ytdlp",
+            lambda _url: (_ for _ in ()).throw(ValueError("boom")),
+        )
+        monkeypatch.setattr(
+            "src.youtube_utils._fetch_video_info_with_youtube_data_api",
+            Mock(side_effect=AssertionError("Data API must not be used")),
+        )
+
+        assert get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk") is None
     finally:
         set_config_override(None)
 
