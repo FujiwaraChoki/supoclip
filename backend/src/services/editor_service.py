@@ -271,7 +271,7 @@ def editor_preserved_layout(
             "Could not read an editor reframing plan", exc_info=True
         )
         return None
-    allowed = PRESERVED_LAYOUT_KINDS | ({"fit", "compositor"} if include_content else set())
+    allowed = PRESERVED_LAYOUT_KINDS | ({"fit", "compositor", "embedded_portrait"} if include_content else set())
     if described["kind"] not in allowed:
         return None
     return {
@@ -334,7 +334,7 @@ def bake_editor_layout(
     layout = editor_preserved_layout(clean, output_format, turns, words, include_content=preserve_content)
     if not layout:
         return False
-    if preserve_content and layout["kind"] in {"fit", "compositor"}:
+    if preserve_content and layout["kind"] in {"fit", "compositor", "embedded_portrait"}:
         destination = clean.with_name("layout.mp4")
         if apply_editor_layout(clean, layout, destination):
             atomic_json(clean.with_name("layout.json"), {"landscapeRecommended": bool(layout.get("landscape_recommended"))})

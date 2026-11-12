@@ -40,6 +40,7 @@ from .scene_context import (
     build_context_layout_plan,
     context_scene_cuts,
 )
+from .portrait_padding import PaddingWindow, plan_portrait_padding
 from .ffmpeg import (
     build_audio_output_args,
     build_final_video_encode_args,
@@ -1437,6 +1438,52 @@ def _described(
     }
 
 
+def build_portrait_padding_filter(
+    video_filter: str, mode: str, windows: List[PaddingWindow], duration: float,
+) -> str:
+    """Replace only corroborated padded sections; other shots keep their plan.
+
+    A portrait picture is fitted without cropping its own edges. Background
+    fill comes from that picture, so existing sidebars cannot be nested again.
+    Group equal widths and bound the branch count for montage-style sources.
+    """
+    if not windows:
+        return video_filter if mode == "complex" else f"[0:v]{video_filter}[vout]"
+    groups: Dict[int, List[PaddingWindow]] = {}
+    for window in windows:
+        crop_w = window[2]
+        if crop_w not in groups and len(groups) >= 4:
+            logger.info("Portrait padding branch limit reached; preserving remaining shots")
+            continue
+        groups.setdefault(crop_w, []).append(window)
+    graph = (video_filter.replace("[vout]", "[portrait_base]") if mode == "complex"
+             else f"[0:v]{video_filter}[portrait_base]")
+    current = "[portrait_base]"
+    for index, (crop_w, mine) in enumerate(groups.items()):
+        x_expr = str(mine[-1][3])
+        for _, end, _, x in reversed(mine[:-1]):
+            x_expr = f"if(lt(t\\,{end:.3f})\\,{x}\\,{x_expr})"
+        enabled = "+".join(
+            f"gte(t\\,{start:.3f})*lt(t\\,{end if end < duration - .001 else 1e6:.3f})"
+            for start, end, _, _ in mine
+        )
+        out = "[vout]" if index == len(groups) - 1 else f"[portrait_out{index}]"
+        portrait_layer = (
+            f"[0:v]crop={crop_w}:ih:x='{x_expr}':y=0,split=2[pbgsrc{index}][pfgsrc{index}];"
+            f"[pbgsrc{index}]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
+            f"gblur=sigma=14:steps=2,scale=1080:1920:flags=bilinear,setsar=1[pbg{index}];"
+            f"[pfgsrc{index}]{FIT_CHAIN}[pfg{index}];"
+            f"[pbg{index}][pfg{index}]overlay=(W-w)/2:(H-h)/2[portrait{index}]"
+        )
+        if (len(groups) == 1 and mine[0][0] <= .001 and mine[-1][1] >= duration - .001
+                and all(b[0] <= a[1] + .001 for a, b in zip(mine, mine[1:]))):
+            # The usual already-padded clip needs no unused face/fit branches.
+            return portrait_layer.replace(f"[portrait{index}]", "[vout]")
+        graph += f";{portrait_layer};{current}[portrait{index}]overlay=0:0:enable='{enabled}'{out}"
+        current = out
+    return graph
+
+
 def build_vertical_filter_plan(
     input_path: Path,
     width: int,
@@ -1510,6 +1557,22 @@ def describe_vertical_layout(
     track, scene_cuts = analyzed[0], analyzed[1]
     face_samples = analyzed[2] if len(analyzed) > 2 else []
     context = analyzed[3] if len(analyzed) > 3 else []
+    padding_windows = plan_portrait_padding(
+        [(sample.time, sample.portrait_bounds) for sample in context],
+        scene_cuts, duration, width,
+    )
+    if padding_windows:
+        logger.info("Embedded portrait windows (start, end, crop_w, x): %s", padding_windows)
+
+    def finish(kind: str, video_filter: str, mode: str, caption_y: Optional[float]) -> Dict[str, Any]:
+        if padding_windows:
+            return _described(
+                "embedded_portrait",
+                build_portrait_padding_filter(video_filter, mode, padding_windows, duration),
+                "complex", caption_y,
+            )
+        return _described(kind, video_filter, mode, caption_y)
+
     plan = (
         build_context_layout_plan(context, scene_cuts, duration, crop_w / width)
         if context else build_layout_plan(track, scene_cuts, duration)
@@ -1562,10 +1625,10 @@ def describe_vertical_layout(
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
-        return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
+        return finish("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
-        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+        return finish("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
@@ -1594,17 +1657,17 @@ def describe_vertical_layout(
                 # like a call. Put captions between the two faces.
                 caption_y = 0.5 if speaker_mode == "complex" else bleed_caption(face_samples)
                 kind = "overlap" if speaker_mode == "complex" else "speaker"
-                return _described(kind, speaker_filter, speaker_mode, caption_y)
+                return finish(kind, speaker_filter, speaker_mode, caption_y)
     if talking:
         logger.info(
             "Face-aware vertical layout: %s (upscale %.2fx, caption_y %.2f)",
             talking["kind"], talking["upscale"], talking["caption_y"],
         )
-        return _described(
+        return finish(
             talking["kind"], talking["video_filter"], "complex", talking["caption_y"]
         )
     if all(s["kind"] == "fit" for s in plan):
-        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+        return finish("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     keys = build_crop_trajectory(track, width, crop_w) if track else []
     # A cut by itself is not camera motion. Ken Burns stays available unless
@@ -1634,20 +1697,20 @@ def describe_vertical_layout(
         if not moving:
             zoom = kenburns_zoom_fragment(duration)
             if zoom:
-                return _described(
+                return finish(
                     "crop",
                     f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}",
                     "vf",
                     bleed_caption(face_samples),
                 )
-        return _described("crop", crop_chain, "vf", bleed_caption(face_samples))
+        return finish("crop", crop_chain, "vf", bleed_caption(face_samples))
 
     face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]
     logger.info(
         "Scene-aware vertical layout: %d face shot(s), %d content shot(s)",
         len(face_intervals), len(fit_intervals),
     )
-    return _described(
+    return finish(
         "compositor",
         build_vertical_compositor_filter(
             crop_chain, face_intervals, fit_intervals, fit_windows=fit_windows

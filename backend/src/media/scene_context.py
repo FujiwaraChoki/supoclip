@@ -14,6 +14,8 @@ from typing import Optional, Sequence
 import cv2
 import numpy as np
 
+from .portrait_padding import portrait_padding_bounds
+
 logger = logging.getLogger(__name__)
 
 # Lines of text a face crop may slice through before the shot keeps the full
@@ -56,6 +58,7 @@ class SceneEvidence:
     protect_right: float = 1.0
     # Text lines (placards, lower thirds, slides) cut by the face crop's edges.
     cut_text_lines: int = 0
+    portrait_bounds: Optional[tuple[float, float]] = None
 
 
 class ContextAnalyzer:
@@ -242,6 +245,8 @@ class ContextAnalyzer:
         # instead of discarding the whole clip analysis.
         cut_lines, protect_left, protect_right = 0, 0.0, 1.0
         detail_left, detail_right = 0.0, 1.0
+        lines = []
+        detail_measured = False
         try:
             lines = self._text_lines(gray)
             margin = max(2, int(w * 0.005))
@@ -254,16 +259,30 @@ class ContextAnalyzer:
             protect_left = min((a for a, _ in protected), default=w / 2) / w
             protect_right = max((b for _, b in protected), default=w / 2) / w
             detail_left, detail_right = self._detail_span(gray)
+            detail_measured = True
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Text/detail measurement failed at %.2fs (%s); ignoring it", time, exc)
             cut_lines, protect_left, protect_right = 0, 0.0, 1.0
             detail_left, detail_right = 0.0, 1.0
+        portrait_bounds = portrait_padding_bounds(gray) if detail_measured else None
+        if portrait_bounds:
+            inner_left, inner_right = (value * w for value in portrait_bounds)
+            # A real inset presenter or text outside the portrait picture is
+            # content, not padding. Small channel logos alone do not widen it.
+            if any((x0 < inner_left - 2 or x1 > inner_right + 2) and x1 - x0 > w * .12
+                   for x0, _, x1, _ in lines) or any(
+                not inner_left <= bx + bw / 2 <= inner_right
+                and bw * bh / (w * h) >= .002
+                for bx, _, bw, bh in boxes
+            ):
+                portrait_bounds = None
         return SceneEvidence(
             time, area, span, len(significant), center, motion, outside, spread, camera,
             self._text_rows(components, w, left, right), cut, delta,
             detail_left=detail_left, detail_right=detail_right,
             protect_left=max(0.0, protect_left), protect_right=min(1.0, protect_right),
             cut_text_lines=cut_lines,
+            portrait_bounds=portrait_bounds,
         )
 
 
