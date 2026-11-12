@@ -683,12 +683,14 @@ class MediaStorage:
             self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
             self._stamp_editor_file(directory, self._editor_stamps(directory), path)
 
-    def restore_editor_media(self, directory: Path, *, has_layout=False):
+    def restore_editor_media(self, directory: Path, *, has_layout=False, version: str | None = None):
         """Put the session's source video into this machine's scratch directory.
 
         The lease keeps the cache sweeper away until the surrounding render
         finishes. The lock only orders processes on this machine that fill the
-        same directory; another machine has its own copy.
+        same directory; another machine has its own copy. ``version`` is the
+        session's ``mediaVersion``: a copy from an earlier preparation (the
+        session was rebuilt since) is replaced with the stored one.
         """
         directory.mkdir(parents=True, exist_ok=True)
         leases = _workspace.get()
@@ -700,17 +702,29 @@ class MediaStorage:
                     leases["editors"][directory] = handle
         (directory / ".access").touch()
         wanted = ["clean.mp4"] + (["layout.mp4"] if has_layout else [])
-        if not self.bucket or all((directory / name).exists() for name in wanted):
+        marker = directory / ".media-version"
+
+        def outdated() -> bool:
+            return bool(version) and (not marker.exists() or marker.read_text(encoding="utf-8").strip() != version)
+
+        if not self.bucket or (not outdated() and all((directory / name).exists() for name in wanted)):
             return
         with (directory / ".sync").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             stamps = self._editor_stamps(directory)
+            if outdated():
+                for name in ("clean.mp4", "layout.mp4", "layout.json", "thumbnails.jpg"):
+                    (directory / name).unlink(missing_ok=True)
+                    stamps.pop(name, None)
+                atomic_json(directory / ".s3-manifest", stamps)
             for name in wanted:
                 path = directory / name
                 if path.exists():
                     continue
                 if self._download(self.parse(self.editor_reference(directory, name)), path, optional=True):
                     self._stamp_editor_file(directory, stamps, path)
+            if version and all((directory / name).exists() for name in wanted):
+                marker.write_text(version, encoding="utf-8")
 
     def restore_legacy_editor_state(self, directory: Path, *, s3_backed=False):
         """Fetch the JSON an earlier release kept beside the media in object storage.

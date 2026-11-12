@@ -1,6 +1,6 @@
 """Video utils helpers for the video pipeline."""
 
-from .clip_source_map import save_clip_broll, save_clip_caption_settings
+from .clip_source_map import save_clip_broll, save_clip_caption_settings, save_clip_vertical_layout
 from .media.common import (
     Any,
     Dict,
@@ -414,6 +414,7 @@ def create_optimized_clip(
             speaker_words: List[Dict[str, Any]] = []
             vertical_plan = None
             caption_y = None
+            plan_report: Dict[str, Any] = {}
             if reframe_format == "vertical":
                 if get_config().speaker_framing:
                     try:
@@ -424,7 +425,8 @@ def create_optimized_clip(
                         logger.warning("Speaker turn extraction failed: %s", exc)
                 try:
                     video_filter, mode, caption_y = build_vertical_filter_plan(
-                        source_clip_path, src_w, src_h, speaker_turns, speaker_words
+                        source_clip_path, src_w, src_h, speaker_turns, speaker_words,
+                        report=plan_report,
                     )
                     vertical_plan = (video_filter, mode)
                 except Exception as exc:
@@ -432,6 +434,20 @@ def create_optimized_clip(
                     caption_y = None
             if layout_report is not None and caption_y is not None:
                 layout_report["caption_y"] = caption_y
+            if layout_report is not None and vertical_plan is not None:
+                # The editor replays this exact plan instead of guessing a
+                # centre crop (see bake_editor_layout).
+                try:
+                    layout_report["vertical_layout"] = {
+                        "kind": plan_report.get("kind") or "generated",
+                        "video_filter": vertical_plan[0],
+                        "mode": vertical_plan[1],
+                        "width": src_w,
+                        "height": src_h,
+                        "duration": ffprobe_duration(source_clip_path),
+                    }
+                except Exception as exc:
+                    logger.warning("Could not record the vertical layout for the editor: %s", exc)
 
             # Detect source captions in both polarities, then inspect their
             # actual composed positions for fit, reaction, stack and split layouts.
@@ -600,6 +616,7 @@ def create_clips_from_segments(
                     clip_path,
                     segment.get("broll") if layout_report.get("broll_applied") else [],
                 )
+                save_clip_vertical_layout(clip_path, layout_report.get("vertical_layout"))
                 if layout_report.get("caption_y") is not None:
                     save_clip_caption_settings(
                         clip_path, {"position_y": layout_report["caption_y"], "position_is_center": True}

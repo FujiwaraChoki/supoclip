@@ -6,6 +6,9 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
+- **Fixed:** Opening several clips in the studio at once no longer leaves one of them shorter than the clip. If the whole source can't be fetched, the studio says so instead of opening part of it. A clip that already opened short shows the problem and offers to rebuild its editing copy; your earlier draft stays downloadable. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** The studio opens a clip with the framing it was generated with, including face tracking and the blurred full-frame fit, instead of a centred crop. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** The studio no longer fills your browser's storage. It keeps a small copy of unsaved changes and a short undo history for your last few clips, and removes a generation's copies when you delete it. If storage does fill up, the message explains that your edits still save to your account, and ⋯ → Browser backups shows what is stored and frees what's already saved. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
 - **Fixed:** When you queue several videos, they now start in the order you submitted them, and the next one starts as soon as the previous one finishes. Before, a video submitted earlier could keep waiting while later ones went ahead. ([#378](https://github.com/FujiwaraChoki/supoclip/pull/378))
 - **Under the hood:** Media playback, downloads and uploads can prefer the independent storage replica to reduce transfer costs, while keeping the other provider as a backup. ([#376](https://github.com/FujiwaraChoki/supoclip/pull/376))
 

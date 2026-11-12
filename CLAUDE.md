@@ -368,7 +368,15 @@ edit and source time. Preview and browser export draw through `lib/editor/render
 **State:** sessions, drafts (revision compare-and-swap) and export/combine jobs are rows (`editor_state.py`:
 `editor_sessions`, `editor_jobs`). A job row carries the document it renders, its progress (worker heartbeat) and
 the cancel request. Editor media goes to `media/editor/<session>/` in the bucket before a session is marked ready;
-`TEMP_DIR/editor/<session>/` is a per-machine cache. Unit tests use `tests/fixtures/editor_store.py`.
+`TEMP_DIR/editor/<session>/` is a per-machine cache (`asset.mediaVersion` tells a machine its copy is stale). Unit tests use `tests/fixtures/editor_store.py`.
+
+**Preparation never shortens a clip:** each job assembles its YouTube timeline in its own `youtube-work/` directory and
+reads another job's file only through a hard-linked copy. Source ranges map with `local_ranges_for(..., strict=True)`, and
+a `clean.mp4` shorter than the clip's ranges fails with `SOURCE_INCOMPLETE`. Generation saves its 9:16 plan in the source map
+(`vertical_layout`), which the editor replays into `layout.mp4` so the studio opens on the clip's own framing.
+`POST .../editor/rebuild` prepares a session again with a fresh draft; the replaced draft stays in `draft_backup`
+(`GET .../editor/backup`). The browser keeps a bounded copy per clip (`lib/editor/draft-cache.ts`): unsaved edits always,
+undo history only for the last few saved clips.
 
 **AI editing:** the "AI edit" field under the viewer (`ai-prompt.tsx`, ⌘J) posts `POST .../editor/ai` → Redis → `ai_edit_job` on the
 AI worker → Claude Sonnet 5.5 returns typed operations (`keep_ranges`, `remove_words`, `set`, `add_broll`, ...) →

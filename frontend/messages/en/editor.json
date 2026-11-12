@@ -32,7 +32,12 @@
     "canvasUnavailable": "Canvas is unavailable. Use background export.",
     "cannotDecode": "This browser cannot decode the source. Use background export.",
     "audioEncodeUnavailable": "Audio encoding is unavailable. Use background export.",
-    "noVideo": "Export produced no video."
+    "noVideo": "Export produced no video.",
+    "sourceIncomplete": "We couldn't fetch the whole source video for this clip, so we didn't open it with footage missing. Retry in a minute.",
+    "uploadShorter": "The original upload is shorter than this clip, so it can't be opened for editing.",
+    "rebuildBusy": "Wait for the current preparation or export to finish, then rebuild.",
+    "rebuildConflict": "This draft changed in another tab. Reload it before rebuilding.",
+    "noBackup": "No earlier draft is kept for this clip."
   },
   "keys": {
     "space": "Space",
@@ -267,7 +272,7 @@
     "backup": "Back up draft",
     "reloadSaved": "Reload saved version",
     "retryPreparation": "Retry preparation",
-    "storageFull": "Local draft storage is full or unavailable. Keep this tab open until the server confirms your changes are saved.",
+    "storageFull": "This browser's storage for SupoClip is full, so it can't keep a backup copy of your latest changes. Your edits still save to your account: wait for “All changes saved” before you close this tab.",
     "yourClips": "Your clips",
     "clips": "Clips",
     "editClip": "Edit clip {order}",
@@ -375,5 +380,27 @@
     "viewPlans": "View plans"
   },
   "partLabel": "Part {n}",
-  "partClipLabel": "Part {n} · {title}"
+  "partClipLabel": "Part {n} · {title}",
+  "recovery": {
+    "sourceIncomplete": "The editing copy of this clip is only {duration} long instead of {expected}, so part of the clip is missing here. Your generated clip isn't affected. Rebuild the editing copy to fix it.",
+    "rebuild": "Rebuild editing copy",
+    "rebuildTitle": "Rebuild the editing copy?",
+    "rebuildDescription": "SupoClip prepares this clip again from the original video, at its full length and with the framing it was generated with.",
+    "rebuildWarning": "Studio edits you made to this clip don't carry over to the new copy. Your current draft is kept on our servers: download it any time with “Download previous draft” in the ⋯ menu.",
+    "rebuildConfirm": "Rebuild",
+    "rebuildStarted": "Rebuilding the editing copy…",
+    "downloadPrevious": "Download previous draft",
+    "browserBackups": "Browser backups",
+    "manageBackups": "See what's stored",
+    "backupsTitle": "Browser backups of your drafts",
+    "backupsDescription": "Your drafts save to your SupoClip account. This browser also keeps a small copy of changes that haven't reached the server yet, in case the tab closes or you go offline, plus a short undo history for your last few clips. Deleting projects doesn't change this storage.",
+    "backupsSummary": "{entries, plural, =0 {No clips have a browser backup} one {# clip has a browser backup} other {# clips have a browser backup}} ({size})",
+    "backupsUnsaved": "{count, plural, =0 {All of them are already saved to your account.} one {# has changes that aren't in your account yet. It is kept.} other {# have changes that aren't in your account yet. They are kept.}}",
+    "backupsClear": "Remove saved copies",
+    "backupsClearNote": "Removing saved copies only forgets their undo history after a reload. Your drafts stay in your account.",
+    "backupsCleared": "Freed {size}. Unsaved changes were kept.",
+    "backupsNothing": "Nothing to remove. Unsaved changes stay until they reach your account.",
+    "backupsBrowserNote": "Clearing this browser's site data for SupoClip also removes these copies and signs you out. Only do that once every open clip says “All changes saved”.",
+    "done": "Done"
+  }
 }

@@ -32,7 +32,12 @@
     "canvasUnavailable": "El lienzo no está disponible. Usa la exportación en segundo plano.",
     "cannotDecode": "Este navegador no puede decodificar el origen. Usa la exportación en segundo plano.",
     "audioEncodeUnavailable": "La codificación de audio no está disponible. Usa la exportación en segundo plano.",
-    "noVideo": "La exportación no produjo un video."
+    "noVideo": "La exportación no produjo un video.",
+    "sourceIncomplete": "No pudimos obtener el video original completo para este clip, así que no lo abrimos con partes faltantes. Vuelve a intentarlo en un minuto.",
+    "uploadShorter": "El video subido es más corto que este clip, así que no se puede abrir para editar.",
+    "rebuildBusy": "Espera a que termine la preparación o exportación en curso y luego vuelve a generar la copia.",
+    "rebuildConflict": "Este borrador cambió en otra pestaña. Recárgalo antes de volver a generar la copia.",
+    "noBackup": "No hay un borrador anterior guardado para este clip."
   },
   "keys": {
     "space": "Espacio",
@@ -267,7 +272,7 @@
     "backup": "Respaldar borrador",
     "reloadSaved": "Recargar la versión guardada",
     "retryPreparation": "Reintentar preparación",
-    "storageFull": "El almacenamiento local de borradores está lleno o no está disponible. Mantén esta pestaña abierta hasta que el servidor confirme que tus cambios se guardaron.",
+    "storageFull": "El almacenamiento de este navegador para SupoClip está lleno, así que no puede guardar una copia de seguridad de tus últimos cambios. Tus ediciones se siguen guardando en tu cuenta: espera a ver “Todos los cambios guardados” antes de cerrar esta pestaña.",
     "yourClips": "Tus clips",
     "clips": "Clips",
     "editClip": "Editar clip {order}",
@@ -375,5 +380,27 @@
     "viewPlans": "Ver planes"
   },
   "partLabel": "Parte {n}",
-  "partClipLabel": "Parte {n} · {title}"
+  "partClipLabel": "Parte {n} · {title}",
+  "recovery": {
+    "sourceIncomplete": "La copia de edición de este clip dura solo {duration} en lugar de {expected}, así que aquí falta parte del clip. Tu clip generado no se ve afectado. Vuelve a generar la copia de edición para corregirlo.",
+    "rebuild": "Volver a generar la copia de edición",
+    "rebuildTitle": "¿Volver a generar la copia de edición?",
+    "rebuildDescription": "SupoClip prepara este clip de nuevo desde el video original, con su duración completa y el encuadre con el que se generó.",
+    "rebuildWarning": "Las ediciones que hiciste a este clip en el editor no pasan a la nueva copia. Tu borrador actual queda guardado en nuestros servidores: descárgalo cuando quieras con “Descargar borrador anterior” en el menú ⋯.",
+    "rebuildConfirm": "Volver a generar",
+    "rebuildStarted": "Generando de nuevo la copia de edición…",
+    "downloadPrevious": "Descargar borrador anterior",
+    "browserBackups": "Copias en el navegador",
+    "manageBackups": "Ver qué hay guardado",
+    "backupsTitle": "Copias de tus borradores en el navegador",
+    "backupsDescription": "Tus borradores se guardan en tu cuenta de SupoClip. Este navegador además guarda una copia pequeña de los cambios que aún no llegaron al servidor, por si se cierra la pestaña o pierdes la conexión, y un historial corto para deshacer en tus últimos clips. Borrar proyectos no cambia este almacenamiento.",
+    "backupsSummary": "{entries, plural, =0 {Ningún clip tiene copia en el navegador} one {# clip tiene copia en el navegador} other {# clips tienen copia en el navegador}} ({size})",
+    "backupsUnsaved": "{count, plural, =0 {Todos ya están guardados en tu cuenta.} one {# tiene cambios que aún no están en tu cuenta. Se conserva.} other {# tienen cambios que aún no están en tu cuenta. Se conservan.}}",
+    "backupsClear": "Quitar copias ya guardadas",
+    "backupsClearNote": "Quitar las copias ya guardadas solo borra su historial para deshacer después de recargar. Tus borradores siguen en tu cuenta.",
+    "backupsCleared": "Se liberaron {size}. Los cambios sin guardar se conservaron.",
+    "backupsNothing": "No hay nada que quitar. Los cambios sin guardar se conservan hasta que lleguen a tu cuenta.",
+    "backupsBrowserNote": "Borrar los datos del sitio de SupoClip en este navegador también elimina estas copias y cierra tu sesión. Hazlo solo cuando todos los clips abiertos digan “Todos los cambios guardados”.",
+    "done": "Listo"
+  }
 }

@@ -32,6 +32,7 @@ class MemoryEditorStore:
             "draft": None if draft is None else {"revision": row["revision"], "document": draft},
             "original": row["original"],
             "idle_seconds": time.time() - row["updated"],
+            "backup": row.get("backup"),
         })
 
     def _upsert(self, key, task_id, clip_id, filename):
@@ -76,6 +77,31 @@ class MemoryEditorStore:
                 return
         self._upsert(key, task_id, clip_id, filename)["asset"] = {"status": "failed", "error": error}
         self._touch(key)
+
+    async def rebuild(self, key, revision, job):
+        row = self.sessions.get(key)
+        if row is None:
+            return "missing"
+        active = any(
+            j["session_id"] == key and j["status"] in {"queued", "rendering"} for j in self.jobs_by_id.values()
+        )
+        if row["asset"]["status"] not in {"ready", "failed"} or active:
+            return "busy"
+        if row["revision"] != revision:
+            return "conflict"
+        if row["draft"] is not None:
+            row["backup"] = {
+                "document": copy.deepcopy(row["draft"]), "revision": row["revision"],
+                "duration": row["asset"].get("duration"), "savedAt": "2026-11-12T12:00:00+00:00",
+            }
+        row.update(draft=None, original=None, revision=row["revision"] + 1,
+                   asset={"status": "preparing", "job": job})
+        self._touch(key)
+        return "claimed"
+
+    async def draft_backup(self, key):
+        row = self.sessions.get(key)
+        return copy.deepcopy(row.get("backup")) if row else None
 
     async def save_draft(self, key, document, revision):
         row = self.sessions.get(key)

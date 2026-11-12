@@ -91,6 +91,42 @@ async def test_prepare_keeps_an_existing_draft_and_a_failure_never_demotes_a_rea
     assert loaded["original"] == DOCUMENT
 
 
+async def test_rebuild_moves_the_draft_aside_and_prepares_a_fresh_one(store, session):
+    key, *identity = session
+    assert await store.rebuild(key, 0, "job") == "missing"
+    await store.claim_prepare(key, *identity, "job")
+    await store.begin_prepare(key, *identity)
+    assert await store.rebuild(key, 0, "job") == "busy"
+    await store.finish_prepare(key, *identity, ASSET, DOCUMENT)
+    assert await store.save_draft(key, {**DOCUMENT, "muted": True}, 0) == 1
+    export = uuid.uuid4().hex
+    assert await store.create_job(key, export, "export", {})
+    assert await store.rebuild(key, 1, "rebuild") == "busy"
+    await store.cancel_job(key, export)
+
+    assert await store.rebuild(key, 0, "rebuild") == "conflict"
+    assert await store.rebuild(key, 1, "rebuild") == "claimed"
+    loaded = await store.load(key)
+    assert loaded["asset"]["status"] == "preparing" and loaded["draft"] is None
+    assert loaded["backup"]["document"] == {**DOCUMENT, "muted": True}
+    assert loaded["backup"]["revision"] == 1 and loaded["backup"]["duration"] == 1
+    # The old tab's save is refused: the session is preparing and the revision moved.
+    assert await store.save_draft(key, DOCUMENT, 1) is None
+
+    await store.begin_prepare(key, *identity)
+    await store.finish_prepare(key, *identity, {**ASSET, "duration": 3}, {**DOCUMENT, "volume": 0.5})
+    loaded = await store.load(key)
+    assert loaded["draft"] == {"revision": 2, "document": {**DOCUMENT, "volume": 0.5}}
+    assert loaded["original"] == {**DOCUMENT, "volume": 0.5}
+    assert (await store.draft_backup(key))["revision"] == 1
+
+    # A failed rebuild can be rebuilt again; the earlier backup survives it.
+    assert await store.rebuild(key, 2, "again") == "claimed"
+    await store.fail_prepare(key, *identity, "download failed")
+    assert await store.rebuild(key, 3, "third") == "claimed"
+    assert (await store.draft_backup(key))["revision"] == 2
+
+
 async def test_two_tabs_saving_the_same_revision_cannot_both_win(store, session):
     key, *identity = session
     await store.finish_prepare(key, *identity, ASSET, DOCUMENT)

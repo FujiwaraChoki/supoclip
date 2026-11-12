@@ -502,8 +502,105 @@ async def test_prepare_without_a_layout_keeps_the_source_crop(
     _pixel_value, size = _pixel(directory / "clean.mp4", 20, 20)
     assert size == (640, 360)
     assert state["width"] == 640 and state["height"] == 360
-    assert "render" not in planned
+    # A tracked crop goes to layout.mp4 beside the untouched source. Here
+    # that render fails, so the studio keeps the plain source and no layout.
+    assert not (directory / "layout.mp4").exists()
+    assert not state.get("hasLayout")
     if output_format == "original":
         assert planned == []
     else:
-        assert planned == ["describe"]
+        assert planned == ["describe", "render"]
+
+
+def _stored_plan(width=640, height=360, duration=1.0, kind="crop"):
+    # The generated clip followed the subject on the right (blue) half.
+    return {
+        "kind": kind,
+        "video_filter": "crop=180:360:460:0,scale=1080:1920,setsar=1",
+        "mode": "vf",
+        "width": width,
+        "height": height,
+        "duration": duration,
+    }
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+def test_the_generated_framing_is_replayed_beside_the_source(monkeypatch, tmp_path):
+    """The studio opens on the clip's own face-tracked crop, not a centre crop."""
+    from src.services.editor_service import bake_editor_layout
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("a stored plan must not be detected again")
+
+    monkeypatch.setattr("src.media.reframing.describe_vertical_layout", forbidden)
+    clean = tmp_path / "clean.mp4"
+    _landscape(clean)
+
+    assert bake_editor_layout(clean, "vertical", clean, [(0.0, 1.0)], True, _stored_plan())
+
+    layout, size = _pixel(tmp_path / "layout.mp4", 540, 960)
+    assert size == (1080, 1920) and _is_blue(layout)
+    source, source_size = _pixel(clean, 20, 20)
+    assert source_size == (640, 360) and _is_red(source)
+    assert json.loads((tmp_path / "layout.json").read_text()) == {"landscapeRecommended": False}
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+@pytest.mark.parametrize("plan", [
+    _stored_plan(width=1280, height=720),  # planned on another resolution
+    _stored_plan(duration=9.0),  # planned on a different cut
+])
+def test_a_plan_for_other_media_falls_back_to_detection(monkeypatch, tmp_path, plan):
+    from src.services.editor_service import bake_editor_layout
+
+    described = []
+    monkeypatch.setattr(
+        "src.media.reframing.describe_vertical_layout",
+        lambda *_args, **_kwargs: described.append(True) or {
+            "kind": "crop", "video_filter": "crop=180:360:0:0,scale=1080:1920,setsar=1",
+            "mode": "vf", "caption_y": None,
+        },
+    )
+    clean = tmp_path / "clean.mp4"
+    _landscape(clean)
+
+    assert bake_editor_layout(clean, "vertical", clean, [(0.0, 1.0)], True, plan)
+    assert described == [True]
+    # The detected tracked crop (left, red) is kept too, not dropped for a centre crop.
+    layout, _ = _pixel(tmp_path / "layout.mp4", 540, 960)
+    assert _is_red(layout)
+
+
+def test_vertical_fit_clips_bake_the_blurred_fit(monkeypatch, tmp_path):
+    from src.services import editor_service
+
+    applied = []
+    monkeypatch.setattr(
+        editor_service, "apply_editor_layout",
+        lambda source, layout, destination=None: applied.append((layout["output_format"], destination)) or True,
+    )
+    clean = tmp_path / "clean.mp4"
+    assert editor_service.bake_editor_layout(clean, "vertical_fit", clean, [(0.0, 1.0)], True)
+    assert applied == [("vertical_fit", tmp_path / "layout.mp4")]
+
+
+def test_the_vertical_plan_round_trips_through_the_source_map(tmp_path):
+    from src.clip_source_map import (
+        load_clip_vertical_layout,
+        save_clip_source_ranges,
+        save_clip_vertical_layout,
+    )
+
+    clip = tmp_path / "clip.mp4"
+    save_clip_source_ranges(clip, [(310.46, 346.88)])
+    save_clip_vertical_layout(clip, _stored_plan(duration=36.42))
+    assert load_clip_vertical_layout(clip)["video_filter"].startswith("crop=180")
+    # Rewriting the ranges (a timeline restore) keeps the plan.
+    save_clip_source_ranges(clip, [(310.46, 346.88)])
+    assert load_clip_vertical_layout(clip)["duration"] == 36.42
+
+    for unsafe in ("movie=/etc/passwd[x];[x]null", "sendcmd=f=cmds.txt,crop=1"):
+        save_clip_vertical_layout(clip, {**_stored_plan(), "video_filter": unsafe})
+        assert load_clip_vertical_layout(clip) is None
+    save_clip_vertical_layout(clip, None)
+    assert load_clip_vertical_layout(clip) is None
