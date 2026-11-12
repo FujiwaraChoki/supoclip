@@ -62,7 +62,10 @@
     "switchYearlyTitle": "切换为按年付费，免费 {count} 个月",
     "switchYearlyDescription": "${price}/年，约 ${monthly}/月。同一方案，每年计费一次。",
     "switch": "切换",
-    "monthlyEquivalentYearly": "${price}/月，按年计费"
+    "monthlyEquivalentYearly": "${price}/月，按年计费",
+    "transferCancel": "取消订阅",
+    "transferCancelConfirm": "要取消订阅的后续续费吗？已付款的使用期限仍然有效。",
+    "transferCancelSuccess": "已取消后续续费。"
   },
   "links": {
     "agentsTitle": "智能体与 API",

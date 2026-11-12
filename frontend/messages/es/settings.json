@@ -62,7 +62,10 @@
     "switchYearlyTitle": "Cambia a anual y consigue {count, plural, one {# mes} other {# meses}} gratis",
     "switchYearlyDescription": "${price}/año, unos ${monthly}/mes. Mismo plan, se cobra una vez al año.",
     "switch": "Cambiar",
-    "monthlyEquivalentYearly": "${price}/mes, facturado anualmente"
+    "monthlyEquivalentYearly": "${price}/mes, facturado anualmente",
+    "transferCancel": "Cancelar suscripción",
+    "transferCancelConfirm": "¿Cancelar las próximas renovaciones de tu suscripción? El período ya pagado seguirá disponible.",
+    "transferCancelSuccess": "Se han cancelado las próximas renovaciones."
   },
   "links": {
     "agentsTitle": "Agentes y API",

@@ -85,6 +85,7 @@ model User {
   subscription_provider String?   @db.VarChar(20)
   is_admin             Boolean   @default(false)
   stripe_customer_id   String?   @unique @db.VarChar(255)
+  stripe_account_id    String?   @db.VarChar(255)
   stripe_subscription_id String? @unique @db.VarChar(255)
   billing_period_start DateTime? @db.Timestamptz
   billing_period_end   DateTime? @db.Timestamptz
@@ -97,6 +98,7 @@ model User {
   pending_plan_invoice_id String? @db.VarChar(255)
 
   // Relationships
+  stripe_migration StripeAccountMigration?
   tasks         Task[]
   sessions      Session[]
   accounts      Account[]
@@ -431,8 +433,40 @@ model StripeWebhookEvent {
   id         String   @id
   type       String
   created_at DateTime @default(now()) @db.Timestamptz
+  status String @default("processed") @db.VarChar(20)
+  claim_token String? @db.VarChar(255)
+  lease_expires_at DateTime? @db.Timestamptz
 
   @@map("stripe_webhook_events")
+}
+
+model StripeAccountMigration {
+  id String @id @db.VarChar(255)
+  user_id String @unique @db.VarChar(255)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  source_account String @db.VarChar(255)
+  source_customer String @db.VarChar(255)
+  source_subscription String @db.VarChar(255)
+  destination_account String @db.VarChar(255)
+  destination_customer String @db.VarChar(255)
+  destination_subscription String? @db.VarChar(255)
+  destination_schedule String? @db.VarChar(255)
+  stage String @db.VarChar(32)
+  revision Int @default(0)
+  paid_through DateTime @db.Timestamptz
+  source_stopped_verified Boolean @default(false)
+  source_resumed_verified Boolean @default(false)
+  destination_disabled_verified Boolean @default(false)
+  destination_paid_invoice String? @db.VarChar(255)
+  cancellation_requested Boolean @default(false)
+  recovery_required Boolean @default(false)
+  review_reason String? @db.Text
+  livemode Boolean
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([source_account, source_customer])
+  @@unique([destination_account, destination_customer])
+  @@map("stripe_account_migrations")
 }
 
 model RevenueCatWebhookEvent {

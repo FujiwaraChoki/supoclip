@@ -62,7 +62,10 @@
     "switchYearlyTitle": "Wechsle zur jährlichen Abrechnung und erhalte {count, plural, one {# Monat} other {# Monate}} gratis",
     "switchYearlyDescription": "${price}/Jahr, etwa ${monthly}/Monat. Gleicher Plan, einmal im Jahr abgerechnet.",
     "switch": "Wechseln",
-    "monthlyEquivalentYearly": "${price}/Monat, jährlich abgerechnet"
+    "monthlyEquivalentYearly": "${price}/Monat, jährlich abgerechnet",
+    "transferCancel": "Abonnement kündigen",
+    "transferCancelConfirm": "Künftige Verlängerungen deines Abonnements kündigen? Dein bereits bezahlter Zeitraum bleibt verfügbar.",
+    "transferCancelSuccess": "Künftige Verlängerungen wurden gekündigt."
   },
   "links": {
     "agentsTitle": "Agenten & API",

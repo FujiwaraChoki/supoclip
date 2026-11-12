@@ -62,7 +62,10 @@
     "switchYearlyTitle": "Switch to yearly and get {count, plural, one {# month} other {# months}} free",
     "switchYearlyDescription": "${price}/yr, about ${monthly}/mo. Same plan, billed once a year.",
     "switch": "Switch",
-    "monthlyEquivalentYearly": "${price}/mo, billed yearly"
+    "monthlyEquivalentYearly": "${price}/mo, billed yearly",
+    "transferCancel": "Cancel subscription",
+    "transferCancelConfirm": "Cancel your subscription’s future renewals? Your already paid period stays available.",
+    "transferCancelSuccess": "Future renewals cancelled."
   },
   "links": {
     "agentsTitle": "Agents & API",
