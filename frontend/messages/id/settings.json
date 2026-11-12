@@ -120,7 +120,28 @@
     "sendFailed": "Gagal mengirim email verifikasi",
     "loadFailed": "Gagal memuat kunci API",
     "createFailed": "Gagal membuat kunci API",
-    "revokeFailed": "Gagal mencabut kunci API"
+    "revokeFailed": "Gagal mencabut kunci API",
+    "mcp": {
+      "title": "Hubungkan agen",
+      "intro": "Buat kunci di atas, lalu salin konfigurasi untuk klienmu. Ganti {placeholder} dengan kuncimu, dan isi kolom URL hanya dengan URL.",
+      "introWithKey": "Kunci barumu sudah terisi di bawah. Salin konfigurasi untuk klienmu sekarang; kunci tidak akan ditampilkan lagi.",
+      "urlLabel": "URL server",
+      "headerLabel": "Header",
+      "copy": "Salin {label}",
+      "tabs": {
+        "claudeCode": "Claude Code",
+        "json": "Cursor & lainnya",
+        "claudeDesktop": "Claude Desktop",
+        "stdio": "Lokal (stdio)"
+      },
+      "hints": {
+        "claudeCode": "Jalankan ini di terminal.",
+        "json": "Untuk Cursor (~/.cursor/mcp.json), Windsurf, dan klien lain yang menerima URL dan header.",
+        "claudeDesktop": "Tambahkan ke claude_desktop_config.json. Perlu Node.js; mcp-remote menghubungkan Claude Desktop ke server yang di-hosting.",
+        "stdio": "Menjalankan server di komputermu, jadi clip yang diunduh tersimpan di sana. Perlu uv."
+      },
+      "planNote": "Membuat clip lewat agen memakai menit video paketmu."
+    }
   },
   "creator": {
     "title": "Program kreator",

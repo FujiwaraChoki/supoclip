@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import functools
-import hashlib
 import json
 import os
 import re
@@ -28,11 +27,8 @@ import unicodedata
 from dataclasses import replace
 from typing import Annotated, Awaitable, Callable, Optional
 
-import httpx
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcp.server.auth.provider import AccessToken
-from mcp.server.auth.settings import AuthSettings
 from pydantic import Field
 
 try:  # Python 3.10 lacks typing.Literal niceties only in edge cases; import is fine.
@@ -40,77 +36,42 @@ try:  # Python 3.10 lacks typing.Literal niceties only in edge cases; import is 
 except ImportError:  # pragma: no cover
     from typing_extensions import Literal  # type: ignore
 
+from .auth import SupoClipApiKeyVerifier
 from .client import AuthNotConfiguredError, SupoClipClient, SupoClipError
 from .config import load_settings
+from .http_app import build_http_app
 
 SETTINGS = load_settings()
 CLIENT = SupoClipClient(SETTINGS)
 
 
-class SupoClipApiKeyVerifier:
-    """Validate MCP Bearer tokens against the configured SupoClip backend."""
-
-    def __init__(self, api_url: str, timeout: float) -> None:
-        self.api_url = api_url.rstrip("/")
-        self.timeout = timeout
-        self._cache: dict[str, tuple[float, bool]] = {}
-
-    async def verify_token(self, token: str) -> AccessToken | None:
-        raw_token = token.strip()
-        if not raw_token.startswith("sk_"):
-            return None
-
-        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-        now = time.time()
-        cached = self._cache.get(token_hash)
-        if cached and cached[0] > now:
-            return self._access_token(raw_token) if cached[1] else None
-
-        valid = await self._is_valid_key(raw_token)
-        ttl = 60 if valid else 10
-        self._cache[token_hash] = (now + ttl, valid)
-        return self._access_token(raw_token) if valid else None
-
-    async def _is_valid_key(self, token: str) -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{self.api_url}/tasks/billing/summary",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-        except httpx.HTTPError:
-            return False
-
-        return response.status_code < 400
-
-    @staticmethod
-    def _access_token(token: str) -> AccessToken:
-        fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
-        return AccessToken(
-            token=token,
-            client_id=f"supoclip-api-key-{fingerprint}",
-            scopes=["supoclip"],
-        )
-
-
 def _build_mcp() -> FastMCP:
-    auth_settings = None
-    token_verifier = None
-    if SETTINGS.mcp_require_bearer_auth:
-        public_url = SETTINGS.mcp_public_url or f"http://{SETTINGS.mcp_host}:{SETTINGS.mcp_port}"
-        auth_settings = AuthSettings(
-            issuer_url=public_url,
-            resource_server_url=public_url,
-            required_scopes=["supoclip"],
-        )
-        token_verifier = SupoClipApiKeyVerifier(SETTINGS.api_url, SETTINGS.timeout)
-
+    # Authentication is applied by the HTTP app (see http_app.py), identically
+    # on every transport, rather than by FastMCP's own per-transport apps.
     return FastMCP(
         "supoclip_mcp",
         host=SETTINGS.mcp_host,
         port=SETTINGS.mcp_port,
-        auth=auth_settings,
-        token_verifier=token_verifier,
+    )
+
+
+def _public_url() -> str:
+    return SETTINGS.mcp_public_url or f"http://{SETTINGS.mcp_host}:{SETTINGS.mcp_port}"
+
+
+def build_app(server: Optional[FastMCP] = None):
+    """The ASGI app for ``SUPOCLIP_MCP_TRANSPORT=http`` (both transports)."""
+    verifier = (
+        SupoClipApiKeyVerifier(SETTINGS.api_url, SETTINGS.timeout)
+        if SETTINGS.mcp_require_bearer_auth
+        else None
+    )
+    return build_http_app(
+        server or mcp,
+        public_url=_public_url(),
+        app_url=SETTINGS.app_url,
+        verifier=verifier,
+        mount_path=SETTINGS.mcp_mount_path,
     )
 
 
@@ -938,7 +899,18 @@ async def supoclip_delete_task(
 
 def main() -> None:
     """Console-script entry point."""
-    mcp.run(transport=SETTINGS.mcp_transport, mount_path=SETTINGS.mcp_mount_path)
+    if SETTINGS.mcp_transport == "stdio":
+        mcp.run(transport="stdio")
+        return
+
+    import uvicorn
+
+    uvicorn.run(
+        build_app(),
+        host=SETTINGS.mcp_host,
+        port=SETTINGS.mcp_port,
+        log_level=mcp.settings.log_level.lower(),
+    )
 
 
 if __name__ == "__main__":

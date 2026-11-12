@@ -120,7 +120,28 @@
     "sendFailed": "Bestätigungsmail konnte nicht gesendet werden",
     "loadFailed": "API-Schlüssel konnten nicht geladen werden",
     "createFailed": "API-Schlüssel konnte nicht erstellt werden",
-    "revokeFailed": "API-Schlüssel konnte nicht widerrufen werden"
+    "revokeFailed": "API-Schlüssel konnte nicht widerrufen werden",
+    "mcp": {
+      "title": "Agent verbinden",
+      "intro": "Erstell oben einen Schlüssel und kopier dann die Konfiguration für deinen Client. Ersetze {placeholder} durch deinen Schlüssel und trag ins URL-Feld nur die URL ein.",
+      "introWithKey": "Dein neuer Schlüssel ist unten schon eingesetzt. Kopier die Konfiguration für deinen Client jetzt; der Schlüssel wird nicht noch einmal angezeigt.",
+      "urlLabel": "Server-URL",
+      "headerLabel": "Header",
+      "copy": "{label} kopieren",
+      "tabs": {
+        "claudeCode": "Claude Code",
+        "json": "Cursor & andere",
+        "claudeDesktop": "Claude Desktop",
+        "stdio": "Lokal (stdio)"
+      },
+      "hints": {
+        "claudeCode": "Führ das in einem Terminal aus.",
+        "json": "Für Cursor (~/.cursor/mcp.json), Windsurf und andere Clients, die eine URL und Header annehmen.",
+        "claudeDesktop": "In claude_desktop_config.json einfügen. Braucht Node.js; mcp-remote verbindet Claude Desktop mit dem gehosteten Server.",
+        "stdio": "Startet den Server auf deinem Computer, heruntergeladene Clips landen also lokal. Braucht uv."
+      },
+      "planNote": "Clips, die ein Agent erstellt, verbrauchen die Videominuten deines Plans."
+    }
   },
   "creator": {
     "title": "Creator-Programm",
