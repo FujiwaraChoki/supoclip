@@ -4,7 +4,6 @@ import json
 import os
 import re
 import shutil
-from datetime import datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -15,12 +14,31 @@ from ..media.upload_limits import upload_too_large_detail
 from ..utils.async_helpers import run_in_thread
 
 
-# Three 64 MB parts in flight at once take just under an hour on a 0.5 Mbit/s uplink.
-UPLOAD_IDLE_SECONDS = 3600
+# Sessions younger than this are never inspected for reclaim.
+UPLOAD_RECLAIM_MIN_AGE_SECONDS = 3600
+
+UPLOAD_LIMIT_MESSAGE = "Upload limit reached. Finish existing uploads or try again later."
 
 
 class UploadLimitReached(ValueError):
     pass
+
+
+class UploadConcurrencyLimitReached(UploadLimitReached):
+    """Every upload slot is held by an unfinished session."""
+
+
+class UploadDailyLimitReached(UploadLimitReached):
+    """The account used its uploads for the day. Freeing a slot cannot help:
+    aborted sessions still count toward the day."""
+
+
+def _admission_error(counts, config) -> UploadLimitReached | None:
+    if counts.daily >= config.media_upload_daily_limit:
+        return UploadDailyLimitReached(UPLOAD_LIMIT_MESSAGE)
+    if counts.active >= config.media_upload_concurrency:
+        return UploadConcurrencyLimitReached(UPLOAD_LIMIT_MESSAGE)
+    return None
 
 
 class UploadIdempotencyConflict(ValueError):
@@ -38,9 +56,10 @@ async def reserve_upload(db, user_id: str, size: int, config):
             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') AS daily
         FROM media_upload_sessions WHERE user_id = :owner
     """), {"owner": user_id})).one()
-    if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:
+    error = _admission_error(counts, config)
+    if error is not None:
         await db.rollback()
-        raise UploadLimitReached("Upload limit reached. Finish existing uploads or try again later.")
+        raise error
     session_id = str(uuid4())
     await db.execute(text("INSERT INTO media_upload_sessions (id, user_id, size) VALUES (:id, :owner, :size)"),
         {"id": session_id, "owner": user_id, "size": size})
@@ -69,47 +88,48 @@ async def get_upload(db, user_id: str, payload, *, for_abort=False):
     return row
 
 
-async def reclaim_idle_uploads(db, user_id: str, storage, *, idle_seconds: int = UPLOAD_IDLE_SECONDS) -> int:
-    """Abort this user's multipart uploads that stopped sending parts, freeing their slots.
+async def reclaim_dead_uploads(db, user_id: str, storage, *, min_age_seconds: int = UPLOAD_RECLAIM_MIN_AGE_SECONDS) -> int:
+    """Release this user's upload slots that no client can still be using.
 
     A browser keeps the multipart state in memory, so a closed tab or reload
-    leaves its session holding a slot until expiry a day later. Parts go
-    straight to the bucket, so the bucket's part list is the only activity
-    record: a session counts as abandoned when it is older than
-    ``idle_seconds`` and no part arrived in that window. A part still in flight
-    is not listed yet, so the window must cover one part on a slow link.
+    leaves its session holding a slot until expiry a day later. The tab's
+    ``pagehide`` abort frees most of them; this is the fallback.
 
-    The bucket abort happens before the row changes. If it fails the slot
-    stays taken, as in the expiry cron. The state change is conditional, so a
-    concurrent completion keeps its ``completed`` row.
+    Only provably dead sessions are released:
+
+    - the bucket no longer has the multipart upload (``NoSuchUpload``), so no
+      part can be added to it, or
+    - the reservation never got a bucket upload. The authorization is returned
+      only after it is bound, so no client holds an upload id for it.
+
+    An open multipart upload always keeps its slot. The bucket lists finished
+    parts only, so a part still being sent is invisible. A slow link, a long
+    sleep or a frozen tab can go hours without a finished part and still be
+    uploading. Telling those apart from an abandoned upload needs the client
+    to report liveness, which this protocol does not have. Those sessions
+    wait for the expiry cron.
+
+    The state change is conditional, so a concurrent completion keeps its
+    ``completed`` row, and a completion recorded after the release overwrites
+    ``aborted`` (``finish_upload``).
     """
     from ..media_storage import STORAGE_ERRORS
 
     rows = (await db.execute(text("""
-        SELECT id, upload_id, video_path, clock_timestamp() AS checked_at
+        SELECT id, upload_id, video_path
         FROM media_upload_sessions
         WHERE user_id = :owner AND state IN ('reserved', 'uploading')
-          AND created_at < clock_timestamp() - make_interval(secs => CAST(:idle AS INTEGER))
+          AND created_at < clock_timestamp() - make_interval(secs => CAST(:age AS INTEGER))
         ORDER BY created_at
-    """), {"owner": user_id, "idle": idle_seconds})).all()
+    """), {"owner": user_id, "age": min_age_seconds})).all()
     await db.rollback()
     reclaimed = 0
     for row in rows:
         if row.upload_id:
             payload = {"uploadId": row.upload_id, "video_path": row.video_path}
             try:
-                parts = await run_in_thread(storage.list_open_upload_parts, user_id, payload)
-            except (*STORAGE_ERRORS, ValueError):
-                continue
-            if parts:
-                received = [part.get("LastModified") for part in parts]
-                # Without a timestamp on every part, activity is unknown: keep it.
-                if not all(isinstance(at, datetime) and at.tzinfo for at in received):
+                if await run_in_thread(storage.multipart_upload_exists, user_id, payload):
                     continue
-                if max(received) > row.checked_at - timedelta(seconds=idle_seconds):
-                    continue
-            try:
-                await run_in_thread(storage.abort_upload, user_id, payload)
             except (*STORAGE_ERRORS, ValueError):
                 continue
         result = await db.execute(text("""
@@ -286,9 +306,10 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
         return await _reuse_completed_upload(db, user_id, existing, idempotency_key, video_path)
 
     counts = (await db.execute(_admission_counts(), {"owner": user_id})).one()
-    if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:
+    error = _admission_error(counts, config)
+    if error is not None:
         await db.rollback()
-        raise UploadLimitReached("Upload limit reached. Finish existing uploads or try again later.")
+        raise error
     session_id = str(uuid4())
     try:
         await db.execute(text("""

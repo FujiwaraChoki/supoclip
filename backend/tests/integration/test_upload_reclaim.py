@@ -1,4 +1,5 @@
-"""A multipart upload abandoned by a closed tab must not hold an upload slot for a day."""
+"""A multipart upload abandoned by a crashed tab must not hold an upload slot for a day,
+and an upload that may still be sending a part must never lose its slot."""
 
 import asyncio
 import uuid
@@ -13,16 +14,20 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from src.api.routes import media
 from src.media_storage import owner_key
 from src.repositories.upload_repository import (
-    UPLOAD_IDLE_SECONDS,
+    UPLOAD_RECLAIM_MIN_AGE_SECONDS as MIN_AGE,
+    UploadConcurrencyLimitReached,
+    UploadDailyLimitReached,
     UploadLimitReached,
     bind_upload,
-    reclaim_idle_uploads,
+    finish_upload,
+    reclaim_dead_uploads,
     reserve_upload,
 )
 from tests.fixtures.factories import create_user
 from tests.integration.test_media_deletion_transactions import media_backend  # noqa: F401
 
 REQUEST = {"filename": "recording.mp4", "size": 1, "contentType": "video/mp4"}
+GONE = ClientError({"Error": {"Code": "NoSuchUpload"}}, "ListParts")
 
 
 async def _open_upload(db, storage, owner: str, *, age_seconds: int) -> dict:
@@ -33,11 +38,15 @@ async def _open_upload(db, storage, owner: str, *, age_seconds: int) -> dict:
         "video_path": f"upload://s3/{owner_key(owner)}/upload/{uuid.uuid4().hex}.mp4",
     }
     await bind_upload(db, session, {**payload, "parts": []})
+    await _age(db, session, age_seconds)
+    return {"session": session, **payload}
+
+
+async def _age(db, session: str, age_seconds: int) -> None:
     await db.execute(text(
         "UPDATE media_upload_sessions SET created_at = NOW() - make_interval(secs => CAST(:age AS INTEGER)) WHERE id = :id"
     ), {"id": session, "age": age_seconds})
     await db.commit()
-    return {"session": session, **payload}
 
 
 async def _state(db, session: str) -> str:
@@ -71,148 +80,215 @@ async def at_capacity(client, db_session, media_backend):  # noqa: F811
     await db_session.commit()
 
 
-async def test_abandoned_upload_frees_its_slot_for_a_new_authorization(client, db_session, at_capacity, auth_headers):
+async def test_crashed_tab_whose_upload_is_gone_frees_its_slot(client, db_session, at_capacity, auth_headers):
     storage = at_capacity
-    stale = await _open_upload(db_session, storage, "user-1", age_seconds=UPLOAD_IDLE_SECONDS + 600)
-    storage.client.list_parts.return_value = _parts(UPLOAD_IDLE_SECONDS + 300)
+    dead = await _open_upload(db_session, storage, "user-1", age_seconds=MIN_AGE + 600)
+    storage.client.list_parts.side_effect = GONE
 
     response = await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)
 
     assert response.status_code == 200, response.text
     assert response.json()["uploadId"] == "fresh-upload"
-    assert await _state(db_session, stale["session"]) == "aborted"
-    aborted = storage.client.abort_multipart_upload.call_args.kwargs
-    assert aborted["UploadId"] == stale["uploadId"]
-    assert aborted["Key"].endswith(stale["video_path"].rsplit("/", 1)[1])
+    assert await _state(db_session, dead["session"]) == "aborted"
+    listed = storage.client.list_parts.call_args.kwargs
+    assert listed["UploadId"] == dead["uploadId"] and listed["MaxParts"] == 1
+    assert listed["Key"].endswith(dead["video_path"].rsplit("/", 1)[1])
+    storage.client.abort_multipart_upload.assert_not_called()
 
 
-async def test_abandoned_upload_without_any_part_is_reclaimed(client, db_session, at_capacity, auth_headers):
-    stale = await _open_upload(db_session, at_capacity, "user-1", age_seconds=UPLOAD_IDLE_SECONDS + 60)
-
-    response = await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)
-
-    assert response.status_code == 200, response.text
-    assert await _state(db_session, stale["session"]) == "aborted"
-
-
-async def test_upload_still_sending_parts_keeps_its_slot(client, db_session, at_capacity, auth_headers):
+@pytest.mark.parametrize("listing", [
+    _parts(),                                   # slow link: first part still in flight
+    _parts(5 * MIN_AGE),                        # one part, hours ago; the next one still in flight
+    _parts(5 * MIN_AGE, 4 * MIN_AGE, 3 * MIN_AGE),  # long sleep or frozen tab mid-upload
+    {"Parts": [{"PartNumber": 1, "Size": 1}], "IsTruncated": False},  # no timestamps at all
+], ids=["no-parts", "old-part", "all-parts-stale", "no-timestamp"])
+async def test_open_upload_without_recent_parts_keeps_its_slot(client, db_session, at_capacity, auth_headers, listing):
+    """A missing or old finished part never proves the client stopped: the part in flight is unlisted."""
     storage = at_capacity
-    active = await _open_upload(db_session, storage, "user-1", age_seconds=3 * UPLOAD_IDLE_SECONDS)
-    storage.client.list_parts.return_value = _parts(3 * UPLOAD_IDLE_SECONDS, 120)
+    slow = await _open_upload(db_session, storage, "user-1", age_seconds=6 * MIN_AGE)
+    storage.client.list_parts.return_value = listing
 
     response = await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)
 
     assert response.status_code == 429
-    assert await _state(db_session, active["session"]) == "uploading"
+    assert await _state(db_session, slow["session"]) == "uploading"
     storage.client.abort_multipart_upload.assert_not_called()
     storage.client.create_multipart_upload.assert_not_called()
 
 
+async def test_slow_upload_keeps_working_after_a_competing_authorization(client, db_session, at_capacity, auth_headers):
+    """The slow client's part refresh and completion still succeed after another tab hit the limit."""
+    storage = at_capacity
+    slow = await _open_upload(db_session, storage, "user-1", age_seconds=10 * MIN_AGE)
+    payload = {"uploadId": slow["uploadId"], "video_path": slow["video_path"]}
+
+    assert (await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)).status_code == 429
+
+    refreshed = await client.post("/upload/parts", json={**payload, "partNumbers": [1]}, headers=auth_headers)
+    assert refreshed.status_code == 200, refreshed.text
+    storage.client.list_parts.return_value = _parts(1)
+    storage.client.complete_multipart_upload = Mock()
+    storage.client.head_object = Mock(return_value={"ContentLength": 1, "ContentType": "video/mp4"})
+    completed = await client.post("/upload/complete", headers=auth_headers,
+        json={**payload, "parts": [{"partNumber": 1, "etag": "etag-1"}]})
+    assert completed.status_code == 200, completed.text
+    assert await _state(db_session, slow["session"]) == "completed"
+    storage.client.abort_multipart_upload.assert_not_called()
+
+
 async def test_recent_upload_is_not_even_inspected(client, db_session, at_capacity, auth_headers):
     storage = at_capacity
-    recent = await _open_upload(db_session, storage, "user-1", age_seconds=UPLOAD_IDLE_SECONDS - 300)
+    recent = await _open_upload(db_session, storage, "user-1", age_seconds=MIN_AGE - 300)
+    storage.client.list_parts.side_effect = GONE
 
     response = await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)
 
     assert response.status_code == 429
     assert await _state(db_session, recent["session"]) == "uploading"
     storage.client.list_parts.assert_not_called()
-    storage.client.abort_multipart_upload.assert_not_called()
 
 
-@pytest.mark.parametrize("parts_error", [
-    ClientError({"Error": {"Code": "ServiceUnavailable"}}, "ListParts"),
-    None,
-])
-async def test_unknown_activity_or_failed_abort_keeps_the_slot(client, db_session, at_capacity, auth_headers, parts_error):
+async def test_storage_error_keeps_the_slot(client, db_session, at_capacity, auth_headers):
     storage = at_capacity
-    stale = await _open_upload(db_session, storage, "user-1", age_seconds=2 * UPLOAD_IDLE_SECONDS)
-    if parts_error is not None:
-        storage.client.list_parts.side_effect = parts_error
-    else:
-        storage.client.abort_multipart_upload.side_effect = ClientError(
-            {"Error": {"Code": "ServiceUnavailable"}}, "AbortMultipartUpload")
+    unknown = await _open_upload(db_session, storage, "user-1", age_seconds=2 * MIN_AGE)
+    storage.client.list_parts.side_effect = ClientError({"Error": {"Code": "ServiceUnavailable"}}, "ListParts")
 
     response = await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)
 
     assert response.status_code == 429
-    assert await _state(db_session, stale["session"]) == "uploading"
+    assert await _state(db_session, unknown["session"]) == "uploading"
 
 
-async def test_part_without_timestamp_counts_as_activity(db_session, at_capacity):
+async def _fill_daily_quota(db, storage, owner: str) -> str:
+    """Spend the day's uploads; the last one holds the only slot and is provably dead."""
+    for _ in range(storage.config.media_upload_daily_limit - 1):
+        session = await reserve_upload(db, owner, 1, storage.config)
+        await finish_upload(db, session, "aborted")
+    dead = await _open_upload(db, storage, owner, age_seconds=2 * MIN_AGE)
+    return dead["session"]
+
+
+async def test_daily_limit_never_reclaims_on_authorize(client, db_session, at_capacity, auth_headers):
     storage = at_capacity
-    stale = await _open_upload(db_session, storage, "user-1", age_seconds=2 * UPLOAD_IDLE_SECONDS)
-    storage.client.list_parts.return_value = {"Parts": [{"PartNumber": 1, "Size": 1}], "IsTruncated": False}
+    storage.config.media_upload_daily_limit = 4
+    dead = await _fill_daily_quota(db_session, storage, "user-1")
+    storage.client.list_parts.side_effect = GONE
 
-    assert await reclaim_idle_uploads(db_session, "user-1", storage) == 0
-    assert await _state(db_session, stale["session"]) == "uploading"
-    storage.client.abort_multipart_upload.assert_not_called()
+    response = await client.post("/upload/authorize", json=REQUEST, headers=auth_headers)
+
+    assert response.status_code == 429
+    assert await _state(db_session, dead) == "uploading"
+    storage.client.list_parts.assert_not_called()
+    storage.client.create_multipart_upload.assert_not_called()
 
 
-async def test_multipart_session_already_gone_is_released(db_session, at_capacity):
+async def test_daily_limit_never_reclaims_on_direct_upload(client, db_session, at_capacity, auth_headers, monkeypatch):
     storage = at_capacity
-    stale = await _open_upload(db_session, storage, "user-1", age_seconds=2 * UPLOAD_IDLE_SECONDS)
-    storage.client.list_parts.side_effect = ClientError({"Error": {"Code": "NoSuchUpload"}}, "ListParts")
+    storage.config.media_upload_daily_limit = 4
+    monkeypatch.setattr(media, "persist_upload_after_response", lambda *_: None)
+    dead = await _fill_daily_quota(db_session, storage, "user-1")
+    storage.client.list_parts.side_effect = GONE
 
-    assert await reclaim_idle_uploads(db_session, "user-1", storage) == 1
-    assert await _state(db_session, stale["session"]) == "aborted"
+    response = await client.post("/upload", headers=auth_headers,
+        files={"video": ("phone.mp4", b"phone-video-bytes", "video/mp4")})
+
+    assert response.status_code == 429
+    assert await _state(db_session, dead) == "uploading"
+    storage.client.list_parts.assert_not_called()
 
 
-async def test_completion_during_reclaim_stays_completed(db_session, initialized_database, at_capacity):
-    """A completion that lands while the bucket abort runs keeps its row."""
+async def test_daily_limit_is_reported_before_concurrency(db_session, at_capacity):
     storage = at_capacity
-    stale = await _open_upload(db_session, storage, "user-1", age_seconds=2 * UPLOAD_IDLE_SECONDS)
+    storage.config.media_upload_daily_limit = 1
+    await _open_upload(db_session, storage, "user-1", age_seconds=2 * MIN_AGE)
+
+    with pytest.raises(UploadDailyLimitReached):
+        await reserve_upload(db_session, "user-1", 1, storage.config)
+    storage.config.media_upload_daily_limit = 20
+    with pytest.raises(UploadConcurrencyLimitReached):
+        await reserve_upload(db_session, "user-1", 1, storage.config)
+
+
+async def test_completion_racing_reclaim_stays_completed(db_session, initialized_database, at_capacity):
+    """The bucket completes (NoSuchUpload) and the row is marked completed while reclaim looks."""
+    storage = at_capacity
+    racing = await _open_upload(db_session, storage, "user-1", age_seconds=2 * MIN_AGE)
     loop = asyncio.get_running_loop()
     sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
 
     async def complete():
         async with sessions() as other:
-            await other.execute(text("UPDATE media_upload_sessions SET state = 'completed' WHERE id = :id"),
-                {"id": stale["session"]})
-            await other.commit()
+            await finish_upload(other, racing["session"], "completed")
 
-    storage.client.abort_multipart_upload.side_effect = (
-        lambda **_: asyncio.run_coroutine_threadsafe(complete(), loop).result(5))
+    def list_parts(**_):
+        asyncio.run_coroutine_threadsafe(complete(), loop).result(5)
+        raise GONE
 
-    assert await reclaim_idle_uploads(db_session, "user-1", storage) == 0
-    assert await _state(db_session, stale["session"]) == "completed"
+    storage.client.list_parts.side_effect = list_parts
+
+    assert await reclaim_dead_uploads(db_session, "user-1", storage) == 0
+    assert await _state(db_session, racing["session"]) == "completed"
+
+
+async def test_completion_recorded_after_reclaim_wins(db_session, at_capacity):
+    """The bucket completed, reclaim released the slot, then the completing request records it."""
+    storage = at_capacity
+    racing = await _open_upload(db_session, storage, "user-1", age_seconds=2 * MIN_AGE)
+    storage.client.list_parts.side_effect = GONE
+
+    assert await reclaim_dead_uploads(db_session, "user-1", storage) == 1
+    await finish_upload(db_session, racing["session"], "completed")
+    assert await _state(db_session, racing["session"]) == "completed"
 
 
 async def test_other_users_uploads_are_never_reclaimed(db_session, at_capacity):
     storage = at_capacity
     other = await create_user(db_session)
     await db_session.commit()
-    theirs = await _open_upload(db_session, storage, other["id"], age_seconds=2 * UPLOAD_IDLE_SECONDS)
+    theirs = await _open_upload(db_session, storage, other["id"], age_seconds=2 * MIN_AGE)
+    storage.client.list_parts.side_effect = GONE
 
-    assert await reclaim_idle_uploads(db_session, "user-1", storage) == 0
+    assert await reclaim_dead_uploads(db_session, "user-1", storage) == 0
     assert await _state(db_session, theirs["session"]) == "uploading"
     storage.client.list_parts.assert_not_called()
 
 
-async def test_direct_upload_route_reclaims_abandoned_multipart_slot(client, db_session, at_capacity, auth_headers, monkeypatch):
+async def test_direct_upload_route_reclaims_dead_multipart_slot(client, db_session, at_capacity, auth_headers, monkeypatch):
     """The iOS /upload route shares the slots, and must not 429 after receiving the whole file."""
     storage = at_capacity
     monkeypatch.setattr(media, "persist_upload_after_response", lambda *_: None)
-    stale = await _open_upload(db_session, storage, "user-1", age_seconds=2 * UPLOAD_IDLE_SECONDS)
+    dead = await _open_upload(db_session, storage, "user-1", age_seconds=2 * MIN_AGE)
+    storage.client.list_parts.side_effect = GONE
 
     response = await client.post("/upload", headers=auth_headers,
         files={"video": ("phone.mp4", b"phone-video-bytes", "video/mp4")})
 
     assert response.status_code == 200, response.text
-    assert await _state(db_session, stale["session"]) == "aborted"
+    assert await _state(db_session, dead["session"]) == "aborted"
+
+
+async def test_direct_upload_route_keeps_open_multipart_slot(client, db_session, at_capacity, auth_headers, monkeypatch):
+    storage = at_capacity
+    monkeypatch.setattr(media, "persist_upload_after_response", lambda *_: None)
+    slow = await _open_upload(db_session, storage, "user-1", age_seconds=6 * MIN_AGE)
+
+    response = await client.post("/upload", headers=auth_headers,
+        files={"video": ("phone.mp4", b"phone-video-bytes", "video/mp4")})
+
+    assert response.status_code == 429
+    assert await _state(db_session, slow["session"]) == "uploading"
+    storage.client.abort_multipart_upload.assert_not_called()
 
 
 async def test_reservation_without_a_bucket_upload_is_released(db_session, at_capacity):
-    """A reservation whose bucket upload never started holds nothing to abort."""
+    """A reservation never bound to a bucket upload: no client received an upload id for it."""
     storage = at_capacity
     session = await reserve_upload(db_session, "user-1", 1, storage.config)
-    await db_session.execute(text(
-        "UPDATE media_upload_sessions SET created_at = NOW() - INTERVAL '2 hours' WHERE id = :id"
-    ), {"id": session})
-    await db_session.commit()
+    await _age(db_session, session, 2 * MIN_AGE)
 
-    assert await reclaim_idle_uploads(db_session, "user-1", storage) == 1
+    assert await reclaim_dead_uploads(db_session, "user-1", storage) == 1
     assert await _state(db_session, session) == "aborted"
+    storage.client.list_parts.assert_not_called()
     storage.client.abort_multipart_upload.assert_not_called()
     assert await reserve_upload(db_session, "user-1", 1, storage.config)
     with pytest.raises(UploadLimitReached):

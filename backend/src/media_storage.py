@@ -601,15 +601,16 @@ class MediaStorage:
             raise
         return {"video_path": payload["video_path"]}
 
-    def list_open_upload_parts(self, user_id: str, payload: dict) -> list[dict] | None:
-        """Parts received so far by an open multipart upload, or None once it is gone."""
+    def multipart_upload_exists(self, user_id: str, payload: dict) -> bool:
+        """Whether the bucket still accepts parts for this multipart upload."""
         key = self.owned_upload_key(payload["video_path"], user_id)
         try:
-            return self._list_uploaded_parts(key, payload["uploadId"])
+            self.client.list_parts(Bucket=self.bucket, Key=key, UploadId=payload["uploadId"], MaxParts=1)
         except ClientError as exc:
             if exc.response["Error"]["Code"] != "NoSuchUpload":
                 raise
-            return None
+            return False
+        return True
 
     def abort_upload(self, user_id: str, payload: dict):
         try:

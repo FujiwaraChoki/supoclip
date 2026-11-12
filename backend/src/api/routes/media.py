@@ -26,8 +26,9 @@ from ...repositories.upload_repository import (
     get_upload,
     finish_upload,
     claim_stored_upload,
-    reclaim_idle_uploads,
+    reclaim_dead_uploads,
     UploadIdempotencyConflict,
+    UploadConcurrencyLimitReached,
     UploadLimitReached,
 )
 from ...utils.async_helpers import run_in_thread
@@ -430,9 +431,9 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
             video_path, created = await claim_stored_upload(
                 db, user_id, size, digest, video_path, idempotency_key, config,
             )
-        except UploadLimitReached:
+        except UploadConcurrencyLimitReached:
             storage = MediaStorage()
-            if not storage.enabled or not await reclaim_idle_uploads(db, user_id, storage):
+            if not storage.enabled or not await reclaim_dead_uploads(db, user_id, storage):
                 raise
             video_path, created = await claim_stored_upload(
                 db, user_id, size, digest, video_path, idempotency_key, config,
@@ -487,9 +488,10 @@ async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db))
             raise ValueError("Invalid content type")
         try:
             session_id = await reserve_upload(db, user_id, size, storage.config)
-        except UploadLimitReached:
-            # Uploads abandoned by a closed tab hold their slots until expiry.
-            if not await reclaim_idle_uploads(db, user_id, storage):
+        except UploadConcurrencyLimitReached:
+            # A crashed tab's upload holds its slot until expiry. The daily
+            # limit is never reclaimed: aborted sessions still count.
+            if not await reclaim_dead_uploads(db, user_id, storage):
                 raise
             session_id = await reserve_upload(db, user_id, size, storage.config)
         authorization = {}
