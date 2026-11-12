@@ -69,6 +69,19 @@ it("allows a verified user to create and copy a key", async () => {
   expect(toast.success).toHaveBeenCalledWith("Copied to clipboard");
 });
 
+it("shows MCP setup with only the URL in the URL field, filled with a new key", async () => {
+  mocks.verified = true;
+  vi.mocked(fetch).mockImplementation(async (_url, options) => new Response(JSON.stringify(
+    options?.method === "POST" ? { api_key: { key: "sk_only-once" } } : { api_keys: [] }
+  ), { status: 200 }));
+  render(<ApiKeysPage />);
+  expect(screen.getByText("https://mcp.supoclip.com/mcp")).toBeInTheDocument();
+  expect(screen.getByText('claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_..."')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
+  await screen.findByText('claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_only-once"');
+  expect(screen.getByText("Authorization: Bearer sk_only-once")).toBeInTheDocument();
+});
+
 it("selects the new key when the clipboard blocks the copy", async () => {
   mocks.verified = true;
   const writeText = vi.fn().mockRejectedValue(new DOMException("Clipboard permission denied", "NotAllowedError"));
