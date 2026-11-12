@@ -756,3 +756,25 @@ def test_editor_restores_generated_layout_when_raw_media_is_already_local(storag
     storage.restore_editor_media(directory, has_layout=True)
     assert (directory / "clean.mp4").read_bytes() == b"wide source"
     assert (directory / "layout.mp4").read_bytes() == b"full content composition"
+
+
+def test_a_rebuilt_session_replaces_this_machines_older_media(storage, tmp_path):
+    """Another worker prepared the session again; this disk still has the old copy."""
+    directory = tmp_path / "editor" / ("f" * 64)
+    directory.mkdir(parents=True)
+    (directory / "clean.mp4").write_bytes(b"rebuilt source")
+    storage.publish_editor_media(directory)
+    (directory / "clean.mp4").write_bytes(b"truncated source")
+    (directory / "layout.mp4").write_bytes(b"old layout")
+    (directory / ".media-version").write_text("first")
+
+    storage.restore_editor_media(directory, version="second")
+    assert (directory / "clean.mp4").read_bytes() == b"rebuilt source"
+    assert not (directory / "layout.mp4").exists()
+    assert (directory / ".media-version").read_text() == "second"
+
+    # Up to date: nothing is fetched again.
+    storage.client.download_file = Mock(side_effect=AssertionError("refetched"))
+    storage.restore_editor_media(directory, version="second")
+    # Sessions prepared before versions existed keep the earlier behaviour.
+    storage.restore_editor_media(directory)

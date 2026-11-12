@@ -230,6 +230,12 @@ def generated_emphasis(words: list[dict], task: dict) -> set[int]:
 
 # Layouts that are a composed frame, not a crop the editor can rebuild.
 PRESERVED_LAYOUT_KINDS = frozenset({"split", "stack", "reaction", "overlap"})
+# Plans kept beside the uncropped source as layout.mp4 ("Auto layout"), so the
+# studio opens on the generated framing and manual crops still start from the
+# full frame: content fits, the compositor, and the tracked face/speaker crops.
+CONTENT_LAYOUT_KINDS = frozenset({"fit", "compositor", "crop", "speaker", "stage", "generated"})
+# A stored plan is replayed only on the media it was planned for.
+STORED_LAYOUT_DURATION_TOLERANCE = 0.25
 
 
 def editor_preserved_layout(
@@ -271,7 +277,7 @@ def editor_preserved_layout(
             "Could not read an editor reframing plan", exc_info=True
         )
         return None
-    allowed = PRESERVED_LAYOUT_KINDS | ({"fit", "compositor"} if include_content else set())
+    allowed = PRESERVED_LAYOUT_KINDS | (CONTENT_LAYOUT_KINDS if include_content else set())
     if described["kind"] not in allowed:
         return None
     return {
@@ -308,33 +314,71 @@ def apply_editor_layout(source: Path, layout: dict, destination: Path | None = N
         dest.unlink(missing_ok=True)
 
 
+def stored_editor_layout(clean: Path, stored: dict | None) -> dict | None:
+    """The plan the clip was generated with, when it fits this editor source."""
+    from ..media.reframing import ffprobe_video_size
+    from ..media.ffmpeg import ffprobe_duration
+
+    if not stored:
+        return None
+    try:
+        width, height = ffprobe_video_size(clean)
+        duration = ffprobe_duration(clean)
+    except Exception:
+        logging.getLogger(__name__).warning("Could not probe the editor source", exc_info=True)
+        return None
+    if (width, height) != (stored["width"], stored["height"]):
+        return None
+    if abs(duration - stored["duration"]) > STORED_LAYOUT_DURATION_TOLERANCE:
+        return None
+    return {
+        "kind": stored["kind"],
+        "landscape_recommended": stored["kind"] in {"fit", "compositor"},
+        "output_format": "vertical",
+        "vertical_plan": (stored["video_filter"], stored["mode"]),
+    }
+
+
 def bake_editor_layout(
     clean: Path,
     output_format: str,
     source: Path,
     ranges: list,
     preserve_content: bool = False,
+    stored: dict | None = None,
 ) -> bool:
-    """Compose a split or stacked layout into ``clean`` when the clip has one."""
+    """Compose the clip's generated layout for the editor.
+
+    ``stored`` is the vertical plan saved when the clip was rendered
+    (``load_clip_vertical_layout``). Replaying it shows exactly the framing
+    of the generated clip, face tracking included. Without one (older clips,
+    or a plan made on different media) the layout is detected again here.
+    """
     from ..config import get_config
     from ..media.speaker_framing import build_clip_speaker_turns
 
-    turns: list = []
-    words: list = []
-    # Clip generation only supplies diarized speakers when SPEAKER_FRAMING is
-    # on. Loading them here unconditionally can bake an overlap layout the
-    # generated clip never had, just by opening the editor.
-    if output_format == "vertical" and get_config().speaker_framing:
-        try:
-            turns, words = build_clip_speaker_turns(source, ranges)
-        except Exception:
-            logging.getLogger(__name__).warning(
-                "Speaker turns unavailable for the editor layout", exc_info=True
-            )
-    layout = editor_preserved_layout(clean, output_format, turns, words, include_content=preserve_content)
+    if output_format == "vertical_fit":
+        # Blurred full-frame fit, the same filter generation used.
+        layout = {"kind": "fit", "landscape_recommended": False, "output_format": "vertical_fit"}
+    else:
+        layout = stored_editor_layout(clean, stored) if output_format == "vertical" else None
+    if layout is None and output_format != "vertical_fit":
+        turns: list = []
+        words: list = []
+        # Clip generation only supplies diarized speakers when SPEAKER_FRAMING is
+        # on. Loading them here unconditionally can bake an overlap layout the
+        # generated clip never had, just by opening the editor.
+        if output_format == "vertical" and get_config().speaker_framing:
+            try:
+                turns, words = build_clip_speaker_turns(source, ranges)
+            except Exception:
+                logging.getLogger(__name__).warning(
+                    "Speaker turns unavailable for the editor layout", exc_info=True
+                )
+        layout = editor_preserved_layout(clean, output_format, turns, words, include_content=preserve_content)
     if not layout:
         return False
-    if preserve_content and layout["kind"] in {"fit", "compositor"}:
+    if preserve_content and layout["kind"] not in PRESERVED_LAYOUT_KINDS:
         destination = clean.with_name("layout.mp4")
         if apply_editor_layout(clean, layout, destination):
             atomic_json(clean.with_name("layout.json"), {"landscapeRecommended": bool(layout.get("landscape_recommended"))})
@@ -544,8 +588,146 @@ async def release_job(job: dict) -> None:
         logging.getLogger(__name__).warning("Could not release editor job %s", job["id"], exc_info=True)
 
 
-async def restore_session_media(storage, directory: Path, *, has_layout: bool = False) -> None:
-    await run_in_thread(storage.restore_editor_media, directory, has_layout=has_layout)
+SOURCE_INCOMPLETE = (
+    "The source video could not be fetched in full for this clip, so it was not opened "
+    "with missing footage. Retry in a minute."
+)
+
+
+async def _download_editor_source(service, task_id: str, task: dict, ranges: list, download_quality) -> Path:
+    """Fetch the source for this clip into a directory owned by this job."""
+    source_url, source_type = task.get("source_url"), task.get("source_type")
+    if source_type == "youtube":
+        from ..youtube_proxy import DownloadBudgetExceeded, YouTubeGeoRestrictedError
+
+        # Reuses the YouTube source cache when it still covers the clip.
+        download_errors: list[str] = []
+        try:
+            downloaded = await service.video_service.download_video(
+                source_url,
+                task_id=task_id,
+                ranges=ranges,
+                quality=download_quality,
+                errors=download_errors,
+            )
+        except DownloadBudgetExceeded as exc:
+            raise EditorPrepareError(
+                "The source video is larger than the download limit, so it cannot be prepared for editing."
+            ) from exc
+        except YouTubeGeoRestrictedError as exc:
+            raise EditorPrepareError(str(exc)) from exc
+        if not downloaded:
+            logging.getLogger(__name__).warning(
+                "Editor source download failed for task %s: %s",
+                task_id,
+                "; ".join(download_errors) or "no reason reported",
+            )
+            raise EditorPrepareError(youtube_download_failure(download_errors))
+        return Path(downloaded)
+    return await run_in_thread(
+        download_stream_sections, source_url,
+        [{"start_time": start, "end_time": end} for start, end in ranges],
+        task.get("source_duration_seconds"), task_id,
+    )
+
+
+async def _editor_source(service, storage, task_id: str, task: dict, cached: Path | None, ranges: list, download_quality):
+    """The source file for a clip, its local ranges, and the copy this job must remove.
+
+    Returns ``(source, downloaded, local_ranges)``. A cached file is used only
+    when it holds every range in full. Another job's assembled YouTube
+    timeline is hard-linked first, so that job cannot replace or delete it
+    mid-read. A file that falls short is replaced by a fresh download, and a
+    download that still falls short fails the preparation: the studio never
+    opens a clip with part of its footage missing.
+    """
+    from ..youtube_source import (
+        SourceCoverageError,
+        is_youtube_work_path,
+        local_ranges_for,
+        private_work_copy,
+    )
+    from ..youtube_utils import get_youtube_video_id
+
+    source_url, source_type = task.get("source_url"), task.get("source_type")
+    remote = source_type in {"youtube", "twitch", "kick"}
+    log = logging.getLogger(__name__)
+
+    async def checked(path: Path) -> tuple[Path, list]:
+        prepared = await service.video_service.prepare_source(path)
+        return prepared, await run_in_thread(local_ranges_for, prepared, ranges, strict=True)
+
+    owned = None
+    if cached is not None and cached.exists():
+        candidate = cached
+        if is_youtube_work_path(cached):
+            # Another job's file: read it only through a private hard link.
+            video_id = get_youtube_video_id(source_url or "")
+            candidate = await run_in_thread(private_work_copy, cached, video_id, task_id) if video_id else None
+            owned = candidate
+        if candidate is not None:
+            try:
+                prepared, local = await checked(candidate)
+                return prepared, owned, local
+            except SourceCoverageError as exc:
+                log.warning("Cached source for task %s does not cover the clip: %s", task_id, exc)
+                if owned is not None:
+                    service._cleanup_source_video(owned, source_type, source_url)
+                    owned = None
+    if remote:
+        downloaded = await _download_editor_source(service, task_id, task, ranges, download_quality)
+        try:
+            prepared, local = await checked(downloaded)
+        except SourceCoverageError as exc:
+            log.warning("Downloaded source for task %s does not cover the clip: %s", task_id, exc)
+            service._cleanup_source_video(downloaded, source_type, source_url)
+            raise EditorPrepareError(SOURCE_INCOMPLETE) from exc
+        return prepared, downloaded, local
+
+    from .video_service import resolve_upload_for_edit
+    from ..media.upload_ingest import upload_copy_pending
+
+    source = await resolve_upload_for_edit(service.video_service, source_url)
+    if not source or not source.exists():
+        if await upload_copy_pending(source_url or ""):
+            # The file is on the API's disk and not in object storage yet.
+            raise EditorPrepareError("This upload is still being saved. Try again in a minute.")
+        raise EditorPrepareError(
+            "The original source is unavailable. Restore the source file to edit this clip."
+        )
+    try:
+        prepared, local = await checked(source)
+    except SourceCoverageError as exc:
+        raise EditorPrepareError(
+            "The original upload is shorter than this clip, so it cannot be opened for editing."
+        ) from exc
+    return prepared, None, local
+
+
+def expected_prepared_duration(ranges: list, offsets: list | None) -> float:
+    """How long the editor source must play: the generated clip's own timeline."""
+    if not ranges:
+        return 0.0
+    if offsets and len(offsets) == len(ranges):
+        return float(offsets[-1]) + float(ranges[-1][1]) - float(ranges[-1][0])
+    return sum(float(end) - float(start) for start, end in ranges)
+
+
+def prepared_too_short(actual: float, expected: float) -> bool:
+    """A prepared source shorter than its ranges lost footage on the way."""
+    return expected > 0 and actual < expected - max(0.5, 0.03 * expected)
+
+
+EDITOR_MEDIA_NAMES = ("clean.mp4", "layout.mp4", "layout.json", "thumbnails.jpg", ".media-version")
+
+
+def write_media_version(directory: Path, version: str) -> None:
+    """Record which preparation the media in this scratch directory came from."""
+    (directory / ".media-version").write_text(version, encoding="utf-8")
+
+
+async def restore_session_media(storage, directory: Path, *, has_layout: bool = False, version: str | None = None) -> None:
+    await run_in_thread(storage.restore_editor_media, directory, has_layout=has_layout, version=version)
     if not (directory / "clean.mp4").exists():
         raise FileNotFoundError("The editor's source video is no longer stored")
 
@@ -562,8 +744,6 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     )
     from ..clip_editor import _caption_words_with_timings, caption_tokens
     from ..clip_source_map import load_clip_caption_settings, load_clip_output_offsets, clip_source_map_path
-    from ..youtube_source import local_ranges_for
-
     key = editor_key(task_id, clip_id, filename)
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
     store = get_store()
@@ -598,7 +778,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             cache = await service.cache_repo.get_cache(
                 db, service._build_cache_key(source_url, source_type, mode, download_quality)
             )
-            source = (
+            cached_source = (
                 await run_in_thread(storage.local_path, cache["video_path"]) if cache and cache.get("video_path") else None
             )
             source_settings = await service._load_task_source_settings(task_id)
@@ -608,60 +788,13 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
 
             broll_placements = load_clip_broll(caption_path)
             await db.close()
-            if not source or not source.exists():
-                if source_type == "youtube":
-                    from ..youtube_proxy import DownloadBudgetExceeded, YouTubeGeoRestrictedError
-
-                    # Reuses the YouTube source cache when it still covers the clip.
-                    download_errors: list[str] = []
-                    try:
-                        downloaded = await service.video_service.download_video(
-                            source_url,
-                            task_id=task_id,
-                            ranges=ranges,
-                            quality=download_quality,
-                            errors=download_errors,
-                        )
-                    except DownloadBudgetExceeded as exc:
-                        raise EditorPrepareError(
-                            "The source video is larger than the download limit, so it cannot be prepared for editing."
-                        ) from exc
-                    except YouTubeGeoRestrictedError as exc:
-                        raise EditorPrepareError(str(exc)) from exc
-                    if not downloaded:
-                        logging.getLogger(__name__).warning(
-                            "Editor source download failed for task %s: %s",
-                            task_id,
-                            "; ".join(download_errors) or "no reason reported",
-                        )
-                        raise EditorPrepareError(youtube_download_failure(download_errors))
-                    source = Path(downloaded)
-                    downloaded_source = source
-                elif source_type in {"twitch", "kick"}:
-                    source = await run_in_thread(
-                        download_stream_sections, source_url,
-                        [{"start_time": start, "end_time": end} for start, end in ranges],
-                        task.get("source_duration_seconds"), task_id,
-                    )
-                    downloaded_source = source
-                else:
-                    from .video_service import resolve_upload_for_edit
-
-                    source = await resolve_upload_for_edit(service.video_service, source_url)
-            if not source or not source.exists():
-                from ..media.upload_ingest import upload_copy_pending
-
-                if source_type not in {"youtube", "twitch", "kick"} and await upload_copy_pending(source_url or ""):
-                    # The file is on the API's disk and not in object storage yet.
-                    raise EditorPrepareError(
-                        "This upload is still being saved. Try again in a minute."
-                    )
-                raise EditorPrepareError(
-                    "The original source is unavailable. Restore the source file to edit this clip."
-                )
-            source = await service.video_service.prepare_source(source)
-            local_ranges = await run_in_thread(local_ranges_for, source, ranges)
+            source, downloaded_source, local_ranges = await _editor_source(
+                service, storage, task_id, task, cached_source, ranges, download_quality
+            )
             directory.mkdir(parents=True, exist_ok=True)
+            # A rebuilt session must not pick up this machine's earlier media.
+            for name in EDITOR_MEDIA_NAMES:
+                (directory / name).unlink(missing_ok=True)
             clean = directory / "clean.mp4"
             metadata_path = MediaStorage().local_path(clip["file_path"], metadata_only=True)
             source_offsets = load_clip_output_offsets(metadata_path, ranges)
@@ -693,11 +826,22 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             # vertical or original crop. Bake that frame into the editor
             # source so preview and export show it. Other clips keep this
             # uncropped trim and the crop chosen below.
-            if output_format in {"vertical", "vertical_split"}:
+            if output_format in {"vertical", "vertical_split", "vertical_fit"}:
+                from ..clip_source_map import load_clip_vertical_layout
+
                 await run_in_thread(
-                    bake_editor_layout, clean, output_format, source, local_ranges, True
+                    bake_editor_layout, clean, output_format, source, local_ranges, True,
+                    load_clip_vertical_layout(metadata_path),
                 )
             metadata = await run_in_thread(make_assets, directory)
+            expected = expected_prepared_duration(ranges, source_offsets)
+            if prepared_too_short(metadata["duration"], expected):
+                logging.getLogger(__name__).error(
+                    "Editor source for clip %s is %.2fs, expected %.2fs", clip_id, metadata["duration"], expected
+                )
+                raise EditorPrepareError(SOURCE_INCOMPLETE)
+            metadata["mediaVersion"] = uuid.uuid4().hex
+            metadata["expectedDuration"] = round(expected, 3)
             if (directory / "layout.mp4").exists():
                 metadata["hasLayout"] = True
                 metadata.update(json.loads((directory / "layout.json").read_text()))
@@ -747,6 +891,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             )
             # Ready means every worker can fetch this media, so publish first.
             await run_in_thread(storage.publish_editor_media, directory)
+            await run_in_thread(write_media_version, directory, metadata["mediaVersion"])
             await store.finish_prepare(key, task_id, clip_id, filename, metadata, initial)
     except Exception as exc:
         logging.getLogger(__name__).exception("Editor preparation failed")
@@ -795,7 +940,11 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
         payload = job["request"]
         document = EditDocument.model_validate(payload["document"])
         async with tracked_render(job) as render:
-            await restore_session_media(storage, directory, has_layout=bool(session["asset"].get("hasLayout")))
+            await restore_session_media(
+                storage, directory,
+                has_layout=bool(session["asset"].get("hasLayout")),
+                version=session["asset"].get("mediaVersion"),
+            )
             broll_files = await document_footage(document)
             await run_in_thread(
                 render_document,
@@ -867,7 +1016,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
         async with tracked_render(job) as fetching:
             for entry in entries:
                 await restore_session_media(
-                    storage, editor_dir(get_config().temp_dir, task_id, entry["id"], entry["filename"])
+                    storage, editor_dir(get_config().temp_dir, task_id, entry["id"], entry["filename"]),
+                    version=(entry.get("state") or {}).get("mediaVersion"),
                 )
             if fetching.stop.is_set():
                 raise InterruptedError()

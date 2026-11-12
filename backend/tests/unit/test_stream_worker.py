@@ -204,7 +204,7 @@ async def test_editor_prepares_stream_source_and_cleans_only_its_download(stream
     monkeypatch.setattr("src.services.task_service.TaskService", lambda _: service)
     monkeypatch.setattr("src.video_utils.create_optimized_clip", render)
     monkeypatch.setattr(editor_service, "make_assets", lambda _: {
-        "status": "ready", "width": 320, "height": 180, "fps": 30, "duration": 1.0, "hasAudio": False, "waveform": [],
+        "status": "ready", "width": 320, "height": 180, "fps": 30, "duration": 10.0, "hasAudio": False, "waveform": [],
     })
     monkeypatch.setattr("src.video_utils.load_cached_transcript_data", lambda _: None)
 

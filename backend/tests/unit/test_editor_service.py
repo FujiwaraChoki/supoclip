@@ -217,7 +217,7 @@ async def test_storage_failure_during_prepare_does_not_leave_preparing(tmp_path,
 
     monkeypatch.setattr("src.database.AsyncSessionLocal", sessions)
     monkeypatch.setattr("src.services.task_service.TaskService", lambda _: service)
-    monkeypatch.setattr("src.youtube_source.local_ranges_for", lambda _source, ranges: ranges)
+    monkeypatch.setattr("src.youtube_source.local_ranges_for", lambda _source, ranges, **_kwargs: ranges)
     monkeypatch.setattr("src.video_utils.create_optimized_clip", lambda *a, **k: a[3].write_bytes(b"clean") or True)
     monkeypatch.setattr("src.video_utils.load_cached_transcript_data", lambda _: None)
     monkeypatch.setattr(editor_service, "make_assets", lambda _: {

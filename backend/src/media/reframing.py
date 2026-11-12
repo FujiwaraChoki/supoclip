@@ -1443,17 +1443,20 @@ def build_vertical_filter_plan(
     height: int,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
+    report: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, str, Optional[float]]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
     Returns (filter, mode, caption_y). mode 'vf' is a simple crop chain; mode
     'complex' is a filter_complex producing [vout]. caption_y is a 0-1 output
     fraction that keeps captions off the detected face, or None to keep the
-    template default.
+    template default. ``report["kind"]`` receives the layout kind.
     """
     described = describe_vertical_layout(
         input_path, width, height, speaker_turns, speaker_words
     )
+    if report is not None:
+        report["kind"] = described["kind"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 

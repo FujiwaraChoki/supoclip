@@ -93,7 +93,7 @@ def test_crossfade_source_offsets_survive_trim_and_copy(tmp_path):
 
 def test_animated_interruption_notice_is_dropped_but_presenter_is_kept(monkeypatch, tmp_path):
     module = "src.services.video_service."
-    monkeypatch.setattr(module + "local_ranges_for", lambda _p, ranges: ranges)
+    monkeypatch.setattr(module + "local_ranges_for", lambda _p, ranges, **_kwargs: ranges)
     monkeypatch.setattr(module + "segment_shows_interruption_notice", lambda *_: True)
     monkeypatch.setattr(module + "segment_static_fraction", lambda *_: .1)  # animation defeats still-frame detection
     monkeypatch.setattr(module + "still_picture_shows_face", lambda _p, ranges: ranges[0][0] == 10)

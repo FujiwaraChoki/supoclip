@@ -14,6 +14,7 @@ import logging
 import shutil
 import subprocess
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -176,6 +177,14 @@ class TimeSpan:
         return self.local_start + (self.original_end - self.original_start)
 
 
+# Section cuts land on frame boundaries, so allow a few frames either side.
+COVERAGE_TOLERANCE_SECONDS = 0.15
+
+
+class SourceCoverageError(ValueError):
+    """A media file does not hold every requested source range."""
+
+
 @dataclass(frozen=True)
 class TimeMap:
     """Maps original source time onto a concatenated local file."""
@@ -213,9 +222,49 @@ class TimeMap:
             return nearest.original_start
         return nearest.original_end
 
-    def to_local_ranges(self, ranges: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
+    def covered_local_range(
+        self, start: float, end: float, tolerance: float = COVERAGE_TOLERANCE_SECONDS
+    ) -> Optional[tuple[float, float]]:
+        """The local range that plays ``start``-``end`` in full, or None.
+
+        The pieces of the file that hold the range must be adjacent both in
+        the source and in the file. Anything else would play a shorter or
+        different stretch of the video.
+        """
+        pieces = []
+        for span in self.spans:
+            a, b = max(start, span.original_start), min(end, span.original_end)
+            if b > a:
+                pieces.append((a, b, span.local_start + a - span.original_start, span.local_start + b - span.original_start))
+        if not pieces:
+            return None
+        pieces.sort()
+        if pieces[0][0] > start + tolerance or pieces[-1][1] < end - tolerance:
+            return None
+        for previous, current in zip(pieces, pieces[1:]):
+            if current[0] > previous[1] + tolerance or abs(current[2] - previous[3]) > tolerance:
+                return None
+        return pieces[0][2], pieces[-1][3]
+
+    def to_local_ranges(
+        self, ranges: Iterable[tuple[float, float]], *, strict: bool = False
+    ) -> list[tuple[float, float]]:
+        """Map source ranges onto the file.
+
+        By default a range the file does not hold is clamped to the nearest
+        piece. ``strict`` raises ``SourceCoverageError`` instead, so a caller
+        never renders a shorter clip than it asked for.
+        """
         converted = []
         for start, end in ranges:
+            if strict:
+                local = self.covered_local_range(float(start), float(end))
+                if local is None:
+                    raise SourceCoverageError(
+                        f"The source file does not contain {float(start):.2f}-{float(end):.2f}s"
+                    )
+                converted.append(local)
+                continue
             local_start = self.to_local(float(start))
             local_end = self.to_local(float(end))
             if local_end > local_start:
@@ -267,7 +316,11 @@ def save_time_map(media_path: Path, time_map: TimeMap) -> None:
             for span in time_map.spans
         ],
     }
-    timeline_path(media_path).write_text(json.dumps(payload), encoding="utf-8")
+    # Write then rename, so a reader never sees half a timeline.
+    destination = timeline_path(media_path)
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    temporary.write_text(json.dumps(payload), encoding="utf-8")
+    temporary.replace(destination)
 
 
 def load_time_map(media_path: Path) -> Optional[TimeMap]:
@@ -386,11 +439,58 @@ def restore_clip_timeline(clip_info: dict, time_map: Optional[TimeMap], original
     return clip_info
 
 
-def local_ranges_for(media_path: Path, ranges: list[tuple[float, float]]) -> list[tuple[float, float]]:
+def local_ranges_for(
+    media_path: Path, ranges: list[tuple[float, float]], *, strict: bool = False
+) -> list[tuple[float, float]]:
+    """Source ranges in ``media_path``'s own time.
+
+    ``strict`` raises ``SourceCoverageError`` when the file does not hold a
+    range in full, for a section file and for a full file alike.
+    """
     time_map = load_time_map(media_path)
-    if time_map is None:
-        return [(float(start), float(end)) for start, end in ranges]
-    return time_map.to_local_ranges(ranges)
+    if time_map is not None:
+        return time_map.to_local_ranges(ranges, strict=strict)
+    converted = [(float(start), float(end)) for start, end in ranges]
+    if strict and converted:
+        from .media.ffmpeg import ffprobe_duration
+
+        try:
+            duration = ffprobe_duration(Path(media_path))
+        except RuntimeError:
+            # Unreadable media fails the render itself; the prepared length
+            # is checked again afterwards.
+            logger.warning("Could not read the duration of %s", media_path)
+            return converted
+        last = max(end for _, end in converted)
+        if duration and last > duration + COVERAGE_TOLERANCE_SECONDS:
+            raise SourceCoverageError(
+                f"The source file ends before {last:.2f}s"
+            )
+    return converted
+
+
+def private_work_copy(media_path: Path, video_id: str, task_id: Optional[str]) -> Optional[Path]:
+    """Hard-link another job's assembled timeline into a new work directory.
+
+    A ``youtube-work`` file belongs to the job that assembled it, which may
+    delete its directory at any time. The links keep this job's copy whole
+    until it removes its own directory. None when linking is not possible.
+    """
+    import os
+
+    source = Path(media_path)
+    if not is_youtube_work_path(source) or not source.is_file():
+        return None
+    work = _work_dir(video_id, task_id)
+    try:
+        for sibling in source.parent.glob(f"{source.stem}.*"):
+            if sibling.is_file() and not sibling.name.endswith(".tmp"):
+                os.link(sibling, work / sibling.name)
+    except OSError:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    copy = work / source.name
+    return copy if copy.exists() else None
 
 
 @dataclass
@@ -1078,11 +1178,12 @@ def _concat_local(files: list[Path], dest: Path, *, durations: Optional[list[flo
 def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
     from .youtube_proxy import sticky_session_id
 
+    # Several jobs of one task (the task itself, editor preparations of its
+    # clips) can assemble timelines at the same time. Each gets its own
+    # directory, so none of them overwrites or deletes another's file.
     name = sticky_session_id(task_id, video_id)
-    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}"
-    if directory.exists():
-        shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}-{uuid.uuid4().hex[:12]}"
+    directory.mkdir(parents=True, exist_ok=False)
     return directory
 
 
