@@ -19,6 +19,11 @@ credentials or paid inference is needed.
 - Text rows outside the crop and small peripheral presenters favor fit. The
   latter protects desktop/game footage even when its text is too small to read.
 - Faces wider than the crop favor fit rather than cutting off the subject.
+- A portrait picture inside blurred or plain landscape sidebars is framed
+  from its visible picture rather than fitted as another small landscape
+  strip. Two straight inner edges and substantially sharper picture detail
+  must agree across at least three consecutive samples. Meaningful text or
+  a presenter in the sidebars keeps the complete composition.
 - Repeated evidence is aggregated within each detected shot. A single missed
   face does not make a talking-head shot change layout. Camera cuts reset crop
   tracking; sustained rapid motion is not treated as a sequence of edits.
@@ -32,6 +37,15 @@ text is preserved spatially but may still be hard to read on a phone. Cuts are
 localized to the sampling interval (about 0.33 seconds); very short shots and
 subtle edits can be missed. Uncertain or busy footage can therefore stay wide
 longer than a human editor would choose.
+
+Padding detection currently covers roughly centered, full-height portrait
+pictures in landscape files. It keeps the picture's own aspect ratio and
+captions, changes bounds only with repeated evidence, and returns to the
+normal scene plan when evidence disappears or the layout changes. Cuts with
+the same padded geometry keep one composition. This is a visual heuristic,
+not a semantic guarantee for arbitrary collages or natural shallow-focus
+backgrounds. Explicit `vertical_fit` still preserves the complete source.
+The editor retains the detected composition alongside the uncropped source.
 
 ## Reproduce the video checks
 
