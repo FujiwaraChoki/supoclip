@@ -36,6 +36,7 @@ from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
+from ...analytics import capture_clip_export, capture_event, request_client, source_kind
 from ...feature_flags import client_platform
 from ...source_identity import (
     duplicate_source_response,
@@ -797,6 +798,22 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 raise
 
             logger.info(f"Task {task_id} created and job {job_id} enqueued")
+            capture_event(
+                "task_created",
+                user_id,
+                {
+                    "task_id": task_id,
+                    "workflow": workflow_spec.workflow,
+                    "source_kind": source_kind(source_type, raw_source["url"]),
+                    "source_duration_seconds": math.ceil(duration_seconds),
+                    "has_instructions": bool(workflow_spec.options.instructions),
+                    "plan": billing.get("plan") if isinstance(billing, dict) else None,
+                    "client": request_client(request),
+                    "processing_mode": processing_mode,
+                    "output_format": output_format,
+                    "clip_length": clip_length,
+                },
+            )
 
             return {
                 "task_id": task_id,
@@ -1150,7 +1167,7 @@ async def get_clip_file(
     """Serve a clip file after verifying task ownership."""
     try:
         task_service = TaskService(db)
-        await _require_task_reader(request, task_service, db, task_id)
+        task = await _require_task_reader(request, task_service, db, task_id)
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
@@ -1158,10 +1175,14 @@ async def get_clip_file(
         if is_s3(clip["file_path"]):
             await db.close()
             url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"], attachment=download)
+            if download:
+                capture_clip_export(request, task, surface="original", format="original")
             return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
         clip_path = Path(clip["file_path"])
         if not clip_path.exists():
             raise HTTPException(status_code=404, detail="Clip file not found")
+        if download:
+            capture_clip_export(request, task, surface="original", format="original")
 
         # Release the DB connection before streaming: FastAPI keeps a
         # `Depends(get_db)` session open for the full response lifetime, and a
@@ -1244,6 +1265,7 @@ async def download_clip_archive(
     except clip_archive.ClipArchiveBusy as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from None
     filename = clip_archive.archive_filename(task.get("source_title"))
+    capture_clip_export(request, task, surface="zip", format="zip", clip_count=len(entries))
     return StreamingResponse(
         clip_archive.stream_with_slot(entries, MediaStorage(), slot),
         media_type="application/zip",
@@ -1519,7 +1541,7 @@ async def export_clip(
             )
 
         task_service = TaskService(db)
-        await _require_task_reader(request, task_service, db, task_id)
+        task = await _require_task_reader(request, task_service, db, task_id)
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
@@ -1540,6 +1562,7 @@ async def export_clip(
         )
 
         download_name = f"{Path(clip['filename']).stem}_{preset_name}.mp4"
+        capture_clip_export(request, task, surface="preset", format=preset_name)
         return FileResponse(
             path=str(output_path), media_type="video/mp4", filename=download_name,
             background=BackgroundTask(output_path.unlink, missing_ok=True),

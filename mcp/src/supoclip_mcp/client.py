@@ -25,7 +25,12 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
+from . import __version__
 from .config import DEFAULT_APP_URL, Settings
+
+# Lets the backend tell MCP traffic apart from other API-key clients in its
+# product analytics.
+USER_AGENT = f"supoclip-mcp/{__version__}"
 
 
 class SupoClipError(Exception):
@@ -87,7 +92,7 @@ class SupoClipClient:
         if authenticated:
             self._require_auth()
 
-        headers = {"Accept": "application/json"}
+        headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
         if authenticated:
             headers.update(self._auth_headers())
 
@@ -116,7 +121,7 @@ class SupoClipClient:
     ) -> Dict[str, Any]:
         """Stream a binary file (a clip) to ``destination_dir`` and return its path."""
         self._require_auth()
-        headers = self._auth_headers()
+        headers = {**self._auth_headers(), "User-Agent": USER_AGENT}
         url = f"{self.settings.api_url}{path}"
 
         dest_dir = Path(destination_dir).expanduser()
@@ -143,7 +148,7 @@ class SupoClipClient:
                             # HTTP clients do not automatically strip custom HMAC
                             # headers on a cross-origin redirect. Send no backend
                             # credentials to storage; the URL carries its own grant.
-                            headers = self._auth_headers() if same_backend else {}
+                            headers = {**self._auth_headers(), "User-Agent": USER_AGENT} if same_backend else {}
                             params = None
                             continue
                         if response.status_code not in {200, 206}:

@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..analytics import capture_event
 from ..config import Config, get_config
 from .. import feature_flags
 from ..feature_flags import PLATFORMS, TIKTOK_PUBLISHING, Platform
@@ -852,6 +853,16 @@ class SocialService:
             media_token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
         )
         logger.info("Published post %s to %s: %s", post["id"], post["provider"], url)
+        capture_event(
+            "social_post_published",
+            post.get("user_id"),
+            {
+                "post_id": post["id"],
+                "provider": post["provider"],
+                "scheduled": bool(post.get("scheduled_for")),
+                "attempts": post.get("attempts"),
+            },
+        )
 
     async def _handle_publish_failure(
         self,

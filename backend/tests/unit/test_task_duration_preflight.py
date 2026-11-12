@@ -44,6 +44,46 @@ async def test_long_video_rejected_before_task_or_queue_creation(monkeypatch, cr
 
 
 @pytest.mark.asyncio
+async def test_accepted_task_sends_task_created_without_the_url(monkeypatch, creation):
+    request, _service, _queue, billing = creation
+    billing["plan"] = "pro"
+    request.headers = {"x-supoclip-client": "ios"}
+    events = []
+    monkeypatch.setattr(tasks, "capture_event", lambda *args: events.append(args))
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 600.4, "title": "T"}))
+
+    await tasks.create_task(request, db=None)
+
+    assert events == [(
+        "task_created",
+        "user-1",
+        {
+            "task_id": "task-1",
+            "workflow": "highlights",
+            "source_kind": "youtube",
+            "source_duration_seconds": 601,
+            "has_instructions": False,
+            "plan": "pro",
+            "client": "ios",
+            "processing_mode": "fast",
+            "output_format": "vertical",
+            "clip_length": "auto",
+        },
+    )]
+
+
+@pytest.mark.asyncio
+async def test_rejected_task_sends_no_task_created(monkeypatch, creation):
+    request, _service, _queue, _billing = creation
+    events = []
+    monkeypatch.setattr(tasks, "capture_event", lambda *args: events.append(args))
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 94 * 60}))
+    with pytest.raises(HTTPException):
+        await tasks.create_task(request, db=None)
+    assert events == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("limit,duration", [(5400, 5400), (10800, 94 * 60)])
 async def test_plan_boundary_and_longer_entitlement_are_accepted(monkeypatch, creation, limit, duration):
     request, service, queue, billing = creation

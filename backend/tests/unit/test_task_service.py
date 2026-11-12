@@ -815,6 +815,51 @@ async def test_auto_task_keeps_its_analysis_on_the_source_row():
 
 
 @pytest.mark.asyncio
+async def test_finished_task_sends_task_completed(monkeypatch):
+    events = []
+    monkeypatch.setattr(task_service_module, "capture_event", lambda *args: events.append(args))
+    service = build_task_service()
+
+    await service.process_task(
+        task_id="task-1", url="upload://source.mp4", source_type="video_url", user_id="user-1",
+    )
+
+    [(event, user_id, props)] = events
+    assert (event, user_id) == ("task_completed", "user-1")
+    assert props["task_id"] == "task-1"
+    assert props["workflow"] == "highlights"
+    assert props["source_kind"] == "upload"
+    assert props["has_instructions"] is False
+    assert props["clip_count"] >= 1
+    assert isinstance(props["processing_seconds"], float)
+    assert props["cache_hit"] is False
+
+
+@pytest.mark.asyncio
+async def test_failed_task_sends_task_failed_with_its_error_code(monkeypatch):
+    from src.youtube_proxy import YouTubeGeoRestrictedError
+
+    events = []
+    monkeypatch.setattr(task_service_module, "capture_event", lambda *args: events.append(args))
+    service = build_task_service()
+    service.video_service.process_video_complete.side_effect = YouTubeGeoRestrictedError()
+
+    with pytest.raises(YouTubeGeoRestrictedError):
+        await service.process_task(
+            task_id="task-1", url="https://www.youtube.com/watch?v=abcdefghijk",
+            source_type="youtube", user_id="user-1",
+        )
+
+    [(event, user_id, props)] = events
+    assert (event, user_id) == ("task_failed", "user-1")
+    assert props["error_code"] == "youtube_geo_restricted"
+    assert props["source_kind"] == "youtube"
+    assert props["workflow"] == "highlights"
+    # No URL or error text in the event.
+    assert "abcdefghijk" not in repr(props)
+
+
+@pytest.mark.asyncio
 async def test_geo_restriction_has_specific_task_error_and_actionable_message():
     from src.youtube_proxy import YouTubeGeoRestrictedError
 

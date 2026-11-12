@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { signUp } from "../../lib/auth-client";
+import { trackEvent } from "@/lib/analytics";
 import { attributionMetadata, getAnonymousAttribution } from "@/lib/attribution";
 import { postAuthPath } from "@/lib/auth-redirect";
 import { track } from "@/lib/datafast";
@@ -40,6 +41,7 @@ export function SignUp() {
       auth_method: "email",
       ...attributionMetadata(getAnonymousAttribution()),
     });
+    trackEvent("signup_completed", { method: "email" });
     setOk(true);
     setMessage(t("signUp.success"));
     setLoading(false);
