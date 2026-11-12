@@ -50,6 +50,8 @@ import {
 import { cn } from "@/lib/utils";
 import { editorMessage, Field, Panel, Range, Section } from "./studio-ui";
 import { BRollPanel } from "./broll-panel";
+import { TranslationPanel } from "./translation-panel";
+import { restoreOriginalWords } from "@/lib/editor/translation";
 export type InspectorTab = "captions" | "framing" | "broll" | "audio" | "effects";
 
 const TABS = [
@@ -145,10 +147,12 @@ export function Inspector({
   const captionSize = (placement.size ?? doc.captions.size) * placement.scale;
   const scriptWords = useRef(doc.words);
   const [script, setScript] = useState<string | null>(null),
-    [applying, setApplying] = useState(false);
+    [applying, setApplying] = useState(false),
+    [translationOpen, setTranslationOpen] = useState(false);
   const caption = (change: Partial<CaptionStyle>, group = "caption-style") =>
     update((d) => ({ ...d, captions: { ...d.captions, ...change } }), group);
   return (
+    <>
     <Panel
       aria-label={t("inspector.tools")}
       className="flex flex-col lg:h-full lg:min-h-0"
@@ -636,6 +640,46 @@ export function Inspector({
                 {t("captions.addWord")}
               </Button>
             </Section>
+            <Section
+              title={t("captions.translationSection")}
+              description={t("captions.translationSectionDescription")}
+            >
+              {doc.translation ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {t("captions.translationActive", {
+                      language: t("captions.russian"),
+                    })}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setTranslationOpen(true)}
+                    >
+                      {t("captions.translationEdit")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        update((d) => restoreOriginalWords(d), "translation")
+                      }
+                    >
+                      {t("captions.translationRestore")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setTranslationOpen(true)}
+                >
+                  {t("captions.translationStart")}
+                </Button>
+              )}
+            </Section>
           </TabsContent>
           <TabsContent value="framing" className="space-y-6 p-4">
             <Section
@@ -868,5 +912,13 @@ export function Inspector({
         </div>
       </Tabs>
     </Panel>
+      <TranslationPanel
+        doc={doc}
+        endpoint={endpoint}
+        open={translationOpen}
+        onOpenChange={setTranslationOpen}
+        update={update}
+      />
+    </>
   );
 }

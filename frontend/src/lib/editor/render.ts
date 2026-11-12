@@ -2,10 +2,10 @@ import {
   activeWordIndex,
   captionGroups,
   captionAt,
+  captionGroupsFor,
   captionTransform,
   frameRect,
   hookRange,
-  mappedWords,
   outputSize,
   replaceWords,
   editDuration,
@@ -225,7 +225,7 @@ function drawCaptions(
 ) {
   let groups = groupCache.get(doc);
   if (!groups) {
-    groups = captionGroups(mappedWords(doc), doc.captions.wordsPerLine);
+    groups = captionGroupsFor(doc);
     groupCache.set(doc, groups);
   }
   const original = groups.find(
