@@ -65,8 +65,12 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 | `OPENROUTER_API_KEY` | If using OpenRouter | Required for `openrouter:*` models (see [OpenRouter analysis](openrouter-analysis.md)) |
 | `OLLAMA_BASE_URL` | If using Ollama remotely | Base URL for Ollama-compatible endpoints |
 | `OLLAMA_API_KEY` | Optional | Used for hosted Ollama providers such as Ollama Cloud |
+| `LLM_FALLBACKS` | Optional | Comma-separated models that answer when the main one is busy or out of quota, for example `google-gla:gemini-2.5-flash`. Same format as `LLM` |
+| `LLM_PROVIDER_KEYS` | Optional | Extra keys per provider as JSON, for example `{"google": ["key-1", "key-2"]}`. A key that is refused or out of quota moves on to the next key of the same provider |
 
 The backend can infer a default LLM from whichever API key is present, but setting `LLM` explicitly is safer and easier to debug.
+
+The chain and the extra keys of a provider can also be changed on the admin page. A value saved there wins over the environment, so a change in the admin page survives a restart of the containers.
 
 ## Core Application Settings
 

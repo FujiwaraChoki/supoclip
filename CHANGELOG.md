@@ -6,11 +6,11 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
-- **New:** The subtitle editor can translate the captions into Russian. The translation is matched to the spoken phrases of the original, so every translated word keeps the timing of the phrase it belongs to and a pause in the speech stays a pause on screen. You can translate with AI, paste your own translation, and correct the matching phrase by phrase. ([#360](https://github.com/FujiwaraChoki/supoclip/pull/360))
-- **New:** The admin page has a section for the language models. You can line up the models that answer when the main one is busy or out of quota, add the keys of a provider, and check every model with one click. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
-- **Improved:** When the main model is busy, the next model of the chain answers instead of the request waiting. One provider being overloaded no longer stops a translation, a clip analysis or a post description. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
-- **Fixed:** When the AI cannot finish the translation in time, the editor now says so instead of waiting, and a translation that is missing a phrase inside the edited part can no longer be applied. ([#360](https://github.com/FujiwaraChoki/supoclip/pull/360))
-- **Fixed:** Writing the description of a post no longer needs a separate Anthropic key: it uses the models of the chain like the rest of the product. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/361))
+- **New:** The subtitle editor can translate the captions into Russian. The translation is matched to the spoken phrases of the original, so every translated word keeps the timing of the phrase it belongs to and a pause in the speech stays a pause on screen. You can translate with AI, paste your own translation, and correct the matching phrase by phrase. ([#360](https://github.com/FujiwaraChoki/supoclip/pull/380))
+- **New:** The admin page has a section for the language models. You can line up the models that answer when the main one is busy or out of quota, add the keys of a provider, and check every model with one click. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/380))
+- **Improved:** When the main model is busy, the next model of the chain answers instead of the request waiting. One provider being overloaded no longer stops a translation, a clip analysis or a post description. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/380))
+- **Fixed:** When the AI cannot finish the translation in time, the editor now says so instead of waiting, and a translation that is missing a phrase inside the edited part can no longer be applied. ([#360](https://github.com/FujiwaraChoki/supoclip/pull/380))
+- **Fixed:** Writing the description of a post no longer needs a separate Anthropic key: it uses the models of the chain like the rest of the product. ([#361](https://github.com/FujiwaraChoki/supoclip/pull/380))
 
 ## 2026-11-10
 
