@@ -120,7 +120,28 @@
     "sendFailed": "Failed to send verification email",
     "loadFailed": "Failed to load API keys",
     "createFailed": "Failed to create API key",
-    "revokeFailed": "Failed to revoke API key"
+    "revokeFailed": "Failed to revoke API key",
+    "mcp": {
+      "title": "Connect an agent",
+      "intro": "Create a key above, then copy the config for your client. Replace {placeholder} with your key, and put only the URL in a URL field.",
+      "introWithKey": "Your new key is filled in below. Copy the config for your client now; the key won't be shown again.",
+      "urlLabel": "Server URL",
+      "headerLabel": "Header",
+      "copy": "Copy {label}",
+      "tabs": {
+        "claudeCode": "Claude Code",
+        "json": "Cursor & others",
+        "claudeDesktop": "Claude Desktop",
+        "stdio": "Local (stdio)"
+      },
+      "hints": {
+        "claudeCode": "Run this in a terminal.",
+        "json": "For Cursor (~/.cursor/mcp.json), Windsurf and other clients that take a URL and headers.",
+        "claudeDesktop": "Add to claude_desktop_config.json. Needs Node.js; mcp-remote connects Claude Desktop to the hosted server.",
+        "stdio": "Runs the server on your computer, so downloaded clips are saved locally. Needs uv."
+      },
+      "planNote": "Making clips through an agent uses your plan's video minutes."
+    }
   },
   "creator": {
     "title": "Creator program",
