@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
-- **Fixed:** Closing or reloading the page during a video upload no longer blocks new uploads for a day with "Upload limit reached". The unfinished upload is cancelled when you leave, and an upload that has stopped sending data for an hour gives its place to a new one.
+- **Fixed:** Closing or reloading the page during a video upload no longer blocks new uploads for a day with "Upload limit reached". The unfinished upload is cancelled when you leave, and an upload that has stopped sending data for an hour gives its place to a new one. ([#366](https://github.com/FujiwaraChoki/supoclip/pull/366))
 
 ## 2026-11-10
 
