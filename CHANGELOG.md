@@ -4,6 +4,12 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-12
+
+- **Fixed:** The SupoClip MCP server at `mcp.supoclip.com` now works with clients that use the current MCP connection type, as well as older SSE clients, including ones already set up with the old address. When a connection fails, the error says what is missing, such as an API key or a placeholder that wasn't replaced. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Improved:** Settings → Agents & API shows ready-to-copy setup for Claude Code, Cursor, Claude Desktop and a local server, with your new key filled in. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Improved:** When an agent tries to make clips on an account without a paid plan or without minutes left, it gets a plain explanation and a link to choose a plan instead of a raw error. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+
 ## 2026-11-10
 
 - **Improved:** A studio export or clip preparation whose server stops unexpectedly is now retried or shown as failed within a few minutes, instead of staying in progress. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
