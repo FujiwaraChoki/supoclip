@@ -65,6 +65,7 @@ async def process_video_task(
         admit_video_job,
         hold_for_upload,
         release_video_slot,
+        wake_next_video_jobs,
     )
 
     job_args = (
@@ -89,7 +90,7 @@ async def process_video_task(
     async with AsyncSessionLocal() as db:
         await load_runtime_settings_cache(db)
         decision = await admit_video_job(
-            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args
+            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args, url=url
         )
         if decision != "run":
             logger.info("Video task %s admission=%s", task_id, decision)
@@ -183,6 +184,12 @@ async def process_video_task(
         finally:
             # The slot is held only while this process is actually rendering.
             await release_video_slot(ctx["redis"], user_id, task_id)
+            # Hand it to the account's next task now instead of after its deferral.
+            try:
+                async with AsyncSessionLocal() as wake_db:
+                    await wake_next_video_jobs(wake_db, ctx["redis"], user_id)
+            except Exception:
+                logger.exception("Could not wake the next video task after task %s", task_id)
 
 
 async def _social_service(db):
