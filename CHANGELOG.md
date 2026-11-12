@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
-- **Under the hood:** Billing can keep existing subscriptions with their current payment account while preparing a new account, with separate payment recovery and refund handling. ([PR pending](https://github.com/FujiwaraChoki/supoclip/pulls))
+- **Under the hood:** Billing can keep existing subscriptions with their current payment account while preparing a new account, with separate payment recovery and refund handling. ([#367](https://github.com/FujiwaraChoki/supoclip/pull/367))
 
 ## 2026-11-10
 

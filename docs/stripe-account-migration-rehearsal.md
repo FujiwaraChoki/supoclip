@@ -1,6 +1,7 @@
 # Stripe account routing and migration rehearsal
 
-Account-aware runtime wiring is implemented locally behind `STRIPE_ACCOUNT_MIGRATION_ENABLED=true`. That flag has **not** been enabled in production. Nothing was pushed or deployed, and no live customer copy, billing or customer-email change was made.
+This release prepares account-aware billing behind `STRIPE_ACCOUNT_MIGRATION_ENABLED`. The initial production configuration keeps that flag disabled and checkout on the Swiss source. Deployment does not populate the migration ledger, move subscriptions, or create customer charges. The customer/payment-method copy is a separate operator action.
+
 
 ## Runtime behavior
 
