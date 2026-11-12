@@ -132,13 +132,15 @@
         "claudeCode": "Claude Code",
         "json": "Cursor & lainnya",
         "claudeDesktop": "Claude Desktop",
-        "stdio": "Lokal (stdio)"
+        "stdio": "Lokal (stdio)",
+        "connectors": "claude.ai & ChatGPT"
       },
       "hints": {
         "claudeCode": "Jalankan ini di terminal.",
         "json": "Untuk Cursor (~/.cursor/mcp.json), Windsurf, dan klien lain yang menerima URL dan header.",
         "claudeDesktop": "Tambahkan ke claude_desktop_config.json. Perlu Node.js; mcp-remote menghubungkan Claude Desktop ke server yang di-hosting.",
-        "stdio": "Menjalankan server di komputermu, jadi clip yang diunduh tersimpan di sana. Perlu uv."
+        "stdio": "Menjalankan server di komputermu, jadi clip yang diunduh tersimpan di sana. Perlu uv.",
+        "connectors": "Tambahkan URL ini sebagai konektor kustom, lalu masuk dan izinkan akses. Tidak perlu menyalin kunci: konektor membuat kuncinya sendiri, yang tercantum di bawah."
       },
       "planNote": "Membuat clip lewat agen memakai menit video paketmu."
     }
