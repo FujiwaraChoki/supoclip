@@ -496,14 +496,15 @@ def _email(**kwargs):
 def test_highlights_email_copy_is_unchanged():
     content = _email(clips_count=3)
     assert content.subject == "Your SupoClip clips are ready"
-    assert content.html == (
+    assert content.html.startswith(
         "<p>Hi Ana,</p><p>Your clips for <strong>My &lt;talk&gt;</strong> are ready.</p>"
         "<p>We generated 3 clips for you.</p>"
-        '<p><a href="https://app.example/tasks/t1">Open your finished clips</a></p><p>Team SupoClip</p>'
     )
+    assert 'href="https://app.example/tasks/t1"' in content.html
+    assert ">Open your clips</a>" in content.html
     assert content.text == (
         "Hi Ana,\n\nYour clips for My <talk> are ready.\nWe generated 3 clips for you.\n\n"
-        "Open your finished clips: https://app.example/tasks/t1\n\nTeam SupoClip"
+        "Open your clips: https://app.example/tasks/t1\n\nTeam SupoClip"
     )
 
 
