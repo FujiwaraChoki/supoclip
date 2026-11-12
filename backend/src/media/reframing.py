@@ -1515,8 +1515,9 @@ def describe_vertical_layout(
 
     Kinds the editor keeps whole are ``reaction`` (reactor above the source),
     ``stack`` (side-by-side call tiles) and ``overlap`` (two speakers at once).
-    ``crop``, ``speaker``, ``stage``, ``fit`` and ``compositor`` stay on the
-    editor's vertical or original crop.
+    ``embedded_portrait`` removes existing source padding and is retained as
+    an optional editor layout, alongside the uncropped source. ``crop``,
+    ``speaker`` and ``stage`` stay on the editor's vertical or original crop.
 
     All-face clips use a face-aware layout when the subject would otherwise
     sit low in a full-height crop (stacked call tiles, a wider stage for one
