@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -12,6 +13,10 @@ from sqlalchemy.exc import IntegrityError
 from ..local_volume import volume_id
 from ..media.upload_limits import upload_too_large_detail
 from ..utils.async_helpers import run_in_thread
+
+
+# Three 64 MB parts in flight at once take just under an hour on a 0.5 Mbit/s uplink.
+UPLOAD_IDLE_SECONDS = 3600
 
 
 class UploadLimitReached(ValueError):
@@ -62,6 +67,58 @@ async def get_upload(db, user_id: str, payload, *, for_abort=False):
     if row is None:
         raise ValueError("Upload expired or is unavailable; restart the upload")
     return row
+
+
+async def reclaim_idle_uploads(db, user_id: str, storage, *, idle_seconds: int = UPLOAD_IDLE_SECONDS) -> int:
+    """Abort this user's multipart uploads that stopped sending parts, freeing their slots.
+
+    A browser keeps the multipart state in memory, so a closed tab or reload
+    leaves its session holding a slot until expiry a day later. Parts go
+    straight to the bucket, so the bucket's part list is the only activity
+    record: a session counts as abandoned when it is older than
+    ``idle_seconds`` and no part arrived in that window. A part still in flight
+    is not listed yet, so the window must cover one part on a slow link.
+
+    The bucket abort happens before the row changes. If it fails the slot
+    stays taken, as in the expiry cron. The state change is conditional, so a
+    concurrent completion keeps its ``completed`` row.
+    """
+    from ..media_storage import STORAGE_ERRORS
+
+    rows = (await db.execute(text("""
+        SELECT id, upload_id, video_path, clock_timestamp() AS checked_at
+        FROM media_upload_sessions
+        WHERE user_id = :owner AND state IN ('reserved', 'uploading')
+          AND created_at < clock_timestamp() - make_interval(secs => CAST(:idle AS INTEGER))
+        ORDER BY created_at
+    """), {"owner": user_id, "idle": idle_seconds})).all()
+    await db.rollback()
+    reclaimed = 0
+    for row in rows:
+        if row.upload_id:
+            payload = {"uploadId": row.upload_id, "video_path": row.video_path}
+            try:
+                parts = await run_in_thread(storage.list_open_upload_parts, user_id, payload)
+            except (*STORAGE_ERRORS, ValueError):
+                continue
+            if parts:
+                received = [part.get("LastModified") for part in parts]
+                # Without a timestamp on every part, activity is unknown: keep it.
+                if not all(isinstance(at, datetime) and at.tzinfo for at in received):
+                    continue
+                if max(received) > row.checked_at - timedelta(seconds=idle_seconds):
+                    continue
+            try:
+                await run_in_thread(storage.abort_upload, user_id, payload)
+            except (*STORAGE_ERRORS, ValueError):
+                continue
+        result = await db.execute(text("""
+            UPDATE media_upload_sessions SET state = 'aborted'
+            WHERE id = :id AND state IN ('reserved', 'uploading')
+        """), {"id": row.id})
+        await db.commit()
+        reclaimed += result.rowcount
+    return reclaimed
 
 
 async def finish_upload(db, session_id: str, state: str):

@@ -26,6 +26,7 @@ from ...repositories.upload_repository import (
     get_upload,
     finish_upload,
     claim_stored_upload,
+    reclaim_idle_uploads,
     UploadIdempotencyConflict,
     UploadLimitReached,
 )
@@ -425,9 +426,17 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
         video_path = f"upload://{unique_filename}"
 
         digest, size = await publish_spooled_upload(upload, published, max_bytes)
-        video_path, created = await claim_stored_upload(
-            db, user_id, size, digest, video_path, idempotency_key, config,
-        )
+        try:
+            video_path, created = await claim_stored_upload(
+                db, user_id, size, digest, video_path, idempotency_key, config,
+            )
+        except UploadLimitReached:
+            storage = MediaStorage()
+            if not storage.enabled or not await reclaim_idle_uploads(db, user_id, storage):
+                raise
+            video_path, created = await claim_stored_upload(
+                db, user_id, size, digest, video_path, idempotency_key, config,
+            )
         if not created and published is not None:
             published.unlink(missing_ok=True)
             published = None
@@ -476,7 +485,13 @@ async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db))
         content_type = payload.get("contentType") or "application/octet-stream"
         if not isinstance(content_type, str) or len(content_type) > 128:
             raise ValueError("Invalid content type")
-        session_id = await reserve_upload(db, user_id, size, storage.config)
+        try:
+            session_id = await reserve_upload(db, user_id, size, storage.config)
+        except UploadLimitReached:
+            # Uploads abandoned by a closed tab hold their slots until expiry.
+            if not await reclaim_idle_uploads(db, user_id, storage):
+                raise
+            session_id = await reserve_upload(db, user_id, size, storage.config)
         authorization = {}
         def begin():
             # Retain the SDK result even if cancellation prevents delivery of

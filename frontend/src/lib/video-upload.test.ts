@@ -49,6 +49,50 @@ describe("S3 video uploads", () => {
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/complete")).toBe(false);
   });
 
+  function pageHide(persisted: boolean) {
+    const event = new Event("pagehide");
+    Object.defineProperty(event, "persisted", { value: persisted });
+    window.dispatchEvent(event);
+  }
+
+  it("aborts the multipart upload with keepalive when the tab closes mid-upload", async () => {
+    let partStarted!: () => void;
+    const started = new Promise<void>((resolve) => { partStarted = resolve; });
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/upload/authorization") return Response.json(authorization());
+      if (url.startsWith("https://s3.test/")) {
+        partStarted();
+        return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
+      }
+      if (url === "/api/upload/abort") return Response.json({ message: "cancelled" });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const upload = uploadVideoFile(new File(["abcdef"], "video.mp4"));
+    await started;
+    pageHide(true);
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/abort")).toBe(false);
+    pageHide(false);
+    const leaving = fetchMock.mock.calls.find(([url]) => url === "/api/upload/abort");
+    expect(leaving?.[1]?.keepalive).toBe(true);
+    expect(JSON.parse(leaving?.[1]?.body as string)).toEqual({ video_path: authorization().video_path, uploadId: "upload" });
+    await expect(upload).rejects.toThrow();
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/complete")).toBe(false);
+  });
+
+  it("leaves a finished upload alone when the tab closes afterwards", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/upload/authorization") return Response.json(authorization());
+      if (url.startsWith("https://s3.test/")) return new Response(null, { headers: { ETag: "tag" } });
+      if (url === "/api/upload/complete") return Response.json({ video_path: authorization().video_path });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(uploadVideoFile(new File(["abcdef"], "video.mp4"))).resolves.toBe(authorization().video_path);
+    pageHide(false);
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/abort")).toBe(false);
+  });
+
   it("refreshes expired part URLs without discarding completed parts", async () => {
     let refreshes = 0;
     let completions = 0;
