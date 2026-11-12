@@ -47,6 +47,14 @@ The hosted server is at `https://mcp.supoclip.com/mcp` (Streamable HTTP). Send
 your key in the `Authorization` header. In every example below, replace
 `sk_...` with your own key, and put **only the URL** in a client's URL field.
 
+### claude.ai, ChatGPT and other apps with custom connectors
+
+Add `https://mcp.supoclip.com/mcp` as a custom connector. The app sends you to
+supoclip.com to sign in and allow access; no key to copy. Allowing creates an
+API key named after the app (for example "Claude connector"), listed at
+[Settings → API Keys](https://www.supoclip.com/settings/api-keys); revoke it
+there to disconnect. The connection uses your plan's minutes like any key.
+
 ### Claude Code
 
 ```bash
@@ -160,7 +168,8 @@ All configuration is via environment variables:
 | `SUPOCLIP_MCP_HOST` / `SUPOCLIP_MCP_PORT` | `127.0.0.1` / `9100` | Listen address for `http`. |
 | `SUPOCLIP_MCP_PUBLIC_URL` | `http://HOST:PORT` | Public base URL (including any mount path), shown in setup help and errors. |
 | `SUPOCLIP_MCP_REQUIRE_BEARER_AUTH` | `false` | Require each client's own API key as a Bearer token. |
-| `SUPOCLIP_MCP_MOUNT_PATH` | `/` | Serve every route under this prefix. |
+| `SUPOCLIP_MCP_MOUNT_PATH` | `/` | Serve every route under this prefix (OAuth discovery assumes `/`). |
+| `MCP_OAUTH_SECRET` | – | Shared with the backend. With bearer auth on, turns on OAuth sign-in for connectors. |
 
 ### Self-hosting auth
 
@@ -184,6 +193,7 @@ Auth precedence is: API key → signed headers → unsigned user id.
 | `/sse` + `/messages/` | Legacy HTTP+SSE. POST/DELETE, or a GET with `Mcp-Session-Id`, go to Streamable HTTP |
 | `/` | Same routing as `/sse`; a plain GET returns setup help as JSON |
 | `/health` | Liveness |
+| `/.well-known/oauth-protected-resource` (also `/mcp`, `/sse` suffixes), `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token` | OAuth for connectors, when `MCP_OAUTH_SECRET` is set (see [docs/mcp-oauth.md](../docs/mcp-oauth.md)) |
 
 ```bash
 SUPOCLIP_API_URL=https://api.supoclip.com \

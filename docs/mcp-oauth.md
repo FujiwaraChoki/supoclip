@@ -1,66 +1,85 @@
-# MCP OAuth (draft, not built)
+# MCP OAuth for connectors
 
-Status: design draft. Today the hosted MCP server (`mcp.supoclip.com`) only
-accepts a SupoClip API key as a Bearer token, and answers OAuth discovery with
-a JSON 404 that says so. claude.ai and ChatGPT connectors can't paste a header,
-so they need the OAuth flow below.
+claude.ai, ChatGPT and other apps with custom connectors can't send an
+`Authorization` header someone pastes in, so they sign in with OAuth 2.1. The
+hosted MCP server (`mcp.supoclip.com`) is the authorization server; users
+approve on www.supoclip.com; the access token is an ordinary SupoClip API key.
+Plain API key Bearer auth keeps working unchanged.
 
-## What the connectors do
+OAuth is on when `MCP_OAUTH_SECRET` is set on both the backend and the MCP
+server (and `SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=true`). Without it the server
+behaves as before: API keys only, OAuth discovery answers a JSON 404.
 
-1. Call the MCP URL, get `401` with `WWW-Authenticate: Bearer resource_metadata=...`.
-2. Read `/.well-known/oauth-protected-resource`, then the authorization server's
-   `/.well-known/oauth-authorization-server`.
-3. Register themselves with dynamic client registration (`POST /register`).
-4. Send the user to `/authorize` (authorization code + PKCE S256), receive a
-   code on their callback, exchange it at `/token`.
-5. Call the MCP URL with `Authorization: Bearer <access token>`.
+## Flow
 
-## Proposed design
+1. The connector calls `POST /mcp` without a token and gets `401` with
+   `WWW-Authenticate: Bearer ..., resource_metadata="https://mcp.supoclip.com/.well-known/oauth-protected-resource/mcp"`
+   (`/sse` and `/` name their own metadata URL).
+2. It reads that document (RFC 9728), then
+   `/.well-known/oauth-authorization-server` (RFC 8414; also served with a path
+   suffix).
+3. `POST /register` (RFC 7591, open). Redirect URIs must be `https`, or `http`
+   on `localhost`/`127.0.0.1`/`[::1]`, with no fragment. The registered scope is
+   always `supoclip`. A client that registers only the `authorization_code`
+   grant is accepted.
+4. `GET /authorize` with PKCE S256 (`plain` is refused by the SDK). The redirect
+   URI must exactly match a registered one. The MCP server stores the request and
+   redirects to `https://www.supoclip.com/oauth/consent?request=<id>`.
+5. The consent page (signed-out users sign in and come back) shows the app's
+   name, where it will send you back to, and what it can do. Allow or Deny goes
+   through the web app's `/api/oauth/requests/<id>/decision` proxy to the backend
+   with the signed session headers, never an API key.
+   - Deny: back to the app with `error=access_denied` and the `state`.
+   - Allow (email verified, fewer than 25 active keys): a single-use code bound to
+     the client id, redirect URI and code challenge; back to the app with
+     `code` and `state`.
+6. `POST /token` (`authorization_code` + `code_verifier`): the SDK checks the
+   client, redirect URI, expiry and PKCE; the backend consumes the code and
+   creates an API key named "<app> connector", sends the usual "new API key"
+   email, and returns it once as the access token (`token_type: Bearer`,
+   `scope: supoclip`, no `expires_in`, no refresh token).
+7. The connector calls `/mcp` with `Authorization: Bearer sk_...`, checked like
+   any key. Revoking the key at /settings/api-keys disconnects it: tool calls
+   fail at once, and the MCP server stops accepting the key within 60 seconds
+   (its verification cache).
 
-- **The MCP server is the authorization server.** The installed SDK
-  (`mcp` 1.30) ships `OAuthAuthorizationServerProvider` and
-  `create_auth_routes()`, which implement `/register`, `/authorize`, `/token`,
-  `/revoke` and both metadata documents, including PKCE checks. We implement the
-  provider; `http_app.py` mounts its routes next to `/mcp` and `/sse`, and the
-  401 gains `resource_metadata`.
-- **Consent on www.supoclip.com.** `provider.authorize()` stores the pending
-  request (client, redirect URI, PKCE challenge, state, scopes) under a random
-  id and redirects to `https://www.supoclip.com/oauth/consent?request=<id>`.
-  The Next.js page uses the Better Auth session (sign-in first if needed), shows
-  the client name and redirect host, and on Allow calls a backend endpoint.
-- **The token is an API key.** On Allow, the backend creates a normal API key
-  named after the client ("Claude (claude.ai)"), stores it encrypted or hashed
-  against a one-time authorization code, and returns the redirect URL with
-  `code` and `state`. `/token` swaps the code for that key. The key appears on
-  `/settings/api-keys` and revoking it there disconnects the connector. The MCP
-  server keeps validating tokens exactly as today, so both auth paths share one
-  check.
-- **Storage.** No local disk (a restart or second instance would lose it).
-  Registered clients, pending requests and codes live in Redis with TTLs
-  (requests and codes ~10 minutes, single use) or in PostgreSQL behind new
-  internal backend endpoints authenticated with `BACKEND_AUTH_SECRET`. Redis is
-  simpler; clients would need a long TTL or Postgres so a connector that
-  registered months ago still works.
+## State
 
-## Open questions
+Nothing is kept in the MCP process or on its disk. It calls the backend's
+`/internal/mcp-oauth/*` routes with `x-supoclip-mcp-secret: $MCP_OAUTH_SECRET`:
 
-1. **Token lifetime.** Hand out the API key with no expiry and no refresh token
-   (simplest, revocable in settings), or short-lived access tokens with refresh
-   tokens (more moving parts, a new token table)?
-2. **Scopes.** Full account access like an API key, or a narrower scope (for
-   example no deletes)? API keys have no scopes today, so anything narrower is
-   backend work.
-3. **Consent UI.** A new `/oauth/consent` page in the web app: what does it
-   show, and how does it look? Does the iOS app ever need it?
-4. **Key limits and email.** Each connection creates a key: count it toward the
-   25-key limit, and send the "new API key" email (the current create path
-   does)? Reuse an existing key for the same client and user instead?
-5. **Who may register.** Open dynamic registration (any client, any HTTPS
-   redirect URI) as the spec expects, or an allowlist of redirect hosts
-   (claude.ai, chatgpt.com, ...)? Rate limits on `/register`.
-6. **Storage choice.** Redis in the MCP container (new dependency and network
-   access) or backend endpoints over PostgreSQL?
+| What | Where | Lifetime |
+|---|---|---|
+| Registered clients | PostgreSQL `mcp_oauth_clients` (`backend/src/repositories/mcp_oauth_repository.py`) | Permanent |
+| Pending authorize requests | Redis `mcp_oauth:request:<id>` | 10 minutes, consumed by Allow/Deny |
+| Authorization codes | Redis `mcp_oauth:code:<sha256(code)>` | 10 minutes, consumed by the exchange (`GETDEL`) |
+| Rate-limit counters | Redis `mcp_oauth:rate:*` | One window |
+| Access tokens | `api_keys` (SHA-256 only), like every key | Until revoked |
 
-Rough size once these are decided: provider and routes in `mcp/` (about a day),
-backend endpoints for consent and code exchange, the consent page with
-translations, and tests for the full flow.
+Rate limits (per caller IP from `X-Real-IP`, else the last `X-Forwarded-For`
+hop, plus a global cap): `/register` 20 per hour (1000 overall), `/token` 60
+per 10 minutes (3000 overall). Answered with `429` and `Retry-After`.
+
+Client secrets issued by dynamic registration are stored as given: the SDK
+compares them in plain form. They are not account credentials; PKCE and the
+exact redirect URI protect the code.
+
+## Code
+
+- `mcp/src/supoclip_mcp/oauth.py`: provider for the SDK's `create_auth_routes`,
+  backend client, rate limiting, registration compatibility, discovery routes.
+- `mcp/src/supoclip_mcp/http_app.py`, `auth.py`: route wiring and the 401 challenge.
+- `backend/src/api/routes/mcp_oauth.py`, `backend/src/services/mcp_oauth_service.py`.
+- `frontend/src/app/oauth/consent/page.tsx`, `frontend/src/app/api/oauth/requests/`.
+
+## Operating it
+
+- Set the same `MCP_OAUTH_SECRET` (`openssl rand -hex 32`) for the `backend` and
+  `mcp` services, and `SUPOCLIP_APP_URL` for the MCP server if the web app is not
+  `https://www.supoclip.com`.
+- `/internal/mcp-oauth/*` is reachable wherever the backend is; it refuses
+  callers without the secret. A reverse proxy may block `/internal/` on the
+  public API host since only the MCP container needs it.
+- Tests: `mcp/tests/test_oauth.py`, `backend/tests/unit/test_mcp_oauth.py`,
+  `backend/tests/integration/test_mcp_oauth_flow.py`, and
+  `mcp/tests/test_oauth_e2e.py` against running services (see its docstring).
