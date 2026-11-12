@@ -6,6 +6,7 @@ import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { editDuration, timecode, type AIEditUsage, type EditDocument } from "@/lib/editor/document";
+import { trackEvent } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { editorRequest } from "./use-editor";
@@ -135,6 +136,7 @@ export function AIPrompt({ endpoint, basis, initialUsage, doc, playhead, update,
         playhead,
       }, controller.signal);
       controller.signal.throwIfAborted();
+      trackEvent("ai_edit_submitted", { outcome: "accepted" });
       if (nextUsage) setUsage(nextUsage);
       setText("");
       for (;;) {
@@ -153,6 +155,9 @@ export function AIPrompt({ endpoint, basis, initialUsage, doc, playhead, update,
         }
       }
     } catch (e) {
+      if (e instanceof ApiRequestError && e.code === "AI_EDIT_LIMIT_REACHED") {
+        trackEvent("ai_edit_submitted", { outcome: "limit_reached" });
+      }
       if (!cancelled.current && e instanceof ApiRequestError && e.code === "AI_EDIT_LIMIT_REACHED" && e.detail?.usage) {
         setUsage(e.detail.usage as unknown as AIEditUsage);
       }

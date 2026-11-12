@@ -12,6 +12,7 @@ from ...media_storage import MediaStorage, STORAGE_ERRORS, media_work
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...analytics import capture_clip_export
 from ...database import get_db
 from ...editor_document import EditDocument, RevisionConflict
 from ...editor_state import (
@@ -282,7 +283,7 @@ async def export_file(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
-    _, session = await context(request, db, task_id, clip_id)
+    task, _, session = await owned_context(request, db, task_id, clip_id)
     job = await _job(session, job_id)
     if job["status"] != "completed":
         raise HTTPException(409, "Export is not ready")
@@ -290,9 +291,11 @@ async def export_file(
     filename = f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4"
     redirect = await _stored_media(MediaStorage(), session, output.name, filename, attachment=True)
     if redirect is not None:
+        capture_clip_export(request, task, surface="editor", format="editor")
         return redirect
     if not output.exists():
         raise HTTPException(409, "Export is not ready")
+    capture_clip_export(request, task, surface="editor", format="editor")
     return FileResponse(
         output,
         media_type="video/mp4",

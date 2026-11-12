@@ -6,8 +6,8 @@ is the default for self-hosted installs.
 
 | Surface | PostHog | Logs |
 |---------|---------|------|
-| Backend API, ARQ worker | exceptions (`posthog` Python SDK) | JSON on stdout → Vector → Axiom |
-| Web (Next.js) | analytics, session replay, exceptions | container stdout → Vector → Axiom |
+| Backend API, ARQ worker | exceptions, product events (`posthog` Python SDK) | JSON on stdout → Vector → Axiom |
+| Web (Next.js) | analytics, product events, session replay, exceptions | container stdout → Vector → Axiom |
 | Desktop (Electron) | analytics, session replay, exceptions | — |
 | iOS | analytics, crashes | — |
 
@@ -57,6 +57,89 @@ critical-alert webhook should match. The distinct id is `supoclip-worker`.
 The event has no account id. A job that waited only because that account was
 already rendering does not use this clock: it is queued again with a new
 enqueue time.
+
+## Product funnel events
+
+Custom events measure signup → first generation → payment → retention. Each
+one is sent only when its side has a PostHog token (`NEXT_PUBLIC_POSTHOG_KEY`
+for the web app and its server routes, `POSTHOG_PROJECT_TOKEN` for the backend
+and worker). Sending never raises or waits on PostHog.
+
+The distinct id is always the Better Auth user id, so browser, Next server and
+backend events land on one person. Properties never carry emails, names, source
+URLs, file names, transcripts, instructions, topics, captions or creator codes.
+
+Names and properties are typed in one place per side:
+`frontend/src/lib/analytics.ts` (browser), `frontend/src/server/analytics.ts`
+(Next server) and `backend/src/analytics.py` (backend and worker).
+
+### Browser (`trackEvent`)
+
+| Event | Fired | Properties |
+|-------|-------|------------|
+| `signup_completed` | Email sign-up succeeded (`components/auth/sign-up.tsx`) | `method` |
+| `source_entered` | A supported link is in the create composer, or a video file was picked; once per distinct source | `source_kind` (`youtube`, `twitch`, `kick`, `upload`) |
+| `generate_clicked` | Generate pressed with a valid request, before the plan check | `workflow`, `source_kind` (or `unknown`), `has_instructions`, `blocked_by_upgrade` |
+| `upgrade_dialog_shown` | The upgrade dialog opens | `reason` (`start`, `limit`, `video_too_long`, `custom_fonts`, `explore`), `plan`, `source` |
+| `editor_opened` | The clip studio loaded a finished task; once per task | `clip_count` |
+| `ai_edit_submitted` | The studio accepted an AI edit, or refused it at the daily limit | `outcome` (`accepted`, `limit_reached`) |
+| `clip_downloaded` | A clip download started from the task page or studio | `surface` (`task`, `editor`, `editor_queue`), `format` (preset or `original`) |
+| `clips_zip_downloaded` | The ZIP of every clip finished downloading | `surface` |
+
+There is no `pricing_viewed`: the pricing page is covered by `$pageview`, and
+the in-app pricing surface is the upgrade dialog.
+
+### Next server (billing)
+
+| Event | Fired | Properties |
+|-------|-------|------------|
+| `checkout_started` | `POST /api/billing/checkout` returned a Stripe URL | `plan`, `interval`, `provider` (`stripe`), `has_creator_code`, `flow` (`checkout`, `plan_change`, `payment_link`) |
+| `subscription_started` | Stripe `checkout.session.completed` with a paid plan; RevenueCat `INITIAL_PURCHASE` | `plan`, `interval`, `provider` (`stripe`, `apple`), `trial`, `has_creator_code` (Stripe) |
+| `subscription_cancel_scheduled` | Stripe `customer.subscription.updated` that newly schedules a cancellation (after the email); RevenueCat `CANCELLATION` | `plan`, `interval`, `provider`, `reason` (RevenueCat's `cancel_reason`) |
+| `subscription_canceled` | Stripe `customer.subscription.deleted`; RevenueCat `EXPIRATION` that ended the plan | `plan`, `interval`, `provider`, `kept_creator_pro` |
+| `subscription_renewed` | Stripe `invoice.paid` / `invoice.payment_succeeded` with `billing_reason: subscription_cycle`; RevenueCat `RENEWAL` | `plan`, `interval`, `provider` |
+
+Subscription events also set the person properties `plan` and
+`subscription_status` (`$set`). Server events carry `platform: web-server`.
+
+The Stripe events come from `server/stripe-billing-webhook.ts`, so they cover
+the root `/api/billing/webhook` and every account route
+(`/api/billing/webhook/<account id>`).
+
+Webhook events are idempotent. The existing `stripe_webhook_events` /
+`revenuecat_webhook_events` rows already drop redeliveries (account routes key
+theirs `account:mode:event` in the same Stripe table); the events are held
+until the delivery has succeeded (an account route has finished its inbox row),
+so a delivery that fails and is retried is counted once. Each event's PostHog
+`uuid` is derived from the provider's event id and its timestamp is the
+provider's, so PostHog drops a resend too. The webhook waits up to 2 seconds for
+PostHog to accept them. Stripe sends both invoice events for one renewal: the
+first to insert `posthog:subscription_renewed:<invoice id>` (status
+`processed`) into `stripe_webhook_events` sends it. That row is only written
+when PostHog is configured.
+
+### Backend and worker
+
+| Event | Fired | Properties |
+|-------|-------|------------|
+| `task_created` | `POST /tasks/` persisted the task and queued its job | `task_id`, `workflow`, `source_kind` (`youtube`, `twitch`, `kick`, `upload`, `video_url`), `source_duration_seconds`, `has_instructions`, `plan`, `client` (`web`, `ios`, `api_key`, `mcp`), `processing_mode`, `output_format`, `clip_length` |
+| `task_completed` | The worker marked the task completed | `task_id`, `workflow`, `has_instructions`, `source_kind`, `clip_count`, `processing_seconds`, `cache_hit` |
+| `task_failed` | The worker marked the task failed (not cancelled) | `task_id`, `workflow`, `source_kind`, `error_code`, `processing_seconds`, `cache_hit`, `kept_outputs` |
+| `clip_exported` | The task's owner downloads a file: a preset export, the original (`?download=true`), the ZIP, or a studio export | `task_id`, `surface` (`preset`, `original`, `zip`, `editor`), `format`, `workflow`, `clip_count` (ZIP), `client` |
+| `social_post_published` | A post went live on its platform | `post_id`, `provider`, `scheduled`, `attempts` |
+
+Backend events carry the `platform` super property (`backend` or `worker`) and
+the request's `trace_id` (`task-<id>` in the worker). `client` is `mcp` when an
+API-key request comes from the MCP server (`User-Agent: supoclip-mcp/<version>`),
+`ios` for the iOS app's header or user agent, else `web`.
+
+### Suggested funnel
+
+`signup_completed` → `source_entered` → `generate_clicked` →
+`upgrade_dialog_shown` → `checkout_started` → `subscription_started` →
+`task_completed` → `clip_downloaded` or `clip_exported`. Retention: a trend of
+`subscription_renewed` against `subscription_cancel_scheduled` and
+`subscription_canceled`, broken down by `plan` and `provider`.
 
 ## Shipping logs to Axiom
 

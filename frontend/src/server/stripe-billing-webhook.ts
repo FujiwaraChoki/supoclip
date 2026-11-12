@@ -19,7 +19,9 @@ import { restoreAffiliateProIfApproved } from "@/server/affiliates";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { monetizationEnabled } from "@/lib/monetization";
 import { fetchBackend } from "@/server/backend-api";
-import { hasAnyConfiguredStripePrice } from "@/server/billing-plans";
+import type { BillingInterval } from "@/lib/billing-plans";
+import { intervalFromPeriod, WebhookAnalytics } from "@/server/analytics";
+import { getPlanIdForStripePrice, hasAnyConfiguredStripePrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
 import {
@@ -72,7 +74,78 @@ async function sendSubscriptionEmailBestEffort(
   }
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+function subscriptionInterval(subscription: Stripe.Subscription): BillingInterval | null {
+  const item = subscription.items?.data?.[0];
+  const interval = item?.price?.recurring?.interval;
+  if (interval === "month" || interval === "year") return interval;
+  return intervalFromPeriod(item?.current_period_start, item?.current_period_end);
+}
+
+/** The plan a subscription's prices map to, whatever its status (for canceled ones). */
+function subscriptionPricePlan(subscription: Stripe.Subscription): string | null {
+  const plans = (subscription.items?.data ?? []).map((item) => getPlanIdForStripePrice(item.price?.id));
+  return plans.includes("scale") ? "scale" : plans.includes("pro") ? "pro" : null;
+}
+
+/** Only renewals: the first invoice is subscription_started, and plan changes are not renewals. */
+async function noteSubscriptionRenewal(invoice: Stripe.Invoice, analytics: WebhookAnalytics | undefined) {
+  if (!analytics || invoice.billing_reason !== "subscription_cycle" || !invoice.id) return;
+  const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+  if (!customerId) return;
+  try {
+    const user = await getPrismaClient().user.findFirst({
+      where: { stripe_customer_id: customerId },
+      select: { id: true, plan: true, subscription_provider: true },
+    });
+    if (!user || user.subscription_provider === "apple") return;
+    const period = invoice.lines?.data?.[0]?.period;
+    analytics.add(
+      {
+        event: "subscription_renewed",
+        distinctId: user.id,
+        properties: {
+          plan: user.plan,
+          interval: intervalFromPeriod(period?.start, period?.end),
+          provider: "stripe",
+        },
+        set: { plan: user.plan, subscription_status: "active" },
+      },
+      // invoice.paid and invoice.payment_succeeded both arrive for one renewal.
+      { claimKey: `subscription_renewed:${invoice.id}` },
+    );
+  } catch (error) {
+    // Analytics only: a failed lookup must not fail the webhook.
+    console.warn("Could not record subscription renewal", error instanceof Error ? error.name : "error");
+  }
+}
+
+/**
+ * Claims an analytics fact in stripe_webhook_events, the table both webhook
+ * routes use for their own events. The `posthog:` prefix keeps these rows apart
+ * from legacy event ids and from `account:mode:event` inbox keys, and they are
+ * stored as processed so the inbox never treats them as work.
+ */
+async function claimAnalyticsKey(key: string): Promise<boolean> {
+  try {
+    await getPrismaClient().stripeWebhookEvent.create({
+      data: { id: `posthog:${key}`, type: "posthog", status: "processed" },
+    });
+    return true;
+  } catch (error) {
+    if ((error as { code?: string }).code === "P2002") return false;
+    throw error;
+  }
+}
+
+function webhookAnalytics(event: Stripe.Event) {
+  // Stripe event ids are unique across accounts, so either route derives the same ids.
+  return new WebhookAnalytics(
+    event.id,
+    typeof event.created === "number" ? new Date(event.created * 1000) : undefined,
+  );
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session, analytics?: WebhookAnalytics) {
   const prisma = getPrismaClient();
   if (session.mode !== "subscription") {
     return;
@@ -134,12 +207,25 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   await upsertSubscriptionState(subscription);
 
-  if (userId && getPaidSubscriptionPlan(subscription)) {
+  const paidPlan = getPaidSubscriptionPlan(subscription);
+  if (userId && paidPlan) {
     await sendSubscriptionEmailBestEffort(userId, "subscribed");
+    analytics?.add({
+      event: "subscription_started",
+      distinctId: userId,
+      properties: {
+        plan: paidPlan,
+        interval: subscriptionInterval(subscription),
+        provider: "stripe",
+        trial: subscription.status === "trialing",
+        has_creator_code: Boolean(session.metadata?.creator_code),
+      },
+      set: { plan: paidPlan, subscription_status: subscription.status },
+    });
   }
 }
 
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription, analytics?: WebhookAnalytics) {
   const prisma = getPrismaClient();
   const customerId =
     typeof subscription.customer === "string"
@@ -174,7 +260,21 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
   if (user?.id && result.count > 0) {
     // Approved creators fall back to their free Pro; they haven't lost access, so no "unsubscribed" email.
-    if (await restoreAffiliateProIfApproved(prisma, user.id)) return;
+    const keptCreatorPro = await restoreAffiliateProIfApproved(prisma, user.id);
+    analytics?.add({
+      event: "subscription_canceled",
+      distinctId: user.id,
+      properties: {
+        plan: subscriptionPricePlan(subscription),
+        interval: subscriptionInterval(subscription),
+        provider: "stripe",
+        kept_creator_pro: keptCreatorPro,
+      },
+      set: keptCreatorPro
+        ? { plan: "pro", subscription_status: "active" }
+        : { plan: "free", subscription_status: "canceled" },
+    });
+    if (keptCreatorPro) return;
     await sendSubscriptionEmailBestEffort(user.id, "unsubscribed");
   }
 }
@@ -205,14 +305,15 @@ function isNewlyScheduledCancellation(
   );
 }
 
+/** Returns the user that was emailed, or null when nothing was sent. */
 async function sendCancellationScheduledEmail(
   subscription: Stripe.Subscription,
-) {
+): Promise<string | null> {
   if (
     !LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status) ||
     !hasScheduledCancellation(subscription)
   ) {
-    return;
+    return null;
   }
 
   const customerId =
@@ -228,11 +329,12 @@ async function sendCancellationScheduledEmail(
     },
     select: { id: true },
   });
-  if (!user) return;
+  if (!user) return null;
 
   // Let Stripe retry delivery failures. The event record suppresses successful
   // redeliveries, and previous_attributes still identifies the transition on retry.
   await sendBackendSubscriptionEmail(user.id, "cancellation_scheduled");
+  return user.id;
 }
 
 export async function POST(request: Request) {
@@ -290,8 +392,9 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  const analytics = webhookAnalytics(event);
   try {
-    await dispatchBillingEvent(event);
+    await dispatchBillingEvent(event, analytics);
   } catch (error) {
     await getPrismaClient()
       .stripeWebhookEvent.delete({ where: { id: event.id } })
@@ -299,6 +402,8 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  // Only after the handler succeeded, so a delivery that Stripe retries is counted once.
+  await analytics.flush(claimAnalyticsKey);
   return NextResponse.json({ ok: true });
 }
 
@@ -311,7 +416,11 @@ export async function handleAccountBillingWebhook(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   const db = getPrismaClient();
   const inbox = createPrismaWebhookInbox(db);
-  return createAccountWebhookHandler({
+  // One collector per delivery, created when its event is dispatched. A duplicate
+  // or busy delivery dispatches nothing, so it sends nothing.
+  let analytics: WebhookAnalytics | undefined;
+  const collect = (event: Stripe.Event) => (analytics ??= webhookAnalytics(event));
+  const response = await createAccountWebhookHandler({
     store: createPrismaMigrationStore(db),
     client: verifiedStripeClient,
     signatureClient: configuredStripeClient,
@@ -319,7 +428,7 @@ export async function handleAccountBillingWebhook(
     assertMode: assertStripeEventMode,
     claim: inbox.claim,
     finish: inbox.finish,
-    dispatch: dispatchBillingEvent,
+    dispatch: (event) => dispatchBillingEvent(event, collect(event)),
     async dispatchCurrent(event, subscription) {
       if (event.type.startsWith("invoice."))
         await syncSubscriptionUpdate(subscription);
@@ -327,21 +436,27 @@ export async function handleAccountBillingWebhook(
         event.type === "customer.subscription.updated" ||
         event.type === "customer.subscription.deleted"
       ) {
-        await dispatchBillingEvent({
-          ...event,
-          data: { ...event.data, object: subscription },
-        });
-      } else await dispatchBillingEvent(event);
+        await dispatchBillingEvent(
+          { ...event, data: { ...event.data, object: subscription } },
+          collect(event),
+        );
+      } else await dispatchBillingEvent(event, collect(event));
     },
   })(request, accountId);
+  // The handler answers 200 only once the event is finished in the inbox.
+  if (response.ok) await analytics?.flush(claimAnalyticsKey);
+  return response;
 }
 
-/** Dispatch only after account ownership and inbox handling have succeeded. */
-export async function dispatchBillingEvent(event: Stripe.Event) {
+/**
+ * Dispatch only after account ownership and inbox handling have succeeded.
+ * Product events go to `analytics`, which the caller flushes once the delivery succeeded.
+ */
+export async function dispatchBillingEvent(event: Stripe.Event, analytics?: WebhookAnalytics) {
   const stripe = getServerStripeClient();
   await handleOwnedBillingRisk(event);
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-    await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+    await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, analytics);
   }
 
   if (event.type === "customer.subscription.updated") {
@@ -353,7 +468,16 @@ export async function dispatchBillingEvent(event: Stripe.Event) {
       // decide from the live subscription so the old snapshot can't overwrite that.
       const current = await stripe.subscriptions.retrieve(subscription.id);
       await syncSubscriptionUpdate(current);
-      await sendCancellationScheduledEmail(current);
+      const userId = await sendCancellationScheduledEmail(current);
+      if (userId) {
+        const plan = getPaidSubscriptionPlan(current);
+        analytics?.add({
+          event: "subscription_cancel_scheduled",
+          distinctId: userId,
+          properties: { plan, interval: subscriptionInterval(current), provider: "stripe" },
+          set: { ...(plan ? { plan } : {}), subscription_status: current.status },
+        });
+      }
     } else {
       await syncSubscriptionUpdate(subscription);
     }
@@ -367,6 +491,7 @@ export async function dispatchBillingEvent(event: Stripe.Event) {
     event.type === "invoice.payment_succeeded"
   ) {
     await applyPaidUpgradeInvoice(event.data.object as Stripe.Invoice);
+    await noteSubscriptionRenewal(event.data.object as Stripe.Invoice, analytics);
   }
 
   if (event.type === "invoice.payment_failed") {
@@ -374,6 +499,6 @@ export async function dispatchBillingEvent(event: Stripe.Event) {
   }
 
   if (event.type === "customer.subscription.deleted") {
-    await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+    await handleSubscriptionDeleted(event.data.object as Stripe.Subscription, analytics);
   }
 }

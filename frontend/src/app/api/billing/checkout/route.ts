@@ -12,6 +12,7 @@ import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
 import { isBillingInterval, type BillingInterval } from "@/lib/billing-plans";
 import { findCreatorOffer, INVALID_CREATOR_CODE, type CreatorOffer } from "@/server/affiliates";
+import { captureServerEvent, type ServerEventProperties } from "@/server/analytics";
 import {
   CHECKOUT_BLOCKING_STATUSES,
   EXISTING_SUBSCRIPTION_NEEDS_PAYMENT,
@@ -62,6 +63,22 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const userId = session.user.id;
+    const trackCheckout = (
+      flow: ServerEventProperties["checkout_started"]["flow"],
+      hasCreatorCode = false,
+    ) =>
+      captureServerEvent({
+        event: "checkout_started",
+        distinctId: userId,
+        properties: {
+          plan: billingPlan.id,
+          interval,
+          provider: "stripe",
+          has_creator_code: hasCreatorCode,
+          flow,
+        },
+      });
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -97,6 +114,7 @@ export async function POST(request: Request) {
           { status: 500 },
         );
       }
+      trackCheckout("payment_link");
       return NextResponse.json({ url: fallbackUrl });
     }
 
@@ -110,12 +128,14 @@ export async function POST(request: Request) {
       user.stripe_subscription_id &&
       PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status)
     ) {
-      return createPlanChangeSession(stripe, {
+      const planChange = await createPlanChangeSession(stripe, {
         customerId: user.stripe_customer_id,
         subscriptionId: user.stripe_subscription_id,
         priceId,
         appUrl,
       });
+      if (planChange.ok) trackCheckout("plan_change");
+      return planChange;
     }
 
     let customerId = user?.stripe_customer_id || null;
@@ -150,12 +170,14 @@ export async function POST(request: Request) {
             { status: 409 },
           );
         }
-        return createPlanChangeSession(stripe, {
+        const planChange = await createPlanChangeSession(stripe, {
           customerId,
           subscriptionId: existing.id,
           priceId,
           appUrl,
         });
+        if (planChange.ok) trackCheckout("plan_change");
+        return planChange;
       }
     }
 
@@ -223,6 +245,7 @@ export async function POST(request: Request) {
       );
     }
 
+    trackCheckout("checkout", Boolean(offer));
     return NextResponse.json({ url: checkoutSession.url });
   });
 }
