@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from ..config import Config
 from ..models import User
+from .email_layout import email_button
 from .email_service import EmailContent, SesEmailService, first_name_for
 
 OFFER_TEXT = "20% off their first 3 months"
@@ -47,7 +48,7 @@ class AffiliateEmailService:
                 "<p>"
                 + "<br>".join(f"<strong>{escape(label)}:</strong> {escape(value)}" for label, value in rows)
                 + "</p>"
-                f'<p><a href="{escape(review_url)}">Review it in the admin dashboard</a></p>'
+                + email_button(review_url, "Review application")
             ),
             text=(
                 "A new creator program application is waiting for review.\n\n"

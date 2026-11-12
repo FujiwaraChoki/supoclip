@@ -170,13 +170,33 @@ describe("GenerationCard", () => {
   });
 });
 
+describe("time left", () => {
+  it("keeps minutes for the segment download and rendering after transcription starts", () => {
+    // Progress reads 30% seconds into a run that still has most of its time ahead.
+    render(<ProcessingPanel status="processing" progress={30} message="Generating transcript..."
+      sourceSeconds={1566} outputs={6} />);
+    expect(screen.getByText(/About \d+ min left/)).toBeVisible();
+    expect(screen.queryByText("Less than a minute left")).not.toBeInTheDocument();
+  });
+
+  it("counts the clips still to render", () => {
+    render(<ProcessingPanel status="processing" progress={95} message="Creating clip 10/10..." sourceSeconds={3000} outputs={10} />);
+    expect(screen.getByText("Less than a minute left")).toBeVisible();
+  });
+
+  it("does not finish the estimate early when the first of many clips starts", () => {
+    render(<ProcessingPanel status="processing" progress={72} message="Creating clip 1/10..." sourceSeconds={3000} outputs={10} />);
+    expect(screen.getByText("About 3 min left")).toBeVisible();
+  });
+});
+
 describe("download recovery progress", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("shows a casual delay notice without an ETA, extra details, or increased progress", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const { rerender } = render(<ProcessingPanel status="processing" progress={65}
-      message="Using a backup video download option..." elapsedSeconds={90} />);
+      message="Using a backup video download option..." />);
 
     expect(screen.getByText("Hang tight")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(messages.recovery.messages.snags);
@@ -185,10 +205,10 @@ describe("download recovery progress", () => {
     expect(screen.queryByText(/min left|minute left/)).not.toBeInTheDocument();
 
     rerender(<ProcessingPanel status="processing" progress={70}
-      message="Creating clip 1/4..." elapsedSeconds={90} />);
+      message="Creating clip 1/4..." />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByText("Hang tight")).not.toBeInTheDocument();
-    expect(screen.getByText("Less than a minute left")).toBeVisible();
+    expect(screen.getByText("About 1 min left")).toBeVisible();
   });
 
   it.each([
@@ -197,30 +217,30 @@ describe("download recovery progress", () => {
     "Recovering the full video download...",
     "Trying another video download recovery option...",
   ])("shows a generic delay notice for persisted recovery state: %s", (message) => {
-    render(<ProcessingPanel status="processing" progress={10} message={message} elapsedSeconds={30} />);
+    render(<ProcessingPanel status="processing" progress={10} message={message} />);
     expect(Object.values(messages.recovery.messages)).toContain(screen.getByRole("status").textContent);
   });
 
   it("chooses a random sentence once and keeps it through progress and recovery changes", () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0.4);
     const { rerender } = render(<ProcessingPanel status="processing" progress={10}
-      message="Using a backup video download option..." elapsedSeconds={30} />);
+      message="Using a backup video download option..." />);
     expect(screen.getByRole("status")).toHaveTextContent(messages.recovery.messages.scenicRoute);
 
     random.mockReturnValue(0.9);
     rerender(<ProcessingPanel status="processing" progress={65}
-      message="Trying another video download recovery option..." elapsedSeconds={90} />);
+      message="Trying another video download recovery option..." />);
     expect(screen.getByRole("status")).toHaveTextContent(messages.recovery.messages.scenicRoute);
   });
 
   it("does not expose unknown provider errors or stale recovery while queued", () => {
     const { rerender } = render(<ProcessingPanel status="processing" progress={10}
-      message="private provider error" elapsedSeconds={30} />);
+      message="private provider error" />);
     expect(screen.queryByText("private provider error")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     rerender(<ProcessingPanel status="queued" progress={0}
-      message="Using a backup video download option..." elapsedSeconds={30} />);
+      message="Using a backup video download option..." />);
     expect(screen.getByText("Waiting for a worker")).toBeVisible();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });

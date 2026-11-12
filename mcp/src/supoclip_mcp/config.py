@@ -14,6 +14,12 @@ from typing import Optional
 # The official hosted SupoClip API. Override with SUPOCLIP_API_URL to point at
 # a self-hosted backend (e.g. http://localhost:8000).
 DEFAULT_API_URL = "https://api.supoclip.com"
+# The web app: where users create API keys and pick a plan.
+DEFAULT_APP_URL = "https://www.supoclip.com"
+
+# "http" serves Streamable HTTP at /mcp and legacy SSE at /sse from one
+# process. "sse" and "streamable-http" are older names for the same thing.
+HTTP_TRANSPORT_ALIASES = {"http", "sse", "streamable-http", "streamable_http", "both"}
 
 
 def _clean(value: Optional[str]) -> Optional[str]:
@@ -39,6 +45,13 @@ class Settings:
     mcp_mount_path: str
     mcp_public_url: Optional[str]
     mcp_require_bearer_auth: bool
+    app_url: str = DEFAULT_APP_URL
+    # Shared with the backend. Set (with bearer auth on) to let connectors sign in with OAuth.
+    mcp_oauth_secret: Optional[str] = None
+
+    @property
+    def oauth_enabled(self) -> bool:
+        return bool(self.mcp_oauth_secret) and self.mcp_require_bearer_auth
 
     @property
     def auth_mode(self) -> str:
@@ -76,13 +89,12 @@ def load_settings() -> Settings:
         mcp_port = 9100
 
     transport = (_clean(os.getenv("SUPOCLIP_MCP_TRANSPORT")) or "stdio").lower()
-    if transport == "http":
-        transport = "streamable-http"
-    if transport not in {"stdio", "sse", "streamable-http"}:
-        transport = "stdio"
+    transport = "http" if transport in HTTP_TRANSPORT_ALIASES else "stdio"
 
     return Settings(
         api_url=api_url,
+        app_url=(_clean(os.getenv("SUPOCLIP_APP_URL")) or DEFAULT_APP_URL).rstrip("/"),
+        mcp_oauth_secret=_clean(os.getenv("MCP_OAUTH_SECRET")),
         api_key=_clean(os.getenv("SUPOCLIP_API_KEY")),
         user_id=_clean(os.getenv("SUPOCLIP_USER_ID")),
         auth_secret=_clean(os.getenv("SUPOCLIP_AUTH_SECRET")),

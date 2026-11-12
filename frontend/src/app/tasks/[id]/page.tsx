@@ -996,7 +996,9 @@ export default function TaskPage() {
 
         {isActive && task ? (
           <div className="space-y-8">
-            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} startedAt={Date.parse(task.created_at)} workflow={workflow} />
+            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} workflow={workflow}
+              phaseSince={Date.parse(task.updated_at)} sourceSeconds={task.source_duration_seconds}
+              upload={videoSourceKind(task.source_type) === "upload"} outputs={Math.max(clips.length, expectedTotal)} />
             <ProcessingSlots status={task.status} progress={progress} message={progressMessage}
               className={SINGLE_OUTPUT.has(workflow) ? "mx-auto max-w-[16rem] grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1" : undefined}
               total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedTotal)}>

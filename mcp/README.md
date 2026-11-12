@@ -33,9 +33,123 @@ Tools marked ✓ require an API key (or self-host credentials, see below).
 
 ## Getting an API key
 
-1. Sign in at [supoclip.com](https://supoclip.com).
-2. Go to **Settings → API Keys**.
+1. Sign in at [supoclip.com](https://www.supoclip.com).
+2. Go to [**Settings → API Keys**](https://www.supoclip.com/settings/api-keys).
 3. Create a key and copy it (it's shown only once). It looks like `sk_…`.
+
+Making clips needs a paid plan (Pro or Creator). On a free account the
+discovery tools work, and creating a task returns a message with the upgrade
+link instead of a clip.
+
+## Connect to the hosted server
+
+The hosted server is at `https://mcp.supoclip.com/mcp` (Streamable HTTP). Send
+your key in the `Authorization` header. In every example below, replace
+`sk_...` with your own key, and put **only the URL** in a client's URL field.
+
+### claude.ai, ChatGPT and other apps with custom connectors
+
+Add `https://mcp.supoclip.com/mcp` as a custom connector. The app sends you to
+supoclip.com to sign in and allow access; no key to copy. Allowing creates an
+API key named after the app (for example "Claude connector"), listed at
+[Settings → API Keys](https://www.supoclip.com/settings/api-keys); revoke it
+there to disconnect. The connection uses your plan's minutes like any key.
+
+### Claude Code
+
+```bash
+claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_..."
+```
+
+### Cursor, Windsurf and other clients with remote URL support
+
+```json
+{
+  "mcpServers": {
+    "supoclip": {
+      "url": "https://mcp.supoclip.com/mcp",
+      "headers": {
+        "Authorization": "Bearer sk_..."
+      }
+    }
+  }
+}
+```
+
+Cursor reads this from `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project).
+
+### Claude Desktop
+
+Claude Desktop's config file starts local servers, so bridge to the hosted
+server with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) (needs
+Node.js). Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "supoclip": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.supoclip.com/mcp",
+        "--header",
+        "Authorization:${SUPOCLIP_AUTH}"
+      ],
+      "env": {
+        "SUPOCLIP_AUTH": "Bearer sk_..."
+      }
+    }
+  }
+}
+```
+
+On the hosted server, `supoclip_download_clip` and `supoclip_export_clip` save
+files on the server, not on your computer. To get the MP4s locally, run the
+server locally (below) or download clips from the task page.
+
+### Older clients that only speak SSE
+
+Use `https://mcp.supoclip.com/sse` as the URL, with the same
+`Authorization: Bearer sk_...` header. Clients already configured with the
+`/sse` URL keep working; Streamable HTTP requests sent there are answered too.
+
+### If it doesn't connect
+
+The server answers errors in plain words. `401` with "Missing SupoClip API
+key" means the header didn't arrive; "placeholder" means `sk_...` (or
+`sk_your_supoclip_api_key`) was not replaced with a real key; "invalid or was
+revoked" means the key was deleted, so create a new one. Opening
+`https://mcp.supoclip.com/` in a browser shows the endpoints and setup.
+
+## Run it locally (stdio)
+
+Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/). Clips you
+download are saved on your machine (`SUPOCLIP_DOWNLOAD_DIR`).
+
+```bash
+claude mcp add supoclip -e SUPOCLIP_API_KEY=sk_... \
+  -- uvx --from "git+https://github.com/FujiwaraChoki/supoclip#subdirectory=mcp" supoclip-mcp
+```
+
+Or in a client's JSON config:
+
+```json
+{
+  "mcpServers": {
+    "supoclip": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/FujiwaraChoki/supoclip#subdirectory=mcp", "supoclip-mcp"],
+      "env": {
+        "SUPOCLIP_API_KEY": "sk_..."
+      }
+    }
+  }
+}
+```
+
+From a checkout, use `"command": "uv", "args": ["--directory", "/absolute/path/to/supoclip/mcp", "run", "supoclip-mcp"]`
+instead. For a self-hosted backend, add `"SUPOCLIP_API_URL": "http://localhost:8000"` to `env`.
 
 ## Configuration
 
@@ -43,12 +157,19 @@ All configuration is via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SUPOCLIP_API_KEY` | – | Your API key (recommended auth). |
+| `SUPOCLIP_API_KEY` | – | Your API key (stdio; recommended auth). |
 | `SUPOCLIP_API_URL` | `https://api.supoclip.com` | Backend base URL. Set for self-hosting. |
+| `SUPOCLIP_APP_URL` | `https://www.supoclip.com` | Web app, used in links to create keys and pick a plan. |
 | `SUPOCLIP_DOWNLOAD_DIR` | `./supoclip-downloads` | Where downloaded/exported clips are written. |
 | `SUPOCLIP_TIMEOUT` | `60` | HTTP timeout (seconds) for non-download requests. |
 | `SUPOCLIP_USER_ID` | – | Self-host only: authenticate by user id (see below). |
 | `SUPOCLIP_AUTH_SECRET` | – | Self-host only: backend `BACKEND_AUTH_SECRET` for HMAC signing. |
+| `SUPOCLIP_MCP_TRANSPORT` | `stdio` | `stdio`, or `http` to serve Streamable HTTP and SSE (`sse` and `streamable-http` mean the same as `http`). |
+| `SUPOCLIP_MCP_HOST` / `SUPOCLIP_MCP_PORT` | `127.0.0.1` / `9100` | Listen address for `http`. |
+| `SUPOCLIP_MCP_PUBLIC_URL` | `http://HOST:PORT` | Public base URL (including any mount path), shown in setup help and errors. |
+| `SUPOCLIP_MCP_REQUIRE_BEARER_AUTH` | `false` | Require each client's own API key as a Bearer token. |
+| `SUPOCLIP_MCP_MOUNT_PATH` | `/` | Serve every route under this prefix (OAuth discovery assumes `/`). |
+| `MCP_OAUTH_SECRET` | – | Shared with the backend. With bearer auth on, turns on OAuth sign-in for connectors. |
 
 ### Self-hosting auth
 
@@ -62,30 +183,21 @@ If you run your own backend you have three options:
 
 Auth precedence is: API key → signed headers → unsigned user id.
 
-## Install & run
+## Hosting the HTTP server
 
-Requires Python 3.10+. With [uv](https://docs.astral.sh/uv/):
+`SUPOCLIP_MCP_TRANSPORT=http` serves both transports from one process:
 
-```bash
-cd mcp
-uv run supoclip-mcp        # runs the stdio server
-```
-
-Or install into the current environment:
-
-```bash
-pip install -e .
-supoclip-mcp
-```
-
-## Hosted SSE server
-
-For clients that add a remote MCP URL, run the server over SSE and require a
-SupoClip API key as the client Bearer token:
+| Path | What |
+|------|------|
+| `/mcp` | Streamable HTTP (current MCP spec) |
+| `/sse` + `/messages/` | Legacy HTTP+SSE. POST/DELETE, or a GET with `Mcp-Session-Id`, go to Streamable HTTP |
+| `/` | Same routing as `/sse`; a plain GET returns setup help as JSON |
+| `/health` | Liveness |
+| `/.well-known/oauth-protected-resource` (also `/mcp`, `/sse` suffixes), `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token` | OAuth for connectors, when `MCP_OAUTH_SECRET` is set (see [docs/mcp-oauth.md](../docs/mcp-oauth.md)) |
 
 ```bash
 SUPOCLIP_API_URL=https://api.supoclip.com \
-SUPOCLIP_MCP_TRANSPORT=sse \
+SUPOCLIP_MCP_TRANSPORT=http \
 SUPOCLIP_MCP_HOST=0.0.0.0 \
 SUPOCLIP_MCP_PORT=9100 \
 SUPOCLIP_MCP_PUBLIC_URL=https://mcp.supoclip.com \
@@ -93,45 +205,14 @@ SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=true \
 supoclip-mcp
 ```
 
-Then configure the MCP client with:
-
-```text
-Server URL: https://mcp.supoclip.com/sse
-Transport: SSE
-Authentication: Bearer Token
-Token: sk_your_supoclip_api_key
-```
+With `SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=true` every path except `/`, `/health`
+and the help pages needs a SupoClip API key (`Authorization: Bearer sk_...`,
+or `x-api-key`), checked against the backend the same way on both transports.
+Behind a reverse proxy, pass the `Authorization` header through and turn off
+response buffering (`proxy_buffering off` in nginx) so streams flush.
 
 With Docker Compose, the `mcp` service runs this mode by default and binds to
 `127.0.0.1:9100` for a reverse proxy.
-
-## Use with Claude Desktop / Claude Code
-
-Add to your MCP client config (e.g. `claude_desktop_config.json`, or via
-`claude mcp add`). Example using `uv` to run from a checkout:
-
-```json
-{
-  "mcpServers": {
-    "supoclip": {
-      "command": "uv",
-      "args": ["--directory", "/absolute/path/to/supoclip/mcp", "run", "supoclip-mcp"],
-      "env": {
-        "SUPOCLIP_API_KEY": "sk_your_key_here"
-      }
-    }
-  }
-}
-```
-
-For a self-hosted backend, add `"SUPOCLIP_API_URL": "http://localhost:8000"` to `env`.
-
-With Claude Code:
-
-```bash
-claude mcp add supoclip -e SUPOCLIP_API_KEY=sk_your_key_here \
-  -- uv --directory /absolute/path/to/supoclip/mcp run supoclip-mcp
-```
 
 ## Workflows
 

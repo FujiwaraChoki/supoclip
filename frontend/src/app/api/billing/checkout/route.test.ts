@@ -1,7 +1,10 @@
+import Stripe from "stripe";
+import { runWithStripeAccount } from "@/lib/stripe-accounts";
 import { POST } from "./route";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
+import { captureServerEvent } from "@/server/analytics";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
@@ -36,6 +39,10 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/stripe", () => ({
   getStripeClient: vi.fn(),
+}));
+
+vi.mock("@/server/analytics", () => ({
+  captureServerEvent: vi.fn(),
 }));
 
 describe("/api/billing/checkout", () => {
@@ -87,7 +94,7 @@ describe("/api/billing/checkout", () => {
     expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         line_items: [{ price: "price_scale", quantity: 1 }],
-        metadata: { userId: "user-1", plan: "scale", interval: "month" },
+        metadata: { app: "supoclip", userId: "user-1", plan: "scale", interval: "month" },
       }),
     );
     await expect(response.json()).resolves.toEqual({ url: "https://checkout.example/scale" });
@@ -113,7 +120,7 @@ describe("/api/billing/checkout", () => {
     expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         line_items: [{ price: "price_pro_annual", quantity: 1 }],
-        metadata: { userId: "user-1", plan: "pro", interval: "year" },
+        metadata: { app: "supoclip", userId: "user-1", plan: "pro", interval: "year" },
       }),
     );
   });
@@ -180,7 +187,7 @@ describe("/api/billing/checkout", () => {
       const params = stripe.checkout.sessions.create.mock.calls[0][0];
       expect(params).toMatchObject({
         discounts: [{ promotion_code: "promo_maya" }],
-        metadata: { userId: "user-1", plan: "pro", creator_code: "MAYA" },
+        metadata: { app: "supoclip", userId: "user-1", plan: "pro", creator_code: "MAYA" },
       });
       expect(params.subscription_data).toBeUndefined();
     });
@@ -520,5 +527,149 @@ describe("/api/billing/checkout", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ url: "https://portal.example/home" });
     });
+  });
+});
+
+describe("/api/billing/checkout analytics", () => {
+  const env = process.env;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    process.env = {
+      ...env,
+      STRIPE_PRO_PRICE_ID: "price_pro",
+      STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3107",
+    };
+    vi.mocked(auth.api.getSession).mockResolvedValue({
+      user: { id: "user-1", email: "user@example.com", name: "User" },
+    } as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      stripe_customer_id: "cus_123",
+      subscription_provider: null,
+      subscription_status: "inactive",
+    } as never);
+  });
+
+  afterAll(() => {
+    process.env = env;
+  });
+
+  it("sends checkout_started for the signed-in user when Checkout opens", async () => {
+    vi.mocked(getStripeClient).mockReturnValue({
+      checkout: { sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/pro" }) } },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    } as never);
+
+    const response = await POST(new Request("http://localhost/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan: "pro", interval: "year" }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(captureServerEvent).toHaveBeenCalledExactlyOnceWith({
+      event: "checkout_started",
+      distinctId: "user-1",
+      properties: { plan: "pro", interval: "year", provider: "stripe", has_creator_code: false, flow: "checkout" },
+    });
+  });
+
+  it("does not send checkout_started when Checkout could not be created", async () => {
+    vi.mocked(getStripeClient).mockReturnValue({
+      checkout: { sessions: { create: vi.fn().mockResolvedValue({ url: null }) } },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    } as never);
+
+    const response = await POST(new Request("http://localhost/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan: "pro" }),
+    }));
+
+    expect(response.status).toBe(500);
+    expect(captureServerEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("destination tax request contract", () => {
+  it("adds exclusive-account automatic tax and required billing information to the actual session", async () => {
+    vi.resetAllMocks();
+    vi.mocked(auth.api.getSession).mockResolvedValue({
+      user: { id: "synthetic", email: "synthetic@example.invalid" },
+    } as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      stripe_customer_id: "cus_owned",
+      subscription_status: "inactive",
+    } as never);
+    const stripe = {
+      checkout: {
+        sessions: {
+          create: vi
+            .fn()
+            .mockResolvedValue({
+              url: "https://checkout.stripe.com/synthetic",
+            }),
+        },
+      },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    };
+    vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+    const keys = [
+      "STRIPE_SOURCE_ACCOUNT_ID",
+      "STRIPE_DESTINATION_ACCOUNT_ID",
+      "STRIPE_DESTINATION_REQUIRED_TAX_REGISTRATION_IDS",
+      "STRIPE_DESTINATION_PRO_PRICE_ID",
+    ];
+    const saved = new Map(keys.map((key) => [key, process.env[key]]));
+    const sdk = new Stripe("sk_test_synthetic", {
+      httpClient: Stripe.createFetchHttpClient(async () => {
+        throw new Error("External network forbidden");
+      }),
+    });
+    vi.spyOn(sdk.tax.settings, "retrieve").mockResolvedValue({
+      status: "active",
+      defaults: { tax_behavior: "exclusive" },
+    } as Stripe.Response<Stripe.Tax.Settings>);
+    vi.spyOn(sdk.tax.registrations, "retrieve").mockResolvedValue({
+      id: "taxreg_confirmed",
+      country: "IE",
+      country_options: { ie: { type: "oss_non_union" } },
+      status: "active",
+      active_from: 1,
+    } as Stripe.Response<Stripe.Tax.Registration>);
+    try {
+      process.env.STRIPE_SOURCE_ACCOUNT_ID = "acct_source";
+      process.env.STRIPE_DESTINATION_ACCOUNT_ID = "acct_destination";
+      process.env.STRIPE_DESTINATION_REQUIRED_TAX_REGISTRATION_IDS =
+        "taxreg_confirmed";
+      process.env.STRIPE_DESTINATION_PRO_PRICE_ID = "price_destination_pro";
+      const response = await runWithStripeAccount(
+        { accountId: "acct_destination", client: sdk },
+        () =>
+          POST(
+            new Request("http://localhost/api/billing/checkout", {
+              method: "POST",
+              body: JSON.stringify({ plan: "pro" }),
+            }),
+          ),
+      );
+      expect(response.status).toBe(200);
+      expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          automatic_tax: { enabled: true },
+          billing_address_collection: "required",
+          tax_id_collection: { enabled: true },
+        }),
+      );
+      const params = vi
+        .mocked(stripe.checkout.sessions.create)
+        .mock.calls.at(-1)?.[0];
+      expect(params).not.toHaveProperty("payment_method_types");
+    } finally {
+      for (const key of keys) {
+        const value = saved.get(key);
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

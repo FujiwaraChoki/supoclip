@@ -1,4 +1,5 @@
 import type { BillingInterval, BillingPlanId } from "@/lib/billing-plans";
+import { stripePriceEnvPrefix } from "@/lib/stripe-accounts";
 
 export type ServerBillingPlan = {
   id: BillingPlanId;
@@ -12,22 +13,23 @@ function priceIdList(value: string | undefined): string[] {
 }
 
 export function getServerBillingPlans(): ServerBillingPlan[] {
+  const prefix = stripePriceEnvPrefix();
   return [
     {
       id: "pro",
       priceIds: {
-        month: process.env.STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRICE_ID || null,
-        year: process.env.STRIPE_PRO_ANNUAL_PRICE_ID || null,
+        month: process.env[`${prefix}PRO_PRICE_ID`] || process.env[`${prefix}PRICE_ID`] || null,
+        year: process.env[`${prefix}PRO_ANNUAL_PRICE_ID`] || null,
       },
-      legacyPriceIds: priceIdList(process.env.STRIPE_PRO_LEGACY_PRICE_IDS),
+      legacyPriceIds: priceIdList(process.env[`${prefix}PRO_LEGACY_PRICE_IDS`]),
     },
     {
       id: "scale",
       priceIds: {
-        month: process.env.STRIPE_SCALE_PRICE_ID || null,
-        year: process.env.STRIPE_SCALE_ANNUAL_PRICE_ID || null,
+        month: process.env[`${prefix}SCALE_PRICE_ID`] || null,
+        year: process.env[`${prefix}SCALE_ANNUAL_PRICE_ID`] || null,
       },
-      legacyPriceIds: priceIdList(process.env.STRIPE_SCALE_LEGACY_PRICE_IDS),
+      legacyPriceIds: priceIdList(process.env[`${prefix}SCALE_LEGACY_PRICE_IDS`]),
     },
   ];
 }

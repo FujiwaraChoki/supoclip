@@ -5,7 +5,13 @@ from html import escape
 from typing import Optional
 
 from ..config import Config
-from .email_service import EmailContent, SesEmailService, first_name_for
+from .email_layout import email_button
+from .email_previews import MAX_CLIP_PREVIEWS, TaskPreviews
+from .email_service import EmailContent, InlineImage, SesEmailService, first_name_for
+
+# Display widths; the JPEGs are about 2x for sharp retina rendering.
+_SOURCE_WIDTH = 320
+_CLIP_WIDTH = 100
 
 
 @dataclass(frozen=True)
@@ -34,6 +40,7 @@ class TaskCompletionEmailService:
         clips_count: int,
         workflow: str = "highlights",
         topic: str = "",
+        previews: Optional[TaskPreviews] = None,
     ) -> dict:
         content = self._build_task_completed_email(
             recipient=recipient,
@@ -42,6 +49,7 @@ class TaskCompletionEmailService:
             clips_count=clips_count,
             workflow=workflow,
             topic=topic,
+            previews=previews,
         )
         return await self.email_service.send_email(recipient.email, content)
 
@@ -54,6 +62,7 @@ class TaskCompletionEmailService:
         clips_count: int,
         workflow: str = "highlights",
         topic: str = "",
+        previews: Optional[TaskPreviews] = None,
     ) -> EmailContent:
         first_name = first_name_for(
             first_name=recipient.first_name,
@@ -67,7 +76,7 @@ class TaskCompletionEmailService:
         headline_html = f"Your clips for <strong>{safe_source_title}</strong> are ready."
         headline_text = f"Your clips for {source_title or 'your video'} are ready."
         count_line = f"We generated {clips_label} for you."
-        link_label = "Open your finished clips"
+        link_label = "Open your clips"
         if workflow == "series":
             subject = f"Your {clips_count}-part series is ready"
             headline_html = f"Your {clips_count}-part series from <strong>{safe_source_title}</strong> is ready."
@@ -93,21 +102,73 @@ class TaskCompletionEmailService:
                 f"from <strong>{safe_source_title}</strong> are ready."
             )
             headline_text = f"Your clips about {topic.strip()} from {source_title or 'your video'} are ready."
+        previews = previews or TaskPreviews()
+        clip_titles = [clip.title.strip() for clip in previews.clips if clip.title and clip.title.strip()]
 
         return EmailContent(
             subject=subject,
             html=(
-                f"<p>Hi {escape(first_name)},</p>"
+                self._source_preview_html(previews, task_url, source_title)
+                + f"<p>Hi {escape(first_name)},</p>"
                 f"<p>{headline_html}</p>"
                 f"<p>{escape(count_line)}</p>"
-                f'<p><a href="{escape(task_url)}">{escape(link_label)}</a></p>'
-                "<p>Team SupoClip</p>"
+                + self._clip_previews_html(previews, task_url)
+                + email_button(task_url, link_label)
+                + "<p>Team SupoClip</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
                 f"{headline_text}\n"
                 f"{count_line}\n\n"
-                f"{link_label}: {task_url}\n\n"
+                + "".join(f"- {title}\n" for title in clip_titles)
+                + ("\n" if clip_titles else "")
+                + f"{link_label}: {task_url}\n\n"
                 "Team SupoClip"
             ),
+            inline_images=(
+                ((InlineImage("source@supoclip", previews.source),) if previews.source else ())
+                + tuple(InlineImage(f"clip{i}@supoclip", clip.image) for i, clip in enumerate(previews.clips))
+            ),
+        )
+
+    @staticmethod
+    def _source_preview_html(
+        previews: TaskPreviews, task_url: str, source_title: Optional[str]
+    ) -> str:
+        if not previews.source:
+            return ""
+        return (
+            f'<a style="display:block;margin:0 0 24px;" href="{escape(task_url)}" target="_blank">'
+            f'<img src="cid:source@supoclip" width="{_SOURCE_WIDTH}" '
+            f'alt="{escape((source_title or "").strip() or "Your video")}" '
+            f'style="display:block;width:100%;max-width:{_SOURCE_WIDTH}px;height:auto;border:0;border-radius:8px;"></a>'
+        )
+
+    @staticmethod
+    def _clip_previews_html(previews: TaskPreviews, task_url: str) -> str:
+        if not previews.clips:
+            return ""
+        cells = []
+        for i, clip in enumerate(previews.clips):
+            title = (
+                '<p style="margin:6px 0 0;font-size:12px;line-height:16px;color:#44403c;">'
+                f"{escape(clip.title.strip())}</p>"
+                if clip.title and clip.title.strip()
+                else ""
+            )
+            cells.append(
+                # Percentage cells so three clips shrink to fit narrow phone screens.
+                f'<td width="33%" valign="top" style="width:33%;padding:0 10px 0 0;">'
+                f'<a style="display:block;" href="{escape(task_url)}" target="_blank">'
+                f'<img src="cid:clip{i}@supoclip" width="{_CLIP_WIDTH}" '
+                f'alt="{escape((clip.title or "").strip() or f"Clip {i + 1}")}" '
+                f'style="display:block;width:100%;max-width:{_CLIP_WIDTH}px;height:auto;border:0;border-radius:8px;"></a>'
+                f"{title}</td>"
+            )
+        # Empty cells keep one or two clips at the same size as three.
+        cells += ['<td width="33%"></td>'] * (MAX_CLIP_PREVIEWS - len(cells))
+        return (
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+            # max-width keeps the row compact while still shrinking on phones.
+            f'width="100%" style="max-width:{MAX_CLIP_PREVIEWS * (_CLIP_WIDTH + 10)}px;margin:4px 0 16px;table-layout:fixed;"><tr>{"".join(cells)}</tr></table>'
         )

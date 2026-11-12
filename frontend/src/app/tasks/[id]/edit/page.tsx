@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -7,6 +7,7 @@ import { PageError, PageLoading } from "@/components/app/page-state";
 import { Button } from "@/components/ui/button";
 import { EditorWorkspace } from "@/components/editor/editor-workspace";
 import { editorRequest } from "@/components/editor/use-editor";
+import { trackEvent } from "@/lib/analytics";
 import { useSession } from "@/lib/auth-client";
 import { signInPath } from "@/lib/auth-redirect";
 import type { ClipSummary } from "@/components/editor/export-panel";
@@ -69,6 +70,14 @@ export default function TaskEditPage() {
       void load();
     }
   }, [signedOut, signedIn, load, router]);
+  const ready = task?.status === "completed" && clips.length > 0;
+  const openedTask = useRef<string | null>(null);
+  useEffect(() => {
+    // Once per task, not per clip switch inside the studio.
+    if (!ready || openedTask.current === id) return;
+    openedTask.current = id;
+    trackEvent("editor_opened", { clip_count: clips.length });
+  }, [ready, id, clips.length]);
   if (loading || signedOut) return <PageLoading />;
   if (error) return <PageError message={error} retry={() => void load()} />;
   const clip = clips.find((c) => c.id === selected);

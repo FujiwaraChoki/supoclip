@@ -1,3 +1,7 @@
+import { ownedInvoiceRecoveryUrl } from "@/lib/stripe-billing-safety";
+import { accountPortalConfiguration, BillingAccountHoldError } from "@/lib/stripe-accounts";
+import { billingAccountRoute } from "@/server/stripe-account-routing";
+import { stripeAccountContext, stripeAccountsEnabled, stripePriceEnvPrefix } from "@/lib/stripe-accounts";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -32,7 +36,7 @@ async function createStripeCustomerForUser(user: {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { stripe_customer_id: customer.id },
+    data: { stripe_customer_id: customer.id, ...(stripeAccountContext() ? { stripe_account_id: stripeAccountContext()?.accountId } : {}) },
   });
 
   return customer.id;
@@ -40,8 +44,16 @@ async function createStripeCustomerForUser(user: {
 
 async function createPortalSession(customerId: string) {
   const stripe = getStripeClient();
+  const recovery = stripeAccountContext();
+  if (recovery?.recoveryOnly) {
+    if (!recovery.recoverySubscriptionId) throw new BillingAccountHoldError();
+    const url = await ownedInvoiceRecoveryUrl(recovery.recoverySubscriptionId);
+    if (!url) throw new BillingAccountHoldError();
+    return { url };
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3107";
   return stripe.billingPortal.sessions.create({
+      ...accountPortalConfiguration(),
     customer: customerId,
     return_url: `${appUrl}/settings`,
   });
@@ -57,56 +69,64 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      stripe_customer_id: true,
-      subscription_provider: true,
-      subscription_status: true,
-    },
-  });
+  return billingAccountRoute(session.user.id, "portal", async () => {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        stripe_customer_id: true,
+        subscription_provider: true,
+        subscription_status: true,
+      },
+    });
 
-  if (
-    user?.subscription_provider === "apple" &&
-    PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status) &&
-    !user.stripe_customer_id
-  ) {
-    return NextResponse.json(
-      { error: APP_STORE_MANAGED_MESSAGE },
-      { status: 409 }
-    );
-  }
-
-  let customerId = user?.stripe_customer_id || null;
-
-  if (!customerId) {
-    const fallbackUrl = process.env.STRIPE_CUSTOMER_PORTAL_URL;
-    if (fallbackUrl) {
-      return NextResponse.json({ url: fallbackUrl });
+    if (
+      user?.subscription_provider === "apple" &&
+      PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status) &&
+      !user.stripe_customer_id
+    ) {
+      return NextResponse.json(
+        { error: APP_STORE_MANAGED_MESSAGE },
+        { status: 409 },
+      );
     }
-    if (!user) {
-      return NextResponse.json({ error: "No Stripe customer found" }, { status: 400 });
-    }
-    customerId = await createStripeCustomerForUser(user);
-  }
 
-  try {
-    const portalSession = await createPortalSession(customerId);
-    return NextResponse.json({ url: portalSession.url });
-  } catch (error) {
-    if (user && isMissingStripeCustomer(error)) {
-      const newCustomerId = await createStripeCustomerForUser(user);
-      const portalSession = await createPortalSession(newCustomerId);
+    let customerId =
+      stripeAccountContext()?.customerId || user?.stripe_customer_id || null;
+
+    if (!customerId) {
+      const fallbackUrl =
+        !stripeAccountsEnabled() && process.env[`${stripePriceEnvPrefix()}CUSTOMER_PORTAL_URL`];
+      if (fallbackUrl) {
+        return NextResponse.json({ url: fallbackUrl });
+      }
+      if (!user) {
+        return NextResponse.json(
+          { error: "No Stripe customer found" },
+          { status: 400 },
+        );
+      }
+      customerId = await createStripeCustomerForUser(user);
+    }
+
+    try {
+      const portalSession = await createPortalSession(customerId);
       return NextResponse.json({ url: portalSession.url });
-    }
+    } catch (error) {
+      if (error instanceof BillingAccountHoldError) return NextResponse.json({ error: error.message, code: "billing_transfer_pending" }, { status: 409 });
+      if (user && !stripeAccountsEnabled() && isMissingStripeCustomer(error)) {
+        const newCustomerId = await createStripeCustomerForUser(user);
+        const portalSession = await createPortalSession(newCustomerId);
+        return NextResponse.json({ url: portalSession.url });
+      }
 
-    console.error("Failed to create Stripe billing portal session", error);
-    return NextResponse.json(
-      { error: "Unable to open billing portal" },
-      { status: 500 }
-    );
-  }
+      console.error("Failed to create Stripe billing portal session", error);
+      return NextResponse.json(
+        { error: "Unable to open billing portal" },
+        { status: 500 },
+      );
+    }
+  });
 }

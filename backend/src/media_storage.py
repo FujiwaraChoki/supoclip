@@ -147,6 +147,7 @@ class MediaStorage:
                 self._client = ReplicatedMediaClient(
                     primary, fallback, self.bucket, self.config.media_fallback_bucket,
                     self.config.temp_dir, failover=self.config.media_failover_enabled,
+                    preferred_store=self.config.media_preferred_store,
                 )
             else:
                 self._client = boto3.client("s3", **options)
