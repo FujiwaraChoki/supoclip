@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -465,7 +466,8 @@ async def test_completion_email_names_what_was_made(monkeypatch):
     await _run(service)
 
     service._send_completion_notification_if_needed.assert_awaited_once_with(
-        task_id="task-1", clips_count=2, workflow="series", topic="",
+        task_id="task-1", clips_count=2, source_path=Path("/tmp/source.mp4"),
+        source_type="upload", url=URL, clip_previews=(), workflow="series", topic="",
     )
 
 
