@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
+- **Fixed:** The time left on a generation now includes downloading the chosen moments and rendering each clip, so it no longer says "less than a minute" while several minutes remain. ([#371](https://github.com/FujiwaraChoki/supoclip/pull/371))
 - **Under the hood:** Billing can keep existing subscriptions with their current payment account while preparing a new account, with separate payment recovery and refund handling. ([#367](https://github.com/FujiwaraChoki/supoclip/pull/367))
 
 ## 2026-11-10
