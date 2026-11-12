@@ -36,10 +36,11 @@ try:  # Python 3.10 lacks typing.Literal niceties only in edge cases; import is 
 except ImportError:  # pragma: no cover
     from typing_extensions import Literal  # type: ignore
 
-from .auth import SupoClipApiKeyVerifier
+from .auth import AuthHelp, SupoClipApiKeyVerifier
 from .client import AuthNotConfiguredError, SupoClipClient, SupoClipError
 from .config import load_settings
 from .http_app import build_http_app
+from .oauth import build_oauth_routes
 
 SETTINGS = load_settings()
 CLIENT = SupoClipClient(SETTINGS)
@@ -66,12 +67,23 @@ def build_app(server: Optional[FastMCP] = None):
         if SETTINGS.mcp_require_bearer_auth
         else None
     )
+    oauth_routes = None
+    if verifier is not None and SETTINGS.oauth_enabled:
+        oauth_routes = build_oauth_routes(
+            public_url=_public_url(),
+            app_url=SETTINGS.app_url,
+            api_url=SETTINGS.api_url,
+            secret=SETTINGS.mcp_oauth_secret or "",
+            verifier=verifier,
+            docs_url=AuthHelp.docs_url,
+        )
     return build_http_app(
         server or mcp,
         public_url=_public_url(),
         app_url=SETTINGS.app_url,
         verifier=verifier,
         mount_path=SETTINGS.mcp_mount_path,
+        oauth_routes=oauth_routes,
     )
 
 

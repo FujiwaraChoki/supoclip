@@ -32,6 +32,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from .oauth import resource_metadata_url
 from .auth import (
     AuthHelp,
     SupoClipAuthBackend,
@@ -71,13 +72,21 @@ def build_http_app(
     app_url: str,
     verifier: Optional[object],
     mount_path: str = "/",
+    oauth_routes: Optional[list] = None,
 ) -> Starlette:
     """Return one ASGI app serving both MCP transports.
 
     ``verifier`` validates API keys; ``None`` turns authentication off (for a
     self-hosted server that authenticates with environment credentials).
+    ``oauth_routes`` (from :func:`supoclip_mcp.oauth.build_oauth_routes`) adds
+    OAuth discovery, registration, authorize and token endpoints, and makes
+    401s point connectors at them.
     """
-    help = AuthHelp(public_url, app_url)
+    oauth = bool(oauth_routes) and verifier is not None
+    help = AuthHelp(public_url, app_url, oauth=oauth)
+
+    def metadata_for(resource_path: str) -> Optional[str]:
+        return resource_metadata_url(public_url, resource_path) if oauth else None
 
     sse = SseServerTransport(
         MESSAGE_PATH,
@@ -96,13 +105,20 @@ def build_http_app(
 
     # Creates mcp.session_manager; its lifespan runs below.
     mcp.streamable_http_app()
-    streamable: ASGIApp = StreamableHTTPASGIApp(mcp.session_manager)
+    streamable_app: ASGIApp = StreamableHTTPASGIApp(mcp.session_manager)
+    streamable = streamable_on_sse = streamable_on_root = streamable_app
+    sse_app: ASGIApp = legacy_sse
+    sse_on_root: ASGIApp = legacy_sse
     messages: ASGIApp = sse.handle_post_message
 
     if verifier is not None:
-        streamable = require_auth(streamable, help)
-        legacy_sse = require_auth(legacy_sse, help)  # type: ignore[assignment]
-        messages = require_auth(messages, help)
+        # One check everywhere; the 401 names the metadata for the URL the client used.
+        streamable = require_auth(streamable_app, help, metadata_for("/mcp"))
+        streamable_on_sse = require_auth(streamable_app, help, metadata_for("/sse"))
+        streamable_on_root = require_auth(streamable_app, help, metadata_for(""))
+        sse_app = require_auth(legacy_sse, help, metadata_for("/sse"))
+        sse_on_root = require_auth(legacy_sse, help, metadata_for(""))
+        messages = require_auth(messages, help, metadata_for("/sse"))
 
     def help_payload() -> dict:
         return {
@@ -115,6 +131,7 @@ def build_http_app(
             "auth": (
                 "Send your SupoClip API key as 'Authorization: Bearer sk_...'. "
                 f"Create a key at {help.keys_url}."
+                + (" Apps with custom connectors can sign in with OAuth instead." if oauth else "")
             ),
             "setup": help.setup(),
             "docs": help.docs_url,
@@ -133,17 +150,17 @@ def build_http_app(
 
     async def sse_route(scope: Scope, receive: Receive, send: Send) -> None:
         if _wants_streamable_http(scope):
-            await streamable(scope, receive, send)
+            await streamable_on_sse(scope, receive, send)
         elif scope["method"] == "GET":
-            await legacy_sse(scope, receive, send)
+            await sse_app(scope, receive, send)
         else:
             await method_not_allowed(scope, receive, send)
 
     async def root_route(scope: Scope, receive: Receive, send: Send) -> None:
         if _wants_streamable_http(scope):
-            await streamable(scope, receive, send)
+            await streamable_on_root(scope, receive, send)
         elif scope["method"] == "GET" and _wants_event_stream(scope):
-            await legacy_sse(scope, receive, send)
+            await sse_on_root(scope, receive, send)
         elif scope["method"] in ("GET", "HEAD"):
             await JSONResponse(help_payload())(scope, receive, send)
         else:
@@ -153,6 +170,15 @@ def build_http_app(
         return JSONResponse({"status": "ok"})
 
     async def oauth_discovery(request: Request) -> JSONResponse:
+        if oauth:
+            return JSONResponse(
+                {
+                    "error": "not_found",
+                    "error_description": "OAuth metadata is at /.well-known/oauth-authorization-server "
+                    "and /.well-known/oauth-protected-resource.",
+                },
+                status_code=404,
+            )
         return JSONResponse(
             {
                 "error": "oauth_not_supported",
@@ -188,6 +214,7 @@ def build_http_app(
         )
 
     routes = [
+        *(oauth_routes if oauth else []),
         Route("/", endpoint=_ASGIEndpoint(root_route)),
         Route("/mcp", endpoint=_ASGIEndpoint(streamable)),
         Route("/mcp/", endpoint=_ASGIEndpoint(streamable)),

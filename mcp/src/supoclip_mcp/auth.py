@@ -151,9 +151,10 @@ class SupoClipAuthBackend(AuthenticationBackend):
 class AuthHelp:
     """Links and copy-paste config used in auth errors and the help page."""
 
-    def __init__(self, public_url: str, app_url: str) -> None:
+    def __init__(self, public_url: str, app_url: str, oauth: bool = False) -> None:
         self.public_url = public_url.rstrip("/")
         self.app_url = app_url.rstrip("/")
+        self.oauth = oauth
 
     @property
     def endpoint(self) -> str:
@@ -174,7 +175,7 @@ class AuthHelp:
     docs_url = "https://github.com/FujiwaraChoki/supoclip/blob/main/mcp/README.md"
 
     def setup(self) -> dict[str, Any]:
-        return {
+        setup: dict[str, Any] = {
             "url": self.endpoint,
             "header": "Authorization: Bearer sk_...",
             "claude_code": (
@@ -196,6 +197,12 @@ class AuthHelp:
             ),
             "docs": self.docs_url,
         }
+        if self.oauth:
+            setup["connectors"] = (
+                f"In claude.ai, ChatGPT or another app with custom connectors, add {self.endpoint} "
+                "and sign in with your SupoClip account. No key needed."
+            )
+        return setup
 
 
 def auth_failure(headers: Headers, help: AuthHelp) -> tuple[str, str]:
@@ -244,9 +251,11 @@ class require_auth:
     ASGI app instead of a request handler.
     """
 
-    def __init__(self, app: ASGIApp, help: AuthHelp) -> None:
+    def __init__(self, app: ASGIApp, help: AuthHelp, resource_metadata: Optional[str] = None) -> None:
         self.app = app
         self.help = help
+        # Set when OAuth is on: where connectors find the authorization server.
+        self.resource_metadata = resource_metadata
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         user = scope.get("user")
@@ -265,6 +274,9 @@ class require_auth:
             }
         )
         description = message.replace('"', "'")
+        challenge = f'Bearer realm="supoclip", error="{error}", error_description="{description}"'
+        if self.resource_metadata:
+            challenge += f', resource_metadata="{self.resource_metadata}"'
         await send(
             {
                 "type": "http.response.start",
@@ -272,11 +284,7 @@ class require_auth:
                 "headers": [
                     (b"content-type", b"application/json"),
                     (b"content-length", str(len(body)).encode()),
-                    (
-                        b"www-authenticate",
-                        f'Bearer realm="supoclip", error="{error}", '
-                        f'error_description="{description}"'.encode("utf-8"),
-                    ),
+                    (b"www-authenticate", challenge.encode("utf-8")),
                 ],
             }
         )

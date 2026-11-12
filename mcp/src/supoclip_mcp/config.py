@@ -46,6 +46,12 @@ class Settings:
     mcp_public_url: Optional[str]
     mcp_require_bearer_auth: bool
     app_url: str = DEFAULT_APP_URL
+    # Shared with the backend. Set (with bearer auth on) to let connectors sign in with OAuth.
+    mcp_oauth_secret: Optional[str] = None
+
+    @property
+    def oauth_enabled(self) -> bool:
+        return bool(self.mcp_oauth_secret) and self.mcp_require_bearer_auth
 
     @property
     def auth_mode(self) -> str:
@@ -88,6 +94,7 @@ def load_settings() -> Settings:
     return Settings(
         api_url=api_url,
         app_url=(_clean(os.getenv("SUPOCLIP_APP_URL")) or DEFAULT_APP_URL).rstrip("/"),
+        mcp_oauth_secret=_clean(os.getenv("MCP_OAUTH_SECRET")),
         api_key=_clean(os.getenv("SUPOCLIP_API_KEY")),
         user_id=_clean(os.getenv("SUPOCLIP_USER_ID")),
         auth_secret=_clean(os.getenv("SUPOCLIP_AUTH_SECRET")),

@@ -193,6 +193,8 @@ class Config:
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
         self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
+        # Shared with the MCP server; enables its OAuth endpoints (/internal/mcp-oauth).
+        self.mcp_oauth_secret = self._get_optional_env("MCP_OAUTH_SECRET")
         self.allow_unsigned_backend_auth = self._get_bool_env(
             "ALLOW_UNSIGNED_BACKEND_AUTH", False
         )

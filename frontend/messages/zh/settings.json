@@ -132,13 +132,15 @@
         "claudeCode": "Claude Code",
         "json": "Cursor 等",
         "claudeDesktop": "Claude Desktop",
-        "stdio": "本地（stdio）"
+        "stdio": "本地（stdio）",
+        "connectors": "claude.ai 和 ChatGPT"
       },
       "hints": {
         "claudeCode": "在终端里运行。",
         "json": "适用于 Cursor（~/.cursor/mcp.json）、Windsurf 以及其他可以填写 URL 和请求头的客户端。",
         "claudeDesktop": "加到 claude_desktop_config.json。需要 Node.js；mcp-remote 把 Claude Desktop 连接到托管服务器。",
-        "stdio": "在你的电脑上运行服务器，下载的片段会保存在本地。需要 uv。"
+        "stdio": "在你的电脑上运行服务器，下载的片段会保存在本地。需要 uv。",
+        "connectors": "把这个 URL 添加为自定义连接器，然后登录并允许访问。无需复制密钥：它会自动创建自己的密钥，显示在下方列表中。"
       },
       "planNote": "通过智能体生成片段会消耗你套餐的视频分钟数。"
     }
