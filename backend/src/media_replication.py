@@ -59,7 +59,12 @@ def _missing(error) -> bool:
 class ReplicatedMediaClient:
     """Implement the S3 operations used by MediaStorage, preserving its scope."""
 
-    def __init__(self, primary, fallback, primary_bucket, fallback_bucket, root, *, failover=False, ledger=None):
+    def __init__(self, primary, fallback, primary_bucket, fallback_bucket, root, *, failover=False,
+                 preferred_store="primary", ledger=None):
+        if preferred_store not in {"primary", "fallback"}:
+            raise ValueError("Unknown preferred media store")
+        if preferred_store == "fallback" and not failover:
+            raise ValueError("Preferring the fallback store requires failover")
         self.stores = {"primary": (primary, primary_bucket), "fallback": (fallback, fallback_bucket)}
         self.bucket = primary_bucket
         # Scratch for store-to-store copies and the backfill tool's records.
@@ -67,6 +72,7 @@ class ReplicatedMediaClient:
         self.root = Path(root) / "media-replication"
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.failover = failover
+        self.preferred_store = preferred_store
         self._ledger = ledger
 
     @property
@@ -176,7 +182,7 @@ class ReplicatedMediaClient:
             # Recorded before the first byte is sent, so a crash from here on
             # leaves a row the drainer can settle against what the stores hold.
             row = self.ledger.begin(key, "upload", pending=list(self.stores), sha256=digest, size=size, extra=extra)
-            remaining, error = self._replicate(row, path, list(self.stores), sha256=digest, size=size, extra=extra)
+            remaining, error = self._replicate(row, path, self._preferred_names(), sha256=digest, size=size, extra=extra)
             if len(remaining) == len(self.stores):
                 # Nothing changed in either store: what was owed before is still owed.
                 try:
@@ -203,10 +209,13 @@ class ReplicatedMediaClient:
                     error = exc
         raise error
 
+    def _preferred_names(self):
+        return [self.preferred_store, "fallback" if self.preferred_store == "primary" else "primary"]
+
     def _read_names(self, key):
         if not self.failover:
             return ["primary"]
-        names = list(self.stores)
+        names = self._preferred_names()
         try:
             row, health = self.ledger.routing(key)
         except Exception as error:
@@ -219,9 +228,9 @@ class ReplicatedMediaClient:
             return names
         try:
             if (0 <= time.time() - health["checked_at"] <= 180
-                    and health["providers"]["primary"]["status"] == "unhealthy"
-                    and health["providers"]["fallback"]["status"] == "healthy"):
-                # Avoid a full AWS timeout on every playback during a known
+                    and health["providers"][names[0]]["status"] == "unhealthy"
+                    and health["providers"][names[1]]["status"] == "healthy"):
+                # Avoid a full provider timeout on every playback during a known
                 # outage. Independent probes keep testing recovery each minute.
                 names.reverse()
         except (KeyError, TypeError):

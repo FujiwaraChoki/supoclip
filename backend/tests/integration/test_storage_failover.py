@@ -27,8 +27,8 @@ def shared_ledger(initialized_database):
     sync_db.reset()
 
 
-@pytest.fixture
-def fallback_storage(tmp_path, monkeypatch, shared_ledger):
+@pytest.fixture(params=["aws-outage", "r2-preferred"])
+def fallback_storage(tmp_path, monkeypatch, shared_ledger, request):
     from src.api.routes import tasks
 
     config = Config()
@@ -36,10 +36,11 @@ def fallback_storage(tmp_path, monkeypatch, shared_ledger):
     config.media_s3_bucket = "original"
     config.temp_dir = str(tmp_path)
     primary, fallback = Store("aws"), Store("r2")
-    primary.failure = "InvalidAccessKeyId"
+    primary.failure = "InvalidAccessKeyId" if request.param == "aws-outage" else None
     fallback.objects["media/clips/clip.mp4"] = b"video"
     # No ledger passed: routing reads the PostgreSQL ledger, as in production.
-    client = ReplicatedMediaClient(primary, fallback, "original", "replica", tmp_path, failover=True)
+    client = ReplicatedMediaClient(primary, fallback, "original", "replica", tmp_path, failover=True,
+                                   preferred_store="fallback" if request.param == "r2-preferred" else "primary")
     client.generate_presigned_url = Mock(wraps=client.generate_presigned_url)
     storage = MediaStorage(config, client)
     monkeypatch.setattr(tasks, "MediaStorage", lambda: storage)

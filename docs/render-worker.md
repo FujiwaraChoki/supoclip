@@ -23,7 +23,7 @@ combine or a social publish.
   a session-mode pooler; replication uses session advisory locks, which a
   transaction-mode pooler breaks.
 - **The same media settings** (`MEDIA_S3_*`, `MEDIA_FALLBACK_*`,
-  `MEDIA_FAILOVER_ENABLED`) and the same provider credentials the worker on the
+  `MEDIA_FAILOVER_ENABLED`, `MEDIA_PREFERRED_STORE`) and the same provider credentials the worker on the
   application host uses. The queue also carries social publishing, so include
   those credentials too.
 - **Free local disk** for scratch. Allow for the largest source video, its
