@@ -11,7 +11,8 @@ import pytest
 from src.media import reframing
 from src.media.portrait_padding import plan_portrait_padding, portrait_padding_bounds
 from src.media.scene_context import ContextAnalyzer
-from src.services.editor_service import editor_preserved_layout
+from src.media.scene_context import SceneEvidence
+from src.services.editor_service import bake_editor_layout, editor_preserved_layout
 
 
 def padded_frame(portrait_width=152, black=False):
@@ -109,6 +110,106 @@ def test_editor_keeps_the_portrait_composition_and_uncropped_source(monkeypatch,
     assert layout['kind'] == 'embedded_portrait'
     assert layout['vertical_plan'] == ('portrait[vout]', 'complex')
     assert layout['landscape_recommended'] is False
+
+
+@pytest.mark.parametrize('failure', ['timeout', 'partial_decode'])
+def test_failed_boundary_refinement_does_not_apply_an_unverified_crop(monkeypatch, tmp_path, failure):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(reframing, '_open_face_detectors', lambda: (None, None))
+
+    def decode(*args, **kwargs):
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired('ffmpeg', 30)
+        return SimpleNamespace(stdout=b'', stderr=b'pts_time:0')
+
+    monkeypatch.setattr(reframing.subprocess, 'run', decode)
+    assert reframing.refine_portrait_padding_windows(
+        tmp_path / 'clip.mp4', [(1, 2, 156, 162)], 3, 480, 270,
+    ) == []
+
+
+@pytest.mark.parametrize('kind', ['stack', 'reaction', 'overlap'])
+def test_mixed_padding_and_composed_layout_stays_baked_in_editor(monkeypatch, tmp_path, kind):
+    """A padded shot must not make the other shots optional on manual fit."""
+    from types import SimpleNamespace
+    from src.media import reaction_layout, speaker_framing
+
+    samples = []
+    context = []
+    for i in range(36):
+        padded = i < 18
+        faces = [(210, 55, 50, 65)] if padded else [(50, 55, 60, 70), (350, 55, 60, 70)]
+        samples.append((i / 3, faces))
+        context.append(SceneEvidence(
+            time=i / 3, face_area=.03, face_span=.11 if padded else .75,
+            face_count=len(faces), portrait_bounds=(.34, .66) if padded else None,
+        ))
+    monkeypatch.setattr(reframing, 'ffprobe_video_size', lambda _: (480, 270))
+    monkeypatch.setattr(reframing, 'ffprobe_duration', lambda _: 12)
+    monkeypatch.setattr(reframing, 'analyze_vertical_clip', lambda *_: ([], [6], samples, context))
+    # Boundary accuracy is exercised with native-rate source videos below.
+    monkeypatch.setattr(reframing, 'refine_portrait_padding_windows', lambda _, windows, *args: windows)
+    monkeypatch.setattr(reaction_layout, 'find_reactor_face', lambda *_: None)
+    monkeypatch.setattr(reaction_layout, 'choose_reaction_layout', lambda *_: {
+        'inset': (0, 0, 80, 60), 'source_runs': [(0, 12)],
+        'video_filter': '[0:v]null[vout]', 'caption_y': .5,
+    } if kind == 'reaction' else None)
+    monkeypatch.setattr(speaker_framing, 'build_speaker_filter_plan',
+                        lambda *_: ('[0:v]null[vout]', 'complex'))
+    words = [{'text': 'hello', 'start': 0, 'end': 12, 'speaker': 'A'}] if kind == 'overlap' else []
+    monkeypatch.setattr(speaker_framing, 'build_clip_speaker_turns', lambda *_: ([], words))
+    monkeypatch.setattr('src.config.get_config', lambda: SimpleNamespace(speaker_framing=True))
+    applied = []
+
+    def apply(source, layout, destination=None):
+        applied.append((layout, destination))
+        (destination or source).write_bytes(b'composed')
+        return True
+
+    monkeypatch.setattr('src.services.editor_service.apply_editor_layout', apply)
+    clean = tmp_path / 'clean.mp4'
+    clean.write_bytes(b'uncropped')
+    assert bake_editor_layout(clean, 'vertical', clean, [(0, 12)], preserve_content=True)
+    layout, destination = applied[0]
+    assert layout['kind'] == kind  # stack uses the real talking-head selector
+    assert '[portrait0]' in layout['vertical_plan'][0]
+    assert destination is None
+    assert clean.read_bytes() == b'composed'
+    assert not (tmp_path / 'layout.mp4').exists()
+
+
+@pytest.mark.skipif(not shutil.which('ffmpeg'), reason='FFmpeg required')
+@pytest.mark.parametrize('fps,first,last', [(30, 24, 66), (30, 27, 63), (60, 49, 131)])
+def test_off_grid_padding_cuts_switch_on_the_exact_source_frame(tmp_path, monkeypatch, fps, first, last):
+    portrait, _, _ = padded_frame()
+    wide = np.full_like(portrait, 80)
+    wide[:, :70] = (20, 20, 240)
+    wide[:, -70:] = (240, 20, 20)
+    wide[::12] = 240
+    frames = [portrait if first <= i < last else wide for i in range(fps * 3)]
+    source = tmp_path / 'off-grid.mp4'
+    subprocess.run([
+        'ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
+        '-s', '480x270', '-r', str(fps), '-i', '-', '-c:v', 'libx264',
+        '-crf', '18', '-pix_fmt', 'yuv420p', str(source),
+    ], input=b''.join(f.tobytes() for f in frames), capture_output=True, timeout=30, check=True)
+    monkeypatch.setattr(reframing, '_open_face_detectors', lambda: (None, None))
+    monkeypatch.setattr(reframing, '_detect_face_boxes', lambda *_: [])
+    plan = reframing.describe_vertical_layout(source, 480, 270)
+    assert plan['kind'] == 'embedded_portrait'
+    decoded = subprocess.run([
+        'ffmpeg', '-v', 'error', '-i', str(source), '-filter_complex',
+        plan['video_filter'] + ';[vout]scale=108:192[preview]', '-map', '[preview]',
+        '-fps_mode', 'passthrough', '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-',
+    ], capture_output=True, timeout=30, check=True)
+    previews = np.frombuffer(decoded.stdout, np.uint8).reshape(-1, 192, 108, 3)
+    # Above the wide foreground strip, only the enlarged portrait has both
+    # edge landmarks. Check every frame, including both sides of each cut.
+    enlarged = (previews[:, 50, 4, 0] > 180) & (previews[:, 50, 103, 2] > 180)
+    expected = np.zeros(fps * 3, dtype=bool)
+    expected[first:last] = True
+    np.testing.assert_array_equal(enlarged, expected)
 
 
 @pytest.mark.skipif(not shutil.which('ffmpeg'), reason='FFmpeg required')

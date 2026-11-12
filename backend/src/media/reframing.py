@@ -1438,6 +1438,72 @@ def _described(
     }
 
 
+def refine_portrait_padding_windows(
+    input_path: Path, windows: List[PaddingWindow], duration: float,
+    width: int, height: int, sample_interval: float = 1 / 3,
+) -> List[PaddingWindow]:
+    """Resolve padding transitions on source frames, not the 3 fps grid.
+
+    FFmpeg's fps filter can select a frame from either side of its output
+    timestamp. Inspect a small native-rate neighbourhood of each boundary,
+    retaining the text/face guards. A failed decode leaves the base layout.
+    """
+    proc_w = round_to_even(min(480, width))
+    proc_h = round_to_even(max(2, round(proc_w * height / width)))
+    frame_bytes = proc_w * proc_h * 3
+    detector, haar = _open_face_detectors()
+
+    def boundary_samples(boundary: float) -> List[SceneEvidence]:
+        start = max(0.0, boundary - sample_interval)
+        end = min(duration, boundary + sample_interval)
+        result = subprocess.run([
+            "ffmpeg", "-v", "info", "-nostdin", "-ss", f"{start:.9f}",
+            "-t", f"{end - start:.9f}", "-i", str(input_path),
+            "-an", "-sn", "-vf", f"scale={proc_w}:{proc_h},showinfo",
+            "-fps_mode", "passthrough", "-pix_fmt", "bgr24", "-f", "rawvideo", "-",
+        ], capture_output=True, timeout=30, check=True)
+        times = [float(t) + start for t in re.findall(
+            r"\bpts_time:([-+\d.eE]+)", result.stderr.decode(errors="replace")
+        )]
+        if not times or len(result.stdout) != len(times) * frame_bytes:
+            raise RuntimeError("Incomplete portrait boundary decode")
+        frames = np.frombuffer(result.stdout, np.uint8).reshape(-1, proc_h, proc_w, 3)
+        analyzer = ContextAnalyzer()
+        return [analyzer.measure(frame, _detect_face_boxes(frame, detector, haar), time)
+                for frame, time in zip(frames, times)]
+
+    refined: List[PaddingWindow] = []
+    try:
+        for start, end, crop_w, x in windows:
+            expected = (x / width, (x + crop_w) / width)
+
+            def matches(sample: SceneEvidence) -> bool:
+                return sample.portrait_bounds is not None and all(
+                    abs(a - b) <= .015 + 2 / width
+                    for a, b in zip(sample.portrait_bounds, expected)
+                )
+
+            try:
+                opening = boundary_samples(start)
+                closing = boundary_samples(end)
+                if not matches(opening[-1]) or not matches(closing[0]):
+                    continue
+                # Use the contiguous evidence connected to the confirmed run.
+                first = len(opening) - 1
+                while first > 0 and matches(opening[first - 1]):
+                    first -= 1
+                precise_start = opening[first].time
+                precise_end = next((s.time for s in closing if not matches(s)), end)
+                if precise_start < precise_end:
+                    refined.append((precise_start, min(duration, precise_end), crop_w, x))
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+                logger.warning("Portrait boundary refinement failed; preserving base layout (%s)", exc)
+    finally:
+        if detector is not None:
+            detector.close()
+    return refined
+
+
 def build_portrait_padding_filter(
     video_filter: str, mode: str, windows: List[PaddingWindow], duration: float,
 ) -> str:
@@ -1462,9 +1528,11 @@ def build_portrait_padding_filter(
     for index, (crop_w, mine) in enumerate(groups.items()):
         x_expr = str(mine[-1][3])
         for _, end, _, x in reversed(mine[:-1]):
-            x_expr = f"if(lt(t\\,{end:.3f})\\,{x}\\,{x_expr})"
+            x_expr = f"if(lt(t\\,{end - 1e-6:.6f})\\,{x}\\,{x_expr})"
         enabled = "+".join(
-            f"gte(t\\,{start:.3f})*lt(t\\,{end if end < duration - .001 else 1e6:.3f})"
+            # Keep sub-millisecond source timestamps; rounded milliseconds can
+            # miss a 60 fps boundary. Epsilon accounts for showinfo precision.
+            f"gte(t\\,{start - 1e-6:.6f})*lt(t\\,{end - 1e-6 if end < duration - .001 else 1e6:.6f})"
             for start, end, _, _ in mine
         )
         out = "[vout]" if index == len(groups) - 1 else f"[portrait_out{index}]"
@@ -1563,12 +1631,17 @@ def describe_vertical_layout(
         scene_cuts, duration, width,
     )
     if padding_windows:
+        padding_windows = refine_portrait_padding_windows(
+            input_path, padding_windows, duration, width, height,
+        )
         logger.info("Embedded portrait windows (start, end, crop_w, x): %s", padding_windows)
 
     def finish(kind: str, video_filter: str, mode: str, caption_y: Optional[float]) -> Dict[str, Any]:
         if padding_windows:
             return _described(
-                "embedded_portrait",
+                # Composed layouts must still be baked into the editor's
+                # clean source, including when only another shot is padded.
+                kind if kind in {"split", "stack", "reaction", "overlap"} else "embedded_portrait",
                 build_portrait_padding_filter(video_filter, mode, padding_windows, duration),
                 "complex", caption_y,
             )

@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
-- **Fixed:** Automatic vertical framing recognizes portrait footage inside blurred or plain sidebars and enlarges the actual picture, instead of putting it inside another padded frame. ([#377](https://github.com/FujiwaraChoki/supoclip/pull/377))
+- **Fixed:** Automatic vertical framing recognizes portrait footage inside blurred or plain sidebars and enlarges the actual picture, instead of putting it inside another padded frame. Padding changes follow the source frames at scene cuts, and mixed clips keep their reaction and stacked layouts when changing the editor's fit setting. ([#377](https://github.com/FujiwaraChoki/supoclip/pull/377))
 
 ## 2026-11-10
 

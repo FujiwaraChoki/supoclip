@@ -42,10 +42,15 @@ Padding detection currently covers roughly centered, full-height portrait
 pictures in landscape files. It keeps the picture's own aspect ratio and
 captions, changes bounds only with repeated evidence, and returns to the
 normal scene plan when evidence disappears or the layout changes. Cuts with
-the same padded geometry keep one composition. This is a visual heuristic,
+the same padded geometry keep one composition. Padding boundaries are refined
+on native-rate source frames around each transition, rather than applied at
+the coarse analysis timestamp. Failed boundary analysis keeps the base layout.
+This is a visual heuristic,
 not a semantic guarantee for arbitrary collages or natural shallow-focus
 backgrounds. Explicit `vertical_fit` still preserves the complete source.
 The editor retains the detected composition alongside the uncropped source.
+If a clip also has a reaction, stack, or overlapping-speaker composition, its
+combined layout is baked into the editor source so manual fit changes retain it.
 
 ## Reproduce the video checks
 
