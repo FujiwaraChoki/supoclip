@@ -756,6 +756,27 @@ async def test_publish_post_marks_published_with_fallback_url(service, provider)
 
 
 @pytest.mark.asyncio
+async def test_publish_post_sends_a_product_event_without_post_text(service, provider, monkeypatch):
+    events = []
+    monkeypatch.setattr(
+        social_module, "capture_event", lambda event, user_id, props: events.append((event, user_id, props))
+    )
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="secret title", caption="secret caption", hashtags=["x"], privacy_level="public",
+        scheduled_for=None,
+    )
+    await service.publish_post(post["id"])
+
+    assert events == [(
+        "social_post_published",
+        "user-1",
+        {"post_id": post["id"], "provider": "youtube", "scheduled": False, "attempts": 1},
+    )]
+
+
+@pytest.mark.asyncio
 async def test_publish_retries_transient_errors_then_fails(service, provider):
     account = await _connect(service)
     post = await service.create_post(

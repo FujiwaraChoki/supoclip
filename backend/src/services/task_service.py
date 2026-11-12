@@ -17,6 +17,7 @@ from time import perf_counter
 
 
 from arq.constants import job_key_prefix, in_progress_key_prefix, expires_extra_ms
+from ..analytics import capture_event, elapsed_seconds, source_kind
 from ..broll import BRollSession
 from ..workers.job_queue import JobQueue
 from ..repositories.task_repository import TaskRepository
@@ -497,6 +498,9 @@ class TaskService(ClipEditingMixin):
         # Finished output from an earlier attempt, which may carry edits, exports
         # and scheduled posts. Unknown until read, so a failure before that deletes nothing.
         prior_outputs = True
+        # For the task_completed / task_failed product events.
+        started_at: Optional[datetime] = None
+        cache_hit: Optional[bool] = None
 
         async def check_cancelled():
             if should_cancel and await should_cancel():
@@ -935,6 +939,20 @@ class TaskService(ClipEditingMixin):
                 topic=spec.options.topic,
             )
 
+            capture_event(
+                "task_completed",
+                user_id,
+                {
+                    "task_id": task_id,
+                    "workflow": spec.workflow,
+                    "has_instructions": bool(spec.options.instructions),
+                    "source_kind": source_kind(source_type, url),
+                    "clip_count": len(clip_ids),
+                    "processing_seconds": elapsed_seconds(started_at),
+                    "cache_hit": cache_hit,
+                },
+            )
+
             logger.info(
                 f"Task {task_id} completed successfully with {len(clip_ids)} clips"
             )
@@ -1014,6 +1032,19 @@ class TaskService(ClipEditingMixin):
                 task_id,
                 completed_at=datetime.utcnow(),
                 error_code=error_code,
+            )
+            capture_event(
+                "task_failed",
+                user_id,
+                {
+                    "task_id": task_id,
+                    "workflow": spec.workflow if spec is not None else None,
+                    "source_kind": source_kind(source_type, url),
+                    "error_code": error_code,
+                    "processing_seconds": elapsed_seconds(started_at),
+                    "cache_hit": cache_hit,
+                    "kept_outputs": prior_outputs,
+                },
             )
             if progress_callback:
                 try:
