@@ -55,6 +55,7 @@ import { Inspector, type InspectorTab } from "./inspector";
 import { ExportPanel, readyEditor, type ClipSummary } from "./export-panel";
 import { partTitle } from "@/components/app/clip-wall";
 import { AIPrompt } from "./ai-prompt";
+import { ClipThumbnail, useClipThumbnailStatus } from "./clip-thumbnail";
 import { editorMessage, editorStatus, Keys, Panel, ToolButton } from "./studio-ui";
 
 const SHORTCUTS: [string[], string][] = [
@@ -121,6 +122,7 @@ export function EditorWorkspace({
     [combining, setCombining] = useState(false);
   const [brollId, setBrollId] = useState<string | null>(null);
   const [clipsOpen, setClipsOpen] = useState(false);
+  const thumbnailStatus = useClipThumbnailStatus(taskId, clips, clip.id, clipsOpen);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const index = doc ? Math.min(segmentIndex, doc.segments.length - 1) : 0;
   const seek = useCallback((value: number) => {
@@ -336,13 +338,10 @@ export function EditorWorkspace({
           <Popover open={clipsOpen} onOpenChange={setClipsOpen}>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 rounded-full bg-background px-3 shadow-[0_1px_2px_rgb(0_0_0/0.05)] ring-1 ring-black/[0.06] hover:bg-background/80 dark:ring-white/10" aria-label={t("workspace.switchClip")}>
-                <span
-                  aria-hidden
-                  className="h-5 w-3 shrink-0 rounded-[2px] bg-muted"
-                  style={{
-                    backgroundImage: `url(${endpoint}/media/thumbnails.jpg)`,
-                    backgroundSize: "auto 100%",
-                  }}
+                <ClipThumbnail
+                  endpoint={endpoint}
+                  status={asset?.status ?? "loading"}
+                  className="h-5 w-3 rounded-[2px]"
                 />
                 <span className="max-w-48 truncate">{clipPickerLabel(t, clip)}</span>
                 <span className="text-muted-foreground tabular-nums">
@@ -367,13 +366,10 @@ export function EditorWorkspace({
                         current && "bg-accent",
                       )}
                     >
-                      <span
-                        aria-hidden
-                        className="h-10 w-6 shrink-0 rounded-[3px] bg-muted"
-                        style={{
-                          backgroundImage: `url(/api/tasks/${taskId}/clips/${c.id}/editor/media/thumbnails.jpg)`,
-                          backgroundSize: "auto 100%",
-                        }}
+                      <ClipThumbnail
+                        endpoint={`/api/tasks/${taskId}/clips/${c.id}/editor`}
+                        status={current ? (asset?.status ?? "loading") : thumbnailStatus(c)}
+                        className="h-10 w-6 rounded-[3px]"
                       />
                       <button
                         className="min-w-0 flex-1 text-left outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
