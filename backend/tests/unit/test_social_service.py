@@ -365,12 +365,12 @@ async def test_generate_caption_does_not_create_a_post(service, monkeypatch):
     from unittest.mock import AsyncMock
     from src.services import social_caption_service
 
-    service.config.anthropic_api_key = "test-key"
+    service.config.llm_chain = lambda: ("google-gla:gemini-2.5-flash",)
     generate = AsyncMock(return_value="A post caption")
     monkeypatch.setattr(social_caption_service, "generate_social_caption", generate)
     result = await service.generate_caption("user-1", task_id="task-1", clip_id="clip-1", provider="youtube")
     assert result == {"caption": "A post caption"}
-    assert generate.await_args.args[1]["text"] == "Transcript text"
+    assert generate.await_args.args[0]["text"] == "Transcript text"
     assert not service.repo.posts
     assert not service.queue_adapter.jobs
 

@@ -51,14 +51,16 @@ def model_name(*, structural: bool) -> str:
     return cfg.llm
 
 
-def build_agent(output_type: type[T], system_prompt: str, *, structural: bool) -> Agent:
-    """An agent for one planner pass, cached by schema, prompt, model and keys."""
+def _build_agent_for(
+    output_type: type[T], system_prompt: str, name: str, key: str | None
+) -> Agent:
+    """One planner agent for one model and one key, cached by schema, prompt and keys."""
     cfg = get_config()
-    name = model_name(structural=structural)
     signature = (
         output_type.__name__,
         hashlib.sha256(system_prompt.encode("utf-8")).hexdigest(),
         name,
+        key,
         cfg.openai_api_key,
         cfg.openrouter_api_key,
         cfg.openrouter_fallback_model,
@@ -77,7 +79,7 @@ def build_agent(output_type: type[T], system_prompt: str, *, structural: bool) -
         raise RuntimeError(config_error)
     native = ai._uses_native_output(name)
     agent = Agent(
-        model=ai._build_transcript_model(cfg, name),
+        model=ai._model_for(cfg, name, key),
         output_type=NativeOutput(output_type, strict=True) if native else output_type,
         system_prompt=system_prompt,
         retries={"output": 2},
@@ -88,6 +90,23 @@ def build_agent(output_type: type[T], system_prompt: str, *, structural: bool) -
     _agents[signature] = agent
     while len(_agents) > _AGENT_CACHE_SIZE:
         _agents.popitem(last=False)
+    return agent
+
+
+def build_agent(output_type: type[T], system_prompt: str, *, structural: bool) -> Agent:
+    """An agent for one planner pass, cached by schema, prompt, model and keys.
+
+    The agent carries the builder of itself for another model: the runner uses
+    it to move on to the next model of the chain when this one is busy.
+    """
+    name = model_name(structural=structural)
+    agent = _build_agent_for(output_type, system_prompt, name, None)
+    agent._noagi_builder = lambda model, key: _build_agent_for(
+        output_type, system_prompt, model, key
+    )
+    # The model of this pass comes first, the fallbacks of the chain follow.
+    chain = ai.llm_chain(get_config())
+    agent._noagi_chain = tuple([name]) + tuple(model for model in chain if model != name)
     return agent
 
 
@@ -153,8 +172,18 @@ async def run(
 ) -> Any:
     """One model call through the shared runner; usage is recorded per stage."""
     started = time.monotonic()
+    builder = getattr(agent, "_noagi_builder", None)
     try:
-        result = await ai._run_transcript_analysis(agent, prompt, timeout)
+        if builder is not None:
+            # The chain of models: a busy model is left behind for the next one.
+            result = await ai.run_model_chain(
+                prompt,
+                builder,
+                chain=getattr(agent, "_noagi_chain", None),
+                timeout_seconds=timeout,
+            )
+        else:
+            result = await ai._run_transcript_analysis(agent, prompt, timeout)
     except Exception:
         if stats is not None:
             stats.record(stage, None, time.monotonic() - started, failed=True)
