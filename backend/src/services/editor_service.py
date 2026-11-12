@@ -562,7 +562,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     )
     from ..clip_editor import _caption_words_with_timings, caption_tokens
     from ..clip_source_map import load_clip_caption_settings, load_clip_output_offsets, clip_source_map_path
-    from ..youtube_source import local_ranges_for
+    from ..youtube_source import SourceCoverageError, covered_local_ranges, local_ranges_for
 
     key = editor_key(task_id, clip_id, filename)
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
@@ -591,6 +591,8 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             ):
                 raise EditorPrepareError("The original clip changed. Reopen the editor.")
             ranges = await run_in_thread(service._get_clip_source_ranges, clip)
+            if not any(float(end) > float(start) for start, end in ranges or []):
+                raise EditorPrepareError("This clip has no footage to edit.")
             source_url, source_type = task.get("source_url"), task.get("source_type")
             mode = task.get("processing_mode") or service.config.default_processing_mode
             # Editor renders are downscaled for 720p plans, so their source can be too.
@@ -608,6 +610,17 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
 
             broll_placements = load_clip_broll(caption_path)
             await db.close()
+            if source_type == "youtube" and source and source.exists():
+                try:
+                    await run_in_thread(covered_local_ranges, source, ranges)
+                except SourceCoverageError as exc:
+                    # The task's cached render can be a section timeline built
+                    # for other clips, or for this clip before it was edited.
+                    logging.getLogger(__name__).warning(
+                        "Cached editor source for task %s is partial, fetching the clip's own: %s",
+                        task_id, exc,
+                    )
+                    source = None
             if not source or not source.exists():
                 if source_type == "youtube":
                     from ..youtube_proxy import DownloadBudgetExceeded, YouTubeGeoRestrictedError
@@ -660,7 +673,21 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     "The original source is unavailable. Restore the source file to edit this clip."
                 )
             source = await service.video_service.prepare_source(source)
-            local_ranges = await run_in_thread(local_ranges_for, source, ranges)
+            try:
+                if source_type == "youtube":
+                    local_ranges = await run_in_thread(covered_local_ranges, source, ranges)
+                else:
+                    # Stream sections are clamped to the real media length.
+                    local_ranges = await run_in_thread(local_ranges_for, source, ranges)
+                    if not local_ranges:
+                        raise SourceCoverageError(source, list(ranges))
+            except SourceCoverageError as exc:
+                logging.getLogger(__name__).warning(
+                    "Editor source for task %s clip %s is partial: %s", task_id, clip_id, exc
+                )
+                raise EditorPrepareError(
+                    "The downloaded source video is missing part of this clip. Try opening the editor again."
+                ) from exc
             directory.mkdir(parents=True, exist_ok=True)
             clean = directory / "clean.mp4"
             metadata_path = MediaStorage().local_path(clip["file_path"], metadata_only=True)

@@ -14,6 +14,7 @@ import logging
 import shutil
 import subprocess
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,8 @@ logger = logging.getLogger(__name__)
 
 CACHE_DIRNAME = "youtube-cache"
 WORK_DIRNAME = "youtube-work"
+# Longer than any render; older work directories were abandoned by a crash.
+WORK_DIR_MAX_AGE_SECONDS = 24 * 60 * 60
 MANIFEST_NAME = "manifest.json"
 # v2 rejects auto-dub tracks before language_preference. Cached v1 audio is discarded.
 AUDIO_POLICY = "original-v2"
@@ -391,6 +394,50 @@ def local_ranges_for(media_path: Path, ranges: list[tuple[float, float]]) -> lis
     if time_map is None:
         return [(float(start), float(end)) for start, end in ranges]
     return time_map.to_local_ranges(ranges)
+
+
+# Gaps shorter than this are rounding between stitched slices, not missing media.
+COVERAGE_TOLERANCE_SECONDS = 0.05
+
+
+class SourceCoverageError(ValueError):
+    """A local source file does not contain every requested original range."""
+
+    def __init__(self, media_path: Path, missing: list[tuple[float, float]]):
+        self.missing = missing
+        spans = ", ".join(f"{start:.2f}-{end:.2f}s" for start, end in missing) or "all of it"
+        super().__init__(f"{Path(media_path).name} does not cover {spans}")
+
+
+def covered_local_ranges(media_path: Path, ranges: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """``local_ranges_for`` that refuses a file missing any part of ``ranges``.
+
+    ``local_ranges_for`` clamps a timestamp outside the file's timeline to the
+    nearest span, so a partial section file silently shortens a clip, or
+    yields no ranges at all. The map is read once so the check and the
+    conversion agree even if the sidecar changes meanwhile. A section timeline
+    without its sidecar is never treated as a full file.
+    """
+    requested = [(float(start), float(end)) for start, end in ranges if float(end) > float(start)]
+    if not requested:
+        raise SourceCoverageError(media_path, [])
+    time_map = load_time_map(media_path)
+    if time_map is None:
+        if is_youtube_work_path(media_path):
+            raise SourceCoverageError(media_path, requested)
+        return requested
+    gaps = missing_intervals(
+        [(span.original_start, span.original_end) for span in time_map.spans], requested
+    )
+    missing = [(start, end) for start, end in gaps if end - start > COVERAGE_TOLERANCE_SECONDS]
+    if missing:
+        raise SourceCoverageError(media_path, missing)
+    local = time_map.to_local_ranges(requested)
+    expected = sum(end - start for start, end in requested)
+    actual = sum(end - start for start, end in local)
+    if not local or actual < expected - COVERAGE_TOLERANCE_SECONDS * len(requested):
+        raise SourceCoverageError(media_path, requested)
+    return local
 
 
 @dataclass
@@ -1076,14 +1123,35 @@ def _concat_local(files: list[Path], dest: Path, *, durations: Optional[list[flo
 
 
 def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
+    """A new directory for one render's timeline.
+
+    Renders of one task can overlap (a retried edit), so a directory is never
+    shared or reused: clearing a shared one deleted the source of a render
+    still in progress. Directories a crashed render left behind are swept
+    once they are older than any render.
+    """
     from .youtube_proxy import sticky_session_id
 
+    root = Path(get_config().temp_dir) / WORK_DIRNAME
+    _sweep_abandoned_work_dirs(root)
     name = sticky_session_id(task_id, video_id)
-    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}"
-    if directory.exists():
-        shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = root / f"{video_id}-{name}-{uuid.uuid4().hex[:12]}"
+    directory.mkdir(parents=True)
     return directory
+
+
+def _sweep_abandoned_work_dirs(root: Path) -> None:
+    cutoff = time.time() - WORK_DIR_MAX_AGE_SECONDS
+    try:
+        entries = list(root.iterdir())
+    except FileNotFoundError:
+        return
+    for entry in entries:
+        try:
+            if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                shutil.rmtree(entry, ignore_errors=True)
+        except OSError:
+            continue
 
 
 def materialize_clip_source(
