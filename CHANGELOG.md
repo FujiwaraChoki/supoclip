@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
+- **Fixed:** The time left on a generation now includes downloading the chosen moments and rendering each clip, so it no longer says "less than a minute" while several minutes remain. ([#371](https://github.com/FujiwaraChoki/supoclip/pull/371))
 - **Fixed:** The SupoClip MCP server at `mcp.supoclip.com` now works with clients that use the current MCP connection type, as well as older SSE clients, including ones already set up with the old address. When a connection fails, the error says what is missing, such as an API key or a placeholder that wasn't replaced. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
 - **Improved:** Settings → Agents & API shows ready-to-copy setup for Claude Code, Cursor, Claude Desktop and a local server, with your new key filled in. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
 - **Improved:** When an agent tries to make clips on an account without a paid plan or without minutes left, it gets a plain explanation and a link to choose a plan instead of a raw error. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
