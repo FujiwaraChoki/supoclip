@@ -1,10 +1,14 @@
 from dotenv import load_dotenv
+import json
+import logging
 import math
 import os
 
 from .runtime_settings import get_cached_setting, setting_prefers_admin
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 _config_override = None
 LOCAL_OLLAMA_BASE_URL = "http://localhost:11434/v1"
@@ -32,6 +36,12 @@ class Config:
             os.getenv("TRANSCRIPTION_LANGUAGE")
         )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
+        # Models that are tried when the primary one is overloaded or its key
+        # is refused. The order is the order they are tried in.
+        self.llm_fallbacks = self._get_runtime_setting("LLM_FALLBACKS") or ""
+        # JSON with the extra keys of the providers, for example
+        # {"google": ["key1", "key2"], "openrouter": ["keyA"]}.
+        self.llm_provider_keys = self._get_runtime_setting("LLM_PROVIDER_KEYS") or ""
         # Optional separate model for the cross-window candidate rerank pass.
         self.rerank_llm = self._get_optional_env("RERANK_LLM") or self.llm
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
@@ -500,6 +510,70 @@ class Config:
         if self.openrouter_api_key:
             return "openrouter:anthropic/claude-sonnet-5.5"
         return "google-gla:gemini-3-flash-preview"
+
+    def llm_chain(self) -> tuple[str, ...]:
+        """
+        The primary model followed by the fallbacks, in the order they are tried.
+
+        A model that is busy is not a broken model: the next one in the chain
+        often answers right away, on the same key.
+        """
+        models: list[str] = [self.llm]
+        for name in (self.llm_fallbacks or "").split(","):
+            cleaned = name.strip()
+            if cleaned and cleaned not in models:
+                models.append(cleaned)
+        return tuple(models)
+
+    def stored_provider_keys(self) -> dict[str, list[str]]:
+        """The provider keys an administrator stored, read from the JSON setting."""
+        raw = (self.llm_provider_keys or "").strip()
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except ValueError:
+            logger.warning("LLM_PROVIDER_KEYS does not hold valid JSON")
+            return {}
+        if not isinstance(payload, dict):
+            logger.warning("LLM_PROVIDER_KEYS is not a mapping of providers to keys")
+            return {}
+        stored: dict[str, list[str]] = {}
+        for provider, value in payload.items():
+            if isinstance(value, str):
+                value = [value]
+            if not isinstance(value, list):
+                continue
+            keys = [str(item).strip() for item in value if str(item).strip()]
+            if keys:
+                stored[str(provider).strip().lower()] = keys
+        return stored
+
+    def provider_keys(self, provider: str) -> list[str]:
+        """
+        Every usable key of one provider: the stored ones first, then the key of
+        the environment. The order is the order they are tried in.
+        """
+        keys: list[str] = []
+        for key in self.stored_provider_keys().get(provider.strip().lower(), []):
+            if key not in keys:
+                keys.append(key)
+        env_key = self.provider_env_key(provider)
+        if env_key and env_key not in keys:
+            keys.append(env_key)
+        return keys
+
+    def provider_env_key(self, provider: str) -> str | None:
+        """The key of one provider that comes from the environment."""
+        keys = {
+            "google": self.google_api_key,
+            "google-gla": self.google_api_key,
+            "openai": self.openai_api_key,
+            "openrouter": self.openrouter_api_key,
+            "anthropic": self.anthropic_api_key,
+            "ollama": self.ollama_api_key,
+        }
+        return keys.get(provider.strip().lower())
 
 
 def get_config() -> Config:

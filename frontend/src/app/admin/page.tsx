@@ -12,6 +12,7 @@ import {
   RuntimeSettingsForm,
   type RuntimeSetting,
 } from "@/components/admin/runtime-settings-form";
+import { LlmSettingsPanel } from "@/components/admin/llm-settings-panel";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/app/status-badge";
 import { cn } from "@/lib/utils";
@@ -506,6 +507,10 @@ export default async function AdminPage({
         ) : (
           <RuntimeSettingsForm settings={runtimeSettings.settings} />
         )}
+      </Panel>
+
+      <Panel title={t("llm.title")} description={t("llm.description")}>
+        <LlmSettingsPanel />
       </Panel>
     </main>
   );

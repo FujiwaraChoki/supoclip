@@ -31,6 +31,21 @@ def disable_paid_youtube_fallback(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def single_model_chain(monkeypatch):
+    """A unit test must never reach a second model of the chain.
+
+    The chain exists for a running deployment. In a test the stand-in agent
+    of the primary model is the only one that may be called, so a failing
+    model cannot turn into a request to a provider.
+    """
+    from src import ai
+
+    monkeypatch.setattr(
+        ai, "llm_chain", lambda runtime_config=None: (ai.configured_llm(runtime_config),)
+    )
+
+
+@pytest.fixture(autouse=True)
 def editor_store():
     """Studio sessions and jobs in memory; unit tests have no PostgreSQL."""
     from src import editor_state

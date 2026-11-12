@@ -537,6 +537,21 @@ def _chunk_bounds(word_count: int, chunk_size: int, breaks: List[int]):
             start = stop
 
 
+def _bounds_from_starts(starts: List[int], word_count: int) -> List[Tuple[int, int]]:
+    """Caption lines that start at the given word indices.
+
+    The editor uses this to break a translated clip's lines on the pauses of the
+    speech, so a line never spans two spoken phrases.
+    """
+    bounds: List[Tuple[int, int]] = []
+    ordered = sorted({start for start in starts if 0 <= start < word_count})
+    for index, start in enumerate(ordered):
+        stop = ordered[index + 1] if index + 1 < len(ordered) else word_count
+        if stop > start:
+            bounds.append((start, stop))
+    return bounds
+
+
 def build_assemblyai_ass_subtitles(
     video_path: Path,
     clip_start: float,
@@ -563,6 +578,7 @@ def build_assemblyai_ass_subtitles(
     center_x_override: Optional[int] = None,
     hook_editor_style: Optional[Dict[str, Any]] = None,
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
+    caption_chunk_starts: Optional[List[int]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
     output_offsets: Optional[List[float]] = None,
@@ -763,15 +779,23 @@ def build_assemblyai_ass_subtitles(
 
     word_widths = [display_width(index, word) for index, word in enumerate(relevant_words)]
     chunk_spans: List[Tuple[int, int, float]] = []
-    for chunk_start, chunk_stop in _chunk_bounds(len(relevant_words), chunk_size, passage_breaks):
+    chunk_ordinals: List[int] = []
+    bounds = (
+        _bounds_from_starts(caption_chunk_starts, len(relevant_words))
+        if caption_chunk_starts
+        else _chunk_bounds(len(relevant_words), chunk_size, passage_breaks)
+    )
+    for ordinal, (chunk_start, chunk_stop) in enumerate(bounds):
         if wrap_lines:
             chunk_spans.append((chunk_start, chunk_stop, 1.0))
+            chunk_ordinals.append(ordinal)
             continue
         widths = word_widths[chunk_start:chunk_stop]
         for start, end in split_caption_chunk(widths, space_width, available_width):
             line_width = sum(widths[start:end]) + space_width * (end - start - 1)
             scale = min(1.0, available_width / line_width) if line_width > 0 else 1.0
             chunk_spans.append((chunk_start + start, chunk_start + end, scale))
+            chunk_ordinals.append(ordinal)
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -843,15 +867,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events: List[str] = []
     original_geometry = (outline_px, shadow_px, box_bord)
-    for chunk_start, chunk_stop, chunk_scale in chunk_spans:
+    for span_index, (chunk_start, chunk_stop, chunk_scale) in enumerate(chunk_spans):
         chunk = relevant_words[chunk_start:chunk_stop]
         indices = list(range(chunk_start, chunk_stop))
         chunk_end = float(chunk[-1]["end"])
         prefix = line_prefix(chunk_scale)
         entrance_tags = line_entrance(chunk_scale)
         outline_px, shadow_px, box_bord = original_geometry
-        placement = (caption_placements[chunk_start // chunk_size]
-                     if caption_placements and chunk_start // chunk_size < len(caption_placements) else None)
+        placement_index = chunk_ordinals[span_index]
+        placement = (caption_placements[placement_index]
+                     if caption_placements and placement_index < len(caption_placements) else None)
         if placement is not None:
             px = placement["font_px"]
             outline_px = max(base_stroke, round(px * base_stroke / 26)) if has_outline else 0

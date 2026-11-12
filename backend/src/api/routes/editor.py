@@ -7,7 +7,7 @@ import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from ...media_storage import MediaStorage, STORAGE_ERRORS, media_work
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -486,6 +486,53 @@ async def broll_footage(
         # A rendition never changes; the browser can keep it.
         headers={"Cache-Control": "private, max-age=86400, immutable"},
     )
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/translate")
+async def translate_subtitles(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Translate the spoken phrases of the clip for the subtitle editor.
+
+    The phrases come from the English speech and keep their order: the model
+    only translates the text, the timings stay with the editor.
+    """
+    from ...services.translation_service import (
+        MAX_PHRASES,
+        TranslationError,
+        translate_phrases,
+    )
+
+    payload = await _read_json_object(request)
+    phrases = payload.get("phrases")
+    if not isinstance(phrases, list) or not phrases:
+        raise HTTPException(400, "There are no phrases to translate")
+    if len(phrases) > MAX_PHRASES:
+        raise HTTPException(400, "The transcript is too long to translate at once")
+    texts = []
+    for phrase in phrases:
+        text = (
+            str(phrase.get("text", "")).strip()
+            if isinstance(phrase, dict)
+            else str(phrase).strip()
+        )
+        if not text:
+            raise HTTPException(400, "A phrase is empty")
+        if len(text) > 400:
+            raise HTTPException(400, "A phrase is too long")
+        texts.append(text)
+    target_language = str(payload.get("targetLanguage") or "ru").strip()[:20] or "ru"
+    await owned_context(request, db, task_id, clip_id)
+    try:
+        result = await translate_phrases(texts, target_language)
+    except TranslationError as exc:
+        # The detail stays a string, so every client keeps reading it the same
+        # way. The code says why the translation failed: a timeout is not the
+        # same as an outage.
+        return JSONResponse(
+            status_code=503, content={"detail": str(exc), "code": exc.code}
+        )
+    return result.model_dump()
 
 
 @router.get("/{task_id}/clips/{clip_id}/editor/ai")

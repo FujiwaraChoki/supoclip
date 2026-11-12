@@ -3,7 +3,7 @@ AI-related functions for transcript analysis with enhanced precision and viralit
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Callable, Optional, Literal, Sequence
 import asyncio
 import logging
 import math
@@ -15,17 +15,27 @@ from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.profiles.anthropic import AnthropicModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
 from .clip_duration import clip_duration
+from .llm_fallback import (
+    TransientModelError,
+    model_provider,
+    run_with_fallback,
+    split_budget,
+)
 from .runtime_settings import apply_settings_to_process_env
 from .workflows.prompts import instructions_block
 
@@ -72,6 +82,15 @@ TRANSCRIPT_LINE_PATTERN = re.compile(
 )
 SIGNAL_LINE_PATTERN = re.compile(r"^- \[(?P<start>\d{1,3}:\d{2}(?::\d{2})?)\s*-")
 SPEAKER_PREFIX_PATTERN = re.compile(r"^Speaker [^:]+:\s*")
+
+
+class TranscriptAnalysisUnavailable(TransientModelError):
+    """
+    The retries of one model are used up.
+
+    The chain moves on to the next model, and the caller sees this error when
+    no model of the chain answered.
+    """
 
 
 def _normalize_transcript_text(value: str) -> str:
@@ -450,6 +469,80 @@ def _split_llm_name(model_name: str) -> tuple[str, str | None]:
     return provider.strip().lower(), provider_model_name.strip() or None
 
 
+PROVIDER_KEY_ATTRIBUTES = {
+    "google": "google_api_key",
+    "google-gla": "google_api_key",
+    "openai": "openai_api_key",
+    "openrouter": "openrouter_api_key",
+    "anthropic": "anthropic_api_key",
+    "ollama": "ollama_api_key",
+}
+
+
+def _provider_env_key(runtime_config: Config, provider: str) -> str | None:
+    """The key of one provider that comes from the environment."""
+    getter = getattr(runtime_config, "provider_env_key", None)
+    if callable(getter):
+        return getter(provider)
+    attribute = PROVIDER_KEY_ATTRIBUTES.get(provider)
+    key = getattr(runtime_config, attribute, None) if attribute else None
+    return key or None
+
+
+def _is_default_key(runtime_config: Config, model: str, key: str | None) -> bool:
+    """
+    Whether the request uses the key of the environment.
+
+    An extra key of a provider gets its own agent; the key of the environment
+    uses the agent of the public getter, the one every other part of the
+    project builds too.
+    """
+    if not key:
+        return True
+    env_key = _provider_env_key(runtime_config, model_provider(model))
+    return bool(env_key) and key == env_key
+
+
+def _provider_keys(runtime_config: Config, provider: str) -> List[str]:
+    """The keys of one provider, also for a config that only knows one key."""
+    provider_keys = getattr(runtime_config, "provider_keys", None)
+    if callable(provider_keys):
+        return list(provider_keys(provider))
+    key = _provider_env_key(runtime_config, provider)
+    return [key] if key else []
+
+
+def configured_llm(runtime_config: Config | None = None) -> str:
+    """The primary model, also when the config is a stand-in in a test."""
+    config = runtime_config or get_config()
+    return getattr(config, "llm", "") or ""
+
+
+def llm_chain(runtime_config: Config | None = None) -> tuple[str, ...]:
+    """
+    The models to try, in the order they are tried.
+
+    The primary model comes first, the fallbacks follow. A config that only
+    knows one model gives a chain of one, so nothing else is called.
+    """
+    config = runtime_config or get_config()
+    primary = configured_llm(config)
+    models: list[str] = [primary] if primary else []
+    getter = getattr(config, "llm_chain", None)
+    if callable(getter):
+        try:
+            names = getter() or ()
+        except Exception:  # a stand-in config in a test
+            names = ()
+        for name in names:
+            cleaned = str(name).strip()
+            if cleaned and cleaned not in models:
+                models.append(cleaned)
+    # A config that names no model still gets one step, so the caller learns
+    # that no model is configured instead of an empty chain.
+    return tuple(models) if models else ("",)
+
+
 def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optional[str]:
     """Return a clear configuration error when the selected LLM key is missing."""
     provider, provider_model_name = _split_llm_name(model_name)
@@ -466,28 +559,34 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
             "Use the format provider:model, for example ollama:gpt-oss:20b."
         )
 
-    if provider in {"google", "google-gla"} and not runtime_config.google_api_key:
+    if provider in {"google", "google-gla"} and not _provider_keys(runtime_config, provider):
         return (
             "Selected LLM provider is Google, but GOOGLE_API_KEY is not set. "
-            "Set GOOGLE_API_KEY or set LLM to openai:* / anthropic:* / ollama:* with the matching API key."
+            "Set GOOGLE_API_KEY, add a key under the extra provider keys, or set LLM "
+            "to openai:* / anthropic:* / ollama:* with the matching API key."
         )
 
-    if provider == "openrouter" and not runtime_config.openrouter_api_key:
-        return "Selected LLM provider is OpenRouter, but OPENROUTER_API_KEY is not set."
+    if provider == "openrouter" and not _provider_keys(runtime_config, provider):
+        return (
+            "Selected LLM provider is OpenRouter, but OPENROUTER_API_KEY is not set. "
+            "Set OPENROUTER_API_KEY or add a key under the extra provider keys."
+        )
 
     if provider == "openrouter" and "/" not in provider_model_name:
         return "OpenRouter model must include its vendor, for example openrouter:anthropic/claude-sonnet-5.5."
 
-    if provider == "openai" and not runtime_config.openai_api_key:
+    if provider == "openai" and not _provider_keys(runtime_config, provider):
         return (
             "Selected LLM provider is OpenAI, but OPENAI_API_KEY is not set. "
-            "Set OPENAI_API_KEY or choose another provider with a matching API key."
+            "Set OPENAI_API_KEY, add a key under the extra provider keys, or choose "
+            "another provider with a matching API key."
         )
 
-    if provider == "anthropic" and not runtime_config.anthropic_api_key:
+    if provider == "anthropic" and not _provider_keys(runtime_config, provider):
         return (
             "Selected LLM provider is Anthropic, but ANTHROPIC_API_KEY is not set. "
-            "Set ANTHROPIC_API_KEY or choose another provider with a matching API key."
+            "Set ANTHROPIC_API_KEY, add a key under the extra provider keys, or choose "
+            "another provider with a matching API key."
         )
 
     if provider == "ollama":
@@ -506,10 +605,20 @@ def _uses_native_output(model_name: str) -> bool:
 
 
 def _build_transcript_model(
-    runtime_config: Config, model_name: str | None = None
+    runtime_config: Config,
+    model_name: str | None = None,
+    api_key: str | None = None,
 ) -> Model | str:
+    """
+    Build the model of one provider.
+
+    The key is passed to the provider directly instead of through the
+    environment: with several keys per provider the environment would hand
+    the key of one request to another one.
+    """
     model_name = model_name or runtime_config.llm
     provider, provider_model_name = _split_llm_name(model_name)
+    key = (api_key or _provider_env_key(runtime_config, provider) or "").strip() or None
     if provider == "anthropic" and _uses_native_output(model_name):
         # The installed SDK predates Sonnet 5.5. This model requires native
         # structured output rather than forced tool calls.
@@ -518,7 +627,7 @@ def _build_transcript_model(
         )
         return AnthropicModel(
             provider_model_name,
-            provider=AnthropicProvider(api_key=runtime_config.anthropic_api_key),
+            provider=AnthropicProvider(api_key=key),
             profile=profile,
             settings={"max_tokens": 8192},
         )
@@ -533,7 +642,7 @@ def _build_transcript_model(
         )
         return OpenRouterModel(
             provider_model_name,
-            provider=OpenRouterProvider(api_key=runtime_config.openrouter_api_key),
+            provider=OpenRouterProvider(api_key=key),
             profile=profile,
             settings={
                 "openrouter_models": [fallback] if fallback != provider_model_name else [],
@@ -541,6 +650,26 @@ def _build_transcript_model(
                 "openrouter_reasoning": {"effort": "low"},
                 "max_tokens": 8192,
             },
+        )
+    if provider in ("google", "google-gla"):
+        if not provider_model_name:
+            raise RuntimeError(
+                "Selected LLM provider is Google, but no model name was provided. "
+                "Use the format google:<model>, for example google:gemini-2.5-flash."
+            )
+        return GoogleModel(
+            provider_model_name,
+            provider=GoogleProvider(api_key=key),
+        )
+    if provider == "openai":
+        if not provider_model_name:
+            raise RuntimeError(
+                "Selected LLM provider is OpenAI, but no model name was provided. "
+                "Use the format openai:<model>, for example openai:gpt-5.2."
+            )
+        return OpenAIModel(
+            provider_model_name,
+            provider=OpenAIProvider(api_key=key),
         )
     if provider != "ollama":
         return model_name
@@ -555,8 +684,36 @@ def _build_transcript_model(
         provider_model_name,
         provider=OllamaProvider(
             base_url=runtime_config.resolve_ollama_base_url(),
-            api_key=runtime_config.ollama_api_key,
+            api_key=key,
         ),
+    )
+
+
+def _model_for(
+    runtime_config: Config, model_name: str, key: str | None
+) -> Model | str:
+    """The model of one provider, with its own key when there is one."""
+    if key:
+        return _build_transcript_model(runtime_config, model_name, key)
+    return _build_transcript_model(runtime_config, model_name)
+
+
+def _transcript_agent_for(
+    runtime_config: Config,
+    model_name: str,
+    key: str | None,
+    clip_length: str = "auto",
+) -> Agent[None, TranscriptAnalysis]:
+    """Build the transcript analysis agent of one model and one key."""
+    provider, _ = _split_llm_name(model_name)
+    return Agent[None, TranscriptAnalysis](
+        model=_model_for(runtime_config, model_name, key),
+        output_type=NativeOutput(TranscriptAnalysis, strict=True) if _uses_native_output(model_name) else TranscriptAnalysis,
+        system_prompt=build_transcript_system_prompt(clip_length),
+        # Some local Ollama/OpenAI-compatible endpoints can return formatted
+        # prose before settling on schema-valid JSON. Keep retries limited
+        # while still allowing enough repair attempts for local models.
+        output_retries=2,
     )
 
 
@@ -564,7 +721,6 @@ def get_transcript_agent(clip_length: str = "auto") -> Agent[None, TranscriptAna
     """Get or create the transcript analysis agent (lazy initialization)."""
     global _transcript_agent, _transcript_agent_signature
     runtime_config = get_config()
-    provider, _ = _split_llm_name(runtime_config.llm)
     signature = (
         clip_length,
         runtime_config.llm,
@@ -582,14 +738,8 @@ def get_transcript_agent(clip_length: str = "auto") -> Agent[None, TranscriptAna
         if config_error:
             raise RuntimeError(config_error)
 
-        _transcript_agent = Agent[None, TranscriptAnalysis](
-            model=_build_transcript_model(runtime_config),
-            output_type=NativeOutput(TranscriptAnalysis, strict=True) if _uses_native_output(runtime_config.llm) else TranscriptAnalysis,
-            system_prompt=build_transcript_system_prompt(clip_length),
-            # Some local Ollama/OpenAI-compatible endpoints can return formatted
-            # prose before settling on schema-valid JSON. Keep retries limited
-            # while still allowing enough repair attempts for local models.
-            output_retries=2 if provider == "ollama" else 2,
+        _transcript_agent = _transcript_agent_for(
+            runtime_config, runtime_config.llm, None, clip_length
         )
         _transcript_agent_signature = signature
     return _transcript_agent
@@ -640,12 +790,23 @@ _rerank_agent: Optional[Agent[None, CandidateRanking]] = None
 _rerank_agent_signature: Optional[tuple[str | None, ...]] = None
 
 
+def _rerank_agent_for(
+    runtime_config: Config, model_name: str, key: str | None
+) -> Agent[None, CandidateRanking]:
+    """Build the candidate rerank agent of one model and one key."""
+    return Agent[None, CandidateRanking](
+        model=_model_for(runtime_config, model_name, key),
+        output_type=NativeOutput(CandidateRanking, strict=True) if _uses_native_output(model_name) else CandidateRanking,
+        system_prompt=candidate_rerank_system_prompt,
+        output_retries=2,
+    )
+
+
 def get_rerank_agent() -> Agent[None, CandidateRanking]:
     """Get or create the candidate rerank agent (lazy initialization)."""
     global _rerank_agent, _rerank_agent_signature
     runtime_config = get_config()
     model_name = getattr(runtime_config, "rerank_llm", None) or runtime_config.llm
-    provider, _ = _split_llm_name(model_name)
     signature = (
         model_name,
         runtime_config.openai_api_key,
@@ -662,12 +823,7 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
         if config_error:
             raise RuntimeError(config_error)
 
-        _rerank_agent = Agent[None, CandidateRanking](
-            model=_build_transcript_model(runtime_config, model_name),
-            output_type=NativeOutput(CandidateRanking, strict=True) if _uses_native_output(model_name) else CandidateRanking,
-            system_prompt=candidate_rerank_system_prompt,
-            output_retries=2,
-        )
+        _rerank_agent = _rerank_agent_for(runtime_config, model_name, None)
         _rerank_agent_signature = signature
     return _rerank_agent
 
@@ -716,6 +872,18 @@ _broll_agent_signature: Optional[tuple[str | None, ...]] = None
 BROLL_PLAN_TIMEOUT_SECONDS = 60
 
 
+def _broll_agent_for(
+    runtime_config: Config, model_name: str, key: str | None
+) -> Agent[None, BRollPlan]:
+    """Build the B-roll planning agent of one model and one key."""
+    return Agent[None, BRollPlan](
+        model=_model_for(runtime_config, model_name, key),
+        output_type=NativeOutput(BRollPlan, strict=True) if _uses_native_output(model_name) else BRollPlan,
+        system_prompt=broll_plan_system_prompt,
+        output_retries=2,
+    )
+
+
 def get_broll_agent() -> Agent[None, BRollPlan]:
     """Get or create the B-roll planning agent (lazy initialization)."""
     global _broll_agent, _broll_agent_signature
@@ -736,12 +904,7 @@ def get_broll_agent() -> Agent[None, BRollPlan]:
         config_error = _get_missing_llm_key_error(model_name, runtime_config)
         if config_error:
             raise RuntimeError(config_error)
-        _broll_agent = Agent[None, BRollPlan](
-            model=_build_transcript_model(runtime_config, model_name),
-            output_type=NativeOutput(BRollPlan, strict=True) if _uses_native_output(model_name) else BRollPlan,
-            system_prompt=broll_plan_system_prompt,
-            output_retries=2,
-        )
+        _broll_agent = _broll_agent_for(runtime_config, model_name, None)
         _broll_agent_signature = signature
     return _broll_agent
 
@@ -763,9 +926,24 @@ async def plan_broll_cues(
     timed_lines: str, clip_duration: float, max_cues: int, earliest_start: float
 ) -> List[BRollCue]:
     """Pick stock-footage moments for one clip. Raises when the model is unavailable."""
-    result = await _run_transcript_analysis(
-        get_broll_agent(),
-        build_broll_plan_prompt(timed_lines, clip_duration, max_cues, earliest_start),
+    runtime_config = get_config()
+    primary = configured_llm(runtime_config)
+
+    def build_agent(model: str, key: str | None) -> Agent:
+        # The public getter stays the one place the agent of the primary
+        # model comes from, so a stand-in agent can be used in a test.
+        if (
+            (not primary or model == primary)
+            and _is_default_key(runtime_config, model, key)
+        ):
+            return get_broll_agent()
+        return _broll_agent_for(runtime_config, model, key)
+
+    result = await run_model_chain(
+        build_broll_plan_prompt(
+            timed_lines, clip_duration, max_cues, earliest_start
+        ),
+        build_agent,
         timeout_seconds=BROLL_PLAN_TIMEOUT_SECONDS,
     )
     return list(result.output.cues)
@@ -1157,7 +1335,7 @@ async def _run_transcript_analysis(
                             type(error).__name__,
                             getattr(error, "status_code", None),
                         )
-                        raise RuntimeError(
+                        raise TranscriptAnalysisUnavailable(
                             "The AI analysis service is temporarily unavailable after "
                             "several attempts. Please try again shortly."
                         ) from None
@@ -1179,6 +1357,37 @@ async def _run_transcript_analysis(
         raise RuntimeError(
             "The AI analysis service took too long to respond. Please try again shortly."
         ) from None
+
+
+async def run_model_chain(
+    prompt: str,
+    build_agent: Callable[[str, str | None], Agent],
+    *,
+    chain: Optional[Sequence[str]] = None,
+    timeout_seconds: Optional[float] = None,
+) -> Any:
+    """
+    Run one request over the chain of models.
+
+    Every model of the chain gets its own share of the budget. A model that is
+    busy is left behind: the next one often answers right away, on the same
+    key. The retry rules of the project stay in place inside one model.
+    """
+    runtime_config = get_config()
+    models = tuple(chain or llm_chain(runtime_config))
+    total_timeout = float(timeout_seconds or TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS)
+    per_model_timeout = split_budget(total_timeout, len(models))
+    result = await run_with_fallback(
+        lambda model, key: build_agent(model, key),
+        # The chain already limits the attempt with its own budget, so the
+        # analysis keeps its own deadline.
+        lambda agent: _run_transcript_analysis(agent, prompt),
+        chain=models,
+        keys_for=lambda model: _provider_keys(runtime_config, model_provider(model)),
+        attempt_timeout=per_model_timeout,
+        total_timeout=total_timeout,
+    )
+    return result.value
 
 
 def split_transcript_into_windows(
@@ -1409,12 +1618,29 @@ async def rerank_candidates(
     if len(candidates) < 2:
         return candidates
     try:
-        agent = get_rerank_agent()
-        result = await _run_transcript_analysis(
-            agent,
+        runtime_config = get_config()
+        primary = getattr(runtime_config, "rerank_llm", None) or configured_llm(runtime_config)
+        chain = llm_chain(runtime_config)
+        if primary:
+            # The rerank model comes first, the fallbacks of the chain follow.
+            chain = tuple([primary]) + tuple(m for m in chain if m != primary)
+
+        def build_agent(model: str, key: str | None) -> Agent:
+            # The public getter stays the one place the agent of the primary
+            # model comes from, so a stand-in agent can be used in a test.
+            if (
+                (not primary or model == primary)
+                and _is_default_key(runtime_config, model, key)
+            ):
+                return get_rerank_agent()
+            return _rerank_agent_for(runtime_config, model, key)
+
+        result = await run_model_chain(
             build_candidate_rerank_prompt(
                 candidates, performance_context, **({"instructions": instructions} if instructions else {})
             ),
+            build_agent,
+            chain=chain,
             timeout_seconds=RERANK_TIMEOUT_SECONDS,
         )
         reranked = apply_candidate_ranking(candidates, result.output)
@@ -1429,7 +1655,7 @@ async def rerank_candidates(
 
 
 async def _analyze_transcript_windows(
-    agent: Agent,
+    build_agent: Callable[[str, str | None], Agent],
     windows: List[Dict[str, Any]],
     clip_signals: Optional[str],
     performance_context: Optional[str] = None,
@@ -1455,7 +1681,7 @@ async def _analyze_transcript_windows(
                 clip_length=clip_length,
                 **({"instructions": instructions} if instructions else {}),
             )
-            result = await _run_transcript_analysis(agent, prompt)
+            result = await run_model_chain(prompt, build_agent)
             return result.output
 
     tasks = [asyncio.create_task(run_window(window)) for window in windows]
@@ -1688,27 +1914,46 @@ async def get_most_relevant_parts_by_transcript(
     )
 
     try:
-        agent = get_transcript_agent(clip_length)
+        runtime_config = get_config()
+        settings_of = getattr(runtime_config, "as_runtime_settings", None)
+        if callable(settings_of):
+            apply_settings_to_process_env(settings_of())
+        primary = configured_llm(runtime_config)
+        if primary:
+            config_error = _get_missing_llm_key_error(primary, runtime_config)
+            if config_error:
+                raise RuntimeError(config_error)
+
+        def build_agent(model: str, key: str | None) -> Agent:
+            # The public getter stays the one place the agent of the primary
+            # model comes from, so a stand-in agent can be used in a test.
+            if (
+                (not primary or model == primary)
+                and _is_default_key(runtime_config, model, key)
+            ):
+                return get_transcript_agent(clip_length)
+            return _transcript_agent_for(runtime_config, model, key, clip_length)
+
         transcript_lines = _parse_transcript_lines(transcript)
         transcript_spans = _parse_transcript_spans(transcript)
         windows = split_transcript_into_windows(transcript)
 
         if len(windows) == 1:
-            result = await _run_transcript_analysis(
-                agent,
+            result = await run_model_chain(
                 build_transcript_analysis_prompt(
                     transcript=transcript,
                     clip_signals=clip_signals,
                     performance_context=performance_context,
                     clip_length=clip_length,
                     **steering,
-                )
+                ),
+                build_agent,
             )
             analyses = [result.output]
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
             analyses = await _analyze_transcript_windows(
-                agent, windows, clip_signals, performance_context, clip_length, **steering
+                build_agent, windows, clip_signals, performance_context, clip_length, **steering
             )
 
         candidates: List[TranscriptSegment] = []

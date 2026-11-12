@@ -43,6 +43,31 @@ export interface CaptionLook {
   glow: boolean;
   backgroundColor: string | null;
 }
+/** One spoken phrase of the source and the translation aligned to it. */
+export interface TranslationPhrase {
+  id: string;
+  /** Source-time boundaries of the English phrase. */
+  start: number;
+  end: number;
+  sourceText: string;
+  targetText: string;
+  /** The translated words that belong to this phrase. */
+  wordIds: string[];
+}
+/**
+ * The translation kept next to the draft: the English transcription with its
+ * timings stays the basis of the synchronization, the phrases carry the
+ * translation, and the caption words hold the result.
+ */
+export interface TranslationState {
+  sourceLanguage: string;
+  targetLanguage: string;
+  mode: "auto" | "manual";
+  /** The English words with their timings, unchanged by the translation. */
+  sourceWords: CaptionWord[];
+  phrases: TranslationPhrase[];
+  updatedAt: string;
+}
 export interface Framing {
   aspect: "vertical" | "square" | "original";
   fit: "contain" | "cover" | "auto";
@@ -105,6 +130,8 @@ export interface EditDocument {
   captionTransforms?: Record<string, CaptionTransform>;
   /** Absent on drafts cached before the editor had B-roll. */
   broll?: BRollClip[];
+  /** Absent until the subtitles are translated. */
+  translation?: TranslationState;
 }
 export type TextLayer = "hook" | "captions";
 export interface TextTransform { x: number; y: number; scale: number }
@@ -263,6 +290,41 @@ export function captionGroups(words: CaptionWord[], count: number) {
     groups.push(words.slice(i, i + count));
   return groups;
 }
+/**
+ * The caption lines of a draft.
+ *
+ * A translated draft never lets a line span two spoken phrases, so the pause
+ * between two phrases leaves the screen empty instead of holding the last word
+ * lit. A draft without a translation keeps the fixed-size lines of the
+ * generated clip, so English captions are unchanged.
+ */
+export function captionGroupsFor(doc: EditDocument): CaptionWord[][] {
+  const words = mappedWords(doc);
+  const size = Math.max(1, doc.captions.wordsPerLine);
+  const phrases = doc.translation?.phrases;
+  if (!phrases?.length) return captionGroups(words, size);
+  const owner = new Map<string, number>();
+  phrases.forEach((phrase, index) =>
+    phrase.wordIds.forEach((id) => owner.set(id, index)),
+  );
+  const groups: CaptionWord[][] = [];
+  let current: CaptionWord[] = [];
+  let currentPhrase = -1;
+  for (const word of words) {
+    const phrase = owner.get(word.id);
+    if (
+      current.length &&
+      ((phrase !== undefined && phrase !== currentPhrase) || current.length >= size)
+    ) {
+      groups.push(current);
+      current = [];
+    }
+    if (phrase !== undefined) currentPhrase = phrase;
+    current.push(word);
+  }
+  if (current.length) groups.push(current);
+  return groups;
+}
 /** A source-continuous run survives a split; repeated footage has its own ID. */
 export function captionKey(doc: EditDocument, group: CaptionWord[]): string {
   let cursor = 0;
@@ -276,17 +338,17 @@ export function captionTransform(doc: EditDocument, group: CaptionWord[]): Capti
   return doc.captionTransforms?.[captionKey(doc, group)] ?? textTransform(doc, "captions");
 }
 export function captionAt(doc: EditDocument, time: number) {
-  return captionGroups(mappedWords(doc), doc.captions.wordsPerLine)
+  return captionGroupsFor(doc)
     .find(words => time >= words[0].start && time < words[words.length - 1].end);
 }
 
 /** Keep local placement with the same spoken phrase when its text/IDs change. */
 export function remapCaptionTransforms(before: EditDocument, after: EditDocument): EditDocument {
   if (!before.captionTransforms || !Object.keys(before.captionTransforms).length) return after;
-  const previous = captionGroups(mappedWords(before), before.captions.wordsPerLine)
+  const previous = captionGroupsFor(before)
     .map(words => ({ words, key: captionKey(before, words) }));
   const placements: Record<string, CaptionTransform> = {};
-  for (const words of captionGroups(mappedWords(after), after.captions.wordsPerLine)) {
+  for (const words of captionGroupsFor(after)) {
     const key = captionKey(after, words);
     if (after.captionTransforms?.[key]) { placements[key] = after.captionTransforms[key]; continue; }
     const run = JSON.parse(key)[0];

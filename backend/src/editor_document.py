@@ -155,6 +155,34 @@ class CaptionTransform(TextTransform):
     size: float | None = Field(default=None, ge=5, le=528)
 
 
+class TranslationPhrase(Model):
+    """One spoken phrase of the source with the translation aligned to it."""
+
+    id: str = Field(min_length=1, max_length=100)
+    # Source-time boundaries of the English phrase.
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    sourceText: str = Field(default="", max_length=2000)
+    targetText: str = Field(default="", max_length=2000)
+    # The translated words that belong to this phrase.
+    wordIds: list[str] = Field(default_factory=list, max_length=500)
+
+
+class TranslationState(Model):
+    """The translation kept next to the draft.
+
+    The English words with their timings stay the basis of the synchronization;
+    the phrases carry the translation and the caption words hold the result.
+    """
+
+    sourceLanguage: str = Field(default="en", max_length=20)
+    targetLanguage: str = Field(default="ru", max_length=20)
+    mode: Literal["auto", "manual"] = "auto"
+    sourceWords: list[Word] = Field(default_factory=list, max_length=5000)
+    phrases: list[TranslationPhrase] = Field(default_factory=list, max_length=2000)
+    updatedAt: str = Field(default="", max_length=40)
+
+
 class EditDocument(Model):
     version: Literal[1] = 1
     segments: list[Segment] = Field(min_length=1, max_length=100)
@@ -170,6 +198,8 @@ class EditDocument(Model):
     textTransforms: dict[Literal["hook", "captions"], TextTransform] = Field(default_factory=dict)
     captionTransforms: dict[Annotated[str, Field(max_length=300)], CaptionTransform] = Field(default_factory=dict, max_length=5000)
     broll: list[BRollClip] = Field(default_factory=list, max_length=60)
+    # Absent until the subtitles are translated.
+    translation: TranslationState | None = None
 
     def validate_duration(self, duration: float):
         if any(s.end > duration + 0.05 for s in self.segments):
@@ -178,9 +208,18 @@ class EditDocument(Model):
             raise ValueError("A caption extends past the original clip")
         if any(b.end > duration + 0.05 for b in self.broll):
             raise ValueError("B-roll extends past the original clip")
+        if self.translation is not None:
+            if any(w.end > duration + 0.05 for w in self.translation.sourceWords):
+                raise ValueError("A transcript extends past the original clip")
+            if any(p.end > duration + 0.05 for p in self.translation.phrases):
+                raise ValueError("A translated phrase extends past the original clip")
         if len({s.id for s in self.segments}) != len(self.segments) or len(
             {w.id for w in self.words}
         ) != len(self.words) or len({b.id for b in self.broll}) != len(self.broll):
+            raise ValueError("Editor item IDs must be unique")
+        if self.translation is not None and len(
+            {w.id for w in self.translation.sourceWords}
+        ) != len(self.translation.sourceWords):
             raise ValueError("Editor item IDs must be unique")
         ordered = sorted(self.broll, key=lambda b: b.start)
         if any(later.start < earlier.end - 0.01 for earlier, later in zip(ordered, ordered[1:])):
@@ -267,6 +306,41 @@ def caption_key(document: EditDocument, words: list[dict]) -> str:
     return json.dumps([segment.id, words[0]["id"]], separators=(",", ":"), ensure_ascii=False)
 
 
+def caption_chunk_starts(
+    words: list[dict], words_per_line: int, translation: TranslationState | None
+) -> list[int]:
+    """Where every caption line starts.
+
+    A translated draft never lets a line span two spoken phrases: the pause
+    between two phrases has to leave the screen empty instead of holding the
+    last word lit. A draft without a translation keeps the fixed-size lines of
+    the generated clip.
+    """
+    size = max(1, words_per_line)
+    if translation is None or not translation.phrases:
+        return list(range(0, len(words), size))
+    owner: dict[str, int] = {}
+    for index, phrase in enumerate(translation.phrases):
+        for word_id in phrase.wordIds:
+            owner[word_id] = index
+    starts: list[int] = []
+    current: list[int] = []
+    current_phrase: int | None = None
+    for index, word in enumerate(words):
+        phrase = owner.get(str(word.get("id")))
+        if current and (
+            (phrase is not None and phrase != current_phrase) or len(current) >= size
+        ):
+            starts.append(current[0])
+            current = []
+        if phrase is not None:
+            current_phrase = phrase
+        current.append(index)
+    if current:
+        starts.append(current[0])
+    return starts
+
+
 def mapped_broll(document: EditDocument) -> list[dict]:
     """B-roll pieces on the output timeline, following segments like captions do.
 
@@ -335,9 +409,12 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
     hook_transform = document.textTransforms.get("hook", TextTransform())
     original_font_px = max(1, round(style.size * width / 1080))
     font_px = max(1, round(style.size * width * caption_transform.scale / 1080))
+    # A translated draft breaks its caption lines on the pauses of the speech.
+    starts = caption_chunk_starts(words, style.wordsPerLine, document.translation)
     placements = []
-    for index in range(0, len(words), style.wordsPerLine):
-        group = words[index:index + style.wordsPerLine]
+    for position, start in enumerate(starts):
+        stop = starts[position + 1] if position + 1 < len(starts) else len(words)
+        group = words[start:stop]
         placement = document.captionTransforms.get(caption_key(document, group))
         placements.append(None if placement is None else {
             "font_px": max(1, round((placement.size if placement.size is not None else style.size) * width * placement.scale / 1080)),
@@ -369,6 +446,7 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         wrap_lines=True,
         hook_title=document.hookTitle.strip() or None,
         caption_placements=placements,
+        caption_chunk_starts=starts,
     )
     if not written:
         # Nothing to show (no captions or hook title): keep ffmpeg's ass filter valid.
