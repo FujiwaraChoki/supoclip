@@ -164,3 +164,84 @@ it("preserves an explicit local removal of all B-roll", async () => {
   await act(async () => result.current.save());
   expect(requests.at(-1)?.document.broll).toEqual([]);
 });
+
+function serverEditor(storage: Map<string, string>, gate?: Promise<void>, initial: typeof draft = draft) {
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+  });
+  let revision = 0;
+  let document = initial;
+  const calls: { url: string; method: string; body?: unknown }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+    const body = init.body ? JSON.parse(init.body as string) : undefined;
+    calls.push({ url, method: init.method ?? "GET", body });
+    if (init.method === "GET") return new Response(JSON.stringify({
+      status: "ready", basis: "clip.mp4", original: draft, duration: 10,
+      draft: { revision, document },
+    }));
+    if (url.endsWith("/rebuild")) {
+      revision += 1;
+      document = { ...draft, volume: 0.75 };
+      return new Response(JSON.stringify({ status: "preparing" }));
+    }
+    if (gate) await gate;
+    revision += 1;
+    document = body.document;
+    return new Response(JSON.stringify({ revision }));
+  }));
+  return calls;
+}
+
+it("keeps a bounded browser copy and marks it saved once the server confirms", async () => {
+  const storage = new Map<string, string>();
+  let release!: () => void;
+  serverEditor(storage, new Promise<void>((r) => (release = r)));
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document).not.toBeNull());
+  expect(JSON.parse(storage.get("supoclip-editor:/test/editor")!).unsaved).toBe(false);
+  for (let step = 1; step <= 30; step++)
+    act(() => result.current.update((d) => ({ ...d, volume: step / 100 })));
+  const pending = JSON.parse(storage.get("supoclip-editor:/test/editor")!);
+  expect(pending.v).toBe(2);
+  expect(pending.history.present.volume).toBe(0.3);
+  expect(pending.history.past.length).toBeLessThanOrEqual(10);
+  let saving!: Promise<void>;
+  act(() => { saving = result.current.save(); });
+  await act(async () => { release(); await saving; });
+  expect(result.current.status).toBe("All changes saved");
+  const confirmed = JSON.parse(storage.get("supoclip-editor:/test/editor")!);
+  expect(confirmed.unsaved).toBe(false);
+  expect(confirmed.history.past.length).toBeLessThanOrEqual(10);
+  expect(result.current.storageError).toBe(false);
+});
+
+it("shrinks an old full-history copy once the server has it", async () => {
+  // The server always returns B-roll, as GET .../editor upgrades drafts.
+  const server = { ...draft, broll: [] };
+  const storage = new Map([["supoclip-editor:/test/editor", JSON.stringify({
+    basis: "clip.mp4", revision: 0, saved: JSON.stringify(server),
+    history: { past: Array.from({ length: 50 }, () => server), present: server, future: [] },
+  })]]);
+  serverEditor(storage, undefined, server);
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document).not.toBeNull());
+  const stored = JSON.parse(storage.get("supoclip-editor:/test/editor")!);
+  expect(stored).toMatchObject({ v: 2, unsaved: false });
+  expect(stored.history.past).toHaveLength(10);
+  expect(result.current.canUndo).toBe(true);
+});
+
+it("rebuilds the editing copy with the revision it shows and loads the fresh draft", async () => {
+  const storage = new Map<string, string>();
+  const calls = serverEditor(storage);
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document).not.toBeNull());
+  await act(async () => result.current.rebuild());
+  expect(calls.find((c) => c.url === "/test/editor/rebuild")).toMatchObject({ method: "POST", body: { revision: 0 } });
+  await waitFor(() => expect(result.current.document?.volume).toBe(0.75));
+  expect(result.current.status).toBe("All changes saved");
+  expect(result.current.canUndo).toBe(false);
+  expect(JSON.parse(storage.get("supoclip-editor:/test/editor")!).history.present.volume).toBe(0.75);
+});

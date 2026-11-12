@@ -1,5 +1,6 @@
 "use client";
 
+import { removeTaskDrafts } from "@/lib/editor/draft-cache";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -506,6 +507,7 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
+        removeTaskDrafts(String(params.id));
         router.push("/list");
       } else {
         toast.error(await buildSupportError(response, t("errors.deleteTask")));
@@ -528,6 +530,7 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
+        removeTaskDrafts(String(params.id), clipId);
         setClips(clips.filter((clip) => clip.id !== clipId));
         setDeletingClipId(null);
       } else {

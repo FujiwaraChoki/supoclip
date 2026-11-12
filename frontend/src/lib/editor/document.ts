@@ -152,6 +152,12 @@ export interface EditorState {
   aiEditUsage?: AIEditUsage;
   hasLayout?: boolean;
   landscapeRecommended?: boolean;
+  /** Which preparation produced the media; changes when the session is rebuilt. */
+  mediaVersion?: string;
+  /** Set when the prepared source is shorter than the clip's own footage. */
+  sourceIncomplete?: { duration: number; expected: number };
+  /** The draft a rebuild replaced, kept on the server for download. */
+  draftBackup?: { revision: number; duration: number | null; savedAt: string };
 }
 export const DEFAULT_EFFECTS: Effects = {
   brightness: 100,

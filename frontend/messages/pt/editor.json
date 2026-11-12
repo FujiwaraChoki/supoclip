@@ -32,7 +32,12 @@
     "canvasUnavailable": "A tela não está disponível. Use a exportação em segundo plano.",
     "cannotDecode": "Este navegador não consegue decodificar a fonte. Use a exportação em segundo plano.",
     "audioEncodeUnavailable": "A codificação de áudio não está disponível. Use a exportação em segundo plano.",
-    "noVideo": "A exportação não gerou um vídeo."
+    "noVideo": "A exportação não gerou um vídeo.",
+    "sourceIncomplete": "Não conseguimos obter o vídeo original completo deste clipe, então não o abrimos com partes faltando. Tente de novo em um minuto.",
+    "uploadShorter": "O vídeo enviado é mais curto que este clipe, então não pode ser aberto para edição.",
+    "rebuildBusy": "Espere a preparação ou exportação em andamento terminar e depois recrie a cópia.",
+    "rebuildConflict": "Este rascunho mudou em outra aba. Recarregue-o antes de recriar a cópia.",
+    "noBackup": "Não há rascunho anterior guardado para este clipe."
   },
   "keys": {
     "space": "Espaço",
@@ -267,7 +272,7 @@
     "backup": "Fazer backup do rascunho",
     "reloadSaved": "Recarregar a versão salva",
     "retryPreparation": "Tentar a preparação de novo",
-    "storageFull": "O armazenamento local de rascunhos está cheio ou indisponível. Mantenha esta aba aberta até o servidor confirmar que suas alterações foram salvas.",
+    "storageFull": "O armazenamento deste navegador para o SupoClip está cheio, então ele não consegue guardar uma cópia de segurança das suas últimas alterações. Suas edições continuam sendo salvas na sua conta: espere aparecer “Todas as alterações salvas” antes de fechar esta aba.",
     "yourClips": "Seus clipes",
     "clips": "Clipes",
     "editClip": "Editar clipe {order}",
@@ -375,5 +380,27 @@
     "viewPlans": "Ver planos"
   },
   "partLabel": "Parte {n}",
-  "partClipLabel": "Parte {n} · {title}"
+  "partClipLabel": "Parte {n} · {title}",
+  "recovery": {
+    "sourceIncomplete": "A cópia de edição deste clipe tem só {duration} em vez de {expected}, então falta parte do clipe aqui. Seu clipe gerado não é afetado. Recrie a cópia de edição para corrigir.",
+    "rebuild": "Recriar cópia de edição",
+    "rebuildTitle": "Recriar a cópia de edição?",
+    "rebuildDescription": "O SupoClip prepara este clipe de novo a partir do vídeo original, com a duração completa e o enquadramento com que foi gerado.",
+    "rebuildWarning": "As edições que você fez neste clipe no editor não passam para a nova cópia. Seu rascunho atual fica guardado nos nossos servidores: baixe-o quando quiser em “Baixar rascunho anterior” no menu ⋯.",
+    "rebuildConfirm": "Recriar",
+    "rebuildStarted": "Recriando a cópia de edição…",
+    "downloadPrevious": "Baixar rascunho anterior",
+    "browserBackups": "Cópias no navegador",
+    "manageBackups": "Ver o que está guardado",
+    "backupsTitle": "Cópias dos seus rascunhos no navegador",
+    "backupsDescription": "Seus rascunhos são salvos na sua conta do SupoClip. Este navegador também guarda uma pequena cópia das alterações que ainda não chegaram ao servidor, caso a aba feche ou a conexão caia, e um histórico curto para desfazer nos seus últimos clipes. Excluir projetos não altera esse armazenamento.",
+    "backupsSummary": "{entries, plural, =0 {Nenhum clipe tem cópia no navegador} one {# clipe tem cópia no navegador} other {# clipes têm cópia no navegador}} ({size})",
+    "backupsUnsaved": "{count, plural, =0 {Todos já estão salvos na sua conta.} one {# tem alterações que ainda não estão na sua conta. Ela é mantida.} other {# têm alterações que ainda não estão na sua conta. Elas são mantidas.}}",
+    "backupsClear": "Remover cópias já salvas",
+    "backupsClearNote": "Remover as cópias já salvas só apaga o histórico para desfazer depois de recarregar. Seus rascunhos continuam na sua conta.",
+    "backupsCleared": "{size} liberados. As alterações não salvas foram mantidas.",
+    "backupsNothing": "Nada para remover. As alterações não salvas ficam até chegarem à sua conta.",
+    "backupsBrowserNote": "Limpar os dados do site do SupoClip neste navegador também remove essas cópias e encerra sua sessão. Faça isso só quando todos os clipes abertos mostrarem “Todas as alterações salvas”.",
+    "done": "Pronto"
+  }
 }

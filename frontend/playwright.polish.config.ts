@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["retry-generation.spec.ts", "multi-account-publishing.spec.ts", "library-groups.spec.ts", "polish.spec.ts", "editor-studio.spec.ts", "upgrade-prompts.spec.ts", "announcements.spec.ts", "generation-status.spec.ts", "broll.spec.ts", "editor-broll.spec.ts", "editor-ai.spec.ts", "theme-toggle.spec.ts", "oauth-consent.spec.ts"],
+  testMatch: ["retry-generation.spec.ts", "multi-account-publishing.spec.ts", "library-groups.spec.ts", "polish.spec.ts", "editor-studio.spec.ts", "upgrade-prompts.spec.ts", "announcements.spec.ts", "generation-status.spec.ts", "broll.spec.ts", "editor-broll.spec.ts", "editor-ai.spec.ts", "editor-recovery.spec.ts", "theme-toggle.spec.ts", "oauth-consent.spec.ts"],
   fullyParallel: false,
   use: {
     locale: "en-US",

@@ -32,7 +32,12 @@
     "canvasUnavailable": "Canvas tidak tersedia. Pakai ekspor latar belakang.",
     "cannotDecode": "Browser ini tidak bisa mendekode sumber. Pakai ekspor latar belakang.",
     "audioEncodeUnavailable": "Pengodean audio tidak tersedia. Pakai ekspor latar belakang.",
-    "noVideo": "Ekspor tidak menghasilkan video."
+    "noVideo": "Ekspor tidak menghasilkan video.",
+    "sourceIncomplete": "Kami tidak bisa mengambil video sumber lengkap untuk klip ini, jadi kami tidak membukanya dengan bagian yang hilang. Coba lagi dalam satu menit.",
+    "uploadShorter": "Video unggahan asli lebih pendek dari klip ini, jadi tidak bisa dibuka untuk diedit.",
+    "rebuildBusy": "Tunggu persiapan atau ekspor yang sedang berjalan selesai, lalu buat ulang salinannya.",
+    "rebuildConflict": "Draf ini berubah di tab lain. Muat ulang sebelum membuat ulang salinannya.",
+    "noBackup": "Tidak ada draf sebelumnya yang disimpan untuk klip ini."
   },
   "keys": {
     "space": "Spasi",
@@ -267,7 +272,7 @@
     "backup": "Cadangkan draf",
     "reloadSaved": "Muat ulang versi tersimpan",
     "retryPreparation": "Coba siapkan lagi",
-    "storageFull": "Penyimpanan draf lokal penuh atau tidak tersedia. Biarkan tab ini terbuka sampai server mengonfirmasi perubahanmu tersimpan.",
+    "storageFull": "Penyimpanan browser ini untuk SupoClip penuh, jadi tidak bisa menyimpan salinan cadangan perubahan terakhirmu. Editanmu tetap tersimpan ke akunmu: tunggu sampai muncul “Semua perubahan tersimpan” sebelum menutup tab ini.",
     "yourClips": "Clip-mu",
     "clips": "Clip",
     "editClip": "Edit clip {order}",
@@ -375,5 +380,27 @@
     "viewPlans": "Lihat paket"
   },
   "partLabel": "Bagian {n}",
-  "partClipLabel": "Bagian {n} · {title}"
+  "partClipLabel": "Bagian {n} · {title}",
+  "recovery": {
+    "sourceIncomplete": "Salinan edit klip ini hanya {duration}, bukan {expected}, jadi sebagian klip hilang di sini. Klip yang dibuat tidak terpengaruh. Buat ulang salinan edit untuk memperbaikinya.",
+    "rebuild": "Buat ulang salinan edit",
+    "rebuildTitle": "Buat ulang salinan edit?",
+    "rebuildDescription": "SupoClip menyiapkan klip ini lagi dari video asli, dengan durasi penuh dan pembingkaian yang dipakai saat klip dibuat.",
+    "rebuildWarning": "Editan yang kamu buat di studio untuk klip ini tidak terbawa ke salinan baru. Draf saat ini tetap tersimpan di server kami: unduh kapan saja lewat “Unduh draf sebelumnya” di menu ⋯.",
+    "rebuildConfirm": "Buat ulang",
+    "rebuildStarted": "Membuat ulang salinan edit…",
+    "downloadPrevious": "Unduh draf sebelumnya",
+    "browserBackups": "Cadangan di browser",
+    "manageBackups": "Lihat yang tersimpan",
+    "backupsTitle": "Cadangan drafmu di browser",
+    "backupsDescription": "Drafmu tersimpan di akun SupoClip. Browser ini juga menyimpan salinan kecil perubahan yang belum sampai ke server, untuk berjaga-jaga jika tab tertutup atau koneksi terputus, serta riwayat urungkan singkat untuk beberapa klip terakhirmu. Menghapus proyek tidak mengubah penyimpanan ini.",
+    "backupsSummary": "{entries, plural, =0 {Tidak ada klip dengan cadangan di browser} other {# klip punya cadangan di browser}} ({size})",
+    "backupsUnsaved": "{count, plural, =0 {Semuanya sudah tersimpan di akunmu.} other {# punya perubahan yang belum ada di akunmu dan tetap disimpan.}}",
+    "backupsClear": "Hapus salinan yang sudah tersimpan",
+    "backupsClearNote": "Menghapus salinan yang sudah tersimpan hanya menghapus riwayat urungkan setelah memuat ulang. Drafmu tetap ada di akunmu.",
+    "backupsCleared": "{size} dibebaskan. Perubahan yang belum tersimpan tetap disimpan.",
+    "backupsNothing": "Tidak ada yang bisa dihapus. Perubahan yang belum tersimpan tetap ada sampai masuk ke akunmu.",
+    "backupsBrowserNote": "Menghapus data situs SupoClip di browser ini juga menghapus salinan ini dan membuatmu keluar. Lakukan hanya jika semua klip yang terbuka menampilkan “Semua perubahan tersimpan”.",
+    "done": "Selesai"
+  }
 }
