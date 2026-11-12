@@ -10,7 +10,7 @@ import { AlertCircle, Check, Plug } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSession } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 import { signInPath } from "@/lib/auth-redirect";
 
 interface ConsentRequest {
@@ -19,7 +19,11 @@ interface ConsentRequest {
   email_verified: boolean;
   at_key_limit: boolean;
   max_keys: number;
+  expires_at?: number;
 }
+
+/** Seconds before "Send verification email" can be pressed again. */
+const RESEND_COOLDOWN_SECONDS = 60;
 
 type ErrorCode = "request_expired" | "key_limit" | "email_not_verified" | "generic";
 
@@ -43,11 +47,13 @@ function Consent() {
   const t = useTranslations("auth.oauthConsent");
   const router = useRouter();
   const requestId = useSearchParams().get("request") || "";
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch } = useSession();
   const [request, setRequest] = useState<ConsentRequest | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
   const [submitting, setSubmitting] = useState<"allow" | "deny" | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [sendState, setSendState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const [cooldown, setCooldown] = useState(0);
   const signedIn = Boolean(session?.user);
 
   useEffect(() => {
@@ -77,6 +83,60 @@ function Consent() {
   useEffect(() => {
     if (signedIn) void load();
   }, [signedIn, load]);
+
+  // Coming back from the verification link (or another tab): read the session
+  // past any cookie cache and ask the backend again, so Allow works without
+  // signing out and back in.
+  const recheck = useCallback(async () => {
+    try {
+      await authClient.getSession({ query: { disableCookieCache: true } });
+      await refetch?.();
+    } catch {
+      // The request reload below is what gates Allow.
+    }
+    await load();
+  }, [refetch, load]);
+
+  const unverified = request !== null && !request.email_verified;
+  useEffect(() => {
+    if (!signedIn) return;
+    void authClient.getSession({ query: { disableCookieCache: true } }).catch(() => undefined);
+  }, [signedIn]);
+  useEffect(() => {
+    if (!unverified) return;
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void recheck();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [unverified, recheck]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setTimeout(() => setCooldown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldown]);
+
+  const sendVerification = async () => {
+    const email = session?.user?.email;
+    if (!email || cooldown > 0) return;
+    setSendState("sending");
+    try {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL: `/oauth/consent?${new URLSearchParams({ request: requestId })}`,
+      });
+      if (result?.error) throw new Error(result.error.message);
+      setSendState("sent");
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch {
+      setSendState("failed");
+    }
+  };
 
   const decide = async (approve: boolean) => {
     setSubmitting(approve ? "allow" : "deny");
@@ -158,9 +218,33 @@ function Consent() {
         <Alert className="mt-6">
           <AlertCircle className="size-4" />
           <AlertDescription>
-            <p>
-              {t.rich("emailNotVerified", {
-                settings: (chunks) => <Link href="/settings/api-keys" className="font-medium underline underline-offset-4">{chunks}</Link>,
+            <p>{t("verify.body", { email: session?.user?.email ?? "" })}</p>
+            {request.expires_at ? (
+              <p className="mt-1">
+                {t("verify.expires", {
+                  time: new Date(request.expires_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+                })}
+              </p>
+            ) : null}
+            {sendState === "sent" && <p role="status" className="mt-1 font-medium text-foreground">{t("verify.sent")}</p>}
+            {sendState === "failed" && <p role="status" className="mt-1 text-destructive">{t("verify.failed")}</p>}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => void sendVerification()} disabled={sendState === "sending" || cooldown > 0}>
+                {sendState === "sending"
+                  ? t("verify.sending")
+                  : cooldown > 0
+                    ? t("verify.resendIn", { seconds: cooldown })
+                    : sendState === "sent"
+                      ? t("verify.resend")
+                      : t("verify.send")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void recheck()}>
+                {t("verify.done")}
+              </Button>
+            </div>
+            <p className="mt-3 text-xs">
+              {t.rich("verify.settings", {
+                settings: (chunks) => <Link href="/settings/api-keys" className="underline underline-offset-4">{chunks}</Link>,
               })}
             </p>
           </AlertDescription>
