@@ -62,7 +62,10 @@
     "switchYearlyTitle": "Cambia a anual y consigue {count, plural, one {# mes} other {# meses}} gratis",
     "switchYearlyDescription": "${price}/año, unos ${monthly}/mes. Mismo plan, se cobra una vez al año.",
     "switch": "Cambiar",
-    "monthlyEquivalentYearly": "${price}/mes, facturado anualmente"
+    "monthlyEquivalentYearly": "${price}/mes, facturado anualmente",
+    "transferCancel": "Cancelar suscripción",
+    "transferCancelConfirm": "¿Cancelar las próximas renovaciones de tu suscripción? El período ya pagado seguirá disponible.",
+    "transferCancelSuccess": "Se han cancelado las próximas renovaciones."
   },
   "links": {
     "agentsTitle": "Agentes y API",
@@ -117,7 +120,28 @@
     "sendFailed": "No se pudo enviar el correo de verificación",
     "loadFailed": "No se pudieron cargar las claves de API",
     "createFailed": "No se pudo crear la clave de API",
-    "revokeFailed": "No se pudo revocar la clave de API"
+    "revokeFailed": "No se pudo revocar la clave de API",
+    "mcp": {
+      "title": "Conecta un agente",
+      "intro": "Crea una clave arriba y copia la configuración para tu cliente. Sustituye {placeholder} por tu clave y pon solo la URL en el campo de URL.",
+      "introWithKey": "Tu clave nueva ya está puesta abajo. Copia ahora la configuración para tu cliente; la clave no se volverá a mostrar.",
+      "urlLabel": "URL del servidor",
+      "headerLabel": "Encabezado",
+      "copy": "Copiar {label}",
+      "tabs": {
+        "claudeCode": "Claude Code",
+        "json": "Cursor y otros",
+        "claudeDesktop": "Claude Desktop",
+        "stdio": "Local (stdio)"
+      },
+      "hints": {
+        "claudeCode": "Ejecútalo en una terminal.",
+        "json": "Para Cursor (~/.cursor/mcp.json), Windsurf y otros clientes que aceptan una URL y encabezados.",
+        "claudeDesktop": "Añádelo a claude_desktop_config.json. Necesita Node.js; mcp-remote conecta Claude Desktop con el servidor alojado.",
+        "stdio": "Ejecuta el servidor en tu computadora, así los clips descargados se guardan en local. Necesita uv."
+      },
+      "planNote": "Los clips que crea un agente usan los minutos de video de tu plan."
+    }
   },
   "creator": {
     "title": "Programa de creadores",

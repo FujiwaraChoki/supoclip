@@ -1,3 +1,6 @@
+import { guardedBillingUpdate } from "@/server/stripe-migration-store";
+import { withUserBillingAccount } from "@/server/stripe-account-routing";
+import { stripeAccountsEnabled } from "@/lib/stripe-accounts";
 import { getPlanIdForStripePrice, isGrandfatheredProPrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
@@ -115,7 +118,7 @@ export async function upsertSubscriptionState(
   subscription: Stripe.Subscription,
   options?: SubscriptionWriteOptions,
 ) {
-  const prisma = getPrismaClient();
+  if (stripeAccountsEnabled() && !pricePlanOnSubscription(subscription)) return;
   const customerId = customerIdOf(subscription.customer);
   if (!customerId) return;
 
@@ -144,13 +147,11 @@ export async function upsertSubscriptionState(
       ? { OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }] }
       : {};
 
-  await prisma.user.updateMany({
-    where: {
+  await guardedBillingUpdate(customerId, subscription.id, {
       stripe_customer_id: customerId,
       ...(options?.onlyIfPlan ? { plan: options.onlyIfPlan } : {}),
       ...providerFilter,
-    },
-    data: {
+    }, {
       plan,
       subscription_status: status,
       subscription_provider: "stripe",
@@ -172,8 +173,7 @@ export async function upsertSubscriptionState(
         : status === "canceled" || status === "incomplete_expired"
           ? { legacy_hd: false }
           : {}),
-    },
-  });
+    });
 }
 
 /**
@@ -365,17 +365,13 @@ export async function applyPaidUpgradeInvoice(invoice: Stripe.Invoice) {
 
   if (!grant) {
     if (user.pending_plan_invoice_id === invoice.id) {
-      await prisma.user.updateMany({
-        where: { stripe_customer_id: customerId, pending_plan_invoice_id: invoice.id },
-        data: { pending_plan: null, pending_plan_invoice_id: null },
-      });
+      await guardedBillingUpdate(customerId, invoiceSubscriptionId(invoice) || "", { stripe_customer_id: customerId, pending_plan_invoice_id: invoice.id }, { pending_plan: null, pending_plan_invoice_id: null });
     }
     return;
   }
 
   const subscriptionId = invoiceSubscriptionId(invoice);
-  await prisma.user.updateMany({
-    where: {
+  await guardedBillingUpdate(customerId, invoiceSubscriptionId(invoice) || "", {
       stripe_customer_id: customerId,
       plan: { in: plansStrictlyBelow(grant) },
       OR: [
@@ -383,16 +379,14 @@ export async function applyPaidUpgradeInvoice(invoice: Stripe.Invoice) {
         { subscription_provider: null },
         { subscription_provider: "affiliate" },
       ],
-    },
-    data: {
+    }, {
       plan: grant,
       pending_plan: null,
       pending_plan_invoice_id: null,
       subscription_provider: "stripe",
       subscription_status: "active",
       ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
-    },
-  });
+    });
 }
 
 /**
@@ -428,17 +422,14 @@ export async function noteUpgradePaymentFailed(invoice: Stripe.Invoice) {
   // Already on this tier (or a higher one): a failed charge must not revoke it.
   if (!failedUpgrade || planRank(failedUpgrade) <= planRank(user.plan)) return;
 
-  await prisma.user.updateMany({
-    where: {
+  await guardedBillingUpdate(customerId, invoiceSubscriptionId(invoice) || "", {
       stripe_customer_id: customerId,
       plan: user.plan,
       OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }],
-    },
-    data: {
+    }, {
       pending_plan: failedUpgrade,
       pending_plan_invoice_id: invoice.id,
-    },
-  });
+    });
 }
 
 /**
@@ -449,6 +440,13 @@ export async function noteUpgradePaymentFailed(invoice: Stripe.Invoice) {
  * should reload billing.
  */
 export async function restorePastDueEntitlement(userId: string): Promise<boolean> {
+  if (!stripeAccountsEnabled()) return restorePastDueEntitlementInAccount(userId);
+  const migration = await getPrismaClient().stripeAccountMigration.findUnique({ where: { user_id: userId } });
+  if (migration && !["destination_active", "prepared", "rollback_verified", "cancelled"].includes(migration.stage)) return false;
+  return withUserBillingAccount(userId, "recovery", () => restorePastDueEntitlementInAccount(userId));
+}
+
+async function restorePastDueEntitlementInAccount(userId: string): Promise<boolean> {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },

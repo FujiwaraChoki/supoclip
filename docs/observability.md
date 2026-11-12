@@ -102,14 +102,21 @@ the in-app pricing surface is the upgrade dialog.
 Subscription events also set the person properties `plan` and
 `subscription_status` (`$set`). Server events carry `platform: web-server`.
 
+The Stripe events come from `server/stripe-billing-webhook.ts`, so they cover
+the root `/api/billing/webhook` and every account route
+(`/api/billing/webhook/<account id>`).
+
 Webhook events are idempotent. The existing `stripe_webhook_events` /
-`revenuecat_webhook_events` rows already drop redeliveries; the events are held
-until the handler has succeeded, so a delivery that fails and is retried is
-counted once. Each event's PostHog `uuid` is derived from the webhook event id
-and its timestamp is the provider's, so PostHog drops a resend too. Stripe sends
-both invoice events for one renewal: the first to insert
-`posthog:subscription_renewed:<invoice id>` into `stripe_webhook_events` sends
-it. That row is only written when PostHog is configured.
+`revenuecat_webhook_events` rows already drop redeliveries (account routes key
+theirs `account:mode:event` in the same Stripe table); the events are held
+until the delivery has succeeded (an account route has finished its inbox row),
+so a delivery that fails and is retried is counted once. Each event's PostHog
+`uuid` is derived from the provider's event id and its timestamp is the
+provider's, so PostHog drops a resend too. The webhook waits up to 2 seconds for
+PostHog to accept them. Stripe sends both invoice events for one renewal: the
+first to insert `posthog:subscription_renewed:<invoice id>` (status
+`processed`) into `stripe_webhook_events` sends it. That row is only written
+when PostHog is configured.
 
 ### Backend and worker
 

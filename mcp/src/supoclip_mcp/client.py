@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import time
 import uuid
 from pathlib import Path
@@ -25,7 +26,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from . import __version__
-from .config import Settings
+from .config import DEFAULT_APP_URL, Settings
 
 # Lets the backend tell MCP traffic apart from other API-key clients in its
 # product analytics.
@@ -154,7 +155,9 @@ class SupoClipClient:
                             if urlsplit(download_url)[:2] != backend_origin:
                                 raise SupoClipError(f"Storage download failed ({response.status_code}). Please retry.")
                             body = (await response.aread()).decode("utf-8", "replace")
-                            raise SupoClipError(_error_message(response.status_code, body, path))
+                            raise SupoClipError(
+                                _error_message(response.status_code, body, path, self.settings.app_url)
+                            )
                         with temporary.open("wb") as handle:
                             async for chunk in response.aiter_bytes(chunk_size=1 << 16):
                                 handle.write(chunk)
@@ -177,11 +180,10 @@ class SupoClipClient:
         }
 
     # -- helpers ------------------------------------------------------------
-    @staticmethod
-    def _parse(response: httpx.Response, path: str) -> Any:
+    def _parse(self, response: httpx.Response, path: str) -> Any:
         if response.status_code >= 400:
             raise SupoClipError(
-                _error_message(response.status_code, response.text, path)
+                _error_message(response.status_code, response.text, path, self.settings.app_url)
             )
         if not response.content:
             return {}
@@ -191,29 +193,59 @@ class SupoClipClient:
             return {"raw": response.text}
 
 
-def _error_message(status: int, body: str, path: str) -> str:
+def _plan_message(detail: dict, app_url: str) -> str:
+    """Explain a 402 from the backend (``SUBSCRIPTION_REQUIRED``) in plain words."""
+    upgrade_url = f"{app_url.rstrip('/')}/settings#plan"
+    billing = detail.get("billing") if isinstance(detail.get("billing"), dict) else {}
+    reason = str(detail.get("message") or billing.get("reason") or "").strip()
+    no_plan = not billing.get("minute_limit") and billing.get("remaining_minutes") in (0, None) and (
+        str(billing.get("plan") or "free").lower() == "free"
+        or reason.startswith("Choose a paid plan")
+    )
+    if no_plan:
+        return (
+            "This SupoClip account has no paid plan, and making clips needs one "
+            f"(Pro or Creator). Choose a plan at {upgrade_url}, then try again. "
+            "Nothing was charged and no task was created."
+        )
+    parts = [reason or "This account has no video minutes left for this video."]
+    if billing.get("minute_limit") is not None and billing.get("usage_minutes") is not None:
+        parts.append(
+            f"Used {billing['usage_minutes']} of {billing['minute_limit']} minutes this month."
+        )
+    if billing.get("period_end"):
+        parts.append(f"Minutes reset at {billing['period_end']}.")
+    parts.append(f"Upgrade or check your plan at {upgrade_url}. No minutes were used.")
+    return " ".join(parts)
+
+
+def _error_message(status: int, body: str, path: str, app_url: str = DEFAULT_APP_URL) -> str:
     """Turn a backend error response into an actionable message."""
     detail: Any = body
     try:
-        import json
-
         parsed = json.loads(body)
         detail = parsed.get("detail", parsed) if isinstance(parsed, dict) else parsed
     except ValueError:
         pass
 
+    code = detail.get("code") if isinstance(detail, dict) else None
+    if status == 402 or code == "SUBSCRIPTION_REQUIRED":
+        return _plan_message(detail if isinstance(detail, dict) else {"message": str(detail)}, app_url)
+
+    if isinstance(detail, dict) and detail.get("message"):
+        # Structured errors ({"code", "message", ...}): the message is written for people.
+        detail = f"{detail['message']} ({code})" if code else detail["message"]
+
     if status == 401:
         return (
-            "Authentication failed (401). Check SUPOCLIP_API_KEY is valid and not "
-            f"revoked. Backend said: {detail}"
-        )
-    if status == 402:
-        return (
-            "Payment required (402): this account needs an active paid plan to "
-            f"process videos. Backend said: {detail}"
+            "Authentication failed (401). Check your SupoClip API key is valid and not "
+            f"revoked; create a new one at {app_url.rstrip('/')}/settings/api-keys. "
+            f"Backend said: {detail}"
         )
     if status == 403:
-        return f"Permission denied (403): you do not have access to this resource. {detail}"
+        if isinstance(detail, str) and "paid plan" in detail.lower():
+            return f"{detail}. Choose a plan at {app_url.rstrip('/')}/settings#plan."
+        return f"Permission denied (403): {detail}"
     if status == 404:
         return f"Not found (404) for {path}: {detail}"
     if status == 429:

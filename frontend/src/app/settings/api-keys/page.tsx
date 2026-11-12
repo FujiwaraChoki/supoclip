@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { authClient, useSession } from "@/lib/auth-client";
 import { useCopyText } from "@/lib/copy-text";
 import { GITHUB_URL } from "@/lib/site";
+import { McpSetup } from "@/components/mcp-setup";
 
 const DOCS = [
   {
@@ -278,6 +279,8 @@ export default function ApiKeysPage() {
               </Button>
             </div>
           </div>
+
+          <McpSetup apiKey={newKey} />
 
           {/* Key list */}
           <div>

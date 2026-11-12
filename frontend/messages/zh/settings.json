@@ -62,7 +62,10 @@
     "switchYearlyTitle": "切换为按年付费，免费 {count} 个月",
     "switchYearlyDescription": "${price}/年，约 ${monthly}/月。同一方案，每年计费一次。",
     "switch": "切换",
-    "monthlyEquivalentYearly": "${price}/月，按年计费"
+    "monthlyEquivalentYearly": "${price}/月，按年计费",
+    "transferCancel": "取消订阅",
+    "transferCancelConfirm": "要取消订阅的后续续费吗？已付款的使用期限仍然有效。",
+    "transferCancelSuccess": "已取消后续续费。"
   },
   "links": {
     "agentsTitle": "智能体与 API",
@@ -117,7 +120,28 @@
     "sendFailed": "无法发送验证邮件",
     "loadFailed": "无法加载 API 密钥",
     "createFailed": "无法创建 API 密钥",
-    "revokeFailed": "无法撤销 API 密钥"
+    "revokeFailed": "无法撤销 API 密钥",
+    "mcp": {
+      "title": "连接智能体",
+      "intro": "先在上面创建密钥，再复制你所用客户端的配置。把 {placeholder} 换成你的密钥，URL 字段里只填 URL。",
+      "introWithKey": "你的新密钥已经填在下面。现在就复制客户端配置；密钥不会再次显示。",
+      "urlLabel": "服务器 URL",
+      "headerLabel": "请求头",
+      "copy": "复制{label}",
+      "tabs": {
+        "claudeCode": "Claude Code",
+        "json": "Cursor 等",
+        "claudeDesktop": "Claude Desktop",
+        "stdio": "本地（stdio）"
+      },
+      "hints": {
+        "claudeCode": "在终端里运行。",
+        "json": "适用于 Cursor（~/.cursor/mcp.json）、Windsurf 以及其他可以填写 URL 和请求头的客户端。",
+        "claudeDesktop": "加到 claude_desktop_config.json。需要 Node.js；mcp-remote 把 Claude Desktop 连接到托管服务器。",
+        "stdio": "在你的电脑上运行服务器，下载的片段会保存在本地。需要 uv。"
+      },
+      "planNote": "通过智能体生成片段会消耗你套餐的视频分钟数。"
+    }
   },
   "creator": {
     "title": "创作者计划",

@@ -62,7 +62,10 @@
     "switchYearlyTitle": "Mude para anual e ganhe {count, plural, one {# mês} other {# meses}} grátis",
     "switchYearlyDescription": "${price}/ano, cerca de ${monthly}/mês. Mesmo plano, cobrado uma vez por ano.",
     "switch": "Mudar",
-    "monthlyEquivalentYearly": "${price}/mês, cobrado anualmente"
+    "monthlyEquivalentYearly": "${price}/mês, cobrado anualmente",
+    "transferCancel": "Cancelar assinatura",
+    "transferCancelConfirm": "Cancelar as próximas renovações da sua assinatura? O período já pago continuará disponível.",
+    "transferCancelSuccess": "As próximas renovações foram canceladas."
   },
   "links": {
     "agentsTitle": "Agentes e API",
@@ -117,7 +120,28 @@
     "sendFailed": "Não foi possível enviar o e-mail de verificação",
     "loadFailed": "Não foi possível carregar as chaves de API",
     "createFailed": "Não foi possível criar a chave de API",
-    "revokeFailed": "Não foi possível revogar a chave de API"
+    "revokeFailed": "Não foi possível revogar a chave de API",
+    "mcp": {
+      "title": "Conecte um agente",
+      "intro": "Crie uma chave acima e copie a configuração do seu cliente. Troque {placeholder} pela sua chave e coloque só a URL no campo de URL.",
+      "introWithKey": "Sua chave nova já está preenchida abaixo. Copie agora a configuração do seu cliente; a chave não será mostrada de novo.",
+      "urlLabel": "URL do servidor",
+      "headerLabel": "Cabeçalho",
+      "copy": "Copiar {label}",
+      "tabs": {
+        "claudeCode": "Claude Code",
+        "json": "Cursor e outros",
+        "claudeDesktop": "Claude Desktop",
+        "stdio": "Local (stdio)"
+      },
+      "hints": {
+        "claudeCode": "Rode isto em um terminal.",
+        "json": "Para Cursor (~/.cursor/mcp.json), Windsurf e outros clientes que aceitam URL e cabeçalhos.",
+        "claudeDesktop": "Adicione ao claude_desktop_config.json. Precisa de Node.js; o mcp-remote conecta o Claude Desktop ao servidor hospedado.",
+        "stdio": "Roda o servidor no seu computador, então os clipes baixados ficam salvos nele. Precisa do uv."
+      },
+      "planNote": "Clipes feitos por um agente usam os minutos de vídeo do seu plano."
+    }
   },
   "creator": {
     "title": "Programa de criadores",
