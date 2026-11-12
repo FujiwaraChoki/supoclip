@@ -21,6 +21,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "ANTHROPIC_API_KEY",
     "OLLAMA_BASE_URL",
     "OLLAMA_API_KEY",
+    "ANTIGRAVITY_API_KEY",
     "YOUTUBE_DATA_API_KEY",
     "APIFY_API_TOKEN",
     "PEXELS_API_KEY",
@@ -34,6 +35,7 @@ PROCESS_ENV_SETTING_KEYS = frozenset(
         "ANTHROPIC_API_KEY",
         "OLLAMA_BASE_URL",
         "OLLAMA_API_KEY",
+        "ANTIGRAVITY_API_KEY",
     }
 )
 

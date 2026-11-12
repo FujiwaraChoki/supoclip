@@ -66,7 +66,7 @@ describe("/api/upload/authorization", () => {
 
   it("returns signed direct-upload headers when backend auth is configured", async () => {
     vi.stubEnv("BACKEND_AUTH_SECRET", "secret");
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.supoclip.com/");
+    vi.stubEnv("BACKEND_PUBLIC_URL", "https://api.supoclip.com/");
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
     vi.mocked(auth.api.getSession).mockResolvedValue({
       user: { id: "user-1" },
@@ -87,9 +87,17 @@ describe("/api/upload/authorization", () => {
     });
   });
 
+  it("uses the frontend proxy when the backend has no public URL", async () => {
+    vi.stubEnv("BACKEND_AUTH_SECRET", "secret");
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://backend:8000");
+    vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "owner" } } as never);
+    const response = await POST(new Request("http://app/api/upload/authorization", { method: "POST" }));
+    expect(await response.json()).toEqual({ directUpload: false, reason: "backend_proxy_upload" });
+  });
+
   it("keeps uploads available during a frontend-first rollout", async () => {
     vi.stubEnv("BACKEND_AUTH_SECRET", "secret");
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.supoclip.com");
+    vi.stubEnv("BACKEND_PUBLIC_URL", "https://api.supoclip.com");
     vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "owner" } } as never);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
     const response = await POST(new Request("http://app/api/upload/authorization", {

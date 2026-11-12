@@ -21,6 +21,8 @@ class Config:
         self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
+        self.antigravity_base_url = self._get_optional_env("ANTIGRAVITY_BASE_URL")
+        self.antigravity_api_key = self._get_runtime_setting("ANTIGRAVITY_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL") or os.getenv("WHISPER_MODEL_SIZE", "base")
         self.transcription_provider = self._normalize_transcription_provider(

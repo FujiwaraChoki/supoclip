@@ -4,7 +4,7 @@ services:
       # Repository root, so the image can include CHANGELOG.md from outside frontend/.
       context: .
       dockerfile: frontend/Dockerfile
-      target: ${FRONTEND_BUILD_TARGET:-development}
+      target: ${FRONTEND_BUILD_TARGET:-runner}
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
@@ -31,25 +31,22 @@ services:
     ports:
       # Keep the legacy port for deployments whose proxy already uses 3001.
       # .env.example selects 3107 for new self-hosted installations.
-      - "127.0.0.1:${FRONTEND_PORT:-3001}:3107"
+      - "${FRONTEND_BIND_IP:-192.168.1.109}:${FRONTEND_PORT:-3107}:3107"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - ./frontend/prisma:/app/prisma
-      - ./CHANGELOG.md:/app/CHANGELOG.md:ro
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - BACKEND_INTERNAL_URL=http://backend:8000
+      - BACKEND_PUBLIC_URL=${BACKEND_PUBLIC_URL:-}
       - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - NEXT_PUBLIC_LANDING_ONLY_MODE=${NEXT_PUBLIC_LANDING_ONLY_MODE:-false}
       - DISABLE_SIGN_UP=${DISABLE_SIGN_UP:-false}
-      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
-      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
-      - DATABASE_URL=postgresql://supoclip:supoclip_password@postgres:5432/supoclip
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-supoclip_dev_secret_change_in_production}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:?Required}
+      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY:?Required}
+      - DATABASE_URL=${FRONTEND_DATABASE_URL:?Required}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?Required}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3107}
       - BETTER_AUTH_TRUSTED_ORIGINS=${BETTER_AUTH_TRUSTED_ORIGINS:-}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
@@ -127,21 +124,18 @@ services:
     # arm64 image. CUDA wheels are amd64-only.
     platform: "${BACKEND_PLATFORM:-linux/amd64}"
     command: [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    ports:
-      - "127.0.0.1:8000:8000"
+    expose:
+      - "8000"
     volumes:
-      - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
-      - ./backend/fonts:/app/fonts
-      - ./backend/transitions:/app/transitions
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - SUPOCLIP_SERVICE=backend
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
-      - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
+      - DATABASE_URL=${DATABASE_URL:?Required}
       - TEMP_DIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
@@ -164,7 +158,8 @@ services:
       - MEDIA_UPLOAD_DAILY_LIMIT=${MEDIA_UPLOAD_DAILY_LIMIT:-20}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?Required}
+      - VIDEO_JOB_USER_CONCURRENCY=${VIDEO_JOB_USER_CONCURRENCY:-1}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
       - ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS=${ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS:-60}
@@ -197,7 +192,7 @@ services:
       - YOUTUBE_PROXY_TIMEOUT_SECONDS=${YOUTUBE_PROXY_TIMEOUT_SECONDS:-300}
       - YOUTUBE_PROXY_COUNTRY=${YOUTUBE_PROXY_COUNTRY:-}
       - YOUTUBE_POT_PROVIDER_URL=${YOUTUBE_POT_PROVIDER_URL:-}
-      - YOUTUBE_DOWNLOAD_MAX_BYTES=${YOUTUBE_DOWNLOAD_MAX_BYTES:-2000000000}
+      - YOUTUBE_DOWNLOAD_MAX_BYTES=${YOUTUBE_DOWNLOAD_MAX_BYTES:-1073741824}
       - YOUTUBE_SECTION_PADDING_SECONDS=${YOUTUBE_SECTION_PADDING_SECONDS:-10}
       - YOUTUBE_MAX_HEIGHT=${YOUTUBE_MAX_HEIGHT:-1080}
       - YOUTUBE_SOURCE_CACHE=${YOUTUBE_SOURCE_CACHE:-on}
@@ -213,25 +208,28 @@ services:
       - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
-      - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
+      - ANTIGRAVITY_BASE_URL=${ANTIGRAVITY_BASE_URL:-}
+      - ANTIGRAVITY_API_KEY=${ANTIGRAVITY_API_KEY:-}
+      - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-youtube_captions}
       - TRANSCRIPTION_LANGUAGE=${TRANSCRIPTION_LANGUAGE:-}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
       - MAX_VIDEO_DURATION=${MAX_VIDEO_DURATION:-5400}
       - PRO_YOUTUBE_MAX_VIDEO_DURATION=${PRO_YOUTUBE_MAX_VIDEO_DURATION:-5400}
       - SCALE_YOUTUBE_MAX_VIDEO_DURATION=${SCALE_YOUTUBE_MAX_VIDEO_DURATION:-10800}
-      - MAX_VIDEO_UPLOAD_BYTES=${MAX_VIDEO_UPLOAD_BYTES:-4000000000}
+      - MAX_VIDEO_UPLOAD_BYTES=${MAX_VIDEO_UPLOAD_BYTES:-1073741824}
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
-      - MAX_CLIPS=${MAX_CLIPS:-10}
-      - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-10}
+      - MAX_CLIPS=${MAX_CLIPS:-5}
+      - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-5}
       - SPEAKER_FRAMING=${SPEAKER_FRAMING:-true}
       - HOOK_FIRST_TEASER=${HOOK_FIRST_TEASER:-false}
       - ASSEMBLY_AI_SPEECH_MODEL=${ASSEMBLY_AI_SPEECH_MODEL:-}
       - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-universal-3-5-pro}
       - SELF_HOST=${SELF_HOST:-true}
-      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
-      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:?Required}
+      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY:?Required}
       - AUTH_SIGNATURE_TTL_SECONDS=${AUTH_SIGNATURE_TTL_SECONDS:-300}
+      - ALLOW_UNSIGNED_BACKEND_AUTH=${ALLOW_UNSIGNED_BACKEND_AUTH:-false}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3107,http://sp.localhost:3107,http://supoclip.localhost:3107}
       - PRO_PLAN_MINUTE_LIMIT=${PRO_PLAN_MINUTE_LIMIT:-600}
       - SCALE_PLAN_MINUTE_LIMIT=${SCALE_PLAN_MINUTE_LIMIT:-1500}
@@ -280,6 +278,7 @@ services:
       start_period: 60s
 
   mcp:
+    profiles: ["mcp"]
     build:
       context: ./mcp
       dockerfile: Dockerfile
@@ -323,18 +322,15 @@ services:
     # scheduled jobs running without a separate service.
     command: [".venv/bin/python", "-m", "src.workers.run_workers"]
     volumes:
-      - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
-      - ./backend/fonts:/app/fonts
-      - ./backend/transitions:/app/transitions
     environment: &worker-environment
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - SUPOCLIP_SERVICE=worker
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
-      - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
+      - DATABASE_URL=${DATABASE_URL:?Required}
       - TEMP_DIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
@@ -357,7 +353,8 @@ services:
       - MEDIA_UPLOAD_DAILY_LIMIT=${MEDIA_UPLOAD_DAILY_LIMIT:-20}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?Required}
+      - VIDEO_JOB_USER_CONCURRENCY=${VIDEO_JOB_USER_CONCURRENCY:-1}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
       - ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS=${ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS:-60}
@@ -390,7 +387,7 @@ services:
       - YOUTUBE_PROXY_TIMEOUT_SECONDS=${YOUTUBE_PROXY_TIMEOUT_SECONDS:-300}
       - YOUTUBE_PROXY_COUNTRY=${YOUTUBE_PROXY_COUNTRY:-}
       - YOUTUBE_POT_PROVIDER_URL=${YOUTUBE_POT_PROVIDER_URL:-}
-      - YOUTUBE_DOWNLOAD_MAX_BYTES=${YOUTUBE_DOWNLOAD_MAX_BYTES:-2000000000}
+      - YOUTUBE_DOWNLOAD_MAX_BYTES=${YOUTUBE_DOWNLOAD_MAX_BYTES:-1073741824}
       - YOUTUBE_SECTION_PADDING_SECONDS=${YOUTUBE_SECTION_PADDING_SECONDS:-10}
       - YOUTUBE_MAX_HEIGHT=${YOUTUBE_MAX_HEIGHT:-1080}
       - YOUTUBE_SOURCE_CACHE=${YOUTUBE_SOURCE_CACHE:-on}
@@ -406,25 +403,28 @@ services:
       - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
-      - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
+      - ANTIGRAVITY_BASE_URL=${ANTIGRAVITY_BASE_URL:-}
+      - ANTIGRAVITY_API_KEY=${ANTIGRAVITY_API_KEY:-}
+      - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-youtube_captions}
       - TRANSCRIPTION_LANGUAGE=${TRANSCRIPTION_LANGUAGE:-}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
       - MAX_VIDEO_DURATION=${MAX_VIDEO_DURATION:-5400}
       - PRO_YOUTUBE_MAX_VIDEO_DURATION=${PRO_YOUTUBE_MAX_VIDEO_DURATION:-5400}
       - SCALE_YOUTUBE_MAX_VIDEO_DURATION=${SCALE_YOUTUBE_MAX_VIDEO_DURATION:-10800}
-      - MAX_VIDEO_UPLOAD_BYTES=${MAX_VIDEO_UPLOAD_BYTES:-4000000000}
+      - MAX_VIDEO_UPLOAD_BYTES=${MAX_VIDEO_UPLOAD_BYTES:-1073741824}
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
-      - MAX_CLIPS=${MAX_CLIPS:-10}
-      - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-10}
+      - MAX_CLIPS=${MAX_CLIPS:-5}
+      - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-5}
       - SPEAKER_FRAMING=${SPEAKER_FRAMING:-true}
       - HOOK_FIRST_TEASER=${HOOK_FIRST_TEASER:-false}
       - ASSEMBLY_AI_SPEECH_MODEL=${ASSEMBLY_AI_SPEECH_MODEL:-}
       - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-universal-3-5-pro}
       - SELF_HOST=${SELF_HOST:-true}
-      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
-      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:?Required}
+      - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY:?Required}
       - AUTH_SIGNATURE_TTL_SECONDS=${AUTH_SIGNATURE_TTL_SECONDS:-300}
+      - ALLOW_UNSIGNED_BACKEND_AUTH=${ALLOW_UNSIGNED_BACKEND_AUTH:-false}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3107,http://sp.localhost:3107,http://supoclip.localhost:3107}
       - PRO_PLAN_MINUTE_LIMIT=${PRO_PLAN_MINUTE_LIMIT:-600}
       - SCALE_PLAN_MINUTE_LIMIT=${SCALE_PLAN_MINUTE_LIMIT:-1500}
@@ -495,11 +495,8 @@ services:
     platform: "${BACKEND_PLATFORM:-linux/amd64}"
     command: [".venv/bin/arq", "src.workers.cron_worker.CronWorkerSettings"]
     volumes:
-      - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
-      - ./backend/fonts:/app/fonts
-      - ./backend/transitions:/app/transitions
     environment: *worker-environment
     restart: unless-stopped
     depends_on:
@@ -527,7 +524,6 @@ services:
     platform: "${BACKEND_PLATFORM:-linux/amd64}"
     command: [".venv/bin/arq", "src.workers.ai_worker.AIWorkerSettings"]
     volumes:
-      - ./backend/src:/app/src
       - uploads:/app/uploads
     environment: *worker-environment
     restart: unless-stopped
@@ -577,10 +573,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: supoclip-redis
-    ports:
-      - "127.0.0.1:6379:6379"
     environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?Required}
     command:
       [
         "sh",
@@ -605,15 +599,15 @@ services:
     image: postgres:15-alpine
     container_name: supoclip-postgres
     environment:
-      POSTGRES_DB: supoclip
-      POSTGRES_USER: supoclip
-      POSTGRES_PASSWORD: supoclip_password
+      POSTGRES_DB: ${POSTGRES_DB:-supoclip}
+      POSTGRES_USER: ${POSTGRES_USER:-supoclip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U supoclip -d supoclip"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 30s
       timeout: 10s
       retries: 3

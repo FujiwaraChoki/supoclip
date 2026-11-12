@@ -43,8 +43,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const normalizedApiUrl = apiUrl.replace(/\/$/, "");
+  const publicApiUrl = process.env.BACKEND_PUBLIC_URL?.trim();
+  if (!publicApiUrl) {
+    return NextResponse.json(
+      { directUpload: false, reason: "backend_proxy_upload" },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  const normalizedApiUrl = publicApiUrl.replace(/\/$/, "");
 
   return NextResponse.json(
     {

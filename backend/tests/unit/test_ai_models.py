@@ -1,3 +1,31 @@
+from types import SimpleNamespace
+
+from src.ai import TranscriptAnalysis, _build_transcript_model, _get_missing_llm_key_error
+from pydantic_ai.models.openai import OpenAIChatModel
+
+
+def test_antigravity_uses_openai_compatible_provider():
+    config = SimpleNamespace(
+        llm="antigravity:available-model",
+        antigravity_base_url="http://antigravity-manager:8045/v1",
+        antigravity_api_key="test-key",
+    )
+    model = _build_transcript_model(config)
+    assert isinstance(model, OpenAIChatModel)
+    assert model.model_name == "available-model"
+    assert _get_missing_llm_key_error(config.llm, config) is None
+
+
+def test_antigravity_requires_endpoint_and_api_key():
+    config = SimpleNamespace(
+        antigravity_base_url="",
+        antigravity_api_key="",
+    )
+    assert "ANTIGRAVITY_BASE_URL and ANTIGRAVITY_API_KEY" in _get_missing_llm_key_error(
+        "antigravity:model-id", config
+    )
+
+
 from src.ai import TranscriptAnalysis
 
 

@@ -15,11 +15,13 @@ from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.profiles.anthropic import AnthropicModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
@@ -439,7 +441,7 @@ def build_transcript_system_prompt(clip_length: str = "auto") -> str:
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama", "antigravity"}
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -477,6 +479,9 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
     if provider == "openrouter" and "/" not in provider_model_name:
         return "OpenRouter model must include its vendor, for example openrouter:anthropic/claude-sonnet-5.5."
+
+    if provider == "antigravity" and (not runtime_config.antigravity_base_url or not runtime_config.antigravity_api_key):
+        return "ANTIGRAVITY_BASE_URL and ANTIGRAVITY_API_KEY are required when LLM=antigravity:<model>."
 
     if provider == "openai" and not runtime_config.openai_api_key:
         return (
@@ -521,6 +526,13 @@ def _build_transcript_model(
             provider=AnthropicProvider(api_key=runtime_config.anthropic_api_key),
             profile=profile,
             settings={"max_tokens": 8192},
+        )
+    if provider == "antigravity":
+        if not provider_model_name:
+            raise RuntimeError("Antigravity model name is required; use LLM=antigravity:<model-id>.")
+        return OpenAIChatModel(
+            provider_model_name,
+            provider=OpenAIProvider(base_url=runtime_config.antigravity_base_url, api_key=runtime_config.antigravity_api_key),
         )
     if provider == "openrouter":
         fallback = runtime_config.openrouter_fallback_model
@@ -575,6 +587,8 @@ def get_transcript_agent(clip_length: str = "auto") -> Agent[None, TranscriptAna
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.antigravity_base_url,
+        runtime_config.antigravity_api_key,
     )
     if _transcript_agent is None or _transcript_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -655,6 +669,8 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.antigravity_base_url,
+        runtime_config.antigravity_api_key,
     )
     if _rerank_agent is None or _rerank_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -730,6 +746,8 @@ def get_broll_agent() -> Agent[None, BRollPlan]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.antigravity_base_url,
+        runtime_config.antigravity_api_key,
     )
     if _broll_agent is None or _broll_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
