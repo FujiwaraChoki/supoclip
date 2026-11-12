@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-12
+
+- **Fixed:** Closing or reloading the page during a video upload no longer blocks new uploads for a day with "Upload limit reached". The unfinished upload is cancelled when you leave. An upload that is still running, however slowly, always keeps its place. ([#366](https://github.com/FujiwaraChoki/supoclip/pull/366))
+
 ## 2026-11-10
 
 - **Improved:** A studio export or clip preparation whose server stops unexpectedly is now retried or shown as failed within a few minutes, instead of staying in progress. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))

@@ -179,6 +179,19 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
   const payload = { video_path: authorization.video_path, uploadId: authorization.uploadId };
   let nextPart = 0;
   let failure: unknown;
+  // Closing or reloading the tab drops the multipart state held here. Abort it
+  // on the way out so it doesn't hold one of the account's upload slots.
+  const abandon = (event: PageTransitionEvent) => {
+    if (event.persisted) return;
+    controller.abort();
+    void fetch("/api/upload/abort", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => undefined);
+  };
+  if (typeof window !== "undefined") window.addEventListener("pagehide", abandon);
   const workers = Array.from({ length: Math.min(3, authorization.parts.length) }, async () => {
     while (nextPart < authorization.parts.length && !controller.signal.aborted) {
       const part = authorization.parts[nextPart++];
@@ -258,6 +271,8 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
       body: JSON.stringify(payload),
     }).catch(() => undefined);
     throw error;
+  } finally {
+    if (typeof window !== "undefined") window.removeEventListener("pagehide", abandon);
   }
 }
 
