@@ -2,6 +2,7 @@ import { POST } from "./route";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
+import { captureServerEvent } from "@/server/analytics";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
@@ -36,6 +37,10 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/stripe", () => ({
   getStripeClient: vi.fn(),
+}));
+
+vi.mock("@/server/analytics", () => ({
+  captureServerEvent: vi.fn(),
 }));
 
 describe("/api/billing/checkout", () => {
@@ -520,5 +525,65 @@ describe("/api/billing/checkout", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ url: "https://portal.example/home" });
     });
+  });
+});
+
+describe("/api/billing/checkout analytics", () => {
+  const env = process.env;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    process.env = {
+      ...env,
+      STRIPE_PRO_PRICE_ID: "price_pro",
+      STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3107",
+    };
+    vi.mocked(auth.api.getSession).mockResolvedValue({
+      user: { id: "user-1", email: "user@example.com", name: "User" },
+    } as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      stripe_customer_id: "cus_123",
+      subscription_provider: null,
+      subscription_status: "inactive",
+    } as never);
+  });
+
+  afterAll(() => {
+    process.env = env;
+  });
+
+  it("sends checkout_started for the signed-in user when Checkout opens", async () => {
+    vi.mocked(getStripeClient).mockReturnValue({
+      checkout: { sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/pro" }) } },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    } as never);
+
+    const response = await POST(new Request("http://localhost/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan: "pro", interval: "year" }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(captureServerEvent).toHaveBeenCalledExactlyOnceWith({
+      event: "checkout_started",
+      distinctId: "user-1",
+      properties: { plan: "pro", interval: "year", provider: "stripe", has_creator_code: false, flow: "checkout" },
+    });
+  });
+
+  it("does not send checkout_started when Checkout could not be created", async () => {
+    vi.mocked(getStripeClient).mockReturnValue({
+      checkout: { sessions: { create: vi.fn().mockResolvedValue({ url: null }) } },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    } as never);
+
+    const response = await POST(new Request("http://localhost/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan: "pro" }),
+    }));
+
+    expect(response.status).toBe(500);
+    expect(captureServerEvent).not.toHaveBeenCalled();
   });
 });
