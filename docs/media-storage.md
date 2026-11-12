@@ -268,6 +268,26 @@ pending replication is drained (`/health/storage` reports no pending work) and
 AWS has every object written during failover. Retain normal account-deletion
 processing.
 
+### Prefer R2 to reduce outbound transfer costs
+
+After verifying the backfill, set `MEDIA_PREFERRED_STORE=fallback` alongside
+`MEDIA_FAILOVER_ENABLED=true` on the API and every worker. The default `primary`
+preserves AWS-first delivery. This selects R2 first for playback, downloads,
+worker reads and new browser multipart uploads. Server uploads write directly
+from the local file to R2 and AWS; browser uploads are mirrored from R2 to AWS,
+avoiding an AWS outbound copy for each new upload. AWS remains the backup.
+
+The `primary` and `fallback` names continue to identify AWS and R2 in the ledger;
+do not swap bucket credentials or rewrite existing `s3://` references. Pending
+revisions override the preference so a newer draft is read from the store that
+acknowledged it. A fresh unhealthy-provider probe temporarily prefers the healthy
+store, and an individual failed or missing R2 read retries AWS. Existing multipart
+sessions stay on the provider selected when they started.
+
+Rollback by setting `MEDIA_PREFERRED_STORE=primary` everywhere. Keep failover
+enabled until R2-origin uploads have finished copying to AWS. Before disabling
+failover entirely, verify that replication is drained and AWS has every object.
+
 ## Migrating existing local files
 
 Back up PostgreSQL and drain processing/editor jobs first. Run the migration from

@@ -125,7 +125,7 @@ def sha(body):
 def another_host(client, tmp_path):
     """A worker elsewhere: the same stores and ledger, none of this host's disk."""
     return ReplicatedMediaClient(*stores(client), "original", "replica", tmp_path / "another-host",
-                                 failover=True, ledger=client.ledger)
+                                 failover=True, preferred_store=client.preferred_store, ledger=client.ledger)
 
 
 def scratch_files(client):
@@ -443,6 +443,102 @@ def test_primary_remains_preferred_after_recovery(mirrored, tmp_path):
     primary.failure = None
     assert "aws.example" in mirrored.generate_presigned_url("get_object", Params=params)
     assert params["Bucket"] == "original"
+
+
+def test_preferred_r2_serves_reads_without_aws_requests(mirrored, tmp_path):
+    upload(mirrored, tmp_path)
+    mirrored.preferred_store = "fallback"
+    primary, fallback = stores(mirrored)
+    primary.head_object = Mock(side_effect=AssertionError("Unnecessary AWS read"))
+    primary.get_object = Mock(side_effect=AssertionError("Unnecessary AWS read"))
+    primary.download_file = Mock(side_effect=AssertionError("Unnecessary AWS download"))
+    params = {"Bucket": "original", "Key": KEY}
+    host = another_host(mirrored, tmp_path)
+    assert host.head_object(**params)["ContentLength"] == 5
+    assert host.get_object(**params)["Body"].read() == b"video"
+    assert "r2.example/replica/" in host.generate_presigned_url("get_object", Params=params)
+    restored = tmp_path / "r2-download.mp4"
+    host.download_file("original", KEY, str(restored))
+    assert restored.read_bytes() == b"video"
+    assert params["Bucket"] == "original"
+
+
+@pytest.mark.parametrize("failure", ["AccessDenied", "ServiceUnavailable", "404"])
+def test_preferred_r2_falls_back_to_aws_and_returns_after_recovery(mirrored, tmp_path, failure):
+    upload(mirrored, tmp_path)
+    mirrored.preferred_store = "fallback"
+    primary, fallback = stores(mirrored)
+    fallback.failure = failure
+    params = {"Bucket": "original", "Key": KEY}
+    assert "aws.example" in mirrored.generate_presigned_url("get_object", Params=params)
+    restored = tmp_path / "aws-backup.mp4"
+    mirrored.download_file("original", KEY, str(restored))
+    assert restored.read_bytes() == b"video"
+    fallback.failure = None
+    assert "r2.example" in mirrored.generate_presigned_url("get_object", Params=params)
+
+
+@pytest.mark.parametrize("probe_age,expected", [(0, "aws.example"), (181, "r2.example")])
+def test_preferred_r2_honors_fresh_outage_probe_only(mirrored, tmp_path, probe_age, expected):
+    upload(mirrored, tmp_path)
+    mirrored.preferred_store = "fallback"
+    mirrored.ledger.write_health({"checked_at": time.time() - probe_age,
+        "providers": {"primary": {"status": "healthy"}, "fallback": {"status": "unhealthy"}}})
+    if probe_age == 0:
+        stores(mirrored)[1].head_object = Mock(side_effect=AssertionError("Repeated R2 timeout"))
+    assert expected in mirrored.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
+
+
+def test_pending_latest_aws_revision_overrides_r2_preference_across_hosts(mirrored, tmp_path):
+    mirrored.preferred_store = "fallback"
+    upload(mirrored, tmp_path, b"old")
+    primary, fallback = stores(mirrored)
+    fallback.upload_file = Mock(side_effect=ClientError({"Error": {"Code": "AccessDenied"}}, "PutObject"))
+    upload(mirrored, tmp_path, b"newest")
+    host = another_host(mirrored, tmp_path)
+    restored = tmp_path / "latest.mp4"
+    host.download_file("original", KEY, str(restored))
+    assert restored.read_bytes() == b"newest"
+    assert "aws.example" in host.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
+    del fallback.upload_file
+    host.sync_pending()
+    assert "r2.example" in host.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
+
+
+def test_preferred_r2_server_upload_dual_writes_directly_without_aws_download(mirrored, tmp_path):
+    mirrored.preferred_store = "fallback"
+    primary, fallback = stores(mirrored)
+    order = []
+    for name, store in [("primary", primary), ("fallback", fallback)]:
+        real = store.upload_file
+        store.upload_file = Mock(side_effect=lambda *a, _name=name, _real=real, **kw:
+                                 (order.append(_name), _real(*a, **kw))[1])
+        store.download_file = Mock(side_effect=AssertionError("A local upload must not read a cloud copy"))
+    upload(mirrored, tmp_path)
+    assert order == ["fallback", "primary"]
+    assert primary.objects == fallback.objects == {KEY: b"video"}
+    assert mirrored.pending_status()["pending"] == 0
+
+
+def test_preferred_r2_browser_upload_mirrors_to_aws_and_survives_preference_rollback(mirrored):
+    mirrored.preferred_store = "fallback"
+    primary, fallback = stores(mirrored)
+    primary.get_object = Mock(side_effect=AssertionError("Browser upload must not download from AWS"))
+    primary.download_file = Mock(side_effect=AssertionError("Browser upload must not download from AWS"))
+    result = mirrored.create_multipart_upload(Bucket="original", Key=KEY)
+    assert result["UploadId"] == "r2:upload-1"
+    # An already-started session must keep using R2 after a rollout or rollback.
+    mirrored.preferred_store = "primary"
+    params = {"Bucket": "original", "Key": KEY, "UploadId": result["UploadId"]}
+    assert "r2.example" in mirrored.generate_presigned_url("upload_part", Params=params)
+    mirrored.list_parts(**params)
+    mirrored.complete_multipart_upload(**params)
+    row = mirrored.ledger.get(KEY)
+    assert row["source_store"] == "fallback" and row["pending"] == ["primary"]
+    assert mirrored._read_names(KEY) == ["fallback", "primary"]
+    mirrored.sync_pending()
+    assert primary.objects == fallback.objects == {KEY: b"browser-upload"}
+    assert mirrored.pending_status()["pending"] == 0
 
 
 def test_recent_outage_probe_skips_primary_timeouts_and_recovers(mirrored, tmp_path):
