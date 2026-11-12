@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   creatorCouponId,
+  affiliateAdminStripeClient,
   deactivatePromotionCode,
   grantAffiliatePro,
   revokeAffiliatePro,
@@ -8,7 +9,6 @@ import {
 } from "@/server/affiliates";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
-import { getStripeClient } from "@/lib/stripe";
 
 async function requireAdmin() {
   const session = await getServerSession();
@@ -55,7 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (body.action === "approve") {
       if (affiliate.status !== "pending" || !affiliate.slug) return ALREADY_REVIEWED;
 
-      const stripe = getStripeClient();
+      const stripe = await affiliateAdminStripeClient();
       let promotionCode;
       try {
         promotionCode = await stripe.promotionCodes.create({
