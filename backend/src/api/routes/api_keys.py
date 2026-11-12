@@ -23,6 +23,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 
+async def notify_api_key_created(user: User, created: dict) -> None:
+    """Send the "new API key" security email; never fails the request."""
+    try:
+        email_service = ApiKeyEmailService(get_config())
+        if not email_service.is_configured:
+            logger.warning(
+                "API key %s was created for user %s but SES is not configured",
+                created.get("id"),
+                user.id,
+            )
+        else:
+            await email_service.send_created_email(user, created)
+    except Exception:
+        logger.exception(
+            "Failed to send API key creation email for key %s and user %s",
+            created.get("id"),
+            user.id,
+        )
+
+
 def _get_user_id(request: Request) -> str:
     """Resolve the user from signed session headers (never from an API key)."""
     return get_authenticated_user_id(request, get_config())
@@ -68,22 +88,7 @@ async def create_api_key(request: Request, db: AsyncSession = Depends(get_db)):
         logger.error("Error creating API key: %s", exc)
         raise HTTPException(status_code=500, detail="Error creating API key")
 
-    try:
-        email_service = ApiKeyEmailService(get_config())
-        if not email_service.is_configured:
-            logger.warning(
-                "API key %s was created for user %s but SES is not configured",
-                created.get("id"),
-                user_id,
-            )
-        else:
-            await email_service.send_created_email(user, created)
-    except Exception:
-        logger.exception(
-            "Failed to send API key creation email for key %s and user %s",
-            created.get("id"),
-            user_id,
-        )
+    await notify_api_key_created(user, created)
 
     return {"api_key": created, "message": "API key created. Copy it now — it won't be shown again."}
 

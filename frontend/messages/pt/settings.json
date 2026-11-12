@@ -132,13 +132,15 @@
         "claudeCode": "Claude Code",
         "json": "Cursor e outros",
         "claudeDesktop": "Claude Desktop",
-        "stdio": "Local (stdio)"
+        "stdio": "Local (stdio)",
+        "connectors": "claude.ai e ChatGPT"
       },
       "hints": {
         "claudeCode": "Rode isto em um terminal.",
         "json": "Para Cursor (~/.cursor/mcp.json), Windsurf e outros clientes que aceitam URL e cabeçalhos.",
         "claudeDesktop": "Adicione ao claude_desktop_config.json. Precisa de Node.js; o mcp-remote conecta o Claude Desktop ao servidor hospedado.",
-        "stdio": "Roda o servidor no seu computador, então os clipes baixados ficam salvos nele. Precisa do uv."
+        "stdio": "Roda o servidor no seu computador, então os clipes baixados ficam salvos nele. Precisa do uv.",
+        "connectors": "Adicione esta URL como conector personalizado, entre e permita o acesso. Não precisa copiar chave: ele cria a própria, listada abaixo."
       },
       "planNote": "Clipes feitos por um agente usam os minutos de vídeo do seu plano."
     }

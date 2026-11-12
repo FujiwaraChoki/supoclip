@@ -360,7 +360,7 @@ function TaskScene({ frame }: { frame: Frame }) {
         ) : (
           <div className="space-y-8">
             <ProcessingPanel status="processing" progress={frame.progress} message={message}
-              elapsedSeconds={frame.progress * 2.4}
+              remainingSeconds={(100 - frame.progress) * 2.4}
               clipProgress={frame.progress >= 65 ? { current: Math.min(frame.ready + 1, 2), total: 2 } : null} />
             <ProcessingSlots status="processing" progress={frame.progress} message={message} total={2} className="grid-cols-5 sm:grid-cols-5 lg:grid-cols-5">
               {Array.from({ length: frame.ready }, (_, i) => <FilmTile key={i} index={i} />)}
