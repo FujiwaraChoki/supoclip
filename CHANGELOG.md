@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
+- **Fixed:** When you queue several videos, they now start in the order you submitted them, and the next one starts as soon as the previous one finishes. Before, a video submitted earlier could keep waiting while later ones went ahead. ([#378](https://github.com/FujiwaraChoki/supoclip/pull/378))
 - **Under the hood:** Media playback, downloads and uploads can prefer the independent storage replica to reduce transfer costs, while keeping the other provider as a backup. ([#376](https://github.com/FujiwaraChoki/supoclip/pull/376))
 
 - **Improved:** When you connect claude.ai, ChatGPT or another app and your email isn't verified yet, the approval page sends the verification email itself, and the link brings you straight back to approve. Connection requests now stay open for 30 minutes. ([#375](https://github.com/FujiwaraChoki/supoclip/pull/375))
