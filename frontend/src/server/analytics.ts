@@ -144,6 +144,31 @@ export class WebhookAnalytics {
       }
     }
     this.pending.length = 0;
+    await flushServerEvents();
+  }
+}
+
+/**
+ * Wait (briefly) until queued events are sent. `capture` only queues the
+ * request; on a serverless host (the RevenueCat webhook runs on Vercel) the
+ * function can be frozen as soon as the response is returned, dropping it.
+ * Capped so a slow PostHog never holds a webhook response. Never throws.
+ */
+export async function flushServerEvents(timeoutMs = 2000): Promise<void> {
+  const client = getPostHogServer();
+  if (!client) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.flush(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } catch {
+    // Analytics only.
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

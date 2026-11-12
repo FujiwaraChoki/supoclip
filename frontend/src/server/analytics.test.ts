@@ -1,6 +1,6 @@
 import { getPostHogServer } from "@/server/posthog";
 
-import { captureServerEvent, deterministicUuid, intervalFromPeriod, WebhookAnalytics } from "./analytics";
+import { captureServerEvent, deterministicUuid, flushServerEvents, intervalFromPeriod, WebhookAnalytics } from "./analytics";
 
 vi.mock("@/server/posthog", () => ({ getPostHogServer: vi.fn() }));
 
@@ -115,6 +115,29 @@ describe("server analytics", () => {
     await expect(analytics.flush(() => Promise.reject(new Error("db down")))).resolves.toBeUndefined();
     expect(capture).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("waits for queued events to be sent before the webhook responds", async () => {
+    const flush = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(getPostHogServer).mockReturnValue({ capture, flush } as never);
+    const analytics = new WebhookAnalytics("evt_flush");
+    analytics.add(started);
+    await analytics.flush();
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not hold the webhook when PostHog is slow", async () => {
+    vi.useFakeTimers();
+    try {
+      const flush = vi.fn(() => new Promise<void>(() => {}));
+      vi.mocked(getPostHogServer).mockReturnValue({ capture, flush } as never);
+      const done = flushServerEvents(50);
+      await vi.advanceTimersByTimeAsync(60);
+      await expect(done).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reads the interval from the period length", () => {
