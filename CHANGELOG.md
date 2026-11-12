@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
+- **Improved:** When you connect claude.ai, ChatGPT or another app and your email isn't verified yet, the approval page sends the verification email itself, and the link brings you straight back to approve. Connection requests now stay open for 30 minutes. ([#375](https://github.com/FujiwaraChoki/supoclip/pull/375))
 - **Under the hood:** We now measure the main steps from sign-up to a first video, a subscription and later renewals. Only the kind of step is recorded, never your links, files, instructions or captions. ([#370](https://github.com/FujiwaraChoki/supoclip/pull/370))
 - **New:** Connect SupoClip to claude.ai, ChatGPT and other apps with custom connectors: add `https://mcp.supoclip.com/mcp`, sign in, and allow access. No key to copy. Each connection gets its own API key, listed in Settings → Agents & API, where you can revoke it to disconnect. ([#372](https://github.com/FujiwaraChoki/supoclip/pull/372))
 - **Fixed:** The time left on a generation now includes downloading the chosen moments and rendering each clip, so it no longer says "less than a minute" while several minutes remain. ([#371](https://github.com/FujiwaraChoki/supoclip/pull/371))

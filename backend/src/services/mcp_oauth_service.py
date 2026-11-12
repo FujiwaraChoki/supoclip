@@ -6,8 +6,9 @@ ChatGPT, ...) talk to. It keeps no state of its own; it calls the internal
 endpoints in ``api/routes/mcp_oauth.py``, which use this service:
 
 * Registered clients are rows in ``mcp_oauth_clients`` (PostgreSQL).
-* A pending authorize request and an authorization code are Redis entries
-  with a 10 minute TTL, each consumed exactly once (``GETDEL``). Codes are
+* A pending authorize request (30 minutes, long enough to verify an email
+  address on the way) and an authorization code (10 minutes) are Redis
+  entries, each consumed exactly once (``GETDEL``). Codes are
   stored under their SHA-256, never in plaintext.
 * Approving consent creates nothing yet. The code exchange creates an ordinary
   API key named after the client and returns it as the access token, once. Only
@@ -36,7 +37,7 @@ from ..repositories.mcp_oauth_repository import McpOAuthClientRepository
 from .api_key_service import MAX_KEYS_PER_USER, ApiKeyLimitExceeded, ApiKeyService
 
 SCOPE = "supoclip"
-REQUEST_TTL_SECONDS = 600
+REQUEST_TTL_SECONDS = 1800
 CODE_TTL_SECONDS = 600
 MAX_REDIRECT_URIS = 10
 CLIENT_NAME_MAX = 60

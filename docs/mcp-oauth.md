@@ -29,6 +29,10 @@ behaves as before: API keys only, OAuth discovery answers a JSON 404.
    name, where it will send you back to, and what it can do. Allow or Deny goes
    through the web app's `/api/oauth/requests/<id>/decision` proxy to the backend
    with the signed session headers, never an API key.
+   - Unverified email: the page sends the Better Auth verification email
+     with `callbackURL=/oauth/consent?request=<id>`, so the link brings the user
+     back to the same request (it stays open 30 minutes). The page re-reads the
+     session and the request on return and when the tab regains focus.
    - Deny: back to the app with `error=access_denied` and the `state`.
    - Allow (email verified, fewer than 25 active keys): a single-use code bound to
      the client id, redirect URI and code challenge; back to the app with
@@ -51,7 +55,7 @@ Nothing is kept in the MCP process or on its disk. It calls the backend's
 | What | Where | Lifetime |
 |---|---|---|
 | Registered clients | PostgreSQL `mcp_oauth_clients` (`backend/src/repositories/mcp_oauth_repository.py`) | Permanent |
-| Pending authorize requests | Redis `mcp_oauth:request:<id>` | 10 minutes, consumed by Allow/Deny |
+| Pending authorize requests | Redis `mcp_oauth:request:<id>` | 30 minutes (time to verify an email on the way), consumed by Allow/Deny |
 | Authorization codes | Redis `mcp_oauth:code:<sha256(code)>` | 10 minutes, consumed by the exchange (`GETDEL`) |
 | Rate-limit counters | Redis `mcp_oauth:rate:*` | One window |
 | Access tokens | `api_keys` (SHA-256 only), like every key | Until revoked |

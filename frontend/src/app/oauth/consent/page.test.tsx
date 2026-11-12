@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import OAuthConsentPage from "./page";
@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   session: { user: { id: "user-1", email: "owner@example.com" } } as unknown,
   replace: vi.fn(),
   assign: vi.fn(),
+  send: vi.fn(),
+  getSession: vi.fn(),
+  refetch: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -14,7 +17,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 vi.mock("@/lib/auth-client", () => ({
-  useSession: () => ({ data: mocks.session, isPending: false }),
+  useSession: () => ({ data: mocks.session, isPending: false, refetch: mocks.refetch }),
+  authClient: { sendVerificationEmail: mocks.send, getSession: mocks.getSession },
 }));
 
 const REQUEST = {
@@ -32,6 +36,8 @@ function respond(status: number, body: unknown) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.session = { user: { id: "user-1", email: "owner@example.com" } };
+  mocks.getSession.mockResolvedValue({ data: mocks.session });
+  mocks.refetch.mockResolvedValue(undefined);
   window.history.replaceState(null, "", "/oauth/consent?request=req-1");
   Object.defineProperty(window, "location", {
     configurable: true,
@@ -93,8 +99,61 @@ it("blocks Allow at the key limit and links to settings", async () => {
 it("blocks Allow until the email is verified", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(200, { ...REQUEST, email_verified: false })));
   render(<OAuthConsentPage />);
-  expect(await screen.findByText(/Verify your email address before connecting an app/)).toBeInTheDocument();
+  expect(await screen.findByText(/Confirm your email address \(owner@example.com\)/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+  expect(screen.getAllByRole("link", { name: "Agents & API" }).at(-1)).toHaveAttribute("href", "/settings/api-keys");
+});
+
+it("sends a verification link that returns to this request, then cools down", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  mocks.send.mockResolvedValue({ data: { status: true } });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(200, { ...REQUEST, email_verified: false, expires_at: 1_900_000_000 })));
+  render(<OAuthConsentPage />);
+  expect(await screen.findByText(/This request stays open until/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Send verification email" }));
+
+  await screen.findByText(/Sent. Open the link in the email/);
+  expect(mocks.send).toHaveBeenCalledWith({ email: "owner@example.com", callbackURL: "/oauth/consent?request=req-1" });
+  expect(screen.getByRole("button", { name: /Send again in \d+s/ })).toBeDisabled();
+  for (let second = 0; second < 61; second += 1) {
+    await act(async () => { vi.advanceTimersByTime(1000); });
+  }
+  expect(screen.getByRole("button", { name: "Send again" })).toBeEnabled();
+  vi.useRealTimers();
+});
+
+it("shows a failed send", async () => {
+  mocks.send.mockResolvedValue({ error: { message: "nope" } });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(200, { ...REQUEST, email_verified: false })));
+  render(<OAuthConsentPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Send verification email" }));
+  expect(await screen.findByText(/We couldn't send the email/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Send verification email" })).toBeEnabled();
+});
+
+it("re-reads the session past the cookie cache and enables Allow once verified", async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(respond(200, { ...REQUEST, email_verified: false }))
+    .mockResolvedValueOnce(respond(200, REQUEST));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<OAuthConsentPage />);
+  await waitFor(() => expect(mocks.getSession).toHaveBeenCalledWith({ query: { disableCookieCache: true } }));
+  fireEvent.click(await screen.findByRole("button", { name: "I've verified" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Allow" })).toBeEnabled());
+  expect(mocks.refetch).toHaveBeenCalled();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+it("checks again when the tab regains focus after verifying elsewhere", async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(respond(200, { ...REQUEST, email_verified: false }))
+    .mockResolvedValueOnce(respond(200, REQUEST));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<OAuthConsentPage />);
+  await screen.findByRole("button", { name: "Send verification email" });
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Allow" })).toBeEnabled());
+  expect(screen.queryByRole("button", { name: "Send verification email" })).not.toBeInTheDocument();
 });
 
 it("explains an expired request", async () => {

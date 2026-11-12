@@ -41,6 +41,22 @@ test("at the key limit Allow is off and settings are linked", async ({ page }) =
   await page.screenshot({ path: "test-results/oauth-consent-limit.png", fullPage: true });
 });
 
+test("an unverified user sends the link without leaving the page", async ({ page }) => {
+  await mockConsent(page, { ...request, email_verified: false, expires_at: Date.now() / 1000 + 1800 });
+  let sent: unknown = null;
+  await page.route("**/api/auth/send-verification-email", async (route) => {
+    sent = route.request().postDataJSON();
+    await route.fulfill({ json: { status: true } });
+  });
+  await page.goto("/oauth/consent?request=req-1");
+  await page.getByRole("button", { name: "Send verification email" }).click();
+  await expect(page.getByText("Sent. Open the link in the email, then come back to this page.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Send again in \d+s/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Allow" })).toBeDisabled();
+  expect(sent).toMatchObject({ email: "alex@example.com", callbackURL: "/oauth/consent?request=req-1" });
+  await page.screenshot({ path: "test-results/oauth-consent-verify.png", fullPage: true });
+});
+
 test("an expired request says how to start again", async ({ page }) => {
   await mockConsent(page, { detail: { code: "request_expired", message: "expired" } }, 404);
   await page.goto("/oauth/consent?request=req-1");

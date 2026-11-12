@@ -188,6 +188,23 @@ async def test_request_needs_a_registered_redirect(oauth):
     assert response.json()["detail"]["code"] == "invalid_redirect_uri"
 
 
+async def test_request_stays_open_long_enough_to_verify_an_email(oauth):
+    assert service_module.REQUEST_TTL_SECONDS == 1800
+    assert service_module.CODE_TTL_SECONDS == 600
+    await register(oauth)
+    before = time.time()
+    request_id = await start(oauth)
+    _, expires = oauth.redis.data[f"mcp_oauth:request:{request_id}"]
+    assert 1795 <= expires - before <= 1805
+    described = (await oauth.http.get(f"/oauth/requests/{request_id}", headers=signed())).json()
+    assert 1795 <= described["expires_at"] - before <= 1805
+
+    code, _ = await approve(oauth, request_id)
+    code_key = next(key for key in oauth.redis.data if key.startswith("mcp_oauth:code:"))
+    assert 595 <= oauth.redis.data[code_key][1] - time.time() <= 605
+    assert code
+
+
 async def test_consent_describes_the_request(oauth):
     await register(oauth)
     request_id = await start(oauth)
