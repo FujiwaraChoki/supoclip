@@ -58,8 +58,9 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview` |
+| `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview` or `nvidia:meta/llama-3.3-70b-instruct` |
 | `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` models |
+| `NVIDIA_API_KEY` | If using NVIDIA NIM | Required for `nvidia:*` models; uses NVIDIA's OpenAI-compatible API |
 | `GOOGLE_API_KEY` | If using Google | Required for `google-gla:*` models |
 | `ANTHROPIC_API_KEY` | If using Anthropic | Required for `anthropic:*` models |
 | `OPENROUTER_API_KEY` | If using OpenRouter | Required for `openrouter:*` models (see [OpenRouter analysis](openrouter-analysis.md)) |

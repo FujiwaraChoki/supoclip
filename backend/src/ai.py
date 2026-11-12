@@ -16,11 +16,13 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.profiles.anthropic import AnthropicModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
@@ -439,7 +441,10 @@ def build_transcript_system_prompt(clip_length: str = "auto") -> str:
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {
+    "google", "google-gla", "openai", "nvidia", "openrouter", "anthropic", "ollama"
+}
+NVIDIA_API_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -457,7 +462,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*."
+            "Use google-gla:*, openai:*, nvidia:*, openrouter:*, anthropic:*, or ollama:*."
         )
 
     if not provider_model_name:
@@ -482,6 +487,12 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
         return (
             "Selected LLM provider is OpenAI, but OPENAI_API_KEY is not set. "
             "Set OPENAI_API_KEY or choose another provider with a matching API key."
+        )
+
+    if provider == "nvidia" and not runtime_config.nvidia_api_key:
+        return (
+            "Selected LLM provider is NVIDIA, but NVIDIA_API_KEY is not set. "
+            "Set NVIDIA_API_KEY or choose another provider with a matching API key."
         )
 
     if provider == "anthropic" and not runtime_config.anthropic_api_key:
@@ -542,6 +553,16 @@ def _build_transcript_model(
                 "max_tokens": 8192,
             },
         )
+
+    if provider == "nvidia":
+        return OpenAIModel(
+            provider_model_name,
+            provider=OpenAIProvider(
+                base_url=NVIDIA_API_BASE_URL,
+                api_key=runtime_config.nvidia_api_key,
+            ),
+        )
+
     if provider != "ollama":
         return model_name
 
@@ -569,6 +590,7 @@ def get_transcript_agent(clip_length: str = "auto") -> Agent[None, TranscriptAna
         clip_length,
         runtime_config.llm,
         runtime_config.openai_api_key,
+        runtime_config.nvidia_api_key,
         runtime_config.openrouter_api_key,
         runtime_config.openrouter_fallback_model,
         runtime_config.google_api_key,
@@ -649,6 +671,7 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
     signature = (
         model_name,
         runtime_config.openai_api_key,
+        runtime_config.nvidia_api_key,
         runtime_config.openrouter_api_key,
         runtime_config.openrouter_fallback_model,
         runtime_config.google_api_key,
@@ -724,6 +747,7 @@ def get_broll_agent() -> Agent[None, BRollPlan]:
     signature = (
         model_name,
         runtime_config.openai_api_key,
+        runtime_config.nvidia_api_key,
         runtime_config.openrouter_api_key,
         runtime_config.openrouter_fallback_model,
         runtime_config.google_api_key,
