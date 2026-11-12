@@ -36,6 +36,9 @@ services:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
       - ./frontend/prisma:/app/prisma
+      # The catalogs live outside the source folder, so they are mounted too:
+      # a translation then shows up without rebuilding the image.
+      - ./frontend/messages:/app/messages
       - ./CHANGELOG.md:/app/CHANGELOG.md:ro
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -187,6 +190,8 @@ services:
       - YOUTUBE_SOURCE_CACHE_TTL_SECONDS=${YOUTUBE_SOURCE_CACHE_TTL_SECONDS:-604800}
       - APIFY_EXPENSIVE_FALLBACKS=${APIFY_EXPENSIVE_FALLBACKS:-false}
       - LLM=${LLM:-}
+      # The models that answer when the main one is busy or out of quota.
+      - LLM_FALLBACKS=${LLM_FALLBACKS:-google-gla:gemini-2.5-flash,google-gla:gemini-2.5-flash-lite}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_FALLBACK_MODEL=${OPENROUTER_FALLBACK_MODEL:-openai/gpt-6-luna}
@@ -380,6 +385,8 @@ services:
       - YOUTUBE_SOURCE_CACHE_TTL_SECONDS=${YOUTUBE_SOURCE_CACHE_TTL_SECONDS:-604800}
       - APIFY_EXPENSIVE_FALLBACKS=${APIFY_EXPENSIVE_FALLBACKS:-false}
       - LLM=${LLM:-}
+      # The models that answer when the main one is busy or out of quota.
+      - LLM_FALLBACKS=${LLM_FALLBACKS:-google-gla:gemini-2.5-flash,google-gla:gemini-2.5-flash-lite}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_FALLBACK_MODEL=${OPENROUTER_FALLBACK_MODEL:-openai/gpt-6-luna}
