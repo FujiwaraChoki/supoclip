@@ -34,6 +34,7 @@ from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService, grants_paid_access
 from starlette.formparsers import MultiPartException, MultiPartParser
+from starlette.requests import ClientDisconnect
 
 from ...media.upload_limits import (
     MULTIPART_FRAMING_BYTES,
@@ -65,6 +66,15 @@ async def _get_authenticated_user_id(request: Request, db: AsyncSession) -> str:
     return await resolve_authenticated_user_id(request, db, config)
 
 
+class UploadInterrupted(Exception):
+    """The connection closed before the whole upload body arrived."""
+
+    def __init__(self, received: int, declared: str | None):
+        super().__init__(f"received {received} of {declared or 'unknown'} bytes")
+        self.received = received
+        self.declared = declared
+
+
 async def _read_limited_upload_form(request: Request, max_bytes: int):
     """Parse one video upload without buffering past the cap.
 
@@ -94,9 +104,10 @@ async def _read_limited_upload_form(request: Request, max_bytes: int):
         raise HTTPException(status_code=400, detail="A single Content-Length is required")
 
     ceiling = max_bytes + MULTIPART_FRAMING_BYTES
+    received = 0
 
     async def chunks():
-        received = 0
+        nonlocal received
         async for chunk in request.stream():
             received += len(chunk)
             if received > ceiling:
@@ -116,6 +127,12 @@ async def _read_limited_upload_form(request: Request, max_bytes: int):
         for spool in parser._files_to_close_on_error:
             spool.close()
         raise
+    except ClientDisconnect:
+        # Starlette raises this, with no message, when the server reports the
+        # connection closed mid-body.
+        for spool in parser._files_to_close_on_error:
+            spool.close()
+        raise UploadInterrupted(received, lengths[0] if lengths else None) from None
     except MultiPartException as exc:
         raise HTTPException(status_code=400, detail=exc.message) from None
     except KeyError:
@@ -446,10 +463,15 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=409, detail=str(exc)) from None
     except UploadLimitReached as exc:
         raise HTTPException(429, str(exc)) from None
+    except UploadInterrupted as exc:
+        # Nobody is left to read this response; 499 matches the frontend proxy.
+        logger.warning("Upload interrupted: the connection closed mid-body (%s)", exc)
+        raise HTTPException(status_code=499, detail="The upload was interrupted") from None
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error uploading video: %s", e)
+        # Some exceptions have an empty message; the type and traceback still say what failed.
+        logger.exception("Error uploading video (%s)", type(e).__name__)
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
     finally:
         if form_data is not None:
