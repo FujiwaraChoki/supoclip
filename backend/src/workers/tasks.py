@@ -8,6 +8,7 @@ import json
 from arq import Retry
 from arq.worker import func
 from ..repositories.task_run_guard import TaskRunBusy
+from .video_job_recovery import VIDEO_JOB_MAX_TRIES, fail_exhausted_video_job
 
 from ..observability import configure_logging, set_trace_id, set_user_id
 
@@ -56,6 +57,11 @@ async def process_video_task(
     set_trace_id(f"task-{task_id}")
     set_user_id(user_id)
     logger.info(f"Worker processing task {task_id}")
+
+    # arq calls this once more after the last allowed try so the task ends
+    # (and is refunded) instead of staying "processing" forever.
+    if int(ctx.get("job_try") or 1) > VIDEO_JOB_MAX_TRIES:
+        return await fail_exhausted_video_job(ctx, task_id=task_id, user_id=user_id)
 
     from ..font_registry import fetch_user_font
     from ..utils.async_helpers import run_in_thread
@@ -165,8 +171,7 @@ async def process_video_task(
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
             try:
                 job_try = int(ctx.get("job_try", 1))
-                max_tries = int(getattr(WorkerSettings, "max_tries", 3))
-                if job_try >= max_tries:
+                if job_try >= VIDEO_JOB_MAX_TRIES:
                     payload = {
                         "task_id": task_id,
                         "error": str(e),
@@ -342,7 +347,9 @@ class WorkerSettings:
 
     # Functions to run
     functions = [
-        process_video_task,
+        # One pickup past the try budget reaches the function, which fails the
+        # task instead of rendering; arq alone would drop the job silently.
+        func(process_video_task, max_tries=VIDEO_JOB_MAX_TRIES + 1),
         prepare_editor,
         export_editor,
         combine_editor,
