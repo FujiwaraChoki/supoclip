@@ -25,10 +25,17 @@ export function SignIn() {
     setMessage("");
     setOk(false);
 
-    const response = await signIn.email({
-      email,
-      password,
-    });
+    let response: Awaited<ReturnType<typeof signIn.email>>;
+    try {
+      response = await signIn.email({
+        email,
+        password,
+      });
+    } catch {
+      setMessage(t("signIn.failed"));
+      setLoading(false);
+      return;
+    }
 
     if (response.error) {
       setMessage(response.error.message || t("signIn.failed"));
