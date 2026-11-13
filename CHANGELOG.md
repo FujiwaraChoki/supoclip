@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-14
 
-- **Fixed:** Combining studio drafts preserves each clip's mute and volume settings, so muted audio stays silent and other clips keep their own loudness. ([PR](https://github.com/FujiwaraChoki/supoclip/compare/main...kvianAR:supoclip:fix/combine-draft-audio))
+- **Fixed:** Combining studio drafts preserves each clip's mute and volume settings, so muted audio stays silent and other clips keep their own loudness. ([#385](https://github.com/FujiwaraChoki/supoclip/pull/385))
 
 ## 2026-11-12
 
