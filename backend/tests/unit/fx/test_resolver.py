@@ -467,6 +467,7 @@ def test_rule2_no_bleeps_with_approx_timing_or_censor_off():
     b = mid("raining", "swear")
     assert not cues(run([b], meta={"timing": "approx"}), "bleep")
     assert not cues(run([b], style=EditStyle(intensity="spicy", censor="off")), "bleep")
+    assert not cues(run([b], intensity="off"), "bleep")              # D3: style-only changes no audio
 
 
 def test_rule2_censor_text_applies_to_accents_even_with_approx_timing():
@@ -702,7 +703,7 @@ def test_style_only_accents_and_intrinsics_no_music_zoom_or_warp():
     for template in FX_TEMPLATES:
         plan = run(beats, template=template, intensity="off", cuts=(15.0,), passage_breaks=(15.0,))
         kinds = {c.kind for c in plan.cues}
-        assert kinds <= {"accent", "sfx", "flash", "desaturate", "bleep"}, (template, kinds)
+        assert kinds <= {"accent", "sfx", "flash", "desaturate"}, (template, kinds)
         assert plan.music is None and plan.grade == "none" and not plan.progress_bar
         sfx_ids = [c.id for c in cues(plan, "sfx")]
         assert all(i.split(".")[1] in ("accent", "slam", "behind", "burst") for i in sfx_ids), sfx_ids

@@ -1,6 +1,6 @@
 {
  "marker_circle/off": {
-  "sha256": "5a9f83dc1fd36ff2b96aa39fb407c0d3037ab7d3fe3d49fcc7c05b8fabbb122a",
+  "sha256": "413464741184b9dfa8deea57150ab1fab2941aa246cbcf6d0bd8e94acd731cfd",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -8,10 +8,8 @@
    "  1.430-  2.230 b0.accent        accent     strike 'never'",
    "  5.340-  6.140 b2.accent        accent     circle 'lazy'",
    " 11.660- 12.460 b5.accent        accent     arrow '$2.5M'",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 17.550 b8.accent        accent     underline 'twice'",
    " 25.300- 26.100 b10.accent       accent     circle 'sleep'",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 33.955 b15.accent       accent     arrow '90 days'"
   ]
  },
@@ -135,7 +133,7 @@
   ]
  },
  "emoji_drop/off": {
-  "sha256": "85ab0576f123ab3ae64e5fef1c047cceaa59caa1c915b1e21689d6e89f05e61d",
+  "sha256": "48044fae713d46630b036833d1e3cc757ba53707c06953393e163f86718966e9",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -144,14 +142,12 @@
    "  2.620-  2.620 b0.accent.sfx    sfx        pop#2 +0dB",
    " 11.660- 12.860 b5.accent        accent     emoji '$2.5M' 💰",
    " 11.660- 11.660 b5.accent.sfx    sfx        pop#0 +0dB",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 17.950 b8.accent        accent     emoji 'twice' 😂",
    " 16.750- 16.750 b8.accent.sfx    sfx        pop#2 +0dB",
    " 25.300- 26.500 b10.accent       accent     emoji 'sleep' 🔥",
    " 25.300- 25.300 b10.accent.sfx   sfx        pop#0 +0dB",
    " 29.405- 30.605 b12.accent       accent     emoji 'stupid' 😅",
    " 29.405- 29.405 b12.accent.sfx   sfx        pop#1 +0dB",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 34.355 b15.accent       accent     emoji '90 days' ✨",
    " 33.155- 33.155 b15.accent.sfx   sfx        pop#2 +0dB"
   ]
@@ -275,7 +271,7 @@
   ]
  },
  "slam/off": {
-  "sha256": "d7930b14a64835bfb9b2c7501dfc7958ff02da48a01b932efb167b414e657093",
+  "sha256": "b58d618a9704772fff5345a2dfbcb7cbe9636741843d2614f7db81401ef149fb",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": true,
@@ -284,13 +280,11 @@
    "  2.620-  2.720 b0.slam.flash    flash      peak 0.85",
    "  2.620-  2.620 b0.slam.sfx      sfx        impact#0 +0dB",
    " 11.660- 12.460 b5.accent        accent     highlight '$2.5M'",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 17.550 b8.accent        accent     highlight 'twice'",
    " 25.300- 26.060 b10.slam         accent     slam 'sleep'",
    " 25.300- 25.400 b10.slam.flash   flash      peak 0.85",
    " 25.300- 25.300 b10.slam.sfx     sfx        impact#1 +0dB",
    " 29.405- 30.205 b12.accent       accent     highlight 'stupid'",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
@@ -425,7 +419,7 @@
   ]
  },
  "behind_head/off": {
-  "sha256": "9adf576fb05ea542816dff9a7fe5d1243add3447ae55cf363b00d4410bf7636b",
+  "sha256": "db4bb0ba6b33987e1b18300178e7324535c3e92ad67b42602ecdd06d1fde3f5d",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -433,13 +427,11 @@
    "  2.620-  4.020 b0.behind        accent     behind 'hundred grand'",
    "  2.620-  2.620 b0.behind.sfx    sfx        whoosh#0 -2dB",
    " 11.660- 12.460 b5.accent        accent     highlight '$2.5M'",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.330- 17.730 b8.behind        accent     behind 'quit twice'",
    " 16.330- 16.330 b8.behind.sfx    sfx        whoosh#1 -2dB",
    " 19.615- 20.415 b9.accent        accent     highlight 'trading'",
    " 25.300- 26.700 b10.behind       accent     behind 'sleep'",
    " 25.300- 25.300 b10.behind.sfx   sfx        whoosh#1 -2dB",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
@@ -562,7 +554,7 @@
   ]
  },
  "stat_counter/off": {
-  "sha256": "e721baa4dd0eb6908050dbd1f880949b7adf91a2381c0e8e8812b55f44d467e6",
+  "sha256": "bd3a78c4260594d6b0234b1ca743a1e2cdba8b8cda666eb9e5b4f22c1b9d57c8",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -571,11 +563,9 @@
    " 11.660- 13.335 b5.accent        accent     counter '$2.5M' =2.5",
    " 11.660- 11.660 b5.accent.sfx    sfx        ticker#0 -6dB",
    " 12.435- 12.435 b5.accent.sfx2   sfx        stamp#0 +0dB",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 17.550 b8.accent        accent     highlight 'twice'",
    " 25.300- 26.100 b10.accent       accent     highlight 'sleep'",
    " 29.405- 30.205 b12.accent       accent     highlight 'stupid'",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 35.145 b15.accent       accent     counter '90 days' =90.0",
    " 33.155- 33.155 b15.accent.sfx   sfx        ticker#0 -6dB",
    " 34.245- 34.245 b15.accent.sfx2  sfx        stamp#0 +0dB"
@@ -705,7 +695,7 @@
   ]
  },
  "sticker_slap/off": {
-  "sha256": "2f784b2174b1569b2b3752e86bbdddfa4c98321a82c236438fe29e70ef237093",
+  "sha256": "b688ffe4399a5e59b08410f413ba1cd83a8df11b0acfb6bfef8904b561d43700",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -716,12 +706,10 @@
    "  5.340-  5.340 b2.accent.sfx    sfx        slap#1 +0dB",
    " 11.660- 12.660 b5.accent        accent     sticker '$2.5M'",
    " 11.660- 11.660 b5.accent.sfx    sfx        slap#0 +0dB",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 18.350 b8.accent        accent     sticker 'ALMOST'",
    " 16.750- 16.750 b8.accent.sfx    sfx        slap#1 +0dB",
    " 25.300- 26.900 b10.accent       accent     sticker 'THE TRICK'",
    " 25.300- 25.300 b10.accent.sfx   sfx        slap#0 +0dB",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 34.345 b15.accent       accent     sticker '90 days'",
    " 33.155- 33.155 b15.accent.sfx   sfx        slap#1 +0dB"
   ]
@@ -846,7 +834,7 @@
   ]
  },
  "kinetic_stack/off": {
-  "sha256": "f030e9c3541c63fb443f7409009d269c27b825ade27d45d3940afc6d90a7e9d6",
+  "sha256": "3ba8e6e3d9850c9db1ea57e4fae79f1deb465522300d71585c70398dd051768d",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": true,
@@ -856,10 +844,8 @@
    "  0.100-  3.855 b0.desat         desaturate 0.7/0.2",
    "  5.340-  6.140 b2.accent        accent     highlight 'lazy'",
    " 11.660- 12.460 b5.accent        accent     highlight '$2.5M'",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 17.550 b8.accent        accent     highlight 'twice'",
    " 25.300- 26.100 b10.accent       accent     highlight 'sleep'",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
@@ -985,7 +971,7 @@
   ]
  },
  "decode_glitch/off": {
-  "sha256": "9884d4c82aeb54afaf82e4d1c658d4ccccf660971a7eb889936a574c74b7f33b",
+  "sha256": "96b151a5aba936957b021d1ad71fd49057013cf78a9f359db488eb8e254defbb",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -994,14 +980,12 @@
    "  2.620-  2.620 b0.accent.sfx    sfx        glitch#1 -3dB",
    " 11.660- 12.335 b5.accent        accent     decode '$2.5M'",
    " 11.660- 11.660 b5.accent.sfx    sfx        glitch#0 -3dB",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 17.460 b8.accent        accent     decode 'twice'",
    " 16.750- 16.750 b8.accent.sfx    sfx        glitch#1 -3dB",
    " 25.300- 26.010 b10.accent       accent     decode 'sleep'",
    " 25.300- 25.300 b10.accent.sfx   sfx        glitch#0 -3dB",
    " 29.405- 30.150 b12.accent       accent     decode 'stupid'",
    " 29.405- 29.405 b12.accent.sfx   sfx        glitch#0 -3dB",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 34.145 b15.accent       accent     decode '90 days'",
    " 33.155- 33.155 b15.accent.sfx   sfx        glitch#1 -3dB"
   ]
@@ -1128,7 +1112,7 @@
   ]
  },
  "highlighter_swipe/off": {
-  "sha256": "b5fe3bac7506e87e873466dad365d353884f4e123e09788946de536ca5cc3e35",
+  "sha256": "ee52f6973a46618744c3a238ca7335f8678d16c317882f10285d7c1a2db1a81b",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1136,10 +1120,8 @@
    "  2.305-  3.555 b1.accent        accent     highlight 'a hundred grand'",
    "  5.340-  6.140 b2.accent        accent     highlight 'lazy'",
    " 11.660- 12.460 b5.accent        accent     highlight '$2.5M'",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 19.615- 20.415 b9.accent        accent     highlight 'trading'",
    " 26.410- 27.210 b11.accent       accent     highlight \"That's it\"",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
@@ -1273,7 +1255,7 @@
   ]
  },
  "face_doodles/off": {
-  "sha256": "b7070a120a89c3563075b3f91b58f19cc55de44befe6945b9cf3729024940baf",
+  "sha256": "81a3fe0ef45717b82bf7d81ca26ac797a53051b230a9d2c1b194d18ca32535fa",
   "music": null,
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1282,7 +1264,6 @@
    "  2.620-  2.620 b0.accent.sfx    sfx        pop#2 +0dB",
    " 11.660- 12.860 b5.accent        accent     doodle '$2.5M' sparkles",
    " 11.660- 11.660 b5.accent.sfx    sfx        pop#0 +0dB",
-   " 14.360- 14.740 b7.bleep         bleep      cover bar",
    " 16.750- 18.750 b8.accent        accent     doodle 'ALMOST' sparkles",
    " 16.750- 16.750 b8.accent.sfx    sfx        pop#2 +0dB",
    " 16.900- 18.900 b8.accent2       accent     doodle 'ALMOST' bang",
@@ -1290,7 +1271,6 @@
    " 25.300- 27.300 b10.accent       accent     doodle 'THE TRICK' sparkles",
    " 25.300- 25.300 b10.accent.sfx   sfx        pop#0 +0dB",
    " 29.405- 30.650 b12.accent       accent     doodle 'stupid' sweat",
-   " 30.645- 31.130 b13.bleep        bleep      cover bar",
    " 33.155- 34.645 b15.accent       accent     doodle '90 days' arrows",
    " 33.155- 33.155 b15.accent.sfx   sfx        pop#2 +0dB"
   ]

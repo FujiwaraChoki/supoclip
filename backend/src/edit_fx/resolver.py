@@ -1153,8 +1153,11 @@ class _Planner:
                     self.hides.append((c.start, c.end))
 
     def place_bleeps(self) -> None:
-        """Rule 2: compliance, not decoration. Word timing only; budgets and spacing ignored."""
-        if self.style.censor == "off" or self.timing != "word":
+        """Rule 2: compliance, not decoration. Word timing only; budgets and spacing ignored.
+
+        Style-only clips (intensity off) change no audio, so they get no bleeps (coordinator decision D3).
+        """
+        if not self.style.active or self.style.censor == "off" or self.timing != "word":
             return
         cover = {"bleep": "none", "bleep_bar": "bar", "bleep_pixelate": "pixelate"}[self.style.censor]
         for b in self.beats:

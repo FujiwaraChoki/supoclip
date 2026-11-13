@@ -88,8 +88,8 @@ describe("every drawer registers", () => {
       "highlight", "kinetic", "slam", "sticker", "strike", "underline"]);
     expect(r.captionStyles).toHaveLength(10);
     expect([...r.picture].sort()).toEqual(["desaturate", "glitch", "grade", "shake", "transition", "zoom"]);
-    expect(r.cues.map(([k]) => k).sort()).toEqual(["bleep", "flash", "freeze", "reaction", "sticker"]);
-    expect([...r.globals].sort()).toEqual(["grain", "loop", "progress"]);
+    expect(r.cues.map(([k]) => k).sort()).toEqual(["bleep", "flash", "freeze", "reaction", "sticker", "transition"]);
+    expect([...r.globals].sort()).toEqual(["grade", "grain", "loop", "progress"]);
   });
 
   it("frameOps on a scene with every cue kind and every global runs without throwing", () => {

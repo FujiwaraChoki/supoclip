@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCanvas, GlobalFonts, Image } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import type { DrawOp, EmojiAtlas, FxCanvas, FxContext2D, FxHost, FxImage } from "../host";
 import { fontCss, fxFamily } from "../layout";
 
@@ -23,13 +23,18 @@ export function registerFxFonts(): void {
 }
 
 /** The committed emoji atlas (WP5), or null while it does not exist yet. */
+// Decoded once at import: `image.src = buffer` leaves a napi Image undecoded (width 0) when drawn right away, so
+// every sprite would draw nothing. Top-level await keeps `loadTestAtlas()` synchronous for the callers.
+const ATLAS_PNG = join(ATLAS_DIR, "atlas.png"), ATLAS_JSON = join(ATLAS_DIR, "atlas.json");
+const TEST_ATLAS: EmojiAtlas | null = existsSync(ATLAS_PNG) && existsSync(ATLAS_JSON)
+  ? await (async () => {
+    const map = JSON.parse(readFileSync(ATLAS_JSON, "utf8")) as { cell: number; glyphs: Record<string, { x: number; y: number }> };
+    return { image: await loadImage(ATLAS_PNG), cell: map.cell, glyphs: map.glyphs };
+  })()
+  : null;
+
 export function loadTestAtlas(): EmojiAtlas | null {
-  const png = join(ATLAS_DIR, "atlas.png"), json = join(ATLAS_DIR, "atlas.json");
-  if (!existsSync(png) || !existsSync(json)) return null;
-  const image = new Image();
-  image.src = readFileSync(png);
-  const map = JSON.parse(readFileSync(json, "utf8")) as { cell: number; glyphs: Record<string, { x: number; y: number }> };
-  return { image, cell: map.cell, glyphs: map.glyphs };
+  return TEST_ATLAS;
 }
 
 /**

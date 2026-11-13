@@ -629,7 +629,8 @@ def heuristic_beats(words: Sequence[dict], *, timing: Timing) -> EditBeats:
         )
 
     sentences = _sentence_index(timed)
-    hook_words = [i for i, s in enumerate(sentences) if s == 0][:HEURISTIC_HOOK_WORDS]
+    # Blank tokens never make a hook on their own: a first "sentence" of only blank tokens gives no hook beat.
+    hook_words = [i for i, s in enumerate(sentences) if s == 0 and timed[i].text.strip()][:HEURISTIC_HOOK_WORDS]
     hook_end: Optional[float] = None
     if hook_words:
         drafts.append(_Draft(kind="hook", first=hook_words[0], last=hook_words[-1], strength=2, source="heuristic"))

@@ -327,7 +327,7 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
     # --- bleeps (rule 2)
     swears = [b for b in beats.values() if b.kind == "swear"]
     bleeps = get("bleep")
-    if style.censor != "off" and inp.beats.timing == "word":
+    if style.active and style.censor != "off" and inp.beats.timing == "word":
         assert {c.beat for c in bleeps} == {b.id for b in swears if b.start < dur}
         cover = {"bleep": "none", "bleep_bar": "bar", "bleep_pixelate": "pixelate"}[style.censor]
         assert all(c.cover == cover and c.tone for c in bleeps)

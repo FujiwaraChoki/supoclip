@@ -357,6 +357,7 @@ class TaskService(ClipEditingMixin):
         upload_request_key: Optional[str] = None,
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
+        edit_style: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -417,6 +418,7 @@ class TaskService(ClipEditingMixin):
             charge_minutes=self.config.monetization_enabled,
             workflow=workflow,
             workflow_options=workflow_options,
+            **({"edit_style": edit_style} if edit_style else {}),
         )
 
         if upload_request_key and url.startswith("upload://"):

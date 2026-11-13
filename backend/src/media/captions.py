@@ -2,6 +2,7 @@
 
 import unicodedata
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import Iterable
 from ..font_registry import FONTS_DIR
@@ -9,7 +10,9 @@ from typing import List
 from typing import Optional
 from ..emoji_captions import POWER_WORDS
 from pathlib import Path
+from typing import Sequence
 from typing import Tuple
+from ..edit_fx.censor import censored_words
 from ..emoji_captions import annotate_caption_words
 from ..font_registry import find_font_path
 from ..font_registry import get_font_advance_metrics
@@ -28,6 +31,7 @@ from .common import (
     HOOK_TITLE_SIDE_MARGIN_FRAC,
     HOOK_TITLE_TOP_MARGIN_FRAC,
     _EMOJI_SUPPORT_CACHE,
+    hook_title_window,
     logger,
 )
 from .ffmpeg import (
@@ -201,6 +205,10 @@ def emoji_rendering_supported() -> bool:
     return result
 
 
+# Maps an edit-time instant (seconds) to final time: the crazy-edits time warp's ``to_output``.
+TimeMap = Callable[[float], float]
+
+
 def ass_timestamp(seconds: float) -> str:
     seconds = max(0.0, seconds)
     hours = int(seconds // 3600)
@@ -354,12 +362,14 @@ def build_point_label_ass(
     caption_font_px: int,
     position_y: Optional[float] = None,
     hook_end: float = 0.0,
+    time_map: Optional[TimeMap] = None,
 ) -> Tuple[str, List[str]]:
     """Text naming each point of a recap, on a dark backing, for about 3 s as the point starts.
 
     It sits where the hook title sits, the place the layouts keep clear of the
     captions and faces, so a label that would meet the title waits for it to go.
     ``labels`` are {"text", "start"} on the clip timeline, in play order.
+    ``time_map`` (edit → final seconds) moves each event onto a time-warped clip.
     """
     primary = hex_to_ass_color(template.get("font_color"), "#FFFFFF")
     base_px = min(64, max(34, int(round(caption_font_px * 0.8))))
@@ -392,6 +402,8 @@ def build_point_label_ass(
         size = f"\\fs{max(24, int(usable_width / (longest * 0.52)))}" if longest > max_chars else ""
         placement = f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})" if position_y is not None else ""
         body = "\\N".join(escape_ass_text(line) for line in lines)
+        if time_map is not None:
+            start, end = time_map(start), time_map(end)
         events.append(
             f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Point,,0,0,0,,"
             f"{{\\fad(120,160){placement}{size}}}{body}"
@@ -409,13 +421,15 @@ def build_hook_title_ass(
     caption_font_px: int,
     position_y: Optional[float] = None,
     editor_style: Optional[Dict[str, Any]] = None,
+    time_map: Optional[TimeMap] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
     The title sits in the top safe area (Alignment 8), styled off the caption
     template so it reads as part of the same design system: same font, an
     outline/backing for contrast, power words and numbers in the template's
-    highlight colour, and a quick fade+pop entrance.
+    highlight colour, and a quick fade+pop entrance. ``time_map`` (edit →
+    final seconds) moves the event onto a time-warped clip.
     """
     uppercase = bool(template.get("uppercase"))
     title_text = hook_title.upper() if uppercase else hook_title
@@ -479,7 +493,7 @@ def build_hook_title_ass(
     text = "\\N".join(rendered_lines)
 
     start = 0.12
-    end = min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
+    end = hook_title_window(output_duration)
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
     if editor_style is not None and "start" in editor_style:
@@ -496,6 +510,8 @@ def build_hook_title_ass(
         entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
         entrance += f"\\fscx90\\fscy90\\t(0,{round(fade_in * 1000)},\\fscx100\\fscy100)"
+    if time_map is not None:
+        start, end = time_map(start), time_map(end)
     events = [
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{{{entrance}}}{text}"
@@ -567,6 +583,8 @@ def build_assemblyai_ass_subtitles(
     caption_layout_report: Optional[Dict[str, Any]] = None,
     output_offsets: Optional[List[float]] = None,
     point_labels: Optional[List[Dict[str, Any]]] = None,
+    time_map: Optional[TimeMap] = None,
+    censor_spans: Optional[Sequence[Tuple[float, float]]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -587,6 +605,11 @@ def build_assemblyai_ass_subtitles(
     are a workflow clip's explicit range starts on the clip timeline (planned
     junction fades); without them the renderer's default crossfades apply.
     ``point_labels`` are a recap's on-screen points (``build_point_label_ass``).
+
+    Crazy edits only (both default to off, which leaves the output unchanged):
+    ``time_map`` maps every event's start and end from edit to final seconds
+    (the clip's time warp: freezes and speed ramps), and ``censor_spans`` are
+    bleeped edit-time spans whose words are masked (``edit_fx.censor``).
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -613,6 +636,8 @@ def build_assemblyai_ass_subtitles(
     if not relevant_words and not hook_title and not point_labels:
         logger.warning("No words or hook title available for ASS subtitles")
         return False
+    if censor_spans:
+        relevant_words = censored_words(relevant_words, censor_spans)
 
     effective_font_family, template = ensure_glyph_coverage(
         effective_font_family,
@@ -705,6 +730,7 @@ def build_assemblyai_ass_subtitles(
             # the headline below the source subject, off the reactor's face.
             position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
             editor_style=hook_editor_style,
+            **({"time_map": time_map} if time_map is not None else {}),
         )
         hook_style_block = f"{hook_style_line}\n"
     if point_labels:
@@ -718,6 +744,7 @@ def build_assemblyai_ass_subtitles(
             font_px,
             position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
             hook_end=min(HOOK_TITLE_SECONDS, output_duration) + 0.1 if hook_title else 0.0,
+            **({"time_map": time_map} if time_map is not None else {}),
         )
         hook_style_block += f"{point_style_line}\n"
         hook_events = hook_events + point_events
@@ -870,6 +897,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 )
                 if end <= start:
                     end = start + 0.05
+                if time_map is not None:
+                    start, end = time_map(start), time_map(end)
                 parts = []
                 for local_j, other in enumerate(chunk):
                     gj = indices[local_j]
@@ -887,6 +916,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             end = chunk_end
             if end <= start:
                 end = start + 0.05
+            if time_map is not None:
+                start, end = time_map(start), time_map(end)
             spans = []
             for local_j, word in enumerate(chunk):
                 gj = indices[local_j]

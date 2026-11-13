@@ -19,6 +19,16 @@ import json
 logger = logging.getLogger(__name__)
 
 
+class _KeepEditStyle:
+    """Sentinel: leave ``tasks.edit_style`` as stored."""
+
+    def __repr__(self) -> str:
+        return "KEEP_EDIT_STYLE"
+
+
+KEEP_EDIT_STYLE: Any = _KeepEditStyle()
+
+
 class TaskRepository:
     """Repository for task-related database operations."""
 
@@ -38,8 +48,13 @@ class TaskRepository:
         charge_minutes: bool = False,
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
+        edit_style: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create a new task and return its ID."""
+        """Create a new task and return its ID.
+
+        ``edit_style`` is ``EditStyle.to_json()``. Only a non-empty style adds the column, with a third INSERT
+        shape, so tasks without crazy edits keep the two legacy statements byte for byte (and NULL in the row).
+        """
         source_duration_seconds = charged_duration(source_duration_seconds)
         task_id = str(uuid4())
         params = {
@@ -56,7 +71,31 @@ class TaskRepository:
             "source_duration_seconds": source_duration_seconds,
         }
         try:
-            if workflow == "highlights" and not workflow_options:
+            if edit_style:
+                # Crazy edits: the column exists from the same migration as the flag that admits the style.
+                result = await db.execute(
+                    text("""
+                        INSERT INTO tasks (
+                            id, user_id, source_id, status, font_family, font_size, font_color,
+                            caption_template, include_broll, processing_mode,
+                            source_duration_seconds, workflow, workflow_options, edit_style, created_at, updated_at
+                        )
+                        VALUES (
+                            :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                            :caption_template, :include_broll, :processing_mode,
+                            :source_duration_seconds, :workflow, CAST(:workflow_options AS JSONB),
+                            CAST(:edit_style AS JSONB), NOW(), NOW()
+                        )
+                        RETURNING id
+                    """),
+                    {
+                        **params,
+                        "workflow": workflow,
+                        "workflow_options": json.dumps(workflow_options or {}),
+                        "edit_style": json.dumps(edit_style, sort_keys=True),
+                    },
+                )
+            elif workflow == "highlights" and not workflow_options:
                 # Plain highlights rely on the column defaults, so the insert is
                 # unchanged and still works before the workflows migration.
                 result = await db.execute(
@@ -185,14 +224,28 @@ class TaskRepository:
         return result.first()
 
     @staticmethod
-    async def find_active_source_task(db: AsyncSession, user_id: str, source_key: str):
+    async def find_active_source_task(
+        db: AsyncSession,
+        user_id: str,
+        source_key: str,
+        *,
+        edit_identity: Optional[tuple[Dict[str, Any], str]] = None,
+    ):
         """This account's queued or processing task for the same video, if any.
 
         Tasks created before ``source_key`` was stored are matched by
         recomputing the key from the saved source URL.
+
+        ``edit_identity`` = ``(EditStyle.to_json(), caption_template)`` for a
+        request with crazy edits: only an in-flight task with that same stored
+        style and template is the same job. Without it the lookup is unchanged.
         """
         if not user_id or not source_key:
             return None
+        if edit_identity is not None:
+            return await TaskRepository._find_active_source_task_with_style(
+                db, user_id, source_key, edit_identity
+            )
         direct = await db.execute(
             text(
                 """
@@ -231,6 +284,68 @@ class TaskRepository:
             if await source_key_for_url(db, user_id, row.source_url or "") == source_key:
                 return row
         return None
+
+    @staticmethod
+    async def _find_active_source_task_with_style(
+        db: AsyncSession, user_id: str, source_key: str, edit_identity: tuple[Dict[str, Any], str]
+    ):
+        from ..edit_fx.settings import read_edit_style
+        from ..source_identity import source_key_for_url
+
+        style, template = edit_identity
+        rows = await db.execute(
+            text(
+                """
+                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id,
+                       COALESCE(t.source_metadata->>'source_key', '') AS stored_key,
+                       t.edit_style, t.caption_template, s.url AS source_url
+                FROM tasks t
+                LEFT JOIN sources s ON s.id = t.source_id
+                WHERE t.user_id = :user
+                  AND t.status IN ('queued', 'processing')
+                ORDER BY t.created_at ASC
+                """
+            ),
+            {"user": user_id},
+        )
+        for row in rows.all():
+            if (row.caption_template or "default") != template:
+                continue
+            if read_edit_style(row.edit_style).to_json() != style:
+                continue
+            if row.stored_key:
+                if row.stored_key == source_key:
+                    return row
+            elif await source_key_for_url(db, user_id, row.source_url or "") == source_key:
+                return row
+        return None
+
+    @staticmethod
+    async def has_fx_clips(db: Optional[AsyncSession], task_id: str) -> bool:
+        """Does any clip of this task carry crazy edits (``generated_clips.fx_meta``)?
+
+        Such clips re-render on the video worker (``fx_clip_job``), never in an API request. False before the
+        migration, and for callers that unit-test a route without a database.
+        """
+        if db is None:
+            return False
+        try:
+            async with db.begin_nested():
+                result = await db.execute(
+                    text(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1 FROM generated_clips WHERE task_id = :task_id AND fx_meta IS NOT NULL
+                        )
+                        """
+                    ),
+                    {"task_id": task_id},
+                )
+                return bool(result.scalar())
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42703":
+                raise
+            return False
 
     @staticmethod
     async def get_task_by_id(
@@ -295,6 +410,7 @@ class TaskRepository:
             "workflow": getattr(row, "workflow", None) or "highlights",
             "workflow_options": getattr(row, "workflow_options", None) or {},
             "workflow_plan": getattr(row, "workflow_plan", None),
+            "edit_style": getattr(row, "edit_style", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
@@ -387,8 +503,45 @@ class TaskRepository:
         font_color: Optional[str],
         caption_template: str,
         include_broll: bool,
+        *,
+        edit_style: Any = KEEP_EDIT_STYLE,
     ) -> None:
-        """Update task styling settings."""
+        """Update task styling settings.
+
+        ``edit_style`` (``EditStyle.to_json()``) is written only when passed: ``{}`` stores NULL (off), and the
+        default ``KEEP_EDIT_STYLE`` leaves the column and the legacy statement untouched.
+        """
+        params = {
+            "task_id": task_id,
+            "font_family": font_family,
+            "font_size": font_size,
+            "font_color": font_color,
+            "caption_template": caption_template,
+            "include_broll": include_broll,
+        }
+        if edit_style is not KEEP_EDIT_STYLE:
+            async with db.begin_nested():
+                await db.execute(
+                    text(
+                        """
+                        UPDATE tasks
+                        SET font_family = :font_family,
+                            font_size = :font_size,
+                            font_color = :font_color,
+                            caption_template = :caption_template,
+                            include_broll = :include_broll,
+                            edit_style = CAST(:edit_style AS JSONB),
+                            updated_at = NOW()
+                        WHERE id = :task_id
+                        """
+                    ),
+                    {
+                        **params,
+                        "edit_style": json.dumps(edit_style, sort_keys=True) if edit_style else None,
+                    },
+                )
+            await commit_unless_editing(db)
+            return
         try:
             async with db.begin_nested():
                 await db.execute(
@@ -404,14 +557,7 @@ class TaskRepository:
                         WHERE id = :task_id
                         """
                     ),
-                    {
-                        "task_id": task_id,
-                        "font_family": font_family,
-                        "font_size": font_size,
-                        "font_color": font_color,
-                        "caption_template": caption_template,
-                        "include_broll": include_broll,
-                    },
+                    params,
                 )
         except DBAPIError as exc:
             if getattr(exc.orig, "sqlstate", None) != "42703":

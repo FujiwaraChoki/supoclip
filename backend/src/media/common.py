@@ -119,6 +119,17 @@ HOOK_TITLE_SECONDS = 4.0
 
 HOOK_TITLE_MIN_SECONDS = 1.5
 
+
+def hook_title_window(output_duration: float) -> float:
+    """End (clip seconds) of the burned hook title, which shows from 0.12 s.
+
+    The one definition of the window: the ASS builder burns the title over it and
+    the crazy-edits resolver keeps kinetic text out of the top band during it.
+    Clips no longer than ``HOOK_TITLE_MIN_SECONDS`` show the title over the whole
+    clip instead (``build_hook_title_ass``).
+    """
+    return min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
+
 HOOK_TITLE_SIDE_MARGIN_FRAC = 0.07
 
 # Clears the platform's top UI (tabs, search) with room to spare.

@@ -1,0 +1,367 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > dream 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "brightness(1.06) contrast(0.92) saturate(1.1)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "screen",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "brightness(1.06) contrast(0.92) saturate(1.1) blur(7px)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > noir 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "grayscale(1) contrast(1.3) brightness(0.95)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.3,
+    "blend": "source-over",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 550.727,
+    "rect": [
+      0,
+      0,
+      540,
+      960,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(0,0,0,0)",
+      ],
+      [
+        0.5,
+        "rgba(0,0,0,0)",
+      ],
+      [
+        0.8,
+        "rgba(0,0,0,0.55)",
+      ],
+      [
+        1,
+        "rgba(0,0,0,1)",
+      ],
+    ],
+    "x0": 270,
+    "x1": 270,
+    "y0": 480,
+    "y1": 480,
+  },
+]
+`;
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > none 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > punchy 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "contrast(1.12) saturate(1.25)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.15,
+    "blend": "source-over",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 550.727,
+    "rect": [
+      0,
+      0,
+      540,
+      960,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(0,0,0,0)",
+      ],
+      [
+        0.5,
+        "rgba(0,0,0,0)",
+      ],
+      [
+        0.8,
+        "rgba(0,0,0,0.55)",
+      ],
+      [
+        1,
+        "rgba(0,0,0,1)",
+      ],
+    ],
+    "x0": 270,
+    "x1": 270,
+    "y0": 480,
+    "y1": 480,
+  },
+]
+`;
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > teal_orange 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "contrast(1.08) saturate(1.15)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.18,
+    "blend": "soft-light",
+    "fill": "#008C9E",
+    "h": 960,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 540,
+    "x": 0,
+    "y": 0,
+  },
+  {
+    "alpha": 0.08,
+    "blend": "overlay",
+    "fill": "#FF8A3D",
+    "h": 960,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 540,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > vhs 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -1,
+    "dy": 0,
+    "filter": "saturate(1.3) contrast(0.92)",
+    "op": "picture",
+    "transform": [
+      1.004,
+      0,
+      0,
+      1.004,
+      -1,
+      -1.778,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(1.3) contrast(0.92)",
+    "op": "picture",
+    "transform": [
+      1.004,
+      0,
+      0,
+      1.004,
+      -1,
+      -1.778,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 1,
+    "dy": 0,
+    "filter": "saturate(1.3) contrast(0.92)",
+    "op": "picture",
+    "transform": [
+      1.004,
+      0,
+      0,
+      1.004,
+      -1,
+      -1.778,
+    ],
+  },
+  {
+    "alpha": 0.06,
+    "offset": 0,
+    "op": "scanlines",
+    "spacing": 2,
+  },
+]
+`;
+
+exports[`grades > the grade goes into the picture filter first; extras land in the pixel layer; VHS splits 2u > warm 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "sepia(0.18) saturate(1.1) brightness(1.03)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.12,
+    "blend": "soft-light",
+    "fill": "#FFB070",
+    "h": 960,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 540,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;

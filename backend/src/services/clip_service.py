@@ -5,11 +5,14 @@ The mixin uses TaskService's repositories, configuration, and cache key contract
 
 from ..repositories.edit_transaction import serialized_task_edit
 from typing import Dict, Any, Optional
+from dataclasses import dataclass
+from uuid import uuid4
 import logging
 from pathlib import Path
 import copy
 import json
 import tempfile
+import time
 
 import redis.asyncio as redis
 
@@ -52,6 +55,8 @@ from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip
 from ..media.render_ranges import burned_hook_title, point_labels_for
 from ..stream_source import download_stream_sections
 from .video_service import resolve_upload_for_edit
+from ..config import get_config
+from ..repositories.task_repository import KEEP_EDIT_STYLE
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +161,131 @@ def _narrow_planned_meta(meta: Dict[str, Any], pieces: list, offsets: list) -> O
     return result
 
 
+# ----------------------------------------------------------------------------- FX clip jobs (§13.0)
+# Edits that would re-render a crazy-edits clip (deno chain, face track, maybe a beat LLM call) never run inside an
+# API request. The route stores what it stores today, queues ``fx_clip_job`` on the video worker and answers 202.
+# State lives in Redis ``fx_clip_job:{job_id}`` (24 h) and is read by ``GET /tasks/{id}/clip-jobs/{job_id}``. The
+# worker side (services/fx_clip_jobs.py) updates status, progress, error and result in the same record.
+
+FX_CLIP_JOB_FUNCTION = "fx_clip_job"
+FX_CLIP_JOB_KINDS: tuple[str, ...] = ("settings", "captions", "trim", "split", "merge")
+FX_CLIP_JOB_TTL_SECONDS = 24 * 60 * 60
+FX_CLIP_JOB_STATUSES: tuple[str, ...] = ("queued", "running", "done", "failed")
+
+
+def fx_clip_job_key(job_id: str) -> str:
+    return f"fx_clip_job:{job_id}"
+
+
+class FxClipJobQueueError(RuntimeError):
+    """The edit was stored, but its FX clip job could not be queued (Redis or the queue is down)."""
+
+
+@dataclass(frozen=True)
+class FxClipJobRequest:
+    """The route's go-ahead to queue an FX clip job: who asked, and the queue (tests pass a fake)."""
+
+    user_id: str
+    queue: Any = None
+
+
+@dataclass(frozen=True)
+class QueuedClipJob:
+    """An edit accepted for the video worker. ``body()`` is the route's 202 response."""
+
+    job_id: str
+    kind: str
+
+    def body(self) -> Dict[str, Any]:
+        return {"status": "queued", "job_id": self.job_id, "kind": self.kind}
+
+
+def _fx_clip_job_redis() -> redis.Redis:
+    config = get_config()
+    return redis.Redis(
+        host=config.redis_host,
+        port=config.redis_port,
+        password=config.redis_password,
+        decode_responses=True,
+    )
+
+
+async def write_fx_clip_job_state(job_id: str, state: Dict[str, Any]) -> None:
+    """Replace the job's Redis record (TTL 24 h). Shared with the worker side."""
+    client = _fx_clip_job_redis()
+    try:
+        await client.set(
+            fx_clip_job_key(job_id),
+            json.dumps({**state, "updated_at": time.time()}, sort_keys=True, default=str),
+            ex=FX_CLIP_JOB_TTL_SECONDS,
+        )
+    finally:
+        await client.aclose()
+
+
+async def read_fx_clip_job_state(job_id: str) -> Optional[Dict[str, Any]]:
+    """The job's Redis record, or None when it is unknown or expired."""
+    client = _fx_clip_job_redis()
+    try:
+        raw = await client.get(fx_clip_job_key(job_id))
+    finally:
+        await client.aclose()
+    if not raw:
+        return None
+    try:
+        state = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return state if isinstance(state, dict) else None
+
+
+async def enqueue_fx_clip_job(
+    *,
+    task_id: str,
+    user_id: str,
+    kind: str,
+    args: Dict[str, Any],
+    queue: Any = None,
+) -> QueuedClipJob:
+    """Queue ``fx_clip_job(ctx, job)`` on the video worker with the §13.0 payload.
+
+    ``job = {"job_id", "task_id", "user_id", "kind", "args"}``; ``args`` are the ClipService method's arguments.
+    The Redis record is written before the job is queued, so a poll right after the 202 finds it. WP18 runs the
+    job (services/fx_clip_jobs.py, registered in workers/tasks.py); until a worker picks it up the record stays
+    ``queued`` and the status route reports ``WORKER_UNAVAILABLE`` after 15 minutes.
+    """
+    if kind not in FX_CLIP_JOB_KINDS:
+        raise ValueError(f"Unknown FX clip job kind: {kind}")
+    job_id = uuid4().hex
+    job = {"job_id": job_id, "task_id": task_id, "user_id": user_id, "kind": kind, "args": dict(args)}
+    state = {
+        "job_id": job_id,
+        "task_id": task_id,
+        "user_id": user_id,
+        "kind": kind,
+        "status": "queued",
+        "progress": 0.0,
+        "queued_at": time.time(),
+    }
+    await write_fx_clip_job_state(job_id, state)
+    adapter = queue
+    if adapter is None:
+        from ..workers.job_queue import JobQueue
+
+        adapter = JobQueue
+    try:
+        await adapter.enqueue_job(FX_CLIP_JOB_FUNCTION, job, _job_id=fx_clip_job_key(job_id))
+    except Exception:
+        await write_fx_clip_job_state(job_id, {
+            **state,
+            "status": "failed",
+            "error": {"code": "QUEUE_UNAVAILABLE", "message": "Could not queue the edit. Please try again."},
+        })
+        raise
+    logger.info("Queued FX clip job %s (%s) for task %s", job_id, kind, task_id)
+    return QueuedClipJob(job_id=job_id, kind=kind)
+
+
 class ClipEditingMixin:
     @serialized_task_edit
     async def delete_clip(self, task_id: str, clip_id: str) -> None:
@@ -165,7 +295,6 @@ class ClipEditingMixin:
         await self.clip_repo.delete_clip(self.db, clip_id)
         await self.clip_repo.reorder_task_clips(self.db, task_id)
 
-    @serialized_task_edit
     async def update_task_settings(
         self,
         task_id: str,
@@ -176,8 +305,60 @@ class ClipEditingMixin:
         include_broll: bool,
         apply_to_existing: bool,
         cleanup_settings: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Update task-level settings and optionally regenerate all clips."""
+        *,
+        edit_style: Any = KEEP_EDIT_STYLE,
+        fx_job: Optional["FxClipJobRequest"] = None,
+    ) -> "Dict[str, Any] | QueuedClipJob":
+        """Update task-level settings and optionally regenerate all clips.
+
+        ``edit_style`` (``EditStyle.to_json()``) is stored only when passed. With ``fx_job`` (the route found FX
+        clips or an FX target, §13.0) and ``apply_to_existing``, the settings are stored and committed first, then
+        the re-render is queued as an ``fx_clip_job`` on the video worker and a ``QueuedClipJob`` is returned
+        instead of the task. Without it the legacy synchronous path runs unchanged.
+        """
+        if fx_job is not None and apply_to_existing:
+            await self._store_task_settings(
+                task_id, font_family, font_size, font_color, caption_template, include_broll,
+                edit_style=edit_style,
+            )
+            try:
+                return await enqueue_fx_clip_job(
+                    task_id=task_id,
+                    user_id=fx_job.user_id,
+                    kind="settings",
+                    args={
+                        "font_family": font_family,
+                        "font_size": font_size,
+                        "font_color": font_color,
+                        "caption_template": caption_template,
+                        "include_broll": include_broll,
+                        "cleanup_settings": cleanup_settings,
+                        "edit_style": None if edit_style is KEEP_EDIT_STYLE else dict(edit_style or {}),
+                    },
+                    queue=fx_job.queue,
+                )
+            except Exception as exc:
+                # The settings are already committed; only the re-render is missing. Retrying is safe.
+                logger.warning("Could not queue the settings re-render for task %s: %s", task_id, exc)
+                raise FxClipJobQueueError("The settings were saved, but the clips could not be queued") from exc
+        return await self._update_task_settings_now(
+            task_id, font_family, font_size, font_color, caption_template, include_broll,
+            apply_to_existing, cleanup_settings, edit_style=edit_style,
+        )
+
+    @serialized_task_edit
+    async def _store_task_settings(
+        self,
+        task_id: str,
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
+        caption_template: str,
+        include_broll: bool,
+        *,
+        edit_style: Any = KEEP_EDIT_STYLE,
+    ) -> None:
+        """Store the settings under the task's edit lock; the commit happens before an FX job is queued."""
         await self.task_repo.update_task_settings(
             self.db,
             task_id,
@@ -186,6 +367,32 @@ class ClipEditingMixin:
             font_color,
             caption_template,
             include_broll,
+            **({"edit_style": edit_style} if edit_style is not KEEP_EDIT_STYLE else {}),
+        )
+
+    @serialized_task_edit
+    async def _update_task_settings_now(
+        self,
+        task_id: str,
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
+        caption_template: str,
+        include_broll: bool,
+        apply_to_existing: bool,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
+        *,
+        edit_style: Any = KEEP_EDIT_STYLE,
+    ) -> Dict[str, Any]:
+        await self.task_repo.update_task_settings(
+            self.db,
+            task_id,
+            font_family,
+            font_size,
+            font_color,
+            caption_template,
+            include_broll,
+            **({"edit_style": edit_style} if edit_style is not KEEP_EDIT_STYLE else {}),
         )
 
         if apply_to_existing:

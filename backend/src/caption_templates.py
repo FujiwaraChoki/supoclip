@@ -183,6 +183,293 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
 }
 
 
+# Animated caption styles for crazy edits. fx-core draws them (base captions plus the template's accent
+# variants, docs/crazy-edits.md); libass never does. They live apart from CAPTION_TEMPLATES so every place that
+# lists or validates the legacy templates (the default /caption-templates response, AI edit, the studio's caption
+# looks) keeps showing only those seven unless it asks for these explicitly.
+#
+# Each entry carries every legacy key, so code that only knows legacy templates still reads a sensible look, plus
+# keys that exist only here:
+#   - fx:           True
+#   - ass_fallback: the legacy template whose ASS captions replace this style when a clip renders without fx-core
+#   - needs_face:   its accents follow the face track
+#   - needs_matte:  its accents sit behind the person (a person matte)
+# highlight_color is the template's accent. emoji stays False: emoji are atlas sprites drawn by fx-core, and the
+# ASS fallback never injects libass emoji.
+FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
+    "marker_circle": {
+        "name": "Marker Circle",
+        "description": "Clean captions with hand-drawn circles, underlines and arrows on the key words",
+        "font_family": "TikTokSans-Bold",
+        "font_size": 30,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FF3B30",  # Red marker
+        "emphasis_color": "#FF3B30",
+        "stroke_color": "#000000",
+        "stroke_width": 3,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "pop",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.78,
+        "fx": True,
+        "ass_fallback": "default",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "emoji_drop": {
+        "name": "Emoji Drop",
+        "description": "Karaoke captions with emoji that bounce in under the punchlines",
+        "font_family": "Poppins-ExtraBold",
+        "font_size": 30,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FFD23F",  # Warm yellow
+        "emphasis_color": "#FFD23F",
+        "stroke_color": "#000000",
+        "stroke_width": 3,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "karaoke",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.76,
+        "fx": True,
+        "ass_fallback": "tiktok",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "slam": {
+        "name": "Slam",
+        "description": "Huge keywords slam onto the screen with a punch",
+        "font_family": "THEBOLDFONT",
+        "font_size": 34,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FFE000",  # Bright yellow
+        "emphasis_color": "#FFE000",
+        "stroke_color": "#000000",
+        "stroke_width": 4,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "pop",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": True,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.74,
+        "fx": True,
+        "ass_fallback": "mrbeast",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "behind_head": {
+        "name": "Behind Head",
+        "description": "Giant words that sit behind the speaker",
+        "font_family": "TikTokSans-Bold",
+        "font_size": 28,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FFD54A",  # Soft gold
+        "emphasis_color": "#FFD54A",
+        "stroke_color": None,
+        "stroke_width": 0,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "fade",
+        "word_pop": False,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 4,
+        "position_y": 0.80,
+        "fx": True,
+        "ass_fallback": "minimal",
+        "needs_face": True,
+        "needs_matte": True,
+    },
+    "stat_counter": {
+        "name": "Stat Counter",
+        "description": "Spoken numbers count up on screen and stamp into place",
+        "font_family": "Poppins-ExtraBold",
+        "font_size": 30,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#00E676",  # Money green
+        "emphasis_color": "#00E676",
+        "stroke_color": None,
+        "stroke_width": 0,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "pop",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 4,
+        "position_y": 0.78,
+        "fx": True,
+        "ass_fallback": "hormozi",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "sticker_slap": {
+        "name": "Sticker Slap",
+        "description": "Die-cut sticker words slapped around the frame",
+        "font_family": "TikTokSans-Bold",
+        "font_size": 30,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FF5C8A",  # Bubblegum pink
+        "emphasis_color": "#FF5C8A",
+        "stroke_color": "#000000",
+        "stroke_width": 3,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "pop",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.78,
+        "fx": True,
+        "ass_fallback": "tiktok",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "kinetic_stack": {
+        "name": "Kinetic Stack",
+        "description": "The hook stacks up the screen in bold rows of mixed sizes",
+        "font_family": "THEBOLDFONT",
+        "font_size": 32,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FFE000",  # Bright yellow
+        "emphasis_color": "#FFE000",
+        "stroke_color": "#000000",
+        "stroke_width": 4,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "bounce",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": True,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.74,
+        "fx": True,
+        "ass_fallback": "mrbeast",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "decode_glitch": {
+        "name": "Decode Glitch",
+        "description": "Letters scramble and lock into place with a digital glitch",
+        "font_family": "TikTokSans-Bold",
+        "font_size": 28,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#00F0FF",  # Electric cyan
+        "emphasis_color": "#00F0FF",
+        "stroke_color": "#000000",
+        "stroke_width": 2,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "fade",
+        "word_pop": False,
+        "emoji": False,
+        "uppercase": True,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.78,
+        "fx": True,
+        "ass_fallback": "neon",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "highlighter_swipe": {
+        "name": "Highlighter Swipe",
+        "description": "Dark text on a light card with a highlighter swiped across key words",
+        "font_family": "TikTokSans-Bold",
+        "font_size": 28,
+        "font_color": "#111111",
+        "highlight_color": "#FFE45C",  # Highlighter yellow
+        "emphasis_color": "#FFE45C",
+        "stroke_color": None,
+        "stroke_width": 0,
+        "background": True,
+        "background_color": "#FFFFFFE6",  # Light card, 90% opaque
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "none",
+        "word_pop": False,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": False,
+        "glow": False,
+        "max_words_per_line": 4,
+        "position_y": 0.80,
+        "fx": True,
+        "ass_fallback": "minimal",
+        "needs_face": False,
+        "needs_matte": False,
+    },
+    "face_doodles": {
+        "name": "Face Doodles",
+        "description": "Hand-drawn sparkles, horns and arrows that follow the speaker's face",
+        "font_family": "TikTokSans-Bold",
+        "font_size": 30,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#FFD23F",  # Warm yellow
+        "emphasis_color": "#FFD23F",
+        "stroke_color": "#000000",
+        "stroke_width": 3,
+        "background": False,
+        "background_color": None,
+        "word_box": False,
+        "word_box_color": None,
+        "animation": "karaoke",
+        "word_pop": True,
+        "emoji": False,
+        "uppercase": False,
+        "shadow": True,
+        "glow": False,
+        "max_words_per_line": 3,
+        "position_y": 0.78,
+        "fx": True,
+        "ass_fallback": "default",
+        "needs_face": True,
+        "needs_matte": False,
+    },
+}
+
+
 # Defaults for any styling key a template might omit, so the renderer can rely
 # on get_template(...).get(key, ...) without scattering fallbacks everywhere.
 TEMPLATE_DEFAULTS: Dict[str, Any] = {
@@ -206,8 +493,14 @@ TEMPLATE_DEFAULTS: Dict[str, Any] = {
 
 
 def get_template(template_name: str) -> Dict[str, Any]:
-    """Get a caption template by name, returns default if not found."""
-    template = CAPTION_TEMPLATES.get(template_name, CAPTION_TEMPLATES["default"])
+    """Get a caption template by name, returns default if not found.
+
+    Legacy ids come from ``CAPTION_TEMPLATES`` exactly as before; the animated (crazy edits) ids come from
+    ``FX_CAPTION_TEMPLATES_DICT``. Anything else is the default template.
+    """
+    template = CAPTION_TEMPLATES.get(template_name) or FX_CAPTION_TEMPLATES_DICT.get(
+        template_name, CAPTION_TEMPLATES["default"]
+    )
     merged = dict(TEMPLATE_DEFAULTS)
     merged.update(template)
     return merged
@@ -223,9 +516,22 @@ def get_template_names() -> list:
     return list(CAPTION_TEMPLATES.keys())
 
 
-def get_template_info() -> list:
-    """Get list of template info for API response."""
-    return [
+def _template_requires(template: Dict[str, Any]) -> list:
+    """What an animated template needs from the picture: a face track, a person matte, or nothing."""
+    if template.get("needs_matte"):
+        return ["matte"]
+    if template.get("needs_face"):
+        return ["face"]
+    return []
+
+
+def get_template_info(include_fx: bool = False) -> list:
+    """Get list of template info for API response.
+
+    The legacy list is unchanged. ``include_fx`` appends the animated templates (``fx: true`` plus what they
+    ``require``); only callers that already know the user can make crazy edits pass it.
+    """
+    info = [
         {
             "id": name,
             "name": template["name"],
@@ -238,3 +544,20 @@ def get_template_info() -> list:
         }
         for name, template in CAPTION_TEMPLATES.items()
     ]
+    if include_fx:
+        info.extend(
+            {
+                "id": name,
+                "name": template["name"],
+                "description": template["description"],
+                "animation": template["animation"],
+                "font_family": template["font_family"],
+                "font_size": template["font_size"],
+                "font_color": template["font_color"],
+                "highlight_color": template["highlight_color"],
+                "fx": True,
+                "requires": _template_requires(template),
+            }
+            for name, template in FX_CAPTION_TEMPLATES_DICT.items()
+        )
+    return info

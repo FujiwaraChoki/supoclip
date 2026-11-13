@@ -404,22 +404,9 @@ var captionStyleFor = (template) => captionStyles.get(template);
 var pictureModifiersFor = (kind) => pictureModifiers.get(kind) ?? [];
 var listGlobalDrawers = () => [...globalDrawers.values()];
 
-// src/lib/fx/core/grades.ts
-function gradeOps(id) {
-  void id;
-  return "";
-}
-function gradeMatrix(id) {
-  void id;
-  return [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
-}
-registerPicture({
-  kind: "grade",
-  apply: (state) => state
-});
-
 // src/lib/fx/core/constants.ts
 var unit = (w, h) => Math.min(w, h) / 1080;
+var HOOK_BAND = 0.2;
 var CAPTION_SAFE = { side: 0.06, top: { u: 40, frac: 0.05 }, bottom: { u: 120, frac: 0.1 } };
 function captionSafe(w, h) {
   const u = unit(w, h);
@@ -429,35 +416,14 @@ function captionSafe(w, h) {
     bottom: Math.max(CAPTION_SAFE.bottom.u * u, CAPTION_SAFE.bottom.frac * h)
   };
 }
+var REACTION_BOX_W = 0.7;
+var REACTION_BOX_H = 0.5;
+var REACTION_TOP = 0.2;
 var REACTION_ASPECT = 4 / 3;
-
-// src/lib/fx/core/easing.ts
-var clamp2 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-var clamp01 = (v) => clamp2(v, 0, 1);
-var lerp = (a, b, t) => a + (b - a) * t;
-var progress = (t, a, b) => b <= a ? t >= b ? 1 : 0 : clamp01((t - a) / (b - a));
-var linear = (x) => clamp01(x);
-var easeOutQuad = (x) => {
-  x = clamp01(x);
-  return 1 - (1 - x) * (1 - x);
-};
-var easeOutCubic = (x) => {
-  x = clamp01(x);
-  return 1 - (1 - x) ** 3;
-};
-function keyframes(keys, t) {
-  if (!keys.length) return 0;
-  if (t <= keys[0].t) return keys[0].v;
-  for (let i = 1; i < keys.length; i += 1) {
-    const b = keys[i];
-    if (t <= b.t) {
-      const a = keys[i - 1];
-      const span = b.t - a.t;
-      const x = span <= 0 ? 1 : (t - a.t) / span;
-      return lerp(a.v, b.v, (b.ease ?? linear)(x));
-    }
-  }
-  return keys[keys.length - 1].v;
+function reactionRect(w, h) {
+  const rw = Math.min(REACTION_BOX_W * w, REACTION_BOX_H * h * REACTION_ASPECT);
+  const rh = rw / REACTION_ASPECT;
+  return { x: (w - rw) / 2, y: REACTION_TOP * h, w: rw, h: rh };
 }
 
 // src/lib/fx/core/layout.ts
@@ -474,6 +440,10 @@ function mul(m, n) {
 }
 var translation = (x, y) => [1, 0, 0, 1, x, y];
 var scaleAbout = (s, cx, cy) => [s, 0, 0, s, cx - s * cx, cy - s * cy];
+var placeAt = (x, y, rot = 0, s = 1) => {
+  const c = Math.cos(rot) * s, n = Math.sin(rot) * s;
+  return [c, n, -n, c, x, y];
+};
 function applyMat(m, x, y) {
   return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 }
@@ -540,6 +510,10 @@ function pictureOps(state, w, h) {
   }
   return ops;
 }
+function cutoutOp(state, w, h) {
+  return picture(pictureMatrix(state, w, h), state.filter.join(" "), { cutout: true });
+}
+var fxFamily = (stem) => `FX-${stem}`;
 var FONT_FALLBACK = '"Noto Sans", "Noto Sans CJK SC", "Noto Sans Arabic", "Noto Sans Devanagari", "Noto Sans Thai", sans-serif';
 var fontCss = (family, px) => `${round3(px)}px "${family}", ${FONT_FALLBACK}`;
 var textOp = (o) => ({
@@ -556,6 +530,21 @@ var textOp = (o) => ({
   blend: "source-over",
   ...o
 });
+var pathOp = (o) => ({
+  op: "path",
+  closed: false,
+  smooth: false,
+  stroke: "#FFFFFF",
+  strokePx: 6,
+  fill: null,
+  cap: "round",
+  dash: null,
+  dashOffset: 0,
+  transform: IDENTITY,
+  alpha: 1,
+  blend: "source-over",
+  ...o
+});
 var rectOp = (o) => ({
   op: "rect",
   radius: 0,
@@ -567,725 +556,53 @@ var rectOp = (o) => ({
   blend: "source-over",
   ...o
 });
+var spriteOp = (o) => ({
+  op: "sprite",
+  transform: IDENTITY,
+  alpha: 1,
+  blend: "source-over",
+  ...o
+});
+var gradientOp = (o) => ({
+  op: "gradient",
+  x0: 0,
+  y0: 0,
+  r0: 0,
+  x1: 0,
+  y1: 0,
+  r1: 0,
+  alpha: 1,
+  blend: "source-over",
+  ...o
+});
+var shadow = (color, blur, dx, dy) => ({ color, blur, dx, dy });
+function safeRect(w, h, hookActive = false) {
+  const m = captionSafe(w, h), side = CAPTION_SAFE.side * w;
+  const top = hookActive ? Math.max(m.top, HOOK_BAND * h) : m.top;
+  return { x: side, y: top, w: w - 2 * side, h: h - top - m.bottom };
+}
+var overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+var inflate = (r, by) => ({ x: r.x - by, y: r.y - by, w: r.w + 2 * by, h: r.h + 2 * by });
+function clampBox(cx, cy, w, h, area) {
+  const x = w >= area.w ? area.x + (area.w - w) / 2 : Math.min(area.x + area.w - w, Math.max(area.x, cx - w / 2));
+  const y = h >= area.h ? area.y + (area.h - h) / 2 : Math.min(area.y + area.h - h, Math.max(area.y, cy - h / 2));
+  return { x, y, w, h };
+}
+function placeAvoiding(w, h, candidates, avoid, area) {
+  let best = null, bestOverlap = Infinity;
+  for (const [cx, cy] of candidates) {
+    const box = clampBox(cx, cy, w, h, area);
+    const overlap = avoid.reduce((sum, r) => sum + overlapArea(box, r), 0);
+    if (overlap === 0) return box;
+    if (overlap < bestOverlap) {
+      best = box;
+      bestOverlap = overlap;
+    }
+  }
+  return best ?? clampBox(area.x + area.w / 2, area.y + area.h / 2, w, h, area);
+}
 var round3 = (v) => Math.round(v * 1e3) / 1e3;
 var round6 = (v) => Math.round(v * 1e6) / 1e6;
-
-// src/lib/fx/core/captions/base.ts
-var DEFAULT_BASE_LOOK = { entrance: "settle", active: "accent", emphasis: true, shadow: "soft", strokeEm: 0.12, tracking: 0 };
-var BASE_LOOKS = {
-  marker_circle: { entrance: "settle", active: "accent", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
-  emoji_drop: { entrance: "settle", active: "accent-pop", emphasis: false, shadow: "soft", strokeEm: 0.1, tracking: 0 },
-  slam: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
-  behind_head: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
-  stat_counter: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
-  sticker_slap: { entrance: "settle", active: "accent", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
-  kinetic_stack: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
-  decode_glitch: { entrance: "none", active: "none", emphasis: true, shadow: "soft", strokeEm: 0.1, tracking: 0.04 },
-  highlighter_swipe: { entrance: "rise", active: "none", emphasis: false, shadow: "none", strokeEm: 0, tracking: 0 },
-  face_doodles: { entrance: "settle", active: "accent-pop", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 }
-};
-function cssColor(color) {
-  const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})$/.exec(color.trim());
-  if (!m) return color;
-  const n = parseInt(m[1], 16), a = parseInt(m[2], 16) / 255;
-  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${Math.round(a * 1e3) / 1e3})`;
-}
-function activeWordIndex(chunk, t) {
-  let index = 0;
-  chunk.words.forEach((w, i) => {
-    if (w.start <= t) index = i;
-  });
-  return index;
-}
-function entranceAt(entrance, local, u) {
-  switch (entrance) {
-    case "settle":
-      return { scale: keyframes([{ t: 0, v: 0.92 }, { t: 0.14, v: 1, ease: easeOutQuad }], local), alpha: 1, dy: 0 };
-    case "pop":
-      return {
-        scale: keyframes([{ t: 0, v: 0.88 }, { t: 0.13, v: 1.06, ease: easeOutQuad }, { t: 0.25, v: 1, ease: easeOutQuad }], local),
-        alpha: 1,
-        dy: 0
-      };
-    case "rise": {
-      const k = easeOutCubic(progress(local, 0, 0.16));
-      return { scale: 1, alpha: k, dy: (1 - k) * 14 * u };
-    }
-    default:
-      return { scale: 1, alpha: 1, dy: 0 };
-  }
-}
-function baseCaptionOps(chunk, dc, look) {
-  const p = dc.scene, style = p.scene.caption;
-  if (!style || !p.captionFamily || !chunk.words.length) return [];
-  const params = look ?? BASE_LOOKS[p.scene.template] ?? DEFAULT_BASE_LOOK;
-  const u = dc.u, px = chunk.px, family = p.captionFamily;
-  const local = dc.t - chunk.start;
-  const ent = entranceAt(params.entrance, local, u);
-  const outer = mul(translation(0, ent.dy), ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, chunk.centerX, chunk.centerY));
-  const strokeColor = style.stroke_color;
-  const strokePx = strokeColor ? style.stroke_px > 0 ? style.stroke_px : params.strokeEm * px : 0;
-  const boxed = !!style.background;
-  const kind = params.shadow === "none" ? style.shadow ? "soft" : "none" : params.shadow;
-  const sh = kind === "none" || !(style.shadow || !strokePx && !boxed) ? null : kind === "hard" ? { color: "rgba(0,0,0,0.55)", blur: 0, dx: 0, dy: 6 * u * ent.scale } : { color: "rgba(0,0,0,0.6)", blur: 12 * u, dx: 0, dy: 4 * u };
-  const active = params.active === "none" ? -1 : activeWordIndex(chunk, dc.t);
-  const letterSpacing = params.tracking * px;
-  const ops = [];
-  if (boxed) {
-    const lines = /* @__PURE__ */ new Map();
-    for (const w of chunk.words) {
-      const l = lines.get(w.line);
-      if (!l) lines.set(w.line, { x0: w.x, x1: w.x + w.w, y: w.y });
-      else {
-        l.x0 = Math.min(l.x0, w.x);
-        l.x1 = Math.max(l.x1, w.x + w.w);
-      }
-    }
-    const padX = px * 0.32, padY = px * 0.16;
-    for (const l of lines.values()) {
-      ops.push(rectOp({
-        x: l.x0 - padX,
-        y: l.y - padY,
-        w: l.x1 - l.x0 + 2 * padX,
-        h: px + 2 * padY,
-        radius: px * 0.22,
-        fill: cssColor(style.background),
-        transform: outer,
-        alpha: ent.alpha
-      }));
-    }
-  }
-  const wordTransform = (i) => {
-    const w = chunk.words[i];
-    if (params.active !== "accent-pop" || i !== active) return outer;
-    const k = keyframes([{ t: 0, v: 1 }, { t: 0.08, v: 1.1, ease: easeOutQuad }, { t: 0.2, v: 1.06, ease: easeOutQuad }], dc.t - w.start);
-    return mul(outer, scaleAbout(k, w.x + w.w / 2, w.y + w.h / 2));
-  };
-  const at = (i) => {
-    const w = chunk.words[i];
-    return { text: w.text, font: family, px, x: w.x, y: w.y + w.h / 2, align: "left", letterSpacing, transform: wordTransform(i), alpha: ent.alpha };
-  };
-  if (strokePx > 0) {
-    chunk.words.forEach((_, i) => ops.push(textOp({ ...at(i), fill: null, stroke: strokeColor, strokePx, shadow: sh })));
-  }
-  chunk.words.forEach((w, i) => {
-    const accent = i === active || params.emphasis && w.highlight;
-    ops.push(textOp({ ...at(i), fill: accent ? style.accent : style.color, shadow: strokePx > 0 ? null : sh }));
-  });
-  return ops;
-}
-
-// src/lib/fx/core/scene.ts
-var CAPTION_BRIDGE = 0.3;
-var FACE_MAX_GAP = 0.5;
-var cueOrder = (a, b) => a.start - b.start || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-function prepareScene(scene, host) {
-  const width = scene.width, height = scene.height, u = unit(width, height);
-  const warp = warpFromJson(scene.warp, scene.edit_duration);
-  const cues = [...scene.cues].sort(cueOrder);
-  const cuesByKind = /* @__PURE__ */ new Map();
-  for (const c of cues) {
-    const list = cuesByKind.get(c.kind) ?? [];
-    list.push(c);
-    cuesByKind.set(c.kind, list);
-  }
-  const measured = /* @__PURE__ */ new Map();
-  const measure = (text, family2, px) => {
-    const key = `${family2}\0${px}\0${text}`;
-    let v = measured.get(key);
-    if (v === void 0) {
-      v = host.measure(text, family2, px);
-      measured.set(key, v);
-    }
-    return v;
-  };
-  const family = (stem) => host.fontFamily(stem);
-  const style = scene.caption;
-  const captionsDrawn = !!style && style.enabled && isFxTemplate(scene.template);
-  const captionFamily = captionsDrawn ? family(style.font) : null;
-  const chunks = captionsDrawn ? layoutCaptions(scene, captionFamily, measure) : [];
-  const counters = /* @__PURE__ */ new Map();
-  for (const c of cues) {
-    if (c.kind === "accent" && c.variant === "counter") counters.set(c.id, counterFormat(c));
-  }
-  const faceAt = faceInterpolator(scene);
-  const hook = scene.hook_window;
-  const broll = [...scene.broll_windows].sort((a, b) => a[0] - b[0]);
-  const mattes = [...scene.matte_windows].sort((a, b) => a.start - b.start);
-  return {
-    scene,
-    width,
-    height,
-    u,
-    warp,
-    cues,
-    cuesByKind,
-    captionFamily,
-    chunks,
-    counters,
-    outFrames: Math.round(scene.out_duration * 30),
-    family,
-    measure,
-    faceAt,
-    chunkAt: (t) => findSpan(chunks, t),
-    hookActive: (t) => !!hook && t >= hook[0] && t < hook[1],
-    inBroll: (t) => broll.some(([a, b]) => t >= a && t < b),
-    matteAt: (t) => mattes.find((m) => t >= m.start && t < m.end) ?? null
-  };
-}
-function findSpan(items, t) {
-  let lo = 0, hi = items.length - 1, hit = -1;
-  while (lo <= hi) {
-    const mid = lo + hi >> 1;
-    if (items[mid].start <= t) {
-      hit = mid;
-      lo = mid + 1;
-    } else hi = mid - 1;
-  }
-  return hit >= 0 && t < items[hit].end ? items[hit] : null;
-}
-var captionKey = (first) => JSON.stringify([first.run, first.id]);
-function layoutCaptions(scene, family, measure) {
-  const style = scene.caption;
-  const W = scene.width, H = scene.height, u = unit(W, H);
-  const per = clamp2(Math.round(style.words_per_line) || 1, 1, 8);
-  const words = [...scene.words].sort((a, b) => a.start - b.start);
-  const placements = new Map(style.placements.map((p) => [p.key, p]));
-  const safe = captionSafe(W, H);
-  const tracking = BASE_LOOKS[scene.template]?.tracking ?? 0;
-  const groups = [];
-  for (let i = 0; i < words.length; i += per) {
-    const all = words.slice(i, i + per);
-    const shown = all.filter((w) => w.text.trim() !== "");
-    if (shown.length) groups.push({ key: captionKey(all[0]), words: shown });
-  }
-  const chunks = groups.map(({ key, words: group }) => {
-    const placement = placements.get(key);
-    const scale = placement?.scale ?? 1;
-    const label = (t) => style.uppercase ? t.toLocaleUpperCase() : t;
-    const maxWidth = Math.max(1, W - 120 * u);
-    const wrap = (size) => {
-      const space2 = measure(" ", family, size);
-      const widths2 = group.map((w) => {
-        const text = label(w.text);
-        return measure(text, family, size) + tracking * size * Math.max(0, Array.from(text).length - 1);
-      });
-      const lines2 = [];
-      let line = [], length = 0;
-      group.forEach((_, i) => {
-        if (line.length && length + space2 + widths2[i] > maxWidth) {
-          lines2.push(line);
-          line = [];
-          length = 0;
-        }
-        length += (line.length ? space2 : 0) + widths2[i];
-        line.push(i);
-      });
-      if (line.length) lines2.push(line);
-      const widest = Math.max(...lines2.map((l) => l.reduce((sum, i) => sum + widths2[i], 0) + space2 * (l.length - 1)));
-      return { space: space2, widths: widths2, lines: lines2, widest };
-    };
-    let px = Math.max(34 * u, style.size_px) * scale;
-    let fit = wrap(px);
-    for (let pass = 0; pass < 3 && fit.widest > maxWidth; pass++) {
-      px *= maxWidth / fit.widest;
-      fit = wrap(px);
-    }
-    const { space, widths, lines } = fit;
-    const lineH = px * 1.2, blockH = lineH * lines.length;
-    const centerX = W * (0.5 + (placement?.x ?? 0));
-    let centerY = H * (style.y + (placement?.y ?? 0));
-    if (!placement) centerY = clamp2(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
-    const laid = [];
-    lines.forEach((idx, li) => {
-      const total = idx.reduce((s, i) => s + widths[i], 0) + space * (idx.length - 1);
-      const yc = centerY + (li - (lines.length - 1) / 2) * lineH;
-      let x = centerX - total / 2;
-      for (const i of idx) {
-        laid.push({ ...group[i], text: label(group[i].text), x, y: yc - px / 2, w: widths[i], h: px, line: li });
-        x += widths[i] + space;
-      }
-    });
-    return { key, words: laid, start: group[0].start, end: Math.max(group[0].start, group[group.length - 1].end), px, centerX, centerY, scale };
-  });
-  for (let i = 0; i < chunks.length; i++) {
-    const next = chunks[i + 1];
-    if (!next) continue;
-    if (next.start - chunks[i].end < CAPTION_BRIDGE) chunks[i].end = Math.max(chunks[i].start, next.start);
-    else chunks[i].end = Math.min(chunks[i].end, next.start);
-  }
-  return chunks.filter((c) => c.end > c.start);
-}
-function decimalsOf(value) {
-  if (!Number.isFinite(value) || Number.isInteger(value)) return 0;
-  const text = Math.abs(value).toFixed(6).replace(/0+$/, "");
-  return Math.min(2, text.length - text.indexOf(".") - 1);
-}
-function formatNumber(value, decimals) {
-  const fixed = Math.abs(value).toFixed(decimals);
-  const [int, frac] = fixed.split(".");
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${value < 0 && Number(fixed) !== 0 ? "-" : ""}${grouped}${frac ? `.${frac}` : ""}`;
-}
-function counterFormat(cue) {
-  let target = cue.value;
-  if (target === null || !Number.isFinite(target)) {
-    const digits = cue.text.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
-    target = digits ? Number(digits[0]) : 0;
-  }
-  const shown = cue.text.replace(/,/g, "").match(/\d+(\.\d+)?/);
-  const decimals = shown && Math.abs(Number(shown[0]) - Math.abs(target)) < 1e-9 ? Math.min(2, shown[1] ? shown[1].length - 1 : 0) : decimalsOf(target);
-  const value = target;
-  return {
-    target: value,
-    decimals,
-    prefix: cue.prefix,
-    suffix: cue.suffix,
-    format: (v) => `${cue.prefix}${formatNumber(v, decimals)}${cue.suffix}`
-  };
-}
-function faceInterpolator(scene) {
-  const track = scene.face_track;
-  if (!track || !track.samples.length) return () => null;
-  const W = scene.width, H = scene.height;
-  const samples = [...track.samples].sort((a, b) => a[0] - b[0]);
-  const times = samples.map((s) => s[0]);
-  const faces = samples.map((s) => s[1] && s[1].length && s[1][0].length >= 4 ? s[1][0] : null);
-  const halfStep = 0.5 / (track.fps > 0 ? track.fps : 6);
-  const toBox = (row) => ({
-    x: row[0] * W,
-    y: row[1] * H,
-    w: row[2] * W,
-    h: row[3] * H,
-    landmarks: row.length >= 15 ? row.slice(5, 15).map((v, i) => i % 2 === 0 ? v * W : v * H) : null
-  });
-  const lerpRow = (a, b, k) => {
-    const n = a.length >= 15 && b.length >= 15 ? 15 : 5;
-    const out = [];
-    for (let i = 0; i < n; i++) out.push(a[i] + (b[i] - a[i]) * k);
-    return out;
-  };
-  return (t) => {
-    let lo = 0, hi = times.length - 1, i = -1;
-    while (lo <= hi) {
-      const mid = lo + hi >> 1;
-      if (times[mid] <= t) {
-        i = mid;
-        lo = mid + 1;
-      } else hi = mid - 1;
-    }
-    if (i < 0) {
-      const first = faces[0];
-      return first && times[0] - t <= FACE_MAX_GAP ? toBox(first) : null;
-    }
-    if (i === times.length - 1) {
-      const last = faces[i];
-      return last && t - times[i] <= FACE_MAX_GAP ? toBox(last) : null;
-    }
-    const ta = times[i], tb = times[i + 1], fa = faces[i], fb = faces[i + 1];
-    const gap = tb - ta;
-    if (fa && fb && gap <= FACE_MAX_GAP) return toBox(lerpRow(fa, fb, gap > 0 ? (t - ta) / gap : 0));
-    const nearA = t - ta <= tb - t;
-    const near = nearA ? fa : fb, dist = nearA ? t - ta : tb - t;
-    if (!near) return null;
-    if (gap > FACE_MAX_GAP && dist > halfStep) return null;
-    return toBox(near);
-  };
-}
-
-// src/lib/fx/core/captions/marker_circle.ts
-registerCaptionStyle({
-  template: "marker_circle",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.marker_circle)
-});
-registerAccent({
-  variant: "circle",
-  layer: "caption",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-registerAccent({
-  variant: "underline",
-  layer: "caption",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-registerAccent({
-  variant: "strike",
-  layer: "caption",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-registerAccent({
-  variant: "arrow",
-  layer: "caption",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/emoji_drop.ts
-registerCaptionStyle({
-  template: "emoji_drop",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.emoji_drop)
-});
-registerAccent({
-  variant: "emoji",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-registerAccent({
-  variant: "emoji_burst",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/slam.ts
-registerCaptionStyle({
-  template: "slam",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.slam)
-});
-registerAccent({
-  variant: "slam",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/behind_head.ts
-registerCaptionStyle({
-  template: "behind_head",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.behind_head)
-});
-registerAccent({
-  variant: "behind",
-  layer: "behind",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/stat_counter.ts
-registerCaptionStyle({
-  template: "stat_counter",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.stat_counter)
-});
-registerAccent({
-  variant: "counter",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/sticker_slap.ts
-registerCaptionStyle({
-  template: "sticker_slap",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.sticker_slap)
-});
-registerAccent({
-  variant: "sticker",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/kinetic_stack.ts
-registerCaptionStyle({
-  template: "kinetic_stack",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.kinetic_stack)
-});
-registerAccent({
-  variant: "kinetic",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/decode_glitch.ts
-registerCaptionStyle({
-  template: "decode_glitch",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.decode_glitch)
-});
-registerAccent({
-  variant: "decode",
-  layer: "caption",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/highlighter_swipe.ts
-registerCaptionStyle({
-  template: "highlighter_swipe",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.highlighter_swipe)
-});
-registerAccent({
-  variant: "highlight",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/captions/face_doodles.ts
-registerCaptionStyle({
-  template: "face_doodles",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.face_doodles)
-});
-registerAccent({
-  variant: "doodle",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/picture/zoom.ts
-registerPicture({
-  kind: "zoom",
-  apply: (state) => state
-});
-
-// src/lib/fx/core/picture/shake.ts
-registerPicture({
-  kind: "shake",
-  apply: (state) => state
-});
-
-// src/lib/fx/core/picture/glitch.ts
-registerPicture({
-  kind: "glitch",
-  apply: (state) => state
-});
-
-// src/lib/fx/core/picture/desaturate.ts
-registerPicture({
-  kind: "desaturate",
-  apply: (state) => state
-});
-
-// src/lib/fx/core/picture/transition.ts
-registerPicture({
-  kind: "transition",
-  apply: (state) => state
-});
-
-// src/lib/fx/core/overlays/flash.ts
-registerCue({
-  kind: "flash",
-  layer: "flash",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/overlays/sticker.ts
-registerCue({
-  kind: "sticker",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/overlays/reaction.ts
-registerCue({
-  kind: "reaction",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/overlays/bleep_cover.ts
-registerCue({
-  kind: "bleep",
-  layer: "cover",
-  window: (cue) => [cue.start, cue.end],
-  ops: () => []
-});
-
-// src/lib/fx/core/overlays/grain.ts
-registerGlobal({
-  id: "grain",
-  layer: "pixel",
-  active: (p) => p.scene.grain > 0,
-  ops: () => []
-});
-
-// src/lib/fx/core/retention/progress.ts
-registerGlobal({
-  id: "progress",
-  layer: "retention",
-  active: (p) => p.scene.progress_bar,
-  ops: () => []
-});
-
-// src/lib/fx/core/retention/freeze_label.ts
-registerCue({
-  kind: "freeze",
-  layer: "retention",
-  window: (cue) => [cue.start, cue.start],
-  ops: () => []
-});
-
-// src/lib/fx/core/retention/loop.ts
-registerGlobal({
-  id: "loop",
-  layer: "loop",
-  active: (p) => p.scene.loop_ending === "crossfade",
-  ops: () => []
-});
-
-// src/lib/fx/core/frame.ts
-var PICTURE_ORDER = ["grade", "desaturate", "zoom", "shake", "transition", "glitch"];
-function defaultWindow(cue) {
-  if (cue.kind === "transition") {
-    const half = TRANSITION_HALF[cue.style] ?? 0.1;
-    return [cue.start - half, cue.start + half];
-  }
-  return [cue.start, cue.end];
-}
-function inWindow(t, w) {
-  if (w[1] - w[0] <= 1e-9) return Math.abs(quantize(t) - quantize(w[0])) <= 1e-9;
-  return t >= w[0] - 1e-9 && t < w[1];
-}
-var errors = /* @__PURE__ */ new WeakMap();
-function guard(p, what, fn, fallback) {
-  try {
-    return fn();
-  } catch (error) {
-    const list = errors.get(p) ?? [];
-    if (list.length < 50) list.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
-    errors.set(p, list);
-    return fallback;
-  }
-}
-function makeContext(p, clock, seed, local, dur, face, picture2) {
-  const s = seed >>> 0;
-  return {
-    scene: p,
-    clock,
-    t: clock.e,
-    local,
-    dur,
-    face,
-    picture: picture2,
-    u: p.u,
-    rng: mulberry32(s),
-    hash: (n) => hash01(s, n)
-  };
-}
-var cloneState = (s) => ({ ...s, filter: [...s.filter], slices: s.slices.map((x) => ({ ...x })) });
-function pictureStateAt(p, clock, rawFace) {
-  let state = cloneState(IDENTITY_PICTURE);
-  const t = clock.e;
-  for (const kind of PICTURE_ORDER) {
-    const mods = pictureModifiersFor(kind);
-    if (!mods.length) continue;
-    if (kind === "grade") {
-      if (p.scene.grade === "none") continue;
-      for (const m of mods) {
-        const dc = makeContext(p, clock, p.scene.seed, t, p.scene.edit_duration, rawFace, state);
-        state = guard(p, "picture:grade", () => m.apply(state, null, dc), state);
-      }
-      continue;
-    }
-    for (const cue of p.cuesByKind.get(kind) ?? []) {
-      if (!inWindow(t, defaultWindow(cue))) continue;
-      for (const m of mods) {
-        const dc = makeContext(p, clock, cue.seed, t - cue.start, cue.end - cue.start, rawFace, state);
-        state = guard(p, `picture:${cue.id}`, () => m.apply(state, cue, dc), state);
-      }
-    }
-  }
-  return state;
-}
-function transformFace(face, m) {
-  if (!face) return null;
-  if (isIdentity(m)) return { ...face, landmarks: face.landmarks ? [...face.landmarks] : null };
-  const box = transformRect(m, face);
-  let landmarks = null;
-  if (face.landmarks) {
-    landmarks = [];
-    for (let i = 0; i + 1 < face.landmarks.length; i += 2) landmarks.push(...applyMat(m, face.landmarks[i], face.landmarks[i + 1]));
-  }
-  return { ...box, landmarks };
-}
-var frameCache = /* @__PURE__ */ new WeakMap();
-function frameOps(p, clock) {
-  const hit = frameCache.get(p);
-  if (hit && hit.e === clock.e && hit.o === clock.o && hit.frame === clock.frame) return hit.ops;
-  const ops = buildFrame(p, clock);
-  frameCache.set(p, { e: clock.e, o: clock.o, frame: clock.frame, ops });
-  return ops;
-}
-function buildFrame(p, clock) {
-  const t = clock.e, W = p.width, H = p.height;
-  const rawFace = p.faceAt(t);
-  const raw = pictureStateAt(p, clock, rawFace);
-  const state = { ...raw, scale: pictureScale(raw, W, H) };
-  const matrix = pictureMatrix(raw, W, H);
-  const face = transformFace(rawFace, matrix);
-  const buckets = new Map(LAYERS.map((l) => [l, []]));
-  const push = (layer, ops) => {
-    if (ops.length) buckets.get(layer).push(...ops);
-  };
-  let hideCaptions = false;
-  const captionCueOps = [];
-  for (const cue of p.cues) {
-    if (cue.kind === "accent") {
-      const d = accentDrawerFor(cue.variant);
-      if (!d) continue;
-      const w = guard(p, `window:${cue.id}`, () => d.window(cue), null);
-      if (!w || !inWindow(t, w)) continue;
-      if (d.hidesCaptions) hideCaptions = true;
-      const dc = makeContext(p, clock, cue.seed, t - cue.start, cue.end - cue.start, face, state);
-      const ops = guard(p, `accent:${cue.id}`, () => d.ops(cue, dc), []);
-      if (d.layer === "caption") captionCueOps.push(...ops);
-      else push(d.layer, ops);
-      continue;
-    }
-    for (const d of cueDrawersFor(cue.kind)) {
-      const w = guard(p, `window:${cue.id}`, () => d.window(cue), null);
-      if (!w || !inWindow(t, w)) continue;
-      const dc = makeContext(p, clock, cue.seed, t - cue.start, cue.end - cue.start, face, state);
-      const ops = guard(p, `cue:${cue.id}`, () => d.ops(cue, dc), []);
-      if (d.layer === "caption") captionCueOps.push(...ops);
-      else push(d.layer, ops);
-    }
-  }
-  const chunk = hideCaptions ? null : p.chunkAt(t);
-  if (chunk) push("caption", captionOps(p, clock, chunk, face, state));
-  push("caption", captionCueOps);
-  for (const g of listGlobalDrawers()) {
-    if (!guard(p, `global:${g.id}`, () => g.active(p, clock), false)) continue;
-    const dc = makeContext(p, clock, fnv1a32(`${p.scene.seed}:${g.id}`), t, p.scene.edit_duration, face, state);
-    push(g.layer, guard(p, `global:${g.id}`, () => g.ops(dc), []));
-  }
-  const out = [...pictureOps(raw, W, H)];
-  for (const layer of LAYERS) out.push(...buckets.get(layer));
-  return out;
-}
-function captionOps(p, clock, chunk, face, state) {
-  if (!isFxTemplate(p.scene.template)) return [];
-  const dc = makeContext(p, clock, fnv1a32(`${p.scene.seed}:${chunk.key}`), clock.e - chunk.start, chunk.end - chunk.start, face, state);
-  const drawer = captionStyleFor(p.scene.template);
-  return guard(p, `caption:${chunk.key}`, () => drawer ? drawer.line(chunk, dc) : baseCaptionOps(chunk, dc), []);
-}
-function isPassthrough(p, clock) {
-  const ops = frameOps(p, clock);
-  if (ops.length !== 1) return false;
-  const op = ops[0];
-  return op.op === "picture" && isIdentity(op.transform) && op.filter === "" && op.alpha === 1 && op.blend === "source-over" && op.channel === "rgb" && op.dx === 0 && op.dy === 0 && !op.cutout && op.clip === null;
-}
-function captionHitBoxes(p, clock) {
-  const chunk = p.chunkAt(clock.e);
-  if (!chunk || !chunk.words.length) return [];
-  const pad = Math.max(8 * p.u, chunk.px * 0.2);
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const w of chunk.words) {
-    x0 = Math.min(x0, w.x);
-    y0 = Math.min(y0, w.y);
-    x1 = Math.max(x1, w.x + w.w);
-    y1 = Math.max(y1, w.y + w.h);
-  }
-  return [{ key: chunk.key, x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad }];
-}
 
 // src/lib/fx/core/raster.ts
 var setMat = (ctx, m) => ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
@@ -1551,8 +868,8 @@ function drawPicture(ctx, op, host, base) {
   sctx.clearRect(0, 0, size.width, size.height);
   sctx.imageSmoothingEnabled = true;
   sctx.imageSmoothingQuality = "high";
-  const flat = { ...op, transform, dx: 0, dy: 0, clip: null, alpha: 1, blend: "source-over", channel: "rgb" };
-  host.drawPicture(sctx, filterFallback ? { ...flat, filter: "" } : flat);
+  const flat2 = { ...op, transform, dx: 0, dy: 0, clip: null, alpha: 1, blend: "source-over", channel: "rgb" };
+  host.drawPicture(sctx, filterFallback ? { ...flat2, filter: "" } : flat2);
   sctx.restore();
   if (filterFallback) {
     const matrix = filterMatrix(op.filter);
@@ -1570,7 +887,7 @@ function drawPicture(ctx, op, host, base) {
     sctx.fillRect(0, 0, size.width, size.height);
     if (op.cutout) {
       sctx.globalCompositeOperation = "destination-in";
-      host.drawPicture(sctx, { ...flat, filter: "" });
+      host.drawPicture(sctx, { ...flat2, filter: "" });
     }
     sctx.restore();
   }
@@ -1579,6 +896,7 @@ function drawPicture(ctx, op, host, base) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer, 0, 0);
 }
+var IDENTITY_MATRIX = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 function composeMatrix(a, b) {
   const out = new Array(20).fill(0);
   for (let r = 0; r < 4; r++) {
@@ -1805,6 +1123,2993 @@ function drawPixelate(ctx, op, base) {
     }
   }
   ctx.putImageData(img, x0, y0);
+}
+
+// src/lib/fx/core/grades.ts
+var spec = (ops, extra = {}) => ({
+  ops,
+  tint: [],
+  vignette: 0,
+  scanlines: 0,
+  glow: 0,
+  ...extra
+});
+var GRADE_SPECS = {
+  none: spec([]),
+  punchy: spec([["contrast", 1.12], ["saturate", 1.25]], { vignette: 0.15 }),
+  warm: spec([["sepia", 0.18], ["saturate", 1.1], ["brightness", 1.03]], {
+    tint: [{ color: "#FFB070", blend: "soft-light", alpha: 0.12 }]
+  }),
+  teal_orange: spec([["contrast", 1.08], ["saturate", 1.15]], {
+    tint: [{ color: "#008C9E", blend: "soft-light", alpha: 0.18 }, { color: "#FF8A3D", blend: "overlay", alpha: 0.08 }]
+  }),
+  noir: spec([["grayscale", 1], ["contrast", 1.3], ["brightness", 0.95]], { vignette: 0.3 }),
+  vhs: spec([["saturate", 1.3], ["contrast", 0.92]], { scanlines: 0.06 }),
+  dream: spec([["brightness", 1.06], ["contrast", 0.92], ["saturate", 1.1]], { glow: 0.25 })
+};
+var VHS_RGB_SPLIT = 2;
+var DREAM_GLOW_BLUR = 14;
+var VHS_SCANLINE_SPACING = 4;
+var gradeSpec = (id) => GRADE_SPECS[id] ?? GRADE_SPECS.none;
+var fnText = ([name, amount]) => name === "hue-rotate" ? `${name}(${amount}deg)` : `${name}(${amount})`;
+var gradeFilters = (id) => gradeSpec(id).ops.map(fnText);
+function gradeOps(id) {
+  return gradeFilters(id).join(" ");
+}
+function gradeMatrix(id) {
+  let out = [...IDENTITY_MATRIX];
+  for (const [name, amount] of gradeSpec(id).ops) {
+    const m = filterFunctionMatrix(name, amount);
+    if (m) out = composeMatrix(m, out);
+  }
+  return out;
+}
+var gradeHasExtras = (id) => {
+  const s = gradeSpec(id);
+  return s.tint.length > 0 || s.vignette > 0 || s.scanlines > 0 || s.glow > 0;
+};
+registerPicture({
+  kind: "grade",
+  apply: (state, _cue, dc) => {
+    const id = dc.scene.scene.grade;
+    const filters = gradeFilters(id);
+    if (!filters.length && id !== "vhs") return state;
+    return {
+      ...state,
+      filter: [...state.filter, ...filters],
+      rgbSplit: id === "vhs" ? Math.max(state.rgbSplit, round3(VHS_RGB_SPLIT * dc.u)) : state.rgbSplit
+    };
+  }
+});
+registerGlobal({
+  id: "grade",
+  layer: "pixel",
+  active: (p) => gradeHasExtras(p.scene.grade),
+  ops: (dc) => {
+    const p = dc.scene, W = p.width, H = p.height, s = gradeSpec(p.scene.grade);
+    const ops = [];
+    if (s.glow > 0) {
+      const blur = round3(DREAM_GLOW_BLUR * dc.u);
+      ops.push({
+        op: "picture",
+        transform: pictureMatrix(dc.picture, W, H),
+        filter: [...dc.picture.filter, `blur(${blur}px)`].join(" "),
+        alpha: s.glow,
+        blend: "screen",
+        channel: "rgb",
+        dx: 0,
+        dy: 0,
+        cutout: false,
+        clip: null
+      });
+    }
+    for (const tint of s.tint) ops.push(rectOp({ x: 0, y: 0, w: W, h: H, fill: tint.color, alpha: tint.alpha, blend: tint.blend }));
+    if (s.vignette > 0) {
+      const r = Math.hypot(W, H) / 2;
+      ops.push(gradientOp({
+        kind: "radial",
+        x0: W / 2,
+        y0: H / 2,
+        r0: 0,
+        x1: W / 2,
+        y1: H / 2,
+        r1: r,
+        rect: [0, 0, W, H],
+        alpha: s.vignette,
+        stops: [[0, "rgba(0,0,0,0)"], [0.5, "rgba(0,0,0,0)"], [0.8, "rgba(0,0,0,0.55)"], [1, "rgba(0,0,0,1)"]]
+      }));
+    }
+    if (s.scanlines > 0) {
+      ops.push({ op: "scanlines", alpha: s.scanlines, spacing: Math.max(2, round3(VHS_SCANLINE_SPACING * dc.u)), offset: 0 });
+    }
+    return ops;
+  }
+});
+
+// src/lib/fx/core/easing.ts
+var clamp2 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+var clamp01 = (v) => clamp2(v, 0, 1);
+var lerp = (a, b, t) => a + (b - a) * t;
+var progress = (t, a, b) => b <= a ? t >= b ? 1 : 0 : clamp01((t - a) / (b - a));
+var linear = (x) => clamp01(x);
+var easeInQuad = (x) => {
+  x = clamp01(x);
+  return x * x;
+};
+var easeOutQuad = (x) => {
+  x = clamp01(x);
+  return 1 - (1 - x) * (1 - x);
+};
+var easeInCubic = (x) => {
+  x = clamp01(x);
+  return x * x * x;
+};
+var easeOutCubic = (x) => {
+  x = clamp01(x);
+  return 1 - (1 - x) ** 3;
+};
+var easeInOutCubic = (x) => {
+  x = clamp01(x);
+  return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
+};
+var easeInOutSine = (x) => -(Math.cos(Math.PI * clamp01(x)) - 1) / 2;
+var easeOutExpo = (x) => {
+  x = clamp01(x);
+  return x === 1 ? 1 : 1 - 2 ** (-10 * x);
+};
+var easeOutBack = (x, s = 1.70158) => {
+  x = clamp01(x) - 1;
+  return 1 + (s + 1) * x * x * x + s * x * x;
+};
+function keyframes(keys, t) {
+  if (!keys.length) return 0;
+  if (t <= keys[0].t) return keys[0].v;
+  for (let i = 1; i < keys.length; i += 1) {
+    const b = keys[i];
+    if (t <= b.t) {
+      const a = keys[i - 1];
+      const span = b.t - a.t;
+      const x = span <= 0 ? 1 : (t - a.t) / span;
+      return lerp(a.v, b.v, (b.ease ?? linear)(x));
+    }
+  }
+  return keys[keys.length - 1].v;
+}
+var stepIndex = (t, rate) => Math.floor(t * rate + 1e-9);
+
+// src/lib/fx/core/captions/base.ts
+var DEFAULT_BASE_LOOK = { entrance: "settle", active: "accent", emphasis: true, shadow: "soft", strokeEm: 0.12, tracking: 0 };
+var BASE_LOOKS = {
+  marker_circle: { entrance: "settle", active: "accent", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
+  emoji_drop: { entrance: "settle", active: "accent-pop", emphasis: false, shadow: "soft", strokeEm: 0.1, tracking: 0 },
+  slam: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
+  behind_head: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
+  stat_counter: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
+  sticker_slap: { entrance: "settle", active: "accent", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
+  kinetic_stack: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
+  decode_glitch: { entrance: "none", active: "none", emphasis: true, shadow: "soft", strokeEm: 0.1, tracking: 0.04 },
+  highlighter_swipe: { entrance: "rise", active: "none", emphasis: false, shadow: "none", strokeEm: 0, tracking: 0 },
+  face_doodles: { entrance: "settle", active: "accent-pop", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 }
+};
+function cssColor(color) {
+  const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})$/.exec(color.trim());
+  if (!m) return color;
+  const n = parseInt(m[1], 16), a = parseInt(m[2], 16) / 255;
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${Math.round(a * 1e3) / 1e3})`;
+}
+function activeWordIndex(chunk, t) {
+  let index = 0;
+  chunk.words.forEach((w, i) => {
+    if (w.start <= t) index = i;
+  });
+  return index;
+}
+function entranceAt(entrance, local, u) {
+  switch (entrance) {
+    case "settle":
+      return { scale: keyframes([{ t: 0, v: 0.92 }, { t: 0.14, v: 1, ease: easeOutQuad }], local), alpha: 1, dy: 0 };
+    case "pop":
+      return {
+        scale: keyframes([{ t: 0, v: 0.88 }, { t: 0.13, v: 1.06, ease: easeOutQuad }, { t: 0.25, v: 1, ease: easeOutQuad }], local),
+        alpha: 1,
+        dy: 0
+      };
+    case "rise": {
+      const k = easeOutCubic(progress(local, 0, 0.16));
+      return { scale: 1, alpha: k, dy: (1 - k) * 14 * u };
+    }
+    default:
+      return { scale: 1, alpha: 1, dy: 0 };
+  }
+}
+function baseCaptionOps(chunk, dc, look) {
+  const p = dc.scene, style = p.scene.caption;
+  if (!style || !p.captionFamily || !chunk.words.length) return [];
+  const params = look ?? BASE_LOOKS[p.scene.template] ?? DEFAULT_BASE_LOOK;
+  const u = dc.u, px = chunk.px, family = p.captionFamily;
+  const local = dc.t - chunk.start;
+  const ent = entranceAt(params.entrance, local, u);
+  const outer = mul(translation(0, ent.dy), ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, chunk.centerX, chunk.centerY));
+  const strokeColor = style.stroke_color;
+  const strokePx = strokeColor ? style.stroke_px > 0 ? style.stroke_px : params.strokeEm * px : 0;
+  const boxed = !!style.background;
+  const kind = params.shadow === "none" ? style.shadow ? "soft" : "none" : params.shadow;
+  const sh = kind === "none" || !(style.shadow || !strokePx && !boxed) ? null : kind === "hard" ? { color: "rgba(0,0,0,0.55)", blur: 0, dx: 0, dy: 6 * u * ent.scale } : { color: "rgba(0,0,0,0.6)", blur: 12 * u, dx: 0, dy: 4 * u };
+  const active = params.active === "none" ? -1 : activeWordIndex(chunk, dc.t);
+  const letterSpacing = params.tracking * px;
+  const ops = [];
+  if (boxed) {
+    const lines = /* @__PURE__ */ new Map();
+    for (const w of chunk.words) {
+      const l = lines.get(w.line);
+      if (!l) lines.set(w.line, { x0: w.x, x1: w.x + w.w, y: w.y });
+      else {
+        l.x0 = Math.min(l.x0, w.x);
+        l.x1 = Math.max(l.x1, w.x + w.w);
+      }
+    }
+    const padX = px * 0.32, padY = px * 0.16;
+    for (const l of lines.values()) {
+      ops.push(rectOp({
+        x: l.x0 - padX,
+        y: l.y - padY,
+        w: l.x1 - l.x0 + 2 * padX,
+        h: px + 2 * padY,
+        radius: px * 0.22,
+        fill: cssColor(style.background),
+        transform: outer,
+        alpha: ent.alpha
+      }));
+    }
+  }
+  const wordTransform = (i) => {
+    const w = chunk.words[i];
+    if (params.active !== "accent-pop" || i !== active) return outer;
+    const k = keyframes([{ t: 0, v: 1 }, { t: 0.08, v: 1.1, ease: easeOutQuad }, { t: 0.2, v: 1.06, ease: easeOutQuad }], dc.t - w.start);
+    return mul(outer, scaleAbout(k, w.x + w.w / 2, w.y + w.h / 2));
+  };
+  const at = (i) => {
+    const w = chunk.words[i];
+    return { text: w.text, font: family, px, x: w.x, y: w.y + w.h / 2, align: "left", letterSpacing, transform: wordTransform(i), alpha: ent.alpha };
+  };
+  if (strokePx > 0) {
+    chunk.words.forEach((_, i) => ops.push(textOp({ ...at(i), fill: null, stroke: strokeColor, strokePx, shadow: sh })));
+  }
+  chunk.words.forEach((w, i) => {
+    const accent = i === active || params.emphasis && w.highlight;
+    ops.push(textOp({ ...at(i), fill: accent ? style.accent : style.color, shadow: strokePx > 0 ? null : sh }));
+  });
+  return ops;
+}
+
+// src/lib/fx/core/scene.ts
+var CAPTION_BRIDGE = 0.3;
+var FACE_MAX_GAP = 0.5;
+var cueOrder = (a, b) => a.start - b.start || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+function prepareScene(scene, host) {
+  const width = scene.width, height = scene.height, u = unit(width, height);
+  const warp = warpFromJson(scene.warp, scene.edit_duration);
+  const cues = [...scene.cues].sort(cueOrder);
+  const cuesByKind = /* @__PURE__ */ new Map();
+  for (const c of cues) {
+    const list = cuesByKind.get(c.kind) ?? [];
+    list.push(c);
+    cuesByKind.set(c.kind, list);
+  }
+  const measured = /* @__PURE__ */ new Map();
+  const measure = (text, family2, px) => {
+    const key = `${family2}\0${px}\0${text}`;
+    let v = measured.get(key);
+    if (v === void 0) {
+      v = host.measure(text, family2, px);
+      measured.set(key, v);
+    }
+    return v;
+  };
+  const family = (stem) => host.fontFamily(stem);
+  const style = scene.caption;
+  const captionsDrawn = !!style && style.enabled && isFxTemplate(scene.template);
+  const captionFamily = captionsDrawn ? family(style.font) : null;
+  const chunks = captionsDrawn ? layoutCaptions(scene, captionFamily, measure) : [];
+  const counters = /* @__PURE__ */ new Map();
+  for (const c of cues) {
+    if (c.kind === "accent" && c.variant === "counter") counters.set(c.id, counterFormat(c));
+  }
+  const faceAt = faceInterpolator(scene);
+  const hook = scene.hook_window;
+  const broll = [...scene.broll_windows].sort((a, b) => a[0] - b[0]);
+  const mattes = [...scene.matte_windows].sort((a, b) => a.start - b.start);
+  return {
+    scene,
+    width,
+    height,
+    u,
+    warp,
+    cues,
+    cuesByKind,
+    captionFamily,
+    chunks,
+    counters,
+    outFrames: Math.round(scene.out_duration * 30),
+    family,
+    measure,
+    faceAt,
+    chunkAt: (t) => findSpan(chunks, t),
+    hookActive: (t) => !!hook && t >= hook[0] && t < hook[1],
+    inBroll: (t) => broll.some(([a, b]) => t >= a && t < b),
+    matteAt: (t) => mattes.find((m) => t >= m.start && t < m.end) ?? null
+  };
+}
+function findSpan(items, t) {
+  let lo = 0, hi = items.length - 1, hit = -1;
+  while (lo <= hi) {
+    const mid = lo + hi >> 1;
+    if (items[mid].start <= t) {
+      hit = mid;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  return hit >= 0 && t < items[hit].end ? items[hit] : null;
+}
+var captionKey = (first) => JSON.stringify([first.run, first.id]);
+function layoutCaptions(scene, family, measure) {
+  const style = scene.caption;
+  const W = scene.width, H = scene.height, u = unit(W, H);
+  const per = clamp2(Math.round(style.words_per_line) || 1, 1, 8);
+  const words = [...scene.words].sort((a, b) => a.start - b.start);
+  const placements2 = new Map(style.placements.map((p) => [p.key, p]));
+  const safe = captionSafe(W, H);
+  const tracking = BASE_LOOKS[scene.template]?.tracking ?? 0;
+  const groups = [];
+  for (let i = 0; i < words.length; i += per) {
+    const all = words.slice(i, i + per);
+    const shown = all.filter((w) => w.text.trim() !== "");
+    if (shown.length) groups.push({ key: captionKey(all[0]), words: shown });
+  }
+  const chunks = groups.map(({ key, words: group }) => {
+    const placement = placements2.get(key);
+    const scale = placement?.scale ?? 1;
+    const label = (t) => style.uppercase ? t.toLocaleUpperCase() : t;
+    const maxWidth = Math.max(1, W - 120 * u);
+    const wrap = (size) => {
+      const space2 = measure(" ", family, size);
+      const widths2 = group.map((w) => {
+        const text = label(w.text);
+        return measure(text, family, size) + tracking * size * Math.max(0, Array.from(text).length - 1);
+      });
+      const lines2 = [];
+      let line = [], length = 0;
+      group.forEach((_, i) => {
+        if (line.length && length + space2 + widths2[i] > maxWidth) {
+          lines2.push(line);
+          line = [];
+          length = 0;
+        }
+        length += (line.length ? space2 : 0) + widths2[i];
+        line.push(i);
+      });
+      if (line.length) lines2.push(line);
+      const widest = Math.max(...lines2.map((l) => l.reduce((sum, i) => sum + widths2[i], 0) + space2 * (l.length - 1)));
+      return { space: space2, widths: widths2, lines: lines2, widest };
+    };
+    let px = Math.max(34 * u, style.size_px) * scale;
+    let fit = wrap(px);
+    for (let pass = 0; pass < 3 && fit.widest > maxWidth; pass++) {
+      px *= maxWidth / fit.widest;
+      fit = wrap(px);
+    }
+    const { space, widths, lines } = fit;
+    const lineH = px * 1.2, blockH = lineH * lines.length;
+    const centerX = W * (0.5 + (placement?.x ?? 0));
+    let centerY = H * (style.y + (placement?.y ?? 0));
+    if (!placement) centerY = clamp2(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
+    const laid = [];
+    lines.forEach((idx, li) => {
+      const total = idx.reduce((s, i) => s + widths[i], 0) + space * (idx.length - 1);
+      const yc = centerY + (li - (lines.length - 1) / 2) * lineH;
+      let x = centerX - total / 2;
+      for (const i of idx) {
+        laid.push({ ...group[i], text: label(group[i].text), x, y: yc - px / 2, w: widths[i], h: px, line: li });
+        x += widths[i] + space;
+      }
+    });
+    return { key, words: laid, start: group[0].start, end: Math.max(group[0].start, group[group.length - 1].end), px, centerX, centerY, scale };
+  });
+  for (let i = 0; i < chunks.length; i++) {
+    const next = chunks[i + 1];
+    if (!next) continue;
+    if (next.start - chunks[i].end < CAPTION_BRIDGE) chunks[i].end = Math.max(chunks[i].start, next.start);
+    else chunks[i].end = Math.min(chunks[i].end, next.start);
+  }
+  return chunks.filter((c) => c.end > c.start);
+}
+function decimalsOf(value) {
+  if (!Number.isFinite(value) || Number.isInteger(value)) return 0;
+  const text = Math.abs(value).toFixed(6).replace(/0+$/, "");
+  return Math.min(2, text.length - text.indexOf(".") - 1);
+}
+function formatNumber(value, decimals) {
+  const fixed = Math.abs(value).toFixed(decimals);
+  const [int, frac] = fixed.split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${value < 0 && Number(fixed) !== 0 ? "-" : ""}${grouped}${frac ? `.${frac}` : ""}`;
+}
+function counterFormat(cue) {
+  let target = cue.value;
+  if (target === null || !Number.isFinite(target)) {
+    const digits = cue.text.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+    target = digits ? Number(digits[0]) : 0;
+  }
+  const shown = cue.text.replace(/,/g, "").match(/\d+(\.\d+)?/);
+  const decimals = shown && Math.abs(Number(shown[0]) - Math.abs(target)) < 1e-9 ? Math.min(2, shown[1] ? shown[1].length - 1 : 0) : decimalsOf(target);
+  const value = target;
+  return {
+    target: value,
+    decimals,
+    prefix: cue.prefix,
+    suffix: cue.suffix,
+    format: (v) => `${cue.prefix}${formatNumber(v, decimals)}${cue.suffix}`
+  };
+}
+function faceInterpolator(scene) {
+  const track = scene.face_track;
+  if (!track || !track.samples.length) return () => null;
+  const W = scene.width, H = scene.height;
+  const samples = [...track.samples].sort((a, b) => a[0] - b[0]);
+  const times = samples.map((s) => s[0]);
+  const faces = samples.map((s) => s[1] && s[1].length && s[1][0].length >= 4 ? s[1][0] : null);
+  const halfStep = 0.5 / (track.fps > 0 ? track.fps : 6);
+  const toBox = (row) => ({
+    x: row[0] * W,
+    y: row[1] * H,
+    w: row[2] * W,
+    h: row[3] * H,
+    landmarks: row.length >= 15 ? row.slice(5, 15).map((v, i) => i % 2 === 0 ? v * W : v * H) : null
+  });
+  const lerpRow = (a, b, k) => {
+    const n = a.length >= 15 && b.length >= 15 ? 15 : 5;
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(a[i] + (b[i] - a[i]) * k);
+    return out;
+  };
+  return (t) => {
+    let lo = 0, hi = times.length - 1, i = -1;
+    while (lo <= hi) {
+      const mid = lo + hi >> 1;
+      if (times[mid] <= t) {
+        i = mid;
+        lo = mid + 1;
+      } else hi = mid - 1;
+    }
+    if (i < 0) {
+      const first = faces[0];
+      return first && times[0] - t <= FACE_MAX_GAP ? toBox(first) : null;
+    }
+    if (i === times.length - 1) {
+      const last = faces[i];
+      return last && t - times[i] <= FACE_MAX_GAP ? toBox(last) : null;
+    }
+    const ta = times[i], tb = times[i + 1], fa = faces[i], fb = faces[i + 1];
+    const gap = tb - ta;
+    if (fa && fb && gap <= FACE_MAX_GAP) return toBox(lerpRow(fa, fb, gap > 0 ? (t - ta) / gap : 0));
+    const nearA = t - ta <= tb - t;
+    const near = nearA ? fa : fb, dist = nearA ? t - ta : tb - t;
+    if (!near) return null;
+    if (gap > FACE_MAX_GAP && dist > halfStep) return null;
+    return toBox(near);
+  };
+}
+
+// src/lib/fx/core/captions/anchor.ts
+var normWord = (text) => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+var cueTokens = (text) => text.split(/\s+/).map(normWord).filter(Boolean);
+var REF_PX = 100;
+var widthAt = (p, text, family, px) => p.measure(text, family, REF_PX) * px / REF_PX;
+var matches = /* @__PURE__ */ new WeakMap();
+function matchCue(p, cue) {
+  let byCue = matches.get(p);
+  if (!byCue) {
+    byCue = /* @__PURE__ */ new WeakMap();
+    matches.set(p, byCue);
+  }
+  if (byCue.has(cue)) return byCue.get(cue);
+  const found = findMatch(p, cue);
+  byCue.set(cue, found);
+  return found;
+}
+function findMatch(p, cue) {
+  const tokens = cueTokens(cue.text);
+  const overlapping = p.chunks.filter((c) => c.end > cue.start - 0.06 && c.start <= Math.max(cue.end, cue.start + 0.06));
+  if (tokens.length) {
+    let best2 = null, bestDelta2 = Infinity;
+    for (const chunk of overlapping) {
+      for (let i = 0; i < chunk.words.length; i++) {
+        const w = chunk.words[i];
+        if (w.start < cue.start - 0.06 || w.start > Math.max(cue.end, cue.start + 0.06)) continue;
+        if (normWord(w.text) !== tokens[0]) continue;
+        let last = i;
+        for (let k = 1; k < tokens.length && last + 1 < chunk.words.length; k++) {
+          if (normWord(chunk.words[last + 1].text) !== tokens[k]) break;
+          last += 1;
+        }
+        const delta = Math.abs(w.start - cue.start);
+        if (delta < bestDelta2) {
+          best2 = { chunk, first: i, last };
+          bestDelta2 = delta;
+        }
+      }
+    }
+    if (best2) return best2;
+  }
+  let best = null, bestDelta = 0.35;
+  for (const chunk of overlapping) {
+    for (let i = 0; i < chunk.words.length; i++) {
+      const delta = Math.abs(chunk.words[i].start - cue.start);
+      if (delta < bestDelta || delta === bestDelta && !best) {
+        best = { chunk, first: i, last: i };
+        bestDelta = delta;
+      }
+    }
+  }
+  return best;
+}
+function wordsBox(chunk, first, last) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = first; i <= last; i++) {
+    const w = chunk.words[i];
+    x0 = Math.min(x0, w.x);
+    y0 = Math.min(y0, w.y);
+    x1 = Math.max(x1, w.x + w.w);
+    y1 = Math.max(y1, w.y + w.h);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+var chunkBox = (chunk) => wordsBox(chunk, 0, chunk.words.length - 1);
+function chunkEntrance(p, chunk, t) {
+  const look = BASE_LOOKS[p.scene.template] ?? DEFAULT_BASE_LOOK;
+  const ent = entranceAt(look.entrance, t - chunk.start, p.u);
+  const transform = mul(translation(0, ent.dy), ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, chunk.centerX, chunk.centerY));
+  return { transform: isIdentity(transform) ? IDENTITY : transform, alpha: ent.alpha };
+}
+function anchorAt(p, cue, t, withText = true) {
+  if (p.chunks.length) {
+    const m = matchCue(p, cue);
+    if (!m || p.chunkAt(t) !== m.chunk) return null;
+    const { transform, alpha } = chunkEntrance(p, m.chunk, t);
+    return { box: wordsBox(m.chunk, m.first, m.last), transform, alpha, chunk: m.chunk, px: m.chunk.px, textOps: [] };
+  }
+  return standaloneAnchor(p, cue, t, withText);
+}
+function standaloneAnchor(p, cue, t, withText = true) {
+  const style = p.scene.caption;
+  const label = style?.uppercase ? cue.text.trim().toLocaleUpperCase() : cue.text.trim();
+  const W = p.width, H = p.height, u = p.u;
+  const family = p.family(style?.font || "TikTokSans-Bold");
+  let px = Math.max(34 * u, style?.size_px ?? 78 * u);
+  const maxW = Math.max(1, W - 120 * u);
+  const width0 = label ? widthAt(p, label, family, px) : px;
+  if (width0 > maxW) px *= maxW / width0;
+  const w = label ? widthAt(p, label, family, px) : px;
+  const safe = captionSafe(W, H);
+  const cy = clamp2(H * (style?.y ?? 0.7), safe.top + px / 2, Math.max(safe.top + px / 2, H - safe.bottom - px / 2));
+  const box = { x: W / 2 - w / 2, y: cy - px / 2, w, h: px };
+  const ent = entranceAt("settle", t - cue.start, u);
+  const transform = ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, W / 2, cy);
+  const alpha = progress(t, cue.start - 1e-9, cue.start + 0.04);
+  const textOps = [];
+  if (withText && label) {
+    const at = { text: label, font: family, px, x: W / 2, y: cy, align: "center", transform, alpha };
+    textOps.push(textOp({
+      ...at,
+      fill: null,
+      stroke: "#000000",
+      strokePx: 0.12 * px,
+      shadow: { color: "rgba(0,0,0,0.6)", blur: 12 * u, dx: 0, dy: 4 * u }
+    }));
+    textOps.push(textOp({ ...at, fill: "#FFFFFF" }));
+  }
+  return { box, transform, alpha, chunk: null, px, textOps };
+}
+var accentColor = (p) => p.scene.caption?.accent || "#FFD23F";
+
+// src/lib/fx/core/captions/marker_circle.ts
+var MARKER = {
+  strokePx: 10,
+  circleDrawIn: 0.25,
+  underlineDrawIn: 0.25,
+  strikeDrawIn: 0.15,
+  arrowDrawIn: 0.3,
+  fadeOut: 0.12,
+  boilFps: 8,
+  boilPx: 1.5,
+  circlePoints: 48,
+  circleTurns: 1.15,
+  circleJitter: 0.04,
+  circlePad: 0.18,
+  underlineMinDeg: -6,
+  underlineMaxDeg: 3,
+  strikeDeg: -4,
+  arrowHeadPx: 28,
+  shadowPx: 4,
+  shadowColor: "rgba(0,0,0,0.3)"
+};
+var DEG = Math.PI / 180;
+var drawInFraction = (local, dur) => easeOutCubic(progress(local, 0, dur));
+var fadeOutAlpha = (t, end, fade = MARKER.fadeOut) => clamp01((end - t) / fade);
+function polylineLength(points) {
+  let length = 0;
+  for (let i = 2; i + 1 < points.length; i += 2) length += Math.hypot(points[i] - points[i - 2], points[i + 1] - points[i - 1]);
+  return length;
+}
+function boil(points, t, amp, hash) {
+  const step = stepIndex(t, MARKER.boilFps);
+  return points.map((v, i) => v + (hash(1e3 + step * 211 + i) * 2 - 1) * amp);
+}
+function strokeOps(points, k, color, alpha, transform, u, smooth, width = MARKER.strokePx * u) {
+  if (k <= 0 || alpha <= 0 || points.length < 4) return [];
+  const length = polylineLength(points) + width;
+  const dash = k >= 1 ? null : [length, length];
+  const dashOffset = k >= 1 ? 0 : length * (1 - k);
+  const common = { points, smooth, strokePx: width, cap: "round", dash, dashOffset, alpha };
+  return [
+    pathOp({ ...common, stroke: MARKER.shadowColor, transform: mul(translation(0, MARKER.shadowPx * u), transform) }),
+    pathOp({ ...common, stroke: color, transform })
+  ];
+}
+var rotatePoints = (points, rad, cx, cy) => {
+  const c = Math.cos(rad), s = Math.sin(rad), out = [];
+  for (let i = 0; i + 1 < points.length; i += 2) {
+    const x = points[i] - cx, y = points[i + 1] - cy;
+    out.push(cx + x * c - y * s, cy + x * s + y * c);
+  }
+  return out;
+};
+var quadPoints = (x0, y0, cx, cy, x1, y1, n) => {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const s = i / (n - 1), a = (1 - s) * (1 - s), b = 2 * (1 - s) * s, c = s * s;
+    out.push(a * x0 + b * cx + c * x1, a * y0 + b * cy + c * y1);
+  }
+  return out;
+};
+function circlePoints(box, hash) {
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  const pw = box.w * (1 + MARKER.circlePad), ph = box.h * (1 + MARKER.circlePad);
+  const rx = pw / 2 * 1.06 + 0.14 * ph, ry = ph / 2 * 1.55;
+  const tilt = (hash(1) * 2 - 1) * 4 * DEG;
+  const start = -0.75 * Math.PI + (hash(2) - 0.5) * 0.6;
+  const weights = [hash(3), hash(4), hash(5)].map((v) => 0.3 + 0.7 * v);
+  const total = weights.reduce((s, v) => s + v, 0);
+  const amps = weights.map((v) => MARKER.circleJitter * v / total);
+  const phases = [hash(6), hash(7), hash(8)].map((v) => v * 2 * Math.PI);
+  const n = MARKER.circlePoints, pts = [];
+  for (let i = 0; i < n; i++) {
+    const s = i / (n - 1);
+    const theta = start - s * MARKER.circleTurns * 2 * Math.PI;
+    let r = 1;
+    for (let k = 0; k < 3; k++) r += amps[k] * Math.sin((k + 1) * theta + phases[k]);
+    r *= 1 + 0.05 * s;
+    pts.push(cx + rx * r * Math.cos(theta), cy + ry * r * Math.sin(theta));
+  }
+  return rotatePoints(pts, tilt, cx, cy);
+}
+function underlinePoints(box, u, hash) {
+  const x0 = box.x - 0.04 * box.w - 6 * u, x1 = box.x + box.w * 1.06 + 10 * u;
+  const y = box.y + box.h * 1.12 + 8 * u;
+  const pts = quadPoints(x0, y, (x0 + x1) / 2 + (hash(11) - 0.5) * 0.2 * box.w, y + 0.16 * box.h, x1, y - 0.12 * box.h, 24);
+  const angle = lerp(MARKER.underlineMinDeg, MARKER.underlineMaxDeg, hash(12)) * DEG;
+  return rotatePoints(pts, angle, (x0 + x1) / 2, y);
+}
+function strikePoints(box, u, hash) {
+  const x0 = box.x - 12 * u, x1 = box.x + box.w + 12 * u, y = box.y + box.h * 0.52;
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    const s = i / 7;
+    pts.push(lerp(x0, x1, s), y + Math.sin(s * Math.PI) * (hash(20) - 0.5) * 6 * u + (hash(21 + i) - 0.5) * 2 * u);
+  }
+  return rotatePoints(pts, MARKER.strikeDeg * DEG, (x0 + x1) / 2, y);
+}
+function arrowGeometry(box, w, h, u, hash) {
+  const safe = safeRect(w, h, false);
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  const left = cx < w / 2;
+  const sign = left ? -1 : 1;
+  const edgeX = left ? safe.x + 16 * u : safe.x + safe.w - 16 * u;
+  let tip, tail, ctrl;
+  const sideTip = [left ? box.x - 18 * u : box.x + box.w + 18 * u, cy];
+  if (Math.abs(sideTip[0] - edgeX) >= 140 * u) {
+    tip = sideTip;
+    const rise = Math.min(240 * u, Math.abs(tip[0] - edgeX) * 0.75) + (hash(30) - 0.5) * 40 * u;
+    tail = [edgeX, Math.max(safe.y, tip[1] - rise)];
+    ctrl = [lerp(tail[0], tip[0], 0.18), lerp(tail[1], tip[1], 0.96)];
+  } else {
+    tip = [box.x + box.w * (left ? 0.28 : 0.72), box.y - 16 * u];
+    const tx = Math.min(safe.x + safe.w, Math.max(safe.x, tip[0] + sign * (170 + (hash(31) - 0.5) * 40) * u));
+    tail = [tx, Math.max(safe.y, tip[1] - 210 * u)];
+    ctrl = [lerp(tail[0], tip[0], 0.92), lerp(tail[1], tip[1], 0.12)];
+  }
+  const shaft = quadPoints(tail[0], tail[1], ctrl[0], ctrl[1], tip[0], tip[1], 20);
+  let dx = tip[0] - ctrl[0], dy = tip[1] - ctrl[1];
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len;
+  dy /= len;
+  const arm = MARKER.arrowHeadPx * u, spread = 32 * DEG;
+  const back = (a) => {
+    const c = Math.cos(a), s = Math.sin(a);
+    return [tip[0] - arm * (dx * c - dy * s), tip[1] - arm * (dx * s + dy * c)];
+  };
+  const a1 = back(spread), a2 = back(-spread);
+  return { shaft, head: [a1[0], a1[1], tip[0], tip[1], a2[0], a2[1]] };
+}
+var GEOMETRY = {
+  circle: (a, _c, dc) => ({ points: circlePoints(a.box, dc.hash), smooth: true, drawIn: MARKER.circleDrawIn }),
+  underline: (a, _c, dc) => ({ points: underlinePoints(a.box, dc.u, dc.hash), smooth: true, drawIn: MARKER.underlineDrawIn }),
+  strike: (a, _c, dc) => ({ points: strikePoints(a.box, dc.u, dc.hash), smooth: true, drawIn: MARKER.strikeDrawIn }),
+  arrow: (a, _c, dc) => {
+    const g = arrowGeometry(a.box, dc.scene.width, dc.scene.height, dc.u, dc.hash);
+    return { points: g.shaft, head: g.head, smooth: true, drawIn: MARKER.arrowDrawIn };
+  }
+};
+function markerOps(variant, cue, dc) {
+  const p = dc.scene, u = dc.u;
+  const anchor = anchorAt(p, cue, dc.t);
+  if (!anchor) return [];
+  const end = anchor.chunk ? Math.min(cue.end, anchor.chunk.end) : cue.end;
+  const fade = fadeOutAlpha(dc.t, end);
+  const alpha = anchor.alpha * fade;
+  const textOps = fade >= 1 ? anchor.textOps : anchor.textOps.map((o) => o.op === "text" ? { ...o, alpha: o.alpha * fade } : o);
+  if (alpha <= 0) return [];
+  const g = GEOMETRY[variant](anchor, cue, dc);
+  const k = drawInFraction(dc.local, g.drawIn);
+  const boiling = dc.local >= g.drawIn;
+  const amp = MARKER.boilPx * u;
+  const color = accentColor(p);
+  if (!g.head) {
+    const pts = boiling ? boil(g.points, dc.t, amp, dc.hash) : g.points;
+    return [...textOps, ...strokeOps(pts, k, color, alpha, anchor.transform, u, g.smooth)];
+  }
+  const shaftK = clamp01(k / 0.8), headK = clamp01((k - 0.8) / 0.2);
+  const shaft = boiling ? boil(g.points, dc.t, amp, dc.hash) : g.points;
+  const head = boiling ? boil(g.head, dc.t, amp, (n) => dc.hash(n + 5e3)) : g.head;
+  return [
+    ...textOps,
+    ...strokeOps(shaft, shaftK, color, alpha, anchor.transform, u, true),
+    ...headK > 0 ? strokeOps(scaleHead(head, headK), 1, color, alpha, anchor.transform, u, false) : []
+  ];
+}
+function scaleHead(head, k) {
+  const tx = head[2], ty = head[3];
+  return [tx + (head[0] - tx) * k, ty + (head[1] - ty) * k, tx, ty, tx + (head[4] - tx) * k, ty + (head[5] - ty) * k];
+}
+registerCaptionStyle({
+  template: "marker_circle",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.marker_circle)
+});
+for (const variant of ["circle", "underline", "strike", "arrow"]) {
+  registerAccent({
+    variant,
+    layer: "caption",
+    window: (cue) => [cue.start, cue.end],
+    ops: (cue, dc) => markerOps(variant, cue, dc)
+  });
+}
+
+// src/lib/fx/core/spring.ts
+function spring(t, p) {
+  const { omega: w, zeta: z, from, to } = p;
+  const v0 = p.velocity ?? 0;
+  if (t <= 0) return from;
+  const x0 = from - to;
+  if (!(w > 0)) return from + v0 * t;
+  let x;
+  if (z < 1) {
+    const wd = w * Math.sqrt(1 - z * z);
+    const decay = Math.exp(-z * w * t);
+    x = decay * (x0 * Math.cos(wd * t) + (v0 + z * w * x0) / wd * Math.sin(wd * t));
+  } else if (z === 1) {
+    x = Math.exp(-w * t) * (x0 + (v0 + w * x0) * t);
+  } else {
+    const s = Math.sqrt(z * z - 1);
+    const r1 = -w * (z - s);
+    const r2 = -w * (z + s);
+    const c2 = (v0 - r1 * x0) / (r2 - r1);
+    const c1 = x0 - c2;
+    x = c1 * Math.exp(r1 * t) + c2 * Math.exp(r2 * t);
+  }
+  return to + x;
+}
+var springOvershoot = (zeta) => zeta >= 1 || zeta <= 0 ? zeta <= 0 ? 1 : 0 : Math.exp(-zeta * Math.PI / Math.sqrt(1 - zeta * zeta));
+
+// src/lib/fx/core/captions/emoji_drop.ts
+var DEG2 = Math.PI / 180;
+var EMOJI = {
+  sizePx: 160,
+  riseFrom: 60,
+  omega: 18,
+  zeta: 0.35,
+  peakScale: 1.15,
+  wobbleDeg: 10,
+  wobbleHz: 2.5,
+  wobbleTau: 0.25,
+  popAway: 0.15,
+  gap: 14
+};
+var BURST = {
+  sizePx: 96,
+  minAngle: -150,
+  maxAngle: -30,
+  minSpeed: 900,
+  maxSpeed: 1500,
+  gravity: 2400,
+  spinDeg: 360,
+  fade: 0.7,
+  popIn: 0.06,
+  defaultCount: 5,
+  maxCount: 12
+};
+var SPRING = { omega: EMOJI.omega, zeta: EMOJI.zeta };
+var OVERSHOOT = springOvershoot(EMOJI.zeta);
+var EMOJI_PEAK_T = Math.PI / (EMOJI.omega * Math.sqrt(1 - EMOJI.zeta * EMOJI.zeta));
+function emojiLandScale(local) {
+  if (local <= 0) return 0;
+  const s = spring(local, { ...SPRING, from: 0, to: 1 });
+  if (local < EMOJI_PEAK_T) return s * EMOJI.peakScale / (1 + OVERSHOOT);
+  return 1 + (s - 1) * (EMOJI.peakScale - 1) / OVERSHOOT;
+}
+function emojiPopAway(local, dur) {
+  const x = local - (dur - EMOJI.popAway);
+  if (x <= 0) return { scale: 1, alpha: 1 };
+  return {
+    scale: keyframes([{ t: 0, v: 1 }, { t: 0.05, v: 1.2, ease: easeOutQuad }, { t: EMOJI.popAway, v: 0, ease: easeInQuad }], x),
+    alpha: 1 - easeInQuad(progress(x, 0, EMOJI.popAway))
+  };
+}
+function emojiRest(anchor, w, h, u) {
+  const size = EMOJI.sizePx * u, gap = EMOJI.gap * u;
+  const block = anchor.chunk ? chunkBox(anchor.chunk) : anchor.box;
+  const wx = anchor.box.x + anchor.box.w / 2;
+  const safe = captionSafe(w, h);
+  const side = safe.side * w;
+  const x = clamp2(wx, side + size / 2, w - side - size / 2);
+  const below = block.y + block.h + gap + size / 2;
+  const y = below + size / 2 <= h - safe.bottom ? below : Math.max(safe.top + size / 2, block.y - gap - size / 2);
+  return [x, y];
+}
+function emojiAnchor(p, cue, t) {
+  return anchorAt(p, cue, cue.start, false) ?? anchorAt(p, cue, t, false) ?? standaloneAnchor(p, cue, cue.start, false);
+}
+function emojiOps(cue, dc) {
+  const key = cue.emoji;
+  if (!key) return [];
+  const anchor = emojiAnchor(dc.scene, cue, dc.t);
+  if (!anchor) return [];
+  const u = dc.u, size = EMOJI.sizePx * u;
+  const [x, y] = emojiRest(anchor, dc.scene.width, dc.scene.height, u);
+  const local = dc.local;
+  const dy = spring(local, { ...SPRING, from: EMOJI.riseFrom * u, to: 0 });
+  const side = dc.hash(1) < 0.5 ? -1 : 1;
+  const rot = side * EMOJI.wobbleDeg * DEG2 * Math.exp(-local / EMOJI.wobbleTau) * Math.cos(2 * Math.PI * EMOJI.wobbleHz * local);
+  const pop = emojiPopAway(local, dc.dur);
+  const scale = emojiLandScale(local) * pop.scale;
+  if (scale <= 0 || pop.alpha <= 0) return [];
+  return [spriteOp({ key, x: -size / 2, y: -size / 2, w: size, h: size, transform: placeAt(x, y + dy, rot, scale), alpha: pop.alpha })];
+}
+function burstParticle(i, local, origin, u, hash) {
+  const angle = lerp(BURST.minAngle, BURST.maxAngle, hash(10 + i)) * DEG2;
+  const speed = lerp(BURST.minSpeed, BURST.maxSpeed, hash(40 + i)) * u;
+  const spin = lerp(-BURST.spinDeg, BURST.spinDeg, hash(70 + i)) * DEG2;
+  const t = Math.max(0, local);
+  return {
+    x: origin[0] + Math.cos(angle) * speed * t,
+    y: origin[1] + Math.sin(angle) * speed * t + 0.5 * BURST.gravity * u * t * t,
+    rot: spin * t + (hash(100 + i) - 0.5) * 0.6,
+    scale: easeOutBack(progress(t, 0, BURST.popIn)),
+    alpha: 1 - easeInQuad(progress(t, 0, BURST.fade))
+  };
+}
+var burstCount = (cue) => clamp2(Math.round(cue.value ?? BURST.defaultCount), 1, BURST.maxCount) || BURST.defaultCount;
+function burstOrigin(anchor) {
+  const b = anchor.box;
+  return [b.x + b.w / 2, b.y + b.h / 2];
+}
+function burstOps(cue, dc) {
+  const key = cue.emoji;
+  if (!key) return [];
+  const anchor = emojiAnchor(dc.scene, cue, dc.t);
+  if (!anchor) return [];
+  const origin = burstOrigin(anchor);
+  const size = BURST.sizePx * dc.u;
+  const ops = [];
+  for (let i = 0; i < burstCount(cue); i++) {
+    const s = burstParticle(i, dc.local, origin, dc.u, dc.hash);
+    if (s.alpha <= 0 || s.scale <= 0) continue;
+    ops.push(spriteOp({ key, x: -size / 2, y: -size / 2, w: size, h: size, transform: placeAt(s.x, s.y, s.rot, s.scale), alpha: clamp01(s.alpha) }));
+  }
+  return ops;
+}
+registerCaptionStyle({
+  template: "emoji_drop",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.emoji_drop)
+});
+registerAccent({
+  variant: "emoji",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end],
+  ops: emojiOps
+});
+registerAccent({
+  variant: "emoji_burst",
+  layer: "overlay",
+  // Sprites are gone after the 0.7 s fade; the cue may be longer (1 s), never draw past either.
+  window: (cue) => [cue.start, Math.min(cue.end, cue.start + BURST.fade)],
+  ops: burstOps
+});
+
+// src/lib/fx/core/captions/slam.ts
+var DEG3 = Math.PI / 180;
+var SLAM = {
+  font: "THEBOLDFONT",
+  widthFrac: 0.6,
+  maxHeightFrac: 0.35,
+  centerY: 0.42,
+  strokeEm: 0.1,
+  shadowPx: 8,
+  shadowColor: "rgba(0,0,0,0.6)",
+  tiltDeg: 3,
+  fadeOut: 0.12,
+  minPx: 34
+};
+var slamScale = (local) => keyframes([{ t: 0, v: 1.6 }, { t: 0.11, v: 0.95, ease: easeOutQuad }, { t: 0.18, v: 1, ease: easeOutQuad }], local);
+var slamText = (text) => text.trim().replace(/\s+/g, " ").toLocaleUpperCase();
+function slamPx(width, height, u, textWidthAtPx) {
+  const ref = 100, w100 = textWidthAtPx(ref);
+  const byWidth = w100 > 0 ? SLAM.widthFrac * width * ref / w100 : SLAM.maxHeightFrac * height;
+  return Math.max(SLAM.minPx * u, Math.min(byWidth, SLAM.maxHeightFrac * height));
+}
+function slamOps(cue, dc) {
+  const p = dc.scene, u = dc.u;
+  const text = slamText(cue.text);
+  if (!text) return [];
+  const family = p.family(SLAM.font);
+  const px = slamPx(p.width, p.height, u, (size) => widthAt(p, text, family, size));
+  const scale = slamScale(dc.local);
+  const rot = (dc.hash(1) * 2 - 1) * SLAM.tiltDeg * DEG3;
+  const alpha = clamp01((dc.dur - dc.local) / SLAM.fadeOut);
+  if (alpha <= 0) return [];
+  const transform = placeAt(p.width / 2, p.height * SLAM.centerY, rot, scale);
+  const at = { text, font: family, px, x: 0, y: 0, transform, alpha };
+  return [
+    // Shadow offsets are not transformed by the canvas: scale them with the slam so the drop stays proportional.
+    textOp({
+      ...at,
+      fill: null,
+      stroke: "#000000",
+      strokePx: SLAM.strokeEm * px,
+      shadow: { color: SLAM.shadowColor, blur: 0, dx: 0, dy: SLAM.shadowPx * u * scale }
+    }),
+    textOp({ ...at, fill: "#FFFFFF" })
+  ];
+}
+registerCaptionStyle({
+  template: "slam",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.slam)
+});
+registerAccent({
+  variant: "slam",
+  layer: "overlay",
+  hidesCaptions: true,
+  window: (cue) => [cue.start, cue.end],
+  ops: slamOps
+});
+
+// src/lib/fx/core/captions/behind_head.ts
+var BEHIND = {
+  font: "TikTokSans-Bold",
+  widthFrac: 0.92,
+  maxPx: 450,
+  maxHeightFrac: 0.25,
+  faceLift: 0.2,
+  minTopFrac: 0.08,
+  noFaceTopFrac: 0.18,
+  rise: 40,
+  fadeIn: 0.2,
+  fadeOut: 0.15,
+  frontAlpha: 0.85,
+  minPx: 34
+};
+function behindText(text) {
+  return text.trim().split(/\s+/).filter(Boolean).slice(0, 2).join(" ").toLocaleUpperCase();
+}
+function behindPx(width, height, u, textWidthAtPx) {
+  const ref = 100, w100 = textWidthAtPx(ref);
+  const byWidth = w100 > 0 ? BEHIND.widthFrac * width * ref / w100 : BEHIND.maxPx * u;
+  return Math.max(BEHIND.minPx * u, Math.min(byWidth, BEHIND.maxPx * u, BEHIND.maxHeightFrac * height));
+}
+function behindTop(height, face) {
+  if (!face) return BEHIND.noFaceTopFrac * height;
+  return Math.max(BEHIND.minTopFrac * height, face.y - BEHIND.faceLift * face.h);
+}
+function behindOps(cue, dc) {
+  const p = dc.scene, u = dc.u, W = p.width, H = p.height;
+  const text = behindText(cue.text);
+  if (!text) return [];
+  const family = p.family(p.scene.caption?.font || BEHIND.font);
+  const px = behindPx(W, H, u, (size) => widthAt(p, text, family, size));
+  const k = easeOutCubic(progress(dc.local, 0, BEHIND.fadeIn));
+  const alpha = k * clamp01((dc.dur - dc.local) / BEHIND.fadeOut);
+  if (alpha <= 0) return [];
+  const top = behindTop(H, dc.face) + (1 - k) * BEHIND.rise * u;
+  const at = { text, font: family, px, x: W / 2, y: top + px / 2 };
+  const matte = p.matteAt(dc.t);
+  if (matte?.person) {
+    return [
+      textOp({ ...at, fill: "#FFFFFF", alpha, shadow: { color: "rgba(0,0,0,0.35)", blur: 28 * u, dx: 0, dy: 8 * u } }),
+      cutoutOp(dc.picture, W, H)
+    ];
+  }
+  return [textOp({
+    ...at,
+    fill: "#FFFFFF",
+    alpha: alpha * BEHIND.frontAlpha,
+    shadow: { color: "rgba(0,0,0,0.5)", blur: 24 * u, dx: 0, dy: 6 * u }
+  })];
+}
+registerCaptionStyle({
+  template: "behind_head",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.behind_head)
+});
+registerAccent({
+  variant: "behind",
+  layer: "behind",
+  window: (cue) => [cue.start, cue.end],
+  ops: behindOps
+});
+
+// src/lib/fx/core/captions/stat_counter.ts
+var DEG4 = Math.PI / 180;
+var COUNTER = {
+  font: "Poppins-ExtraBold",
+  sizeOfCaption: 2.2,
+  centerY: 0.36,
+  maxWidthFrac: 0.88,
+  minCount: 0.6,
+  countPad: 0.4,
+  stampFrom: 1.4,
+  stampDur: 0.12,
+  stampDeg: -6,
+  rimPx: 14,
+  rimFrames: 2,
+  enter: 0.12,
+  fadeOut: 0.15,
+  strokeEm: 0.07
+};
+var durations = /* @__PURE__ */ new WeakMap();
+function counterDuration(p, cue) {
+  let byCue = durations.get(p);
+  if (!byCue) {
+    byCue = /* @__PURE__ */ new WeakMap();
+    durations.set(p, byCue);
+  }
+  const hit = byCue.get(cue);
+  if (hit !== void 0) return hit;
+  const dur = Math.max(0, cue.end - cue.start);
+  const n = Math.max(1, cueTokens(cue.text).length);
+  const words = [...p.scene.words].filter((w) => w.text.trim() !== "").sort((a, b) => a.start - b.start);
+  const first = words.findIndex((w) => w.start >= cue.start - 0.05 && w.start < Math.max(cue.end, cue.start + 0.05));
+  let wordDur;
+  if (first >= 0) {
+    const last = words[Math.min(words.length - 1, first + n - 1)];
+    wordDur = Math.max(0, last.end - words[first].start);
+  } else {
+    wordDur = Math.max(0, dur - 0.9 - COUNTER.countPad);
+  }
+  const count = Math.min(Math.max(COUNTER.minCount, wordDur + COUNTER.countPad), Math.max(0.3, dur - 0.2));
+  byCue.set(cue, count);
+  return count;
+}
+function counterValue(target, local, count) {
+  if (local >= count) return target;
+  return target * easeOutExpo(progress(local, 0, count));
+}
+var isDigit = (ch) => ch >= "0" && ch <= "9";
+function tabularAdvances(p, text, family, px) {
+  const digit = Math.max(...Array.from("0123456789", (d) => p.measure(d, family, REF_PX)));
+  return Array.from(text, (ch) => (isDigit(ch) ? digit : p.measure(ch, family, REF_PX)) * px / REF_PX);
+}
+function counterPx(p, fmt, family) {
+  const style = p.scene.caption;
+  const caption = Math.max(34 * p.u, style?.size_px ?? 78 * p.u);
+  let px = COUNTER.sizeOfCaption * caption;
+  const full = tabularAdvances(p, fmt.format(fmt.target), family, px).reduce((s, v) => s + v, 0);
+  const max = COUNTER.maxWidthFrac * p.width;
+  if (full > max) px *= max / full;
+  return px;
+}
+var stampPeak = (textWidth, frameWidth) => textWidth > 0 ? Math.max(1, Math.min(COUNTER.stampFrom, 0.96 * frameWidth / textWidth)) : COUNTER.stampFrom;
+function counterOps(cue, dc) {
+  const p = dc.scene, u = dc.u, local = dc.local;
+  const fmt = p.counters.get(cue.id) ?? counterFormat(cue);
+  const family = p.family(COUNTER.font);
+  const px = counterPx(p, fmt, family);
+  const count = counterDuration(p, cue);
+  const text = fmt.format(counterValue(fmt.target, local, count));
+  const locked = local >= count - 1e-9;
+  const sinceLock = local - count;
+  const fade = clamp01((dc.dur - local) / COUNTER.fadeOut);
+  const enterK = progress(local, 0, COUNTER.enter);
+  const alpha = Math.min(1, enterK * 4) * fade;
+  if (alpha <= 0) return [];
+  const advances = tabularAdvances(p, text, family, px);
+  const total = advances.reduce((s, v) => s + v, 0);
+  const scale = locked ? keyframes([{ t: 0, v: stampPeak(total, p.width) }, { t: COUNTER.stampDur, v: 1, ease: easeOutQuad }], sinceLock) : 0.7 + 0.3 * easeOutBack(enterK);
+  const rot = locked ? COUNTER.stampDeg * DEG4 : 0;
+  const transform = placeAt(p.width / 2, p.height * COUNTER.centerY, rot, scale);
+  const chars = Array.from(text);
+  const xs = [];
+  let x = -total / 2;
+  for (const a of advances) {
+    xs.push(x + a / 2);
+    x += a;
+  }
+  const fill = locked ? accentColor(p) : "#FFFFFF";
+  const glyph = (i) => ({ text: chars[i], font: family, px, x: xs[i], y: 0, transform, alpha });
+  const ops = [];
+  const outline = COUNTER.strokeEm * px;
+  if (locked && sinceLock < COUNTER.rimFrames * FRAME - 1e-9) {
+    const rimAlpha = alpha * (1 - Math.floor(sinceLock / FRAME + 1e-6) / COUNTER.rimFrames);
+    chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), alpha: rimAlpha, fill: null, stroke: "#FFFFFF", strokePx: outline + COUNTER.rimPx * u })));
+  }
+  const shadow2 = { color: "rgba(0,0,0,0.5)", blur: 18 * u, dx: 0, dy: 6 * u * scale };
+  chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), fill: null, stroke: "#000000", strokePx: outline, shadow: shadow2 })));
+  chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), fill })));
+  return ops;
+}
+registerCaptionStyle({
+  template: "stat_counter",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.stat_counter)
+});
+registerAccent({
+  variant: "counter",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end],
+  ops: counterOps
+});
+
+// src/lib/fx/core/looks/sticker.ts
+var STICKER_PALETTES = [
+  { fill: "#FF3B5C", keyline: "#2A0710", edge: "#FFFFFF" },
+  { fill: "#FFD23F", keyline: "#2B2100", edge: "#FFFFFF" },
+  { fill: "#2EC5FF", keyline: "#03202E", edge: "#FFFFFF" },
+  { fill: "#7CF25B", keyline: "#0D2A06", edge: "#FFFFFF" }
+];
+var STICKER_FONT = "Poppins-ExtraBold";
+var STICKER_PX = 72;
+var STICKER_EDGE_EM = 0.22;
+var KEYLINE_EM = 0.04;
+var LINE_GAP = 1.12;
+var TRACKING_EM = 0.02;
+function stickerPalette(pick) {
+  if (typeof pick === "string") return { fill: pick, keyline: "#16161A", edge: "#FFFFFF" };
+  const i = Math.min(STICKER_PALETTES.length - 1, Math.max(0, Math.floor(pick * STICKER_PALETTES.length)));
+  return STICKER_PALETTES[i];
+}
+var stickerTilt = (draw2, maxDeg = 8) => (draw2 * 2 - 1) * maxDeg * Math.PI / 180;
+var slapScale = (local, from = 1.3, dur = 0.09) => keyframes([{ t: 0, v: from }, { t: dur, v: 1, ease: easeOutQuad }], local);
+var slapAlpha = (local) => local < 0 ? 0 : Math.min(1, 0.35 + local / 0.05);
+function stickerBox(text, scale, u, measure) {
+  const px = STICKER_PX * u;
+  const lines = text.split("\n");
+  const family = fxFamily(STICKER_FONT);
+  const widest = Math.max(...lines.map((l) => measure(l, family, px) + Math.max(0, l.length - 1) * TRACKING_EM * px));
+  const edge = 2 * STICKER_EDGE_EM * px;
+  return { w: (widest + edge) * scale, h: (lines.length * px * LINE_GAP + edge + 8 * u) * scale };
+}
+function stickerOps(text, x, y, rot, scale, palette, u) {
+  const pal = typeof palette === "string" ? stickerPalette(palette) : palette;
+  const lines = text.split("\n").filter((l, i, all) => l.trim() !== "" || all.length === 1);
+  if (!text.trim() || scale <= 0) return [];
+  const px = STICKER_PX * u;
+  const font = fxFamily(STICKER_FONT);
+  const transform = placeAt(x, y, rot, scale);
+  const letterSpacing = TRACKING_EM * px;
+  const ops = [];
+  const at = (i) => ({ text: lines[i], font, px, x: 0, y: (i - (lines.length - 1) / 2) * px * LINE_GAP, letterSpacing, transform });
+  const shadow2 = { color: "rgba(0,0,0,0.35)", blur: 0, dx: 0, dy: 6 * u * scale };
+  lines.forEach((_, i) => ops.push(textOp({ ...at(i), fill: pal.edge, stroke: pal.edge, strokePx: STICKER_EDGE_EM * px, shadow: shadow2 })));
+  lines.forEach((_, i) => ops.push(textOp({ ...at(i), fill: null, stroke: pal.keyline, strokePx: KEYLINE_EM * px })));
+  lines.forEach((_, i) => ops.push(textOp({ ...at(i), fill: pal.fill })));
+  return ops;
+}
+
+// src/lib/fx/core/captions/sticker_slap.ts
+var STICKER_MAX_LIFE = 1.6;
+var STICKER_MAX_STACK = 3;
+var STICKER_OUT = 0.12;
+var STICKER_TILT_DEG = 8;
+var STICKER_SCALE = 1.5;
+var WRAP_AT = 13;
+function stickerLabel(text) {
+  const clean = text.replace(/\s+/g, " ").trim().toLocaleUpperCase();
+  if (Array.from(clean).length <= WRAP_AT || !clean.includes(" ")) return clean;
+  const mid = clean.length / 2;
+  let cut = -1;
+  for (let i = 0; i < clean.length; i++) if (clean[i] === " " && (cut < 0 || Math.abs(i - mid) < Math.abs(cut - mid))) cut = i;
+  return `${clean.slice(0, cut)}
+${clean.slice(cut + 1)}`;
+}
+var stickerWindow = (cue) => [cue.start, Math.min(cue.end, cue.start + STICKER_MAX_LIFE)];
+function captionBand(p, a, b) {
+  let y0 = Infinity, y1 = -Infinity;
+  for (const chunk of p.chunks) {
+    if (chunk.end <= a || chunk.start >= b) continue;
+    for (const w of chunk.words) {
+      y0 = Math.min(y0, w.y);
+      y1 = Math.max(y1, w.y + w.h);
+    }
+  }
+  const style = p.scene.caption;
+  if (y0 === Infinity) {
+    if (!style || !style.enabled || !p.captionFamily) return null;
+    const half = style.size_px * 1.3;
+    y0 = style.y * p.height - half;
+    y1 = style.y * p.height + half;
+  }
+  const pad = 24 * p.u;
+  return { x: 0, y: y0 - pad, w: p.width, h: y1 - y0 + 2 * pad };
+}
+var CANDIDATES = [
+  [0.5, 0.55],
+  [0.27, 0.5],
+  [0.73, 0.5],
+  [0.27, 0.33],
+  [0.73, 0.33],
+  [0.28, 0.16],
+  [0.72, 0.16],
+  [0.5, 0.16],
+  [0.5, 0.86],
+  [0.2, 0.62],
+  [0.8, 0.62]
+];
+var GRID = Array.from({ length: 63 }, (_, i) => [0.14 + i % 7 * 0.12, 0.1 + Math.floor(i / 7) * 0.1]);
+function placeSticker(p, cue, taken, accent) {
+  const text = stickerLabel(cue.text);
+  if (!text) return null;
+  const W = p.width, H = p.height, u = p.u;
+  const [start, end] = stickerWindow(cue);
+  const area = safeRect(W, H, p.hookActive(start));
+  const rot = stickerTilt(hash01(cue.seed >>> 0, 1), STICKER_TILT_DEG);
+  const palette = accent && hash01(cue.seed >>> 0, 2) < 0.35 ? stickerPalette(cssColor(accent)) : stickerPalette(hash01(cue.seed >>> 0, 3));
+  const at1 = stickerBox(text, 1, u, p.measure);
+  const c = Math.abs(Math.cos(rot)), s = Math.abs(Math.sin(rot));
+  const tilted = (k) => ({ w: (at1.w * c + at1.h * s) * k, h: (at1.w * s + at1.h * c) * k });
+  const fit = Math.min(STICKER_SCALE, area.w * 0.86 / tilted(1).w, area.h * 0.3 / tilted(1).h);
+  const hard = [];
+  const face = p.faceAt(start);
+  if (face) hard.push(inflate(face, 18 * u));
+  const band = captionBand(p, start, end);
+  if (band) hard.push(band);
+  const first = Math.floor(hash01(cue.seed >>> 0, 4) * 3);
+  const order = [...CANDIDATES.slice(first), ...CANDIDATES.slice(0, first), ...GRID].map(([x, y]) => [x * W, y * H]);
+  let box = null, scale = fit;
+  for (const k of [1, 0.85, 0.72, 0.6]) {
+    const size = tilted(fit * k);
+    const spot = placeAvoiding(size.w, size.h, order, [...hard, ...taken], area);
+    if ([...hard, ...taken].every((r) => overlapArea(spot, r) === 0)) {
+      box = spot;
+      scale = fit * k;
+      break;
+    }
+  }
+  if (!box) {
+    const size = tilted(fit * 0.6);
+    let best = Infinity;
+    for (const [x, y] of order) {
+      const spot = clampBox(x, y, size.w, size.h, area);
+      const cost = hard.reduce((c2, r) => c2 + 4 * overlapArea(spot, r), 0) + taken.reduce((c2, r) => c2 + overlapArea(spot, r), 0);
+      if (cost < best) {
+        best = cost;
+        box = spot;
+      }
+    }
+    scale = fit * 0.6;
+  }
+  const at = box;
+  return { id: cue.id, text, cx: at.x + at.w / 2, cy: at.y + at.h / 2, rot, scale, palette, box: at, start, end };
+}
+var placements = /* @__PURE__ */ new WeakMap();
+function stickerPlacements(p) {
+  let map = placements.get(p);
+  if (map) return map;
+  map = /* @__PURE__ */ new Map();
+  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "sticker");
+  const placed = [];
+  const accent = p.scene.caption?.accent ?? null;
+  for (const cue of stickers) {
+    const [start] = stickerWindow(cue);
+    const showing = placed.filter((s) => s.start <= start && s.end > start).slice(-(STICKER_MAX_STACK - 1));
+    const spot = placeSticker(p, cue, showing.map((s) => inflate(s.box, 10 * p.u)), accent);
+    map.set(cue.id, spot);
+    if (spot) placed.push(spot);
+  }
+  placements.set(p, map);
+  return map;
+}
+function stickerMotion(local, life) {
+  if (local < 0 || local > life) return [0, 0];
+  const out = easeInQuad(progress(local, life - STICKER_OUT, life));
+  const breathe = 1 + 0.012 * Math.sin(2 * Math.PI * 1.4 * Math.max(0, local - 0.09));
+  return [slapScale(local) * breathe * (1 - 0.15 * out), slapAlpha(local) * clamp01(1 - out)];
+}
+function placedStickerOps(spot, local, u) {
+  const [k, alpha] = stickerMotion(local, spot.end - spot.start);
+  if (k <= 0 || alpha <= 0) return [];
+  return stickerOps(spot.text, spot.cx, spot.cy, spot.rot, spot.scale * k, spot.palette, u).map((o) => o.op === "text" ? { ...o, alpha: o.alpha * alpha } : o);
+}
+function inStack(p, cue, t) {
+  const showing = (p.cuesByKind.get("accent") ?? []).filter((c) => {
+    if (c.kind !== "accent" || c.variant !== "sticker") return false;
+    const [a, b] = stickerWindow(c);
+    return t >= a && t < b;
+  });
+  const index = showing.findIndex((c) => c.id === cue.id);
+  return index >= 0 && index >= showing.length - STICKER_MAX_STACK;
+}
+function stickerAccentOps(cue, dc) {
+  const p = dc.scene;
+  if (!inStack(p, cue, dc.t)) return [];
+  const spot = stickerPlacements(p).get(cue.id);
+  return spot ? placedStickerOps(spot, dc.local, dc.u) : [];
+}
+registerCaptionStyle({
+  template: "sticker_slap",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.sticker_slap)
+});
+registerAccent({
+  variant: "sticker",
+  layer: "overlay",
+  window: stickerWindow,
+  ops: stickerAccentOps
+});
+
+// src/lib/fx/core/captions/highlighter_swipe.ts
+var SWIPE_MIN = 0.12;
+var SWIPE_MAX = 0.6;
+var SWIPE_APPROX = 0.3;
+var SWIPE_ALPHA = 0.85;
+var SWIPE_SKEW_DEG = -3;
+var SWIPE_JITTER = 3;
+var HIGHLIGHT_LINGER = 6;
+var sortedWords = /* @__PURE__ */ new WeakMap();
+function spokenWords(p) {
+  let words = sortedWords.get(p);
+  if (!words) {
+    words = p.scene.words.filter((w) => w.text.trim() !== "").sort((a, b) => a.start - b.start || (a.id < b.id ? -1 : 1));
+    sortedWords.set(p, words);
+  }
+  return words;
+}
+function cueWords(p, cue) {
+  const words = spokenWords(p);
+  const tokens = Math.max(1, cue.text.trim().split(/\s+/).filter(Boolean).length);
+  let best = -1, bestGap = Infinity;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (w.start < cue.start - 0.06 || w.start >= Math.max(cue.end, cue.start + 0.01)) continue;
+    const gap = Math.abs(w.start - cue.start);
+    if (gap < bestGap) {
+      best = i;
+      bestGap = gap;
+    }
+  }
+  if (best < 0) return [];
+  const out = [];
+  for (let i = best; i < words.length && out.length < tokens; i++) {
+    if (i > best && words[i].start >= cue.end) break;
+    out.push(words[i]);
+  }
+  return out;
+}
+function sameApproxLine(a, b) {
+  if (Math.abs(b.start - a.end) > 15e-4) return false;
+  const la = Math.max(1, Array.from(a.text).length), lb = Math.max(1, Array.from(b.text).length);
+  return Math.abs((a.end - a.start) * lb - (b.end - b.start) * la) <= 11e-4 * (la + lb);
+}
+var approxCache = /* @__PURE__ */ new WeakMap();
+function approxTiming(p) {
+  const cached = approxCache.get(p);
+  if (cached !== void 0) return cached;
+  const words = spokenWords(p);
+  let pairs = 0, linked = 0;
+  for (let i = 0; i + 1 < words.length; i++) {
+    pairs++;
+    if (sameApproxLine(words[i], words[i + 1])) linked++;
+  }
+  const result = linked >= 3 && linked >= 0.6 * pairs;
+  approxCache.set(p, result);
+  return result;
+}
+function runStart(p, word) {
+  const words = spokenWords(p);
+  let i = words.findIndex((w) => w.id === word.id && w.run === word.run);
+  if (i < 0) return word.start;
+  while (i > 0 && sameApproxLine(words[i - 1], words[i])) i--;
+  return words[i].start;
+}
+var swipeDuration = (word, approx) => approx ? SWIPE_APPROX : clamp2(word.end - word.start, SWIPE_MIN, SWIPE_MAX);
+var swipeProgress = (word, t, approx) => clamp01((t - word.start) / swipeDuration(word, approx));
+function swipeOps(p, chunk, t, cues, outer, style, lineAlpha = 1) {
+  const approx = approxTiming(p);
+  const u = p.u;
+  const ops = [];
+  for (const cue of cues) {
+    const ids = new Set(cueWords(p, cue).map((w) => `${w.run}\0${w.id}`));
+    if (!ids.size) continue;
+    const marked = chunk.words.filter((w) => ids.has(`${w.run}\0${w.id}`));
+    const byLine = /* @__PURE__ */ new Map();
+    for (const w of marked) byLine.set(w.line, [...byLine.get(w.line) ?? [], w]);
+    for (const [line, group] of byLine) {
+      group.sort((a, b) => a.x - b.x);
+      const stroke = swipeStroke(group, t, approx, cue.seed + line * 7919, u, chunk.px);
+      if (!stroke) continue;
+      ops.push(pathOp({
+        points: stroke.points,
+        closed: true,
+        smooth: false,
+        fill: style.color,
+        stroke: null,
+        strokePx: 0,
+        transform: mul(outer, stroke.skew),
+        alpha: style.alpha * lineAlpha,
+        blend: style.blend
+      }));
+    }
+  }
+  return ops;
+}
+function swipeStroke(group, t, approx, seed, u, px) {
+  if (!group.length) return null;
+  const padX = px * 0.14;
+  const x0 = group[0].x - padX;
+  const x1 = group[group.length - 1].x + group[group.length - 1].w + padX;
+  let head = -Infinity;
+  group.forEach((w, j) => {
+    const k2 = swipeProgress(w, t, approx);
+    if (t < w.start) return;
+    const left = j === 0 ? x0 : group[j - 1].x + group[j - 1].w;
+    const right = j === group.length - 1 ? x1 : w.x + w.w;
+    head = Math.max(head, left + (right - left) * k2);
+  });
+  if (!(head > x0 + 0.5)) return null;
+  const yc = group[0].y + group[0].h / 2;
+  const top = yc - group[0].h * 0.52, bottom = yc + group[0].h * 0.5;
+  const amp = SWIPE_JITTER * u;
+  const rough = (n) => (hashUnit(seed, n) - 0.5) * 2 * amp;
+  const step = Math.max(10 * u, 22 * u);
+  const pts = [];
+  pts.push(x0 + rough(1), bottom + rough(2), x0 - amp * 0.6 + rough(3), yc + rough(4), x0 + rough(5), top + rough(6));
+  let k = 0;
+  for (let x = x0 + step; x < head - step * 0.4; x += step) pts.push(x, top + rough(100 + k++));
+  pts.push(head, top + rough(50), head + amp * 0.8 + rough(51), yc + rough(52), head, bottom + rough(53));
+  const back = [];
+  k = 0;
+  for (let x = x0 + step; x < head - step * 0.4; x += step) back.push(x, bottom + rough(300 + k++));
+  for (let i = back.length - 2; i >= 0; i -= 2) pts.push(back[i], back[i + 1]);
+  const tan = Math.tan(SWIPE_SKEW_DEG * Math.PI / 180);
+  const skew = [1, 0, tan, 1, -tan * yc, 0];
+  return { points: pts, head, x0, x1, skew };
+}
+function hashUnit(seed, n) {
+  let h = (Math.imul(seed >>> 0 ^ 2654435769, 2246822507) ^ Math.imul(n + 1, 3266489909)) >>> 0;
+  h ^= h >>> 16;
+  h = Math.imul(h, 2146121005) >>> 0;
+  h ^= h >>> 15;
+  h = Math.imul(h, 2221713035) >>> 0;
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function highlightCues(p, t) {
+  return (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "highlight" && t >= c.start - 1e-9 && t < c.end + HIGHLIGHT_LINGER);
+}
+function captionsHidden(p, t) {
+  for (const c of p.cuesByKind.get("accent") ?? []) {
+    if (c.kind !== "accent") continue;
+    const d = accentDrawerFor(c.variant);
+    if (!d?.hidesCaptions) continue;
+    let w;
+    try {
+      w = d.window(c);
+    } catch {
+      continue;
+    }
+    if (w[1] - w[0] > 1e-9 && t >= w[0] - 1e-9 && t < w[1]) return true;
+  }
+  return false;
+}
+function lineTransform(template, chunk, t, u) {
+  const look = BASE_LOOKS[template];
+  if (!look) return { outer: IDENTITY, alpha: 1 };
+  const ent = entranceAt(look.entrance, t - chunk.start, u);
+  return {
+    outer: mul(translation(0, ent.dy), ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, chunk.centerX, chunk.centerY)),
+    alpha: ent.alpha
+  };
+}
+function swipeStyle(p) {
+  const style = p.scene.caption;
+  return { color: cssColor(style?.accent ?? "#FFE000"), alpha: SWIPE_ALPHA, blend: style?.background ? "multiply" : "source-over" };
+}
+registerCaptionStyle({
+  template: "highlighter_swipe",
+  line: (chunk, dc) => {
+    const ops = baseCaptionOps(chunk, dc, BASE_LOOKS.highlighter_swipe);
+    const cues = highlightCues(dc.scene, dc.t);
+    if (!cues.length || !ops.length) return ops;
+    const { outer, alpha } = lineTransform("highlighter_swipe", chunk, dc.t, dc.u);
+    const marks = swipeOps(dc.scene, chunk, dc.t, cues, outer, swipeStyle(dc.scene), alpha);
+    const firstText = ops.findIndex((o) => o.op === "text");
+    const at = firstText < 0 ? ops.length : firstText;
+    return [...ops.slice(0, at), ...marks, ...ops.slice(at)];
+  }
+});
+function highlightAccentOps(cue, dc) {
+  const p = dc.scene;
+  if (p.scene.template === "highlighter_swipe") return [];
+  if (captionsHidden(p, dc.t)) return [];
+  const chunk = p.chunkAt(dc.t);
+  if (!chunk) return [];
+  const { outer, alpha } = lineTransform(p.scene.template, chunk, dc.t, dc.u);
+  return swipeOps(p, chunk, dc.t, [cue], outer, swipeStyle(p), alpha);
+}
+registerAccent({
+  variant: "highlight",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end + HIGHLIGHT_LINGER],
+  ops: highlightAccentOps
+});
+
+// src/lib/fx/core/captions/kinetic_stack.ts
+var KINETIC_FILL = 0.88;
+var KINETIC_TOP = 0.14;
+var KINETIC_MAX_STACK = 0.8;
+var KINETIC_EMPHASIS = 1.6;
+var KINETIC_MAX_ROW = 0.24;
+var KINETIC_SLIDE = 0.06;
+var KINETIC_SLIDE_FROM = 30;
+var KINETIC_OUT = 0.12;
+var KINETIC_FONT = "THEBOLDFONT";
+var ROW_WORDS = 3;
+var ROW_CHARS = 12;
+var ROW_MIN_CHARS = 6;
+var CAP_BOX = 0.8;
+var CENTER_ABOVE_BASELINE = 0.35;
+var BASELINE = 0.74;
+var isEmphasis = (w) => w.highlight || /\d/.test(w.text);
+function sentence(p, cue) {
+  const tokens = cue.text.trim().split(/\s+/).filter(Boolean);
+  const words = tokens.length ? cueWords(p, cue) : spokenWords(p).filter((w) => w.start >= cue.start - 0.06 && w.start < cue.end);
+  if (words.length) {
+    const approx = approxTiming(p);
+    return words.map((w) => ({ text: w.text, start: approx ? runStart(p, w) : w.start, emphasis: isEmphasis(w) }));
+  }
+  const span = Math.max(0.01, cue.end - cue.start - 0.3);
+  return tokens.map((text, i) => ({ text, start: cue.start + span * i / Math.max(1, tokens.length), emphasis: /\d/.test(text) }));
+}
+function kineticRows(words) {
+  const weight = (w) => Array.from(w.text).length * (w.emphasis ? KINETIC_EMPHASIS : 1);
+  const rows = [];
+  let row = [], chars = 0;
+  for (const w of words) {
+    const add = weight(w);
+    if (row.length && (row.length >= ROW_WORDS || chars >= ROW_MIN_CHARS && chars + add > ROW_CHARS)) {
+      rows.push(row);
+      row = [];
+      chars = 0;
+    }
+    row.push(w);
+    chars += add;
+  }
+  if (row.length) rows.push(row);
+  return rows;
+}
+var layouts = /* @__PURE__ */ new WeakMap();
+function kineticLayout(p, cue) {
+  let map = layouts.get(p);
+  if (!map) {
+    map = /* @__PURE__ */ new Map();
+    layouts.set(p, map);
+  }
+  const hit = map.get(cue.id);
+  if (hit) return hit;
+  const W = p.width, H = p.height, u = p.u;
+  const family = p.family(KINETIC_FONT);
+  const words = sentence(p, cue).map((w) => ({ ...w, text: w.text.toLocaleUpperCase() }));
+  const top = KINETIC_TOP * H;
+  const bottom = Math.min(top + KINETIC_MAX_STACK * H, H - captionSafe(W, H).bottom);
+  const gap = 14 * u;
+  const rows = [];
+  const screens = [];
+  let y = top, screen = -1;
+  kineticRows(words).forEach((group, index) => {
+    const ref = 100;
+    const space = p.measure(" ", family, ref) / ref;
+    const units = group.reduce((sum, w) => sum + p.measure(w.text, family, ref) / ref * (w.emphasis ? KINETIC_EMPHASIS : 1), 0) + space * (group.length - 1);
+    const maxMul = Math.max(...group.map((w) => w.emphasis ? KINETIC_EMPHASIS : 1));
+    const fillPx = KINETIC_FILL * W / Math.max(units, 1e-6);
+    const px = Math.min(fillPx, KINETIC_MAX_ROW * H / maxMul, (bottom - top) / (CAP_BOX * maxMul));
+    const height = CAP_BOX * px * maxMul;
+    if (screen < 0 || y + height > bottom) {
+      screen++;
+      y = top;
+      screens.push(group[0].start);
+    }
+    const width = units * px;
+    let x = (W - width) / 2;
+    const baseline = y + BASELINE * px * maxMul;
+    const laid = group.map((w) => {
+      const size = px * (w.emphasis ? KINETIC_EMPHASIS : 1);
+      const ww = p.measure(w.text, family, ref) / ref * size;
+      const word = { text: w.text, x, y: baseline - CENTER_ABOVE_BASELINE * size, px: size, w: ww, emphasis: w.emphasis };
+      x += ww + space * px;
+      return word;
+    });
+    rows.push({ words: laid, start: group[0].start, top: y, height, width, x: (W - width) / 2, screen, filled: px >= fillPx - 1e-9, color: index % 2 === 0 ? "white" : "accent" });
+    y += height + gap;
+  });
+  const hold = Math.min(0.8, (cue.end - cue.start) / Math.max(1, screens.length));
+  if (screens.length) screens[0] = Math.max(screens[0], cue.start);
+  for (let i = 1; i < screens.length; i++) screens[i] = Math.max(screens[i], screens[i - 1] + hold);
+  const layout = { rows, screens };
+  map.set(cue.id, layout);
+  return layout;
+}
+function kineticAccentOps(cue, dc) {
+  const p = dc.scene, t = dc.t, u = dc.u;
+  const { rows, screens } = kineticLayout(p, cue);
+  if (!rows.length) return [];
+  let screen = 0;
+  screens.forEach((s, i) => {
+    if (i > 0 && t >= s) screen = i;
+  });
+  const out = clamp01((cue.end - t) / KINETIC_OUT);
+  if (out <= 0) return [];
+  const family = p.family(KINETIC_FONT);
+  const accent = cssColor(p.scene.caption?.accent ?? "#FFE000");
+  const ops = [];
+  const strokes = [];
+  for (const row of rows) {
+    if (row.screen !== screen) continue;
+    const reveal = Math.max(row.start, screens[row.screen]);
+    if (t < reveal) continue;
+    const k = easeOutCubic(progress(t, reveal, reveal + KINETIC_SLIDE));
+    const dx = -(1 - k) * KINETIC_SLIDE_FROM * u;
+    const alpha = k * out;
+    const fill = row.color === "white" ? "#FFFFFF" : accent;
+    for (const w of row.words) {
+      const common = { text: w.text, font: family, px: w.px, x: w.x + dx, y: w.y, align: "left", alpha };
+      strokes.push(textOp({
+        ...common,
+        fill: null,
+        stroke: "#000000",
+        strokePx: Math.max(6 * u, w.px * 0.07),
+        shadow: { color: "rgba(0,0,0,0.55)", blur: 0, dx: 0, dy: Math.max(6 * u, w.px * 0.05) }
+      }));
+      ops.push(textOp({ ...common, fill }));
+    }
+  }
+  return [...strokes, ...ops];
+}
+registerCaptionStyle({
+  template: "kinetic_stack",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.kinetic_stack)
+});
+registerAccent({
+  variant: "kinetic",
+  layer: "overlay",
+  hidesCaptions: true,
+  window: (cue) => [cue.start, cue.end],
+  ops: kineticAccentOps
+});
+
+// src/lib/fx/core/captions/decode_glitch.ts
+var DECODE_LOCK = 0.18;
+var DECODE_SPLIT = 0.12;
+var DECODE_SPLIT_PX = 4;
+var DECODE_ACCENT_SCALE = 1.3;
+var DECODE_JOLT_FRAMES = 2;
+var SCANLINE_ALPHA = 0.08;
+var SCRAMBLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&@";
+var LOOK = BASE_LOOKS.decode_glitch;
+var LATIN = /^[\p{Script=Latin}\p{N}\p{P}\p{S}\p{Zs}]*$/u;
+var SCRAMBLABLE = /[\p{L}\p{N}]/u;
+function decodeChar(chars, j, index, total, local, hash, latin) {
+  const actual = chars[j];
+  if (!SCRAMBLABLE.test(actual) || local >= DECODE_LOCK * (index + 1) / Math.max(1, total)) return { char: actual, locked: true };
+  const step = Math.max(0, Math.floor(local * 30));
+  const pick = hash(step * 977 + index * 31 + 7 >>> 0);
+  if (latin) return { char: SCRAMBLE[Math.floor(pick * SCRAMBLE.length)], locked: false };
+  const pool = chars.filter((c) => SCRAMBLABLE.test(c));
+  return { char: pool[Math.floor(pick * pool.length)] ?? actual, locked: false };
+}
+function pieceOps(pieces, look, dx) {
+  const strokes = [], fills = [];
+  const u = look.u;
+  for (const piece of pieces) {
+    const chars = Array.from(piece.text);
+    const latin = LATIN.test(piece.text);
+    const settled = piece.decode >= DECODE_LOCK;
+    const split = piece.decode >= 0 && piece.decode < DECODE_SPLIT;
+    const spacing = look.tracking * piece.px;
+    const fill = piece.accent ? look.accent : look.color;
+    const glyphs = [];
+    if (settled) {
+      glyphs.push({ text: piece.text, x: piece.x + dx, align: "left", locked: true, spacing });
+    } else {
+      let x = piece.x + dx;
+      chars.forEach((c, j) => {
+        const width = look.measure(c, look.family, piece.px);
+        const shown = decodeChar(chars, j, piece.first + j, piece.total, piece.decode, look.hash, latin);
+        glyphs.push({ text: shown.char, x: x + width / 2, align: "center", locked: shown.locked, spacing: 0 });
+        x += width + spacing;
+      });
+    }
+    for (const g of glyphs) {
+      if (g.text.trim() === "") continue;
+      const base = { text: g.text, font: look.family, px: piece.px, x: g.x, y: piece.y, align: g.align, letterSpacing: g.spacing, alpha: look.alpha };
+      const shadow2 = look.shadow;
+      if (look.stroke && look.strokePx > 0) strokes.push(textOp({ ...base, fill: null, stroke: look.stroke, strokePx: look.strokePx, shadow: shadow2 }));
+      const colour = g.locked ? fill : look.accent;
+      if (split) {
+        const off = DECODE_SPLIT_PX * u;
+        fills.push(textOp({ ...base, x: g.x - off, fill: "#FF0000", blend: "screen" }));
+        fills.push(textOp({ ...base, fill: "#00FF00", blend: "screen" }));
+        fills.push(textOp({ ...base, x: g.x + off, fill: "#0000FF", blend: "screen" }));
+      } else {
+        fills.push(textOp({ ...base, fill: colour, shadow: look.stroke && look.strokePx > 0 ? null : shadow2 }));
+      }
+    }
+  }
+  return [...strokes, ...fills];
+}
+function scanlineOps(x, y, w, h, u, alpha = 1) {
+  if (w <= 0 || h <= 0 || alpha <= 0) return [];
+  const line = Math.max(1, 2 * u), period = Math.max(2, 4 * u);
+  const stops = [];
+  for (let k = 0; k * period < h; k++) {
+    const a = k * period / h, b = Math.min(1, (k * period + line) / h), c = Math.min(1, (k + 1) * period / h);
+    stops.push([a, "rgba(0,0,0,1)"], [b, "rgba(0,0,0,1)"], [b, "rgba(0,0,0,0)"], [c, "rgba(0,0,0,0)"]);
+  }
+  return [gradientOp({ kind: "linear", x0: 0, y0: y, x1: 0, y1: y + h, stops, rect: [x, y, w, h], alpha: SCANLINE_ALPHA * alpha })];
+}
+function sliceOps(x, y, w, h, frame, look, dx) {
+  const u = look.u;
+  return [0, 1].map((i) => {
+    const bar = (4 + 5 * look.hash(800 + frame * 2 + i)) * u;
+    const by = y + h * (0.2 + 0.6 * look.hash(810 + frame * 2 + i));
+    return rectOp({ x: x + (i ? -dx : dx) * 0.8, y: by, w, h: bar, fill: i ? "#00E5FF" : look.accent, alpha: 0.75 * look.alpha, blend: "screen" });
+  });
+}
+function decodeCues(p, t) {
+  return (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "decode" && t >= c.start - 1e-9 && t < c.end);
+}
+function accentScale(local, dur) {
+  if (local < 0 || local > dur) return 1;
+  const grow = keyframes([{ t: 0, v: 1 }, { t: 0.08, v: DECODE_ACCENT_SCALE, ease: (x) => Math.min(1.08, easeOutBack(x)) }], local);
+  const back = easeOutQuad(progress(local, dur - 0.12, dur));
+  return grow + (1 - grow) * back;
+}
+function joltAt(local, u, hash) {
+  const frame = Math.floor(local * 30 + 1e-6);
+  if (local < 0 || frame >= DECODE_JOLT_FRAMES) return 0;
+  const dir = hash(900) < 0.5 ? -1 : 1;
+  const amp = (14 + 10 * hash(901)) * u;
+  return frame === 0 ? dir * amp : -dir * amp * 0.55;
+}
+function lookFor(p, dc, family, px, alpha = 1) {
+  const style = p.scene.caption;
+  const strokeColor = style?.stroke_color ?? null;
+  const strokePx = strokeColor ? style.stroke_px > 0 ? style.stroke_px : LOOK.strokeEm * px : 0;
+  const boxed = !!style?.background;
+  const wantShadow = !!style?.shadow || !strokePx && !boxed;
+  return {
+    family,
+    color: style?.color ?? "#FFFFFF",
+    accent: cssColor(style?.accent ?? "#FFE000"),
+    stroke: strokeColor,
+    strokePx,
+    shadow: wantShadow ? { color: "rgba(0,0,0,0.6)", blur: 12 * dc.u, dx: 0, dy: 4 * dc.u } : null,
+    box: style?.background ? cssColor(style.background) : null,
+    tracking: LOOK.tracking,
+    u: dc.u,
+    hash: dc.hash,
+    alpha,
+    measure: p.measure
+  };
+}
+function decodeLineOps(chunk, dc) {
+  const p = dc.scene;
+  if (!p.captionFamily || !chunk.words.length) return [];
+  const t = dc.t, local = t - chunk.start, px = chunk.px;
+  const look = lookFor(p, dc, p.captionFamily, px);
+  const key = (w) => `${w.run}\0${w.id}`;
+  const accented = /* @__PURE__ */ new Map();
+  for (const cue of decodeCues(p, t)) for (const w of cueWords(p, cue)) accented.set(key(w), cue);
+  const letters = chunk.words.map((w) => Array.from(w.text).length);
+  const totalLetters = letters.reduce((a, b) => a + b, 0);
+  let jolt = 0, joltFrame = -1;
+  const pieces = [];
+  let first = 0;
+  chunk.words.forEach((w, i) => {
+    const cue = accented.get(key(w));
+    let decode = local, start = first, total = totalLetters, scale = 1;
+    if (cue) {
+      const cl = t - cue.start;
+      const group = chunk.words.filter((x) => accented.get(key(x)) === cue);
+      const before = group.slice(0, group.indexOf(w)).reduce((s, x) => s + Array.from(x.text).length, 0);
+      decode = Math.min(local, cl);
+      start = cl < local ? before : first;
+      total = cl < local ? group.reduce((s, x) => s + Array.from(x.text).length, 0) : totalLetters;
+      scale = accentScale(cl, cue.end - cue.start);
+      const j = joltAt(cl, dc.u, dc.hash);
+      if (j !== 0) {
+        jolt = j;
+        joltFrame = Math.floor(cl * 30 + 1e-6);
+      }
+    }
+    const size = px * scale;
+    pieces.push({
+      text: w.text,
+      x: w.x,
+      y: w.y + w.h / 2,
+      px: size,
+      w: w.w * scale,
+      line: w.line,
+      decode,
+      first: start,
+      total,
+      accent: LOOK.emphasis && w.highlight
+    });
+    first += letters[i];
+  });
+  const lines = /* @__PURE__ */ new Map();
+  for (const piece of pieces) lines.set(piece.line, [...lines.get(piece.line) ?? [], piece]);
+  const boxes = [];
+  const side = captionSafe(p.width, p.height).side * p.width;
+  for (const [li, row] of lines) {
+    const words = chunk.words.filter((w) => w.line === li);
+    const gaps = words.slice(1).map((w, j) => w.x - (words[j].x + words[j].w));
+    const gapSum = gaps.reduce((s, g) => s + g, 0);
+    const oldLeft = words[0].x, oldRight = words[words.length - 1].x + words[words.length - 1].w;
+    const room = Math.max(oldRight - oldLeft, p.width - 2 * side);
+    const base = words.reduce((s, w) => s + w.w, 0) + gapSum;
+    const grown = row.reduce((s, piece) => s + piece.w, 0) + gapSum;
+    if (grown > room && grown > base) {
+      const k = (room - base) / (grown - base);
+      row.forEach((piece, j) => {
+        const scale = 1 + (piece.w / Math.max(1e-9, words[j].w) - 1) * k;
+        piece.w = words[j].w * scale;
+        piece.px = px * scale;
+      });
+    }
+    const width = row.reduce((s, piece) => s + piece.w, 0) + gapSum;
+    let x = (oldLeft + oldRight) / 2 - width / 2;
+    if (width > base + 1e-6 && width <= p.width - 2 * side) x = Math.min(Math.max(x, side), p.width - side - width);
+    row.forEach((piece, j) => {
+      piece.x = x;
+      x += piece.w + (gaps[j] ?? 0);
+    });
+    const tallest = Math.max(...row.map((piece) => piece.px));
+    boxes.push({ x: row[0].x, y: row[0].y - tallest / 2, w: width, h: tallest });
+  }
+  const ops = [];
+  if (look.box) {
+    for (const b of boxes) {
+      const padX = px * 0.32, padY = px * 0.16;
+      ops.push(rectOp({ x: b.x - padX + jolt, y: b.y - padY, w: b.w + 2 * padX, h: b.h + 2 * padY, radius: px * 0.22, fill: look.box }));
+    }
+  }
+  ops.push(...pieceOps(pieces, look, jolt));
+  for (const b of boxes) {
+    const padY = b.h * 0.12;
+    ops.push(...scanlineOps(b.x - px * 0.1 + jolt, b.y - padY, b.w + px * 0.2, b.h + 2 * padY, dc.u));
+    if (joltFrame >= 0) ops.push(...sliceOps(b.x - px * 0.1, b.y, b.w + px * 0.2, b.h, joltFrame, look, jolt));
+  }
+  return ops;
+}
+function standaloneDecodeOps(cue, dc) {
+  const p = dc.scene, W = p.width, H = p.height, u = dc.u;
+  const text = cue.text.replace(/\s+/g, " ").trim().toLocaleUpperCase();
+  if (!text) return [];
+  const style = p.scene.caption;
+  const family = p.captionFamily ?? p.family(style?.font || "TikTokSans-Bold");
+  let px = Math.max(34 * u, (style?.size_px ?? 78 * u) * DECODE_ACCENT_SCALE);
+  const tracking = LOOK.tracking;
+  const widthAt2 = (size) => p.measure(text, family, size) + tracking * size * Math.max(0, Array.from(text).length - 1);
+  if (widthAt2(px) > 0.88 * W) px *= 0.88 * W / widthAt2(px);
+  const width = widthAt2(px);
+  const chunk = p.chunkAt(dc.t);
+  const yFrac = style ? style.y - (chunk ? 0.13 : 0) : 0.62;
+  const y = Math.min(H - px, Math.max(px, yFrac * H));
+  const out = clamp01((dc.dur - dc.local) / 0.12);
+  const look = lookFor(p, dc, family, px, out);
+  const jolt = joltAt(dc.local, u, dc.hash);
+  const piece = { text, x: (W - width) / 2, y, px, w: width, line: 0, decode: dc.local, first: 0, total: Array.from(text).length, accent: false };
+  const ops = [...pieceOps([piece], look, jolt), ...scanlineOps(piece.x - px * 0.1 + jolt, y - px * 0.62, width + px * 0.2, px * 1.24, u, out)];
+  const frame = Math.floor(dc.local * 30 + 1e-6);
+  if (frame < DECODE_JOLT_FRAMES) ops.push(...sliceOps(piece.x - px * 0.1, y - px / 2, width + px * 0.2, px, frame, look, jolt));
+  return ops;
+}
+function inLine(cue, dc) {
+  const p = dc.scene;
+  if (p.scene.template !== "decode_glitch" || !p.captionFamily) return false;
+  if (captionsHidden(p, dc.t)) return false;
+  const chunk = p.chunkAt(dc.t);
+  if (!chunk) return false;
+  const ids = new Set(cueWords(p, cue).map((w) => `${w.run}\0${w.id}`));
+  return chunk.words.some((w) => ids.has(`${w.run}\0${w.id}`));
+}
+registerCaptionStyle({
+  template: "decode_glitch",
+  line: decodeLineOps
+});
+registerAccent({
+  variant: "decode",
+  layer: "caption",
+  window: (cue) => [cue.start, cue.end],
+  ops: (cue, dc) => inLine(cue, dc) ? [] : standaloneDecodeOps(cue, dc)
+});
+
+// src/lib/fx/core/doodles.ts
+var DOODLE_DRAW_IN = 0.3;
+var DOODLE_FADE = 0.2;
+var DOODLE_BOIL_FPS = 8;
+var DOODLE_COLORS = {
+  ink: "#15131A",
+  under: "rgba(0,0,0,0.42)",
+  white: "#FFFFFF",
+  yellow: "#FFE14D",
+  burst: "#FFD400",
+  red: "#FF2E3B",
+  hornDark: "#3A0006",
+  pink: "#FF3B6B",
+  heartDark: "#4A0016",
+  sweat: "#8FD8FF",
+  sweatDark: "#0B3A55"
+};
+var flat = (pts) => pts.flatMap(([x, y]) => [x, y]);
+function polylineLength2(points, closed = false) {
+  let total = 0;
+  const n = Math.floor(points.length / 2);
+  for (let i = 1; i < n; i++) total += Math.hypot(points[2 * i] - points[2 * i - 2], points[2 * i + 1] - points[2 * i - 1]);
+  if (closed && n > 1) total += Math.hypot(points[0] - points[2 * n - 2], points[1] - points[2 * n - 1]);
+  return total;
+}
+function quad(a, c, b, n) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, m = 1 - t;
+    out.push([m * m * a[0] + 2 * m * t * c[0] + t * t * b[0], m * m * a[1] + 2 * m * t * c[1] + t * t * b[1]]);
+  }
+  return out;
+}
+function boilPts(pts, g, salt, amp) {
+  const a = amp ?? Math.max(1.5 * g.u, 7e-3 * g.s);
+  return pts.map(([x, y], i) => {
+    const n = g.boil * 7919 + salt * 131 + i * 2 >>> 0;
+    return [x + (g.hash(n) - 0.5) * 2 * a, y + (g.hash(n + 1) - 0.5) * 2 * a];
+  });
+}
+function strokeMark(pts, color, width, g, transform, reveal, closed = false) {
+  if (reveal <= 0 || pts.length < 2) return [];
+  const points = flat(pts);
+  const length = polylineLength2(points, closed);
+  const dash = reveal >= 1 ? null : [length + 1, length + 1];
+  const dashOffset = reveal >= 1 ? 0 : (length + 1) * (1 - reveal);
+  const common = { points, closed, smooth: true, fill: null, cap: "round", dash, dashOffset, transform, alpha: g.alpha };
+  return [
+    pathOp({ ...common, stroke: DOODLE_COLORS.under, strokePx: width + 4 * g.u }),
+    pathOp({ ...common, stroke: color, strokePx: width })
+  ];
+}
+function fillMark(pts, fill, outline, g, transform, alpha = 1, smooth = false) {
+  if (pts.length < 3) return [];
+  const points = flat(pts);
+  const width = Math.max(6 * g.u, 0.03 * g.s);
+  const common = { points, closed: true, smooth, cap: "round", transform, alpha: g.alpha * alpha };
+  return [
+    pathOp({ ...common, fill: null, stroke: outline, strokePx: width * 2 }),
+    pathOp({ ...common, fill, stroke: null, strokePx: 0 })
+  ];
+}
+function sideFor(g, need, salt) {
+  const prefer = g.hash(900 + salt) < 0.5 ? 1 : -1;
+  const room = (side) => side > 0 ? g.W - (g.face.x + g.face.w) : g.face.x;
+  if (room(prefer) >= need || room(prefer) >= room(-prefer)) return prefer;
+  return -prefer;
+}
+var popScale = (local, delay = 0) => keyframes([{ t: 0, v: 0 }, { t: 0.16, v: 1.18, ease: easeOutQuad }, { t: DOODLE_DRAW_IN, v: 1, ease: easeOutQuad }], local - delay);
+function sparkles(g) {
+  const { face, cx } = g;
+  const count = 3 + Math.min(2, Math.floor(g.hash(11) * 3));
+  const ops = [];
+  const ox = cx, oy = face.y + face.h * 0.42;
+  const rx = face.w * 0.5 + g.s * 0.28, ry = face.h * 0.5 + g.s * 0.22;
+  for (let i = 0; i < count; i++) {
+    const spread = (i + 0.5 + (g.hash(20 + i) - 0.5) * 0.5) / count;
+    const angle = lerp(-168, -12, spread) * Math.PI / 180;
+    const x = ox + Math.cos(angle) * rx, y = oy + Math.sin(angle) * ry;
+    const r = g.s * (0.1 + 0.08 * g.hash(30 + i));
+    const delay = i * 0.07;
+    const pop = popScale(g.local, delay);
+    if (pop <= 0) continue;
+    const twinkle = 1 + 0.2 * Math.sin(2 * Math.PI * 3 * g.local + g.hash(40 + i) * 2 * Math.PI);
+    const spin = (g.hash(50 + i) < 0.5 ? -1 : 1) * 0.35 * g.local + (g.hash(60 + i) - 0.5) * 0.5;
+    const star = [];
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4 - Math.PI / 2;
+      const rr = k % 2 === 0 ? r : r * 0.3;
+      star.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+    }
+    const color = i % 2 === 0 ? DOODLE_COLORS.yellow : DOODLE_COLORS.white;
+    ops.push(...fillMark(boilPts(star, g, 70 + i, Math.max(1, 0.05 * r)), color, DOODLE_COLORS.ink, g, placeAt(x, y, spin, pop * twinkle)));
+  }
+  return ops;
+}
+function arrows(g) {
+  const { face, s } = g;
+  const ops = [];
+  [-1, 1].forEach((side, i) => {
+    const local = g.local - i * 0.08;
+    const reveal = easeOutCubic(progress(local, 0, DOODLE_DRAW_IN));
+    if (reveal <= 0) return;
+    const edge = side > 0 ? face.x + face.w : face.x;
+    const end = [edge + side * s * 0.1, face.y + face.h * 0.46];
+    const start = [edge + side * s * 0.62, face.y - face.h * 0.12];
+    const control = [start[0] + side * s * 0.05, end[1] + face.h * 0.12];
+    const shaft = boilPts(quad(start, control, end, 9), g, 100 + i);
+    const [ax, ay] = shaft[shaft.length - 2], [bx, by] = shaft[shaft.length - 1];
+    const len = Math.hypot(bx - ax, by - ay) || 1, dx = (bx - ax) / len, dy = (by - ay) / len;
+    const poke = reveal >= 1 ? s * 0.035 * Math.sin(2 * Math.PI * 2.5 * local) : 0;
+    const transform = [1, 0, 0, 1, dx * poke, dy * poke];
+    ops.push(...strokeMark(shaft, DOODLE_COLORS.white, g.line, g, transform, reveal));
+    const head = progress(reveal, 0.7, 1);
+    if (head > 0) {
+      const hl = s * 0.15 * easeOutBack(head);
+      const spread = 28 * Math.PI / 180;
+      const back = (a) => [bx - hl * (dx * Math.cos(a) - dy * Math.sin(a)), by - hl * (dx * Math.sin(a) + dy * Math.cos(a))];
+      ops.push(...strokeMark([back(spread), [bx, by], back(-spread)], DOODLE_COLORS.white, g.line, g, transform, 1));
+    }
+  });
+  return ops;
+}
+function sweat(g, dur) {
+  const { face, s } = g;
+  const side = sideFor(g, s * 0.2, 3);
+  const dw = s * 0.2, dh = s * 0.3;
+  const slide = 40 * g.u * easeInQuad(dur > 0 ? clamp01(g.local / dur) : 0);
+  const x = (side > 0 ? face.x + face.w * 0.97 : face.x + face.w * 0.03) + side * dw * 0.4;
+  const y = face.y + face.h * 0.2 + slide;
+  const pop = popScale(g.local);
+  if (pop <= 0) return [];
+  const drop = [];
+  for (let k = 0; k < 24; k++) {
+    const t = k / 24 * Math.PI * 2;
+    drop.push([Math.sin(t) * Math.sin(t / 2) * dw * 0.65, -Math.cos(t) * dh * 0.5]);
+  }
+  const shine = [];
+  for (let k = 0; k < 10; k++) {
+    const a = k / 10 * Math.PI * 2;
+    shine.push([-dw * 0.13 + Math.cos(a) * dw * 0.08, dh * 0.1 + Math.sin(a) * dh * 0.11]);
+  }
+  const transform = placeAt(x, y, side * 0.12, pop);
+  return [
+    ...fillMark(boilPts(drop, g, 200, Math.max(1, 0.02 * s)), DOODLE_COLORS.sweat, DOODLE_COLORS.sweatDark, g, transform),
+    pathOp({ points: flat(shine), closed: true, smooth: true, fill: DOODLE_COLORS.white, stroke: null, strokePx: 0, transform, alpha: g.alpha * 0.9 })
+  ];
+}
+function horns(g) {
+  const { face, cx } = g;
+  const ops = [];
+  [-1, 1].forEach((side, i) => {
+    const pop = popScale(g.local, i * 0.05);
+    if (pop <= 0) return;
+    const bx = cx + side * face.w * 0.27, by = face.y + face.h * 0.1;
+    const bw = face.w * 0.2;
+    const outerBase = [side * bw * 0.5, 0], innerBase = [-side * bw * 0.5, 0];
+    const tip = [side * face.w * 0.17, -face.h * 0.44];
+    const outer = quad(outerBase, [side * face.w * 0.3, -face.h * 0.12], tip, 8);
+    const inner = quad(tip, [side * face.w * 0.02, -face.h * 0.16], innerBase, 8).slice(1);
+    const shape = boilPts([...outer, ...inner], g, 300 + i, Math.max(1, 0.012 * g.s));
+    const wiggle = side * (4 * Math.PI / 180) * Math.sin(2 * Math.PI * 3 * g.local + i);
+    ops.push(...fillMark(shape, DOODLE_COLORS.red, DOODLE_COLORS.hornDark, g, placeAt(bx, by, wiggle, pop)));
+  });
+  return ops;
+}
+function bang(g) {
+  const { face, s } = g;
+  const R = s * 0.3;
+  const side = sideFor(g, R * 1.6, 5);
+  const x = (side > 0 ? face.x + face.w : face.x) + side * R * 0.75, y = face.y - face.h * 0.02;
+  const scale = keyframes([
+    { t: 0, v: 0 },
+    { t: 0.12, v: 1.25, ease: easeOutQuad },
+    { t: 0.2, v: 0.94, ease: easeOutQuad },
+    { t: DOODLE_DRAW_IN, v: 1, ease: easeOutQuad }
+  ], g.local);
+  if (scale <= 0) return [];
+  const rot = side * (0.12 + 0.1 * g.hash(500)) + (g.hash(510 + g.boil) - 0.5) * 0.08;
+  const burst = [];
+  for (let k = 0; k < 24; k++) {
+    const a = k / 24 * Math.PI * 2;
+    const r = (k % 2 === 0 ? R : R * 0.64) * (1 + (g.hash(520 + k) - 0.5) * 0.22);
+    burst.push([Math.cos(a) * r, Math.sin(a) * r]);
+  }
+  const transform = placeAt(x, y, rot, scale);
+  const px = R * 0.95;
+  return [
+    ...fillMark(boilPts(burst, g, 540, Math.max(1, 0.015 * s)), DOODLE_COLORS.burst, DOODLE_COLORS.ink, g, transform),
+    textOp({
+      text: "!!",
+      font: fxFamily("Poppins-ExtraBold"),
+      px,
+      x: 0,
+      y: px * 0.04,
+      fill: DOODLE_COLORS.red,
+      stroke: DOODLE_COLORS.ink,
+      strokePx: Math.max(3 * g.u, px * 0.07),
+      transform,
+      alpha: g.alpha
+    })
+  ];
+}
+function heart(g) {
+  const { face, s } = g;
+  const R = s * 0.21;
+  const side = sideFor(g, R * 2.4, 6);
+  const x = (side > 0 ? face.x + face.w : face.x) + side * R * 1.3, y = face.y + face.h * 0.32;
+  const pop = popScale(g.local);
+  if (pop <= 0) return [];
+  const beat = Math.max(0, Math.sin(2 * Math.PI * 1.6 * g.local)) ** 4;
+  const float = -6 * g.u * Math.sin(2 * Math.PI * 0.8 * g.local);
+  const pts = [];
+  for (let k = 0; k < 32; k++) {
+    const t = k / 32 * Math.PI * 2;
+    const hx = 16 * Math.sin(t) ** 3;
+    const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+    pts.push([hx / 16 * R, hy / 16 * R]);
+  }
+  const transform = placeAt(x, y + float, side * 0.14, pop * (1 + 0.14 * beat));
+  const shine = quad([-R * 0.62, -R * 0.2], [-R * 0.6, -R * 0.62], [-R * 0.25, -R * 0.66], 5);
+  return [
+    ...fillMark(boilPts(pts, g, 600, Math.max(1, 0.012 * s)), DOODLE_COLORS.pink, DOODLE_COLORS.heartDark, g, transform),
+    pathOp({ points: flat(shine), smooth: true, stroke: DOODLE_COLORS.white, strokePx: Math.max(3 * g.u, R * 0.12), transform, alpha: g.alpha * 0.85 })
+  ];
+}
+function anger(g) {
+  const { face, s } = g;
+  const R = s * 0.25;
+  const side = sideFor(g, R * 1.4, 7);
+  const x = (side > 0 ? face.x + face.w * 0.95 : face.x + face.w * 0.05) + side * R * 0.5, y = face.y + face.h * 0.1;
+  const reveal = easeOutCubic(progress(g.local, 0, DOODLE_DRAW_IN));
+  if (reveal <= 0) return [];
+  const throb = reveal >= 1 ? 1 + 0.12 * Math.sin(2 * Math.PI * 4 * g.local) : 1;
+  const transform = placeAt(x, y, side * 0.1, throb);
+  const ops = [];
+  for (let q = 0; q < 4; q++) {
+    const theta = Math.PI / 4 + q * Math.PI / 2;
+    const at = (a, r) => [Math.cos(a) * r, Math.sin(a) * r];
+    const arm = 30 * Math.PI / 180;
+    const pts = quad(at(theta - arm, R), at(theta, R * 0.12), at(theta + arm, R), 8);
+    ops.push(...strokeMark(boilPts(pts, g, 700 + q, Math.max(1, 0.01 * s)), DOODLE_COLORS.red, Math.max(g.line, R * 0.2), g, transform, reveal));
+  }
+  return ops;
+}
+function doodleOps(kind, face, dc) {
+  const local = dc.local, dur = dc.dur;
+  if (!(face.w > 0 && face.h > 0) || local < 0 || local > dur + 1e-9) return [];
+  const s = clamp2(Math.max(face.w, face.h * 0.75), 40 * dc.u, Math.min(dc.scene.width, dc.scene.height) * 0.6);
+  const fadeLeft = dur - local;
+  const g = {
+    face,
+    cx: face.x + face.w / 2,
+    cy: face.y + face.h / 2,
+    s,
+    u: dc.u,
+    W: dc.scene.width,
+    H: dc.scene.height,
+    local,
+    draw: easeOutCubic(progress(local, 0, DOODLE_DRAW_IN)),
+    alpha: fadeLeft < DOODLE_FADE ? clamp01(fadeLeft / DOODLE_FADE) : 1,
+    boil: stepIndex(local, DOODLE_BOIL_FPS),
+    hash: dc.hash,
+    line: clamp2(0.045 * s, 6 * dc.u, 16 * dc.u)
+  };
+  if (g.alpha <= 0) return [];
+  switch (kind) {
+    case "sparkles":
+      return sparkles(g);
+    case "arrows":
+      return arrows(g);
+    case "sweat":
+      return sweat(g, dur);
+    case "horns":
+      return horns(g);
+    case "bang":
+      return bang(g);
+    case "heart":
+      return heart(g);
+    case "anger":
+      return anger(g);
+    default:
+      return arrows(g);
+  }
+}
+
+// src/lib/fx/core/captions/face_doodles.ts
+var DOODLE_FALLBACK_TEXT = {
+  sparkles: "WOW",
+  arrows: "LOOK",
+  sweat: "YIKES",
+  horns: "EVIL",
+  bang: "WHAT?!",
+  heart: "AWW",
+  anger: "UGH"
+};
+var fallbacks = /* @__PURE__ */ new WeakMap();
+function doodleFallback(p, cue) {
+  let map = fallbacks.get(p);
+  if (!map) {
+    map = /* @__PURE__ */ new Map();
+    fallbacks.set(p, map);
+  }
+  if (!map.has(cue.id)) {
+    const text = cue.text.trim() || DOODLE_FALLBACK_TEXT[cue.doodle] || DOODLE_FALLBACK_TEXT.sparkles;
+    map.set(cue.id, placeSticker(p, { ...cue, text }, [], null));
+  }
+  return map.get(cue.id) ?? null;
+}
+function doodleAccentOps(cue, dc) {
+  const p = dc.scene;
+  if (p.inBroll(dc.t)) return [];
+  if (dc.face && dc.face.w > 0 && dc.face.h > 0) return doodleOps(cue.doodle, dc.face, dc);
+  const spot = doodleFallback(p, cue);
+  return spot ? placedStickerOps(spot, dc.local, dc.u) : [];
+}
+registerCaptionStyle({
+  template: "face_doodles",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.face_doodles)
+});
+registerAccent({
+  variant: "doodle",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end],
+  ops: doodleAccentOps
+});
+
+// src/lib/fx/core/picture/zoom.ts
+var NO_FACE_ANCHOR = [0.5, 0.38];
+var SMOOTH_STEP = 0.1;
+var SMOOTH_TAPS = 3;
+function smoothedFaceCenter(p, t) {
+  let sx = 0, sy = 0, n = 0;
+  for (let k = -SMOOTH_TAPS; k <= SMOOTH_TAPS; k++) {
+    const f = p.faceAt(t + k * SMOOTH_STEP);
+    if (!f) continue;
+    const w = SMOOTH_TAPS + 1 - Math.abs(k);
+    sx += (f.x + f.w / 2) * w;
+    sy += (f.y + f.h / 2) * w;
+    n += w;
+  }
+  return n > 0 ? [sx / n / p.width, sy / n / p.height] : null;
+}
+function zoomFactor(cue, local, dur) {
+  if (local < 0 || local >= dur) return 1;
+  const s = Math.max(0.01, cue.scale);
+  if (cue.mode === "punch") return s;
+  const k = easeInOutSine(progress(local, 0, dur));
+  return cue.mode === "push" ? 1 + (s - 1) * k : s + (1 - s) * k;
+}
+var FALLBACK_REACH = 3;
+function zoomFaceAnchor(p, t, start, end) {
+  const here = smoothedFaceCenter(p, t);
+  if (here) return here;
+  const lo = Math.max(start, t - FALLBACK_REACH), hi = Math.min(end, t + FALLBACK_REACH);
+  for (let k = 1; t - k * SMOOTH_STEP >= lo - 1e-9 || t + k * SMOOTH_STEP <= hi + 1e-9; k++) {
+    for (const at of [t - k * SMOOTH_STEP, t + k * SMOOTH_STEP]) {
+      if (at < lo - 1e-9 || at > hi + 1e-9 || !p.faceAt(at)) continue;
+      const c = smoothedFaceCenter(p, at);
+      if (c) return c;
+    }
+  }
+  return NO_FACE_ANCHOR;
+}
+registerPicture({
+  kind: "zoom",
+  apply: (state, cue, dc) => {
+    if (!cue || cue.kind !== "zoom") return state;
+    const factor = zoomFactor(cue, dc.local, dc.dur);
+    if (factor === 1) return state;
+    const anchor = cue.anchor === "center" ? [0.5, 0.5] : zoomFaceAnchor(dc.scene, dc.t, cue.start, cue.end);
+    return { ...state, scale: state.scale * factor, ax: anchor[0], ay: anchor[1] };
+  }
+});
+
+// src/lib/fx/core/picture/shake.ts
+var shakePhases = (hash) => [1, 2, 3, 4].map((n) => 2 * Math.PI * hash(n));
+function shakeOffset(cue, local, dur, u, phases) {
+  if (dur <= 0 || local < 0 || local >= dur) return [0, 0];
+  const tau = local / dur, f = cue.freq, a = cue.amp * u * (1 - tau);
+  const wave = (p1, p2) => (Math.sin(2 * Math.PI * f * local + p1) + 0.5 * Math.sin(2 * Math.PI * 1.7 * f * local + p2)) / 1.5;
+  return [a * wave(phases[0], phases[1]), a * wave(phases[2], phases[3])];
+}
+registerPicture({
+  kind: "shake",
+  apply: (state, cue, dc) => {
+    if (!cue || cue.kind !== "shake") return state;
+    const [dx, dy] = shakeOffset(cue, dc.local, dc.dur, dc.u, shakePhases(dc.hash));
+    if (dx === 0 && dy === 0) return state;
+    return { ...state, dx: state.dx + dx, dy: state.dy + dy };
+  }
+});
+
+// src/lib/fx/core/picture/glitch.ts
+var GLITCH_HOLD_FRAMES = 2;
+function glitchState(state, amount, hash, frame, u, height) {
+  const a = clamp01(amount);
+  if (a <= 0) return state;
+  const bucket = Math.floor(Math.max(0, frame) / GLITCH_HOLD_FRAMES);
+  const h = (k) => hash(bucket * 64 + k);
+  const count = 3 + Math.min(3, Math.floor(h(0) * 4));
+  const slices = [];
+  for (let i = 0; i < count; i++) {
+    const sh = (0.02 + 0.09 * h(1 + 3 * i)) * height;
+    const y = h(2 + 3 * i) * (height - sh);
+    const dir = h(3 + 3 * i) < 0.5 ? -1 : 1;
+    const dx = dir * 40 * a * u * (0.45 + 0.55 * h(40 + i));
+    slices.push({ y: round3(y), h: round3(sh), dx: round3(dx) });
+  }
+  const split = round3((6 + 8 * h(30)) * u);
+  return { ...state, rgbSplit: Math.max(state.rgbSplit, split), slices: [...state.slices, ...slices] };
+}
+registerPicture({
+  kind: "glitch",
+  apply: (state, cue, dc) => {
+    if (!cue || cue.kind !== "glitch") return state;
+    return glitchState(state, cue.amount, dc.hash, dc.clock.frame, dc.u, dc.scene.height);
+  }
+});
+
+// src/lib/fx/core/picture/desaturate.ts
+var desaturateFilters = (cue) => {
+  const out = [];
+  const amount = clamp01(cue.amount), dim = clamp01(cue.dim);
+  if (amount > 0) out.push(`saturate(${round3(1 - amount)})`);
+  if (dim > 0) out.push(`brightness(${round3(1 - dim)})`);
+  return out;
+};
+registerPicture({
+  kind: "desaturate",
+  apply: (state, cue) => {
+    if (!cue || cue.kind !== "desaturate") return state;
+    const filters = desaturateFilters(cue);
+    return filters.length ? { ...state, filter: [...state.filter, ...filters] } : state;
+  }
+});
+
+// src/lib/fx/core/picture/transition.ts
+var WHIP_TRAVEL = 140;
+var WHIP_BLUR = 36;
+var ZOOM_THROUGH_PEAK = 1.35;
+var TRANSITION_GLITCH = 0.8;
+var LIGHT_LEAK_PEAK = 0.6;
+var FLASH_PEAK = 0.95;
+var halfOf = (style) => TRANSITION_HALF[style] ?? 0.1;
+var transitionWindow = (cue) => {
+  const half = halfOf(cue.style);
+  return [cue.start - half, cue.start + half];
+};
+var transitionPhase = (cue, local) => {
+  const half = halfOf(cue.style);
+  return Math.max(-1, Math.min(1, half > 0 ? local / half : 0));
+};
+var direction = (hash, n) => hash(n) < 0.5 ? -1 : 1;
+function whipAt(p, dir) {
+  if (p < 0) {
+    const k2 = easeInCubic(1 + p);
+    return { k: k2, dx: -dir * WHIP_TRAVEL * k2 };
+  }
+  const k = 1 - easeOutCubic(p);
+  return { k, dx: dir * WHIP_TRAVEL * k };
+}
+function zoomThroughScale(p) {
+  const k = p < 0 ? easeInCubic(1 + p) : 1 - easeOutCubic(p);
+  return 1 + (ZOOM_THROUGH_PEAK - 1) * k;
+}
+var spinAngle = (p, dir) => dir * 2 * Math.PI * easeInOutCubic((p + 1) / 2);
+registerPicture({
+  kind: "transition",
+  apply: (state, cue, dc) => {
+    if (!cue || cue.kind !== "transition") return state;
+    const p = transitionPhase(cue, dc.local);
+    switch (cue.style) {
+      case "whip": {
+        const { k, dx } = whipAt(p, direction(dc.hash, 1));
+        return { ...state, dx: state.dx + round3(dx * dc.u), blurX: state.blurX + round3(WHIP_BLUR * k * dc.u) };
+      }
+      case "zoom_through":
+        return { ...state, scale: state.scale * zoomThroughScale(p) };
+      case "spin":
+        return { ...state, rot: state.rot + spinAngle(p, direction(dc.hash, 2)) };
+      case "glitch":
+        return glitchState(state, TRANSITION_GLITCH, dc.hash, dc.clock.frame, dc.u, dc.scene.height);
+      default:
+        return state;
+    }
+  }
+});
+registerCue({
+  kind: "transition",
+  layer: "pixel",
+  window: transitionWindow,
+  ops: (cue, dc) => {
+    if (cue.style !== "zoom_through") return [];
+    const env = (zoomThroughScale(transitionPhase(cue, dc.local)) - 1) / (ZOOM_THROUGH_PEAK - 1);
+    if (env < 0.02) return [];
+    const W = dc.scene.width, H = dc.scene.height;
+    return [1, 2, 3].map((i) => ({
+      op: "picture",
+      transform: pictureMatrix({ ...dc.picture, scale: dc.picture.scale * (1 + 0.045 * i * env) }, W, H),
+      filter: dc.picture.filter.join(" "),
+      alpha: 0.25,
+      blend: "source-over",
+      channel: "rgb",
+      dx: 0,
+      dy: 0,
+      cutout: false,
+      clip: null
+    }));
+  }
+});
+registerCue({
+  kind: "transition",
+  layer: "flash",
+  window: transitionWindow,
+  ops: (cue, dc) => {
+    const W = dc.scene.width, H = dc.scene.height;
+    const p = transitionPhase(cue, dc.local);
+    if (cue.style === "flash") {
+      const alpha2 = round3(FLASH_PEAK * (1 - Math.abs(p)) ** 1.5);
+      return alpha2 > 4e-3 ? [rectOp({ x: 0, y: 0, w: W, h: H, fill: "#FFFFFF", alpha: alpha2 })] : [];
+    }
+    if (cue.style !== "light_leak") return [];
+    const env = Math.sin(Math.PI * (p + 1) / 2);
+    const alpha = round3(LIGHT_LEAK_PEAK * env);
+    if (alpha <= 4e-3) return [];
+    const s = easeInOutSine((p + 1) / 2), dir = direction(dc.hash, 3);
+    const big = Math.max(W, H);
+    const sweep = (from, to) => dir > 0 ? lerp(from, to, s) : lerp(to, from, s);
+    const warmX = sweep(-0.35 * W, 1.35 * W), pinkX = sweep(1.25 * W, -0.25 * W);
+    const warmY = (0.22 + 0.12 * dc.hash(4)) * H, pinkY = (0.62 + 0.16 * dc.hash(5)) * H;
+    return [
+      gradientOp({
+        kind: "radial",
+        x0: warmX,
+        y0: warmY,
+        r0: 0,
+        x1: warmX,
+        y1: warmY,
+        r1: 0.7 * big,
+        rect: [0, 0, W, H],
+        alpha,
+        blend: "screen",
+        stops: [[0, "rgba(255,154,60,1)"], [0.35, "rgba(255,154,60,0.65)"], [1, "rgba(255,154,60,0)"]]
+      }),
+      gradientOp({
+        kind: "radial",
+        x0: pinkX,
+        y0: pinkY,
+        r0: 0,
+        x1: pinkX,
+        y1: pinkY,
+        r1: 0.55 * big,
+        rect: [0, 0, W, H],
+        alpha: round3(alpha * 0.85),
+        blend: "screen",
+        stops: [[0, "rgba(255,77,109,1)"], [0.4, "rgba(255,77,109,0.55)"], [1, "rgba(255,77,109,0)"]]
+      })
+    ];
+  }
+});
+
+// src/lib/fx/core/overlays/flash.ts
+var flashLength = (cue) => Math.max(cue.end - cue.start, 2 * FRAME);
+function flashAlpha(cue, local) {
+  const d = flashLength(cue);
+  if (local < 0 || local >= d) return 0;
+  return round3(Math.max(0, Math.min(1, cue.peak)) * (1 - local / d));
+}
+registerCue({
+  kind: "flash",
+  layer: "flash",
+  window: (cue) => [cue.start, cue.start + flashLength(cue)],
+  ops: (cue, dc) => {
+    const alpha = flashAlpha(cue, dc.local);
+    if (alpha <= 0) return [];
+    return [rectOp({ x: 0, y: 0, w: dc.scene.width, h: dc.scene.height, fill: cue.color || "#FFFFFF", alpha })];
+  }
+});
+
+// src/lib/fx/core/overlays/sticker.ts
+var WAIT_FOR_IT_TEXT = "WAIT FOR IT…";
+var STICKER_EXIT = 0.1;
+var WAIT_FOR_IT_BOB = 2;
+var WAIT_FOR_IT_BOB_HZ = 2;
+var WAIT_FOR_IT_SCALE = 1.15;
+var TEXT_STICKER_SCALE = 1.1;
+function stickerObstacles(p, t) {
+  const out = [];
+  const face = p.faceAt(t);
+  if (face) out.push(inflate({ x: face.x, y: face.y, w: face.w, h: face.h }, 0.18 * Math.max(face.w, face.h)));
+  const chunk = p.chunkAt(t);
+  if (chunk && chunk.words.length) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const w of chunk.words) {
+      x0 = Math.min(x0, w.x);
+      y0 = Math.min(y0, w.y);
+      x1 = Math.max(x1, w.x + w.w);
+      y1 = Math.max(y1, w.y + w.h);
+    }
+    out.push(inflate({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, chunk.px * 0.25));
+  } else if (p.scene.caption?.enabled) {
+    const cy = p.scene.caption.y * p.height, band = p.scene.caption.size_px * 2.6;
+    out.push({ x: 0, y: cy - band / 2, w: p.width, h: band });
+  }
+  return out;
+}
+function hookOverlaps(p, start, end) {
+  const hook = p.scene.hook_window;
+  return !!hook && !p.scene.hook_title_suppressed && start < hook[1] && Math.max(end, start + 1e-6) > hook[0];
+}
+function stickerPlacement(p, cue, text, candidates, rest = 1) {
+  const area = safeRect(p.width, p.height, hookOverlaps(p, cue.start, cue.end));
+  let scale = rest;
+  let box = stickerBox(text, scale, p.u, p.measure);
+  const fit = Math.min(area.w / (box.w * 1.12), area.h * 0.5 / box.h);
+  if (fit < 1) {
+    scale *= fit;
+    box = stickerBox(text, scale, p.u, p.measure);
+  }
+  const placed = placeAvoiding(box.w, box.h, candidates, stickerObstacles(p, cue.start), area);
+  return { x: placed.x + placed.w / 2, y: placed.y + placed.h / 2, scale };
+}
+function stickerMotion2(local, dur) {
+  const left = dur - local;
+  const out = left < STICKER_EXIT ? clamp01(left / STICKER_EXIT) : 1;
+  const scale = slapScale(local) * (0.86 + 0.14 * easeInQuad(out));
+  return [round3(scale), round3(slapAlpha(local) * out)];
+}
+var withAlpha = (ops, alpha) => alpha >= 1 ? ops : ops.map((o) => o.op === "text" ? { ...o, alpha: round3(o.alpha * alpha) } : o);
+function textSticker(cue, dc) {
+  const text = cue.text.trim();
+  if (!text) return [];
+  const p = dc.scene, W = p.width, H = p.height;
+  const order = [
+    [0.5, 0.3],
+    [0.27, 0.24],
+    [0.73, 0.24],
+    [0.5, 0.52],
+    [0.28, 0.5],
+    [0.72, 0.5],
+    [0.5, 0.18],
+    [0.18, 0.3],
+    [0.82, 0.3],
+    [0.18, 0.55],
+    [0.82, 0.55],
+    [0.18, 0.12],
+    [0.82, 0.12],
+    [0.5, 0.62],
+    [0.18, 0.66],
+    [0.82, 0.66]
+  ];
+  const first = Math.floor(dc.hash(3) * 3);
+  const candidates = [...order.slice(first, 3), ...order.slice(0, first), ...order.slice(3)].map(([x, y]) => [x * W, y * H]);
+  const at = stickerPlacement(p, cue, text, candidates, TEXT_STICKER_SCALE);
+  const [k, alpha] = stickerMotion2(dc.local, dc.dur);
+  if (alpha <= 0) return [];
+  return withAlpha(stickerOps(text, at.x, at.y, stickerTilt(dc.hash(1), 8), at.scale * k, stickerPalette(dc.hash(2)), dc.u), alpha);
+}
+function waitForIt(cue, dc) {
+  const p = dc.scene, W = p.width, H = p.height;
+  const area = safeRect(W, H, hookOverlaps(p, cue.start, cue.end));
+  const top = area.y;
+  const rows = [top + 0.09 * H, top + 0.12 * H].map((y) => Math.min(y, H / 3));
+  const candidates = [
+    ...rows.map((y) => [0.5 * W, y]),
+    ...rows.flatMap((y) => [[0.3 * W, y], [0.7 * W, y], [0.2 * W, y], [0.8 * W, y]])
+  ];
+  const at = stickerPlacement(p, cue, WAIT_FOR_IT_TEXT, candidates, WAIT_FOR_IT_SCALE);
+  const [k, alpha] = stickerMotion2(dc.local, dc.dur);
+  if (alpha <= 0) return [];
+  const bob = WAIT_FOR_IT_BOB * dc.u * Math.sin(2 * Math.PI * WAIT_FOR_IT_BOB_HZ * dc.local);
+  return withAlpha(stickerOps(WAIT_FOR_IT_TEXT, at.x, round3(at.y + bob), stickerTilt(dc.hash(1), 6), at.scale * k, STICKER_PALETTES[1], dc.u), alpha);
+}
+registerCue({
+  kind: "sticker",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end],
+  ops: (cue, dc) => cue.sticker === "text" ? textSticker(cue, dc) : []
+});
+registerCue({
+  kind: "sticker",
+  layer: "retention",
+  window: (cue) => [cue.start, cue.end],
+  ops: (cue, dc) => cue.sticker === "wait_for_it" ? waitForIt(cue, dc) : []
+});
+
+// src/lib/fx/core/overlays/reaction.ts
+var REACTION_BORDER = 10;
+var REACTION_CREDIT_PX = 22;
+var hasReactionAsset = (cue) => !!(cue.url || cue.asset_id);
+registerCue({
+  kind: "reaction",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end],
+  ops: (cue, dc) => {
+    if (!hasReactionAsset(cue)) return [];
+    const W = dc.scene.width, H = dc.scene.height, u = dc.u;
+    const r = reactionRect(W, H);
+    const transform = pictureMatrix(dc.picture, W, H);
+    const b = REACTION_BORDER * u;
+    const label = cue.provider === "giphy" ? "via GIPHY" : "";
+    const ops = [
+      // Drop shadow: two dark bands hugging the border's outside, shifted down 0.5u·10, so it never darkens the PiP.
+      ...[[1.2, 1.2, 0.28], [2.2, 0.9, 0.12]].map(([at, width, alpha]) => rectOp({
+        x: round3(r.x - at * b),
+        y: round3(r.y - at * b + 0.5 * b),
+        w: round3(r.w + 2 * at * b),
+        h: round3(r.h + 2 * at * b),
+        radius: round3((1.2 + at) * b),
+        fill: null,
+        stroke: `rgba(0,0,0,${alpha})`,
+        strokePx: round3(width * b),
+        transform
+      })),
+      // Border: a 10u band covering [rect − 10u, rect]; its inner corners round off the PiP's square corners.
+      rectOp({
+        x: round3(r.x - b / 2),
+        y: round3(r.y - b / 2),
+        w: round3(r.w + b),
+        h: round3(r.h + b),
+        radius: round3(1.2 * b),
+        fill: null,
+        stroke: "#FFFFFF",
+        strokePx: round3(b),
+        transform
+      })
+    ];
+    if (label) {
+      const px = REACTION_CREDIT_PX * u;
+      ops.push(textOp({
+        text: label,
+        font: fxFamily("TikTokSans-Bold"),
+        px: round3(px),
+        x: round3(r.x + r.w),
+        y: round3(r.y + r.h + b + px * 0.85),
+        align: "right",
+        fill: "#FFFFFF",
+        alpha: 0.92,
+        letterSpacing: round3(0.04 * px),
+        transform,
+        shadow: shadow("rgba(0,0,0,0.6)", round3(6 * u), 0, round3(2 * u))
+      }));
+    }
+    return ops;
+  }
+});
+
+// src/lib/fx/core/overlays/bleep_cover.ts
+var MOUTH_EXTEND = 0.35;
+var BAR_HEIGHT = 0.45;
+var PIXELATE_BLOCK = 24;
+function mouthBar(face) {
+  const lm = face?.landmarks;
+  if (!lm || lm.length < 10 || lm.slice(6, 10).some((v) => !Number.isFinite(v))) return null;
+  let [ax, ay, bx, by] = [lm[6], lm[7], lm[8], lm[9]];
+  if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
+  const mw = Math.hypot(bx - ax, by - ay);
+  if (mw < 1) return null;
+  return { cx: (ax + bx) / 2, cy: (ay + by) / 2, w: mw * (1 + 2 * MOUTH_EXTEND), h: mw * BAR_HEIGHT, angle: Math.atan2(by - ay, bx - ax) };
+}
+function mouthBounds(bar) {
+  const c = Math.abs(Math.cos(bar.angle)), s = Math.abs(Math.sin(bar.angle));
+  const w = bar.w * c + bar.h * s, h = bar.w * s + bar.h * c;
+  return { x: bar.cx - w / 2, y: bar.cy - h / 2, w, h };
+}
+registerCue({
+  kind: "bleep",
+  layer: "cover",
+  window: (cue) => [cue.start, cue.end],
+  ops: (cue, dc) => {
+    if (cue.cover === "none") return [];
+    const bar = mouthBar(dc.face);
+    if (!bar) return [];
+    if (cue.cover === "pixelate") {
+      const b = mouthBounds(bar);
+      return [{ op: "pixelate", x: round3(b.x), y: round3(b.y), w: round3(b.w), h: round3(b.h), block: round3(PIXELATE_BLOCK * dc.u) }];
+    }
+    return [rectOp({
+      x: round3(-bar.w / 2),
+      y: round3(-bar.h / 2),
+      w: round3(bar.w),
+      h: round3(bar.h),
+      radius: round3(bar.h * 0.28),
+      fill: "#000000",
+      transform: placeAt(bar.cx, bar.cy, bar.angle)
+    })];
+  }
+});
+
+// src/lib/fx/core/overlays/grain.ts
+var GRAIN_SEED = 4242;
+var GRAIN_STRENGTH = 0.35;
+registerGlobal({
+  id: "grain",
+  layer: "pixel",
+  active: (p) => p.scene.grain > 0,
+  ops: (dc) => {
+    const amount = round3(Math.min(1, dc.scene.scene.grain) * GRAIN_STRENGTH);
+    return amount > 0 ? [{ op: "grain", amount, seed: GRAIN_SEED, frame: dc.clock.frame }] : [];
+  }
+});
+
+// src/lib/fx/core/retention/progress.ts
+var PROGRESS_PX = 10;
+var progressFraction = (o, outDuration) => outDuration > 0 ? clamp01(o / outDuration) : 0;
+registerGlobal({
+  id: "progress",
+  layer: "retention",
+  active: (p) => p.scene.progress_bar,
+  ops: (dc) => {
+    const p = dc.scene, W = p.width, H = p.height;
+    const h = round3(PROGRESS_PX * dc.u);
+    const w = round3(W * progressFraction(dc.clock.o, p.scene.out_duration));
+    const ops = [rectOp({ x: 0, y: round3(H - h), w: W, h, fill: "#000000", alpha: 0.28 })];
+    if (w > 0) ops.push(rectOp({ x: 0, y: round3(H - h), w, h, fill: p.scene.progress_color || "#FF7A1A" }));
+    return ops;
+  }
+});
+
+// src/lib/fx/core/retention/freeze_label.ts
+var RIM_PX = 16;
+var RIM_ALPHA = [1, 0.5];
+var SHUTTER_ALPHA = [0.32, 0.12];
+var FREEZE_LABEL_SCALE = 1.2;
+var FREEZE_LABEL_SPOTS = [
+  [0.5, 0.3],
+  [0.5, 0.22],
+  [0.5, 0.5],
+  [0.5, 0.6],
+  [0.5, 0.14],
+  [0.27, 0.3],
+  [0.73, 0.3],
+  [0.27, 0.55],
+  [0.73, 0.55]
+];
+function freezeHold(p, cue) {
+  const e = quantize(cue.start);
+  const piece = p.warp.pieces.find((x) => x.rate === 0 && x.hold > 0 && Math.abs(x.e0 - e) <= 1e-6);
+  return piece ? { o0: piece.o0, hold: piece.hold } : null;
+}
+registerCue({
+  kind: "freeze",
+  layer: "retention",
+  window: (cue) => [cue.start, cue.start],
+  ops: (cue, dc) => {
+    const p = dc.scene, W = p.width, H = p.height, u = dc.u;
+    const hold = freezeHold(p, cue);
+    if (!hold) return [];
+    const local = dc.clock.o - hold.o0;
+    if (local < -1e-6 || local >= hold.hold - 1e-6) return [];
+    const ops = [];
+    const frame = Math.round(Math.max(0, local) * FPS);
+    if (frame < RIM_ALPHA.length) {
+      const rim = RIM_PX * u;
+      ops.push(rectOp({ x: 0, y: 0, w: W, h: H, fill: "#FFFFFF", alpha: SHUTTER_ALPHA[frame] }));
+      ops.push(rectOp({
+        x: round3(rim / 2),
+        y: round3(rim / 2),
+        w: round3(W - rim),
+        h: round3(H - rim),
+        fill: null,
+        stroke: "#FFFFFF",
+        strokePx: round3(rim),
+        alpha: RIM_ALPHA[frame]
+      }));
+    }
+    const label = cue.label.trim();
+    if (label) {
+      const spots = FREEZE_LABEL_SPOTS.map(([x, y]) => [x * W, y * H]);
+      const at = stickerPlacement(p, { start: cue.start, end: cue.start }, label, spots, FREEZE_LABEL_SCALE);
+      const k = slapScale(Math.max(0, local)), alpha = slapAlpha(Math.max(0, local));
+      for (const op of stickerOps(label, at.x, at.y, stickerTilt(dc.hash(1), 6), at.scale * k, stickerPalette(dc.hash(2)), u)) {
+        ops.push(op.op === "text" && alpha < 1 ? { ...op, alpha: round3(op.alpha * alpha) } : op);
+      }
+    }
+    return ops;
+  }
+});
+
+// src/lib/fx/core/retention/loop.ts
+var LOOP_CROSSFADE = 0.4;
+function loopAlpha(o, outDuration) {
+  if (outDuration <= 0) return 0;
+  const start = Math.max(0, outDuration - LOOP_CROSSFADE);
+  if (o < start) return 0;
+  return round3(Math.min(1, (o - start) / (outDuration - start || 1)));
+}
+registerGlobal({
+  id: "loop",
+  layer: "loop",
+  active: (p, clock) => p.scene.loop_ending === "crossfade" && loopAlpha(clock.o, p.scene.out_duration) > 0,
+  ops: (dc) => {
+    const alpha = loopAlpha(dc.clock.o, dc.scene.scene.out_duration);
+    return alpha > 0 ? [{ op: "frame0", alpha }] : [];
+  }
+});
+
+// src/lib/fx/core/frame.ts
+var PICTURE_ORDER = ["grade", "desaturate", "zoom", "shake", "transition", "glitch"];
+function defaultWindow(cue) {
+  if (cue.kind === "transition") {
+    const half = TRANSITION_HALF[cue.style] ?? 0.1;
+    return [cue.start - half, cue.start + half];
+  }
+  return [cue.start, cue.end];
+}
+function inWindow(t, w) {
+  if (w[1] - w[0] <= 1e-9) return Math.abs(quantize(t) - quantize(w[0])) <= 1e-9;
+  return t >= w[0] - 1e-9 && t < w[1];
+}
+var errors = /* @__PURE__ */ new WeakMap();
+function guard(p, what, fn, fallback) {
+  try {
+    return fn();
+  } catch (error) {
+    const list = errors.get(p) ?? [];
+    if (list.length < 50) list.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+    errors.set(p, list);
+    return fallback;
+  }
+}
+function makeContext(p, clock, seed, local, dur, face, picture2) {
+  const s = seed >>> 0;
+  return {
+    scene: p,
+    clock,
+    t: clock.e,
+    local,
+    dur,
+    face,
+    picture: picture2,
+    u: p.u,
+    rng: mulberry32(s),
+    hash: (n) => hash01(s, n)
+  };
+}
+var cloneState = (s) => ({ ...s, filter: [...s.filter], slices: s.slices.map((x) => ({ ...x })) });
+function pictureStateAt(p, clock, rawFace) {
+  let state = cloneState(IDENTITY_PICTURE);
+  const t = clock.e;
+  for (const kind of PICTURE_ORDER) {
+    const mods = pictureModifiersFor(kind);
+    if (!mods.length) continue;
+    if (kind === "grade") {
+      if (p.scene.grade === "none") continue;
+      for (const m of mods) {
+        const dc = makeContext(p, clock, p.scene.seed, t, p.scene.edit_duration, rawFace, state);
+        state = guard(p, "picture:grade", () => m.apply(state, null, dc), state);
+      }
+      continue;
+    }
+    for (const cue of p.cuesByKind.get(kind) ?? []) {
+      if (!inWindow(t, defaultWindow(cue))) continue;
+      for (const m of mods) {
+        const dc = makeContext(p, clock, cue.seed, t - cue.start, cue.end - cue.start, rawFace, state);
+        state = guard(p, `picture:${cue.id}`, () => m.apply(state, cue, dc), state);
+      }
+    }
+  }
+  return state;
+}
+function transformFace(face, m) {
+  if (!face) return null;
+  if (isIdentity(m)) return { ...face, landmarks: face.landmarks ? [...face.landmarks] : null };
+  const box = transformRect(m, face);
+  let landmarks = null;
+  if (face.landmarks) {
+    landmarks = [];
+    for (let i = 0; i + 1 < face.landmarks.length; i += 2) landmarks.push(...applyMat(m, face.landmarks[i], face.landmarks[i + 1]));
+  }
+  return { ...box, landmarks };
+}
+var frameCache = /* @__PURE__ */ new WeakMap();
+function frameOps(p, clock) {
+  const hit = frameCache.get(p);
+  if (hit && hit.e === clock.e && hit.o === clock.o && hit.frame === clock.frame) return hit.ops;
+  const ops = buildFrame(p, clock);
+  frameCache.set(p, { e: clock.e, o: clock.o, frame: clock.frame, ops });
+  return ops;
+}
+function buildFrame(p, clock) {
+  const t = clock.e, W = p.width, H = p.height;
+  const rawFace = p.faceAt(t);
+  const raw = pictureStateAt(p, clock, rawFace);
+  const state = { ...raw, scale: pictureScale(raw, W, H) };
+  const matrix = pictureMatrix(raw, W, H);
+  const face = transformFace(rawFace, matrix);
+  const buckets = new Map(LAYERS.map((l) => [l, []]));
+  const push = (layer, ops) => {
+    if (ops.length) buckets.get(layer).push(...ops);
+  };
+  let hideCaptions = false;
+  const captionCueOps = [];
+  for (const cue of p.cues) {
+    if (cue.kind === "accent") {
+      const d = accentDrawerFor(cue.variant);
+      if (!d) continue;
+      const w = guard(p, `window:${cue.id}`, () => d.window(cue), null);
+      if (!w || !inWindow(t, w)) continue;
+      if (d.hidesCaptions) hideCaptions = true;
+      const dc = makeContext(p, clock, cue.seed, t - cue.start, cue.end - cue.start, face, state);
+      const ops = guard(p, `accent:${cue.id}`, () => d.ops(cue, dc), []);
+      if (d.layer === "caption") captionCueOps.push(...ops);
+      else push(d.layer, ops);
+      continue;
+    }
+    for (const d of cueDrawersFor(cue.kind)) {
+      const w = guard(p, `window:${cue.id}`, () => d.window(cue), null);
+      if (!w || !inWindow(t, w)) continue;
+      const dc = makeContext(p, clock, cue.seed, t - cue.start, cue.end - cue.start, face, state);
+      const ops = guard(p, `cue:${cue.id}`, () => d.ops(cue, dc), []);
+      if (d.layer === "caption") captionCueOps.push(...ops);
+      else push(d.layer, ops);
+    }
+  }
+  const chunk = hideCaptions ? null : p.chunkAt(t);
+  if (chunk) push("caption", captionOps(p, clock, chunk, face, state));
+  push("caption", captionCueOps);
+  for (const g of listGlobalDrawers()) {
+    if (!guard(p, `global:${g.id}`, () => g.active(p, clock), false)) continue;
+    const dc = makeContext(p, clock, fnv1a32(`${p.scene.seed}:${g.id}`), t, p.scene.edit_duration, face, state);
+    push(g.layer, guard(p, `global:${g.id}`, () => g.ops(dc), []));
+  }
+  const out = [...pictureOps(raw, W, H)];
+  for (const layer of LAYERS) out.push(...buckets.get(layer));
+  return out;
+}
+function captionOps(p, clock, chunk, face, state) {
+  if (!isFxTemplate(p.scene.template)) return [];
+  const dc = makeContext(p, clock, fnv1a32(`${p.scene.seed}:${chunk.key}`), clock.e - chunk.start, chunk.end - chunk.start, face, state);
+  const drawer = captionStyleFor(p.scene.template);
+  return guard(p, `caption:${chunk.key}`, () => drawer ? drawer.line(chunk, dc) : baseCaptionOps(chunk, dc), []);
+}
+function isPassthrough(p, clock) {
+  const ops = frameOps(p, clock);
+  if (ops.length !== 1) return false;
+  const op = ops[0];
+  return op.op === "picture" && isIdentity(op.transform) && op.filter === "" && op.alpha === 1 && op.blend === "source-over" && op.channel === "rgb" && op.dx === 0 && op.dy === 0 && !op.cutout && op.clip === null;
+}
+function captionHitBoxes(p, clock) {
+  const chunk = p.chunkAt(clock.e);
+  if (!chunk || !chunk.words.length) return [];
+  const pad = Math.max(8 * p.u, chunk.px * 0.2);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const w of chunk.words) {
+    x0 = Math.min(x0, w.x);
+    y0 = Math.min(y0, w.y);
+    x1 = Math.max(x1, w.x + w.w);
+    y1 = Math.max(y1, w.y + w.h);
+  }
+  return [{ key: chunk.key, x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad }];
 }
 
 // src/lib/fx/core/render.ts

@@ -66,6 +66,30 @@ jobs:
       - name: Run fx runtime tests
         run: cd backend/src/fx_runtime && deno task test
 
+  fx-media-ffmpeg61:
+    # The crazy-edits chain must behave the same on ffmpeg 6.1 (Ubuntu 24.04) as on 7.1 (the backend image, checked by
+    # the fx_selftest step in image-security.yml): colour, frame counts, audio graph (FINAL G19).
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Install ffmpeg 6.1 and system libraries
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            ffmpeg ca-certificates curl git unzip libgl1 libglib2.0-0 fonts-noto-core
+          ffmpeg -version | head -n 1
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+      - name: Install fx runtime dependencies
+        run: cd backend/src/fx_runtime && deno install --frozen
+      - name: Install backend dependencies (Python 3.11)
+        run: cd backend && uv sync --frozen --all-groups --python 3.11
+      - name: Run the FX media suite on ffmpeg 6.1
+        run: cd backend && .venv/bin/pytest --no-cov tests/unit/fx_media
+
   frontend:
     runs-on: ubuntu-latest
     env:

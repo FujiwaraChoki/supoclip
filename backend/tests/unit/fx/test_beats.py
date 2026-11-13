@@ -459,6 +459,11 @@ def test_heuristic_timing_none_and_no_words():
     assert empty.beats == () and empty.timing == "none" and empty.words_hash == words_hash([])
 
 
+def test_heuristic_blank_tokens_make_no_hook():
+    blank = [{"text": " ", "start": 0.0, "end": 0.4}, {"text": "", "start": 0.5, "end": 0.9}]
+    assert heuristic_beats(blank, timing="word").beats == ()
+
+
 def test_heuristic_approx_timing_still_plans_beats():
     lines = [{"start": 0.0, "end": 3.0, "text": "I made $500 this week!"},
              {"start": 4.0, "end": 6.0, "text": "That is insane"}]
