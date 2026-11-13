@@ -1055,7 +1055,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 )
                 if entry["state"]["hasAudio"]:
                     filters.append(
-                        f"[{i}:a]atrim=start={segment.start}:end={segment.end},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo[a{key}]"
+                        f"[{i}:a]atrim=start={segment.start}:end={segment.end},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume={0 if document.muted else document.volume}[a{key}]"
                     )
                 else:
                     filters.append(
@@ -1081,6 +1081,10 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             "captionTransforms": all_caption_transforms,
             # The first clip's headline doesn't describe the combination.
             "hookTitle": "",
+            # Each input's audio settings are already baked into clean.mp4.
+            # A neutral draft keeps later exports from applying the first gain twice.
+            "muted": False,
+            "volume": 1,
         }
         document = EditDocument.model_validate(initial).validate_duration(cursor)
         with tempfile.TemporaryDirectory(prefix="combine_", dir=directory) as temp:
