@@ -25,11 +25,18 @@ export function SignUp() {
     setMessage("");
     setOk(false);
 
-    const response = await signUp.email({
-      email,
-      password,
-      name,
-    });
+    let response: Awaited<ReturnType<typeof signUp.email>>;
+    try {
+      response = await signUp.email({
+        email,
+        password,
+        name,
+      });
+    } catch {
+      setMessage(t("signUp.failed"));
+      setLoading(false);
+      return;
+    }
 
     if (response.error) {
       setMessage(response.error.message || t("signUp.failed"));

@@ -50,4 +50,17 @@ describe("SignIn", () => {
 
     expect(await screen.findByText("Signed in successfully!")).toBeInTheDocument();
   });
+
+  it("clears loading when sign in rejects", async () => {
+    vi.mocked(signIn.email).mockRejectedValue(new Error("network down"));
+    const user = userEvent.setup();
+
+    render(<SignIn />);
+
+    await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
+    await user.type(screen.getByPlaceholderText("Password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(await screen.findByRole("button", { name: "Sign In" })).toBeEnabled();
+  });
 });

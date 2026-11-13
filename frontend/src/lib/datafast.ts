@@ -83,6 +83,15 @@ const sanitizeGoalName = (goalName: string) =>
     .replace(/[^a-z0-9_-]/g, "_")
     .slice(0, 64);
 
+/** Analytics must never interrupt the product: swallow anything a tracker throws. */
+function attempt(send: () => void) {
+  try {
+    send();
+  } catch {
+    // Blocked storage, ad blockers and broken third-party scripts end up here.
+  }
+}
+
 export function track(goalName: string, metadata?: DataFastMetadata) {
   if (!isClient()) {
     return;
@@ -94,18 +103,21 @@ export function track(goalName: string, metadata?: DataFastMetadata) {
   }
 
   const sanitizedMetadata = sanitizeMetadata(metadata);
-  window.tilly?.(sanitizedGoalName, sanitizedMetadata);
+
+  // Each tracker is isolated: a throwing script (DataFast reads localStorage,
+  // which can raise SecurityError) must not skip the other one or the caller.
+  attempt(() => window.tilly?.(sanitizedGoalName, sanitizedMetadata));
 
   if (!isDataFastConfigured || !window.datafast) {
     return;
   }
 
-  if (sanitizedMetadata) {
-    window.datafast(sanitizedGoalName, sanitizedMetadata);
-    return;
-  }
-
-  window.datafast(sanitizedGoalName);
+  const datafast = window.datafast;
+  attempt(() =>
+    sanitizedMetadata
+      ? datafast(sanitizedGoalName, sanitizedMetadata)
+      : datafast(sanitizedGoalName),
+  );
 }
 
 export function identify(metadata: DataFastIdentifyPayload) {
@@ -118,5 +130,6 @@ export function identify(metadata: DataFastIdentifyPayload) {
     return;
   }
 
-  window.datafast("identify", sanitizedMetadata);
+  const datafast = window.datafast;
+  attempt(() => datafast("identify", sanitizedMetadata));
 }
