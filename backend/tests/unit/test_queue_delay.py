@@ -114,3 +114,42 @@ def test_video_worker_measures_delay_on_start():
 
     assert WorkerSettings.cron_jobs == []
     assert WorkerSettings.on_job_start.__name__ == "on_video_job_start"
+
+
+def test_a_deferred_job_counts_from_when_it_was_due():
+    from src.workers.queue_delay import job_due_time
+
+    enqueued = datetime(2026, 11, 13, 10, 0, tzinfo=timezone.utc)
+    due_ms = int((enqueued + timedelta(seconds=20)).timestamp() * 1000)
+    assert job_due_time({"enqueue_time": enqueued, "score": due_ms}) == enqueued + timedelta(seconds=20)
+    # A job woken early (score moved before its enqueue time) is due when enqueued.
+    early_ms = int((enqueued - timedelta(seconds=5)).timestamp() * 1000)
+    assert job_due_time({"enqueue_time": enqueued.replace(tzinfo=None), "score": early_ms}) == enqueued
+    assert job_due_time({"enqueue_time": enqueued}) == enqueued
+    assert job_due_time({}) is None
+
+
+@pytest.mark.asyncio
+async def test_retries_are_not_reported_as_queue_delay(monkeypatch):
+    """A retry keeps the original enqueue time, so its wait includes earlier runs."""
+    from src.workers import queue_delay
+
+    calls = []
+
+    async def record(redis, **kwargs):
+        calls.append(kwargs)
+        return False
+
+    monkeypatch.setattr(queue_delay, "maybe_report_queue_delay", record)
+    hours_ago = datetime.now(timezone.utc) - timedelta(hours=3)
+    score = int(hours_ago.timestamp() * 1000)
+    for job_try in (2, 3, 4):
+        await queue_delay.on_video_job_start(
+            {"redis": _Redis(), "job_try": job_try, "enqueue_time": hours_ago, "score": score}
+        )
+    assert calls == []
+
+    await queue_delay.on_video_job_start(
+        {"redis": _Redis(), "job_try": 1, "enqueue_time": hours_ago, "score": score}
+    )
+    assert [call["enqueue_time"] for call in calls] == [hours_ago]

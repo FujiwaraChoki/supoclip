@@ -16,7 +16,7 @@ def test_cron_jobs_are_not_on_the_video_worker():
     assert CronWorkerSettings.queue_name == CRON_QUEUE_NAME
     assert CronWorkerSettings.queue_name != WorkerSettings.queue_name
     jobs = CronWorkerSettings.cron_jobs
-    assert len(jobs) == 7
+    assert len(jobs) == 8
     assert [job.job_id for job in jobs] == [job.name for job in jobs]
     assert {job.job_id for job in jobs} == {
         "cron:check_media_storage",
@@ -26,6 +26,7 @@ def test_cron_jobs_are_not_on_the_video_worker():
         "cron:copy_pending_uploads",
         "cron:dispatch_scheduled_social_posts",
         "cron:refresh_social_metrics",
+        "cron:reconcile_orphaned_video_tasks",
     }
     for job in jobs:
         assert job.job_id.count(":") == 1

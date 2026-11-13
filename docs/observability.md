@@ -48,15 +48,27 @@ go to the logs.
 | `POSTHOG_HOST` | Ingest host, default `https://eu.i.posthog.com`. |
 | `SUPOCLIP_SERVICE` | `backend`, `worker`, or `cron-worker`; set by docker-compose. |
 
-A video-queue job that waits longer than `QUEUE_DELAY_ALERT_SECONDS` (default
-10 minutes) before a worker starts it sends one PostHog exception,
+A video-queue job whose first pickup comes more than `QUEUE_DELAY_ALERT_SECONDS`
+(default 10 minutes) after it became due sends one PostHog exception,
 `$exception_fingerprint` `queue_delay_exceeded`, with `queue_depth` and
 `wait_seconds`. The worker sends at most one of these per
 `QUEUE_DELAY_ALERT_INTERVAL_SECONDS` (default 15 minutes), which is what the
 critical-alert webhook should match. The distinct id is `supoclip-worker`.
 The event has no account id. A job that waited only because that account was
 already rendering does not use this clock: it is queued again with a new
-enqueue time.
+enqueue time, and a deferred job counts from when it was due. Retries are not
+measured: arq keeps a job's original enqueue time on every try, so a job picked
+up again after a worker restart would report its earlier runs as waiting.
+
+A video job gets three pickups. A run cut short by a worker restart or a lost
+container counts as one, as does a `Retry`. On the fourth pickup the worker
+fails the task instead of rendering it (`Video job ... exhausted its 3 tries`
+in the logs, and an entry in the admin dead-letter list); a task without saved
+clips gets its minutes back. The cron worker's `reconcile_orphaned_video_tasks`
+(every five minutes) fails queued or processing tasks whose current job is no
+longer in Redis (`Task ... lost its job`), with the same refund rule. Neither
+touches a task another process is running, a task that was resumed, or a
+finished one.
 
 ## Product funnel events
 

@@ -1,9 +1,13 @@
 """Report when a video-queue job waits too long before a worker starts it.
 
-The wait is enqueue time to pickup, which is what grows when renders occupy
-every slot. A per-user deferral creates a new job, so its own wait stays
-short and does not page on top of the original delay. One PostHog exception
-per interval keeps the critical-alert webhook from firing on every late job.
+The wait runs from when a job became due to its first pickup, which is what
+grows when renders occupy every slot. A job enqueued with a deferral (a
+per-user deferral creates a new one) is due at its score, not its enqueue
+time, so the deferral itself is not counted. Retries are not measured: arq
+keeps the original enqueue time on every try, and a job picked up again after
+a worker restart keeps its original score too, so their "wait" would include
+the earlier runs. One PostHog exception per interval keeps the critical-alert
+webhook from firing on every late job.
 """
 
 from __future__ import annotations
@@ -36,6 +40,20 @@ def wait_seconds(enqueue_time: datetime | None, now: datetime) -> float:
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     return (now - enqueue_time).total_seconds()
+
+
+def job_due_time(ctx) -> datetime | None:
+    """When this pickup's job became runnable: its enqueue time or later score."""
+    enqueue_time = ctx.get("enqueue_time")
+    if not isinstance(enqueue_time, datetime):
+        return None
+    if enqueue_time.tzinfo is None:
+        enqueue_time = enqueue_time.replace(tzinfo=timezone.utc)
+    score = ctx.get("score")
+    if isinstance(score, (int, float)) and not isinstance(score, bool) and score > 0:
+        scored = datetime.fromtimestamp(score / 1000, tz=timezone.utc)
+        return max(enqueue_time, scored)
+    return enqueue_time
 
 
 async def maybe_report_queue_delay(
@@ -112,11 +130,13 @@ async def maybe_report_queue_delay(
 
 
 async def on_video_job_start(ctx) -> None:
-    """arq hook: measure pickup delay for every job on the video queue."""
+    """arq hook: measure the first pickup delay of every job on the video queue."""
     try:
+        if int(ctx.get("job_try") or 1) > 1:
+            return
         await maybe_report_queue_delay(
             ctx["redis"],
-            enqueue_time=ctx.get("enqueue_time"),
+            enqueue_time=job_due_time(ctx),
             queue_name=DEFAULT_QUEUE_NAME,
         )
     except Exception:

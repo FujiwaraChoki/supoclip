@@ -33,6 +33,7 @@ from .tasks import (  # noqa: E402
     dispatch_scheduled_social_posts,
     refresh_social_metrics,
 )
+from .video_job_recovery import reconcile_orphaned_video_tasks  # noqa: E402
 
 configure_logging()
 
@@ -71,4 +72,11 @@ class CronWorkerSettings:
         scheduled(copy_pending_uploads, second=10, run_at_startup=True, timeout=1800),
         scheduled(dispatch_scheduled_social_posts, second=0, timeout=300),
         scheduled(refresh_social_metrics, minute=7, second=0, timeout=1800),
+        # Video tasks whose job arq dropped stay "processing" and charged otherwise.
+        scheduled(
+            reconcile_orphaned_video_tasks,
+            minute=set(range(3, 60, 5)),
+            second=30,
+            timeout=600,
+        ),
     ]

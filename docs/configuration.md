@@ -139,7 +139,7 @@ These settings affect clip generation speed, throughput, and defaults.
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `VIDEO_JOB_USER_CONCURRENCY` | `1` | Long video renders one account may run at once. Extra videos from that account wait without taking a worker slot. `1` is the default because a render can occupy a slot for hours; set `2` to allow two at once |
 | `VIDEO_JOB_DEFER_SECONDS` | `20` | How long a video over the per-account cap waits before a worker checks again (5–300). The waiting job is not charged again |
-| `QUEUE_DELAY_ALERT_SECONDS` | `600` | Pickup delay, from enqueue until a worker starts the job, that reports `queue_delay_exceeded` to PostHog |
+| `QUEUE_DELAY_ALERT_SECONDS` | `600` | Pickup delay, from when a job is due until a worker first starts it, that reports `queue_delay_exceeded` to PostHog. Retries are not measured |
 | `QUEUE_DELAY_ALERT_INTERVAL_SECONDS` | `900` | Minimum time between those queue-delay reports |
 | `EMBED_CRON_WORKER` | `1` | When `1`, the worker process also starts the cron worker on queue `supoclip_cron`. Set `0` if the optional Compose `cron-worker` service (profile `cron`) is running instead, and on video workers that run on a different machine from the API |
 | `UPLOAD_COPY_WAIT_SECONDS` | `1800` | How long a video worker on another machine waits for an upload to be copied from the API's disk to object storage before the task fails (minimum 60). See [Video workers on other machines](./render-worker.md) |

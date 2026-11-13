@@ -139,6 +139,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workers/progress.py` | Real-time progress via Redis |
 | `src/workers/video_admission.py` | Per-account render slots; holds a job until its upload is in the bucket |
 | `src/workers/media_cleanup.py` | Deletion outbox, orphan sweeps, per-machine scratch cleanup |
+| `src/workers/video_job_recovery.py` | Fails (and refunds) video tasks whose job ran out of tries or left Redis |
 | `src/editor_state.py` | Clip studio sessions, drafts and export/combine jobs in PostgreSQL |
 | `src/local_volume.py` | Id of the disk behind `TEMP_DIR`; tags rows that name a local path |
 | `src/media_replication_ledger.py`, `src/sync_db.py` | Pending two-bucket replication in PostgreSQL, usable from boto threads |

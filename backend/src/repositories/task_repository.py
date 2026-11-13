@@ -444,8 +444,14 @@ class TaskRepository:
         progress: Optional[int] = None,
         progress_message: Optional[str] = None,
         expected_statuses: Optional[List[str]] = None,
+        expected_job_id: Optional[str] = None,
     ) -> bool:
-        """Update task status and optional progress."""
+        """Update task status and optional progress.
+
+        ``expected_job_id`` limits the update to the attempt that job runs: a
+        resume or a deferral records a new ``processing_job_id``, and a stale
+        job must not end it. Tasks from before job ids were tracked match any.
+        """
         params = {
             "task_id": task_id,
             "status": status,
@@ -469,6 +475,12 @@ class TaskRepository:
         if expected_statuses is not None:
             query += " AND status = ANY(:expected_statuses)"
             params["expected_statuses"] = expected_statuses
+        if expected_job_id is not None:
+            query += (
+                " AND COALESCE(source_metadata->>'processing_job_id', :expected_job_id)"
+                " = :expected_job_id"
+            )
+            params["expected_job_id"] = expected_job_id
         try:
             result = await db.execute(text(query), params)
             changed = result.rowcount != 0
