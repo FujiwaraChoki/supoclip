@@ -41,6 +41,19 @@ export const BASE_LOOKS: Record<FxCaptionTemplate, BaseLook> = {
   face_doodles: { entrance: "settle", active: "accent-pop", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
 };
 
+/** Accent-pop size of the spoken word (D11): 1 → 1.06 over 80 ms, then held. */
+export const ACCENT_POP = 1.06;
+export const popScale = (local: number): number =>
+  keyframes([{ t: 0, v: 1 }, { t: 0.08, v: ACCENT_POP, ease: easeOutQuad }], local);
+
+/** Extra word gap (px) for outlined captions: the outlines on both sides of a gap eat 2 × stroke of the font's space,
+ *  so give one stroke back (the gap reads like the font's own, and outlines of neighbouring words never merge). Used by
+ *  the scene layout (wrap and positions) for every FX template. */
+export function outlineGap(style: { stroke_color: string | null; stroke_px: number }, look: BaseLook, px: number): number {
+  if (!style.stroke_color) return 0;
+  return style.stroke_px > 0 ? style.stroke_px : look.strokeEm * px;
+}
+
 /** "#RRGGBBAA" → "rgba(r,g,b,a)" (both canvases read it; some Skia builds reject 8-digit hex); others unchanged. */
 export function cssColor(color: string): string {
   const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})$/.exec(color.trim());
@@ -111,11 +124,16 @@ export function baseCaptionOps(chunk: CaptionChunk, dc: Omit<DrawerContext, "loc
     }
   }
 
+  // Accent pop (D11): the spoken word grows to ACCENT_POP and its line neighbours slide apart by the extra width, so
+  // the popped word never touches them (outlines included).
+  const pop = params.active === "accent-pop" && active >= 0 ? popScale(dc.t - chunk.words[active].start) : 1;
+  const popped = chunk.words[active];
+  const push = pop > 1 ? (popped.w * (pop - 1)) / 2 + strokePx * (pop - 1) * 2 : 0;
   const wordTransform = (i: number) => {
     const w = chunk.words[i];
-    if (params.active !== "accent-pop" || i !== active) return outer;
-    const k = keyframes([{ t: 0, v: 1 }, { t: 0.08, v: 1.1, ease: easeOutQuad }, { t: 0.2, v: 1.06, ease: easeOutQuad }], dc.t - w.start);
-    return mul(outer, scaleAbout(k, w.x + w.w / 2, w.y + w.h / 2));
+    if (pop <= 1 || w.line !== popped.line) return outer;
+    if (i === active) return mul(outer, scaleAbout(pop, w.x + w.w / 2, w.y + w.h / 2));
+    return mul(outer, translation(i < active ? -push : push, 0));
   };
   const at = (i: number) => {
     const w = chunk.words[i];

@@ -7,7 +7,7 @@ import { STICKER_EDGE_EM, STICKER_PX } from "../looks/sticker";
 import { expectGolden, renderSceneToPng } from "../test-utils/golden";
 import { TEST_FACE } from "../test-utils/napi-host";
 import {
-  STICKER_MAX_LIFE, STICKER_MAX_STACK, STICKER_TILT_DEG, stickerLabel, stickerMotion, stickerPlacements,
+  STICKER_MAX_LIFE, STICKER_MAX_STACK, STICKER_PEEL, STICKER_TILT_DEG, stickerLabel, stickerMotion, stickerPlacements,
 } from "./sticker_slap";
 import { accent, cueOps, expectInsideFrame, opsAt, prep, snap, templateScene, texts } from "./wp8.testkit";
 
@@ -100,7 +100,8 @@ describe("sticker motion", () => {
 
   it("lives at most 1.6 s and at most 3 stack at once", () => {
     const d = accentDrawerFor("sticker")!;
-    expect(d.window(accent("x", "sticker", 1, 5))).toEqual([1, 1 + STICKER_MAX_LIFE]);
+    // The drawer window runs one peel longer, so a sticker pushed out just before its end still finishes peeling.
+    expect(d.window(accent("x", "sticker", 1, 5))).toEqual([1, 1 + STICKER_MAX_LIFE + STICKER_PEEL]);
     const many = Array.from({ length: 5 }, (_, i) => accent(`m${i}.accent`, "sticker", 0.5 + i * 0.1, 3, { text: `S${i}` }));
     const ops = texts(cueOps(templateScene("sticker_slap", { cues: many }), 1.2));
     expect(new Set(ops.map((o) => o.text)).size).toBe(STICKER_MAX_STACK);

@@ -2,7 +2,8 @@
 // label as a die-cut vinyl sticker (looks/sticker.ts, never a copy) slapped onto the frame: scale 1.3 → 1 in 90 ms with
 // a seeded tilt within ±8°, coloured in the caption accent or one of the 4 sticker palettes. Stickers sit inside the
 // safe area, off the face box, the caption band and the hook band, stack up to 3 deep without overlapping, live at most
-// 1.6 s each and peel off with a quick shrink + fade.
+// 1.6 s each and peel off with a quick shrink + fade; a 4th sticker makes the oldest peel away (lift at a corner,
+// curl and fly off) instead of vanishing.
 //
 // Placement is decided once per prepared scene for every sticker (earlier stickers still on screen are obstacles), so a
 // sticker never jumps when another one appears. The face_doodles no-face fallback uses the same placement (`placeSticker`).
@@ -13,7 +14,7 @@ import type { AccentCue } from "../types";
 import type { Rect } from "../constants";
 import { hash01 } from "../rng";
 import { clamp01, easeInQuad, progress } from "../easing";
-import { clampBox, inflate, overlapArea, placeAvoiding, safeRect } from "../layout";
+import { clampBox, inflate, overlapArea, placeAvoiding, safeRect, transformOps } from "../layout";
 import type { PreparedScene } from "../scene";
 import { slapAlpha, slapScale, stickerBox, stickerOps, stickerPalette, stickerTilt, type StickerPalette } from "../looks/sticker";
 
@@ -72,6 +73,13 @@ export function captionBand(p: PreparedScene, a: number, b: number): Rect | null
   return { x: 0, y: y0 - pad, w: p.width, h: y1 - y0 + 2 * pad };
 }
 
+/** The head a sticker must not cover: the detector's face box (brow to chin) grown by the hair above it (≈ 0.45 of
+ *  the box height) and a margin around, so stickers never sit on the top of the head. */
+export function headBox(face: Rect, u: number): Rect {
+  const m = 18 * u, hair = 0.45 * face.h;
+  return { x: face.x - m - 0.08 * face.w, y: face.y - hair - m, w: face.w * 1.16 + 2 * m, h: face.h + hair + 2 * m };
+}
+
 /** Candidate centres (fractions of W, H), best first: beside and below the head, then the upper corners. */
 const CANDIDATES: readonly [number, number][] = [
   [0.5, 0.55], [0.27, 0.5], [0.73, 0.5], [0.27, 0.33], [0.73, 0.33], [0.28, 0.16], [0.72, 0.16], [0.5, 0.16], [0.5, 0.86],
@@ -99,14 +107,14 @@ export function placeSticker(p: PreparedScene, cue: Pick<AccentCue, "id" | "seed
   const fit = Math.min(STICKER_SCALE, (area.w * 0.86) / tilted(1).w, (area.h * 0.3) / tilted(1).h);
   const hard: Rect[] = [];   // the face and the caption band: never covered when any spot clears them
   const face = p.faceAt(start);
-  if (face) hard.push(inflate(face, 18 * u));
+  if (face) hard.push(headBox(face, u));
   const band = captionBand(p, start, end);
   if (band) hard.push(band);
   // Seeded variety: start the search at one of the first three preferred spots, then a fine grid.
   const first = Math.floor(hash01(cue.seed >>> 0, 4) * 3);
   const order = [...CANDIDATES.slice(first), ...CANDIDATES.slice(0, first), ...GRID].map(([x, y]) => [x * W, y * H] as [number, number]);
   // Shrink (down to 60 %) before giving up on a clear spot; otherwise the least-covered spot at full size, where
-  // covering the face or captions costs four times as much as touching another sticker.
+  // covering the head or captions costs four times as much as touching another sticker, the face itself far more.
   let box: Rect | null = null, scale = fit;
   for (const k of [1, 0.85, 0.72, 0.6]) {
     const size = tilted(fit * k);
@@ -118,7 +126,9 @@ export function placeSticker(p: PreparedScene, cue: Pick<AccentCue, "id" | "seed
     let best = Infinity;
     for (const [x, y] of order) {
       const spot = clampBox(x, y, size.w, size.h, area);
-      const cost = hard.reduce((c, r) => c + 4 * overlapArea(spot, r), 0) + taken.reduce((c, r) => c + overlapArea(spot, r), 0);
+      // The face itself (eyes, mouth) costs most, then captions and the hair, then other stickers.
+      const cost = hard.reduce((c, r) => c + 4 * overlapArea(spot, r), 0) + taken.reduce((c, r) => c + overlapArea(spot, r), 0)
+        + (face ? 12 * overlapArea(spot, inflate(face, 18 * u)) : 0);
       if (cost < best) { best = cost; box = spot; }
     }
     scale = fit * 0.6;
@@ -164,22 +174,64 @@ export function placedStickerOps(spot: StickerPlacement, local: number, u: numbe
     .map((o) => (o.op === "text" ? { ...o, alpha: o.alpha * alpha } : o));
 }
 
-/** Is this sticker among the newest 3 on screen at t? (older ones have peeled off) */
-function inStack(p: PreparedScene, cue: AccentCue, t: number): boolean {
-  const showing = (p.cuesByKind.get("accent") ?? []).filter((c) => {
-    if (c.kind !== "accent" || c.variant !== "sticker") return false;
-    const [a, b] = stickerWindow(c);
-    return t >= a && t < b;
+/** A sticker pushed out of the stack by a 4th one peels off over this long (s). */
+export const STICKER_PEEL = 0.22;
+
+/**
+ * Peel-off of an evicted sticker, `k` = 0 → 1 through STICKER_PEEL: its higher side lifts while it stays hinged at
+ * the lower top corner, curls up (squashed toward the hinge, turning further) and flies off up and out while fading.
+ * Ops are the placed sticker's at rest, carried by one transform about the hinge.
+ */
+export function peelOps(spot: StickerPlacement, k: number, u: number): DrawOp[] {
+  if (k >= 1) return [];
+  const e = easeInQuad(clamp01(k));
+  const dir = spot.rot >= 0 ? 1 : -1;                 // tilted clockwise: the left corner sits higher and lifts
+  const ax = spot.cx + dir * spot.box.w * 0.42, ay = spot.cy - spot.box.h * 0.4;   // hinge: the lower top corner
+  const turn = dir * (0.35 * e);                      // +20° curl
+  const squash = 1 - 0.45 * e;                         // the far edge folds over the hinge
+  const lift = -90 * u * e * e, drift = dir * 50 * u * e;
+  const c = Math.cos(turn), s = Math.sin(turn);
+  // translate(ax+drift, ay+lift) · rotate(turn) · scale(1, squash) · translate(-ax, -ay)
+  const m: [number, number, number, number, number, number] = [c, s, -s * squash, c * squash, 0, 0];
+  m[4] = ax + drift - (m[0] * ax + m[2] * ay);
+  m[5] = ay + lift - (m[1] * ax + m[3] * ay);
+  const alpha = clamp01(1 - e * 1.1);
+  if (alpha <= 0) return [];
+  return transformOps(placedStickerOps(spot, Math.min(0.5, spot.end - spot.start - STICKER_OUT), u), m, alpha);
+}
+
+const evictions = new WeakMap<PreparedScene, Map<string, number>>();
+
+/**
+ * When each sticker is pushed out of the stack: the start of the newer sticker that makes it the 4th on screen
+ * (Infinity when it never is). Once out it stays out, even if a newer one ends first.
+ */
+export function stickerEvictions(p: PreparedScene): Map<string, number> {
+  let map = evictions.get(p);
+  if (map) return map;
+  map = new Map();
+  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c): c is AccentCue => c.kind === "accent" && c.variant === "sticker");
+  stickers.forEach((cue, i) => {
+    const [, end] = stickerWindow(cue);
+    let out = Infinity;
+    const newer = stickers.slice(i + 1).map(stickerWindow).filter(([a]) => a < end);
+    for (const [a] of newer) {
+      const showing = newer.filter(([s, e]) => s <= a && e > a).length;
+      if (showing >= STICKER_MAX_STACK) { out = a; break; }
+    }
+    map!.set(cue.id, out);
   });
-  const index = showing.findIndex((c) => c.id === cue.id);
-  return index >= 0 && index >= showing.length - STICKER_MAX_STACK;
+  evictions.set(p, map);
+  return map;
 }
 
 export function stickerAccentOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
   const p = dc.scene;
-  if (!inStack(p, cue, dc.t)) return [];
   const spot = stickerPlacements(p).get(cue.id);
-  return spot ? placedStickerOps(spot, dc.local, dc.u) : [];
+  if (!spot) return [];
+  const out = stickerEvictions(p).get(cue.id) ?? Infinity;
+  if (dc.t >= out) return peelOps(spot, (dc.t - out) / STICKER_PEEL, dc.u);
+  return placedStickerOps(spot, dc.local, dc.u);
 }
 
 registerCaptionStyle({
@@ -190,6 +242,7 @@ registerCaptionStyle({
 registerAccent({
   variant: "sticker",
   layer: "overlay",
-  window: stickerWindow,
+  // A sticker evicted just before its own end still finishes its peel.
+  window: (cue) => { const [a, b] = stickerWindow(cue); return [a, b + STICKER_PEEL]; },
   ops: stickerAccentOps,
 });

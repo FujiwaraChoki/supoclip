@@ -1,5 +1,7 @@
 """Video utils helpers for the video pipeline."""
 
+from dataclasses import dataclass, field
+
 from .clip_source_map import save_clip_broll, save_clip_caption_settings, save_clip_vertical_layout
 from .media.common import (
     Any,
@@ -58,6 +60,8 @@ from .media.render_ranges import burned_hook_title, point_labels_for, resolve_re
 from .media.reframing import (
     render_reframed_clip_ffmpeg,
 )
+from .media.fx_chain import FxRenderInput
+from .edit_fx.contracts import FxPlan
 from .media.source_captions import (
     band_through_full_height_crop,
     detect_burned_caption_band,
@@ -279,6 +283,8 @@ def create_optimized_clip(
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
     output_offsets: Optional[List[float]] = None,
     point_labels: Optional[List[Dict[str, Any]]] = None,
+    fx: Optional["FxRenderInput"] = None,
+    caption_override: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
 
@@ -293,6 +299,13 @@ def create_optimized_clip(
 
     ``point_labels`` are a recap's on-screen points ({"text", "start"} on the
     clip timeline), burned in with the captions.
+
+    ``fx`` (crazy edits) renders the clip through the fx chain with the
+    fallback ladder full → full without B-roll → safe → none (FINAL §6.6);
+    ``layout_report`` then receives ``fx_level``, ``applied_warp``,
+    ``face_track`` and ``fx_plan`` (the plan as rendered). ``caption_override``
+    (``words``, ``highlight_words``, ``position_y``, ``font_size``) replaces the
+    transcript captions and their placement (the FX caption edit).
     """
     try:
         labels_kwargs = {"point_labels": point_labels} if point_labels else {}
@@ -342,6 +355,7 @@ def create_optimized_clip(
             and not hook_title
             and not point_labels
             and not broll_overlays
+            and not fx
             and keep_original
             and len(effective_keep_ranges) == 1
             and (output_offsets is None or len(output_offsets) == 1)
@@ -427,6 +441,8 @@ def create_optimized_clip(
                     video_filter, mode, caption_y = build_vertical_filter_plan(
                         source_clip_path, src_w, src_h, speaker_turns, speaker_words,
                         report=plan_report,
+                        # FX path: never Ken Burns; fx-core draws an editable push instead (one zoom source).
+                        **({"allow_kenburns": False} if fx else {}),
                     )
                     vertical_plan = (video_filter, mode)
                 except Exception as exc:
@@ -466,31 +482,102 @@ def create_optimized_clip(
             if layout_report is not None and source_caption_band is not None:
                 layout_report["source_caption_band"] = source_caption_band
 
+            override = caption_override or {}
+            ass_font_size = override.get("font_size") or font_size
+            position_y = override["position_y"] if override.get("position_y") is not None else caption_y
+            override_kwargs: Dict[str, Any] = {}
+            if override.get("words") is not None:
+                override_kwargs["caption_words"] = list(override["words"])
+            if override.get("highlight_words"):
+                override_kwargs["highlight_words"] = list(override["highlight_words"])
+
+            def build_ass(
+                include_captions: bool,
+                hook: Optional[str],
+                template_override: Optional[Dict[str, Any]] = None,
+                time_map=None,
+                censor_spans=None,
+            ) -> Optional[Path]:
+                if not (include_captions or hook or point_labels):
+                    return None
+                built = build_assemblyai_ass_subtitles(
+                    video_path,
+                    start_time,
+                    end_time,
+                    target_width,
+                    target_height,
+                    ass_path,
+                    font_family,
+                    ass_font_size,
+                    font_color,
+                    caption_template,
+                    effective_keep_ranges,
+                    hook_title=hook,
+                    include_captions=include_captions,
+                    position_y_override=position_y,
+                    avoid_band=source_caption_band,
+                    caption_layout_report=layout_report,
+                    **offsets_kwargs,
+                    **labels_kwargs,
+                    **override_kwargs,
+                    **({"template_override": template_override} if template_override else {}),
+                    **({"time_map": time_map} if time_map is not None else {}),
+                    **({"censor_spans": censor_spans} if censor_spans else {}),
+                )
+                return ass_path if built else None
+
+            if fx is not None:
+                framed_ok = _render_fx_ladder(
+                    fx,
+                    source_clip_path=source_clip_path,
+                    final_clip_path=final_clip_path,
+                    reframe_format=reframe_format,
+                    width=target_width,
+                    height=target_height,
+                    src_size=(src_w, src_h),
+                    effective_keep_ranges=effective_keep_ranges,
+                    output_offsets=output_offsets,
+                    add_subtitles=add_subtitles,
+                    hook_title=hook_title,
+                    font_family=font_family,
+                    font_size=ass_font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    caption_y=position_y,
+                    source_caption_band=source_caption_band,
+                    caption_words=override.get("words"),
+                    highlight_words=override.get("highlight_words"),
+                    speaker_turns=speaker_turns,
+                    speaker_words=speaker_words,
+                    vertical_plan=vertical_plan,
+                    plan_report=plan_report,
+                    broll_overlays=broll_overlays,
+                    layout_report=layout_report,
+                    build_ass=build_ass,
+                )
+                if not framed_ok:
+                    raise RuntimeError("ffmpeg reframe render failed")
+                shutil.move(str(final_clip_path), str(output_path))
+                logger.info(f"Successfully created clip with ffmpeg: {output_path}")
+                return True
+
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
-            if (add_subtitles or hook_title or point_labels) and build_assemblyai_ass_subtitles(
-                video_path,
-                start_time,
-                end_time,
-                target_width,
-                target_height,
-                ass_path,
-                font_family,
-                font_size,
-                font_color,
-                caption_template,
-                effective_keep_ranges,
-                hook_title=hook_title,
-                include_captions=add_subtitles,
-                position_y_override=caption_y,
-                avoid_band=source_caption_band,
-                caption_layout_report=layout_report,
-                **offsets_kwargs,
-                **labels_kwargs,
+            # An FX template without fx (its planning failed) burns its legacy ASS fallback, as the ladder's
+            # none level does. Legacy templates take the unchanged call.
+            from .edit_fx.contracts import is_fx_template
+
+            ass_template = (
+                get_template(get_template(caption_template).get("ass_fallback") or "default")
+                if is_fx_template(caption_template)
+                else None
+            )
+            if (add_subtitles or hook_title or point_labels) and build_ass(
+                add_subtitles, hook_title, template_override=ass_template
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
-                    font_family or get_template(caption_template)["font_family"]
+                    font_family or (ass_template or get_template(caption_template))["font_family"]
                 )
 
             def render(overlays):
@@ -526,6 +613,613 @@ def create_optimized_clip(
         return False
 
 
+# --------------------------------------------------------------------------- crazy edits (FINAL §6.1, §6.6)
+
+# Passage breaks: a junction whose source gap is at least this long reads as a new passage (AP-M2).
+FX_PASSAGE_GAP_SECONDS = 3.0
+# A/V check after a warped render: video and audio must agree within one frame (G4).
+FX_AV_TOLERANCE_SECONDS = 0.034
+# The hook title band starts a little after 0 (its fade in), FINAL §6.1.2.
+FX_HOOK_WINDOW_START = 0.12
+# Shortest span cue kept after the plan is clamped to the probed stage-1 length.
+FX_MIN_SPAN_SECONDS = 0.04
+
+
+def fx_junctions(
+    keep_ranges: List[Tuple[float, float]],
+    output_offsets: Optional[List[float]] = None,
+    group_output_starts: Optional[List[Optional[float]]] = None,
+) -> Tuple[List[float], List[float]]:
+    """Junction centres on the clip (E) timeline, and the subset that starts a new passage.
+
+    ``cuts`` are ``offset_i + fade_i / 2`` for every junction (AR-m2; hard cuts have fade 0). A junction is a
+    passage break when its source gap is at least ``FX_PASSAGE_GAP_SECONDS`` or it jumps backwards (a cold-open
+    teaser), or when it starts a workflow group (``group_output_starts``).
+    """
+    from .media.ffmpeg import junction_fades_for_offsets, output_offsets_for_ranges
+
+    ranges = normalize_source_ranges(keep_ranges)
+    if len(ranges) < 2:
+        return [], []
+    offsets = list(output_offsets) if output_offsets is not None else output_offsets_for_ranges(ranges)
+    if len(offsets) != len(ranges):
+        return [], []
+    fades = junction_fades_for_offsets(ranges, offsets)
+    group_starts = [float(v) for v in group_output_starts or [] if v is not None and float(v) > 0]
+    cuts: List[float] = []
+    breaks: List[float] = []
+    for index in range(1, len(ranges)):
+        centre = round(float(offsets[index]) + fades[index - 1] / 2.0, 3)
+        cuts.append(centre)
+        gap = ranges[index][0] - ranges[index - 1][1]
+        starts_group = any(abs(start - float(offsets[index])) < 1e-3 for start in group_starts)
+        if gap >= FX_PASSAGE_GAP_SECONDS or gap < -1e-6 or starts_group:
+            breaks.append(centre)
+    return cuts, breaks
+
+
+def fx_broll_windows(overlays: Optional[List[Dict[str, Any]]]) -> List[Tuple[float, float]]:
+    """Clip-timeline windows covered by stock cutaways (placements or overlays: ``start`` + ``duration``)."""
+    windows: List[Tuple[float, float]] = []
+    for overlay in overlays or []:
+        try:
+            start = max(0.0, float(overlay["start"]))
+            end = start + float(overlay["duration"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if end > start:
+            windows.append((round(start, 3), round(end, 3)))
+    return sorted(windows)
+
+
+def clamp_fx_plan(plan: "FxPlan", duration: float) -> "FxPlan":
+    """The plan cut to the probed stage-1 length (AR-M13): spans clipped, cues past the end dropped."""
+    if not duration or duration <= 0 or duration >= float(plan.edit_duration) - 1e-6:
+        return plan
+    from .edit_fx.contracts import INSTANT_KINDS
+
+    cues = []
+    for cue in plan.cues:
+        if cue.kind in INSTANT_KINDS:
+            if cue.start < duration - 1e-6:
+                cues.append(cue)
+            continue
+        if cue.start >= duration - FX_MIN_SPAN_SECONDS:
+            continue
+        cues.append(cue if cue.end <= duration else cue.model_copy(update={"end": round(duration, 3)}))
+    return plan.model_copy(update={"cues": tuple(cues), "edit_duration": float(duration)})
+
+
+def fx_caption_words(
+    words: List[Dict[str, Any]], highlight_words: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """Caption words for fx-core: ``{id, start, end, text, highlight}``.
+
+    Emphasis follows the legacy captions (power words, numbers) unless the caption edit names the highlighted
+    words itself.
+    """
+    out = [dict(word) for word in words or [] if isinstance(word, dict)]
+    if highlight_words:
+        wanted = {normalize_token(str(text)) for text in highlight_words if str(text).strip()}
+        for word in out:
+            word["highlight"] = normalize_token(str(word.get("text", ""))) in wanted
+        return out
+    if any("highlight" in word for word in out):
+        return out
+    try:
+        _, emphasis = annotate_caption_words(out, enable_emoji=False)
+    except Exception as exc:  # noqa: BLE001 - emphasis is decorative
+        logger.debug("Caption emphasis unavailable for FX captions: %s", exc)
+        emphasis = set()
+    for index, word in enumerate(out):
+        word["highlight"] = index in emphasis
+    return out
+
+
+def _hex_luma(value: Optional[str]) -> Optional[float]:
+    text = str(value or "").strip().lstrip("#")
+    if len(text) < 6:
+        return None
+    try:
+        r, g, b = (int(text[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return None
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def fx_font_color(template: Dict[str, Any], font_color: Optional[str]) -> Optional[str]:
+    """The task colour for FX captions. Templates with dark text on a light card keep their dark text when the
+    task colour is the create default (white): white on a white card would be unreadable."""
+    if not font_color:
+        return None
+    template_luma = _hex_luma(template.get("font_color"))
+    if (
+        template_luma is not None
+        and template_luma < 0.35
+        and template.get("background")
+        and str(font_color).strip().upper() in ("#FFFFFF", "#FFF", "WHITE")
+    ):
+        return None
+    return font_color
+
+
+def fx_caption_y(
+    template: Dict[str, Any],
+    *,
+    font_size: Optional[int],
+    width: int,
+    height: int,
+    position_y: Optional[float],
+    avoid_band: Optional[Tuple[float, float]],
+) -> float:
+    """The caption centre the legacy ASS would use (safe-area clamp, moved clear of burned-in captions)."""
+    from .media.captions import caption_center_clear_of_band
+
+    base_size = int(font_size) if font_size else int(template.get("font_size") or 32)
+    font_px = get_scaled_font_size(base_size, width)
+    text_height = int(font_px * 1.5)
+    pos = float(position_y) if position_y is not None else float(template.get("position_y", 0.80))
+    y_pos = get_safe_vertical_position(height, text_height, pos)
+    if avoid_band is not None:
+        y_pos = caption_center_clear_of_band(y_pos, text_height, avoid_band, height)
+    return max(0.0, min(1.0, y_pos / height))
+
+
+def _av_mismatch(path: Path) -> bool:
+    """True when the video and audio streams of ``path`` differ by more than a frame."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,duration", "-of", "json", str(path)],
+            capture_output=True, text=True, timeout=60,
+        )
+        streams = json.loads(result.stdout or "{}").get("streams") or []
+    except Exception as exc:  # noqa: BLE001 - an unreadable probe is not a mismatch; the chain checked frames
+        logger.warning("fx_av_check_unavailable (%s)", exc)
+        return False
+    durations: Dict[str, float] = {}
+    for stream in streams:
+        try:
+            durations.setdefault(stream.get("codec_type"), float(stream.get("duration")))
+        except (TypeError, ValueError):
+            continue
+    if "video" not in durations or "audio" not in durations:
+        return False
+    return abs(durations["video"] - durations["audio"]) > FX_AV_TOLERANCE_SECONDS
+
+
+def _without_warp(plan: "FxPlan") -> "FxPlan":
+    return plan.model_copy(update={"cues": tuple(c for c in plan.cues if c.kind not in ("speed", "freeze"))})
+
+
+def _capture_fx_event(event: str, properties: Dict[str, Any]) -> None:
+    """PostHog ``fx_render`` / ``fx_render_failed`` (no content). Never raises."""
+    try:
+        from .observability import get_posthog_client, get_trace_id, get_user_id
+
+        client = get_posthog_client()
+        if client is None:
+            return
+        props = dict(properties)
+        trace_id = get_trace_id()
+        if trace_id and trace_id != "-":
+            props["trace_id"] = trace_id
+        user_id = get_user_id()
+        if not user_id:
+            props["$process_person_profile"] = False
+        client.capture(event, distinct_id=str(user_id or "supoclip-worker"), properties=props)
+    except Exception as exc:  # noqa: BLE001 - analytics never breaks a render
+        logger.debug("Could not capture %s: %s", event, exc)
+
+
+def _fx_stage(error: Optional[str]) -> str:
+    return (error or "unknown").split(":", 1)[0].strip()[:20] or "unknown"
+
+
+@dataclass
+class _FxChainFailure:
+    """Stands in for an ``FxResult`` when the chain could not even start (ladder bookkeeping only)."""
+    error: str
+    ok: bool = False
+    applied_warp: List[Dict[str, Any]] = field(default_factory=list)
+    timings: Dict[str, float] = field(default_factory=dict)
+    face_track: Optional[Dict[str, Any]] = None
+    library_fingerprint: str = ""
+
+
+def _fx_ladder_setup(
+    fx: "FxRenderInput",
+    *,
+    source_clip_path: Path,
+    effective_keep_ranges: List[Tuple[float, float]],
+    output_offsets: Optional[List[float]],
+    broll_overlays: Optional[List[Dict[str, Any]]],
+    kenburns_eligible: bool,
+    fx_template: bool,
+    template: Dict[str, Any],
+    caption_template: str,
+    add_subtitles: bool,
+    hook_title: Optional[str],
+    font_family: Optional[str],
+    font_size: Optional[int],
+    font_color: Optional[str],
+    width: int,
+    height: int,
+    caption_y: Optional[float],
+    source_caption_band: Optional[Tuple[float, float]],
+    caption_words: Optional[List[Dict[str, Any]]],
+    highlight_words: Optional[List[str]],
+    report: Dict[str, Any],
+):
+    """The render inputs shared by the full and safe levels: the plan clamped to the probed stage-1 length (with
+    baseline pushes where Ken Burns would have been), bleep spans, the fx-core caption style, the caption words and
+    the hook band."""
+    from .edit_fx.baseline import baseline_pushes
+    from .edit_fx.caption_style import fx_caption_style
+    from .media.common import hook_title_window
+
+    plan = clamp_fx_plan(fx.plan, ffprobe_duration(source_clip_path))
+    duration = float(plan.edit_duration)
+    cuts, _ = fx_junctions(effective_keep_ranges, output_offsets)
+    all_broll_windows = fx_broll_windows(broll_overlays)
+    if kenburns_eligible and (plan.style.zooms or not plan.style.active):
+        plan = baseline_pushes(plan, cuts=cuts, broll_windows=all_broll_windows)
+
+    bleeps = (
+        [(float(c.start), float(c.end)) for c in plan.cues if c.kind == "bleep" and c.end > c.start]
+        if plan.timing == "word"
+        else []
+    )
+    caption_style = None
+    if fx_template and add_subtitles:
+        caption_style = fx_caption_style(
+            template,
+            template_id=caption_template,
+            font_family=font_family,
+            font_size=font_size,
+            font_color=fx_font_color(template, font_color),
+            width=width,
+            height=height,
+            caption_y=fx_caption_y(
+                template, font_size=font_size, width=width, height=height,
+                position_y=caption_y, avoid_band=source_caption_band,
+            ),
+            enabled=True,
+        )
+        # Where fx-core draws the captions: the studio and caption edits read it back from the sidecar.
+        report["caption_y"] = caption_style.y
+    words = fx_caption_words(list(caption_words) if caption_words is not None else list(fx.words), highlight_words)
+    hook_window = (FX_HOOK_WINDOW_START, hook_title_window(duration)) if hook_title else None
+    return plan, duration, bleeps, caption_style, words, hook_window
+
+
+def _render_fx_ladder(
+    fx: "FxRenderInput",
+    *,
+    source_clip_path: Path,
+    final_clip_path: Path,
+    reframe_format: str,
+    width: int,
+    height: int,
+    src_size: Tuple[int, int],
+    effective_keep_ranges: List[Tuple[float, float]],
+    output_offsets: Optional[List[float]],
+    add_subtitles: bool,
+    hook_title: Optional[str],
+    font_family: Optional[str],
+    font_size: Optional[int],
+    font_color: Optional[str],
+    caption_template: str,
+    caption_y: Optional[float],
+    source_caption_band: Optional[Tuple[float, float]],
+    caption_words: Optional[List[Dict[str, Any]]],
+    highlight_words: Optional[List[str]],
+    speaker_turns: List[Dict[str, Any]],
+    speaker_words: List[Dict[str, Any]],
+    vertical_plan: Optional[Tuple[str, str]],
+    plan_report: Dict[str, Any],
+    broll_overlays: Optional[List[Dict[str, Any]]],
+    layout_report: Optional[Dict[str, Any]],
+    build_ass,
+) -> bool:
+    """Render one FX clip down the fallback ladder (FINAL §6.6). Returns whether ``final_clip_path`` was written.
+
+    1. full (fx chain with fx-core; skipped when ``FX_RUNTIME=off``), then full without B-roll after a P1
+       failure with cutaways, and full with an identity warp when a warped render's A/V disagree;
+    2. safe: P1 → P3 with the ASS fallback captions, the original hook title and the audio FX;
+    3. none: the legacy render, with Ken Burns restored and the original hook title.
+    """
+    from .edit_fx import env as fx_env
+    from .edit_fx.contracts import is_fx_template
+    from .edit_fx.warp import build_warp
+    from .media.fx_chain import FxRequest
+
+    started = time.monotonic()
+    report: Dict[str, Any] = layout_report if layout_report is not None else {}
+    template = get_template(caption_template)
+    fx_template = is_fx_template(caption_template)
+    fallback_template = get_template(template.get("ass_fallback") or "default") if fx_template else None
+    ass_fonts = ass_fonts_dir(font_family or get_template(caption_template)["font_family"])
+    fallback_fonts = (
+        ass_fonts_dir(font_family or fallback_template["font_family"]) if fallback_template else ass_fonts
+    )
+
+    plan = fx.plan
+    duration = float(plan.edit_duration)
+    kenburns_eligible = bool(plan_report.get("kenburns_eligible"))
+    report["kenburns_eligible"] = kenburns_eligible
+    bleeps: List[Tuple[float, float]] = []
+    caption_style = None
+    words: List[Dict[str, Any]] = []
+    hook_window = None
+    setup_error: Optional[str] = None
+    try:
+        plan, duration, bleeps, caption_style, words, hook_window = _fx_ladder_setup(
+            fx,
+            source_clip_path=source_clip_path,
+            effective_keep_ranges=effective_keep_ranges,
+            output_offsets=output_offsets,
+            broll_overlays=broll_overlays,
+            kenburns_eligible=kenburns_eligible,
+            fx_template=fx_template,
+            template=template,
+            caption_template=caption_template,
+            add_subtitles=add_subtitles,
+            hook_title=hook_title,
+            font_family=font_family,
+            font_size=font_size,
+            font_color=font_color,
+            width=width,
+            height=height,
+            caption_y=caption_y,
+            source_caption_band=source_caption_band,
+            caption_words=caption_words,
+            highlight_words=highlight_words,
+            report=report,
+        )
+    except Exception as exc:  # noqa: BLE001 - decorative layers never cost the clip: straight to the legacy render
+        setup_error = f"setup: {exc}"
+        logger.warning("fx_render_failed level=full error=%s", setup_error[:500])
+        _capture_fx_event("fx_render_failed", {
+            "stage": "setup", "level": "full", "error": setup_error[:300],
+            "template": caption_template, "intensity": plan.style.intensity,
+        })
+
+    def request(current_plan, overlays) -> "FxRequest":
+        return FxRequest(
+            plan=current_plan,
+            words=words,
+            caption=caption_style,
+            face_track=fx.face_track,
+            reaction_files=dict(fx.reaction_files or {}),
+            broll_windows=tuple(fx_broll_windows(overlays)),
+            hook_window=hook_window,
+            loudness=fx_env.fx_loudnorm_mode(),
+        )
+
+    def chain(mode: str, current_plan, overlays, ass: Optional[Path], fonts: Optional[Path]):
+        options: Dict[str, Any] = {"mode": mode}
+        ok = render_reframed_clip_ffmpeg(
+            source_clip_path,
+            final_clip_path,
+            reframe_format,
+            subtitle_ass_path=ass,
+            fonts_dir=fonts if ass else None,
+            speaker_turns=speaker_turns,
+            speaker_words=speaker_words,
+            vertical_plan=vertical_plan,
+            broll_overlays=overlays,
+            fx_request=request(current_plan, overlays),
+            fx_report=options,
+        )[0]
+        return ok, options.get("result")
+
+    def downgrade(stage_from: str, result) -> None:
+        error = getattr(result, "error", None) or "render failed"
+        logger.warning("fx_render_failed level=%s error=%s", stage_from, error[:500])
+        _capture_fx_event("fx_render_failed", {
+            "stage": _fx_stage(error), "level": stage_from, "error": error[:300],
+            "template": caption_template, "intensity": plan.style.intensity,
+        })
+
+    level: Optional[str] = None
+    result = None
+    applied_warp: List[Dict[str, Any]] = []
+    broll_applied = False
+    overlays = broll_overlays or None
+
+    # 1. full
+    if setup_error is None and fx_env.fx_runtime() != "off":
+        try:
+            warp = build_warp(plan.cues if fx_env.fx_warp_enabled() else (), duration)
+            full_ass = build_ass(
+                add_subtitles and not fx_template,
+                None if plan.hook_title_suppressed else hook_title,
+                time_map=warp.to_output if warp.nontrivial else None,
+                censor_spans=bleeps,
+            )
+            # A plan that only adds sound needs no drawing stage: P1 → P3 renders all of it.
+            mode = "full" if plan.draws else "safe"
+            ok, result = chain(mode, plan, overlays, full_ass, ass_fonts)
+            if not ok and overlays and _fx_stage(getattr(result, "error", None)) == "p1":
+                downgrade("full", result)
+                overlays = None
+                ok, result = chain(mode, plan, None, full_ass, ass_fonts)
+            if ok and result is not None and result.applied_warp and _av_mismatch(final_clip_path):
+                logger.warning("fx_av_mismatch: retrying with an identity warp")
+                _capture_fx_event("fx_render_failed", {
+                    "stage": "av_check", "level": "full", "error": "audio and video lengths differ",
+                    "template": caption_template, "intensity": plan.style.intensity,
+                })
+                identity_ass = build_ass(
+                    add_subtitles and not fx_template,
+                    None if plan.hook_title_suppressed else hook_title,
+                    censor_spans=bleeps,
+                )
+                ok, result = chain(mode, _without_warp(plan), overlays, identity_ass, ass_fonts)
+        except Exception as exc:  # noqa: BLE001 - an unexpected chain error drops a level, never the clip
+            ok, result = False, _FxChainFailure(error=f"setup: {exc}")
+        if ok:
+            level = "full"
+            applied_warp = list(result.applied_warp) if result is not None else []
+            broll_applied = bool(overlays)
+        elif _fx_stage(getattr(result, "error", None)) == "cancelled":
+            return False
+        else:
+            downgrade("full", result)
+    overlays = broll_overlays or None
+
+    # 2. safe: no deno, no warp, no picture FX; the ASS fallback captions, the original hook title and the audio FX.
+    if level is None and setup_error is None:
+        try:
+            safe_ass = build_ass(add_subtitles, hook_title, template_override=fallback_template, censor_spans=bleeps)
+            ok, result = chain("safe", plan, overlays, safe_ass, fallback_fonts)
+            if not ok and overlays and _fx_stage(getattr(result, "error", None)) == "p1":
+                downgrade("safe", result)
+                overlays = None
+                ok, result = chain("safe", plan, None, safe_ass, fallback_fonts)
+        except Exception as exc:  # noqa: BLE001
+            ok, result = False, _FxChainFailure(error=f"setup: {exc}")
+        if ok:
+            level = "safe"
+            broll_applied = bool(overlays)
+        else:
+            downgrade("safe", result)
+            result = None
+
+    # 3. none: the legacy render exactly as today, Ken Burns included.
+    if level is None:
+        legacy_plan = vertical_plan
+        if reframe_format == "vertical" and vertical_plan is not None:
+            try:
+                rebuilt_report: Dict[str, Any] = {}
+                video_filter, legacy_mode, _ = build_vertical_filter_plan(
+                    source_clip_path, src_size[0], src_size[1], speaker_turns, speaker_words,
+                    report=rebuilt_report,
+                )
+                legacy_plan = (video_filter, legacy_mode)
+                if "vertical_layout" in report:
+                    report["vertical_layout"] = {
+                        **report["vertical_layout"],
+                        "kind": rebuilt_report.get("kind") or report["vertical_layout"].get("kind"),
+                        "video_filter": video_filter,
+                        "mode": legacy_mode,
+                    }
+            except Exception as exc:  # noqa: BLE001 - keep the FX-path plan (no Ken Burns) if replanning fails
+                logger.warning("Could not rebuild the Ken Burns layout for the legacy render: %s", exc)
+        legacy_ass = build_ass(add_subtitles, hook_title, template_override=fallback_template)
+
+        def render(current_overlays):
+            return render_reframed_clip_ffmpeg(
+                source_clip_path,
+                final_clip_path,
+                reframe_format,
+                subtitle_ass_path=legacy_ass,
+                fonts_dir=fallback_fonts if legacy_ass else None,
+                speaker_turns=speaker_turns,
+                speaker_words=speaker_words,
+                vertical_plan=legacy_plan,
+                broll_overlays=current_overlays,
+            )[0]
+
+        ok = render(broll_overlays)
+        broll_applied = bool(broll_overlays) and ok
+        if not ok and broll_overlays:
+            logger.warning("Render with B-roll failed; rendering the clip without it")
+            ok = render(None)
+        if not ok:
+            return False
+        level = "none"
+
+    report["broll_applied"] = broll_applied
+    report["fx_level"] = level
+    report["applied_warp"] = applied_warp if level == "full" else []
+    report["face_track"] = result.face_track if (level == "full" and result is not None) else fx.face_track
+    report["fx_plan"] = plan
+    timings = dict(getattr(result, "timings", None) or {})
+    _capture_fx_event("fx_render", {
+        "intensity": plan.style.intensity,
+        "template": caption_template,
+        "fx_level": level,
+        "cues": len(plan.cues),
+        "warp": bool(report["applied_warp"]),
+        "duration_ms": round((time.monotonic() - started) * 1000.0, 1),
+        "p1_ms": timings.get("p1"),
+        "p2_ms": timings.get("p2"),
+        "p3_ms": timings.get("p3"),
+        "analysis_ms": timings.get("analysis"),
+        "library_fingerprint": getattr(result, "library_fingerprint", "") or "",
+    })
+    logger.info("fx_render level=%s cues=%d warp=%s", level, len(plan.cues), bool(report["applied_warp"]))
+    return True
+
+
+def _segment_fx_input(segment: Dict[str, Any]) -> Optional["FxRenderInput"]:
+    """The ready plan ``create_video_clips`` stored on a segment, or None (legacy render). Lenient read."""
+    raw = segment.get("edit_fx")
+    if not raw:
+        return None
+    from .edit_fx.compat import known_fields, log_dropped
+    from .edit_fx.contracts import FxPlan
+
+    try:
+        if isinstance(raw, FxPlan):
+            plan = raw
+        else:
+            clean, dropped = known_fields(FxPlan, dict(raw))
+            log_dropped("batch.edit_fx", dropped)
+            plan = FxPlan.model_validate(clean)
+    except Exception as exc:  # noqa: BLE001 - an unreadable plan renders the clip without FX
+        logger.warning("fx_segment_plan_unreadable (%s); rendering without effects", exc)
+        return None
+    files = {
+        str(cue_id): Path(path)
+        for cue_id, path in (segment.get("fx_reaction_files") or {}).items()
+        if path
+    }
+    return FxRenderInput(
+        plan=plan,
+        words=list(segment.get("fx_words") or []),
+        reaction_files=files,
+        face_track=segment.get("face_track") or None,
+    )
+
+
+def save_fx_render(
+    clip_path: Path,
+    *,
+    style: Dict[str, Any],
+    beats: Optional[Dict[str, Any]],
+    report: Dict[str, Any],
+    template: str,
+) -> Dict[str, Any]:
+    """Write the FX sidecar keys of a rendered clip and return its ``generated_clips.fx_meta``.
+
+    The stored plan is the plan as rendered (clamped, with baseline pushes) and ``edit_fx_warp`` the warp the mp4
+    actually carries (AI-H4). ``vertical_layout`` is recorded too, so the studio replays the clip's framing.
+    """
+    from .clip_source_map import save_clip_edit_fx
+
+    plan = report.get("fx_plan")
+    level = report.get("fx_level") or "none"
+    plan_json = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else dict(plan or {})
+    save_clip_edit_fx(
+        clip_path,
+        style=dict(style or {}),
+        beats=beats,
+        plan=plan_json,
+        face_track=report.get("face_track"),
+        fx_level=level,
+        applied_warp=list(report.get("applied_warp") or []),
+    )
+    save_clip_vertical_layout(clip_path, report.get("vertical_layout"))
+    return {
+        "fx_level": level,
+        "timing": plan_json.get("timing") or "none",
+        "intensity": (plan_json.get("style") or {}).get("intensity") or "off",
+        "template": template,
+    }
+
+
 def create_clips_from_segments(
     video_path: Path,
     segments: List[Dict[str, Any]],
@@ -538,8 +1232,16 @@ def create_clips_from_segments(
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
     max_clip_seconds: float = 60.0,
+    fx_enabled: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Create optimized video clips from segments with template support."""
+    """Create optimized video clips from segments with template support.
+
+    ``fx_enabled`` (crazy edits re-render): a segment carrying ``edit_fx`` (a plan
+    ``VideoService.create_video_clips`` already resolved, with ``fx_words``,
+    ``fx_reaction_files`` and an optional ``face_track``) renders through the fx
+    chain and records its FX sidecar keys. This function never plans: no
+    resolver, no beat model.
+    """
     logger.info(
         f"Creating {len(segments)} clips subtitles={add_subtitles} template '{caption_template}'"
     )
@@ -587,6 +1289,7 @@ def create_clips_from_segments(
 
             layout_report: Dict[str, Any] = {}
             point_labels = point_labels_for(segment.get("workflow_meta"), resolved.group_output_starts)
+            fx_input = _segment_fx_input(segment) if fx_enabled else None
             success = create_optimized_clip(
                 video_path,
                 start_seconds,
@@ -605,6 +1308,7 @@ def create_clips_from_segments(
                 broll_overlays=segment.get("broll_overlays"),
                 **({"output_offsets": output_offsets} if output_offsets is not None else {}),
                 **({"point_labels": point_labels} if point_labels else {}),
+                **({"fx": fx_input} if fx_input is not None else {}),
             )
 
             if success:
@@ -621,6 +1325,20 @@ def create_clips_from_segments(
                     save_clip_caption_settings(
                         clip_path, {"position_y": layout_report["caption_y"], "position_is_center": True}
                     )
+                fx_meta = None
+                if fx_input is not None:
+                    fx_meta = save_fx_render(
+                        clip_path,
+                        style=segment.get("edit_style") or {},
+                        beats=segment.get("edit_beats"),
+                        report=layout_report,
+                        template=caption_template,
+                    )
+                elif fx_enabled:
+                    # Re-rendered legacy (explicit off + legacy template): the new sidecar carries no FX keys.
+                    from .clip_source_map import clear_clip_edit_fx
+
+                    clear_clip_edit_fx(clip_path)
                 # Crossfades overlap neighbouring ranges, so the file is
                 # shorter than the kept source; store what actually plays.
                 cleaned_duration = rendered_clip_duration(clip_path, keep_ranges, output_offsets)
@@ -646,6 +1364,8 @@ def create_clips_from_segments(
                     "output_offsets": output_offsets,
                     "group_output_starts": resolved.group_output_starts,
                 }
+                if fx_meta is not None:
+                    clip_info["fx_meta"] = fx_meta
                 clips_info.append(clip_info)
                 logger.info(f"Created clip {i + 1}: {cleaned_duration:.1f}s")
             else:
@@ -774,6 +1494,7 @@ def create_clips_with_transitions(
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
     max_clip_seconds: float = 60.0,
+    fx_enabled: bool = False,
 ) -> List[Dict[str, Any]]:
     """Create standalone video clips without inter-clip transitions.
 
@@ -797,6 +1518,7 @@ def create_clips_with_transitions(
         add_subtitles,
         cleanup_settings,
         max_clip_seconds=max_clip_seconds,
+        **({"fx_enabled": True} if fx_enabled else {}),
     )
 
 

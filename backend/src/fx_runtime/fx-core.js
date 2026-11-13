@@ -348,7 +348,7 @@ function censoredWords(words, spans) {
 }
 
 // src/lib/fx/core/registry.ts
-var LAYERS = ["picture", "pixel", "behind", "overlay", "caption", "flash", "cover", "retention", "loop"];
+var LAYERS = ["picture", "behind", "pixel", "overlay", "caption", "flash", "cover", "retention", "loop"];
 var IDENTITY_PICTURE = Object.freeze({
   scale: 1,
   ax: 0.5,
@@ -576,6 +576,14 @@ var gradientOp = (o) => ({
   ...o
 });
 var shadow = (color, blur, dx, dy) => ({ color, blur, dx, dy });
+function transformOps(ops, outer, alpha = 1, blend) {
+  return ops.map((o) => {
+    if (o.op === "text" || o.op === "path" || o.op === "rect" || o.op === "sprite" || o.op === "picture") {
+      return { ...o, transform: mul(outer, o.transform), alpha: o.alpha * alpha, ...blend ? { blend } : {} };
+    }
+    return o;
+  });
+}
 function safeRect(w, h, hookActive = false) {
   const m = captionSafe(w, h), side = CAPTION_SAFE.side * w;
   const top = hookActive ? Math.max(m.top, HOOK_BAND * h) : m.top;
@@ -611,9 +619,23 @@ var canvasSize = (ctx) => {
   return c && c.width > 0 && c.height > 0 ? { width: c.width, height: c.height } : null;
 };
 function rasterize(ctx, ops, host, base = IDENTITY) {
-  for (const op of ops) {
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
     ctx.save();
     try {
+      if (op.op === "picture" && op.channel === "r" && splitTrio(ops, i, host)) {
+        drawSplit(ctx, ops[i], ops[i + 1], ops[i + 2], host, base);
+        i += 2;
+        continue;
+      }
+      if (op.op === "picture") {
+        const run = pictureRun(ops, i, host);
+        if (run > 1) {
+          drawRun(ctx, ops.slice(i, i + run), host, base);
+          i += run - 1;
+          continue;
+        }
+      }
       draw(ctx, op, host, base);
     } finally {
       ctx.restore();
@@ -725,6 +747,13 @@ function drawText(ctx, op, base) {
   if (op.alpha <= 0 || !op.text || op.px <= 0) return;
   const stroke = op.stroke && op.strokePx > 0 ? op.stroke : null;
   if (!stroke && !op.fill) return;
+  if (op.clip) {
+    if (op.clip[2] <= 0 || op.clip[3] <= 0) return;
+    setMat(ctx, base);
+    ctx.beginPath();
+    ctx.rect(op.clip[0], op.clip[1], op.clip[2], op.clip[3]);
+    ctx.clip();
+  }
   prepare(ctx, op.alpha, op.blend);
   setMat(ctx, mul(base, op.transform));
   ctx.font = fontCss(op.font, op.px);
@@ -845,10 +874,22 @@ function clipRect(ctx, clip, base) {
   ctx.rect(clip[0], clip[1], clip[2], clip[3]);
   ctx.clip();
 }
+function filterBlur(filter) {
+  let max = 0;
+  for (const m of filter.matchAll(/blur\(\s*([\d.]+)px\s*\)/g)) max = Math.max(max, Number(m[1]));
+  return max;
+}
+var REDUCED_BLUR_MIN = 6;
+var blurReduction = (px) => Math.min(1, Math.max(0.25, 4 / px));
 function drawPicture(ctx, op, host, base) {
   if (op.alpha <= 0) return;
   const transform = mul(base, mul(translation(op.dx, op.dy), op.transform));
   const filterFallback = !!op.filter && !host.supportsFilter;
+  const blurPx = host.supportsFilter ? filterBlur(op.filter) * (Math.abs(base[0]) || 1) : 0;
+  if (blurPx >= REDUCED_BLUR_MIN && op.channel === "rgb") {
+    const size2 = canvasSize(ctx);
+    if (size2) return drawReducedBlur(ctx, op, transform, blurPx, size2, host, base);
+  }
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   if (op.channel === "rgb" && !filterFallback && op.alpha >= 1 && op.blend === "source-over") {
@@ -895,6 +936,137 @@ function drawPicture(ctx, op, host, base) {
   prepare(ctx, op.alpha, op.blend);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer, 0, 0);
+}
+function drawReducedBlur(ctx, op, transform, blurPx, size, host, base) {
+  const k = blurReduction(blurPx);
+  const w = Math.max(1, Math.ceil(size.width * k)), h = Math.max(1, Math.ceil(size.height * k));
+  const small = scratchCanvas(host, "blur-src", w, h), blurred = scratchCanvas(host, "blur", w, h);
+  const colour = op.filter.replace(/blur\(\s*[\d.]+px\s*\)/g, "").replace(/\s+/g, " ").trim();
+  const blur = round3(blurPx * k);
+  const reset = (c) => {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = "source-over";
+    c.filter = "none";
+    c.clearRect(0, 0, w, h);
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = "low";
+  };
+  const sctx = small.getContext("2d");
+  sctx.save();
+  reset(sctx);
+  host.drawPicture(sctx, {
+    ...op,
+    transform: mul([k, 0, 0, k, 0, 0], transform),
+    filter: "",
+    dx: 0,
+    dy: 0,
+    clip: null,
+    alpha: 1,
+    blend: "source-over"
+  });
+  sctx.restore();
+  const bctx = blurred.getContext("2d");
+  bctx.save();
+  reset(bctx);
+  bctx.filter = `${colour} blur(${blur}px)`.trim();
+  bctx.drawImage(small, 0, 0);
+  bctx.restore();
+  clipRect(ctx, op.clip, base);
+  prepare(ctx, op.alpha, op.blend);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";
+  ctx.drawImage(blurred, 0, 0, w, h, 0, 0, w / k, h / k);
+}
+function pictureRun(ops, i, host) {
+  const first = ops[i];
+  if (first.op !== "picture") return 0;
+  if (first.filter && (!host.supportsFilter || filterBlur(first.filter) >= REDUCED_BLUR_MIN)) return 0;
+  const fits = (o) => !!o && o.op === "picture" && o.channel === "rgb" && !o.cutout && o.dy === 0 && o.blend === "source-over" && o.filter === first.filter && o.alpha > 0 && o.transform.every((v, k) => v === first.transform[k]);
+  let n = 0;
+  while (fits(ops[i + n])) n++;
+  return n;
+}
+function drawRun(ctx, run, host, base) {
+  const size = canvasSize(ctx);
+  if (!size) {
+    for (const op of run) {
+      ctx.save();
+      try {
+        drawPicture(ctx, op, host, base);
+      } finally {
+        ctx.restore();
+      }
+    }
+    return;
+  }
+  const layer = scratchCanvas(host, "run", size.width, size.height);
+  const sctx = layer.getContext("2d");
+  sctx.save();
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalAlpha = 1;
+  sctx.globalCompositeOperation = "source-over";
+  sctx.clearRect(0, 0, size.width, size.height);
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = "high";
+  host.drawPicture(sctx, { ...run[0], transform: mul(base, run[0].transform), dx: 0, dy: 0, alpha: 1, clip: null });
+  sctx.restore();
+  const scale = Math.abs(base[0]) || 1;
+  for (const op of run) {
+    ctx.save();
+    try {
+      clipRect(ctx, op.clip, base);
+      prepare(ctx, op.alpha, "source-over");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(layer, op.dx * scale, 0);
+    } finally {
+      ctx.restore();
+    }
+  }
+}
+function splitTrio(ops, i, host) {
+  const [r, g, b] = [ops[i], ops[i + 1], ops[i + 2]];
+  if (r?.op !== "picture" || g?.op !== "picture" || b?.op !== "picture") return false;
+  if (g.channel !== "g" || b.channel !== "b") return false;
+  if (!host.supportsFilter) return false;
+  const same = (o) => o.filter === r.filter && o.alpha === 1 && !o.cutout && o.clip === null && o.dy === 0 && o.transform.every((v, k) => v === r.transform[k]);
+  return same(r) && same(g) && same(b) && r.blend === "source-over" && g.blend === "lighter" && b.blend === "lighter" && g.dx === 0 && filterBlur(r.filter) < REDUCED_BLUR_MIN;
+}
+function drawSplit(ctx, r, _g, b, host, base) {
+  const size = canvasSize(ctx);
+  if (!size) return;
+  const { width: w, height: h } = size;
+  const layer = scratchCanvas(host, "split", w, h);
+  const sctx = layer.getContext("2d");
+  sctx.save();
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalAlpha = 1;
+  sctx.globalCompositeOperation = "source-over";
+  sctx.fillStyle = "#000000";
+  sctx.fillRect(0, 0, w, h);
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = "high";
+  host.drawPicture(sctx, { ...r, transform: mul(base, r.transform), dx: 0, dy: 0, channel: "rgb", clip: null });
+  sctx.restore();
+  const img = sctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const scale = Math.abs(base[0]) || 1;
+  const sr = -Math.round(r.dx * scale), sb = -Math.round(b.dx * scale);
+  shiftChannel(d, w, h, 0, sr);
+  shiftChannel(d, w, h, 2, sb);
+  ctx.putImageData(img, 0, 0);
+}
+function shiftChannel(d, w, h, c, s) {
+  if (s === 0) return;
+  for (let y = 0; y < h; y++) {
+    const row = y * w * 4 + c;
+    if (s > 0) {
+      for (let x = 0; x < w; x++) d[row + x * 4] = d[row + Math.min(w - 1, x + s) * 4];
+    } else {
+      for (let x = w - 1; x >= 0; x--) d[row + x * 4] = d[row + Math.max(0, x + s) * 4];
+    }
+  }
 }
 var IDENTITY_MATRIX = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 function composeMatrix(a, b) {
@@ -1291,6 +1463,12 @@ var BASE_LOOKS = {
   highlighter_swipe: { entrance: "rise", active: "none", emphasis: false, shadow: "none", strokeEm: 0, tracking: 0 },
   face_doodles: { entrance: "settle", active: "accent-pop", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 }
 };
+var ACCENT_POP = 1.06;
+var popScale = (local) => keyframes([{ t: 0, v: 1 }, { t: 0.08, v: ACCENT_POP, ease: easeOutQuad }], local);
+function outlineGap(style, look, px) {
+  if (!style.stroke_color) return 0;
+  return style.stroke_px > 0 ? style.stroke_px : look.strokeEm * px;
+}
 function cssColor(color) {
   const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})$/.exec(color.trim());
   if (!m) return color;
@@ -1362,11 +1540,14 @@ function baseCaptionOps(chunk, dc, look) {
       }));
     }
   }
+  const pop = params.active === "accent-pop" && active >= 0 ? popScale(dc.t - chunk.words[active].start) : 1;
+  const popped = chunk.words[active];
+  const push = pop > 1 ? popped.w * (pop - 1) / 2 + strokePx * (pop - 1) * 2 : 0;
   const wordTransform = (i) => {
     const w = chunk.words[i];
-    if (params.active !== "accent-pop" || i !== active) return outer;
-    const k = keyframes([{ t: 0, v: 1 }, { t: 0.08, v: 1.1, ease: easeOutQuad }, { t: 0.2, v: 1.06, ease: easeOutQuad }], dc.t - w.start);
-    return mul(outer, scaleAbout(k, w.x + w.w / 2, w.y + w.h / 2));
+    if (pop <= 1 || w.line !== popped.line) return outer;
+    if (i === active) return mul(outer, scaleAbout(pop, w.x + w.w / 2, w.y + w.h / 2));
+    return mul(outer, translation(i < active ? -push : push, 0));
   };
   const at = (i) => {
     const w = chunk.words[i];
@@ -1459,7 +1640,8 @@ function layoutCaptions(scene, family, measure) {
   const words = [...scene.words].sort((a, b) => a.start - b.start);
   const placements2 = new Map(style.placements.map((p) => [p.key, p]));
   const safe = captionSafe(W, H);
-  const tracking = BASE_LOOKS[scene.template]?.tracking ?? 0;
+  const look = BASE_LOOKS[scene.template] ?? DEFAULT_BASE_LOOK;
+  const tracking = look.tracking;
   const groups = [];
   for (let i = 0; i < words.length; i += per) {
     const all = words.slice(i, i + per);
@@ -1472,7 +1654,7 @@ function layoutCaptions(scene, family, measure) {
     const label = (t) => style.uppercase ? t.toLocaleUpperCase() : t;
     const maxWidth = Math.max(1, W - 120 * u);
     const wrap = (size) => {
-      const space2 = measure(" ", family, size);
+      const space2 = measure(" ", family, size) + outlineGap(style, look, size);
       const widths2 = group.map((w) => {
         const text = label(w.text);
         return measure(text, family, size) + tracking * size * Math.max(0, Array.from(text).length - 1);
@@ -2165,116 +2347,6 @@ registerAccent({
   ops: behindOps
 });
 
-// src/lib/fx/core/captions/stat_counter.ts
-var DEG4 = Math.PI / 180;
-var COUNTER = {
-  font: "Poppins-ExtraBold",
-  sizeOfCaption: 2.2,
-  centerY: 0.36,
-  maxWidthFrac: 0.88,
-  minCount: 0.6,
-  countPad: 0.4,
-  stampFrom: 1.4,
-  stampDur: 0.12,
-  stampDeg: -6,
-  rimPx: 14,
-  rimFrames: 2,
-  enter: 0.12,
-  fadeOut: 0.15,
-  strokeEm: 0.07
-};
-var durations = /* @__PURE__ */ new WeakMap();
-function counterDuration(p, cue) {
-  let byCue = durations.get(p);
-  if (!byCue) {
-    byCue = /* @__PURE__ */ new WeakMap();
-    durations.set(p, byCue);
-  }
-  const hit = byCue.get(cue);
-  if (hit !== void 0) return hit;
-  const dur = Math.max(0, cue.end - cue.start);
-  const n = Math.max(1, cueTokens(cue.text).length);
-  const words = [...p.scene.words].filter((w) => w.text.trim() !== "").sort((a, b) => a.start - b.start);
-  const first = words.findIndex((w) => w.start >= cue.start - 0.05 && w.start < Math.max(cue.end, cue.start + 0.05));
-  let wordDur;
-  if (first >= 0) {
-    const last = words[Math.min(words.length - 1, first + n - 1)];
-    wordDur = Math.max(0, last.end - words[first].start);
-  } else {
-    wordDur = Math.max(0, dur - 0.9 - COUNTER.countPad);
-  }
-  const count = Math.min(Math.max(COUNTER.minCount, wordDur + COUNTER.countPad), Math.max(0.3, dur - 0.2));
-  byCue.set(cue, count);
-  return count;
-}
-function counterValue(target, local, count) {
-  if (local >= count) return target;
-  return target * easeOutExpo(progress(local, 0, count));
-}
-var isDigit = (ch) => ch >= "0" && ch <= "9";
-function tabularAdvances(p, text, family, px) {
-  const digit = Math.max(...Array.from("0123456789", (d) => p.measure(d, family, REF_PX)));
-  return Array.from(text, (ch) => (isDigit(ch) ? digit : p.measure(ch, family, REF_PX)) * px / REF_PX);
-}
-function counterPx(p, fmt, family) {
-  const style = p.scene.caption;
-  const caption = Math.max(34 * p.u, style?.size_px ?? 78 * p.u);
-  let px = COUNTER.sizeOfCaption * caption;
-  const full = tabularAdvances(p, fmt.format(fmt.target), family, px).reduce((s, v) => s + v, 0);
-  const max = COUNTER.maxWidthFrac * p.width;
-  if (full > max) px *= max / full;
-  return px;
-}
-var stampPeak = (textWidth, frameWidth) => textWidth > 0 ? Math.max(1, Math.min(COUNTER.stampFrom, 0.96 * frameWidth / textWidth)) : COUNTER.stampFrom;
-function counterOps(cue, dc) {
-  const p = dc.scene, u = dc.u, local = dc.local;
-  const fmt = p.counters.get(cue.id) ?? counterFormat(cue);
-  const family = p.family(COUNTER.font);
-  const px = counterPx(p, fmt, family);
-  const count = counterDuration(p, cue);
-  const text = fmt.format(counterValue(fmt.target, local, count));
-  const locked = local >= count - 1e-9;
-  const sinceLock = local - count;
-  const fade = clamp01((dc.dur - local) / COUNTER.fadeOut);
-  const enterK = progress(local, 0, COUNTER.enter);
-  const alpha = Math.min(1, enterK * 4) * fade;
-  if (alpha <= 0) return [];
-  const advances = tabularAdvances(p, text, family, px);
-  const total = advances.reduce((s, v) => s + v, 0);
-  const scale = locked ? keyframes([{ t: 0, v: stampPeak(total, p.width) }, { t: COUNTER.stampDur, v: 1, ease: easeOutQuad }], sinceLock) : 0.7 + 0.3 * easeOutBack(enterK);
-  const rot = locked ? COUNTER.stampDeg * DEG4 : 0;
-  const transform = placeAt(p.width / 2, p.height * COUNTER.centerY, rot, scale);
-  const chars = Array.from(text);
-  const xs = [];
-  let x = -total / 2;
-  for (const a of advances) {
-    xs.push(x + a / 2);
-    x += a;
-  }
-  const fill = locked ? accentColor(p) : "#FFFFFF";
-  const glyph = (i) => ({ text: chars[i], font: family, px, x: xs[i], y: 0, transform, alpha });
-  const ops = [];
-  const outline = COUNTER.strokeEm * px;
-  if (locked && sinceLock < COUNTER.rimFrames * FRAME - 1e-9) {
-    const rimAlpha = alpha * (1 - Math.floor(sinceLock / FRAME + 1e-6) / COUNTER.rimFrames);
-    chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), alpha: rimAlpha, fill: null, stroke: "#FFFFFF", strokePx: outline + COUNTER.rimPx * u })));
-  }
-  const shadow2 = { color: "rgba(0,0,0,0.5)", blur: 18 * u, dx: 0, dy: 6 * u * scale };
-  chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), fill: null, stroke: "#000000", strokePx: outline, shadow: shadow2 })));
-  chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), fill })));
-  return ops;
-}
-registerCaptionStyle({
-  template: "stat_counter",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.stat_counter)
-});
-registerAccent({
-  variant: "counter",
-  layer: "overlay",
-  window: (cue) => [cue.start, cue.end],
-  ops: counterOps
-});
-
 // src/lib/fx/core/looks/sticker.ts
 var STICKER_PALETTES = [
   { fill: "#FF3B5C", keyline: "#2A0710", edge: "#FFFFFF" },
@@ -2357,6 +2429,10 @@ function captionBand(p, a, b) {
   const pad = 24 * p.u;
   return { x: 0, y: y0 - pad, w: p.width, h: y1 - y0 + 2 * pad };
 }
+function headBox(face, u) {
+  const m = 18 * u, hair = 0.45 * face.h;
+  return { x: face.x - m - 0.08 * face.w, y: face.y - hair - m, w: face.w * 1.16 + 2 * m, h: face.h + hair + 2 * m };
+}
 var CANDIDATES = [
   [0.5, 0.55],
   [0.27, 0.5],
@@ -2385,7 +2461,7 @@ function placeSticker(p, cue, taken, accent) {
   const fit = Math.min(STICKER_SCALE, area.w * 0.86 / tilted(1).w, area.h * 0.3 / tilted(1).h);
   const hard = [];
   const face = p.faceAt(start);
-  if (face) hard.push(inflate(face, 18 * u));
+  if (face) hard.push(headBox(face, u));
   const band = captionBand(p, start, end);
   if (band) hard.push(band);
   const first = Math.floor(hash01(cue.seed >>> 0, 4) * 3);
@@ -2405,7 +2481,7 @@ function placeSticker(p, cue, taken, accent) {
     let best = Infinity;
     for (const [x, y] of order) {
       const spot = clampBox(x, y, size.w, size.h, area);
-      const cost = hard.reduce((c2, r) => c2 + 4 * overlapArea(spot, r), 0) + taken.reduce((c2, r) => c2 + overlapArea(spot, r), 0);
+      const cost = hard.reduce((c2, r) => c2 + 4 * overlapArea(spot, r), 0) + taken.reduce((c2, r) => c2 + overlapArea(spot, r), 0) + (face ? 12 * overlapArea(spot, inflate(face, 18 * u)) : 0);
       if (cost < best) {
         best = cost;
         box = spot;
@@ -2445,20 +2521,52 @@ function placedStickerOps(spot, local, u) {
   if (k <= 0 || alpha <= 0) return [];
   return stickerOps(spot.text, spot.cx, spot.cy, spot.rot, spot.scale * k, spot.palette, u).map((o) => o.op === "text" ? { ...o, alpha: o.alpha * alpha } : o);
 }
-function inStack(p, cue, t) {
-  const showing = (p.cuesByKind.get("accent") ?? []).filter((c) => {
-    if (c.kind !== "accent" || c.variant !== "sticker") return false;
-    const [a, b] = stickerWindow(c);
-    return t >= a && t < b;
+var STICKER_PEEL = 0.22;
+function peelOps(spot, k, u) {
+  if (k >= 1) return [];
+  const e = easeInQuad(clamp01(k));
+  const dir = spot.rot >= 0 ? 1 : -1;
+  const ax = spot.cx + dir * spot.box.w * 0.42, ay = spot.cy - spot.box.h * 0.4;
+  const turn = dir * (0.35 * e);
+  const squash = 1 - 0.45 * e;
+  const lift = -90 * u * e * e, drift = dir * 50 * u * e;
+  const c = Math.cos(turn), s = Math.sin(turn);
+  const m = [c, s, -s * squash, c * squash, 0, 0];
+  m[4] = ax + drift - (m[0] * ax + m[2] * ay);
+  m[5] = ay + lift - (m[1] * ax + m[3] * ay);
+  const alpha = clamp01(1 - e * 1.1);
+  if (alpha <= 0) return [];
+  return transformOps(placedStickerOps(spot, Math.min(0.5, spot.end - spot.start - STICKER_OUT), u), m, alpha);
+}
+var evictions = /* @__PURE__ */ new WeakMap();
+function stickerEvictions(p) {
+  let map = evictions.get(p);
+  if (map) return map;
+  map = /* @__PURE__ */ new Map();
+  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "sticker");
+  stickers.forEach((cue, i) => {
+    const [, end] = stickerWindow(cue);
+    let out = Infinity;
+    const newer = stickers.slice(i + 1).map(stickerWindow).filter(([a]) => a < end);
+    for (const [a] of newer) {
+      const showing = newer.filter(([s, e]) => s <= a && e > a).length;
+      if (showing >= STICKER_MAX_STACK) {
+        out = a;
+        break;
+      }
+    }
+    map.set(cue.id, out);
   });
-  const index = showing.findIndex((c) => c.id === cue.id);
-  return index >= 0 && index >= showing.length - STICKER_MAX_STACK;
+  evictions.set(p, map);
+  return map;
 }
 function stickerAccentOps(cue, dc) {
   const p = dc.scene;
-  if (!inStack(p, cue, dc.t)) return [];
   const spot = stickerPlacements(p).get(cue.id);
-  return spot ? placedStickerOps(spot, dc.local, dc.u) : [];
+  if (!spot) return [];
+  const out = stickerEvictions(p).get(cue.id) ?? Infinity;
+  if (dc.t >= out) return peelOps(spot, (dc.t - out) / STICKER_PEEL, dc.u);
+  return placedStickerOps(spot, dc.local, dc.u);
 }
 registerCaptionStyle({
   template: "sticker_slap",
@@ -2467,8 +2575,157 @@ registerCaptionStyle({
 registerAccent({
   variant: "sticker",
   layer: "overlay",
-  window: stickerWindow,
+  // A sticker evicted just before its own end still finishes its peel.
+  window: (cue) => {
+    const [a, b] = stickerWindow(cue);
+    return [a, b + STICKER_PEEL];
+  },
   ops: stickerAccentOps
+});
+
+// src/lib/fx/core/captions/stat_counter.ts
+var DEG4 = Math.PI / 180;
+var COUNTER = {
+  font: "Poppins-ExtraBold",
+  sizeOfCaption: 2.2,
+  centerY: 0.36,
+  maxWidthFrac: 0.88,
+  minCount: 0.6,
+  countPad: 0.4,
+  stampFrom: 1.4,
+  stampDur: 0.12,
+  stampDeg: -6,
+  rimPx: 14,
+  rimFrames: 2,
+  enter: 0.12,
+  fadeOut: 0.15,
+  strokeEm: 0.07
+};
+var durations = /* @__PURE__ */ new WeakMap();
+function counterDuration(p, cue) {
+  let byCue = durations.get(p);
+  if (!byCue) {
+    byCue = /* @__PURE__ */ new WeakMap();
+    durations.set(p, byCue);
+  }
+  const hit = byCue.get(cue);
+  if (hit !== void 0) return hit;
+  const dur = Math.max(0, cue.end - cue.start);
+  const n = Math.max(1, cueTokens(cue.text).length);
+  const words = [...p.scene.words].filter((w) => w.text.trim() !== "").sort((a, b) => a.start - b.start);
+  const first = words.findIndex((w) => w.start >= cue.start - 0.05 && w.start < Math.max(cue.end, cue.start + 0.05));
+  let wordDur;
+  if (first >= 0) {
+    const last = words[Math.min(words.length - 1, first + n - 1)];
+    wordDur = Math.max(0, last.end - words[first].start);
+  } else {
+    wordDur = Math.max(0, dur - 0.9 - COUNTER.countPad);
+  }
+  const count = Math.min(Math.max(COUNTER.minCount, wordDur + COUNTER.countPad), Math.max(0.3, dur - 0.2));
+  byCue.set(cue, count);
+  return count;
+}
+function counterValue(target, local, count) {
+  if (local >= count) return target;
+  return target * easeOutExpo(progress(local, 0, count));
+}
+var isDigit = (ch) => ch >= "0" && ch <= "9";
+function tabularAdvances(p, text, family, px) {
+  const digit = Math.max(...Array.from("0123456789", (d) => p.measure(d, family, REF_PX)));
+  return Array.from(text, (ch) => (isDigit(ch) ? digit : p.measure(ch, family, REF_PX)) * px / REF_PX);
+}
+function counterPx(p, fmt, family) {
+  const style = p.scene.caption;
+  const caption = Math.max(34 * p.u, style?.size_px ?? 78 * p.u);
+  let px = COUNTER.sizeOfCaption * caption;
+  const full = tabularAdvances(p, fmt.format(fmt.target), family, px).reduce((s, v) => s + v, 0);
+  const max = COUNTER.maxWidthFrac * p.width;
+  if (full > max) px *= max / full;
+  return px;
+}
+var stampPeak = (textWidth, frameWidth) => textWidth > 0 ? Math.max(1, Math.min(COUNTER.stampFrom, 0.96 * frameWidth / textWidth)) : COUNTER.stampFrom;
+var counterRows = /* @__PURE__ */ new WeakMap();
+function counterCenterY(p, cue, px) {
+  let rows = counterRows.get(p);
+  if (!rows) {
+    rows = /* @__PURE__ */ new Map();
+    counterRows.set(p, rows);
+  }
+  const hit = rows.get(cue.id);
+  if (hit !== void 0) return hit;
+  const H = p.height, u = p.u, half = px * 0.62, gap = 24 * u;
+  const face = p.faceAt(cue.start);
+  const preferred = H * COUNTER.centerY;
+  let y = preferred;
+  if (face) {
+    const head = headBox(face, u);
+    const band = captionBand(p, cue.start, cue.end);
+    const safe = safeRect(p.width, H, p.hookActive(cue.start));
+    const bottomLimit = band ? band.y : safe.y + safe.h;
+    const options = [
+      preferred,
+      head.y + head.h + gap + half,
+      // under the chin
+      head.y - gap - half
+      // above the hair
+    ];
+    const cost = (cy) => {
+      const box = { x: 0, y: cy - half, w: p.width, h: 2 * half };
+      const outside = Math.max(0, safe.y - box.y) + Math.max(0, box.y + box.h - bottomLimit);
+      return overlapArea(box, head) / p.width + outside * 4;
+    };
+    y = options.reduce((best, cy) => cost(cy) < cost(best) - 1e-6 ? cy : best, preferred);
+  }
+  rows.set(cue.id, y);
+  return y;
+}
+function counterOps(cue, dc) {
+  const p = dc.scene, u = dc.u, local = dc.local;
+  const fmt = p.counters.get(cue.id) ?? counterFormat(cue);
+  const family = p.family(COUNTER.font);
+  const px = counterPx(p, fmt, family);
+  const count = counterDuration(p, cue);
+  const text = fmt.format(counterValue(fmt.target, local, count));
+  const locked = local >= count - 1e-9;
+  const sinceLock = local - count;
+  const fade = clamp01((dc.dur - local) / COUNTER.fadeOut);
+  const enterK = progress(local, 0, COUNTER.enter);
+  const alpha = Math.min(1, enterK * 4) * fade;
+  if (alpha <= 0) return [];
+  const advances = tabularAdvances(p, text, family, px);
+  const total = advances.reduce((s, v) => s + v, 0);
+  const scale = locked ? keyframes([{ t: 0, v: stampPeak(total, p.width) }, { t: COUNTER.stampDur, v: 1, ease: easeOutQuad }], sinceLock) : 0.7 + 0.3 * easeOutBack(enterK);
+  const rot = locked ? COUNTER.stampDeg * DEG4 : 0;
+  const transform = placeAt(p.width / 2, counterCenterY(p, cue, px), rot, scale);
+  const chars = Array.from(text);
+  const xs = [];
+  let x = -total / 2;
+  for (const a of advances) {
+    xs.push(x + a / 2);
+    x += a;
+  }
+  const fill = locked ? accentColor(p) : "#FFFFFF";
+  const glyph = (i) => ({ text: chars[i], font: family, px, x: xs[i], y: 0, transform, alpha });
+  const ops = [];
+  const outline = COUNTER.strokeEm * px;
+  if (locked && sinceLock < COUNTER.rimFrames * FRAME - 1e-9) {
+    const rimAlpha = alpha * (1 - Math.floor(sinceLock / FRAME + 1e-6) / COUNTER.rimFrames);
+    chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), alpha: rimAlpha, fill: null, stroke: "#FFFFFF", strokePx: outline + COUNTER.rimPx * u })));
+  }
+  const shadow2 = { color: "rgba(0,0,0,0.5)", blur: 18 * u, dx: 0, dy: 6 * u * scale };
+  chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), fill: null, stroke: "#000000", strokePx: outline, shadow: shadow2 })));
+  chars.forEach((_, i) => ops.push(textOp({ ...glyph(i), fill })));
+  return ops;
+}
+registerCaptionStyle({
+  template: "stat_counter",
+  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.stat_counter)
+});
+registerAccent({
+  variant: "counter",
+  layer: "overlay",
+  window: (cue) => [cue.start, cue.end],
+  ops: counterOps
 });
 
 // src/lib/fx/core/captions/highlighter_swipe.ts
@@ -2537,7 +2794,7 @@ function runStart(p, word) {
 }
 var swipeDuration = (word, approx) => approx ? SWIPE_APPROX : clamp2(word.end - word.start, SWIPE_MIN, SWIPE_MAX);
 var swipeProgress = (word, t, approx) => clamp01((t - word.start) / swipeDuration(word, approx));
-function swipeOps(p, chunk, t, cues, outer, style, lineAlpha = 1) {
+function swipeOps(p, chunk, t, cues, outer, style, lineAlpha = 1, grow = 0) {
   const approx = approxTiming(p);
   const u = p.u;
   const ops = [];
@@ -2549,7 +2806,7 @@ function swipeOps(p, chunk, t, cues, outer, style, lineAlpha = 1) {
     for (const w of marked) byLine.set(w.line, [...byLine.get(w.line) ?? [], w]);
     for (const [line, group] of byLine) {
       group.sort((a, b) => a.x - b.x);
-      const stroke = swipeStroke(group, t, approx, cue.seed + line * 7919, u, chunk.px);
+      const stroke = swipeStroke(group, t, approx, cue.seed + line * 7919, u, chunk.px, grow);
       if (!stroke) continue;
       ops.push(pathOp({
         points: stroke.points,
@@ -2566,9 +2823,9 @@ function swipeOps(p, chunk, t, cues, outer, style, lineAlpha = 1) {
   }
   return ops;
 }
-function swipeStroke(group, t, approx, seed, u, px) {
+function swipeStroke(group, t, approx, seed, u, px, grow = 0) {
   if (!group.length) return null;
-  const padX = px * 0.14;
+  const padX = px * 0.14 + grow;
   const x0 = group[0].x - padX;
   const x1 = group[group.length - 1].x + group[group.length - 1].w + padX;
   let head = -Infinity;
@@ -2581,7 +2838,7 @@ function swipeStroke(group, t, approx, seed, u, px) {
   });
   if (!(head > x0 + 0.5)) return null;
   const yc = group[0].y + group[0].h / 2;
-  const top = yc - group[0].h * 0.52, bottom = yc + group[0].h * 0.5;
+  const top = yc - group[0].h * 0.52 - grow, bottom = yc + group[0].h * 0.5 + grow;
   const amp = SWIPE_JITTER * u;
   const rough = (n) => (hashUnit(seed, n) - 0.5) * 2 * amp;
   const step = Math.max(10 * u, 22 * u);
@@ -2658,7 +2915,10 @@ function highlightAccentOps(cue, dc) {
   const chunk = p.chunkAt(dc.t);
   if (!chunk) return [];
   const { outer, alpha } = lineTransform(p.scene.template, chunk, dc.t, dc.u);
-  return swipeOps(p, chunk, dc.t, [cue], outer, swipeStyle(p), alpha);
+  const style = p.scene.caption;
+  const look = BASE_LOOKS[p.scene.template];
+  const grow = (style && look ? outlineGap(style, look, chunk.px) : 0) + chunk.px * 0.08;
+  return swipeOps(p, chunk, dc.t, [cue], outer, swipeStyle(p), alpha, grow);
 }
 registerAccent({
   variant: "highlight",
@@ -2888,6 +3148,31 @@ function sliceOps(x, y, w, h, frame, look, dx) {
     return rectOp({ x: x + (i ? -dx : dx) * 0.8, y: by, w, h: bar, fill: i ? "#00E5FF" : look.accent, alpha: 0.75 * look.alpha, blend: "screen" });
   });
 }
+function sliceBands(y0, y1, frame, amp, hash) {
+  const n = 3 + Math.floor(hash(700 + frame) * 3);
+  const cuts = Array.from({ length: n - 1 }, (_, i) => (i + 1) / n + (hash(710 + frame * 8 + i) - 0.5) * (0.6 / n)).sort((a, b) => a - b);
+  const edges = [0, ...cuts, 1];
+  const strong = Math.floor(hash(730 + frame) * n);
+  const counter = (strong + 1 + Math.floor(hash(731 + frame) * (n - 1))) % n;
+  return edges.slice(0, -1).map((e, i) => {
+    const k = i === strong ? 1 : i === counter ? -0.6 : (hash(740 + frame * 8 + i) - 0.5) * 0.4;
+    return { y: y0 + (y1 - y0) * e, h: (y1 - y0) * (edges[i + 1] - e), dx: Math.round(amp * k * 100) / 100 };
+  });
+}
+function sliceTextOps(ops, bands, x, w) {
+  const out = [];
+  for (const op of ops) {
+    if (op.op !== "text") {
+      out.push(op);
+      continue;
+    }
+    for (const b of bands) {
+      if (b.h <= 0) continue;
+      out.push({ ...op, transform: mul(translation(b.dx, 0), op.transform), clip: [x, b.y, w, b.h] });
+    }
+  }
+  return out;
+}
 function decodeCues(p, t) {
   return (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "decode" && t >= c.start - 1e-9 && t < c.end);
 }
@@ -3004,13 +3289,18 @@ function decodeLineOps(chunk, dc) {
   if (look.box) {
     for (const b of boxes) {
       const padX = px * 0.32, padY = px * 0.16;
-      ops.push(rectOp({ x: b.x - padX + jolt, y: b.y - padY, w: b.w + 2 * padX, h: b.h + 2 * padY, radius: px * 0.22, fill: look.box }));
+      ops.push(rectOp({ x: b.x - padX, y: b.y - padY, w: b.w + 2 * padX, h: b.h + 2 * padY, radius: px * 0.22, fill: look.box }));
     }
   }
-  ops.push(...pieceOps(pieces, look, jolt));
+  let text = pieceOps(pieces, look, 0);
+  if (joltFrame >= 0) {
+    const y0 = Math.min(...boxes.map((b) => b.y)) - px * 0.6, y1 = Math.max(...boxes.map((b) => b.y + b.h)) + px * 0.6;
+    text = sliceTextOps(text, sliceBands(y0, y1, joltFrame, Math.abs(jolt) * 1.6, dc.hash), 0, p.width);
+  }
+  ops.push(...text);
   for (const b of boxes) {
     const padY = b.h * 0.12;
-    ops.push(...scanlineOps(b.x - px * 0.1 + jolt, b.y - padY, b.w + px * 0.2, b.h + 2 * padY, dc.u));
+    ops.push(...scanlineOps(b.x - px * 0.1, b.y - padY, b.w + px * 0.2, b.h + 2 * padY, dc.u));
     if (joltFrame >= 0) ops.push(...sliceOps(b.x - px * 0.1, b.y, b.w + px * 0.2, b.h, joltFrame, look, jolt));
   }
   return ops;
@@ -3033,9 +3323,11 @@ function standaloneDecodeOps(cue, dc) {
   const look = lookFor(p, dc, family, px, out);
   const jolt = joltAt(dc.local, u, dc.hash);
   const piece = { text, x: (W - width) / 2, y, px, w: width, line: 0, decode: dc.local, first: 0, total: Array.from(text).length, accent: false };
-  const ops = [...pieceOps([piece], look, jolt), ...scanlineOps(piece.x - px * 0.1 + jolt, y - px * 0.62, width + px * 0.2, px * 1.24, u, out)];
   const frame = Math.floor(dc.local * 30 + 1e-6);
-  if (frame < DECODE_JOLT_FRAMES) ops.push(...sliceOps(piece.x - px * 0.1, y - px / 2, width + px * 0.2, px, frame, look, jolt));
+  let textOps = pieceOps([piece], look, 0);
+  if (jolt !== 0) textOps = sliceTextOps(textOps, sliceBands(y - px * 1.1, y + px * 1.1, frame, Math.abs(jolt) * 1.6, dc.hash), 0, W);
+  const ops = [...textOps, ...scanlineOps(piece.x - px * 0.1, y - px * 0.62, width + px * 0.2, px * 1.24, u, out)];
+  if (dc.local >= 0 && frame < DECODE_JOLT_FRAMES) ops.push(...sliceOps(piece.x - px * 0.1, y - px / 2, width + px * 0.2, px, frame, look, jolt));
   return ops;
 }
 function inLine(cue, dc) {
@@ -3126,7 +3418,7 @@ function sideFor(g, need, salt) {
   if (room(prefer) >= need || room(prefer) >= room(-prefer)) return prefer;
   return -prefer;
 }
-var popScale = (local, delay = 0) => keyframes([{ t: 0, v: 0 }, { t: 0.16, v: 1.18, ease: easeOutQuad }, { t: DOODLE_DRAW_IN, v: 1, ease: easeOutQuad }], local - delay);
+var popScale2 = (local, delay = 0) => keyframes([{ t: 0, v: 0 }, { t: 0.16, v: 1.18, ease: easeOutQuad }, { t: DOODLE_DRAW_IN, v: 1, ease: easeOutQuad }], local - delay);
 function sparkles(g) {
   const { face, cx } = g;
   const count = 3 + Math.min(2, Math.floor(g.hash(11) * 3));
@@ -3139,7 +3431,7 @@ function sparkles(g) {
     const x = ox + Math.cos(angle) * rx, y = oy + Math.sin(angle) * ry;
     const r = g.s * (0.1 + 0.08 * g.hash(30 + i));
     const delay = i * 0.07;
-    const pop = popScale(g.local, delay);
+    const pop = popScale2(g.local, delay);
     if (pop <= 0) continue;
     const twinkle = 1 + 0.2 * Math.sin(2 * Math.PI * 3 * g.local + g.hash(40 + i) * 2 * Math.PI);
     const spin = (g.hash(50 + i) < 0.5 ? -1 : 1) * 0.35 * g.local + (g.hash(60 + i) - 0.5) * 0.5;
@@ -3188,7 +3480,7 @@ function sweat(g, dur) {
   const slide = 40 * g.u * easeInQuad(dur > 0 ? clamp01(g.local / dur) : 0);
   const x = (side > 0 ? face.x + face.w * 0.97 : face.x + face.w * 0.03) + side * dw * 0.4;
   const y = face.y + face.h * 0.2 + slide;
-  const pop = popScale(g.local);
+  const pop = popScale2(g.local);
   if (pop <= 0) return [];
   const drop = [];
   for (let k = 0; k < 24; k++) {
@@ -3210,7 +3502,7 @@ function horns(g) {
   const { face, cx } = g;
   const ops = [];
   [-1, 1].forEach((side, i) => {
-    const pop = popScale(g.local, i * 0.05);
+    const pop = popScale2(g.local, i * 0.05);
     if (pop <= 0) return;
     const bx = cx + side * face.w * 0.27, by = face.y + face.h * 0.1;
     const bw = face.w * 0.2;
@@ -3266,7 +3558,7 @@ function heart(g) {
   const R = s * 0.21;
   const side = sideFor(g, R * 2.4, 6);
   const x = (side > 0 ? face.x + face.w : face.x) + side * R * 1.3, y = face.y + face.h * 0.32;
-  const pop = popScale(g.local);
+  const pop = popScale2(g.local);
   if (pop <= 0) return [];
   const beat = Math.max(0, Math.sin(2 * Math.PI * 1.6 * g.local)) ** 4;
   const float = -6 * g.u * Math.sin(2 * Math.PI * 0.8 * g.local);
@@ -3367,12 +3659,53 @@ function doodleFallback(p, cue) {
   }
   return map.get(cue.id) ?? null;
 }
+var DOODLE_SWAP = 0.25;
+var hasFace = (p, t) => {
+  const f = p.faceAt(t);
+  return !!f && f.w > 0 && f.h > 0;
+};
+function faceSwapAt(p, t, from) {
+  const now = hasFace(p, t);
+  for (let i = 1; i * (1 / 30) <= DOODLE_SWAP + 1e-9; i++) {
+    const tb = t - i / 30;
+    if (tb < from - 1e-9) return null;
+    if (hasFace(p, tb) !== now) {
+      const at = tb + 1 / 30;
+      return { at, k: Math.min(1, (t - at) / DOODLE_SWAP) };
+    }
+  }
+  return null;
+}
+function faceThroughPicture(p, t, dc) {
+  const f = p.faceAt(t);
+  if (!f) return null;
+  const box = transformRect(pictureMatrix(dc.picture, p.width, p.height), f);
+  return { ...box, landmarks: null };
+}
 function doodleAccentOps(cue, dc) {
   const p = dc.scene;
   if (p.inBroll(dc.t)) return [];
-  if (dc.face && dc.face.w > 0 && dc.face.h > 0) return doodleOps(cue.doodle, dc.face, dc);
+  const face = dc.face && dc.face.w > 0 && dc.face.h > 0 ? dc.face : null;
+  const swap = faceSwapAt(p, dc.t, cue.start);
   const spot = doodleFallback(p, cue);
-  return spot ? placedStickerOps(spot, dc.local, dc.u) : [];
+  const stickerFrom = (start) => spot ? placedStickerOps({ ...spot, start, end: Math.max(spot.end, start) }, dc.t - start, dc.u) : [];
+  if (face) {
+    const doodle = doodleOps(cue.doodle, face, dc);
+    if (!swap || !spot) return doodle;
+    const lostAt = lastSwapBefore(p, swap.at, cue.start);
+    return [...transformOps(stickerFrom(lostAt), IDENTITY, 1 - swap.k), ...doodle];
+  }
+  if (!swap) {
+    const lostAt = lastSwapBefore(p, dc.t, cue.start);
+    return lostAt > cue.start ? stickerFrom(lostAt) : spot ? placedStickerOps(spot, dc.local, dc.u) : [];
+  }
+  const last = faceThroughPicture(p, swap.at - 1 / 30, dc);
+  const fading = last ? transformOps(doodleOps(cue.doodle, last, dc), IDENTITY, 1 - swap.k) : [];
+  return [...fading, ...stickerFrom(swap.at)];
+}
+function lastSwapBefore(p, t, start) {
+  for (let tb = t - 1 / 30; tb >= start - 1e-9; tb -= 1 / 30) if (hasFace(p, tb)) return tb + 1 / 30;
+  return start;
 }
 registerCaptionStyle({
   template: "face_doodles",

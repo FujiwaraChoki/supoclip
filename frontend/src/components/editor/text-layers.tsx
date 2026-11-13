@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { captionGroups, captionKey, hookRange, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
-import { drawEditorTextLayer, formatHookEditorText, loadEditorFont, prepareTextDraft, textEditorLayout, textLayerBounds, type TextBounds, type TextDraft, type TextEditorLayout } from "@/lib/editor/render";
+import { captionGroups, captionKey, hookRange, hookTitleSuppressed, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
+import { drawEditorTextLayer, formatHookEditorText, loadEditorFont, onEditorFxResources, prepareTextDraft, textEditorLayout, textLayerBounds, type TextBounds, type TextDraft, type TextEditorLayout } from "@/lib/editor/render";
 import { TransformableText } from "./transformable-text";
 
 /** Titles and subtitles remain independent of the decoded picture in the editor. */
@@ -24,6 +24,9 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
   const [previewDraft, setPreviewDraft] = useState<TextDraft>();
   const draft = previewDraft ?? timelineDraft;
   const [layouts, setLayouts] = useState<Partial<Record<TextLayer, TextEditorLayout>>>({});
+  // FX-template captions are laid out by fx-core with its own fonts: measure again once they load.
+  const [fxResources, setFxResources] = useState(0);
+  useEffect(() => onEditorFxResources(() => setFxResources((value) => value + 1)), []);
   const size = outputSize(doc, asset.width, asset.height);
   const at = outputTime(doc, Math.min(index, doc.segments.length - 1), time);
   const range = hookRange(doc);
@@ -51,7 +54,7 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
     refresh();
     void loadEditorFont(doc.captions.font).then(refresh).catch(() => {});
     return () => { cancelled = true; };
-  }, [doc, at, size.width, size.height, asset.captionLooks, draft]);
+  }, [doc, at, size.width, size.height, asset.captionLooks, draft, fxResources]);
   useEffect(() => {
     let frame: number;
     const draw = () => {
@@ -69,7 +72,7 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
   return <div ref={frameRef} className="pointer-events-none absolute inset-0">
     <canvas ref={hookCanvas} aria-label={t("captions.hookTitle")} width={resolution.width} height={resolution.height} className="absolute inset-0 h-full w-full" />
     <canvas ref={captionCanvas} aria-label={t("timeline.tracks.captions")} width={resolution.width} height={resolution.height} className="absolute inset-0 h-full w-full" />
-    {doc.hookTitle?.trim() && bounds.hook && (at >= range.start && at < range.end) && <TransformableText
+    {doc.hookTitle?.trim() && !hookTitleSuppressed(doc) && bounds.hook && (at >= range.start && at < range.end) && <TransformableText
       {...shared} layer="hook" label={t("captions.hookTitle")} value={doc.hookTitle} bounds={bounds.hook}
       buttonLabel={`${t("preview.region")}: ${t("captions.hookTitle")}: ${doc.hookTitle}`}
       measure={document => measure(document, "hook")}

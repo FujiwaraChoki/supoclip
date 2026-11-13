@@ -7,7 +7,7 @@ import { clamp } from "./easing";
 import { isFxTemplate, type AccentCue, type FxCaptionTemplate, type FxCue, type FxKind, type FxScene, type FxWord, type MatteWindow } from "./types";
 import { warpFromJson, type Warp } from "./warp";
 import type { FxHost } from "./host";
-import { BASE_LOOKS } from "./captions/base";
+import { BASE_LOOKS, DEFAULT_BASE_LOOK, outlineGap } from "./captions/base";
 
 /** A face box in OUTPUT px (before this frame's picture transform). landmarks = [rex,rey, lex,ley, nx,ny, rmx,rmy,
  *  lmx,lmy] in output px (YuNet order), or null when the track has none at t. */
@@ -134,7 +134,8 @@ export function layoutCaptions(scene: FxScene, family: string, measure: Measure)
   const placements = new Map(style.placements.map((p) => [p.key, p]));
   const safe = captionSafe(W, H);
   // Letter spacing the template's line drawer adds (canvas letterSpacing), so words never collide.
-  const tracking = BASE_LOOKS[scene.template as FxCaptionTemplate]?.tracking ?? 0;
+  const look = BASE_LOOKS[scene.template as FxCaptionTemplate] ?? DEFAULT_BASE_LOOK;
+  const tracking = look.tracking;
   const groups: { key: string; words: FxWord[] }[] = [];
   for (let i = 0; i < words.length; i += per) {
     const all = words.slice(i, i + per);
@@ -148,7 +149,8 @@ export function layoutCaptions(scene: FxScene, family: string, measure: Measure)
     const label = (t: string) => (style.uppercase ? t.toLocaleUpperCase() : t);
     const maxWidth = Math.max(1, W - 120 * u);
     const wrap = (size: number) => {
-      const space = measure(" ", family, size);
+      // A word gap is the font's space plus the outlines on both sides of it (thick outlines would close it up).
+      const space = measure(" ", family, size) + outlineGap(style, look, size);
       const widths = group.map((w) => {
         const text = label(w.text);
         return measure(text, family, size) + tracking * size * Math.max(0, Array.from(text).length - 1);

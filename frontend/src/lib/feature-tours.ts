@@ -15,7 +15,17 @@ export type TourStep = {
   workflow?: Workflow;
   /** The opening step: offers "Show me" or "Not now" so nobody is walked through anything they didn't ask for. */
   intro?: boolean;
+  /**
+   * The target lives in a closed settings menu: the host asks the page to open this section first
+   * (`FeatureTourHost.onSettingsSection`), e.g. the create screen's `edits` or `captions`.
+   */
+  settingsSection?: string;
+  /** The target lives in an inspector tab (the clip studio): the host asks the page to open it first (`onInspectorTab`). */
+  inspectorTab?: string;
 };
+
+/** Feature flags a tour can wait for (`GET /api/feature-flags`). */
+export type TourFlag = "crazy_edits";
 
 export type FeatureTour = {
   id: string;
@@ -33,6 +43,8 @@ export type FeatureTour = {
   };
   /** Other tours this one already explains, so nobody gets them again. */
   covers?: readonly string[];
+  /** Only for accounts with this feature flag on; the host checks `/api/feature-flags` once. */
+  requiresFlag?: TourFlag;
   steps: readonly TourStep[];
 };
 

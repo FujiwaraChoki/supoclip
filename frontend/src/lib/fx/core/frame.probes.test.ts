@@ -87,7 +87,8 @@ describe("layers", () => {
     const p = prepareScene(makeScene({ cues }), fakeMeasureHost);
     const order = tags(frameOps(p, clockAt(p, 1.2)));
     const strip = order.filter((x, i) => x !== "text" || order[i - 1] !== "text");
-    expect(strip).toEqual(["picture", "pixel", "behind", "reaction:overlay", "text", "decode", "flash:flash", "bleep:cover",
+    // "behind" sits under "pixel" so the person cutout keeps the grade and grain (D7).
+    expect(strip).toEqual(["picture", "behind", "pixel", "reaction:overlay", "text", "decode", "flash:flash", "bleep:cover",
       "freeze:retention", "retention-global", "loop"]);
   });
 

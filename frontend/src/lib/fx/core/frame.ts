@@ -1,7 +1,8 @@
 // One output frame (§6.5): frameOps() turns a prepared scene and a clock into the full, ordered DrawOp list.
 // Pure and pixel-free (tested as JSON); rasterize() draws the result. The draw order, bottom → top:
 //   picture (zoom × shake × transition, raised to coverScale; grade + desaturate filter; whip blur; glitch slices/RGB)
-//   → pixel overlays → behind → accents/stickers/overlays → captions → flash → bleep cover → retention → loop.
+//   → behind (big text, then the person cutout) → pixel overlays (grade extras, grain: over the cutout too, D7)
+//   → accents/stickers/overlays → captions → flash → bleep cover → retention → loop.
 import "./all";
 import { fnv1a32, hash01, mulberry32 } from "./rng";
 import { TRANSITION_HALF, isFxTemplate, type FxCue } from "./types";

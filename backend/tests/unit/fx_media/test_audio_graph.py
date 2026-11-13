@@ -79,10 +79,17 @@ def test_identity_graph_is_exactly_section_9():
         "volume=0:enable='between(t,1,1.5)',"
         "aformat=sample_fmts=fltp:channel_layouts=stereo,apad=whole_dur=5,atrim=0:5[fxa_voice];"
         "[2:a]aformat=sample_fmts=fltp:channel_layouts=stereo[fxa_bus];"
-        "[fxa_voice]volume=3.5dB[fxa_v2];[fxa_bus]volume=3.5dB[fxa_b2];"
-        "[fxa_v2][fxa_b2]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,"
+        "[fxa_voice]volume=3.5dB[fxa_v2];"
+        "[fxa_v2][fxa_bus]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,"
         "alimiter=limit=0.89:attack=5:release=50:level=disabled:latency=1[fxa_out]"
     )
+
+
+def test_static_gain_scales_the_voice_only():
+    """D8: a quiet source's static gain must not raise the SFX/music bus with it."""
+    graph = _graph(loudness="static", static_gain_db=12.0, has_bus=True)
+    assert "[fxa_voice]volume=12dB[fxa_v2]" in graph
+    assert "[fxa_bus]volume" not in graph and "[fxa_v2][fxa_bus]amix" in graph
 
 
 def test_every_added_label_is_prefixed():

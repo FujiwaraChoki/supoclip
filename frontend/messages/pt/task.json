@@ -281,5 +281,17 @@
       "bumps": "Alguns solavancos pelo caminho. Estamos resolvendo—só mais um pouquinho de tempo.",
       "slower": "As coisas estão um pouco mais lentas que o normal. Seguimos trabalhando."
     }
+  },
+  "fx": {
+    "title": "Edição",
+    "intensity": "Intensidade da edição",
+    "intensityHint": "Com que força a edição bate. Mudar isso renderiza todos os clipes de novo.",
+    "rendering": "Renderizando a edição…",
+    "queued": "Renderizando seus clipes de novo. Pode levar alguns minutos; você pode sair desta página.",
+    "applied": "Edição aplicada",
+    "jobFailed": "Não foi possível aplicar a edição: {message}",
+    "retry": "Tentar de novo",
+    "approxTiming": "Este vídeo não tinha tempo por palavra, então legendas e efeitos seguem um tempo aproximado.",
+    "simplified": "Alguns efeitos foram simplificados neste clipe."
   }
 }

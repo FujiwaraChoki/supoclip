@@ -15,8 +15,8 @@ Every label added here is prefixed ``fxa_``. Every filter used exists and behave
 
 Loudness (``FxRequest.loudness``):
 
-- ``static`` (generation): ``g = clamp(-14 - I_voice, -20, +20)`` dB on both voice and bus before ``amix``. ``I_voice``
-  comes from one audio-only ``measure_voice_lufs`` pass (voice after bleeps, before the warp). Duck depths stay exact.
+- ``static`` (generation): ``g = clamp(-14 - I_voice, -20, +20)`` dB on the voice only before ``amix``, so SFX and
+  music keep fixed levels relative to the normalised voice (D8). ``I_voice`` comes from one audio-only ``measure_voice_lufs`` pass (voice after bleeps, before the warp). Duck depths stay exact.
 - ``dynamic`` (``FX_LOUDNORM=dynamic``): the legacy one-pass ``loudnorm`` after ``alimiter``.
 - ``none`` (studio exports): no gain stage, ``alimiter`` only, like the browser export.
 """
@@ -245,12 +245,11 @@ def audio_graph(*, voice_fragment: str, bleeps_e: list[tuple[float, float]], war
     if has_bus:
         parts.append(f"[{BUS_INPUT_INDEX}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[fxa_bus]")
     if loudness == "static":
+        # The static gain normalises the voice only (D8): SFX and music keep their fixed levels relative to the
+        # normalised voice instead of rising with a quiet source.
         gain = _num(static_gain_db or 0.0)
         parts.append(f"[fxa_voice]volume={gain}dB[fxa_v2]")
         voice = "fxa_v2"
-        if has_bus:
-            parts.append(f"[fxa_bus]volume={gain}dB[fxa_b2]")
-            bus = "fxa_b2"
 
     tail = [LIMITER] + ([LOUDNORM_FILTER] if loudness == "dynamic" else [])
     if has_bus:

@@ -9,7 +9,7 @@
 //
 // This file also exports the word helpers the other WP8 drawers share (cue words, approximate-timing detection).
 import type { DrawOp, Mat2D } from "../host";
-import { BASE_LOOKS, baseCaptionOps, cssColor, entranceAt } from "./base";
+import { BASE_LOOKS, baseCaptionOps, cssColor, entranceAt, outlineGap } from "./base";
 import { accentDrawerFor, registerAccent, registerCaptionStyle, type CaptionChunk, type DrawerContext } from "../registry";
 import type { AccentCue, FxCaptionTemplate, FxWord } from "../types";
 import { clamp, clamp01 } from "../easing";
@@ -125,7 +125,7 @@ export interface SwipeStyle { color: string; alpha: number; blend: "multiply" | 
  * cue seed (stable while it grows, so the edge never crawls).
  */
 export function swipeOps(p: PreparedScene, chunk: CaptionChunk, t: number, cues: readonly AccentCue[], outer: Mat2D,
-  style: SwipeStyle, lineAlpha = 1): DrawOp[] {
+  style: SwipeStyle, lineAlpha = 1, grow = 0): DrawOp[] {
   const approx = approxTiming(p);
   const u = p.u;
   const ops: DrawOp[] = [];
@@ -137,7 +137,7 @@ export function swipeOps(p: PreparedScene, chunk: CaptionChunk, t: number, cues:
     for (const w of marked) byLine.set(w.line, [...(byLine.get(w.line) ?? []), w]);
     for (const [line, group] of byLine) {
       group.sort((a, b) => a.x - b.x);
-      const stroke = swipeStroke(group, t, approx, cue.seed + line * 7919, u, chunk.px);
+      const stroke = swipeStroke(group, t, approx, cue.seed + line * 7919, u, chunk.px, grow);
       if (!stroke) continue;
       ops.push(pathOp({
         points: stroke.points, closed: true, smooth: false, fill: style.color, stroke: null, strokePx: 0,
@@ -149,10 +149,10 @@ export function swipeOps(p: PreparedScene, chunk: CaptionChunk, t: number, cues:
 }
 
 /** One rough marker stroke across consecutive words of one line, grown to the spoken position at t. */
-export function swipeStroke(group: readonly LaidWord[], t: number, approx: boolean, seed: number, u: number, px: number):
-  { points: number[]; head: number; x0: number; x1: number; skew: Mat2D } | null {
+export function swipeStroke(group: readonly LaidWord[], t: number, approx: boolean, seed: number, u: number, px: number,
+  grow = 0): { points: number[]; head: number; x0: number; x1: number; skew: Mat2D } | null {
   if (!group.length) return null;
-  const padX = px * 0.14;
+  const padX = px * 0.14 + grow;
   const x0 = group[0].x - padX;
   const x1 = group[group.length - 1].x + group[group.length - 1].w + padX;
   // Head: the latest started word decides how far the marker has travelled.
@@ -166,7 +166,7 @@ export function swipeStroke(group: readonly LaidWord[], t: number, approx: boole
   });
   if (!(head > x0 + 0.5)) return null;
   const yc = group[0].y + group[0].h / 2;
-  const top = yc - group[0].h * 0.52, bottom = yc + group[0].h * 0.5;
+  const top = yc - group[0].h * 0.52 - grow, bottom = yc + group[0].h * 0.5 + grow;
   const amp = SWIPE_JITTER * u;
   const rough = (n: number) => (hashUnit(seed, n) - 0.5) * 2 * amp;
   const step = Math.max(10 * u, 22 * u);
@@ -254,7 +254,12 @@ export function highlightAccentOps(cue: AccentCue, dc: DrawerContext): DrawOp[] 
   const chunk = p.chunkAt(dc.t);
   if (!chunk) return [];
   const { outer, alpha } = lineTransform(p.scene.template, chunk, dc.t, dc.u);
-  return swipeOps(p, chunk, dc.t, [cue], outer, swipeStyle(p), alpha);
+  // Outlined white captions: the marker must reach past the outline, or the outline hides it and only slivers of
+  // colour show at the edges. It becomes a solid block the word sits on.
+  const style = p.scene.caption;
+  const look = BASE_LOOKS[p.scene.template as FxCaptionTemplate];
+  const grow = (style && look ? outlineGap(style, look, chunk.px) : 0) + chunk.px * 0.08;
+  return swipeOps(p, chunk, dc.t, [cue], outer, swipeStyle(p), alpha, grow);
 }
 
 registerAccent({

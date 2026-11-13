@@ -325,6 +325,7 @@ async def on_worker_shutdown(ctx: Dict[str, Any]) -> None:
 
 
 from ..services.editor_service import prepare_editor, export_editor, combine_editor
+from ..services.editor_fx_analysis import ANALYSIS_JOB_TIMEOUT_SECONDS, editor_fx_analysis
 from ..services.clip_export_service import (
     CLIP_EXPORT_JOB_TIMEOUT_SECONDS,
     export_clip_preset,
@@ -346,6 +347,8 @@ class WorkerSettings:
         prepare_editor,
         export_editor,
         combine_editor,
+        # Studio face track and person matte (crazy edits). Idempotent per media version, so a retry is safe.
+        func(editor_fx_analysis, timeout=ANALYSIS_JOB_TIMEOUT_SECONDS, max_tries=2),
         # One try: a lost running export is failed by the heartbeat sweep, and a
         # retry would start a second encode for the same row.
         func(

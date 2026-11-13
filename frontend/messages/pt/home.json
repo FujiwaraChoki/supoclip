@@ -339,5 +339,145 @@
       "relaxed": "Permitidos",
       "question": "Uma pergunta"
     }
+  },
+  "edits": {
+    "section": "Edição",
+    "title": "Intensidade da edição",
+    "body": "A IA marca os momentos que importam. Você escolhe com que força cada um bate.",
+    "intensity": {
+      "off": {
+        "label": "Desligada",
+        "hint": "Cortes limpos, nada adicionado"
+      },
+      "chill": {
+        "label": "Leve",
+        "hint": "Alguns zooms e efeitos sonoros suaves"
+      },
+      "spicy": {
+        "label": "Picante",
+        "hint": "Zooms rápidos, whooshes e música"
+      },
+      "unhinged": {
+        "label": "Insana",
+        "hint": "Todos os truques, em cada momento"
+      }
+    },
+    "offHint": "Ligue a edição para adicionar efeitos sonoros, música, zooms e congelamentos nos momentos que importam.",
+    "groups": {
+      "sound": "Som",
+      "motion": "Movimento",
+      "retention": "Prender a atenção"
+    },
+    "options": {
+      "sfx": {
+        "label": "Efeitos sonoros",
+        "hint": "Whooshes, impactos e pops nos momentos-chave"
+      },
+      "music": {
+        "label": "Música",
+        "hint": "Uma trilha que abaixa quando a voz fala"
+      },
+      "musicMood": "Clima da música",
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Aproxima nas piadas e nos números grandes"
+      },
+      "shake": {
+        "label": "Tremida de câmera",
+        "hint": "Um tranco nos momentos mais fortes"
+      },
+      "transitions": {
+        "label": "Transições",
+        "hint": "Chicotes e flashes onde o clipe corta"
+      },
+      "speed": {
+        "label": "Rampas de velocidade e congelamentos",
+        "hint": "Acelera a preparação e congela antes do desfecho"
+      },
+      "censor": {
+        "label": "Palavrões",
+        "hint": "Como os palavrões são cobertos"
+      },
+      "wait_for_it": {
+        "label": "Sticker “Espera…”",
+        "hint": "Antecipa um desfecho que está chegando"
+      },
+      "progress_bar": {
+        "label": "Barra de progresso",
+        "hint": "Uma barra fina na borda inferior"
+      },
+      "loop_ending": {
+        "label": "Final em loop",
+        "hint": "Funde o fim com o começo para repetir sem corte"
+      },
+      "reactions": {
+        "label": "Reações em GIF",
+        "hint": "Um GIF de reação nos momentos mais engraçados"
+      }
+    },
+    "moods": {
+      "auto": "Combinar com o vídeo",
+      "hype": "Empolgante",
+      "chill": "Tranquila",
+      "dramatic": "Dramática",
+      "funny": "Divertida",
+      "inspiring": "Inspiradora",
+      "dark": "Sombria"
+    },
+    "censor": {
+      "off": "Deixar como está",
+      "bleep": "Bipe",
+      "bleep_bar": "Bipe e cobrir a boca",
+      "bleep_pixelate": "Bipe e pixelar a boca"
+    }
+  },
+  "animatedCaptions": {
+    "title": "Animadas",
+    "body": "Desenhadas quadro a quadro sobre o seu vídeo.",
+    "demoLine": "Nossa receita cresceu 300% em apenas um ano",
+    "demoSticker": "Não acredito!",
+    "needsFace": "Melhor com um rosto na câmera",
+    "templates": {
+      "marker_circle": {
+        "name": "Círculo de marcador",
+        "description": "Círculos, sublinhados e setas à mão nas palavras-chave"
+      },
+      "emoji_drop": {
+        "name": "Chuva de emojis",
+        "description": "Legendas karaokê com emojis que quicam sob as piadas"
+      },
+      "slam": {
+        "name": "Impacto",
+        "description": "Palavras-chave enormes batem na tela"
+      },
+      "behind_head": {
+        "name": "Atrás da cabeça",
+        "description": "Palavras gigantes atrás de quem fala"
+      },
+      "stat_counter": {
+        "name": "Contador",
+        "description": "Números falados sobem e carimbam no lugar"
+      },
+      "sticker_slap": {
+        "name": "Adesivos",
+        "description": "Palavras em adesivo coladas pelo quadro"
+      },
+      "kinetic_stack": {
+        "name": "Pilha cinética",
+        "description": "O gancho se empilha em linhas grossas"
+      },
+      "decode_glitch": {
+        "name": "Glitch decodificado",
+        "description": "As letras embaralham e se encaixam no lugar"
+      },
+      "highlighter_swipe": {
+        "name": "Marca-texto",
+        "description": "Um marca-texto passa pelas palavras-chave"
+      },
+      "face_doodles": {
+        "name": "Rabiscos no rosto",
+        "description": "Brilhos, chifres e setas que seguem o rosto de quem fala"
+      }
+    }
   }
 }

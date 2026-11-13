@@ -3,9 +3,11 @@ import {
   captionGroups,
   captionAt,
   captionTransform,
+  censoredMappedWords,
+  documentNeedsFx,
   frameRect,
   hookRange,
-  mappedWords,
+  hookTitleSuppressed,
   outputSize,
   replaceWords,
   editDuration,
@@ -15,7 +17,18 @@ import {
   type CaptionTransform,
   type CaptionWord,
   type EditDocument,
+  type SessionFaceTrack,
 } from "./document";
+import { loadFxAtlas } from "@/lib/fx/assets-client";
+import { createBrowserHost, createFxCanvas, loadFxFont, type BrowserHost } from "@/lib/fx/browser-host";
+import { reactionRect } from "@/lib/fx/core/constants";
+import { captionHitBoxes, clockAt, type FxClock } from "@/lib/fx/core/frame";
+import type { EmojiAtlas, FxCanvas, FxContext2D, FxImage } from "@/lib/fx/core/host";
+import { renderFrame } from "@/lib/fx/core/render";
+import { prepareScene, type PreparedScene } from "@/lib/fx/core/scene";
+import { isFxTemplate, type ReactionCue } from "@/lib/fx/core/types";
+import { toOutput } from "@/lib/fx/core/warp";
+import { studioScene } from "@/lib/fx/studio-scene";
 
 const groupCache = new WeakMap<
   EditDocument,
@@ -163,8 +176,45 @@ export interface BRollLayer {
   width: number;
   height: number;
   alpha: number;
-  draw: (x: number, y: number, width: number, height: number) => void;
+  /** Draws the footage; `target` is the context to draw into (crazy edits may compose the picture off screen). */
+  draw: (x: number, y: number, width: number, height: number, target?: CanvasRenderingContext2D) => void;
 }
+
+/** A decoded frame of some video, ready for drawImage. */
+export interface EditorMediaFrame {
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+}
+
+/** What the studio session knows about its media, for crazy edits (studioScene options). */
+export interface EditorFxSession {
+  /** The video the picture is drawn from. */
+  base: "layout" | "clean";
+  faceTrack?: SessionFaceTrack | null;
+  /** matte.mp4 is loaded: behind-the-head text is cut out around the person. */
+  matte?: boolean;
+  /** Stored ids of the reaction cues with a GIF (undefined: every resolved reaction cue). */
+  reactions?: readonly string[] | null;
+}
+
+/** Per-frame inputs of a crazy-edit frame beyond the picture itself. */
+export interface EditorFxFrame {
+  /** Final (F) seconds of this frame. Default: the warp's toOutput(time). */
+  o?: number;
+  session?: EditorFxSession;
+  /** The person matte (luma = person) of the base video at this frame's source time. */
+  matte?: EditorMediaFrame | null;
+  /** The reaction GIF frame for a reaction cue on screen (mapped id). */
+  reaction?: (cue: ReactionCue) => EditorMediaFrame | null;
+}
+
+type DrawPicture = (rect: ReturnType<typeof frameRect>, target: CanvasRenderingContext2D) => void;
+
+const effectsFilter = (doc: EditDocument, canvasWidth: number) => {
+  const fx = doc.effects;
+  return `brightness(${fx.brightness}%) contrast(${fx.contrast}%) saturate(${fx.saturation}%) blur(${(fx.blur * canvasWidth) / 1080}px) hue-rotate(${fx.hue}deg)`;
+};
 
 export function drawEditorFrame(
   ctx: CanvasRenderingContext2D,
@@ -172,19 +222,24 @@ export function drawEditorFrame(
   sourceWidth: number,
   sourceHeight: number,
   time: number,
-  draw: (rect: ReturnType<typeof frameRect>) => void,
+  draw: DrawPicture,
   looks?: Record<string, CaptionLook>,
   broll?: BRollLayer | null,
   textLayers: "all" | "none" = "all",
+  fx?: EditorFxFrame,
 ) {
-  const { width, height } = ctx.canvas,
-    fx = doc.effects;
+  if (documentNeedsFx(doc)) {
+    drawFxFrame(ctx, doc, sourceWidth, sourceHeight, time, draw, looks, broll ?? null, fx ?? {});
+    if (textLayers === "all") drawEditorTextLayer(ctx, doc, sourceWidth, sourceHeight, time, looks, "all", false);
+    return;
+  }
+  const { width, height } = ctx.canvas;
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, width, height);
   ctx.save();
-  ctx.filter = `brightness(${fx.brightness}%) contrast(${fx.contrast}%) saturate(${fx.saturation}%) blur(${(fx.blur * width) / 1080}px) hue-rotate(${fx.hue}deg)`;
-  draw(frameRect(doc.framing, sourceWidth, sourceHeight, width, height));
+  ctx.filter = effectsFilter(doc, width);
+  draw(frameRect(doc.framing, sourceWidth, sourceHeight, width, height), ctx);
   ctx.restore();
   if (broll && broll.alpha > 0 && broll.width > 0 && broll.height > 0) {
     // Fill the frame (cover), centred, as the export's scale+crop does.
@@ -193,10 +248,279 @@ export function drawEditorFrame(
       h = broll.height * scale;
     ctx.save();
     ctx.globalAlpha = broll.alpha;
-    broll.draw((width - w) / 2, (height - h) / 2, w, h);
+    broll.draw((width - w) / 2, (height - h) / 2, w, h, ctx);
     ctx.restore();
   }
   if (textLayers === "all") drawEditorTextLayer(ctx, doc, sourceWidth, sourceHeight, time, looks, "all", false);
+}
+
+// ------------------------------------------------------------------------------------------- crazy edits (fx-core)
+
+/** Fonts the fx-core drawers use (== fx_chain.DRAWER_FONT_STEMS), registered as "FX-<stem>". */
+export const FX_DRAWER_FONTS = ["TikTokSans-Bold", "TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT"] as const;
+
+let fxEpoch = 0;
+let fxAtlas: EmojiAtlas | null = null;
+const fxListeners = new Set<() => void>();
+const bumpFx = () => {
+  fxEpoch += 1;
+  for (const listener of fxListeners) listener();
+};
+/** Called whenever fonts or the emoji atlas finish loading (layouts are measured again). */
+export function onEditorFxResources(listener: () => void): () => void {
+  fxListeners.add(listener);
+  return () => {
+    fxListeners.delete(listener);
+  };
+}
+
+/**
+ * Loads what fx-core draws with: the drawer fonts, the caption font and the emoji atlas. Each part that loads makes
+ * the next frame lay its text out again with the real metrics. Failures leave fallbacks in place (no emoji, Noto).
+ */
+export async function loadEditorFxResources(doc: EditDocument): Promise<void> {
+  const stems = new Set<string>([...FX_DRAWER_FONTS, doc.captions.font]);
+  const fonts = [...stems].map((stem) => loadFxFont(stem).then(bumpFx));
+  const atlas = fxAtlas ? Promise.resolve() : loadFxAtlas().then((loaded) => {
+    fxAtlas = loaded;
+    bumpFx();
+  });
+  const results = await Promise.allSettled([...fonts, atlas]);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed) throw (failed as PromiseRejectedResult).reason;
+}
+
+interface FrameSources {
+  doc: EditDocument;
+  sourceWidth: number;
+  sourceHeight: number;
+  out: { width: number; height: number };
+  draw: DrawPicture;
+  broll: BRollLayer | null;
+  effects: string;
+  reactions: { rect: [number, number, number, number]; frame: EditorMediaFrame }[];
+  matte: EditorMediaFrame | null;
+}
+interface HostEntry {
+  host: BrowserHost;
+  current: FrameSources | null;
+  /** The scene being drawn (frame 0 of another scene, e.g. another clip or an older edit, is never blended in). */
+  drawing: PreparedScene | null;
+  frame0: { scene: PreparedScene; canvas: FxCanvas } | null;
+  mask: FxCanvas | null;
+  person: FxCanvas | null;
+}
+const hosts = new WeakMap<object, HostEntry>();
+
+const asCanvasContext = (ctx: FxContext2D) => ctx as unknown as CanvasRenderingContext2D;
+const canvasOf = (ctx: FxContext2D) => (ctx as unknown as { canvas: { width: number; height: number } }).canvas;
+
+/** The CSS filter in force (the grade the host set), or "" when none. */
+function currentFilter(ctx: CanvasRenderingContext2D): string {
+  const value = typeof ctx.filter === "string" ? ctx.filter : "";
+  return value && value !== "none" ? value : "";
+}
+
+/** drawImage that covers `rect` with the centre of the frame (scale up, crop), like the server's PiP. */
+function drawCover(ctx: CanvasRenderingContext2D, frame: EditorMediaFrame, rect: [number, number, number, number]) {
+  const [x, y, w, h] = rect;
+  if (frame.width <= 0 || frame.height <= 0 || w <= 0 || h <= 0) return;
+  const scale = Math.max(w / frame.width, h / frame.height);
+  const sw = w / scale, sh = h / scale;
+  ctx.drawImage(frame.source, (frame.width - sw) / 2, (frame.height - sh) / 2, sw, sh, x, y, w, h);
+}
+
+/**
+ * The base picture in output px, as P1 builds it on the server: black frame, the framed video with the document's
+ * effects (before the grade the host already set), B-roll over it, then the reaction PiPs. `ctx` carries the picture
+ * op's transform and grade filter.
+ */
+function drawBase(ctx: CanvasRenderingContext2D, f: FrameSources) {
+  const grade = currentFilter(ctx);
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, f.out.width, f.out.height);
+  ctx.filter = [f.effects, grade].filter(Boolean).join(" ") || "none";
+  f.draw(frameRect(f.doc.framing, f.sourceWidth, f.sourceHeight, f.out.width, f.out.height), ctx);
+  ctx.filter = grade || "none";
+  const broll = f.broll;
+  if (broll && broll.alpha > 0 && broll.width > 0 && broll.height > 0) {
+    const scale = Math.max(f.out.width / broll.width, f.out.height / broll.height),
+      w = broll.width * scale,
+      h = broll.height * scale;
+    const alpha = ctx.globalAlpha;
+    ctx.globalAlpha = alpha * broll.alpha;
+    broll.draw((f.out.width - w) / 2, (f.out.height - h) / 2, w, h, ctx);
+    ctx.globalAlpha = alpha;
+  }
+  for (const reaction of f.reactions) drawCover(ctx, reaction.frame, reaction.rect);
+}
+
+/**
+ * Only the person: the framed video keyed by the matte (luma → alpha at the matte's own resolution, scaled up with
+ * smoothing). Drawn through a scratch layer so the destination-in mask never touches the rest of the frame.
+ */
+function drawCutout(entry: HostEntry, ctx: CanvasRenderingContext2D, f: FrameSources) {
+  const matte = f.matte;
+  if (!matte || matte.width <= 0 || matte.height <= 0) return;
+  const mw = Math.round(matte.width), mh = Math.round(matte.height);
+  if (!entry.mask || entry.mask.width !== mw || entry.mask.height !== mh) {
+    entry.mask = createFxCanvas(mw, mh);
+    // Read back every frame: a CPU-backed context avoids a GPU readback per frame (the first getContext decides).
+    (entry.mask as unknown as { getContext(kind: "2d", options: { willReadFrequently: boolean }): unknown })
+      .getContext("2d", { willReadFrequently: true });
+  }
+  const mctx = asCanvasContext(entry.mask.getContext("2d"));
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  mctx.globalCompositeOperation = "copy";
+  mctx.drawImage(matte.source, 0, 0, mw, mh);
+  const pixels = mctx.getImageData(0, 0, mw, mh);
+  const data = pixels.data;
+  for (let i = 0; i < data.length; i += 4) data[i + 3] = data[i];
+  mctx.putImageData(pixels, 0, 0);
+
+  const size = canvasOf(ctx as unknown as FxContext2D);
+  if (!entry.person || entry.person.width !== size.width || entry.person.height !== size.height)
+    entry.person = createFxCanvas(size.width, size.height);
+  const pctx = asCanvasContext(entry.person.getContext("2d"));
+  const rect = frameRect(f.doc.framing, f.sourceWidth, f.sourceHeight, f.out.width, f.out.height);
+  pctx.save();
+  pctx.setTransform(1, 0, 0, 1, 0, 0);
+  pctx.clearRect(0, 0, size.width, size.height);
+  pctx.setTransform(ctx.getTransform());
+  pctx.filter = [f.effects, currentFilter(ctx)].filter(Boolean).join(" ") || "none";
+  f.draw(rect, pctx);
+  pctx.filter = "none";
+  pctx.globalCompositeOperation = "destination-in";
+  pctx.imageSmoothingEnabled = true;
+  pctx.imageSmoothingQuality = "high";
+  pctx.drawImage(entry.mask as unknown as CanvasImageSource, rect.x, rect.y, rect.width, rect.height);
+  pctx.restore();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.filter = "none";
+  ctx.drawImage(entry.person as unknown as CanvasImageSource, 0, 0);
+  ctx.restore();
+}
+
+function hostFor(canvas: object): HostEntry {
+  let entry = hosts.get(canvas);
+  if (!entry) {
+    const created: HostEntry = { host: null as unknown as BrowserHost, current: null, drawing: null, frame0: null, mask: null, person: null };
+    created.host = createBrowserHost({
+      drawBase: (ctx) => { if (created.current) drawBase(asCanvasContext(ctx), created.current); },
+      drawCutout: (ctx) => { if (created.current) drawCutout(created, asCanvasContext(ctx), created.current); },
+      atlas: () => fxAtlas,
+      frame0: (): FxImage | null =>
+        created.frame0 && created.frame0.scene === created.drawing ? created.frame0.canvas : null,
+    });
+    entry = created;
+    hosts.set(canvas, entry);
+  }
+  return entry;
+}
+
+let measureHost: BrowserHost | null = null;
+const sceneMeasure = () => (measureHost ??= createBrowserHost({ drawBase: () => {} }));
+
+interface SceneKey {
+  looks: Record<string, CaptionLook> | undefined;
+  width: number;
+  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  base: string;
+  faceTrack: SessionFaceTrack | null | undefined;
+  matte: boolean;
+  reactions: readonly string[] | null | undefined;
+  epoch: number;
+}
+const sceneCache = new WeakMap<EditDocument, { key: SceneKey; prepared: PreparedScene }[]>();
+const sameKey = (a: SceneKey, b: SceneKey) =>
+  (Object.keys(a) as (keyof SceneKey)[]).every((name) => a[name] === b[name]);
+
+/** The prepared fx-core scene of a draft (memoised per document, output size, session and loaded resources). */
+export function editorFxScene(doc: EditDocument, looks: Record<string, CaptionLook> | undefined,
+  width: number, height: number, sourceWidth: number, sourceHeight: number, session?: EditorFxSession): PreparedScene {
+  const key: SceneKey = {
+    looks, width, height, sourceWidth, sourceHeight, base: session?.base ?? "clean", faceTrack: session?.faceTrack,
+    matte: !!session?.matte, reactions: session?.reactions, epoch: fxEpoch,
+  };
+  const entries = sceneCache.get(doc) ?? [];
+  const hit = entries.find((entry) => sameKey(entry.key, key));
+  if (hit) return hit.prepared;
+  const scene = studioScene(doc, looks, {
+    width, height, sourceWidth, sourceHeight, base: session?.base ?? "clean", faceTrack: session?.faceTrack,
+    matte: !!session?.matte, reactions: session?.reactions,
+  });
+  const prepared = prepareScene(scene, sceneMeasure());
+  // A document is drawn by the preview, the text layers and an export at most; keep the last few variants.
+  sceneCache.set(doc, [...entries.slice(-3), { key, prepared }]);
+  return prepared;
+}
+
+/** The fx-core clock of an edit-time frame (F from the warp unless the caller drives F itself). */
+export function editorFxClock(prepared: PreparedScene, time: number, o?: number): FxClock {
+  return o === undefined ? { e: time, o: toOutput(prepared.warp, time), frame: Math.round(toOutput(prepared.warp, time) * 30) }
+    : clockAt(prepared, o);
+}
+
+function drawFxFrame(ctx: CanvasRenderingContext2D, doc: EditDocument, sourceWidth: number, sourceHeight: number,
+  time: number, draw: DrawPicture, looks: Record<string, CaptionLook> | undefined, broll: BRollLayer | null,
+  fx: EditorFxFrame) {
+  const { width, height } = ctx.canvas;
+  const out = outputSize(doc, sourceWidth, sourceHeight);
+  const prepared = editorFxScene(doc, looks, out.width, out.height, sourceWidth, sourceHeight, fx.session);
+  const clock = editorFxClock(prepared, time, fx.o);
+  const entry = hostFor(ctx.canvas);
+  const rect = reactionRect(out.width, out.height);
+  const pip: [number, number, number, number] = [Math.round(rect.x), Math.round(rect.y), even(rect.w), even(rect.h)];
+  const reactions: FrameSources["reactions"] = [];
+  if (fx.reaction) {
+    for (const cue of prepared.cuesByKind.get("reaction") ?? []) {
+      if (cue.kind !== "reaction" || clock.e < cue.start || clock.e > cue.end) continue;
+      const frame = fx.reaction(cue);
+      if (frame) reactions.push({ rect: pip, frame });
+    }
+  }
+  entry.current = {
+    doc, sourceWidth, sourceHeight, out, draw, broll, effects: effectsFilter(doc, width), reactions,
+    matte: fx.session?.matte ? fx.matte ?? null : null,
+  };
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+  entry.drawing = prepared;
+  try {
+    renderFrame(ctx as unknown as FxContext2D, prepared, clock, entry.host);
+  } finally {
+    entry.current = null;
+    entry.drawing = null;
+  }
+  // The loop crossfade blends the last frames into the first one: keep frame 0 as drawn (before text layers).
+  if (prepared.scene.loop_ending === "crossfade" && clock.frame === 0) {
+    const copy = entry.frame0?.canvas.width === width && entry.frame0.canvas.height === height
+      ? entry.frame0.canvas : createFxCanvas(width, height);
+    const cctx = asCanvasContext(copy.getContext("2d"));
+    cctx.clearRect(0, 0, width, height);
+    cctx.drawImage(ctx.canvas, 0, 0);
+    entry.frame0 = { scene: prepared, canvas: copy };
+  }
+}
+
+const even = (value: number) => {
+  const rounded = Math.round(value);
+  return Math.max(2, rounded - (rounded % 2));
+};
+
+/** Output-px box of the FX-template caption on screen at edit time `time` (drag and resize in the preview). */
+export function fxCaptionBounds(doc: EditDocument, width: number, height: number, time: number,
+  looks?: Record<string, CaptionLook>): TextBounds | null {
+  const prepared = editorFxScene(doc, looks, width, height, width, height);
+  const [box] = captionHitBoxes(prepared, editorFxClock(prepared, time));
+  return box ? { x: box.x, y: box.y, width: box.w, height: box.h } : null;
 }
 
 /** Transparent editable layers in the viewer; composited only when exporting. */
@@ -209,9 +533,12 @@ export function drawEditorTextLayer(
   const out = outputSize(doc, sourceWidth, sourceHeight), look = cachedLook(doc, looks);
   ctx.save();
   ctx.scale(width / out.width, height / out.height);
-  if (layer !== "hook" && doc.captions.enabled) drawCaptions(ctx, doc, out, time, look, draft?.captionWords);
+  // FX templates are drawn by fx-core with the picture; only legacy captions are a text layer.
+  if (layer !== "hook" && doc.captions.enabled && !isFxTemplate(doc.captions.template))
+    drawCaptions(ctx, doc, out, time, look, draft?.captionWords);
   const hookDocument = draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText };
-  if (layer !== "captions" && hookDocument.hookTitle?.trim()) drawHookTitle(ctx, hookDocument, out, time, look);
+  if (layer !== "captions" && hookDocument.hookTitle?.trim() && !hookTitleSuppressed(doc))
+    drawHookTitle(ctx, hookDocument, out, time, look);
   ctx.restore();
 }
 
@@ -225,7 +552,8 @@ function drawCaptions(
 ) {
   let groups = groupCache.get(doc);
   if (!groups) {
-    groups = captionGroups(mappedWords(doc), doc.captions.wordsPerLine);
+    // Bleeped words are censored like the server's captions ("f***"), so preview and export agree.
+    groups = captionGroups(censoredMappedWords(doc), doc.captions.wordsPerLine);
     groupCache.set(doc, groups);
   }
   const original = groups.find(
@@ -439,13 +767,15 @@ export interface TextBounds { x: number; y: number; width: number; height: numbe
 export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, looks?: Record<string, CaptionLook>, draft?: TextDraft): TextBounds | null {
   const look = cachedLook(doc, looks);
   if (layer === "hook") {
-    if (!doc.hookTitle?.trim()) return null;
+    if (!doc.hookTitle?.trim() || hookTitleSuppressed(doc)) return null;
     const { lines, px, top, x } = hookTitleLayout(draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, width, height);
     setAssFont(ctx, doc.captions.font, px);
     const pad = Math.max(5, Math.round(px * (look.strokeWidth || 2) / 26)) + 3;
     const w = Math.max(...lines.map(line => ctx.measureText(line).width)) + pad * 2;
     return { x: x - w / 2, y: top - pad, width: w, height: lines.length * px * 1.2 + pad * 2 };
   }
+  if (isFxTemplate(doc.captions.template))
+    return doc.captions.enabled ? fxCaptionBounds(doc, width, height, time, looks) : null;
   const original = captionAt(doc, time);
   const group = draft?.captionWords ?? original;
   if (!original || !group?.length || !doc.captions.enabled) return null;

@@ -10,9 +10,10 @@
 //   alpha < 1, another blend, a channel or the matrix fallback is drawn into a scratch layer first, then composited.
 // - `grain` draws a 256² mono noise tile from mulberry32(seed), offset per frame by hash01(seed, frame), at
 //   alpha = amount with `overlay`; `scanlines` darkens a 1/2-spacing band every `spacing` px.
+// - a text op's optional `clip` is an output-px rect (not moved by the op's transform): glitch slices.
 // - `base` (optional) maps output px to canvas px when the canvas is not output-sized (e.g. a scaled preview).
 import type { DrawOp, FxCanvas, FxContext2D, FxHost, Mat2D } from "./host";
-import { IDENTITY, fontCss, mul, translation } from "./layout";
+import { IDENTITY, fontCss, mul, round3, translation } from "./layout";
 import { hash01, mulberry32 } from "./rng";
 
 type PictureOp = Extract<DrawOp, { op: "picture" }>;
@@ -25,9 +26,25 @@ const canvasSize = (ctx: FxContext2D): { width: number; height: number } | null 
 };
 
 export function rasterize(ctx: FxContext2D, ops: DrawOp[], host: FxHost, base: Mat2D = IDENTITY): void {
-  for (const op of ops) {
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
     ctx.save();
     try {
+      // An RGB split (three channel draws of one picture) is done in one pass over the pixels (D9).
+      if (op.op === "picture" && op.channel === "r" && splitTrio(ops, i, host)) {
+        drawSplit(ctx, ops[i] as PictureOp, ops[i + 1] as PictureOp, ops[i + 2] as PictureOp, host, base);
+        i += 2;
+        continue;
+      }
+      // Several draws of the same picture (whip ghosts, glitch slices): draw it once, composite the copies (D9).
+      if (op.op === "picture") {
+        const run = pictureRun(ops, i, host);
+        if (run > 1) {
+          drawRun(ctx, ops.slice(i, i + run) as PictureOp[], host, base);
+          i += run - 1;
+          continue;
+        }
+      }
       draw(ctx, op, host, base);
     } finally {
       ctx.restore();
@@ -127,6 +144,13 @@ function drawText(ctx: FxContext2D, op: TextOp, base: Mat2D) {
   if (op.alpha <= 0 || !op.text || op.px <= 0) return;
   const stroke = op.stroke && op.strokePx > 0 ? op.stroke : null;
   if (!stroke && !op.fill) return;
+  if (op.clip) {
+    if (op.clip[2] <= 0 || op.clip[3] <= 0) return;
+    setMat(ctx, base);
+    ctx.beginPath();
+    ctx.rect(op.clip[0], op.clip[1], op.clip[2], op.clip[3]);
+    ctx.clip();
+  }
   prepare(ctx, op.alpha, op.blend);
   setMat(ctx, mul(base, op.transform));
   ctx.font = fontCss(op.font, op.px);
@@ -253,10 +277,28 @@ function clipRect(ctx: FxContext2D, clip: PictureOp["clip"], base: Mat2D) {
   ctx.clip();
 }
 
+/** Largest blur(…px) radius in a CSS filter string (0 when none). */
+export function filterBlur(filter: string): number {
+  let max = 0;
+  for (const m of filter.matchAll(/blur\(\s*([\d.]+)px\s*\)/g)) max = Math.max(max, Number(m[1]));
+  return max;
+}
+
+/** A blur at least this wide (canvas px) is drawn at reduced resolution and scaled up (D9: a full-size blur filter
+ *  is the most expensive draw there is; the result of a wide blur has no detail a quarter-size copy lacks). */
+export const REDUCED_BLUR_MIN = 6;
+/** Reduced-resolution factor for a blur of `px` canvas px: the blur stays ≥ 4 px wide at the small size, ≥ 1/4. */
+export const blurReduction = (px: number): number => Math.min(1, Math.max(0.25, 4 / px));
+
 function drawPicture(ctx: FxContext2D, op: PictureOp, host: FxHost, base: Mat2D) {
   if (op.alpha <= 0) return;
   const transform = mul(base, mul(translation(op.dx, op.dy), op.transform));
   const filterFallback = !!op.filter && !host.supportsFilter;
+  const blurPx = host.supportsFilter ? filterBlur(op.filter) * (Math.abs(base[0]) || 1) : 0;
+  if (blurPx >= REDUCED_BLUR_MIN && op.channel === "rgb") {
+    const size = canvasSize(ctx);
+    if (size) return drawReducedBlur(ctx, op, transform, blurPx, size, host, base);
+  }
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   // Direct only when the picture is drawn opaque and normally: a host may draw the picture as several primitives
@@ -307,6 +349,149 @@ function drawPicture(ctx: FxContext2D, op: PictureOp, host: FxHost, base: Mat2D)
   prepare(ctx, op.alpha, op.blend);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer as unknown as CanvasImageSource, 0, 0);
+}
+
+/**
+ * A wide-blur picture (dream glow): the picture is first scaled down into a small layer with no filter, then drawn
+ * into a second small layer with its colour filter and a proportionally smaller blur, and the result is scaled up.
+ * Skia evaluates a filter on the source image before its transform, so filtering while downscaling would still pay
+ * for a full-size filter; two passes keep every filter at the small size.
+ */
+function drawReducedBlur(ctx: FxContext2D, op: PictureOp, transform: Mat2D, blurPx: number,
+  size: { width: number; height: number }, host: FxHost, base: Mat2D) {
+  const k = blurReduction(blurPx);
+  const w = Math.max(1, Math.ceil(size.width * k)), h = Math.max(1, Math.ceil(size.height * k));
+  const small = scratchCanvas(host, "blur-src", w, h), blurred = scratchCanvas(host, "blur", w, h);
+  const colour = op.filter.replace(/blur\(\s*[\d.]+px\s*\)/g, "").replace(/\s+/g, " ").trim();
+  const blur = round3(blurPx * k);
+  const reset = (c: FxContext2D) => {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = "source-over";
+    c.filter = "none";
+    c.clearRect(0, 0, w, h);
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = "low";   // bilinear, no mipmaps: the copy is blurred anyway
+  };
+  const sctx = small.getContext("2d");
+  sctx.save();
+  reset(sctx);
+  host.drawPicture(sctx, { ...op, transform: mul([k, 0, 0, k, 0, 0], transform), filter: "", dx: 0, dy: 0, clip: null,
+    alpha: 1, blend: "source-over" });
+  sctx.restore();
+  const bctx = blurred.getContext("2d");
+  bctx.save();
+  reset(bctx);
+  bctx.filter = `${colour} blur(${blur}px)`.trim();
+  bctx.drawImage(small as unknown as CanvasImageSource, 0, 0);
+  bctx.restore();
+  clipRect(ctx, op.clip, base);
+  prepare(ctx, op.alpha, op.blend);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";   // upscaling a blur: bilinear is exact enough
+  ctx.drawImage(blurred as unknown as CanvasImageSource, 0, 0, w, h, 0, 0, w / k, h / k);
+}
+
+/** How many ops from i are draws of one picture (same transform and filter, full colour, no cutout, no vertical
+ *  offset, normal blend) that differ only in horizontal offset, alpha and clip. */
+function pictureRun(ops: DrawOp[], i: number, host: FxHost): number {
+  const first = ops[i];
+  if (first.op !== "picture") return 0;
+  if (first.filter && (!host.supportsFilter || filterBlur(first.filter) >= REDUCED_BLUR_MIN)) return 0;
+  const fits = (o: DrawOp | undefined): o is PictureOp => !!o && o.op === "picture" && o.channel === "rgb" && !o.cutout
+    && o.dy === 0 && o.blend === "source-over" && o.filter === first.filter && o.alpha > 0
+    && o.transform.every((v, k) => v === first.transform[k]);
+  let n = 0;
+  while (fits(ops[i + n])) n++;
+  return n;
+}
+
+/** A run of one picture's draws: the picture is drawn once into a scratch layer, each op composites that layer at its
+ *  own offset, alpha and clip (identical pixels to drawing the picture again for every op, up to resampling). */
+function drawRun(ctx: FxContext2D, run: PictureOp[], host: FxHost, base: Mat2D) {
+  const size = canvasSize(ctx);
+  if (!size) { for (const op of run) { ctx.save(); try { drawPicture(ctx, op, host, base); } finally { ctx.restore(); } } return; }
+  const layer = scratchCanvas(host, "run", size.width, size.height);
+  const sctx = layer.getContext("2d");
+  sctx.save();
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalAlpha = 1;
+  sctx.globalCompositeOperation = "source-over";
+  sctx.clearRect(0, 0, size.width, size.height);
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = "high";
+  host.drawPicture(sctx, { ...run[0], transform: mul(base, run[0].transform), dx: 0, dy: 0, alpha: 1, clip: null });
+  sctx.restore();
+  const scale = Math.abs(base[0]) || 1;
+  for (const op of run) {
+    ctx.save();
+    try {
+      clipRect(ctx, op.clip, base);
+      prepare(ctx, op.alpha, "source-over");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(layer as unknown as CanvasImageSource, op.dx * scale, 0);
+    } finally {
+      ctx.restore();
+    }
+  }
+}
+
+/** ops[i..i+2] are one picture split into R, G, B (layout.pictureOps): same transform, filter and clip-free, opaque,
+ *  R drawn normally and G, B added with `lighter`, G unshifted, nothing but horizontal offsets differing. */
+function splitTrio(ops: DrawOp[], i: number, host: FxHost): boolean {
+  const [r, g, b] = [ops[i], ops[i + 1], ops[i + 2]];
+  if (r?.op !== "picture" || g?.op !== "picture" || b?.op !== "picture") return false;
+  if (g.channel !== "g" || b.channel !== "b") return false;
+  if (!host.supportsFilter) return false;
+  const same = (o: PictureOp) => o.filter === r.filter && o.alpha === 1 && !o.cutout && o.clip === null && o.dy === 0
+    && o.transform.every((v, k) => v === r.transform[k]);
+  return same(r) && same(g) && same(b) && r.blend === "source-over" && g.blend === "lighter" && b.blend === "lighter"
+    && g.dx === 0 && filterBlur(r.filter) < REDUCED_BLUR_MIN;
+}
+
+/**
+ * RGB split in one pass: the picture is drawn once (transform + filter) into a scratch layer, then red is read from
+ * dxR px away and blue from dxB px away in place (red left → right, blue right → left, so every read is of an unmodified
+ * pixel), and the result replaces the canvas. Same pixels as three channel draws summed with `lighter`, at a third
+ * of the cost (offsets rounded to whole canvas px).
+ */
+function drawSplit(ctx: FxContext2D, r: PictureOp, _g: PictureOp, b: PictureOp, host: FxHost, base: Mat2D) {
+  const size = canvasSize(ctx);
+  if (!size) return;
+  const { width: w, height: h } = size;
+  const layer = scratchCanvas(host, "split", w, h);
+  const sctx = layer.getContext("2d");
+  sctx.save();
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalAlpha = 1;
+  sctx.globalCompositeOperation = "source-over";
+  sctx.fillStyle = "#000000";
+  sctx.fillRect(0, 0, w, h);
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = "high";
+  host.drawPicture(sctx, { ...r, transform: mul(base, r.transform), dx: 0, dy: 0, channel: "rgb", clip: null });
+  sctx.restore();
+  const img = sctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const scale = Math.abs(base[0]) || 1;
+  const sr = -Math.round(r.dx * scale), sb = -Math.round(b.dx * scale);   // out(x) reads in(x + s)
+  shiftChannel(d, w, h, 0, sr);
+  shiftChannel(d, w, h, 2, sb);
+  ctx.putImageData(img, 0, 0);
+}
+
+/** In place: channel c of every row reads from s px to the right (s > 0) or left (s < 0), edges clamped. */
+export function shiftChannel(d: Uint8ClampedArray | Uint8Array, w: number, h: number, c: number, s: number): void {
+  if (s === 0) return;
+  for (let y = 0; y < h; y++) {
+    const row = y * w * 4 + c;
+    if (s > 0) {
+      for (let x = 0; x < w; x++) d[row + x * 4] = d[row + Math.min(w - 1, x + s) * 4];
+    } else {
+      for (let x = w - 1; x >= 0; x--) d[row + x * 4] = d[row + Math.max(0, x + s) * 4];
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------------------------- colour matrices

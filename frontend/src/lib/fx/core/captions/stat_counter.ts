@@ -2,14 +2,16 @@
 // over max(0.6, wordDur + 0.4) s (easeOutExpo) in big tabular digits (every digit has the same advance, measured once,
 // so the number never shuffles sideways while it counts), keeping its prefix, suffix, thousands separators and the
 // spoken number's decimals. At lock it stamps: scale 1.4 → 1 in 120 ms, a −6° tilt, the accent colour and a 2-frame
-// white rim (14u outline, alpha 1 → 0). Size 2.2 × the caption size, centred at y = 0.36, at most 88 % of the width.
+// white rim (14u outline, alpha 1 → 0). Size 2.2 × the caption size, centred at y = 0.36 (moved under the chin or
+// above the hair when that would cover the speaker's head), at most 88 % of the width.
 // The lock lands on the resolver's lock sound (stamp / cash register at start + max(0.6, beat duration + 0.4)).
 import type { DrawOp, Mat2D } from "../host";
 import type { DrawerContext } from "../registry";
 import type { AccentCue } from "../types";
 import { FRAME } from "../types";
 import { clamp01, easeOutBack, easeOutExpo, easeOutQuad, keyframes, progress } from "../easing";
-import { placeAt, textOp } from "../layout";
+import { overlapArea, placeAt, safeRect, textOp } from "../layout";
+import { captionBand, headBox } from "./sticker_slap";
 import { counterFormat, type CounterFormat, type PreparedScene } from "../scene";
 import { BASE_LOOKS, baseCaptionOps } from "./base";
 import { registerAccent, registerCaptionStyle } from "../registry";
@@ -93,6 +95,43 @@ export function counterPx(p: PreparedScene, fmt: CounterFormat, family: string):
 export const stampPeak = (textWidth: number, frameWidth: number): number =>
   textWidth > 0 ? Math.max(1, Math.min(COUNTER.stampFrom, (0.96 * frameWidth) / textWidth)) : COUNTER.stampFrom;
 
+const counterRows = new WeakMap<PreparedScene, Map<string, number>>();
+
+/**
+ * Centre y (px) of a counter: y = 0.36 H when that keeps the number off the speaker's head; otherwise just under the
+ * chin when it fits above the captions, else just above the hair, else whichever of the three covers the head least.
+ * Decided once per cue from the face at its start, so the number never jumps.
+ */
+export function counterCenterY(p: PreparedScene, cue: AccentCue, px: number): number {
+  let rows = counterRows.get(p);
+  if (!rows) { rows = new Map(); counterRows.set(p, rows); }
+  const hit = rows.get(cue.id);
+  if (hit !== undefined) return hit;
+  const H = p.height, u = p.u, half = px * 0.62, gap = 24 * u;
+  const face = p.faceAt(cue.start);
+  const preferred = H * COUNTER.centerY;
+  let y = preferred;
+  if (face) {
+    const head = headBox(face, u);
+    const band = captionBand(p, cue.start, cue.end);
+    const safe = safeRect(p.width, H, p.hookActive(cue.start));
+    const bottomLimit = band ? band.y : safe.y + safe.h;
+    const options = [
+      preferred,
+      head.y + head.h + gap + half,          // under the chin
+      head.y - gap - half,                   // above the hair
+    ];
+    const cost = (cy: number) => {
+      const box = { x: 0, y: cy - half, w: p.width, h: 2 * half };
+      const outside = Math.max(0, safe.y - box.y) + Math.max(0, box.y + box.h - bottomLimit);
+      return overlapArea(box, head) / p.width + outside * 4;
+    };
+    y = options.reduce((best, cy) => (cost(cy) < cost(best) - 1e-6 ? cy : best), preferred);
+  }
+  rows.set(cue.id, y);
+  return y;
+}
+
 function counterOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
   const p = dc.scene, u = dc.u, local = dc.local;
   const fmt = p.counters.get(cue.id) ?? counterFormat(cue);
@@ -113,7 +152,7 @@ function counterOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
     ? keyframes([{ t: 0, v: stampPeak(total, p.width) }, { t: COUNTER.stampDur, v: 1, ease: easeOutQuad }], sinceLock)
     : 0.7 + 0.3 * easeOutBack(enterK);
   const rot = locked ? COUNTER.stampDeg * DEG : 0;
-  const transform: Mat2D = placeAt(p.width / 2, p.height * COUNTER.centerY, rot, scale);
+  const transform: Mat2D = placeAt(p.width / 2, counterCenterY(p, cue, px), rot, scale);
 
   const chars = Array.from(text);
   const xs: number[] = [];

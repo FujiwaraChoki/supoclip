@@ -339,5 +339,145 @@
       "relaxed": "Permitidos",
       "question": "Una pregunta"
     }
+  },
+  "edits": {
+    "section": "Edición",
+    "title": "Intensidad de edición",
+    "body": "La IA marca los momentos que importan. Tú eliges con cuánta fuerza golpea cada uno.",
+    "intensity": {
+      "off": {
+        "label": "Desactivada",
+        "hint": "Cortes limpios, sin añadidos"
+      },
+      "chill": {
+        "label": "Suave",
+        "hint": "Algunos zooms y efectos de sonido sutiles"
+      },
+      "spicy": {
+        "label": "Picante",
+        "hint": "Zooms de golpe, whooshes y música"
+      },
+      "unhinged": {
+        "label": "Desatada",
+        "hint": "Todos los trucos, en cada momento"
+      }
+    },
+    "offHint": "Activa la edición para añadir efectos de sonido, música, zooms y congelados en los momentos que importan.",
+    "groups": {
+      "sound": "Sonido",
+      "motion": "Movimiento",
+      "retention": "Que sigan mirando"
+    },
+    "options": {
+      "sfx": {
+        "label": "Efectos de sonido",
+        "hint": "Whooshes, impactos y pops en los momentos clave"
+      },
+      "music": {
+        "label": "Música",
+        "hint": "Una base que baja cuando habla la voz"
+      },
+      "musicMood": "Estilo de música",
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Acercamientos en los remates y las cifras grandes"
+      },
+      "shake": {
+        "label": "Sacudida de cámara",
+        "hint": "Un golpe en los momentos más fuertes"
+      },
+      "transitions": {
+        "label": "Transiciones",
+        "hint": "Barridos y destellos donde el clip corta"
+      },
+      "speed": {
+        "label": "Rampas de velocidad y congelados",
+        "hint": "Acelera la preparación y congela antes del remate"
+      },
+      "censor": {
+        "label": "Palabrotas",
+        "hint": "Cómo se tapan las malas palabras"
+      },
+      "wait_for_it": {
+        "label": "Sticker «Espera…»",
+        "hint": "Anticipa un remate que está por llegar"
+      },
+      "progress_bar": {
+        "label": "Barra de progreso",
+        "hint": "Una barra fina en el borde inferior"
+      },
+      "loop_ending": {
+        "label": "Final en bucle",
+        "hint": "Funde el final con el inicio para que se repita sin cortes"
+      },
+      "reactions": {
+        "label": "Reacciones GIF",
+        "hint": "Un GIF de reacción en los momentos más graciosos"
+      }
+    },
+    "moods": {
+      "auto": "Según el video",
+      "hype": "Energética",
+      "chill": "Relajada",
+      "dramatic": "Dramática",
+      "funny": "Divertida",
+      "inspiring": "Inspiradora",
+      "dark": "Oscura"
+    },
+    "censor": {
+      "off": "Dejar tal cual",
+      "bleep": "Pitido",
+      "bleep_bar": "Pitido y tapar la boca",
+      "bleep_pixelate": "Pitido y pixelar la boca"
+    }
+  },
+  "animatedCaptions": {
+    "title": "Animados",
+    "body": "Dibujados fotograma a fotograma sobre tu video.",
+    "demoLine": "Nuestros ingresos crecieron un 300% en solo un año",
+    "demoSticker": "¡No puede ser!",
+    "needsFace": "Mejor con una cara a cámara",
+    "templates": {
+      "marker_circle": {
+        "name": "Círculo de rotulador",
+        "description": "Círculos, subrayados y flechas a mano en las palabras clave"
+      },
+      "emoji_drop": {
+        "name": "Lluvia de emojis",
+        "description": "Subtítulos karaoke con emojis que rebotan bajo los remates"
+      },
+      "slam": {
+        "name": "Impacto",
+        "description": "Palabras clave enormes que golpean la pantalla"
+      },
+      "behind_head": {
+        "name": "Detrás de la cabeza",
+        "description": "Palabras gigantes detrás de quien habla"
+      },
+      "stat_counter": {
+        "name": "Contador",
+        "description": "Las cifras dichas suben y se estampan en su sitio"
+      },
+      "sticker_slap": {
+        "name": "Stickers",
+        "description": "Palabras troqueladas pegadas por el encuadre"
+      },
+      "kinetic_stack": {
+        "name": "Pila cinética",
+        "description": "El gancho se apila en filas gruesas"
+      },
+      "decode_glitch": {
+        "name": "Glitch decodificado",
+        "description": "Las letras se mezclan y encajan en su sitio"
+      },
+      "highlighter_swipe": {
+        "name": "Subrayador",
+        "description": "Un subrayador pasa por las palabras clave"
+      },
+      "face_doodles": {
+        "name": "Garabatos en la cara",
+        "description": "Destellos, cuernos y flechas que siguen la cara de quien habla"
+      }
+    }
   }
 }

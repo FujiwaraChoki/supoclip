@@ -9,7 +9,7 @@ import { prepareScene } from "../scene";
 import type { FxCue } from "../types";
 import { captionStyle, fakeMeasureHost, sampleWords } from "../test-utils/fake-host";
 import { expectGolden, renderSceneToPng } from "../test-utils/golden";
-import { drawTestPicture } from "../test-utils/napi-host";
+import { drawTestPicture, drawTexturedTestPicture } from "../test-utils/napi-host";
 import { ASPECTS, bareScene, cue, faceTrack, snap } from "../picture/fixtures";
 import { flashAlpha } from "./flash";
 import { mouthBar } from "./bleep_cover";
@@ -216,7 +216,9 @@ describe("raster goldens", () => {
       cue({ id: "b", kind: "bleep", start: 1, end: 1.5, tone: true, cover: "bar" }),
       cue({ id: "z", kind: "zoom", start: 1, end: 1.5, mode: "punch", scale: 1.2, anchor: "face" }),
     ], 1.2);
-    shot("bleep_pixelate", [cue({ id: "b", kind: "bleep", start: 1, end: 1.5, tone: true, cover: "pixelate" })], 1.2);
+    // A textured face: pixelation must visibly average the checker over the mouth (a flat face would prove nothing).
+    shot("bleep_pixelate", [cue({ id: "b", kind: "bleep", start: 1, end: 1.5, tone: true, cover: "pixelate" })], 1.2, {},
+      (ctx, cutout) => drawTexturedTestPicture(ctx, W, H, cutout));
     shot("sticker_text", [cue({ id: "s", kind: "sticker", start: 1, end: 2, sticker: "text", text: "plot twist" })], 1.5,
       { words: sampleWords(), caption: captionStyle({}, W) });
     shot("sticker_wait_for_it", [cue({ id: "w", kind: "sticker", start: 1, end: 2, sticker: "wait_for_it", text: "" })], 1.5);

@@ -32,7 +32,8 @@ def load_generator():
 
 
 def all_cases():
-    return sorted(FIXTURES.glob("*/*.json"))
+    # Only the shared families: shared/fx/fixtures/scene (studio scenes) is checked by test_editor_fx_render.py.
+    return sorted(path for family in FAMILIES for path in (FIXTURES / family).glob("*.json"))
 
 
 def close(actual, expected, path="$"):

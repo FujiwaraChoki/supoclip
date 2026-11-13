@@ -81,6 +81,40 @@ export function drawTestPicture(ctx: FxContext2D, w: number, h: number, cutout =
   ctx.beginPath();
   ctx.ellipse(fx + fw / 2, fy + fh * 0.18, fw * 0.52, fh * 0.26, 0, Math.PI, 0);
   ctx.fill();
+  // Features where the fixture landmarks put them (picture/fixtures faceRow): eyes, brows, nose, mouth.
+  const u = Math.min(w, h) / 1080;
+  for (const ex of [0.3, 0.7]) {
+    ctx.fillStyle = "#f4efe9";
+    ctx.beginPath(); ctx.ellipse(fx + fw * ex, fy + fh * 0.375, fw * 0.085, fh * 0.04, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2b2420";
+    ctx.beginPath(); ctx.arc(fx + fw * ex, fy + fh * 0.378, fh * 0.034, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#2a1c16"; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(fx + fw * (ex - 0.1), fy + fh * 0.3); ctx.quadraticCurveTo(fx + fw * ex, fy + fh * 0.27, fx + fw * (ex + 0.1), fy + fh * 0.3); ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(120,60,40,0.55)"; ctx.lineWidth = 5 * u;
+  ctx.beginPath(); ctx.moveTo(fx + fw * 0.5, fy + fh * 0.45); ctx.quadraticCurveTo(fx + fw * 0.45, fy + fh * 0.57, fx + fw * 0.52, fy + fh * 0.6); ctx.stroke();
+  ctx.fillStyle = "#6e2a2a";
+  ctx.beginPath(); ctx.ellipse(fx + fw * 0.5, fy + fh * 0.725, fw * 0.16, fh * 0.055, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#f2ede4";
+  ctx.fillRect(fx + fw * 0.4, fy + fh * 0.69, fw * 0.2, fh * 0.022);
+}
+
+/** drawTestPicture plus fine detail (a 6u checker over the lower face) so pixelation and blur show in goldens. */
+export function drawTexturedTestPicture(ctx: FxContext2D, w: number, h: number, cutout = false): void {
+  drawTestPicture(ctx, w, h, cutout);
+  const fx = TEST_FACE.x * w, fy = TEST_FACE.y * h, fw = TEST_FACE.w * w, fh = TEST_FACE.h * h;
+  const cell = Math.max(2, Math.round((6 * Math.min(w, h)) / 1080));
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(fx + fw / 2, fy + fh / 2, fw / 2, fh / 2, 0, 0, Math.PI * 2);
+  ctx.clip();
+  for (let y = Math.floor(fy + fh * 0.55); y < fy + fh; y += cell) {
+    for (let x = Math.floor(fx), k = 0; x < fx + fw; x += cell, k++) {
+      ctx.fillStyle = (k + Math.floor(y / cell)) % 2 ? "rgba(255,255,255,0.45)" : "rgba(40,20,90,0.45)";
+      ctx.fillRect(x, y, cell, cell);
+    }
+  }
+  ctx.restore();
 }
 
 export interface NapiHostOptions {

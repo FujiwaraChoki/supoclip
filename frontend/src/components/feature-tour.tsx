@@ -9,13 +9,15 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { celebrate } from "@/lib/confetti";
 import { track } from "@/lib/datafast";
-import { dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourStep } from "@/lib/feature-tours";
+import { dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourFlag, type TourStep } from "@/lib/feature-tours";
 import type { Workflow } from "@/lib/workflows";
 import { WorkflowGlyph } from "@/components/workflow-picker";
 
 const LAST_SHOWN_KEY = "supoclip.featureTour.lastShown";
 const SEEN_KEY = "supoclip.featureTour.seen";
 const START_DELAY_MS = 900;
+/** How long a step waits for its target after asking the page to open the section or tab it lives in. */
+const REVEAL_TIMEOUT_MS = 1500;
 
 function readLocal(key: string): string | null {
   try { return window.localStorage.getItem(key); } catch { return null; }
@@ -41,6 +43,18 @@ function record(id: string, event: "shown" | "completed" | "dismissed", step?: n
 function targetOf(step: TourStep): HTMLElement | null {
   const element = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
   return element && element.getClientRects().length > 0 && !element.matches(":disabled") ? element : null;
+}
+
+/** Ways the page can bring a hidden target on screen (a closed settings menu, another inspector tab). */
+type Openers = {
+  onSettingsSection?: (id: string) => void;
+  onInspectorTab?: (id: string) => void;
+};
+
+/** A step the tour can show: its target is on the page, or the page can open where it lives. */
+function reachable(step: TourStep, openers: Openers): boolean {
+  if (targetOf(step)) return true;
+  return Boolean((step.settingsSection && openers.onSettingsSection) || (step.inspectorTab && openers.onInspectorTab));
 }
 
 /** `?tour=<id>` replays a tour for checking it, ignoring who has seen what. */
@@ -132,7 +146,7 @@ function AnnouncementMedia({ media, variantsUrl }: { media: Media; /** Previews 
  * Walks through what's new on the real page. It opens by asking, can be left at any
  * step, shows once per account, and steps aside as soon as the user gets to work.
  */
-export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
+export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSection, onInspectorTab }: {
   enabled: boolean;
   /** The user is doing something: don't start, and leave if already showing. */
   busy: boolean;
@@ -140,9 +154,17 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
   onWorkflow?: (workflow: Workflow) => void;
   /** The tour is over: put back what it changed. */
   onEnd?: () => void;
+  /** Open this settings section (a step's `settingsSection`) before its target is measured. Must be idempotent. */
+  onSettingsSection?: (id: string) => void;
+  /** Open this inspector tab (a step's `inspectorTab`) before its target is measured. Must be idempotent. */
+  onInspectorTab?: (id: string) => void;
 }) {
   const t = useTranslations("tours");
   const [account, setAccount] = useState<{ createdAt: string; seen: string[] } | null>(null);
+  // Flags a tour can wait for; null until asked (a failure reads as every flag off).
+  const [flags, setFlags] = useState<Partial<Record<TourFlag, boolean>> | null>(null);
+  const openers = useRef<Openers>({ onSettingsSection, onInspectorTab });
+  useEffect(() => { openers.current = { onSettingsSection, onInspectorTab }; }, [onSettingsSection, onInspectorTab]);
   const [running, setRunning] = useState<{ tour: FeatureTour; steps: TourStep[]; preview: boolean } | null>(null);
   const [index, setIndex] = useState(0);
   const started = useRef(false);
@@ -170,19 +192,33 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => { if (!cancelled && data) setAccount({ createdAt: data.createdAt, seen: Array.isArray(data.seen) ? data.seen : [] }); })
       .catch(() => {});
+    void fetch("/api/feature-flags", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        // `{"platform", "flags": {key: bool}}`: only an explicit true turns a flag on.
+        const source: unknown = data?.flags;
+        const known: Partial<Record<TourFlag, boolean>> = {};
+        if (source && typeof source === "object") for (const [key, value] of Object.entries(source)) if (value === true) known[key as TourFlag] = true;
+        setFlags(known);
+      })
+      .catch(() => { if (!cancelled) setFlags({}); });
     return () => { cancelled = true; };
   }, [enabled]);
 
   useEffect(() => {
-    if (!account || busy || started.current) return;
+    if (!account || !flags || busy || started.current) return;
     const timer = setTimeout(() => {
       const preview = requestedTour();
       const recent = Date.now() - Number(readLocal(LAST_SHOWN_KEY) ?? 0) < TOUR_COOLDOWN_MS;
       if (!preview && recent) return;
-      const candidates = preview ? [preview] : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]);
+      const candidates = preview
+        ? [preview]
+        // A gated feature's tour waits until the feature is on for this account.
+        : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]).filter((tour) => !tour.requiresFlag || flags[tour.requiresFlag] === true);
       // A tour with nothing to show waits: its feature may not be open to this account yet.
       for (const tour of candidates) {
-        const steps = tour.steps.filter((step) => targetOf(step));
+        const steps = tour.steps.filter((step) => reachable(step, openers.current));
         if (!steps.some((step) => !step.intro)) continue;
         // Without its opening there's no feature to introduce yet: save it, don't spend it on the leftovers.
         if (tour.steps.some((step) => step.intro) && !steps.some((step) => step.intro)) continue;
@@ -199,7 +235,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
       }
     }, START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [account, busy]);
+  }, [account, flags, busy]);
 
   useEffect(() => {
     // They started working: keep what they have selected.
@@ -210,7 +246,35 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
   useEffect(() => {
     if (step?.workflow) onWorkflow?.(step.workflow);
   }, [step, onWorkflow]);
-  const target = useMemo(() => (step ? targetOf(step) : null), [step]);
+  // A target in a closed menu or another tab: ask the page to open it, then wait for it to appear.
+  const [revealed, setRevealed] = useState<{ step: TourStep; element: HTMLElement } | null>(null);
+  const direct = useMemo(() => (step ? targetOf(step) : null), [step]);
+  const target = direct ?? (revealed && revealed.step === step ? revealed.element : null);
+  useEffect(() => {
+    if (!step || step.intro) return;
+    if (step.settingsSection) openers.current.onSettingsSection?.(step.settingsSection);
+    if (step.inspectorTab) openers.current.onInspectorTab?.(step.inspectorTab);
+    if (direct) return;
+    const deadline = performance.now() + REVEAL_TIMEOUT_MS;
+    let frame = 0;
+    const look = () => {
+      const element = targetOf(step);
+      if (element) {
+        setRevealed({ step, element });
+        return;
+      }
+      if (performance.now() < deadline) {
+        frame = requestAnimationFrame(look);
+        return;
+      }
+      // Still not there (the section isn't offered after all): move on rather than hang.
+      const current = runningRef.current;
+      if (current && indexRef.current < current.steps.length - 1) setIndex(indexRef.current + 1);
+      else end("dismissed");
+    };
+    frame = requestAnimationFrame(look);
+    return () => cancelAnimationFrame(frame);
+  }, [step, direct, end]);
   useEffect(() => {
     target?.scrollIntoView?.({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [target]);

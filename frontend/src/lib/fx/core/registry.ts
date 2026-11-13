@@ -6,8 +6,10 @@ import type { FxClock } from "./frame";
 import type { PreparedScene } from "./scene";
 
 export type Layer = "picture" | "pixel" | "behind" | "overlay" | "caption" | "flash" | "cover" | "retention" | "loop";
-/** Layers bottom → top (§6.5). "picture" holds no drawer ops; the base picture op is built by frame.ts. */
-export const LAYERS: readonly Layer[] = ["picture", "pixel", "behind", "overlay", "caption", "flash", "cover", "retention", "loop"];
+/** Layers bottom → top (§6.5). "picture" holds no drawer ops; the base picture op is built by frame.ts.
+ *  "behind" (big text + the person cutout) sits BELOW "pixel" (grade tint/vignette/glow, grain) so the person redrawn
+ *  over the text keeps the frame's grade and grain, and the text sits in the graded scene like it was filmed (D7). */
+export const LAYERS: readonly Layer[] = ["picture", "behind", "pixel", "overlay", "caption", "flash", "cover", "retention", "loop"];
 
 export interface DrawerContext {
   scene: PreparedScene; clock: FxClock;

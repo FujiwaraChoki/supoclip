@@ -1,0 +1,97 @@
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { recordingContext } from "@/lib/fx/core/test-utils/fake-host";
+import { DEMO_STATIC_T } from "@/lib/fx/demo-scene";
+import { CaptionStyleTiles, type CaptionStyleOption } from "./caption-style-tiles";
+
+const rendered = vi.hoisted(() => ({ calls: [] as { template: string; e: number }[] }));
+
+vi.mock("@/lib/fx/core/render", () => ({
+  renderFrame: vi.fn((_ctx: unknown, prepared: { scene: { template: string } }, clock: { e: number }) => {
+    rendered.calls.push({ template: prepared.scene.template, e: clock.e });
+  }),
+}));
+// No network or FontFace in jsdom: assets simply never arrive.
+vi.mock("@/lib/fx/assets-client", () => ({ loadFxAtlas: () => new Promise(() => {}) }));
+vi.mock("@/lib/fx/browser-host", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/fx/browser-host")>()),
+  loadFxFont: () => new Promise(() => {}),
+}));
+
+const OPTIONS: CaptionStyleOption[] = [{ id: "slam" }, { id: "behind_head" }, { id: "stat_counter", name: "Server name" }];
+
+function stubMotion(reduce: boolean) {
+  vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+    matches: reduce && query.includes("reduce"), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  })));
+}
+
+beforeEach(() => {
+  rendered.calls = [];
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (this: HTMLCanvasElement) {
+    return recordingContext(this.width, this.height).ctx as never;
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe("CaptionStyleTiles", () => {
+  it("is a radio group of named tiles the tour can point at", () => {
+    stubMotion(true);
+    const onChange = vi.fn();
+    render(<CaptionStyleTiles options={OPTIONS} value="behind_head" onChange={onChange} />);
+    const group = screen.getByRole("radiogroup", { name: "Animated" });
+    expect(group).toHaveAttribute("data-tour", "caption-styles");
+    expect(screen.getByRole("radio", { name: "Behind Head" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Slam" })).toHaveAttribute("aria-checked", "false");
+    // Our own words win over the server's English name.
+    expect(screen.getByRole("radio", { name: "Stat Counter" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Behind Head" })).toHaveAccessibleDescription("Giant words that sit behind the speaker");
+    expect(screen.getAllByText("Best with a face on camera")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Slam" }));
+    expect(onChange).toHaveBeenLastCalledWith("slam");
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Behind Head" }), { key: "ArrowRight" });
+    expect(onChange).toHaveBeenLastCalledWith("stat_counter");
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Slam" }), { key: "ArrowLeft" });
+    expect(onChange).toHaveBeenLastCalledWith("stat_counter");
+  });
+
+  it("draws one still frame per tile with reduced motion", async () => {
+    stubMotion(true);
+    const raf = vi.spyOn(window, "requestAnimationFrame");
+    render(<CaptionStyleTiles options={OPTIONS} value="slam" onChange={() => {}} />);
+    await act(async () => {});
+    for (const canvas of document.querySelectorAll("canvas")) expect(canvas).toHaveAttribute("data-motion", "static");
+    expect(raf).not.toHaveBeenCalled();
+    expect(new Set(rendered.calls.map((call) => call.template))).toEqual(new Set(["slam", "behind_head", "stat_counter"]));
+    expect(rendered.calls.every((call) => call.e === DEMO_STATIC_T)).toBe(true);
+  });
+
+  it("animates on one shared clock otherwise", async () => {
+    stubMotion(false);
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const { unmount } = render(<CaptionStyleTiles options={OPTIONS} value="slam" onChange={() => {}} />);
+    await act(async () => {});
+    for (const canvas of document.querySelectorAll("canvas")) expect(canvas).toHaveAttribute("data-motion", "animated");
+    // One frame request drives every tile.
+    expect(raf).toHaveBeenCalledTimes(1);
+    const tick = raf.mock.calls[0][0];
+    rendered.calls = [];
+    act(() => tick(performance.now() + 1000));
+    expect(rendered.calls.map((call) => call.template).sort()).toEqual(["behind_head", "slam", "stat_counter"]);
+    unmount();
+    expect(window.cancelAnimationFrame).toHaveBeenCalled();
+  });
+
+  it("renders nothing without options", () => {
+    stubMotion(true);
+    const { container } = render(<CaptionStyleTiles options={[]} value="default" onChange={() => {}} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});

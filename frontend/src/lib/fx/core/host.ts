@@ -13,7 +13,8 @@ export type DrawOp =
       clip: [number, number, number, number] | null }           // base picture (video + B-roll + PiP); cutout = alpha-masked person
   | { op: "text"; text: string; font: string; px: number; x: number; y: number; align: "left" | "center" | "right";
       fill: string | null; stroke: string | null; strokePx: number; join: "round" | "miter"; shadow: Shadow | null;
-      letterSpacing: number; transform: Mat2D; alpha: number; blend: Blend }
+      letterSpacing: number; transform: Mat2D; alpha: number; blend: Blend;
+      clip?: [number, number, number, number] | null }           // clip: output-px band (glitch slices), not transformed
   | { op: "path"; points: number[]; closed: boolean; smooth: boolean; stroke: string | null; strokePx: number;
       fill: string | null; cap: "round" | "butt"; dash: [number, number] | null; dashOffset: number;
       transform: Mat2D; alpha: number; blend: Blend }             // points = [x0,y0,x1,y1,...]

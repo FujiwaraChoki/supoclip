@@ -339,5 +339,145 @@
       "relaxed": "Allowed",
       "question": "A question"
     }
+  },
+  "edits": {
+    "section": "Edits",
+    "title": "Edit intensity",
+    "body": "The AI tags the moments that matter. You pick how hard each one hits.",
+    "intensity": {
+      "off": {
+        "label": "Off",
+        "hint": "Clean cuts, nothing added"
+      },
+      "chill": {
+        "label": "Chill",
+        "hint": "A few zooms and soft sound effects"
+      },
+      "spicy": {
+        "label": "Spicy",
+        "hint": "Punch-ins, whooshes and music"
+      },
+      "unhinged": {
+        "label": "Unhinged",
+        "hint": "Every trick, every beat"
+      }
+    },
+    "offHint": "Turn edits on to add sound effects, music, zooms and freeze frames on the moments that matter.",
+    "groups": {
+      "sound": "Sound",
+      "motion": "Motion",
+      "retention": "Keep them watching"
+    },
+    "options": {
+      "sfx": {
+        "label": "Sound effects",
+        "hint": "Whooshes, impacts and pops on the beats"
+      },
+      "music": {
+        "label": "Music",
+        "hint": "A bed that ducks under the voice"
+      },
+      "musicMood": "Music mood",
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Punch in on punchlines and big numbers"
+      },
+      "shake": {
+        "label": "Camera shake",
+        "hint": "A jolt on the hardest hits"
+      },
+      "transitions": {
+        "label": "Transitions",
+        "hint": "Whips and flashes where the clip cuts"
+      },
+      "speed": {
+        "label": "Speed ramps and freezes",
+        "hint": "Speed through set-ups, freeze before a payoff"
+      },
+      "censor": {
+        "label": "Swearing",
+        "hint": "How bad words are covered"
+      },
+      "wait_for_it": {
+        "label": "“Wait for it” sticker",
+        "hint": "Teases a payoff that's coming"
+      },
+      "progress_bar": {
+        "label": "Progress bar",
+        "hint": "A thin bar along the bottom edge"
+      },
+      "loop_ending": {
+        "label": "Loop ending",
+        "hint": "Fades the end into the start so it replays smoothly"
+      },
+      "reactions": {
+        "label": "GIF reactions",
+        "hint": "A reaction GIF on the funniest moments"
+      }
+    },
+    "moods": {
+      "auto": "Match the video",
+      "hype": "Hype",
+      "chill": "Chill",
+      "dramatic": "Dramatic",
+      "funny": "Funny",
+      "inspiring": "Inspiring",
+      "dark": "Dark"
+    },
+    "censor": {
+      "off": "Leave as is",
+      "bleep": "Bleep",
+      "bleep_bar": "Bleep and cover mouth",
+      "bleep_pixelate": "Bleep and pixelate mouth"
+    }
+  },
+  "animatedCaptions": {
+    "title": "Animated",
+    "body": "Drawn frame by frame on top of your video.",
+    "demoLine": "Our revenue grew 300% in just one year",
+    "demoSticker": "No way!",
+    "needsFace": "Best with a face on camera",
+    "templates": {
+      "marker_circle": {
+        "name": "Marker Circle",
+        "description": "Hand-drawn circles, underlines and arrows on the key words"
+      },
+      "emoji_drop": {
+        "name": "Emoji Drop",
+        "description": "Karaoke captions with emoji that bounce in under the punchlines"
+      },
+      "slam": {
+        "name": "Slam",
+        "description": "Huge keywords slam onto the screen"
+      },
+      "behind_head": {
+        "name": "Behind Head",
+        "description": "Giant words that sit behind the speaker"
+      },
+      "stat_counter": {
+        "name": "Stat Counter",
+        "description": "Spoken numbers count up and stamp into place"
+      },
+      "sticker_slap": {
+        "name": "Sticker Slap",
+        "description": "Die-cut sticker words slapped around the frame"
+      },
+      "kinetic_stack": {
+        "name": "Kinetic Stack",
+        "description": "The hook stacks up the screen in bold rows"
+      },
+      "decode_glitch": {
+        "name": "Decode Glitch",
+        "description": "Letters scramble and lock into place"
+      },
+      "highlighter_swipe": {
+        "name": "Highlighter Swipe",
+        "description": "A highlighter swiped across the key words"
+      },
+      "face_doodles": {
+        "name": "Face Doodles",
+        "description": "Sparkles, horns and arrows that follow the speaker's face"
+      }
+    }
   }
 }

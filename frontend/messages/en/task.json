@@ -281,5 +281,17 @@
       "bumps": "A few bumps along the way. We're working through them—just a little more time.",
       "slower": "Things are moving a bit slower than usual. We're still on it."
     }
+  },
+  "fx": {
+    "title": "Edits",
+    "intensity": "Edit intensity",
+    "intensityHint": "How hard the edits hit. Changing it re-renders every clip.",
+    "rendering": "Rendering edits…",
+    "queued": "Re-rendering your clips. This can take a few minutes; you can leave this page.",
+    "applied": "Edits applied",
+    "jobFailed": "The edits couldn't be applied: {message}",
+    "retry": "Try again",
+    "approxTiming": "This video had no word timing, so captions and effects follow approximate timing.",
+    "simplified": "Some effects were simplified for this clip."
   }
 }

@@ -281,5 +281,17 @@
       "bumps": "Ada beberapa rintangan di perjalanan. Sedang kami atasi—butuh sedikit waktu lagi.",
       "slower": "Prosesnya sedikit lebih lambat dari biasanya. Kami masih mengerjakannya."
     }
+  },
+  "fx": {
+    "title": "Editan",
+    "intensity": "Intensitas editan",
+    "intensityHint": "Seberapa keras editan menghantam. Mengubahnya merender ulang semua klip.",
+    "rendering": "Merender editan…",
+    "queued": "Merender ulang klipmu. Ini bisa makan beberapa menit; kamu boleh meninggalkan halaman ini.",
+    "applied": "Editan diterapkan",
+    "jobFailed": "Editan tidak bisa diterapkan: {message}",
+    "retry": "Coba lagi",
+    "approxTiming": "Video ini tidak punya waktu per kata, jadi teks dan efek mengikuti waktu perkiraan.",
+    "simplified": "Beberapa efek disederhanakan untuk klip ini."
   }
 }

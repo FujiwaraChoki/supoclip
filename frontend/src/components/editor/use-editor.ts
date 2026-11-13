@@ -32,7 +32,7 @@ interface History {
 }
 
 function upgradeCachedHistory(history: History, server: EditDocument): History {
-  const upgrade = (document: EditDocument): EditDocument => ({
+  const upgrade = (document: EditDocument): EditDocument => withFx({
     ...server,
     ...document,
     // Missing means this cache predates editable B-roll; [] is an intentional removal.
@@ -46,6 +46,13 @@ function upgradeCachedHistory(history: History, server: EditDocument): History {
     ...(document.captionTransforms !== undefined || server.captionTransforms !== undefined
       ? { captionTransforms: Object.fromEntries(Object.entries(document.captionTransforms ?? {}).map(([key, value]) => [key, { ...value, size: value.size ?? null }])) } : {}),
   });
+  // Crazy edits: a cached draft without `fx` predates them, and null means absent (the server reads both alike and
+  // seeds the clip's edits), so both take the server's. "Removed" is an inert DocFx, never null. Null is never kept.
+  const withFx = (document: EditDocument): EditDocument => {
+    const { fx, ...rest } = document;
+    const value = fx ?? server.fx;
+    return value ? { ...rest, fx: structuredClone(value) } : rest;
+  };
   return {
     past: history.past.map(upgrade),
     present: upgrade(history.present),

@@ -2,7 +2,8 @@
 // scrambles through A-Z0-9#%&@ (Latin) or the word's own letters shuffled (other scripts) and locks left → right over
 // 180 ms — with an RGB split on the text (three `screen` draws, ±4u) for the first 120 ms and 2u scanlines at 8 % over
 // the line box. The `decode` accent re-runs that treatment on its words at 1.3× (the line re-flows around them) and
-// jolts the line sideways for 2 frames with a pair of glitch slices.
+// tears the line for 2 frames: horizontal slices of the text jump sideways by different amounts (clipped text ops),
+// with a pair of thin glitch bars.
 //
 // Without an on-screen decode_glitch line to live in (another template, captions off or hidden), a decode accent draws
 // its text on its own above the caption band.
@@ -11,7 +12,7 @@ import { BASE_LOOKS, cssColor } from "./base";
 import { registerAccent, registerCaptionStyle, type CaptionChunk, type DrawerContext } from "../registry";
 import type { AccentCue } from "../types";
 import { clamp01, easeOutBack, easeOutQuad, keyframes, progress } from "../easing";
-import { gradientOp, rectOp, textOp } from "../layout";
+import { gradientOp, mul, rectOp, textOp, translation } from "../layout";
 import type { PreparedScene } from "../scene";
 import { captionsHidden, cueWords } from "./highlighter_swipe";
 import { captionSafe } from "../constants";
@@ -125,6 +126,33 @@ function sliceOps(x: number, y: number, w: number, h: number, frame: number, loo
   });
 }
 
+/** Horizontal slices on a jolt frame: the band split (seeded per frame) and each band's offset. */
+export function sliceBands(y0: number, y1: number, frame: number, amp: number, hash: (n: number) => number):
+  { y: number; h: number; dx: number }[] {
+  const n = 3 + Math.floor(hash(700 + frame) * 3);           // 3–5 bands
+  const cuts = Array.from({ length: n - 1 }, (_, i) => (i + 1) / n + (hash(710 + frame * 8 + i) - 0.5) * (0.6 / n)).sort((a, b) => a - b);
+  const edges = [0, ...cuts, 1];
+  const strong = Math.floor(hash(730 + frame) * n);          // the band that jumps the full amount
+  const counter = (strong + 1 + Math.floor(hash(731 + frame) * (n - 1))) % n;   // one band kicks the other way
+  return edges.slice(0, -1).map((e, i) => {
+    const k = i === strong ? 1 : i === counter ? -0.6 : (hash(740 + frame * 8 + i) - 0.5) * 0.4;
+    return { y: y0 + (y1 - y0) * e, h: (y1 - y0) * (edges[i + 1] - e), dx: Math.round(amp * k * 100) / 100 };
+  });
+}
+
+/** Text ops cut into the bands: one clipped copy per band, shifted by the band's offset. Other ops unchanged. */
+export function sliceTextOps(ops: DrawOp[], bands: readonly { y: number; h: number; dx: number }[], x: number, w: number): DrawOp[] {
+  const out: DrawOp[] = [];
+  for (const op of ops) {
+    if (op.op !== "text") { out.push(op); continue; }
+    for (const b of bands) {
+      if (b.h <= 0) continue;
+      out.push({ ...op, transform: mul(translation(b.dx, 0), op.transform), clip: [x, b.y, w, b.h] });
+    }
+  }
+  return out;
+}
+
 /** Active decode accents (t inside the cue). */
 function decodeCues(p: PreparedScene, t: number): AccentCue[] {
   return (p.cuesByKind.get("accent") ?? []).filter((c): c is AccentCue =>
@@ -233,13 +261,20 @@ export function decodeLineOps(chunk: CaptionChunk, dc: Omit<DrawerContext, "loca
   if (look.box) {
     for (const b of boxes) {
       const padX = px * 0.32, padY = px * 0.16;
-      ops.push(rectOp({ x: b.x - padX + jolt, y: b.y - padY, w: b.w + 2 * padX, h: b.h + 2 * padY, radius: px * 0.22, fill: look.box }));
+      ops.push(rectOp({ x: b.x - padX, y: b.y - padY, w: b.w + 2 * padX, h: b.h + 2 * padY, radius: px * 0.22, fill: look.box }));
     }
   }
-  ops.push(...pieceOps(pieces, look, jolt));
+  let text = pieceOps(pieces, look, 0);
+  if (joltFrame >= 0) {
+    // The jolt: the line is cut into horizontal slices that jump sideways by different amounts (real displacement,
+    // the letters tear), across every line of the chunk.
+    const y0 = Math.min(...boxes.map((b) => b.y)) - px * 0.6, y1 = Math.max(...boxes.map((b) => b.y + b.h)) + px * 0.6;
+    text = sliceTextOps(text, sliceBands(y0, y1, joltFrame, Math.abs(jolt) * 1.6, dc.hash), 0, p.width);
+  }
+  ops.push(...text);
   for (const b of boxes) {
     const padY = b.h * 0.12;
-    ops.push(...scanlineOps(b.x - px * 0.1 + jolt, b.y - padY, b.w + px * 0.2, b.h + 2 * padY, dc.u));
+    ops.push(...scanlineOps(b.x - px * 0.1, b.y - padY, b.w + px * 0.2, b.h + 2 * padY, dc.u));
     if (joltFrame >= 0) ops.push(...sliceOps(b.x - px * 0.1, b.y, b.w + px * 0.2, b.h, joltFrame, look, jolt));
   }
   return ops;
@@ -264,9 +299,11 @@ export function standaloneDecodeOps(cue: AccentCue, dc: DrawerContext): DrawOp[]
   const look = lookFor(p, dc, family, px, out);
   const jolt = joltAt(dc.local, u, dc.hash);
   const piece: Piece = { text, x: (W - width) / 2, y, px, w: width, line: 0, decode: dc.local, first: 0, total: Array.from(text).length, accent: false };
-  const ops = [...pieceOps([piece], look, jolt), ...scanlineOps(piece.x - px * 0.1 + jolt, y - px * 0.62, width + px * 0.2, px * 1.24, u, out)];
   const frame = Math.floor(dc.local * 30 + 1e-6);
-  if (frame < DECODE_JOLT_FRAMES) ops.push(...sliceOps(piece.x - px * 0.1, y - px / 2, width + px * 0.2, px, frame, look, jolt));
+  let textOps = pieceOps([piece], look, 0);
+  if (jolt !== 0) textOps = sliceTextOps(textOps, sliceBands(y - px * 1.1, y + px * 1.1, frame, Math.abs(jolt) * 1.6, dc.hash), 0, W);
+  const ops = [...textOps, ...scanlineOps(piece.x - px * 0.1, y - px * 0.62, width + px * 0.2, px * 1.24, u, out)];
+  if (dc.local >= 0 && frame < DECODE_JOLT_FRAMES) ops.push(...sliceOps(piece.x - px * 0.1, y - px / 2, width + px * 0.2, px, frame, look, jolt));
   return ops;
 }
 

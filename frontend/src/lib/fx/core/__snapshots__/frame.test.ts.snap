@@ -72,7 +72,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.25 1`] =
       17.853,
       24.994,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 756,
   },
   {
@@ -132,7 +132,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.25 1`] =
       17.853,
       24.994,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 756,
   },
   {
@@ -157,7 +157,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.25 1`] =
       17.853,
       24.994,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 756,
   },
   {
@@ -207,7 +207,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.25 1`] =
       17.853,
       24.994,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 756,
   },
 ]
@@ -261,7 +261,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 756,
   },
   {
@@ -321,7 +321,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 756,
   },
   {
@@ -346,7 +346,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 756,
   },
   {
@@ -396,7 +396,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 756,
   },
 ]
@@ -450,7 +450,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=1.3 1`] = 
       31.739,
       44.434,
     ],
-    "x": 304.05,
+    "x": 295.05,
     "y": 756,
   },
   {
@@ -510,7 +510,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=1.3 1`] = 
       31.739,
       44.434,
     ],
-    "x": 647.25,
+    "x": 656.25,
     "y": 756,
   },
   {
@@ -535,7 +535,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=1.3 1`] = 
       31.739,
       44.434,
     ],
-    "x": 304.05,
+    "x": 295.05,
     "y": 756,
   },
   {
@@ -585,7 +585,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1080 > t=1.3 1`] = 
       31.739,
       44.434,
     ],
-    "x": 647.25,
+    "x": 656.25,
     "y": 756,
   },
 ]
@@ -687,7 +687,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.25 1`] =
       17.853,
       44.434,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 1344,
   },
   {
@@ -747,7 +747,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.25 1`] =
       17.853,
       44.434,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 1344,
   },
   {
@@ -772,7 +772,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.25 1`] =
       17.853,
       44.434,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 1344,
   },
   {
@@ -822,7 +822,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.25 1`] =
       17.853,
       44.434,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 1344,
   },
 ]
@@ -876,7 +876,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 1344,
   },
   {
@@ -936,7 +936,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 1344,
   },
   {
@@ -961,7 +961,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 196.8,
+    "x": 187.8,
     "y": 1344,
   },
   {
@@ -1011,7 +1011,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 711.6,
+    "x": 720.6,
     "y": 1344,
   },
 ]
@@ -1065,7 +1065,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=1.3 1`] = 
       31.739,
       78.994,
     ],
-    "x": 304.05,
+    "x": 295.05,
     "y": 1344,
   },
   {
@@ -1125,7 +1125,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=1.3 1`] = 
       31.739,
       78.994,
     ],
-    "x": 647.25,
+    "x": 656.25,
     "y": 1344,
   },
   {
@@ -1150,7 +1150,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=1.3 1`] = 
       31.739,
       78.994,
     ],
-    "x": 304.05,
+    "x": 295.05,
     "y": 1344,
   },
   {
@@ -1200,7 +1200,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1080x1920 > t=1.3 1`] = 
       31.739,
       78.994,
     ],
-    "x": 647.25,
+    "x": 656.25,
     "y": 1344,
   },
 ]
@@ -1302,7 +1302,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.25 1`] =
       31.739,
       24.994,
     ],
-    "x": 616.8,
+    "x": 607.8,
     "y": 756,
   },
   {
@@ -1362,7 +1362,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.25 1`] =
       31.739,
       24.994,
     ],
-    "x": 1131.6,
+    "x": 1140.6,
     "y": 756,
   },
   {
@@ -1387,7 +1387,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.25 1`] =
       31.739,
       24.994,
     ],
-    "x": 616.8,
+    "x": 607.8,
     "y": 756,
   },
   {
@@ -1437,7 +1437,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.25 1`] =
       31.739,
       24.994,
     ],
-    "x": 1131.6,
+    "x": 1140.6,
     "y": 756,
   },
 ]
@@ -1491,7 +1491,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 616.8,
+    "x": 607.8,
     "y": 756,
   },
   {
@@ -1551,7 +1551,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 1131.6,
+    "x": 1140.6,
     "y": 756,
   },
   {
@@ -1576,7 +1576,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 616.8,
+    "x": 607.8,
     "y": 756,
   },
   {
@@ -1626,7 +1626,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=0.45 1`] =
       0,
       0,
     ],
-    "x": 1131.6,
+    "x": 1140.6,
     "y": 756,
   },
 ]
@@ -1680,7 +1680,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=1.3 1`] = 
       56.424,
       44.434,
     ],
-    "x": 724.05,
+    "x": 715.05,
     "y": 756,
   },
   {
@@ -1740,7 +1740,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=1.3 1`] = 
       56.424,
       44.434,
     ],
-    "x": 1067.25,
+    "x": 1076.25,
     "y": 756,
   },
   {
@@ -1765,7 +1765,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=1.3 1`] = 
       56.424,
       44.434,
     ],
-    "x": 724.05,
+    "x": 715.05,
     "y": 756,
   },
   {
@@ -1815,7 +1815,7 @@ exports[`base captions frameOps > snapshots at 5 times, 1920x1080 > t=1.3 1`] = 
       56.424,
       44.434,
     ],
-    "x": 1067.25,
+    "x": 1076.25,
     "y": 756,
   },
 ]
