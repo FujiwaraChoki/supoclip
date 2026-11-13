@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-13
 
-- **Fixed:** A generation whose processing was interrupted several times (for example by server restarts) now ends with a message asking you to retry, and gives back its minutes if no clips were made. Before, it could stay "processing" forever with the minutes used. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** A generation whose processing was interrupted several times (for example by server restarts) now ends with a message asking you to retry, and gives back its minutes if no clips were made. Before, it could stay "processing" forever with the minutes used. ([#383](https://github.com/FujiwaraChoki/supoclip/pull/383))
 
 ## 2026-11-12
 
