@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+from array import array
+import math
 import shutil
 import subprocess
 from types import SimpleNamespace
@@ -19,8 +21,17 @@ from tests.fixtures.editor_store import stored_state
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+@pytest.mark.parametrize(
+    "audio_settings",
+    [
+        None,
+        ((False, 1.0), (True, 1.0)),
+        ((True, 1.0), (False, 1.0)),
+        ((False, 0.5), (False, 1.0)),
+    ],
+)
 async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
-    tmp_path, monkeypatch, editor_store
+    tmp_path, monkeypatch, editor_store, audio_settings
 ):
     from src.config import Config
 
@@ -34,6 +45,14 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
     for clip in clips:
         directory = editor_dir(str(tmp_path), "task", clip["id"], clip["filename"])
         directory.mkdir(parents=True)
+        audio_input = (
+            [
+                "-f", "lavfi", "-i",
+                "sine=frequency=440:sample_rate=48000:duration=1",
+                "-c:a", "aac",
+            ]
+            if audio_settings else []
+        )
         subprocess.run(
             [
                 "ffmpeg",
@@ -44,6 +63,7 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
                 "lavfi",
                 "-i",
                 "color=blue:size=320x180:rate=30:duration=1",
+                *audio_input,
                 "-c:v",
                 "libx264",
                 str(directory / "clean.mp4"),
@@ -56,13 +76,20 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
                 "segments": [{"id": "a", "start": 0.1, "end": 0.9}],
                 "words": [{"id": "w", "start": 0.2, "end": 0.8, "text": clip["id"]}],
                 "framing": {"aspect": "original"},
+                **(
+                    {
+                        "muted": audio_settings[clip["clip_order"] - 1][0],
+                        "volume": audio_settings[clip["clip_order"] - 1][1],
+                    }
+                    if audio_settings else {}
+                ),
             }
         )
         entries.append(
             {
                 **clip,
                 "document": doc.model_dump(),
-                "state": {"width": 320, "height": 180, "hasAudio": False},
+                "state": {"width": 320, "height": 180, "hasAudio": bool(audio_settings)},
                 "ranges": [[0, 1]],
             }
         )
@@ -112,6 +139,38 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
     ]
     assert combined["duration"] == pytest.approx(1.6, abs=0.1)
     assert combined["draft"]["document"]["hookTitle"] == ""
+    assert combined["draft"]["document"]["muted"] is False
+    assert combined["draft"]["document"]["volume"] == 1
+    if audio_settings:
+        # Check decoded samples away from AAC boundaries. Both the clean asset
+        # and final export must retain each draft's individual audio gain.
+        directory = editor_dir(str(tmp_path), "task", state["clip_id"], filename)
+        anchor = editor_dir(str(tmp_path), "task", "clip1", "clip1.mp4")
+        levels = []
+        for path in (directory / "clean.mp4", anchor / f"export-{job}.mp4"):
+            decoded = subprocess.run(
+                [
+                    "ffmpeg", "-v", "error", "-i", str(path), "-vn", "-ac", "1",
+                    "-ar", "48000", "-f", "s16le", "pipe:1",
+                ],
+                capture_output=True,
+                check=True,
+            )
+            samples = array("h", decoded.stdout)
+            measured = []
+            for index, (muted, volume) in enumerate(audio_settings):
+                start = int((index * 0.8 + 0.2) * 48000)
+                end = int((index * 0.8 + 0.6) * 48000)
+                window = samples[start:end]
+                rms = math.sqrt(sum(value * value for value in window) / len(window))
+                if muted:
+                    assert rms < 10
+                else:
+                    # FFmpeg's sine source has a peak amplitude of about 4096.
+                    assert rms == pytest.approx(4096 / math.sqrt(2) * volume, rel=0.15)
+                measured.append(rms)
+            levels.append(measured)
+        assert levels[1] == pytest.approx(levels[0], abs=20, rel=0.05)
     repository.reorder_task_clips.assert_awaited_once()
 
 
