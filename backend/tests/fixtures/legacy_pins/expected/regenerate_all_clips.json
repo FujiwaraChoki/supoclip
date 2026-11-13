@@ -1,0 +1,76 @@
+{
+  "legacy_clip": {
+    "create_clip_kwargs": {
+      "clip_order": 1,
+      "duration": 9.3,
+      "end_time": "00:19",
+      "engagement_score": 0,
+      "file_path": "<TMP>/new.mp4",
+      "filename": "new.mp4",
+      "hook_score": 0,
+      "hook_title": null,
+      "hook_type": null,
+      "reasoning": "Regenerated with updated settings",
+      "relevance_score": 0.5,
+      "shareability_score": 0,
+      "start_time": "00:09",
+      "task_id": "task-1",
+      "text": "So I lost",
+      "value_score": 0,
+      "virality_score": 0
+    },
+    "create_video_clips": {
+      "args": [
+        "<TMP>/source.mp4",
+        [
+          {
+            "broll": [
+              {
+                "duration": 3.0,
+                "footage_offset": 0.5,
+                "pexels_id": 3943723,
+                "query": "stack of cash",
+                "start": 2.0
+              }
+            ],
+            "end_time": "00:19",
+            "engagement_score": 20,
+            "hook_score": 20,
+            "hook_title": "I lost forty grand in one night",
+            "hook_type": "story",
+            "keep_ranges": [
+              [
+                9.9,
+                19.2
+              ]
+            ],
+            "reasoning": "Hook",
+            "relevance_score": 0.9,
+            "shareability_score": 20,
+            "start_time": "00:10",
+            "text": "So I lost",
+            "value_score": 20,
+            "virality_score": 80
+          }
+        ],
+        null,
+        34,
+        "#FFFFFF",
+        "podcast",
+        "vertical",
+        true,
+        {
+          "cut_long_pauses": false,
+          "filtered_words": [],
+          "pause_threshold_ms": 900,
+          "remove_filler_words": false
+        }
+      ],
+      "kwargs": {
+        "include_broll": true,
+        "max_clip_seconds": 60,
+        "max_short_side": null
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_accented_caps",
+  "fn": "censor_text",
+  "input": {
+    "text": "ÉCOLE"
+  },
+  "expected": "É****"
+}

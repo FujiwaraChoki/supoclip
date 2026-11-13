@@ -1,0 +1,13 @@
+
+                        INSERT INTO tasks (
+                            id, user_id, source_id, status, font_family, font_size, font_color,
+                            caption_template, include_broll, processing_mode,
+                            source_duration_seconds, workflow, workflow_options, created_at, updated_at
+                        )
+                        VALUES (
+                            :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                            :caption_template, :include_broll, :processing_mode,
+                            :source_duration_seconds, :workflow, CAST(:workflow_options AS JSONB), NOW(), NOW()
+                        )
+                        RETURNING id
+                    

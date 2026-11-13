@@ -137,6 +137,43 @@ each machine's worker log to see what it processed.
 `GET /health/worker` reports that at least one video worker is alive; it does
 not say which.
 
+## Crazy edits renderer (deno)
+
+Clips with crazy edits are drawn by `src/fx_runtime/main.ts`, a deno program that
+sits between two ffmpeg processes. The image carries everything it needs:
+
+- **deno 2.9.8**, pinned by `ARG DENO_VERSION` in `backend/Dockerfile`. yt-dlp
+  uses the same binary.
+- **`@napi-rs/canvas` 0.1.80**, pinned by `src/fx_runtime/deno.lock` and
+  downloaded into `DENO_DIR` (`/root/.deno`) when the image is built. Renders
+  run with `--cached-only --frozen`, so a worker needs no network access to
+  draw. A machine running from a source checkout instead of the image runs
+  `cd backend/src/fx_runtime && deno install --frozen` once.
+- **The same `fx_library/` on every machine** when you add your own sounds or
+  music (`FX_LIBRARY_DIR`). The plan never depends on them, but the mix does:
+  machines with different libraries make the same clip sound different. Each
+  render logs a library fingerprint.
+
+Check a machine with:
+
+```sh
+docker compose -f deploy/render-worker/compose.yml exec worker \
+  sh -c 'cd src/fx_runtime && deno task selftest'
+```
+
+It prints one JSON line ending in `"ok":true` and exits 0. It needs no input
+and no network.
+
+The renderer's permissions are narrow. Besides the job's scratch directory,
+`src/fx_assets`, the fonts, `/usr/share/fonts` and `DENO_DIR`, it may read
+`/usr/bin/ldd` and the environment variables `NAPI_RS_NATIVE_LIBRARY_PATH`,
+`NAPI_RS_FORCE_WASI` and `DISABLE_SYSTEM_FONTS_LOAD`, and ask for the home
+directory: `@napi-rs/canvas` uses them to pick its native library and load the
+system fonts.
+
+`FX_RUNTIME=off` turns the deno stage off on a machine. Clips still render,
+with captions, sound effects, music and bleeps but without the drawn effects.
+
 ## Stopping a worker
 
 Stop the container. Running jobs get up to `stop_grace_period` to finish. A job

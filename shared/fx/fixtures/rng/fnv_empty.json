@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_empty",
+  "fn": "fnv1a32",
+  "input": {
+    "text": ""
+  },
+  "expected": 2166136261
+}

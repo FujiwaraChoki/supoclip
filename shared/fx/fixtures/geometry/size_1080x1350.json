@@ -1,0 +1,24 @@
+{
+  "family": "geometry",
+  "case": "size_1080x1350",
+  "fn": "geometry",
+  "input": {
+    "width": 1080,
+    "height": 1350
+  },
+  "expected": {
+    "unit": 1.0,
+    "reaction_rect": {
+      "x": 162.0,
+      "y": 270.0,
+      "w": 756.0,
+      "h": 567.0
+    },
+    "caption_safe": {
+      "side": 0.06,
+      "top": 67.5,
+      "bottom": 135.0
+    },
+    "hook_band": 0.2
+  }
+}

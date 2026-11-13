@@ -1,0 +1,436 @@
+{
+ "marker_circle/off": {
+  "sha256": "9304c81e58aa8a2b4e722fe1ac6429165e178bf6105bf1a64733381e21bbce91",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "marker_circle/chill": {
+  "sha256": "7dafbffaa3474cc282d0d46401fbbb70d87564a3d26f72b9eb40251d24e2d599",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "marker_circle/spicy": {
+  "sha256": "dda950c14970f7f108e4fe58835679aeae09fa896c8de0e5c4da67c29faacb43",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "marker_circle/unhinged": {
+  "sha256": "ea4b010487e2a31508a2bd30507255f2d52e75fcbfdac634a128710dda1cc3b4",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "emoji_drop/off": {
+  "sha256": "4cac0132c6ead2730a279fa307c098aa7e437edbcac7f23535bc35cfb873e675",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "emoji_drop/chill": {
+  "sha256": "968e9e2662036f2baed45b54a459f2b72e2bd5f34888e0f1f635c9a4cec3b4e8",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "emoji_drop/spicy": {
+  "sha256": "f30e548fe85cb77cd247f135b7a5254996c67ccedd356c6749eba273a1a34411",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "emoji_drop/unhinged": {
+  "sha256": "08989d4879b1d98e5df7d73dbf3426e0eb4e8d3b34cdeadb457f3fd302652c61",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "slam/off": {
+  "sha256": "f76b127d6cd3772d27c0746d12a06af0f65ad62b613cf6ba0d8223d2ab29a7a1",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "slam/chill": {
+  "sha256": "7fa16511585555c02b464caeb0183e672f9a4041e051062ab94ad1feabbd5783",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "slam/spicy": {
+  "sha256": "3426350b36d77bdf58857e0055e884dc05c7e635b1085467bcaffceb91607ca0",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "slam/unhinged": {
+  "sha256": "55377ead1ed4822202562613ba724b251c3960be2fa6e0e08f1a8d42a9bcd92b",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "behind_head/off": {
+  "sha256": "6a01b8b3191921f7753151ecf6ce72dc2770bb1c0a1668f838e383a949b50a35",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "behind_head/chill": {
+  "sha256": "a220aa0cae902e5c8d1a49c2992d45b99b7148e043aee5e1211b45a90483ff06",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "behind_head/spicy": {
+  "sha256": "8093e2157b1545396b2e1db6a8f9fa8fc4ea83b436064c40dcd7771cf154d2d2",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "behind_head/unhinged": {
+  "sha256": "be55db3080ac357a29b2fd0c5039328449b7fdb29756b44df018f486bfe0b6e1",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "stat_counter/off": {
+  "sha256": "f70c31b6989cb660c561b211dbdbe22f9dfcc7915b8de8ea5694b54ecb3a4c61",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "stat_counter/chill": {
+  "sha256": "a8a530504f2452dda6eeb911d5f2a4dc8fb4f27472881c04254a0f5350fe41f1",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "stat_counter/spicy": {
+  "sha256": "589d0f3ebc1f5b748717616d8c9fb8634180e6f6807acc640769b1cacc248710",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "stat_counter/unhinged": {
+  "sha256": "2dc86ab0aa3dbd04449089d8555f4287bde8cb22d348864578cd3abbf8a7be98",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "sticker_slap/off": {
+  "sha256": "4a30624761c894d05c3c6d01b85b6241c6c87214782977ab964a753f8ce196b4",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "sticker_slap/chill": {
+  "sha256": "c3c45287c70f8d7f8c511b344a0c0f9e351b89c2e42498851d302912f41d6deb",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "sticker_slap/spicy": {
+  "sha256": "a927fe985b24c7faec07ed249692d5f432181e4eef9e5fcd859a123910b92e57",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "sticker_slap/unhinged": {
+  "sha256": "d74a8599e9251095b036300a9df33b0cdc517a984728ee2cf7d1b6fbd064e958",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "kinetic_stack/off": {
+  "sha256": "f9ccb28cbec44d32016a2e4d69ce1a7f02bc4727255d76a8b9b40154aaddec70",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": true,
+  "cues": []
+ },
+ "kinetic_stack/chill": {
+  "sha256": "49614e85564c69647df1c7cd949a1b340a6925a14057a076189c2d5992160f7b",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": true,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "kinetic_stack/spicy": {
+  "sha256": "b78f188235954cfff50e14a614666900c52318da3e04e54fc656e8145cdbbf78",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": true,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "kinetic_stack/unhinged": {
+  "sha256": "5bc540ca6cb491623845612f5289e7df398fcb7e455a693abc93cc27d5817f27",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": true,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "decode_glitch/off": {
+  "sha256": "bcc50b3e32f37b282b6d006805b896e3522ddc1ef8b659f21ccd5c9ce69b4671",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "decode_glitch/chill": {
+  "sha256": "ee11735cfe350d08f98174e6938d1002f9ef69c4eb905bc1f8b78900b7c2d2bb",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "decode_glitch/spicy": {
+  "sha256": "82f5287d47a99425ae2cd2c726529368acb490435e9826ab5db204c2fe0517b1",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "decode_glitch/unhinged": {
+  "sha256": "62636dec37242be8d765b7113a14294d1ee4501b3c125c9df68c3d8871ec0e9f",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition zoom_through",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "highlighter_swipe/off": {
+  "sha256": "8b6f413b670050169348bf0896dbc28b1fd6e63d4c53275d38a8e9f7752a996d",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "highlighter_swipe/chill": {
+  "sha256": "95fe60f2ec0cdc4c39f1875be271d008e8d4ac7d879fd04c971c06e390cb3393",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "highlighter_swipe/spicy": {
+  "sha256": "4f491deee743cfcc3d1e8a79201ae1edfae03dff58ee6743b2fb90941c484593",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "highlighter_swipe/unhinged": {
+  "sha256": "35777366fc93eca89ca4ca162b6132809dea4728e189f2faa8f1c3210cdba88f",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "face_doodles/off": {
+  "sha256": "bcd3524f8b38089890f97a3e26e32906318a67d282a88356cb1f55d3e472822b",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "face_doodles/chill": {
+  "sha256": "1bbf51a9e442fbff9ea43c54b1cce9f4595016249ce43d5e93c55801c2755ce5",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "face_doodles/spicy": {
+  "sha256": "c815c0e59b87520de6f20e067c9e387215467c6e4a6fdbce59fd208a3da49c2c",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "face_doodles/unhinged": {
+  "sha256": "feea78754e385f9c83d3742e119db9018e2f49888718bc91a27eba3051be0faf",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ },
+ "default/chill": {
+  "sha256": "2f2c6ac94fca2213cc0ad16a836eb71acec07d3368467374512c5f6965a00027",
+  "music": "hype -24.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   " 21.400- 21.400 t1.tr            transition light_leak"
+  ]
+ },
+ "default/spicy": {
+  "sha256": "8afb7d41671ddc0f963f9f06c61b3795bbc8173f368011b00e9761f700d82b27",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.800-  9.800 t0.tr            transition glitch",
+   "  9.800-  9.800 t0.tr.sfx        sfx        glitch#1 -3dB",
+   " 21.400- 21.400 t1.tr            transition glitch",
+   " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
+  ]
+ },
+ "default/unhinged": {
+  "sha256": "e0f07284dd69cb5724d0c0923c986a1ae74331e0d1d65417f452472557d41868",
+  "music": "hype -24.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.680-  9.680 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.800-  9.800 t0.tr            transition whip",
+   " 21.280- 21.280 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition whip"
+  ]
+ }
+}

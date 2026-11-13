@@ -1,0 +1,448 @@
+{
+  "default|generated|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "d8c90ddb5b8abe9420594c029dde10af351bc2460f05625a4658fd401d44d97e"
+  },
+  "default|generated|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "2e72a0d510e3bf75421b5c4c9db1bf6d629ffb58fc6d297ae5ccce490f945733"
+  },
+  "default|karaoke_off|crossfade": {
+    "dialogue_lines": 14,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "19e26673a91eb9435fb72960356ab85d06f0c55faa4f3bfcf5d0bcaac9ef5a4a"
+  },
+  "default|karaoke_off|offsets": {
+    "dialogue_lines": 14,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "8010ddd7a49a177bfaf8bd75b837b4e295b0b7aff0496d35a12163006d91c7e8"
+  },
+  "default|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "d8c90ddb5b8abe9420594c029dde10af351bc2460f05625a4658fd401d44d97e"
+  },
+  "default|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "2e72a0d510e3bf75421b5c4c9db1bf6d629ffb58fc6d297ae5ccce490f945733"
+  },
+  "default|single_range": {
+    "dialogue_lines": 29,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "f4c8964d42d4c1125c2356a0ae7bfc3f8cf80ea25219af107522666c3edf87e9"
+  },
+  "extra|caption_words": {
+    "dialogue_lines": 3,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "c0f557cad82c9ad14f0094934dbc27e7786b12af45c7befcdd3656796c9a6ddb"
+  },
+  "extra|hook_only": {
+    "dialogue_lines": 1,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "a16d569074e8c5a05daec504900f4571562da1ebee720ed58cca65a101270f58"
+  },
+  "extra|no_words_hook": {
+    "dialogue_lines": 1,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "a16d569074e8c5a05daec504900f4571562da1ebee720ed58cca65a101270f58"
+  },
+  "extra|no_words_no_hook": {
+    "dialogue_lines": 0,
+    "layout_report": {},
+    "ok": false,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "extra|placement": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.2859375
+    },
+    "ok": true,
+    "sha256": "f4704447c21f66571e0d95bdcac2920e2962f3a8d9abe95ff8958cde0985e405"
+  },
+  "extra|point_labels": {
+    "dialogue_lines": 54,
+    "layout_report": {
+      "caption_y": 0.7760416666666666
+    },
+    "ok": true,
+    "sha256": "e17fd2a71f39e89fb08571b17dd5b2be845bca2de12670e590c54a570a49faf4"
+  },
+  "extra|studio": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7291666666666666
+    },
+    "ok": true,
+    "sha256": "c184124143fedb67028010399345f1c9af2ee67aeea68ff976fd6badd8475ee5"
+  },
+  "hormozi|generated|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "d01d9888470ea3da465fff2d70b9283b4422c7984d623d20886133b171203725"
+  },
+  "hormozi|generated|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "f1fe260cb1bba6bead7b7f6b98ae71abc292cc520bd93171a19965e3a0c611b9"
+  },
+  "hormozi|karaoke_off|crossfade": {
+    "dialogue_lines": 18,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "bde86d079a207b2791e668116832863f4a60b0ea7248b1d094fc5ca2d7f621de"
+  },
+  "hormozi|karaoke_off|offsets": {
+    "dialogue_lines": 18,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "a2e9ac8944cd0df58be5aa3c4691af5a9cbebe4d5c248680fe3cdaa1f82ded17"
+  },
+  "hormozi|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "d01d9888470ea3da465fff2d70b9283b4422c7984d623d20886133b171203725"
+  },
+  "hormozi|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "f1fe260cb1bba6bead7b7f6b98ae71abc292cc520bd93171a19965e3a0c611b9"
+  },
+  "hormozi|single_range": {
+    "dialogue_lines": 29,
+    "layout_report": {
+      "caption_y": 0.715625
+    },
+    "ok": true,
+    "sha256": "0aa8d5eb64d723fbdc7377a6d3356a1e963978fb25ec5f3d27b7722e066bebc7"
+  },
+  "minimal|generated|crossfade": {
+    "dialogue_lines": 10,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "926223cfe29ce70c4e94b309a0977e8b3156b9c89b65faae1e0b4744f300f36a"
+  },
+  "minimal|generated|offsets": {
+    "dialogue_lines": 10,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "a0af52a0fbfcf2ee89c2ecaa3c26a649eff6d9d4a803d4f0f745e03d69708248"
+  },
+  "minimal|karaoke_off|crossfade": {
+    "dialogue_lines": 10,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "926223cfe29ce70c4e94b309a0977e8b3156b9c89b65faae1e0b4744f300f36a"
+  },
+  "minimal|karaoke_off|offsets": {
+    "dialogue_lines": 10,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "a0af52a0fbfcf2ee89c2ecaa3c26a649eff6d9d4a803d4f0f745e03d69708248"
+  },
+  "minimal|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "2789f93c58c24709d3cb9d75bdd1fe7c9240d64a8d55b3a907c03ca736cc906f"
+  },
+  "minimal|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "56f60ebc870941e554ff2fc16f0fa442bdb79443d1423653979eb5f6932b576e"
+  },
+  "minimal|single_range": {
+    "dialogue_lines": 6,
+    "layout_report": {
+      "caption_y": 0.8005208333333333
+    },
+    "ok": true,
+    "sha256": "9ba90c70b6820b65464269220f89cc463783aff4dcbb63930eb32cef9ab8f776"
+  },
+  "mrbeast|generated|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "f42615e697c17cd33f18a4a2cb188ea6339f64e131ea3d56a6149e262c4782ea"
+  },
+  "mrbeast|generated|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "ff871c78ca4312901086a5cb1dd41cd50ad378ed1717c11a5d3d44c29d7811bb"
+  },
+  "mrbeast|karaoke_off|crossfade": {
+    "dialogue_lines": 18,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "15c72cc2629ff37ddd5316b7e817b9600e6229da80aeb2a39700e3edf18b69ed"
+  },
+  "mrbeast|karaoke_off|offsets": {
+    "dialogue_lines": 18,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "c959983fd42aed5804fa656972c77caf838a361ba55d087d22e30b240a85e23a"
+  },
+  "mrbeast|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "f42615e697c17cd33f18a4a2cb188ea6339f64e131ea3d56a6149e262c4782ea"
+  },
+  "mrbeast|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "ff871c78ca4312901086a5cb1dd41cd50ad378ed1717c11a5d3d44c29d7811bb"
+  },
+  "mrbeast|single_range": {
+    "dialogue_lines": 29,
+    "layout_report": {
+      "caption_y": 0.6744791666666666
+    },
+    "ok": true,
+    "sha256": "6dc5afe3bd7df9656c43542d9dc2fe86359cc31d3f7eb36bb6f2b0e4766f8c6b"
+  },
+  "neon|generated|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "3341b28dae12b02ddfee4072f442348861c8e7612f433eda4ff897985cec6ea5"
+  },
+  "neon|generated|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "e3d4bf4200107291d5765e2233a07bd7b691e0723dbc23ba57b98e1a2e84c9cb"
+  },
+  "neon|karaoke_off|crossfade": {
+    "dialogue_lines": 14,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "e926d3e80ed2e8c6613e8c5b08e87da7e159d6d5843a4a5daf3cf240d3c742da"
+  },
+  "neon|karaoke_off|offsets": {
+    "dialogue_lines": 14,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "394d33619911ebdad594b7c5db3d688fb1d6ed9d4bb84109198387e69ab779f6"
+  },
+  "neon|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "3341b28dae12b02ddfee4072f442348861c8e7612f433eda4ff897985cec6ea5"
+  },
+  "neon|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "e3d4bf4200107291d5765e2233a07bd7b691e0723dbc23ba57b98e1a2e84c9cb"
+  },
+  "neon|single_range": {
+    "dialogue_lines": 29,
+    "layout_report": {
+      "caption_y": 0.7375
+    },
+    "ok": true,
+    "sha256": "46867bf00ddfe1bc7891ce8b570057a87dea4c9da862aa97bb63af6b8f8a5816"
+  },
+  "podcast|generated|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "061ce818cc9607d398a45f328f72e002c90932a77cbb95d9528cf4acb9c4d96c"
+  },
+  "podcast|generated|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "b43c620e272b38a5292f6bf648ee1e125f0ac295ce4575d258cd4e7bb88b7751"
+  },
+  "podcast|karaoke_off|crossfade": {
+    "dialogue_lines": 12,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "f31e50b9feb9ba23dd47a7a6fcb69ad55c06b6e3097f952f023443a8ea11a713"
+  },
+  "podcast|karaoke_off|offsets": {
+    "dialogue_lines": 12,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "864148776ae9226ca7a00b66798ed1f1c1657d3c0b161384c89e8df836744197"
+  },
+  "podcast|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "061ce818cc9607d398a45f328f72e002c90932a77cbb95d9528cf4acb9c4d96c"
+  },
+  "podcast|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "b43c620e272b38a5292f6bf648ee1e125f0ac295ce4575d258cd4e7bb88b7751"
+  },
+  "podcast|single_range": {
+    "dialogue_lines": 29,
+    "layout_report": {
+      "caption_y": 0.7791666666666667
+    },
+    "ok": true,
+    "sha256": "70a0c24b9c2232436b09034a0f29a27afa116c7396d15a56f3ad9a6c47d86b07"
+  },
+  "tiktok|generated|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "11e50ea8257e2e242ad4fbe4ad748abb15fbedc6d23271ca69797bd716f67619"
+  },
+  "tiktok|generated|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "7d9783f2c62c6eb95c3c32329b4518f5978d8dddd34d6f2bbc6be9f6fa3b507e"
+  },
+  "tiktok|karaoke_off|crossfade": {
+    "dialogue_lines": 14,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "785bd1000822b9b3f124154d862d3eb4750cbd25714a61a1119d5aa9e00b3834"
+  },
+  "tiktok|karaoke_off|offsets": {
+    "dialogue_lines": 14,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "5cdf52b03f39fd6e0cb0b83855cdf08597a9c3f52cd66f659f8e1236c8a31d15"
+  },
+  "tiktok|karaoke_on|crossfade": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "11e50ea8257e2e242ad4fbe4ad748abb15fbedc6d23271ca69797bd716f67619"
+  },
+  "tiktok|karaoke_on|offsets": {
+    "dialogue_lines": 52,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "7d9783f2c62c6eb95c3c32329b4518f5978d8dddd34d6f2bbc6be9f6fa3b507e"
+  },
+  "tiktok|single_range": {
+    "dialogue_lines": 29,
+    "layout_report": {
+      "caption_y": 0.7588541666666667
+    },
+    "ok": true,
+    "sha256": "4d6ca4124dc7d7acd954528eb5c495a031be726cb47448902578562b72e6e814"
+  }
+}

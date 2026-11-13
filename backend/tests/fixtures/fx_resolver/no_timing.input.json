@@ -1,0 +1,79 @@
+{
+ "name": "no_timing",
+ "seed": 977123401,
+ "sfx_variants": {
+  "whoosh": 3,
+  "impact": 2,
+  "pop": 3,
+  "riser": 2,
+  "record_scratch": 1,
+  "boom": 1,
+  "cash_register": 1,
+  "ticker": 1,
+  "slap": 2,
+  "stamp": 1,
+  "glitch": 2,
+  "tape_stop": 1
+ },
+ "beds": {
+  "hype": [
+   "hype"
+  ],
+  "chill": [
+   "chill"
+  ],
+  "dramatic": [
+   "dramatic"
+  ],
+  "funny": [
+   "funny"
+  ],
+  "inspiring": [
+   "inspiring"
+  ],
+  "dark": [
+   "dark"
+  ]
+ },
+ "bed_lengths": {
+  "hype": 61.935,
+  "chill": 93.659,
+  "dramatic": 109.714,
+  "funny": 68.571,
+  "inspiring": 80.0,
+  "dark": 87.273
+ },
+ "reactions_available": true,
+ "max_clip_seconds": 90.0,
+ "broll_windows": [],
+ "user_cues": [],
+ "suppressed": [],
+ "words": [],
+ "duration": 30.0,
+ "cuts": [
+  9.8,
+  21.4
+ ],
+ "passage_breaks": [
+  21.4
+ ],
+ "keep_ranges": [],
+ "output_offsets": [],
+ "beats": {
+  "version": "beats-v1",
+  "words_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "timeline_hash": "",
+  "model": "",
+  "source": "heuristic",
+  "mood": "hype",
+  "sensitivity": "normal",
+  "timing": "none",
+  "hook_end": null,
+  "beats": [],
+  "reactions": []
+ },
+ "hook_window": [
+  0.12,
+  4.0
+ ]
+}

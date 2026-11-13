@@ -8,6 +8,7 @@ logs/
 temp/
 .env
 *.m4a
+!backend/src/fx_assets/music/*.m4a
 frontend/e2e/.seed.json
 frontend/playwright-report/
 frontend/test-results/

@@ -1,0 +1,6 @@
+
+                        SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url
+                        FROM tasks t
+                        LEFT JOIN sources s ON t.source_id = s.id
+                        WHERE t.id = :task_id
+                    

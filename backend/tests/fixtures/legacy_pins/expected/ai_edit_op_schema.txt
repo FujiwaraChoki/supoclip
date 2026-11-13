@@ -1,0 +1,420 @@
+{
+  "$defs": {
+    "AddBRoll": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "add_broll"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "start": {
+          "description": "Source second where the footage starts: the word that names the subject",
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "description": "Source second where it ends, 2-4 s later",
+          "title": "End",
+          "type": "number"
+        },
+        "query": {
+          "description": "2-4 word English stock footage search describing what it shows",
+          "title": "Query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "start",
+        "end",
+        "query"
+      ],
+      "title": "AddBRoll",
+      "type": "object"
+    },
+    "CutRanges": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "cut_ranges"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "ranges": {
+          "description": "Source ranges to remove from the current edit.",
+          "items": {
+            "$ref": "#/$defs/TimeRange"
+          },
+          "title": "Ranges",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "ranges"
+      ],
+      "title": "CutRanges",
+      "type": "object"
+    },
+    "EditWords": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "edit_words"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "edits": {
+          "description": "Caption text corrections; timing stays the same.",
+          "items": {
+            "$ref": "#/$defs/WordText"
+          },
+          "title": "Edits",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "edits"
+      ],
+      "title": "EditWords",
+      "type": "object"
+    },
+    "HighlightWords": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "highlight_words"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "word_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Word Ids",
+          "type": "array"
+        },
+        "highlight": {
+          "title": "Highlight",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "word_ids",
+        "highlight"
+      ],
+      "title": "HighlightWords",
+      "type": "object"
+    },
+    "KeepRanges": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "keep_ranges"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "ranges": {
+          "description": "Ranges to keep, in play order. Replaces every current cut: use it to trim, shorten, pick the best part or reorder.",
+          "items": {
+            "$ref": "#/$defs/TimeRange"
+          },
+          "title": "Ranges",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "ranges"
+      ],
+      "title": "KeepRanges",
+      "type": "object"
+    },
+    "MoveBRoll": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "move_broll"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "start",
+        "end"
+      ],
+      "title": "MoveBRoll",
+      "type": "object"
+    },
+    "RemoveBRoll": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "remove_broll"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "ids"
+      ],
+      "title": "RemoveBRoll",
+      "type": "object"
+    },
+    "RemovePauses": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "remove_pauses"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "min_gap": {
+          "description": "Silences between words longer than this many seconds are shortened (0.3-3).",
+          "title": "Min Gap",
+          "type": "number"
+        },
+        "keep": {
+          "description": "Seconds of each shortened silence to keep (0.05-0.5).",
+          "title": "Keep",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "min_gap",
+        "keep"
+      ],
+      "title": "RemovePauses",
+      "type": "object"
+    },
+    "RemoveWords": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "remove_words"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "word_ids": {
+          "description": "Spoken words to cut out of the video (fillers, stumbles, a phrase).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Word Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "word_ids"
+      ],
+      "title": "RemoveWords",
+      "type": "object"
+    },
+    "SetValue": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "set"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "setting": {
+          "enum": [
+            "captions.enabled",
+            "captions.font",
+            "captions.size",
+            "captions.color",
+            "captions.accent",
+            "captions.position",
+            "captions.background",
+            "captions.words_per_line",
+            "captions.karaoke",
+            "captions.uppercase",
+            "captions.template",
+            "hook_title",
+            "framing.aspect",
+            "framing.fit",
+            "framing.zoom",
+            "framing.x",
+            "framing.y",
+            "effects.brightness",
+            "effects.contrast",
+            "effects.saturation",
+            "effects.blur",
+            "effects.hue",
+            "audio.volume",
+            "audio.muted"
+          ],
+          "title": "Setting",
+          "type": "string"
+        },
+        "value": {
+          "description": "The new value, as text; see the settings list for each format.",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "setting",
+        "value"
+      ],
+      "title": "SetValue",
+      "type": "object"
+    },
+    "TimeRange": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "description": "Start, in source seconds",
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "description": "End, in source seconds",
+          "title": "End",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "TimeRange",
+      "type": "object"
+    },
+    "WordText": {
+      "additionalProperties": false,
+      "properties": {
+        "word_id": {
+          "title": "Word Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "word_id",
+        "text"
+      ],
+      "title": "WordText",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "description": "One or two short sentences, in the user's language, saying what changed and anything you could not do.",
+      "title": "Summary",
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "add_broll": "#/$defs/AddBRoll",
+            "cut_ranges": "#/$defs/CutRanges",
+            "edit_words": "#/$defs/EditWords",
+            "highlight_words": "#/$defs/HighlightWords",
+            "keep_ranges": "#/$defs/KeepRanges",
+            "move_broll": "#/$defs/MoveBRoll",
+            "remove_broll": "#/$defs/RemoveBRoll",
+            "remove_pauses": "#/$defs/RemovePauses",
+            "remove_words": "#/$defs/RemoveWords",
+            "set": "#/$defs/SetValue"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/KeepRanges"
+          },
+          {
+            "$ref": "#/$defs/CutRanges"
+          },
+          {
+            "$ref": "#/$defs/RemoveWords"
+          },
+          {
+            "$ref": "#/$defs/RemovePauses"
+          },
+          {
+            "$ref": "#/$defs/SetValue"
+          },
+          {
+            "$ref": "#/$defs/HighlightWords"
+          },
+          {
+            "$ref": "#/$defs/EditWords"
+          },
+          {
+            "$ref": "#/$defs/AddBRoll"
+          },
+          {
+            "$ref": "#/$defs/RemoveBRoll"
+          },
+          {
+            "$ref": "#/$defs/MoveBRoll"
+          }
+        ]
+      },
+      "title": "Operations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "summary",
+    "operations"
+  ],
+  "title": "EditPlan",
+  "type": "object"
+}

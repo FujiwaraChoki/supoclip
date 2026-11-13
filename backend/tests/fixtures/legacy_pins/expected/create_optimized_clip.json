@@ -1,0 +1,959 @@
+{
+  "legacy_bounds_extend_to_sentence": {
+    "calls": {
+      "build_assemblyai_ass_subtitles": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            10.0,
+            19.0,
+            1080,
+            1920,
+            "<RENDER>/captions.ass",
+            null,
+            null,
+            null,
+            "tiktok",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ]
+          ],
+          "kwargs": {
+            "avoid_band": null,
+            "caption_layout_report": {
+              "caption_y": 0.71,
+              "vertical_layout": {
+                "duration": 18.4,
+                "height": 1080,
+                "kind": "speaker",
+                "mode": "vf",
+                "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+                "width": 1920
+              }
+            },
+            "hook_title": null,
+            "include_captions": true,
+            "position_y_override": 0.71
+          }
+        }
+      ],
+      "build_clip_speaker_turns": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ]
+          ],
+          "kwargs": {}
+        }
+      ],
+      "build_vertical_filter_plan": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            []
+          ],
+          "kwargs": {
+            "report": {}
+          }
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical"
+          ],
+          "kwargs": {
+            "broll_overlays": null,
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": false,
+      "caption_y": 0.71,
+      "vertical_layout": {
+        "duration": 18.4,
+        "height": 1080,
+        "kind": "speaker",
+        "mode": "vf",
+        "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "width": 1920
+      }
+    },
+    "ok": true,
+    "written": true
+  },
+  "original_captions": {
+    "calls": {
+      "build_assemblyai_ass_subtitles": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            28.9,
+            1920,
+            1080,
+            "<RENDER>/captions.ass",
+            null,
+            null,
+            null,
+            "podcast",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {
+            "avoid_band": null,
+            "caption_layout_report": {},
+            "hook_title": "I lost forty grand in one night",
+            "include_captions": true,
+            "position_y_override": null
+          }
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "original"
+          ],
+          "kwargs": {
+            "broll_overlays": null,
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": null
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": false
+    },
+    "ok": true,
+    "written": true
+  },
+  "original_stream_copy": {
+    "calls": {
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffmpeg",
+              "-y",
+              "-ss",
+              "9.9",
+              "-i",
+              "<TMP>/source.mp4",
+              "-map",
+              "0:v:0",
+              "-map",
+              "0:a:1",
+              "-map_chapters",
+              "-1",
+              "-t",
+              "9.1",
+              "-c",
+              "copy",
+              "-movflags",
+              "+faststart",
+              "<TMP>/out.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 300
+          }
+        }
+      ]
+    },
+    "layout_report": {},
+    "ok": true,
+    "written": true
+  },
+  "vertical_broll_fallback": {
+    "calls": {
+      "build_assemblyai_ass_subtitles": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            28.9,
+            1080,
+            1920,
+            "<RENDER>/captions.ass",
+            null,
+            null,
+            null,
+            "mrbeast",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {
+            "avoid_band": null,
+            "caption_layout_report": {
+              "caption_y": 0.71,
+              "vertical_layout": {
+                "duration": 18.4,
+                "height": 1080,
+                "kind": "speaker",
+                "mode": "vf",
+                "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+                "width": 1920
+              }
+            },
+            "hook_title": null,
+            "include_captions": true,
+            "position_y_override": 0.71
+          }
+        }
+      ],
+      "build_clip_speaker_turns": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {}
+        }
+      ],
+      "build_vertical_filter_plan": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            []
+          ],
+          "kwargs": {
+            "report": {}
+          }
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical"
+          ],
+          "kwargs": {
+            "broll_overlays": [
+              {
+                "duration": 3.0,
+                "offset": 0.0,
+                "path": "<TMP>/stock.mp4",
+                "start": 2.0
+              }
+            ],
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          }
+        },
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical"
+          ],
+          "kwargs": {
+            "broll_overlays": null,
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": false,
+      "caption_y": 0.71,
+      "vertical_layout": {
+        "duration": 18.4,
+        "height": 1080,
+        "kind": "speaker",
+        "mode": "vf",
+        "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "width": 1920
+      }
+    },
+    "ok": true,
+    "written": true
+  },
+  "vertical_captions_hook_broll_band": {
+    "calls": {
+      "build_assemblyai_ass_subtitles": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            28.9,
+            1080,
+            1920,
+            "<RENDER>/captions.ass",
+            null,
+            null,
+            null,
+            "default",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {
+            "avoid_band": [
+              0.66,
+              0.78
+            ],
+            "caption_layout_report": {
+              "caption_y": 0.71,
+              "source_caption_band": [
+                0.66,
+                0.78
+              ],
+              "vertical_layout": {
+                "duration": 18.4,
+                "height": 1080,
+                "kind": "speaker",
+                "mode": "vf",
+                "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+                "width": 1920
+              }
+            },
+            "hook_title": "I lost forty grand in one night",
+            "include_captions": true,
+            "position_y_override": 0.71
+          }
+        }
+      ],
+      "build_clip_speaker_turns": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {}
+        }
+      ],
+      "build_vertical_filter_plan": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            []
+          ],
+          "kwargs": {
+            "report": {}
+          }
+        }
+      ],
+      "caption_probe_plan": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "vertical",
+            [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ],
+      "detect_rendered_caption_band": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+            "vf",
+            18.4
+          ],
+          "kwargs": {}
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical"
+          ],
+          "kwargs": {
+            "broll_overlays": [
+              {
+                "duration": 3.0,
+                "offset": 0.0,
+                "path": "<TMP>/stock.mp4",
+                "start": 2.0
+              }
+            ],
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": true,
+      "caption_y": 0.71,
+      "source_caption_band": [
+        0.66,
+        0.78
+      ],
+      "vertical_layout": {
+        "duration": 18.4,
+        "height": 1080,
+        "kind": "speaker",
+        "mode": "vf",
+        "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "width": 1920
+      }
+    },
+    "ok": true,
+    "written": true
+  },
+  "vertical_no_subtitles": {
+    "calls": {
+      "build_clip_speaker_turns": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {}
+        }
+      ],
+      "build_vertical_filter_plan": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            []
+          ],
+          "kwargs": {
+            "report": {}
+          }
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical"
+          ],
+          "kwargs": {
+            "broll_overlays": null,
+            "fonts_dir": null,
+            "speaker_turns": [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            "speaker_words": [],
+            "subtitle_ass_path": null,
+            "vertical_plan": [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": false,
+      "caption_y": 0.71,
+      "vertical_layout": {
+        "duration": 18.4,
+        "height": 1080,
+        "kind": "speaker",
+        "mode": "vf",
+        "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "width": 1920
+      }
+    },
+    "ok": true,
+    "written": true
+  },
+  "vertical_offsets_point_labels": {
+    "calls": {
+      "build_assemblyai_ass_subtitles": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            28.9,
+            1080,
+            1920,
+            "<RENDER>/captions.ass",
+            "Poppins-ExtraBold",
+            40,
+            "#FFEEDD",
+            "hormozi",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {
+            "avoid_band": null,
+            "caption_layout_report": {
+              "caption_y": 0.71,
+              "vertical_layout": {
+                "duration": 18.4,
+                "height": 1080,
+                "kind": "speaker",
+                "mode": "vf",
+                "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+                "width": 1920
+              }
+            },
+            "hook_title": "I lost forty grand in one night",
+            "include_captions": true,
+            "output_offsets": [
+              0.0,
+              9.26
+            ],
+            "point_labels": [
+              {
+                "start": 0.0,
+                "text": "The loss"
+              },
+              {
+                "start": 9.26,
+                "text": "The fix"
+              }
+            ],
+            "position_y_override": 0.71
+          }
+        }
+      ],
+      "build_clip_speaker_turns": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {
+            "output_offsets": [
+              0.0,
+              9.26
+            ]
+          }
+        }
+      ],
+      "build_vertical_filter_plan": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            []
+          ],
+          "kwargs": {
+            "report": {}
+          }
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical"
+          ],
+          "kwargs": {
+            "broll_overlays": null,
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              }
+            ],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": [
+              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+              "vf"
+            ]
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {
+            "output_offsets": [
+              0.0,
+              9.26
+            ]
+          }
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": false,
+      "caption_y": 0.71,
+      "vertical_layout": {
+        "duration": 18.4,
+        "height": 1080,
+        "kind": "speaker",
+        "mode": "vf",
+        "video_filter": "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "width": 1920
+      }
+    },
+    "ok": true,
+    "written": true
+  },
+  "vertical_split": {
+    "calls": {
+      "build_assemblyai_ass_subtitles": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            28.9,
+            1080,
+            1920,
+            "<RENDER>/captions.ass",
+            null,
+            null,
+            null,
+            "neon",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ]
+          ],
+          "kwargs": {
+            "avoid_band": null,
+            "caption_layout_report": {},
+            "hook_title": "I lost forty grand in one night",
+            "include_captions": true,
+            "position_y_override": null
+          }
+        }
+      ],
+      "render_reframed_clip_ffmpeg": [
+        {
+          "args": [
+            "<RENDER>/source.mp4",
+            "<RENDER>/final.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {
+            "broll_overlays": null,
+            "fonts_dir": "<BACKEND>/fonts",
+            "speaker_turns": [],
+            "speaker_words": [],
+            "subtitle_ass_path": "<RENDER>/captions.ass",
+            "vertical_plan": null
+          }
+        }
+      ],
+      "render_source_ranges_ffmpeg": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "<RENDER>/source.mp4"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "layout_report": {
+      "broll_applied": false
+    },
+    "ok": true,
+    "written": true
+  }
+}

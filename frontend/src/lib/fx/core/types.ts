@@ -1,0 +1,114 @@
+// Mirror of backend/src/edit_fx/contracts.py. Keep names, literals and defaults identical.
+export const EDIT_FX_VERSION = "fx-v1";
+export const FX_SCENE_VERSION = 1;
+export const FPS = 30;
+export const FRAME = 1 / FPS;
+
+export type Intensity = "off" | "chill" | "spicy" | "unhinged";
+export const INTENSITIES: readonly Intensity[] = ["off", "chill", "spicy", "unhinged"];
+export type Mood = "hype" | "chill" | "dramatic" | "funny" | "inspiring" | "dark";
+export type GradeId = "none" | "punchy" | "warm" | "teal_orange" | "noir" | "vhs" | "dream";
+export type Censor = "off" | "bleep" | "bleep_bar" | "bleep_pixelate";
+export type BeatKind = "hook" | "emphasis" | "number" | "punchline" | "swear" | "emotional_turn" | "payoff" | "build";
+export type Tone = "neutral" | "hype" | "funny" | "shocked" | "sad" | "angry" | "wholesome" | "suspense" | "awkward" | "smug";
+export type Sensitivity = "normal" | "serious";
+export type Timing = "word" | "approx" | "none";
+export type SoundId = "whoosh" | "impact" | "pop" | "riser" | "record_scratch" | "boom" | "cash_register"
+  | "ticker" | "slap" | "stamp" | "glitch" | "tape_stop";
+export type TransitionStyle = "whip" | "flash" | "glitch" | "zoom_through" | "spin" | "light_leak";
+export type AccentVariant = "circle" | "underline" | "strike" | "arrow" | "highlight" | "emoji" | "emoji_burst"
+  | "slam" | "behind" | "counter" | "sticker" | "decode" | "kinetic" | "doodle";
+export type DoodleKind = "sparkles" | "arrows" | "sweat" | "horns" | "bang" | "heart" | "anger";
+export type FxKind = "accent" | "zoom" | "shake" | "flash" | "glitch" | "desaturate" | "transition"
+  | "sfx" | "bleep" | "speed" | "freeze" | "sticker" | "reaction";
+export const INSTANT_KINDS: ReadonlySet<FxKind> = new Set(["sfx", "freeze", "transition"]);
+export const FX_CAPTION_TEMPLATES = ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter",
+  "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"] as const;
+export type FxCaptionTemplate = (typeof FX_CAPTION_TEMPLATES)[number];
+export const isFxTemplate = (id: string | null | undefined): id is FxCaptionTemplate =>
+  !!id && (FX_CAPTION_TEMPLATES as readonly string[]).includes(id);
+export const TRANSITION_HALF: Record<TransitionStyle, number> = {
+  whip: 0.12, flash: 0.1, glitch: 0.1, zoom_through: 0.18, spin: 0.2, light_leak: 0.35,
+};
+
+export interface EditStyle {
+  intensity: Intensity; sfx: boolean; music: boolean; music_mood: "auto" | Mood; zooms: boolean; shake: boolean;
+  transitions: boolean; speed: boolean; censor: Censor; grade: "auto" | GradeId; grain: boolean;
+  progress_bar: boolean; loop_ending: boolean; wait_for_it: boolean; reactions: boolean;
+}
+export const DEFAULT_EDIT_STYLE: EditStyle = {
+  intensity: "off", sfx: true, music: true, music_mood: "auto", zooms: true, shake: true, transitions: true,
+  speed: true, censor: "bleep_bar", grade: "auto", grain: false, progress_bar: false, loop_ending: false,
+  wait_for_it: true, reactions: false,
+};
+/** Mirror of EditStyle.to_json(): {} when off; sorted non-default keys with intensity. */
+export function editStyleToJson(style: EditStyle): Partial<EditStyle> {
+  if (style.intensity === "off") return {};
+  const out: Record<string, unknown> = {};
+  const defaults = DEFAULT_EDIT_STYLE as unknown as Record<string, unknown>;
+  const values = style as unknown as Record<string, unknown>;
+  // Same order as Python's sorted(dumped): code-point order of the keys, only the declared fields.
+  const keys = Object.keys(DEFAULT_EDIT_STYLE).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const key of keys) {
+    if (key === "intensity" || values[key] !== defaults[key]) out[key] = values[key];
+  }
+  return out as Partial<EditStyle>;
+}
+
+export interface Beat {
+  id: string; kind: BeatKind; start: number; end: number; text: string; strength: 1 | 2 | 3; tone: Tone;
+  emoji: string; label: string; value: number | null; prefix: string; suffix: string;
+  source: "llm" | "heuristic" | "user"; src_start: number | null; src_end: number | null; words: string[];
+}
+export interface EditBeats {
+  version: "beats-v1"; words_hash: string; timeline_hash: string; model: string; source: "llm" | "heuristic"; mood: Mood;
+  sensitivity: Sensitivity; timing: Timing; hook_end: number | null; beats: Beat[];
+  reactions: { at: number; query: string }[];
+}
+
+interface CueBase { id: string; start: number; end: number; seed: number; beat: string; origin: "auto" | "user" }
+export type AccentCue = CueBase & { kind: "accent"; variant: AccentVariant; text: string; emoji: string;
+  doodle: DoodleKind; value: number | null; prefix: string; suffix: string };
+export type ZoomCue = CueBase & { kind: "zoom"; mode: "punch" | "push" | "pull"; scale: number; anchor: "face" | "center" };
+export type ShakeCue = CueBase & { kind: "shake"; amp: number; freq: number };
+export type FlashCue = CueBase & { kind: "flash"; color: string; peak: number };
+export type GlitchCue = CueBase & { kind: "glitch"; amount: number };
+export type DesaturateCue = CueBase & { kind: "desaturate"; amount: number; dim: number };
+export type TransitionCue = CueBase & { kind: "transition"; style: TransitionStyle };
+export type SfxCue = CueBase & { kind: "sfx"; sound: SoundId; variant: number; gain_db: number };
+export type BleepCue = CueBase & { kind: "bleep"; tone: boolean; cover: "none" | "bar" | "pixelate" };
+export type SpeedCue = CueBase & { kind: "speed"; rate: number };
+export type FreezeCue = CueBase & { kind: "freeze"; hold: number; label: string };
+export type StickerCue = CueBase & { kind: "sticker"; sticker: "wait_for_it" | "text"; text: string };
+export type ReactionCue = CueBase & { kind: "reaction"; query: string; provider: "giphy"; asset_id: string; url: string };
+export type FxCue = AccentCue | ZoomCue | ShakeCue | FlashCue | GlitchCue | DesaturateCue | TransitionCue
+  | SfxCue | BleepCue | SpeedCue | FreezeCue | StickerCue | ReactionCue;
+export type CueOf<K extends FxKind> = Extract<FxCue, { kind: K }>;
+
+export interface MusicBed {
+  mood: Mood; bed: string; gain_db: number; duck_db: number; attack: number; release: number; offset: number;
+  fade_in: number; fade_out: number;
+}
+export interface FxPlan {
+  version: 1; resolver: string; style: EditStyle; template: string; seed: number; edit_duration: number;
+  sensitivity: Sensitivity; timing: Timing; mood: Mood | null; cues: FxCue[]; music: MusicBed | null;
+  grade: GradeId; grain: number; progress_bar: boolean; loop_ending: "none" | "crossfade";
+  hook_title_suppressed: boolean;
+}
+export interface FaceTrack { version: 1; space: "picture" | "output"; fps: number; samples: [number, number[][]][] }
+export interface CaptionPlacement { key: string; x: number; y: number; scale: number }
+export interface FxCaptionStyle {
+  template: string; font: string; size_px: number; color: string; accent: string; stroke_color: string | null;
+  stroke_px: number; shadow: boolean; background: string | null; y: number; words_per_line: number;
+  uppercase: boolean; enabled: boolean; placements: CaptionPlacement[];
+}
+export interface FxWord { id: string; start: number; end: number; text: string; highlight: boolean; run: string }
+export interface WarpPieceJson { e0: number; e1: number; o0: number; rate: number; hold: number }
+export interface MatteWindow { start: number; end: number; person: boolean }
+export interface FxScene {
+  version: 1; width: number; height: number; edit_duration: number; out_duration: number; warp: WarpPieceJson[];
+  template: string; cues: FxCue[]; words: FxWord[]; caption: FxCaptionStyle | null; grade: GradeId; grain: number;
+  progress_bar: boolean; progress_color: string; loop_ending: "none" | "crossfade";
+  hook_window: [number, number] | null; hook_title_suppressed: boolean; face_track: FaceTrack | null;
+  broll_windows: [number, number][]; matte_windows: MatteWindow[]; seed: number;
+}

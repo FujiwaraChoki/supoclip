@@ -1,0 +1,60 @@
+{
+  "create_clips_from_segments": [
+    [
+      "broll",
+      "caption_settings",
+      "output_offsets",
+      "source_ranges",
+      "version",
+      "vertical_layout"
+    ],
+    [
+      "caption_settings",
+      "output_offsets",
+      "source_ranges",
+      "version",
+      "vertical_layout"
+    ],
+    [
+      "caption_settings",
+      "output_offsets",
+      "source_ranges",
+      "version",
+      "vertical_layout"
+    ]
+  ],
+  "create_single_clip|highlight_broll_720p": [
+    "broll",
+    "caption_settings",
+    "output_offsets",
+    "source_ranges",
+    "version"
+  ],
+  "create_single_clip|highlight_broll_not_applied": [
+    "output_offsets",
+    "source_ranges",
+    "version"
+  ],
+  "create_single_clip|highlight_plain": [
+    "output_offsets",
+    "source_ranges",
+    "version"
+  ],
+  "create_single_clip|highlight_styled_caption_y": [
+    "caption_settings",
+    "output_offsets",
+    "source_ranges",
+    "version"
+  ],
+  "create_single_clip|original_no_subtitles": [
+    "output_offsets",
+    "source_ranges",
+    "version"
+  ],
+  "create_single_clip|recap_planned": [
+    "caption_settings",
+    "output_offsets",
+    "source_ranges",
+    "version"
+  ]
+}

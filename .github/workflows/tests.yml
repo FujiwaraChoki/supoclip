@@ -54,10 +54,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends ffmpeg
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+      - name: Install fx runtime dependencies
+        run: cd backend/src/fx_runtime && deno install --frozen
       - name: Install backend dependencies
         run: cd backend && uv sync --frozen --all-groups
       - name: Run backend tests
         run: cd backend && .venv/bin/pytest
+      - name: Run fx runtime tests
+        run: cd backend/src/fx_runtime && deno task test
 
   frontend:
     runs-on: ubuntu-latest
@@ -81,6 +88,8 @@ jobs:
         run: cd frontend && pnpm run lint && pnpm run typecheck
       - name: Run frontend unit tests
         run: cd frontend && pnpm run test:coverage
+      - name: Check the fx-core bundle is up to date
+        run: cd frontend && pnpm run build:fx-core && git diff --exit-code ../backend/src/fx_runtime/fx-core.js
 
   mcp:
     runs-on: ubuntu-latest

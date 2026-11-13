@@ -1,0 +1,57 @@
+{
+  "family": "mapping",
+  "case": "long_id_repeat_suffix",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        0.0,
+        2.0
+      ],
+      [
+        "s1",
+        0.0,
+        2.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "start": 0.5,
+        "end": 0.7,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "flash",
+        "color": "#FFFFFF",
+        "peak": 0.85
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "start": 0.5,
+      "end": 0.7,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "flash",
+      "color": "#FFFFFF",
+      "peak": 0.85
+    },
+    {
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@1",
+      "start": 2.5,
+      "end": 2.7,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "flash",
+      "color": "#FFFFFF",
+      "peak": 0.85
+    }
+  ]
+}

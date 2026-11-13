@@ -1,0 +1,28 @@
+{
+  "family": "warp",
+  "case": "zero_duration",
+  "fn": "build_warp",
+  "input": {
+    "cues": [],
+    "edit_duration": 0.0,
+    "probes_e": [
+      -0.0
+    ],
+    "probes_o": [
+      -0.0
+    ]
+  },
+  "expected": {
+    "pieces": [],
+    "edit_duration": 0.0,
+    "out_duration": 0.0,
+    "nontrivial": false,
+    "to_output": [
+      -0.0
+    ],
+    "to_edit": [
+      -0.0
+    ],
+    "json": []
+  }
+}

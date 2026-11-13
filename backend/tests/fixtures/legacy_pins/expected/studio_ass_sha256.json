@@ -1,0 +1,114 @@
+{
+  "default|square": {
+    "dialogue_lines": 17,
+    "sha256": "6a4510812c0f40ca22d18387149be4bf73702e5a3e4d1c2bd44cb2042e54e628",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "default|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "a5e0d89d9fa3239acea303c94425e8e9cbe85fe39557fabb0891271cbcdd3826",
+    "size": [
+      1080,
+      1920
+    ]
+  },
+  "hormozi|square": {
+    "dialogue_lines": 17,
+    "sha256": "aadaeee20146e8cca757dea4110d76f626c404f314b93f7b7ca5aabf43161604",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "hormozi|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "93bddd782bca7c71927643b14aeb3642d967916ee666d0d7d435f5a02b793b0b",
+    "size": [
+      1080,
+      1920
+    ]
+  },
+  "minimal|square": {
+    "dialogue_lines": 17,
+    "sha256": "cc514a57ef8e2f765832e443c05cc2d1a16cf42b0cc8133ebcb264114c1b2850",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "minimal|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "ee520cd86a6c14ba3786e639bdd695ca99b51139458d5b51257e02e793b3c169",
+    "size": [
+      1080,
+      1920
+    ]
+  },
+  "mrbeast|square": {
+    "dialogue_lines": 17,
+    "sha256": "a00ea9b4bf0c117f46675c151fcf8f69fe4c553d87a13e8e3351cae2380bd21c",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "mrbeast|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "df05014927cc8d9927a07cebc08b277d9778b093ad45ba421b5b457e0f853310",
+    "size": [
+      1080,
+      1920
+    ]
+  },
+  "neon|square": {
+    "dialogue_lines": 17,
+    "sha256": "816ebe485f7f32a007d12d33e5635eb289432f575d69a625cd354d4f514f3043",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "neon|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "3783eb1d76f098908415269afda6c6320d16ad2ef52a84969d08801123707476",
+    "size": [
+      1080,
+      1920
+    ]
+  },
+  "podcast|square": {
+    "dialogue_lines": 17,
+    "sha256": "fb0cf7ba593b3eb803142a7d9a7d96068d744dcca42e24d54541837d297a346d",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "podcast|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "1809fb895b991ca3dab6fdbd80ed053d4c09fc6a528f4b492a5115852be05c26",
+    "size": [
+      1080,
+      1920
+    ]
+  },
+  "tiktok|square": {
+    "dialogue_lines": 17,
+    "sha256": "6a4510812c0f40ca22d18387149be4bf73702e5a3e4d1c2bd44cb2042e54e628",
+    "size": [
+      1080,
+      1080
+    ]
+  },
+  "tiktok|vertical": {
+    "dialogue_lines": 17,
+    "sha256": "a5e0d89d9fa3239acea303c94425e8e9cbe85fe39557fabb0891271cbcdd3826",
+    "size": [
+      1080,
+      1920
+    ]
+  }
+}

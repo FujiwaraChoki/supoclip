@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "@napi-rs/canvas": "npm:@napi-rs/canvas@0.1.80",
+    "@std/assert": "jsr:@std/assert@1.0.19"
+  },
+  "nodeModulesDir": "none",
+  "tasks": {
+    "test": "deno test --frozen --allow-ffi --allow-read --allow-write --allow-run --allow-env --allow-sys=homedir",
+    "selftest": "deno run --cached-only --frozen --no-prompt --allow-ffi --allow-read --allow-env=DENO_DIR,FX_DEBUG,NAPI_RS_NATIVE_LIBRARY_PATH,NAPI_RS_FORCE_WASI,DISABLE_SYSTEM_FONTS_LOAD --allow-sys=homedir main.ts selftest"
+  },
+  "fmt": { "lineWidth": 120, "exclude": ["fx-core.js"] },
+  "lint": { "exclude": ["fx-core.js"] }
+}

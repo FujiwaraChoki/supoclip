@@ -1,0 +1,265 @@
+{
+  "fixture|model_dump": {
+    "broll": [
+      {
+        "end": 8.4,
+        "fadeDuration": 0.2,
+        "fadeIn": true,
+        "fadeOut": false,
+        "footage": {
+          "credit": "Pexels creator",
+          "duration": 14.0,
+          "fileUrl": "https://videos.pexels.com/video-files/3943723/3943723-hd_1080_1920_25fps.mp4",
+          "height": 1920,
+          "id": 3943723,
+          "pageUrl": "https://www.pexels.com/video/3943723/",
+          "provider": "pexels",
+          "thumbnail": "https://images.pexels.com/videos/3943723/thumb.jpeg",
+          "width": 1080
+        },
+        "id": "b1",
+        "offset": 1.5,
+        "query": "stack of cash",
+        "start": 5.2
+      }
+    ],
+    "captionTransforms": {
+      "[\"s1\",\"w1\"]": {
+        "scale": 1.0,
+        "size": 72.0,
+        "x": 0.01,
+        "y": 0.0
+      }
+    },
+    "captions": {
+      "accent": "#FFE000",
+      "background": false,
+      "color": "#FFFFFF",
+      "enabled": true,
+      "font": "THEBOLDFONT",
+      "karaoke": true,
+      "size": 64,
+      "template": "mrbeast",
+      "uppercase": true,
+      "wordsPerLine": 3,
+      "y": 0.72
+    },
+    "effects": {
+      "blur": 0.0,
+      "brightness": 105.0,
+      "contrast": 110.0,
+      "hue": -5.0,
+      "saturation": 120.0
+    },
+    "framing": {
+      "aspect": "vertical",
+      "fit": "cover",
+      "x": 0.45,
+      "y": 0.5,
+      "zoom": 1.2
+    },
+    "hookTiming": {
+      "end": 3.5,
+      "start": 0.0
+    },
+    "hookTitle": "I lost forty grand in one night",
+    "muted": false,
+    "segments": [
+      {
+        "end": 4.2,
+        "id": "s1",
+        "start": 0.0
+      },
+      {
+        "end": 9.5,
+        "id": "s2",
+        "start": 5.0
+      },
+      {
+        "end": 12.0,
+        "id": "s3",
+        "start": 9.5
+      }
+    ],
+    "textTransforms": {
+      "captions": {
+        "scale": 0.9,
+        "x": 0.0,
+        "y": 0.02
+      },
+      "hook": {
+        "scale": 1.1,
+        "x": 0.0,
+        "y": -0.05
+      }
+    },
+    "version": 1,
+    "volume": 0.9,
+    "words": [
+      {
+        "end": 0.4,
+        "highlight": false,
+        "id": "w1",
+        "start": 0.1,
+        "text": "So"
+      },
+      {
+        "end": 0.7,
+        "highlight": false,
+        "id": "w2",
+        "start": 0.45,
+        "text": "I"
+      },
+      {
+        "end": 1.1,
+        "highlight": false,
+        "id": "w3",
+        "start": 0.75,
+        "text": "lost"
+      },
+      {
+        "end": 1.9,
+        "highlight": true,
+        "id": "w4",
+        "start": 1.15,
+        "text": "$40,000"
+      },
+      {
+        "end": 2.3,
+        "highlight": false,
+        "id": "w5",
+        "start": 2.0,
+        "text": "in"
+      },
+      {
+        "end": 2.6,
+        "highlight": false,
+        "id": "w6",
+        "start": 2.35,
+        "text": "one"
+      },
+      {
+        "end": 3.1,
+        "highlight": false,
+        "id": "w7",
+        "start": 2.65,
+        "text": "night."
+      },
+      {
+        "end": 4.6,
+        "highlight": false,
+        "id": "w8",
+        "start": 4.3,
+        "text": "um"
+      },
+      {
+        "end": 5.5,
+        "highlight": false,
+        "id": "w9",
+        "start": 5.1,
+        "text": "Honestly?"
+      },
+      {
+        "end": 5.9,
+        "highlight": false,
+        "id": "w10",
+        "start": 5.6,
+        "text": "It"
+      },
+      {
+        "end": 6.2,
+        "highlight": false,
+        "id": "w11",
+        "start": 5.95,
+        "text": "was"
+      },
+      {
+        "end": 6.8,
+        "highlight": false,
+        "id": "w12",
+        "start": 6.25,
+        "text": "the"
+      },
+      {
+        "end": 7.4,
+        "highlight": true,
+        "id": "w13",
+        "start": 6.85,
+        "text": "BEST"
+      },
+      {
+        "end": 7.9,
+        "highlight": false,
+        "id": "w14",
+        "start": 7.45,
+        "text": "thing"
+      },
+      {
+        "end": 9.8,
+        "highlight": false,
+        "id": "w15",
+        "start": 9.2,
+        "text": "café."
+      },
+      {
+        "end": 10.6,
+        "highlight": false,
+        "id": "w16",
+        "start": 10.0,
+        "text": "Compound"
+      },
+      {
+        "end": 11.2,
+        "highlight": false,
+        "id": "w17",
+        "start": 10.65,
+        "text": "growth."
+      }
+    ]
+  },
+  "minimal|model_dump": {
+    "broll": [],
+    "captionTransforms": {},
+    "captions": {
+      "accent": "#FACC15",
+      "background": true,
+      "color": "#FFFFFF",
+      "enabled": true,
+      "font": "Poppins-ExtraBold",
+      "karaoke": false,
+      "size": 54,
+      "template": "default",
+      "uppercase": false,
+      "wordsPerLine": 4,
+      "y": 0.78
+    },
+    "effects": {
+      "blur": 0,
+      "brightness": 100,
+      "contrast": 100,
+      "hue": 0,
+      "saturation": 100
+    },
+    "framing": {
+      "aspect": "vertical",
+      "fit": "cover",
+      "x": 0.5,
+      "y": 0.5,
+      "zoom": 1
+    },
+    "hookTiming": null,
+    "hookTitle": "",
+    "muted": false,
+    "segments": [
+      {
+        "end": 3.0,
+        "id": "s1",
+        "start": 0.0
+      }
+    ],
+    "textTransforms": {},
+    "version": 1,
+    "volume": 1,
+    "words": []
+  }
+}

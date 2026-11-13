@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_unicode",
+  "fn": "fnv1a32",
+  "input": {
+    "text": "ünï"
+  },
+  "expected": 458365526
+}
