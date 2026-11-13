@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-13
 
-- **Fixed:** Creating an account no longer stalls on "Signing up..." for people whose browser blocks site storage; a failing analytics script can't interrupt sign-up or sign-in anymore, and a network error during sign-up or sign-in now shows a message instead of leaving the button disabled.
+- **Fixed:** Creating an account no longer stalls on "Signing up..." for people whose browser blocks site storage; a failing analytics script can't interrupt sign-up or sign-in anymore, and a network error during sign-up or sign-in now shows a message instead of leaving the button disabled. ([#384](https://github.com/FujiwaraChoki/supoclip/pull/384))
 
 ## 2026-11-12
 
