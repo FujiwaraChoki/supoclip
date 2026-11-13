@@ -1,5 +1,13 @@
 import { getStripeClient } from "@/lib/stripe";
-import { BillingAccountHoldError, sourceStripeAccountId, stripeAccountsEnabled, stripePriceEnvPrefix, verifiedStripeClient } from "@/lib/stripe-accounts";
+import {
+  BillingAccountHoldError,
+  checkoutStripeAccountId,
+  runWithStripeAccount,
+  sourceStripeAccountId,
+  stripeAccountsEnabled,
+  stripePriceEnvPrefix,
+  verifiedStripeClient,
+} from "@/lib/stripe-accounts";
 import { fetchBackend } from "@/server/backend-api";
 import type { getPrismaClient } from "@/server/prisma";
 
@@ -162,6 +170,18 @@ export async function findCreatorOffer(prisma: PrismaClient, rawCode: string): P
     code: slug.slug.toUpperCase(),
     promotionCodeId: promotionCodeForAccount(affiliate.stripe_promotion_code_id),
   };
+}
+
+/**
+ * The offer for a visitor with no billing account yet, as a new checkout would see it.
+ * Public lookups have no user to route, so they use the account new checkouts open in;
+ * malformed codes return before any Stripe work.
+ */
+export async function findCheckoutCreatorOffer(prisma: PrismaClient, rawCode: string): Promise<CreatorOffer | null> {
+  if (!stripeAccountsEnabled() || !validateSlug(rawCode).ok) return findCreatorOffer(prisma, rawCode);
+  const accountId = checkoutStripeAccountId();
+  const client = await verifiedStripeClient(accountId);
+  return runWithStripeAccount({ accountId, client }, () => findCreatorOffer(prisma, rawCode));
 }
 
 /**
