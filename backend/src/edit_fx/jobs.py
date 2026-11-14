@@ -1,4 +1,4 @@
-"""What the worker hands the clip renderer when crazy edits are on (AI-M6, AP-C2). Python only."""
+"""What the worker hands the clip renderer when dynamic edits are on (AI-M6, AP-C2). Python only."""
 
 from __future__ import annotations
 

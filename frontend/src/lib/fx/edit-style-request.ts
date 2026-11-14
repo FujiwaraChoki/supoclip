@@ -1,4 +1,4 @@
-// Crazy edits on the request side: what `/tasks/edit-styles` offers, the stored-preference validator and the send-time
+// Dynamic edits on the request side: what `/tasks/edit-styles` offers, the stored-preference validator and the send-time
 // sanitiser. Pure (no DOM, no React) so the preferences API route can use it too.
 //
 // The rule the sanitiser enforces (AI-M2, AP-H13): unless `/tasks/edit-styles` said `enabled === true` for this user
@@ -44,7 +44,7 @@ export const FX_NEEDS_FACE: ReadonlySet<FxCaptionTemplate> = new Set(["behind_he
 
 /** `GET /tasks/edit-styles` (§5.2). */
 export interface EditStylesInfo {
-  /** The `crazy_edits` flag for this user and platform. Nothing about crazy edits shows unless it is exactly true. */
+  /** The `dynamic_edits` flag for this user and platform. Nothing about dynamic edits shows unless it is exactly true. */
   enabled: boolean;
   intensities: readonly Intensity[];
   defaults: Omit<EditStyle, "intensity">;
@@ -151,14 +151,14 @@ export function isEditStyleActive(style: EditStyle): boolean {
   return style.intensity !== "off";
 }
 
-/** The caption template a request may carry: an animated one only while crazy edits are enabled. */
+/** The caption template a request may carry: an animated one only while dynamic edits are enabled. */
 export function sendableCaptionTemplate(template: string | null | undefined, enabled: boolean): string {
   const id = template || "default";
   return !enabled && isFxTemplate(id) ? FX_ASS_FALLBACK[id] : id;
 }
 
 /**
- * The crazy-edits fields of a create body (§15 send-time sanitising). `edit_style` appears only when the style is active
+ * The dynamic-edits fields of a create body (§15 send-time sanitising). `edit_style` appears only when the style is active
  * **and** the flag said `enabled === true`; otherwise it is absent and an animated template becomes its legacy
  * fallback, so the request is exactly today's.
  */

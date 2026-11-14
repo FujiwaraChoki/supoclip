@@ -1,4 +1,4 @@
-"""Crazy edits on PostgreSQL: the edit_style column through create, read, dedupe, settings and clip jobs (§3.4, §5.2)."""
+"""Dynamic edits on PostgreSQL: the edit_style column through create, read, dedupe, settings and clip jobs (§3.4, §5.2)."""
 
 from __future__ import annotations
 
@@ -31,15 +31,15 @@ def headers_for(user_id: str, **extra: str) -> dict[str, str]:
 @pytest.fixture(autouse=True)
 def youtube_duration(monkeypatch):
     async def info(_url, **_kwargs):
-        return {"duration": 600, "title": "Crazy edits source"}
+        return {"duration": 600, "title": "Dynamic edits source"}
 
     monkeypatch.setattr("src.api.routes.tasks.async_get_youtube_video_info", info)
 
 
 @pytest.fixture
-async def crazy_edits(feature_flag):
-    """The crazy_edits flag, off everywhere (admins bypass) unless a test switches it."""
-    await feature_flag("crazy_edits", web_enabled=False, ios_enabled=False, admins_bypass=True)
+async def dynamic_edits(feature_flag):
+    """The dynamic_edits flag, off everywhere (admins bypass) unless a test switches it."""
+    await feature_flag("dynamic_edits", web_enabled=False, ios_enabled=False, admins_bypass=True)
     return feature_flag
 
 
@@ -82,36 +82,36 @@ async def counts(db_session, user_id):
 
 
 def _video(n: int) -> str:
-    return f"https://www.youtube.com/watch?v=crazyEdit{n:02d}"
+    return f"https://www.youtube.com/watch?v=dynamicEd{n:02d}"
 
 
 # --------------------------------------------------------------------------- create
 
 
-async def test_spicy_create_stores_to_json_and_reads_it_back(client, app, db_session, crazy_edits, create_spy):
+async def test_bold_create_stores_to_json_and_reads_it_back(client, app, db_session, dynamic_edits, create_spy):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
-    await crazy_edits("crazy_edits", web_enabled=True)
+    await dynamic_edits("dynamic_edits", web_enabled=True)
     queued = app.state.queue_adapter.enqueued_jobs
     before = len(queued)
 
     response = await create(
         client, headers_for(user_id), url=_video(1), caption_template="slam",
-        edit_style={"intensity": "spicy", "music_mood": "hype", "progress_bar": True, "sfx": True},
+        edit_style={"intensity": "bold", "music_mood": "hype", "progress_bar": True, "sfx": True},
     )
 
     assert response.status_code == 200, response.text
     task_id = response.json()["task_id"]
     row = await stored(db_session, task_id)
-    assert row.edit_style == {"intensity": "spicy", "music_mood": "hype", "progress_bar": True}
+    assert row.edit_style == {"intensity": "bold", "music_mood": "hype", "progress_bar": True}
     assert row.caption_template == "slam"
-    assert create_spy[-1]["edit_style"] == {"intensity": "spicy", "music_mood": "hype", "progress_bar": True}
+    assert create_spy[-1]["edit_style"] == {"intensity": "bold", "music_mood": "hype", "progress_bar": True}
 
     task = await TaskRepository.get_task_by_id(db_session, task_id)
-    assert task["edit_style"] == {"intensity": "spicy", "music_mood": "hype", "progress_bar": True}
+    assert task["edit_style"] == {"intensity": "bold", "music_mood": "hype", "progress_bar": True}
     assert isinstance(task["edit_style"], dict)
     detail = (await client.get(f"/tasks/{task_id}", headers=headers_for(user_id))).json()
-    assert detail["edit_style"] == {"intensity": "spicy", "music_mood": "hype", "progress_bar": True}
+    assert detail["edit_style"] == {"intensity": "bold", "music_mood": "hype", "progress_bar": True}
 
     # The worker reads the row: the job arguments do not change.
     job = queued[before]
@@ -120,7 +120,7 @@ async def test_spicy_create_stores_to_json_and_reads_it_back(client, app, db_ses
     assert not any(isinstance(arg, dict) and "intensity" in arg for arg in job["args"])
 
 
-async def test_off_create_is_legacy(client, app, db_session, crazy_edits, create_spy):
+async def test_off_create_is_legacy(client, app, db_session, dynamic_edits, create_spy):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
     queued = app.state.queue_adapter.enqueued_jobs
@@ -145,10 +145,10 @@ async def test_off_create_is_legacy(client, app, db_session, crazy_edits, create
 
 @pytest.mark.parametrize(
     "body",
-    [{"edit_style": {"intensity": "spicy"}}, {"caption_template": "behind_head"},
-     {"caption_template": "hormozi", "edit_style": {"intensity": "unhinged", "censor": "off"}}],
+    [{"edit_style": {"intensity": "bold"}}, {"caption_template": "behind_head"},
+     {"caption_template": "hormozi", "edit_style": {"intensity": "max", "censor": "off"}}],
 )
-async def test_flag_off_is_403_before_any_charge(client, app, db_session, crazy_edits, body):
+async def test_flag_off_is_403_before_any_charge(client, app, db_session, dynamic_edits, body):
     user_id = str(uuid4())
     app.state.config.monetization_enabled = True
     await create_user(db_session, user_id=user_id, plan="pro", subscription_status="active")
@@ -156,40 +156,40 @@ async def test_flag_off_is_403_before_any_charge(client, app, db_session, crazy_
     blocked = await create(client, headers_for(user_id), url=_video(20), **body)
 
     assert blocked.status_code == 403, blocked.text
-    assert blocked.json()["detail"]["code"] == "CRAZY_EDITS_NOT_AVAILABLE"
+    assert blocked.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
     assert await counts(db_session, user_id) == (0, 0)
 
     # On for iOS only: the same request from the app is accepted and charged once.
-    await crazy_edits("crazy_edits", ios_enabled=True)
+    await dynamic_edits("dynamic_edits", ios_enabled=True)
     allowed = await create(client, headers_for(user_id, **IOS), url=_video(20), **body)
     assert allowed.status_code == 200, allowed.text
     assert await counts(db_session, user_id) == (1, 1)
 
 
-async def test_bad_edit_style_is_422_before_any_charge(client, app, db_session, crazy_edits):
+async def test_bad_edit_style_is_422_before_any_charge(client, app, db_session, dynamic_edits):
     user_id = str(uuid4())
     app.state.config.monetization_enabled = True
     await create_user(db_session, user_id=user_id, plan="pro", subscription_status="active")
-    await crazy_edits("crazy_edits", web_enabled=True)
+    await dynamic_edits("dynamic_edits", web_enabled=True)
 
-    for bad in ({"intensity": "max"}, {"intensity": "spicy", "zoomz": True}, "spicy"):
+    for bad in ({"intensity": "extreme"}, {"intensity": "bold", "zoomz": True}, "bold"):
         response = await create(client, headers_for(user_id), url=_video(21), edit_style=bad)
         assert response.status_code == 422, response.text
         assert response.json()["detail"]["code"] == "INVALID_EDIT_STYLE"
     assert await counts(db_session, user_id) == (0, 0)
 
 
-async def test_admins_bypass_the_flag(client, db_session, crazy_edits):
+async def test_admins_bypass_the_flag(client, db_session, dynamic_edits):
     admin = str(uuid4())
     await create_user(db_session, user_id=admin, is_admin=True)
 
-    response = await create(client, headers_for(admin), url=_video(22), edit_style={"intensity": "chill"})
+    response = await create(client, headers_for(admin), url=_video(22), edit_style={"intensity": "subtle"})
     assert response.status_code == 200, response.text
     edit_styles = (await client.get("/tasks/edit-styles", headers=headers_for(admin))).json()
     assert edit_styles["enabled"] is True
 
-    await crazy_edits("crazy_edits", admins_bypass=False)
-    blocked = await create(client, headers_for(admin), url=_video(23), edit_style={"intensity": "chill"})
+    await dynamic_edits("dynamic_edits", admins_bypass=False)
+    blocked = await create(client, headers_for(admin), url=_video(23), edit_style={"intensity": "subtle"})
     assert blocked.status_code == 403
     assert (await client.get("/tasks/edit-styles", headers=headers_for(admin))).json()["enabled"] is False
 
@@ -197,30 +197,30 @@ async def test_admins_bypass_the_flag(client, db_session, crazy_edits):
 # --------------------------------------------------------------------------- dedupe (AI-L6)
 
 
-async def test_an_active_style_never_reuses_an_in_flight_task_with_another_style(client, db_session, crazy_edits):
+async def test_an_active_style_never_reuses_an_in_flight_task_with_another_style(client, db_session, dynamic_edits):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
-    await crazy_edits("crazy_edits", web_enabled=True)
+    await dynamic_edits("dynamic_edits", web_enabled=True)
     headers = headers_for(user_id)
     url = _video(30)
 
     plain = (await create(client, headers, url=url)).json()["task_id"]
-    spicy = await create(client, headers, url=url, edit_style={"intensity": "spicy"})
-    assert spicy.status_code == 200, spicy.text
-    spicy_id = spicy.json()["task_id"]
-    assert spicy_id != plain
+    bold = await create(client, headers, url=url, edit_style={"intensity": "bold"})
+    assert bold.status_code == 200, bold.text
+    bold_id = bold.json()["task_id"]
+    assert bold_id != plain
 
     # The same style (and template) is the same job.
-    again = await create(client, headers, url=url, edit_style={"intensity": "spicy", "sfx": True})
-    assert again.json()["task_id"] == spicy_id
+    again = await create(client, headers, url=url, edit_style={"intensity": "bold", "sfx": True})
+    assert again.json()["task_id"] == bold_id
     # Another intensity, or another template, is a new task.
-    chill = (await create(client, headers, url=url, edit_style={"intensity": "chill"})).json()["task_id"]
-    assert chill not in {plain, spicy_id}
-    slam = (await create(client, headers, url=url, edit_style={"intensity": "spicy"},
+    subtle = (await create(client, headers, url=url, edit_style={"intensity": "subtle"})).json()["task_id"]
+    assert subtle not in {plain, bold_id}
+    slam = (await create(client, headers, url=url, edit_style={"intensity": "bold"},
                          caption_template="slam")).json()["task_id"]
-    assert slam not in {plain, spicy_id, chill}
+    assert slam not in {plain, bold_id, subtle}
     style_only = (await create(client, headers, url=url, caption_template="slam")).json()["task_id"]
-    assert style_only not in {plain, spicy_id, chill, slam}
+    assert style_only not in {plain, bold_id, subtle, slam}
     assert (await create(client, headers, url=url, caption_template="slam")).json()["task_id"] == style_only
 
     # The off path keeps today's check: the oldest in-flight task for the video.
@@ -236,21 +236,21 @@ async def test_style_dedupe_also_matches_tasks_saved_before_source_keys(db_sessi
     task = await create_task(db_session, user_id=user_id, source_id=source["id"], status="queued")
     await db_session.execute(
         text("UPDATE tasks SET edit_style = CAST(:style AS JSONB), caption_template = 'slam' WHERE id = :id"),
-        {"style": json.dumps({"intensity": "spicy"}), "id": task["id"]},
+        {"style": json.dumps({"intensity": "bold"}), "id": task["id"]},
     )
     await db_session.commit()
     from src.source_identity import source_key_for_url
 
     key = await source_key_for_url(db_session, user_id, url)
     found = await TaskRepository.find_active_source_task(
-        db_session, user_id, key, edit_identity=({"intensity": "spicy"}, "slam")
+        db_session, user_id, key, edit_identity=({"intensity": "bold"}, "slam")
     )
     assert found is not None and found.id == task["id"]
     assert await TaskRepository.find_active_source_task(
-        db_session, user_id, key, edit_identity=({"intensity": "spicy"}, "default")
+        db_session, user_id, key, edit_identity=({"intensity": "bold"}, "default")
     ) is None
     assert await TaskRepository.find_active_source_task(
-        db_session, user_id, key, edit_identity=({"intensity": "chill"}, "slam")
+        db_session, user_id, key, edit_identity=({"intensity": "subtle"}, "slam")
     ) is None
 
 
@@ -272,19 +272,19 @@ async def settings(client, user_id, task_id, **body):
     return await client.post(f"/tasks/{task_id}/settings", headers=headers_for(user_id), json=body)
 
 
-async def test_settings_store_keep_and_clear_the_style(client, db_session, crazy_edits):
+async def test_settings_store_keep_and_clear_the_style(client, db_session, dynamic_edits):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
-    task_id = await completed_task(db_session, user_id, style={"intensity": "spicy"}, template="slam")
+    task_id = await completed_task(db_session, user_id, style={"intensity": "bold"}, template="slam")
 
     # Omitted style and template keep the stored ones; the flag is off and nothing turns on, so no 403.
     kept = await settings(client, user_id, task_id, font_size=40)
     assert kept.status_code == 200, kept.text
-    assert tuple(await stored(db_session, task_id)) == ({"intensity": "spicy"}, "slam")
+    assert tuple(await stored(db_session, task_id)) == ({"intensity": "bold"}, "slam")
 
-    changed = await settings(client, user_id, task_id, edit_style={"intensity": "unhinged", "music": False})
+    changed = await settings(client, user_id, task_id, edit_style={"intensity": "max", "music": False})
     assert changed.status_code == 200, changed.text
-    assert (await stored(db_session, task_id)).edit_style == {"intensity": "unhinged", "music": False}
+    assert (await stored(db_session, task_id)).edit_style == {"intensity": "max", "music": False}
 
     off = await settings(client, user_id, task_id, edit_style={"intensity": "off"}, caption_template="hormozi")
     assert off.status_code == 200, off.text
@@ -292,42 +292,42 @@ async def test_settings_store_keep_and_clear_the_style(client, db_session, crazy
     assert off.json()["task"]["edit_style"] is None
 
     # Back on, with the flag off: a transition, so 403 and nothing stored.
-    blocked = await settings(client, user_id, task_id, edit_style={"intensity": "chill"})
+    blocked = await settings(client, user_id, task_id, edit_style={"intensity": "subtle"})
     assert blocked.status_code == 403
-    assert blocked.json()["detail"]["code"] == "CRAZY_EDITS_NOT_AVAILABLE"
+    assert blocked.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
     blocked_template = await settings(client, user_id, task_id, caption_template="emoji_drop")
     assert blocked_template.status_code == 403
     assert tuple(await stored(db_session, task_id)) == (None, "hormozi")
 
-    await crazy_edits("crazy_edits", web_enabled=True)
-    on = await settings(client, user_id, task_id, edit_style={"intensity": "chill"}, caption_template="emoji_drop")
+    await dynamic_edits("dynamic_edits", web_enabled=True)
+    on = await settings(client, user_id, task_id, edit_style={"intensity": "subtle"}, caption_template="emoji_drop")
     assert on.status_code == 200, on.text
-    assert tuple(await stored(db_session, task_id)) == ({"intensity": "chill"}, "emoji_drop")
+    assert tuple(await stored(db_session, task_id)) == ({"intensity": "subtle"}, "emoji_drop")
 
 
-async def test_settings_fx_target_with_apply_to_existing_queues_a_clip_job(client, app, db_session, crazy_edits):
+async def test_settings_fx_target_with_apply_to_existing_queues_a_clip_job(client, app, db_session, dynamic_edits):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
-    await crazy_edits("crazy_edits", web_enabled=True)
+    await dynamic_edits("dynamic_edits", web_enabled=True)
     task_id = await completed_task(db_session, user_id)
     queued = app.state.queue_adapter.enqueued_jobs
     before = len(queued)
 
     response = await settings(
-        client, user_id, task_id, edit_style={"intensity": "spicy"}, caption_template="marker_circle",
+        client, user_id, task_id, edit_style={"intensity": "bold"}, caption_template="marker_circle",
         apply_to_existing=True,
     )
 
     assert response.status_code == 202, response.text
     body = response.json()
     assert body["status"] == "queued" and body["kind"] == "settings" and len(body["job_id"]) == 32
-    assert tuple(await stored(db_session, task_id)) == ({"intensity": "spicy"}, "marker_circle")
+    assert tuple(await stored(db_session, task_id)) == ({"intensity": "bold"}, "marker_circle")
     job = queued[before]
     assert job["function_name"] == "fx_clip_job"
     (payload,) = job["args"]
     assert payload["job_id"] == body["job_id"]
     assert (payload["task_id"], payload["user_id"], payload["kind"]) == (task_id, user_id, "settings")
-    assert payload["args"]["edit_style"] == {"intensity": "spicy"}
+    assert payload["args"]["edit_style"] == {"intensity": "bold"}
     assert payload["args"]["caption_template"] == "marker_circle"
     assert job["kwargs"] == {"_job_id": f"fx_clip_job:{body['job_id']}"}
 
@@ -357,7 +357,7 @@ async def test_settings_fx_target_with_apply_to_existing_queues_a_clip_job(clien
             await client_redis.aclose()
 
 
-async def test_settings_on_a_task_with_fx_clips_queues_even_a_legacy_target(client, app, db_session, crazy_edits):
+async def test_settings_on_a_task_with_fx_clips_queues_even_a_legacy_target(client, app, db_session, dynamic_edits):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
     task_id = await completed_task(db_session, user_id, template="hormozi")
@@ -365,7 +365,7 @@ async def test_settings_on_a_task_with_fx_clips_queues_even_a_legacy_target(clie
     assert await TaskRepository.has_fx_clips(db_session, task_id) is False
     await db_session.execute(
         text("UPDATE generated_clips SET fx_meta = CAST(:meta AS JSONB) WHERE id = :id"),
-        {"meta": json.dumps({"fx_level": "full", "timing": "word", "intensity": "spicy", "template": "slam"}),
+        {"meta": json.dumps({"fx_level": "full", "timing": "word", "intensity": "bold", "template": "slam"}),
          "id": clip["id"]},
     )
     await db_session.commit()
@@ -382,15 +382,15 @@ async def test_settings_on_a_task_with_fx_clips_queues_even_a_legacy_target(clie
         await client_redis.aclose()
 
 
-async def test_edit_styles_route_is_not_captured_as_a_task_id(client, db_session, crazy_edits):
+async def test_edit_styles_route_is_not_captured_as_a_task_id(client, db_session, dynamic_edits):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
-    await crazy_edits("crazy_edits", ios_enabled=True)
+    await dynamic_edits("dynamic_edits", ios_enabled=True)
 
     web = await client.get("/tasks/edit-styles", headers=headers_for(user_id))
     ios = await client.get("/tasks/edit-styles", headers=headers_for(user_id, **IOS))
 
     assert web.status_code == 200, web.text
     assert web.json()["enabled"] is False and ios.json()["enabled"] is True
-    assert web.json()["intensities"] == ["off", "chill", "spicy", "unhinged"]
+    assert web.json()["intensities"] == ["off", "subtle", "bold", "max"]
     assert len(web.json()["templates"]) == 10

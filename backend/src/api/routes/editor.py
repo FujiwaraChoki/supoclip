@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...analytics import capture_clip_export
 from ...database import get_db
 from ...editor_document import EditDocument, RevisionConflict, document_fx_on, turns_fx_on
-from ...feature_flags import CRAZY_EDITS, client_platform, is_enabled as feature_enabled
+from ...feature_flags import DYNAMIC_EDITS, client_platform, is_enabled as feature_enabled
 from ...editor_state import (
     get_store,
     new_job_id,
@@ -64,13 +64,13 @@ def _clip_broll(clip: dict) -> list:
 
 
 def _clip_edit_fx(clip: dict) -> dict | None:
-    """The crazy edits the clip was generated with (sidecar), or None. Never raises."""
+    """The dynamic edits the clip was generated with (sidecar), or None. Never raises."""
     from ...clip_source_map import load_clip_edit_fx
 
     try:
         return load_clip_edit_fx(MediaStorage().local_path(clip["file_path"], metadata_only=True))
     except Exception:
-        logging.getLogger(__name__).warning("Could not read the clip's crazy edits", exc_info=True)
+        logging.getLogger(__name__).warning("Could not read the clip's dynamic edits", exc_info=True)
         return None
 
 
@@ -79,23 +79,23 @@ def _needs_fx_seed(*documents: dict | None) -> bool:
 
 
 async def _fx_flag(db, request: Request, user_id: str) -> bool:
-    """The ``crazy_edits`` flag for the caller and platform. Fails closed: only turning edits on needs it."""
+    """The ``dynamic_edits`` flag for the caller and platform. Fails closed: only turning edits on needs it."""
     try:
-        return await feature_enabled(db, CRAZY_EDITS, platform=client_platform(request), user_id=user_id)
+        return await feature_enabled(db, DYNAMIC_EDITS, platform=client_platform(request), user_id=user_id)
     except Exception:
-        logging.getLogger(__name__).warning("Could not evaluate the crazy_edits flag", exc_info=True)
+        logging.getLogger(__name__).warning("Could not evaluate the dynamic_edits flag", exc_info=True)
         return False
 
 
-def _crazy_edits_not_available() -> HTTPException:
+def _dynamic_edits_not_available() -> HTTPException:
     return HTTPException(403, {
-        "code": "CRAZY_EDITS_NOT_AVAILABLE",
-        "message": "Crazy edits aren't available on your account yet.",
+        "code": "DYNAMIC_EDITS_NOT_AVAILABLE",
+        "message": "Dynamic edits aren't available on your account yet.",
     })
 
 
 def _stored_document(state: dict, clip: dict | None = None, task: dict | None = None) -> EditDocument | None:
-    """The saved draft as a model (seeded like ``GET`` when it predates crazy edits), or None when unreadable."""
+    """The saved draft as a model (seeded like ``GET`` when it predates dynamic edits), or None when unreadable."""
     draft = (state.get("draft") or {}).get("document")
     if not isinstance(draft, dict):
         return None
@@ -147,7 +147,7 @@ async def get_editor(
         placements = []
         if "broll" not in draft["document"] or "broll" not in state["original"]:
             placements = await run_in_thread(_clip_broll, clip)
-        # Drafts that predate crazy edits are seeded from the clip's own plan.
+        # Drafts that predate dynamic edits are seeded from the clip's own plan.
         fx_sidecar = (
             await run_in_thread(_clip_edit_fx, clip) if _needs_fx_seed(draft["document"], state["original"]) else None
         )
@@ -322,7 +322,7 @@ async def save(
         raw_document = payload.get("document")
         stored = (state.get("draft") or {}).get("document") or {}
         if isinstance(raw_document, dict) and raw_document.get("fx") is None and stored.get("fx") is not None:
-            # A client that does not know crazy edits never drops them (tested on the raw JSON, AI-H1).
+            # A client that does not know dynamic edits never drops them (tested on the raw JSON, AI-H1).
             raw_document = {**raw_document, "fx": stored["fx"]}
         document = EditDocument.model_validate(raw_document)
         document.validate_duration(state["duration"])
@@ -341,14 +341,14 @@ async def save(
 
 
 async def _check_fx_write(db, request: Request, task: dict, clip: dict, state: dict, document: EditDocument) -> None:
-    """A saved draft with crazy edits: 403 when it turns them on without the flag (§0.4.8), 422 when its freezes
+    """A saved draft with dynamic edits: 403 when it turns them on without the flag (§0.4.8), 422 when its freezes
     hold longer than the budget and longer than the stored draft's (§5.1; a combined clip may already exceed it)."""
     from ...editor_document import edit_duration, fx_hold_budget, mapped_hold_total
 
     # Seeding an old draft reads the clip's sidecar, which may come from the bucket: keep it off the event loop.
     before = await run_in_thread(_stored_document, state, clip, task)
     if turns_fx_on(before, document) and not await _fx_flag(db, request, task["user_id"]):
-        raise _crazy_edits_not_available()
+        raise _dynamic_edits_not_available()
     held = mapped_hold_total(document)
     if held > fx_hold_budget(edit_duration(document)) + 1e-6 and held > (
         mapped_hold_total(before) if before is not None else 0.0
@@ -721,7 +721,7 @@ async def start_ai_edit(
         # must not overflow float() and turn a harmless cursor hint into a 500.
         playhead = float(min(state["duration"], max(0, playhead)))
 
-    # Crazy-edit operations are offered only to flagged callers, or on a draft that already has edits (§0.4.8);
+    # Dynamic-edit operations are offered only to flagged callers, or on a draft that already has edits (§0.4.8);
     # everyone else's request, prompt and grammar stay exactly as before.
     fx_flag = await _fx_flag(db, request, task["user_id"])
     fx_request = {}
@@ -804,7 +804,7 @@ async def ai_edit_status(
 
 
 # --------------------------------------------------------------------------
-# Crazy edits (§5.5)
+# Dynamic edits (§5.5)
 # --------------------------------------------------------------------------
 
 FX_CUE_ID = re.compile(r"[A-Za-z0-9_.:@~-]{1,32}")
@@ -878,7 +878,7 @@ async def fx_resolve(task_id: str, clip_id: str, request: Request, db: AsyncSess
         raise HTTPException(422, {"code": "INVALID_EDIT_STYLE", "message": str(exc)}) from None
     stored = await run_in_thread(_stored_document, state, clip, task)
     if turns_fx_on(stored, _with_style(document, style)) and not await _fx_flag(db, request, task["user_id"]):
-        raise _crazy_edits_not_available()
+        raise _dynamic_edits_not_available()
     seed = _draft_fx_seed(document, task_id, clip_id)
     try:
         resolved = await run_in_thread(
@@ -926,7 +926,7 @@ async def fx_plan(task_id: str, clip_id: str, request: Request, db: AsyncSession
     document = _payload_document(payload, state)
     stored = await run_in_thread(_stored_document, state, clip, task)
     if not document_fx_on(stored) and not await _fx_flag(db, request, task["user_id"]):
-        raise _crazy_edits_not_available()
+        raise _dynamic_edits_not_available()
     pool = await JobQueue.get_pool()
     job_id = uuid.uuid4().hex
     daily_key = await reserve_edit_plan(pool, task["user_id"])

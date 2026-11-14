@@ -176,7 +176,7 @@ export interface BRollLayer {
   width: number;
   height: number;
   alpha: number;
-  /** Draws the footage; `target` is the context to draw into (crazy edits may compose the picture off screen). */
+  /** Draws the footage; `target` is the context to draw into (dynamic edits may compose the picture off screen). */
   draw: (x: number, y: number, width: number, height: number, target?: CanvasRenderingContext2D) => void;
 }
 
@@ -187,7 +187,7 @@ export interface EditorMediaFrame {
   height: number;
 }
 
-/** What the studio session knows about its media, for crazy edits (studioScene options). */
+/** What the studio session knows about its media, for dynamic edits (studioScene options). */
 export interface EditorFxSession {
   /** The video the picture is drawn from. */
   base: "layout" | "clean";
@@ -198,7 +198,7 @@ export interface EditorFxSession {
   reactions?: readonly string[] | null;
 }
 
-/** Per-frame inputs of a crazy-edit frame beyond the picture itself. */
+/** Per-frame inputs of a dynamic-edit frame beyond the picture itself. */
 export interface EditorFxFrame {
   /** Final (F) seconds of this frame. Default: the warp's toOutput(time). */
   o?: number;
@@ -254,7 +254,7 @@ export function drawEditorFrame(
   if (textLayers === "all") drawEditorTextLayer(ctx, doc, sourceWidth, sourceHeight, time, looks, "all", false);
 }
 
-// ------------------------------------------------------------------------------------------- crazy edits (fx-core)
+// ------------------------------------------------------------------------------------------- dynamic edits (fx-core)
 
 /** Fonts the fx-core drawers use (== fx_chain.DRAWER_FONT_STEMS), registered as "FX-<stem>". */
 export const FX_DRAWER_FONTS = ["TikTokSans-Bold", "TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT"] as const;

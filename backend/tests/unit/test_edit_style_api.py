@@ -1,4 +1,4 @@
-"""Task API for crazy edits (§5.2): create validation and gate, /tasks/edit-styles, settings, clip-job status.
+"""Task API for dynamic edits (§5.2): create validation and gate, /tasks/edit-styles, settings, clip-job status.
 
 Route tests run the real router with the services faked, so they pin decisions (status codes, what is stored, what
 is queued) without PostgreSQL. tests/integration/test_task_edit_style.py covers the same flows on a database.
@@ -47,7 +47,7 @@ def billing(monkeypatch):
 
 @pytest.fixture
 def flag(monkeypatch):
-    """The crazy_edits flag for the caller: ``flag.value`` (default off); calls in ``flag.mock``."""
+    """The dynamic_edits flag for the caller: ``flag.value`` (default off); calls in ``flag.mock``."""
     state = SimpleNamespace(value=False)
 
     async def enabled(db, key, *, platform, user_id=None):
@@ -90,15 +90,15 @@ async def _create(body: dict, headers: dict | None = None):
 @pytest.mark.parametrize(
     "edit_style",
     [
-        "spicy",
-        ["spicy"],
+        "bold",
+        ["bold"],
         {"intensity": "nuclear"},
-        {"intensity": "spicy", "laser_eyes": True},
-        {"intensity": "spicy", "sfx": "yes"},
-        {"intensity": "spicy", "sfx": 1},
-        {"intensity": "spicy", "censor": "beep"},
-        {"intensity": "spicy", "grade": "sepia"},
-        {"intensity": "spicy", "music_mood": None},
+        {"intensity": "bold", "laser_eyes": True},
+        {"intensity": "bold", "sfx": "yes"},
+        {"intensity": "bold", "sfx": 1},
+        {"intensity": "bold", "censor": "beep"},
+        {"intensity": "bold", "grade": "sepia"},
+        {"intensity": "bold", "music_mood": None},
     ],
 )
 async def test_create_rejects_a_bad_edit_style_with_422_before_any_charge(user, billing, flag, edit_style):
@@ -115,9 +115,9 @@ async def test_create_rejects_a_bad_edit_style_with_422_before_any_charge(user, 
 @pytest.mark.parametrize(
     "body",
     [
-        {"edit_style": {"intensity": "spicy"}},
-        {"edit_style": {"intensity": "chill", "sfx": False}},
-        {"edit_style": {"intensity": "unhinged"}, "caption_template": "hormozi"},
+        {"edit_style": {"intensity": "bold"}},
+        {"edit_style": {"intensity": "subtle", "sfx": False}},
+        {"edit_style": {"intensity": "max"}, "caption_template": "hormozi"},
         {"caption_template": "slam"},                                  # style only
         {"caption_template": "behind_head", "edit_style": {}},
         {"caption_template": "face_doodles", "edit_style": {"intensity": "off"}},
@@ -128,17 +128,17 @@ async def test_create_turning_fx_on_needs_the_flag(user, billing, flag, body):
 
     assert response.status_code == 403, response.text
     assert response.json()["detail"] == {
-        "code": "CRAZY_EDITS_NOT_AVAILABLE",
-        "message": "Crazy edits aren't available on your account yet.",
+        "code": "DYNAMIC_EDITS_NOT_AVAILABLE",
+        "message": "Dynamic edits aren't available on your account yet.",
     }
     assert billing.calls == []
     flag.mock.assert_awaited_once()
     args, kwargs = flag.mock.await_args
-    assert args[1] == "crazy_edits"
+    assert args[1] == "dynamic_edits"
     assert kwargs == {"platform": "ios", "user_id": "user-1"}
 
 
-@pytest.mark.parametrize("body", [{"edit_style": {"intensity": "spicy"}}, {"caption_template": "slam"}])
+@pytest.mark.parametrize("body", [{"edit_style": {"intensity": "bold"}}, {"caption_template": "slam"}])
 async def test_create_with_the_flag_on_goes_on_to_billing(user, billing, flag, body):
     flag.value = True
 
@@ -181,7 +181,7 @@ async def test_edit_styles_reports_the_flag_and_the_choices(user, flag, monkeypa
     assert response.status_code == 200, response.text
     assert response.json() == {
         "enabled": enabled,
-        "intensities": ["off", "chill", "spicy", "unhinged"],
+        "intensities": ["off", "subtle", "bold", "max"],
         "defaults": {
             "sfx": True, "music": True, "music_mood": "auto", "zooms": True, "shake": True, "transitions": True,
             "speed": True, "censor": "bleep_bar", "grade": "auto", "grain": False, "progress_bar": False,
@@ -279,7 +279,7 @@ async def test_settings_without_fx_is_the_legacy_call(settings_route, flag):
 
 
 async def test_settings_omitted_style_keeps_the_stored_one(settings_route, flag):
-    stored = {"intensity": "spicy", "music_mood": "dark"}
+    stored = {"intensity": "bold", "music_mood": "dark"}
     response, service, _ = await settings_route(
         {"caption_template": "hormozi", "edit_style": stored}, {"caption_template": "hormozi", "font_size": 30}
     )
@@ -292,7 +292,7 @@ async def test_settings_omitted_style_keeps_the_stored_one(settings_route, flag)
 
 async def test_settings_null_style_also_keeps_the_stored_one(settings_route):
     response, service, _ = await settings_route(
-        {"caption_template": "hormozi", "edit_style": {"intensity": "spicy"}},
+        {"caption_template": "hormozi", "edit_style": {"intensity": "bold"}},
         {"caption_template": "hormozi", "edit_style": None},
     )
     assert response.status_code == 200
@@ -314,16 +314,16 @@ async def test_settings_omitted_template_keeps_a_stored_fx_template(settings_rou
 @pytest.mark.parametrize(
     ("record", "body"),
     [
-        ({"caption_template": "default"}, {"caption_template": "default", "edit_style": {"intensity": "spicy"}}),
+        ({"caption_template": "default"}, {"caption_template": "default", "edit_style": {"intensity": "bold"}}),
         ({"caption_template": "default"}, {"caption_template": "slam"}),
         ({"caption_template": "default", "edit_style": {}}, {"caption_template": "kinetic_stack"}),
         # A stored preference with intensity off is off: switching it on is a transition.
         ({"caption_template": "hormozi", "edit_style": None},
-         {"caption_template": "hormozi", "edit_style": {"intensity": "chill"}}),
+         {"caption_template": "hormozi", "edit_style": {"intensity": "subtle"}}),
         # Style-only (FX template, intensity off) turning the intensity on.
-        ({"caption_template": "slam"}, {"caption_template": "slam", "edit_style": {"intensity": "spicy"}}),
+        ({"caption_template": "slam"}, {"caption_template": "slam", "edit_style": {"intensity": "bold"}}),
         # Active style switching from a legacy template to an FX one.
-        ({"caption_template": "hormozi", "edit_style": {"intensity": "spicy"}},
+        ({"caption_template": "hormozi", "edit_style": {"intensity": "bold"}},
          {"caption_template": "decode_glitch"}),
     ],
 )
@@ -331,7 +331,7 @@ async def test_settings_turning_fx_on_is_gated(settings_route, flag, record, bod
     response, service, saved = await settings_route(record, {**body, "apply_to_existing": True})
 
     assert response.status_code == 403, response.text
-    assert response.json()["detail"]["code"] == "CRAZY_EDITS_NOT_AVAILABLE"
+    assert response.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
     service.update_task_settings.assert_not_awaited()
     saved.assert_not_awaited()
     assert flag.mock.await_args.kwargs["user_id"] == "owner-1"
@@ -341,16 +341,16 @@ async def test_settings_turning_fx_on_is_gated(settings_route, flag, record, bod
     ("record", "body", "stored_style"),
     [
         # Turning off.
-        ({"caption_template": "slam", "edit_style": {"intensity": "spicy"}},
+        ({"caption_template": "slam", "edit_style": {"intensity": "bold"}},
          {"caption_template": "hormozi", "edit_style": {"intensity": "off"}}, {}),
-        ({"caption_template": "hormozi", "edit_style": {"intensity": "spicy"}},
+        ({"caption_template": "hormozi", "edit_style": {"intensity": "bold"}},
          {"caption_template": "hormozi", "edit_style": {}}, {}),
         # Unchanged stored FX state: a font edit, or a different intensity, is never blocked by the kill switch.
-        ({"caption_template": "slam", "edit_style": {"intensity": "spicy"}},
+        ({"caption_template": "slam", "edit_style": {"intensity": "bold"}},
          {"caption_template": "slam", "font_size": 40}, None),
-        ({"caption_template": "slam", "edit_style": {"intensity": "spicy"}},
-         {"edit_style": {"intensity": "unhinged", "music": False}}, {"intensity": "unhinged", "music": False}),
-        ({"caption_template": "slam", "edit_style": json.dumps({"intensity": "spicy"})},
+        ({"caption_template": "slam", "edit_style": {"intensity": "bold"}},
+         {"edit_style": {"intensity": "max", "music": False}}, {"intensity": "max", "music": False}),
+        ({"caption_template": "slam", "edit_style": json.dumps({"intensity": "bold"})},
          {"caption_template": "marker_circle"}, None),
     ],
 )
@@ -367,7 +367,7 @@ async def test_settings_turning_off_or_keeping_fx_is_never_gated(settings_route,
 
 
 async def test_settings_rejects_a_bad_style_with_422(settings_route):
-    response, service, _ = await settings_route({}, {"edit_style": {"intensity": "spicy", "bogus": 1}})
+    response, service, _ = await settings_route({}, {"edit_style": {"intensity": "bold", "bogus": 1}})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "INVALID_EDIT_STYLE"
     service.update_task_settings.assert_not_awaited()
@@ -376,9 +376,9 @@ async def test_settings_rejects_a_bad_style_with_422(settings_route):
 @pytest.mark.parametrize(
     ("record", "body"),
     [
-        ({"caption_template": "default"}, {"edit_style": {"intensity": "spicy"}}),
+        ({"caption_template": "default"}, {"edit_style": {"intensity": "bold"}}),
         ({"caption_template": "default"}, {"caption_template": "highlighter_swipe"}),
-        ({"caption_template": "slam", "edit_style": {"intensity": "spicy"}}, {"font_size": 40}),
+        ({"caption_template": "slam", "edit_style": {"intensity": "bold"}}, {"font_size": 40}),
     ],
 )
 async def test_settings_with_an_fx_target_returns_202_and_a_job(settings_route, flag, record, body):
@@ -403,7 +403,7 @@ async def test_settings_queue_failure_after_storing_is_a_retryable_503(settings_
 
     monkeypatch.setattr(_SettingsService, "__init__", failing)
     response, _, saved = await settings_route(
-        {"caption_template": "slam", "edit_style": {"intensity": "spicy"}},
+        {"caption_template": "slam", "edit_style": {"intensity": "bold"}},
         {"font_size": 40, "apply_to_existing": True},
     )
 
@@ -440,11 +440,11 @@ async def test_settings_legacy_clips_and_target_stay_synchronous_with_a_database
 async def test_settings_without_apply_to_existing_only_stores(settings_route, flag):
     flag.value = True
     response, service, _ = await settings_route(
-        {"caption_template": "default"}, {"edit_style": {"intensity": "spicy"}, "caption_template": "slam"}
+        {"caption_template": "default"}, {"edit_style": {"intensity": "bold"}, "caption_template": "slam"}
     )
     assert response.status_code == 200
     _, kwargs = _update_call(service)
-    assert kwargs == {"edit_style": {"intensity": "spicy"}}
+    assert kwargs == {"edit_style": {"intensity": "bold"}}
     service.task_repo.has_fx_clips.assert_not_awaited()
 
 
@@ -480,14 +480,14 @@ async def test_service_fx_job_stores_then_queues_the_section_13_payload(isolated
 
     result = await service.update_task_settings(
         "task-1", "THEBOLDFONT", 30, "#FFFFFF", "slam", True, True, cleanup,
-        edit_style={"intensity": "spicy"}, fx_job=FxClipJobRequest(user_id="owner-1", queue=queue),
+        edit_style={"intensity": "bold"}, fx_job=FxClipJobRequest(user_id="owner-1", queue=queue),
     )
 
     assert isinstance(result, QueuedClipJob) and result.kind == "settings"
     service.regenerate_all_clips_for_task.assert_not_awaited()
     repo_call = service.task_repo.update_task_settings.await_args
     assert repo_call.args[1:] == ("task-1", "THEBOLDFONT", 30, "#FFFFFF", "slam", True)
-    assert repo_call.kwargs == {"edit_style": {"intensity": "spicy"}}
+    assert repo_call.kwargs == {"edit_style": {"intensity": "bold"}}
     ((function, args, kwargs),) = queue.calls
     assert function == "fx_clip_job"
     assert kwargs == {"_job_id": f"fx_clip_job:{result.job_id}"}
@@ -495,7 +495,7 @@ async def test_service_fx_job_stores_then_queues_the_section_13_payload(isolated
     assert job == {
         "job_id": result.job_id, "task_id": "task-1", "user_id": "owner-1", "kind": "settings",
         "args": {"font_family": "THEBOLDFONT", "font_size": 30, "font_color": "#FFFFFF", "caption_template": "slam",
-                 "include_broll": True, "cleanup_settings": cleanup, "edit_style": {"intensity": "spicy"}},
+                 "include_broll": True, "cleanup_settings": cleanup, "edit_style": {"intensity": "bold"}},
     }
     (state,) = records[result.job_id]
     assert state["status"] == "queued" and state["progress"] == 0.0 and state["kind"] == "settings"
@@ -703,14 +703,14 @@ async def test_create_task_adds_edit_style_only_when_set():
     await TaskRepository.create_task(plain, "u", "s", **kwargs)
     await TaskRepository.create_task(empty, "u", "s", edit_style={}, **kwargs)
     await TaskRepository.create_task(
-        styled, "u", "s", edit_style={"music_mood": "dark", "intensity": "spicy"}, **kwargs
+        styled, "u", "s", edit_style={"music_mood": "dark", "intensity": "bold"}, **kwargs
     )
 
     assert "edit_style" not in plain.statements[0][0] and "edit_style" not in plain.statements[0][1]
     assert empty.statements[0][0] == plain.statements[0][0]   # {} is off: the legacy statement
     sql, params = styled.statements[0]
     assert "edit_style" in sql and "CAST(:edit_style AS JSONB)" in sql
-    assert params["edit_style"] == '{"intensity": "spicy", "music_mood": "dark"}'
+    assert params["edit_style"] == '{"intensity": "bold", "music_mood": "dark"}'
     assert params["workflow"] == "highlights" and params["workflow_options"] == "{}"
 
 
@@ -718,12 +718,12 @@ async def test_update_task_settings_writes_edit_style_only_when_passed():
     keep, on, off = _FakeDb(), _FakeDb(), _FakeDb()
     args = ("task-1", "THEBOLDFONT", 30, "#FFFFFF", "slam", False)
     await TaskRepository.update_task_settings(keep, *args)
-    await TaskRepository.update_task_settings(on, *args, edit_style={"intensity": "chill"})
+    await TaskRepository.update_task_settings(on, *args, edit_style={"intensity": "subtle"})
     await TaskRepository.update_task_settings(off, *args, edit_style={})
 
     assert "edit_style" not in keep.statements[0][0]
     assert "edit_style = CAST(:edit_style AS JSONB)" in on.statements[0][0]
-    assert on.statements[0][1]["edit_style"] == '{"intensity": "chill"}'
+    assert on.statements[0][1]["edit_style"] == '{"intensity": "subtle"}'
     assert off.statements[0][1]["edit_style"] is None   # off is stored as NULL
     assert repr(KEEP_EDIT_STYLE) == "KEEP_EDIT_STYLE"
 
@@ -737,7 +737,7 @@ async def test_has_fx_clips():
 
 
 def test_edit_style_to_json_is_what_create_stores():
-    assert EditStyle(intensity="spicy", music_mood="hype", progress_bar=True).to_json() == {
-        "intensity": "spicy", "music_mood": "hype", "progress_bar": True,
+    assert EditStyle(intensity="bold", music_mood="hype", progress_bar=True).to_json() == {
+        "intensity": "bold", "music_mood": "hype", "progress_bar": True,
     }
     assert EditStyle(intensity="off", sfx=False).to_json() == {}

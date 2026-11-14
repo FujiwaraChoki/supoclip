@@ -26,7 +26,7 @@ beforeEach(() => {
   const storage = new Map<string, string>();
   vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, value); } });
   vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as never);
-  flags = { crazy_edits: true };
+  flags = { dynamic_edits: true };
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/api/feature-flags")) return flags ? Response.json({ platform: "web", flags }) : new Response("no", { status: 500 });
@@ -66,15 +66,15 @@ const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200))
 
 describe("FeatureTourHost: flags and hidden targets", () => {
   it("keeps a flagged tour hidden while /api/feature-flags says false", async () => {
-    tours.list = [tour({ requiresFlag: "crazy_edits" })];
-    flags = { crazy_edits: false };
+    tours.list = [tour({ requiresFlag: "dynamic_edits" })];
+    flags = { dynamic_edits: false };
     render(<Page />);
     await wait();
     expect(screen.queryByText(STEP_TITLE)).not.toBeInTheDocument();
   });
 
   it("keeps a flagged tour hidden when the flags can't be read", async () => {
-    tours.list = [tour({ requiresFlag: "crazy_edits" })];
+    tours.list = [tour({ requiresFlag: "dynamic_edits" })];
     flags = null;
     render(<Page />);
     await wait();
@@ -82,7 +82,7 @@ describe("FeatureTourHost: flags and hidden targets", () => {
   });
 
   it("shows a flagged tour once the flag is on", async () => {
-    tours.list = [tour({ requiresFlag: "crazy_edits" })];
+    tours.list = [tour({ requiresFlag: "dynamic_edits" })];
     render(<Page />);
     expect(await screen.findByText(STEP_TITLE, undefined, { timeout: 2500 })).toBeInTheDocument();
   });

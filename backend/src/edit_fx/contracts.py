@@ -1,4 +1,4 @@
-"""Crazy edits contracts (fx-v1).
+"""Dynamic edits contracts (fx-v1).
 
 Python decides WHAT happens WHEN (beats, resolver, warp, audio); fx-core (TypeScript) decides HOW IT LOOKS.
 Pure data: no I/O, no ffmpeg/cv2 imports. Safe to import from the API, the video worker and the AI worker.
@@ -19,8 +19,8 @@ FX_SCENE_VERSION = 1          # bump when FxScene (the P2 / browser contract) ch
 FPS = 30
 FRAME = 1.0 / FPS
 
-Intensity = Literal["off", "chill", "spicy", "unhinged"]
-INTENSITIES: tuple[str, ...] = ("off", "chill", "spicy", "unhinged")
+Intensity = Literal["off", "subtle", "bold", "max"]
+INTENSITIES: tuple[str, ...] = ("off", "subtle", "bold", "max")
 Mood = Literal["hype", "chill", "dramatic", "funny", "inspiring", "dark"]
 MOODS: tuple[str, ...] = ("hype", "chill", "dramatic", "funny", "inspiring", "dark")
 GradeId = Literal["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"]

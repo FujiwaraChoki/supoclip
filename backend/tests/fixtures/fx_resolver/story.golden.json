@@ -14,8 +14,8 @@
    " 53.190- 53.990 b11.accent       accent     circle 'wedding'"
   ]
  },
- "marker_circle/chill": {
-  "sha256": "22c1304a2a22bd27ca177992d3a78669c5c52cab77f7b56a02e703706220ab1f",
+ "marker_circle/subtle": {
+  "sha256": "5faf6b5f6b435f5bf0e7f549e3a45a291f7ca3c85721b967565c03ce1d90f460",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -34,8 +34,8 @@
    " 53.190- 53.990 b11.accent       accent     circle 'wedding'"
   ]
  },
- "marker_circle/spicy": {
-  "sha256": "367f48a630952e43a4d74edc61a104c08745a52a5845ebf98e7d3f13414fc3f7",
+ "marker_circle/bold": {
+  "sha256": "24558ec54aa74069a803a3a48f83cf647b49c11bdefccd276015187653b1b614",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -76,8 +76,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "marker_circle/unhinged": {
-  "sha256": "d32a5b1941e8f6c031d74d705e0e307846b7cdf8e21023d21d4546853d861578",
+ "marker_circle/max": {
+  "sha256": "e4819cf3f7a4fd786fe252e7e0d2dd0a293a63403a51e5d3f85b8a039f79ff14",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -154,8 +154,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        pop#0 +0dB"
   ]
  },
- "emoji_drop/chill": {
-  "sha256": "e39c66aa2d2fafbc7f16e0a5e1147e69ec06b6e381a5131a4af4904d6017d8f8",
+ "emoji_drop/subtle": {
+  "sha256": "8ac1c73a67938946ed283df28179eb8790ae9898e9891fd1d739032a91429121",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -176,8 +176,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        pop#0 +0dB"
   ]
  },
- "emoji_drop/spicy": {
-  "sha256": "a46a2f60eaddca059c95d6ec7bfce476c43a31ac5289acf1c374dc6549677467",
+ "emoji_drop/bold": {
+  "sha256": "66f1bb7c60765b390dea57f78895d85a3b6e93afb85de1d4ba79a9507a4ab855",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -218,8 +218,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "emoji_drop/unhinged": {
-  "sha256": "aacbb8c0b800756e9f7d1568b4580bfaf5fb70b6211c29109e1445c33bc64d87",
+ "emoji_drop/max": {
+  "sha256": "f34e3a5d935ec6be257695a196d8ecefc8d46336957b700027560d8cb25d3c83",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -303,8 +303,8 @@
    " 53.190- 53.190 b11.slam.sfx     sfx        impact#1 +0dB"
   ]
  },
- "slam/chill": {
-  "sha256": "bdcdd3312c2dca8e987050df81ca7ecdf2c1e1148ca5b7adeb576e91dc89c648",
+ "slam/subtle": {
+  "sha256": "70ef0674a224adcc7ab53f6f04069f67654ccb953a79a95d75401852f6a8d8c0",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": true,
@@ -329,8 +329,8 @@
    " 53.190- 53.190 b11.slam.sfx     sfx        impact#1 +0dB"
   ]
  },
- "slam/spicy": {
-  "sha256": "7f81807740fc6c6f86c37f43011ad4f358569847ce70e6109b428696d52ed66f",
+ "slam/bold": {
+  "sha256": "16c06a9991135adcafd1cbeb2769ba3acf2cba6bb21171eb8d13325f07baac83",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -379,8 +379,8 @@
    " 53.290- 53.410 b11.slam.glitch  glitch     amount 0.5"
   ]
  },
- "slam/unhinged": {
-  "sha256": "2447c8315baadfff738f8761c9dc97adad20b5702653fb2e3e6019ba7191b956",
+ "slam/max": {
+  "sha256": "3732839a326f2089c623251fb5b8ae851e63f3905c9ce1aa1feb352fa00cc91b",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": true,
@@ -464,8 +464,8 @@
    " 53.190- 53.190 b11.behind.sfx   sfx        whoosh#0 -2dB"
   ]
  },
- "behind_head/chill": {
-  "sha256": "fffca5098556c22c1f74883fb99b78642d8a48e397db6823d062297613b28448",
+ "behind_head/subtle": {
+  "sha256": "1764ba97739edd020b58dcdfefbe8a55a1cc175464b6da3bada412baa2a64cd4",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -487,8 +487,8 @@
    " 53.190- 53.190 b11.behind.sfx   sfx        whoosh#0 -2dB"
   ]
  },
- "behind_head/spicy": {
-  "sha256": "66e64f64f5481d88606d79ad710f8295ee9cbabcecd9656dbebf02624fdc2625",
+ "behind_head/bold": {
+  "sha256": "7e4fc493cfff60b7e030f32a17e3494d727c33e8f1960d142c898005ac8daeac",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -529,8 +529,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "behind_head/unhinged": {
-  "sha256": "7905994470355de88d2cb1feba05ecd8e25468e3b2c680a583d21dde8ec611fa",
+ "behind_head/max": {
+  "sha256": "892cd6d5dd5b6e9a5451e549d68cc6a12002ee050898a08e9832de1bab5e5fd9",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -609,8 +609,8 @@
    " 53.190- 53.990 b11.accent       accent     highlight 'wedding'"
   ]
  },
- "stat_counter/chill": {
-  "sha256": "6aceb7c46535e0351bbb66e475312c6c3f1556911e541bc1499d1585bafb7755",
+ "stat_counter/subtle": {
+  "sha256": "8f6c6fc5171f529cf1c15f23e18b01f9a4a3f846e33ff392efe4d816b6bfa533",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -631,8 +631,8 @@
    " 53.190- 53.990 b11.accent       accent     highlight 'wedding'"
   ]
  },
- "stat_counter/spicy": {
-  "sha256": "19c650778ca4ae28562099cf9e5cced2034946faafc4f806749ebc4908c7231f",
+ "stat_counter/bold": {
+  "sha256": "70d5f9cda9150943828f12f548b511589311e0300185289fa53137768ec793f9",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -675,8 +675,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "stat_counter/unhinged": {
-  "sha256": "848154cbd4a42483b9a31039f5ea4f142403a6f8c68347134d68930151f88524",
+ "stat_counter/max": {
+  "sha256": "27f11d434a639443de108dbe12668cdfee5d51e544e6fe5d0f70fdc73e7b2b1b",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -757,8 +757,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        slap#0 +0dB"
   ]
  },
- "sticker_slap/chill": {
-  "sha256": "16bf7a5fe64a5336f7f230a76429590ea3f82d31472d585e234bfcba1e855834",
+ "sticker_slap/subtle": {
+  "sha256": "edcacc5b9dc1662fbdf27b1fb093bc4a96d018642146e1cafa73258175347785",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -780,8 +780,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        slap#0 +0dB"
   ]
  },
- "sticker_slap/spicy": {
-  "sha256": "2eaab2da4f3ca301cf3cd0732939422920989d6f5cd4efe6a9d2a23eac0588dd",
+ "sticker_slap/bold": {
+  "sha256": "5f7af1f06068cd9d2a5fc693b7249e15a604d8fb077e9034de6a3efa80bc1307",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -822,8 +822,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "sticker_slap/unhinged": {
-  "sha256": "68deb6f0dd0b73599420fdaaa9d825d0efeeb1058f27c2b31f0f41143c7e384d",
+ "sticker_slap/max": {
+  "sha256": "6f187e8c7417a7fc4414ca34337ab9f56448d41ddd3a65e1f0cb68febe1e427c",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -904,8 +904,8 @@
    " 53.190- 53.990 b11.accent       accent     highlight 'wedding'"
   ]
  },
- "kinetic_stack/chill": {
-  "sha256": "dbafc6dd4f50a552041aa3e062b177a60dd17ff2bcb92dde9a1b526e8e674f20",
+ "kinetic_stack/subtle": {
+  "sha256": "a629e1eb65986138090fc397e234fba10b37a0a5e048e45a58ae6aeeb76957ae",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": true,
@@ -925,8 +925,8 @@
    " 53.190- 53.990 b11.accent       accent     highlight 'wedding'"
   ]
  },
- "kinetic_stack/spicy": {
-  "sha256": "826df9d894da9a2924d942afff8f882131998c38587dc6befb7e8e82f9b42eb8",
+ "kinetic_stack/bold": {
+  "sha256": "0b4a6934241f3991bb7736474cd7e1dd092a80e2fe5686e03ee852e2dbd6fe28",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -968,8 +968,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "kinetic_stack/unhinged": {
-  "sha256": "e111367964738142edfe39cad1a58c695171f772fc17adb62a7b9f45b53204f7",
+ "kinetic_stack/max": {
+  "sha256": "8ae3f675a7bfba49f492bb468461feb2a6189aab5029c58f35101a9bea5cb4d3",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": true,
@@ -1049,8 +1049,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        glitch#0 -3dB"
   ]
  },
- "decode_glitch/chill": {
-  "sha256": "9f476ea6ccacd569a5fe0eba051274ee8f8f638b2db0803c9750d6bdb39282ba",
+ "decode_glitch/subtle": {
+  "sha256": "caccb0154494537888d8cce14d7a3434c602521439f17c8ea3ae23ece3d2d11d",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1072,8 +1072,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        glitch#0 -3dB"
   ]
  },
- "decode_glitch/spicy": {
-  "sha256": "4ecb5bbeb07eb1acd78181d256202f29f266fe8f264a8bf46fc480c239b0765f",
+ "decode_glitch/bold": {
+  "sha256": "0006808643fe3786c76d8e6b45ac607d21d0f622591536e9120f6005e253458d",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1116,8 +1116,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "decode_glitch/unhinged": {
-  "sha256": "0d1e36a47fc73125f086ae37b773270b2fbea452fc55a6f5f91d490cec26856a",
+ "decode_glitch/max": {
+  "sha256": "4f2ab2ee4df953795efd7b9685d260c0bb3deb2e8288d90325e5ac7a0ee62246",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -1197,8 +1197,8 @@
    " 38.045- 38.845 b9.accent        accent     highlight 'sober'"
   ]
  },
- "highlighter_swipe/chill": {
-  "sha256": "4c0d502f20f60e25e505b549b425d8cc65deb861f9482ebfbb29d13204489e66",
+ "highlighter_swipe/subtle": {
+  "sha256": "109e392fe986c6b4aa6eb038f1c273bc75d8c9e2ab6fabf662cf3691d4b394e6",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1214,8 +1214,8 @@
    " 38.045- 38.845 b9.accent        accent     highlight 'sober'"
   ]
  },
- "highlighter_swipe/spicy": {
-  "sha256": "910be31bce6bc62568464ab8450dc975aeabccd78850bb72ac2d4c87e7649f6b",
+ "highlighter_swipe/bold": {
+  "sha256": "4bc8c6e76519a9659136ccb6b984137dd02681cf4a0693f58f55fc0dd6ffd9ca",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1253,8 +1253,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "highlighter_swipe/unhinged": {
-  "sha256": "c28fff2c85459b5b28d89f459594cbf15f761194a8b9d2821a73f90f73f18a5a",
+ "highlighter_swipe/max": {
+  "sha256": "22849ba4d64912e63b312acb063ef8af528a9265a1fdb1dd6f842e1055f305e8",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -1358,8 +1358,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        pop#0 +0dB"
   ]
  },
- "face_doodles/chill": {
-  "sha256": "fdfd41b6dfaa9473f97f6b79b1290e86ba5a639df32a4cd4b3542a6de5c3c687",
+ "face_doodles/subtle": {
+  "sha256": "3896e80557351c94c252c2f341031f9e0759196d2fcba7f29489a68dc9d67eb7",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1380,8 +1380,8 @@
    " 53.190- 53.190 b11.accent.sfx   sfx        pop#0 +0dB"
   ]
  },
- "face_doodles/spicy": {
-  "sha256": "c1285a90a7d7a64d6e0b5a3beab0a6f463b49ee5a2a0e0ba896a78ec2538fa91",
+ "face_doodles/bold": {
+  "sha256": "3ef8263786510d34377d58af11429b272f4aeffeeb1cad1967717700dd1206d4",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1422,8 +1422,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "face_doodles/unhinged": {
-  "sha256": "3aa3c32428036aa1d6ee167834d3624775283e9647eca29390b6d62f36de94b3",
+ "face_doodles/max": {
+  "sha256": "fdd4e11c81099226865bcbd81709f8d31b3308d563511a8c99a9b6010c17e268",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,
@@ -1484,8 +1484,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "default/chill": {
-  "sha256": "02f5e788be8ad343e18507d3fe9eb811e34b54aec9e7df3e3857fa00c3d2f8cb",
+ "default/subtle": {
+  "sha256": "b1e6bc003da25cf3155a3261c379e321ddf225c9b3ad031ac51fc79c7aa296bc",
   "music": "dramatic -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1497,8 +1497,8 @@
    " 35.055- 35.055 b8.sfx           sfx        stamp#0 +0dB"
   ]
  },
- "default/spicy": {
-  "sha256": "35f117179e3ea7208f7959b73b4919f94a31bcdc432f26dce5f7f063e169c21b",
+ "default/bold": {
+  "sha256": "34c609a3fd723612b046d3372191da4bceefaa104264786c29af2ea341358d2c",
   "music": "dramatic -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1531,8 +1531,8 @@
    " 53.190- 53.985 b11.zoom         zoom       punch 1.15"
   ]
  },
- "default/unhinged": {
-  "sha256": "5c79cb8155404da53aec82d259eb88178ae0b5f3bd51f496aa9f88adbfb75a31",
+ "default/max": {
+  "sha256": "8fd60fdaeabcd78ea8b9b12b35d4115ff287361199586fc6793c69a70ad4ea6a",
   "music": "dramatic -17.0/-13.0",
   "grade": "teal_orange",
   "hook_title_suppressed": false,

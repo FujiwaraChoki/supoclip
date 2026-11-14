@@ -289,7 +289,7 @@ describe("createPreviewFxAudio (the preview's fxAudio factory)", () => {
   const doc = (cues: FxCue[]): EditDocument => ({
     ...draft,
     segments: [{ id: "a", start: 0, end: 4 }],
-    fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "spicy" }, cues },
+    fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "bold" }, cues },
   });
 
   it("routes the voice through voiceInput, plays the draft's SFX and bleeps, and restores the voice on dispose", async () => {
@@ -317,7 +317,7 @@ describe("createPreviewFxAudio (the preview's fxAudio factory)", () => {
     expect(voice.outputs).toEqual([ctx.destination]);
   });
 
-  it("plays nothing for a draft without crazy edits", () => {
+  it("plays nothing for a draft without dynamic edits", () => {
     const ctx = new FakeContext();
     const voice = new FakeGain();
     const manifestLoader = vi.fn(async () => manifest);

@@ -25,7 +25,7 @@ import {
 } from "./document";
 import { drawEditorFrame, loadEditorFont, loadEditorFxResources, type BRollLayer, type EditorFxSession } from "./render";
 
-/** Crazy-edit documents export at a fixed 30 fps on the F clock, like the server's P2 (non-warped: E == F). */
+/** Dynamic-edit documents export at a fixed 30 fps on the F clock, like the server's P2 (non-warped: E == F). */
 export const FX_EXPORT_FPS = 30;
 type VoiceBuffer = { channels: Float32Array[]; sampleRate: number };
 /** Seconds of mixed audio per encoded AudioSample. */
@@ -42,7 +42,7 @@ export function assertBrowserExportable(doc: EditDocument) {
 }
 
 /**
- * The document's crazy-edit audio program for the export, or null when it changes nothing audible. A manifest that
+ * The document's dynamic-edit audio program for the export, or null when it changes nothing audible. A manifest that
  * cannot be loaded drops the SFX and music (with a warning) but keeps bleeps, as the server skips a missing asset.
  */
 export async function exportAudioProgram(
@@ -354,7 +354,7 @@ export async function exportDraft(
       }
       audioSource.close();
     };
-    // Crazy-edit audio: the voice is gathered on the edit timeline, then mixed with SFX, bleeps and the ducked bed
+    // Dynamic-edit audio: the voice is gathered on the edit timeline, then mixed with SFX, bleeps and the ducked bed
     // in an OfflineAudioContext (§14.2). No loudness stage, like the server studio export.
     const renderFxAudio = async (program: FxAudioProgram) => {
       if (!audioSource) return;

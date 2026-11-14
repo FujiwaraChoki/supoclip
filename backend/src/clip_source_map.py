@@ -316,7 +316,7 @@ def load_clip_vertical_layout(clip_path: Path) -> dict | None:
     return plan
 
 
-# --- crazy edits (FX path only; §3.3) ------------------------------------------------------------------------------
+# --- dynamic edits (FX path only; §3.3) ------------------------------------------------------------------------------
 # A legacy clip's sidecar never gets these keys: they are written only by the FX render path and removed only by an
 # explicit switch back to off + a legacy template.
 FX_SIDECAR_KEYS = ("edit_style", "edit_beats", "edit_fx", "face_track", "fx_level", "edit_fx_warp")

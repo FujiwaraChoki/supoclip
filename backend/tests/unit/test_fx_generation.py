@@ -1,4 +1,4 @@
-"""WP14: generation with crazy edits, end to end (FINAL §6.1, §6.6).
+"""WP14: generation with dynamic edits, end to end (FINAL §6.1, §6.6).
 
 Real renders (lavfi sources, real ffmpeg, the deno chain with the committed fx-core bundle) are skipped when ffmpeg
 or deno is missing. The beat model is a pydantic-ai ``FunctionModel``; nothing touches the network.
@@ -177,13 +177,13 @@ async def test_generation_end_to_end_with_a_fake_beat_model(sources, beat_model,
 
     out_dir = tmp_path / "clips"
     out_dir.mkdir()
-    job = FxJob(style=EditStyle(intensity="unhinged"), task_id="task-e2e", clip_index=0, on_beats=on_beats)
+    job = FxJob(style=EditStyle(intensity="max"), task_id="task-e2e", clip_index=0, on_beats=on_beats)
     info = await VideoService.create_single_clip(
         sources["portrait"].video, dict(SEGMENT), 0, out_dir, caption_template="marker_circle",
         max_short_side=720, fx=job,
     )
     assert info is not None
-    assert info["fx_meta"] == {"fx_level": "full", "timing": "word", "intensity": "unhinged",
+    assert info["fx_meta"] == {"fx_level": "full", "timing": "word", "intensity": "max",
                                "template": "marker_circle"}
     assert len(beat_model) == 1 and list(checkpoint) == ["0"]
     # The 720p cap runs after the FX render (§0.4.3) and keeps the audio.
@@ -192,7 +192,7 @@ async def test_generation_end_to_end_with_a_fake_beat_model(sources, beat_model,
     assert int(probed["video"]["width"]) == 720 and "audio" in probed
     payload = json.loads(clip_source_map_path(Path(info["path"])).read_text())
     assert {"edit_style", "edit_beats", "edit_fx", "edit_fx_warp", "fx_level", "vertical_layout"} <= set(payload)
-    assert payload["fx_level"] == "full" and payload["edit_style"] == {"intensity": "unhinged"}
+    assert payload["fx_level"] == "full" and payload["edit_style"] == {"intensity": "max"}
     assert "zoompan" not in payload["vertical_layout"]["video_filter"]       # never Ken Burns on the FX path
     sidecar = load_clip_edit_fx(Path(info["path"]))
     plan = FxPlan.model_validate(sidecar["plan"])
@@ -313,7 +313,7 @@ async def test_failed_fx_planning_renders_the_clip_without_effects(monkeypatch, 
     monkeypatch.setattr(video_service, "rendered_clip_duration", lambda *_a: 4.0)
     out = tmp_path / "clips"
     out.mkdir()
-    job = FxJob(style=EditStyle(intensity="spicy"), task_id="t", clip_index=0)
+    job = FxJob(style=EditStyle(intensity="bold"), task_id="t", clip_index=0)
     info = await VideoService.create_single_clip(
         tmp_path / "v.mp4", {"start_time": "00:01", "end_time": "00:05", "text": "t"}, 0, out,
         caption_template="marker_circle", fx=job,
@@ -336,14 +336,14 @@ def _task_service(row: dict, segments: list[dict]):
 
 
 async def test_resume_of_an_fx_task_renders_fx_from_the_row():
-    service = _task_service({"status": "queued", "edit_style": '{"intensity": "spicy", "grain": true}'},
+    service = _task_service({"status": "queued", "edit_style": '{"intensity": "bold", "grain": true}'},
                             [{"start": 0, "end": 10}])
     service.video_service.create_single_clip = AsyncMock(return_value={**build_clip_result(), "fx_meta": {
-        "fx_level": "full", "timing": "word", "intensity": "spicy", "template": "hormozi"}})
+        "fx_level": "full", "timing": "word", "intensity": "bold", "template": "hormozi"}})
     await service.process_task(task_id="task-9", url="upload://source.mp4", source_type="upload",
                                caption_template="hormozi", clip_length="medium")
     job = service.video_service.create_single_clip.await_args.kwargs["fx"]
-    assert job.style == EditStyle(intensity="spicy", grain=True)
+    assert job.style == EditStyle(intensity="bold", grain=True)
     assert (job.task_id, job.clip_index, job.cached_beats) == ("task-9", 0, None)
     assert service.clip_repo.create_clip.await_args.kwargs["fx_meta"]["fx_level"] == "full"
 
@@ -358,7 +358,7 @@ async def test_style_only_task_renders_fx():
 
 
 async def test_a_retried_clip_reuses_its_checkpointed_beats():
-    service = _task_service({"status": "queued", "edit_style": {"intensity": "spicy"}},
+    service = _task_service({"status": "queued", "edit_style": {"intensity": "bold"}},
                             [{"start": 0, "end": 10, "required": True}])
     seen: list = []
 
@@ -376,7 +376,7 @@ async def test_a_retried_clip_reuses_its_checkpointed_beats():
 
 
 async def test_two_clips_beats_both_survive_in_the_checkpoint():
-    service = _task_service({"status": "queued", "edit_style": {"intensity": "chill"}},
+    service = _task_service({"status": "queued", "edit_style": {"intensity": "subtle"}},
                             [{"start": 0, "end": 10}, {"start": 20, "end": 30}])
 
     async def render(*_args, fx=None, **_kwargs):
@@ -393,7 +393,7 @@ async def test_two_clips_beats_both_survive_in_the_checkpoint():
 # --------------------------------------------------------------------------- direct renders (fast, small frames)
 
 
-def small_plan(cues, *, duration=2.9, template="default", intensity="spicy", **extra) -> FxPlan:
+def small_plan(cues, *, duration=2.9, template="default", intensity="bold", **extra) -> FxPlan:
     return FxPlan(style=EditStyle(intensity=intensity), template=template, seed=5, edit_duration=duration,
                   cues=tuple(cues), **extra)
 

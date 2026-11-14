@@ -1,4 +1,4 @@
-# Deterministic swear list for crazy edits (G7). edit_fx.beats.union_swears unions it with the LLM's swear tags,
+# Deterministic swear list for dynamic edits (G7). edit_fx.beats.union_swears unions it with the LLM's swear tags,
 # so every word here is bleeped when the user's censor setting is on, even when the model missed it.
 #
 # Format: one entry per line, lowercase, accents kept. `#` starts a comment.

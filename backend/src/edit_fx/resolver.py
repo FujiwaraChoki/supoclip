@@ -19,7 +19,7 @@ Order of work (§8.2, §8.5):
   4. transitions at cuts, ranked by the strongest beat within 2 s
   5. beats by priority, each proposing a bundle (§8.4); a member that breaks its family cap, spacing or a global rule
      is dropped on its own
-  6. template fill-ins (unhinged highlighter words) and wordless speed-ups; kinetic_stack without a hook beat
+  6. template fill-ins (highlighter words at max) and wordless speed-ups; kinetic_stack without a hook beat
      places its kinetic first sentence before step 5
   7. music, grade, grain, retention, hook band
 """
@@ -89,47 +89,47 @@ class ResolveInput:
 PRIORITY: dict[str, int] = {
     "payoff": 7, "hook": 6, "punchline": 5, "number": 4, "swear": 3, "emotional_turn": 2, "build": 1, "emphasis": 0,
 }
-TIERS: tuple[str, ...] = ("style", "chill", "spicy", "unhinged")
+TIERS: tuple[str, ...] = ("style", "subtle", "bold", "max")
 _RANK = {tier: i for i, tier in enumerate(TIERS)}
 
 # Family budgets (§8.3). ("rate", per-60-s rate, min gap s) or ("count", per-clip count, 0).
 Budget = tuple[str, float, float]
 BUDGETS: dict[str, dict[str, Budget]] = {
-    "accent":   {"style": ("rate", 10, 3.0), "chill": ("rate", 10, 3.0), "spicy": ("rate", 20, 1.5),
-                 "unhinged": ("rate", 40, 0.8)},
-    "punch":    {"style": ("count", 0, 0), "chill": ("rate", 4, 6.0), "spicy": ("rate", 8, 3.0),
-                 "unhinged": ("rate", 14, 1.6)},
-    "push":     {"style": ("count", 0, 0), "chill": ("count", 1, 0), "spicy": ("count", 2, 0),
-                 "unhinged": ("count", 4, 0)},
-    "shake":    {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("rate", 3, 8.0),
-                 "unhinged": ("rate", 8, 3.0)},
-    "sfx":      {"style": ("rate", 10, 1.0), "chill": ("rate", 6, 2.5), "spicy": ("rate", 12, 1.2),
-                 "unhinged": ("rate", 24, 0.6)},
-    "hit":      {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 2, 0),
-                 "unhinged": ("rate", 6, 4.0)},
-    "freeze":   {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 1, 0),
-                 "unhinged": ("count", 2, 0)},
-    "ramp":     {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 1, 0),
-                 "unhinged": ("count", 2, 0)},
-    "fast":     {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 0, 0),
-                 "unhinged": ("count", 2, 0)},
-    "slow":     {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 0, 0),
-                 "unhinged": ("count", 1, 0)},
-    "burst":    {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 3, 0),
-                 "unhinged": ("count", 5, 0)},
-    "reaction": {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 1, 0),
-                 "unhinged": ("count", 2, 0)},
-    "wait":     {"style": ("count", 0, 0), "chill": ("count", 0, 0), "spicy": ("count", 1, 0),
-                 "unhinged": ("count", 1, 0)},
+    "accent":   {"style": ("rate", 10, 3.0), "subtle": ("rate", 10, 3.0), "bold": ("rate", 20, 1.5),
+                 "max": ("rate", 40, 0.8)},
+    "punch":    {"style": ("count", 0, 0), "subtle": ("rate", 4, 6.0), "bold": ("rate", 8, 3.0),
+                 "max": ("rate", 14, 1.6)},
+    "push":     {"style": ("count", 0, 0), "subtle": ("count", 1, 0), "bold": ("count", 2, 0),
+                 "max": ("count", 4, 0)},
+    "shake":    {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("rate", 3, 8.0),
+                 "max": ("rate", 8, 3.0)},
+    "sfx":      {"style": ("rate", 10, 1.0), "subtle": ("rate", 6, 2.5), "bold": ("rate", 12, 1.2),
+                 "max": ("rate", 24, 0.6)},
+    "hit":      {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 2, 0),
+                 "max": ("rate", 6, 4.0)},
+    "freeze":   {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
+                 "max": ("count", 2, 0)},
+    "ramp":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
+                 "max": ("count", 2, 0)},
+    "fast":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 0, 0),
+                 "max": ("count", 2, 0)},
+    "slow":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 0, 0),
+                 "max": ("count", 1, 0)},
+    "burst":    {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 3, 0),
+                 "max": ("count", 5, 0)},
+    "reaction": {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
+                 "max": ("count", 2, 0)},
+    "wait":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
+                 "max": ("count", 1, 0)},
 }
-# Transitions: chill ≤1 on passage breaks only; spicy 1 per 8 s of clip; unhinged 1 per 4 s.
-TRANSITION_EVERY: dict[str, float] = {"spicy": 8.0, "unhinged": 4.0}
+# Transitions: subtle ≤1 on passage breaks only; bold 1 per 8 s of clip; max 1 per 4 s.
+TRANSITION_EVERY: dict[str, float] = {"bold": 8.0, "max": 4.0}
 
-SFX_BUS_GAIN_DB: dict[str, float] = {"style": 0.0, "chill": -4.0, "spicy": 0.0, "unhinged": 2.0}
-MUSIC_LEVELS: dict[str, tuple[float, float]] = {"chill": (-24.0, -10.0), "spicy": (-20.0, -12.0),
-                                                "unhinged": (-17.0, -13.0)}
+SFX_BUS_GAIN_DB: dict[str, float] = {"style": 0.0, "subtle": -4.0, "bold": 0.0, "max": 2.0}
+MUSIC_LEVELS: dict[str, tuple[float, float]] = {"subtle": (-24.0, -10.0), "bold": (-20.0, -12.0),
+                                                "max": (-17.0, -13.0)}
 NO_TIMING_MUSIC_DB = -24.0
-GRAIN: dict[str, float] = {"chill": 0.15, "spicy": 0.20, "unhinged": 0.30}
+GRAIN: dict[str, float] = {"subtle": 0.15, "bold": 0.20, "max": 0.30}
 
 # Sounds removed by serious mode (rule 1), template-intrinsic ones included.
 SERIOUS_DROP_SOUNDS = frozenset({"pop", "boom", "record_scratch", "cash_register", "slap", "tape_stop"})
@@ -154,9 +154,9 @@ really um uh el la los las un una y o de que en es por con lo le se der die das 
 des et est une du à je il o os as um uma e é do da em que para yang dan di ini itu ke
 """.split())
 TRANSITION_POOLS: dict[str, tuple[str, ...]] = {
-    "chill": ("light_leak", "flash", "whip"),
-    "spicy": ("whip", "zoom_through", "flash", "light_leak", "glitch"),
-    "unhinged": ("whip", "zoom_through", "spin", "glitch", "flash", "whip"),
+    "subtle": ("light_leak", "flash", "whip"),
+    "bold": ("whip", "zoom_through", "flash", "light_leak", "glitch"),
+    "max": ("whip", "zoom_through", "spin", "glitch", "flash", "whip"),
 }
 CALM_MOODS = frozenset({"chill", "dramatic", "inspiring", "dark"})
 
@@ -215,7 +215,7 @@ def family_cap(budget: Budget, duration: float) -> int:
 
 
 def transition_cap(tier: str, duration: float) -> int:
-    if tier == "chill":
+    if tier == "subtle":
         return 1
     every = TRANSITION_EVERY.get(tier)
     if not every:
@@ -224,11 +224,11 @@ def transition_cap(tier: str, duration: float) -> int:
 
 
 def tier_for(style: EditStyle, sensitivity: str) -> str:
-    """Budget column: style-only when intensity is off; serious mode forces chill (rule 1)."""
+    """Budget column: style-only when intensity is off; serious mode forces subtle (rule 1)."""
     if not style.active:
         return "style"
     if sensitivity == "serious":
-        return "chill"
+        return "subtle"
     return style.intensity
 
 
@@ -309,7 +309,7 @@ class _Planner:
             return False
         if b.kind in ("hook", "number", "swear"):
             return True
-        need = {"chill": 3, "spicy": 2, "unhinged": 1}[self.tier]
+        need = {"subtle": 3, "bold": 2, "max": 1}[self.tier]
         return b.strength >= need
 
     def cseed(self, beat_id: str, purpose: str) -> int:
@@ -595,7 +595,7 @@ class _Planner:
     # ------------------------------------------------------------------ warp (rule 7, caps G14)
 
     def warp_allowed(self) -> bool:
-        return (self.style.speed and self.ge("spicy") and not self.serious and self.timing == "word")
+        return (self.style.speed and self.ge("bold") and not self.serious and self.timing == "word")
 
     def final_duration(self, extra_hold: float = 0.0, extra_delta: float = 0.0) -> float:
         return self.dur + sum(h for _, h in self.holds) + extra_hold + sum(d for *_, d in self.speeds) + extra_delta
@@ -760,11 +760,11 @@ class _Planner:
             if self.serious:
                 return []
             emoji = b.emoji or TONE_EMOJI.get(b.tone, TONE_EMOJI["neutral"])
-            burst = (self.tier == "spicy" and b.strength >= 3) or (self.tier == "unhinged" and b.strength >= 2)
+            burst = (self.tier == "bold" and b.strength >= 3) or (self.tier == "max" and b.strength >= 2)
             placed = None
             if burst and self.family_ok("burst", key["start"], b.id):
                 placed = put("emoji_burst", key["start"], key["start"] + 1.0, purpose="burst", text=text,
-                             emoji=emoji, value=5.0 if self.tier == "spicy" else 8.0)
+                             emoji=emoji, value=5.0 if self.tier == "bold" else 8.0)
                 if placed is not None:
                     self.count("burst", key["start"], b.id)
             if placed is None:
@@ -857,9 +857,9 @@ class _Planner:
             base = c.id
             if v == "slam":
                 self.flash_or_glitch("flash", b.id, "slam.flash", c.start, 0.1, intrinsic=True, hook_bound=hb)
-                self.sfx(b.id, f"{base}.sfx", "boom" if self.tier == "unhinged" and not self.serious else "impact",
+                self.sfx(b.id, f"{base}.sfx", "boom" if self.tier == "max" and not self.serious else "impact",
                          c.start, intrinsic=True, hook_bound=hb)
-                if self.ge("spicy"):
+                if self.ge("bold"):
                     self.shake(b, "slam.shake", c.start, 0.25, 14.0, paired=True, hook_bound=hb)
                     self.flash_or_glitch("glitch", b.id, "slam.glitch", c.start + 0.1, 0.12, intrinsic=False,
                                          hook_bound=hb, amount=0.5)
@@ -868,7 +868,7 @@ class _Planner:
             elif v == "counter":
                 lock = c.start + max(0.6, (b.end - b.start) + 0.4)
                 self.sfx(b.id, f"{base}.sfx", "ticker", c.start, intrinsic=True, hook_bound=hb, counted=False)
-                lock_sound = "cash_register" if self.ge("spicy") and b.prefix in CURRENCY_PREFIXES else "stamp"
+                lock_sound = "cash_register" if self.ge("bold") and b.prefix in CURRENCY_PREFIXES else "stamp"
                 if not self.sfx(b.id, f"{base}.sfx2", lock_sound, lock, intrinsic=True, hook_bound=hb):
                     if lock_sound != "stamp":
                         self.sfx(b.id, f"{base}.sfx2", "stamp", lock, intrinsic=True, hook_bound=hb)
@@ -880,7 +880,7 @@ class _Planner:
                          variant=1 if int(self.inp.sfx_variants.get("pop", 0) or 0) > 1 else 0)
             elif v == "decode":
                 self.sfx(b.id, f"{base}.sfx", "glitch", c.start, intrinsic=True, hook_bound=hb)
-                if self.ge("spicy"):
+                if self.ge("bold"):
                     self.flash_or_glitch("glitch", b.id, f"{c.id[len(b.id) + 1:]}.glitch", c.start, 0.08,
                                          intrinsic=False, hook_bound=hb, amount=0.4)
             elif v in ("behind", "kinetic"):
@@ -910,20 +910,20 @@ class _Planner:
         self.sfx(b.id, f"{b.id}.sfx", "whoosh", b.start, intrinsic=False, hook_bound=True)
         hook_end = self.beats_meta.hook_end if self.beats_meta.hook_end is not None else b.end
         end = min(b.start + 6.0, max(hook_end, b.end, b.start + 1.0))
-        scale = {"chill": 1.04, "spicy": 1.06, "unhinged": 1.08}[self.tier]
+        scale = {"subtle": 1.04, "bold": 1.06, "max": 1.08}[self.tier]
         self.zoom(b, "push", "push", scale, b.start, end, hook_bound=True)
-        if self.ge("spicy"):
+        if self.ge("bold"):
             self.zoom(b, "zoom", "punch", 1.12, key["start"], key["start"] + self.punch_len(key), hook_bound=True)
-        if self.tier == "unhinged":
+        if self.tier == "max":
             self.flash_or_glitch("flash", b.id, "flash", key["start"], 0.15, intrinsic=False, hook_bound=True)
             boom = self.sfx(b.id, f"{b.id}.sfx2", "boom", key["start"], intrinsic=False, hook_bound=True)
             self.shake(b, "shake", key["start"], 0.35, 18.0, paired=boom or not self.style.sfx, hook_bound=True)
 
     def _b_emphasis(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("spicy"):
+        if not elig or not self.ge("bold"):
             return
         self.sfx(b.id, f"{b.id}.sfx", "pop", key["start"], intrinsic=False)
-        if self.tier == "unhinged":
+        if self.tier == "max":
             scale = self.rand(b.id, "zoom", 1.15, 1.25)
             self.zoom(b, "zoom", "punch", scale, key["start"], key["start"] + self.punch_len(key))
         elif b.strength >= 2:
@@ -939,27 +939,27 @@ class _Planner:
             hit_at = counter.start + max(0.6, (b.end - b.start) + 0.4)
             sound_ok = any(s in IMPACT_SOUNDS and bb == b.id and abs(t - hit_at) < 0.05 for t, s, bb in self.sounds)
         else:
-            sound = "cash_register" if self.ge("spicy") and b.prefix in CURRENCY_PREFIXES else "stamp"
+            sound = "cash_register" if self.ge("bold") and b.prefix in CURRENCY_PREFIXES else "stamp"
             sound_ok = self.sfx(b.id, f"{b.id}.sfx", sound, key["start"], intrinsic=False)
             if not sound_ok and sound != "stamp":
                 sound_ok = self.sfx(b.id, f"{b.id}.sfx", "stamp", key["start"], intrinsic=False)
-        if self.tier == "unhinged":
+        if self.tier == "max":
             self.zoom(b, "zoom", "punch", 1.18, key["start"], key["start"] + self.punch_len(key))
             self.shake(b, "shake", hit_at, 0.25, 10.0, paired=sound_ok or not self.style.sfx)
 
     def _b_punchline(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("spicy"):
+        if not elig or not self.ge("bold"):
             return
         self.zoom(b, "zoom", "punch", 1.15, key["start"], key["start"] + self.punch_len(key))
         self.sfx(b.id, f"{b.id}.sfx", "boom" if b.strength >= 3 else "pop", key["start"], intrinsic=False)
-        if self.tier == "unhinged":
+        if self.tier == "max":
             self.flash_or_glitch("glitch", b.id, "glitch", key["start"], 0.15, intrinsic=False, amount=0.6)
             self.slow_tail(b, words)
 
     def _b_swear(self, b, words, key, elig, accents) -> None:
         # §8.4: the glitch sits ON the bleep, so there is none without one (censor off, approx timing, user-deleted).
         bleep = f"{b.id}.bleep"
-        if self.tier == "unhinged" and bleep in self.taken_ids and not self.is_suppressed(bleep):
+        if self.tier == "max" and bleep in self.taken_ids and not self.is_suppressed(bleep):
             self.flash_or_glitch("glitch", b.id, "glitch", b.start, 0.1, intrinsic=False, amount=0.5)
 
     def _b_emotional_turn(self, b, words, key, elig, accents) -> None:
@@ -971,23 +971,23 @@ class _Planner:
         start = max(sentence_start, b.end - 4.0)
         if b.end - start < 1.0:
             start = max(0.0, b.end - 1.0)
-        self.zoom(b, "push", "push", 1.04 if self.tier == "chill" else 1.06, start, b.end)
-        if self.ge("spicy"):
+        self.zoom(b, "push", "push", 1.04 if self.tier == "subtle" else 1.06, start, b.end)
+        if self.ge("bold"):
             self.riser(b, b.start)
-        if self.tier == "unhinged":
+        if self.tier == "max":
             self.desaturate(b.id, "desat", b.start, b.start + 1.0, 0.6, 0.1)
 
     def _b_build(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("spicy"):
+        if not elig or not self.ge("bold"):
             return
         self.zoom(b, "push", "push", 1.06, b.start, max(b.end, b.start + 1.0))
         landing = next((o for o in sorted(self.beats, key=lambda o: (o.start, o.id))
                         if o.kind in ("payoff", "punchline") and o.start >= b.end - EPS and o.start - b.end <= 8.0),
                        None)
         self.riser(b, landing.start if landing is not None else b.end)
-        lo, hi = (1.15, 1.25) if self.tier == "spicy" else (1.2, 1.35)
+        lo, hi = (1.15, 1.25) if self.tier == "bold" else (1.2, 1.35)
         runs = [list(words)]
-        if self.tier == "unhinged":
+        if self.tier == "max":
             # A wordless span ≥ 0.6 s inside the build plays fast; the speech around it keeps the ramp.
             for i, (prev, nxt) in enumerate(zip(words, words[1:])):
                 if nxt["start"] - prev["end"] >= 0.6 - EPS:
@@ -999,15 +999,15 @@ class _Planner:
         self.speech_ramp(b, run, self.rand(b.id, "ramp", lo, hi))
 
     def _b_payoff(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("spicy"):
+        if not elig or not self.ge("bold"):
             return
         self.wait_for_it(b)
         self.zoom(b, "zoom", "punch", 1.15, key["start"], key["start"] + self.punch_len(key))
         self.sfx(b.id, f"{b.id}.sfx", "impact", key["start"], intrinsic=False)
         froze = False
-        if self.tier == "unhinged" or (b.strength >= 3 and self.dur >= 15.0):
+        if self.tier == "max" or (b.strength >= 3 and self.dur >= 15.0):
             froze = self.payoff_freeze(b, words)
-        if not froze and self.tier == "unhinged":
+        if not froze and self.tier == "max":
             self.slow_tail(b, words)
 
     # ------------------------------------------------------------------ bundle pieces
@@ -1076,7 +1076,7 @@ class _Planner:
         t = math.ceil(last["end"] * FPS - 1e-6) / FPS
         if gap_end - t < 0.3 - EPS:                 # rule 7: the freeze sits ≥ 0.3 s before the next word
             return False
-        hi = 0.8 if self.tier == "spicy" else 1.0
+        hi = 0.8 if self.tier == "bold" else 1.0
         hold = self.rand(b.id, "freeze", 0.6, hi)
         label = b.label.strip() or self.text_of(self.key_phrase(words, 3), 40)
         if not self.freeze(b, t, hold, label):
@@ -1088,10 +1088,10 @@ class _Planner:
         if not self.style.wait_for_it:
             return False
         hook_end = self.beats_meta.hook_end or 0.0
-        lead = 6.0 if self.tier == "spicy" else 4.0
+        lead = 6.0 if self.tier == "bold" else 4.0
         if b.start - hook_end < lead - EPS:
             return False
-        if self.tier == "spicy" and self.dur < 20.0:
+        if self.tier == "bold" and self.dur < 20.0:
             return False
         end = b.start - 0.15
         floor = max(hook_end + 0.3, QUIET_HEAD)
@@ -1172,7 +1172,7 @@ class _Planner:
 
     def place_reactions(self) -> None:
         """Rule 11: one ReactionCue per kept idea, 2.0 s from the word, never in B-roll windows."""
-        if not (self.style.reactions and self.inp.reactions_available) or self.serious or not self.ge("spicy"):
+        if not (self.style.reactions and self.inp.reactions_available) or self.serious or not self.ge("bold"):
             return
         if self.timing == "none":
             return
@@ -1218,7 +1218,7 @@ class _Planner:
         candidates = []
         for k, c in enumerate(self.inp.cuts):
             c = float(c)
-            if self.tier == "chill" and not is_break(c):
+            if self.tier == "subtle" and not is_break(c):
                 continue
             candidates.append((not is_break(c), tuple(-x for x in strength_near(c)), c, k))
         placed = 0
@@ -1273,8 +1273,8 @@ class _Planner:
             self.desaturate("", "g.kinetic.desat", c.start, c.end, 0.7, 0.2, hook_bound=True)
 
     def place_highlighter_words(self) -> None:
-        """highlighter_swipe at unhinged: every content word ≥4 letters (accent caps apply)."""
-        if self.template != "highlighter_swipe" or self.tier != "unhinged" or self.timing == "none":
+        """highlighter_swipe at max: every content word ≥4 letters (accent caps apply)."""
+        if self.template != "highlighter_swipe" or self.tier != "max" or self.timing == "none":
             return
         for i, w in enumerate(self.words):
             text = str(w.get("text", ""))
@@ -1286,8 +1286,8 @@ class _Planner:
                               min(max(w["end"], w["start"] + 0.8), w["start"] + 2.5), text=self.censored(w))
 
     def place_wordless_speedups(self) -> None:
-        """Unhinged: wordless spans ≥0.6 s play at 1.5-2.5x (0.1 s margin each side), away from landings."""
-        if self.tier != "unhinged" or not self.warp_allowed():
+        """Max: wordless spans ≥0.6 s play at 1.5-2.5x (0.1 s margin each side), away from landings."""
+        if self.tier != "max" or not self.warp_allowed():
             return
         guarded = [(o.start - 0.3, o.end + 0.3) for o in self.beats
                    if o.kind in ("payoff", "punchline", "hook", "swear")]
@@ -1336,9 +1336,9 @@ class _Planner:
             return "none"
         if self.style.grade != "auto":
             return self.style.grade
-        if self.tier == "spicy":
+        if self.tier == "bold":
             return "punchy"
-        if self.tier == "unhinged":
+        if self.tier == "max":
             return "teal_orange" if self.beats_meta.mood in ("dramatic", "dark") else "punchy"
         return "none"
 

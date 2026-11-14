@@ -53,7 +53,7 @@ class TaskRepository:
         """Create a new task and return its ID.
 
         ``edit_style`` is ``EditStyle.to_json()``. Only a non-empty style adds the column, with a third INSERT
-        shape, so tasks without crazy edits keep the two legacy statements byte for byte (and NULL in the row).
+        shape, so tasks without dynamic edits keep the two legacy statements byte for byte (and NULL in the row).
         """
         source_duration_seconds = charged_duration(source_duration_seconds)
         task_id = str(uuid4())
@@ -72,7 +72,7 @@ class TaskRepository:
         }
         try:
             if edit_style:
-                # Crazy edits: the column exists from the same migration as the flag that admits the style.
+                # Dynamic edits: the column exists from the same migration as the flag that admits the style.
                 result = await db.execute(
                     text("""
                         INSERT INTO tasks (
@@ -237,7 +237,7 @@ class TaskRepository:
         recomputing the key from the saved source URL.
 
         ``edit_identity`` = ``(EditStyle.to_json(), caption_template)`` for a
-        request with crazy edits: only an in-flight task with that same stored
+        request with dynamic edits: only an in-flight task with that same stored
         style and template is the same job. Without it the lookup is unchanged.
         """
         if not user_id or not source_key:
@@ -322,7 +322,7 @@ class TaskRepository:
 
     @staticmethod
     async def has_fx_clips(db: Optional[AsyncSession], task_id: str) -> bool:
-        """Does any clip of this task carry crazy edits (``generated_clips.fx_meta``)?
+        """Does any clip of this task carry dynamic edits (``generated_clips.fx_meta``)?
 
         Such clips re-render on the video worker (``fx_clip_job``), never in an API request. False before the
         migration, and for callers that unit-test a route without a database.

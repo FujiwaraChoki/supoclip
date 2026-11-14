@@ -1,4 +1,4 @@
-// P2 of the crazy-edits chain (FINAL §4.4, §6.3): raw RGBA frames in E from P1 on stdin, fx-core draws each OUTPUT
+// P2 of the dynamic-edits chain (FINAL §4.4, §6.3): raw RGBA frames in E from P1 on stdin, fx-core draws each OUTPUT
 // frame (F clock, through the warp), raw RGBA out on stdout to P3.
 //
 //   deno run --cached-only --frozen --no-prompt --allow-ffi --allow-read=… --allow-env=… --allow-sys=homedir \

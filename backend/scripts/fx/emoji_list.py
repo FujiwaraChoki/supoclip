@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit the emoji set the crazy-edit atlas must cover (FINAL.md §12).
+"""Emit the emoji set the dynamic-edit atlas must cover (FINAL.md §12).
 
     TONE_EMOJI values ∪ LLM_ALLOWED_EMOJI ∪ EMOJI_KEYWORD_MAP values
 

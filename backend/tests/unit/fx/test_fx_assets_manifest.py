@@ -1,4 +1,4 @@
-"""The committed crazy-edit assets (backend/src/fx_assets) match their manifest and the §12 quality bar."""
+"""The committed dynamic-edit assets (backend/src/fx_assets) match their manifest and the §12 quality bar."""
 
 from __future__ import annotations
 

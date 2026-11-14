@@ -1,4 +1,4 @@
-// Crazy-edit audio for the studio: the audio program (what plays when, on the F clock) and the browser export's
+// Dynamic-edit audio for the studio: the audio program (what plays when, on the F clock) and the browser export's
 // offline mix. Mirror of backend/src/media/fx_audio.py `build_bus` + the studio (`loudness="none"`) branch of
 // `audio_graph` (§9): keep the constants and rules in lockstep.
 //
@@ -33,12 +33,12 @@ export const SOFT_CLIP_KNEE = 0.8;
 export const MUTE_FRAME = 0.001;
 
 /** §8.3 "SFX bus gain" (resolver.SFX_BUS_GAIN_DB), applied on top of each cue's gain_db. */
-export const SFX_BUS_GAIN_DB = { style: 0, chill: -4, spicy: 0, unhinged: 2 } as const;
+export const SFX_BUS_GAIN_DB = { style: 0, subtle: -4, bold: 0, max: 2 } as const;
 
-/** resolver.sfx_bus_gain_db: style-only when intensity is off; serious mode forces chill. */
+/** resolver.sfx_bus_gain_db: style-only when intensity is off; serious mode forces subtle. */
 export function sfxBusGainDb(style: Pick<EditStyle, "intensity">, sensitivity: Sensitivity): number {
   if (style.intensity === "off") return SFX_BUS_GAIN_DB.style;
-  if (sensitivity === "serious") return SFX_BUS_GAIN_DB.chill;
+  if (sensitivity === "serious") return SFX_BUS_GAIN_DB.subtle;
   return SFX_BUS_GAIN_DB[style.intensity];
 }
 

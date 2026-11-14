@@ -79,7 +79,7 @@ def batch(monkeypatch, tmp_path):
 
     monkeypatch.setattr(video_service, "broll_overlays_for", no_overlays)
 
-    async def run(segments, *, template="marker_circle", style=EditStyle(intensity="spicy"), jobs=True,
+    async def run(segments, *, template="marker_circle", style=EditStyle(intensity="bold"), jobs=True,
                   include_broll=False):
         calls.update(llm=0, resolve=0, batch=None)
         fx_jobs = {i: FxJob(style=style, task_id="task-1", clip_index=i) for i in range(len(segments))} if jobs else None
@@ -110,9 +110,9 @@ async def test_planning_runs_in_the_async_function_and_the_batch_only_consumes(b
     assert out["kwargs"]["fx_enabled"] is True
     (planned,) = out["segments"]
     plan = FxPlan.model_validate(planned["edit_fx"])
-    assert plan.template == "marker_circle" and plan.style.intensity == "spicy"
+    assert plan.template == "marker_circle" and plan.style.intensity == "bold"
     assert planned["edit_beats"]["timeline_hash"]
-    assert planned["edit_style"] == {"intensity": "spicy"}
+    assert planned["edit_style"] == {"intensity": "bold"}
     assert planned["fx_words"] and all("src_start" in w for w in planned["fx_words"])
     assert planned["fx_reaction_files"] == {}
 
@@ -155,9 +155,9 @@ async def test_rule_3_another_template_re_resolves_with_the_stored_seed(batch):
 
 async def test_rule_3_another_style_re_resolves_without_the_model(batch):
     first = (await batch.run([segment()]))["segments"][0]
-    out = await batch.run([segment(**stored_from(first))], style=EditStyle(intensity="unhinged"))
+    out = await batch.run([segment(**stored_from(first))], style=EditStyle(intensity="max"))
     assert batch.calls["resolve"] == 1 and batch.calls["llm"] == 0
-    assert FxPlan.model_validate(out["segments"][0]["edit_fx"]).style.intensity == "unhinged"
+    assert FxPlan.model_validate(out["segments"][0]["edit_fx"]).style.intensity == "max"
 
 
 async def test_rule_4_a_moved_timeline_reanchors_beats_by_source_time(batch):
@@ -273,12 +273,12 @@ async def test_batch_renderer_consumes_edit_fx_and_records_the_sidecar(batch, re
     assert fx_call["fx"].words == planned["fx_words"]
     assert "fx" not in legacy_call
     fx_clip, legacy_clip = clips
-    assert fx_clip["fx_meta"] == {"fx_level": "full", "timing": "word", "intensity": "spicy",
+    assert fx_clip["fx_meta"] == {"fx_level": "full", "timing": "word", "intensity": "bold",
                                   "template": "marker_circle"}
     assert "fx_meta" not in legacy_clip
     sidecar = load_clip_edit_fx(Path(fx_clip["path"]))
     assert sidecar["fx_level"] == "full" and sidecar["applied_warp"] == WARP
-    assert sidecar["style"] == {"intensity": "spicy"}
+    assert sidecar["style"] == {"intensity": "bold"}
     assert json.loads(clip_source_map_path(Path(fx_clip["path"])).read_text())["vertical_layout"]["kind"] == "crop"
     assert load_clip_edit_fx(Path(legacy_clip["path"])) is None
     assert not stale.exists()
@@ -324,7 +324,7 @@ async def test_clip_repository_writes_and_reads_fx_meta_only_when_set(db_session
     source_id = source["id"] if isinstance(source, dict) else str(source)
     task = await create_task(db_session, user_id=user_id, source_id=source_id)
     task_id = task["id"] if isinstance(task, dict) else str(task)
-    meta = {"fx_level": "full", "timing": "word", "intensity": "spicy", "template": "marker_circle"}
+    meta = {"fx_level": "full", "timing": "word", "intensity": "bold", "template": "marker_circle"}
 
     def clip_args(order: int) -> dict:
         path = tmp_path / f"clip_{order}.mp4"

@@ -1,4 +1,4 @@
-"""The crazy-edits server chain (FINAL §6.2-§6.4): P1 ffmpeg → P2 deno (fx-core) → P3 ffmpeg, in one encode.
+"""The dynamic-edits server chain (FINAL §6.2-§6.4): P1 ffmpeg → P2 deno (fx-core) → P3 ffmpeg, in one encode.
 
 - **P1** decodes ``input_path`` through the caller's picture graph (the framing head; the studio's full graph through
   B-roll), adds B-roll and the reaction PiP, converts to RGBA with the source's explicit colour matrix (AR-B2) at

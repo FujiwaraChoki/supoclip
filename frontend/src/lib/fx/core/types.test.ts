@@ -34,28 +34,28 @@ describe("fx-core types", () => {
     });
 
     it("keeps intensity and only the non-default keys", () => {
-      expect(editStyleToJson({ ...DEFAULT_EDIT_STYLE, intensity: "spicy" })).toEqual({ intensity: "spicy" });
+      expect(editStyleToJson({ ...DEFAULT_EDIT_STYLE, intensity: "bold" })).toEqual({ intensity: "bold" });
       const style: EditStyle = {
-        ...DEFAULT_EDIT_STYLE, intensity: "unhinged", music_mood: "hype", progress_bar: true, sfx: false,
+        ...DEFAULT_EDIT_STYLE, intensity: "max", music_mood: "hype", progress_bar: true, sfx: false,
         censor: "bleep_bar",   // default: dropped
       };
-      expect(editStyleToJson(style)).toEqual({ intensity: "unhinged", music_mood: "hype", progress_bar: true, sfx: false });
+      expect(editStyleToJson(style)).toEqual({ intensity: "max", music_mood: "hype", progress_bar: true, sfx: false });
     });
 
     it("emits keys in sorted order like Python's sorted()", () => {
       const json = editStyleToJson({
-        ...DEFAULT_EDIT_STYLE, intensity: "chill", zooms: false, censor: "off", wait_for_it: false, grade: "noir",
+        ...DEFAULT_EDIT_STYLE, intensity: "subtle", zooms: false, censor: "off", wait_for_it: false, grade: "noir",
         loop_ending: true,
       });
       expect(Object.keys(json)).toEqual(["censor", "grade", "intensity", "loop_ending", "wait_for_it", "zooms"]);
       expect(JSON.stringify(json)).toBe(
-        '{"censor":"off","grade":"noir","intensity":"chill","loop_ending":true,"wait_for_it":false,"zooms":false}',
+        '{"censor":"off","grade":"noir","intensity":"subtle","loop_ending":true,"wait_for_it":false,"zooms":false}',
       );
     });
 
     it("ignores keys the contract does not declare", () => {
-      const style = { ...DEFAULT_EDIT_STYLE, intensity: "spicy", extra: 1 } as unknown as EditStyle;
-      expect(editStyleToJson(style)).toEqual({ intensity: "spicy" });
+      const style = { ...DEFAULT_EDIT_STYLE, intensity: "bold", extra: 1 } as unknown as EditStyle;
+      expect(editStyleToJson(style)).toEqual({ intensity: "bold" });
     });
   });
 });

@@ -1,4 +1,4 @@
-"""Crazy-edit asset registry: built-in SFX, music beds and the emoji atlas, plus self-hoster drop-ins (§12).
+"""Dynamic-edit asset registry: built-in SFX, music beds and the emoji atlas, plus self-hoster drop-ins (§12).
 
 Two views, kept apart on purpose (AI-H8, AP-M7, AI-L5):
 

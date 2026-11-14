@@ -107,7 +107,7 @@ const cue = {
   reaction: (id: string, start: number, end: number, url = "https://media.giphy.com/media/x/giphy.mp4"): FxCue => ({ ...base,
     id, kind: "reaction", start, end, query: "wow", provider: "giphy", asset_id: url ? "x" : "", url }),
 };
-const fxOf = (over: Partial<DocFx>): DocFx => ({ ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "spicy" }, ...over });
+const fxOf = (over: Partial<DocFx>): DocFx => ({ ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "bold" }, ...over });
 const opts: StudioSceneOptions = { width: 1080, height: 1920, sourceWidth: 1080, sourceHeight: 1920, base: "layout" };
 const looks: Record<string, CaptionLook> = {
   slam: {

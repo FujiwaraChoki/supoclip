@@ -137,9 +137,9 @@ each machine's worker log to see what it processed.
 `GET /health/worker` reports that at least one video worker is alive; it does
 not say which.
 
-## Crazy edits renderer (deno)
+## Dynamic edits renderer (deno)
 
-Clips with crazy edits are drawn by `src/fx_runtime/main.ts`, a deno program that
+Clips with dynamic edits are drawn by `src/fx_runtime/main.ts`, a deno program that
 sits between two ffmpeg processes. The image carries everything it needs:
 
 - **deno 2.9.8**, pinned by `ARG DENO_VERSION` in `backend/Dockerfile`. yt-dlp

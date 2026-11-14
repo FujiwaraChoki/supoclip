@@ -1,4 +1,4 @@
-// Browser client for crazy-edit assets (backend `GET /fx/assets`, proxied at `/api/fx/assets`).
+// Browser client for dynamic-edit assets (backend `GET /fx/assets`, proxied at `/api/fx/assets`).
 //
 // The manifest lists the built-in SFX, music beds and emoji atlas plus the API machine's drop-ins (`custom: true`).
 // `sfxAsset` / `bedAsset` mirror `edit_fx/assets.py` `mix_sfx_file` / `mix_bed_file` exactly, so the studio preview and

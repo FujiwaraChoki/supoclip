@@ -6,8 +6,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "marker_circle/chill": {
-  "sha256": "7dafbffaa3474cc282d0d46401fbbb70d87564a3d26f72b9eb40251d24e2d599",
+ "marker_circle/subtle": {
+  "sha256": "44ad93936b03b6130911ffdec8e7eb0f222abc57c86a0b971d6e1139006b7b38",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -15,8 +15,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "marker_circle/spicy": {
-  "sha256": "dda950c14970f7f108e4fe58835679aeae09fa896c8de0e5c4da67c29faacb43",
+ "marker_circle/bold": {
+  "sha256": "26bd1d1fc70ee764f21d3384d895452ee474e7f52158ac55f3a5a3796f652c85",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -27,8 +27,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "marker_circle/unhinged": {
-  "sha256": "ea4b010487e2a31508a2bd30507255f2d52e75fcbfdac634a128710dda1cc3b4",
+ "marker_circle/max": {
+  "sha256": "d6a829755f35de4b55f352e6c7ba04dee0a152cb95c992e60a4ec7b373dbce0f",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -46,8 +46,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "emoji_drop/chill": {
-  "sha256": "968e9e2662036f2baed45b54a459f2b72e2bd5f34888e0f1f635c9a4cec3b4e8",
+ "emoji_drop/subtle": {
+  "sha256": "8187ff49110163808dd605b87fb0219584662b0bc3d13730c7d8e2a272b8ae2f",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -55,8 +55,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "emoji_drop/spicy": {
-  "sha256": "f30e548fe85cb77cd247f135b7a5254996c67ccedd356c6749eba273a1a34411",
+ "emoji_drop/bold": {
+  "sha256": "09543e2e1b2b11c6e0173202ef89bf7c948adad8b1ff36de16722d8f9d39a854",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -67,8 +67,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "emoji_drop/unhinged": {
-  "sha256": "08989d4879b1d98e5df7d73dbf3426e0eb4e8d3b34cdeadb457f3fd302652c61",
+ "emoji_drop/max": {
+  "sha256": "bbfc8a1988a09b8ff0ea0d8c55649b8b8e2daffa1ffa1ac6e254eec36b86208d",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -86,8 +86,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "slam/chill": {
-  "sha256": "7fa16511585555c02b464caeb0183e672f9a4041e051062ab94ad1feabbd5783",
+ "slam/subtle": {
+  "sha256": "eb0f4af547b86efc04d457675c018bea2eedfee4e48f9d13389b4ed329428e0a",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -95,8 +95,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "slam/spicy": {
-  "sha256": "3426350b36d77bdf58857e0055e884dc05c7e635b1085467bcaffceb91607ca0",
+ "slam/bold": {
+  "sha256": "416072f6dcdbc1f08c8ff443b2f3830587dc558dcc0bdc831f08c5ed4073a08c",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -107,8 +107,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "slam/unhinged": {
-  "sha256": "55377ead1ed4822202562613ba724b251c3960be2fa6e0e08f1a8d42a9bcd92b",
+ "slam/max": {
+  "sha256": "b55be18e44f587ff32a38840d51806947ba3e3f2bd7bef8edcb5d9464b58d9cf",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -126,8 +126,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "behind_head/chill": {
-  "sha256": "a220aa0cae902e5c8d1a49c2992d45b99b7148e043aee5e1211b45a90483ff06",
+ "behind_head/subtle": {
+  "sha256": "e332ffaa50a7ab41413d20fca5ec1050af08cc5fa763ea6d975e04092a9e8124",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -135,8 +135,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "behind_head/spicy": {
-  "sha256": "8093e2157b1545396b2e1db6a8f9fa8fc4ea83b436064c40dcd7771cf154d2d2",
+ "behind_head/bold": {
+  "sha256": "f51c8873c4ff8f6ab22e2a7d73ead6650e744a0986fe7619551e4de2c98a716c",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -147,8 +147,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "behind_head/unhinged": {
-  "sha256": "be55db3080ac357a29b2fd0c5039328449b7fdb29756b44df018f486bfe0b6e1",
+ "behind_head/max": {
+  "sha256": "4298e9894ef2381164f7a19f15e08f49507458966e9643533cea81c9439e640f",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -166,8 +166,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "stat_counter/chill": {
-  "sha256": "a8a530504f2452dda6eeb911d5f2a4dc8fb4f27472881c04254a0f5350fe41f1",
+ "stat_counter/subtle": {
+  "sha256": "f4ef6b9e6c6fcc29c02cb1b371d58c174138cab1538339b1fedf883521851d3c",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -175,8 +175,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "stat_counter/spicy": {
-  "sha256": "589d0f3ebc1f5b748717616d8c9fb8634180e6f6807acc640769b1cacc248710",
+ "stat_counter/bold": {
+  "sha256": "4e1f80d5c1506e7f4ef3086e29e10ba04e5564526dbb3f6e974491b7256a43fc",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -187,8 +187,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "stat_counter/unhinged": {
-  "sha256": "2dc86ab0aa3dbd04449089d8555f4287bde8cb22d348864578cd3abbf8a7be98",
+ "stat_counter/max": {
+  "sha256": "ea3c7434f04aeb2361c502f7f1c99f4d8e919b56425917f4ad59478758e65e31",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -206,8 +206,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "sticker_slap/chill": {
-  "sha256": "c3c45287c70f8d7f8c511b344a0c0f9e351b89c2e42498851d302912f41d6deb",
+ "sticker_slap/subtle": {
+  "sha256": "249af38581af4a805272ad01f3fb7d387df871d21223488b2ff9c42dce36cba8",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -215,8 +215,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "sticker_slap/spicy": {
-  "sha256": "a927fe985b24c7faec07ed249692d5f432181e4eef9e5fcd859a123910b92e57",
+ "sticker_slap/bold": {
+  "sha256": "8db6861a3fb431885894683895de7cf8051d14900557eb9fb4de6b23b5b214f8",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -227,8 +227,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "sticker_slap/unhinged": {
-  "sha256": "d74a8599e9251095b036300a9df33b0cdc517a984728ee2cf7d1b6fbd064e958",
+ "sticker_slap/max": {
+  "sha256": "a449771da03fb8fe21413da0b722d591cf43c86b543d59fde1bc0c76c39e28e0",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -246,8 +246,8 @@
   "hook_title_suppressed": true,
   "cues": []
  },
- "kinetic_stack/chill": {
-  "sha256": "49614e85564c69647df1c7cd949a1b340a6925a14057a076189c2d5992160f7b",
+ "kinetic_stack/subtle": {
+  "sha256": "d0f69596785104a6c79661a0c1f5504a7e324c05b86fc3df9269417ab70883b1",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
@@ -255,8 +255,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "kinetic_stack/spicy": {
-  "sha256": "b78f188235954cfff50e14a614666900c52318da3e04e54fc656e8145cdbbf78",
+ "kinetic_stack/bold": {
+  "sha256": "2b507f211bb7b9dca148502a301d2424ee9630f98992a9bce1af9f8df280f7bf",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -267,8 +267,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "kinetic_stack/unhinged": {
-  "sha256": "5bc540ca6cb491623845612f5289e7df398fcb7e455a693abc93cc27d5817f27",
+ "kinetic_stack/max": {
+  "sha256": "eac0bb73611eb266c99818a1e3f85bac7ef7c9e73770d925d01f58d5bf29a850",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -286,8 +286,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "decode_glitch/chill": {
-  "sha256": "ee11735cfe350d08f98174e6938d1002f9ef69c4eb905bc1f8b78900b7c2d2bb",
+ "decode_glitch/subtle": {
+  "sha256": "d892248bbed7cd245f482198d72f0c10a3b0b330b7a62e2a8949cfd4552e6c5c",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -296,8 +296,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "decode_glitch/spicy": {
-  "sha256": "82f5287d47a99425ae2cd2c726529368acb490435e9826ab5db204c2fe0517b1",
+ "decode_glitch/bold": {
+  "sha256": "3d656e4955bc33ea811ba266c6759a7a82ac227adf476207d0b22ecfac34e11d",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -308,8 +308,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "decode_glitch/unhinged": {
-  "sha256": "62636dec37242be8d765b7113a14294d1ee4501b3c125c9df68c3d8871ec0e9f",
+ "decode_glitch/max": {
+  "sha256": "2f9d69fcd37a4b99ef02f0cc4e9343ed38ff0a609ef65ac32977bead87855171",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -327,8 +327,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "highlighter_swipe/chill": {
-  "sha256": "95fe60f2ec0cdc4c39f1875be271d008e8d4ac7d879fd04c971c06e390cb3393",
+ "highlighter_swipe/subtle": {
+  "sha256": "68191d9c8698c75c0c8dc73081fc05837c305ee37329f3e4028e54bfc32471ce",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -336,8 +336,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "highlighter_swipe/spicy": {
-  "sha256": "4f491deee743cfcc3d1e8a79201ae1edfae03dff58ee6743b2fb90941c484593",
+ "highlighter_swipe/bold": {
+  "sha256": "d851d50d0cdf38971f1a884a91ef3ae24754a33c0d19ed280e148bd7238dc575",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -348,8 +348,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "highlighter_swipe/unhinged": {
-  "sha256": "35777366fc93eca89ca4ca162b6132809dea4728e189f2faa8f1c3210cdba88f",
+ "highlighter_swipe/max": {
+  "sha256": "ecc9b1cf918b2539e0c2272970bdafe1ac8e47f21203eea6ed34ca75d5c81662",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -367,8 +367,8 @@
   "hook_title_suppressed": false,
   "cues": []
  },
- "face_doodles/chill": {
-  "sha256": "1bbf51a9e442fbff9ea43c54b1cce9f4595016249ce43d5e93c55801c2755ce5",
+ "face_doodles/subtle": {
+  "sha256": "beb2d2b03bc2ffa3ad0837d5cfcd5524d1782e7bb793ef8b32b6a98338ed3ca9",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -376,8 +376,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "face_doodles/spicy": {
-  "sha256": "c815c0e59b87520de6f20e067c9e387215467c6e4a6fdbce59fd208a3da49c2c",
+ "face_doodles/bold": {
+  "sha256": "0527a60681cef2b7bc53ee980f8696d355d8e2abfa0d8efec2a3c2e80d15b1f1",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -388,8 +388,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "face_doodles/unhinged": {
-  "sha256": "feea78754e385f9c83d3742e119db9018e2f49888718bc91a27eba3051be0faf",
+ "face_doodles/max": {
+  "sha256": "d3bb9721b512bda05df3c99fa86be9418d711a787216914ee1c83cab5be2ca96",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -400,8 +400,8 @@
    " 21.400- 21.400 t1.tr            transition whip"
   ]
  },
- "default/chill": {
-  "sha256": "2f2c6ac94fca2213cc0ad16a836eb71acec07d3368467374512c5f6965a00027",
+ "default/subtle": {
+  "sha256": "8b7a3667b926d83869860cf7364fe2a3348b6583cfde2cdb754f1608e254761d",
   "music": "hype -24.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -409,8 +409,8 @@
    " 21.400- 21.400 t1.tr            transition light_leak"
   ]
  },
- "default/spicy": {
-  "sha256": "8afb7d41671ddc0f963f9f06c61b3795bbc8173f368011b00e9761f700d82b27",
+ "default/bold": {
+  "sha256": "69d96e50f092a663138574d7eb7f1c88518535a520de1b14a92781115d01a272",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -421,8 +421,8 @@
    " 21.400- 21.400 t1.tr.sfx        sfx        glitch#0 -3dB"
   ]
  },
- "default/unhinged": {
-  "sha256": "e0f07284dd69cb5724d0c0923c986a1ae74331e0d1d65417f452472557d41868",
+ "default/max": {
+  "sha256": "7deefadfc2cfd339c091b2b9f8aed7b4c1f6338aa6372c529322ead5931a29cc",
   "music": "hype -24.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,

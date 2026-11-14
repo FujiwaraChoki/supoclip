@@ -216,7 +216,7 @@ def generated_emphasis(words: list[dict], task: dict, plan: dict | None = None) 
     The editor seeds them as highlights so users see and can toggle them.
     A clip drawn with an FX caption template accented its plan's accent cues
     (``plan`` is the sidecar's ``edit_fx``); legacy templates burned the
-    heuristic emphasis into their ASS, so they keep it even with crazy edits
+    heuristic emphasis into their ASS, so they keep it even with dynamic edits
     on (AI-M3).
     """
     from ..caption_templates import get_template
@@ -251,7 +251,7 @@ def plan_accent_words(words: list[dict], plan: dict) -> set[int]:
 
 
 def doc_fx_from_sidecar(sidecar: dict | None, duration: float) -> dict | None:
-    """The draft's ``fx`` for a clip generated with crazy edits (§14.1): the sidecar plan and beats, as editable
+    """The draft's ``fx`` for a clip generated with dynamic edits (§14.1): the sidecar plan and beats, as editable
     cues on the clip's own timeline (clip S == clean.mp4 S, so times map one to one). None without a plan."""
     from ..edit_fx.contracts import EditBeats, FxPlan
     from ..editor_document import DocFx
@@ -544,7 +544,7 @@ def upgrade_document(
     """Fill fields that drafts saved by older editor versions don't have.
 
     Missing keys would otherwise validate to defaults that drop the generated
-    clip's animation and hook title. A draft without crazy edits (no ``fx``
+    clip's animation and hook title. A draft without dynamic edits (no ``fx``
     key, or null) of a clip generated with them (``fx_sidecar`` is the clip's
     ``load_clip_edit_fx``) is seeded from its plan, the original included.
     A draft whose ``fx`` the user set, even to the inert "removed" state, keeps it.
@@ -581,7 +581,7 @@ def upgrade_document(
 def caption_looks(include_fx: bool = False, keep: tuple[str, ...] = ()) -> dict:
     """Template styling the editor preview draws on top of its own caption style.
 
-    Legacy templates only, unless ``include_fx`` (the caller is allowed crazy
+    Legacy templates only, unless ``include_fx`` (the caller is allowed dynamic
     edits, §0.4.9) adds every FX template; ``keep`` adds the FX templates a
     stored draft already uses, so it always has its own look.
     """
@@ -895,7 +895,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             from ..clip_source_map import load_clip_broll, load_clip_edit_fx
 
             broll_placements = load_clip_broll(caption_path)
-            # Crazy edits the clip was generated with: they seed the draft (§14.1).
+            # Dynamic edits the clip was generated with: they seed the draft (§14.1).
             fx_sidecar = load_clip_edit_fx(caption_path)
             await db.close()
             source, downloaded_source, local_ranges = await _editor_source(
@@ -1034,7 +1034,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
 
 
 def fx_render_inputs(document: EditDocument, asset: dict | None, directory: Path, *, storage=None):
-    """The session's face track, verified matte and reaction GIFs bound around a crazy-edits render
+    """The session's face track, verified matte and reaction GIFs bound around a dynamic-edits render
     (``editor_fx_render.studio_fx_inputs``); nothing at all for any other draft."""
     from contextlib import nullcontext
 
@@ -1129,7 +1129,7 @@ def _prefixed_id(value: str, prefix: str, limit: int) -> str:
 
 
 def rebased_fx(document: EditDocument, cursor: float, index: int) -> dict:
-    """One draft's crazy edits on a combined source (§14.1): beats and enabled cues mapped through the draft's
+    """One draft's dynamic edits on a combined source (§14.1): beats and enabled cues mapped through the draft's
     segments (S → its E, which is where it sits in the combined clean.mp4) and moved by ``cursor``, like
     ``rebased_broll``. Ids get ``e{index}:``. The freeze hold budget is not applied (AR-M14)."""
     from ..edit_fx.mapping import BEAT_ID_MAX, CUE_ID_MAX, mapped_beats
@@ -1165,9 +1165,9 @@ _TIMING_PRECISION = ("none", "approx", "word")
 
 
 def combined_fx(documents: list[EditDocument], parts: list[dict]) -> dict | None:
-    """The combined draft's ``fx``: globals (style, music, grade, …) from the first draft that has crazy edits, a
+    """The combined draft's ``fx``: globals (style, music, grade, …) from the first draft that has dynamic edits, a
     container even when the first draft has none (AI-L4), every draft's rebased beats and cues. None when no draft
-    has crazy edits, so a combination of legacy drafts stays byte-identical."""
+    has dynamic edits, so a combination of legacy drafts stays byte-identical."""
     from ..editor_document import DocFx
 
     with_fx = [document.fx for document in documents if document.fx is not None]
@@ -1192,7 +1192,7 @@ def combined_fx(documents: list[EditDocument], parts: list[dict]) -> dict | None
 
 
 def combined_fx_sidecar(document: EditDocument, words: list[dict], outcome) -> dict:
-    """``save_clip_edit_fx`` arguments for a combined clip with crazy edits (AR-M14): its plan in combined-clean S,
+    """``save_clip_edit_fx`` arguments for a combined clip with dynamic edits (AR-M14): its plan in combined-clean S,
     the level and the warp the render applied, so later trims and re-renders can map F → E."""
     from ..edit_fx.beats import words_hash
     from ..edit_fx.contracts import EditBeats, FxPlan
@@ -1287,7 +1287,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
             all_broll += rebased_broll(document, cursor)
-            # So do its crazy edits, on the combined timeline.
+            # So do its dynamic edits, on the combined timeline.
             drafts.append(document)
             fx_parts.append(rebased_fx(document, cursor, i))
             entry_words = [
@@ -1445,7 +1445,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                             "Combined in the clip editor",
                             max(c["clip_order"] for c in clips) + 1,
                             clip_id=new_id,
-                            # Every clip with crazy edits in its sidecar carries fx_meta (§3.4).
+                            # Every clip with dynamic edits in its sidecar carries fx_meta (§3.4).
                             **({"fx_meta": {
                                 "fx_level": fx_sidecar["fx_level"],
                                 "timing": document.fx.timing,

@@ -87,7 +87,7 @@ def _graph(**overrides) -> str:
 
 
 def _plan(*cues, music=None) -> FxPlan:
-    return FxPlan(style=EditStyle(intensity="spicy"), template="default", seed=3, edit_duration=DURATION,
+    return FxPlan(style=EditStyle(intensity="bold"), template="default", seed=3, edit_duration=DURATION,
                   cues=tuple(cues), music=music)
 
 

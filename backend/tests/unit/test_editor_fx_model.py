@@ -1,4 +1,4 @@
-"""Crazy edits in the studio document (§5.1, §5.5, §14.1): the model, the E mapping, re-resolve, the render hook
+"""Dynamic edits in the studio document (§5.1, §5.5, §14.1): the model, the E mapping, re-resolve, the render hook
 and how prepare/upgrade seed a draft from a generated clip's plan."""
 
 import json
@@ -40,7 +40,7 @@ from src.services.editor_service import (
 from tests.fixtures.editor_store import stored_state
 
 PINS = Path(__file__).resolve().parents[1] / "fixtures" / "legacy_pins"
-SPICY = EditStyle(intensity="spicy")
+BOLD = EditStyle(intensity="bold")
 
 TEXT = ("so here is the thing nobody tells you about money you can make ten thousand dollars a month "
         "and still be broke because the real secret is what you keep not what you earn").split()
@@ -79,7 +79,7 @@ def planned(**fx) -> dict:
 # --------------------------------------------------------------------------- the model
 
 
-def test_a_document_without_crazy_edits_dumps_byte_identically_to_the_legacy_pin():
+def test_a_document_without_dynamic_edits_dumps_byte_identically_to_the_legacy_pin():
     raw = json.loads((PINS / "editor_document.json").read_text(encoding="utf-8"))
     for value in (raw, {**raw, "fx": None}):
         model = EditDocument.model_validate(value)
@@ -112,7 +112,7 @@ def test_every_cue_kind_round_trips_in_the_document():
         {"kind": "sticker", "id": "st", "start": 10, "end": 11, "sticker": "text", "text": "no way"},
         {"kind": "reaction", "id": "r", "start": 12, "end": 14, "query": "shocked"},
     ]
-    document = doc([(0, 60)], fx={"style": {"intensity": "spicy"}, "cues": cues, "grade": "warm", "progressBar": True})
+    document = doc([(0, 60)], fx={"style": {"intensity": "bold"}, "cues": cues, "grade": "warm", "progressBar": True})
     dumped = document.model_dump(mode="json")
     assert dumped["fx"]["version"] == "fx-v1"
     assert [c["kind"] for c in dumped["fx"]["cues"]] == [c["kind"] for c in cues]
@@ -130,7 +130,7 @@ def test_every_cue_kind_round_trips_in_the_document():
     ({"cues": [{"kind": "speed", "id": "a", "start": 1, "end": 3, "rate": 1.2},
                {"kind": "speed", "id": "b", "start": 2.5, "end": 4, "rate": 1.2}]}, "overlap"),
 ])
-def test_validate_duration_checks_crazy_edits(fx, message):
+def test_validate_duration_checks_dynamic_edits(fx, message):
     with pytest.raises(ValueError, match=message):
         doc([(0, 60)], fx=fx).validate_duration(60)
 
@@ -164,11 +164,11 @@ def test_document_needs_fx_and_turning_it_on():
     assert document_needs_fx(styled)
     music = doc([(0, 10)], fx={"music": {"mood": "hype", "bed": "hype"}})
     assert document_needs_fx(music)
-    active_without_cues = doc([(0, 10)], fx={"style": {"intensity": "chill"}})
+    active_without_cues = doc([(0, 10)], fx={"style": {"intensity": "subtle"}})
     assert not document_needs_fx(active_without_cues) and document_fx_on(active_without_cues)
     assert turns_fx_on(legacy, styled) and turns_fx_on(None, active_without_cues)
     assert not turns_fx_on(styled, styled) and not turns_fx_on(styled, legacy)
-    assert not turns_fx_on(active_without_cues, doc([(0, 10)], fx={"style": {"intensity": "unhinged"}}))
+    assert not turns_fx_on(active_without_cues, doc([(0, 10)], fx={"style": {"intensity": "max"}}))
 
 
 def test_studio_hook_window_matches_the_generation_formula():
@@ -200,17 +200,17 @@ def _e_cues(document, kind=None):
 
 def test_needs_plan_when_an_active_style_has_no_beats():
     with pytest.raises(NeedsPlan):
-        resolve_document_fx(doc([(0, 60)]), SPICY, seed=1, layout_has_zoompan=False)
+        resolve_document_fx(doc([(0, 60)]), BOLD, seed=1, layout_has_zoompan=False)
     # A planned draft with no beats (nothing worth an edit) resolves as it is.
-    resolved = resolve_document_fx(doc([(0, 60)], fx={"mood": "chill"}), SPICY, seed=1, layout_has_zoompan=False)
-    assert resolved.fx.style == SPICY
+    resolved = resolve_document_fx(doc([(0, 60)], fx={"mood": "chill"}), BOLD, seed=1, layout_has_zoompan=False)
+    assert resolved.fx.style == BOLD
 
 
 def test_budgets_are_evaluated_on_the_edit_duration():
-    full = resolve_document_fx(doc([(0, 60)], fx=planned()), SPICY, seed=7, layout_has_zoompan=True)
-    trimmed = resolve_document_fx(doc([(0, 12), (40, 52)], fx=planned()), SPICY, seed=7, layout_has_zoompan=True)
-    cap_full = resolver.family_cap(resolver.BUDGETS["punch"]["spicy"], 60)
-    cap_trimmed = resolver.family_cap(resolver.BUDGETS["punch"]["spicy"], 24)
+    full = resolve_document_fx(doc([(0, 60)], fx=planned()), BOLD, seed=7, layout_has_zoompan=True)
+    trimmed = resolve_document_fx(doc([(0, 12), (40, 52)], fx=planned()), BOLD, seed=7, layout_has_zoompan=True)
+    cap_full = resolver.family_cap(resolver.BUDGETS["punch"]["bold"], 60)
+    cap_trimmed = resolver.family_cap(resolver.BUDGETS["punch"]["bold"], 24)
     punches = lambda d: [c for c in _e_cues(d, "zoom") if c.mode == "punch"]  # noqa: E731
     assert len(punches(full)) <= cap_full and len(punches(trimmed)) <= cap_trimmed < cap_full
     assert len(punches(trimmed)) >= 1
@@ -221,7 +221,7 @@ def test_budgets_are_evaluated_on_the_edit_duration():
 
 
 def test_reordered_segments_resolve_in_play_order():
-    resolved = resolve_document_fx(doc([(30, 45), (0, 15)], fx=planned()), SPICY, seed=3, layout_has_zoompan=True)
+    resolved = resolve_document_fx(doc([(30, 45), (0, 15)], fx=planned()), BOLD, seed=3, layout_has_zoompan=True)
     mapped = _e_cues(resolved)
     assert mapped and all(0 <= c.start <= 30 + 1e-6 for c in mapped)
     # The first E second is the quiet head (rule 3): nothing auto starts in [0, 0.25) except hook-bound cues.
@@ -230,7 +230,7 @@ def test_reordered_segments_resolve_in_play_order():
 
 
 def test_a_repeated_segment_carries_each_cue_once():
-    resolved = resolve_document_fx(doc([(0, 15), (0, 15)], fx=planned()), SPICY, seed=5, layout_has_zoompan=True)
+    resolved = resolve_document_fx(doc([(0, 15), (0, 15)], fx=planned()), BOLD, seed=5, layout_has_zoompan=True)
     ids = [c.id for c in resolved.fx.cues]
     assert len(ids) == len(set(ids)) and resolved.fx.cues
     assert all(c.end <= 15 + 1e-6 for c in resolved.fx.cues)
@@ -244,17 +244,17 @@ def test_a_cue_spanning_a_junction_is_split_per_segment(monkeypatch):
                                       "edit_duration": inp.duration, "cues": [cue]})
 
     monkeypatch.setattr(resolver, "resolve", fake_resolve)
-    resolved = resolve_document_fx(doc([(0, 5), (20, 25)], fx=planned()), SPICY, seed=5, layout_has_zoompan=True)
+    resolved = resolve_document_fx(doc([(0, 5), (20, 25)], fx=planned()), BOLD, seed=5, layout_has_zoompan=True)
     assert [(c.id, c.start, c.end) for c in resolved.fx.cues] == [("b0.desat", 3.0, 5.0), ("b0.desat~1", 20.0, 22.0)]
 
 
 def test_user_cues_are_kept_verbatim_and_suppressed_ids_never_return():
-    first = resolve_document_fx(doc([(0, 60)], fx=planned()), SPICY, seed=9, layout_has_zoompan=True)
+    first = resolve_document_fx(doc([(0, 60)], fx=planned()), BOLD, seed=9, layout_has_zoompan=True)
     auto = next(c for c in first.fx.cues if c.kind == "zoom")
     user = {"kind": "sticker", "id": "u0", "start": 2.0, "end": 9.5, "sticker": "text", "text": "look", "origin": "user"}
     fx = {**first.fx.model_dump(), "cues": [*[c.model_dump() for c in first.fx.cues], user], "suppressed": [auto.id]}
     # A cut through the user cue must not change it: it is stored in S and maps itself.
-    again = resolve_document_fx(doc([(0, 5), (8, 60)], fx=fx), SPICY, seed=9, layout_has_zoompan=True)
+    again = resolve_document_fx(doc([(0, 5), (8, 60)], fx=fx), BOLD, seed=9, layout_has_zoompan=True)
     kept = [c for c in again.fx.cues if c.origin == "user"]
     assert [c.model_dump(mode="json") for c in kept] == [
         {**user, "seed": 0, "beat": ""}
@@ -264,8 +264,8 @@ def test_user_cues_are_kept_verbatim_and_suppressed_ids_never_return():
 
 
 def test_baseline_pushes_only_without_a_baked_zoom():
-    plain = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), SPICY, seed=2, layout_has_zoompan=False)
-    baked = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), SPICY, seed=2, layout_has_zoompan=True)
+    plain = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), BOLD, seed=2, layout_has_zoompan=False)
+    baked = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), BOLD, seed=2, layout_has_zoompan=True)
     kb = lambda d: [c for c in d.fx.cues if c.id.startswith("kb")]  # noqa: E731
     assert kb(plain) and not kb(baked)
 
@@ -280,7 +280,7 @@ def test_style_only_uses_heuristic_beats_without_storing_them():
 
 
 def test_turning_off_keeps_beats_and_user_cues_and_drops_the_rest():
-    on = resolve_document_fx(doc([(0, 60)], fx=planned()), SPICY, seed=1, layout_has_zoompan=True)
+    on = resolve_document_fx(doc([(0, 60)], fx=planned()), BOLD, seed=1, layout_has_zoompan=True)
     user = {"kind": "sfx", "id": "u0", "start": 3.0, "end": 3.0, "sound": "pop", "origin": "user"}
     with_user = doc([(0, 60)], fx={**on.fx.model_dump(), "cues": [*on.fx.model_dump()["cues"], user]})
     off = resolve_document_fx(with_user, EditStyle(), seed=1, layout_has_zoompan=True)
@@ -298,7 +298,7 @@ def test_a_repeated_freeze_never_exceeds_the_hold_budget(monkeypatch):
                                       "edit_duration": inp.duration, "cues": [cue]})
 
     monkeypatch.setattr(resolver, "resolve", fake_resolve)
-    resolved = resolve_document_fx(doc([(0, 30), (0, 30)], fx=planned()), SPICY, seed=5, layout_has_zoompan=True)
+    resolved = resolve_document_fx(doc([(0, 30), (0, 30)], fx=planned()), BOLD, seed=5, layout_has_zoompan=True)
     assert mapped_hold_total(resolved) <= fx_hold_budget(60) + 1e-6
 
 
@@ -326,7 +326,7 @@ def _probe(monkeypatch, audio=True):
                         lambda *a, **k: SimpleNamespace(stdout="1\n" if audio else ""))
 
 
-def test_a_crazy_edits_draft_renders_through_the_fx_hook(tmp_path, monkeypatch, fake_fx_renderer):
+def test_a_dynamic_edits_draft_renders_through_the_fx_hook(tmp_path, monkeypatch, fake_fx_renderer):
     _probe(monkeypatch)
     monkeypatch.setattr(editor_document, "run_render", lambda *a, **k: pytest.fail("legacy render ran"))
     document = doc([(0, 5), (5, 8), (20, 30)], captions={"template": "slam"}, hookTitle="The secret",
@@ -378,7 +378,7 @@ def test_write_ass_defaults_are_the_legacy_call(tmp_path, monkeypatch):
 
 def _sidecar(**plan) -> dict:
     fx_plan = FxPlan.model_validate({
-        "style": {"intensity": "spicy"}, "template": "marker_circle", "seed": 77, "edit_duration": 30, "mood": "funny",
+        "style": {"intensity": "bold"}, "template": "marker_circle", "seed": 77, "edit_duration": 30, "mood": "funny",
         "cues": [
             {"kind": "accent", "id": "b0.accent", "start": 1.0, "end": 2.0, "variant": "circle", "text": "money"},
             {"kind": "sfx", "id": "b0.sfx", "start": 1.0, "end": 1.0, "sound": "pop"},
@@ -387,7 +387,7 @@ def _sidecar(**plan) -> dict:
         "grade": "warm", "progress_bar": True, **plan,
     })
     return {
-        "style": {"intensity": "spicy"},
+        "style": {"intensity": "bold"},
         "beats": {"words_hash": "h", "beats": [{"id": "b0", "kind": "punchline", "start": 1.0, "end": 2.0}]},
         "plan": fx_plan.model_dump(mode="json"),
         "face_track": {"version": 1, "fps": 6, "samples": [[0.0, [[0.4, 0.2, 0.2, 0.2, 0.9]]]]},
@@ -399,7 +399,7 @@ def _sidecar(**plan) -> dict:
 def test_the_draft_is_seeded_from_the_plan_on_the_clip_timeline():
     seeded = doc_fx_from_sidecar(_sidecar(), 30.0)
     fx = DocFx.model_validate(seeded)
-    assert fx.style.intensity == "spicy" and fx.seed == 77 and fx.mood == "funny" and fx.grade == "warm"
+    assert fx.style.intensity == "bold" and fx.seed == 77 and fx.mood == "funny" and fx.grade == "warm"
     assert fx.progressBar and [c.id for c in fx.cues] == ["b0.accent", "b0.sfx"]   # past the clip: dropped
     assert [b.id for b in fx.beats] == ["b0"]
     assert doc_fx_from_sidecar(None, 30) is None and doc_fx_from_sidecar({"plan": None}, 30) is None
@@ -454,7 +454,7 @@ def test_layout_zoompan_detection():
     assert not layout_filter_has_zoompan({"kind": "fit"}) and not layout_filter_has_zoompan(None)
 
 
-async def test_prepare_seeds_crazy_edits_face_track_and_zoom_report(tmp_path, monkeypatch, editor_store):
+async def test_prepare_seeds_dynamic_edits_face_track_and_zoom_report(tmp_path, monkeypatch, editor_store):
     from src.config import Config
     from src.editor_state import editor_key
     from src.media_storage import MediaStorage
@@ -516,7 +516,7 @@ async def test_prepare_seeds_crazy_edits_face_track_and_zoom_report(tmp_path, mo
     assert state["original"]["fx"] == draft["fx"]
 
 
-async def test_export_binds_the_session_fx_inputs_around_a_crazy_edits_render(tmp_path, monkeypatch, editor_store):
+async def test_export_binds_the_session_fx_inputs_around_a_dynamic_edits_render(tmp_path, monkeypatch, editor_store):
     from src.config import Config
     from src.editor_document import editor_dir
 

@@ -1453,7 +1453,7 @@ def build_vertical_filter_plan(
     fraction that keeps captions off the detected face, or None to keep the
     template default. ``report["kind"]`` receives the layout kind.
 
-    ``allow_kenburns=False`` (the crazy-edits render path) leaves the slow
+    ``allow_kenburns=False`` (the dynamic-edits render path) leaves the slow
     punch-in out of the plan: fx-core draws an editable push instead, so a clip
     has exactly one zoom source. ``report["kenburns_eligible"]`` then says
     whether the legacy plan would have used it.
@@ -1711,7 +1711,7 @@ def render_reframed_clip_ffmpeg(
     under the captions.
 
     ``fx_request`` (a ``media.fx_chain.FxRequest``) renders the clip through the
-    crazy-edits chain instead: every branch goes through ``composited()``, whose
+    dynamic-edits chain instead: every branch goes through ``composited()``, whose
     framing head (without subtitles) becomes the chain's P1 head and whose
     encode args become P3's. ``fx_report`` carries the chain options in
     (``mode``: "full" | "safe", ``should_cancel``) and the ``FxResult`` out

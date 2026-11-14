@@ -5,7 +5,7 @@ var EDIT_FX_VERSION = "fx-v1";
 var FX_SCENE_VERSION = 1;
 var FPS = 30;
 var FRAME = 1 / FPS;
-var INTENSITIES = ["off", "chill", "spicy", "unhinged"];
+var INTENSITIES = ["off", "subtle", "bold", "max"];
 var INSTANT_KINDS = /* @__PURE__ */ new Set(["sfx", "freeze", "transition"]);
 var FX_CAPTION_TEMPLATES = [
   "marker_circle",

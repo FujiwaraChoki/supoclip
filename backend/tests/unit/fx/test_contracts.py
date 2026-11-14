@@ -30,7 +30,7 @@ EVERY_CUE = [
 
 
 def plan(**extra):
-    return c.FxPlan(style=c.EditStyle(intensity="spicy"), template="marker_circle", seed=123, edit_duration=12.0,
+    return c.FxPlan(style=c.EditStyle(intensity="bold"), template="marker_circle", seed=123, edit_duration=12.0,
                     **extra)
 
 
@@ -54,23 +54,23 @@ def test_edit_style_to_json_is_empty_when_off():
 
 
 def test_edit_style_to_json_keeps_intensity_and_non_defaults_sorted():
-    style = c.EditStyle(intensity="spicy", progress_bar=True, music_mood="hype", sfx=True)
-    assert style.to_json() == {"intensity": "spicy", "music_mood": "hype", "progress_bar": True}
+    style = c.EditStyle(intensity="bold", progress_bar=True, music_mood="hype", sfx=True)
+    assert style.to_json() == {"intensity": "bold", "music_mood": "hype", "progress_bar": True}
     assert list(style.to_json()) == sorted(style.to_json())
-    assert c.EditStyle(intensity="chill").to_json() == {"intensity": "chill"}
+    assert c.EditStyle(intensity="subtle").to_json() == {"intensity": "subtle"}
 
 
 def test_fingerprint_follows_to_json():
-    assert c.EditStyle(intensity="spicy").fingerprint() == c.EditStyle(intensity="spicy", sfx=True).fingerprint()
-    assert c.EditStyle(intensity="spicy").fingerprint() != c.EditStyle(intensity="unhinged").fingerprint()
+    assert c.EditStyle(intensity="bold").fingerprint() == c.EditStyle(intensity="bold", sfx=True).fingerprint()
+    assert c.EditStyle(intensity="bold").fingerprint() != c.EditStyle(intensity="max").fingerprint()
     assert len(c.EditStyle().fingerprint()) == 16
 
 
 def test_models_are_strict_and_frozen():
     with pytest.raises(ValidationError):
-        c.EditStyle(intensity="spicy", turbo=True)
+        c.EditStyle(intensity="bold", turbo=True)
     with pytest.raises(ValidationError):
-        c.EditStyle(intensity="max")
+        c.EditStyle(intensity="extreme")
     style = c.EditStyle()
     with pytest.raises(ValidationError):
         style.sfx = False
@@ -107,7 +107,7 @@ def test_numbers_and_colours_are_bounded():
 
 def test_plan_properties():
     assert plan().draws                                   # FX template draws captions
-    sfx_only = c.FxPlan(style=c.EditStyle(intensity="chill"), template="default", seed=1, edit_duration=5,
+    sfx_only = c.FxPlan(style=c.EditStyle(intensity="subtle"), template="default", seed=1, edit_duration=5,
                         cues=[EVERY_CUE[7], {**EVERY_CUE[8], "cover": "none"}])
     assert not sfx_only.draws and sfx_only.has_audio and not sfx_only.needs_face and not sfx_only.has_warp
     covered = sfx_only.model_copy(update={"cues": (CUE.validate_python(EVERY_CUE[8]),)})
@@ -116,7 +116,7 @@ def test_plan_properties():
     assert full.has_warp and full.has_audio and full.needs_face and not full.needs_matte
     behind = plan(cues=[{"kind": "accent", "id": "a", "start": 0, "end": 1, "variant": "behind"}])
     assert behind.needs_matte
-    music = c.FxPlan(style=c.EditStyle(intensity="chill"), template="default", seed=1, edit_duration=5,
+    music = c.FxPlan(style=c.EditStyle(intensity="subtle"), template="default", seed=1, edit_duration=5,
                      music={"mood": "chill", "bed": "chill"})
     assert music.has_audio and not music.draws
     assert c.FxPlan(style=c.EditStyle(), template="default", seed=1, edit_duration=5, grain=0.2).draws

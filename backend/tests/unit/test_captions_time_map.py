@@ -1,6 +1,6 @@
 """ASS ``time_map`` / ``censor_spans`` kwargs and the shared ``hook_title_window`` (FINAL §6.1 item 6; WP12c).
 
-Legacy output without the new kwargs is pinned byte-for-byte by ``test_crazy_edits_legacy_pins.py``; these tests
+Legacy output without the new kwargs is pinned byte-for-byte by ``test_dynamic_edits_legacy_pins.py``; these tests
 check that the kwargs do exactly what they say and nothing when absent.
 """
 

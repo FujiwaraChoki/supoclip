@@ -249,7 +249,7 @@ it("rebuilds the editing copy with the revision it shows and loads the fresh dra
 const seededFx = {
   version: "fx-v1" as const,
   style: {
-    intensity: "spicy" as const, sfx: true, music: true, music_mood: "auto" as const, zooms: true, shake: true,
+    intensity: "bold" as const, sfx: true, music: true, music_mood: "auto" as const, zooms: true, shake: true,
     transitions: true, speed: true, censor: "bleep_bar" as const, grade: "auto" as const, grain: false,
     progress_bar: false, loop_ending: false, wait_for_it: true, reactions: false,
   },
@@ -259,7 +259,7 @@ const seededFx = {
   progressColor: "#FF7A1A", loopEnding: "none" as const, hookTitleSuppressed: false,
 };
 
-it("gives a cached draft that predates crazy edits the server's seeded fx, in its undo history too", async () => {
+it("gives a cached draft that predates dynamic edits the server's seeded fx, in its undo history too", async () => {
   const { requests } = cachedEditor({ ...draft, volume: 0.25 }, 0, 0, { fx: seededFx });
   const { result } = renderHook(() => useEditor("/test/editor"));
   await waitFor(() => expect(result.current.document?.volume).toBe(0.25));
@@ -286,7 +286,7 @@ it("reads a cached fx: null like a missing key and never writes null", async () 
   expect(second.result.current.document?.fx).toEqual(seededFx);
 });
 
-it("keeps a cached removal of crazy edits (the inert fx) over the server's", async () => {
+it("keeps a cached removal of dynamic edits (the inert fx) over the server's", async () => {
   const removed = { ...seededFx, style: { ...seededFx.style, intensity: "off" as const }, cues: [], grade: "none" as const,
     disabled: ["accent", "zoom"] as ("accent" | "zoom")[] };
   cachedEditor({ ...draft, volume: 0.25, fx: removed }, 0, 0, { fx: seededFx });

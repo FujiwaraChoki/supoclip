@@ -7,7 +7,7 @@ from src.edit_fx.contracts import EditBeats, EditStyle, FaceTrack, FxPlan, FxSce
 
 
 def plan_payload(**extra):
-    return {"style": {"intensity": "spicy"}, "template": "slam", "seed": 1, "edit_duration": 8.0, **extra}
+    return {"style": {"intensity": "bold"}, "template": "slam", "seed": 1, "edit_duration": 8.0, **extra}
 
 
 def test_known_payload_is_unchanged():
@@ -20,7 +20,7 @@ def test_known_payload_is_unchanged():
 def test_drops_unknown_keys_at_every_depth_and_reports_paths():
     raw = plan_payload(
         future_global=1,
-        style={"intensity": "spicy", "laser_eyes": True},
+        style={"intensity": "bold", "laser_eyes": True},
         music={"mood": "hype", "bed": "hype", "stems": 4},
         cues=[
             {"kind": "zoom", "id": "z", "start": 0, "end": 1, "mode": "punch", "scale": 1.2, "easing": "spring"},
@@ -30,7 +30,7 @@ def test_drops_unknown_keys_at_every_depth_and_reports_paths():
     clean, dropped = known_fields(FxPlan, raw)
     assert sorted(dropped) == ["cues[0].easing", "future_global", "music.stems", "style.laser_eyes"]
     plan = FxPlan.model_validate(clean)
-    assert plan.style.intensity == "spicy" and len(plan.cues) == 2
+    assert plan.style.intensity == "bold" and len(plan.cues) == 2
 
 
 def test_unknown_cue_kind_drops_only_that_cue():
@@ -77,9 +77,9 @@ def test_none_values_and_wrong_types_pass_through_for_the_validator():
 
 
 def test_input_is_not_mutated():
-    raw = {"intensity": "spicy", "x": 1}
+    raw = {"intensity": "bold", "x": 1}
     known_fields(EditStyle, raw)
-    assert raw == {"intensity": "spicy", "x": 1}
+    assert raw == {"intensity": "bold", "x": 1}
 
 
 def test_non_dict_input():

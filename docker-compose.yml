@@ -267,7 +267,7 @@ services:
       - WORKFLOW_TOPIC_MAX_CLIPS=${WORKFLOW_TOPIC_MAX_CLIPS:-15}
       - WORKFLOW_PLAN_TIMEOUT_SECONDS=${WORKFLOW_PLAN_TIMEOUT_SECONDS:-1800}
       - WORKFLOW_FULL_CONTEXT_MAX_WORDS=${WORKFLOW_FULL_CONTEXT_MAX_WORDS:-}
-      # Crazy edits (edit_fx/env.py is the only reader). FX_RUNTIME=off is the kill switch (FX render at level safe).
+      # Dynamic edits (edit_fx/env.py is the only reader). FX_RUNTIME=off is the kill switch (FX render at level safe).
       - EDIT_PLAN_LLM=${EDIT_PLAN_LLM:-}
       - EDIT_PLAN_TIMEOUT_SECONDS=${EDIT_PLAN_TIMEOUT_SECONDS:-45}
       - EDIT_PLAN_DAILY_LIMIT=${EDIT_PLAN_DAILY_LIMIT:-100}
@@ -477,7 +477,7 @@ services:
       - WORKFLOW_TOPIC_MAX_CLIPS=${WORKFLOW_TOPIC_MAX_CLIPS:-15}
       - WORKFLOW_PLAN_TIMEOUT_SECONDS=${WORKFLOW_PLAN_TIMEOUT_SECONDS:-1800}
       - WORKFLOW_FULL_CONTEXT_MAX_WORDS=${WORKFLOW_FULL_CONTEXT_MAX_WORDS:-}
-      # Crazy edits (edit_fx/env.py is the only reader). FX_RUNTIME=off is the kill switch (FX render at level safe).
+      # Dynamic edits (edit_fx/env.py is the only reader). FX_RUNTIME=off is the kill switch (FX render at level safe).
       - EDIT_PLAN_LLM=${EDIT_PLAN_LLM:-}
       - EDIT_PLAN_TIMEOUT_SECONDS=${EDIT_PLAN_TIMEOUT_SECONDS:-45}
       - EDIT_PLAN_DAILY_LIMIT=${EDIT_PLAN_DAILY_LIMIT:-100}

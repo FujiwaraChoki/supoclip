@@ -1,4 +1,4 @@
-"""Combining drafts with crazy edits (§14.1, AI-L4, AR-M14): rebased beats and cues, globals from the first draft
+"""Combining drafts with dynamic edits (§14.1, AI-L4, AR-M14): rebased beats and cues, globals from the first draft
 that has edits, no freeze budget on rebased output, and the combined clip's own sidecar."""
 
 import shutil
@@ -39,7 +39,7 @@ def entry_doc(name: str, fx: dict | None = None, **extra) -> EditDocument:
 
 def freeze_fx(**fx) -> dict:
     return DocFx.model_validate({
-        "style": {"intensity": "spicy"},
+        "style": {"intensity": "bold"},
         "seed": 11,
         "mood": "funny",
         "beats": [{"id": "b0", "kind": "punchline", "start": 0.2, "end": 0.8}],
@@ -100,7 +100,7 @@ def fake_fx_renderer(monkeypatch):
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
 @pytest.mark.parametrize("first_has_fx", [False, True])
-async def test_combining_drafts_with_crazy_edits(tmp_path, monkeypatch, editor_store, fake_fx_renderer, first_has_fx):
+async def test_combining_drafts_with_dynamic_edits(tmp_path, monkeypatch, editor_store, fake_fx_renderer, first_has_fx):
     from src.clip_source_map import load_clip_edit_fx
     from src.config import Config
 
@@ -166,7 +166,7 @@ async def test_combining_drafts_with_crazy_edits(tmp_path, monkeypatch, editor_s
     document = EditDocument.model_validate(combined["draft"]["document"])
     assert [c["id"] for c in sidecar["plan"]["cues"]] == [c.id for c in mapped_fx(document)]
     assert sidecar["plan"]["edit_duration"] == pytest.approx(1.6, abs=1e-6)
-    assert created[0][1]["fx_meta"] == {"fx_level": "full", "timing": "word", "intensity": "spicy",
+    assert created[0][1]["fx_meta"] == {"fx_level": "full", "timing": "word", "intensity": "bold",
                                         "template": "default"}
 
 

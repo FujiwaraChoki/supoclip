@@ -71,7 +71,7 @@ it("rejects a malformed storage redirect", async () => {
   expect((await GET(new Request("https://app.example/"), context())).status).toBe(502);
 });
 
-it("streams the crazy-edit matte same-origin, so the preview can read its pixels", async () => {
+it("streams the dynamic-edit matte same-origin, so the preview can read its pixels", async () => {
   const matte = ["task", "clips", "clip", "editor", "media", "matte.mp4"];
   vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: signed } }));
   const storageFetch = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2]), { status: 200, headers: { "Content-Type": "video/mp4" } }));

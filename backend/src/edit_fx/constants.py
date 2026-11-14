@@ -1,4 +1,4 @@
-"""Shared constants and frame geometry for crazy edits (§11.3), mirrored by fx-core ``constants.ts``.
+"""Shared constants and frame geometry for dynamic edits (§11.3), mirrored by fx-core ``constants.ts``.
 
 Geometry is authored in units of ``u = min(W, H) / 1080`` so vertical, square and landscape outputs all work
 (AP-H10, AR-M7). The Python copy is used by P1's reaction PiP placement and by tests; both copies are checked

@@ -1,4 +1,4 @@
-"""The crazy edits migration (§3.4): two nullable columns and a flag row that never names a user (AI-C1).
+"""The dynamic edits migration (§3.4): two nullable columns and a flag row that never names a user (AI-C1).
 
 The database tests build throwaway databases on the TEST_DATABASE_URL server, so they prove the migration on an
 empty ``users`` table and on a database booted from ``init.sql`` (which already seeds the ``tiktok_publishing`` flag).
@@ -21,13 +21,13 @@ from src import database
 from src import feature_flags
 
 BACKEND = Path(__file__).resolve().parents[2]
-MIGRATION = BACKEND / "src/migrations/sql/20261114_0001_crazy_edits.sql"
+MIGRATION = BACKEND / "src/migrations/sql/20261114_0001_dynamic_edits.sql"
 INIT_SQL = BACKEND.parent / "init.sql"
 
 EXPECTED_STATEMENTS = [
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS edit_style JSONB",
     "ALTER TABLE generated_clips ADD COLUMN IF NOT EXISTS fx_meta JSONB",
-    "INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass) VALUES ('crazy_edits', "
+    "INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass) VALUES ('dynamic_edits', "
     "'Edit intensity, SFX, music and animated caption styles', false, false, true) ON CONFLICT (key) DO NOTHING",
 ]
 
@@ -76,20 +76,20 @@ def test_init_sql_mirrors_the_migration():
     # Nullable with no default: NULL is "legacy".
     assert "edit_style JSONB NOT NULL" not in init_sql and "fx_meta JSONB DEFAULT" not in init_sql
     tiktok = init_sql.index("'tiktok_publishing',")
-    crazy = init_sql.index("'crazy_edits',")
-    assert tiktok < crazy
-    flag_insert = init_sql[init_sql.rindex("INSERT INTO feature_flags", 0, crazy):]
+    dynamic = init_sql.index("'dynamic_edits',")
+    assert tiktok < dynamic
+    flag_insert = init_sql[init_sql.rindex("INSERT INTO feature_flags", 0, dynamic):]
     flag_insert = flag_insert[: flag_insert.index(");") + 2]
     assert "updated_by" not in flag_insert
     assert re.sub(r"\s+", " ", flag_insert) == (
         "INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass) VALUES ( "
-        "'crazy_edits', 'Edit intensity, SFX, music and animated caption styles', false, false, true );"
+        "'dynamic_edits', 'Edit intensity, SFX, music and animated caption styles', false, false, true );"
     )
 
 
 def test_default_flag_is_off_with_the_admin_bypass():
-    flag = feature_flags.DEFAULT_FLAGS[feature_flags.CRAZY_EDITS]
-    assert feature_flags.CRAZY_EDITS == "crazy_edits"
+    flag = feature_flags.DEFAULT_FLAGS[feature_flags.DYNAMIC_EDITS]
+    assert feature_flags.DYNAMIC_EDITS == "dynamic_edits"
     assert (flag.web_enabled, flag.ios_enabled, flag.admins_bypass) == (False, False, True)
 
 
@@ -175,14 +175,14 @@ async def _has_table(conn, name: str) -> bool:
     return bool((await conn.execute(text("SELECT to_regclass(:name) IS NOT NULL"), {"name": name})).scalar())
 
 
-def _assert_crazy_edits_schema(state: dict) -> None:
+def _assert_dynamic_edits_schema(state: dict) -> None:
     columns = state["columns"]
     assert set(columns) == {"edit_style", "fx_meta"}
     for column in columns.values():
         assert column.data_type == "jsonb"
         assert column.is_nullable == "YES"
         assert column.column_default is None
-    flag = state["flags"]["crazy_edits"]
+    flag = state["flags"]["dynamic_edits"]
     assert flag["description"] == "Edit intensity, SFX, music and animated caption styles"
     assert (flag["web_enabled"], flag["ios_enabled"], flag["admins_bypass"]) == (False, False, True)
     assert flag["updated_by"] is None
@@ -194,7 +194,7 @@ async def test_migration_applies_on_an_empty_database(scratch_database):
     state = await _inspect(scratch_database)
     assert state["users"] == 0   # nothing for an updated_by FK to point at
     assert state["applied"] == 1
-    _assert_crazy_edits_schema(state)
+    _assert_dynamic_edits_schema(state)
 
 
 async def test_init_sql_boots_and_the_migration_is_a_no_op_on_top(scratch_database):
@@ -207,27 +207,27 @@ async def test_init_sql_boots_and_the_migration_is_a_no_op_on_top(scratch_databa
         await connection.close()
 
     booted = await _inspect(scratch_database)
-    _assert_crazy_edits_schema(booted)
+    _assert_dynamic_edits_schema(booted)
     assert booted["flags"]["tiktok_publishing"]["admins_bypass"] is False
 
     # What a deploy does next: the backend runs every migration on the init.sql database.
     await _run_init_db(scratch_database)
     migrated = await _inspect(scratch_database)
-    _assert_crazy_edits_schema(migrated)
+    _assert_dynamic_edits_schema(migrated)
     assert migrated["applied"] == 1
     assert set(migrated["flags"]) == set(booted["flags"])
 
 
 async def test_migration_keeps_an_admin_choice_and_reruns_cleanly(db_session):
     """On the suite's database (already migrated, with the tiktok flag): re-running changes nothing."""
-    await db_session.execute(text("UPDATE feature_flags SET web_enabled = true WHERE key = 'crazy_edits'"))
+    await db_session.execute(text("UPDATE feature_flags SET web_enabled = true WHERE key = 'dynamic_edits'"))
     try:
         for _ in range(2):
             for statement in _statements(MIGRATION.read_text()):
                 await db_session.execute(text(statement))
         row = (
             await db_session.execute(
-                text("SELECT web_enabled FROM feature_flags WHERE key = 'crazy_edits'")
+                text("SELECT web_enabled FROM feature_flags WHERE key = 'dynamic_edits'")
             )
         ).one()
         assert row.web_enabled is True

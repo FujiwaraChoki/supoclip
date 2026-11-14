@@ -17,7 +17,7 @@ SR = 48000
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
 
 
-def _plan(*cues, intensity="spicy", music=None, loop="none", sensitivity="normal") -> FxPlan:
+def _plan(*cues, intensity="bold", music=None, loop="none", sensitivity="normal") -> FxPlan:
     return FxPlan(style=EditStyle(intensity=intensity), template="default", seed=7, edit_duration=10.0,
                   cues=tuple(cues), music=music, loop_ending=loop, sensitivity=sensitivity)
 
@@ -98,7 +98,7 @@ def test_sfx_lands_on_its_sample_at_the_cue_gain(tmp_path, click_sfx):
     assert click_sfx == [("pop", 2, 11)]
 
 
-@pytest.mark.parametrize("intensity,bus_db", [("chill", -4.0), ("spicy", 0.0), ("unhinged", 2.0), ("off", 0.0)])
+@pytest.mark.parametrize("intensity,bus_db", [("subtle", -4.0), ("bold", 0.0), ("max", 2.0), ("off", 0.0)])
 def test_sfx_get_the_intensity_bus_gain(tmp_path, click_sfx, intensity, bus_db):
     out = tmp_path / "fxbus.wav"
     plan = _plan(SfxCue(id="s", start=0.5, end=0.5, sound="pop"), intensity=intensity)
@@ -106,9 +106,9 @@ def test_sfx_get_the_intensity_bus_gain(tmp_path, click_sfx, intensity, bus_db):
     assert _read(out)[SR // 2, 0] == pytest.approx(0.25 * 10 ** (bus_db / 20), abs=1e-4)
 
 
-def test_serious_mode_uses_the_chill_bus_gain(tmp_path, click_sfx):
+def test_serious_mode_uses_the_subtle_bus_gain(tmp_path, click_sfx):
     out = tmp_path / "fxbus.wav"
-    plan = _plan(SfxCue(id="s", start=0.5, end=0.5, sound="whoosh"), intensity="unhinged", sensitivity="serious")
+    plan = _plan(SfxCue(id="s", start=0.5, end=0.5, sound="whoosh"), intensity="max", sensitivity="serious")
     assert fx_audio.build_bus(plan, words_e=[], warp=identity_warp(1), out_duration=1, path=out)
     assert _read(out)[SR // 2, 0] == pytest.approx(0.25 * 10 ** (-4 / 20), abs=1e-4)
 
@@ -160,7 +160,7 @@ def test_builtin_sfx_decode_without_ffmpeg(tmp_path, monkeypatch):
     plan = _plan(SfxCue(id="s", start=0.1, end=0.1, sound="impact", variant=1))
     assert fx_audio.build_bus(plan, words_e=[], warp=identity_warp(2), out_duration=2, path=out)
     bus = _read(out)
-    assert _db(np.max(np.abs(bus))) == pytest.approx(-6.0, abs=0.3)   # built-ins peak at -6 dBFS, spicy bus 0 dB
+    assert _db(np.max(np.abs(bus))) == pytest.approx(-6.0, abs=0.3)   # built-ins peak at -6 dBFS, bold bus 0 dB
     assert np.abs(bus[: int(0.1 * SR) - 1]).max() == 0
 
 

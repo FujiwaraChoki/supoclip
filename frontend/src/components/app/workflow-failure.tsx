@@ -70,7 +70,7 @@ export type RecreatableTask = {
   filtered_words?: string[] | null;
   workflow?: Workflow | null;
   workflow_options?: WorkflowOptions | null;
-  /** Crazy edits as stored on the task (`tasks.edit_style`: a dict, a JSON string or null). */
+  /** Dynamic edits as stored on the task (`tasks.edit_style`: a dict, a JSON string or null). */
   edit_style?: unknown;
 };
 
@@ -88,7 +88,7 @@ const LENGTH_SCOPE: Record<Workflow, "clip" | "part" | "total"> = {
  * the same look (captions, font, framing, cleanup) and instructions. Highlights
  * omit `workflow`, exactly like the create form. The length carries over only
  * when it measures the same thing: a short recap is not a request for short clips.
- * Crazy edits (the stored `edit_style` and an animated template) go through the same send-time sanitiser as the
+ * Dynamic edits (the stored `edit_style` and an animated template) go through the same send-time sanitiser as the
  * create screen: they carry over only while `/tasks/edit-styles` says `enabled === true`.
  */
 export function buildRecreateBody(

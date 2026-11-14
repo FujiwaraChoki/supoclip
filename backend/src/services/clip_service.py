@@ -162,7 +162,7 @@ def _narrow_planned_meta(meta: Dict[str, Any], pieces: list, offsets: list) -> O
 
 
 # ----------------------------------------------------------------------------- FX clip jobs (§13.0)
-# Edits that would re-render a crazy-edits clip (deno chain, face track, maybe a beat LLM call) never run inside an
+# Edits that would re-render a dynamic-edits clip (deno chain, face track, maybe a beat LLM call) never run inside an
 # API request. The route stores what it stores today, queues ``fx_clip_job`` on the video worker and answers 202.
 # State lives in Redis ``fx_clip_job:{job_id}`` (24 h) and is read by ``GET /tasks/{id}/clip-jobs/{job_id}``. The
 # worker side (services/fx_clip_jobs.py) updates status, progress, error and result in the same record.

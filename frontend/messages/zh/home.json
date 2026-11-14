@@ -349,16 +349,16 @@
         "label": "关闭",
         "hint": "干净剪切，不加任何东西"
       },
-      "chill": {
-        "label": "轻松",
+      "subtle": {
+        "label": "轻微",
         "hint": "少量缩放和柔和音效"
       },
-      "spicy": {
-        "label": "火辣",
+      "bold": {
+        "label": "强烈",
         "hint": "推近、转场音效和音乐"
       },
-      "unhinged": {
-        "label": "疯狂",
+      "max": {
+        "label": "极致",
         "hint": "所有技巧，每个节拍"
       }
     },

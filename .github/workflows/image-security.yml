@@ -36,7 +36,7 @@ jobs:
           docker build --pull ${{ matrix.options }}
           --tag supoclip-security:${{ matrix.service }}
           --file ${{ matrix.service }}/Dockerfile ${{ matrix.context }}
-      - name: Self-test the crazy-edits renderer offline (ffmpeg 7.1 + baked deno cache)
+      - name: Self-test the dynamic-edits renderer offline (ffmpeg 7.1 + baked deno cache)
         if: matrix.service == 'backend'
         run: >-
           docker run --rm --network none

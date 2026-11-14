@@ -104,10 +104,10 @@ SETTINGS = {
     "audio.muted": "true or false",
 }
 
-# Crazy-edit settings, offered only when the caller may use crazy edits (§14.1). SETTINGS above stays exactly what
+# Dynamic-edit settings, offered only when the caller may use dynamic edits (§14.1). SETTINGS above stays exactly what
 # every other creator's prompt and grammar have always had.
 FX_SETTINGS = {
-    "fx.intensity": "off, chill, spicy or unhinged: how much automatic editing (zooms, sounds, music, caption accents)",
+    "fx.intensity": "off, subtle, bold or max: how much automatic editing (zooms, sounds, music, caption accents)",
     "fx.sfx": "true or false (sound effects)",
     "fx.music": "true or false (background music under the voice)",
     "fx.music_mood": "auto, hype, chill, dramatic, funny, inspiring or dark",
@@ -186,7 +186,7 @@ class EditPlan(_Op):
 EditWords.model_rebuild()
 
 
-# Crazy-edit operations (§14.1). Only callers allowed crazy edits get this grammar (EditPlanFx); every field is
+# Dynamic-edit operations (§14.1). Only callers allowed dynamic edits get this grammar (EditPlanFx); every field is
 # required, values are clamped in code, unknown values are skipped with a note.
 
 EFFECT_KINDS = ("sfx", "zoom", "shake", "flash", "glitch", "freeze", "sticker", "transition")
@@ -280,7 +280,7 @@ How the editor works:
 - "Segments" are the cuts that play, in order. Their total is the clip's length.
 - Captions are the transcript's words, burned in; each word has an id. The hook title is a headline shown at the top for the first seconds.
 - B-roll is stock footage shown full screen over a span of source time while the speaker keeps talking.
-- Crazy edits are effects placed on the timeline: sound effects, zooms, shakes, flashes, glitches, freeze frames, stickers and transitions, plus music, colour grade and retention extras. The editor places most of them automatically from tagged moments (beats) and the intensity; each effect has an id and is either auto or user (added by hand).
+- Dynamic edits are effects placed on the timeline: sound effects, zooms, shakes, flashes, glitches, freeze frames, stickers and transitions, plus music, colour grade and retention extras. The editor places most of them automatically from tagged moments (beats) and the intensity; each effect has an id and is either auto or user (added by hand).
 
 Choosing operations:
 - Removing spoken words (fillers like "um", "you know", a repeated phrase, a stumble): remove_words with exactly those word ids.
@@ -332,11 +332,11 @@ def _cue_detail(cue) -> str:
 
 
 def _fx_context_lines(document: EditDocument) -> list[str]:
-    """The draft's crazy edits, compactly: style, beats and cues (``e7 zoom punch 12.40-13.10``), ≤120 lines."""
+    """The draft's dynamic edits, compactly: style, beats and cues (``e7 zoom punch 12.40-13.10``), ≤120 lines."""
     fx = document.fx
     if fx is None:
-        return ["Crazy edits: off (no effects yet)"]
-    lines = ["Crazy edits: " + json.dumps(fx.style.model_dump(), separators=(",", ":"))]
+        return ["Dynamic edits: off (no effects yet)"]
+    lines = ["Dynamic edits: " + json.dumps(fx.style.model_dump(), separators=(",", ":"))]
     budget = FX_CONTEXT_MAX_LINES
     if fx.beats:
         lines.append("Tagged moments (source seconds):")
@@ -373,7 +373,7 @@ def build_context(
     instruction: str,
     fx_allowed: bool = False,
 ) -> str:
-    """The model's view of the draft. ``fx_allowed`` adds crazy edits; without it the text is exactly what every
+    """The model's view of the draft. ``fx_allowed`` adds dynamic edits; without it the text is exactly what every
     creator's request has always sent (pinned)."""
     from ..caption_templates import CAPTION_TEMPLATES, get_template
 
@@ -510,7 +510,7 @@ def _number(value: str) -> Optional[float]:
 
 
 def _fx(doc: dict, seed: int) -> dict:
-    """The draft's crazy edits as a dict, created (switched off) when the draft has none yet."""
+    """The draft's dynamic edits as a dict, created (switched off) when the draft has none yet."""
     from ..editor_document import DocFx
 
     if doc.get("fx") is None:
@@ -640,7 +640,7 @@ def _broll_target(aspect: str, width: int, height: int) -> tuple[str, int]:
 
 
 def _turns_fx_on(original: EditDocument, doc: dict) -> bool:
-    """The edited ``doc`` turns crazy edits on beyond the request's draft: a legacy -> FX caption template, or the
+    """The edited ``doc`` turns dynamic edits on beyond the request's draft: a legacy -> FX caption template, or the
     intensity from off to active (``editor_document.turns_fx_on``'s transitions for a draft that has edits)."""
     from ..edit_fx.contracts import EditStyle, is_fx_template
 
@@ -835,7 +835,7 @@ async def apply_plan(
     """Apply a plan to a draft. Returns the new draft and notes on skipped steps.
 
     Every operation is checked on its own; one bad step is skipped rather than
-    failing the whole request. With ``fx_allowed`` (an ``EditPlanFx``), crazy-edit
+    failing the whole request. With ``fx_allowed`` (an ``EditPlanFx``), dynamic-edit
     settings, effects and beats apply too, and any change to the edit style,
     the caption template or the beats re-resolves the automatic effects in E
     (§5.5) once, after every operation. Without ``fx_flag`` (an unflagged caller
@@ -911,7 +911,7 @@ async def apply_plan(
                         doc["fx"] = undo[1]
                     else:
                         doc.pop("fx", None)
-                    note = f"{op.setting}: crazy edits aren't available on your account yet"
+                    note = f"{op.setting}: dynamic edits aren't available on your account yet"
                 if before != (doc["captions"]["template"], (doc.get("fx") or {}).get("style")):
                     resolve_fx = True
             else:
@@ -1070,7 +1070,7 @@ async def _plan_edit_ollama(context: str, model: str, fx_allowed: bool = False) 
 async def plan_edit(context: str, fx_allowed: bool = False) -> EditPlan:
     """Use Sonnet by default, or an explicitly configured local Ollama model.
 
-    ``fx_allowed`` uses the crazy-edits prompt and grammar (``SYSTEM_PROMPT_FX``, ``EditPlanFx``)."""
+    ``fx_allowed`` uses the dynamic-edits prompt and grammar (``SYSTEM_PROMPT_FX``, ``EditPlanFx``)."""
     model = os.getenv("AI_EDIT_MODEL", AI_EDIT_MODEL).strip() or AI_EDIT_MODEL
     if model.startswith("ollama:"):
         if not model.removeprefix("ollama:"):
@@ -1165,7 +1165,7 @@ async def ai_edit_job(ctx: dict, job_id: str) -> None:
         duration = float(request["duration"])
         width, height = int(request.get("width") or 1080), int(request.get("height") or 1920)
         if request.get("fx_allowed"):
-            # The caller may use crazy edits (flag, or a draft that already has them, §14.1).
+            # The caller may use dynamic edits (flag, or a draft that already has them, §14.1).
             context = build_context(document, duration, request.get("playhead"), request["instruction"], fx_allowed=True)
             plan = await plan_edit(context, fx_allowed=True)
             result, notes = await apply_plan(
@@ -1206,7 +1206,7 @@ async def ai_edit_job(ctx: dict, job_id: str) -> None:
 
 
 # --------------------------------------------------------------------------
-# Crazy edits: beat planning for the studio (runs on the AI worker, §5.5)
+# Dynamic edits: beat planning for the studio (runs on the AI worker, §5.5)
 # --------------------------------------------------------------------------
 
 FX_PLAN_TTL_SECONDS = 3600

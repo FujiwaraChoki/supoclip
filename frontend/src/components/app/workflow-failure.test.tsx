@@ -144,20 +144,20 @@ describe("WorkflowFailure for a user with only some workflows", () => {
   });
 });
 
-describe("recreating a task with crazy edits", () => {
+describe("recreating a task with dynamic edits", () => {
   const task = {
     source_url: "https://youtu.be/x", source_type: "youtube", caption_template: "behind_head",
-    edit_style: { intensity: "spicy", music: false, unknown_newer_key: 1 },
+    edit_style: { intensity: "bold", music: false, unknown_newer_key: 1 },
     workflow: "topic" as const, workflow_options: { topic: "crypto" },
   };
 
-  it("keeps the stored edit style and animated template while crazy edits are on", () => {
+  it("keeps the stored edit style and animated template while dynamic edits are on", () => {
     const body = buildRecreateBody(task, { workflow: "highlights" }, true, { enabled: true });
     expect(body.caption_template).toBe("behind_head");
-    expect(body.edit_style).toEqual({ intensity: "spicy", music: false });
+    expect(body.edit_style).toEqual({ intensity: "bold", music: false });
     // A row stored as a JSON string reads the same.
     expect(buildRecreateBody({ ...task, edit_style: JSON.stringify(task.edit_style) }, { workflow: "recap" }, true, { enabled: true }).edit_style)
-      .toEqual({ intensity: "spicy", music: false });
+      .toEqual({ intensity: "bold", music: false });
   });
 
   it.each([["the flag off", { enabled: false }], ["no answer", null], ["not asked", undefined]])("drops them with %s", (_label, info) => {

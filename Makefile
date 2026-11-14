@@ -23,7 +23,7 @@ check:
 
 test-ci: check test-backend test-frontend test-e2e
 
-# Regenerate the committed crazy-edit assets in backend/src/fx_assets (SFX, music beds, emoji atlas, manifest).
+# Regenerate the committed dynamic-edit assets in backend/src/fx_assets (SFX, music beds, emoji atlas, manifest).
 # Needs ffmpeg, deno and the Noto Color Emoji font. CI never runs this; it only checks the manifest hashes.
 FX_PYTHON ?= .venv/bin/python
 DENO ?= deno

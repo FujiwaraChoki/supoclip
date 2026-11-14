@@ -10,7 +10,7 @@ const slow = (start: number, end: number, rate: number): FxCue => ({ ...base, id
 const doc = (cues: FxCue[], segments = [{ id: "a", start: 0, end: 4 }]): EditDocument => ({
   ...draft,
   segments,
-  fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "spicy" }, cues },
+  fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "bold" }, cues },
 });
 
 describe("the warped preview clock (final time F is the master)", () => {

@@ -7,7 +7,7 @@ import { EDIT_STYLES_UNAVAILABLE, parseEditStylesInfo } from "@/lib/fx/edit-styl
 import { EditIntensity, useEditStylesInfo } from "./edit-intensity";
 
 const INFO = parseEditStylesInfo({
-  enabled: true, intensities: ["off", "chill", "spicy", "unhinged"], music_moods: ["hype", "dark"], grades: [],
+  enabled: true, intensities: ["off", "subtle", "bold", "max"], music_moods: ["hype", "dark"], grades: [],
   templates: [], reactions_available: false,
 });
 
@@ -24,7 +24,7 @@ describe("EditIntensity", () => {
     const group = screen.getByRole("radiogroup", { name: "Edit intensity" });
     expect(group).toHaveAttribute("data-tour", "edit-intensity");
     expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
-      expect.stringContaining("Off"), expect.stringContaining("Chill"), expect.stringContaining("Spicy"), expect.stringContaining("Unhinged"),
+      expect.stringContaining("Off"), expect.stringContaining("Subtle"), expect.stringContaining("Bold"), expect.stringContaining("Max"),
     ]);
     expect(within(group).getByRole("radio", { name: /Off/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
@@ -34,23 +34,23 @@ describe("EditIntensity", () => {
   it("shows what edits use once they're on, and changes one thing at a time", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
-    fireEvent.click(screen.getByRole("radio", { name: /Spicy/ }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "spicy" });
+    fireEvent.click(screen.getByRole("radio", { name: /Bold/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold" });
     for (const name of ["Sound effects", "Music", "Zooms", "Camera shake", "Transitions", "Speed ramps and freezes", "“Wait for it” sticker", "Progress bar", "Loop ending"]) {
       expect(screen.getByRole("switch", { name })).toBeInTheDocument();
     }
     // GIF reactions only when the server has a provider.
     expect(screen.queryByRole("switch", { name: "GIF reactions" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "Progress bar" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "spicy", progress_bar: true });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold", progress_bar: true });
     fireEvent.click(screen.getByRole("switch", { name: "Music" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "spicy", progress_bar: true, music: false });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold", progress_bar: true, music: false });
     // The mood picker belongs to music.
     expect(screen.queryByRole("combobox", { name: "Music mood" })).not.toBeInTheDocument();
   });
 
   it("offers GIF reactions when the server can serve them", () => {
-    render(<Harness initial={{ ...DEFAULT_EDIT_STYLE, intensity: "chill" }} info={{ ...INFO, reactions_available: true }} />);
+    render(<Harness initial={{ ...DEFAULT_EDIT_STYLE, intensity: "subtle" }} info={{ ...INFO, reactions_available: true }} />);
     expect(screen.getByRole("switch", { name: "GIF reactions" })).not.toBeChecked();
     expect(screen.getByRole("combobox", { name: "Music mood" })).toHaveTextContent("Match the video");
     expect(screen.getByRole("combobox", { name: "Swearing" })).toHaveTextContent("Bleep and cover mouth");
@@ -61,13 +61,13 @@ describe("EditIntensity", () => {
     render(<Harness onChange={onChange} />);
     const off = screen.getByRole("radio", { name: /Off/ });
     expect(off).toHaveAttribute("tabindex", "0");
-    expect(screen.getByRole("radio", { name: /Chill/ })).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("radio", { name: /Subtle/ })).toHaveAttribute("tabindex", "-1");
     fireEvent.keyDown(off, { key: "ArrowRight" });
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "chill" });
-    expect(screen.getByRole("radio", { name: /Chill/ })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("radio", { name: /Chill/ }), { key: "ArrowLeft" });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "subtle" });
+    expect(screen.getByRole("radio", { name: /Subtle/ })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("radio", { name: /Subtle/ }), { key: "ArrowLeft" });
     fireEvent.keyDown(screen.getByRole("radio", { name: /Off/ }), { key: "ArrowLeft" });
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "unhinged" });
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "max" });
   });
 
   it("moves its glyphs only for intensities that have motion", () => {
@@ -82,11 +82,11 @@ describe("EditIntensity", () => {
 
 describe("useEditStylesInfo", () => {
   it("asks once and reads anything but enabled: true as off", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ enabled: true, intensities: ["off", "spicy"] })));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ enabled: true, intensities: ["off", "bold"] })));
     const { result } = renderHook(() => useEditStylesInfo(true));
     expect(result.current).toBeNull();
     await waitFor(() => expect(result.current?.enabled).toBe(true));
-    expect(result.current?.intensities).toEqual(["off", "spicy"]);
+    expect(result.current?.intensities).toEqual(["off", "bold"]);
     expect(fetch).toHaveBeenCalledWith("/api/tasks/edit-styles", { cache: "no-store" });
   });
 

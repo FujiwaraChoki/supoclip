@@ -1,4 +1,4 @@
-"""WP14 invariant: crazy edits off + a legacy template is the legacy pipeline (FINAL §0.4.1).
+"""WP14 invariant: dynamic edits off + a legacy template is the legacy pipeline (FINAL §0.4.1).
 
 For each of the 7 legacy templates, with the style off (absent, ``{}``, ``{"intensity": "off"}`` or the JSON string
 asyncpg may return), a spy over the whole generation path asserts: no new kwarg on any call, no deno process, no
@@ -35,11 +35,11 @@ def test_the_seven_legacy_templates():
 
 @pytest.fixture(autouse=True)
 def no_fx_side_effects(monkeypatch):
-    """Anything crazy-edits-only fails the test when touched."""
+    """Anything dynamic-edits-only fails the test when touched."""
 
     def forbidden(name):
         def fail(*_args, **_kwargs):
-            raise AssertionError(f"{name} must not run when crazy edits are off")
+            raise AssertionError(f"{name} must not run when dynamic edits are off")
         return fail
 
     monkeypatch.setattr(fx_chain.subprocess, "Popen", forbidden("deno/fx chain Popen"))

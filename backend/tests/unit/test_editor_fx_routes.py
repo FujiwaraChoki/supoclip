@@ -1,4 +1,4 @@
-"""Studio routes for crazy edits (§5.5, §0.4.8): seeding on open, the PATCH raw-key rule and gate, resolve in E,
+"""Studio routes for dynamic edits (§5.5, §0.4.8): seeding on open, the PATCH raw-key rule and gate, resolve in E,
 beat planning (daily limit, staleness, refund), face/matte analysis, reaction previews and the AI edit request."""
 
 import json
@@ -101,10 +101,10 @@ async def studio(tmp_path, monkeypatch, editor_store):
 
 def sidecar_plan() -> dict:
     plan = FxPlan.model_validate({
-        "style": {"intensity": "spicy"}, "template": "default", "seed": 42, "edit_duration": 30, "mood": "hype",
+        "style": {"intensity": "bold"}, "template": "default", "seed": 42, "edit_duration": 30, "mood": "hype",
         "cues": [{"kind": "sfx", "id": "b0.sfx", "start": 1.0, "end": 1.0, "sound": "pop"}],
     })
-    return {"style": {"intensity": "spicy"}, "beats": None, "plan": plan.model_dump(mode="json"), "face_track": None,
+    return {"style": {"intensity": "bold"}, "beats": None, "plan": plan.model_dump(mode="json"), "face_track": None,
             "fx_level": "full", "applied_warp": []}
 
 
@@ -133,7 +133,7 @@ async def test_a_stored_fx_template_always_gets_its_look(studio):
 
 
 async def test_patch_without_fx_keeps_the_stored_edits(studio):
-    stored = document(fx=planned_fx(style={"intensity": "spicy"}))
+    stored = document(fx=planned_fx(style={"intensity": "bold"}))
     put(studio, stored)
     for body in (document(), {**document(), "fx": None}):
         revision = (await stored_state("task", "clip", "clip.mp4"))["draft"]["revision"]
@@ -142,17 +142,17 @@ async def test_patch_without_fx_keeps_the_stored_edits(studio):
         assert response.json()["document"]["fx"] == stored["fx"]
 
 
-async def test_patch_turning_crazy_edits_on_needs_the_flag(studio):
+async def test_patch_turning_dynamic_edits_on_needs_the_flag(studio):
     body = {"basis": "clip.mp4", "revision": 0, "document": document(captions={"template": "slam"})}
     response = await studio.http.patch(BASE, json=body)
-    assert response.status_code == 403 and response.json()["detail"]["code"] == "CRAZY_EDITS_NOT_AVAILABLE"
+    assert response.status_code == 403 and response.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
     assert (await stored_state("task", "clip", "clip.mp4"))["draft"]["document"]["captions"]["template"] == "default"
     studio.flag["on"] = True
     assert (await studio.http.patch(BASE, json=body)).status_code == 200
 
 
 async def test_patch_of_an_unchanged_fx_state_never_needs_the_flag(studio):
-    stored = document(captions={"template": "slam"}, fx=planned_fx(style={"intensity": "spicy"}))
+    stored = document(captions={"template": "slam"}, fx=planned_fx(style={"intensity": "bold"}))
     put(studio, stored)
     edited = {**stored, "captions": {**stored["captions"], "font": "THEBOLDFONT"}}
     response = await studio.http.patch(BASE, json={"basis": "clip.mp4", "revision": 0, "document": edited})
@@ -166,17 +166,17 @@ async def test_patch_of_an_unchanged_fx_state_never_needs_the_flag(studio):
 async def test_patch_turning_more_edits_on_needs_the_flag(studio):
     """A draft that already has edits: a legacy -> FX template or the intensity from off is still a transition to
     FX (§0.4.8, like the task settings route); raising an active intensity is not."""
-    stored = document(fx=planned_fx(style={"intensity": "spicy"}))
+    stored = document(fx=planned_fx(style={"intensity": "bold"}))
     put(studio, stored)
     styled = {**stored, "captions": {**stored["captions"], "template": "slam"}}
     response = await studio.http.patch(BASE, json={"basis": "clip.mp4", "revision": 0, "document": styled})
-    assert response.status_code == 403 and response.json()["detail"]["code"] == "CRAZY_EDITS_NOT_AVAILABLE"
-    louder = {**stored, "fx": {**stored["fx"], "style": {**stored["fx"]["style"], "intensity": "unhinged"}}}
+    assert response.status_code == 403 and response.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
+    louder = {**stored, "fx": {**stored["fx"], "style": {**stored["fx"]["style"], "intensity": "max"}}}
     assert (await studio.http.patch(BASE, json={"basis": "clip.mp4", "revision": 0, "document": louder})).status_code == 200
 
     style_only = document(captions={"template": "slam"}, fx=planned_fx())
     put(studio, style_only)
-    active = {**style_only, "fx": {**style_only["fx"], "style": {**style_only["fx"]["style"], "intensity": "chill"}}}
+    active = {**style_only, "fx": {**style_only["fx"], "style": {**style_only["fx"]["style"], "intensity": "subtle"}}}
     response = await studio.http.patch(BASE, json={"basis": "clip.mp4", "revision": 0, "document": active})
     assert response.status_code == 403
     studio.flag["on"] = True
@@ -217,26 +217,26 @@ async def test_the_matte_is_served_like_the_other_editor_media(studio, tmp_path)
 async def test_resolve_asks_for_a_plan_first(studio):
     studio.flag["on"] = True
     response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": document(),
-                                                                  "style": {"intensity": "spicy"}})
+                                                                  "style": {"intensity": "bold"}})
     assert response.status_code == 409 and response.json()["detail"]["code"] == "NEEDS_PLAN"
 
 
 async def test_resolve_is_gated_only_when_it_turns_edits_on(studio):
-    body = {"document": document(fx=planned_fx()), "style": {"intensity": "spicy"}}
+    body = {"document": document(fx=planned_fx()), "style": {"intensity": "bold"}}
     response = await studio.http.post(f"{BASE}/fx/resolve", json=body)
     assert response.status_code == 403
     studio.flag["on"] = True
     response = await studio.http.post(f"{BASE}/fx/resolve", json=body)
     assert response.status_code == 200, response.text
     resolved = response.json()["document"]
-    assert resolved["fx"]["style"]["intensity"] == "spicy" and resolved["fx"]["cues"]
+    assert resolved["fx"]["style"]["intensity"] == "bold" and resolved["fx"]["cues"]
     EditDocument.model_validate(resolved).validate_duration(30)
     # The draft is not saved by resolving.
     assert "fx" not in (await stored_state("task", "clip", "clip.mp4"))["draft"]["document"]
     # Once saved, changing the intensity works with the flag off.
     put(studio, resolved)
     studio.flag["on"] = False
-    again = await studio.http.post(f"{BASE}/fx/resolve", json={"document": resolved, "style": {"intensity": "chill"}})
+    again = await studio.http.post(f"{BASE}/fx/resolve", json={"document": resolved, "style": {"intensity": "subtle"}})
     assert again.status_code == 200
 
 
@@ -246,15 +246,15 @@ async def test_resolve_gives_a_new_container_the_clips_own_seed(studio):
     from src.editor_document import studio_fx_seed
 
     studio.flag["on"] = True
-    body = {"document": document(fx=planned_fx()), "style": {"intensity": "chill"}}
+    body = {"document": document(fx=planned_fx()), "style": {"intensity": "subtle"}}
     response = await studio.http.post(f"{BASE}/fx/resolve", json=body)
     assert response.status_code == 200 and response.json()["document"]["fx"]["seed"] == studio_fx_seed("task", "clip")
-    body = {"document": document(fx=planned_fx(seed=77)), "style": {"intensity": "chill"}}
+    body = {"document": document(fx=planned_fx(seed=77)), "style": {"intensity": "subtle"}}
     assert (await studio.http.post(f"{BASE}/fx/resolve", json=body)).json()["document"]["fx"]["seed"] == 77
 
 
 async def test_resolve_validates_the_style(studio):
-    response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": document(), "style": {"intensity": "max"}})
+    response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": document(), "style": {"intensity": "extreme"}})
     assert response.status_code == 422 and response.json()["detail"]["code"] == "INVALID_EDIT_STYLE"
 
 
@@ -268,7 +268,7 @@ async def test_resolve_adds_baseline_pushes_only_without_a_baked_zoom(studio, as
     studio.flag["on"] = True
     doc = document(framing={"fit": "auto"}, fx=planned_fx(beats=[]))
     put(studio, doc, **asset)
-    response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": doc, "style": {"intensity": "spicy"}})
+    response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": doc, "style": {"intensity": "bold"}})
     assert response.status_code == 200, response.text
     assert any(c["id"].startswith("kb") for c in response.json()["document"]["fx"]["cues"]) is pushes
 
@@ -417,7 +417,7 @@ def ai_route(studio, monkeypatch):
     return studio
 
 
-async def test_ai_requests_carry_crazy_edits_only_for_allowed_callers(ai_route):
+async def test_ai_requests_carry_dynamic_edits_only_for_allowed_callers(ai_route):
     studio = ai_route
     body = {"basis": "clip.mp4", "document": document(), "instruction": "add a whoosh"}
     job = (await studio.http.post(f"{BASE}/ai", json=body)).json()["id"]

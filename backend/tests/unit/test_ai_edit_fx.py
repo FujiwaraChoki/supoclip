@@ -1,4 +1,4 @@
-"""AI edits with crazy edits (§14.1): unflagged creators keep today's prompt and grammar byte for byte; allowed
+"""AI edits with dynamic edits (§14.1): unflagged creators keep today's prompt and grammar byte for byte; allowed
 creators get fx settings, AddEffect / RemoveEffects / TagBeat, per-op clamps and a re-resolve; the studio's beat
 planning job on the AI worker."""
 
@@ -52,7 +52,7 @@ def _fixture_document() -> EditDocument:
     return EditDocument.model_validate(json.loads((PINS / "editor_document.json").read_text(encoding="utf-8")))
 
 
-def test_context_without_crazy_edits_is_the_pinned_text():
+def test_context_without_dynamic_edits_is_the_pinned_text():
     document = _fixture_document()
     expected = (PINS / "expected" / "ai_edit_context.txt").read_text(encoding="utf-8")
     assert build_context(document, 12.0, 5.5, "Cut the um and make it punchier") == expected
@@ -62,13 +62,13 @@ def test_context_without_crazy_edits_is_the_pinned_text():
         PINS / "expected" / "ai_edit_op_schema.txt").read_text(encoding="utf-8")
 
 
-async def test_legacy_plans_cannot_reach_crazy_edits():
+async def test_legacy_plans_cannot_reach_dynamic_edits():
     with pytest.raises(Exception):
         EditPlan.model_validate({"summary": "x", "operations": [
             {"type": "add_effect", "kind": "sfx", "start": 1, "end": 1, "variant": "pop"}]})
     with pytest.raises(Exception):
         EditPlan.model_validate({"summary": "x", "operations": [{"type": "set", "setting": "fx.intensity",
-                                                                  "value": "spicy"}]})
+                                                                  "value": "bold"}]})
     plan = EditPlan.model_validate({"summary": "x", "operations": [
         {"type": "set", "setting": "captions.template", "value": "slam"}]})
     result, notes = await apply_plan(draft(), plan, 20.0)
@@ -110,7 +110,7 @@ def test_the_fx_grammar_has_no_optional_fields():
 
 
 def test_the_fx_context_lists_style_beats_and_cues():
-    doc = draft(fx={**planned(style={"intensity": "spicy"}), "cues": [
+    doc = draft(fx={**planned(style={"intensity": "bold"}), "cues": [
         {"kind": "zoom", "id": "e7", "start": 12.4, "end": 13.1, "mode": "punch", "scale": 1.2},
         {"kind": "freeze", "id": "u0", "start": 5.0, "end": 5.0, "hold": 0.5, "label": "wait", "origin": "user"},
     ]})
@@ -119,7 +119,7 @@ def test_the_fx_context_lists_style_beats_and_cues():
     assert '  u0 freeze hold 0.50s "wait" 5.00 user' in context
     assert "  b0 emphasis 1.00-1.80 strength 3" in context
     assert "fx.intensity (" in context and "slam (" in context and "Effect kinds for add_effect" in context
-    assert build_context(draft(), 20.0, None, "x", fx_allowed=True).count("Crazy edits: off") == 1
+    assert build_context(draft(), 20.0, None, "x", fx_allowed=True).count("Dynamic edits: off") == 1
 
 
 def test_the_fx_context_stays_within_120_effect_lines():
@@ -130,14 +130,14 @@ def test_the_fx_context_stays_within_120_effect_lines():
 
 
 async def test_setting_the_intensity_re_resolves_the_automatic_effects():
-    result, notes = await apply_fx(draft(fx=planned()), {"type": "set", "setting": "fx.intensity", "value": "spicy"})
-    assert notes == [] and result.fx.style.intensity == "spicy"
+    result, notes = await apply_fx(draft(fx=planned()), {"type": "set", "setting": "fx.intensity", "value": "bold"})
+    assert notes == [] and result.fx.style.intensity == "bold"
     assert any(c.origin == "auto" for c in result.fx.cues)
-    unplanned, notes = await apply_fx(draft(), {"type": "set", "setting": "fx.intensity", "value": "Unhinged"})
-    assert unplanned.fx.style.intensity == "unhinged" and notes == ["Press Plan edits to tag beats first"]
-    _, notes = await apply_fx(draft(), {"type": "set", "setting": "fx.intensity", "value": "max"})
-    assert notes == ["fx.intensity: 'max' isn't one of the choices"]
-    toggled, _ = await apply_fx(draft(fx=planned(style={"intensity": "spicy"})),
+    unplanned, notes = await apply_fx(draft(), {"type": "set", "setting": "fx.intensity", "value": "Max"})
+    assert unplanned.fx.style.intensity == "max" and notes == ["Press Plan edits to tag beats first"]
+    _, notes = await apply_fx(draft(), {"type": "set", "setting": "fx.intensity", "value": "extreme"})
+    assert notes == ["fx.intensity: 'extreme' isn't one of the choices"]
+    toggled, _ = await apply_fx(draft(fx=planned(style={"intensity": "bold"})),
                                 {"type": "set", "setting": "fx.music", "value": "off"})
     assert toggled.fx.style.music is False and toggled.fx.music is None
 
@@ -207,17 +207,17 @@ async def test_without_the_flag_a_draft_with_edits_can_keep_or_reduce_them_but_n
         return await apply_plan(document, fx_plan(*operations), 20.0, fx_allowed=True, fx_seed=99,
                                 layout_has_zoompan=True, fx_flag=False)
 
-    result, notes = await unflagged(styled, {"type": "set", "setting": "fx.intensity", "value": "spicy"})
-    assert result.fx.style.intensity == "off" and notes == ["fx.intensity: crazy edits aren't available on your account yet"]
-    spicy = draft(fx=planned(style={"intensity": "spicy"}))
-    result, notes = await unflagged(spicy, {"type": "set", "setting": "captions.template", "value": "slam"})
+    result, notes = await unflagged(styled, {"type": "set", "setting": "fx.intensity", "value": "bold"})
+    assert result.fx.style.intensity == "off" and notes == ["fx.intensity: dynamic edits aren't available on your account yet"]
+    bold = draft(fx=planned(style={"intensity": "bold"}))
+    result, notes = await unflagged(bold, {"type": "set", "setting": "captions.template", "value": "slam"})
     assert result.captions.template == "default" and "aren't available" in notes[0]
-    result, notes = await unflagged(spicy, {"type": "set", "setting": "fx.intensity", "value": "unhinged"},
+    result, notes = await unflagged(bold, {"type": "set", "setting": "fx.intensity", "value": "max"},
                                     {"type": "add_effect", "kind": "sfx", "start": 3, "end": 3, "variant": "pop"})
-    assert notes == [] and result.fx.style.intensity == "unhinged" and any(c.id == "u0" for c in result.fx.cues)
+    assert notes == [] and result.fx.style.intensity == "max" and any(c.id == "u0" for c in result.fx.cues)
     result, notes = await unflagged(styled, {"type": "set", "setting": "captions.template", "value": "slam"})
     assert notes == [] and result.captions.template == "slam"
-    result, notes = await unflagged(spicy, {"type": "set", "setting": "fx.intensity", "value": "off"})
+    result, notes = await unflagged(bold, {"type": "set", "setting": "fx.intensity", "value": "off"})
     assert notes == [] and result.fx.style.intensity == "off"
 
 
@@ -232,7 +232,7 @@ async def test_remove_effects_deletes_user_cues_and_suppresses_auto_ones():
 
 
 async def test_tag_beat_adds_a_user_beat_and_re_resolves():
-    doc = draft(fx={**planned(style={"intensity": "spicy"}), "beats": []})
+    doc = draft(fx={**planned(style={"intensity": "bold"}), "beats": []})
     result, notes = await apply_fx(doc, {"type": "tag_beat", "word_ids": ["w14", "w13", "w15"], "kind": "number",
                                          "strength": 9})
     assert notes == []

@@ -205,7 +205,7 @@ def emoji_rendering_supported() -> bool:
     return result
 
 
-# Maps an edit-time instant (seconds) to final time: the crazy-edits time warp's ``to_output``.
+# Maps an edit-time instant (seconds) to final time: the dynamic-edits time warp's ``to_output``.
 TimeMap = Callable[[float], float]
 
 
@@ -606,7 +606,7 @@ def build_assemblyai_ass_subtitles(
     junction fades); without them the renderer's default crossfades apply.
     ``point_labels`` are a recap's on-screen points (``build_point_label_ass``).
 
-    Crazy edits only (both default to off, which leaves the output unchanged):
+    Dynamic edits only (both default to off, which leaves the output unchanged):
     ``time_map`` maps every event's start and end from edit to final seconds
     (the clip's time warp: freezes and speed ramps), and ``censor_spans`` are
     bleeped edit-time spans whose words are masked (``edit_fx.censor``).

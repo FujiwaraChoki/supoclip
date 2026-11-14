@@ -4,7 +4,7 @@ import { createProxyResponse, fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
 /**
- * Same-origin proxy for crazy-edit assets (backend `api/routes/fx.py`):
+ * Same-origin proxy for dynamic-edit assets (backend `api/routes/fx.py`):
  * `GET /api/fx/assets` (the manifest) and `GET /api/fx/assets/{sha256}.{ext}` (one SFX, music bed or the emoji
  * atlas). Bodies are streamed, never buffered, and the backend's caching headers are kept: asset files are
  * content-addressed and immutable. Only those two shapes are forwarded, so the path can never reach another

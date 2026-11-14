@@ -352,8 +352,8 @@ async def get_caption_templates(include: str | None = None):
     Returns a stable default list if optional template module is unavailable.
     The default response lists the legacy templates only, so older clients
     never see an id they can't render. ``?include=fx`` appends the animated
-    crazy-edits templates (``fx: true`` and what they ``require``); clients ask
-    for them only when ``GET /tasks/edit-styles`` says crazy edits are enabled.
+    dynamic-edits templates (``fx: true`` and what they ``require``); clients ask
+    for them only when ``GET /tasks/edit-styles`` says dynamic edits are enabled.
     """
     include_fx = "fx" in {part.strip().lower() for part in (include or "").split(",")}
     default_templates = [

@@ -1,4 +1,4 @@
-"""Animated (crazy edits) caption templates: a separate catalogue that never leaks into legacy iteration (§5.3, §5.4)."""
+"""Animated (dynamic edits) caption templates: a separate catalogue that never leaks into legacy iteration (§5.3, §5.4)."""
 
 import re
 

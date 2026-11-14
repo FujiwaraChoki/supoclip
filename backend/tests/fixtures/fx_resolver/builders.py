@@ -24,7 +24,7 @@ BED_LENGTHS = {"hype": 61.935, "chill": 93.659, "dramatic": 109.714, "funny": 68
 FX_TEMPLATES = ("marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter", "sticker_slap",
                 "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles")
 TEMPLATES = (*FX_TEMPLATES, "default")
-INTENSITIES = ("off", "chill", "spicy", "unhinged")
+INTENSITIES = ("off", "subtle", "bold", "max")
 PAUSE = re.compile(r"^\|(\d+(?:\.\d+)?)\|$")
 
 

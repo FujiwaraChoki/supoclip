@@ -349,16 +349,16 @@
         "label": "Aus",
         "hint": "Saubere Schnitte, nichts dazu"
       },
-      "chill": {
-        "label": "Entspannt",
+      "subtle": {
+        "label": "Dezent",
         "hint": "Ein paar Zooms und dezente Soundeffekte"
       },
-      "spicy": {
-        "label": "Würzig",
+      "bold": {
+        "label": "Kräftig",
         "hint": "Punch-ins, Whooshes und Musik"
       },
-      "unhinged": {
-        "label": "Völlig drüber",
+      "max": {
+        "label": "Maximal",
         "hint": "Jeder Trick, auf jedem Beat"
       }
     },

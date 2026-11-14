@@ -1,4 +1,4 @@
-"""The clip studio's FX export (FINAL §14.1): ``render_document`` hands a document with crazy edits to
+"""The clip studio's FX export (FINAL §14.1): ``render_document`` hands a document with dynamic edits to
 ``render_document_fx`` (one hook in ``editor_document.render_document``), which renders it through the same
 ``media.fx_chain.run_fx_chain`` as generation.
 
@@ -670,7 +670,7 @@ _VOICE_INPUT = re.compile(r"\[1:a(?=[\]:])")
 
 def _legacy_render(document, ctx, *, head: str, head_label: str, broll_inputs: list[str], ass: Path | None,
                    total: float, should_cancel, on_progress, output: Path) -> None:
-    """Level none: the studio's legacy single-pass render (as before crazy edits) of the fallback document."""
+    """Level none: the studio's legacy single-pass render (as before dynamic edits) of the fallback document."""
     from .editor_document import run_render
     from .media.ffmpeg import subtitles_filter_fragment
 
@@ -744,7 +744,7 @@ def _full_level(document, ctx, request, chain, *, head: str, head_label: str, in
 
 
 def render_document_fx(document, ctx) -> dict:
-    """Render a studio document with crazy edits into ``ctx.output_path`` (§14.1, ladder §6.6).
+    """Render a studio document with dynamic edits into ``ctx.output_path`` (§14.1, ladder §6.6).
 
     Returns ``{"level": "full"|"safe"|"none", "applied_warp": [...]}``: the level that produced the file and the warp
     it actually rendered (``[]`` unless level full with speed or freeze, AI-H4), which a combined clip's sidecar

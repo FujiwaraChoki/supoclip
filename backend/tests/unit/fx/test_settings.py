@@ -14,23 +14,23 @@ def test_parse_empty_is_off(raw):
 
 
 def test_parse_valid():
-    style = parse_edit_style({"intensity": "spicy", "music_mood": "hype", "progress_bar": True})
-    assert style.intensity == "spicy" and style.music_mood == "hype" and style.progress_bar
+    style = parse_edit_style({"intensity": "bold", "music_mood": "hype", "progress_bar": True})
+    assert style.intensity == "bold" and style.music_mood == "hype" and style.progress_bar
 
 
 @pytest.mark.parametrize("raw", [
-    "spicy",                                         # not an object
-    ["intensity", "spicy"],
+    "bold",                                         # not an object
+    ["intensity", "bold"],
     42,
-    {"intensity": "max"},                            # bad value
-    {"intensity": "spicy", "turbo": True},           # unknown key
+    {"intensity": "extreme"},                            # bad value
+    {"intensity": "bold", "turbo": True},           # unknown key
     {"sfx": "true"},                                 # string for bool
     {"sfx": 1},                                      # int for bool
     {"censor": "beep"},
     {"grade": "sepia"},
     {"music_mood": None},
     {"intensity": None},
-    {"intensity": "Spicy"},
+    {"intensity": "Bold"},
 ])
 def test_parse_is_strict(raw):
     with pytest.raises(EditStyleError):
@@ -49,9 +49,9 @@ def test_parse_error_is_a_value_error():
 
 
 def test_read_accepts_dict_json_string_and_bytes():
-    stored = EditStyle(intensity="unhinged", grain=True).to_json()
+    stored = EditStyle(intensity="max", grain=True).to_json()
     for raw in (stored, json.dumps(stored), json.dumps(stored).encode()):
-        assert read_edit_style(raw) == EditStyle(intensity="unhinged", grain=True)
+        assert read_edit_style(raw) == EditStyle(intensity="max", grain=True)
 
 
 @pytest.mark.parametrize("raw", [None, {}, "", "not json", "[1,2]", "null", 5, [], b"\xff"])
@@ -61,15 +61,15 @@ def test_read_unreadable_is_off(raw):
 
 def test_read_keeps_an_active_style_with_a_newer_key(caplog):
     with caplog.at_level("INFO"):
-        style = read_edit_style({"intensity": "spicy", "laser_eyes": True, "music": False})
-    assert style == EditStyle(intensity="spicy", music=False)
+        style = read_edit_style({"intensity": "bold", "laser_eyes": True, "music": False})
+    assert style == EditStyle(intensity="bold", music=False)
     assert style.active
     assert any("fx_compat_dropped_keys" in r.getMessage() and "laser_eyes" in r.getMessage() for r in caplog.records)
 
 
 def test_read_invalid_value_falls_back_to_that_keys_default():
-    style = read_edit_style({"intensity": "spicy", "censor": "nuclear", "sfx": "yes", "grade": "noir"})
-    assert style == EditStyle(intensity="spicy", grade="noir")
+    style = read_edit_style({"intensity": "bold", "censor": "nuclear", "sfx": "yes", "grade": "noir"})
+    assert style == EditStyle(intensity="bold", grade="noir")
 
 
 def test_read_invalid_intensity_is_off_but_keeps_nothing_else_wrong():
@@ -81,7 +81,7 @@ def test_read_never_raises_on_hostile_input():
         def items(self):
             raise RuntimeError("boom")
 
-    assert read_edit_style(Weird(intensity="spicy")) == EditStyle()
+    assert read_edit_style(Weird(intensity="bold")) == EditStyle()
 
 
 def test_schema_lists_every_setting_but_intensity():
@@ -147,6 +147,6 @@ def test_edit_plan_model_falls_back_to_llm(monkeypatch):
 def test_fx_active():
     assert not fx_active(EditStyle(), "default") and not fx_active(EditStyle(), None)
     assert fx_active(EditStyle(), "slam")                       # style only
-    assert fx_active(EditStyle(intensity="chill"), "hormozi")
-    job = FxJob(style=EditStyle(intensity="spicy"), task_id="t", clip_index=2)
+    assert fx_active(EditStyle(intensity="subtle"), "hormozi")
+    job = FxJob(style=EditStyle(intensity="bold"), task_id="t", clip_index=2)
     assert job.cached_beats is None and job.on_beats is None

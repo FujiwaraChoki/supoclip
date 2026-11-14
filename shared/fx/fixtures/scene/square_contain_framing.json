@@ -114,7 +114,7 @@
       "fx": {
         "version": "fx-v1",
         "style": {
-          "intensity": "spicy",
+          "intensity": "bold",
           "sfx": true,
           "music": true,
           "music_mood": "auto",

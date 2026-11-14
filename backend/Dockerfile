@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
-# Install deno, pinned: yt-dlp uses it for YouTube JS challenges, and the crazy-edits renderer (src/fx_runtime)
+# Install deno, pinned: yt-dlp uses it for YouTube JS challenges, and the dynamic-edits renderer (src/fx_runtime)
 # runs fx-core on @napi-rs/canvas under it. The npm cache is baked below so renders work offline.
 ARG DENO_VERSION=2.9.8
 RUN curl -fsSL https://deno.land/install.sh | sh -s v${DENO_VERSION}
@@ -56,7 +56,7 @@ COPY src/ ./src/
 COPY fonts/ ./fonts/
 COPY transitions/ ./transitions/
 
-# Self-hoster drop-in sounds and music beds for crazy edits (FX_LIBRARY_DIR), like fonts/
+# Self-hoster drop-in sounds and music beds for dynamic edits (FX_LIBRARY_DIR), like fonts/
 COPY fx_library/ ./fx_library/
 
 # Create necessary directories for video processing

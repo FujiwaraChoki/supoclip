@@ -33,11 +33,11 @@ const speed = (id: string, start: number, end: number, rate: number): FxCue =>
 const withFx = (cues: FxCue[], segments = [{ id: "s", start: 0, end: 20 }], fx: Partial<DocFx> = {}): EditDocument => ({
   ...draft,
   segments,
-  fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "spicy" }, cues, ...fx },
+  fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "bold" }, cues, ...fx },
 });
 const times = (cues: FxCue[]) => cues.map(({ id, start, end }) => ({ id, start, end }));
 
-describe("crazy edits on the edit timeline (mappedFx, mirrors mapped_fx)", () => {
+describe("dynamic edits on the edit timeline (mappedFx, mirrors mapped_fx)", () => {
   it("follows cuts like B-roll: a span is cut by each segment and placed back to back", () => {
     const doc = withFx([zoom("z", 1, 4)], [{ id: "one", start: 0, end: 2 }, { id: "two", start: 3, end: 6 }]);
     expect(times(mappedFx(doc))).toEqual([
@@ -83,7 +83,7 @@ describe("crazy edits on the edit timeline (mappedFx, mirrors mapped_fx)", () =>
     expect(times(mappedFx(doc))).toEqual([{ id: "z", start: 0.5, end: 2 }]);
   });
 
-  it("leaves out kinds switched off and drafts without crazy edits", () => {
+  it("leaves out kinds switched off and drafts without dynamic edits", () => {
     const doc = withFx([zoom("z", 0, 1), sfx("s", 0.5)], undefined, { disabled: ["zoom"] });
     expect(mappedFx(doc).map((cue) => cue.kind)).toEqual(["sfx"]);
     expect(mappedFx(draft)).toEqual([]);

@@ -92,7 +92,7 @@ CREATE TABLE tasks (
     workflow_options JSONB NOT NULL DEFAULT '{}'::jsonb,
     workflow_plan JSONB,
 
-    -- Crazy edits: EditStyle.to_json(), non-default keys only. NULL = off
+    -- Dynamic edits: EditStyle.to_json(), non-default keys only. NULL = off
     edit_style JSONB,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -127,7 +127,7 @@ CREATE TABLE generated_clips (
     part_number INTEGER,
     workflow_meta JSONB NOT NULL DEFAULT '{}'::jsonb,
 
-    -- Crazy edits summary {fx_level, timing, intensity, template}. NULL = legacy clip
+    -- Dynamic edits summary {fx_level, timing, intensity, template}. NULL = legacy clip
     fx_meta JSONB,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -360,10 +360,10 @@ VALUES (
     false,
     false
 );
--- Crazy edits stay off on web and iOS until rollout. Admins bypass the flag.
+-- Dynamic edits stay off on web and iOS until rollout. Admins bypass the flag.
 INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
 VALUES (
-    'crazy_edits',
+    'dynamic_edits',
     'Edit intensity, SFX, music and animated caption styles',
     false,
     false,

@@ -1,4 +1,4 @@
-"""Crazy-edit sidecar keys in clip_source_map (§3.3): written only on the FX path, read leniently, never deleted
+"""Dynamic-edit sidecar keys in clip_source_map (§3.3): written only on the FX path, read leniently, never deleted
 by a failed read."""
 
 import json
@@ -24,7 +24,7 @@ from src.edit_fx.contracts import EditBeats, EditStyle, FxCue, FxPlan
 from src.edit_fx.warp import build_warp
 
 PLAN = FxPlan(
-    style=EditStyle(intensity="spicy"), template="slam", seed=7, edit_duration=6.0,
+    style=EditStyle(intensity="bold"), template="slam", seed=7, edit_duration=6.0,
     cues=[{"kind": "freeze", "id": "b1.freeze", "start": 2.0, "end": 2.0, "hold": 0.5, "label": "WAIT"},
           {"kind": "sfx", "id": "b1.sfx", "start": 2.0, "end": 2.0, "sound": "impact"}],
 ).model_dump(mode="json")
@@ -48,7 +48,7 @@ def payload(clip):
 
 
 def save(clip, **overrides):
-    kwargs = dict(style={"intensity": "spicy"}, beats=BEATS, plan=PLAN, face_track=TRACK, fx_level="full",
+    kwargs = dict(style={"intensity": "bold"}, beats=BEATS, plan=PLAN, face_track=TRACK, fx_level="full",
                   applied_warp=WARP)
     save_clip_edit_fx(clip, **{**kwargs, **overrides})
 
@@ -78,7 +78,7 @@ def test_save_and_load_round_trip_keeping_other_keys(tmp_path):
     assert data["caption_settings"] == {"font_size": 30}
 
     loaded = load_clip_edit_fx(clip)
-    assert loaded["style"] == {"intensity": "spicy"}
+    assert loaded["style"] == {"intensity": "bold"}
     assert loaded["plan"] == PLAN and loaded["beats"] == BEATS
     assert loaded["fx_level"] == "full" and loaded["applied_warp"] == WARP
     assert loaded["face_track"]["fps"] == 6 and len(loaded["face_track"]["samples"]) == 12   # decimated
@@ -128,7 +128,7 @@ def test_newer_keys_are_dropped_not_fatal(tmp_path, caplog):
     clip_source_map_path(clip).write_text(json.dumps(data), encoding="utf-8")
     with caplog.at_level(logging.INFO):
         loaded = load_clip_edit_fx(clip)
-    assert loaded["style"] == {"intensity": "spicy"}
+    assert loaded["style"] == {"intensity": "bold"}
     assert len(loaded["plan"]["cues"]) == 2 and loaded["applied_warp"] == WARP
     assert any("fx_compat_dropped_keys" in r.getMessage() for r in caplog.records)
 
@@ -157,7 +157,7 @@ def test_corrupt_plan_still_reports_an_fx_clip(tmp_path):
     save(clip)
     data = payload(clip)
     data["edit_fx"] = {"template": 5}
-    data["edit_style"] = "spicy"
+    data["edit_style"] = "bold"
     clip_source_map_path(clip).write_text(json.dumps(data), encoding="utf-8")
     loaded = load_clip_edit_fx(clip)
     assert loaded is not None and loaded["plan"] is None and loaded["style"] == {}

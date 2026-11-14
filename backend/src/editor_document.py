@@ -194,8 +194,8 @@ class EditDocument(Model):
     textTransforms: dict[Literal["hook", "captions"], TextTransform] = Field(default_factory=dict)
     captionTransforms: dict[Annotated[str, Field(max_length=300)], CaptionTransform] = Field(default_factory=dict, max_length=5000)
     broll: list[BRollClip] = Field(default_factory=list, max_length=60)
-    # Crazy edits (§5.1). None <=> the key is absent: it is never serialised as null, so every
-    # document without crazy edits stays byte-identical to what older releases wrote and read.
+    # Dynamic edits (§5.1). None <=> the key is absent: it is never serialised as null, so every
+    # document without dynamic edits stays byte-identical to what older releases wrote and read.
     fx: Optional[DocFx] = None           # None ⇔ key absent. NEVER serialised as null (see rules)
 
     @model_serializer(mode="wrap")
@@ -225,7 +225,7 @@ class EditDocument(Model):
 
 
 def _validate_fx(fx: DocFx, duration: float) -> None:
-    """The §5.1 checks on crazy edits. The freeze hold budget is deliberately not one of them: it is enforced where
+    """The §5.1 checks on dynamic edits. The freeze hold budget is deliberately not one of them: it is enforced where
     cues are written (resolver, AI edit, the PATCH route), so a combined clip that rebases several clips' freezes
     stays valid (AR-M14)."""
     limit = duration + 0.05
@@ -352,7 +352,7 @@ def mapped_broll(document: EditDocument) -> list[dict]:
     return pieces
 
 
-# --------------------------------------------------------------------------- crazy edits (§5.1, §5.5, §14.1)
+# --------------------------------------------------------------------------- dynamic edits (§5.1, §5.5, §14.1)
 
 # A hook title over a clip no longer than this covers the whole clip (mirrors media.common.HOOK_TITLE_MIN_SECONDS;
 # media.common imports the video pipeline, which the AI worker must not load).
@@ -387,7 +387,7 @@ def mapped_fx(document: EditDocument) -> list[FxCue]:
 
 
 def document_needs_fx(document: EditDocument) -> bool:
-    """True when a render must take the crazy-edits path: an FX caption template, or crazy edits with cues, music
+    """True when a render must take the dynamic-edits path: an FX caption template, or dynamic edits with cues, music
     or a retention/colour global. An inert ``DocFx`` (the user removed every edit) renders the legacy way."""
     if is_fx_template(document.captions.template):
         return True
@@ -400,7 +400,7 @@ def document_needs_fx(document: EditDocument) -> bool:
 
 
 def document_fx_on(document: EditDocument | None) -> bool:
-    """Crazy edits are switched on in this draft: an active intensity, an FX caption template, or anything that
+    """Dynamic edits are switched on in this draft: an active intensity, an FX caption template, or anything that
     makes the render take the FX path. The feature flag gates only a change from off to on (§0.4.8)."""
     if document is None:
         return False
@@ -410,7 +410,7 @@ def document_fx_on(document: EditDocument | None) -> bool:
 
 
 def turns_fx_on(before: EditDocument | None, after: EditDocument) -> bool:
-    """``after`` switches crazy edits on relative to the stored ``before`` (§0.4.8): edits appear on a draft that had
+    """``after`` switches dynamic edits on relative to the stored ``before`` (§0.4.8): edits appear on a draft that had
     none, or, on one that already has some, the template goes from legacy to FX or the intensity from off to active
     (the same transitions ``POST /tasks/{id}/settings`` gates). An unchanged or reduced FX state never counts, so the
     kill switch never blocks a font change on a clip that already has edits."""
@@ -639,7 +639,7 @@ def write_ass(
 ):
     """Write captions with the generation renderer so edits keep the clip's animation.
 
-    The keyword arguments are for crazy-edit renders only (left at their defaults, the file is exactly what
+    The keyword arguments are for dynamic-edit renders only (left at their defaults, the file is exactly what
     earlier releases wrote): ``include_captions=False`` leaves the words to fx-core (FX caption templates),
     ``time_map`` moves every event from E to F through the render's time warp, ``censor_spans`` (E) masks
     bleeped words, and ``hook_title`` False/None drops the headline (or a string replaces it).
@@ -776,7 +776,7 @@ class RenderHooks(NamedTuple):
 
 @dataclass(frozen=True)
 class RenderDocumentContext:
-    """What ``render_document`` hands the crazy-edits renderer (``editor_fx_render.render_document_fx``, §14.1).
+    """What ``render_document`` hands the dynamic-edits renderer (``editor_fx_render.render_document_fx``, §14.1).
 
     - ``input_path``: the base picture (``layout.mp4`` or ``clean.mp4``), input 0 of P1 and input 1 of P3.
     - ``output_path``: the final ``export-{job_id}.mp4``. Write it through a temporary file and replace, so a
@@ -816,7 +816,7 @@ class RenderDocumentContext:
 
 
 def fx_render_outcome(result: Any) -> tuple[str, list[dict]]:
-    """``(fx_level, applied_warp)`` from what ``render_document`` returned for a crazy-edits draft."""
+    """``(fx_level, applied_warp)`` from what ``render_document`` returned for a dynamic-edits draft."""
     if isinstance(result, dict):
         level, warp = result.get("level"), result.get("applied_warp")
     else:
@@ -897,7 +897,7 @@ def render_document(
     """Render a draft. ``broll_files`` maps footage keys to local files; B-roll
     whose footage is missing is left out rather than failing the export.
 
-    A draft with crazy edits (``document_needs_fx``) renders through
+    A draft with dynamic edits (``document_needs_fx``) renders through
     ``editor_fx_render.render_document_fx`` and returns its outcome; any other
     draft renders exactly as before and returns None."""
     from .clip_editor import _ffprobe_size, _escape_filter_path

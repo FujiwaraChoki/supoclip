@@ -25,7 +25,7 @@ WORDS = [
 ]
 
 
-def fx_plan(*, template="marker_circle", intensity="spicy", duration=8.0, cues=(), **extra) -> FxPlan:
+def fx_plan(*, template="marker_circle", intensity="bold", duration=8.0, cues=(), **extra) -> FxPlan:
     return FxPlan(style=EditStyle(intensity=intensity), template=template, seed=11, edit_duration=duration,
                   cues=tuple(cues), **extra)
 
@@ -287,7 +287,7 @@ def test_baseline_pushes_iff_kenburns_eligible(ladder, eligible):
 
 def test_no_baseline_pushes_when_zooms_are_off(ladder):
     ladder.state["chain_results"] = [result(True)]
-    plan = FxPlan(style=EditStyle(intensity="chill", zooms=False), template="marker_circle", seed=1,
+    plan = FxPlan(style=EditStyle(intensity="subtle", zooms=False), template="marker_circle", seed=1,
                   edit_duration=8.0)
     out = ladder.run(plan)
     assert not [c for c in out["report"]["fx_plan"].cues if c.id.startswith("kb")]

@@ -1,4 +1,4 @@
-// Render the crazy-edit emoji atlas from the system Noto Color Emoji font (FINAL.md §12).
+// Render the dynamic-edit emoji atlas from the system Noto Color Emoji font (FINAL.md §12).
 //
 //   cd backend && .venv/bin/python scripts/fx/emoji_list.py | deno run --allow-read --allow-write --allow-env \
 //     --allow-ffi --allow-sys=homedir --allow-net=registry.npmjs.org scripts/fx/build_emoji_atlas.ts \

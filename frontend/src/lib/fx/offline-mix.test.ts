@@ -48,7 +48,7 @@ const bed: MusicBed = {
 };
 
 const input = (over: Partial<FxAudioInput> = {}): FxAudioInput => ({
-  cues: [], words: [], warp: identityWarp(4), music: null, style: { intensity: "spicy" }, sensitivity: "normal",
+  cues: [], words: [], warp: identityWarp(4), music: null, style: { intensity: "bold" }, sensitivity: "normal",
   seed: 3, loopEnding: "none", ...over,
 });
 
@@ -70,12 +70,12 @@ const rms = (data: Float32Array, from: number, to: number) => {
 };
 
 describe("sfxBusGainDb (resolver.SFX_BUS_GAIN_DB)", () => {
-  it("follows the intensity tier; serious forces chill; off is style-only", () => {
+  it("follows the intensity tier; serious forces subtle; off is style-only", () => {
     expect(sfxBusGainDb({ intensity: "off" }, "normal")).toBe(0);
-    expect(sfxBusGainDb({ intensity: "chill" }, "normal")).toBe(-4);
-    expect(sfxBusGainDb({ intensity: "spicy" }, "normal")).toBe(0);
-    expect(sfxBusGainDb({ intensity: "unhinged" }, "normal")).toBe(2);
-    expect(sfxBusGainDb({ intensity: "unhinged" }, "serious")).toBe(-4);
+    expect(sfxBusGainDb({ intensity: "subtle" }, "normal")).toBe(-4);
+    expect(sfxBusGainDb({ intensity: "bold" }, "normal")).toBe(0);
+    expect(sfxBusGainDb({ intensity: "max" }, "normal")).toBe(2);
+    expect(sfxBusGainDb({ intensity: "max" }, "serious")).toBe(-4);
     expect(sfxBusGainDb({ intensity: "off" }, "serious")).toBe(0);
   });
 });
@@ -83,7 +83,7 @@ describe("sfxBusGainDb (resolver.SFX_BUS_GAIN_DB)", () => {
 describe("fxAudioProgram", () => {
   it("places SFX at F times with cue + file + bus gain and the mix_sfx_file pick", () => {
     const program = fxAudioProgram(input({
-      cues: [sfx("b", 2, "whoosh", -3, 1), sfx("a", 1, "whoosh", -2, 0)], style: { intensity: "unhinged" },
+      cues: [sfx("b", 2, "whoosh", -3, 1), sfx("a", 1, "whoosh", -2, 0)], style: { intensity: "max" },
     }), manifest);
     expect(program.sfx.map((e) => [e.id, e.at, e.asset.id, e.gainDb])).toEqual([
       ["a", 1, "whoosh_0", -2 + -1 + 2],

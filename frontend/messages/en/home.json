@@ -349,16 +349,16 @@
         "label": "Off",
         "hint": "Clean cuts, nothing added"
       },
-      "chill": {
-        "label": "Chill",
+      "subtle": {
+        "label": "Subtle",
         "hint": "A few zooms and soft sound effects"
       },
-      "spicy": {
-        "label": "Spicy",
+      "bold": {
+        "label": "Bold",
         "hint": "Punch-ins, whooshes and music"
       },
-      "unhinged": {
-        "label": "Unhinged",
+      "max": {
+        "label": "Max",
         "hint": "Every trick, every beat"
       }
     },

@@ -63,7 +63,7 @@ interface CaptionTemplate {
   font_family?: string;
   font_size?: number;
   font_color?: string;
-  /** Animated (crazy edits) templates, listed only with `?include=fx`. */
+  /** Animated (dynamic edits) templates, listed only with `?include=fx`. */
   fx?: boolean;
 }
 
@@ -168,7 +168,7 @@ export default function HomeApp() {
 
   const [captionTemplate, setCaptionTemplate] = useState("default");
   const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
-  // Crazy edits: offered only when the server says the flag is on for this user (`enabled === true`).
+  // Dynamic edits: offered only when the server says the flag is on for this user (`enabled === true`).
   const editStylesInfo = useEditStylesInfo(Boolean(session?.user?.id));
   const fxEnabled = editStylesInfo?.enabled === true;
   const [editStyle, setEditStyle] = useState<EditStyle>(DEFAULT_EDIT_STYLE);
@@ -386,7 +386,7 @@ export default function HomeApp() {
   useEffect(() => { void refreshFonts(); }, [refreshFonts]);
 
   useEffect(() => {
-    // Animated templates are asked for only once crazy edits are on, so nobody else ever sees their ids.
+    // Animated templates are asked for only once dynamic edits are on, so nobody else ever sees their ids.
     let cancelled = false;
     fetch(fxEnabled ? "/api/caption-templates?include=fx" : "/api/caption-templates")
       .then((response) => (response.ok ? response.json() : null))
@@ -651,7 +651,7 @@ export default function HomeApp() {
     hasPaidAccess(billingSummary.plan, billingSummary.subscription_status, billingSummary.subscription_provider);
 
   // Effective values for the live preview only — the submitted payload keeps nulls.
-  // A stored animated template while crazy edits are off shows (and sends) its legacy fallback; the choice is kept.
+  // A stored animated template while dynamic edits are off shows (and sends) its legacy fallback; the choice is kept.
   const shownTemplate = sendableCaptionTemplate(captionTemplate, fxEnabled);
   const legacyTemplates = availableTemplates.filter((template) => !template.fx && !isFxTemplate(template.id));
   const fxOffered = new Set(offeredFxTemplates(editStylesInfo));

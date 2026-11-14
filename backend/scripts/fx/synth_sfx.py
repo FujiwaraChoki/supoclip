@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthesise the built-in crazy-edit sound effects (FINAL.md §12).
+"""Synthesise the built-in dynamic-edit sound effects (FINAL.md §12).
 
 Every file is made from code: numpy oscillators, noise and filters, a fixed
 `np.random.default_rng(<seed>)` per file, peak-normalised to -6 dBFS with 5 ms

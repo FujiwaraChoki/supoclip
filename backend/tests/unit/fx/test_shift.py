@@ -11,7 +11,7 @@ CUE = TypeAdapter(FxCue)
 
 
 def plan(cues, duration=10.0, **extra):
-    return FxPlan(style=EditStyle(intensity="spicy"), template="slam", seed=99, edit_duration=duration,
+    return FxPlan(style=EditStyle(intensity="bold"), template="slam", seed=99, edit_duration=duration,
                   cues=cues, **extra)
 
 

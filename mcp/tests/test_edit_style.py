@@ -12,7 +12,7 @@ from supoclip_mcp.client import AuthNotConfiguredError, SupoClipError
 
 URL = "https://youtu.be/abcdefghijk"
 JOB = "0123456789abcdef0123456789abcdef"
-# Exactly the keys a plain highlights request had before crazy edits.
+# Exactly the keys a plain highlights request had before dynamic edits.
 LEGACY_BODY_KEYS = [
     "source", "processing_mode", "clip_length", "output_format", "add_subtitles", "caption_template", "include_broll",
     "cut_long_pauses", "remove_filler_words",
@@ -51,37 +51,37 @@ def test_off_sends_no_edit_style(monkeypatch, kwargs):
     assert list(body) == LEGACY_BODY_KEYS
 
 
-def test_spicy_sends_edit_style(monkeypatch):
-    request, _ = _create(monkeypatch, intensity="spicy")
+def test_bold_sends_edit_style(monkeypatch):
+    request, _ = _create(monkeypatch, intensity="bold")
     body = request.await_args.kwargs["json_body"]
     assert list(body) == [*LEGACY_BODY_KEYS, "edit_style"]
-    assert body["edit_style"] == {"intensity": "spicy"}
+    assert body["edit_style"] == {"intensity": "bold"}
 
 
 def test_edit_style_passes_through_in_canonical_form(monkeypatch):
     request, _ = _create(
         monkeypatch,
-        intensity="unhinged",
+        intensity="max",
         caption_template="behind_head",
-        edit_style={"music": False, "censor": "bleep", "sfx": True, "grade": "noir", "intensity": "chill"},
+        edit_style={"music": False, "censor": "bleep", "sfx": True, "grade": "noir", "intensity": "subtle"},
     )
     body = request.await_args.kwargs["json_body"]
     # Defaults dropped, keys sorted, the intensity argument wins.
-    assert body["edit_style"] == {"censor": "bleep", "grade": "noir", "intensity": "unhinged", "music": False}
+    assert body["edit_style"] == {"censor": "bleep", "grade": "noir", "intensity": "max", "music": False}
     assert list(body["edit_style"]) == sorted(body["edit_style"])
     assert body["caption_template"] == "behind_head"
 
 
 def test_intensity_inside_edit_style_alone(monkeypatch):
-    request, _ = _create(monkeypatch, edit_style={"intensity": "chill", "progress_bar": True})
-    assert request.await_args.kwargs["json_body"]["edit_style"] == {"intensity": "chill", "progress_bar": True}
+    request, _ = _create(monkeypatch, edit_style={"intensity": "subtle", "progress_bar": True})
+    assert request.await_args.kwargs["json_body"]["edit_style"] == {"intensity": "subtle", "progress_bar": True}
 
 
 def test_edit_style_works_with_workflows(monkeypatch):
-    request, _ = _create(monkeypatch, workflow="trailer", intensity="spicy")
+    request, _ = _create(monkeypatch, workflow="trailer", intensity="bold")
     body = request.await_args.kwargs["json_body"]
     assert body["workflow"] == "trailer"
-    assert body["edit_style"] == {"intensity": "spicy"}
+    assert body["edit_style"] == {"intensity": "bold"}
 
 
 @pytest.mark.parametrize(
@@ -93,7 +93,7 @@ def test_edit_style_works_with_workflows(monkeypatch):
         ({"edit_style": {"music": "yes"}}, "edit_style.music must be true or false"),
         ({"edit_style": {"censor": "beep"}}, "edit_style.censor must be one of"),
         ({"edit_style": {"music_mood": "sad"}}, "edit_style.music_mood must be one of"),
-        ({"edit_style": "spicy"}, "edit_style must be an object"),
+        ({"edit_style": "bold"}, "edit_style must be an object"),
     ],
 )
 def test_invalid_edit_style_does_not_create_a_task(monkeypatch, kwargs, message):
@@ -103,7 +103,7 @@ def test_invalid_edit_style_does_not_create_a_task(monkeypatch, kwargs, message)
 
 
 def test_list_edit_styles(monkeypatch):
-    info = {"enabled": True, "intensities": ["off", "chill", "spicy", "unhinged"], "templates": ["slam"]}
+    info = {"enabled": True, "intensities": ["off", "subtle", "bold", "max"], "templates": ["slam"]}
     request = AsyncMock(return_value=info)
     monkeypatch.setattr(server, "_client", lambda: SimpleNamespace(request=request))
     result = asyncio.run(server.supoclip_list_edit_styles())

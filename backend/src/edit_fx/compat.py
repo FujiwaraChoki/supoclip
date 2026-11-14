@@ -1,4 +1,4 @@
-"""Forward-lenient reads of persisted crazy-edit data (AI-M9, §0.4.11).
+"""Forward-lenient reads of persisted dynamic-edit data (AI-M9, §0.4.11).
 
 Rows, sidecars and job payloads may be written by a newer deploy than the one reading them (rolling deploys, a
 render worker on another machine). The contracts are strict (``extra="forbid"``), so a reader first strips what

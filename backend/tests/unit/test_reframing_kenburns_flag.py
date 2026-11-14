@@ -133,7 +133,7 @@ def reframe(monkeypatch, tmp_path):
     monkeypatch.setattr(reframing.shutil, "copyfile", lambda *_a: pytest.fail("FX renders never stream-copy"))
     ass = tmp_path / "captions.ass"
     ass.write_text("[Script Info]\n")
-    request = FxRequest(plan=FxPlan(style=EditStyle(intensity="spicy"), template="default", seed=1,
+    request = FxRequest(plan=FxPlan(style=EditStyle(intensity="bold"), template="default", seed=1,
                                     edit_duration=5.0), words=[], caption=None)
 
     def run(fmt, **kwargs):

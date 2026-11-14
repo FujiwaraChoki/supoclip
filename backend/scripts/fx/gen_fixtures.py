@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the cross-language crazy-edit fixtures (G2) and the JSON Schemas from the Python implementation.
+"""Generate the cross-language dynamic-edit fixtures (G2) and the JSON Schemas from the Python implementation.
 
 Writes ``shared/fx/fixtures/{rng,warp,mapping,duck,censor,geometry}/<case>.json`` and
 ``shared/fx/fx_cue.schema.json`` / ``shared/fx/fx_scene.schema.json`` at the repo root. pytest

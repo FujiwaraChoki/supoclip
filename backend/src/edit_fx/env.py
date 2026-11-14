@@ -1,4 +1,4 @@
-"""Every environment read for crazy edits. Nothing else reads these variables (§5.7).
+"""Every environment read for dynamic edits. Nothing else reads these variables (§5.7).
 
 Each reader is evaluated on call (no import-time caching), so tests and the admin runtime settings see changes.
 Unknown values fall back to the default rather than raising: a typo in a deploy must not stop clips rendering.

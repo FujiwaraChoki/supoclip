@@ -334,10 +334,10 @@ describe("task page workflows", () => {
   });
 });
 
-describe("task page crazy edits", () => {
+describe("task page dynamic edits", () => {
   const JOB = "0123456789abcdef0123456789abcdef";
   const ENABLED = {
-    enabled: true, intensities: ["off", "chill", "spicy", "unhinged"], defaults: {}, settings: [],
+    enabled: true, intensities: ["off", "subtle", "bold", "max"], defaults: {}, settings: [],
     music_moods: ["hype"], grades: ["none"], templates: ["slam", "behind_head"], reactions_available: false,
   };
   let settingsBodies: Json[];
@@ -394,16 +394,16 @@ describe("task page crazy edits", () => {
 
   it("queues a re-render (202), marks the clips and refetches when the job is done", async () => {
     jobStates = [{ status: "running", kind: "settings", progress: 0.4 }, { status: "done", kind: "settings", progress: 1 }];
-    serveFx(task({ edit_style: { intensity: "spicy" }, caption_template: "slam" }), [clip(1, { fx_meta: { fx_level: "full", timing: "word", intensity: "spicy", template: "slam" } }), clip(2)]);
+    serveFx(task({ edit_style: { intensity: "bold" }, caption_template: "slam" }), [clip(1, { fx_meta: { fx_level: "full", timing: "word", intensity: "bold", template: "slam" } }), clip(2)]);
     renderPage();
     await waitFor(() => expect(templateUrls).toContain("/api/caption-templates?include=fx"));
     const sheet = await openRestyle();
-    expect(within(sheet).getByRole("combobox", { name: "Edit intensity" })).toHaveTextContent("Spicy");
+    expect(within(sheet).getByRole("combobox", { name: "Edit intensity" })).toHaveTextContent("Bold");
     fireEvent.click(within(sheet).getByRole("switch", { name: "Music" }));
     fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
 
     await waitFor(() => expect(settingsBodies).toHaveLength(1));
-    expect(settingsBodies[0]).toMatchObject({ caption_template: "slam", apply_to_existing: true, edit_style: { intensity: "spicy", music: false } });
+    expect(settingsBodies[0]).toMatchObject({ caption_template: "slam", apply_to_existing: true, edit_style: { intensity: "bold", music: false } });
     expect(await screen.findAllByText("Rendering edits…")).toHaveLength(3); // the banner and both clips
     const fetchesBefore = taskFetches;
     await waitFor(() => expect(screen.getByText("40%")).toBeInTheDocument(), { timeout: 4000 });
@@ -413,7 +413,7 @@ describe("task page crazy edits", () => {
   }, 15000);
 
   it("keeps the stored style out of the body when only the font changed", async () => {
-    serveFx(task({ edit_style: { intensity: "chill" } }), [clip(1)], { settingsStatus: 200 });
+    serveFx(task({ edit_style: { intensity: "subtle" } }), [clip(1)], { settingsStatus: 200 });
     renderPage();
     const sheet = await openRestyle();
     fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
@@ -423,7 +423,7 @@ describe("task page crazy edits", () => {
 
   it("shows a failed job with a retry that sends the settings again", async () => {
     jobStates = [{ status: "failed", kind: "settings", progress: 0, error: { code: "CLIP_JOB_FAILED", message: "The renderer ran out of time." } }];
-    serveFx(task({ edit_style: { intensity: "spicy" } }), [clip(1)]);
+    serveFx(task({ edit_style: { intensity: "bold" } }), [clip(1)]);
     renderPage();
     const sheet = await openRestyle();
     fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
@@ -443,7 +443,7 @@ describe("task page crazy edits", () => {
   }, 10000);
 
   it("explains approximate timing and simplified effects on a clip", async () => {
-    serveFx(task(), [clip(1, { hook_title: "The hook", fx_meta: { fx_level: "safe", timing: "approx", intensity: "spicy", template: "slam" } })]);
+    serveFx(task(), [clip(1, { hook_title: "The hook", fx_meta: { fx_level: "safe", timing: "approx", intensity: "bold", template: "slam" } })]);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Preview The hook" }));
     expect(await screen.findByText(/follow approximate timing/)).toBeInTheDocument();
@@ -459,22 +459,22 @@ describe("task page crazy edits", () => {
   });
 
   it("still lets a task that has edits turn them off without the feature", async () => {
-    serveFx(task({ edit_style: '{"intensity": "unhinged"}' }), [clip(1)], { enabled: false });
+    serveFx(task({ edit_style: '{"intensity": "max"}' }), [clip(1)], { enabled: false });
     renderPage();
     const sheet = await openRestyle();
-    expect(within(sheet).getByRole("combobox", { name: "Edit intensity" })).toHaveTextContent("Unhinged");
+    expect(within(sheet).getByRole("combobox", { name: "Edit intensity" })).toHaveTextContent("Max");
   });
 
   it("carries the task's edits into a new generation from the failure screen", async () => {
     serveFx(task({
       status: "error", workflow: "topic", error_code: "topic_not_found", caption_template: "slam",
-      edit_style: { intensity: "spicy", sfx: false }, workflow_options: { topic: "crypto" },
+      edit_style: { intensity: "bold", sfx: false }, workflow_options: { topic: "crypto" },
       workflow_plan: { version: "wf-v1", workflow: "topic", error: { code: "topic_not_found", details: { suggested_topics: ["pricing"] } } },
     }), []);
     renderPage();
     await waitFor(() => expect(templateUrls).toContain("/api/caption-templates?include=fx"));
     fireEvent.click(await screen.findByRole("button", { name: "pricing" }));
     await waitFor(() => expect(created).not.toBeNull());
-    expect(created).toMatchObject({ caption_template: "slam", edit_style: { intensity: "spicy", sfx: false } });
+    expect(created).toMatchObject({ caption_template: "slam", edit_style: { intensity: "bold", sfx: false } });
   });
 });

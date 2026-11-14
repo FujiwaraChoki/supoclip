@@ -25,7 +25,7 @@ export type TourStep = {
 };
 
 /** Feature flags a tour can wait for (`GET /api/feature-flags`). */
-export type TourFlag = "crazy_edits";
+export type TourFlag = "dynamic_edits";
 
 export type FeatureTour = {
   id: string;

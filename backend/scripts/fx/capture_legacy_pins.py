@@ -1,13 +1,13 @@
 """Capture the legacy golden pins (tests/fixtures/legacy_pins/expected/).
 
 The pins freeze today's legacy behaviour (ASS output, ffmpeg argv, call kwargs, sidecar
-keys, API JSON, SQL text, AI-edit prompt, editor document dump) so crazy edits can prove
+keys, API JSON, SQL text, AI-edit prompt, editor document dump) so dynamic edits can prove
 that "off is legacy". Re-capturing replaces that proof, so the script refuses to touch
 existing pins unless ``--accept`` is given. Run it only for an intended legacy change.
 
     cd backend && .venv/bin/python scripts/fx/capture_legacy_pins.py [--accept]
 
-It runs ``tests/unit/test_crazy_edits_legacy_pins.py`` with ``LEGACY_PINS_WRITE=1`` (each
+It runs ``tests/unit/test_dynamic_edits_legacy_pins.py`` with ``LEGACY_PINS_WRITE=1`` (each
 test writes the value it computes), then once more normally to check the result.
 """
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2]
 EXPECTED = BACKEND / "tests" / "fixtures" / "legacy_pins" / "expected"
-TEST_MODULE = "tests/unit/test_crazy_edits_legacy_pins.py"
+TEST_MODULE = "tests/unit/test_dynamic_edits_legacy_pins.py"
 PIN_SUFFIXES = (".json", ".txt")
 
 
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     if existing and not args.accept:
         print(
             f"Refusing to overwrite {len(existing)} legacy pin files in {EXPECTED.relative_to(BACKEND)}.\n"
-            "The pins are the proof that crazy edits leave the legacy path unchanged. If a legacy\n"
+            "The pins are the proof that dynamic edits leave the legacy path unchanged. If a legacy\n"
             "change is intended, re-run with --accept and review the diff before committing.",
             file=sys.stderr,
         )

@@ -25,9 +25,9 @@ export function useEditStylesInfo(active = true): EditStylesInfo | null {
 // Five bars per glyph: resting height (0-1) and how far each one swings, per intensity.
 const METER: Record<Intensity, { rest: number[]; swing: number; duration: number; jitter: boolean }> = {
   off: { rest: [0.18, 0.18, 0.18, 0.18, 0.18], swing: 0, duration: 0, jitter: false },
-  chill: { rest: [0.3, 0.45, 0.38, 0.5, 0.32], swing: 0.25, duration: 2.2, jitter: false },
-  spicy: { rest: [0.45, 0.7, 0.55, 0.8, 0.5], swing: 0.45, duration: 1.0, jitter: false },
-  unhinged: { rest: [0.7, 0.95, 0.6, 1, 0.8], swing: 0.65, duration: 0.42, jitter: true },
+  subtle: { rest: [0.3, 0.45, 0.38, 0.5, 0.32], swing: 0.25, duration: 2.2, jitter: false },
+  bold: { rest: [0.45, 0.7, 0.55, 0.8, 0.5], swing: 0.45, duration: 1.0, jitter: false },
+  max: { rest: [0.7, 0.95, 0.6, 1, 0.8], swing: 0.65, duration: 0.42, jitter: true },
 };
 
 const METER_CSS = `
@@ -39,7 +39,7 @@ const METER_CSS = `
   .fx-meter[data-jitter="true"] { animation: fx-meter-shake 0.18s linear infinite; }
 }`;
 
-/** A tiny level meter that moves like the intensity: still when off, a slow breath for chill, chaos for unhinged. */
+/** A tiny level meter that moves like the intensity: still when off, a slow breath for subtle, chaos for max. */
 function IntensityGlyph({ intensity, active }: { intensity: Intensity; active: boolean }) {
   const meter = METER[intensity];
   return (
@@ -96,7 +96,7 @@ const BOOL_OPTIONS = {
 
 /**
  * Intensity as four radio cards (`data-tour="edit-intensity"`) and, once edits are on, the switches for what they use.
- * Off sends nothing new: the request stays exactly what it was before crazy edits.
+ * Off sends nothing new: the request stays exactly what it was before dynamic edits.
  */
 export function EditIntensity({ value, onChange, info, disabled }: {
   value: EditStyle;

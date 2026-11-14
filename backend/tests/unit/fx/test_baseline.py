@@ -17,7 +17,7 @@ from tests.fixtures.fx_resolver.builders import TEMPLATES, load_fixture
 
 
 def plan(duration: float, *cues, seed: int = 99) -> FxPlan:
-    return FxPlan(style=EditStyle(intensity="spicy"), template="default", seed=seed, edit_duration=duration,
+    return FxPlan(style=EditStyle(intensity="bold"), template="default", seed=seed, edit_duration=duration,
                   cues=tuple(sorted(cues, key=lambda c: (c.start, c.id))))
 
 
@@ -85,7 +85,7 @@ def test_adds_only_gentle_motion_to_resolved_plans():
     for name in ("talking_head", "story"):
         inp, seed = load_fixture(name)
         for template in TEMPLATES:
-            for intensity in ("off", "chill", "spicy"):
+            for intensity in ("off", "subtle", "bold"):
                 if template == "default" and intensity == "off":
                     continue
                 resolved = resolve(inp, EditStyle(intensity=intensity), template, seed)

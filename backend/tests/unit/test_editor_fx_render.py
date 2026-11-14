@@ -1,4 +1,4 @@
-"""The studio's crazy-edits export (``editor_fx_render``, FINAL §14.1, WP15b).
+"""The studio's dynamic-edits export (``editor_fx_render``, FINAL §14.1, WP15b).
 
 - scene fixtures: Python reproduces ``shared/fx/fixtures/scene`` (fx-core's ``studioScene`` checks the same files);
 - the face track and the matte follow the studio's segment cuts (pure resampling, and real-ffmpeg frame sampling of
@@ -61,7 +61,7 @@ def doc(segments, cues=(), **changes) -> EditDocument:
         "segments": [{"id": sid, "start": a, "end": b} for sid, a, b in segments],
         "captions": {"enabled": False, "template": "default"},
         "framing": {"aspect": "original", "fit": "cover"},
-        "fx": {"style": {"intensity": "spicy"}, "seed": 3, "cues": list(cues)},
+        "fx": {"style": {"intensity": "bold"}, "seed": 3, "cues": list(cues)},
     }
     fx_changes = changes.pop("fx", {})
     data["fx"].update(fx_changes)

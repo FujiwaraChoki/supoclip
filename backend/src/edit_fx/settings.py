@@ -53,7 +53,7 @@ def read_edit_style(raw: object) -> EditStyle:
     """Lenient: accepts a dict or a JSON string (asyncpg may return either for JSONB). Never raises.
 
     ``None``, ``{}``, non-objects and unparsable text are off. Unknown keys are dropped and logged; a known key with
-    an invalid value takes that key's default, so ``{"intensity": "spicy", "future_toggle": true}`` stays spicy.
+    an invalid value takes that key's default, so ``{"intensity": "bold", "future_toggle": true}`` stays bold.
     """
     try:
         if isinstance(raw, (str, bytes, bytearray)):

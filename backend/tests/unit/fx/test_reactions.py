@@ -100,7 +100,7 @@ def _reaction(cue_id: str = "g.react0", query: str = "mind blown", **extra) -> R
 
 
 def _plan(*cues) -> FxPlan:
-    return FxPlan(style=EditStyle(intensity="spicy", reactions=True), template="default", seed=7,
+    return FxPlan(style=EditStyle(intensity="bold", reactions=True), template="default", seed=7,
                   edit_duration=30.0, cues=tuple(cues))
 
 

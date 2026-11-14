@@ -349,16 +349,16 @@
         "label": "Mati",
         "hint": "Potongan bersih, tanpa tambahan"
       },
-      "chill": {
-        "label": "Santai",
+      "subtle": {
+        "label": "Halus",
         "hint": "Beberapa zoom dan efek suara halus"
       },
-      "spicy": {
-        "label": "Pedas",
+      "bold": {
+        "label": "Tegas",
         "hint": "Punch-in, whoosh, dan musik"
       },
-      "unhinged": {
-        "label": "Gila-gilaan",
+      "max": {
+        "label": "Maksimal",
         "hint": "Semua trik, di setiap ketukan"
       }
     },

@@ -1,4 +1,4 @@
-"""Crazy-edits renderer self-test: ``python -m src.media.fx_selftest``.
+"""Dynamic-edits renderer self-test: ``python -m src.media.fx_selftest``.
 
 Run inside the built backend image (CI ``image-security.yml`` runs it with ``--network none``) and on any render
 machine after a deploy. It checks, offline:
@@ -112,10 +112,10 @@ def _selftest_request():
         {"kind": "sfx", "id": "b0.sfx", "start": 0.1, "end": 0.1, "seed": 14, "sound": "whoosh"},
         {"kind": "freeze", "id": "b1.freeze", "start": 0.8, "end": 0.8, "seed": 15, "hold": 0.3, "label": "WAIT"},
     ]
-    plan = FxPlan(style=EditStyle(intensity="spicy"), template="marker_circle", seed=4242, edit_duration=DURATION,
+    plan = FxPlan(style=EditStyle(intensity="bold"), template="marker_circle", seed=4242, edit_duration=DURATION,
                   cues=tuple(cues), grade="punchy", progress_bar=True)
     words = [{"id": f"w{i}", "start": round(i * 0.3, 3), "end": round(i * 0.3 + 0.25, 3), "text": text}
-             for i, text in enumerate(["watch", "this", "crazy", "edit", "work"])]
+             for i, text in enumerate(["watch", "this", "wild", "edit", "work"])]
     caption = FxCaptionStyle(template="marker_circle", font="TikTokSans-Bold", size_px=64, color="#FFFFFF",
                              accent="#FFD23F", stroke_color="#000000", stroke_px=6, y=0.72)
     return FxRequest(plan=plan, words=words, caption=caption, hook_window=None)

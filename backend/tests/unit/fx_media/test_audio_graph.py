@@ -198,7 +198,7 @@ def test_measurement_fragment():
 def test_bleep_spans_come_from_bleep_cues():
     from src.edit_fx.contracts import BleepCue
 
-    plan = FxPlan(style=EditStyle(intensity="spicy"), template="default", seed=1, edit_duration=5,
+    plan = FxPlan(style=EditStyle(intensity="bold"), template="default", seed=1, edit_duration=5,
                   cues=(BleepCue(id="b", start=2, end=2.5), BleepCue(id="a", start=1, end=1.2, tone=False),
                         SfxCue(id="s", start=1, end=1, sound="pop")))
     assert fx_audio.bleep_spans_e(plan) == [(1, 1.2), (2, 2.5)]
@@ -281,7 +281,7 @@ def test_sfx_click_comes_out_on_its_millisecond(tmp_path, monkeypatch, warped):
     if warped:
         cues.append(FreezeCue(id="f", start=0.4, end=0.4, hold=0.5))
     warp = build_warp(cues, 3.0)
-    plan = FxPlan(style=EditStyle(intensity="spicy"), template="default", seed=1, edit_duration=3.0,
+    plan = FxPlan(style=EditStyle(intensity="bold"), template="default", seed=1, edit_duration=3.0,
                   cues=tuple(cues))
     bus = tmp_path / "fxbus.wav"
     assert fx_audio.build_bus(plan, words_e=[], warp=warp, out_duration=warp.out_duration, path=bus)

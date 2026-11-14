@@ -767,7 +767,7 @@ class TaskService(ClipEditingMixin):
             render_start = perf_counter()
             # Read from the task so queued jobs and resumes honour the setting.
             include_broll = bool(task_row.get("include_broll"))
-            # Crazy edits: read from the row (create stores it; resumes and retries keep it).
+            # Dynamic edits: read from the row (create stores it; resumes and retries keep it).
             edit_style = read_edit_style(task_row.get("edit_style"))
             fx_on = fx_active(edit_style, caption_template)
             if fx_on and user_id:

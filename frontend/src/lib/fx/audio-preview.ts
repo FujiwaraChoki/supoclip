@@ -1,4 +1,4 @@
-// Studio audio preview for crazy edits (§9 browser mirror, §14.2): SFX, the ducked music bed and bleeps played on the
+// Studio audio preview for dynamic edits (§9 browser mirror, §14.2): SFX, the ducked music bed and bleeps played on the
 // preview's existing AudioContext, in step with the F clock.
 //
 // - A 2 s look-ahead scheduler: `AudioBufferSourceNode.start(when, offset)` for every SFX that begins (or is still

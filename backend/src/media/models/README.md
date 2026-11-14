@@ -17,7 +17,7 @@ in the docker-compose bind mount (`./backend/src:/app/src`).
 ## human_segmentation_pphumanseg_2023mar.onnx
 
 PP-HumanSeg person segmentation, loaded through `cv2.dnn.readNetFromONNX` in
-`src/media/fx_analysis.py`. Crazy edits use it for the person matte behind
+`src/media/fx_analysis.py`. Dynamic edits use it for the person matte behind
 "behind the head" text: it runs only inside those accents' windows (and on the
 studio's base video when a draft has one), never on ordinary renders. Input
 192x192 RGB normalised to [-1, 1]; output 1x2x192x192 softmax (channel 1 =

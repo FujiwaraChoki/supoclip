@@ -8,7 +8,7 @@ import {
 
 const ENABLED = {
   enabled: true,
-  intensities: ["off", "chill", "spicy", "unhinged"],
+  intensities: ["off", "subtle", "bold", "max"],
   defaults: { ...DEFAULT_EDIT_STYLE, intensity: undefined },
   settings: [],
   music_moods: ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
@@ -17,7 +17,7 @@ const ENABLED = {
   reactions_available: false,
 };
 
-const spicy: EditStyle = { ...DEFAULT_EDIT_STYLE, intensity: "spicy" };
+const bold: EditStyle = { ...DEFAULT_EDIT_STYLE, intensity: "bold" };
 
 describe("edit styles info", () => {
   it("is enabled only when the server says exactly true", () => {
@@ -28,8 +28,8 @@ describe("edit styles info", () => {
   });
 
   it("keeps only what this client knows", () => {
-    const info = parseEditStylesInfo({ ...ENABLED, intensities: ["off", "spicy", "nuclear"], reactions_available: "yes" });
-    expect(info.intensities).toEqual(["off", "spicy"]);
+    const info = parseEditStylesInfo({ ...ENABLED, intensities: ["off", "bold", "nuclear"], reactions_available: "yes" });
+    expect(info.intensities).toEqual(["off", "bold"]);
     expect(info.templates).toEqual(FX_CAPTION_TEMPLATES);
     expect(info.reactions_available).toBe(false);
     expect(offeredFxTemplates(info)).toEqual(FX_CAPTION_TEMPLATES);
@@ -55,10 +55,10 @@ describe("edit styles info", () => {
 
 describe("send-time sanitiser", () => {
   it("adds edit_style only for an active style with the flag on", () => {
-    expect(fxCreateFields({ editStyle: spicy, captionTemplate: "hormozi" }, { enabled: true }))
-      .toEqual({ caption_template: "hormozi", edit_style: { intensity: "spicy" } });
-    expect(fxCreateFields({ editStyle: { ...spicy, music: false, censor: "bleep" }, captionTemplate: "slam" }, { enabled: true }))
-      .toEqual({ caption_template: "slam", edit_style: { censor: "bleep", intensity: "spicy", music: false } });
+    expect(fxCreateFields({ editStyle: bold, captionTemplate: "hormozi" }, { enabled: true }))
+      .toEqual({ caption_template: "hormozi", edit_style: { intensity: "bold" } });
+    expect(fxCreateFields({ editStyle: { ...bold, music: false, censor: "bleep" }, captionTemplate: "slam" }, { enabled: true }))
+      .toEqual({ caption_template: "slam", edit_style: { censor: "bleep", intensity: "bold", music: false } });
     // Off is today's request, even with the flag on.
     expect(fxCreateFields({ editStyle: { ...DEFAULT_EDIT_STYLE, music: false }, captionTemplate: "default" }, { enabled: true }))
       .toEqual({ caption_template: "default" });
@@ -68,24 +68,24 @@ describe("send-time sanitiser", () => {
   });
 
   it("drops a remembered GIF reactions choice the server can't serve", () => {
-    const withReactions = { ...spicy, reactions: true };
+    const withReactions = { ...bold, reactions: true };
     expect(fxCreateFields({ editStyle: withReactions, captionTemplate: "default" }, { enabled: true, reactions_available: false }))
-      .toEqual({ caption_template: "default", edit_style: { intensity: "spicy" } });
+      .toEqual({ caption_template: "default", edit_style: { intensity: "bold" } });
     expect(fxCreateFields({ editStyle: withReactions, captionTemplate: "default" }, { enabled: true, reactions_available: true }))
-      .toEqual({ caption_template: "default", edit_style: { intensity: "spicy", reactions: true } });
+      .toEqual({ caption_template: "default", edit_style: { intensity: "bold", reactions: true } });
   });
 
   it.each([
     ["the flag off", { enabled: false }],
     ["a failed or 404 fetch", EDIT_STYLES_UNAVAILABLE],
     ["no answer yet", null],
-  ])("drops a stored spicy style and animated template with %s", (_label, info) => {
+  ])("drops a stored bold style and animated template with %s", (_label, info) => {
     for (const template of FX_CAPTION_TEMPLATES) {
-      const fields = fxCreateFields({ editStyle: spicy, captionTemplate: template }, info);
+      const fields = fxCreateFields({ editStyle: bold, captionTemplate: template }, info);
       expect(fields).toEqual({ caption_template: sendableCaptionTemplate(template, false) });
       expect(["default", "tiktok", "mrbeast", "minimal", "hormozi", "neon"]).toContain(fields.caption_template);
     }
-    expect(fxCreateFields({ editStyle: spicy, captionTemplate: "podcast" }, info)).toEqual({ caption_template: "podcast" });
+    expect(fxCreateFields({ editStyle: bold, captionTemplate: "podcast" }, info)).toEqual({ caption_template: "podcast" });
     expect(fxCreateFields({ editStyle: null, captionTemplate: null }, info)).toEqual({ caption_template: "default" });
   });
 
@@ -99,19 +99,19 @@ describe("send-time sanitiser", () => {
 
 describe("stored styles", () => {
   it("reads a row like the backend: a dict or a JSON string, unknown keys dropped, bad values defaulted", () => {
-    expect(readEditStyle({ intensity: "spicy", from_the_future: 1, music: "loud", censor: "bleep" }))
-      .toEqual({ ...DEFAULT_EDIT_STYLE, intensity: "spicy", censor: "bleep" });
-    expect(readEditStyle('{"intensity":"unhinged","grade":"noir"}')).toEqual({ ...DEFAULT_EDIT_STYLE, intensity: "unhinged", grade: "noir" });
+    expect(readEditStyle({ intensity: "bold", from_the_future: 1, music: "loud", censor: "bleep" }))
+      .toEqual({ ...DEFAULT_EDIT_STYLE, intensity: "bold", censor: "bleep" });
+    expect(readEditStyle('{"intensity":"max","grade":"noir"}')).toEqual({ ...DEFAULT_EDIT_STYLE, intensity: "max", grade: "noir" });
     for (const value of [null, undefined, "", "{nope", 3, [], { intensity: "nuclear" }]) expect(readEditStyle(value)).toEqual(DEFAULT_EDIT_STYLE);
   });
 
   it("remembers every changed choice, intensity included when off", () => {
     expect(editStylePreference(DEFAULT_EDIT_STYLE)).toEqual({});
     expect(editStylePreference({ ...DEFAULT_EDIT_STYLE, music: false })).toEqual({ music: false });
-    expect(editStylePreference({ ...spicy, music_mood: "dark" })).toEqual({ intensity: "spicy", music_mood: "dark" });
-    expect(parseEditStylePreference({ intensity: "chill", sfx: false, zooms: "yes", nope: true })).toEqual({ intensity: "chill", sfx: false });
+    expect(editStylePreference({ ...bold, music_mood: "dark" })).toEqual({ intensity: "bold", music_mood: "dark" });
+    expect(parseEditStylePreference({ intensity: "subtle", sfx: false, zooms: "yes", nope: true })).toEqual({ intensity: "subtle", sfx: false });
     expect(parseEditStylePreference({})).toBeUndefined();
     expect(parseEditStylePreference({ intensity: "off" })).toBeUndefined();
-    expect(parseEditStylePreference("spicy")).toBeUndefined();
+    expect(parseEditStylePreference("bold")).toBeUndefined();
   });
 });

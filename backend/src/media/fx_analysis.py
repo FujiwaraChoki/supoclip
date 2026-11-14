@@ -1,4 +1,4 @@
-"""Face track and person matte for crazy edits (FINAL §6.2, §6.4).
+"""Face track and person matte for dynamic edits (FINAL §6.2, §6.4).
 
 Everything here measures the *picture the viewer sees*: generation decodes the
 source once through the render's own framing head (no B-roll, no subtitles), so

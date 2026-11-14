@@ -149,7 +149,7 @@ const cue = {
 };
 
 const withFx = (fx: Partial<DocFx>, doc: EditDocument = draft): EditDocument => ({
-  ...doc, fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "spicy" }, ...fx },
+  ...doc, fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "bold" }, ...fx },
 });
 
 const asset: EditorState = {
@@ -160,7 +160,7 @@ const asset: EditorState = {
 // ------------------------------------------------------------------------------------------------------- tests
 
 describe("browser export refusal (§10, §14.2)", () => {
-  it("allows legacy drafts and crazy edits without warp, reactions or behind text", () => {
+  it("allows legacy drafts and dynamic edits without warp, reactions or behind text", () => {
     expect(browserExportRefusal(draft)).toBeNull();
     expect(browserExportRefusal(withFx({ cues: [cue.zoom("z"), cue.sfx("s", 1), cue.bleep("b", 1, 1.2)] }))).toBeNull();
     expect(browserExportRefusal({ ...draft, captions: { ...draft.captions, template: "slam" } })).toBeNull();
@@ -198,7 +198,7 @@ describe("browser export refusal (§10, §14.2)", () => {
 describe("exportAudioProgram", () => {
   beforeEach(() => assets.loadFxManifest.mockClear());
 
-  it("is null for drafts without crazy edits or with nothing audible", async () => {
+  it("is null for drafts without dynamic edits or with nothing audible", async () => {
     expect(await exportAudioProgram(draft)).toBeNull();
     expect(await exportAudioProgram(withFx({ cues: [cue.zoom("z")] }))).toBeNull();
     expect(assets.loadFxManifest).not.toHaveBeenCalled();
@@ -259,7 +259,7 @@ describe("exportDraft", () => {
     expect(recorded.video).toHaveLength(0);
   });
 
-  it("renders crazy edits at 30 fps on F and mixes SFX and bleeps into the voice", async () => {
+  it("renders dynamic edits at 30 fps on F and mixes SFX and bleeps into the voice", async () => {
     const doc = withFx(
       { cues: [cue.sfx("s", 2.5), cue.bleep("b", 0.2, 0.4)] },
       { ...draft, segments: [{ id: "a", start: 0, end: 1 }, { id: "b", start: 2, end: 3 }] },
@@ -315,7 +315,7 @@ describe("exportDraft", () => {
     expect(() => draw({ x: 0, y: 0, width: 1, height: 1 }, {})).not.toThrow();
   });
 
-  it("keeps the legacy path for drafts without crazy edits", async () => {
+  it("keeps the legacy path for drafts without dynamic edits", async () => {
     await exportDraft("/x/media/clean.mp4", draft, asset, "tiktok", new AbortController().signal, () => {});
     expect(render.loadEditorFxResources).not.toHaveBeenCalled();
     expect(recorded.sinkTimestamps).toHaveLength(0);

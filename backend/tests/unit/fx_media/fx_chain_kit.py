@@ -69,7 +69,7 @@ def head_for(w: int, h: int) -> tuple[str, str]:
     return f"[0:v]scale={w}:{h}:flags=lanczos,setsar=1[base]", "[base]"
 
 
-def plan(*, duration: float, cues=(), template: str = "marker_circle", intensity: str = "spicy", **extra) -> FxPlan:
+def plan(*, duration: float, cues=(), template: str = "marker_circle", intensity: str = "bold", **extra) -> FxPlan:
     return FxPlan(style=EditStyle(intensity=intensity), template=template, seed=7, edit_duration=duration,
                   cues=tuple(cues), **extra)
 

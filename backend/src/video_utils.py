@@ -300,7 +300,7 @@ def create_optimized_clip(
     ``point_labels`` are a recap's on-screen points ({"text", "start"} on the
     clip timeline), burned in with the captions.
 
-    ``fx`` (crazy edits) renders the clip through the fx chain with the
+    ``fx`` (dynamic edits) renders the clip through the fx chain with the
     fallback ladder full → full without B-roll → safe → none (FINAL §6.6);
     ``layout_report`` then receives ``fx_level``, ``applied_warp``,
     ``face_track`` and ``fx_plan`` (the plan as rendered). ``caption_override``
@@ -613,7 +613,7 @@ def create_optimized_clip(
         return False
 
 
-# --------------------------------------------------------------------------- crazy edits (FINAL §6.1, §6.6)
+# --------------------------------------------------------------------------- dynamic edits (FINAL §6.1, §6.6)
 
 # Passage breaks: a junction whose source gap is at least this long reads as a new passage (AP-M2).
 FX_PASSAGE_GAP_SECONDS = 3.0
@@ -1236,7 +1236,7 @@ def create_clips_from_segments(
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support.
 
-    ``fx_enabled`` (crazy edits re-render): a segment carrying ``edit_fx`` (a plan
+    ``fx_enabled`` (dynamic edits re-render): a segment carrying ``edit_fx`` (a plan
     ``VideoService.create_video_clips`` already resolved, with ``fx_words``,
     ``fx_reaction_files`` and an optional ``face_track``) renders through the fx
     chain and records its FX sidecar keys. This function never plans: no

@@ -32,7 +32,7 @@ SEEDS = range(200)
 EPS = 1e-6
 FRAME = 1 / 30
 
-CONTENT = ("money", "business", "people", "crazy", "amazing", "honestly", "literally", "secret", "million",
+CONTENT = ("money", "business", "people", "wild", "amazing", "honestly", "literally", "secret", "million",
            "family", "terrible", "beautiful", "everything", "nothing", "dangerous", "simple", "results", "never",
            "growth", "mistake", "ridiculous", "freedom", "teacher", "weekend", "struggle", "winning", "journey")
 FILLER = ("the", "a", "and", "so", "we", "it", "was", "to", "of", "in", "my", "you", "I", "that", "is", "just")
@@ -235,19 +235,19 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
         assert not [c for c in accents if c.variant in ("emoji", "emoji_burst", "doodle")]
         assert not get("reaction") and not get("freeze") and not get("speed")
 
-    # --- transitions: only at cuts, never inside a word, per-tier count, chill on passage breaks only
+    # --- transitions: only at cuts, never inside a word, per-tier count, subtle on passage breaks only
     trs = get("transition")
     assert len(trs) <= (transition_cap(tier, dur) if style.transitions else 0)
     for c in trs:
         assert any(abs(c.start - cut) < 1e-3 for cut in inp.cuts)
         assert not any(w["start"] + 0.05 < c.start < w["end"] - 0.05 for w in inp.words)
-        if tier == "chill":
+        if tier == "subtle":
             assert any(abs(c.start - p) < 1e-3 for p in inp.passage_breaks)
 
     # --- flash / glitch hits (non-intrinsic), full-frame spacing, one full-frame effect at a time
     hits_fg = [c for c in get("flash") + get("glitch") if not c.id.endswith(".slam.flash")]
     assert len(hits_fg) <= cap("hit", tier, dur)
-    if tier == "unhinged":
+    if tier == "max":
         assert spaced([(c.start, c.id) for c in hits_fg], gap("hit", tier))
     full_frame = [(c.start, owner(c)) for c in get("flash") + get("glitch") + trs + shakes]
     full_frame += [(c.start, owner(c)) for c in accents if c.variant == "slam"]
@@ -260,7 +260,7 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
     # --- warp families and caps (G14)
     freezes, speeds = get("freeze"), get("speed")
     assert len(freezes) <= cap("freeze", tier, dur)
-    if tier == "spicy" and freezes:
+    if tier == "bold" and freezes:
         assert dur >= 15.0
     ramps = [c for c in speeds if c.id.endswith(".ramp")]
     fast = [c for c in speeds if ".fast" in c.id]
@@ -271,7 +271,7 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
     assert all(1.5 - EPS <= c.rate <= 2.5 + EPS for c in fast)
     assert all(c.rate == 0.5 for c in slow)
     if speeds or freezes:
-        assert style.speed and inp.beats.timing == "word" and tier in ("spicy", "unhinged")
+        assert style.speed and inp.beats.timing == "word" and tier in ("bold", "max")
     hold = sum(c.hold for c in freezes)
     assert hold <= min(1.6, 0.04 * dur) + EPS
     delta = sum(round((c.end - c.start) / c.rate * 30) / 30 - (c.end - c.start) for c in speeds)
@@ -299,9 +299,9 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
     assert len(stickers) <= cap("wait", tier, dur)
     for w in stickers:
         pay = beats[w.beat]
-        lead = 6.0 if tier == "spicy" else 4.0
+        lead = 6.0 if tier == "bold" else 4.0
         assert pay.kind == "payoff" and pay.start - (inp.beats.hook_end or 0.0) >= lead - EPS
-        if tier == "spicy":
+        if tier == "bold":
             assert dur >= 20.0
 
     # --- quiet zones (rule 3)
@@ -346,8 +346,8 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
     if tier == "style":
         assert plan.grade == "none" and plan.grain == 0 and not plan.progress_bar
     else:
-        expected = {"chill": "none", "spicy": "punchy",
-                    "unhinged": "teal_orange" if inp.beats.mood in ("dramatic", "dark") else "punchy"}[tier]
+        expected = {"subtle": "none", "bold": "punchy",
+                    "max": "teal_orange" if inp.beats.mood in ("dramatic", "dark") else "punchy"}[tier]
         assert plan.grade == expected
         assert plan.grain == (GRAIN[tier] if style.grain else 0.0)
     if template == "kinetic_stack":
@@ -375,7 +375,7 @@ def test_resolve_is_deterministic(block):
     for seed in SEEDS[block::20]:
         inp, options = random_clip(seed)
         for template in ("slam", "face_doodles", "default"):
-            style = EditStyle(intensity="unhinged", **options)
+            style = EditStyle(intensity="max", **options)
             assert resolve(inp, style, template, seed) == resolve(inp, style, template, seed)
 
 
@@ -386,4 +386,4 @@ def test_intensity_grows_monotonically_on_average():
         inp, _ = random_clip(seed)
         for intensity in INTENSITIES:
             totals[intensity] += len(resolve(inp, EditStyle(intensity=intensity), "marker_circle", seed).cues)
-    assert totals["off"] < totals["chill"] < totals["spicy"] < totals["unhinged"]
+    assert totals["off"] < totals["subtle"] < totals["bold"] < totals["max"]

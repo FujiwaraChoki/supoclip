@@ -46,7 +46,7 @@ async function proxyTaskRequest(
     cache: "no-store",
   });
 
-  // Canvas video needs a CORS-enabled response (the crazy-edit matte is read
+  // Canvas video needs a CORS-enabled response (the dynamic-edit matte is read
   // back pixel by pixel, which a cross-origin frame would forbid). Following a same-origin
   // redirect to object storage can produce a request without Origin, so the
   // bucket returns usable bytes but no CORS header. Keep editor assets on this

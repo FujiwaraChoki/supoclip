@@ -183,8 +183,8 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
 }
 
 
-# Animated caption styles for crazy edits. fx-core draws them (base captions plus the template's accent
-# variants, docs/crazy-edits.md); libass never does. They live apart from CAPTION_TEMPLATES so every place that
+# Animated caption styles for dynamic edits. fx-core draws them (base captions plus the template's accent
+# variants, docs/dynamic-edits.md); libass never does. They live apart from CAPTION_TEMPLATES so every place that
 # lists or validates the legacy templates (the default /caption-templates response, AI edit, the studio's caption
 # looks) keeps showing only those seven unless it asks for these explicitly.
 #
@@ -495,7 +495,7 @@ TEMPLATE_DEFAULTS: Dict[str, Any] = {
 def get_template(template_name: str) -> Dict[str, Any]:
     """Get a caption template by name, returns default if not found.
 
-    Legacy ids come from ``CAPTION_TEMPLATES`` exactly as before; the animated (crazy edits) ids come from
+    Legacy ids come from ``CAPTION_TEMPLATES`` exactly as before; the animated (dynamic edits) ids come from
     ``FX_CAPTION_TEMPLATES_DICT``. Anything else is the default template.
     """
     template = CAPTION_TEMPLATES.get(template_name) or FX_CAPTION_TEMPLATES_DICT.get(
@@ -529,7 +529,7 @@ def get_template_info(include_fx: bool = False) -> list:
     """Get list of template info for API response.
 
     The legacy list is unchanged. ``include_fx`` appends the animated templates (``fx: true`` plus what they
-    ``require``); only callers that already know the user can make crazy edits pass it.
+    ``require``); only callers that already know the user can make dynamic edits pass it.
     """
     info = [
         {

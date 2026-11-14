@@ -21,7 +21,7 @@ export type CreateSettings = {
   filteredWords?: string;
   lengths?: Partial<Record<LengthWorkflow, ClipLength>>;
   advanced?: Partial<Record<Workflow, Record<string, WorkflowSettingValue>>>;
-  /** Crazy edits: the choices that differ from the defaults (intensity included when off), see `editStylePreference`. */
+  /** Dynamic edits: the choices that differ from the defaults (intensity included when off), see `editStylePreference`. */
   editStyle?: Partial<EditStyle>;
 };
 

@@ -25,7 +25,7 @@ def draft(*, behind=False, framing=None, disabled=()):
         cues.append({"kind": "accent", "id": "bh", "start": 0.5, "end": 1.0, "variant": "behind", "text": "NO"})
     return {"version": 1, "segments": [{"id": "s", "start": 0, "end": 2}],
             "framing": framing or {"aspect": "vertical", "fit": "auto"},
-            "fx": {"style": {"intensity": "spicy"}, "cues": cues, "disabled": list(disabled)}}
+            "fx": {"style": {"intensity": "bold"}, "cues": cues, "disabled": list(disabled)}}
 
 
 def test_needs_base_and_job_id():

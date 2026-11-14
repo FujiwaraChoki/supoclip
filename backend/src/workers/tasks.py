@@ -347,7 +347,7 @@ class WorkerSettings:
         prepare_editor,
         export_editor,
         combine_editor,
-        # Studio face track and person matte (crazy edits). Idempotent per media version, so a retry is safe.
+        # Studio face track and person matte (dynamic edits). Idempotent per media version, so a retry is safe.
         func(editor_fx_analysis, timeout=ANALYSIS_JOB_TIMEOUT_SECONDS, max_tries=2),
         # One try: a lost running export is failed by the heartbeat sweep, and a
         # retry would start a second encode for the same row.

@@ -349,16 +349,16 @@
         "label": "Desligada",
         "hint": "Cortes limpos, nada adicionado"
       },
-      "chill": {
-        "label": "Leve",
+      "subtle": {
+        "label": "Sutil",
         "hint": "Alguns zooms e efeitos sonoros suaves"
       },
-      "spicy": {
-        "label": "Picante",
+      "bold": {
+        "label": "Forte",
         "hint": "Zooms rápidos, whooshes e música"
       },
-      "unhinged": {
-        "label": "Insana",
+      "max": {
+        "label": "Máxima",
         "hint": "Todos os truques, em cada momento"
       }
     },

@@ -1,6 +1,6 @@
-"""Legacy golden pins: today's behaviour, frozen before crazy edits touch the hot files.
+"""Legacy golden pins: today's behaviour, frozen before dynamic edits touch the hot files.
 
-Crazy edits must leave the legacy path (intensity off, one of the seven legacy caption
+Dynamic edits must leave the legacy path (intensity off, one of the seven legacy caption
 templates) byte-identical: the same ASS files, ffmpeg argv, call kwargs, sidecar keys,
 API JSON, SQL text, AI-edit prompt and editor document dump. Each test computes the
 current value and compares it with ``tests/fixtures/legacy_pins/expected/``.

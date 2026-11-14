@@ -127,11 +127,11 @@ export interface EditDocument {
   captionTransforms?: Record<string, CaptionTransform>;
   /** Absent on drafts cached before the editor had B-roll. */
   broll?: BRollClip[];
-  /** Crazy edits. Absent (never null on the wire) when the clip has none; see DocFx. */
+  /** Dynamic edits. Absent (never null on the wire) when the clip has none; see DocFx. */
   fx?: DocFx | null;
 }
 /**
- * Crazy edits of one draft (mirror of `editor_document.DocFx`). Beats and cues are on the source (clean.mp4, S)
+ * Dynamic edits of one draft (mirror of `editor_document.DocFx`). Beats and cues are on the source (clean.mp4, S)
  * timeline like B-roll, so they follow cuts; `mappedFx` puts them on the edit (E) timeline. Nested contract objects
  * keep their snake_case because they are shared with the clip sidecar.
  */
@@ -683,10 +683,10 @@ export function locate(doc: EditDocument, time: number) {
   return { index: item.index, source: item.segment.start + at - item.start };
 }
 
-// ------------------------------------------------------------------------------------------- crazy edits (fx)
+// ------------------------------------------------------------------------------------------- dynamic edits (fx)
 
 /**
- * "The user removed crazy edits": intensity off, no cues or beats, every kind disabled. Written by "Remove all
+ * "The user removed dynamic edits": intensity off, no cues or beats, every kind disabled. Written by "Remove all
  * edits"; blocks re-seeding from the clip (an absent `fx` would be seeded again).
  */
 export function inertDocFx(previous?: DocFx | null): DocFx {
@@ -748,7 +748,7 @@ export function mappedFxBeats(doc: EditDocument): Beat[] {
 
 /**
  * True when rendering this draft needs fx-core (== editor_document.document_needs_fx): an FX caption template, or
- * crazy edits that draw or sound (cues of enabled kinds, music, a grade, grain, the progress bar or a loop ending).
+ * dynamic edits that draw or sound (cues of enabled kinds, music, a grade, grain, the progress bar or a loop ending).
  */
 export function documentNeedsFx(doc: EditDocument): boolean {
   if (isFxTemplate(doc.captions.template)) return true;

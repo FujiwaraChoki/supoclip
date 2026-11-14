@@ -1,5 +1,5 @@
 // @vitest-environment node
-// The studio renderer's crazy-edit branch on real Skia (@napi-rs/canvas, the same engine as Chrome): fx-core frames
+// The studio renderer's dynamic-edit branch on real Skia (@napi-rs/canvas, the same engine as Chrome): fx-core frames
 // over the framed picture, the document's effects before the grade, censored legacy captions, the suppressed hook.
 import { createCanvas, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -26,7 +26,7 @@ const withFx = (over: Partial<DocFx>, doc: Partial<EditDocument> = {}): EditDocu
   ...draft,
   segments: [{ id: "s", start: 0, end: 3 }],
   ...doc,
-  fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "spicy" }, ...over },
+  fx: { ...DEFAULT_DOC_FX, style: { ...DEFAULT_DOC_FX.style, intensity: "bold" }, ...over },
 });
 
 function canvas(width = 270, height = 480): { canvas: Canvas; ctx: CanvasRenderingContext2D } {
@@ -46,7 +46,7 @@ const mean = (ctx: CanvasRenderingContext2D) => {
   return [r / n, g / n, b / n];
 };
 
-describe("drawEditorFrame with crazy edits", () => {
+describe("drawEditorFrame with dynamic edits", () => {
   it("draws fx-core over the framed picture: a flash whitens its frames only", () => {
     const doc = withFx({ cues: [flash(1, 1.3)] });
     const { ctx } = canvas();
@@ -90,7 +90,7 @@ describe("drawEditorFrame with crazy edits", () => {
     expect(Math.abs(r - b)).toBeLessThan(6);
   });
 
-  it("leaves a draft without crazy edits on the legacy path", () => {
+  it("leaves a draft without dynamic edits on the legacy path", () => {
     const { ctx } = canvas();
     const filters: string[] = [];
     drawEditorFrame(ctx, draft, 1080, 1920, 0.5, picture(filters), undefined, null, "none");
@@ -98,7 +98,7 @@ describe("drawEditorFrame with crazy edits", () => {
   });
 });
 
-describe("text layers with crazy edits", () => {
+describe("text layers with dynamic edits", () => {
   const recordText = (ctx: CanvasRenderingContext2D) => {
     const texts: string[] = [];
     const fill = ctx.fillText.bind(ctx);

@@ -13,8 +13,8 @@
    " 33.155- 33.955 b15.accent       accent     arrow '90 days'"
   ]
  },
- "marker_circle/chill": {
-  "sha256": "904b4ed0a100c8d6cd3f88aabcab6ef00c7f6f57b070b7385b4b6de3c4d05512",
+ "marker_circle/subtle": {
+  "sha256": "63939453d44f6b1dfff3b16d3adddc443526b06436f125b2a8c4a89507cb855c",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -34,8 +34,8 @@
    " 33.155- 33.155 b15.sfx          sfx        stamp#0 +0dB"
   ]
  },
- "marker_circle/spicy": {
-  "sha256": "35ebd94c156185565675a690d46ca9dc6955f03344934c67ae47a0c397b33cdd",
+ "marker_circle/bold": {
+  "sha256": "a229c89df1313b507c6686d86ed9e75c0149af36f148e09c7ed02b6a282d9747",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -71,8 +71,8 @@
    " 33.155- 33.955 b15.accent       accent     arrow '90 days'"
   ]
  },
- "marker_circle/unhinged": {
-  "sha256": "9ce740a80c50e697d283c2cba95d2453334a0f0aa37b5296d29da8c864a88eb7",
+ "marker_circle/max": {
+  "sha256": "adf54ba4b673947afe28f94ff5e1ed698f2109b98740181eef0fdcec96a6d30e",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -152,8 +152,8 @@
    " 33.155- 33.155 b15.accent.sfx   sfx        pop#2 +0dB"
   ]
  },
- "emoji_drop/chill": {
-  "sha256": "9479c4f57447e5a84d01f0c5c2d2369d183e671cc57080f78122b7c57c137051",
+ "emoji_drop/subtle": {
+  "sha256": "39eb2387e09772619ac7f6f2db783a7e93385a34e032fc21968c20e36b0b7579",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -173,8 +173,8 @@
    " 33.155- 34.355 b15.accent       accent     emoji '90 days' ✨"
   ]
  },
- "emoji_drop/spicy": {
-  "sha256": "5a10a69e300dcd4a2646cafffd75f2cf10f49b98dec47fbd4f7ebf9297f06034",
+ "emoji_drop/bold": {
+  "sha256": "73b364d726cd25b7ecda1939bc50ac2ef9feafeec107dce18cf9d18aa99400d6",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -211,8 +211,8 @@
    " 33.155- 34.355 b15.accent       accent     emoji '90 days' ✨"
   ]
  },
- "emoji_drop/unhinged": {
-  "sha256": "0da28c6636120f5dcbeda7cd7386a0b9bfc844fdf8711709b018b4eee3d675fa",
+ "emoji_drop/max": {
+  "sha256": "6567c08c6ec3efbd7f3210fa1b813f41198fdf0b879e71e82d4fbf3b88751158",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -288,8 +288,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "slam/chill": {
-  "sha256": "fdca731b2444c923591dd20b3c48663c0a2f1425a9027430602d35e6b4224940",
+ "slam/subtle": {
+  "sha256": "c9f42e785f49fd150ffd8a31abd57356965df020eac08ca025d571e9d159b1fe",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": true,
@@ -311,8 +311,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "slam/spicy": {
-  "sha256": "1d346359a804473757683484a8c9886b31d9e4988ae77ae468868f139f6f6e04",
+ "slam/bold": {
+  "sha256": "fdd27194f8dfef1a26fdc12b048078de0c58b3f8ebc10b5a1b9db505f431433d",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -354,8 +354,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "slam/unhinged": {
-  "sha256": "54e8814d9cc184e3096ecb1088df19a7c99029f2fcd2438cc20979dfb8086e8c",
+ "slam/max": {
+  "sha256": "fc29054d176682ddf93c6b84f0cf75963aabb0aef44820fbed337b8c2eb44c44",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -435,8 +435,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "behind_head/chill": {
-  "sha256": "a5be5ece66c7b2f275fcf7482c4ab3fdf60250bcfacaa2e49e076846810ee545",
+ "behind_head/subtle": {
+  "sha256": "ccc21b5f10bc34e6a0f986d6a1b04e3c82d652276a3100f85155f4126f40dbe4",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -456,8 +456,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "behind_head/spicy": {
-  "sha256": "d73c56d739f1650cb75ec5bf33b8c1e03c3ee7762a8167c25b38237833b15407",
+ "behind_head/bold": {
+  "sha256": "b23f3068e016b5dbbcd25b91b4efa751c940cd91f5a197a3daf4306eeea2e6b6",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -493,8 +493,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "behind_head/unhinged": {
-  "sha256": "12645958ce832f0efdea0a6e563c70b096174e818c2ac26bb53b3376e8bf0883",
+ "behind_head/max": {
+  "sha256": "85f38e129d4754f055065c1f2f11a197be790a70d0c837d6e584cbfc99922de2",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -571,8 +571,8 @@
    " 34.245- 34.245 b15.accent.sfx2  sfx        stamp#0 +0dB"
   ]
  },
- "stat_counter/chill": {
-  "sha256": "fb92bcf792281c47a19a6d2f0e0ec11fc7bc80b50aafb397ce6e43da4a8377d0",
+ "stat_counter/subtle": {
+  "sha256": "d733981c22be6d2d762df32947ee3d06c35d8a9a4dde0b24a29df1494a742a70",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -594,8 +594,8 @@
    " 34.245- 34.245 b15.accent.sfx2  sfx        stamp#0 +0dB"
   ]
  },
- "stat_counter/spicy": {
-  "sha256": "0d6a464aa3e76598f8fa313c6126f2476a89f930aefc8f060b34c693d9d4f626",
+ "stat_counter/bold": {
+  "sha256": "eb714879b677bf1f8d4e4bad260ee7541f624c00c07577ccf3ae6c3017390542",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -631,8 +631,8 @@
    " 33.155- 35.145 b15.accent       accent     counter '90 days' =90.0"
   ]
  },
- "stat_counter/unhinged": {
-  "sha256": "9219fadd775c01badfb42c6393f4cc40bd991aa792aa2980c4ddbdcc64edfd3f",
+ "stat_counter/max": {
+  "sha256": "d810120aa45a5cb2114b267ca4092c22b0798149eb03e999ffcf1c20b1c3fcbe",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -714,8 +714,8 @@
    " 33.155- 33.155 b15.accent.sfx   sfx        slap#1 +0dB"
   ]
  },
- "sticker_slap/chill": {
-  "sha256": "acffbef3f688fe88fde11d8ffed3211e10f82b4216e1fa8f91dcd8d5d7c8d23c",
+ "sticker_slap/subtle": {
+  "sha256": "ea1d84d5d0929f4b80c070500c21b3620b94ee3530e7e5e1c18ff5c2d150d762",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -735,8 +735,8 @@
    " 33.155- 34.345 b15.accent       accent     sticker '90 days'"
   ]
  },
- "sticker_slap/spicy": {
-  "sha256": "3f5391e460877e9562ce65a66604b6863afeb5f4be3fc6635926e04e7a9aa558",
+ "sticker_slap/bold": {
+  "sha256": "145a95e04b8ea5382f3a812b80a3cfae4090f542d19dcf88031c61093b2121ca",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -773,8 +773,8 @@
    " 33.155- 34.345 b15.accent       accent     sticker '90 days'"
   ]
  },
- "sticker_slap/unhinged": {
-  "sha256": "e72a07bd569b16e9e38dd0875212c62fb768761525b5e3d54343ec8f25f5bdc1",
+ "sticker_slap/max": {
+  "sha256": "b5e9a89c121422b1578bd7f91457aa79679612bb5106255082e7814c8a6b8555",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -849,8 +849,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "kinetic_stack/chill": {
-  "sha256": "979cbd53d4757ccbe969a88cbe24793bba796c95fefd7cdd18bfc08dcef2dd0e",
+ "kinetic_stack/subtle": {
+  "sha256": "a9b99e939ab8e1a904f09ab2afa9d5546ec2e7caf3dc3273cfb66fa217719ab7",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": true,
@@ -871,8 +871,8 @@
    " 33.155- 33.155 b15.sfx          sfx        stamp#0 +0dB"
   ]
  },
- "kinetic_stack/spicy": {
-  "sha256": "0a0a23ad41fd0803e49fabf6af0c8ee8bf4812cc2fb53151867fdeeb2796e5eb",
+ "kinetic_stack/bold": {
+  "sha256": "b7f5e2520959be61e97e3d9828e081917fae153e5eb1c465d9df1f3c924abc27",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -909,8 +909,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "kinetic_stack/unhinged": {
-  "sha256": "24129c3bdf8a3a65c3188d3f35fa73677b0308c33ff09b2f1841faf637f86295",
+ "kinetic_stack/max": {
+  "sha256": "22a9cb13dbc3a73223a769d3dc75a82f2bfb0fd29b44d9774d92032e73010a0b",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
@@ -990,8 +990,8 @@
    " 33.155- 33.155 b15.accent.sfx   sfx        glitch#1 -3dB"
   ]
  },
- "decode_glitch/chill": {
-  "sha256": "84c43697e3c4635d957209d46d58806862fd3511ae406591dfed3dd3afaa81a4",
+ "decode_glitch/subtle": {
+  "sha256": "ca7ee31a1fbeb1de9911c4a7b345cf68d4768d2b6b6e92186cbcc026436374c5",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1011,8 +1011,8 @@
    " 33.155- 34.145 b15.accent       accent     decode '90 days'"
   ]
  },
- "decode_glitch/spicy": {
-  "sha256": "0f5703065455a5997e00825c350776af0eb7c2c0bad3fde03ec5d4426ce8cb7a",
+ "decode_glitch/bold": {
+  "sha256": "3868146755584320941f03cc7080d654e644961bedf8671215e382b2c610c704",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1050,8 +1050,8 @@
    " 33.155- 34.145 b15.accent       accent     decode '90 days'"
   ]
  },
- "decode_glitch/unhinged": {
-  "sha256": "51b1b1a87757ddd588932a4d10136f3cd50333afe3da8f34ebed0178ce41bc1e",
+ "decode_glitch/max": {
+  "sha256": "3951f843a76ac1da38e921a5a4821eaaae1bc03293cac813ebea8376c1982e06",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1125,8 +1125,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "highlighter_swipe/chill": {
-  "sha256": "5237d3a4bb4c0dcb15ff0c385f4d9841d5a4c5e658f92005cda163cfbdefe4ac",
+ "highlighter_swipe/subtle": {
+  "sha256": "8e3d8b3899757cb49c2ca39118f6ab17950b3b642ae0c3502e157f695ef1998b",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1146,8 +1146,8 @@
    " 33.155- 33.155 b15.sfx          sfx        stamp#0 +0dB"
   ]
  },
- "highlighter_swipe/spicy": {
-  "sha256": "389dd188d8ad4acd98d80dde581e232cc85194c66d03cf007e7fb3b6885fa67f",
+ "highlighter_swipe/bold": {
+  "sha256": "88706bc85b45694302c4d750d7e3691827f8d60330b17b83288e5f0bade34353",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1182,8 +1182,8 @@
    " 33.155- 33.955 b15.accent       accent     highlight '90 days'"
   ]
  },
- "highlighter_swipe/unhinged": {
-  "sha256": "7e10676a8a4be3a9d12be6c5422a00cfb5d43eed7604c49aeb266d3cdd0cd494",
+ "highlighter_swipe/max": {
+  "sha256": "47c811356a0062d26a34f9579a40bd317f5694335d99c7a6e1259e1552c2527b",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1275,8 +1275,8 @@
    " 33.155- 33.155 b15.accent.sfx   sfx        pop#2 +0dB"
   ]
  },
- "face_doodles/chill": {
-  "sha256": "e7135ab69a165a972fc0399f4968176ee0c76b3b07542a8f6fe586490af35bb0",
+ "face_doodles/subtle": {
+  "sha256": "70a5d5a5c8d7cc97a261ef0ea7d7ae7b251e98c7d1e9f6e0d476c406bcf1dc0f",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1297,8 +1297,8 @@
    " 33.155- 34.645 b15.accent       accent     doodle '90 days' arrows"
   ]
  },
- "face_doodles/spicy": {
-  "sha256": "a6c97f27569cc9e7927530216171e7108beddc2d6d41dd5fcb49806802f7fdb1",
+ "face_doodles/bold": {
+  "sha256": "a380bdb009dcc41e88f47b9ebae3acd8cee617f27e006085c4d3acf12925a932",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1335,8 +1335,8 @@
    " 33.155- 34.645 b15.accent       accent     doodle '90 days' arrows"
   ]
  },
- "face_doodles/unhinged": {
-  "sha256": "3decb4a95568b7e0ac719daaf766d73fde077297c005fbcda7556580fa3d8845",
+ "face_doodles/max": {
+  "sha256": "88d40f340f8a401f9923fa5ec0b7f991362e9a3bb07985f722455a8cf41d12af",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1395,8 +1395,8 @@
    " 33.155- 33.775 b15.zoom         zoom       punch 1.18"
   ]
  },
- "default/chill": {
-  "sha256": "53ef813b29080e7bc6bc81135c34c0511555ddc3405a9d3e559b25f6e36555ff",
+ "default/subtle": {
+  "sha256": "63591b108b048120598aa951e7fc704cf27f928b43ca106a903747ef919cba6d",
   "music": "hype -24.0/-10.0",
   "grade": "none",
   "hook_title_suppressed": false,
@@ -1410,8 +1410,8 @@
    " 33.155- 33.155 b15.sfx          sfx        stamp#0 +0dB"
   ]
  },
- "default/spicy": {
-  "sha256": "91f1f1fd37f7b3264132cfd8b5b5000813f9560c387ef07124c5ede6bb569948",
+ "default/bold": {
+  "sha256": "8d6c60ad017c20a915f733b610507df6c3c7c98bda79ab6ad418eefbdc484b5e",
   "music": "hype -20.0/-12.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
@@ -1437,8 +1437,8 @@
    " 31.800- 31.800 t2.tr            transition whip"
   ]
  },
- "default/unhinged": {
-  "sha256": "ea6657857c5b9fcf78837a4e6f1b8ad004e6e111656e1931021be7dbc5ea0d8b",
+ "default/max": {
+  "sha256": "46eb38b77e2eea723743087e81b298b7a803f04ebad4853c9ac3c0e30abe41a9",
   "music": "hype -17.0/-13.0",
   "grade": "punchy",
   "hook_title_suppressed": false,

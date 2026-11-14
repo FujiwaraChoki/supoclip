@@ -45,7 +45,7 @@ def _workflow_meta(value: Any) -> Dict[str, Any]:
 
 
 def _fx_meta(row: Any) -> Dict[str, Any]:
-    """``{"fx_meta": …}`` for a clip rendered with crazy edits, else nothing: legacy payloads stay unchanged."""
+    """``{"fx_meta": …}`` for a clip rendered with dynamic edits, else nothing: legacy payloads stay unchanged."""
     value = getattr(row, "fx_meta", None)
     if isinstance(value, str):
         try:
@@ -89,7 +89,7 @@ def _clip_select(where: str, *, scores: bool, workflow: bool, fx: bool = False) 
 
 
 def _clip_selects(where: str) -> List[str]:
-    """Newest schema first: crazy-edits metadata, workflow columns, then scores, then the base columns."""
+    """Newest schema first: dynamic-edits metadata, workflow columns, then scores, then the base columns."""
     return [
         _clip_select(where, scores=True, workflow=True, fx=True),
         _clip_select(where, scores=True, workflow=True),
@@ -129,7 +129,7 @@ class ClipRepository:
     ) -> str:
         """Create a new clip record and return its ID.
 
-        ``fx_meta`` (crazy edits: level, timing, intensity, template) is written
+        ``fx_meta`` (dynamic edits: level, timing, intensity, template) is written
         only when given; legacy clips keep the statements they always used.
         """
         previous = await db.execute(sa_text(
@@ -417,7 +417,7 @@ class ClipRepository:
 
         ``workflow_meta``, when given, replaces the clip's workflow metadata
         (a split narrows a planned clip's ranges to the half it kept).
-        ``fx_meta``, when given, replaces the clip's crazy-edits metadata (an
+        ``fx_meta``, when given, replaces the clip's dynamic-edits metadata (an
         edited FX clip keeps it non-null).
         """
         rows = await db.execute(sa_text(

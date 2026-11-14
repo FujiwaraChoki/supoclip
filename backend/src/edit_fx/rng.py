@@ -1,4 +1,4 @@
-"""Integer-only PRNG for crazy edits (G3), mirrored bit-exactly by frontend/src/lib/fx/core/rng.ts.
+"""Integer-only PRNG for dynamic edits (G3), mirrored bit-exactly by frontend/src/lib/fx/core/rng.ts.
 
 Seeds come from strings (beat ids, purposes, task ids) through FNV-1a; floats are never hashed. Every random choice
 the resolver or a drawer makes is ``mulberry32(cue_seed(...))`` or ``hash01(seed, n)``, so a plan and its frames are

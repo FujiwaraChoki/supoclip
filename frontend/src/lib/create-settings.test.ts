@@ -16,7 +16,7 @@ describe("parseCreateSettings", () => {
       filteredWords: "um",
       lengths: { series: "long" },
       advanced: { trailer: { spoilers: "strict", target_seconds: 40, hook_title: false } },
-      editStyle: { intensity: "spicy", music: false, music_mood: "dark", censor: "bleep" },
+      editStyle: { intensity: "bold", music: false, music_mood: "dark", censor: "bleep" },
     };
     expect(parseCreateSettings(settings)).toEqual(settings);
   });
@@ -39,6 +39,6 @@ describe("parseCreateSettings", () => {
     expect(parseCreateSettings({ editStyle: { intensity: "nuclear", sfx: false, grade: "sepia", reactions: true, extra: 1 } }))
       .toEqual({ editStyle: { sfx: false, reactions: true } });
     // Defaults and junk leave nothing to remember.
-    for (const editStyle of [{}, { intensity: "off" }, "spicy", null, []]) expect(parseCreateSettings({ editStyle })).toEqual({});
+    for (const editStyle of [{}, { intensity: "off" }, "bold", null, []]) expect(parseCreateSettings({ editStyle })).toEqual({});
   });
 });

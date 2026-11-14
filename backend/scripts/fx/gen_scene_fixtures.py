@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the studio scene fixtures (``shared/fx/fixtures/scene/*.json``) from the Python studio renderer.
 
-Each case is a studio document with crazy edits and the session facts the server export uses; ``expected`` is the
+Each case is a studio document with dynamic edits and the session facts the server export uses; ``expected`` is the
 ``FxScene`` the export hands fx-core (``editor_fx_render.studio_scene``: cues mapped through the segment cuts, E
 words with their run, the FX caption look, the face track resampled onto E and placed with ``picture_rect``, the
 behind-text matte windows, B-roll windows and the hook window). fx-core's ``studioScene`` (TypeScript) must
@@ -70,7 +70,7 @@ BASE_CUES = [
 
 
 def fx(**changes: Any) -> dict:
-    data = {"style": {"intensity": "spicy"}, "seed": 2961888143, "beats": [], "cues": BASE_CUES}
+    data = {"style": {"intensity": "bold"}, "seed": 2961888143, "beats": [], "cues": BASE_CUES}
     data.update(changes)
     return data
 

@@ -1,4 +1,4 @@
-"""Crazy-edits audio: the premixed FX bus and the P3 audio graph (§9).
+"""Dynamic-edits audio: the premixed FX bus and the P3 audio graph (§9).
 
 Two pieces, both in the render's own scratch directory (no shared disk):
 

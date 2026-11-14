@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { createProxyResponse, fetchBackend } from "@/server/backend-api";
 
-/** Allowed `include` values: `fx` adds the animated (crazy edits) templates, asked for only when they're enabled. */
+/** Allowed `include` values: `fx` adds the animated (dynamic edits) templates, asked for only when they're enabled. */
 const INCLUDES = new Set(["fx"]);
 
 export async function GET(request: NextRequest) {

@@ -14,13 +14,13 @@ By default it talks to the **official hosted SupoClip API** at
 | Tool | Auth | Description |
 |------|:----:|-------------|
 | `supoclip_health` | – | API status + how this server is configured |
-| `supoclip_list_caption_templates` | – | Available caption styles (default, hormozi, mrbeast, …; animated ones too when crazy edits are on) |
+| `supoclip_list_caption_templates` | – | Available caption styles (default, hormozi, mrbeast, …; animated ones too when dynamic edits are on) |
 | `supoclip_list_transitions` | – | Available transition effects |
 | `supoclip_broll_status` | – | Whether B-roll overlays are configured |
 | `supoclip_list_fonts` | ✓ | Subtitle fonts available to your account |
 | `supoclip_billing_summary` | ✓ | Plan, usage and remaining quota |
 | `supoclip_list_workflows` | ✓ | What your account can make (highlights, series, topic, recap, trailer) and each one's limits |
-| `supoclip_list_edit_styles` | ✓ | Whether your account has crazy edits (intensity, sound effects, music, animated captions) and their options |
+| `supoclip_list_edit_styles` | ✓ | Whether your account has dynamic edits (intensity, sound effects, music, animated captions) and their options |
 | `supoclip_create_clip_task` | ✓ | Start clipping a video → returns a `task_id`; `workflow` picks what to make, `intensity` how hard it's edited |
 | `supoclip_list_tasks` | ✓ | List your tasks |
 | `supoclip_get_task` | ✓ | Task status, progress and clips |
@@ -252,7 +252,7 @@ to try instead), `source_too_short`, `no_story`, `recap_unsupported`,
 (use `supoclip_resume_task`). Series clips carry `part_number`; every workflow
 clip carries `workflow_role` and `workflow_meta`.
 
-## Crazy edits
+## Dynamic edits
 
 `intensity` on `supoclip_create_clip_task` edits the clips like a short-form
 editor would: the AI tags the moments that matter (hooks, punchlines, numbers,
@@ -260,10 +260,10 @@ swears) and the intensity decides how hard each one hits.
 
 | `intensity` | Adds |
 |---|---|
-| `off` (default) | Nothing: the request is exactly what it was before crazy edits |
-| `chill` | A few zooms and soft sound effects |
-| `spicy` | Punch-ins, whooshes, transitions and music |
-| `unhinged` | Every trick, every beat: speed ramps, freeze frames, shakes |
+| `off` (default) | Nothing: the request is exactly what it was before dynamic edits |
+| `subtle` | A few zooms and soft sound effects |
+| `bold` | Punch-ins, whooshes, transitions and music |
+| `max` | Every trick, every beat: speed ramps, freeze frames, shakes |
 
 `edit_style` fine-tunes them with the API's keys, passed through as given:
 `sfx`, `music`, `zooms`, `shake`, `transitions`, `speed`, `grain`,
@@ -281,13 +281,13 @@ Animated caption templates (`marker_circle`, `emoji_drop`, `slam`,
 `caption_template` and work with intensity `off` too. `behind_head` and
 `face_doodles` look best with a face on camera.
 
-Crazy edits may be gated per account: call `supoclip_list_edit_styles` first.
+Dynamic edits may be gated per account: call `supoclip_list_edit_styles` first.
 `supoclip_list_caption_templates` lists the animated templates only when it
 says `enabled: true`. Otherwise turning edits on, or picking an animated
-template, is refused with 403 `CRAZY_EDITS_NOT_AVAILABLE` before anything is
+template, is refused with 403 `DYNAMIC_EDITS_NOT_AVAILABLE` before anything is
 charged.
 
-Changing a task's look re-renders clips that have crazy edits on the video
+Changing a task's look re-renders clips that have dynamic edits on the video
 worker: the API answers 202 with `{"status": "queued", "job_id", "kind"}`.
 Pass the `job_id` to `supoclip_wait_for_task` as `clip_job_id` to wait for it.
 
@@ -297,7 +297,7 @@ Pass the `job_id` to `supoclip_wait_for_task` as `clip_job_id` to wait for it.
 - "Turn https://youtu.be/… into a 5-part series and download the parts in order."
 - "Find every moment about pricing in https://youtu.be/…; if the topic isn't covered, try the first suggested topic."
 - "Make a one-minute recap of https://youtu.be/… focused on the money advice."
-- "Clip https://youtu.be/… with spicy edits and the slam captions, no music."
+- "Clip https://youtu.be/… with bold edits and the slam captions, no music."
 - "List my recent supoclip tasks and show the virality scores of the latest one's clips."
 - "Export clip <id> from task <id> as a TikTok preset."
 

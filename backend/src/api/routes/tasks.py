@@ -37,7 +37,7 @@ from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
-from ...feature_flags import CRAZY_EDITS, client_platform, is_enabled as feature_enabled
+from ...feature_flags import DYNAMIC_EDITS, client_platform, is_enabled as feature_enabled
 from ...edit_fx.contracts import EditStyle, FX_CAPTION_TEMPLATES, GRADES, INTENSITIES, MOODS, is_fx_template
 from ...edit_fx.jobs import fx_active
 from ...edit_fx.settings import EditStyleError, edit_style_schema, parse_edit_style, read_edit_style
@@ -91,7 +91,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-CRAZY_EDITS_NOT_AVAILABLE_MESSAGE = "Crazy edits aren't available on your account yet."
+DYNAMIC_EDITS_NOT_AVAILABLE_MESSAGE = "Dynamic edits aren't available on your account yet."
 # A clip job nobody picked up in this long has no worker that knows it (§5.2).
 FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS = 15 * 60
 
@@ -101,15 +101,15 @@ def _invalid_edit_style(exc: EditStyleError) -> HTTPException:
     return HTTPException(status_code=422, detail={"code": "INVALID_EDIT_STYLE", "message": str(exc)})
 
 
-def _crazy_edits_not_available() -> HTTPException:
+def _dynamic_edits_not_available() -> HTTPException:
     return HTTPException(
         status_code=403,
-        detail={"code": "CRAZY_EDITS_NOT_AVAILABLE", "message": CRAZY_EDITS_NOT_AVAILABLE_MESSAGE},
+        detail={"code": "DYNAMIC_EDITS_NOT_AVAILABLE", "message": DYNAMIC_EDITS_NOT_AVAILABLE_MESSAGE},
     )
 
 
-async def _crazy_edits_enabled(db, request: Request, user_id: str) -> bool:
-    return await feature_enabled(db, CRAZY_EDITS, platform=client_platform(request), user_id=user_id)
+async def _dynamic_edits_enabled(db, request: Request, user_id: str) -> bool:
+    return await feature_enabled(db, DYNAMIC_EDITS, platform=client_platform(request), user_id=user_id)
 
 
 def _reactions_available() -> bool:
@@ -669,7 +669,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     ):
         error = workflow_not_available()
         raise HTTPException(status_code=error.status, detail=error.to_detail())
-    # Crazy edits are render-side, so any workflow takes them. A bad value is a
+    # Dynamic edits are render-side, so any workflow takes them. A bad value is a
     # 422 and a locked feature a 403, both before any charge. The stored form is
     # to_json(): {} (stored as NULL) when the intensity is off.
     try:
@@ -678,9 +678,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         raise _invalid_edit_style(exc) from None
     edit_style_json = edit_style.to_json()
     fx_requested = fx_active(edit_style, caption_template)
-    if fx_requested and not await _crazy_edits_enabled(db, request, user_id):
-        raise _crazy_edits_not_available()
-    # With crazy edits, an in-flight task for the same video is the same job only
+    if fx_requested and not await _dynamic_edits_enabled(db, request, user_id):
+        raise _dynamic_edits_not_available()
+    # With dynamic edits, an in-flight task for the same video is the same job only
     # if it was made with the same style and caption template.
     edit_identity = {"edit_identity": (edit_style_json, caption_template or "default")} if fx_requested else {}
     workflow_options = workflow_spec.options.to_json()
@@ -928,7 +928,7 @@ async def get_workflows(request: Request, db: AsyncSession = Depends(get_db)):
 # Declared before "/{task_id}", which would otherwise capture "edit-styles" as a task id.
 @router.get("/edit-styles")
 async def get_edit_styles(request: Request, db: AsyncSession = Depends(get_db)):
-    """Crazy edits for the authenticated user on this platform: whether they are on, and the choices.
+    """Dynamic edits for the authenticated user on this platform: whether they are on, and the choices.
 
     Clients show intensity, the edit toggles and the animated caption styles only when ``enabled`` is true, and
     ask ``/caption-templates?include=fx`` only then.
@@ -937,7 +937,7 @@ async def get_edit_styles(request: Request, db: AsyncSession = Depends(get_db)):
     defaults = EditStyle().model_dump()
     defaults.pop("intensity")
     return {
-        "enabled": await _crazy_edits_enabled(db, request, user_id),
+        "enabled": await _dynamic_edits_enabled(db, request, user_id),
         "intensities": list(INTENSITIES),
         "defaults": defaults,
         "settings": edit_style_schema(),
@@ -1528,8 +1528,8 @@ async def apply_task_settings(
     """Update task-level styling settings and optionally apply to all existing clips.
 
     ``edit_style`` omitted (or null) keeps the stored style. An omitted ``caption_template`` keeps a stored
-    animated template (legacy tasks still fall back to "default"). Only turning crazy edits on is flag-gated.
-    Re-rendering clips with crazy edits, or into them, runs on the video worker: 202 with a pollable job.
+    animated template (legacy tasks still fall back to "default"). Only turning dynamic edits on is flag-gated.
+    Re-rendering clips with dynamic edits, or into them, runs on the video worker: 202 with a pollable job.
     """
     try:
         payload = await _read_json_object(request)
@@ -1561,9 +1561,9 @@ async def apply_task_settings(
         turns_fx_on = (target_style.active and not stored_style.active) or (
             is_fx_template(caption_template) and not is_fx_template(stored_template)
         )
-        if turns_fx_on and not await _crazy_edits_enabled(db, request, task_record["user_id"]):
-            raise _crazy_edits_not_available()
-        # Clips that already carry crazy edits re-render on the worker too, even
+        if turns_fx_on and not await _dynamic_edits_enabled(db, request, task_record["user_id"]):
+            raise _dynamic_edits_not_available()
+        # Clips that already carry dynamic edits re-render on the worker too, even
         # into a legacy look. Route unit tests without a database skip the lookup.
         fx_job = None
         if apply_to_existing and (

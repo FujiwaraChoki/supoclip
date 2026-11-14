@@ -65,7 +65,7 @@ import { TextLayers } from "./text-layers";
 import { usePreviewResolution } from "./use-preview-resolution";
 
 /**
- * Crazy-edit sound for the preview (SFX, music bed, bleeps), driven by the preview's final (F) clock. The preview
+ * Dynamic-edit sound for the preview (SFX, music bed, bleeps), driven by the preview's final (F) clock. The preview
  * owns the AudioContext and the voice GainNode (clip volume); the controller schedules its own nodes on them.
  */
 export interface PreviewFxAudio {
@@ -162,7 +162,7 @@ interface Props {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   /** Shown under the transport, inside the viewer card (the AI edit field). */
   footer?: React.ReactNode;
-  /** Crazy-edit sound for the preview (lib/fx/audio-preview). */
+  /** Dynamic-edit sound for the preview (lib/fx/audio-preview). */
   fxAudio?: PreviewFxAudioFactory;
 }
 export function Preview({
@@ -192,7 +192,7 @@ export function Preview({
   const footage = [
     ...new Map(brollOf(doc).map((b) => [footageKey(b.footage), b.footage])).entries(),
   ] as [string, BRollFootage][];
-  // Crazy edits: the person matte and reaction GIFs are hidden players synced like B-roll.
+  // Dynamic edits: the person matte and reaction GIFs are hidden players synced like B-roll.
   const needsFx = documentNeedsFx(doc);
   const base: "layout" | "clean" = asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? "layout" : "clean";
   const mapped = useMemo(() => (needsFx ? mappedFx(doc) : []), [doc, needsFx]);
@@ -216,7 +216,7 @@ export function Preview({
   }), [base, asset.faceTrack, matteUrl, matteReady, readyKey]);
   useEffect(() => setMatteReady(false), [matteUrl]);
   useEffect(() => setReadyReactions((ready) => ready.filter((id) => reactionKey.split("\u0000").includes(id))), [reactionKey]);
-  // The warped clock (final time F) and the crazy-edit audio controller.
+  // The warped clock (final time F) and the dynamic-edit audio controller.
   const warpState = useRef({ playing: false, o: 0, last: 0, internalPause: false });
   const fxAudioRef = useRef<PreviewFxAudio | null>(null);
   const audioClock = useRef<{ o: number; at: number; rate: number } | null>(null);
@@ -471,7 +471,7 @@ export function Preview({
       }
       frame = requestAnimationFrame(draw);
     };
-    /** Keep the crazy-edit audio scheduled from the F clock; reschedule on play, jumps and drift. */
+    /** Keep the dynamic-edit audio scheduled from the F clock; reschedule on play, jumps and drift. */
     const syncFxAudio = (o: number, isPlaying: boolean) => {
       const audio = fxAudioRef.current;
       if (!audio) return;

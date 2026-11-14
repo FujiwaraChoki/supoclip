@@ -101,9 +101,9 @@ WORKFLOWS = ("highlights", "series", "topic", "recap", "trailer")
 TOPIC_MIN_CHARS, TOPIC_MAX_CHARS = 2, 120
 INSTRUCTIONS_MAX_CHARS = 500
 SERIES_MIN_PARTS, SERIES_MAX_PARTS = 2, 10
-# Crazy edits: mirrors EditStyle in backend/src/edit_fx/contracts.py (defaults included) so a bad value fails
+# Dynamic edits: mirrors EditStyle in backend/src/edit_fx/contracts.py (defaults included) so a bad value fails
 # here with a clear message. The backend validates again and stays the authority.
-INTENSITIES = ("off", "chill", "spicy", "unhinged")
+INTENSITIES = ("off", "subtle", "bold", "max")
 MUSIC_MOODS = ("auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark")
 GRADES = ("auto", "none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream")
 CENSORS = ("off", "bleep", "bleep_bar", "bleep_pixelate")
@@ -226,11 +226,11 @@ def _edit_style_field(intensity: str, edit_style: Optional[dict]) -> dict:
 
     ``edit_style`` passes the API's keys through (validated here and again by the server); ``intensity`` is a
     shortcut for ``edit_style["intensity"]`` and wins when both are given. The body carries ``edit_style`` only when
-    the resulting intensity is not "off", so a plain request is exactly what it was before crazy edits. Sent in the
+    the resulting intensity is not "off", so a plain request is exactly what it was before dynamic edits. Sent in the
     API's canonical form: sorted, only the keys that differ from the defaults, ``intensity`` always present.
     """
     if edit_style is not None and not isinstance(edit_style, dict):
-        raise SupoClipError("edit_style must be an object, e.g. {\"intensity\": \"spicy\", \"music\": false}.")
+        raise SupoClipError("edit_style must be an object, e.g. {\"intensity\": \"bold\", \"music\": false}.")
     style = dict(EDIT_STYLE_DEFAULTS)
     for key, value in (edit_style or {}).items():
         if key not in EDIT_STYLE_DEFAULTS:
@@ -246,7 +246,7 @@ def _edit_style_field(intensity: str, edit_style: Optional[dict]) -> dict:
     shortcut = (intensity or "").strip().lower()
     if shortcut and shortcut != "off":
         if shortcut not in INTENSITIES:
-            raise SupoClipError("intensity must be off, chill, spicy or unhinged.")
+            raise SupoClipError("intensity must be off, subtle, bold or max.")
         style["intensity"] = shortcut
     if style["intensity"] == "off":
         return {}
@@ -258,7 +258,7 @@ def _edit_style_field(intensity: str, edit_style: Optional[dict]) -> dict:
 
 
 async def _edit_styles_enabled(client: Any) -> bool:
-    """Whether crazy edits are on for this account (``GET /tasks/edit-styles``). Unauthenticated or any error: no."""
+    """Whether dynamic edits are on for this account (``GET /tasks/edit-styles``). Unauthenticated or any error: no."""
     try:
         info = await client.request("GET", "/tasks/edit-styles")
     except SupoClipError:
@@ -334,7 +334,7 @@ async def supoclip_list_caption_templates() -> str:
 
     Each template id (e.g. ``default``, ``hormozi``, ``mrbeast``) can be passed
     as ``caption_template`` to ``supoclip_create_clip_task``. No auth required.
-    When the configured account has crazy edits (``supoclip_list_edit_styles``),
+    When the configured account has dynamic edits (``supoclip_list_edit_styles``),
     the list also holds the animated templates (``fx: true``, e.g. ``slam``,
     ``behind_head``; ``requires`` says if one needs a face or a person matte).
 
@@ -343,7 +343,7 @@ async def supoclip_list_caption_templates() -> str:
         "font_family", "font_size", "font_color", ...}]}``.
     """
     client = _client()
-    # Animated (crazy edits) templates are listed only for accounts that may use them.
+    # Animated (dynamic edits) templates are listed only for accounts that may use them.
     if await _edit_styles_enabled(client):
         data = await client.request("GET", "/caption-templates", params={"include": "fx"}, authenticated=False)
     else:
@@ -508,13 +508,13 @@ async def supoclip_create_clip_task(
     guidance for any workflow (max 500 characters), e.g. "skip the sponsor read"
     or "focus on the hiring story".
 
-    Crazy edits: ``intensity`` ("off", "chill", "spicy", "unhinged") adds
+    Dynamic edits: ``intensity`` ("off", "subtle", "bold", "max") adds
     AI-timed sound effects, music, zooms, transitions, speed ramps and freeze
     frames on the moments that matter; ``edit_style`` fine-tunes them with the
     API's keys (sfx, music, music_mood, zooms, shake, transitions, speed,
     censor, grade, grain, progress_bar, loop_ending, wait_for_it, reactions).
     Animated caption templates (e.g. ``slam``) work with intensity off too.
-    Both need crazy edits on for the account (403 CRAZY_EDITS_NOT_AVAILABLE);
+    Both need dynamic edits on for the account (403 DYNAMIC_EDITS_NOT_AVAILABLE);
     ``supoclip_list_edit_styles`` tells you first.
 
     Workflows other than plain highlights may not be enabled for every account
@@ -544,8 +544,8 @@ async def supoclip_create_clip_task(
         topic: The subject to find (workflow='topic' only), max 120 characters.
         part_count: Series parts, 0 = auto or 2-10 (workflow='series' only).
         instructions: Optional editorial guidance for any workflow, max 500 characters.
-        intensity: Crazy edits: 'off' (default) | 'chill' | 'spicy' | 'unhinged'.
-        edit_style: Optional crazy-edits settings, e.g. {"music": false, "censor": "bleep"};
+        intensity: Dynamic edits: 'off' (default) | 'subtle' | 'bold' | 'max'.
+        edit_style: Optional dynamic-edits settings, e.g. {"music": false, "censor": "bleep"};
             "intensity" may be set here too (the intensity argument wins when not "off").
 
     Returns:
@@ -665,7 +665,7 @@ async def supoclip_list_workflows() -> str:
 )
 @tool_errors
 async def supoclip_list_edit_styles() -> str:
-    """Whether this account has crazy edits, and what they offer.
+    """Whether this account has dynamic edits, and what they offer.
 
     Call this before passing ``intensity``, ``edit_style`` or an animated
     caption template to ``supoclip_create_clip_task``. When ``enabled`` is
@@ -779,7 +779,7 @@ async def supoclip_wait_for_task(
     Convenience wrapper around ``supoclip_get_task`` for the asynchronous
     pipeline. Reports progress while waiting. Requires authentication.
 
-    Edits to clips with crazy edits (new task settings, captions, trim, split,
+    Edits to clips with dynamic edits (new task settings, captions, trim, split,
     merge) run on the video worker: the API answers 202 with
     ``{"status": "queued", "job_id", "kind"}``. Pass that ``job_id`` as
     ``clip_job_id`` to wait for it; the task is fetched again once it is done.

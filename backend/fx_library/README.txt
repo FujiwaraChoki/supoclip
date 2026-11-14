@@ -1,4 +1,4 @@
-Crazy edits drop-in library (FX_LIBRARY_DIR)
+Dynamic edits drop-in library (FX_LIBRARY_DIR)
 ============================================
 
 Put your own sound effects and music beds here to replace the built-in synthesized ones,

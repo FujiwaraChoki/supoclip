@@ -70,7 +70,7 @@ const workflowsInfo = {
 
 const editStylesInfo = {
   enabled: true,
-  intensities: ["off", "chill", "spicy", "unhinged"],
+  intensities: ["off", "subtle", "bold", "max"],
   defaults: { sfx: true, music: true, music_mood: "auto", zooms: true, shake: true, transitions: true, speed: true, censor: "bleep_bar", grade: "auto", grain: false, progress_bar: false, loop_ending: false, wait_for_it: true, reactions: false },
   settings: [],
   music_moods: ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
@@ -836,7 +836,7 @@ describe("remembering settings between videos", () => {
   });
 });
 
-describe("crazy edits", () => {
+describe("dynamic edits", () => {
   beforeEach(() => {
     // jsdom has no canvas; the tiles just don't draw.
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
@@ -851,20 +851,20 @@ describe("crazy edits", () => {
     await waitFor(() => expect(templateRequests).toContain("/api/caption-templates?include=fx"));
   }
 
-  it("adds exactly edit_style for a spicy request", async () => {
+  it("adds exactly edit_style for a bold request", async () => {
     await renderWithEdits();
     openSection(/Edits/);
     const group = screen.getByRole("radiogroup", { name: "Edit intensity" });
     expect(group).toHaveAttribute("data-tour", "edit-intensity");
     expect(within(group).getByRole("radio", { name: /Off/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("switch", { name: "Sound effects" })).not.toBeInTheDocument();
-    pick(/Spicy/);
+    pick(/Bold/);
     fireEvent.click(screen.getByRole("switch", { name: "Music" }));
-    expect(settingsChip()).toHaveAccessibleName(/Spicy/);
+    expect(settingsChip()).toHaveAccessibleName(/Bold/);
     fireEvent.change(urlInput(), { target: { value: LINK } });
     const body = await submit("Generate clips");
     expect(Object.keys(body)).toEqual([...LEGACY_KEYS, "edit_style"]);
-    expect(body.edit_style).toEqual({ intensity: "spicy", music: false });
+    expect(body.edit_style).toEqual({ intensity: "bold", music: false });
     expect(body.caption_template).toBe("default");
   });
 
@@ -895,7 +895,7 @@ describe("crazy edits", () => {
   });
 
   it("hides everything and never asks for animated templates while the feature is off", async () => {
-    savedCreateSettings = { captionTemplate: "slam", editStyle: { intensity: "spicy" } };
+    savedCreateSettings = { captionTemplate: "slam", editStyle: { intensity: "bold" } };
     await renderHome();
     await waitFor(() => expect(templateRequests.length).toBeGreaterThan(0));
     openSettings();
@@ -910,16 +910,16 @@ describe("crazy edits", () => {
     ["the fetch fails", () => Promise.reject(new TypeError("offline"))],
     ["an older backend answers 404", () => new Response("Not found", { status: 404 })],
   ] as const) {
-    it(`drops a stored spicy style and animated template when ${label}, but keeps them saved`, async () => {
+    it(`drops a stored bold style and animated template when ${label}, but keeps them saved`, async () => {
       editStylesResponse = response;
-      savedCreateSettings = { captionTemplate: "slam", editStyle: { intensity: "spicy", music: false } };
+      savedCreateSettings = { captionTemplate: "slam", editStyle: { intensity: "bold", music: false } };
       await renderHome();
       // A save still carries the stored choice, for when the flag comes back.
       openSection(/Cleanup/);
       fireEvent.click(screen.getByRole("switch", { name: /Remove filler words/ }));
       await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
       expect(settingsSaves[settingsSaves.length - 1].createSettings).toMatchObject({
-        captionTemplate: "slam", editStyle: { intensity: "spicy", music: false },
+        captionTemplate: "slam", editStyle: { intensity: "bold", music: false },
       });
 
       fireEvent.change(urlInput(), { target: { value: LINK } });
@@ -932,32 +932,32 @@ describe("crazy edits", () => {
   it("saves the edit style and brings it back", async () => {
     await renderWithEdits();
     openSection(/Edits/);
-    pick(/Unhinged/);
+    pick(/Max/);
     fireEvent.click(screen.getByRole("switch", { name: "Sound effects" }));
     await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
-    expect(settingsSaves[settingsSaves.length - 1].createSettings.editStyle).toEqual({ intensity: "unhinged", sfx: false });
+    expect(settingsSaves[settingsSaves.length - 1].createSettings.editStyle).toEqual({ intensity: "max", sfx: false });
 
     cleanup();
     settingsSaves = [];
     created = [];
-    savedCreateSettings = { editStyle: { intensity: "chill", progress_bar: true } };
+    savedCreateSettings = { editStyle: { intensity: "subtle", progress_bar: true } };
     await renderWithEdits();
     openSection(/Edits/);
-    expect(screen.getByRole("radio", { name: /Chill/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Subtle/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("switch", { name: "Progress bar" })).toBeChecked();
     fireEvent.change(urlInput(), { target: { value: LINK } });
-    expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "chill", progress_bar: true });
+    expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "subtle", progress_bar: true });
   });
 
   it("holds Generate until it knows whether saved edits can be sent", async () => {
     let settle: (response: Response) => void = () => {};
     editStylesResponse = () => new Promise<Response>((resolve) => { settle = resolve; });
-    savedCreateSettings = { editStyle: { intensity: "spicy" } };
+    savedCreateSettings = { editStyle: { intensity: "bold" } };
     await renderHome();
     fireEvent.change(urlInput(), { target: { value: LINK } });
     expect(screen.getByRole("button", { name: "Generate clips" })).toBeDisabled();
     await act(async () => { settle(Response.json(editStylesInfo)); });
-    expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "spicy" });
+    expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "bold" });
   });
 
   it("opens the settings menu on the section a tour step talks about, and closes it after", async () => {

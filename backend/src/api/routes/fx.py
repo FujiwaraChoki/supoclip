@@ -1,9 +1,9 @@
-"""Crazy-edit asset routes (§5.6).
+"""Dynamic-edit asset routes (§5.6).
 
 ``GET /fx/assets`` lists the built-in SFX, music beds and emoji atlas plus this machine's drop-ins (flagged
 ``custom: true``). Entries carry content-addressed URLs and never a file path. ``GET /fx/assets/{sha256}.{ext}`` serves
 one of those files with immutable caching. Only hashes the registry knows are served, and no path is built from the
-request. Auth matches ``GET /fonts/{name}``. Neither route checks the ``crazy_edits`` flag: rendering and previewing
+request. Auth matches ``GET /fonts/{name}``. Neither route checks the ``dynamic_edits`` flag: rendering and previewing
 existing edits is never gated (§0.4.8).
 """
 

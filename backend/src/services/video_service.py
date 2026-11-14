@@ -140,7 +140,7 @@ UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
 
 
-# --------------------------------------------------------------------------- crazy edits planning (FINAL §6.1, §13.1)
+# --------------------------------------------------------------------------- dynamic edits planning (FINAL §6.1, §13.1)
 
 
 @dataclass
@@ -1266,7 +1266,7 @@ class VideoService:
         output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
 
-        ``fx_jobs`` (crazy edits re-render, segment index → job; passed only when
+        ``fx_jobs`` (dynamic edits re-render, segment index → job; passed only when
         set) decides every segment's effects here, in async code, by the §13.1
         rules (reuse the stored plan, re-resolve, re-anchor, or plan beats), and
         stores the ready plan in ``segment["edit_fx"]``. The synchronous batch
@@ -1476,7 +1476,7 @@ class VideoService:
         ``include_broll`` adds stock cutaways; ``broll_session`` keeps one
         task's clips from reusing the same footage.
 
-        ``fx`` (crazy edits, passed only when active) plans the clip's beats
+        ``fx`` (dynamic edits, passed only when active) plans the clip's beats
         (checkpoint, beat model or heuristic) concurrently with B-roll, resolves
         the effects here, renders them through the fx chain, and records the FX
         sidecar keys; the returned ``clip_info`` then carries ``fx_meta``.

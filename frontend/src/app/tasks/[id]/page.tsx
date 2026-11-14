@@ -120,7 +120,7 @@ interface Clip extends WorkflowClipFields {
   shareability_score: number;
   hook_type: string | null;
   hook_title: string | null;
-  /** Crazy edits on this clip (only present when it has them): render level, caption timing, intensity, template. */
+  /** Dynamic edits on this clip (only present when it has them): render level, caption timing, intensity, template. */
   fx_meta?: ClipFxMeta | null;
 }
 
@@ -151,7 +151,7 @@ function storeClipJob(taskId: string, job: ClipJob | null) {
   } catch { /* storage blocked: polling still works for this visit */ }
 }
 
-/** The notes a clip's crazy edits need: approximate caption timing, effects the renderer had to simplify. */
+/** The notes a clip's dynamic edits need: approximate caption timing, effects the renderer had to simplify. */
 function clipFxNotes(meta: ClipFxMeta | null | undefined): ("approxTiming" | "simplified")[] {
   if (!meta) return [];
   return [
@@ -189,7 +189,7 @@ interface TaskDetails extends WorkflowTaskFields {
   clip_length?: string | null;
   add_subtitles?: boolean | null;
   error_code?: string | null;
-  /** Crazy edits as stored (`tasks.edit_style`); null or absent when off. */
+  /** Dynamic edits as stored (`tasks.edit_style`); null or absent when off. */
   edit_style?: unknown;
 }
 
@@ -268,7 +268,7 @@ export default function TaskPage() {
   const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("1200");
   const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
   const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
-  // Crazy edits: what the task has stored, and the sheet's working copy.
+  // Dynamic edits: what the task has stored, and the sheet's working copy.
   const [storedEditStyle, setStoredEditStyle] = useState<EditStyle>(DEFAULT_EDIT_STYLE);
   const [projectEditStyle, setProjectEditStyle] = useState<EditStyle>(DEFAULT_EDIT_STYLE);
   const [clipJob, setClipJob] = useState<ClipJob | null>(null);
@@ -473,7 +473,7 @@ export default function TaskPage() {
     void loadFonts();
   }, []);
 
-  // Crazy edits are offered (and animated templates asked for) only when the server says they're on for this user.
+  // Dynamic edits are offered (and animated templates asked for) only when the server says they're on for this user.
   const editStylesInfo = useEditStylesInfo(Boolean(session?.user?.id));
   const fxEnabled = editStylesInfo?.enabled === true;
   useEffect(() => {
@@ -641,7 +641,7 @@ export default function TaskPage() {
         return;
       }
       if (response.status === 202) {
-        // Clips with crazy edits re-render on the video worker: mark them and poll the job.
+        // Clips with dynamic edits re-render on the video worker: mark them and poll the job.
         const queued = (await response.json()) as { job_id?: string; kind?: string };
         if (queued.job_id) startClipJob({ id: queued.job_id, kind: queued.kind ?? "settings", clipIds: "all", progress: 0 });
         setStoredEditStyle(projectEditStyle);
@@ -832,7 +832,7 @@ export default function TaskPage() {
           task,
           { workflow, topic },
           workflowsInfo?.workflows.find((entry) => entry.id === workflow)?.customizable !== false && workflowsInfo?.enabled !== false,
-          // The task's crazy edits carry over only while they're on for this user (same sanitiser as the create screen).
+          // The task's dynamic edits carry over only while they're on for this user (same sanitiser as the create screen).
           editStylesInfo,
         )),
       });
@@ -944,12 +944,12 @@ export default function TaskPage() {
     return values ? [{ code: note.code, text: t(`workflowNotes.${note.code}`, values) }] : [];
   });
 
-  // Crazy edits in the restyle sheet: offered while the flag is on, and always to a task that already has them
+  // Dynamic edits in the restyle sheet: offered while the flag is on, and always to a task that already has them
   // (turning them off or keeping them is never gated).
   const editsOffered = fxEnabled || storedEditStyle.intensity !== "off";
   const sheetIntensities = fxEnabled ? INTENSITIES : INTENSITIES.filter((level) => level === "off" || level === storedEditStyle.intensity);
   const offeredFx = new Set<string>(offeredFxTemplates(editStylesInfo));
-  // Animated templates appear only while crazy edits are on, plus the task's own (so its name still shows).
+  // Animated templates appear only while dynamic edits are on, plus the task's own (so its name still shows).
   const sheetTemplates = availableTemplates.filter((template) => !isFxTemplate(template.id) || offeredFx.has(template.id) || template.id === task?.caption_template);
   const templateName = (id: string) => {
     const key = `animatedCaptions.templates.${id}.name`;

@@ -46,7 +46,7 @@ function upgradeCachedHistory(history: History, server: EditDocument): History {
     ...(document.captionTransforms !== undefined || server.captionTransforms !== undefined
       ? { captionTransforms: Object.fromEntries(Object.entries(document.captionTransforms ?? {}).map(([key, value]) => [key, { ...value, size: value.size ?? null }])) } : {}),
   });
-  // Crazy edits: a cached draft without `fx` predates them, and null means absent (the server reads both alike and
+  // Dynamic edits: a cached draft without `fx` predates them, and null means absent (the server reads both alike and
   // seeds the clip's edits), so both take the server's. "Removed" is an inert DocFx, never null. Null is never kept.
   const withFx = (document: EditDocument): EditDocument => {
     const { fx, ...rest } = document;
