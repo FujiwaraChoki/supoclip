@@ -29,6 +29,17 @@ preflight. An actor result found there is stored with the task and reused by the
 so each actor runs at most once per task, and a chain that has failed completely is not
 rerun for the same job.
 
+The media download gives each HLS segment a 30-second socket timeout, several fragment
+retries, and one extra attempt after a transport timeout. A transfer that is still
+receiving data is allowed at least three minutes, longer for a long VOD, and at most an
+hour. A hung transfer is stopped after 45 seconds without a meaningful chunk. Do not wrap
+this path in a shorter fixed budget: a few dozen seconds expires in the middle of a
+Twitch playlist even while segments are still arriving. Subscriber-only and private VODs
+fail before any paid fallback. A region-locked VOD asks the user to upload the file.
+Other failures say to try again. Each stage is logged with the provider, source, URL
+host, HTTP status, error type, bytes, elapsed time, attempt, and the fallback that ran
+next. Proxy credentials and signed query strings are not logged.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.

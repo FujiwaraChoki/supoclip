@@ -37,7 +37,11 @@ from .youtube_source import CachedPiece, assemble_timeline, merge_ranges, ranges
 logger = logging.getLogger(__name__)
 
 PRIVATE_VOD_MESSAGE = "This VOD is subscriber-only or private and can't be downloaded"
+REGION_VOD_MESSAGE = (
+    "This VOD isn't available from the regions we can download from. Upload the video file instead."
+)
 FETCH_FAILED_MESSAGE = "We couldn't fetch this video, try again later"
+TIMEOUT_MESSAGE = "The download timed out before the video finished. Try again in a few minutes."
 LIVE_MESSAGE = "Live streams aren't supported. Use a VOD or clip URL instead."
 TWITCH_UNSUPPORTED_MESSAGE = "Unsupported Twitch URL. Use a Twitch VOD (twitch.tv/videos/<id>) or clip URL."
 KICK_UNSUPPORTED_MESSAGE = "Unsupported Kick URL. Use a Kick VOD (kick.com/<channel>/videos/<id>) or clip URL."
@@ -60,6 +64,21 @@ _SECTION_TOLERANCE_SECONDS = 1.0
 # Actor media URLs are signed and expire; an old preflight result (e.g. a manual
 # retry hours later) is ignored so the actor may run once more instead.
 _SEEDED_MEDIA_TTL_SECONDS = 3600.0
+# Media reads. Metadata preflight keeps a short socket timeout bounded by its
+# own deadline. A 10s read fails healthy Twitch HLS: four attempts at 10s is
+# about 40s and the VOD is reported as a generic fetch failure with no HTTP
+# status. A fixed budget of a few dozen seconds also expires mid-playlist
+# while segments are still arriving through the residential proxy. Stall
+# detection covers a hung socket; the floor below only applies once bytes are
+# moving, and it grows with duration. A transfer wrapper must not cap each
+# request below _MEDIA_SOCKET_TIMEOUT.
+_MEDIA_SOCKET_TIMEOUT = 30.0
+_MEDIA_RETRIES = 5
+_FRAGMENT_RETRIES = 10
+_STALL_SECONDS = 45.0
+_STALL_PROGRESS_BYTES = 64 * 1024
+_MIN_TRANSFER_SECONDS = 180.0
+_MAX_TRANSFER_SECONDS = 3600.0
 
 _TWITCH_HOSTS = {"twitch.tv", "m.twitch.tv", "go.twitch.tv"}
 _TWITCH_VOD = re.compile(r"^/videos/(?P<id>\d+)$")
@@ -76,11 +95,21 @@ _SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 # yt-dlp errors for the platform URL: Apify errors such as "Actor ... does not
 # exist" must not stop the remaining fallbacks.
 _PRIVATE_ERROR = re.compile(
-    r"subscriber-only|sub-only|subscribers only|private video|members-only"
-    r"|not available due to privacy|deleted vod|video has been deleted"
+    r"subscriber[- ]only|sub-only|subscribers only|only available to subscribers"
+    r"|subscription required|must be logged in|login required|members-only"
+    r"|private video|not available due to privacy|deleted vod|video has been deleted"
     r"|\b(?:video|vod)\s+v?\d+\s+does not exist",
     re.IGNORECASE,
 )
+_REGION_ERROR = re.compile(
+    r"not available in your country|not made available in your country"
+    r"|geo[- ]?restrict|geographic restriction|region[- ]locked|blocked in your country",
+    re.IGNORECASE,
+)
+_SUBSCRIBER_AVAILABILITY = frozenset({
+    "subscriber_only", "private", "needs_auth", "premium_only", "needs_subscription",
+})
+_REGION_AVAILABILITY = frozenset({"geo_restricted", "region_restricted"})
 
 
 class StreamSourceError(RuntimeError):
@@ -114,6 +143,7 @@ class _Operation:
     actor_results: dict[str, dict] = field(default_factory=dict)
     actors_run: set[str] = field(default_factory=set)
     failed_until: float = 0.0
+    failure_public: Optional[str] = None
     local_media: Optional[Path] = None
     touched: float = field(default_factory=time.monotonic)
 
@@ -183,6 +213,171 @@ def _provider_order(source: str, config=None) -> list[str]:
 
 def _is_private_error(exc: BaseException | str | None) -> bool:
     return bool(exc) and bool(_PRIVATE_ERROR.search(str(exc)))
+
+
+def _is_region_error(exc: BaseException | str | None) -> bool:
+    return bool(exc) and bool(_REGION_ERROR.search(str(exc)))
+
+
+def _is_transient_error(exc: BaseException | None) -> bool:
+    """Transport failures worth one more try. Gated videos are not transient."""
+    if exc is None or _is_private_error(exc) or _is_region_error(exc):
+        return False
+    if isinstance(exc, (TimeoutError, ConnectionError)):
+        return True
+    text = str(exc).lower()
+    return any(marker in text for marker in (
+        "timed out", "timeout", "connection reset", "connection aborted",
+        "temporarily unavailable", "http error 502", "http error 503", "http error 504",
+        "unable to connect", "network is unreachable", "read timed out",
+        "stream download stalled",
+    ))
+
+
+def _url_host(url: str) -> str:
+    """Hostname only. Signed paths and query strings stay out of logs."""
+    try:
+        host = (urlparse(str(url)).hostname or "").lower()
+    except (TypeError, ValueError):
+        return "-"
+    if host.startswith("www."):
+        host = host[4:]
+    return host or "-"
+
+
+def _http_status(exc: BaseException | str | None) -> str:
+    match = re.search(r"\bHTTP(?: Error)? (\d{3})\b", str(exc or ""))
+    return match.group(1) if match else "-"
+
+
+def _reject_unavailable(info: dict) -> None:
+    """Stop before any media bytes when metadata says the VOD cannot be fetched."""
+    availability = str(info.get("availability") or "").lower().replace("-", "_").replace(" ", "_")
+    if availability in _SUBSCRIBER_AVAILABILITY:
+        raise StreamSourceError(PRIVATE_VOD_MESSAGE)
+    if availability in _REGION_AVAILABILITY:
+        raise StreamSourceError(REGION_VOD_MESSAGE)
+
+
+def transfer_budget_seconds(duration: Optional[float], *, ranges=None, audio: bool = False) -> float:
+    """Wall-clock cap for one provider attempt while bytes are still arriving.
+
+    A transfer wrapper must not impose a shorter cap than this. Twitch VODs are
+    long HLS playlists; a fixed budget of a few dozen seconds aborts them
+    mid-segment even when the CDN is responding.
+    """
+    if ranges:
+        span = sum(max(0.0, end - start) for start, end in ranges)
+        scaled = 90.0 + span * 4.0
+    elif audio:
+        scaled = 120.0 + (duration or 0.0) * 0.5
+    else:
+        scaled = 180.0 + (duration or 0.0) * 1.0
+    return max(_MIN_TRANSFER_SECONDS, min(_MAX_TRANSFER_SECONDS, scaled))
+
+
+class _TransferWatch:
+    """Progress hook: fail a stalled transfer, and a transfer that overruns its budget."""
+
+    def __init__(self, *, stall_seconds: float, overall_seconds: float):
+        self.stall_seconds = stall_seconds
+        self.overall_seconds = overall_seconds
+        self.started = time.monotonic()
+        self.last_progress = self.started
+        self.progress_mark = 0
+        self.bytes = 0
+
+    def hook(self, status: dict) -> None:
+        if status.get("status") not in {"downloading", "finished"}:
+            return
+        downloaded = int(status.get("downloaded_bytes") or 0)
+        now = time.monotonic()
+        if downloaded > self.bytes:
+            # Reset the stall timer only after a meaningful chunk, so a
+            # one-byte trickle cannot keep a dead transfer alive.
+            if downloaded >= self.progress_mark + _STALL_PROGRESS_BYTES:
+                self.last_progress = now
+                self.progress_mark = downloaded
+            self.bytes = downloaded
+        elapsed = now - self.started
+        if elapsed > self.overall_seconds:
+            raise TimeoutError(
+                f"Stream download timed out after {elapsed:.0f}s ({self.bytes} bytes)"
+            )
+        if self.bytes and now - self.last_progress > self.stall_seconds:
+            raise TimeoutError(
+                f"Stream download stalled for {now - self.last_progress:.0f}s after {self.bytes} bytes"
+            )
+
+
+def _annotate_transfer(exc: BaseException, watch: _TransferWatch, started: float) -> None:
+    try:
+        setattr(exc, "stream_bytes", int(watch.bytes))
+        setattr(exc, "stream_elapsed", max(0.0, time.monotonic() - started))
+    except Exception:
+        return
+
+
+def _redacted_cause(exc: BaseException) -> BaseException:
+    """Chain a cause PostHog can show without proxy credentials or signed URLs."""
+    return RuntimeError(f"{type(exc).__name__}: {_redact(exc)}")
+
+
+def _log_stream(
+    level: int,
+    stage: str,
+    *,
+    provider: str,
+    source: str,
+    kind: str = "",
+    host: str = "-",
+    status: str = "-",
+    exc: BaseException | str | None = None,
+    bytes_transferred: int = 0,
+    elapsed: float = 0.0,
+    attempt: int = 1,
+    fallback: str = "-",
+) -> None:
+    """One line per stage. The message is the Axiom search text; extras are JSON fields."""
+    exc_type = "-"
+    exc_message = "-"
+    if isinstance(exc, BaseException):
+        exc_type = type(exc).__name__
+        exc_message = _redact(exc)
+    elif exc:
+        exc_type = "message"
+        exc_message = _redact(exc)
+    exc_message = exc_message.replace("\n", " ")[:300] or "-"
+    logger.log(
+        level,
+        "stream_download stage=%s provider=%s source=%s kind=%s host=%s http_status=%s "
+        "exc_type=%s exc=%s bytes=%s elapsed_ms=%s attempt=%s fallback=%s",
+        stage,
+        provider or "-",
+        source or "-",
+        kind or "-",
+        host or "-",
+        status or "-",
+        exc_type,
+        exc_message,
+        int(bytes_transferred),
+        int(max(0.0, elapsed) * 1000),
+        int(attempt),
+        fallback or "-",
+        extra={
+            "stream_stage": stage,
+            "stream_provider": provider or "-",
+            "stream_source": source or "-",
+            "stream_kind": kind or "-",
+            "stream_host": host or "-",
+            "stream_http_status": status or "-",
+            "stream_exc_type": exc_type,
+            "stream_bytes": int(bytes_transferred),
+            "stream_elapsed_ms": int(max(0.0, elapsed) * 1000),
+            "stream_attempt": int(attempt),
+            "stream_fallback": fallback or "-",
+        },
+    )
 
 
 def _redact(value: Any) -> str:
@@ -259,11 +454,16 @@ def _operation(task_key: str, operation: str) -> _Operation:
 
 # --------------------------------------------------------------------- yt-dlp
 
-def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, socket_timeout=10):
+def _ydl_options(provider, output, *, audio=False, ranges=None, session=None,
+                 socket_timeout=_MEDIA_SOCKET_TIMEOUT, media=False, watch: Optional[_TransferWatch] = None):
     c = get_config()
     opts = {
         "outtmpl": str(output), "noplaylist": True, "quiet": True, "no_warnings": True,
-        "retries": 1, "fragment_retries": 3, "socket_timeout": socket_timeout,
+        # Metadata stays on one try so preflight cannot stack several 30s reads.
+        # Media retries cover a single stalled HLS segment without failing the VOD.
+        "retries": _MEDIA_RETRIES if media else 1,
+        "fragment_retries": _FRAGMENT_RETRIES if media else 1,
+        "socket_timeout": socket_timeout,
         "max_filesize": c.youtube_download_max_bytes,
     }
     if provider == "proxy":
@@ -288,10 +488,12 @@ def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, so
             {"start_time": a, "end_time": b, "index": i} for i, (a, b) in enumerate(ranges, 1)
         ]
         opts["force_keyframes_at_cuts"] = True
+    if watch is not None:
+        opts["progress_hooks"] = [watch.hook]
     return opts
 
 
-def _socket_timeout(deadline: Optional[float], default: float = 10.0) -> float:
+def _socket_timeout(deadline: Optional[float], default: float = _MEDIA_SOCKET_TIMEOUT) -> float:
     if deadline is None:
         return default
     return max(1.0, min(default, deadline - time.monotonic()))
@@ -314,25 +516,36 @@ def _extract(url: str, provider: str, *, session: str, deadline: Optional[float]
             raise
         except Exception as exc:
             out_of_time = deadline is not None and time.monotonic() + _DIRECT_RETRY_BACKOFF_SECONDS + 1 >= deadline
-            if attempt + 1 == attempts or _is_private_error(exc) or out_of_time:
+            if attempt + 1 == attempts or _is_private_error(exc) or _is_region_error(exc) or out_of_time:
                 raise
-            logger.info("Stream provider %s retrying after: %s", provider, _redact(exc))
+            source, kind, _source_id = detect_stream_source(url)
+            _log_stream(
+                logging.INFO, "retry", provider=provider, source=source, kind=kind,
+                host=_url_host(url), status=_http_status(exc), exc=exc,
+                attempt=attempt + 2, fallback=provider,
+            )
             time.sleep(_DIRECT_RETRY_BACKOFF_SECONDS)
     raise RuntimeError("provider returned no metadata")  # pragma: no cover
 
 
-def _download_info(info: dict, provider: str, template: Path, *, audio: bool, ranges, session: str) -> None:
+def _download_info(info: dict, provider: str, template: Path, *, audio: bool, ranges, session: str,
+                   watch: Optional[_TransferWatch] = None) -> None:
     """Download from already-extracted metadata so the platform is not queried twice."""
     from yt_dlp import YoutubeDL
 
-    with YoutubeDL(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
+    with YoutubeDL(_ydl_options(
+        provider, template, audio=audio, ranges=ranges, session=session, media=True, watch=watch,
+    )) as ydl:
         ydl.process_ie_result(info, download=True)
 
 
-def _download_url(url: str, provider: str, template: Path, *, audio: bool, ranges, session: str) -> None:
+def _download_url(url: str, provider: str, template: Path, *, audio: bool, ranges, session: str,
+                  watch: Optional[_TransferWatch] = None) -> None:
     from yt_dlp import YoutubeDL
 
-    with YoutubeDL(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
+    with YoutubeDL(_ydl_options(
+        provider, template, audio=audio, ranges=ranges, session=session, media=True, watch=watch,
+    )) as ydl:
         ydl.extract_info(url, download=True)
 
 
@@ -366,24 +579,55 @@ def _finish(directory: Path, call_dir: Path, ranges) -> Path:
 
 
 def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, template, *, audio, ranges, max_duration, session):
-    attempts = 2 if provider == "direct_retry" else 1
+    source, kind, _source_id = detect_stream_source(url)
+    host = _url_host(url)
+    # direct_retry always gets a second pass. Proxy and direct get one only
+    # after a transport failure, so a 403 or a gated VOD is not downloaded twice.
+    attempts = 2 if provider in YTDLP_PROVIDERS else 1
     for attempt in range(attempts):
+        watch: Optional[_TransferWatch] = None
+        started = time.monotonic()
         try:
             info = _extract(url, "direct" if provider == "direct_retry" else provider, session=session)
+            _reject_unavailable(info)
             duration = _number(info.get("duration"))
             if duration and not state.expected_duration:
                 state.expected_duration = duration
             # Enforce the plan cap before any media is downloaded.
             _check_cap(duration or state.expected_duration, max_duration)
             wanted = _clamp_ranges(ranges, duration or state.expected_duration)
-            _download_info(info, provider, template, audio=audio, ranges=wanted, session=session)
+            watch = _TransferWatch(
+                stall_seconds=_STALL_SECONDS,
+                overall_seconds=transfer_budget_seconds(
+                    duration or state.expected_duration, ranges=wanted, audio=audio,
+                ),
+            )
+            _download_info(info, provider, template, audio=audio, ranges=wanted, session=session, watch=watch)
             return _finish(attempt_dir, call_dir, wanted)
         except (ProviderSkipped, StreamSourceError):
             raise
         except Exception as exc:
-            if attempt + 1 == attempts or _is_private_error(exc):
+            if watch is not None:
+                _annotate_transfer(exc, watch, started)
+            gated = _is_private_error(exc) or _is_region_error(exc)
+            retry = (
+                attempt + 1 < attempts
+                and not gated
+                and (provider == "direct_retry" or _is_transient_error(exc))
+            )
+            _log_stream(
+                logging.WARNING, "retry" if retry else "attempt_failed",
+                provider=provider, source=source, kind=kind, host=host,
+                status=_http_status(exc), exc=exc,
+                bytes_transferred=int(getattr(exc, "stream_bytes", 0) or 0),
+                elapsed=float(getattr(exc, "stream_elapsed", time.monotonic() - started) or 0),
+                attempt=attempt + 1, fallback=provider if retry else "-",
+            )
+            if gated:
+                message = REGION_VOD_MESSAGE if _is_region_error(exc) else PRIVATE_VOD_MESSAGE
+                raise StreamSourceError(message) from _redacted_cause(exc)
+            if not retry:
                 raise
-            logger.info("Stream provider %s retrying download after: %s", provider, _redact(exc))
             shutil.rmtree(attempt_dir, ignore_errors=True)
             attempt_dir.mkdir(parents=True, exist_ok=True)
             time.sleep(_DIRECT_RETRY_BACKOFF_SECONDS)
@@ -553,25 +797,51 @@ def _actor_media(url, provider, state: _Operation, op_dir, call_dir, attempt_dir
     if provider == "apify_kick_mp4":
         return _from_local(_parsebird_file(info, state, op_dir), call_dir, audio=audio, ranges=ranges)
 
+    source, kind, _source_id = detect_stream_source(url)
     media = info["media_url"]
+    media_host = _url_host(media)
     actual = _probe(media)
     if not _close(actual, reported) or not _close(actual, state.expected_duration):
         raise RuntimeError("stream duration does not match the requested video")
     _check_cap(actual, max_duration)
     wanted = _clamp_ranges(ranges, actual or reported or state.expected_duration)
+    budget = transfer_budget_seconds(actual or reported or state.expected_duration, ranges=wanted, audio=audio)
     # Actor media URLs are fetched directly first; the proxy only if that fails.
+    direct_started = time.monotonic()
+    direct_watch = _TransferWatch(stall_seconds=_STALL_SECONDS, overall_seconds=budget)
     try:
-        _download_url(media, "direct", template, audio=audio, ranges=wanted, session=session)
+        _download_url(media, "direct", template, audio=audio, ranges=wanted, session=session, watch=direct_watch)
     except Exception as direct_exc:
+        _annotate_transfer(direct_exc, direct_watch, direct_started)
+        _log_stream(
+            logging.WARNING, "media_failed", provider="direct", source=source, kind=kind,
+            host=media_host, status=_http_status(direct_exc), exc=direct_exc,
+            bytes_transferred=int(getattr(direct_exc, "stream_bytes", 0) or 0),
+            elapsed=float(getattr(direct_exc, "stream_elapsed", time.monotonic() - direct_started) or 0),
+            attempt=1, fallback="proxy",
+        )
         shutil.rmtree(attempt_dir, ignore_errors=True)
         attempt_dir.mkdir(parents=True, exist_ok=True)
+        proxy_started = time.monotonic()
+        proxy_watch = _TransferWatch(stall_seconds=_STALL_SECONDS, overall_seconds=budget)
         try:
-            _download_url(media, "proxy", template, audio=audio, ranges=wanted, session=session)
+            _download_url(media, "proxy", template, audio=audio, ranges=wanted, session=session, watch=proxy_watch)
         except ProviderSkipped:
             # No proxy configured: report the real direct-download error.
             raise direct_exc
         except Exception as proxy_exc:
-            raise RuntimeError(f"direct: {_redact(direct_exc)}; proxy: {_redact(proxy_exc)}") from proxy_exc
+            _annotate_transfer(proxy_exc, proxy_watch, proxy_started)
+            _log_stream(
+                logging.WARNING, "media_failed", provider="proxy", source=source, kind=kind,
+                host=media_host, status=_http_status(proxy_exc), exc=proxy_exc,
+                bytes_transferred=int(getattr(proxy_exc, "stream_bytes", 0) or 0),
+                elapsed=float(getattr(proxy_exc, "stream_elapsed", time.monotonic() - proxy_started) or 0),
+                attempt=1, fallback="-",
+            )
+            combined = RuntimeError(f"direct: {_redact(direct_exc)}; proxy: {_redact(proxy_exc)}")
+            setattr(combined, "stream_bytes", int(getattr(proxy_exc, "stream_bytes", 0) or 0))
+            setattr(combined, "stream_elapsed", float(getattr(proxy_exc, "stream_elapsed", 0) or 0))
+            raise combined from proxy_exc
     return _finish(attempt_dir, call_dir, wanted)
 
 
@@ -585,10 +855,12 @@ def fetch_stream_info(url: str, *, deadline_seconds: float = PREFLIGHT_DEADLINE_
     returned actor result is persisted with the task so the worker reuses it
     instead of running the actor again. parsebird never runs here.
     """
-    source, _kind, source_id = detect_stream_source(url)
+    source, kind, source_id = detect_stream_source(url)
+    host = _url_host(url)
     deadline = time.monotonic() + deadline_seconds
     failures: list[str] = []
     no_duration = False
+    last_exc: Optional[BaseException] = None
     for provider in _provider_order(source):
         if provider in APIFY_PROVIDERS and (not allow_actors or provider not in PREFLIGHT_ACTORS):
             continue
@@ -602,27 +874,50 @@ def fetch_stream_info(url: str, *, deadline_seconds: float = PREFLIGHT_DEADLINE_
                 info = _apify_info(url, provider, timeout_secs=max(_MIN_PREFLIGHT_ACTOR_SECONDS, remaining))
             else:
                 info = _extract(url, provider, session=f"preflight{source_id}", deadline=deadline)
+            _reject_unavailable(info)
             duration = _number(info.get("duration"))
             if not duration or duration <= 0:
                 raise _NoDuration("provider returned no duration")
             result = {"id": source_id, "title": info.get("title"), "duration": duration, "provider": provider}
             if provider in APIFY_PROVIDERS:
                 result["media_url"] = info["media_url"]
-            logger.info("Stream metadata fetched provider=%s source=%s", provider, source)
+            _log_stream(
+                logging.INFO, "metadata_ok", provider=provider, source=source, kind=kind, host=host,
+            )
             return result
         except ProviderSkipped as exc:
             failures.append(f"{provider}: skipped ({exc})")
-            logger.info("Stream metadata provider unavailable provider=%s source=%s: %s", provider, source, exc)
+            _log_stream(
+                logging.INFO, "skipped", provider=provider, source=source, kind=kind, host=host, exc=exc,
+            )
+        except StreamSourceError as exc:
+            _log_stream(
+                logging.WARNING, "unavailable", provider=provider, source=source, kind=kind, host=host, exc=exc,
+            )
+            raise
         except Exception as exc:
-            if provider in YTDLP_PROVIDERS and _is_private_error(exc):
-                raise StreamSourceError(PRIVATE_VOD_MESSAGE) from exc
+            last_exc = exc
+            if provider in YTDLP_PROVIDERS and (_is_private_error(exc) or _is_region_error(exc)):
+                message = REGION_VOD_MESSAGE if _is_region_error(exc) else PRIVATE_VOD_MESSAGE
+                _log_stream(
+                    logging.WARNING, "unavailable", provider=provider, source=source, kind=kind, host=host,
+                    status=_http_status(exc), exc=exc,
+                )
+                raise StreamSourceError(message) from _redacted_cause(exc)
             no_duration = no_duration or isinstance(exc, _NoDuration)
             failures.append(f"{provider}: {_redact(exc)}")
-            logger.warning("Stream metadata provider failed provider=%s source=%s: %s", provider, source, _redact(exc))
-    logger.error("All stream metadata providers failed source=%s failures=%s", source, "; ".join(failures))
+            _log_stream(
+                logging.WARNING, "metadata_failed", provider=provider, source=source, kind=kind, host=host,
+                status=_http_status(exc), exc=exc,
+            )
+    _log_stream(
+        logging.ERROR, "metadata_exhausted", provider="-", source=source, kind=kind, host=host,
+        exc="; ".join(failures),
+    )
+    cause = _redacted_cause(last_exc) if last_exc is not None else None
     if no_duration:
-        raise StreamDurationUnavailableError(FETCH_FAILED_MESSAGE)
-    raise StreamSourceError(FETCH_FAILED_MESSAGE)
+        raise StreamDurationUnavailableError(FETCH_FAILED_MESSAGE) from cause
+    raise StreamSourceError(FETCH_FAILED_MESSAGE) from cause
 
 
 def seed_stream_resolution(task_id: Optional[str], resolution: Optional[dict] = None, duration: Any = None, operation: str = PROCESSING_OPERATION) -> None:
@@ -648,46 +943,96 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
     state = _operation(task_key, op_key)
     if _number(expected_duration):
         state.expected_duration = _number(expected_duration)
+    host = _url_host(url)
     if state.failed_until > time.monotonic():
         # Every provider already failed in this operation; don't pay for it again.
-        raise StreamSourceError(FETCH_FAILED_MESSAGE)
+        _log_stream(
+            logging.WARNING, "cached_failure", provider=state.preferred or "-",
+            source=source, kind=kind, host=host, exc=state.failure_public or FETCH_FAILED_MESSAGE,
+        )
+        raise StreamSourceError(state.failure_public or FETCH_FAILED_MESSAGE)
     op_dir = _work_root() / task_key / op_key
     call_dir = op_dir / uuid.uuid4().hex[:12]
     call_dir.mkdir(parents=True, exist_ok=True)
     providers = _provider_order(source)
     if state.preferred in providers:
         providers = providers[providers.index(state.preferred):]
+    _log_stream(
+        logging.INFO, "start", provider=",".join(providers), source=source, kind=kind, host=host,
+    )
     failures: list[str] = []
-    for provider in providers:
+    last_exc: Optional[BaseException] = None
+    timeouts_only = True
+    attempted = 0
+    for index, provider in enumerate(providers):
+        fallback = providers[index + 1] if index + 1 < len(providers) else "-"
+        started = time.monotonic()
         attempt_dir = call_dir / provider
         attempt_dir.mkdir(exist_ok=True)
         template = attempt_dir / ("section-%(section_number)03d.%(ext)s" if ranges else "source.%(ext)s")
+        _log_stream(
+            logging.INFO, "provider", provider=provider, source=source, kind=kind, host=host,
+            fallback=fallback,
+        )
         try:
             if provider in APIFY_PROVIDERS:
                 result = _actor_media(url, provider, state, op_dir, call_dir, attempt_dir, template, audio=audio, ranges=ranges, max_duration=max_duration, session=task_key)
             else:
                 result = _ytdlp_media(url, provider, state, attempt_dir, call_dir, template, audio=audio, ranges=ranges, max_duration=max_duration, session=task_key)
             state.preferred = provider
-            logger.info("Stream download completed provider=%s source=%s kind=%s", provider, source, kind)
+            nbytes = result.stat().st_size if result.is_file() else 0
+            _log_stream(
+                logging.INFO, "completed", provider=provider, source=source, kind=kind, host=host,
+                bytes_transferred=nbytes, elapsed=time.monotonic() - started,
+            )
             return result
         except ProviderSkipped as exc:
             shutil.rmtree(attempt_dir, ignore_errors=True)
             failures.append(f"{provider}: skipped ({exc})")
-            logger.info("Stream provider unavailable provider=%s source=%s: %s", provider, source, exc)
-        except StreamSourceError:
+            _log_stream(
+                logging.INFO, "skipped", provider=provider, source=source, kind=kind, host=host,
+                exc=exc, elapsed=time.monotonic() - started, fallback=fallback,
+            )
+        except StreamSourceError as exc:
+            _log_stream(
+                logging.WARNING, "stopped", provider=provider, source=source, kind=kind, host=host,
+                exc=exc, elapsed=time.monotonic() - started,
+            )
             shutil.rmtree(call_dir, ignore_errors=True)
             raise
         except Exception as exc:
             shutil.rmtree(attempt_dir, ignore_errors=True)
-            if provider in YTDLP_PROVIDERS and _is_private_error(exc):
+            last_exc = exc
+            attempted += 1
+            if not _is_transient_error(exc):
+                timeouts_only = False
+            elapsed = float(getattr(exc, "stream_elapsed", time.monotonic() - started) or 0)
+            transferred = int(getattr(exc, "stream_bytes", 0) or 0)
+            if provider in YTDLP_PROVIDERS and (_is_private_error(exc) or _is_region_error(exc)):
+                message = REGION_VOD_MESSAGE if _is_region_error(exc) else PRIVATE_VOD_MESSAGE
+                _log_stream(
+                    logging.WARNING, "unavailable", provider=provider, source=source, kind=kind, host=host,
+                    status=_http_status(exc), exc=exc, bytes_transferred=transferred, elapsed=elapsed,
+                )
                 shutil.rmtree(call_dir, ignore_errors=True)
-                raise StreamSourceError(PRIVATE_VOD_MESSAGE) from exc
+                raise StreamSourceError(message) from _redacted_cause(exc)
             failures.append(f"{provider}: {_redact(exc)}")
-            logger.warning("Stream download provider failed provider=%s source=%s: %s", provider, source, _redact(exc))
+            _log_stream(
+                logging.WARNING, "provider_failed", provider=provider, source=source, kind=kind, host=host,
+                status=_http_status(exc), exc=exc, bytes_transferred=transferred, elapsed=elapsed,
+                fallback=fallback,
+            )
+    message = TIMEOUT_MESSAGE if attempted and timeouts_only else FETCH_FAILED_MESSAGE
+    state.failure_public = message
     state.failed_until = time.monotonic() + _FAILED_TTL_SECONDS
     shutil.rmtree(call_dir, ignore_errors=True)
-    logger.error("All stream download providers failed source=%s kind=%s failures=%s", source, kind, "; ".join(failures))
-    raise StreamSourceError(FETCH_FAILED_MESSAGE)
+    _log_stream(
+        logging.ERROR, "exhausted", provider="-", source=source, kind=kind, host=host,
+        exc="; ".join(failures) or message,
+    )
+    if last_exc is not None:
+        raise StreamSourceError(message) from _redacted_cause(last_exc)
+    raise StreamSourceError(message)
 
 
 def download_stream_audio(url, duration=None, task_id=None, *, max_duration=None, operation=None):

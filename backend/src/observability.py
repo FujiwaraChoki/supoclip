@@ -149,6 +149,18 @@ class JsonLogFormatter(logging.Formatter):
             "source_outcome",
             "source_status",
             "source_reason",
+            # Twitch/Kick stream downloads. Host only; no signed URL or proxy secret.
+            "stream_stage",
+            "stream_provider",
+            "stream_source",
+            "stream_kind",
+            "stream_host",
+            "stream_http_status",
+            "stream_exc_type",
+            "stream_bytes",
+            "stream_elapsed_ms",
+            "stream_attempt",
+            "stream_fallback",
         ):
             value = getattr(record, key, None)
             if value not in (None, ""):
