@@ -4,7 +4,7 @@ SupoClip can download YouTube media with `yt-dlp` through a residential proxy, t
 
 ## What a configured job does
 
-1. A sticky proxy session, forced over IPv4; a transient transport failure can rotate the session for that failed download.
+1. A sticky proxy session, forced over IPv4. A transient transport failure, including an SSL/TLS record-layer or connection reset, rotates that session. Selected segments get several of those rotations before any other provider runs.
 2. Modest audio only (about 128 kbps m4a) for the duration check, transcription, audio peaks, and clip selection.
 3. After clips are chosen, only those time ranges, padded (default ±10 seconds) with overlaps merged, at or below 1080p.
 4. Audio and sections land in `{TEMP_DIR}/youtube-cache/{video_id}/`. Regenerating clips, editing captions, and opening the editor reuse that cache. A new section is fetched only when an edit extends past the cached ranges.
@@ -14,7 +14,7 @@ When the modest https audio download fails with HTTP 403 or yt-dlp's "unable to 
 
 The HLS retry does not pass a format string such as `bestaudio[protocol^=m3u8]`. A format string can make yt-dlp hand the playlist to ffmpeg, which would leave from the server IP. The retry selects one format and downloads it with the native client. Player clients stay at yt-dlp defaults, so an info response that listed no HLS formats cannot be repaired here. `--download-sections` is still not used.
 
-Audio and individual section downloads retry a transient timeout or proxy connection failure once with fresh metadata and a new session. The extra attempt has a 60-second deadline and shares the original byte allowance, including bytes spent on failed attempts. Completed sections remain cached. Budget failures, unsupported formats, private videos and bot checks do not trigger this transport retry. The existing HLS-on-403 recovery and provider fallbacks remain in place.
+Audio and full-file proxy downloads retry a transient timeout, SSL/TLS failure, or proxy connection failure once, with fresh metadata and a new session. The extra attempt has a 60-second deadline and shares the original byte allowance, including bytes spent on failed attempts. A selected-segment download does the same three more times (backoff 2s, then 4s, then 8s). Each of those retries gets its own 60-second window and a new sticky session. The overall extra time is 60 seconds per segment retry, on top of the initial attempt. Completed sections stay cached, so a later gap is the only one fetched again. Budget failures, unsupported formats, private videos and bot checks do not trigger this transport retry, and they do not add an Apify call beyond the single existing fallback. The existing HLS-on-403 recovery and provider fallbacks remain in place. After the segment retries are exhausted, the job uses the full-file provider order below. A proxy network failure still skips a second full-file proxy download.
 
 Uploads and non-YouTube download paths are unchanged. Without a proxy, YouTube jobs still download a full file, now capped at 1080p, and that file is cached too.
 
@@ -35,7 +35,7 @@ regenerated, while an existing full source remains available.
 
 If a format cannot be sliced, the job tries a bounded full 1080p download through the proxy. A proxy network failure skips that repeat attempt. With a proxy configured, the fallback order is always **proxy → API Router → Apify primary (Titan in production) → configured emergency actors → direct yt-dlp**, regardless of the legacy primary-provider setting. `APIFY_EXPENSIVE_FALLBACKS` defaults to `false`, so only the primary Apify actor runs. Production explicitly enables Marielise then Scraper One with a shared $1 Apify budget and a $0.50 per-actor ceiling (Titan keeps its smaller $0.03 cap). The spending allowance is shared, not reset between actors. Leave high-cap actors (marielise.dev, scraper_one, dami_studio, and anything else with a multi-dollar run cap) out of `APIFY_YOUTUBE_FALLBACK_ACTORS` unless that flag is `true`. Actor ids stay in private environment configuration.
 
-Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline. One transport retry and one allowed-region retry are permitted, within an overall limit of the initial timeout plus 60 seconds. A region retry can use the remaining overall allowance; it is not limited to a new 60-second transfer. Once retries are exhausted, independent providers can take over. Full-file proxy attempts use private temporary directories so cleanup cannot remove another job's media or a saved transcript. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
+Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline. Audio and full-file downloads allow one transport retry and one allowed-region retry, within an overall limit of the initial timeout plus 60 seconds. Segment downloads allow three transport retries in that same shape, each limited to 60 seconds and a new session. A region retry can use the remaining original allowance; it is not limited to a new 60-second transfer and does not get the extra segment windows. Once retries are exhausted, independent providers can take over, in the order above, still subject to the existing Apify cost caps. Full-file proxy attempts use private temporary directories so cleanup cannot remove another job's media or a saved transcript. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
 
 ## Generation recovery
 
@@ -96,7 +96,7 @@ keep an exit IP for about 30 minutes; an offline residential peer can cause
 the provider to replace the IP sooner. Verify the same exit is used for
 metadata, audio, and selected sections in a canary before enabling production.
 
-`{session}` initially becomes an 8–24 character id derived from the task id. A transport retry uses a new random 24-character id for that download. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL.
+`{session}` initially becomes an 8–24 character id derived from the task id. A transport retry uses a new random 24-character id for that download. Segment downloads rotate that id on each of the three retries. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL or the session id. Retry lines carry `youtube_retry_attempt` and `youtube_proxy_session_rotated`. A switch to the next provider carries `youtube_provider_fallback`.
 
 When YouTube reports a regional restriction and supplies allowed country codes,
 the downloader can retry through an allowed country using the `{country}`

@@ -32,6 +32,7 @@ def region_downloads(tmp_path, monkeypatch):
     set_config_override(config)
     state = {"metadata": [], "media": [], "errors": [geo_error()], "clock": 100.0}
     monkeypatch.setattr(proxy.time, "monotonic", lambda: state["clock"])
+    monkeypatch.setattr(proxy.time, "sleep", lambda _seconds: None)
 
     def metadata(_url, options):
         state["metadata"].append(dict(options))

@@ -13,6 +13,7 @@ import math
 import re
 import secrets
 import shutil
+import ssl
 import subprocess
 import tempfile
 import threading
@@ -327,11 +328,17 @@ def log_youtube_attempt(
     task_id: Optional[str] = None,
     error: Optional[str] = None,
     fallback: Optional[str] = None,
+    provider_fallback: Optional[str] = None,
+    retry_attempt: Optional[int] = None,
+    session_rotated: bool = False,
 ) -> None:
     """One structured line per attempt so Axiom can sum bytes and cost.
 
     ``fallback`` is set only when that retry produced the file (``hls_audio``
-    or ``section``). Failure lines stay free of proxy credentials and media URLs.
+    or ``section``). ``provider_fallback`` names the next provider after this
+    attempt failed. ``retry_attempt`` and ``session_rotated`` describe a
+    same-provider retry on a new sticky session. Failure lines stay free of
+    proxy credentials, session ids and media URLs.
     """
     message = (
         "youtube_download provider=%s video_id=%s kind=%s outcome=%s bytes=%s task_id=%s"
@@ -349,6 +356,17 @@ def log_youtube_attempt(
         extra["youtube_fallback"] = fallback
         message += " fallback=%s"
         args.append(fallback)
+    if provider_fallback:
+        extra["youtube_provider_fallback"] = provider_fallback
+        message += " provider_fallback=%s"
+        args.append(provider_fallback)
+    if retry_attempt:
+        extra["youtube_retry_attempt"] = int(retry_attempt)
+        message += " retry_attempt=%s"
+        args.append(int(retry_attempt))
+    if session_rotated:
+        extra["youtube_proxy_session_rotated"] = True
+        message += " session_rotated=1"
     if error:
         message += " error=%s"
         args.append(public_download_error(error))
@@ -445,20 +463,57 @@ def download_options(
     return options
 
 
+# TLS failures yt-dlp surfaces after its own single fragment retry. A dead
+# residential exit keeps failing on that sticky session, so these are worth a
+# new session. Bot checks, private videos and HTTP 403 are not in this list.
+_TRANSIENT_TRANSPORT_MARKERS = (
+    "unable to connect to proxy",
+    "tunnel connection failed",
+    "no_host_connection",
+    "no_ray",
+    "timed out",
+    "connection reset",
+    "connection aborted",
+    "connection refused",
+    "remote end closed",
+    "broken pipe",
+    "econnreset",
+    "http error 502",
+    "http error 503",
+    "http error 504",
+    "record layer failure",
+    "[ssl]",
+    "ssl:",
+    "sslerror",
+    "_ssl.c",
+    "tls",
+    "unexpected eof",
+    "unexpected_eof",
+    "bad record mac",
+    "wrong version number",
+    "decryption failed",
+)
+
+# Selected-segment downloads fail often enough on a single dead exit that one
+# rotation is not enough. Audio and metadata stay at one transport retry.
+SECTION_TRANSPORT_RETRIES = 3
+
+
+def _transport_backoff_seconds(retry_number: int) -> float:
+    """Wait before transport retry ``retry_number`` (1, then 2, 4, 8 seconds)."""
+    return float(min(8, 2 ** retry_number))
+
+
 def is_transient_proxy_error(exc: BaseException) -> bool:
     """Only transport failures merit a new residential session, never bad media."""
     transient = False
     for error in _exception_chain(exc):
         if isinstance(error, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
             return False
-        if isinstance(error, (DownloadDeadlineExceeded, TimeoutError, ConnectionError)):
+        if isinstance(error, (DownloadDeadlineExceeded, TimeoutError, ConnectionError, ssl.SSLError)):
             transient = True
         message = str(error).lower()
-        if any(marker in message for marker in (
-            "unable to connect to proxy", "tunnel connection failed", "no_host_connection",
-            "no_ray", "timed out", "connection reset", "connection aborted",
-            "remote end closed", "http error 502", "http error 503", "http error 504",
-        )):
+        if any(marker in message for marker in _TRANSIENT_TRANSPORT_MARKERS):
             transient = True
         # yt-dlp's IncompleteRead is often wrapped in a DownloadError. A peer
         # closing a response early is recoverable just like a connection reset.
@@ -470,30 +525,41 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
 @trial_retry
 def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: str,
                       budget: ByteBudget, cleanup: Callable[[], None],
-                      deadline: Optional[float] = None):
-    """One transport and one region retry stay inside the initial budget plus 60s.
+                      deadline: Optional[float] = None,
+                      transport_retries: int = 1,
+                      kind: str = ""):
+    """Retry transient transport failures on a new sticky session.
 
-    Each attempt re-extracts metadata, keeping signed URLs and all fragments on
-    that attempt's session. Completed sections outside this operation are kept.
+    Audio, metadata and full-file proxy downloads get one transport retry
+    inside the initial timeout plus 60 seconds. Section downloads pass
+    ``SECTION_TRANSPORT_RETRIES`` and may use 60 seconds for each of those
+    retries, with a short backoff between them. One region retry shares the
+    original window. Each attempt re-extracts metadata, so signed URLs and
+    fragments stay on that attempt's session. Completed sections outside this
+    operation are kept. The session id itself is never logged.
     """
     runtime = trial_config(get_config())
     initial_seconds = max(30, getattr(runtime, "youtube_proxy_timeout_seconds", 300))
-    overall_deadline = time.monotonic() + initial_seconds + 60
+    started = time.monotonic()
+    overall_deadline = started + initial_seconds + 60
+    transport_deadline = started + initial_seconds + 60 * max(1, transport_retries)
     if deadline is not None:
         overall_deadline = min(overall_deadline, deadline)
+        transport_deadline = min(transport_deadline, deadline)
     route = budget.proxy_route(task_id, video_id)
     country = route[0] if route else normalize_country(getattr(runtime, "youtube_proxy_country", ""))
     session = route[1] if route else sticky_session_id(task_id, video_id)
     geo_retry = False
-    transport_retry = False
+    transport_used = 0
     retry_deadline = None
-    for attempt in range(3):
+    for attempt in range(2 + max(1, transport_retries)):
+        attempt_cap = transport_deadline if transport_used else overall_deadline
         options = download_options(
             task_id, video_id, budget,
             session_id=session, country=country,
         )
         options["_youtube_deadline"] = min(
-            overall_deadline, retry_deadline if attempt else time.monotonic() + initial_seconds
+            attempt_cap, retry_deadline if attempt else time.monotonic() + initial_seconds
         )
         options["_youtube_metadata_ready"] = lambda country=country, session=session: (
             budget.remember_proxy_route(task_id, video_id, country, session)
@@ -524,18 +590,41 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
                     "youtube_proxy_region_retry country=%s video_id=%s task_id=%s",
                     country, video_id, task_id or "-",
                 )
-            elif now < overall_deadline and not is_geo and not transport_retry and is_transient_proxy_error(exc):
-                transport_retry = True
-                retry_deadline = min(overall_deadline, now + 60)
+            elif (
+                now < transport_deadline
+                and not is_geo
+                and transport_used < transport_retries
+                and is_transient_proxy_error(exc)
+            ):
+                transport_used += 1
+                pause = _transport_backoff_seconds(transport_used)
+                # A retry that cannot transfer before the cap is not a retry.
+                if now + pause >= transport_deadline:
+                    raise
+                time.sleep(pause)
+                now = time.monotonic()
+                if now >= transport_deadline:
+                    raise
+                retry_deadline = min(transport_deadline, now + 60)
             else:
                 if is_geo:
                     raise YouTubeGeoRestrictedError() from exc
                 raise
             session = secrets.token_hex(12)
             report_download_recovery(DownloadRecovery.CONNECTION)
+            extra = {
+                "youtube_retry_attempt": attempt + 2,
+                "youtube_proxy_session_rotated": True,
+                "youtube_video_id": video_id,
+                "task_id": task_id or "",
+                "youtube_error_type": type(exc).__name__,
+            }
+            if kind:
+                extra["youtube_download_kind"] = kind
             logger.info(
-                "youtube_proxy_retry attempt=%s video_id=%s task_id=%s error=%s",
+                "youtube_proxy_retry attempt=%s video_id=%s task_id=%s session_rotated=1 error=%s",
                 attempt + 2, video_id, task_id or "-", public_download_error(exc),
+                extra=extra,
             )
 
 
@@ -1365,6 +1454,8 @@ def download_section_file(
         ),
         task_id=task_id, video_id=video_id, budget=counter,
         cleanup=lambda: dest.unlink(missing_ok=True),
+        transport_retries=SECTION_TRANSPORT_RETRIES,
+        kind="section",
     )
 
 

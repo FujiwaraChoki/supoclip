@@ -21,6 +21,7 @@ from ..download_progress import (
 )
 from ..repositories.minute_usage_repository import charged_duration
 from ..youtube_utils import (
+    _provider_order,
     async_get_youtube_video_info,
     async_get_youtube_video_title,
     cleanup_downloaded_files,
@@ -709,13 +710,26 @@ class VideoService:
                 except Exception as exc:
                     section_error = exc
                     # Only unsupported slicing warrants a full proxy attempt.
+                    # Transport failures already rotated sessions inside the
+                    # section download, so this does not fetch the whole video
+                    # through the proxy again.
                     bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
                     if errors is not None and not isinstance(exc, PartialDownloadUnavailable):
                         errors.append(public_download_error(exc))
                     logger.warning(
                         "Section download unavailable for %s, using a full file: %s",
                         video_id,
-                        exc,
+                        public_download_error(exc),
+                        extra={
+                            "task_id": task_id or "",
+                            "youtube_video_id": video_id,
+                            "youtube_download_kind": "section_materialization",
+                            "youtube_outcome": "failure",
+                            "youtube_error_type": type(exc).__name__,
+                            "youtube_provider_fallback": ",".join(
+                                _provider_order(get_config(), skip_proxy=bypass_proxy)
+                            ),
+                        },
                     )
                     report_download_recovery(DownloadRecovery.FULL_VIDEO)
             path = resolve_full_youtube_download(
@@ -1668,11 +1682,23 @@ class VideoService:
                 if section_error is not None:
                     if progress_callback:
                         await progress_callback(65, DownloadRecovery.FULL_VIDEO.value, "processing")
+                    # Sections already retried transient TLS/connection errors
+                    # on fresh proxy sessions. The full file uses the existing
+                    # provider order and still skips a second proxy download
+                    # unless the sections were unslicable.
+                    skip_proxy = not isinstance(section_error, PartialDownloadUnavailable)
                     logger.warning(
                         "Section download failed, falling back to a full download: %s",
                         public_download_error(section_error),
-                        extra={"task_id": task_id, "youtube_download_kind": "section_materialization",
-                               "youtube_outcome": "failure", "youtube_error_type": type(section_error).__name__},
+                        extra={
+                            "task_id": task_id,
+                            "youtube_download_kind": "section_materialization",
+                            "youtube_outcome": "failure",
+                            "youtube_error_type": type(section_error).__name__,
+                            "youtube_provider_fallback": ",".join(
+                                _provider_order(get_config(), skip_proxy=skip_proxy)
+                            ),
+                        },
                     )
                     if source_type in {"twitch", "kick"}:
                         video_path = await run_stream_download(
@@ -1683,7 +1709,7 @@ class VideoService:
                     else:
                         video_path = await VideoService.download_video(
                             url, task_id=task_id, quality=download_quality, budget=job_budget,
-                            skip_proxy=not isinstance(section_error, PartialDownloadUnavailable),
+                            skip_proxy=skip_proxy,
                             progress_callback=progress_callback, download_progress=65,
                         )
                         video_path = preserve_geo_restriction(video_path, section_error)
