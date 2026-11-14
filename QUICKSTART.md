@@ -94,7 +94,7 @@ docker-compose up -d --build
 | Variable | Description | Where to Get |
 |----------|-------------|--------------|
 | `ASSEMBLY_AI_API_KEY` | Speech-to-text transcription | https://www.assemblyai.com/ |
-| `LLM` | AI model identifier | e.g., `openai:gpt-5.2` or `ollama:gpt-oss:20b` |
+| `LLM` | AI model identifier | e.g., `openai:gpt-5.2`, `nvidia:meta/llama-3.3-70b-instruct`, or `ollama:gpt-oss:20b` |
 
 ### Optional Variables
 
@@ -104,6 +104,7 @@ docker-compose up -d --build
 | `BETTER_AUTH_SECRET` | dev secret | Auth secret (change in production!) |
 | `GOOGLE_API_KEY` | - | For Google Gemini models |
 | `ANTHROPIC_API_KEY` | - | For Claude models |
+| `NVIDIA_API_KEY` | - | For `nvidia:*` models via NVIDIA NIM |
 | `OPENROUTER_API_KEY` | - | For `openrouter:*` models |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |

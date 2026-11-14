@@ -60,6 +60,7 @@ def build_agent(output_type: type[T], system_prompt: str, *, structural: bool) -
         hashlib.sha256(system_prompt.encode("utf-8")).hexdigest(),
         name,
         cfg.openai_api_key,
+        cfg.nvidia_api_key,
         cfg.openrouter_api_key,
         cfg.openrouter_fallback_model,
         cfg.google_api_key,

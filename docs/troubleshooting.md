@@ -166,6 +166,7 @@ Verify:
 ### Provider mismatch examples
 
 - `LLM=openai:...` requires `OPENAI_API_KEY`
+- `LLM=nvidia:...` requires `NVIDIA_API_KEY` and a model ID available through NVIDIA NIM
 - `LLM=google-gla:...` requires `GOOGLE_API_KEY`
 - `LLM=anthropic:...` requires `ANTHROPIC_API_KEY`
 - `LLM=openrouter:...` requires `OPENROUTER_API_KEY`

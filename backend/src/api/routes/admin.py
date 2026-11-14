@@ -37,6 +37,11 @@ SETTING_METADATA = {
         "description": "Required for openai:* models.",
         "input_type": "password",
     },
+    "NVIDIA_API_KEY": {
+        "label": "NVIDIA API key",
+        "description": "Required for nvidia:* models through NVIDIA NIM.",
+        "input_type": "password",
+    },
     "OPENROUTER_API_KEY": {
         "label": "OpenRouter API key",
         "description": "Required for openrouter:* models, including Sonnet with Luna fallback.",

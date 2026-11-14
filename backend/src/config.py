@@ -14,6 +14,7 @@ DOCKER_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 class Config:
     def __init__(self):
         self.openai_api_key = self._get_runtime_setting("OPENAI_API_KEY")
+        self.nvidia_api_key = self._get_runtime_setting("NVIDIA_API_KEY")
         self.openrouter_api_key = self._get_runtime_setting("OPENROUTER_API_KEY")
         self.openrouter_fallback_model = self._get_optional_env("OPENROUTER_FALLBACK_MODEL") or "openai/gpt-6-luna"
         self.anthropic_api_key = self._get_runtime_setting("ANTHROPIC_API_KEY")
@@ -381,6 +382,7 @@ class Config:
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
+            "NVIDIA_API_KEY": self.nvidia_api_key,
             "OPENROUTER_API_KEY": self.openrouter_api_key,
             "GOOGLE_API_KEY": self.google_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
@@ -495,6 +497,8 @@ class Config:
             return "google-gla:gemini-3-flash-preview"
         if self.openai_api_key:
             return "openai:gpt-5.2"
+        if self.nvidia_api_key:
+            return "nvidia:meta/llama-3.3-70b-instruct"
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
         if self.openrouter_api_key:
