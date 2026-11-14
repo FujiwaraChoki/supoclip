@@ -487,6 +487,11 @@ def create_optimized_clip(
                 caption_layout_report=layout_report,
                 **offsets_kwargs,
                 **labels_kwargs,
+                # Only stacked interview openings move the hook title.
+                **(
+                    {"hook_center_y": plan_report["hook_center_y"]}
+                    if plan_report.get("hook_center_y") is not None else {}
+                ),
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(

@@ -1457,6 +1457,8 @@ def build_vertical_filter_plan(
     )
     if report is not None:
         report["kind"] = described["kind"]
+        if described.get("hook_center_y") is not None:
+            report["hook_center_y"] = described["hook_center_y"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1581,10 +1583,13 @@ def describe_vertical_layout(
         logger.warning("Interview layout failed (%s); using the generic layout", exc)
         interview = None
     if interview:
-        return _described(
+        result = _described(
             "interview", interview["video_filter"], "complex",
             caption_y_below_subject(interview["face_bottom"]),
         )
+        if interview.get("hook_center_y") is not None:
+            result["hook_center_y"] = interview["hook_center_y"]
+        return result
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
         return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)

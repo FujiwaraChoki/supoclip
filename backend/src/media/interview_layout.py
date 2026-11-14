@@ -37,7 +37,7 @@ import tempfile
 
 import numpy as np
 
-from .common import UPSCALE_SHARPEN_FILTER, logger
+from .common import HOOK_TITLE_SECONDS, UPSCALE_SHARPEN_FILTER, logger
 from .ffmpeg import clamp_even, round_to_even
 
 Box = Tuple[float, float, float, float]
@@ -111,6 +111,9 @@ CUT_PEAK_RATIO = 1.8
 # tiles: a clip that only ever shows such a pair keeps the call stack.
 WEBCAM_FACE_TOP = 0.3
 
+
+# Output y of the seam between the two stacked panels (each 1080x960).
+PAIR_SEAM_Y = 0.5
 
 @dataclass
 class Segment:
@@ -691,9 +694,14 @@ def plan_interview_layout(
         for s in segments
     ]
     logger.info("Interview layout: %s", summary)
-    return {
+    result = {
         "kind": "interview",
         "video_filter": video_filter,
         "segments": summary,
         "face_bottom": lowest,
     }
+    # The hook title sits in the top safe area, which in a stacked two-shot is
+    # the top person's face. Opening on a pair, put it on the panel seam.
+    if any(s.kind == "pair" and s.start < HOOK_TITLE_SECONDS for s in segments):
+        result["hook_center_y"] = PAIR_SEAM_Y
+    return result

@@ -384,3 +384,9 @@ def test_rendered_interview_keeps_every_frame_at_1080x1920(cut_clip):
         "-map", "[vout]", "-frames:v", "1", "-f", "null", "-",
     ], capture_output=True, timeout=60)
     assert probe.returncode == 0, probe.stderr
+
+
+def test_opening_on_a_two_shot_moves_the_hook_title_to_the_panel_seam():
+    assert plan(INTERVIEW, [5, 9, 14], 18)["hook_center_y"] == interview_layout.PAIR_SEAM_Y
+    close_first = [(0, 5, [CLOSE]), (5, 9, [HOST, GUEST]), (9, 14, [CLOSE])]
+    assert "hook_center_y" not in plan(close_first, [5, 9], 14)
