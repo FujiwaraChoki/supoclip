@@ -239,6 +239,28 @@ def _with_original_source_times(items: List[Dict[str, Any]], time_map) -> List[D
     return out
 
 
+def _fx_timeline_hash(keep_ranges: List[tuple], output_offsets: Optional[List[float]], words: List[Dict[str, Any]],
+                      time_map) -> str:
+    """§13.1 ``timeline_hash`` with the ranges in the original video's time.
+
+    A section download's ``keep_ranges`` are positions in that download, which another download of the same clip
+    (another padding, more sections, the full file) lays out differently. Hashing the original-source ranges lets
+    a settings re-render of such a clip reuse or re-resolve its plan (rules 2/3) instead of re-anchoring (rule 4).
+    Without a time map (uploads, full downloads) the ranges are already source time and the hash is unchanged.
+    """
+    ranges = keep_ranges
+    if time_map is not None:
+        ranges = []
+        for start, end in time_map.to_original_ranges([(float(a), float(b)) for a, b in keep_ranges]):
+            # A range that crosses a stitched-section boundary in one download and not in another is the same
+            # stretch of the original video: join pieces that touch there.
+            if ranges and abs(start - ranges[-1][1]) < 1e-3:
+                ranges[-1] = (ranges[-1][0], end)
+            else:
+                ranges.append((start, end))
+    return beats_timeline_hash(ranges, output_offsets, words)
+
+
 def _fx_clip_seconds(keep_ranges: List[tuple], output_offsets: Optional[List[float]]) -> float:
     """E duration of the stage-1 render before the probe clamp (AR-M13)."""
     if output_offsets is not None:
@@ -397,7 +419,7 @@ async def plan_clip_fx(
     lines = _with_original_source_times(fx_lines_for_ranges(transcript, keep_ranges, output_offsets), time_map)
     words, timing = words_with_timing(raw_words, lines)
     language = (transcript or {}).get("language_code") if isinstance(transcript, dict) else None
-    current_hash = beats_timeline_hash(keep_ranges, output_offsets, words)
+    current_hash = _fx_timeline_hash(keep_ranges, output_offsets, words, time_map)
     clip_seconds = _fx_clip_seconds(keep_ranges, output_offsets)
     stored = stored or {}
     seed = plan_seed(task_id, clip_index)

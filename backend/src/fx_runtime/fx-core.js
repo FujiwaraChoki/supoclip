@@ -755,10 +755,10 @@ function drawText(ctx, op, base) {
     ctx.clip();
   }
   prepare(ctx, op.alpha, op.blend);
-  setMat(ctx, mul(base, op.transform));
-  ctx.font = fontCss(op.font, op.px);
+  const m = mul(base, op.transform);
+  setMat(ctx, m);
   ctx.textAlign = op.align;
-  ctx.textBaseline = "middle";
+  const y = snapBaseline(op.y + middleShift(ctx, op.font, op.px), m);
   ctx.lineJoin = op.join;
   const native = op.letterSpacing !== 0 && "letterSpacing" in ctx;
   if (native) ctx.letterSpacing = `${op.letterSpacing}px`;
@@ -780,9 +780,9 @@ function drawText(ctx, op, base) {
   const paint = (mode) => {
     setShadow(shadowPending);
     shadowPending = false;
-    if (manual) drawSpaced(ctx, op, mode);
-    else if (mode === "stroke") ctx.strokeText(op.text, op.x, op.y);
-    else ctx.fillText(op.text, op.x, op.y);
+    if (manual) drawSpaced(ctx, op, mode, y);
+    else if (mode === "stroke") ctx.strokeText(op.text, op.x, y);
+    else ctx.fillText(op.text, op.x, y);
   };
   if (stroke) {
     ctx.strokeStyle = stroke;
@@ -794,7 +794,24 @@ function drawText(ctx, op, base) {
     paint("fill");
   }
 }
-function drawSpaced(ctx, op, mode) {
+function middleShift(ctx, family, px) {
+  ctx.textBaseline = "alphabetic";
+  ctx.font = fontCss(family, METRIC_PX);
+  const m = ctx.measureText("H");
+  ctx.font = fontCss(family, px);
+  const ascent = m.fontBoundingBoxAscent, descent = m.fontBoundingBoxDescent;
+  if (typeof ascent === "number" && typeof descent === "number" && Number.isFinite(ascent + descent)) {
+    return (ascent - descent) / 2 * (px / METRIC_PX);
+  }
+  ctx.textBaseline = "middle";
+  return 0;
+}
+var METRIC_PX = 1e3;
+function snapBaseline(y, m) {
+  if (m[1] !== 0 || m[2] !== 0 || m[3] === 0) return y;
+  return (Math.round(m[3] * y + m[5]) - m[5]) / m[3];
+}
+function drawSpaced(ctx, op, mode, y) {
   const chars = Array.from(op.text);
   const widths = chars.map((c) => ctx.measureText(c).width);
   const total = widths.reduce((s, w) => s + w, 0) + op.letterSpacing * (chars.length - 1);
@@ -802,8 +819,8 @@ function drawSpaced(ctx, op, mode) {
   const align = ctx.textAlign;
   ctx.textAlign = "left";
   chars.forEach((c, i) => {
-    if (mode === "stroke") ctx.strokeText(c, x, op.y);
-    else ctx.fillText(c, x, op.y);
+    if (mode === "stroke") ctx.strokeText(c, x, y);
+    else ctx.fillText(c, x, y);
     x += widths[i] + op.letterSpacing;
   });
   ctx.textAlign = align;
@@ -1682,7 +1699,7 @@ function layoutCaptions(scene, family, measure) {
     }
     const { space, widths, lines } = fit;
     const lineH = px * 1.2, blockH = lineH * lines.length;
-    const centerX = W * (0.5 + (placement?.x ?? 0));
+    const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
     let centerY = H * (style.y + (placement?.y ?? 0));
     if (!placement) centerY = clamp2(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
     const laid = [];

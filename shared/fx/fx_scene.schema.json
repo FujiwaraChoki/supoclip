@@ -562,6 +562,13 @@
           "title": "Y",
           "type": "number"
         },
+        "x": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "X",
+          "type": "number"
+        },
         "words_per_line": {
           "default": 3,
           "maximum": 8,

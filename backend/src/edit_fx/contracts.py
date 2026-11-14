@@ -346,6 +346,7 @@ class FxCaptionStyle(_Strict):
     shadow: bool = False
     background: Optional[str] = None        # "#RRGGBBAA" line box or None
     y: float = Field(ge=0, le=1)            # caption centre as a fraction of height
+    x: float = Field(default=0, ge=-1, le=1)   # caption centre offset from the middle, fraction of width (studio)
     words_per_line: int = Field(default=3, ge=1, le=8)
     uppercase: bool = False
     enabled: bool = True

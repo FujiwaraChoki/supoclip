@@ -293,6 +293,21 @@ export function useEditor(endpoint: string) {
     setStatus("All changes saved");
   };
   /**
+   * Re-read the session's media facts (face track, matte, analysis state) after a job on the server changed them,
+   * e.g. "Analyse face". The draft, its history and its revision are left alone; a session that was rebuilt
+   * meanwhile (another basis) is not adopted, so a save never lands on a basis the draft was not made for.
+   */
+  const refreshAsset = useCallback(async () => {
+    const current = assetRef.current;
+    if (!current) return false;
+    const state = await editorRequest<EditorState>(endpoint);
+    if (state.status !== "ready" || state.basis !== current.basis || assetRef.current !== current) return false;
+    const next = { ...state, draft: current.draft };
+    assetRef.current = next;
+    if (mounted.current) setAsset(next);
+    return true;
+  }, [endpoint]);
+  /**
    * Prepare the clip's editing copy again from the original video and start
    * a fresh draft. The server keeps the replaced draft as a backup; the
    * caller explains that before calling this.
@@ -321,6 +336,7 @@ export function useEditor(endpoint: string) {
     canRedo: !!history?.future.length,
     save,
     reload,
+    refreshAsset,
     rebuild,
     status,
     error,

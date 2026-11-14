@@ -161,6 +161,12 @@ def cases() -> dict[str, dict]:
         [("all", 0.0, 5.0)], hookTiming={"start": 0.5, "end": 2.0},
         fx_data=fx(grade="teal_orange", grain=0.3, progressBar=True, loopEnding="crossfade",
                    hookTitleSuppressed=True)))
+    add("custom_progress_color", document(
+        [("all", 0.0, 5.0)], fx_data=fx(progressBar=True, progressColor="#22cc88")))
+    add("caption_global_x_offset", document(
+        [("first", 0.0, 2.5), ("second", 2.6, 5.0)], captions={"template": "slam", "y": 0.72},
+        textTransforms={"captions": {"x": -0.18, "y": 0.05, "scale": 0.9}},
+        captionTransforms={'["second","w5"]': {"x": 0.12, "y": -0.2, "scale": 1.1}}))
     add("no_hook_title", document([("all", 0.0, 5.0)], hookTitle=""))
     add("approx_timing_keeps_words", document([("all", 0.0, 5.0)], fx_data=fx(timing="approx")))
     return out

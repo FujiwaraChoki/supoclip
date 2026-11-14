@@ -117,6 +117,7 @@ class FxRequest:                           # what renderers hand to run_fx_chain
     reaction_files: dict[str, Path] = field(default_factory=dict)
     broll_windows: tuple[tuple[float, float], ...] = ()
     hook_window: tuple[float, float] | None = None
+    progress_color: str = FX_PROGRESS_COLOR   # "#RRGGBB"; studio: DocFx.progressColor
     voice_gain: float = 1.0                # studio volume (0 when muted)
     loudness: Literal["static", "dynamic", "none"] = "static"   # generation: env FX_LOUDNORM; studio: "none" (AR-M3)
 
@@ -139,6 +140,14 @@ class FxResult:
 
 def _round(value: float, places: int = 4) -> float:
     return round(float(value), places)
+
+
+def _progress_color(value: object) -> str:
+    """The bar colour as ``#RRGGBB``; anything else falls back to the default orange."""
+    text = str(value or "")
+    if len(text) == 7 and text[0] == "#" and all(c in "0123456789abcdefABCDEF" for c in text[1:]):
+        return text
+    return FX_PROGRESS_COLOR
 
 
 def _bleep_spans(plan: FxPlan) -> list[tuple[float, float]]:
@@ -262,7 +271,7 @@ def build_scene(request: FxRequest, *, out_w: int, out_h: int, warp: Warp, face_
         grade=plan.grade,
         grain=plan.grain,
         progress_bar=plan.progress_bar,
-        progress_color=FX_PROGRESS_COLOR,
+        progress_color=_progress_color(request.progress_color),
         loop_ending=plan.loop_ending,
         hook_window=tuple(request.hook_window) if request.hook_window else None,
         hook_title_suppressed=plan.hook_title_suppressed,

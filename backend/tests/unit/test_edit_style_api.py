@@ -630,6 +630,36 @@ async def test_clip_job_running_progress_is_clamped(clip_job):
     assert (await clip_job.get()).json() == {"status": "running", "kind": "trim", "progress": 1.0}
 
 
+async def test_clip_job_running_with_a_fresh_heartbeat_is_running(clip_job):
+    clip_job.record = _record(status="running", progress=0.4, started_at=time.time() - 600,
+                              budget_seconds=1800.0, updated_at=time.time() - 20)
+    assert (await clip_job.get()).json() == {"status": "running", "kind": "settings", "progress": 0.4}
+
+
+async def test_clip_job_running_without_a_heartbeat_for_two_minutes_reports_worker_stopped(clip_job):
+    clip_job.record = _record(status="running", progress=0.4, started_at=time.time() - 300,
+                              updated_at=time.time() - 125)
+    body = (await clip_job.get()).json()
+    assert body["status"] == "failed"
+    assert body["error"]["code"] == "WORKER_STOPPED" and body["error"]["message"]
+
+
+async def test_clip_job_running_past_its_budget_reports_worker_stopped(clip_job):
+    # Heartbeats still arrive (a wedged render), but the job has outlived budget + margin.
+    clip_job.record = _record(status="running", progress=0.9, started_at=time.time() - 1800 - 301,
+                              budget_seconds=1800.0, updated_at=time.time() - 5)
+    body = (await clip_job.get()).json()
+    assert body["status"] == "failed" and body["error"]["code"] == "WORKER_STOPPED"
+
+
+async def test_clip_job_done_after_a_stale_report_is_done(clip_job):
+    # The stale verdict is never written back: a job that finishes after all is reported done.
+    result = {"clip": {"id": "c1"}}
+    clip_job.record = _record(status="done", progress=1.0, started_at=time.time() - 9000,
+                              updated_at=time.time() - 9000, result=result)
+    assert (await clip_job.get()).json()["status"] == "done"
+
+
 async def test_clip_job_done_returns_the_synchronous_body(clip_job):
     result = {"task": {"id": "task-1"}, "message": "Task settings updated"}
     clip_job.record = _record(status="done", progress=0.9, result=result)

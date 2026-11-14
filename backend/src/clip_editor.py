@@ -395,6 +395,37 @@ def _caption_words_with_timings(
     ]
 
 
+def edited_caption_words(
+    caption_text: str,
+    transcript_video_path: Optional[Path],
+    source_ranges: Optional[List[tuple[float, float]]],
+    duration: float,
+    output_offsets: Optional[List[float]] = None,
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """The edited caption words on the clip timeline, timed like ``overlay_custom_captions`` times them.
+
+    Returns ``(edited, spoken)``: ``edited`` are ``{id, start, end, text}`` words for the single-pass caption edit of
+    a dynamic-edits clip (§13.3; ``[]`` for empty text); ``spoken`` are the transcript words of the same ranges.
+    """
+    transcript_data = load_cached_transcript_data(transcript_video_path) if transcript_video_path else None
+    spoken: List[Dict[str, Any]] = []
+    if transcript_data and transcript_data.get("words"):
+        if source_ranges:
+            spoken = get_words_for_keep_ranges(transcript_data, source_ranges, output_offsets)
+        else:
+            spoken = get_words_in_range(transcript_data, 0.0, duration)
+    if not caption_text.strip():
+        return [], spoken
+    tokens = caption_tokens(caption_text, spoken)
+    timed = _caption_words_with_timings(tokens, spoken, duration)
+    edited = [
+        {"id": f"w{index}", "start": float(word["start"]), "end": max(float(word["start"]), float(word["end"])),
+         "text": str(word["text"])}
+        for index, word in enumerate(timed)
+    ]
+    return edited, spoken
+
+
 class ExportCancelled(RuntimeError):
     """The caller asked an in-progress preset export to stop."""
 

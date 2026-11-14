@@ -452,8 +452,9 @@ def studio_words(document, segments: Sequence[Segment]) -> list[dict]:
 def studio_caption_style(document, width: int, height: int) -> FxCaptionStyle | None:
     """The FX-template caption look (fx-core draws it), or None for legacy templates and disabled captions.
 
-    The global caption transform moves the centre (``y``) and scales the size; per-caption transforms become
-    placements (a size override folds into the scale). fx-core keeps captions horizontally centred.
+    The global caption transform moves the centre (``x``, ``y``) and scales the size. A per-caption transform
+    replaces the global one (as in ``write_ass``), so its placement is stored relative to the global style: fx-core
+    adds a placement's offsets to the style's and multiplies the scales. A size override folds into the scale.
     """
     from .caption_templates import get_template
 
@@ -462,15 +463,21 @@ def studio_caption_style(document, width: int, height: int) -> FxCaptionStyle | 
         return None
     transform = document.textTransforms.get("captions")
     style = captions.model_dump()
+    global_x, global_scale = 0.0, 1.0
     if transform is not None:
         style["y"] = min(1.0, max(0.0, captions.y + transform.y))
+        global_x = min(1.0, max(-1.0, transform.x))
+        style["x"] = global_x
+        global_scale = transform.scale
         style["size"] = captions.size * transform.scale
     from .edit_fx.contracts import CaptionPlacement
 
+    style_y = style.get("y", captions.y)
     placements = []
     for key, placement in sorted(document.captionTransforms.items()):
-        scale = placement.scale * ((placement.size / captions.size) if placement.size else 1.0)
-        placements.append(CaptionPlacement(key=key[:200], x=placement.x, y=placement.y,
+        scale = placement.scale * ((placement.size / captions.size) if placement.size else 1.0) / global_scale
+        placements.append(CaptionPlacement(key=key[:200], x=placement.x - global_x,
+                                           y=placement.y + (captions.y - style_y),
                                            scale=min(4.0, max(1e-3, scale))))
     return fx_caption_style_from_document(style, get_template(captions.template), width=width, height=height,
                                           placements=placements)
@@ -547,9 +554,18 @@ def studio_request(document, *, segments: Sequence[Segment], out_w: int, out_h: 
         reaction_files=_reaction_files_e(plan.cues, document, inputs.reaction_files),
         broll_windows=broll_windows(document) if broll else (),
         hook_window=hook_range(document, plan.edit_duration),
+        progress_color=_doc_progress_color(document),
         voice_gain=0.0 if document.muted else float(document.volume),
         loudness="none",
     )
+
+
+def _doc_progress_color(document) -> str:
+    """``DocFx.progressColor`` (== studio-scene.ts), the default orange without fx."""
+    from .media.fx_chain import FX_PROGRESS_COLOR
+
+    fx = getattr(document, "fx", None)
+    return str(getattr(fx, "progressColor", None) or FX_PROGRESS_COLOR)
 
 
 def studio_scene(document, *, source_w: int, source_h: int, base: str, face_track: dict | None = None,

@@ -181,6 +181,23 @@ describe("studioScene", () => {
     expect(layer.y).toBeCloseTo(0.83);
     expect(layer.size_px).toBe(pyRound(54 * 1.2));
     expect(layer.placements).toEqual([]);
+    expect(layer.x).toBeCloseTo(0.2);
+  });
+
+  it("moves FX captions sideways with the captions layer; a caption's own transform replaces the layer's", () => {
+    const doc = cutDoc({
+      captions: { ...draft.captions, template: "slam", wordsPerLine: 2 },
+      textTransforms: { captions: { x: -0.2, y: 0.05, scale: 1.25 } },
+      captionTransforms: { '["one","a"]': { x: 0.1, y: -0.1, scale: 1.5, size: null } },
+    });
+    const style = studioCaptionStyle(doc, looks, 1080)!;
+    expect(style.x).toBeCloseTo(-0.2);
+    const [own] = style.placements;
+    // Drawn at style + placement == the caption's own transform, not the layer's plus its own.
+    expect(style.x! + own.x).toBeCloseTo(0.1);
+    expect(style.y + own.y).toBeCloseTo(doc.captions.y - 0.1);
+    expect(own.scale * 1.25).toBeCloseTo(1.5);
+    expect(studioCaptionStyle(cutDoc({ captions: { ...draft.captions, template: "slam" } }), looks, 1080)!.x).toBe(0);
   });
 
   it("windows behind cues for the matte and B-roll, and the hook title", () => {

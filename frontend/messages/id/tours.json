@@ -46,5 +46,33 @@
       "body": "Durasi, teks, pembingkaian, pembersihan, dan B-roll kini ada dalam satu menu. Kami mengingat pilihanmu, jadi cukup diatur sekali."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Memperkenalkan editan dinamis",
+      "body": "Klipmu kini bisa diedit seperti editor video pendek terbaik: zoom, efek suara, musik, dan teks animasi tepat di momen yang penting. AI menemukan momen itu; kamu yang memilih seberapa banyak efeknya."
+    },
+    "intensity": {
+      "title": "Pilih seberapa kuat",
+      "body": "Halus menambahkan beberapa zoom dan suara lembut, Tegas menambahkan punch-in, whoosh, dan musik latar, dan Maksimal memakai semua trik di setiap momen. Mati membiarkan klip seperti sebelumnya. Setelah aktif, tombol di bawahnya bisa mematikan musik, bunyi sensor kata kasar, atau apa pun yang tidak kamu mau."
+    },
+    "captions": {
+      "title": "Gaya teks animasi",
+      "body": "Sepuluh gaya baru yang digambar per frame, seperti angka yang menghitung naik, kata yang menghantam layar, atau teks di belakang pembicara. Setiap ubin memutar gaya aslinya. Gaya ini juga bisa dipakai sendiri, dengan editan mati."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Editan dinamis di studio",
+      "body": "Setiap efek di klip kini bisa diubah satu per satu di sini sebelum diekspor. Lihat sekilas di mana letaknya."
+    },
+    "panel": {
+      "title": "Tab Edit",
+      "body": "Ubah intensitas untuk klip ini, nyalakan atau matikan suara, musik, atau zoom, atau hapus semua editan sekaligus. Perubahan langsung berlaku dan bisa dibatalkan."
+    },
+    "lane": {
+      "title": "Setiap efek di linimasa",
+      "body": "Setiap zoom, suara, dan stiker adalah satu blok di sini. Seret untuk memindahkan, klik dua kali untuk mengubah, atau pilih lalu tekan Delete untuk menghapusnya. Klik dua kali di tempat kosong untuk menambahkan suara."
+    }
+  },
   "skip": "Lewati"
 }

@@ -99,7 +99,9 @@ export interface FaceTrack { version: 1; space: "picture" | "output"; fps: numbe
 export interface CaptionPlacement { key: string; x: number; y: number; scale: number }
 export interface FxCaptionStyle {
   template: string; font: string; size_px: number; color: string; accent: string; stroke_color: string | null;
-  stroke_px: number; shadow: boolean; background: string | null; y: number; words_per_line: number;
+  stroke_px: number; shadow: boolean; background: string | null; y: number;
+  /** Caption centre offset from the middle as a fraction of width (studio global transform); absent = 0. */
+  x?: number; words_per_line: number;
   uppercase: boolean; enabled: boolean; placements: CaptionPlacement[];
 }
 export interface FxWord { id: string; start: number; end: number; text: string; highlight: boolean; run: string }

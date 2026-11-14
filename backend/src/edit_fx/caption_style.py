@@ -120,6 +120,7 @@ def fx_caption_style_from_document(captions: dict, template: dict, *, width: int
         shadow=bool(template.get("shadow")),
         background=background,
         y=_clamp(float(captions.get("y", 0.78)), 0.0, 1.0),
+        x=_clamp(float(captions.get("x", 0.0)), -1.0, 1.0),
         words_per_line=_words_per_line(captions.get("wordsPerLine"), 4),
         uppercase=bool(captions.get("uppercase", False)),
         enabled=bool(captions.get("enabled", True)),

@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-14
+
+- **New:** Dynamic edits. Choose an edit intensity (Subtle, Bold or Max) and your clips get zooms, sound effects, a music bed that ducks under the voice, transitions, speed ramps and freeze frames on the moments that matter. The AI finds those moments; you choose how much happens, and can switch off music, bleeps for swearing or anything else you don't want. Ten new animated caption styles come with it, such as numbers that count up, words that slam onto the screen and text behind the speaker, and they also work on their own. Change intensity for existing clips from the results page, or adjust single effects in the clip studio. ([#NNN](https://github.com/FujiwaraChoki/supoclip/pull/NNN))
+
 ## 2026-11-12
 
 - **Fixed:** Opening several clips in the studio at once no longer leaves one of them shorter than the clip. If the whole source can't be fetched, the studio says so instead of opening part of it. A clip that already opened short shows the problem and offers to rebuild its editing copy; your earlier draft stays downloadable. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))

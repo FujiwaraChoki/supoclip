@@ -46,5 +46,33 @@
       "body": "Duração, legendas, enquadramento, limpeza e B-roll agora ficam em um só menu. Lembramos suas escolhas, então você só configura uma vez."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Apresentando as edições dinâmicas",
+      "body": "Agora seus clipes podem ser editados como fazem os melhores editores de vídeos curtos: zooms, efeitos sonoros, música e legendas animadas nos momentos que importam. A IA encontra esses momentos; você escolhe quanto acontece."
+    },
+    "intensity": {
+      "title": "Escolha a intensidade",
+      "body": "Sutil adiciona alguns zooms e sons suaves, Forte adiciona aproximações, whooshes e música de fundo, e Máxima usa todos os truques em cada momento. Desligada deixa os clipes como antes. Depois de ligar, os botões abaixo permitem tirar a música, os bipes de palavrões ou o que você não quiser."
+    },
+    "captions": {
+      "title": "Estilos de legenda animados",
+      "body": "Dez estilos novos desenhados quadro a quadro, como números que sobem contando, palavras que batem na tela ou texto atrás de quem fala. Cada miniatura mostra o estilo real. Eles também funcionam sozinhos, com as edições desligadas."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Edições dinâmicas no estúdio",
+      "body": "Agora você pode mudar aqui cada efeito de um clipe, um por um, antes de exportar. Veja onde eles ficam."
+    },
+    "panel": {
+      "title": "A aba Edições",
+      "body": "Mude a intensidade deste clipe, ligue ou desligue som, música ou zooms, ou remova todas as edições de uma vez. As mudanças valem na hora e podem ser desfeitas."
+    },
+    "lane": {
+      "title": "Cada efeito na linha do tempo",
+      "body": "Cada zoom, som e sticker é um bloco aqui. Arraste para mover, clique duas vezes para mudar, ou selecione e aperte Delete para remover. Clique duas vezes em um espaço vazio para adicionar um som."
+    }
+  },
   "skip": "Pular"
 }

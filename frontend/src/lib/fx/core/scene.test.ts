@@ -27,6 +27,16 @@ describe("caption chunks", () => {
       .toEqual(['["clip","d"]']);
   });
 
+  it("offsets every chunk by the style's x and adds a placement's own offset on top", () => {
+    const centred = prep();
+    const key = centred.chunks[1].key;
+    const moved = prep({ caption: captionStyle({ x: -0.1, placements: [{ key, x: 0.25, y: 0, scale: 1 }] }) });
+    const W = centred.scene.width;
+    expect(moved.chunks[0].centerX).toBeCloseTo(centred.chunks[0].centerX - 0.1 * W, 6);
+    expect(moved.chunks[1].centerX).toBeCloseTo(centred.chunks[1].centerX + 0.15 * W, 6);
+    expect(moved.chunks[0].words[0].x).toBeCloseTo(centred.chunks[0].words[0].x - 0.1 * W, 6);
+  });
+
   it("widens word boxes by the template's letter spacing", () => {
     const plain = prep({ template: "marker_circle" }).chunks[0].words[1];
     const spaced = prep({ template: "decode_glitch" }).chunks[0].words[1];

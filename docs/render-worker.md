@@ -174,6 +174,29 @@ system fonts.
 `FX_RUNTIME=off` turns the deno stage off on a machine. Clips still render,
 with captions, sound effects, music and bleeps but without the drawn effects.
 
+Settings for a render worker:
+
+- Put the dynamic-edits variables (`FX_RUNTIME`, `FX_DENO_BIN`, `FX_WARP`,
+  `FX_RENDER_TIMEOUT_SECONDS`, `FX_LOUDNORM`, `FX_CHAIN_MODE`, `EDIT_PLAN_LLM`,
+  `EDIT_PLAN_TIMEOUT_SECONDS`, `EDIT_PLAN_DAILY_LIMIT`, `REACTIONS_PROVIDER`,
+  `GIPHY_API_KEY`) in the file `WORKER_ENV_FILE` names, with the API's values.
+  `deploy/render-worker/compose.yml` sets only `FX_LIBRARY_DIR`, so the file
+  stays in charge of the rest. See [configuration](configuration.md#dynamic-edits).
+- `WORKER_FX_LIBRARY_PATH` points the read-only `/app/fx_library` mount at this
+  machine's copy of the drop-in library (default `./fx_library`, empty is fine).
+  Keep it identical to the application host's `backend/fx_library`, for example
+  with rsync on deploy.
+- Each render runs three processes (ffmpeg, deno, ffmpeg); the worker's
+  `max_jobs` bounds how many run at once, still within the per-account render
+  slots.
+
+When dynamic edits ship, deploy in this order: the migration, then every video
+worker, render worker and the AI worker on the new image, then the API, then
+the frontend, and only then open the `dynamic_edits` flag. An older worker
+cannot run the new jobs (`fx_clip_job`, `editor_fx_analysis`,
+`edit_fx_plan_job`). Roll back flag first. More in
+[dynamic-edits.md](dynamic-edits.md#rollout).
+
 ## Stopping a worker
 
 Stop the container. Running jobs get up to `stop_grace_period` to finish. A job

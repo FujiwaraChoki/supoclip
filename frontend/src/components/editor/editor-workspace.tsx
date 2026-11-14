@@ -65,16 +65,23 @@ import {
   downloadPreviousDraft,
 } from "./editor-recovery";
 import { draftCacheKey, pruneDrafts } from "@/lib/editor/draft-cache";
+import { createPreviewFxAudio } from "@/lib/fx/audio-preview";
+import { FeatureTourHost } from "@/components/feature-tour";
+import { FX_LANE_HEIGHT, removeFxCue } from "./fx-track";
+import { MUSIC_LANE_HEIGHT } from "./music-track";
 import { editorMessage, editorStatus, Keys, Panel, ToolButton } from "./studio-ui";
 
-const SHORTCUTS: [string[], string][] = [
+const INSPECTOR_TABS: readonly InspectorTab[] = ["captions", "framing", "broll", "audio", "effects", "edits"];
+const isInspectorTab = (id: string): id is InspectorTab => (INSPECTOR_TABS as readonly string[]).includes(id);
+
+export const SHORTCUTS: [string[], string][] = [
   [["space"], "shortcuts.playPause"],
   [["←", "→"], "shortcuts.frames"],
   [["shift", "←", "→"], "shortcuts.jump"],
   [["I"], "shortcuts.setIn"],
   [["O"], "shortcuts.setOut"],
   [["S"], "shortcuts.split"],
-  [["Delete"], "shortcuts.removeBroll"],
+  [["Delete"], "shortcuts.removeSelection"],
   [["mod", "J"], "shortcuts.aiPrompt"],
   [["mod", "Z"], "shortcuts.undo"],
   [["mod", "shift", "Z"], "shortcuts.redo"],
@@ -137,9 +144,17 @@ export function EditorWorkspace({
   const [selected, setSelected] = useState<string[]>([]),
     [combining, setCombining] = useState(false);
   const [brollId, setBrollId] = useState<string | null>(null);
+  // The dynamic-edit cue selected on the FX lane (stored id); forgotten once the cue is gone (deleted, re-planned).
+  const [selectedCue, setSelectedCue] = useState<string | null>(null);
+  const fxCueId = selectedCue && doc?.fx?.cues.some((cue) => cue.id === selectedCue) ? selectedCue : null;
   const [clipsOpen, setClipsOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const index = doc ? Math.min(segmentIndex, doc.segments.length - 1) : 0;
+  // "Analyse face" finished: pick up the new face track and matte so the preview draws them (the draft is kept).
+  const { refreshAsset } = editor;
+  const refreshFxAnalysis = useCallback(() => {
+    void refreshAsset().catch(() => {});
+  }, [refreshAsset]);
   const seek = useCallback((value: number) => {
     setTime(value);
     setSeekRequest({ time: value, nonce: Date.now() });
@@ -157,7 +172,21 @@ export function EditorWorkspace({
   );
   const selectBroll = useCallback((id: string | null) => {
     setBrollId(id);
-    if (id) setTab("broll");
+    if (id) {
+      setSelectedCue(null);
+      setTab("broll");
+    }
+  }, []);
+  const selectFxCue = useCallback((id: string | null) => {
+    setSelectedCue(id);
+    if (id) setBrollId(null);
+  }, []);
+  const openFxCue = useCallback((id: string) => {
+    setSelectedCue(id);
+    setTab("edits");
+  }, []);
+  const openInspectorTab = useCallback((id: string) => {
+    if (isInspectorTab(id)) setTab(id);
   }, []);
   const switchClip = async (id: string) => {
     if (id === clip.id) return;
@@ -266,11 +295,11 @@ export function EditorWorkspace({
       const segment = doc.segments[index];
       if (event.code === "Space") {
         event.preventDefault();
+        // The transport shows Play or Pause. Ask the button, not the video: during a freeze the video is paused
+        // while the preview keeps playing.
         document
           .querySelector<HTMLButtonElement>(
-            videoRef.current?.paused
-              ? `button[aria-label="${CSS.escape(t("preview.play"))}"]`
-              : `button[aria-label="${CSS.escape(t("preview.pause"))}"]`,
+            `button[aria-label="${CSS.escape(t("preview.play"))}"],button[aria-label="${CSS.escape(t("preview.pause"))}"]`,
           )
           ?.click();
       }
@@ -317,6 +346,11 @@ export function EditorWorkspace({
         event.preventDefault();
         editor.update((d) => ({ ...d, broll: (d.broll ?? []).filter((b) => b.id !== brollId) }));
         setBrollId(null);
+      } else if ((key === "delete" || key === "backspace") && fxCueId) {
+        // An auto edit goes to `suppressed` so re-planning never brings it back; undo restores it.
+        event.preventDefault();
+        editor.update((d) => removeFxCue(d, fxCueId));
+        setSelectedCue(null);
       }
       if (key === "?") setHelpOpen(true);
     };
@@ -324,6 +358,7 @@ export function EditorWorkspace({
     return () => window.removeEventListener("keydown", handle);
   }, [
     brollId,
+    fxCueId,
     asset,
     doc,
     editor,
@@ -626,6 +661,7 @@ export function EditorWorkspace({
                 tab={tab}
                 update={editor.update}
                 videoRef={videoRef}
+                fxAudio={createPreviewFxAudio}
                 footer={
                   asset.aiEditing ? (
                     <AIPrompt
@@ -646,7 +682,9 @@ export function EditorWorkspace({
                 doc={doc}
                 asset={asset}
                 tab={tab}
-                setTab={setTab}
+                onTabChange={setTab}
+                fxCueId={fxCueId}
+                selectFxCue={selectFxCue}
                 time={time}
                 editTime={outputTime(doc, Math.min(index, doc.segments.length - 1), time)}
                 seek={seekSource}
@@ -655,6 +693,7 @@ export function EditorWorkspace({
                 endpoint={endpoint}
                 brollId={brollId}
                 selectBroll={selectBroll}
+                onFxAnalysisReady={refreshFxAnalysis}
               />
             </div>
           </>
@@ -684,7 +723,20 @@ export function EditorWorkspace({
         )}
       </div>
       {doc && asset?.status === "ready" && (
-        <div className={cn("shrink-0 p-2 lg:h-[252px]", doc.hookTitle?.trim() && "lg:h-[284px]")}>
+        // Grows by the FX and music lanes (plus their 4 px gaps) when the draft has them.
+        <div
+          className="shrink-0 p-2 lg:h-[var(--studio-timeline-height)]"
+          style={
+            {
+              "--studio-timeline-height": `${
+                252 +
+                (doc.hookTitle?.trim() ? 32 : 0) +
+                (doc.fx ? FX_LANE_HEIGHT + 4 : 0) +
+                (doc.fx?.music ? MUSIC_LANE_HEIGHT + 4 : 0)
+              }px`,
+            } as React.CSSProperties
+          }
+        >
           <Timeline
             pause={() => videoRef.current?.pause()}
             doc={doc}
@@ -700,6 +752,9 @@ export function EditorWorkspace({
             selectBroll={selectBroll}
             seekBroll={seekSource}
             addBroll={() => setTab("broll")}
+            fxCueId={fxCueId}
+            selectFxCue={selectFxCue}
+            openFxCue={openFxCue}
           />
         </div>
       )}
@@ -748,6 +803,21 @@ export function EditorWorkspace({
         }}
       />
       <BrowserBackupsDialog open={backupsOpen} onOpenChange={setBackupsOpen} />
+      <FeatureTourHost
+        enabled={Boolean(doc && asset?.status === "ready")}
+        busy={
+          !doc ||
+          asset?.status !== "ready" ||
+          exportOpen ||
+          helpOpen ||
+          restoreOpen ||
+          reloadOpen ||
+          rebuildOpen ||
+          backupsOpen ||
+          combining
+        }
+        onInspectorTab={openInspectorTab}
+      />
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -46,5 +46,33 @@
       "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Introducing Dynamic edits",
+      "body": "Your clips can now be edited the way top short-form editors do it: zooms, sound effects, music and animated captions, placed on the moments that matter. The AI finds those moments; you choose how much happens."
+    },
+    "intensity": {
+      "title": "Pick how hard it hits",
+      "body": "Subtle adds a few zooms and soft sounds, Bold adds punch-ins, whooshes and a music bed, and Max uses every trick on every beat. Off keeps clips exactly as before. Once it’s on, the switches below let you turn off music, swear bleeps or anything else you don’t want."
+    },
+    "captions": {
+      "title": "Animated caption styles",
+      "body": "Ten new styles drawn frame by frame, like numbers that count up, words that slam onto the screen or text that sits behind the speaker. Each tile plays the real style. They work on their own too, with edits off."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Dynamic edits in the studio",
+      "body": "Every effect on a clip can now be changed here, one by one, before you export. A quick look at where they live."
+    },
+    "panel": {
+      "title": "The Edits tab",
+      "body": "Change the intensity for this clip, switch sound, music or zooms on and off, or remove every edit at once. Changes apply right away and can be undone."
+    },
+    "lane": {
+      "title": "Each effect on the timeline",
+      "body": "Every zoom, sound and sticker is a block here. Drag one to move it, double-click to change it, or select it and press Delete to drop it. Double-click an empty spot to add a sound."
+    }
+  },
   "skip": "Skip"
 }

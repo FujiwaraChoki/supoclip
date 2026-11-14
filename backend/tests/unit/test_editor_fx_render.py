@@ -292,6 +292,34 @@ def test_request_volume_mute_and_caption_look():
     assert legacy.caption is None
 
 
+def test_request_and_scene_carry_the_documents_progress_colour():
+    custom = doc([("a", 0.0, 2.0)], fx={"progressBar": True, "progressColor": "#22cc88"})
+    request = studio.studio_request(custom, segments=studio._segments(custom), out_w=360, out_h=640,
+                                    source_w=360, source_h=640, base="clean")
+    assert request.progress_color == "#22cc88"
+    assert studio.studio_scene(custom, source_w=360, source_h=640, base="clean").progress_color == "#22cc88"
+    default = doc([("a", 0.0, 2.0)], fx={"progressBar": True})
+    assert studio.studio_scene(default, source_w=360, source_h=640, base="clean").progress_color == "#FF7A1A"
+    # Generation requests keep the default; a malformed value never reaches the drawer.
+    assert fx_chain.FxRequest(plan=request.plan, words=[], caption=None).progress_color == fx_chain.FX_PROGRESS_COLOR
+    assert fx_chain._progress_color("orange") == fx_chain.FX_PROGRESS_COLOR
+
+
+def test_caption_layer_x_moves_fx_captions_and_own_transforms_replace_it():
+    document = doc([("a", 0.0, 2.0)], captions={"enabled": True, "template": "slam", "y": 0.6},
+                   textTransforms={"captions": {"x": 0.15, "y": 0.1, "scale": 2.0}},
+                   captionTransforms={'["a","w"]': {"x": -0.05, "y": 0.0, "scale": 1.0}},
+                   words=[{"id": "w", "start": 0.1, "end": 0.6, "text": "go"}])
+    style = studio.studio_caption_style(document, 1080, 1920)
+    assert style.x == pytest.approx(0.15)
+    (own,) = style.placements
+    assert style.x + own.x == pytest.approx(-0.05)          # the caption's own x, not layer + own
+    assert style.y + own.y == pytest.approx(0.6)
+    assert own.scale * 2.0 == pytest.approx(1.0)
+    plain = doc([("a", 0.0, 2.0)], captions={"enabled": True, "template": "slam"})
+    assert studio.studio_caption_style(plain, 1080, 1920).x == 0
+
+
 # ----------------------------------------------------------------------------- real renders (ffmpeg + deno)
 
 def session(tmp_path, *, duration=6.0, audio="sine", video="0x204080") -> Path:

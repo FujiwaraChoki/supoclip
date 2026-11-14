@@ -81,6 +81,9 @@ Responsibilities:
 - Execute long-running video processing
 - Publish progress updates
 - Write final clip records back to PostgreSQL
+- Render dynamic edits (generation, `fx_clip_job` re-renders and FX clip edits,
+  `editor_fx_analysis`); the AI worker runs the studio's beat tagging
+  (`edit_fx_plan_job`). See [Dynamic edits](#dynamic-edits)
 
 Technology:
 
@@ -302,6 +305,8 @@ The rough pipeline is:
    - Face-aware cropping
    - Optional transitions
    - Optional B-roll
+   - Optional [dynamic edits](#dynamic-edits): beat tagging, the effects plan,
+     and the three-process FX render
 5. Persistence
    - Clip metadata in PostgreSQL
    - media files in mounted storage
@@ -356,6 +361,7 @@ Stores:
 - Progress percentage and message
 - Font and caption settings
 - B-roll setting
+- `edit_style`: the dynamic edits choice (`NULL` when off)
 - Processing mode
 - Timing and cache metadata
 
@@ -368,6 +374,8 @@ Stores:
 - Selected text
 - AI reasoning
 - Virality and scoring breakdown
+- `fx_meta`: `{fx_level, timing, intensity, template}` for clips rendered with
+  dynamic edits, `NULL` otherwise
 
 ### `processing_cache`
 
@@ -430,7 +438,37 @@ Caption edits render a fresh clip from its mapped source ranges before applying
 captions. The editor previews that saved file; exports do not add another caption
 layer. Caption edits need the original upload or an available YouTube source.
 
+## Dynamic edits
+
+Optional effects on clips (full guide: [dynamic-edits.md](./dynamic-edits.md)).
+With intensity off and a classic caption template none of this runs, and the
+render is byte-identical to the classic one.
+
+1. **Beats** (`edit_fx/beats_llm.py`): one LLM call per clip tags moments by word
+   id (hook, emphasis, number, punchline, swear, payoff, …). Cached in Redis and
+   the clip's sidecar; heuristic beats when the model is unavailable.
+2. **Resolver** (`edit_fx/resolver.py`): pure, seeded code turns beats,
+   intensity and caption style into an `FxPlan` of cues within per-intensity
+   budgets.
+3. **Renderer** (`frontend/src/lib/fx/core`): one TypeScript library draws every
+   cue. The browser uses it for the studio preview and export; the worker runs
+   the committed bundle `backend/src/fx_runtime/fx-core.js` under deno with
+   `@napi-rs/canvas`.
+4. **Chain** (`media/fx_chain.py`): ffmpeg (framing, B-roll) → deno compositor →
+   ffmpeg (ASS layer, audio mix from `media/fx_audio.py`, encode), joined by
+   pipes. Face tracking and the person matte (`media/fx_analysis.py`) run first
+   only when the plan needs them. The 720p cap stays last.
+5. **Fallbacks**: full → safe (no drawing stage, classic captions, audio kept) →
+   none (the classic render). The level is recorded on the clip.
+
+```
+beats (LLM / heuristic) ─► resolver ─► FxPlan ─► P1 ffmpeg ─► P2 deno fx-core ─► P3 ffmpeg ─► clip.mp4
+                                          └────────────── studio preview (browser fx-core)
+```
+
 ## Related Reading
+
+- [Dynamic edits](./dynamic-edits.md)
 
 - [App Guide](./app-guide.md)
 - [API Reference](./api-reference.md)

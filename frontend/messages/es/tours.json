@@ -46,5 +46,33 @@
       "body": "Duración, subtítulos, encuadre, limpieza y B-roll ahora están en un solo menú. Recordamos tus elecciones, así que solo las configuras una vez."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Presentamos las ediciones dinámicas",
+      "body": "Ahora tus clips pueden editarse como lo hacen los mejores editores de vídeos cortos: zooms, efectos de sonido, música y subtítulos animados en los momentos que importan. La IA encuentra esos momentos; tú eliges cuánto pasa."
+    },
+    "intensity": {
+      "title": "Elige la intensidad",
+      "body": "Sutil añade algunos zooms y sonidos suaves, Marcada añade acercamientos, whooshes y música de fondo, y Máxima usa todos los trucos en cada momento. Desactivada deja los clips como antes. Una vez activada, los interruptores de abajo te permiten quitar la música, los pitidos de censura o lo que no quieras."
+    },
+    "captions": {
+      "title": "Estilos de subtítulos animados",
+      "body": "Diez estilos nuevos dibujados fotograma a fotograma, como cifras que suben contando, palabras que golpean la pantalla o texto detrás de quien habla. Cada miniatura reproduce el estilo real. También funcionan solos, con las ediciones desactivadas."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Ediciones dinámicas en el estudio",
+      "body": "Ahora puedes cambiar aquí cada efecto de un clip, uno por uno, antes de exportar. Te mostramos dónde están."
+    },
+    "panel": {
+      "title": "La pestaña Ediciones",
+      "body": "Cambia la intensidad de este clip, activa o desactiva el sonido, la música o los zooms, o quita todas las ediciones a la vez. Los cambios se aplican al instante y se pueden deshacer."
+    },
+    "lane": {
+      "title": "Cada efecto en la línea de tiempo",
+      "body": "Cada zoom, sonido y sticker es un bloque aquí. Arrástralo para moverlo, haz doble clic para cambiarlo o selecciónalo y pulsa Suprimir para quitarlo. Haz doble clic en un espacio vacío para añadir un sonido."
+    }
+  },
   "skip": "Omitir"
 }

@@ -1237,6 +1237,7 @@
       "shadow": true,
       "background": "#00000080",
       "y": 0.78,
+      "x": 0.0,
       "words_per_line": 4,
       "uppercase": false,
       "enabled": true,

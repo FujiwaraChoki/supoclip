@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlignCenter,
@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Sparkles,
   Trash2,
   Volume2,
 } from "lucide-react";
@@ -47,10 +48,15 @@ import {
   type CaptionTransform,
   type EditorState,
 } from "@/lib/editor/document";
+import { isFxTemplate } from "@/lib/fx/core/types";
+import { offeredFxTemplates } from "@/lib/fx/edit-style-request";
 import { cn } from "@/lib/utils";
+import { useEditStylesInfo } from "@/components/edit-intensity";
 import { editorMessage, Field, Panel, Range, Section } from "./studio-ui";
 import { BRollPanel } from "./broll-panel";
-export type InspectorTab = "captions" | "framing" | "broll" | "audio" | "effects";
+import { CaptionTemplatePicker } from "./caption-template-picker";
+import { FxLookControls, FxPanel, storedStyle, useFxEditor } from "./fx-panel";
+export type InspectorTab = "captions" | "framing" | "broll" | "audio" | "effects" | "edits";
 
 const TABS = [
   ["captions", Captions],
@@ -58,6 +64,7 @@ const TABS = [
   ["broll", Clapperboard],
   ["audio", Volume2],
   ["effects", Palette],
+  ["edits", Sparkles],
 ] as const;
 
 function ColorField({
@@ -113,8 +120,16 @@ function SwitchRow({
 interface Props {
   doc: EditDocument;
   asset: EditorState;
+  /** Controlled tab (the studio tour opens "edits" through it). */
   tab: InspectorTab;
-  setTab: (tab: InspectorTab) => void;
+  onTabChange?: (tab: InspectorTab) => void;
+  /** @deprecated Use `onTabChange`. */
+  setTab?: (tab: InspectorTab) => void;
+  /** Stored id of the dynamic-edit cue selected on the timeline; the Edits tab shows its editor. */
+  fxCueId?: string | null;
+  selectFxCue?: (id: string | null) => void;
+  /** Called when a face analysis finished, so the session's face track can be reloaded. */
+  onFxAnalysisReady?: () => void;
   time: number;
   editTime: number;
   seek: (value: number) => void;
@@ -128,7 +143,11 @@ export function Inspector({
   doc,
   asset,
   tab,
+  onTabChange,
   setTab,
+  fxCueId,
+  selectFxCue,
+  onFxAnalysisReady,
   time,
   editTime,
   seek,
@@ -139,6 +158,26 @@ export function Inspector({
   selectBroll,
 }: Props) {
   const t = useTranslations("editor");
+  const changeTab = onTabChange ?? setTab;
+  const editStyles = useEditStylesInfo();
+  const fxEditor = useFxEditor({ endpoint, doc, update });
+  // Dynamic edits show for users who may turn them on, and on any draft that already has them.
+  const fxAvailable = editStyles?.enabled === true || !!doc.fx || isFxTemplate(doc.captions.template);
+  const tabs = TABS.filter(([id]) => id !== "edits" || fxAvailable);
+  const shownTab: InspectorTab = tab === "edits" && !fxAvailable ? "captions" : tab;
+  // Selecting an edit on the timeline brings its editor into view.
+  useEffect(() => {
+    if (fxCueId && fxAvailable && tab !== "edits") changeTab?.("edits");
+    // Only a new selection moves the tab; switching tabs afterwards is the user's choice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fxCueId]);
+  const changeTemplate = (template: string) => {
+    const change = (d: EditDocument): EditDocument => ({ ...d, captions: { ...d.captions, template } });
+    // Animated templates draw their accents from the edit plan: resolve whenever one is involved.
+    if (isFxTemplate(template) || isFxTemplate(doc.captions.template) || doc.fx)
+      void fxEditor.apply(storedStyle(doc), change, { keepChangeOnNeedsPlan: true });
+    else update(change);
+  };
   const activeCaption = captionAt(doc, editTime);
   const captionId = activeCaption ? captionKey(doc, activeCaption) : undefined;
   const placement: CaptionTransform = activeCaption ? captionTransform(doc, activeCaption) : textTransform(doc, "captions");
@@ -154,26 +193,42 @@ export function Inspector({
       className="flex flex-col lg:h-full lg:min-h-0"
     >
       <Tabs
-        value={tab}
-        onValueChange={(value) => setTab(value as InspectorTab)}
+        value={shownTab}
+        onValueChange={(value) => changeTab?.(value as InspectorTab)}
         className="gap-0 lg:min-h-0 lg:flex-1"
       >
         <div className="p-2">
-          <TabsList className="grid w-full grid-cols-5 rounded-xl bg-stone-100 p-1 group-data-[orientation=horizontal]/tabs:h-auto dark:bg-stone-900">
-            {TABS.map(([id, Icon]) => (
-              <TabsTrigger
-                key={id}
-                value={id}
-                className="h-auto flex-col gap-1 rounded-lg py-1.5 text-[11px] text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
-              >
-                <Icon />
-                {t(`tabs.${id}`)}
-              </TabsTrigger>
-            ))}
+          <TabsList className={cn("grid w-full rounded-xl bg-stone-100 p-1 group-data-[orientation=horizontal]/tabs:h-auto dark:bg-stone-900", tabs.length === 6 ? "grid-cols-6" : "grid-cols-5")}>
+            {tabs.map(([id, Icon]) => {
+              const trigger = {
+                value: id,
+                className: "h-auto min-w-0 flex-col gap-1 rounded-lg px-0.5 py-1.5 text-[11px] text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.08)]",
+                children: <><Icon />{t(`tabs.${id}`)}</>,
+              };
+              // The studio tour opens the Edits tab and points at its trigger.
+              return id === "edits"
+                ? <TabsTrigger key={id} data-tour="studio-edits-tab" {...trigger} />
+                : <TabsTrigger key={id} {...trigger} />;
+            })}
           </TabsList>
         </div>
         <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <TabsContent value="captions" className="space-y-6 p-4">
+            <Section
+              title={t("captionTemplates.title")}
+              description={t("captionTemplates.description")}
+            >
+              <CaptionTemplatePicker
+                value={doc.captions.template}
+                looks={asset.captionLooks}
+                offered={offeredFxTemplates(editStyles)}
+                onChange={changeTemplate}
+                disabled={fxEditor.busy === "plan"}
+              />
+              {fxEditor.error && shownTab === "captions" && (
+                <p className="text-xs text-destructive" role="alert">{fxEditor.error}</p>
+              )}
+            </Section>
             <Section
               title={t("captions.styleTitle")}
               description={t("captions.styleDescription")}
@@ -864,7 +919,26 @@ export function Inspector({
                 />
               ))}
             </Section>
+            {fxAvailable && (
+              <FxLookControls doc={doc} update={update} editor={fxEditor} grades={editStyles?.enabled ? editStyles.grades : undefined} />
+            )}
           </TabsContent>
+          {fxAvailable && (
+            <TabsContent value="edits" className="p-4">
+              <FxPanel
+                doc={doc}
+                asset={asset}
+                endpoint={endpoint}
+                update={update}
+                seek={seek}
+                editor={fxEditor}
+                info={editStyles}
+                cueId={fxCueId}
+                selectCue={selectFxCue}
+                onAnalysisReady={onFxAnalysisReady}
+              />
+            </TabsContent>
+          )}
         </div>
       </Tabs>
     </Panel>

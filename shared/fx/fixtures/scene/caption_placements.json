@@ -471,6 +471,7 @@
       "shadow": false,
       "background": "#FFFFFFE6",
       "y": 0.6,
+      "x": 0.0,
       "words_per_line": 3,
       "uppercase": true,
       "enabled": true,
@@ -478,14 +479,14 @@
         {
           "key": "[\"first\",\"w0\"]",
           "x": 0.1,
-          "y": -0.05,
-          "scale": 1.5
+          "y": 0.049999999999999975,
+          "scale": 1.2
         },
         {
           "key": "[\"second\",\"w5\"]",
           "x": 0.0,
-          "y": 0.1,
-          "scale": 1.5
+          "y": 0.19999999999999998,
+          "scale": 1.2
         }
       ]
     },

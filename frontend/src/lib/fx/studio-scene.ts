@@ -108,6 +108,7 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
   const look: TemplateLook = looks?.[templateId] ?? FALLBACK_LOOK;
   const layer = doc.textTransforms?.captions;
   const y = layer ? clamp(captions.y + layer.y, 0, 1) : captions.y;
+  const x = layer ? clamp(layer.x, -1, 1) : 0;
   const size = layer ? captions.size * layer.scale : captions.size;
   const sizePx = clamp(Math.max(1, pyRound((size * width) / 1080)), 1, MAX_SIZE_PX);
   const baseStroke = Math.trunc(Number(look.strokeWidth ?? 3) || 0);
@@ -124,24 +125,30 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
     shadow: !!look.shadow,
     background: captions.background ? rgba(look.backgroundColor || DEFAULT_BOX) : null,
     y: clamp(y, 0, 1),
+    x,
     words_per_line: clamp(Number.isFinite(wordsPerLine) ? wordsPerLine : 4, 1, 8),
     uppercase: !!captions.uppercase,
     enabled: true,
-    placements: captionPlacements(doc),
+    placements: captionPlacements(doc, { x, y: clamp(y, 0, 1), scale: layer ? layer.scale : 1 }),
   };
 }
 
 /**
  * One CaptionPlacement per caption with its own transform, sorted by key (caption keys are
- * JSON.stringify([run, firstWordId])). x/y are offsets from the template position as fractions of W/H; scale
- * multiplies the style size and folds in a size override.
+ * JSON.stringify([run, firstWordId])). A caption's own transform replaces the global one (like the legacy
+ * captions), and fx-core adds a placement to the style, so x/y/scale are stored relative to the global style
+ * (`style`: its x, its clamped y, the global scale). A size override folds into the scale.
  */
-export function captionPlacements(doc: EditDocument): CaptionPlacement[] {
+export function captionPlacements(doc: EditDocument,
+  style: { x: number; y: number; scale: number } = { x: 0, y: doc.captions.y, scale: 1 }): CaptionPlacement[] {
   const own = doc.captionTransforms ?? {};
   return Object.keys(own).sort().map((key) => {
     const placement = own[key];
-    const scale = placement.scale * (placement.size ? placement.size / doc.captions.size : 1);
-    return { key: key.slice(0, 200), x: placement.x, y: placement.y, scale: clamp(scale, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE) };
+    const scale = placement.scale * (placement.size ? placement.size / doc.captions.size : 1) / style.scale;
+    return {
+      key: key.slice(0, 200), x: placement.x - style.x, y: placement.y + (doc.captions.y - style.y),
+      scale: clamp(scale, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE),
+    };
   });
 }
 

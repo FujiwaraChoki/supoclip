@@ -8,7 +8,9 @@ import {
   CaptionsOff,
   Copy,
   Film,
+  Music,
   Scissors,
+  Sparkles,
   Trash2,
   Type,
   Volume2,
@@ -26,6 +28,7 @@ import {
   captionGroups,
   clamp,
   editDuration,
+  finalDuration,
   hookRange,
   locate,
   mappedBroll,
@@ -44,6 +47,8 @@ import { Panel, ToolButton } from "./studio-ui";
 import { Filmstrip } from "./filmstrip";
 import { InlineText } from "./inline-text";
 import { HookTrack } from "./hook-track";
+import { FxTrack } from "./fx-track";
+import { MusicTrack } from "./music-track";
 import { prepareTextDraft, type TextDraft } from "@/lib/editor/render";
 
 interface Props {
@@ -64,6 +69,11 @@ interface Props {
   addBroll?: (time: number) => void;
   /** Seek for B-roll, which may sit in another segment. */
   seekBroll?: (time: number) => void;
+  /** Selected dynamic-edit cue (stored id) shared with the inspector. */
+  fxCueId?: string | null;
+  selectFxCue?: (id: string | null) => void;
+  /** Open a cue in the inspector's Edits tab. */
+  openFxCue?: (id: string) => void;
 }
 
 const MIN_SEGMENT = 0.04;
@@ -73,6 +83,8 @@ const TRACK = {
   captions: "h-7",
   hook: "h-7",
   audio: "h-8",
+  fx: "h-10",
+  music: "h-5",
 };
 
 /** Ruler label: whole seconds as m:ss, half seconds with one decimal. */
@@ -107,13 +119,22 @@ export function Timeline({
   brollId,
   selectBroll,
   addBroll,
+  fxCueId = null,
+  selectFxCue,
+  openFxCue,
 }: Props) {
   const t = useTranslations("editor");
   const [zoom, setZoom] = useState(1);
+  const [soundPicker, setSoundPicker] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const lanes = useRef<HTMLDivElement>(null);
   const items = sequence(doc);
   const total = Math.max(0.01, editDuration(doc));
+  // The finished clip's length: freezes and speed ramps change it (lanes stay on the edit timeline).
+  const final = doc.fx ? finalDuration(doc) : total;
+  const warped = Math.abs(final - total) > 1e-6;
+  const showFx = !!doc.fx;
+  const canAddSound = showFx && !doc.fx?.disabled.includes("sfx");
   const hook = doc.hookTitle?.trim() ? hookRange(doc) : null;
   const active = doc.segments[index] ?? doc.segments[0];
   const playhead = clamp(
@@ -323,12 +344,24 @@ export function Timeline({
           {t("timeline.setOut")}
         </ToolButton>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="mr-2 font-mono text-xs text-muted-foreground tabular-nums max-xl:hidden">
+          <span
+            className="mr-2 font-mono text-xs text-muted-foreground tabular-nums max-xl:hidden"
+            title={warped ? t("fxTimeline.finalDurationHint") : undefined}
+          >
             {t(doc.segments.length === 1 ? "timeline.summaryOne" : "timeline.summaryOther", {
               count: doc.segments.length,
-              duration: timecode(total),
+              duration: timecode(final),
             })}
           </span>
+          {warped && (
+            <span
+              data-testid="timeline-final-duration"
+              className="mr-2 rounded-full bg-rose-50 px-2 py-0.5 font-mono text-[11px] text-rose-900 tabular-nums xl:hidden dark:bg-rose-950 dark:text-rose-100"
+              title={t("fxTimeline.finalDurationHint")}
+            >
+              {t("fxTimeline.finalDuration", { duration: timecode(final) })}
+            </span>
+          )}
           <ToolButton label={t("timeline.zoomOut")} size="icon-sm" disabled={zoom <= 1} onClick={() => setZoom((z) => Math.max(1, z / 1.5))}>
             <ZoomOut />
           </ToolButton>
@@ -351,6 +384,24 @@ export function Timeline({
           <div className="h-7" />
           {header(<Film className="size-4" />, t("timeline.tracks.video"), TRACK.video)}
           {header(<Clapperboard className="size-4" />, t("timeline.tracks.broll"), TRACK.broll)}
+          {showFx &&
+            header(
+              <Sparkles className="size-4" />,
+              t("fxTimeline.fxLane"),
+              TRACK.fx,
+              canAddSound ? (
+                <button
+                  type="button"
+                  aria-label={t("fxTimeline.addSound")}
+                  title={`${t("fxTimeline.fxLane")} · ${t("fxTimeline.addSoundHint")}`}
+                  aria-expanded={soundPicker}
+                  className="rounded-md p-1 hover:bg-accent hover:text-foreground"
+                  onClick={() => setSoundPicker(true)}
+                >
+                  <Sparkles className="size-4" />
+                </button>
+              ) : undefined,
+            )}
           {hook && header(<Type className="size-4" />, t("captions.hookTitle"), TRACK.hook)}
           {header(
             null,
@@ -384,6 +435,7 @@ export function Timeline({
               </button>
             ) : undefined,
           )}
+          {doc.fx?.music && header(<Music className="size-4" />, t("fxTimeline.musicLane"), TRACK.music)}
         </div>
         <div ref={scroller} className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
           <div ref={lanes} className="relative space-y-1" style={{ width: `${zoom * 100}%` }}>
@@ -476,6 +528,29 @@ export function Timeline({
               secondsPerPixel={secondsPerPixel}
               duration={asset.duration}
             />
+            {showFx && (
+              <FxTrack
+                doc={doc}
+                selected={fxCueId}
+                select={(id) => {
+                  selectFxCue?.(id);
+                  if (id) selectBroll(null);
+                }}
+                open={(id) => {
+                  selectFxCue?.(id);
+                  selectBroll(null);
+                  openFxCue?.(id);
+                }}
+                seekOut={seekOut}
+                update={update}
+                at={at}
+                secondsPerPixel={secondsPerPixel}
+                duration={asset.duration}
+                playheadSource={clamp(currentTime, active.start, active.end)}
+                pickerOpen={soundPicker && canAddSound}
+                setPickerOpen={setSoundPicker}
+              />
+            )}
             {hook && <HookTrack doc={doc} pause={pause} seek={seekOut} update={update} onDraft={onTextDraft} secondsPerPixel={secondsPerPixel} />}
             <div className={cn("relative", TRACK.captions, !doc.captions.enabled && "opacity-40")} {...scrubbing}>
               {groups.map((group) => (
@@ -518,6 +593,7 @@ export function Timeline({
                   );
                 })}
             </div>
+            {doc.fx?.music && <MusicTrack doc={doc} {...scrubbing} />}
             <div aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-0.5 -translate-x-1/2 rounded-full bg-foreground" style={{ left: pct(playhead) }}>
               <div className="absolute top-1 left-1/2 size-3 -translate-x-1/2 rounded-full bg-foreground ring-2 ring-background" />
             </div>

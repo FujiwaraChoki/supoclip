@@ -294,3 +294,45 @@ it("keeps a cached removal of dynamic edits (the inert fx) over the server's", a
   await waitFor(() => expect(result.current.document?.volume).toBe(0.25));
   expect(result.current.document?.fx).toEqual(removed);
 });
+
+it("refreshes the session's face track and matte without touching the draft or its history", async () => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+  });
+  let session: Record<string, unknown> = {};
+  let basis = "clip.mp4";
+  const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+    if (init.method === "GET") return new Response(JSON.stringify({
+      status: "ready", basis, original: draft,
+      draft: { revision: 7, document: { ...draft, volume: 0.1 } }, ...session,
+    }));
+    const body = JSON.parse(init.body as string);
+    return new Response(JSON.stringify({ revision: body.revision + 1 }));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document).not.toBeNull());
+  act(() => result.current.update((d) => ({ ...d, volume: 0.5 })));
+  expect(result.current.asset?.faceTrack ?? null).toBeNull();
+
+  const faceTrack = { base: "clean", track: { fps: 6, boxes: [] } };
+  session = { faceTrack, matteVersion: "m2" };
+  let refreshed = false;
+  await act(async () => { refreshed = await result.current.refreshAsset(); });
+  expect(refreshed).toBe(true);
+  expect(result.current.asset?.faceTrack).toEqual(faceTrack);
+  expect(result.current.asset?.matteVersion).toBe("m2");
+  // The unsaved edit and its undo step survive; the server's (older) draft is not adopted.
+  expect(result.current.document?.volume).toBe(0.5);
+  expect(result.current.canUndo).toBe(true);
+
+  // A session rebuilt meanwhile (new basis) is not adopted.
+  basis = "rebuilt.mp4";
+  session = { faceTrack: null, matteVersion: null };
+  await act(async () => { refreshed = await result.current.refreshAsset(); });
+  expect(refreshed).toBe(false);
+  expect(result.current.asset?.matteVersion).toBe("m2");
+});

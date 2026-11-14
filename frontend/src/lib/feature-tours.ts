@@ -34,7 +34,7 @@ export type FeatureTour = {
    * newer never knew it any other way. Set it to the day a gated feature opens to them.
    */
   releasedAt: string;
-  /** Looping video for the opening announcement, from `public/`: render it, don't screenshot it. */
+  /** Looping 2:1 video for the opening announcement, from `public/`: render it, don't screenshot it. */
   media?: {
     poster: string;
     videos: readonly { src: string; type: string }[];
@@ -76,6 +76,36 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
       { target: "workflow-trailer", message: "trailer", side: "bottom", workflow: "trailer" },
       { target: "instructions", message: "instructions", side: "top" },
       { target: "composer-settings", message: "settings", side: "top" },
+    ],
+  },
+  {
+    id: "dynamic-edits",
+    // Placeholder: set to the day the dynamic_edits flag opens on web (docs/dynamic-edits.md, "Rollout").
+    releasedAt: "2026-12-01T00:00:00Z",
+    requiresFlag: "dynamic_edits",
+    // Rendered by backend/scripts/fx/render_tour_media.py through the real FX chain.
+    media: {
+      poster: "/tours/dynamic-edits.webp",
+      videos: [
+        { src: "/tours/dynamic-edits.webm", type: "video/webm" },
+        { src: "/tours/dynamic-edits.mp4", type: "video/mp4" },
+      ],
+    },
+    covers: ["composer-settings"],
+    steps: [
+      { target: "composer-settings", message: "intro", side: "top", intro: true },
+      { target: "edit-intensity", message: "intensity", side: "left", settingsSection: "edits" },
+      { target: "caption-styles", message: "captions", side: "left", settingsSection: "captions" },
+    ],
+  },
+  {
+    id: "dynamic-edits-studio",
+    releasedAt: "2026-12-01T00:00:00Z",
+    requiresFlag: "dynamic_edits",
+    steps: [
+      { target: "studio-edits-tab", message: "intro", side: "left", intro: true, inspectorTab: "edits" },
+      { target: "studio-edits-tab", message: "panel", side: "left", inspectorTab: "edits" },
+      { target: "studio-fx-lane", message: "lane", side: "top" },
     ],
   },
   {

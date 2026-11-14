@@ -2,7 +2,9 @@
 // same calls in Chrome and in @napi-rs/canvas (both Skia), so preview, browser export and the server agree.
 //
 // Conventions every drawer can rely on:
-// - text is vertically centred on y (textBaseline "middle"); `strokePx` is the outline width outside the glyph (the
+// - text is vertically centred on y: the middle of the font's bounding box (ascent/descent), drawn on the
+//   alphabetic baseline. Never textBaseline "middle": Chrome puts it at the middle of the em square and Skia/napi at
+//   the middle of the font box, 0.1 em apart for Poppins (e2e/fx-parity.spec.ts). `strokePx` is the outline width outside the glyph (the
 //   canvas line is 2·strokePx); the stroke is drawn before the fill; the shadow is cast by the first draw only.
 // - `picture` ops: dx/dy are output-px offsets applied after `transform`; `clip` is an output-px rect; channel draws
 //   isolate one colour channel (summed back with `lighter`); without ctx.filter support the filter's colour part is
@@ -152,10 +154,10 @@ function drawText(ctx: FxContext2D, op: TextOp, base: Mat2D) {
     ctx.clip();
   }
   prepare(ctx, op.alpha, op.blend);
-  setMat(ctx, mul(base, op.transform));
-  ctx.font = fontCss(op.font, op.px);
+  const m = mul(base, op.transform);
+  setMat(ctx, m);
   ctx.textAlign = op.align;
-  ctx.textBaseline = "middle";
+  const y = snapBaseline(op.y + middleShift(ctx, op.font, op.px), m);
   ctx.lineJoin = op.join;
   const native = op.letterSpacing !== 0 && "letterSpacing" in ctx;
   if (native) ctx.letterSpacing = `${op.letterSpacing}px`;
@@ -175,9 +177,9 @@ function drawText(ctx: FxContext2D, op: TextOp, base: Mat2D) {
   const paint = (mode: "stroke" | "fill") => {
     setShadow(shadowPending);
     shadowPending = false;
-    if (manual) drawSpaced(ctx, op, mode);
-    else if (mode === "stroke") ctx.strokeText(op.text, op.x, op.y);
-    else ctx.fillText(op.text, op.x, op.y);
+    if (manual) drawSpaced(ctx, op, mode, y);
+    else if (mode === "stroke") ctx.strokeText(op.text, op.x, y);
+    else ctx.fillText(op.text, op.x, y);
   };
   if (stroke) {
     ctx.strokeStyle = stroke;
@@ -190,8 +192,37 @@ function drawText(ctx: FxContext2D, op: TextOp, base: Mat2D) {
   }
 }
 
+/**
+ * Sets the alphabetic baseline and returns how far below the requested centre it sits: half of (font ascent −
+ * descent), the same point @napi-rs/canvas uses for "middle". Measured at 1000 px and scaled, because Chrome rounds
+ * font box metrics to whole pixels at the drawing size. Contexts without font box metrics (Firefox < 116) keep
+ * textBaseline "middle" and get 0. Leaves ctx.font at `font` px.
+ */
+function middleShift(ctx: FxContext2D, family: string, px: number): number {
+  ctx.textBaseline = "alphabetic";
+  ctx.font = fontCss(family, METRIC_PX);
+  const m = ctx.measureText("H");
+  ctx.font = fontCss(family, px);
+  const ascent = m.fontBoundingBoxAscent, descent = m.fontBoundingBoxDescent;
+  if (typeof ascent === "number" && typeof descent === "number" && Number.isFinite(ascent + descent)) {
+    return ((ascent - descent) / 2) * (px / METRIC_PX);
+  }
+  ctx.textBaseline = "middle";
+  return 0;
+}
+const METRIC_PX = 1000;
+
+/**
+ * Chrome snaps an unrotated text baseline to whole device pixels and Skia under napi does not; snapping here makes
+ * both draw the same pixels. Rotated or skewed text keeps its exact position.
+ */
+function snapBaseline(y: number, m: Mat2D): number {
+  if (m[1] !== 0 || m[2] !== 0 || m[3] === 0) return y;
+  return (Math.round(m[3] * y + m[5]) - m[5]) / m[3];
+}
+
 /** Letter spacing for contexts without ctx.letterSpacing: one glyph at a time, same advances. */
-function drawSpaced(ctx: FxContext2D, op: TextOp, mode: "stroke" | "fill") {
+function drawSpaced(ctx: FxContext2D, op: TextOp, mode: "stroke" | "fill", y: number) {
   const chars = Array.from(op.text);
   const widths = chars.map((c) => ctx.measureText(c).width);
   const total = widths.reduce((s, w) => s + w, 0) + op.letterSpacing * (chars.length - 1);
@@ -199,8 +230,8 @@ function drawSpaced(ctx: FxContext2D, op: TextOp, mode: "stroke" | "fill") {
   const align = ctx.textAlign;
   ctx.textAlign = "left";
   chars.forEach((c, i) => {
-    if (mode === "stroke") ctx.strokeText(c, x, op.y);
-    else ctx.fillText(c, x, op.y);
+    if (mode === "stroke") ctx.strokeText(c, x, y);
+    else ctx.fillText(c, x, y);
     x += widths[i] + op.letterSpacing;
   });
   ctx.textAlign = align;

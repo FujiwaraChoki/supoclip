@@ -46,5 +46,33 @@
       "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Neu: Dynamische Schnitte",
+      "body": "Deine Clips lassen sich jetzt schneiden wie von den besten Kurzvideo-Editoren: Zooms, Soundeffekte, Musik und animierte Untertitel genau auf den Momenten, die zählen. Die KI findet diese Momente, du entscheidest, wie viel passiert."
+    },
+    "intensity": {
+      "title": "Wähle, wie stark es knallt",
+      "body": "Dezent bringt ein paar Zooms und leise Sounds, Kräftig bringt Punch-ins, Whooshes und Musik, und Maximal nutzt jeden Trick auf jedem Moment. Aus lässt die Clips wie bisher. Ist es an, kannst du darunter Musik, Piepser für Schimpfwörter oder alles andere abschalten, was du nicht willst."
+    },
+    "captions": {
+      "title": "Animierte Untertitelstile",
+      "body": "Zehn neue Stile, Bild für Bild gezeichnet: Zahlen, die hochzählen, Wörter, die ins Bild krachen, oder Text hinter der sprechenden Person. Jede Kachel spielt den echten Stil ab. Sie funktionieren auch allein, mit ausgeschalteten Schnitten."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Dynamische Schnitte im Studio",
+      "body": "Jeden Effekt eines Clips kannst du jetzt hier einzeln ändern, bevor du exportierst. Ein kurzer Blick, wo sie liegen."
+    },
+    "panel": {
+      "title": "Der Tab Edits",
+      "body": "Ändere die Intensität für diesen Clip, schalte Sound, Musik oder Zooms an und aus oder entferne alle Schnitte auf einmal. Änderungen gelten sofort und lassen sich rückgängig machen."
+    },
+    "lane": {
+      "title": "Jeder Effekt auf der Zeitleiste",
+      "body": "Jeder Zoom, Sound und Sticker ist hier ein Block. Zieh ihn zum Verschieben, doppelklicke zum Ändern oder wähle ihn aus und drück Entf, um ihn zu entfernen. Doppelklicke auf eine freie Stelle, um einen Sound hinzuzufügen."
+    }
+  },
   "skip": "Überspringen"
 }

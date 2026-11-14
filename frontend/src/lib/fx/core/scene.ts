@@ -175,7 +175,7 @@ export function layoutCaptions(scene: FxScene, family: string, measure: Measure)
     }
     const { space, widths, lines } = fit;
     const lineH = px * 1.2, blockH = lineH * lines.length;
-    const centerX = W * (0.5 + (placement?.x ?? 0));
+    const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
     let centerY = H * (style.y + (placement?.y ?? 0));
     if (!placement) centerY = clamp(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
     const laid: CaptionChunk["words"] = [];

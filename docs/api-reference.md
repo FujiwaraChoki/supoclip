@@ -70,6 +70,8 @@ These routes generally attach session context and then proxy or orchestrate back
   - Fetch an individual font file
 - `POST /api/fonts/upload`
   - Upload a custom font
+- `GET /api/fx/[...path]`
+  - Dynamic edits asset manifest and files (sounds, music beds, emoji atlas), streamed from the backend `/fx/assets`
 
 ### User preferences and feedback
 
@@ -121,6 +123,8 @@ Source file:
   - Billing summary for current user
 - `GET /workflows`
   - What the current user can make (see [Workflows](#workflows))
+- `GET /edit-styles`
+  - Whether dynamic edits are on for the caller, and the choices (see [Dynamic edits](#dynamic-edits))
 - `GET /{task_id}`
   - Task detail
 - `GET /{task_id}/progress`
@@ -268,6 +272,87 @@ A cancelled series keeps the parts already rendered; resuming re-renders from
 the cached plan. Resume needs no extra fields for any workflow: the worker reads
 `workflow` and `workflow_options` from the task.
 
+### Dynamic edits
+
+Optional effects on top of any workflow: animated caption styles, sound effects,
+music, zooms, transitions, speed ramps and freezes, grades and retention overlays.
+What each does: [dynamic-edits.md](dynamic-edits.md). Gated by the `dynamic_edits`
+feature flag.
+
+`GET /tasks/edit-styles` (declared before `/{task_id}`; the web reaches it through
+the task catch-all proxy):
+
+```json
+{
+  "enabled": true,
+  "intensities": ["off", "subtle", "bold", "max"],
+  "defaults": {"sfx": true, "music": true, "music_mood": "auto", "zooms": true, "shake": true,
+               "transitions": true, "speed": true, "censor": "bleep_bar", "grade": "auto", "grain": false,
+               "progress_bar": false, "loop_ending": false, "wait_for_it": true, "reactions": false},
+  "settings": [{"key": "sfx", "type": "bool", "default": true}, "…"],
+  "music_moods": ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
+  "grades": ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
+  "templates": ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter",
+                "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"],
+  "reactions_available": false
+}
+```
+
+`enabled` is the flag evaluated for the caller and platform. Clients show the
+choices, and ask `GET /caption-templates?include=fx`, only when it is `true`.
+
+**Create** (`POST /tasks/`) takes an optional `edit_style`. Send it only when
+`intensity` is not `off`; keys you leave out take the defaults above:
+
+```json
+{"source": {"url": "https://www.youtube.com/watch?v=VIDEO_ID"},
+ "caption_template": "stat_counter",
+ "edit_style": {"intensity": "bold", "music_mood": "hype", "progress_bar": true}}
+```
+
+- `censor`: `off`, `bleep`, `bleep_bar` (bleep and a bar over the mouth) or `bleep_pixelate`.
+- An animated `caption_template` with no `edit_style` is "style only": animated captions, nothing else.
+- 422 `INVALID_EDIT_STYLE` for unknown keys or values, before any charge.
+- 403 `DYNAMIC_EDITS_NOT_AVAILABLE` when the request turns effects on (an active
+  intensity or an animated template) and the flag is off for the caller's platform,
+  before any charge.
+- A source already queued or processing is reused only when its stored `edit_style`
+  and template match.
+- `GET /tasks/{id}` returns the stored `edit_style` (`null` when off). Clips with
+  effects carry `fx_meta: {fx_level, timing, intensity, template}`; other clips omit it.
+
+**Settings** (`POST /tasks/{task_id}/settings`) takes `edit_style` too. Omitted or
+`null` keeps the stored style; `{}` or `{"intensity": "off"}` turns it off. An
+omitted `caption_template` keeps a stored animated template. Turning effects off,
+or leaving them as stored, is always allowed; turning them on needs the flag. With
+`apply_to_existing` and any clip with effects (or effects as the new state), the
+route stores the settings and answers **202**:
+
+```json
+{"status": "queued", "job_id": "3f2c…", "kind": "settings"}
+```
+
+The re-render runs as `fx_clip_job` on the video worker. 503 `QUEUE_UNAVAILABLE`
+means the settings were saved but the job could not be queued: try again. Trims,
+splits, merges and caption edits of clips with effects answer the same 202 shape
+(`kind` `trim`, `split`, `merge` or `captions`); classic clips keep the synchronous
+answers.
+
+`GET /tasks/{task_id}/clip-jobs/{job_id}` (owner only; poll every 2 s):
+
+```json
+{"status": "queued|running|done|failed", "kind": "settings", "progress": 0.4,
+ "result": {"…": "the body the synchronous route returns, when done"},
+ "error": {"code": "WORKER_UNAVAILABLE", "message": "…"}}
+```
+
+A job still queued after 15 minutes reports `failed` with `WORKER_UNAVAILABLE`. A running job whose worker stopped sending heartbeats for 2 minutes, or any job older than its
+render budget, reports `failed` with `WORKER_STOPPED`; the clip is unchanged and the edit can be retried.
+Unknown or foreign jobs are 404; 503 when Redis is unavailable. Records expire
+after 24 hours.
+
+Clip studio routes for effects are listed in [editor.md](editor.md#api).
+
 ### Clip operations
 
 - `GET /{task_id}/clips`
@@ -282,6 +367,8 @@ the cached plan. Resume needs no extra fields for any workflow: the worker reads
   - Merge clips
 - `PATCH /{task_id}/clips/{clip_id}/captions`
   - Update caption text or related settings
+- `GET /{task_id}/clip-jobs/{job_id}`
+  - State of a background re-render of clips with dynamic edits (see [Dynamic edits](#dynamic-edits))
 - `POST /{task_id}/clips/{clip_id}/regenerate`
   - Re-render a clip
 - `GET /{task_id}/clips/{clip_id}/export`
@@ -307,7 +394,7 @@ The queued export routes need the `clip_exports` table (created when the API pro
 ### Task-wide settings and diagnostics
 
 - `POST /{task_id}/settings`
-  - Apply project-wide task settings such as fonts or caption template
+  - Apply project-wide task settings such as fonts, caption template or `edit_style`; may answer 202 (see [Dynamic edits](#dynamic-edits))
 - `GET /metrics/performance`
   - View aggregate performance metrics
 - `GET /dead-letter/list`
@@ -333,11 +420,20 @@ Source file:
 - `GET /transitions`
   - List available transitions
 - `GET /caption-templates`
-  - List available subtitle template definitions
+  - List available subtitle template definitions. `?include=fx` appends the animated styles, each with `fx: true` and `requires` (`["face"]`, `["matte"]` or `[]`); clients ask for them only when `GET /tasks/edit-styles` says `enabled`
 - `GET /broll/status`
   - Whether B-roll integration is configured
 - `POST /upload`
   - Upload a source video
+
+### Dynamic edits assets
+
+Source file: `backend/src/api/routes/fx.py`. Same auth as fonts.
+
+- `GET /fx/assets`
+  - The asset manifest: built-in sounds, music beds and the emoji atlas plus this machine's drop-ins (`custom: true`), with content-addressed URLs and no paths
+- `GET /fx/assets/{sha256}.{ext}`
+  - One asset, `Cache-Control: public, max-age=31536000, immutable`. Only hashes in the manifest are served
 
 ## Admin Routes
 
