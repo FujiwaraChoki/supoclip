@@ -92,6 +92,25 @@ def account_chunk(data):
             transfer.progress()
 
 
+@contextmanager
+def local_work():
+    """Run local work (probing, cutting, re-encoding) inside a transfer scope.
+
+    The idle timeout is for the network: local work receives no bytes, so it
+    must not count as a stall, nor use up the scope's overall network cap.
+    Cancellation is still checked when the work ends.
+    """
+    transfer = _active.get()
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        if transfer is not None:
+            if transfer.hard_deadline is not None:
+                transfer.hard_deadline += time.monotonic() - started
+            transfer.progress()
+
+
 def check_transfer():
     transfer = _active.get()
     if transfer is not None:
