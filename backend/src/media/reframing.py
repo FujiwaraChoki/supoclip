@@ -1470,7 +1470,9 @@ def describe_vertical_layout(
     """Same plan as ``build_vertical_filter_plan``, plus a layout ``kind``.
 
     Kinds the editor keeps whole are ``reaction`` (reactor above the source),
-    ``stack`` (side-by-side call tiles) and ``overlap`` (two speakers at once).
+    ``stack`` (side-by-side call tiles), ``overlap`` (two speakers at once)
+    and ``interview`` (per shot: two people stacked, one cropped tight, or
+    the full frame; see ``interview_layout``).
     ``crop``, ``speaker``, ``stage``, ``fit`` and ``compositor`` stay on the
     editor's vertical or original crop.
 
@@ -1566,6 +1568,23 @@ def describe_vertical_layout(
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
         return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
+
+    # A sit-down interview (a two-shot, usually cut with close-ups) is composed
+    # shot by shot: both people stacked, one person cropped tight, graphics
+    # and b-roll in full. Without this the two-shot letterboxes the clip.
+    from .interview_layout import plan_interview_layout
+
+    try:
+        interview = plan_interview_layout(
+            width, height, duration, scene_cuts, face_samples, context, input_path=input_path)
+    except Exception as exc:
+        logger.warning("Interview layout failed (%s); using the generic layout", exc)
+        interview = None
+    if interview:
+        return _described(
+            "interview", interview["video_filter"], "complex",
+            caption_y_below_subject(interview["face_bottom"]),
+        )
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
         return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)

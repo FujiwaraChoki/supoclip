@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-14
 
+- **Improved:** Interview clips are framed shot by shot instead of shrinking the whole video into a strip. When both people are on camera, each gets their own half of the screen, stacked; a close-up of one person becomes a tight crop on their face; on-screen graphics and b-roll are shown in full. The layout changes exactly on the video's own cuts.
 - **Fixed:** Age-restricted YouTube videos are now turned down when you submit them, with a note to download the video and upload the file instead. Before, they failed after a long wait with a message to retry, which couldn't work. No minutes are used. ([#391](https://github.com/FujiwaraChoki/supoclip/pull/391))
 
 ## 2026-11-12

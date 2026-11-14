@@ -229,7 +229,7 @@ def generated_emphasis(words: list[dict], task: dict) -> set[int]:
 
 
 # Layouts that are a composed frame, not a crop the editor can rebuild.
-PRESERVED_LAYOUT_KINDS = frozenset({"split", "stack", "reaction", "overlap"})
+PRESERVED_LAYOUT_KINDS = frozenset({"split", "stack", "reaction", "overlap", "interview"})
 # Plans kept beside the uncropped source as layout.mp4 ("Auto layout"), so the
 # studio opens on the generated framing and manual crops still start from the
 # full frame: content fits, the compositor, and the tracked face/speaker crops.
