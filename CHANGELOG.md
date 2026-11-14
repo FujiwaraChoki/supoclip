@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-12
 
-- **Fixed:** If your connection drops while requesting a password reset link, the form now shows an error and lets you try again instead of staying on "Sending…".
+- **Fixed:** If your connection drops while requesting a password reset link or saving a new password, the form now shows an error and lets you try again instead of staying on "Sending…" or "Saving…". ([#386](https://github.com/FujiwaraChoki/supoclip/pull/386))
 - **Fixed:** Opening several clips in the studio at once no longer leaves one of them shorter than the clip. If the whole source can't be fetched, the studio says so instead of opening part of it. A clip that already opened short shows the problem and offers to rebuild its editing copy; your earlier draft stays downloadable. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
 - **Fixed:** The studio opens a clip with the framing it was generated with, including face tracking and the blurred full-frame fit, instead of a centred crop. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
 - **Fixed:** The studio no longer fills your browser's storage. It keeps a small copy of unsaved changes and a short undo history for your last few clips, and removes a generation's copies when you delete it. If storage does fill up, the message explains that your edits still save to your account, and ⋯ → Browser backups shows what is stored and frees what's already saved. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))

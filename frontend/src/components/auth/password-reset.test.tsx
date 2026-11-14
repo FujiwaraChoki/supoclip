@@ -116,4 +116,42 @@ describe("ResetPassword", () => {
     expect(resetPassword).toHaveBeenCalledWith({ newPassword: "Password123!", token: "tok" });
     expect(await screen.findByText(/Password updated/)).toBeInTheDocument();
   });
+
+  it("shows the generic error and allows a retry when the request rejects", async () => {
+    searchParams.set("token", "tok");
+    vi.mocked(resetPassword)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ error: null } as never);
+    const user = userEvent.setup();
+
+    render(<ResetPassword />);
+    await user.type(screen.getByPlaceholderText("New password"), "Password123!");
+    await user.type(screen.getByPlaceholderText("Confirm new password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(await screen.findByText("Failed to reset password")).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("New password")).toBeEnabled();
+    const retry = screen.getByRole("button", { name: "Reset password" });
+    expect(retry).toBeEnabled();
+
+    await user.click(retry);
+    expect(await screen.findByText(/Password updated/)).toBeInTheDocument();
+  });
+
+  it("shows the server's error for an HTTP error response and re-enables the form", async () => {
+    searchParams.set("token", "tok");
+    vi.mocked(resetPassword).mockResolvedValue({
+      error: { message: "Invalid token" },
+    } as never);
+    const user = userEvent.setup();
+
+    render(<ResetPassword />);
+    await user.type(screen.getByPlaceholderText("New password"), "Password123!");
+    await user.type(screen.getByPlaceholderText("Confirm new password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+
+    expect(await screen.findByText("Invalid token")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset password" })).toBeEnabled();
+  });
 });
