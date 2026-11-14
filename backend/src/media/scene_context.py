@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 # frame. One line is often a stray texture; a sign or lower third has two.
 TEXT_CUT_MIN_LINES = 2
 
+# A paragraph line is at least this share of the frame width, and one line of
+# the paragraph is at least the longer share (see ContextAnalyzer._text_block).
+TEXT_BLOCK_MIN_LINE_FRAC = 0.08
+TEXT_BLOCK_LONG_LINE_FRAC = 0.2
+# Every this many candidate lines, a paragraph needs one more line.
+TEXT_BLOCK_CLUTTER_LINES = 8
+
 # Composition hysteresis: a run of one layout shorter than this inherits its
 # neighbours, so a clip does not flip between a full-height crop and a fitted
 # strip within a couple of seconds.
@@ -56,6 +63,10 @@ class SceneEvidence:
     protect_right: float = 1.0
     # Text lines (placards, lower thirds, slides) cut by the face crop's edges.
     cut_text_lines: int = 0
+    # Lines in the largest aligned paragraph (an on-screen graphic, a tweet,
+    # a document). Book spines and foliage make stray "lines"; they rarely
+    # stack into two or more lines sharing a left edge, centre or right edge.
+    text_block_lines: int = 0
 
 
 class ContextAnalyzer:
@@ -143,6 +154,58 @@ class ContextAnalyzer:
             if len(boxes) >= 4 and x1 - x0 >= heights[len(heights) // 2] * 4:
                 lines.append((x0, min(b[1] for b in boxes), x1, max(b[3] for b in boxes)))
         return lines
+
+    @staticmethod
+    def _text_block(lines: Sequence[tuple[int, int, int, int]], width: int) -> int:
+        """Lines in the largest stack of aligned, similar text lines.
+
+        Two lines belong to one paragraph when their heights match, the gap
+        between them is at most about a line height, and their left edges,
+        centres or right edges line up. Each must be a real line (at least
+        TEXT_BLOCK_MIN_LINE_FRAC of the width, clear of the frame edge, where
+        every clipped texture "ends") and the stack needs one line of
+        TEXT_BLOCK_LONG_LINE_FRAC: a sentence, not a word. Foliage and book
+        spines make many candidate lines, and some line up by chance, so a
+        cluttered frame needs a taller stack.
+        """
+        tolerance = max(2.0, width * 0.01)
+        edge = max(3, int(width * 0.01))
+        usable = [box for box in lines
+                  if box[2] - box[0] >= width * TEXT_BLOCK_MIN_LINE_FRAC
+                  and box[0] > edge and box[2] < width - edge]
+        usable.sort(key=lambda box: box[1])
+        parent = list(range(len(usable)))
+
+        def root(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        for i, (x0, y0, x1, y1) in enumerate(usable):
+            height = y1 - y0
+            for j in range(i + 1, len(usable)):
+                u0, v0, u1, v1 = usable[j]
+                if v0 - y1 > height * 1.2:
+                    break
+                other = v1 - v0
+                if not (0.6 * height <= other <= height / 0.6) or v0 < y0 + height * 0.6:
+                    continue
+                if (abs(x0 - u0) <= tolerance or abs(x1 - u1) <= tolerance
+                        or abs((x0 + x1) - (u0 + u1)) <= 2 * tolerance):
+                    parent[root(j)] = root(i)
+        groups: dict[int, list[tuple[int, int, int, int]]] = {}
+        for i, box in enumerate(usable):
+            groups.setdefault(root(i), []).append(box)
+        cluttered = 2 + len(usable) // TEXT_BLOCK_CLUTTER_LINES
+        best = 0
+        for boxes in groups.values():
+            long_lines = sum(b[2] - b[0] >= width * TEXT_BLOCK_LONG_LINE_FRAC for b in boxes)
+            # Two aligned sentences are a paragraph; one sentence beside
+            # aligned fragments only counts in an uncluttered frame.
+            if long_lines >= 2 or (long_lines == 1 and len(boxes) >= cluttered):
+                best = max(best, len(boxes))
+        return best
 
     @staticmethod
     def _detail_span(gray: np.ndarray) -> tuple[float, float]:
@@ -242,8 +305,10 @@ class ContextAnalyzer:
         # instead of discarding the whole clip analysis.
         cut_lines, protect_left, protect_right = 0, 0.0, 1.0
         detail_left, detail_right = 0.0, 1.0
+        block = 0
         try:
             lines = self._text_lines(gray)
+            block = self._text_block(lines, w)
             margin = max(2, int(w * 0.005))
             cut_lines = sum(
                 any(x0 < edge - margin and x1 > edge + margin for edge in (left, right) if 0 < edge < w)
@@ -258,12 +323,13 @@ class ContextAnalyzer:
             logger.warning("Text/detail measurement failed at %.2fs (%s); ignoring it", time, exc)
             cut_lines, protect_left, protect_right = 0, 0.0, 1.0
             detail_left, detail_right = 0.0, 1.0
+            block = 0
         return SceneEvidence(
             time, area, span, len(significant), center, motion, outside, spread, camera,
             self._text_rows(components, w, left, right), cut, delta,
             detail_left=detail_left, detail_right=detail_right,
             protect_left=max(0.0, protect_left), protect_right=min(1.0, protect_right),
-            cut_text_lines=cut_lines,
+            cut_text_lines=cut_lines, text_block_lines=block,
         )
 
 

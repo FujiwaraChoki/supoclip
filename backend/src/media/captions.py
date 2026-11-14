@@ -409,8 +409,12 @@ def build_hook_title_ass(
     caption_font_px: int,
     position_y: Optional[float] = None,
     editor_style: Optional[Dict[str, Any]] = None,
+    center_y: Optional[float] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
+
+    ``center_y`` centres the title on that output fraction instead (the seam of
+    a stacked interview two-shot); ``position_y`` anchors its bottom edge.
 
     The title sits in the top safe area (Alignment 8), styled off the caption
     template so it reads as part of the same design system: same font, an
@@ -492,6 +496,8 @@ def build_hook_title_ass(
         x = video_width * (0.5 + float(editor_style.get("x", 0)))
         y = margin_v + original_px * 1.2 * len(lines) / 2 + video_height * float(editor_style.get("y", 0))
         entrance += f"\\an5\\pos({round(x)},{round(y)})"
+    elif center_y is not None:
+        entrance += f"\\an5\\pos({video_width // 2},{round(video_height * center_y)})"
     elif position_y is not None:
         entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
@@ -562,6 +568,7 @@ def build_assemblyai_ass_subtitles(
     wrap_lines: bool = False,
     center_x_override: Optional[int] = None,
     hook_editor_style: Optional[Dict[str, Any]] = None,
+    hook_center_y: Optional[float] = None,
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
@@ -705,6 +712,7 @@ def build_assemblyai_ass_subtitles(
             # the headline below the source subject, off the reactor's face.
             position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
             editor_style=hook_editor_style,
+            center_y=hook_center_y,
         )
         hook_style_block = f"{hook_style_line}\n"
     if point_labels:
