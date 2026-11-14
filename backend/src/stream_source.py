@@ -30,6 +30,10 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
+from .stream_transfer import (
+    TransferBudget, TransferStopped, account_chunk, bounded_client,
+    transfer_scope, check_transfer,
+)
 from .config import get_config
 from .youtube_proxy import normalize_country, render_proxy_url, sticky_session_id
 from .youtube_source import CachedPiece, assemble_timeline, merge_ranges, ranges_from_segments
@@ -116,6 +120,7 @@ class _Operation:
     failed_until: float = 0.0
     local_media: Optional[Path] = None
     touched: float = field(default_factory=time.monotonic)
+    budget: Optional[TransferBudget] = None
 
 
 _operations: dict[tuple[str, str], _Operation] = {}
@@ -265,6 +270,15 @@ def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, so
         "outtmpl": str(output), "noplaylist": True, "quiet": True, "no_warnings": True,
         "retries": 1, "fragment_retries": 3, "socket_timeout": socket_timeout,
         "max_filesize": c.youtube_download_max_bytes,
+        "external_downloader": {"default": "native"},
+        "hls_prefer_native": True,
+        "concurrent_fragment_downloads": 1,
+        "skip_unavailable_fragments": False,
+        # yt-dlp's HLS downloader may otherwise delegate unsupported manifests
+        # to ffmpeg, bypassing response accounting and cooperative cancellation.
+        # Local cutting/remuxing uses our own ffmpeg after the network closes.
+        "ffmpeg_location": str(_work_root() / ".network-ffmpeg-disabled"),
+        "fixup": "never",
     }
     if provider == "proxy":
         if not c.youtube_proxy_url:
@@ -282,12 +296,7 @@ def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, so
     if not audio:
         opts["merge_output_format"] = "mkv"
     if ranges:
-        # "index" becomes %(section_number)s; without it every section is
-        # written to the same "section-NA" file and overwrites the previous one.
-        opts["download_ranges"] = lambda _info, _ydl: [
-            {"start_time": a, "end_time": b, "index": i} for i, (a, b) in enumerate(ranges, 1)
-        ]
-        opts["force_keyframes_at_cuts"] = True
+        raise StreamSourceError("Network section downloads are disabled; cut local media instead")
     return opts
 
 
@@ -299,13 +308,11 @@ def _socket_timeout(deadline: Optional[float], default: float = 10.0) -> float:
 
 def _extract(url: str, provider: str, *, session: str, deadline: Optional[float] = None) -> dict:
     """Metadata only (no media), with a real second attempt for ``direct_retry``."""
-    from yt_dlp import YoutubeDL
-
     attempts = 2 if provider == "direct_retry" else 1
     for attempt in range(attempts):
         try:
             options = _ydl_options(provider, Path("metadata"), session=session, socket_timeout=_socket_timeout(deadline))
-            with YoutubeDL(options) as ydl:
+            with bounded_client(options) as ydl:
                 info = ydl.extract_info(url, download=False, process=False)
             if not info:
                 raise RuntimeError("provider returned no metadata")
@@ -313,6 +320,7 @@ def _extract(url: str, provider: str, *, session: str, deadline: Optional[float]
         except ProviderSkipped:
             raise
         except Exception as exc:
+            check_transfer()
             out_of_time = deadline is not None and time.monotonic() + _DIRECT_RETRY_BACKOFF_SECONDS + 1 >= deadline
             if attempt + 1 == attempts or _is_private_error(exc) or out_of_time:
                 raise
@@ -323,16 +331,12 @@ def _extract(url: str, provider: str, *, session: str, deadline: Optional[float]
 
 def _download_info(info: dict, provider: str, template: Path, *, audio: bool, ranges, session: str) -> None:
     """Download from already-extracted metadata so the platform is not queried twice."""
-    from yt_dlp import YoutubeDL
-
-    with YoutubeDL(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
+    with bounded_client(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
         ydl.process_ie_result(info, download=True)
 
 
 def _download_url(url: str, provider: str, template: Path, *, audio: bool, ranges, session: str) -> None:
-    from yt_dlp import YoutubeDL
-
-    with YoutubeDL(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
+    with bounded_client(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
         ydl.extract_info(url, download=True)
 
 
@@ -376,11 +380,19 @@ def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, templa
             # Enforce the plan cap before any media is downloaded.
             _check_cap(duration or state.expected_duration, max_duration)
             wanted = _clamp_ranges(ranges, duration or state.expected_duration)
-            _download_info(info, provider, template, audio=audio, ranges=wanted, session=session)
-            return _finish(attempt_dir, call_dir, wanted)
+            if ranges and state.local_media is not None and state.local_media.exists():
+                return _from_local(state.local_media, call_dir, audio=False, ranges=wanted)
+            full_template = attempt_dir / "source.%(ext)s"
+            _download_info(info, provider, full_template, audio=audio, ranges=None, session=session)
+            result = _finish(attempt_dir, call_dir, None)
+            if not audio:
+                state.local_media = result
+            return _from_local(result, call_dir, audio=False, ranges=wanted) if ranges else result
         except (ProviderSkipped, StreamSourceError):
             raise
         except Exception as exc:
+            if state.budget is not None:
+                state.budget.check()
             if attempt + 1 == attempts or _is_private_error(exc):
                 raise
             logger.info("Stream provider %s retrying download after: %s", provider, _redact(exc))
@@ -476,12 +488,14 @@ def _apify_info(url: str, provider: str, expected_duration: Optional[float] = No
     return {"id": source_id, "title": item.get("title"), "duration": duration, "media_url": item[media_key], "provider": provider}
 
 
-def _stream_download(response, destination: Path, max_bytes: int) -> None:
+def _stream_download(response, destination: Path, max_bytes: int, budget=None) -> None:
     response.raise_for_status()
     total = 0
     with destination.open("wb") as handle:
         for chunk in response.iter_content(1024 * 1024):
             total += len(chunk)
+            if budget is not None:
+                account_chunk(chunk)
             if total > max_bytes:
                 raise RuntimeError("Video download exceeds the configured byte budget")
             handle.write(chunk)
@@ -496,8 +510,8 @@ def _parsebird_file(info: dict, state: _Operation, op_dir: Path) -> Path:
     shared.mkdir(parents=True, exist_ok=True)
     raw, remuxed = shared / "parsebird.ts", shared / "parsebird.mp4"
     try:
-        with requests.get(info["media_url"], stream=True, timeout=(15, c.apify_stream_timeout_seconds)) as response:
-            _stream_download(response, raw, c.youtube_download_max_bytes)
+        with requests.get(info["media_url"], stream=True, timeout=(10, min(10, c.apify_stream_timeout_seconds))) as response:
+            _stream_download(response, raw, c.youtube_download_max_bytes, state.budget)
         result = subprocess.run(
             ["ffmpeg", "-y", "-nostdin", "-i", str(raw), "-map", "0", "-c", "copy", "-movflags", "+faststart", str(remuxed)],
             capture_output=True, text=True,
@@ -554,25 +568,32 @@ def _actor_media(url, provider, state: _Operation, op_dir, call_dir, attempt_dir
         return _from_local(_parsebird_file(info, state, op_dir), call_dir, audio=audio, ranges=ranges)
 
     media = info["media_url"]
-    actual = _probe(media)
+    actual = reported or state.expected_duration
     if not _close(actual, reported) or not _close(actual, state.expected_duration):
         raise RuntimeError("stream duration does not match the requested video")
     _check_cap(actual, max_duration)
     wanted = _clamp_ranges(ranges, actual or reported or state.expected_duration)
     # Actor media URLs are fetched directly first; the proxy only if that fails.
     try:
-        _download_url(media, "direct", template, audio=audio, ranges=wanted, session=session)
+        _download_url(media, "direct", attempt_dir / "source.%(ext)s", audio=audio, ranges=None, session=session)
     except Exception as direct_exc:
+        if state.budget is not None:
+            state.budget.check()
         shutil.rmtree(attempt_dir, ignore_errors=True)
         attempt_dir.mkdir(parents=True, exist_ok=True)
         try:
-            _download_url(media, "proxy", template, audio=audio, ranges=wanted, session=session)
+            _download_url(media, "proxy", attempt_dir / "source.%(ext)s", audio=audio, ranges=None, session=session)
         except ProviderSkipped:
             # No proxy configured: report the real direct-download error.
             raise direct_exc
         except Exception as proxy_exc:
             raise RuntimeError(f"direct: {_redact(direct_exc)}; proxy: {_redact(proxy_exc)}") from proxy_exc
-    return _finish(attempt_dir, call_dir, wanted)
+    result = _finish(attempt_dir, call_dir, None)
+    if not _close(_probe(result), actual):
+        raise RuntimeError("stream duration does not match the requested video")
+    if not audio:
+        state.local_media = result
+    return _from_local(result, call_dir, audio=False, ranges=wanted) if ranges else result
 
 
 # ------------------------------------------------------------------ public API
@@ -641,7 +662,7 @@ def seed_stream_resolution(task_id: Optional[str], resolution: Optional[dict] = 
         state.actors_run.add(provider)
 
 
-def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
+def _download_unbounded(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
     source, kind, _source_id = detect_stream_source(url)
     task_key = _safe_component(task_id) if task_id else f"unscoped-{uuid.uuid4().hex}"
     op_key = _safe_component(operation) if operation else f"edit-{uuid.uuid4().hex[:12]}"
@@ -678,6 +699,8 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
             shutil.rmtree(call_dir, ignore_errors=True)
             raise
         except Exception as exc:
+            if state.budget is not None:
+                state.budget.check()
             shutil.rmtree(attempt_dir, ignore_errors=True)
             if provider in YTDLP_PROVIDERS and _is_private_error(exc):
                 shutil.rmtree(call_dir, ignore_errors=True)
@@ -688,6 +711,21 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
     shutil.rmtree(call_dir, ignore_errors=True)
     logger.error("All stream download providers failed source=%s kind=%s failures=%s", source, kind, "; ".join(failures))
     raise StreamSourceError(FETCH_FAILED_MESSAGE)
+
+
+def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
+    # Persist the allowance across audio, sections, full fallback and repeated calls.
+    task_key = task_id or f"unscoped-{uuid.uuid4().hex}"
+    op_key = operation or f"edit-{uuid.uuid4().hex[:12]}"
+    state = _operation(_safe_component(task_key), _safe_component(op_key))
+    if state.budget is None:
+        state.budget = TransferBudget(get_config().youtube_download_max_bytes)
+    try:
+        with transfer_scope(state.budget, getattr(get_config(), "youtube_proxy_timeout_seconds", 300)):
+            return _download_unbounded(url, audio=audio, ranges=ranges, expected_duration=expected_duration,
+                max_duration=max_duration, task_id=task_key, operation=op_key)
+    except TransferStopped as exc:
+        raise StreamSourceError(str(exc)) from exc
 
 
 def download_stream_audio(url, duration=None, task_id=None, *, max_duration=None, operation=None):
