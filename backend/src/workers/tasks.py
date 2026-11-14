@@ -8,6 +8,7 @@ import json
 from arq import Retry
 from arq.worker import func
 from ..repositories.task_run_guard import TaskRunBusy
+from ..youtube_proxy_trial import run_trial_job
 
 from ..observability import configure_logging, set_trace_id, set_user_id
 
@@ -135,7 +136,8 @@ async def process_video_task(
                 await progress.clip_ready(clip_index, total_clips, clip_data)
 
             # Process the video
-            result = await task_service.process_task(
+            result = await run_trial_job(
+                task_service.process_task, ctx["redis"], task_id, source_type,
                 task_id=task_id,
                 url=url,
                 source_type=source_type,
