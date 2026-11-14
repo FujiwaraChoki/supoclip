@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // Keep canonical tags in the initial <head>, including for Googlebot.
   htmlLimitedBots: /.*/,
+  // intl-messageformat (via next-intl) ships class static blocks (Chrome 94+).
+  // Next leaves node_modules syntax alone, so without this its shared chunk is a
+  // SyntaxError in Chrome 90-93. `pnpm build` runs scripts/check-client-syntax.mjs.
+  transpilePackages: ["intl-messageformat"],
   // PostHog's API paths end in a slash (e.g. /e/); don't redirect them.
   skipTrailingSlashRedirect: isPostHogEnabled,
   typescript: {
