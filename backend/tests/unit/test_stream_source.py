@@ -163,6 +163,9 @@ def env(monkeypatch, tmp_path, media):
     monkeypatch.setattr(subject, "_download_info", ytdlp.download_info)
     monkeypatch.setattr(subject, "_download_url", ytdlp.download_url)
     monkeypatch.setattr(subject, "_actor_items", actors)
+    # Actor media here is a placeholder URL; fragment downloads have their own
+    # loopback tests in test_stream_hls_sections.py.
+    monkeypatch.setattr(subject, "_actor_hls_sections", lambda *args, **kwargs: None)
     monkeypatch.setattr(subject, "_DIRECT_RETRY_BACKOFF_SECONDS", 0)
     real_probe = subject._probe
     monkeypatch.setattr(subject, "_probe", lambda target, timeout=60: ytdlp.duration if str(target).startswith("https://") else real_probe(target))
