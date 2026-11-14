@@ -18,17 +18,23 @@ export function ForgotPassword() {
     setLoading(true);
     setError("");
 
-    const response = await requestPasswordReset({
-      email,
-      redirectTo: "/reset-password",
-    });
+    try {
+      const response = await requestPasswordReset({
+        email,
+        redirectTo: "/reset-password",
+      });
 
-    setLoading(false);
-    if (response.error) {
-      setError(response.error.message || t("forgot.failed"));
-      return;
+      if (response.error) {
+        setError(response.error.message || t("forgot.failed"));
+        return;
+      }
+      setSent(true);
+    } catch {
+      // Network failure: same generic message for every address, and the form stays usable.
+      setError(t("forgot.failed"));
+    } finally {
+      setLoading(false);
     }
-    setSent(true);
   };
 
   return (
