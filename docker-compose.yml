@@ -578,6 +578,8 @@ services:
       - VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
       - AXIOM_TOKEN=${AXIOM_TOKEN:-}
       - AXIOM_DATASET=${AXIOM_DATASET:-supoclip-prod}
+      # Distinguishes this host from a render worker. Override in .env.
+      - SUPOCLIP_LOG_HOST=${SUPOCLIP_LOG_HOST:-app}
     restart: unless-stopped
 
   # Redis for caching and job queues (useful for video processing)

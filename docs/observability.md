@@ -195,3 +195,20 @@ error_log /var/log/nginx/supoclip.error.log warn;
 
 Apply with `sudo nginx -t && sudo systemctl reload nginx`. The existing
 logrotate rule for `/var/log/nginx/*.log` covers the new files.
+
+Vector also sets `host` from `SUPOCLIP_LOG_HOST` (default `app`) so lines from
+this machine are distinct from a render worker, which uses the same `service`
+value (`worker`) for its video worker.
+
+### Render workers
+
+A video worker on another machine does not share this host's Docker socket, so
+the Vector service above never sees it. The worker process ships its own JSON
+logs when `AXIOM_TOKEN` is set in that process. Leave the token unset on the
+API and worker containers here: they already go through Vector, and setting it
+on both would send every line twice.
+
+The worker adds `host` from `SUPOCLIP_LOG_HOST` and keeps `service` (`worker`).
+Delivery is batched in the process. A failed delivery logs only that it failed,
+never the token, a proxy URL, or a signed media URL. Details and the variable
+names the render host needs are in `docs/render-worker.md`.

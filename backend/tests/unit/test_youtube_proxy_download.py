@@ -368,7 +368,7 @@ def test_assemble_timeline_uses_local_files_only(tmp_path):
     assert time_map.to_local(40.5) == pytest.approx(1.5)
 
 
-def test_proxy_failure_then_router_timeout_reaches_apify_before_direct(tmp_path, monkeypatch):
+def test_proxy_failure_then_router_timeout_reaches_apify_before_direct(tmp_path, monkeypatch, caplog):
     from src import youtube_utils as utils
     from src.rapidapi_youtube_downloader import RapidAPIDownloadError
     from src.youtube_proxy import DownloadDeadlineExceeded
@@ -403,9 +403,17 @@ def test_proxy_failure_then_router_timeout_reaches_apify_before_direct(tmp_path,
     monkeypatch.setattr(utils, '_download_youtube_video_with_ytdlp',
                         lambda *a, **kw: pytest.fail('Direct yt-dlp ran before the paid backups'))
     set_config_override(config)
+    caplog.set_level(logging.INFO)
     try:
         assert utils.download_youtube_video('https://youtube.com/watch?v=abcdefghijk').is_file()
         assert calls == ['proxy', 'router', 'apify']
+        fallbacks = [
+            record.youtube_provider_fallback
+            for record in caplog.records
+            if getattr(record, "youtube_provider_fallback", "")
+        ]
+        assert "rapidapi" in fallbacks
+        assert "apify" in fallbacks
     finally:
         set_config_override(None)
 

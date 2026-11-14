@@ -1,6 +1,7 @@
 """YouTube source validation and cleanup at the processing-service boundary."""
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -71,6 +72,49 @@ async def test_only_unsupported_sections_retry_full_proxy(tmp_path, monkeypatch,
     monkeypatch.setattr(module, 'resolve_full_youtube_download', full)
     assert await VideoService.download_video(URL, ranges=[(10, 20)]) is None
     assert captured['skip_proxy'] is not unsupported
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("transient", [False, True])
+async def test_section_failure_uses_the_existing_backup_order_once(tmp_path, monkeypatch, caplog, transient):
+    """SSL retries happen inside the section download. The full-file fallback
+    stays the existing provider list, once, and still skips a second proxy
+    download. A bot check takes that same list and does not add an Apify call."""
+    from yt_dlp.utils import DownloadError
+
+    from src.config import Config
+    from src.observability import JsonLogFormatter
+
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.youtube_proxy_url = "http://user-session-{session}:super-secret-password@gw.example:823"
+    monkeypatch.setattr(module, "get_config", lambda: config)
+    if transient:
+        failure = DownloadError(
+            "ERROR: [SSL] record layer failure (_ssl.c:2590). Giving up after 1 retries "
+            "proxy=http://user:super-secret-password@gw.example:823 "
+            "url=https://rr.googlevideo.com/videoplayback?sig=secret"
+        )
+    else:
+        failure = RuntimeError("Sign in to confirm you're not a bot")
+    monkeypatch.setattr(module, "materialize_clip_source", lambda *a, **kw: (_ for _ in ()).throw(failure))
+    captured = {}
+
+    def full(*_args, **kwargs):
+        captured.update(kwargs)
+        return None
+
+    monkeypatch.setattr(module, "resolve_full_youtube_download", full)
+    caplog.set_level(logging.WARNING)
+    assert await VideoService.download_video(URL, ranges=[(10, 20)], task_id="task-1") is None
+    assert captured["skip_proxy"] is True
+    matched = [record for record in caplog.records if getattr(record, "youtube_provider_fallback", "")]
+    assert matched
+    assert matched[-1].youtube_provider_fallback == "rapidapi,apify,yt_dlp"
+    formatted = JsonLogFormatter().format(matched[-1])
+    assert "super-secret-password" not in formatted
+    assert "sig=secret" not in formatted
+    assert "yt_dlp_proxy" not in matched[-1].youtube_provider_fallback
 
 
 @pytest.mark.asyncio

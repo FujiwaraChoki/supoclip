@@ -742,7 +742,22 @@ def _provider_order(config, *, skip_proxy: bool) -> list[str]:
     return order
 
 
-def _note_attempt(provider: str, video_id: str, task_id: Optional[str], budget: ByteBudget, before: int, *, outcome: str, error: Optional[str] = None) -> None:
+def _following_provider(order: list[str], provider: str, config) -> str:
+    """The next configured provider after ``provider``, or an empty string."""
+    try:
+        start = order.index(provider) + 1
+    except ValueError:
+        return ""
+    for candidate in order[start:]:
+        if candidate == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI and not config.rapidapi_youtube_api_key:
+            continue
+        if candidate == YOUTUBE_DOWNLOAD_PROVIDER_APIFY and not config.apify_api_token:
+            continue
+        return candidate
+    return ""
+
+
+def _note_attempt(provider: str, video_id: str, task_id: Optional[str], budget: ByteBudget, before: int, *, outcome: str, error: Optional[str] = None, provider_fallback: Optional[str] = None) -> None:
     log_youtube_attempt(
         provider=provider,
         video_id=video_id,
@@ -751,6 +766,7 @@ def _note_attempt(provider: str, video_id: str, task_id: Optional[str], budget: 
         nbytes=max(0, budget.snapshot() - before),
         task_id=task_id,
         error=error,
+        provider_fallback=provider_fallback,
     )
 
 
@@ -786,8 +802,9 @@ def download_youtube_video(
     job_budget = budget or ByteBudget(getattr(config, "youtube_download_max_bytes", 2_000_000_000))
     geo_error: Optional[BaseException] = None
     attempted_providers = 0
+    order = _provider_order(config, skip_proxy=skip_proxy)
 
-    for provider in _provider_order(config, skip_proxy=skip_proxy):
+    for provider in order:
         if provider == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI and not config.rapidapi_youtube_api_key:
             continue
         if provider == YOUTUBE_DOWNLOAD_PROVIDER_APIFY and not config.apify_api_token:
@@ -800,6 +817,10 @@ def download_youtube_video(
             )
         attempted_providers += 1
         before = job_budget.snapshot()
+        # Named only when this attempt fails and another provider will run.
+        # Non-transient errors still walk this same list once; nothing here
+        # adds a second Apify call.
+        following = _following_provider(order, provider, config)
         try:
             if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY:
                 downloaded_path = download_full_with_proxy(
@@ -819,7 +840,11 @@ def download_youtube_video(
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
             raise
         except ApifyDownloadError as exc:
-            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            # A permanent Apify error stops the chain, so it is not a fallback.
+            _note_attempt(
+                provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc),
+                provider_fallback=None if exc.permanent else following,
+            )
             if errors is not None:
                 errors.append(public_download_error(exc))
             if exc.permanent:
@@ -830,17 +855,43 @@ def download_youtube_video(
         except Exception as exc:
             if is_geo_restricted_error(exc):
                 geo_error = exc
-            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            _note_attempt(
+                provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc),
+                provider_fallback=following,
+            )
             logger.warning(
-                "%s download failed for %s: %s", provider, url, redact_secrets(str(exc)),
+                "%s download failed for %s: %s",
+                provider, url, public_download_error(exc),
+                extra={
+                    "youtube_provider": provider,
+                    "youtube_provider_fallback": following,
+                    "youtube_video_id": video_id,
+                    "youtube_download_kind": "full",
+                    "youtube_outcome": "failure",
+                    "youtube_error_type": type(exc).__name__,
+                    "task_id": task_id or "",
+                },
             )
             if errors is not None:
                 errors.append(public_download_error(exc))
             continue
 
         if not downloaded_path:
-            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error="no file")
-            logger.warning("%s download failed for %s", provider, url)
+            _note_attempt(
+                provider, video_id, task_id, job_budget, before, outcome="failure", error="no file",
+                provider_fallback=following,
+            )
+            logger.warning(
+                "%s download failed for %s", provider, url,
+                extra={
+                    "youtube_provider": provider,
+                    "youtube_provider_fallback": following,
+                    "youtube_video_id": video_id,
+                    "youtube_download_kind": "full",
+                    "youtube_outcome": "failure",
+                    "task_id": task_id or "",
+                },
+            )
             continue
 
         file_size = downloaded_path.stat().st_size if downloaded_path.is_file() else 0

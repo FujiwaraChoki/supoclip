@@ -146,10 +146,25 @@ def trial_retry(function):
                 if provider != primary or terminal or exhausted:
                     raise
                 # Preserve the same shared byte budget. Retry metadata and media
-                # through DataImpulse, then keep it for this job's later phases.
+                # through the other residential provider, then keep it for this
+                # job's later phases. This is the existing trial switch: it does
+                # not add an Apify call.
+                switched_from = provider
                 provider = "dataimpulse" if primary == "geonode" else "geonode"
                 route.active = provider
                 _record(route, "fallback", provider=provider, error_type=type(exc).__name__)
+                from .youtube_proxy import public_download_error
+                logger.warning(
+                    "youtube_provider_fallback from=%s to=%s task_id=%s error=%s",
+                    switched_from, provider, route.task_id, public_download_error(exc),
+                    extra={
+                        "youtube_provider": switched_from,
+                        "youtube_provider_fallback": provider,
+                        "youtube_error_type": type(exc).__name__,
+                        "youtube_outcome": "failure",
+                        "task_id": route.task_id,
+                    },
+                )
             finally:
                 # The provider ContextVar still identifies this attempt even
                 # after route.active has changed for the next iteration.

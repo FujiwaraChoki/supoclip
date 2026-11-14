@@ -29,6 +29,8 @@ services:
       REDIS_HOST: ${WORKER_REDIS_HOST:-127.0.0.1}
       REDIS_PORT: ${WORKER_REDIS_PORT:-6379}
       EMBED_CRON_WORKER: "0"
+      # Logs: AXIOM_TOKEN, AXIOM_DATASET, SUPOCLIP_LOG_HOST, optional AXIOM_URL
+      # come from WORKER_ENV_FILE. See docs/render-worker.md. Do not set them here.
     volumes:
       # Downloads, caches and renders in progress. Safe to lose: anything
       # durable is in the bucket or the database before a job reports it.
