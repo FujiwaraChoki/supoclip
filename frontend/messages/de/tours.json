@@ -53,11 +53,11 @@
     },
     "intensity": {
       "title": "Wähle, wie stark es knallt",
-      "body": "Dezent bringt ein paar Zooms und leise Sounds, Kräftig bringt Punch-ins, Whooshes und Musik, und Maximal nutzt jeden Trick auf jedem Moment. Aus lässt die Clips wie bisher. Ist es an, kannst du darunter Musik, Piepser für Schimpfwörter oder alles andere abschalten, was du nicht willst."
+      "body": "Dezent schneidet ab und zu neu und legt leise Musik darunter, wie ein Podcast-Clip. Kräftig zoomt an den wichtigen Stellen rein und raus, manche Schnitte mit einem Schlag, wie bei Hormozi. Maximal schneidet fast jede Zeile neu, mit lauteren Schlägen und Musik, wie ein MrBeast-Short. Aus lässt Clips genau wie bisher. Ist es an, schaltest du mit den Schaltern unten Musik, Piepser für Schimpfwörter oder alles andere ab, was du nicht willst."
     },
     "captions": {
       "title": "Animierte Untertitelstile",
-      "body": "Zehn neue Stile, Bild für Bild gezeichnet: Zahlen, die hochzählen, Wörter, die ins Bild krachen, oder Text hinter der sprechenden Person. Jede Kachel spielt den echten Stil ab. Sie funktionieren auch allein, mit ausgeschalteten Schnitten."
+      "body": "Drei Stile, Bild für Bild gezeichnet: das Schlüsselwort in einem farbigen Kasten, ein Emoji unter den großen Momenten oder ein riesiges Wort hinter der sprechenden Person. Die Wörter erscheinen, während sie gesprochen werden. Jede Kachel zeigt den echten Stil. Sie funktionieren auch allein, mit ausgeschalteten Edits."
     }
   },
   "dynamic-edits-studio": {
@@ -71,7 +71,7 @@
     },
     "lane": {
       "title": "Jeder Effekt auf der Zeitleiste",
-      "body": "Jeder Zoom, Sound und Sticker ist hier ein Block. Zieh ihn zum Verschieben, doppelklicke zum Ändern oder wähle ihn aus und drück Entf, um ihn zu entfernen. Doppelklicke auf eine freie Stelle, um einen Sound hinzuzufügen."
+      "body": "Jeder Zoom und jeder Sound ist hier ein Block. Ziehen zum Verschieben, Doppelklick zum Ändern, oder auswählen und Entf drücken zum Entfernen. Doppelklick auf eine leere Stelle fügt einen Sound hinzu."
     }
   },
   "skip": "Überspringen"

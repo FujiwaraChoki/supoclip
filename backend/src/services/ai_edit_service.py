@@ -411,9 +411,9 @@ def build_context(
     lines.append("Caption fonts: " + ", ".join(FONTS))
     templates = tuple(CAPTION_TEMPLATES)
     if fx_allowed:
-        from ..edit_fx.contracts import FX_CAPTION_TEMPLATES
+        from ..edit_fx.contracts import LISTED_FX_CAPTION_TEMPLATES
 
-        templates += FX_CAPTION_TEMPLATES
+        templates += LISTED_FX_CAPTION_TEMPLATES
     lines.append(
         "Caption templates: "
         + "; ".join(f"{tid} ({get_template(tid).get('name', tid)})" for tid in templates)
@@ -609,9 +609,11 @@ def _apply_setting(doc: dict, setting: str, value: str, *, fx_allowed: bool = Fa
             return f"Font {value!r} isn't available"
         captions["font"] = value.strip()
     elif setting == "captions.template":
-        from ..edit_fx.contracts import is_fx_template
+        from ..edit_fx.contracts import is_listed_fx_template
 
-        if value.strip() not in CAPTION_TEMPLATES and not (fx_allowed and is_fx_template(value.strip())):
+        # Unlisted animated styles stay on drafts that already use them, but are never picked anew.
+        if value.strip() not in CAPTION_TEMPLATES and not (fx_allowed and is_listed_fx_template(value.strip())) \
+                and value.strip() != str(captions.get("template") or ""):
             return f"Caption template {value!r} doesn't exist"
         captions["template"] = value.strip()
     elif fx_allowed and setting in FX_SETTINGS:

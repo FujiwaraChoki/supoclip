@@ -1135,13 +1135,14 @@
       "stroke_color": null,
       "stroke_px": 0.0,
       "shadow": true,
-      "background": "#00000080",
+      "background": null,
       "y": 0.78,
       "x": 0.0,
       "words_per_line": 4,
       "uppercase": false,
       "enabled": true,
-      "placements": []
+      "placements": [],
+      "look": "bold"
     },
     "grade": "none",
     "grain": 0.0,

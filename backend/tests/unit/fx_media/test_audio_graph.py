@@ -81,7 +81,7 @@ def test_identity_graph_is_exactly_section_9():
         "[2:a]aformat=sample_fmts=fltp:channel_layouts=stereo[fxa_bus];"
         "[fxa_voice]volume=3.5dB[fxa_v2];"
         "[fxa_v2][fxa_bus]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,"
-        "alimiter=limit=0.89:attack=5:release=50:level=disabled:latency=1[fxa_out]"
+        "alimiter=limit=0.82:attack=5:release=50:level=disabled:latency=1[fxa_out]"
     )
 
 
@@ -124,13 +124,13 @@ def test_loudness_modes():
     static = _graph(loudness="static", static_gain_db=None)
     assert "[fxa_voice]volume=0dB[fxa_v2]" in static and "loudnorm" not in static
     dynamic = _graph(loudness="dynamic", static_gain_db=6.0)
-    assert dynamic.endswith("[fxa_voice]alimiter=limit=0.89:attack=5:release=50:level=disabled:latency=1,"
+    assert dynamic.endswith("[fxa_voice]alimiter=limit=0.82:attack=5:release=50:level=disabled:latency=1,"
                             "loudnorm=I=-14:TP=-1.5:LRA=11[fxa_out]")
     assert "dB" not in dynamic
     none = _graph(loudness="none", has_bus=True)
     assert "dB" not in none and "loudnorm" not in none
     assert none.endswith("[fxa_voice][fxa_bus]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,"
-                         "alimiter=limit=0.89:attack=5:release=50:level=disabled:latency=1[fxa_out]")
+                         "alimiter=limit=0.82:attack=5:release=50:level=disabled:latency=1[fxa_out]")
     with pytest.raises(ValueError):
         _graph(loudness="loud")
 

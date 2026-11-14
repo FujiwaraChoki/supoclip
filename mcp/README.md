@@ -275,11 +275,13 @@ swears) and the intensity decides how hard each one hits.
 `off`. The request carries `edit_style` only when the intensity isn't `off`,
 and bad keys or values fail locally before anything is created.
 
-Animated caption templates (`marker_circle`, `emoji_drop`, `slam`,
-`behind_head`, `stat_counter`, `sticker_slap`, `kinetic_stack`,
-`decode_glitch`, `highlighter_swipe`, `face_doodles`) go in
-`caption_template` and work with intensity `off` too. `behind_head` and
-`face_doodles` look best with a face on camera.
+Animated caption templates (`highlighter_swipe`, `emoji_drop`,
+`behind_head`) go in `caption_template` and work with intensity `off` too.
+Words appear as they're spoken; the intensity sets the look (Subtle: podcast
+subtitles, Bold: Hormozi-style with the key word in a box, Max: big outlined
+caps). `behind_head` looks best with a face on camera. Older animated ids
+(`slam`, `stat_counter`, …) are no longer listed but still render on tasks
+that already use them.
 
 Dynamic edits may be gated per account: call `supoclip_list_edit_styles` first.
 `supoclip_list_caption_templates` lists the animated templates only when it
@@ -297,7 +299,7 @@ Pass the `job_id` to `supoclip_wait_for_task` as `clip_job_id` to wait for it.
 - "Turn https://youtu.be/… into a 5-part series and download the parts in order."
 - "Find every moment about pricing in https://youtu.be/…; if the topic isn't covered, try the first suggested topic."
 - "Make a one-minute recap of https://youtu.be/… focused on the money advice."
-- "Clip https://youtu.be/… with bold edits and the slam captions, no music."
+- "Clip https://youtu.be/… with bold edits and the highlighter captions, no music."
 - "List my recent supoclip tasks and show the virality scores of the latest one's clips."
 - "Export clip <id> from task <id> as a TikTok preset."
 

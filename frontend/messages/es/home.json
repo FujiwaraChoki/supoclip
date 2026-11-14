@@ -351,18 +351,18 @@
       },
       "subtle": {
         "label": "Sutil",
-        "hint": "Algunos zooms y efectos de sonido sutiles"
+        "hint": "Reencuadres de vez en cuando, música suave"
       },
       "bold": {
         "label": "Marcada",
-        "hint": "Zooms de golpe, whooshes y música"
+        "hint": "Acercamientos en los momentos clave, golpes en los cortes"
       },
       "max": {
         "label": "Máxima",
-        "hint": "Todos los trucos, en cada momento"
+        "hint": "Reencuadres rápidos, golpes y música más fuertes"
       }
     },
-    "offHint": "Activa la edición para añadir efectos de sonido, música, zooms y congelados en los momentos que importan.",
+    "offHint": "Activa las ediciones para añadir reencuadres, efectos de sonido y música en los momentos que importan.",
     "groups": {
       "sound": "Sonido",
       "motion": "Movimiento",
@@ -371,7 +371,7 @@
     "options": {
       "sfx": {
         "label": "Efectos de sonido",
-        "hint": "Whooshes, impactos y pops en los momentos clave"
+        "hint": "Golpes cortos y pops en cortes y gráficos"
       },
       "music": {
         "label": "Música",
@@ -380,7 +380,7 @@
       "musicMood": "Estilo de música",
       "zooms": {
         "label": "Zooms",
-        "hint": "Acercamientos en los remates y las cifras grandes"
+        "hint": "Reencuadres y acercamientos cortos en los momentos clave"
       },
       "shake": {
         "label": "Sacudida de cámara",
@@ -388,7 +388,7 @@
       },
       "transitions": {
         "label": "Transiciones",
-        "hint": "Barridos y destellos donde el clip corta"
+        "hint": "Un destello ocasional donde el clip corta"
       },
       "speed": {
         "label": "Rampas de velocidad y congelados",
@@ -443,8 +443,8 @@
         "description": "Círculos, subrayados y flechas a mano en las palabras clave"
       },
       "emoji_drop": {
-        "name": "Lluvia de emojis",
-        "description": "Subtítulos karaoke con emojis que rebotan bajo los remates"
+        "name": "Emoji Drop",
+        "description": "Las palabras aparecen al decirse, con un emoji bajo los grandes momentos"
       },
       "slam": {
         "name": "Impacto",
@@ -452,7 +452,7 @@
       },
       "behind_head": {
         "name": "Detrás de la cabeza",
-        "description": "Palabras gigantes detrás de quien habla"
+        "description": "Una palabra gigante aparece detrás de quien habla"
       },
       "stat_counter": {
         "name": "Contador",
@@ -472,7 +472,7 @@
       },
       "highlighter_swipe": {
         "name": "Subrayador",
-        "description": "Un subrayador pasa por las palabras clave"
+        "description": "Las palabras aparecen al decirse; la palabra clave va en un recuadro de color"
       },
       "face_doodles": {
         "name": "Garabatos en la cara",

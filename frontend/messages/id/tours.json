@@ -53,11 +53,11 @@
     },
     "intensity": {
       "title": "Pilih seberapa kuat",
-      "body": "Halus menambahkan beberapa zoom dan suara lembut, Tegas menambahkan punch-in, whoosh, dan musik latar, dan Maksimal memakai semua trik di setiap momen. Mati membiarkan klip seperti sebelumnya. Setelah aktif, tombol di bawahnya bisa mematikan musik, bunyi sensor kata kasar, atau apa pun yang tidak kamu mau."
+      "body": "Halus sesekali membingkai ulang dengan musik latar yang pelan, seperti klip podcast. Tegas memperbesar dan memperkecil di momen penting dengan hentakan di beberapa potongan, seperti Hormozi. Maksimal membingkai ulang hampir setiap kalimat dengan hentakan dan musik lebih keras, seperti short MrBeast. Mati membuat klip tetap seperti sebelumnya. Setelah aktif, sakelar di bawah memungkinkan kamu mematikan musik, bip untuk kata kasar, atau apa pun yang tidak kamu inginkan."
     },
     "captions": {
       "title": "Gaya teks animasi",
-      "body": "Sepuluh gaya baru yang digambar per frame, seperti angka yang menghitung naik, kata yang menghantam layar, atau teks di belakang pembicara. Setiap ubin memutar gaya aslinya. Gaya ini juga bisa dipakai sendiri, dengan editan mati."
+      "body": "Tiga gaya yang digambar per frame: kata kunci di kotak berwarna, emoji di bawah momen besar, atau satu kata raksasa di belakang pembicara. Kata muncul saat diucapkan. Setiap kotak memutar gaya aslinya. Gaya ini juga bisa dipakai sendiri, dengan edit dimatikan."
     }
   },
   "dynamic-edits-studio": {
@@ -71,7 +71,7 @@
     },
     "lane": {
       "title": "Setiap efek di linimasa",
-      "body": "Setiap zoom, suara, dan stiker adalah satu blok di sini. Seret untuk memindahkan, klik dua kali untuk mengubah, atau pilih lalu tekan Delete untuk menghapusnya. Klik dua kali di tempat kosong untuk menambahkan suara."
+      "body": "Setiap zoom dan suara adalah satu blok di sini. Seret untuk memindahkan, klik dua kali untuk mengubah, atau pilih lalu tekan Delete untuk menghapus. Klik dua kali di tempat kosong untuk menambahkan suara."
     }
   },
   "skip": "Lewati"

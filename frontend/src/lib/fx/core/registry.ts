@@ -83,8 +83,12 @@ export interface GlobalDrawer {
   ops(dc: DrawerContext): DrawOp[];          // local = t, dur = edit duration; rng/hash seeded per (scene seed, id)
 }
 
-export interface CaptionChunk { key: string; words: (FxWord & { x: number; y: number; w: number; h: number; line: number })[];
-  start: number; end: number; px: number; centerX: number; centerY: number; scale: number }
+export interface CaptionChunk { key: string; words: (FxWord & { x: number; y: number; w: number; h: number; line: number;
+    /** Look captions: the time the word appears (spoken onset + the look's lead), and whether it is the keyword. */
+    shown?: number; kw?: boolean })[];
+  start: number; end: number; px: number; centerX: number; centerY: number; scale: number;
+  /** Look captions: the gap between laid-out words (px), so a partly revealed line can re-centre. */
+  space?: number }
 
 const cueDrawers = new Map<FxKind, CueDrawer[]>();
 const accentDrawers = new Map<AccentVariant, AccentDrawer>();

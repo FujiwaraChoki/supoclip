@@ -337,13 +337,15 @@ def test_caption_override_replaces_words_position_and_size(ladder):
 
 
 def test_dark_text_templates_keep_their_dark_text_over_the_create_default(ladder):
-    swipe = get_template("highlighter_swipe")
-    assert video_utils.fx_font_color(swipe, "#FFFFFF") is None
-    assert video_utils.fx_font_color(swipe, "#FF0000") == "#FF0000"
+    dark = {**get_template("marker_circle"), "font_color": "#111111", "background": True}
+    assert video_utils.fx_font_color(dark, "#FFFFFF") is None
+    assert video_utils.fx_font_color(dark, "#FF0000") == "#FF0000"
     assert video_utils.fx_font_color(get_template("marker_circle"), "#FFFFFF") == "#FFFFFF"
+    # The highlighter's intensity look is white text on a dark pill (the look owns font, size and colours).
     ladder.state["chain_results"] = [result(True)]
     ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
-    assert fx_renders(ladder.calls)[0]["fx_request"].caption.color == "#111111"
+    caption = fx_renders(ladder.calls)[0]["fx_request"].caption
+    assert caption.color == "#FFFFFF" and caption.look in ("subtle", "bold", "max")
 
 
 def test_fx_junctions_are_crossfade_centres_and_passage_breaks():

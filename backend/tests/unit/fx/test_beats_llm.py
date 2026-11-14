@@ -445,14 +445,14 @@ async def test_swears_past_the_cap_are_still_tagged(monkeypatch):
 
 # ----------------------------------------------------------------------------- prompt (§7.2)
 
-SYSTEM_PROMPT_SHA256 = "ce91817b"   # first 8 hex of sha256(BEATS_SYSTEM_PROMPT); bump BEATS_VERSION when it changes
+SYSTEM_PROMPT_SHA256 = "de7c12a1"   # first 8 hex of sha256(BEATS_SYSTEM_PROMPT); bump BEATS_VERSION when it changes
 
 
 def test_system_prompt_snapshot():
     text = beats_llm.BEATS_SYSTEM_PROMPT
     assert hashlib.sha256(text.encode()).hexdigest()[:8] == SYSTEM_PROMPT_SHA256, (
         "the beat prompt changed: bump BEATS_VERSION and update this snapshot")
-    assert BEATS_VERSION == "beats-v1"
+    assert BEATS_VERSION == "beats-v2"
     assert text.startswith("You tag moments in one short vertical video")
     assert text.endswith("Never tag filler. Never invent words.")
     assert "intensity" in text and "template" not in text.lower()

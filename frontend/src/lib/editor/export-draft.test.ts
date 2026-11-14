@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FxCue } from "@/lib/fx/core/types";
-import { BROWSER_EXPORT_REFUSAL_MESSAGES, browserExportRefusal, dbToGain } from "@/lib/fx/offline-mix";
+import { BROWSER_EXPORT_REFUSAL_MESSAGES, SFX_BUS_GAIN_DB, browserExportRefusal, dbToGain } from "@/lib/fx/offline-mix";
 import { DEFAULT_DOC_FX, type DocFx, type EditDocument, type EditorState } from "./document";
 import { draft } from "./document.test-fixture";
 import { assertBrowserExportable, exportAudioProgram, exportDraft, fxFrameTimes } from "./export-draft";
@@ -298,7 +298,8 @@ describe("exportDraft", () => {
     expect(rms(0, 0.19)).toBeCloseTo(0.25, 5);                                // the voice
     expect(rms(0.205, 0.395)).toBeCloseTo(dbToGain(-12) / Math.SQRT2, 3);     // bleep: tone only
     expect(rms(1.1, 1.45)).toBeCloseTo(0.25, 5);
-    expect(rms(1.5, 2)).toBeCloseTo(Math.sqrt((0.65 ** 2 + 0.15 ** 2) / 2), 4);   // voice + ±0.4 SFX in its window
+    const sfx = 0.4 * dbToGain(SFX_BUS_GAIN_DB.bold);                           // ±0.4 SFX at the bold bus gain
+    expect(rms(1.5, 2)).toBeCloseTo(Math.sqrt(((0.25 + sfx) ** 2 + (0.25 - sfx) ** 2) / 2), 4);   // voice + SFX
     expect(download.downloadBlob).toHaveBeenCalledTimes(1);
     expect(progress).toHaveBeenLastCalledWith(100);
   });

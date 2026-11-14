@@ -1,15 +1,17 @@
 # Dynamic edits
 
-Dynamic edits make a clip look cut by a short-form editor: animated captions, sound effects, a music bed, zooms,
-transitions, speed ramps and freezes, colour grades and retention overlays, each placed on a moment that matters.
-An LLM finds the moments ("beats"); deterministic code decides what happens on them; one TypeScript renderer
-draws every frame, in the browser and on the worker.
+Dynamic edits make a clip look cut by a short-form editor: animated captions, hard reframes and short pushes, sound
+effects on cuts and graphics, a steady music bed, the odd flash at a cut, colour grades and retention overlays, each
+placed on a moment that matters. An LLM finds the moments ("beats"); deterministic code decides what happens on them;
+one TypeScript renderer draws every frame, in the browser and on the worker. Every timing, size and level below comes
+from a frame-level study of reference edits ([Reference edits](#reference-edits)).
 
 The feature is behind the `dynamic_edits` feature flag. With intensity **Off** and a classic caption template,
 nothing new runs: prompts, cache keys, job arguments and renders are byte-identical to before (pinned by
 `backend/tests/unit/test_dynamic_edits_legacy_pins.py` and the existing legacy pins).
 
-Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) · [Effects](#effects) ·
+Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) · [Reference edits](#reference-edits) ·
+[Effects](#effects) ·
 [Intensity budgets](#intensity-and-budgets) · [Configuration](#configuration) · [Architecture](#architecture) ·
 [Assets and drop-ins](#assets-and-self-hoster-drop-ins) · [Rollout](#rollout) · [Fallbacks](#fallbacks) ·
 [Known gaps](#known-gaps) · [Troubleshooting](#troubleshooting)
@@ -21,17 +23,20 @@ Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) 
 Open **Settings** in the composer:
 
 - **Edits** tab: **Edit intensity** is Off, Subtle, Bold or Max.
-  - **Subtle**: a few zooms and soft sound effects, a quiet music bed.
-  - **Bold**: punch-in zooms, whooshes and impacts, transitions where the clip cuts, a speed ramp or a freeze
-    before a payoff, the "Wait for it" sticker.
-  - **Max**: everything, more often: camera shake, glitches, emoji bursts, slow-motion tails, louder sound.
-  - Once it's on, switches turn off what you don't want: sound effects, music (and its mood), zooms, camera
-    shake, transitions, speed ramps and freezes, the swearing treatment (leave, bleep, bleep and cover the
-    mouth with a bar, bleep and pixelate the mouth), the "Wait for it" sticker, a progress bar, a loop ending,
-    and GIF reactions where the server offers them.
-- **Captions** tab: an **Animated** group with the [ten styles](#animated-caption-styles). Each tile is the
-  real renderer drawing over a demo scene. An animated style works with intensity Off too ("style only"): the
-  captions are animated and nothing else changes.
+  - **Subtle** (podcast clippers): a reframe now and then, a constant music bed 11 dB under the voice, almost no
+    sound effects.
+  - **Bold** (Hormozi): punch-ins that hold until the next one (about 2.5 framing changes per 10 s), short 11-frame
+    pushes on emphasis words, a short hit on half of the cuts, a quiet bed (−19 dB).
+  - **Max** (MrBeast and clipper channels): reframes on almost every line (about 5.5 per 10 s, 20–35 %), louder hits,
+    a loud bed (−6 dB) that ducks in pauses, the odd 3-frame flash or 6-frame light leak at a real cut.
+  - Once it's on, switches turn off what you don't want: sound effects, music (and its mood), zooms, transitions,
+    the swearing treatment (leave, bleep, bleep and cover the mouth with a bar, bleep and pixelate the mouth), a
+    progress bar, a loop ending, and GIF reactions where the server offers them. Camera shake, speed ramps and
+    freezes and the "Wait for it" sticker are never placed automatically (no reference edit uses them); their stored
+    settings stay valid and hand-made cues of those kinds still render.
+- **Captions** tab: an **Animated** group with the [three styles](#animated-caption-styles). Each tile is the
+  real renderer drawing the Bold look over a demo scene. An animated style works with intensity Off too ("style
+  only"): the captions are drawn with the Bold look and nothing else changes.
 
 The create screen remembers the choice on your account. If dynamic edits aren't available to you (flag off,
 older backend), the request drops `edit_style` and swaps an animated caption style for its closest classic one.
@@ -64,85 +69,145 @@ the choices, and `supoclip_list_caption_templates` includes the animated styles 
 
 Template ids live in `FX_CAPTION_TEMPLATES_DICT` (`backend/src/caption_templates.py`), separate from the seven
 classic templates. Each names the classic template whose libass captions replace it when a clip renders without
-the drawing stage (`ass_fallback`).
+the drawing stage (`ass_fallback`). Three are offered (`LISTED_FX_CAPTION_TEMPLATES`):
 
-| Id | What it does | Classic fallback | Needs |
+| Id | Name | What it does | Classic fallback | Needs |
+|---|---|---|---|---|
+| `highlighter_swipe` | Highlighter | The key word of a caption group in CAPS, black on an opaque rounded box (green at Bold, yellow at Subtle and Max), there on the word's first frame and gone with its group. At Bold the line sits on a dark pill. | `minimal` | – |
+| `emoji_drop` | Emoji Drop | An emoji (only one the model picked because it depicts a thing the words name: 💰, 🚗, 📈) under the caption, 0.26 W, 2 frames in, held until the caption group changes. Never a face emoji, never on a sad moment. | `tiktok` | – |
+| `behind_head` | Behind Head | One giant lowercase word (Archivo Black, 0.70 W, at most 0.16 H) behind the speaker at chin/neck height: the person is cut out (matte) and drawn over it. It hard-cuts in on a reframe and out on the next; the captions step aside while it shows. Without a person in frame the word goes in front. | `minimal` | face, matte |
+
+**Unlisted styles.** `marker_circle`, `slam`, `stat_counter`, `sticker_slap`, `kinetic_stack`, `decode_glitch` and
+`face_doodles` (`hidden: True`) are no longer offered anywhere: not in `GET /caption-templates?include=fx`, the
+`templates` of `GET /tasks/edit-styles`, the create screen, the studio picker, the AI editor's choices or MCP. They stay
+valid ids, so a stored task, a draft or an API caller that uses one keeps rendering with that template's own drawers
+and motion (`look: "template"`), with the fx-v2 plans for everything else. This is the safest fallback: nothing
+re-renders differently from what the user picked, and no stored id becomes an error. The AI editor never switches a
+draft to one.
+
+### Intensity looks
+
+The listed styles draw captions with the look of the clip's intensity (`FxCaptionStyle.look`, chosen by
+`contracts.caption_look_for`: Off ("style only") draws Bold, a serious clip draws Subtle). Python
+(`edit_fx/caption_style.py`, `LOOKS`) resolves font, size, case, outline, pill and keyword colour; fx-core
+(`captions/looks.ts`, `captions/groups.ts`) groups, times and draws:
+
+| | Subtle | Bold | Max |
 |---|---|---|---|
-| `marker_circle` | Clean captions; key words get a hand-drawn circle, underline, strike or an arrow to a number, drawn in and "boiling" at 8 fps. | `default` | – |
-| `emoji_drop` | Karaoke captions; an emoji springs up under punchlines and pops away; bursts of emoji at Bold and Max. | `tiktok` | – |
-| `slam` | The keyword alone, 60 % of the frame wide, slams in (1.6 → 0.95 → 1.0 in 180 ms) and hides the captions while it holds. | `mrbeast` | – |
-| `behind_head` | One or two giant words sit behind the speaker: the person is cut out (matte) and drawn over the text. Without a person in frame the text goes in front. | `minimal` | face, matte |
-| `stat_counter` | A spoken number counts up from 0 with tabular digits, keeps its prefix and suffix ($, %, M), and stamps into place. | `hormozi` | – |
-| `sticker_slap` | Die-cut sticker words, white border, slight tilt, slapped around the frame away from the face; up to three stacked. | `tiktok` | – |
-| `kinetic_stack` | The hook stacks up the screen in rows of mixed sizes, alternating white and accent; replaces the hook title. | `mrbeast` | – |
-| `decode_glitch` | Every line scrambles and locks letter by letter with scanlines and an RGB split; key words do it bigger. | `neon` | – |
-| `highlighter_swipe` | Dark text on a light card; a rough highlighter swipes across key words at the speed they're spoken. | `minimal` | – |
-| `face_doodles` | Karaoke captions; sparkles, arrows, horns, a heart or an anger mark drawn around the speaker's head. Without a face at that moment, a sticker instead. | `default` | face |
+| Font, size at 1080 wide | TikTok Sans Bold, 52 px (4.8 % W) | Poppins ExtraBold, 72 px (6.7 % W) | THE BOLD FONT, 84 px (7.8 % W), ALL CAPS |
+| Group | phrase, up to 4 words, shown whole | phrase, up to 3 words, word by word | phrase, up to 3 words, word by word |
+| Display time | first word − 2 frames | each word − 1 frame | each word − 1 frame |
+| Entrance | none | none (the line re-centres) | 2 frames: 0.85 scale at 60 %, then 1.0 |
+| Edge | soft shadow | soft shadow, or the highlighter's dark pill | black outline 0.09 em, hard shadow |
+| Keyword | box (highlighter) or gold | CAPS, green box (highlighter) or yellow | box (highlighter) or yellow |
+| Keyword rate (per 10 s, min gap) | 1.25, 4 s | 4, 1.2 s | 5.5, 0.8 s |
+| Row (no layout preference) | 0.68 H | 0.55 H | 0.56 H |
+
+Phrase groups break at sentence or clause punctuation, at a pause of 0.25 s, before "and/but/so/because…" once a group
+holds two words, at a segment boundary and when full; a group stays up until the next (gaps under 0.3 s bridged), at
+least 0.4 s. Bold and Max strip edge punctuation. A layout's caption row (a stacked layout's seam, the band under a
+letterboxed picture) wins over the look's row. The display time is calibrated against the references with the study's
+own scripts: transcript word starts sit one to three frames after the heard onset, so −1 frame shows a word about one
+frame after it is heard, like Hormozi.
+
+Studio: the draft seeds font, size, case, words per line, accent and the pill switch from the look
+(`editor_service._look_caption_seed`), and the user can change them; the motion and outline follow the look of the
+draft's intensity. The studio's caption timeline still lists fixed word groups; the preview and export draw phrase
+groups (a per-caption move made from the timeline applies when its first word starts a phrase group).
 
 Sizes are in units of `min(W, H) / 1080`, so styles survive the 720p cap. Non-Latin text falls back to the system
 Noto fonts on both renderers.
+
+## Reference edits
+
+The behaviour above and below follows a frame-level study of 26 reference clips (Alex Hormozi current and classic,
+MrBeast, Diary of a CEO, Modern Wisdom, Flagrant clips, Iman Gadzhi; 30 fps frame strips, cut and zoom tracking,
+caption events against energy onsets, demucs-separated sound). The rules that matter most:
+
+1. Nothing animates slowly: captions, boxes and emoji land in 0–2 frames.
+2. A zoom is a reframe that holds until the next one, alternating in and out; it never bounces back on a timer.
+3. Transitions are rare; 98–100 % of cuts are hard.
+4. Sounds follow visual events (cuts, graphics), not words; mostly short low hits, booms and pops.
+5. Music is a steady bed 6–19 dB under the voice, not a −30 dB whisper that pumps.
+
+The sample renders and their measurements against the references are kept outside the repository (see the PR).
 
 ## Effects
 
 What the resolver can place (cue kinds in `backend/src/edit_fx/contracts.py`, drawers in
 `frontend/src/lib/fx/core/`):
 
-- **Accents**: the caption style's own move on a word (circle, emoji, slam, counter, sticker, highlight, …).
-- **Zooms**: `punch` (a hard cut in to 112–125 % and back), `push`/`pull` (a slow ease over a sentence). Anchored
-  on the face when one is tracked. They replace the static Ken Burns push, so there is only ever one zoom source.
-- **Camera shake** on the hardest hits, only together with an impact sound or a slam.
-- **Flash**, **glitch** (slice displacement + RGB split) and **desaturate** hits.
-- **Transitions** at internal cuts only: whip, flash, glitch, zoom-through, spin, light leak. Visual only, so the
-  duration doesn't change.
-- **Time warp**: speech ramps (1.15–1.35×, pitch kept) over a build-up, wordless speed-ups, slow-motion tails
-  after a punchline, and freeze frames (0.6–1 s) at the end of a payoff with a label sticker. Captions follow the
-  warp. Needs `FX_WARP=on`.
-- **Sound effects**: whoosh, impact, pop, riser, record scratch, boom, cash register, ticker, slap, stamp, glitch,
-  tape stop. Styles bring their own (a slam gets an impact, a counter ticks and stamps).
+- **Accents**: the caption style's mark: a keyword box or colour (at most one per caption group), an emoji, a
+  behind-the-head word. Unlisted styles keep their own (circle, slam, counter, sticker, …).
+- **Reframes** (`zoom` mode `punch`): a hard step to 110–115 % (Subtle), 112–120 % (Bold) or 120–135 % (Max) about the
+  face, held until the next reframe ("out", back to the base framing) or the next real cut. Placed on beat key words
+  and sentence starts one frame early, at least 1.2 s (Bold) / 0.8 s (Max) apart; never across a stacked layout's
+  panels (`reaction`, `stack`, `overlap` layouts get none).
+- **Nudges** (`zoom` mode `nudge`): +6–10 % over 11 frames, nearly linear with a soft landing, held; between two
+  reframes they alternate with an 11-frame ease back out (`pull`), so they never stack. Slow baseline pushes
+  (`kb<n>`) only at Subtle and style-only.
+- **Transitions** at real cuts only: a 3-frame white flash (0.6, 0.95, 0.3) or a 6-frame warm light leak. Bold
+  places at most one per 40 s and only on passage breaks; Max one per 20 s. Whip, spin, zoom-through and glitch
+  transitions stay available by hand in the studio, never automatically.
+- **Not automatic**: camera shake, flash/glitch/desaturate hits, speed ramps, slow-motion tails, freezes, emoji
+  bursts, risers and the "Wait for it" sticker. Hand-made cues of those kinds still render (time warp needs
+  `FX_WARP=on`).
+- **Sound effects** on visual events only: a short low hit or boom one frame before half of the Bold reframes and
+  60 % of the Max ones, a pop with every third emoji, a boom with a behind-the-head word, a short whoosh two frames
+  before a flash. Plain talking gets none. The sound ids (whoosh, impact, pop, riser, record scratch, boom, cash
+  register, ticker, slap, stamp, glitch, tape stop) are unchanged; unlisted styles keep their own sounds.
 - **Bleeps**: a 1 kHz tone over every swear, optionally with a black bar or pixelation over the mouth (from face
   landmarks). Bleeps ignore budgets. No bleeps with approximate timing, and none with intensity Off.
 - **Music bed**: one of six moods (hype, chill, dramatic, funny, inspiring, dark; Auto follows the beat model),
-  looped and ducked under the voice.
-- **Grades**: punchy, warm, teal & orange, noir, VHS, dream; Auto picks punchy at Bold, and teal & orange at Max
-  for dramatic or dark clips. **Grain** is optional.
+  looped as a steady bed: about 11 dB under the voice at Subtle and 19 dB at Bold, constant; 6 dB under it at Max,
+  rising about 7 dB in pauses (slow 0.25/0.6 s ramps, joined across short gaps, so it never pumps).
+- **Grades**: punchy, warm, teal & orange, noir, VHS, dream; Auto picks punchy at Max and none otherwise. **Grain**
+  is optional.
 - **Retention**: a progress bar along the bottom, a loop ending (the last 0.4 s crossfades into the first frame,
   music seam included), and a "Wait for it…" sticker before a payoff.
 - **Reactions**: an optional GIF picture-in-picture on the funniest moments, with "via GIPHY" attribution. Off
   unless the server has `REACTIONS_PROVIDER=giphy` and a key, and the user switches it on.
 
 **Serious mode**: when the beat model marks a clip as serious (grief, illness, violence, tragedy), it gets Subtle
-budgets whatever the intensity, no comedic sounds, emoji, doodles, reactions, freezes or speed, and an
-"inspiring" bed. Bleeps stay.
+budgets and the Subtle caption look whatever the intensity, no comedic sounds, emoji, doodles or reactions, and an
+"inspiring" bed. Bleeps stay. Independently, a clip whose words mark a vulnerable moment (crying, died, funeral, …)
+never gets a punchline or a comic tone from the beat model (`beats._sincere_guard`), and no emoji lands on a sad beat.
 
 ## Intensity and budgets
 
-Caps per 60 s of edited duration (`cap = max(1, round(rate × duration / 60))` from 6 s), with the minimum gap in
-seconds. "Style only" is an animated caption style with intensity Off. The source of truth is `BUDGETS` in
+Rates per 10 s of edited duration (`per10_cap`: round half up, at least one from 6 s), with the minimum gap. "Style
+only" is a listed caption style with intensity Off. The source of truth is the tables at the top of
 `backend/src/edit_fx/resolver.py`.
 
 | Family | Style only | Subtle | Bold | Max |
 |---|---|---|---|---|
-| Accents | 10 / 3.0 s | 10 / 3.0 s | 20 / 1.5 s | 40 / 0.8 s |
-| Zoom punch | – | 4 / 6.0 s | 8 / 3.0 s | 14 / 1.6 s |
-| Zoom push | – | 1 per clip | 2 per clip | 4 per clip |
-| Shake | – | – | 3 / 8.0 s | 8 / 3.0 s |
-| Sound effects (not bleeps) | style sounds, 10 / 1.0 s | 6 / 2.5 s | 12 / 1.2 s | 24 / 0.6 s |
-| Transitions at cuts | – | 1 per clip, passage breaks only | 1 per 8 s | 1 per 4 s |
-| Flash / glitch hits | style only | style only | 2 per clip | 6 / 4.0 s |
-| Freezes | – | – | 1 (clip ≥ 15 s) | 2 |
-| Speech ramps / speed-ups / slow-mo | – | – | 1 / – / – | 2 / 2 / 1 |
-| Emoji bursts | – | – | 3 per clip | 5 per clip |
-| Reactions | – | – | 1 | 2 |
-| "Wait for it" | – | – | 1 | 1 |
-| Music bed / duck | – | −24 / −10 dB | −20 / −12 dB | −17 / −13 dB |
-| SFX bus gain | 0 dB | −4 dB | 0 dB | +2 dB |
+| Reframe events (in + out) | – | 1.2 / 3.0 s | 2.6 / 1.2 s | 5.5 / 0.8 s |
+| Reframe size | – | 110–115 % | 112–120 % | 120–135 % |
+| Nudges (11 frames) | – | 0.5, +5–6 % | 2.5, +6–8 % | 4.5, +8–10 % |
+| Keywords (one per caption group) | 4 / 1.2 s | 1.25 / 4 s | 4 / 1.2 s | 5.5 / 0.8 s |
+| Emoji (emoji drop) | 1 / 3 s | 0.5 / 6 s | 1 / 3 s | 2.5 / 1.5 s |
+| Behind-the-head words | 1 per 20 s | 1 per 30 s | 1 per 20 s | 1 per 12 s |
+| Hits on reframes and cuts | – | – | 50 % | 60 % |
+| Sound effects (cap / gap) | style sounds, 10 per min / 1.0 s | 6 per min / 2.5 s | 18 per min / 0.8 s | 36 per min / 0.35 s |
+| Transitions at real cuts | – | – | 1 per 40 s, passage breaks | 1 per 20 s |
+| Music bed under speech / duck | – | about −11 dB / 0 | about −19 dB / 0 | about −6 dB / 7 dB |
+| SFX bus gain | −16 dB | −20 dB | −16 dB | −10 dB |
 | Grain (when on) | – | 0.15 | 0.20 | 0.30 |
 
-Global rules (in order): serious mode; bleeps; quiet zones (nothing in the first 0.25 s except the hook, nothing
-in the last 0.3 s unless the loop ending is on); no zoom, shake, transition or face effects inside B-roll or
-reaction windows; full-frame hits at least 0.8 s apart; nothing in the top 20 % while the hook title shows; a
-total freeze hold of at most min(1.6 s, 4 % of the clip) and a speed change of at most 10 % of it. Effects you add
-or delete in the studio survive a re-resolve.
+Levels are calibrated on rendered clips measured with the study's own scripts: hits sit about 16 / 12 / 5 dB under the
+separated voice peak and the bed about 11 / 19 / 6 dB under the voice during speech. Hidden templates' own accents
+keep their old family budget (accents 10 / 20 / 40 per minute).
+
+Global rules (in order): serious mode; bleeps; quiet zones (nothing starts in the first 0.25 s except caption marks,
+nothing in the last 0.3 s unless the loop ending is on; a held reframe may run to the end); no zoom or transition
+inside B-roll or reaction windows, no zoom starting within 0.4 s of a transition or holding across one; nothing in
+the top 20 % while the hook title shows. Effects you add or delete in the studio survive a re-resolve: reframe,
+nudge and cut-hit ids are frame numbers (`z<frame>.zoom`, `n<frame>.zoom`, `e<frame>.sfx`) and keyword ids word
+numbers (`w<n>.kw`), so a deleted one stays deleted while its moment stays.
+
+**Loudness.** Generation normalises the voice to −14 LUFS, then measures voice and bus together and moves the whole
+mix back to −14 LUFS (`fx_audio.measure_mix_lufs`, ±12/+6 dB), before a −1.7 dBFS limiter, so the encoded clip reads
+−14 LUFS ± 0.5 with a true peak at or under −1 dBTP.
 
 ## Configuration
 
@@ -366,8 +431,18 @@ ending and transitions).
 - The browser export has no loudness stage or 720p cap.
 - Settings re-renders and FX clip edits are asynchronous (202 and poll), where classic ones answer directly.
 - Combined studio clips need "Analyse face" again before face-anchored effects are exact.
-- Bleeps for non-English swearing are best effort (the word list plus the model). Behind-the-head edges are soft.
+- Bleeps for non-English swearing are best effort (the word list plus the model; an English word the list does not
+  confirm is never bleeped). Behind-the-head edges are soft.
 - Drop-in libraries are not mirrored through the bucket yet.
+- The studio's caption timeline lists fixed word groups while look captions draw phrase groups (see Intensity looks).
+- The keyword per caption group and the emoji's end are planned on the resolver's copy of the phrase groups; a
+  caption edit in the studio that changes the words is re-planned on the next re-resolve.
+- Generation drops automatic zooms on panel layouts (`reaction`, `stack`, `overlap`); the studio does not know the
+  layout kind yet, so a studio re-resolve of such a clip can add reframes across the panels (delete them, or turn
+  Zooms off for that clip).
+- There is no "editorial" flavour yet (the study's Iman Gadzhi look: text 5 frames early, blur-in, film-burn flashes).
+- Caption rows follow the vertical layout when it has one (a letterboxed picture puts captions under it, about
+  0.8 H), so they sit lower than the references' 0.50–0.57 H on those layouts.
 
 ## Troubleshooting
 
@@ -379,7 +454,8 @@ ending and transitions).
 | Every render falls to safe | `FX_RUNTIME=off`, deno missing, or the image was built without the baked `DENO_DIR` cache |
 | Renders time out | `FX_RENDER_TIMEOUT_SECONDS`, CPU contention (each chain is three processes; `max_jobs` bounds them) |
 | Effects ignore the moments you'd expect | `edit_beats_fallback`: the beat model failed or has no key, so heuristic beats ran |
-| No speed ramps or freezes | `FX_WARP=off`, Subtle intensity, the clip shorter than 15 s, or the speed switch off |
+| No speed ramps or freezes | Expected: they are never placed automatically. Hand-made ones need `FX_WARP=on` |
 | No bleeps | Approximate timing, intensity Off, or censor set to "Leave as is" |
 | Preview sounds different from the render | Drop-in libraries differ between machines: compare `library_fingerprint` in `fx_render` |
+| A clip shows an old animated style (slam, counter, …) | It was made with an unlisted style; it keeps rendering, but the style can't be picked anew |
 | Behind-the-head text in front of the speaker | No person found in that window (the matte model found too little), or a studio clip without "Analyse face" |

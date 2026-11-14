@@ -473,7 +473,8 @@
       "words_per_line": 4,
       "uppercase": false,
       "enabled": true,
-      "placements": []
+      "placements": [],
+      "look": "template"
     },
     "grade": "none",
     "grain": 0.0,

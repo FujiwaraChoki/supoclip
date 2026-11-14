@@ -36,7 +36,7 @@ describe("EditIntensity", () => {
     render(<Harness onChange={onChange} />);
     fireEvent.click(screen.getByRole("radio", { name: /Bold/ }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold" });
-    for (const name of ["Sound effects", "Music", "Zooms", "Camera shake", "Transitions", "Speed ramps and freezes", "“Wait for it” sticker", "Progress bar", "Loop ending"]) {
+    for (const name of ["Sound effects", "Music", "Zooms", "Transitions", "Progress bar", "Loop ending"]) {
       expect(screen.getByRole("switch", { name })).toBeInTheDocument();
     }
     // GIF reactions only when the server has a provider.

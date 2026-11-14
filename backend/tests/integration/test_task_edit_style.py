@@ -393,4 +393,4 @@ async def test_edit_styles_route_is_not_captured_as_a_task_id(client, db_session
     assert web.status_code == 200, web.text
     assert web.json()["enabled"] is False and ios.json()["enabled"] is True
     assert web.json()["intensities"] == ["off", "subtle", "bold", "max"]
-    assert len(web.json()["templates"]) == 10
+    assert web.json()["templates"] == ["highlighter_swipe", "emoji_drop", "behind_head"]   # the listed styles

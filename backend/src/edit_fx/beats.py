@@ -257,16 +257,67 @@ def _emoji_variants(emoji: str) -> list[str]:
     return [emoji, bare, bare + "️"]
 
 
+# Emoji that never depict a thing the word names: faces, people, hands and gestures, ZWJ person sequences. The model
+# reaches for them on abstract words (👉 "you", 👨‍💻 "gambling code"); the editor's emoji pick the object instead.
+_NON_LITERAL_EMOJI = ((0x1F446, 0x1F487), (0x1F600, 0x1F64F), (0x1F910, 0x1F937), (0x1F9D0, 0x1F9DF),
+                      (0x261D, 0x261D), (0x270A, 0x270D), (0x1F574, 0x1F57A), (0x1F645, 0x1F64F))
+
+
+def _literal_emoji(raw: str) -> bool:
+    if "\u200d" in raw:
+        return False
+    return not any(lo <= ord(ch) <= hi for ch in raw for lo, hi in _NON_LITERAL_EMOJI)
+
+
+# Words that mark a vulnerable or grieving moment. When the clip has one (or the model calls it serious), nothing in
+# it is played for laughs: punchlines become payoffs and comic tones become neutral (the model sometimes jokes anyway).
+_SINCERE_WORDS = frozenset("""
+cry crying cried cries tears tear sob sobbing grief grieving grieve funeral died dies dying death dead passed cancer
+suicide depressed depression hurt hurting pain trauma abuse abused mourning lost loss sorry miss missed
+""".split())
+_COMIC_TONES = frozenset({"funny", "smug", "awkward"})
+
+
+def _sincere_guard(drafts: list[_Draft], timed: Sequence[_Word], sensitivity: str) -> list[_Draft]:
+    sincere = sensitivity == "serious" or any(normalize_word(w.text) in _SINCERE_WORDS for w in timed)
+    if not sincere:
+        return drafts
+    out: list[_Draft] = []
+    for d in drafts:
+        if d.kind == "punchline":
+            d = replace(d, kind="payoff")
+        if d.tone in _COMIC_TONES:
+            d = replace(d, tone="neutral")
+        out.append(d)
+    return out
+
+
+def _confirmed_swear(timed: Sequence[_Word], first: int, last: int) -> Optional[tuple[int, int]]:
+    """The model's swear span narrowed to the words the swear list (or the transcript's masking) confirms. Words
+    with non-ASCII letters are trusted to the model (languages the list may miss). None: nothing to bleep."""
+    span = timed[first: last + 1]
+    hits = _swear_matches(span)
+    if hits:
+        return first + hits[0][0], first + hits[-1][1]
+    foreign = [i for i, w in enumerate(span) if any(ch.isalpha() and ord(ch) > 127 for ch in w.text)]
+    if foreign:
+        return first + foreign[0], first + foreign[-1]
+    return None
+
+
 def _resolve_emoji(raw: str, span: Sequence[_Word], emoji_keys: frozenset[str]) -> str:
-    """§7.3: the model's emoji when the atlas has it; otherwise the keyword map on the beat's words; else ""."""
+    """§7.3: the model's emoji when the atlas has it and it depicts a thing; otherwise the keyword map on the beat's
+    words; else ""."""
     raw = (raw or "").strip()
+    if raw and not _literal_emoji(raw):
+        raw = ""
     if raw:
         for candidate in _emoji_variants(raw):
             if candidate in emoji_keys:
                 return candidate
     for word in span:
         mapped = _lookup_emoji(normalize_token(word.text), EMOJI_KEYWORD_MAP)
-        if mapped and mapped in emoji_keys:
+        if mapped and mapped in emoji_keys and _literal_emoji(mapped):
             return mapped
     return ""
 
@@ -540,6 +591,11 @@ def validate_llm_plan(out: EditPlanLLM, words: Sequence[dict], *, model: str,
         if first > last:
             first, last = last, first
         last = min(last, first + MAX_SPAN_WORDS - 1)
+        if tag.kind == "swear":
+            confirmed = _confirmed_swear(timed, first, last)
+            if confirmed is None:
+                continue          # the model tagged an ordinary word: never bleep it
+            first, last = confirmed
         span = timed[first: last + 1]
         drafts.append(
             _Draft(
@@ -554,6 +610,7 @@ def validate_llm_plan(out: EditPlanLLM, words: Sequence[dict], *, model: str,
             )
         )
 
+    drafts = _sincere_guard(drafts, timed, out.sensitivity)
     kept = _finalize_drafts(drafts, timed)
     beats = tuple(_draft_to_beat(d, timed, f"t{i}") for i, d in enumerate(kept))
 
@@ -662,6 +719,7 @@ def heuristic_beats(words: Sequence[dict], *, timing: Timing) -> EditBeats:
         first = indices[max(0, len(indices) - PUNCHLINE_WORDS)]
         drafts.append(_Draft(kind="punchline", first=first, last=last, strength=2, tone="hype", source="heuristic"))
 
+    drafts = _sincere_guard(drafts, timed, "normal")
     kept = _finalize_drafts(drafts, timed)
     beats = tuple(_draft_to_beat(d, timed, f"t{i}") for i, d in enumerate(kept))
     if hook_end is not None and not any(b.kind == "hook" for b in beats):

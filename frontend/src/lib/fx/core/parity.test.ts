@@ -14,6 +14,7 @@ import { censorText, censoredWords } from "./censor";
 import { duckEnvelope, envelopeDbAt, speechSpans, type DuckOptions } from "./duck";
 import { mappedCues, type SegmentSpan } from "./mapping";
 import { fnv1a32, hash01, mulberry32 } from "./rng";
+import { groupedWords, phraseGroups } from "./captions/groups";
 import type { FxCue } from "./types";
 import { buildWarp, isNontrivial, toEdit, toOutput, warpToJson } from "./warp";
 
@@ -21,7 +22,7 @@ const SHARED = process.env.FX_SHARED_DIR
   ? resolve(process.env.FX_SHARED_DIR)
   : resolve(fileURLToPath(new URL(".", import.meta.url)), "../../../../../shared/fx");
 const ROOT = join(SHARED, "fixtures");
-const FAMILIES = ["rng", "warp", "mapping", "duck", "censor", "geometry"] as const;
+const FAMILIES = ["rng", "warp", "mapping", "duck", "censor", "geometry", "groups"] as const;
 const REQUIRED = process.env.FX_REQUIRE_FIXTURES === "1";
 const TOL = 0;   // the mirror is bit-for-bit (§20 WP3a); a non-zero tolerance would hide drift
 
@@ -100,6 +101,12 @@ function run(fx: Fixture): unknown {
       return censorText(i.text as string);
     case "censor/censored_words":
       return censoredWords(i.words as { start: number; end: number; text: string }[], i.spans as [number, number][]);
+    case "groups/phrase_groups": {
+      const order = groupedWords(i.words as { start: number; end: number; text: string; run?: string }[]);
+      return phraseGroups(order, num(i.max_words)).map((g) => ({
+        ...g, text: order.slice(g.first, g.last + 1).map((w) => w.text).join(" "),
+      }));
+    }
     case "geometry/geometry": {
       const w = num(i.width);
       const h = num(i.height);

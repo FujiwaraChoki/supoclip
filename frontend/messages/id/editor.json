@@ -448,9 +448,9 @@
     },
     "intensityHint": {
       "off": "Tanpa edit otomatis. Edit buatanmu tetap ada.",
-      "subtle": "Beberapa zoom dan efek suara lembut.",
-      "bold": "Punch-in, whoosh, dan musik di momen besar.",
-      "max": "Semua trik, di setiap beat."
+      "subtle": "Sesekali bingkai ulang dan musik pelan.",
+      "bold": "Punch-in di momen penting, hentakan di beberapa potongan.",
+      "max": "Bingkai ulang cepat, hentakan dan musik lebih keras."
     },
     "needsPlan": {
       "title": "Rencanakan klip ini dulu",
@@ -617,7 +617,7 @@
     "options": {
       "sfx": {
         "label": "Efek suara",
-        "hint": "Whoosh, hantaman, dan pop di setiap ketukan"
+        "hint": "Hentakan dan pop singkat di potongan dan grafis"
       },
       "music": {
         "label": "Musik",
@@ -625,7 +625,7 @@
       },
       "zooms": {
         "label": "Zoom",
-        "hint": "Perbesar di punchline dan angka besar"
+        "hint": "Bingkai ulang dan zoom singkat di momen penting"
       },
       "shake": {
         "label": "Guncangan kamera",
@@ -633,7 +633,7 @@
       },
       "transitions": {
         "label": "Transisi",
-        "hint": "Whip dan kilatan di titik potong klip"
+        "hint": "Kilatan sesekali di tempat klip dipotong"
       },
       "speed": {
         "label": "Ramp kecepatan dan freeze",

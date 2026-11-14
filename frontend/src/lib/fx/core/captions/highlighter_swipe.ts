@@ -15,6 +15,7 @@ import type { AccentCue, FxCaptionTemplate, FxWord } from "../types";
 import { clamp, clamp01 } from "../easing";
 import { IDENTITY, mul, pathOp, scaleAbout, translation } from "../layout";
 import type { PreparedScene } from "../scene";
+import { activeLook, lookCaptionOps } from "./looks";
 
 /** Sweep duration bounds (s): the marker follows the spoken word, never faster than 120 ms or slower than 600 ms. */
 export const SWIPE_MIN = 0.12;
@@ -216,6 +217,7 @@ export function captionsHidden(p: PreparedScene, t: number): boolean {
 
 /** The line transform base captions use for this chunk at t (entrance scale + rise), so marks move with the line. */
 export function lineTransform(template: string, chunk: CaptionChunk, t: number, u: number): { outer: Mat2D; alpha: number } {
+  if (chunk.space !== undefined) return { outer: IDENTITY, alpha: 1 };   // look captions never move as a line
   const look = BASE_LOOKS[template as FxCaptionTemplate];
   if (!look) return { outer: IDENTITY, alpha: 1 };
   const ent = entranceAt(look.entrance, t - chunk.start, u);
@@ -234,6 +236,8 @@ export function swipeStyle(p: PreparedScene): SwipeStyle {
 registerCaptionStyle({
   template: "highlighter_swipe",
   line: (chunk, dc) => {
+    // Intensity looks draw the keyword box inside the line (captions/looks.ts).
+    if (activeLook(dc.scene)) return lookCaptionOps(chunk, dc);
     const ops = baseCaptionOps(chunk, dc, BASE_LOOKS.highlighter_swipe);
     const cues = highlightCues(dc.scene, dc.t);
     if (!cues.length || !ops.length) return ops;
@@ -250,6 +254,7 @@ registerCaptionStyle({
 export function highlightAccentOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
   const p = dc.scene;
   if (p.scene.template === "highlighter_swipe") return [];   // the line drawer paints it between box and text
+  if (activeLook(p)) return [];                              // look captions mark their keyword in the line
   if (captionsHidden(p, dc.t)) return [];   // no caption line on screen to mark
   const chunk = p.chunkAt(dc.t);
   if (!chunk) return [];

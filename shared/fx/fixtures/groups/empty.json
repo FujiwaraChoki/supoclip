@@ -1,0 +1,10 @@
+{
+  "family": "groups",
+  "case": "empty",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [],
+    "max_words": 3
+  },
+  "expected": []
+}

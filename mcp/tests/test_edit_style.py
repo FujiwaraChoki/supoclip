@@ -41,7 +41,7 @@ def test_highlights_body_is_unchanged(monkeypatch):
         {"edit_style": {}},
         {"intensity": "", "edit_style": None},
         # An animated template with intensity off is "style only": the template carries it.
-        {"caption_template": "slam"},
+        {"caption_template": "emoji_drop"},
     ],
 )
 def test_off_sends_no_edit_style(monkeypatch, kwargs):
@@ -103,7 +103,7 @@ def test_invalid_edit_style_does_not_create_a_task(monkeypatch, kwargs, message)
 
 
 def test_list_edit_styles(monkeypatch):
-    info = {"enabled": True, "intensities": ["off", "subtle", "bold", "max"], "templates": ["slam"]}
+    info = {"enabled": True, "intensities": ["off", "subtle", "bold", "max"], "templates": ["emoji_drop"]}
     request = AsyncMock(return_value=info)
     monkeypatch.setattr(server, "_client", lambda: SimpleNamespace(request=request))
     result = asyncio.run(server.supoclip_list_edit_styles())

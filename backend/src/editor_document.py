@@ -556,7 +556,8 @@ def resolve_document_fx(document: EditDocument, style: EditStyle, *, seed: int,
         ),
         style, template, seed,
     )
-    if not layout_has_zoompan and (style.zooms or not style.active):
+    # Slow baseline pushes only where the references use them: style-only and subtle (spec §3.5).
+    if not layout_has_zoompan and style.intensity in ("off", "subtle") and (style.zooms or not style.active):
         plan = baseline.baseline_pushes(plan, cuts=cuts, broll_windows=broll_windows)
 
     user_ids = {c.id for c in user_cues}

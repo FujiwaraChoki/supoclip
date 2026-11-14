@@ -12,6 +12,7 @@ import { cutoutOp, textOp } from "../layout";
 import { BASE_LOOKS, baseCaptionOps } from "./base";
 import { registerAccent, registerCaptionStyle } from "../registry";
 import { widthAt } from "./anchor";
+import { activeLook, lookCaptionOps } from "./looks";
 
 /** §11.1 behind constants (px in u). */
 export const BEHIND = {
@@ -47,7 +48,43 @@ export function behindTop(height: number, face: DrawerContext["face"]): number {
   return Math.max(BEHIND.minTopFrac * height, face.y - BEHIND.faceLift * face.h);
 }
 
+/** Look behind word (spec §3.4, the Modern Wisdom reference): one heavy lowercase word about 0.60 W wide (≤ 0.16 H
+ *  tall; 0.70 W, the top of the reference range, so the letters clear the chin on both sides), its block centred on
+ *  the chin/neck (face top + 1.05 face heights), hard cut in and out (0 frames) on the
+ *  reframes the resolver puts at both ends. */
+export const LOOK_BEHIND = { font: "ArchivoBlack-Regular", widthFrac: 0.7, maxHeightFrac: 0.16, neck: 1.05, noFaceY: 0.45 } as const;
+
+export function lookBehindText(text: string): string {
+  const word = text.trim().split(/\s+/).filter(Boolean)[0] ?? "";
+  return word.replace(/^[^\p{L}\p{N}$€£¥#]+|[^\p{L}\p{N}%]+$/gu, "").toLocaleLowerCase();
+}
+
+function lookBehindOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
+  const p = dc.scene, u = dc.u, W = p.width, H = p.height;
+  const text = lookBehindText(cue.text);
+  if (!text) return [];
+  const family = p.family(LOOK_BEHIND.font);
+  const w100 = widthAt(p, text, family, 100);
+  const px = Math.min(w100 > 0 ? (LOOK_BEHIND.widthFrac * W * 100) / w100 : LOOK_BEHIND.maxHeightFrac * H,
+    LOOK_BEHIND.maxHeightFrac * H);
+  // Centred on the chin/neck; on a small (wide-shot) face the block drops so its top stays at the mouth line and the
+  // neck, not the whole head, crosses it.
+  const cy = dc.face
+    ? Math.max(dc.face.y + LOOK_BEHIND.neck * dc.face.h, dc.face.y + 0.75 * dc.face.h + 0.5 * px)
+    : LOOK_BEHIND.noFaceY * H;
+  const at = { text, font: family, px, x: W / 2, y: Math.min(cy, H - px) };
+  const matte = p.matteAt(dc.t);
+  if (matte?.person) {
+    return [
+      textOp({ ...at, fill: "#FFFFFF", shadow: { color: "rgba(0,0,0,0.3)", blur: 0.1 * px, dx: 0, dy: 0.03 * px } }),
+      cutoutOp(dc.picture, W, H),
+    ];
+  }
+  return [textOp({ ...at, fill: "#FFFFFF", alpha: BEHIND.frontAlpha, shadow: { color: "rgba(0,0,0,0.45)", blur: 24 * u, dx: 0, dy: 6 * u } })];
+}
+
 function behindOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
+  if (activeLook(dc.scene)) return lookBehindOps(cue, dc);
   const p = dc.scene, u = dc.u, W = p.width, H = p.height;
   const text = behindText(cue.text);
   if (!text) return [];
@@ -72,7 +109,7 @@ function behindOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
 
 registerCaptionStyle({
   template: "behind_head",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.behind_head),
+  line: (chunk, dc) => (activeLook(dc.scene) ? lookCaptionOps(chunk, dc) : baseCaptionOps(chunk, dc, BASE_LOOKS.behind_head)),
 });
 
 registerAccent({
@@ -80,4 +117,6 @@ registerAccent({
   layer: "behind",
   window: (cue) => [cue.start, cue.end],
   ops: behindOps,
+  // The behind word IS the caption while it shows (the resolver keeps other accents out of its span).
+  hidesCaptions: true,
 });

@@ -470,6 +470,11 @@ def build_hook_title_ass(
     )
     if border_style == 3:
         outline_px = max(4, hook_px // 6)  # backing-box padding
+        if template.get("fx"):
+            # libass fills a BorderStyle-3 box with the OUTLINE colour: for animated templates use the template's
+            # box colour, so dark text on a light card (or white on a dark pill) stays readable. Legacy templates
+            # keep their exact look (black box).
+            outline = back_color
     elif outline_px == 0:
         outline_px = max(2, hook_px // 16)  # always keep contrast on video
     shadow_px = max(2, hook_px // 20) if template.get("shadow") else 0

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 
 import pytest
@@ -16,7 +17,7 @@ from src.edit_fx.contracts import (
     SpeedCue,
     ZoomCue,
 )
-from src.edit_fx.resolver import RISER_SECONDS, ResolveInput, resolve, sfx_bus_gain_db
+from src.edit_fx.resolver import ResolveInput, resolve, sfx_bus_gain_db
 from tests.fixtures.fx_resolver.builders import (
     FX_TEMPLATES,
     INTENSITIES,
@@ -75,221 +76,9 @@ def mid(phrase, kind, **kw):
 HOOK = "Okay so here is the thing about this whole story."
 
 
-# ============================================================================= §8.4 bundles: hook
-
-
-def test_bundle_hook_subtle_whoosh_and_push():
-    plan = run([mid(HOOK, "hook", strength=1)], intensity="subtle")
-    hook = plan.cues[0]
-    assert one(plan, "b0.sfx").sound == "whoosh" and one(plan, "b0.sfx").start == hook.start
-    push = one(plan, "b0.push")
-    assert push.mode == "push" and push.scale == 1.04
-    assert not has(plan, "b0.zoom")
-
-
-@pytest.mark.parametrize("template,cue_id,variant", [("kinetic_stack", "b0.accent", "kinetic"),
-                                                     ("slam", "b0.slam", "slam"),
-                                                     ("behind_head", "b0.behind", "behind")])
-def test_bundle_hook_subtle_template_treatment(template, cue_id, variant):
-    plan = run([mid(HOOK, "hook", strength=2)], intensity="subtle", template=template)
-    assert one(plan, cue_id).variant == variant
-
-
-def test_bundle_hook_bold_punch_at_strongest_word_and_bigger_push():
-    plan = run([mid(HOOK, "hook", strength=1)], intensity="bold")
-    assert one(plan, "b0.push").scale == 1.06
-    punch = one(plan, "b0.zoom")
-    assert punch.mode == "punch" and punch.scale == 1.12
-    story = next(w for w in WORDS if w["text"] == "story.")
-    assert punch.start == story["start"]   # the last content word carries phrase stress
-
-
-def test_bundle_hook_max_flash_shake_boom():
-    plan = run([mid(HOOK, "hook", strength=1)], intensity="max")
-    assert one(plan, "b0.push").scale == 1.08
-    assert isinstance(one(plan, "b0.flash"), FlashCue)
-    assert one(plan, "b0.shake").amp == 18
-    assert one(plan, "b0.sfx2").sound == "boom"
-    assert one(plan, "b0.shake").start == one(plan, "b0.sfx2").start
-
-
-# ============================================================================= emphasis
-
-
-def test_bundle_emphasis_subtle_accent_only():
-    plan = run([mid("wallet", "emphasis", strength=3)], intensity="subtle", template="marker_circle")
-    assert {c.kind for c in plan.cues} == {"accent"}
-
-
-def test_bundle_emphasis_bold_strength2_gets_pop_and_hard_115_cut():
-    plan = run([mid("wallet", "emphasis", strength=2)], intensity="bold")
-    assert one(plan, "b0.sfx").sound == "pop"
-    punch = one(plan, "b0.zoom")
-    assert (punch.mode, punch.scale) == ("punch", 1.15)
-
-
-def test_bundle_emphasis_bold_strength1_gets_nothing_extra():
-    plan = run([mid("wallet", "emphasis", strength=1)], intensity="bold")
-    assert not cues(plan, "zoom") and not cues(plan, "sfx")
-
-
-def test_bundle_emphasis_max_punch_range_at_strength1():
-    for seed in range(20):
-        plan = run([mid("wallet", "emphasis", strength=1)], intensity="max", seed=seed)
-        assert 1.15 <= one(plan, "b0.zoom").scale <= 1.25
-        assert one(plan, "b0.sfx").sound == "pop"
-
-
-# ============================================================================= number
-
-
-def test_bundle_number_subtle_accent_and_stamp():
-    plan = run([mid("a phone number", "number", strength=1, value=None)], intensity="subtle",
-               template="marker_circle")
-    assert one(plan, "b0.accent").variant == "arrow"
-    assert one(plan, "b0.sfx").sound == "stamp"
-
-
-def test_bundle_number_subtle_counter_ticker_and_stamp_at_lock():
-    b = mid("last year.", "number", strength=1, value=1.0)
-    plan = run([b], intensity="subtle", template="stat_counter")
-    counter = one(plan, "b0.accent")
-    assert counter.variant == "counter" and counter.value == 1.0
-    assert one(plan, "b0.accent.sfx").sound == "ticker" and one(plan, "b0.accent.sfx").start == counter.start
-    lock = counter.start + max(0.6, (b.end - b.start) + 0.4)
-    stamp = one(plan, "b0.accent.sfx2")
-    assert stamp.sound == "stamp" and stamp.start == pytest.approx(lock, abs=1e-3)
-    assert not has(plan, "b0.sfx")      # the counter's lock IS the number's stamp
-
-
-def test_bundle_number_bold_cash_register_for_currency():
-    plan = run([mid("a phone number", "number", strength=2, prefix="$", value=5.0)], intensity="bold")
-    assert one(plan, "b0.sfx").sound == "cash_register"
-    plan = run([mid("a phone number", "number", strength=2, value=5.0)], intensity="bold")
-    assert one(plan, "b0.sfx").sound == "stamp"
-
-
-def test_bundle_number_max_punch_118_and_shake_10():
-    plan = run([mid("a phone number", "number", strength=1, value=5.0)], intensity="max")
-    assert one(plan, "b0.zoom").scale == 1.18
-    assert one(plan, "b0.shake").amp == 10
-
-
-# ============================================================================= punchline
-
-
-def test_bundle_punchline_subtle_accent():
-    plan = run([mid("hugged us both", "punchline", strength=3)], intensity="subtle", template="marker_circle")
-    assert one(plan, "b0.accent").variant == "underline"
-    assert not cues(plan, "zoom") and not cues(plan, "sfx")
-
-
-@pytest.mark.parametrize("strength,sound", [(3, "boom"), (2, "pop")])
-def test_bundle_punchline_bold_punch_and_sound(strength, sound):
-    plan = run([mid("hugged us both", "punchline", strength=strength)], intensity="bold")
-    assert one(plan, "b0.zoom").scale == 1.15
-    assert one(plan, "b0.sfx").sound == sound
-
-
-def test_bundle_punchline_max_glitch_reaction_and_slow_tail():
-    b = mid("a long time.", "punchline", strength=1)
-    plan = run([b], intensity="max")
-    glitch = one(plan, "b0.glitch")
-    assert glitch.end - glitch.start == pytest.approx(0.15, abs=1e-3)
-    slow = one(plan, "b0.slow")
-    assert slow.rate == 0.5
-    nxt = next(w for w in WORDS if w["start"] > b.end)
-    assert b.end <= slow.start < slow.end <= nxt["start"]
-    assert one(plan, "b0.slow.sfx").sound == "tape_stop"
-    # the reaction lands on the punchline; its window then keeps the glitch and the punch out (rule 4)
-    eb_meta = {"reactions": ({"at": b.start, "query": "crying laughing"},)}
-    plan = run([b], intensity="max", meta=eb_meta, reactions_available=True,
-               style=EditStyle(intensity="max", reactions=True))
-    assert cues(plan, "reaction") and not has(plan, "b0.glitch") and not has(plan, "b0.zoom")
-
-
-# ============================================================================= swear
-
-
-@pytest.mark.parametrize("intensity", ["subtle", "bold", "max"])
-def test_bundle_swear_always_bleeps(intensity):
-    b = mid("raining", "swear")
-    plan = run([b], intensity=intensity)
-    bleep = one(plan, "b0.bleep")
-    assert isinstance(bleep, BleepCue) and bleep.tone is True
-    assert bleep.start == pytest.approx(b.start - 0.02) and bleep.end == pytest.approx(b.end + 0.02)
-    assert has(plan, "b0.glitch") == (intensity == "max")
-    if intensity == "max":
-        assert one(plan, "b0.glitch").end - one(plan, "b0.glitch").start == pytest.approx(0.1, abs=1e-3)
-
-
-# ============================================================================= emotional_turn
-
-
-def test_bundle_emotional_turn_subtle_push_strength3_only():
-    phrase = "who passed last year."
-    plan = run([mid(phrase, "emotional_turn", strength=3)], intensity="subtle")
-    push = one(plan, "b0.push")
-    assert push.scale == 1.04 and push.end - push.start >= 1.0 - 1e-6
-    plan = run([mid(phrase, "emotional_turn", strength=2)], intensity="subtle")
-    assert not plan.cues
-
-
-def test_bundle_emotional_turn_bold_push_and_riser_ending_at_turn():
-    b = mid("who passed last year.", "emotional_turn", strength=2)
-    plan = run([b], intensity="bold")
-    assert one(plan, "b0.push").scale == 1.06
-    riser = one(plan, "b0.sfx2")
-    assert riser.sound == "riser"
-    assert riser.start + RISER_SECONDS[riser.variant] == pytest.approx(b.start, abs=1e-3)
-
-
-def test_bundle_emotional_turn_max_desaturate():
-    b = mid("who passed last year.", "emotional_turn", strength=1)
-    plan = run([b], intensity="max")
-    desat = one(plan, "b0.desat")
-    assert desat.amount == 0.6 and desat.start == b.start and desat.end - desat.start == pytest.approx(1.0)
-
-
-# ============================================================================= build
-
+# ============================================================================= fx-v2: what is never automatic
 
 BUILD = "We called the number and a man answered right away."
-PAYOFF = "He said the wallet belonged to his father"
-
-
-def test_bundle_build_subtle_nothing():
-    plan = run([mid(BUILD, "build", strength=3)], intensity="subtle")
-    assert not plan.cues
-
-
-def test_bundle_build_bold_push_riser_and_speech_ramp():
-    build, payoff = mid(BUILD, "build", strength=2), mid(PAYOFF, "payoff", strength=1)
-    plan = run([build, payoff], intensity="bold")
-    bid = next(c.beat for c in plan.cues if c.id.endswith(".ramp"))
-    assert one(plan, f"{bid}.push").scale == 1.06
-    riser = one(plan, f"{bid}.sfx2")
-    assert riser.sound == "riser"
-    assert riser.start + RISER_SECONDS[riser.variant] == pytest.approx(payoff.start, abs=1e-3)
-    ramp = one(plan, f"{bid}.ramp")
-    assert isinstance(ramp, SpeedCue) and 1.15 <= ramp.rate <= 1.25
-    assert ramp.start <= build.start + 1 / 30 and ramp.end >= build.end - 1 / 30
-
-
-def test_bundle_build_max_bigger_ramp_and_wordless_speedup():
-    words = words_from("Then we waited and waited |0.9| and then the door finally opened. "
-                       "Okay everybody calm down now. " * 4)
-    build = beat(words, "Then we waited and waited and then the door finally opened.", "build", strength=1)
-    plan = run([build], words=words, intensity="max")
-    ramp = one(plan, "b0.ramp")
-    assert 1.2 <= ramp.rate <= 1.35
-    fast = one(plan, "b0.fast")
-    gap_start = next(w for w in words if w["text"] == "waited" and w["start"] > words[2]["start"])["end"]
-    assert 1.5 <= fast.rate <= 2.5 and fast.start >= gap_start + 0.1 - 1 / 30
-    assert ramp.start >= fast.end or ramp.end <= fast.start      # the ramp keeps to the speech around the gap
-
-
-# ============================================================================= payoff
 
 
 def payoff_scene(strength=3, duration=None):
@@ -298,128 +87,201 @@ def payoff_scene(strength=3, duration=None):
     return [hook, pay], ({"duration": duration} if duration else {})
 
 
-def test_bundle_payoff_subtle_accent_only():
-    beats, kw = payoff_scene()
-    plan = run(beats, intensity="subtle", template="marker_circle", **kw)
-    assert {c.kind for c in cues(plan, beat_id="b1")} == {"accent"}
+ALL_KINDS_BEATS = [
+    mid(HOOK, "hook", strength=3), mid("wallet", "emphasis", strength=3), mid("a phone number", "number", value=1.0),
+    mid("hugged us both", "punchline", strength=3), mid(BUILD, "build", strength=3),
+    mid("He said the wallet belonged", "emotional_turn", strength=3), mid("a long time.", "payoff", strength=3),
+]
 
 
-def test_bundle_payoff_bold_wait_punch_impact_freeze_scratch_label():
-    beats, kw = payoff_scene()
-    hook_end = beats[0].end
-    plan = run(beats, intensity="bold", meta={"hook_end": hook_end}, **kw)
-    wait = one(plan, "g.wait")
-    assert wait.sticker == "wait_for_it" and wait.end <= beats[1].start
-    assert one(plan, "b1.zoom").scale == 1.15
-    assert one(plan, "b1.sfx").sound == "impact"
-    freeze = one(plan, "b1.freeze")
-    assert 0.6 - 1e-6 <= freeze.hold <= 0.8 + 1e-6 and freeze.label == "NO WAY"
-    assert freeze.start >= beats[1].end
-    scratch = one(plan, "b1.freeze.sfx")
-    assert scratch.sound == "record_scratch" and scratch.start == freeze.start
+@pytest.mark.parametrize("intensity", ["subtle", "bold", "max"])
+@pytest.mark.parametrize("template", ["default", "highlighter_swipe", "emoji_drop", "behind_head"])
+def test_never_automatic_shake_hits_warp_risers_bursts_or_stickers(template, intensity):
+    plan = run(ALL_KINDS_BEATS, template=template, intensity=intensity, cuts=(15.0, 30.0),
+               passage_breaks=(15.0,))
+    kinds = {c.kind for c in plan.cues}
+    assert not kinds & {"shake", "flash", "glitch", "desaturate", "speed", "freeze", "sticker"}, kinds
+    assert not {"riser", "tape_stop", "record_scratch", "cash_register", "stamp", "ticker", "slap"} & sounds(plan)
+    assert not [c for c in cues(plan, "accent") if c.variant == "emoji_burst"]
+    assert not [c for c in cues(plan, "zoom") if c.mode == "push"]
+    transitions = cues(plan, "transition")
+    assert all(c.style in ("flash", "light_leak") for c in transitions)
 
 
-def test_bundle_payoff_bold_freeze_needs_strength3_and_15s():
-    beats, kw = payoff_scene(strength=2)
-    assert not cues(run(beats, intensity="bold", **kw), "freeze")
-    beats, _ = payoff_scene(strength=3)
-    short = [b for b in beats]
-    plan = run(short, intensity="bold", duration=14.5)
-    assert not cues(plan, "freeze")
+# ============================================================================= fx-v2: reframes (spec §3.5)
 
 
-def test_bundle_payoff_max_freeze_any_strength():
-    beats, kw = payoff_scene(strength=1)
-    for seed in range(15):
-        plan = run(beats, intensity="max", seed=seed, **kw)
-        freeze = one(plan, "b1.freeze")
-        assert 0.6 - 1e-6 <= freeze.hold <= 1.0 + 1e-6
+def zooms(plan, mode):
+    return sorted((c for c in cues(plan, "zoom") if c.mode == mode), key=lambda c: c.start)
 
 
-def test_payoff_label_falls_back_to_first_words():
-    hook = mid(HOOK, "hook", strength=2)
-    pay = mid("He drove over and we gave it back to him.", "payoff", strength=3)
-    plan = run([hook, pay], intensity="max")
-    assert one(plan, "b1.freeze").label
+@pytest.mark.parametrize("intensity,lo,hi", [("subtle", 1.10, 1.15), ("bold", 1.12, 1.20), ("max", 1.20, 1.35)])
+def test_reframes_hold_until_the_next_reframe_and_alternate(intensity, lo, hi):
+    plan = run(ALL_KINDS_BEATS, intensity=intensity)
+    punches = zooms(plan, "punch")
+    assert punches
+    for a, b in zip(punches, punches[1:]):
+        assert a.end <= b.start + 1e-6                     # never stacked
+        assert b.start - a.end >= 0.8 - 1e-6               # an "out" stretch at the base framing between them
+    for p in punches:
+        assert lo - 1e-6 <= p.scale <= hi + 1e-6
+        assert p.end - p.start >= 0.4 - 1e-6               # a reframe, never a 0.5 s bounce
+    rate = {"subtle": 1.2, "bold": 2.6, "max": 5.5}[intensity]
+    events = len(punches) * 2
+    assert events <= max(2, math.floor(rate * DUR / 10 + 0.5) + 1)
 
 
-# ============================================================================= intrinsic SFX table (AP-H6)
+def test_reframes_reset_at_real_cuts_and_skip_broll():
+    plan = run(ALL_KINDS_BEATS, intensity="max", cuts=(12.0, 24.0))
+    for p in zooms(plan, "punch"):
+        assert not any(p.start + 1e-6 < c < p.end - 1e-6 for c in (12.0, 24.0))
+    window = (10.0, 20.0)
+    plan = run(ALL_KINDS_BEATS, intensity="max", broll_windows=(window,))
+    for z in cues(plan, "zoom"):
+        assert z.end <= window[0] + 1e-6 or z.start >= window[1] - 1e-6
+
+
+def test_nudges_are_11_frame_pushes_that_never_stack():
+    plan = run(ALL_KINDS_BEATS, intensity="max")
+    nudges = zooms(plan, "nudge")
+    pulls = zooms(plan, "pull")
+    assert nudges
+    for n in nudges:
+        assert 1.08 - 1e-6 <= n.scale <= 1.10 + 1e-6
+        overlapping = [o for o in nudges if o is not n and o.start < n.end - 1e-6 and n.start < o.end - 1e-6]
+        assert not overlapping
+    for p in pulls:                                        # a pull eases the previous nudge back out over 11 frames
+        assert p.end - p.start <= 11 / 30 + 1e-3
+        assert any(abs(n.end - p.start) < 1e-6 and n.scale == p.scale for n in nudges)
+
+
+def test_zooms_off_switch_and_style_only():
+    assert not cues(run(ALL_KINDS_BEATS, style=EditStyle(intensity="max", zooms=False)), "zoom")
+    assert not cues(run(ALL_KINDS_BEATS, template="highlighter_swipe", intensity="off"), "zoom")
+
+
+# ============================================================================= fx-v2: sounds on visual events (spec §3.7)
+
+
+@pytest.mark.parametrize("intensity", ["subtle", "bold", "max"])
+def test_sfx_sit_on_reframes_one_frame_early_never_on_plain_talking(intensity):
+    plan = run(ALL_KINDS_BEATS, intensity=intensity)
+    punch_times = [p.start for p in zooms(plan, "punch")] + [p.end for p in zooms(plan, "punch")]
+    hits = [c for c in cues(plan, "sfx") if c.id.startswith("e")]
+    if intensity == "subtle":
+        assert not cues(plan, "sfx")
+        return
+    assert hits and all(c.sound in ("impact", "boom") for c in hits)
+    for c in hits:
+        assert any(abs(c.start - (t - 1 / 30)) < 0.02 for t in punch_times), (c.start, punch_times)
+    share = {"bold": 0.5, "max": 0.6}[intensity]
+    assert len(hits) <= math.floor(share * len(punch_times) + 0.5) + 1
+
+
+def test_flash_transition_whoosh_two_frames_early_and_transition_rates():
+    cuts = (8.0, 16.0, 24.0, 32.0)
+    assert not cues(run([], intensity="subtle", cuts=cuts, passage_breaks=cuts), "transition")
+    bold = run([], intensity="bold", cuts=cuts, passage_breaks=())
+    assert not cues(bold, "transition")                   # bold: passage breaks only
+    bold = run([], intensity="bold", cuts=cuts, passage_breaks=(16.0,))
+    assert [c.start for c in cues(bold, "transition")] == [16.0]
+    wild = run([], intensity="max", cuts=cuts, passage_breaks=())
+    assert 1 <= len(cues(wild, "transition")) <= max(1, math.floor(DUR / 20 + 0.5))
+    for tr in cues(wild, "transition") + cues(bold, "transition"):
+        if tr.style == "flash":
+            whoosh = [c for c in cues(wild, "sfx") + cues(bold, "sfx") if c.id == f"{tr.id}.sfx"]
+            assert whoosh and whoosh[0].start == pytest.approx(tr.start - 2 / 30, abs=0.02)
+
+
+def test_sfx_bus_gain_row_and_cue_gains_stay_relative():
+    assert [sfx_bus_gain_db(EditStyle(intensity=i), "normal") for i in INTENSITIES] == [-16.0, -20.0, -16.0, -10.0]
+    assert sfx_bus_gain_db(EditStyle(intensity="max"), "serious") == -20.0
+    plan = run(ALL_KINDS_BEATS, intensity="max")
+    assert all(c.gain_db <= 0 for c in cues(plan, "sfx"))       # per-sound trims only
+
+
+# ============================================================================= fx-v2: look templates (spec §3.1-3.4)
+
+
+def keywords(plan):
+    return sorted((c for c in cues(plan, "accent") if c.variant == "highlight"), key=lambda c: c.start)
+
+
+@pytest.mark.parametrize("intensity,rate,gap", [("subtle", 1.25, 4.0), ("bold", 4.0, 1.2), ("max", 5.5, 0.8)])
+def test_keywords_one_per_phrase_group_at_the_look_rate(intensity, rate, gap):
+    from src.edit_fx.caption_groups import LOOK_MAX_WORDS, phrase_groups
+
+    plan = run(ALL_KINDS_BEATS, template="highlighter_swipe", intensity=intensity)
+    kws = keywords(plan)
+    assert kws and len(kws) <= max(1, math.floor(rate * DUR / 10 + 0.5))
+    for a, b in zip(kws, kws[1:]):
+        assert b.start - a.start >= gap - 1e-6
+    groups = phrase_groups(WORDS, LOOK_MAX_WORDS[intensity])
+    seen = set()
+    for k in kws:
+        g = next(i for i, grp in enumerate(groups) if grp.start - 1e-6 <= k.start <= WORDS[grp.last]["start"] + 1e-6)
+        assert g not in seen
+        seen.add(g)
+        assert len(k.text.split()) == 1
+        assert k.text.strip(".,!?").lower() not in ("so", "the", "basically", "really", "actually")
+
+
+def test_keyword_prefers_the_beat_key_word_and_skips_fillers():
+    plan = run([mid("wallet", "emphasis", strength=3)], template="highlighter_swipe", intensity="bold")
+    assert any(k.text == "wallet" and k.beat == "b0" for k in keywords(plan))
+    w = words_from("so basically I literally actually really think honestly. " * 6)
+    plan = run([], words=w, template="highlighter_swipe", intensity="max", duration=round(w[-1]["end"] + 0.5, 3))
+    assert all(k.text.lower().strip(".") not in ("basically", "literally", "actually", "honestly", "really")
+               for k in keywords(plan))
+
+
+def test_emoji_drop_emoji_hold_with_their_group_and_respect_rates():
+    beats = [mid("wallet", "emphasis", strength=2, emoji="💰"), mid("a phone number", "number", value=1.0, emoji="📱"),
+             mid("hugged us both", "punchline", strength=3, tone="funny"), mid("a long time.", "payoff",
+                                                                               strength=3, tone="sad")]
+    for intensity, rate in (("subtle", 0.5), ("bold", 1.0), ("max", 2.5)):
+        plan = run(beats, template="emoji_drop", intensity=intensity)
+        emoji = [c for c in cues(plan, "accent") if c.variant == "emoji"]
+        assert 1 <= len(emoji) <= max(1, math.floor(rate * DUR / 10 + 0.5))
+        for e in emoji:
+            assert 0.5 - 1e-6 <= e.end - e.start <= 1.8 + 1e-6
+            assert e.emoji != "😢"                               # never on a sad (vulnerable) moment
+        pops = [c for c in cues(plan, "sfx") if c.sound == "pop"]
+        assert len(pops) <= math.ceil(len(emoji) / 3)
+    plan = run(beats, template="emoji_drop", intensity="bold")
+    first = min((c for c in cues(plan, "accent") if c.variant == "emoji"), key=lambda c: c.start)
+    assert first.emoji == "💰"
+    key = next(w for w in WORDS if w["text"] == "wallet")
+    assert first.start == pytest.approx(key["start"] - 2 / 30, abs=2e-3)
+
+
+def test_behind_head_word_lands_on_a_reframe_and_hides_captions():
+    plan = run(ALL_KINDS_BEATS, template="behind_head", intensity="bold")
+    behind = [c for c in cues(plan, "accent") if c.variant == "behind"]
+    assert 1 <= len(behind) <= max(1, math.floor(DUR / 20 + 0.5))
+    punches = zooms(plan, "punch")
+    for b in behind:
+        assert len(b.text.split()) == 1
+        assert 1.0 - 1e-6 <= b.end - b.start <= 2.0 + 1e-6
+        assert any(abs(p.start - b.start) < 1e-3 or abs(p.end - b.start) < 1e-3 for p in punches)
+        assert has(plan, f"{b.id}.sfx") and one(plan, f"{b.id}.sfx").sound == "boom"
+        assert not [k for k in keywords(plan) if k.start < b.end and b.start < k.end]
+
+
+def test_legacy_and_hidden_templates_get_no_look_cues():
+    plan = run(ALL_KINDS_BEATS, template="default", intensity="max")
+    assert not cues(plan, "accent")
+    plan = run(ALL_KINDS_BEATS, template="slam", intensity="max")
+    assert not [c for c in cues(plan, "accent") if c.id.endswith(".kw")]
+
+
+# ============================================================================= intrinsic SFX of hidden templates
 
 
 def test_intrinsic_slam_impact_boom_at_max():
-    b = mid("wallet", "punchline", strength=3)
-    assert one(run([b], template="slam", intensity="off"), "b0.slam.sfx").sound == "impact"
+    b = mid("hugged us both", "punchline", strength=3)
+    assert one(run([b], template="slam", intensity="bold"), "b0.slam.sfx").sound == "impact"
     assert one(run([b], template="slam", intensity="max"), "b0.slam.sfx").sound == "boom"
-
-
-def test_intrinsic_sticker_and_wait_for_it_slap():
-    plan = run([mid("wallet", "emphasis")], template="sticker_slap", intensity="off")
-    assert one(plan, "b0.accent.sfx").sound == "slap"
-    beats, kw = payoff_scene()
-    plan = run(beats, intensity="bold", meta={"hook_end": beats[0].end})
-    assert one(plan, "g.wait.sfx").sound == "slap" and one(plan, "g.wait.sfx").start == one(plan, "g.wait").start
-
-
-def test_intrinsic_emoji_pop_skipped_within_06s_of_previous_pop():
-    w = words_from("We saw a huge massive bear in the woods today. " * 5)
-    a = beat(w, "huge", "emphasis", strength=1)
-    b = beat(w, "massive", "emphasis", strength=1)
-    plan = run([a, b], words=w, template="emoji_drop", intensity="off", style=EditStyle(intensity="off"))
-    pops = [c for c in cues(plan, "sfx") if c.sound == "pop"]
-    assert len(pops) <= 1
-
-
-def test_intrinsic_emoji_burst_pop_variant1():
-    plan = run([mid("wallet", "emphasis", strength=3)], template="emoji_drop", intensity="bold")
-    burst = one(plan, "b0.burst")
-    assert burst.variant == "emoji_burst" and burst.value == 5.0
-    assert one(plan, "b0.burst.sfx").sound == "pop" and one(plan, "b0.burst.sfx").variant == 1
-
-
-def test_intrinsic_decode_glitch_behind_and_kinetic_whoosh():
-    assert one(run([mid("wallet", "emphasis")], template="decode_glitch", intensity="off"),
-               "b0.accent.sfx").sound == "glitch"
-    assert one(run([mid(HOOK, "hook", strength=3)], template="behind_head", intensity="off"),
-               "b0.behind.sfx").sound == "whoosh"
-    assert one(run([mid(HOOK, "hook", strength=3)], template="kinetic_stack", intensity="off"),
-               "b0.accent.sfx").sound == "whoosh"
-
-
-def test_intrinsic_doodle_pop_only_at_strength2():
-    assert has(run([mid("wallet", "emphasis", strength=2)], template="face_doodles", intensity="off"),
-               "b0.accent.sfx")
-    assert not has(run([mid("wallet", "emphasis", strength=1)], template="face_doodles", intensity="off"),
-                   "b0.accent.sfx")
-
-
-def _transition_plan(style_wanted):
-    gap_word = next(i for i, w in enumerate(WORDS) if w["text"] == "ground.")
-    cut = round((WORDS[gap_word]["end"] + WORDS[gap_word + 1]["start"]) / 2, 3)
-    for seed in range(400):
-        plan = run([], intensity="max", seed=seed, cuts=(cut,), passage_breaks=(cut,))
-        tr = cues(plan, "transition")
-        if tr and tr[0].style == style_wanted:
-            return plan, tr[0]
-    raise AssertionError(f"no seed gives {style_wanted}")
-
-
-@pytest.mark.parametrize("style", ["whip", "zoom_through", "spin"])
-def test_intrinsic_transition_whoosh_012_before_cut(style):
-    plan, tr = _transition_plan(style)
-    whoosh = one(plan, f"{tr.id}.sfx")
-    assert whoosh.sound == "whoosh" and whoosh.start == pytest.approx(tr.start - 0.12, abs=1e-3)
-
-
-def test_intrinsic_transition_glitch_sound():
-    plan, tr = _transition_plan("glitch")
-    assert one(plan, f"{tr.id}.sfx").sound == "glitch"
-
-
-def test_intrinsic_slow_mo_tape_stop_and_freeze_scratch():
-    plan = run([mid("a long time.", "punchline", strength=2)], intensity="max")
-    assert one(plan, "b0.slow.sfx").sound == "tape_stop"
-    beats, kw = payoff_scene()
-    assert one(run(beats, intensity="max", **kw), "b1.freeze.sfx").sound == "record_scratch"
 
 
 def test_intrinsic_sfx_respect_sfx_toggle():
@@ -487,9 +349,12 @@ def test_rule3_quiet_zones():
                duration=round(w[-1]["end"] + 0.1, 3))
     dur = plan.edit_duration
     assert all(c.start >= 0.25 - 1e-6 or c.kind == "bleep" for c in plan.cues)
-    assert all(c.end <= dur - 0.3 + 1e-6 for c in plan.cues if c.kind != "bleep")
-    hooked = run([beat(w, "Wow this is wild", "hook", strength=3)], words=w, intensity="bold")
-    assert any(c.start < 0.25 for c in hooked.cues)          # hook-bound cues may sit in the head zone
+    # nothing STARTS in the tail; a reframe or nudge started earlier may hold to the end of the clip
+    assert all(c.end <= dur - 0.3 + 1e-6 or (c.kind == "zoom" and c.start <= dur - 0.6 + 1e-6)
+               for c in plan.cues if c.kind != "bleep")
+    hooked = run([beat(w, "Wow", "hook", strength=3)], words=w, template="highlighter_swipe",
+                 intensity="bold")
+    assert any(c.start < 0.25 for c in hooked.cues)          # caption keywords may sit in the head zone
     looped = run([wow, last], words=w, intensity="max", template="marker_circle",
                  duration=round(w[-1]["end"] + 0.1, 3), style=EditStyle(intensity="max", loop_ending=True))
     assert any(c.end > looped.edit_duration - 0.3 for c in looped.cues)
@@ -501,9 +366,10 @@ def test_rule4_broll_windows_exclude_picture_fx():
     for template in ("behind_head", "face_doodles", "marker_circle"):
         plan = run([b], template=template, intensity="max", broll_windows=window)
         for c in plan.cues:
-            if c.kind in ("zoom", "shake", "transition", "glitch") or (
+            inside = c.start < window[0][1] and window[0][0] < max(c.end, c.start + 1e-6)
+            if inside and (c.kind in ("zoom", "shake", "transition", "glitch") or (
                 c.kind == "accent" and c.variant in ("behind", "doodle")
-            ):
+            )):
                 raise AssertionError(describe(c))
 
 
@@ -560,57 +426,27 @@ def test_rule6_transitions_only_at_cuts_never_inside_a_word():
     assert all(c.id.startswith("t") and c.id.endswith(".tr") for c in cues(plan, "transition"))
 
 
-def test_rule6_subtle_only_on_passage_breaks_and_ranked_by_strongest_beat():
+def test_rule6_bold_only_on_passage_breaks_and_ranked_by_strongest_beat():
     cuts = (8.0, 16.0, 24.0)
-    plan = run([], intensity="subtle", cuts=cuts, passage_breaks=())
-    assert not cues(plan, "transition")
-    plan = run([], intensity="subtle", cuts=cuts, passage_breaks=(16.0, 24.0))
-    assert len(cues(plan, "transition")) == 1
+    assert not cues(run([], intensity="subtle", cuts=cuts, passage_breaks=cuts), "transition")
+    assert not cues(run([], intensity="bold", cuts=cuts, passage_breaks=()), "transition")
+    assert len(cues(run([], intensity="bold", cuts=cuts, passage_breaks=(16.0, 24.0)), "transition")) == 1
     strong = mid("He drove over", "payoff", strength=3)
     near = round(strong.start - 0.2, 3)          # in the sentence gap before the payoff
-    plan = run([strong], intensity="subtle", cuts=(9.0, near), passage_breaks=(9.0, near))
-    # subtle allows one transition; the passage break near the strongest beat wins
+    plan = run([strong], intensity="bold", cuts=(9.0, near), passage_breaks=(9.0, near))
+    # bold allows one transition on this clip; the passage break near the strongest beat wins
     trs = cues(plan, "transition")
-    assert len(trs) == 1 and trs[0].start == near
+    assert len(trs) == 1 and trs[0].start == near and trs[0].style == "flash"
 
 
-def test_rule7_ramp_never_touches_hook_window_swear_or_bleep():
-    build = mid(BUILD, "build", strength=3)
-    assert cues(run([build], intensity="bold"), "speed")
-    assert not cues(run([build], intensity="bold", hook_window=(0.12, build.start + 0.5)), "speed")
-    swear = mid("the number", "swear", after=next(i for i, w in enumerate(WORDS) if w["text"] == "called"))
-    assert not cues(run([build, swear], intensity="bold"), "speed")
-
-
-def test_rule7_freeze_sits_at_word_end_not_inside_speed():
-    beats, kw = payoff_scene()
-    for seed in range(25):
-        plan = run(beats, intensity="max", seed=seed, **kw)
-        for f in cues(plan, "freeze"):
-            assert not any(w["start"] < f.start < w["end"] for w in WORDS)
-            nxt = min((w["start"] for w in WORDS if w["start"] >= f.start), default=plan.edit_duration)
-            assert nxt - f.start >= 0.3 - 1 / 30
-            assert not any(s.start < f.start < s.end for s in cues(plan, "speed"))
-
-
-def test_rule7_warp_caps():
-    tight = run(*payoff_scene()[:1], intensity="max", max_clip_seconds=DUR - 2.2)
-    assert not cues(tight, "freeze")                   # final would exceed max_clip_seconds + 2
-    for name in ("story", "talking_head"):
-        inp, seed = load_fixture(name)
-        plan = resolve(inp, EditStyle(intensity="max"), "default", seed)
-        holds = sum(c.hold for c in cues(plan, "freeze"))
-        assert holds <= min(1.6, 0.04 * plan.edit_duration) + 1e-6
-        delta = sum(abs((c.end - c.start) / c.rate - (c.end - c.start)) for c in cues(plan, "speed"))
-        assert delta <= 0.1 * plan.edit_duration + 0.05
-
-
-def test_rule7_no_warp_when_speed_off_or_word_timing_missing():
+def test_rule7_no_automatic_warp_and_user_warp_kept():
     beats, kw = payoff_scene()
     beats.append(mid(BUILD, "build", strength=3))
-    assert not cues(run(beats, style=EditStyle(intensity="max", speed=False), **kw), "speed")
-    plan = run(beats, intensity="max", meta={"timing": "approx"}, **kw)
-    assert not cues(plan, "speed") and not cues(plan, "freeze")
+    for intensity in ("subtle", "bold", "max"):
+        plan = run(beats, intensity=intensity, **kw)
+        assert not cues(plan, "speed") and not cues(plan, "freeze")
+    user = SpeedCue(id="u.speed", start=10.0, end=12.0, rate=1.3, origin="user")
+    assert one(run(beats, intensity="max", user_cues=(user,), **kw), "u.speed") == user
 
 
 def test_rule8_resolver_never_emits_kenburns():
@@ -624,9 +460,12 @@ def test_rule8_resolver_never_emits_kenburns():
 
 def test_rule9_music_mood_bed_and_levels():
     plan = run([mid("wallet", "emphasis")], intensity="bold", meta={"mood": "funny"})
-    assert (plan.music.mood, plan.music.bed, plan.music.gain_db, plan.music.duck_db) == ("funny", "funny", -20, -12)
-    assert run([], intensity="subtle").music.gain_db == -24
-    assert run([], intensity="max").music.gain_db == -17
+    # constant beds at subtle and bold, a 7 dB duck at max (levels calibrated against the references)
+    assert (plan.music.mood, plan.music.bed, plan.music.gain_db, plan.music.duck_db) == ("funny", "funny", -15, 0)
+    subtle = run([], intensity="subtle").music
+    assert (subtle.gain_db, subtle.duck_db) == (-8, 0)
+    wild = run([], intensity="max").music
+    assert (wild.gain_db, wild.duck_db, wild.attack, wild.release) == (3, -7, 0.25, 0.6)
     plan = run([], style=EditStyle(intensity="bold", music_mood="dark"))
     assert plan.music.mood == "dark"
     assert run([], style=EditStyle(intensity="bold", music=False)).music is None
@@ -643,21 +482,14 @@ def test_rule9_loop_ending_offsets_the_bed_to_the_seam():
 
 def test_rule10_retention_grade_and_grain():
     assert run([], intensity="subtle").grade == "none"
-    assert run([], intensity="bold").grade == "punchy"
+    assert run([], intensity="bold").grade == "none"
     assert run([], intensity="max").grade == "punchy"
-    assert run([], intensity="max", meta={"mood": "dramatic"}).grade == "teal_orange"
+    assert run([], intensity="max", meta={"mood": "dramatic"}).grade == "punchy"
     assert run([], style=EditStyle(intensity="subtle", grade="vhs")).grade == "vhs"
     assert [run([], style=EditStyle(intensity=i, grain=True)).grain for i in ("subtle", "bold", "max")] == [
         0.15, 0.2, 0.3]
     plan = run([], style=EditStyle(intensity="bold", progress_bar=True))
     assert plan.progress_bar and plan.loop_ending == "none"
-
-
-def test_sfx_bus_gain_row_and_cue_gains_stay_relative():
-    assert [sfx_bus_gain_db(EditStyle(intensity=i), "normal") for i in INTENSITIES] == [0.0, -4.0, 0.0, 2.0]
-    assert sfx_bus_gain_db(EditStyle(intensity="max"), "serious") == -4.0
-    plan = run([mid(HOOK, "hook", strength=3), mid("wallet", "emphasis", strength=3)], intensity="max")
-    assert all(c.gain_db <= 0 for c in cues(plan, "sfx"))       # per-sound trims only
 
 
 def test_rule11_reactions_opt_in_and_available():
@@ -680,18 +512,22 @@ def test_rule12_user_cues_kept_and_collisions_dropped():
     user_sfx = SfxCue(id="u2", start=b.start, end=b.start, sound="slap", origin="user")
     plan = run([b], intensity="bold", user_cues=(user_zoom, user_sfx))
     assert one(plan, "u1") == user_zoom and one(plan, "u2") == user_sfx
-    assert not has(plan, "b0.zoom") and not has(plan, "b0.sfx")
+    for c in plan.cues:
+        if c.origin == "auto" and c.kind in ("zoom", "sfx"):
+            assert max(0.0, max(c.start, user_zoom.start) - min(c.end, user_zoom.end)) >= 0.3 - 1e-6 or c.kind == "sfx"
+            assert c.kind != "sfx" or abs(c.start - user_sfx.start) >= 0.3 - 1e-6
 
 
 def test_rule12_suppressed_ids_never_emitted_and_user_ids_not_duplicated():
     b = mid("wallet", "emphasis", strength=2)
     full = run([b], intensity="bold")
-    assert has(full, "b0.zoom")
-    plan = run([b], intensity="bold", suppressed=frozenset({"b0.zoom"}))
-    assert not has(plan, "b0.zoom") and has(plan, "b0.sfx")
-    moved = ZoomCue(id="b0.zoom", start=20.0, end=20.5, mode="punch", scale=1.2, origin="user")
+    zoom_id = next(c.id for c in cues(full, "zoom") if c.mode == "punch")
+    sfx_id = next(c.id for c in cues(full, "sfx"))
+    plan = run([b], intensity="bold", suppressed=frozenset({zoom_id}))
+    assert not has(plan, zoom_id) and has(plan, sfx_id)
+    moved = ZoomCue(id=zoom_id, start=20.0, end=20.5, mode="punch", scale=1.2, origin="user")
     plan = run([b], intensity="bold", user_cues=(moved,))
-    assert [c for c in plan.cues if c.id == "b0.zoom"] == [moved]
+    assert [c for c in plan.cues if c.id == zoom_id] == [moved]
 
 
 # ============================================================================= §8.6 modes
@@ -722,9 +558,9 @@ def test_no_timing_only_global_fx():
     inp, seed = load_fixture("no_timing")
     plan = resolve(inp, EditStyle(intensity="bold", grain=True, progress_bar=True), "marker_circle", seed)
     assert {c.kind for c in plan.cues} <= {"transition", "sfx"}
-    assert all(c.kind == "transition" or c.id.endswith(".tr.sfx") for c in plan.cues)
-    assert plan.music.gain_db == -24 and plan.music.duck_db == 0
-    assert plan.grade == "punchy" and plan.grain == 0.2 and plan.progress_bar and plan.timing == "none"
+    assert all(c.kind == "transition" or c.id.endswith(".tr.sfx") or c.id.startswith("e") for c in plan.cues)
+    assert plan.music.gain_db == -15 and plan.music.duck_db == 0
+    assert plan.grade == "none" and plan.grain == 0.2 and plan.progress_bar and plan.timing == "none"
 
 
 # ============================================================================= §8.7 template variants
@@ -738,15 +574,13 @@ def test_variant_marker_circle():
     assert [c.variant for c in cues(plan, "accent")] == ["strike", "underline", "circle", "arrow"]
 
 
-def test_variant_emoji_drop_tone_emoji_and_bursts():
-    plan = run([mid("wallet", "emphasis", strength=1, tone="funny")], template="emoji_drop", intensity="bold")
-    accent = one(plan, "b0.accent")
-    assert (accent.variant, accent.emoji) == ("emoji", "😂")
+def test_variant_emoji_drop_only_literal_emoji_never_bursts():
+    plan = run([mid("wallet", "emphasis", strength=3, tone="funny")], template="emoji_drop", intensity="max")
+    assert not [c for c in cues(plan, "accent") if c.variant in ("emoji", "emoji_burst")]   # no tone faces
     plan = run([mid("wallet", "emphasis", strength=2, emoji="💰")], template="emoji_drop", intensity="max")
-    accent = one(plan, "b0.burst")
-    assert (accent.variant, accent.emoji, accent.value) == ("emoji_burst", "💰", 8.0)
-    assert one(run([mid("wallet", "emphasis", strength=3)], template="emoji_drop", intensity="subtle"),
-               "b0.accent").variant == "emoji"
+    accent = one(plan, "b0.accent")
+    assert (accent.variant, accent.emoji) == ("emoji", "💰")
+    assert not [c for c in cues(plan, "accent") if c.variant == "emoji_burst"]
 
 
 def test_variant_slam_top_strength3_and_intrinsic_visuals():
@@ -768,10 +602,10 @@ def test_variant_slam_top_strength3_and_intrinsic_visuals():
 def test_variant_behind_head_limits():
     w = words_from("This changed my life forever and I mean it. " * 8)
     beats = [beat(w, "life", "emphasis", strength=3, after=i * 9) for i in range(6)]
-    plan = run(beats, words=w, template="behind_head", intensity="max")
+    plan = run(beats, words=w, template="behind_head", intensity="max", duration=round(w[-1]["end"] + 0.5, 3))
     behind = [c for c in cues(plan, "accent") if c.variant == "behind"]
-    assert 1 <= len(behind) <= 3 and all(c.end - c.start <= 3.0 + 1e-6 for c in behind)
-    assert all(len(c.text.split()) <= 2 for c in behind)
+    assert 1 <= len(behind) <= max(1, math.floor(plan.edit_duration / 12 + 0.5))
+    assert all(c.end - c.start <= 2.0 + 1e-6 and len(c.text.split()) == 1 for c in behind)
 
 
 def test_variant_stat_counter():
@@ -807,20 +641,20 @@ def test_variant_kinetic_stack_hook_sentence_and_desaturate():
     assert one(no_hook, "g.kinetic").variant == "kinetic"
 
 
-def test_variant_decode_glitch_bold_adds_visual_glitch():
-    assert not cues(run([mid("wallet", "emphasis")], template="decode_glitch", intensity="subtle"), "glitch")
-    plan = run([mid("wallet", "emphasis")], template="decode_glitch", intensity="bold")
-    glitch = one(plan, "b0.accent.glitch")
-    assert glitch.end - glitch.start == pytest.approx(0.08, abs=1e-3)
+def test_variant_decode_glitch_keeps_its_sound_but_no_glitch_hit():
+    for intensity in ("subtle", "bold", "max"):
+        plan = run([mid("wallet", "emphasis")], template="decode_glitch", intensity=intensity)
+        assert one(plan, "b0.accent").variant == "decode"
+        assert not cues(plan, "glitch")
 
 
-def test_variant_highlighter_swipe():
+def test_variant_highlighter_swipe_marks_keywords_not_beats():
     plan = run([mid("wallet", "emphasis"), mid("a phone number", "number", value=1.0),
                 mid("hugged us both", "punchline")], template="highlighter_swipe", intensity="bold")
-    assert sorted(c.beat for c in cues(plan, "accent")) == ["b0", "b1"]
-    wild = run([mid("wallet", "emphasis")], template="highlighter_swipe", intensity="max")
-    extra = [c for c in cues(wild, "accent") if c.id.startswith("w")]
-    assert extra and all(sum(ch.isalpha() for ch in c.text) >= 4 for c in extra)
+    kws = keywords(plan)
+    assert kws and all(c.id.endswith(".kw") for c in kws)
+    assert {"wallet", "number", "hugged"} & {c.text for c in kws}
+    assert not [c for c in cues(plan, "accent") if not c.id.endswith(".kw")]
 
 
 @pytest.mark.parametrize("tone,kind,strength,expected", [
@@ -867,6 +701,9 @@ def test_removing_one_beat_leaves_other_cues_unchanged(name):
                     before = full.get(cue.id)
                     if before is None or before.beat == drop.id:
                         continue           # a cue that is new, or that the removed beat used to own (g.wait)
+                    if re.fullmatch(r"[zne]\d+\.(zoom|sfx)|w\d+\.kw", cue.id):
+                        continue           # fx-v2 global steps (reframes, nudges, cut hits, keywords) are placed
+                                           # over all beats at once; their ids are frame / word numbers
                     if drop.kind in ("payoff", "punchline") and cue.kind == "sfx" and cue.sound == "riser":
                         continue           # §8.4: a build's riser ends at the NEXT payoff/punchline
                     if drop.kind == "swear" and cue.kind == "accent":
@@ -891,7 +728,9 @@ def test_goldens(name):
         assert actual[key] == expected[key], key
 
 
-def test_every_sound_id_is_reachable_over_the_goldens():
+def test_golden_sounds_are_the_reference_palette():
+    """fx-v2: sounds follow visual events: hits and booms on reframes, pops on graphics, a whoosh on a flash, and the
+    hidden templates' own sounds (slam, counter, sticker, decode). No risers, scratches or tape stops."""
     heard: set[str] = set()
     for name in ("talking_head", "story", "no_timing"):
         for entry in json.loads((FIXTURES / f"{name}.golden.json").read_text()).values():
@@ -899,17 +738,19 @@ def test_every_sound_id_is_reachable_over_the_goldens():
                 m = re.search(r" sfx +(\w+)#", line)
                 if m:
                     heard.add(m.group(1))
-    assert heard == set(SOUND_IDS)
+    assert {"impact", "boom", "pop", "whoosh"} <= heard <= set(SOUND_IDS) - {"riser", "record_scratch", "tape_stop"}
 
 
-def test_story_after_default_cleanup_warps():
+def test_story_after_default_cleanup_never_warps_and_resets_reframes_at_cuts():
     inp, seed = load_fixture("story")
     assert inp.cuts and inp.passage_breaks           # real cleanup cut long pauses and the 3.6 s gap
     for template in TEMPLATES:
-        bold = resolve(inp, EditStyle(intensity="bold"), template, seed)
-        assert cues(bold, "speed"), template
-        wild = resolve(inp, EditStyle(intensity="max"), template, seed)
-        assert cues(wild, "speed") and cues(wild, "freeze"), template
+        for intensity in ("bold", "max"):
+            plan = resolve(inp, EditStyle(intensity=intensity), template, seed)
+            assert not cues(plan, "speed") and not cues(plan, "freeze"), template
+            for z in cues(plan, "zoom"):
+                if z.mode == "punch":
+                    assert not any(z.start + 1e-6 < c < z.end - 1e-6 for c in inp.cuts)
 
 
 # ============================================================================= review fixes
@@ -933,20 +774,10 @@ def test_slam_template_hook_always_slams_any_strength():
     assert one(plan, "b0.slam").variant == "slam"
 
 
-def test_swear_glitch_needs_a_bleep_to_sit_on():
+def test_swear_gets_a_bleep_but_no_glitch():
     b = mid("raining", "swear")
-    assert has(run([b], intensity="max"), "b0.glitch")
-    assert not has(run([b], style=EditStyle(intensity="max", censor="off")), "b0.glitch")
-    assert not has(run([b], intensity="max", suppressed=frozenset({"b0.bleep"})), "b0.glitch")
-
-
-def test_freeze_is_at_least_03s_before_the_next_word_after_quantising():
-    beats, kw = payoff_scene()
-    for seed in range(25):
-        plan = run(beats, intensity="max", seed=seed, **kw)
-        for f in cues(plan, "freeze"):
-            nxt = min((w["start"] for w in WORDS if w["start"] >= f.start), default=plan.edit_duration)
-            assert nxt - f.start >= 0.3 - 1e-3
+    plan = run([b], intensity="max")
+    assert has(plan, "b0.bleep") and not cues(plan, "glitch")
 
 
 def test_long_beat_ids_never_raise():
@@ -959,8 +790,9 @@ def test_loop_music_offset_uses_the_emitted_warp():
     from src.edit_fx.warp import build_warp
 
     beats, kw = payoff_scene()
-    plan = run(beats, style=EditStyle(intensity="max", loop_ending=True), **kw)
-    assert cues(plan, "freeze") or cues(plan, "speed")
+    user = SpeedCue(id="u.speed", start=10.0, end=12.0, rate=1.5, origin="user")
+    plan = run(beats, style=EditStyle(intensity="max", loop_ending=True), user_cues=(user,), **kw)
     out = build_warp(plan.cues, plan.edit_duration).out_duration
+    assert out < plan.edit_duration
     length = 61.935
     assert plan.music.offset == pytest.approx((length - out % length) % length, abs=1e-3)

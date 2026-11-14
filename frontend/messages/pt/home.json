@@ -351,18 +351,18 @@
       },
       "subtle": {
         "label": "Sutil",
-        "hint": "Alguns zooms e efeitos sonoros suaves"
+        "hint": "Reenquadra de vez em quando, música baixa"
       },
       "bold": {
         "label": "Forte",
-        "hint": "Zooms rápidos, whooshes e música"
+        "hint": "Aproximações nos momentos-chave, impactos nos cortes"
       },
       "max": {
         "label": "Máxima",
-        "hint": "Todos os truques, em cada momento"
+        "hint": "Reenquadres rápidos, impactos e música mais altos"
       }
     },
-    "offHint": "Ligue a edição para adicionar efeitos sonoros, música, zooms e congelamentos nos momentos que importam.",
+    "offHint": "Ligue as edições para adicionar reenquadres, efeitos sonoros e música nos momentos que importam.",
     "groups": {
       "sound": "Som",
       "motion": "Movimento",
@@ -371,7 +371,7 @@
     "options": {
       "sfx": {
         "label": "Efeitos sonoros",
-        "hint": "Whooshes, impactos e pops nos momentos-chave"
+        "hint": "Impactos e pops curtos em cortes e gráficos"
       },
       "music": {
         "label": "Música",
@@ -380,7 +380,7 @@
       "musicMood": "Clima da música",
       "zooms": {
         "label": "Zooms",
-        "hint": "Aproxima nas piadas e nos números grandes"
+        "hint": "Reenquadres e aproximações curtas nos momentos-chave"
       },
       "shake": {
         "label": "Tremida de câmera",
@@ -388,7 +388,7 @@
       },
       "transitions": {
         "label": "Transições",
-        "hint": "Chicotes e flashes onde o clipe corta"
+        "hint": "Um flash ocasional onde o clipe corta"
       },
       "speed": {
         "label": "Rampas de velocidade e congelamentos",
@@ -443,16 +443,16 @@
         "description": "Círculos, sublinhados e setas à mão nas palavras-chave"
       },
       "emoji_drop": {
-        "name": "Chuva de emojis",
-        "description": "Legendas karaokê com emojis que quicam sob as piadas"
+        "name": "Emoji Drop",
+        "description": "As palavras aparecem conforme são ditas, com um emoji sob os grandes momentos"
       },
       "slam": {
         "name": "Impacto",
         "description": "Palavras-chave enormes batem na tela"
       },
       "behind_head": {
-        "name": "Atrás da cabeça",
-        "description": "Palavras gigantes atrás de quem fala"
+        "name": "Atrás da Cabeça",
+        "description": "Uma palavra gigante aparece atrás de quem fala"
       },
       "stat_counter": {
         "name": "Contador",
@@ -472,7 +472,7 @@
       },
       "highlighter_swipe": {
         "name": "Marca-texto",
-        "description": "Um marca-texto passa pelas palavras-chave"
+        "description": "As palavras aparecem conforme são ditas; a palavra-chave entra numa caixa colorida"
       },
       "face_doodles": {
         "name": "Rabiscos no rosto",

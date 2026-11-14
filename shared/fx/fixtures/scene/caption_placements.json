@@ -275,12 +275,12 @@
     "broll": true,
     "captionTemplate": {
       "id": null,
-      "font_family": "TikTokSans-Bold",
-      "highlight_color": "#FFE45C",
+      "font_family": "Poppins-ExtraBold",
+      "highlight_color": "#34FD87",
       "stroke_color": null,
       "stroke_width": 0,
       "shadow": false,
-      "background_color": "#FFFFFFE6"
+      "background_color": "#170904D9"
     }
   },
   "expected": {
@@ -468,8 +468,8 @@
       "accent": "#22D3EE",
       "stroke_color": null,
       "stroke_px": 0.0,
-      "shadow": false,
-      "background": "#FFFFFFE6",
+      "shadow": true,
+      "background": "#170904D9",
       "y": 0.6,
       "x": 0.0,
       "words_per_line": 3,
@@ -488,7 +488,8 @@
           "y": 0.19999999999999998,
           "scale": 1.2
         }
-      ]
+      ],
+      "look": "bold"
     },
     "grade": "none",
     "grain": 0.0,

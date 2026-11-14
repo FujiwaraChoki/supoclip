@@ -53,11 +53,11 @@
     },
     "intensity": {
       "title": "Elige la intensidad",
-      "body": "Sutil añade algunos zooms y sonidos suaves, Marcada añade acercamientos, whooshes y música de fondo, y Máxima usa todos los trucos en cada momento. Desactivada deja los clips como antes. Una vez activada, los interruptores de abajo te permiten quitar la música, los pitidos de censura o lo que no quieras."
+      "body": "Sutil reencuadra de vez en cuando con una música de fondo suave, como un clip de pódcast. Marcada acerca y aleja en los momentos clave con un golpe en algunos cortes, como Hormozi. Máxima reencuadra casi cada frase, con golpes y música más fuertes, como un short de MrBeast. Desactivada deja los clips exactamente como antes. Una vez activada, los interruptores de abajo te permiten quitar la música, los pitidos de palabrotas o lo que no quieras."
     },
     "captions": {
       "title": "Estilos de subtítulos animados",
-      "body": "Diez estilos nuevos dibujados fotograma a fotograma, como cifras que suben contando, palabras que golpean la pantalla o texto detrás de quien habla. Cada miniatura reproduce el estilo real. También funcionan solos, con las ediciones desactivadas."
+      "body": "Tres estilos dibujados fotograma a fotograma: la palabra clave en un recuadro de color, un emoji bajo los grandes momentos o una palabra gigante detrás de quien habla. Las palabras aparecen a medida que se dicen. Cada miniatura reproduce el estilo real. También funcionan solos, con las ediciones desactivadas."
     }
   },
   "dynamic-edits-studio": {
@@ -71,7 +71,7 @@
     },
     "lane": {
       "title": "Cada efecto en la línea de tiempo",
-      "body": "Cada zoom, sonido y sticker es un bloque aquí. Arrástralo para moverlo, haz doble clic para cambiarlo o selecciónalo y pulsa Suprimir para quitarlo. Haz doble clic en un espacio vacío para añadir un sonido."
+      "body": "Cada zoom y cada sonido es un bloque aquí. Arrástralo para moverlo, haz doble clic para cambiarlo, o selecciónalo y pulsa Supr para quitarlo. Haz doble clic en un hueco para añadir un sonido."
     }
   },
   "skip": "Omitir"

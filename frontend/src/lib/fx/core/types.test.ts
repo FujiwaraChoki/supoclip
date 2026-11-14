@@ -8,12 +8,12 @@ import {
 
 describe("fx-core types", () => {
   it("exposes the contract constants", () => {
-    expect(EDIT_FX_VERSION).toBe("fx-v1");
+    expect(EDIT_FX_VERSION).toBe("fx-v2");
     expect(FPS).toBe(30);
     expect(FRAME).toBeCloseTo(1 / 30, 15);
     expect([...INSTANT_KINDS].sort()).toEqual(["freeze", "sfx", "transition"]);
     expect(FX_CAPTION_TEMPLATES).toHaveLength(10);
-    expect(TRANSITION_HALF).toEqual({ whip: 0.12, flash: 0.1, glitch: 0.1, zoom_through: 0.18, spin: 0.2, light_leak: 0.35 });
+    expect(TRANSITION_HALF).toEqual({ whip: 0.12, flash: 0.05, glitch: 0.1, zoom_through: 0.18, spin: 0.2, light_leak: 0.1 });
   });
 
   it("isFxTemplate only knows the 10 FX templates", () => {

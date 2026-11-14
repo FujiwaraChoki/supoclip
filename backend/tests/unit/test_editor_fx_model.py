@@ -209,10 +209,12 @@ def test_needs_plan_when_an_active_style_has_no_beats():
 def test_budgets_are_evaluated_on_the_edit_duration():
     full = resolve_document_fx(doc([(0, 60)], fx=planned()), BOLD, seed=7, layout_has_zoompan=True)
     trimmed = resolve_document_fx(doc([(0, 12), (40, 52)], fx=planned()), BOLD, seed=7, layout_has_zoompan=True)
-    cap_full = resolver.family_cap(resolver.BUDGETS["punch"]["bold"], 60)
-    cap_trimmed = resolver.family_cap(resolver.BUDGETS["punch"]["bold"], 24)
+    # Reframe events (each punch is an "in" with its "out") follow the edit duration, not the source's.
+    cap_full = resolver.per10_cap(resolver.REFRAME_RATE["bold"], 60)
+    cap_trimmed = resolver.per10_cap(resolver.REFRAME_RATE["bold"], 24)
     punches = lambda d: [c for c in _e_cues(d, "zoom") if c.mode == "punch"]  # noqa: E731
     assert len(punches(full)) <= cap_full and len(punches(trimmed)) <= cap_trimmed < cap_full
+    assert len(punches(trimmed)) < len(punches(full))
     assert len(punches(trimmed)) >= 1
     # Every stored cue sits in S inside a played segment.
     for cue in trimmed.fx.cues:
@@ -264,8 +266,14 @@ def test_user_cues_are_kept_verbatim_and_suppressed_ids_never_return():
 
 
 def test_baseline_pushes_only_without_a_baked_zoom():
-    plain = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), BOLD, seed=2, layout_has_zoompan=False)
-    baked = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), BOLD, seed=2, layout_has_zoompan=True)
+    # Slow baseline pushes exist only where the references use them: style-only and subtle (bold/max reframe).
+    styled = {"template": "highlighter_swipe"}
+    plain = resolve_document_fx(doc([(0, 60)], captions=styled, fx=planned(beats=[])), EditStyle(), seed=2,
+                                layout_has_zoompan=False)
+    baked = resolve_document_fx(doc([(0, 60)], captions=styled, fx=planned(beats=[])), EditStyle(), seed=2,
+                                layout_has_zoompan=True)
+    bold = resolve_document_fx(doc([(0, 60)], fx=planned(beats=[])), BOLD, seed=2, layout_has_zoompan=False)
+    assert not [c for c in bold.fx.cues if c.id.startswith("kb")]
     kb = lambda d: [c for c in d.fx.cues if c.id.startswith("kb")]  # noqa: E731
     assert kb(plain) and not kb(baked)
 
@@ -441,8 +449,10 @@ def test_caption_looks_stay_legacy_unless_asked():
     legacy = caption_looks()
     assert list(legacy) == list(CAPTION_TEMPLATES) and not any("fx" in look for look in legacy.values())
     flagged = caption_looks(include_fx=True)
-    assert list(flagged) == [*CAPTION_TEMPLATES, *FX_CAPTION_TEMPLATES]
-    assert flagged["slam"]["fx"] is True and flagged["slam"]["fxStyle"] == "slam"
+    listed = [t for t in FX_CAPTION_TEMPLATES if t in ("highlighter_swipe", "emoji_drop", "behind_head")]
+    assert list(flagged) == [*CAPTION_TEMPLATES, *listed]
+    assert flagged["emoji_drop"]["fx"] is True and flagged["emoji_drop"]["fxStyle"] == "emoji_drop"
+    assert "slam" in caption_looks(include_fx=True, keep=("slam",))   # a stored unlisted style keeps its look
     assert flagged["default"] == legacy["default"]
     kept = caption_looks(keep=("behind_head",))
     assert list(kept) == [*CAPTION_TEMPLATES, "behind_head"]

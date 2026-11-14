@@ -103,6 +103,7 @@ export const chunkBox = (chunk: CaptionChunk): Rect => wordsBox(chunk, 0, chunk.
 
 /** The entrance transform and opacity the template's line drawer applies to `chunk` at edit time t. */
 export function chunkEntrance(p: PreparedScene, chunk: CaptionChunk, t: number): { transform: Mat2D; alpha: number } {
+  if (chunk.space !== undefined) return { transform: IDENTITY, alpha: 1 };   // look captions: 0-frame entrances
   const look = BASE_LOOKS[p.scene.template as FxCaptionTemplate] ?? DEFAULT_BASE_LOOK;
   const ent = entranceAt(look.entrance, t - chunk.start, p.u);
   const transform = mul(translation(0, ent.dy), ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, chunk.centerX, chunk.centerY));

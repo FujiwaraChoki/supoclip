@@ -50,7 +50,7 @@ describe("CaptionStyleTiles", () => {
     expect(screen.getByRole("radio", { name: "Slam" })).toHaveAttribute("aria-checked", "false");
     // Our own words win over the server's English name.
     expect(screen.getByRole("radio", { name: "Stat Counter" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Behind Head" })).toHaveAccessibleDescription("Giant words that sit behind the speaker");
+    expect(screen.getByRole("radio", { name: "Behind Head" })).toHaveAccessibleDescription("One giant word appears behind the speaker");
     expect(screen.getAllByText("Best with a face on camera")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("radio", { name: "Slam" }));

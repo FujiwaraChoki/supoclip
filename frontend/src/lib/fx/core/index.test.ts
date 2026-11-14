@@ -52,7 +52,7 @@ describe.skipIf(!indexBuilds)("fx-core public index (§4.3)", () => {
       expect(typeof (core as Record<string, unknown>)[name], name).toBe("function");
     }
     expect(core.FX_CORE_VERSION).toBe("fx-core-1");
-    expect(core.EDIT_FX_VERSION).toBe("fx-v1");
+    expect(core.EDIT_FX_VERSION).toBe("fx-v2");
   });
 });
 

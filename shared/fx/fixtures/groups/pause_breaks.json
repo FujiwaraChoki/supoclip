@@ -1,0 +1,63 @@
+{
+  "family": "groups",
+  "case": "pause_breaks",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.38,
+        "text": "we"
+      },
+      {
+        "start": 0.46,
+        "end": 0.7,
+        "text": "went"
+      },
+      {
+        "start": 0.95,
+        "end": 1.13,
+        "text": "to"
+      },
+      {
+        "start": 1.21,
+        "end": 1.42,
+        "text": "the"
+      },
+      {
+        "start": 1.82,
+        "end": 2.12,
+        "text": "market"
+      },
+      {
+        "start": 2.2,
+        "end": 2.47,
+        "text": "today"
+      }
+    ],
+    "max_words": 4
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 1,
+      "start": 0.2,
+      "end": 0.95,
+      "text": "we went"
+    },
+    {
+      "first": 2,
+      "last": 3,
+      "start": 0.95,
+      "end": 1.42,
+      "text": "to the"
+    },
+    {
+      "first": 4,
+      "last": 5,
+      "start": 1.82,
+      "end": 2.47,
+      "text": "market today"
+    }
+  ]
+}

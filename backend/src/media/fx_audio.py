@@ -58,7 +58,8 @@ SOFT_CLIP_KNEE = 0.8
 MUTE_FRAME_SAMPLES = 48              # 1 ms frames at 48 kHz: volume's `enable` is evaluated per frame (AR-M1)
 MAX_ENABLE_TERMS = 40                # between() terms per volume filter; more spans chain more filters
 ATEMPO_RANGE = (0.5, 2.0)
-LIMITER = "alimiter=limit=0.89:attack=5:release=50:level=disabled:latency=1"   # latency=1: no 5 ms lag (AR-M2)
+LIMITER = "alimiter=limit=0.82:attack=5:release=50:level=disabled:latency=1"   # -1.7 dBFS: true peak stays under
+                                                                                  # -1 dBTP after AAC; latency=1: no 5 ms lag (AR-M2)
 VOICE_LABEL = "fxa_voice0"
 BUS_INPUT_INDEX = 2
 
@@ -178,7 +179,7 @@ def _samples(seconds: float) -> int:
 
 def audio_graph(*, voice_fragment: str, bleeps_e: list[tuple[float, float]], warp: Warp, out_duration: float,
                 has_bus: bool, voice_gain: float, loudness: str, static_gain_db: float | None,
-                loop_crossfade: float) -> str:
+                loop_crossfade: float, mix_gain_db: float | None = None) -> str:
     """The P3 audio ``filter_complex`` (§9), ending in ``[fxa_out]``. Pure: no I/O.
 
     ``voice_fragment`` produces ``[fxa_voice0]`` (from input 1, or ``silent_voice_fragment``). ``bleeps_e`` are E
@@ -252,6 +253,10 @@ def audio_graph(*, voice_fragment: str, bleeps_e: list[tuple[float, float]], war
         voice = "fxa_v2"
 
     tail = [LIMITER] + ([LOUDNORM_FILTER] if loudness == "dynamic" else [])
+    if loudness == "static" and has_bus and mix_gain_db is not None and abs(float(mix_gain_db)) > 1e-6:
+        # The bus adds loudness on top of the normalised voice: bring the whole mix back to the target (D8 keeps the
+        # SFX and music levels relative to the voice; this moves all three together).
+        tail = [f"volume={_num(mix_gain_db)}dB", *tail]
     if has_bus:
         mix = "amix=inputs=2:duration=first:normalize=0:dropout_transition=0"
         parts.append(f"[{voice}][{bus}]{mix},{','.join(tail)}[fxa_out]")
@@ -297,6 +302,52 @@ def measure_voice_lufs(input_path: Path, voice_fragment: str, *, duration: float
     if not math.isfinite(value) or value <= SILENT_LUFS:
         return None
     return value
+
+
+MIX_GAIN_RANGE = (-12.0, 6.0)
+
+
+def measure_mix_lufs(input_path: Path, voice_fragment: str, bus_path: Path, *, voice_gain_db: float,
+                     duration: float) -> float | None:
+    """Integrated loudness of the voice (after ``voice_gain_db``) mixed with the bus, as P3 mixes them before the
+    limiter. The warp is not applied (the auto plans carry none); with one the result is an estimate. None when it
+    cannot be measured."""
+    if duration <= 0:
+        return None
+    graph = (
+        f"{voice_fragment.strip().rstrip(';')};"
+        f"[{VOICE_LABEL}]aresample={SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo,"
+        f"atrim=0:{_num(duration)},volume={_num(voice_gain_db)}dB[fxa_mv];"
+        f"[{BUS_INPUT_INDEX}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[fxa_mb];"
+        "[fxa_mv][fxa_mb]amix=inputs=2:duration=first:normalize=0:dropout_transition=0,"
+        "ebur128=framelog=verbose[fxa_meter]"
+    )
+    command = [
+        "ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info",
+        "-i", str(input_path), "-i", str(input_path), "-i", str(bus_path),
+        "-filter_complex", graph, "-map", "[fxa_meter]", "-f", "null", "-",
+    ]
+    try:
+        proc = subprocess.run(command, capture_output=True, text=True, timeout=max(120.0, 2.0 * duration))
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("fx_mix_lufs_failed: %s", exc)
+        return None
+    matches = _INTEGRATED.findall(proc.stderr) if proc.returncode == 0 else []
+    if not matches:
+        logger.warning("fx_mix_lufs_failed: exit %s", proc.returncode)
+        return None
+    try:
+        value = float(matches[-1])
+    except ValueError:
+        return None
+    return value if math.isfinite(value) and value > SILENT_LUFS else None
+
+
+def mix_gain_db(mix_lufs: float | None) -> float:
+    """Gain that brings the measured mix to TARGET_LUFS, within MIX_GAIN_RANGE; 0 when unmeasured."""
+    if mix_lufs is None or not math.isfinite(mix_lufs):
+        return 0.0
+    return max(MIX_GAIN_RANGE[0], min(MIX_GAIN_RANGE[1], TARGET_LUFS - mix_lufs))
 
 
 # ----------------------------------------------------------------------------- fxbus.wav

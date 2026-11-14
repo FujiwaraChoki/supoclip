@@ -1,5 +1,7 @@
-// Zoom picture modifier (§11.2). `punch`: the scale steps to `scale` at start (a hard cut), holds, and steps back at
-// end. `push`: 1 → scale, easeInOutSine over the cue; `pull`: scale → 1. Zooms compose multiplicatively (a punch
+// Zoom picture modifier (§11.2). `punch`: the scale steps to `scale` at start (a hard reframe), holds, and steps back at
+// end (the resolver ends it on the next reframe or cut, so the framing never bounces back on a timer). `push`:
+// 1 → scale, easeInOutSine over the cue; `pull`: scale → 1. `nudge`: 1 → scale over 11 frames, nearly linear with a
+// soft landing (the reference short eased zoom), then held to the end. Zooms compose multiplicatively (a punch
 // inside a baseline push). The anchor is the smoothed face centre (anchor "face"), the frame centre (anchor
 // "center"), or (0.5, 0.38) when the cue has no face near t; frame.ts raises the scale to coverScale and clamps the
 // anchor so no picture edge ever shows.
@@ -27,11 +29,22 @@ export function smoothedFaceCenter(p: Pick<PreparedScene, "faceAt" | "width" | "
   return n > 0 ? [sx / n / p.width, sy / n / p.height] : null;
 }
 
+/** Length of a nudge ramp: 11 frames (0.37 s). */
+export const NUDGE_SECONDS = 11 / 30;
+/** Nudge curve (spec §3.5, measured 0.24 / 0.55 / 0.86): linear at 1.1x to 75 %, then an easeOutCubic landing. */
+export function nudgeCurve(x: number): number {
+  const k = Math.max(0, Math.min(1, x));
+  if (k < 0.75) return 1.1 * k;
+  const y = (k - 0.75) / 0.25;
+  return 0.825 + 0.175 * (1 - (1 - y) ** 3);
+}
+
 /** The zoom factor a cue contributes at `local` seconds into it (1 outside [0, dur)). */
 export function zoomFactor(cue: Pick<CueOf<"zoom">, "mode" | "scale">, local: number, dur: number): number {
   if (local < 0 || local >= dur) return 1;
   const s = Math.max(0.01, cue.scale);
   if (cue.mode === "punch") return s;
+  if (cue.mode === "nudge") return 1 + (s - 1) * nudgeCurve(local / Math.min(NUDGE_SECONDS, dur));
   const k = easeInOutSine(progress(local, 0, dur));
   return cue.mode === "push" ? 1 + (s - 1) * k : s + (1 - s) * k;
 }

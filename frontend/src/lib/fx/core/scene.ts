@@ -8,6 +8,9 @@ import { isFxTemplate, type AccentCue, type FxCaptionTemplate, type FxCue, type 
 import { warpFromJson, type Warp } from "./warp";
 import type { FxHost } from "./host";
 import { BASE_LOOKS, DEFAULT_BASE_LOOK, outlineGap } from "./captions/base";
+import { groupedWords, LOOK_LEAD, phraseGroups } from "./captions/groups";
+import { LOOK_GEOMETRY, LOOK_MOTION, keywordBoxed, stripEdgePunct, type ActiveLook } from "./captions/looks";
+import { cueTokens, normWord } from "./captions/anchor";
 
 /** A face box in OUTPUT px (before this frame's picture transform). landmarks = [rex,rey, lex,ley, nx,ny, rmx,rmy,
  *  lmx,lmy] in output px (YuNet order), or null when the track has none at t. */
@@ -126,6 +129,10 @@ export const captionKey = (first: Pick<FxWord, "run" | "id">): string => JSON.st
  */
 export function layoutCaptions(scene: FxScene, family: string, measure: Measure): CaptionChunk[] {
   const style = scene.caption!;
+  const captionLook = style.look;
+  if (captionLook === "subtle" || captionLook === "bold" || captionLook === "max") {
+    return layoutLookCaptions(scene, captionLook, family, measure);
+  }
   const W = scene.width, H = scene.height, u = unit(W, H);
   const per = clamp(Math.round(style.words_per_line) || 1, 1, 8);
   // Group exactly like captionGroups (every word counts, so keys and boundaries match the studio's), then drop
@@ -199,6 +206,92 @@ export function layoutCaptions(scene: FxScene, family: string, measure: Measure)
   }
   return chunks.filter((c) => c.end > c.start);
 }
+
+/**
+ * Look captions (captions/looks.ts): phrase groups (captions/groups.ts) of up to `words_per_line` words, shown at
+ * their onset + the look's lead (each word at its own onset with word reveal), one line unless the group is wider than
+ * 0.80 W at 0.8× size. Keywords (the resolver's `highlight` accents) are measured in capitals and, for the
+ * highlighter, with the box padding, so the line around them never moves when they appear. Bold and max strip edge
+ * punctuation. Placements work as for template captions (keyed by the group's first word).
+ */
+export function layoutLookCaptions(scene: FxScene, look: ActiveLook, family: string, measure: Measure): CaptionChunk[] {
+  const style = scene.caption!;
+  const motion = LOOK_MOTION[look], g = LOOK_GEOMETRY;
+  const W = scene.width, H = scene.height, u = unit(W, H);
+  const lead = LOOK_LEAD[look];
+  const words = groupedWords(scene.words);
+  const groups = phraseGroups(words, style.words_per_line);
+  const placements = new Map(style.placements.map((p) => [p.key, p]));
+  const safe = captionSafe(W, H);
+  const boxed = keywordBoxed(scene.template);
+  const highlights = scene.cues.filter((c): c is AccentCue => c.kind === "accent" && c.variant === "highlight");
+  const isKeyword = (w: FxWord) => highlights.some((c) => Math.abs(c.start - w.start) <= 0.06
+    && (cueTokens(c.text)[0] ?? "") === normWord(w.text));
+  const label = (w: FxWord, kw: boolean) => {
+    let text = motion.stripPunct ? stripEdgePunct(w.text.trim()) : w.text.trim();
+    if (style.uppercase || (kw && (motion.keywordCaps || boxed))) text = text.toLocaleUpperCase();
+    return text;
+  };
+  const chunks: CaptionChunk[] = [];
+  for (const group of groups) {
+    const members = words.slice(group.first, group.last + 1);
+    const key = captionKey(members[0]);
+    const placement = placements.get(key);
+    const scale = placement?.scale ?? 1;
+    const kws = members.map(isKeyword);
+    const texts = members.map((w, i) => label(w, kws[i]));
+    const base = Math.max(30 * u, style.size_px) * scale;
+    const maxWidth = Math.max(1, g.maxWidth * W);
+    const fit = (size: number, wrapAt: number) => {
+      const space = measure(" ", family, size) + (style.stroke_color ? (style.stroke_px > 0 ? style.stroke_px : 0.09 * size) : 0);
+      const widths = texts.map((t, i) => measure(t, family, size) + (kws[i] && boxed ? 2 * g.boxPadX * size : 0));
+      const lines: number[][] = [];
+      let line: number[] = [], length = 0;
+      widths.forEach((width, i) => {
+        if (line.length && length + space + width > wrapAt) { lines.push(line); line = []; length = 0; }
+        length += (line.length ? space : 0) + width;
+        line.push(i);
+      });
+      if (line.length) lines.push(line);
+      const widest = Math.max(...lines.map((l) => l.reduce((sum, i) => sum + widths[i], 0) + space * (l.length - 1)));
+      return { space, widths, lines, widest };
+    };
+    let px = base;
+    let laid = fit(px, Infinity);
+    if (laid.widest > maxWidth) {
+      px = Math.max(base * g.minShrink, (px * maxWidth) / laid.widest);
+      laid = fit(px, maxWidth);
+      for (let pass = 0; pass < 3 && laid.widest > W - 2 * CAPTION_SIDE * W; pass++) {
+        px *= (W - 2 * CAPTION_SIDE * W) / laid.widest;
+        laid = fit(px, maxWidth);
+      }
+    }
+    const { space, widths, lines } = laid;
+    const lineH = px * 1.25, blockH = lineH * lines.length;
+    const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
+    let centerY = H * (style.y + (placement?.y ?? 0));
+    if (!placement) centerY = clamp(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
+    const start = group.start + lead;
+    const out: CaptionChunk["words"] = [];
+    lines.forEach((idx, li) => {
+      const total = idx.reduce((sum, i) => sum + widths[i], 0) + space * (idx.length - 1);
+      const yc = centerY + (li - (lines.length - 1) / 2) * lineH;
+      let x = centerX - total / 2;
+      for (const i of idx) {
+        const w = members[i];
+        const shown = motion.reveal === "word" ? Math.max(start, w.start + lead) : start;
+        out.push({ ...w, text: texts[i], x, y: yc - px / 2, w: widths[i], h: px, line: li, shown, kw: kws[i] });
+        x += widths[i] + space;
+      }
+    });
+    chunks.push({ key, words: out, start, end: Math.max(start, group.end + lead), px, centerX, centerY, scale, space });
+  }
+  for (let i = 0; i + 1 < chunks.length; i++) chunks[i].end = Math.min(chunks[i].end, chunks[i + 1].start);
+  return chunks.filter((c) => c.end > c.start);
+}
+
+/** Side margin (fraction of W) a caption line never crosses. */
+const CAPTION_SIDE = 0.06;
 
 // ----------------------------------------------------------------------------------------------- counters
 

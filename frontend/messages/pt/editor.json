@@ -448,9 +448,9 @@
     },
     "intensityHint": {
       "off": "Sem edições automáticas. As que você adicionou ficam.",
-      "subtle": "Alguns zooms e efeitos sonoros suaves.",
-      "bold": "Aproximações, whooshes e música nos grandes momentos.",
-      "max": "Todos os truques, em cada momento."
+      "subtle": "Reenquadra de vez em quando, com música baixa.",
+      "bold": "Aproximações nos momentos-chave, impactos em alguns cortes.",
+      "max": "Reenquadres rápidos, impactos e música mais altos."
     },
     "needsPlan": {
       "title": "Planeje este clipe primeiro",
@@ -617,7 +617,7 @@
     "options": {
       "sfx": {
         "label": "Efeitos sonoros",
-        "hint": "Whooshes, impactos e pops nos momentos-chave"
+        "hint": "Impactos e pops curtos em cortes e gráficos"
       },
       "music": {
         "label": "Música",
@@ -625,7 +625,7 @@
       },
       "zooms": {
         "label": "Zooms",
-        "hint": "Aproxima nas piadas e nos números grandes"
+        "hint": "Reenquadres e aproximações curtas nos momentos-chave"
       },
       "shake": {
         "label": "Tremida de câmera",
@@ -633,7 +633,7 @@
       },
       "transitions": {
         "label": "Transições",
-        "hint": "Chicotes e flashes onde o clipe corta"
+        "hint": "Um flash ocasional onde o clipe corta"
       },
       "speed": {
         "label": "Rampas de velocidade e congelamentos",

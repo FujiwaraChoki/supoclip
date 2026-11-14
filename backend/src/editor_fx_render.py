@@ -479,8 +479,13 @@ def studio_caption_style(document, width: int, height: int) -> FxCaptionStyle | 
         placements.append(CaptionPlacement(key=key[:200], x=placement.x - global_x,
                                            y=placement.y + (captions.y - style_y),
                                            scale=min(4.0, max(1e-3, scale))))
+    from .edit_fx.contracts import caption_look_for
+
+    fx = document.fx
+    look = caption_look_for(captions.template, fx.style.intensity if fx is not None else "off",
+                            fx.sensitivity if fx is not None else "normal")
     return fx_caption_style_from_document(style, get_template(captions.template), width=width, height=height,
-                                          placements=placements)
+                                          placements=placements, look=look)
 
 
 def hook_range(document, total: float) -> tuple[float, float] | None:

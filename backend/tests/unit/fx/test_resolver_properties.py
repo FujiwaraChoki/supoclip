@@ -14,14 +14,21 @@ from itertools import combinations
 import pytest
 
 from src.edit_fx.contracts import TRANSITION_HALF, Beat, EditBeats, EditStyle, ReactionIdea
+from src.edit_fx.contracts import LOOK_TEMPLATES
 from src.edit_fx.resolver import (
     BUDGETS,
+    EMOJI_RATE,
     GRAIN,
-    IMPACT_SOUNDS,
+    KEYWORD_GAP,
+    KEYWORD_RATE,
     MUSIC_LEVELS,
+    NUDGE_SCALE,
+    REFRAME_RATE,
+    REFRAME_SCALE,
     SERIOUS_DROP_SOUNDS,
     ResolveInput,
     family_cap,
+    per10_cap,
     resolve,
     tier_for,
     transition_cap,
@@ -190,36 +197,45 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
         by_kind.setdefault(c.kind, []).append(c)
     get = lambda k: by_kind.get(k, [])  # noqa: E731
 
-    # --- accents (template marks): cap + gap; one mark per beat (siblings count once); none for legacy templates
+    # --- accents. Hidden templates: one mark per beat (siblings count once), family cap + gap. Look templates:
+    # keywords (w<n>.kw) at the look rate and spacing, emoji at their rate; none for legacy templates.
     accents = get("accent")
     if template == "default":
         assert not accents
-    groups: dict[str, float] = {}
-    for c in accents:
-        groups[owner(c)] = min(groups.get(owner(c), c.start), c.start)
-    assert len(groups) <= cap("accent", tier, dur)
-    assert spaced([(t, o) for o, t in groups.items()], gap("accent", tier))
+    look_cue = lambda c: c.id.endswith(".kw") or (template in LOOK_TEMPLATES and c.variant in ("emoji", "behind"))  # noqa: E731
+    if template in LOOK_TEMPLATES:
+        kws = sorted(c.start for c in accents if c.id.endswith(".kw"))
+        assert len(kws) <= per10_cap(KEYWORD_RATE[tier], dur)
+        assert all(b - a >= KEYWORD_GAP[tier] - EPS for a, b in zip(kws, kws[1:]))
+        emoji = [c for c in accents if c.variant == "emoji"]
+        assert len(emoji) <= per10_cap(EMOJI_RATE[tier], dur)
+        assert all(c.emoji for c in emoji)
+    else:
+        groups: dict[str, float] = {}
+        for c in accents:
+            groups[owner(c)] = min(groups.get(owner(c), c.start), c.start)
+        assert len(groups) <= cap("accent", tier, dur)
+        assert spaced([(t, o) for o, t in groups.items()], gap("accent", tier))
 
-    # --- zooms
-    punches = [c for c in get("zoom") if c.mode == "punch"]
-    pushes = [c for c in get("zoom") if c.mode != "punch"]
-    assert len(punches) <= cap("punch", tier, dur)
-    assert spaced([(c.start, c.id) for c in punches], gap("punch", tier))
-    assert len(pushes) <= cap("push", tier, dur)
+    # --- zooms: reframes hold and never stack; nudges never stack; nothing at style tier or with zooms off
+    punches = sorted((c for c in get("zoom") if c.mode == "punch"), key=lambda c: c.start)
+    nudges = sorted((c for c in get("zoom") if c.mode == "nudge"), key=lambda c: c.start)
+    assert not [c for c in get("zoom") if c.mode == "push"]
     if tier == "style" or not style.zooms:
         assert not get("zoom")
+    else:
+        assert all(REFRAME_SCALE[tier][0] - EPS <= c.scale <= REFRAME_SCALE[tier][1] + EPS for c in punches)
+        assert all(NUDGE_SCALE[tier][0] - EPS <= c.scale <= NUDGE_SCALE[tier][1] + EPS for c in nudges)
+        behind = len([c for c in accents if c.variant == "behind"])
+        assert len(punches) <= max(per10_cap(REFRAME_RATE[tier], dur), 2 * behind) + len(inp.cuts) + 1
+    for group in (punches, nudges):
+        for a, b in zip(group, group[1:]):
+            assert a.end <= b.start + EPS
 
-    # --- shake: cap/gap, only with an impact-class SFX or a slam of the same beat
+    # --- never automatic: shake, flash/glitch hits, warp, wait stickers, bursts
     shakes = get("shake")
-    assert len(shakes) <= cap("shake", tier, dur)
-    assert spaced([(c.start, c.id) for c in shakes], gap("shake", tier))
-    if not style.shake:
-        assert not shakes
-    for s in shakes:
-        slam = any(a.variant == "slam" and a.beat == s.beat for a in accents)
-        impact = any(x.sound in IMPACT_SOUNDS and x.beat == s.beat and abs(x.start - s.start) < 0.05
-                     for x in get("sfx"))
-        assert slam or impact or not style.sfx
+    assert not shakes
+    assert not [c for c in accents if c.variant == "emoji_burst"]
 
     # --- SFX: cap (a counter's ticker counts with its stamp), gap between different beats, intrinsic-only in style
     sfx = get("sfx")
@@ -235,83 +251,47 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
         assert not [c for c in accents if c.variant in ("emoji", "emoji_burst", "doodle")]
         assert not get("reaction") and not get("freeze") and not get("speed")
 
-    # --- transitions: only at cuts, never inside a word, per-tier count, subtle on passage breaks only
+    # --- transitions: only at cuts, never inside a word, per-tier count; bold on passage breaks only
     trs = get("transition")
     assert len(trs) <= (transition_cap(tier, dur) if style.transitions else 0)
     for c in trs:
+        assert c.style in ("flash", "light_leak")
         assert any(abs(c.start - cut) < 1e-3 for cut in inp.cuts)
         assert not any(w["start"] + 0.05 < c.start < w["end"] - 0.05 for w in inp.words)
-        if tier == "subtle":
+        if tier == "bold":
             assert any(abs(c.start - p) < 1e-3 for p in inp.passage_breaks)
+    if tier in ("style", "subtle"):
+        assert not trs
 
-    # --- flash / glitch hits (non-intrinsic), full-frame spacing, one full-frame effect at a time
-    hits_fg = [c for c in get("flash") + get("glitch") if not c.id.endswith(".slam.flash")]
-    assert len(hits_fg) <= cap("hit", tier, dur)
-    if tier == "max":
-        assert spaced([(c.start, c.id) for c in hits_fg], gap("hit", tier))
-    full_frame = [(c.start, owner(c)) for c in get("flash") + get("glitch") + trs + shakes]
+    # --- flash / glitch hits only as hidden templates' intrinsic visuals (a slam's flash)
+    hits_fg = get("flash") + get("glitch") + get("desaturate")
+    assert all(c.id.endswith(".slam.flash") or ".kinetic.desat" in c.id or c.id.endswith(".desat")
+               for c in hits_fg), [c.id for c in hits_fg]
+    full_frame = [(c.start, owner(c)) for c in get("flash") + trs]
     full_frame += [(c.start, owner(c)) for c in accents if c.variant == "slam"]
     assert spaced(full_frame, 0.8)
-    windows = [(c.start, c.end) for c in get("flash") + get("glitch")]
-    windows += [(c.start - TRANSITION_HALF[c.style], c.start + TRANSITION_HALF[c.style]) for c in trs]
-    for (a0, a1), (b0, b1) in combinations(windows, 2):
-        assert not overlaps(a0, a1, b0, b1)
 
-    # --- warp families and caps (G14)
-    freezes, speeds = get("freeze"), get("speed")
-    assert len(freezes) <= cap("freeze", tier, dur)
-    if tier == "bold" and freezes:
-        assert dur >= 15.0
-    ramps = [c for c in speeds if c.id.endswith(".ramp")]
-    fast = [c for c in speeds if ".fast" in c.id]
-    slow = [c for c in speeds if c.id.endswith(".slow")]
-    assert len(ramps) <= cap("ramp", tier, dur) and len(fast) <= cap("fast", tier, dur)
-    assert len(slow) <= cap("slow", tier, dur)
-    assert all(1.15 - EPS <= c.rate <= 1.35 + EPS for c in ramps)
-    assert all(1.5 - EPS <= c.rate <= 2.5 + EPS for c in fast)
-    assert all(c.rate == 0.5 for c in slow)
-    if speeds or freezes:
-        assert style.speed and inp.beats.timing == "word" and tier in ("bold", "max")
-    hold = sum(c.hold for c in freezes)
-    assert hold <= min(1.6, 0.04 * dur) + EPS
-    delta = sum(round((c.end - c.start) / c.rate * 30) / 30 - (c.end - c.start) for c in speeds)
-    assert sum(abs(round((c.end - c.start) / c.rate * 30) / 30 - (c.end - c.start)) for c in speeds) <= 0.1 * dur + EPS
-    if inp.max_clip_seconds is not None and (hold > 0 or delta > 0):
-        assert dur + hold + delta <= inp.max_clip_seconds + 2 + 1e-3
-    for a, b in combinations(speeds, 2):
-        assert not overlaps(a.start, a.end, b.start, b.end)
-    for f in freezes:
-        assert not any(s.start + EPS < f.start < s.end - EPS for s in speeds)
-        assert not any(w["start"] + EPS < f.start < w["end"] - EPS for w in inp.words)
-    for c in ramps:   # speech ramps never carry a swear or a caption-hiding accent and never touch the hook
-        assert not any(b.kind == "swear" and overlaps(c.start, c.end, b.start, b.end) for b in beats.values())
-        assert not any(a.variant in ("slam", "kinetic") and overlaps(c.start, c.end, a.start, a.end)
-                       for a in accents)
-        if inp.hook_window:
-            assert c.start > inp.hook_window[1] or c.end < inp.hook_window[0]
+    # --- no automatic time warp
+    assert not get("freeze") and not get("speed")
 
     # --- other per-clip counts
     assert len([c for c in accents if c.variant == "emoji_burst"]) <= cap("burst", tier, dur)
     assert len(get("reaction")) <= cap("reaction", tier, dur)
     if get("reaction"):
         assert style.reactions and inp.reactions_available
-    stickers = [c for c in get("sticker") if c.sticker == "wait_for_it"]
-    assert len(stickers) <= cap("wait", tier, dur)
-    for w in stickers:
-        pay = beats[w.beat]
-        lead = 6.0 if tier == "bold" else 4.0
-        assert pay.kind == "payoff" and pay.start - (inp.beats.hook_end or 0.0) >= lead - EPS
-        if tier == "bold":
-            assert dur >= 20.0
+    assert not get("sticker")
 
     # --- quiet zones (rule 3)
     for c in cues:
         if c.kind == "bleep":
             continue
-        hook_bound = (c.beat and beats[c.beat].kind == "hook") or c.id.startswith("g.kinetic")
+        hook_bound = (c.beat and beats[c.beat].kind == "hook") or c.id.startswith("g.kinetic") or (
+            c.kind == "accent" and look_cue(c)) or (c.kind == "sfx" and template in LOOK_TEMPLATES
+                                                    and c.id.endswith((".accent.sfx", ".behind.sfx")))
         assert c.start >= 0.25 - EPS or hook_bound, c.id
         if plan.loop_ending == "none":
-            assert c.start <= dur - 0.3 + EPS and c.end <= dur - 0.3 + EPS, c.id
+            assert c.start <= dur - 0.3 + EPS, c.id
+            assert c.end <= dur - 0.3 + EPS or c.kind == "zoom", c.id
 
     # --- exclusions (rule 4)
     excl = list(inp.broll_windows) + [(c.start, c.end) for c in get("reaction")]
@@ -320,9 +300,10 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
             assert not in_window(c, excl), c.id
         if c.kind == "transition":
             assert not in_window(c, excl, TRANSITION_HALF[c.style]), c.id
-    for z in get("zoom"):
+    for z in get("zoom"):          # a zoom never starts within 0.4 s of a transition, nor holds across one
         for tr in trs:
-            assert max(0.0, max(z.start, tr.start) - min(z.end, tr.start)) >= 0.4 - EPS
+            assert abs(z.start - tr.start) >= 0.4 - EPS or z.start >= tr.start + 0.4 - EPS
+            assert not (z.start + EPS < tr.start < z.end - EPS)
 
     # --- bleeps (rule 2)
     swears = [b for b in beats.values() if b.kind == "swear"]
@@ -338,16 +319,15 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
     if tier == "style" or not style.music:
         assert plan.music is None
     elif plan.music is not None:
-        gain, duck = MUSIC_LEVELS[tier]
+        gain, duck, _attack, _release = MUSIC_LEVELS[tier]
         if inp.beats.timing == "none":
-            gain, duck = -24.0, 0.0
+            gain, duck = gain + duck, 0.0
         assert (plan.music.gain_db, plan.music.duck_db) == (gain, duck)
         assert plan.music.bed in BEDS[plan.music.mood]
     if tier == "style":
         assert plan.grade == "none" and plan.grain == 0 and not plan.progress_bar
     else:
-        expected = {"subtle": "none", "bold": "punchy",
-                    "max": "teal_orange" if inp.beats.mood in ("dramatic", "dark") else "punchy"}[tier]
+        expected = {"subtle": "none", "bold": "none", "max": "punchy"}[tier]
         assert plan.grade == expected
         assert plan.grain == (GRAIN[tier] if style.grain else 0.0)
     if template == "kinetic_stack":

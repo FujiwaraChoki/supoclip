@@ -1,0 +1,24 @@
+{
+  "family": "groups",
+  "case": "one_word",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.5,
+        "text": "Hello."
+      }
+    ],
+    "max_words": 3
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 0,
+      "start": 0.2,
+      "end": 0.6000000000000001,
+      "text": "Hello."
+    }
+  ]
+}

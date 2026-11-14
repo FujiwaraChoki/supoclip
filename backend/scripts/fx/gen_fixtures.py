@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the cross-language dynamic-edit fixtures (G2) and the JSON Schemas from the Python implementation.
 
-Writes ``shared/fx/fixtures/{rng,warp,mapping,duck,censor,geometry}/<case>.json`` and
+Writes ``shared/fx/fixtures/{rng,warp,mapping,duck,censor,geometry,groups}/<case>.json`` and
 ``shared/fx/fx_cue.schema.json`` / ``shared/fx/fx_scene.schema.json`` at the repo root. pytest
 (``tests/unit/fx/test_fixtures_parity.py``) and vitest (``frontend/src/lib/fx/core/parity.test.ts``) assert both
 implementations reproduce them (floats within 1e-6, rng bit-exact).
@@ -28,6 +28,7 @@ sys.path.insert(0, str(BACKEND))
 from pydantic import TypeAdapter  # noqa: E402
 
 from src.edit_fx import constants  # noqa: E402
+from src.edit_fx.caption_groups import grouped_words, phrase_groups  # noqa: E402
 from src.edit_fx.censor import censor_text, censored_words  # noqa: E402
 from src.edit_fx.contracts import FxCue, FxScene  # noqa: E402
 from src.edit_fx.duck import duck_envelope, envelope_db_at, speech_spans  # noqa: E402
@@ -36,7 +37,7 @@ from src.edit_fx.rng import fnv1a32, hash01, mulberry32  # noqa: E402
 from src.edit_fx.warp import build_warp  # noqa: E402
 
 DEFAULT_OUT = BACKEND.parent / "shared" / "fx"
-FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry")
+FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry", "groups")
 CUE = TypeAdapter(FxCue)
 
 
@@ -249,9 +250,64 @@ def geometry_cases() -> list[tuple[str, dict]]:
     return out
 
 
+# -------------------------------------------------------------------------------------------------------- groups
+
+def _words(spec: str, start: float = 0.2, gap: float = 0.08, run: str | None = None) -> list[dict]:
+    """``"so|0.3| this is"`` → timed words; ``|x|`` sets the pause before the next word."""
+    out: list[dict] = []
+    t, pending = start, None
+    for token in spec.split():
+        if token.startswith("|") and token.endswith("|"):
+            pending = float(token.strip("|"))
+            continue
+        if out:
+            t = out[-1]["end"] + (pending if pending is not None else gap)
+        pending = None
+        length = round(0.12 + 0.03 * len(token), 3)
+        word = {"start": round(t, 3), "end": round(t + length, 3), "text": token}
+        if run is not None:
+            word["run"] = run
+        out.append(word)
+    return out
+
+
+def _groups_case(name: str, words: list[dict], max_words: int) -> tuple[str, dict]:
+    groups = phrase_groups(words, max_words)
+    order = grouped_words(words)
+    return case("groups", name, "phrase_groups", {"words": words, "max_words": max_words}, [
+        {"first": g.first, "last": g.last, "start": g.start, "end": g.end,
+         "text": " ".join(str(w["text"]) for w in order[g.first:g.last + 1])} for g in groups])
+
+
+def groups_cases() -> list[tuple[str, dict]]:
+    sentence = "So here is the thing about money nobody tells you, and it changes everything."
+    a = _words("this is part one", run="s1")
+    b = _words("and this part two", start=a[-1]["end"] + 0.05, run="s2")
+    return [
+        _groups_case("empty", [], 3),
+        _groups_case("one_word", _words("Hello."), 3),
+        _groups_case("max_three", _words(sentence), 3),
+        _groups_case("max_four", _words(sentence), 4),
+        _groups_case("max_one", _words("one two three four"), 1),
+        _groups_case("pause_breaks", _words("we went |0.25| to the |0.4| market today"), 4),
+        _groups_case("pause_just_under", _words("we went |0.24| to the market"), 4),
+        _groups_case("conjunction_after_two", _words("I tried it but it failed so I quit"), 4),
+        _groups_case("conjunction_needs_two", _words("but why so and then"), 4),
+        _groups_case("clause_punctuation", _words("Wait, what? Really! Yes; no: maybe…"), 4),
+        _groups_case("closing_quote", _words('He said "stop." then left'), 4),
+        _groups_case("blank_words_dropped", _words("one two") + [{"start": 1.5, "end": 1.6, "text": "  "}]
+                     + _words("three four", start=1.7), 3),
+        _groups_case("unsorted_input", list(reversed(_words("alpha beta gamma delta epsilon"))), 2),
+        _groups_case("runs_break_groups", a + b, 8),
+        _groups_case("bridge_and_min_hold", _words("a |0.5| b |0.1| c"), 1),
+        _groups_case("long_gap_last_group", _words("first group here |2.0| last"), 3),
+        _groups_case("max_clamped_high", _words(sentence), 99),
+    ]
+
+
 GENERATORS: dict[str, Callable[[], list[tuple[str, dict]]]] = {
     "rng": rng_cases, "warp": warp_cases, "mapping": mapping_cases, "duck": duck_cases, "censor": censor_cases,
-    "geometry": geometry_cases,
+    "geometry": geometry_cases, "groups": groups_cases,
 }
 
 

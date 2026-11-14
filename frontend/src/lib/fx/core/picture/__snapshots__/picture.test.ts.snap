@@ -2986,7 +2986,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.68,
+    "alpha": 0.95,
     "blend": "source-over",
     "fill": "#FFFFFF",
     "h": 1920,
@@ -3031,7 +3031,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.24,
+    "alpha": 0.6,
     "blend": "source-over",
     "fill": "#FFFFFF",
     "h": 1920,
@@ -3121,7 +3121,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.556,
+    "alpha": 0.95,
     "blend": "source-over",
     "fill": "#FFFFFF",
     "h": 1920,
@@ -3166,7 +3166,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.085,
+    "alpha": 0.3,
     "blend": "source-over",
     "fill": "#FFFFFF",
     "h": 1920,
@@ -4097,7 +4097,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.571,
+    "alpha": 0.85,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4112,15 +4112,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,154,60,1)",
+        "rgba(255,179,71,1)",
       ],
       [
         0.35,
-        "rgba(255,154,60,0.65)",
+        "rgba(255,179,71,0.7)",
       ],
       [
         1,
-        "rgba(255,154,60,0)",
+        "rgba(255,179,71,0)",
       ],
     ],
     "x0": 823.678,
@@ -4129,7 +4129,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "y1": 595.055,
   },
   {
-    "alpha": 0.485,
+    "alpha": 0.722,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4144,15 +4144,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,77,109,1)",
+        "rgba(255,106,61,1)",
       ],
       [
         0.4,
-        "rgba(255,77,109,0.55)",
+        "rgba(255,106,61,0.6)",
       ],
       [
         1,
-        "rgba(255,77,109,0)",
+        "rgba(255,106,61,0)",
       ],
     ],
     "x0": 289.696,
@@ -4185,7 +4185,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.353,
+    "alpha": 0.68,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4200,15 +4200,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,154,60,1)",
+        "rgba(255,179,71,1)",
       ],
       [
         0.35,
-        "rgba(255,154,60,0.65)",
+        "rgba(255,179,71,0.7)",
       ],
       [
         1,
-        "rgba(255,154,60,0)",
+        "rgba(255,179,71,0)",
       ],
     ],
     "x0": 1282.678,
@@ -4217,7 +4217,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "y1": 595.055,
   },
   {
-    "alpha": 0.3,
+    "alpha": 0.578,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4232,15 +4232,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,77,109,1)",
+        "rgba(255,106,61,1)",
       ],
       [
         0.4,
-        "rgba(255,77,109,0.55)",
+        "rgba(255,106,61,0.6)",
       ],
       [
         1,
-        "rgba(255,77,109,0)",
+        "rgba(255,106,61,0)",
       ],
     ],
     "x0": -115.304,
@@ -4273,7 +4273,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.6,
+    "alpha": 0.85,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4288,15 +4288,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,154,60,1)",
+        "rgba(255,179,71,1)",
       ],
       [
         0.35,
-        "rgba(255,154,60,0.65)",
+        "rgba(255,179,71,0.7)",
       ],
       [
         1,
-        "rgba(255,154,60,0)",
+        "rgba(255,179,71,0)",
       ],
     ],
     "x0": 540,
@@ -4305,7 +4305,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "y1": 595.055,
   },
   {
-    "alpha": 0.51,
+    "alpha": 0.722,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4320,15 +4320,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,77,109,1)",
+        "rgba(255,106,61,1)",
       ],
       [
         0.4,
-        "rgba(255,77,109,0.55)",
+        "rgba(255,106,61,0.6)",
       ],
       [
         1,
-        "rgba(255,77,109,0)",
+        "rgba(255,106,61,0)",
       ],
     ],
     "x0": 540,
@@ -4361,7 +4361,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.535,
+    "alpha": 0.85,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4376,15 +4376,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,154,60,1)",
+        "rgba(255,179,71,1)",
       ],
       [
         0.35,
-        "rgba(255,154,60,0.65)",
+        "rgba(255,179,71,0.7)",
       ],
       [
         1,
-        "rgba(255,154,60,0)",
+        "rgba(255,179,71,0)",
       ],
     ],
     "x0": 123.237,
@@ -4393,7 +4393,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "y1": 595.055,
   },
   {
-    "alpha": 0.455,
+    "alpha": 0.722,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4408,15 +4408,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,77,109,1)",
+        "rgba(255,106,61,1)",
       ],
       [
         0.4,
-        "rgba(255,77,109,0.55)",
+        "rgba(255,106,61,0.6)",
       ],
       [
         1,
-        "rgba(255,77,109,0)",
+        "rgba(255,106,61,0)",
       ],
     ],
     "x0": 907.732,
@@ -4449,7 +4449,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     ],
   },
   {
-    "alpha": 0.185,
+    "alpha": 0.383,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4464,15 +4464,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,154,60,1)",
+        "rgba(255,179,71,1)",
       ],
       [
         0.35,
-        "rgba(255,154,60,0.65)",
+        "rgba(255,179,71,0.7)",
       ],
       [
         1,
-        "rgba(255,154,60,0)",
+        "rgba(255,179,71,0)",
       ],
     ],
     "x0": -333.07,
@@ -4481,7 +4481,7 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "y1": 595.055,
   },
   {
-    "alpha": 0.157,
+    "alpha": 0.326,
     "blend": "screen",
     "kind": "radial",
     "op": "gradient",
@@ -4496,15 +4496,15 @@ exports[`transitions > frameOps snapshots per transition style through the cut >
     "stops": [
       [
         0,
-        "rgba(255,77,109,1)",
+        "rgba(255,106,61,1)",
       ],
       [
         0.4,
-        "rgba(255,77,109,0.55)",
+        "rgba(255,106,61,0.6)",
       ],
       [
         1,
-        "rgba(255,77,109,0)",
+        "rgba(255,106,61,0)",
       ],
     ],
     "x0": 1310.356,

@@ -12,16 +12,20 @@ Cue ids are ``<beat>.<purpose>`` (§8.1). A treatment that depends on a per-clip
 ``behind``, ``burst``), and its fallback keeps ``accent``, so a freed budget adds or removes a cue but never rewrites
 one.
 
-Order of work (§8.2, §8.5):
+Order of work (§8.2, §8.5; fx-v2 follows the reference study, docs/dynamic-edits.md "Reference edits"):
   1. user cues (kept verbatim; they occupy budget and spacing)
   2. bleeps (compliance: ignore budgets and spacing)
   3. reactions (their windows exclude zoom/shake/transition/glitch/behind/doodle)
-  4. transitions at cuts, ranked by the strongest beat within 2 s
-  5. beats by priority, each proposing a bundle (§8.4); a member that breaks its family cap, spacing or a global rule
-     is dropped on its own
-  6. template fill-ins (highlighter words at max) and wordless speed-ups; kinetic_stack without a hook beat
-     places its kinetic first sentence before step 5
-  7. music, grade, grain, retention, hook band
+  4. transitions at real cuts only: hard cuts by default, a 3-frame flash or a 6-frame light leak, rarely
+  5. look templates (highlighter, emoji drop, behind the head): at most one keyword per caption phrase group,
+     behind-the-head words (each lands on a reframe), then emoji under keywords
+  6. reframes: hard punch-ins that HOLD until the next reframe or cut, alternating in and out, on beat key words and
+     sentence starts; then short 11-frame eased "nudge" zooms on emphasis words, held until the next reframe
+  7. hidden templates' own accents (slam, counter, ...) per beat, and "wait for it" before a payoff
+  8. sound effects on visual events only (reframes, graphic pop-ins, transitions), never on plain talking
+  9. music (a steady bed under the voice), grade, grain, retention, hook band
+Shake, glitch/flash/desaturate hits, speed ramps, slow-motion tails, freezes, risers and emoji bursts are never placed
+automatically (none of the 26 reference clips used them); user cues of those kinds still render.
 """
 
 from __future__ import annotations
@@ -29,11 +33,13 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
+from .caption_groups import LOOK_LEAD, LOOK_MAX_WORDS, PhraseGroup, grouped_words, phrase_groups
 from .censor import censor_text
 from .constants import TONE_EMOJI
 from .contracts import (
+    LOOK_TEMPLATES,
     TRANSITION_HALF,
     AccentCue,
     Beat,
@@ -54,6 +60,7 @@ from .contracts import (
     StickerCue,
     TransitionCue,
     ZoomCue,
+    caption_look_for,
     is_fx_template,
 )
 from .rng import cue_seed, hash01
@@ -92,55 +99,75 @@ PRIORITY: dict[str, int] = {
 TIERS: tuple[str, ...] = ("style", "subtle", "bold", "max")
 _RANK = {tier: i for i, tier in enumerate(TIERS)}
 
-# Family budgets (§8.3). ("rate", per-60-s rate, min gap s) or ("count", per-clip count, 0).
+# Family budgets (§8.3). ("rate", per-60-s rate, min gap s) or ("count", per-clip count, 0). fx-v2: the families the
+# references never use (shake, hits, time warp, bursts, slow pushes) have no automatic budget; reframes, nudges,
+# keywords, emoji and behind words have their own per-10-s tables below.
 Budget = tuple[str, float, float]
+_NONE: Budget = ("count", 0, 0)
 BUDGETS: dict[str, dict[str, Budget]] = {
     "accent":   {"style": ("rate", 10, 3.0), "subtle": ("rate", 10, 3.0), "bold": ("rate", 20, 1.5),
                  "max": ("rate", 40, 0.8)},
-    "punch":    {"style": ("count", 0, 0), "subtle": ("rate", 4, 6.0), "bold": ("rate", 8, 3.0),
-                 "max": ("rate", 14, 1.6)},
-    "push":     {"style": ("count", 0, 0), "subtle": ("count", 1, 0), "bold": ("count", 2, 0),
-                 "max": ("count", 4, 0)},
-    "shake":    {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("rate", 3, 8.0),
-                 "max": ("rate", 8, 3.0)},
-    "sfx":      {"style": ("rate", 10, 1.0), "subtle": ("rate", 6, 2.5), "bold": ("rate", 12, 1.2),
-                 "max": ("rate", 24, 0.6)},
-    "hit":      {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 2, 0),
-                 "max": ("rate", 6, 4.0)},
-    "freeze":   {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
-                 "max": ("count", 2, 0)},
-    "ramp":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
-                 "max": ("count", 2, 0)},
-    "fast":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 0, 0),
-                 "max": ("count", 2, 0)},
-    "slow":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 0, 0),
-                 "max": ("count", 1, 0)},
-    "burst":    {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 3, 0),
-                 "max": ("count", 5, 0)},
-    "reaction": {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
-                 "max": ("count", 2, 0)},
-    "wait":     {"style": ("count", 0, 0), "subtle": ("count", 0, 0), "bold": ("count", 1, 0),
-                 "max": ("count", 1, 0)},
+    "punch":    {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "push":     {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "shake":    {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "sfx":      {"style": ("rate", 10, 1.0), "subtle": ("rate", 6, 2.5), "bold": ("rate", 18, 0.8),
+                 "max": ("rate", 36, 0.35)},
+    "hit":      {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "freeze":   {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "ramp":     {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "fast":     {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "slow":     {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "burst":    {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
+    "reaction": {"style": _NONE, "subtle": _NONE, "bold": ("count", 1, 0), "max": ("count", 2, 0)},
+    "wait":     {"style": _NONE, "subtle": _NONE, "bold": _NONE, "max": _NONE},
 }
-# Transitions: subtle ≤1 on passage breaks only; bold 1 per 8 s of clip; max 1 per 4 s.
-TRANSITION_EVERY: dict[str, float] = {"bold": 8.0, "max": 4.0}
+# Transitions at real cuts (spec §3.6): none at subtle; bold ≤ 1 per 40 s (0.25 per 10 s) on passage breaks only;
+# max ≤ 1 per 20 s (0.5 per 10 s).
+TRANSITION_EVERY: dict[str, float] = {"bold": 40.0, "max": 20.0}
+TRANSITION_POOLS: dict[str, tuple[str, ...]] = {"bold": ("flash",), "max": ("flash", "light_leak", "flash")}
 
-SFX_BUS_GAIN_DB: dict[str, float] = {"style": 0.0, "subtle": -4.0, "bold": 0.0, "max": 2.0}
-MUSIC_LEVELS: dict[str, tuple[float, float]] = {"subtle": (-24.0, -10.0), "bold": (-20.0, -12.0),
-                                                "max": (-17.0, -13.0)}
-NO_TIMING_MUSIC_DB = -24.0
+# Reframes (spec §3.5): hard punch events per 10 s, minimum spacing, punch-in scale range. An "in" event steps to the
+# scale and holds it to the next event (the "out", back to the base framing) or the next real cut.
+REFRAME_RATE: dict[str, float] = {"subtle": 1.2, "bold": 2.6, "max": 5.5}   # events (in + out): spec punch-ins x2
+REFRAME_GAP: dict[str, float] = {"subtle": 3.0, "bold": 1.2, "max": 0.8}
+REFRAME_SCALE: dict[str, tuple[float, float]] = {"subtle": (1.10, 1.15), "bold": (1.12, 1.20), "max": (1.20, 1.35)}
+# Nudges: +6-10 % over 11 frames, then held to the next reframe.
+NUDGE_RATE: dict[str, float] = {"subtle": 0.5, "bold": 2.5, "max": 4.5}
+NUDGE_SCALE: dict[str, tuple[float, float]] = {"subtle": (1.05, 1.06), "bold": (1.06, 1.08), "max": (1.08, 1.10)}
+NUDGE_GAP = 1.0            # a nudge starts at least this long after/before any reframe or nudge
+NUDGE_FRAMES = 11          # length of a nudge's ramp (== fx-core NUDGE_SECONDS * 30)
+NUDGE_MIN_HOLD = 0.6       # ... and holds at least this long before the next one
+# Look templates (spec §3.2-3.4): keywords, emoji and behind words per 10 s and their minimum gaps (s).
+KEYWORD_RATE: dict[str, float] = {"style": 4.0, "subtle": 1.25, "bold": 4.0, "max": 5.5}
+KEYWORD_GAP: dict[str, float] = {"style": 1.2, "subtle": 4.0, "bold": 1.2, "max": 0.8}
+EMOJI_RATE: dict[str, float] = {"style": 1.0, "subtle": 0.5, "bold": 1.0, "max": 2.5}
+EMOJI_GAP: dict[str, float] = {"style": 3.0, "subtle": 6.0, "bold": 3.0, "max": 1.5}
+EMOJI_LEAD = 2 / 30        # an emoji appears 2 frames before its keyword is spoken
+EMOJI_HOLD = (0.5, 1.8)    # ... and holds until its caption group changes, within these bounds
+BEHIND_EVERY: dict[str, float] = {"style": 20.0, "subtle": 30.0, "bold": 20.0, "max": 12.0}
+BEHIND_HOLD = 1.5          # spec 1.2-2.0 s; ends on the next reframe
+# Share of reframes (and real cuts) that carry a hit: spec §3.7 says bold 30 %, max 60 %; bold is raised to 50 % so
+# a bold clip lands near Hormozi's measured 2-3 sounds per 10 s with its emoji pops (82 % of aC52's cuts carry one).
+EVENT_SFX_SHARE: dict[str, float] = {"style": 0.0, "subtle": 0.0, "bold": 0.5, "max": 0.6}
+EVENT_SFX_LEAD = 1 / 30    # a cut's hit starts one frame before the picture changes
+
+# SFX bus gain (§8.3), calibrated on renders measured with the study's scripts (SFX peak against the separated voice
+# peak): hits land about 16 / 12 / 6 dB under the voice peak at subtle / bold / max (spec §3.7); pops sit lower.
+SFX_BUS_GAIN_DB: dict[str, float] = {"style": -16.0, "subtle": -20.0, "bold": -16.0, "max": -10.0}
+# Music under speech, relative to the voice: subtle -11 dB constant (podcast clippers), bold -19 dB constant
+# (Hormozi), max -6 dB ducking 7 dB in pauses (MrBeast). Calibrated on renders measured with the study's scripts
+# (separated music stem against the voice under speech). (gain_db, duck_db, attack, release).
+MUSIC_LEVELS: dict[str, tuple[float, float, float, float]] = {
+    "subtle": (-8.0, 0.0, 0.08, 0.35), "bold": (-15.0, 0.0, 0.08, 0.35), "max": (3.0, -7.0, 0.25, 0.6),
+}
 GRAIN: dict[str, float] = {"subtle": 0.15, "bold": 0.20, "max": 0.30}
 
 # Sounds removed by serious mode (rule 1), template-intrinsic ones included.
 SERIOUS_DROP_SOUNDS = frozenset({"pop", "boom", "record_scratch", "cash_register", "slap", "tape_stop"})
-# Sounds that justify a shake (§8.3: shake only with an impact-class SFX or a slam).
-IMPACT_SOUNDS = frozenset({"impact", "boom", "stamp", "slap", "cash_register"})
 # Relative per-sound trims (dB). The intensity bus gain (§8.3) is applied by the mixer, never baked in here.
 SFX_TRIM_DB: dict[str, float] = {"ticker": -6.0, "riser": -4.0, "whoosh": -2.0, "glitch": -3.0, "tape_stop": -2.0}
-# Built-in riser lengths by variant (§12 synthesis recipe) so a riser can END at a moment.
-RISER_SECONDS: tuple[float, ...] = (1.5, 2.5)
 CURRENCY_PREFIXES = frozenset({"$", "€", "£", "¥", "₹", "₩", "₽", "R$"})
-HIDES_CAPTIONS = frozenset({"slam", "kinetic"})
+HIDES_CAPTIONS = frozenset({"slam", "kinetic", "behind"})   # the behind word IS the caption while it shows
 EXCLUDED_ACCENTS = frozenset({"behind", "doodle"})     # never inside B-roll or reaction windows (rule 4)
 SLAM_TEMPLATE_KINDS = frozenset({"hook", "punchline", "payoff"})
 ACCENT_KINDS = frozenset({"hook", "emphasis", "number", "punchline", "payoff"})
@@ -153,11 +180,23 @@ when which who will with would you your i'm it's that's i've you're we're they'r
 really um uh el la los las un una y o de que en es por con lo le se der die das und ist ein eine zu den mit le les
 des et est une du à je il o os as um uma e é do da em que para yang dan di ini itu ke
 """.split())
-TRANSITION_POOLS: dict[str, tuple[str, ...]] = {
-    "subtle": ("light_leak", "flash", "whip"),
-    "bold": ("whip", "zoom_through", "flash", "light_leak", "glitch"),
-    "max": ("whip", "zoom_through", "spin", "glitch", "flash", "whip"),
-}
+# Filler and hedge words that never make a keyword, however long ("basically", "something"), in addition to STOPWORDS.
+FILLERS = frozenset("""
+actually basically literally honestly obviously probably definitely seriously totally certainly simply exactly
+anyway anyways something somebody someone somewhere anything anybody anyone everything everybody everyone nothing
+thing things stuff kind sort lot lots bit way ways guy guys know knew think thought mean means meant say says said
+tell told get gets got getting go goes going gone went come comes came make makes made take takes took want wanted
+need needed see saw look looked feel felt let lets let's also even still just only much many more most some any
+here now then well right yes no not about because maybe sure ever never always again already other another every
+being doing having one two own same such there's here's what's who's i'd you'd we'd they'd i'll you'll we'll
+they'll isn't aren't wasn't weren't don't doesn't didn't can't couldn't won't wouldn't shouldn't haven't hasn't
+like okay yeah gonna wanna gotta kinda sorta whatever whenever wherever however
+though although whether while since until unless upon within without across through throughout over under after
+before against between among around above below into onto toward towards behind beyond during except inside
+outside rather quite pretty enough else which whose whom where why how yourself myself himself herself itself
+ourselves themselves people person
+""".split())
+
 CALM_MOODS = frozenset({"chill", "dramatic", "inspiring", "dark"})
 
 _EDGE_PUNCT = re.compile(r"^[\"'“”‘’¿¡(\[]+|[\"'“”‘’.,!?;:…)\]]+$")
@@ -215,12 +254,19 @@ def family_cap(budget: Budget, duration: float) -> int:
 
 
 def transition_cap(tier: str, duration: float) -> int:
-    if tier == "subtle":
-        return 1
+    """Transitions per clip: none at subtle; bold one per 40 s, max one per 20 s (at least one on a clip with cuts)."""
     every = TRANSITION_EVERY.get(tier)
     if not every:
         return 0
-    return max(1, int(duration // every))
+    return max(1, math.floor(duration / every + 0.5))
+
+
+def per10_cap(rate: float, duration: float, *, at_least_one: bool = True) -> int:
+    """A per-10-s rate as a per-clip cap: round half up, at least one on clips of 6 s or more when the rate is > 0."""
+    if rate <= 0:
+        return 0
+    raw = math.floor(rate * duration / 10.0 + 0.5)
+    return max(1, raw) if at_least_one and duration >= 6.0 else raw
 
 
 def tier_for(style: EditStyle, sensitivity: str) -> str:
@@ -297,6 +343,19 @@ class _Planner:
             [(b.start, b.end) for b in self.beats if b.kind == "swear"] if style.censor != "off" else []
         )
         self.hook_beat: Optional[Beat] = next((b for b in self.beats if b.kind == "hook"), None)
+        # Look templates (fx-v2): caption phrase groups as fx-core draws them, keywords, reframe events.
+        self.look = caption_look_for(template, style.intensity, inp.beats.sensitivity)
+        self.look_template = template in LOOK_TEMPLATES
+        self.lead = LOOK_LEAD.get(self.look, 0.0)
+        self.gwords: list[dict] = grouped_words(self.words) if self.timing != "none" else []
+        self.groups: list[PhraseGroup] = (
+            phrase_groups(self.gwords, LOOK_MAX_WORDS.get(self.look, 3)) if self.look_template else []
+        )
+        self.group_of: dict[int, int] = {i: k for k, g in enumerate(self.groups) for i in range(g.first, g.last + 1)}
+        self.keyword_words: dict[int, str] = {}           # gwords index -> producing beat id ("" = heuristic)
+        self.events: list[float] = []                     # reframe event times (E), sorted after place_reframes
+        self.event_beat: dict[float, str] = {}
+        self.forced_events: list[tuple[float, str]] = []  # (t, beat): reframes a behind word lands on
 
     # ------------------------------------------------------------------ helpers
 
@@ -441,15 +500,24 @@ class _Planner:
         return _EDGE_PUNCT.sub("", joined)[:limit].strip()
 
     @staticmethod
-    def key_word(words: Sequence[dict]) -> dict:
+    def is_content(text: str) -> bool:
+        """A word that can carry a keyword: letters or digits, not a stopword, filler or hedge."""
+        norm = _norm(text)
+        if any(ch.isdigit() for ch in text):
+            return True
+        return _letters(text) > 0 and norm not in STOPWORDS and norm not in FILLERS
+
+    @classmethod
+    def key_word(cls, words: Sequence[dict]) -> dict:
         """The word an accent or punch lands on: a number if present, else a long distinctive content word (≥ 7
-        letters), else the LAST content word (English phrase stress falls on it: "...while you SLEEP")."""
+        letters), else the LAST content word (English phrase stress falls on it: "...while you SLEEP"). Fillers
+        ("basically", "something") never win over a content word."""
         def score(item: tuple[int, dict]) -> tuple:
             i, w = item
             text = str(w.get("text", ""))
             digit = any(ch.isdigit() for ch in text)
-            content = _norm(text) not in STOPWORDS and _letters(text) > 0
-            return (digit, content, _letters(text) >= 7, i)
+            content = cls.is_content(text)
+            return (digit, content, content and _letters(text) >= 7, i)
         return max(enumerate(words), key=score)[1]
 
     def key_phrase(self, words: Sequence[dict], max_words: int) -> list[dict]:
@@ -516,28 +584,6 @@ class _Planner:
         self.sounds.append((t, sound, beat_id))
         return True
 
-    def zoom(self, b: Beat, purpose: str, mode: str, scale: float, start: float, end: float, *,
-             hook_bound: bool = False) -> bool:
-        family = "punch" if mode == "punch" else "push"
-        cue_id = f"{b.id}.{purpose}"
-        if not self.style.zooms or cue_id in self.user_ids:
-            return False
-        span = self.quiet(start, end, instant=False, hook_bound=hook_bound, min_len=0.3)
-        if span is None:
-            return False
-        start, end = span
-        if not self.zoom_ok(start, end) or self.user_collides("zoom", start, end):
-            return False
-        if not self.family_ok(family, start, b.id):
-            return False
-        if not self.add(_Cand("zoom", cue_id, start, end, b.id,
-                              {"mode": mode, "scale": _r(min(1.6, max(1.0, scale))), "anchor": "face"},
-                              family, hook_bound)):
-            return False
-        self.count(family, start, b.id)
-        self.zooms.append((start, end))
-        return True
-
     def shake(self, b: Beat, purpose: str, t: float, length: float, amp: float, *, paired: bool,
               hook_bound: bool = False) -> bool:
         cue_id = f"{b.id}.{purpose}"
@@ -592,91 +638,6 @@ class _Planner:
         return self.add(_Cand("desaturate", cue_id, span[0], span[1], beat_id,
                               {"amount": amount, "dim": dim}, "", hook_bound))
 
-    # ------------------------------------------------------------------ warp (rule 7, caps G14)
-
-    def warp_allowed(self) -> bool:
-        return (self.style.speed and self.ge("bold") and not self.serious and self.timing == "word")
-
-    def final_duration(self, extra_hold: float = 0.0, extra_delta: float = 0.0) -> float:
-        return self.dur + sum(h for _, h in self.holds) + extra_hold + sum(d for *_, d in self.speeds) + extra_delta
-
-    def warp_caps_ok(self, extra_hold: float = 0.0, extra_delta: float = 0.0) -> bool:
-        hold_total = sum(h for _, h in self.holds) + extra_hold
-        if hold_total > min(1.6, 0.04 * self.dur) + EPS:
-            return False
-        delta_total = sum(abs(d) for *_, d in self.speeds) + abs(extra_delta)
-        if delta_total > 0.1 * self.dur + EPS:
-            return False
-        if self.inp.max_clip_seconds is not None and extra_hold + extra_delta > 0:
-            if self.final_duration(extra_hold, extra_delta) > float(self.inp.max_clip_seconds) + 2.0 + EPS:
-                return False
-        return True
-
-    def speed_conflicts(self, e0: float, e1: float) -> bool:
-        if any(_overlaps(e0, e1, a, b) for a, b, _ in self.speeds):
-            return True
-        if any(e0 + EPS < t < e1 - EPS for t, _ in self.holds):
-            return True
-        for cue in self.user_cues:
-            if cue.kind == "speed" and _overlaps(e0, e1, cue.start, cue.end):
-                return True
-            if cue.kind == "freeze" and e0 + EPS < cue.start < e1 - EPS:
-                return True
-        return False
-
-    def speed(self, beat_id: str, purpose: str, family: str, e0: float, e1: float, rate: float, *,
-              hook_bound: bool = False) -> bool:
-        if not self.warp_allowed():
-            return False
-        cue_id = f"{beat_id}.{purpose}" if beat_id else purpose
-        if cue_id in self.user_ids:
-            return False
-        e0, e1 = _frame(e0), _frame(e1)
-        span = self.quiet(e0, e1, instant=False, hook_bound=hook_bound, min_len=0.3)
-        if span is None or span[1] != e1:
-            return False
-        if self.speed_conflicts(e0, e1) or self.user_collides("speed", e0, e1):
-            return False
-        length = e1 - e0
-        delta = round(length / rate * FPS) / FPS - length
-        if not self.warp_caps_ok(extra_delta=delta) or not self.family_ok(family, e0, beat_id):
-            return False
-        if not self.add(_Cand("speed", cue_id, e0, e1, beat_id,
-                              {"rate": _r(rate)}, family, hook_bound)):
-            return False
-        self.count(family, e0, beat_id)
-        self.speeds.append((e0, e1, delta))
-        return True
-
-    def freeze(self, b: Beat, t: float, hold: float, label: str) -> bool:
-        if not self.warp_allowed():
-            return False
-        cue_id = f"{b.id}.freeze"
-        if cue_id in self.user_ids:
-            return False
-        if self.quiet(t, t, instant=True, hook_bound=False) is None or self.user_collides("freeze", t, t):
-            return False
-        if any(a + EPS < t < c - EPS for a, c, _ in self.speeds) or any(
-            c.kind == "speed" and c.start + EPS < t < c.end - EPS for c in self.user_cues
-        ):
-            return False
-        if self.inside_word(t, margin=0.0):
-            return False
-        if not self.family_ok("freeze", t, b.id):
-            return False
-        # Clamp to the clip's total hold allowance (never to what other freezes left, so one beat's hold never
-        # depends on another beat); a freeze that no longer fits is dropped (lowest priority first).
-        allowance = math.floor((min(1.6, 0.04 * self.dur) + EPS) * FPS) / FPS
-        hold = min(_frame(hold), allowance)
-        if hold < 0.5 - EPS or not self.warp_caps_ok(extra_hold=hold):
-            return False
-        if not self.add(_Cand("freeze", cue_id, t, t, b.id,
-                              {"hold": _r(hold), "label": label[:40]}, "freeze")):
-            return False
-        self.count("freeze", t, b.id)
-        self.holds.append((t, hold))
-        return True
-
     # ------------------------------------------------------------------ accents (§8.7, §11.1)
 
     def accent(self, b: Beat, purpose: str, variant: str, start: float, end: float, *, text: str = "",
@@ -723,8 +684,9 @@ class _Planner:
         return cand
 
     def accent_for(self, b: Beat, words: list[dict], key: dict) -> list[_Cand]:
-        """Template accent(s) for one beat (§8.7). Legacy templates get none."""
-        if not self.fx_template:
+        """Template accent(s) for one beat (§8.7). Legacy templates get none; look templates (highlighter, emoji drop,
+        behind the head) get theirs from place_keywords / place_emoji / place_behind."""
+        if not self.fx_template or self.look_template:
             return []
         kinds = ACCENT_KINDS | ({"swear"} if self.template == "face_doodles" else frozenset())
         if b.kind not in kinds:
@@ -891,198 +853,351 @@ class _Planner:
                 if b.strength >= 2:
                     self.sfx(b.id, f"{base}.sfx", "pop", c.start, intrinsic=True, hook_bound=hb)
 
-    # ------------------------------------------------------------------ bundles (§8.4)
+    # ------------------------------------------------------------------ per-beat accents (hidden templates)
 
     def bundle(self, b: Beat) -> None:
+        """The template's own accent for a beat (hidden templates only) and its intrinsic visuals and sounds, plus
+        "wait for it" before a payoff. Zooms, sounds on cuts and transitions are global steps (fx-v2)."""
         words = self.beat_words(b)
         key = self.key_word(words)
         accents = self.accent_for(b, words, key)
         self.accent_intrinsics(b, accents)
-        if self.tier == "style":
+        if b.kind == "payoff" and self.ge("bold") and self.eligible(b):
+            self.wait_for_it(b)
+
+    # ------------------------------------------------------------------ look templates (spec §3.1-3.4)
+
+    def beat_key_index(self, b: Beat) -> Optional[int]:
+        """gwords index of a beat's key word (None when it has no timed word)."""
+        words = self.beat_words(b)
+        key = self.key_word(words)
+        for i, w in enumerate(self.gwords):
+            if abs(w["start"] - key["start"]) < 1e-6 and w.get("text") == key.get("text"):
+                return i
+        return None
+
+    def group_end(self, index: int) -> float:
+        """Display end (E, lead included) of the caption group holding gwords[index]."""
+        k = self.group_of.get(index)
+        if k is None:
+            w = self.gwords[index]
+            return max(w["end"], w["start"] + 0.4) + self.lead
+        return self.groups[k].end + self.lead
+
+    def keyword_candidates(self) -> list[tuple[int, str]]:
+        """(gwords index, beat id) in priority order: beat key words (strongest, highest priority first), then the
+        strongest content word of each remaining group (numbers, then words of 5+ letters)."""
+        out: list[tuple[int, str]] = []
+        seen: set[int] = set()
+        for b in sorted(self.beats, key=lambda o: (-o.strength, -PRIORITY[o.kind], o.start, o.id)):
+            if b.kind not in ACCENT_KINDS:
+                continue
+            i = self.beat_key_index(b)
+            if i is None or i in seen or not self.is_content(str(self.gwords[i].get("text", ""))):
+                continue
+            seen.add(i)
+            out.append((i, b.id))
+        rest: list[tuple[tuple, int]] = []
+        for g in self.groups:
+            best: Optional[tuple[tuple, int]] = None
+            for i in range(g.first, g.last + 1):
+                text = str(self.gwords[i].get("text", ""))
+                if i in seen or not self.is_content(text):
+                    continue
+                digit = any(ch.isdigit() for ch in text)
+                if not digit and _letters(text) < 5:
+                    continue
+                rank = (digit, _letters(text), i)
+                if best is None or rank > best[0]:
+                    best = (rank, i)
+            if best is not None:
+                rest.append(((not best[0][0], -best[0][1], best[1]), best[1]))
+        out += [(i, "") for _rank, i in sorted(rest)]
+        return out
+
+    def place_keywords(self) -> None:
+        """At most one keyword per caption group (`highlight` accent from the word to the group's end), at the look's
+        rate and spacing. The caption drawer boxes or colours it on the frame the word appears (0 frames)."""
+        if not self.look_template or self.timing == "none" or not self.groups:
             return
-        elig = self.eligible(b)
-        handler: Callable[[Beat, list[dict], dict, bool, list[_Cand]], None] = getattr(self, f"_b_{b.kind}")
-        handler(b, words, key, elig, accents)
+        tier = self.tier
+        cap = per10_cap(KEYWORD_RATE[tier], self.dur)
+        gap = KEYWORD_GAP[tier]
+        used_groups: set[int] = set()
+        starts: list[float] = []
+        for i, beat_id in self.keyword_candidates():
+            if len(starts) >= cap:
+                break
+            k = self.group_of.get(i)
+            if k is None or k in used_groups:
+                continue
+            w = self.gwords[i]
+            t = w["start"]
+            if any(abs(t - o) < gap - EPS for o in starts):
+                continue
+            end = max(self.group_end(i), t + 0.25)
+            cue_id = f"w{i}.kw"
+            if cue_id in self.user_ids or self.user_collides("accent", t, end):
+                continue
+            span = self.quiet(t, end, instant=False, hook_bound=True, min_len=0.1)
+            if span is None or any(_overlaps(span[0], span[1], a, z) for a, z in self.hides):
+                continue
+            cand = _Cand("accent", cue_id, span[0], span[1], beat_id,
+                         {"variant": "highlight", "text": self.censored(w).strip()[:120], "emoji": "",
+                          "doodle": "sparkles", "value": None, "prefix": "", "suffix": ""}, "accent", True)
+            if not self.add(cand):
+                continue
+            used_groups.add(k)
+            starts.append(t)
+            self.keyword_words[i] = beat_id
+            self.accent_spans.append((span[0], span[1], "highlight"))
 
-    def _b_hook(self, b, words, key, elig, accents) -> None:
-        if not elig:
+    def place_behind(self) -> None:
+        """behind_head: one giant word behind the speaker on the strongest beats (spec §3.4), hard cut in on a
+        reframe at the word's onset + 1 frame, held BEHIND_HOLD and out on the next reframe."""
+        if self.template != "behind_head" or self.timing == "none":
             return
-        self.sfx(b.id, f"{b.id}.sfx", "whoosh", b.start, intrinsic=False, hook_bound=True)
-        hook_end = self.beats_meta.hook_end if self.beats_meta.hook_end is not None else b.end
-        end = min(b.start + 6.0, max(hook_end, b.end, b.start + 1.0))
-        scale = {"subtle": 1.04, "bold": 1.06, "max": 1.08}[self.tier]
-        self.zoom(b, "push", "push", scale, b.start, end, hook_bound=True)
-        if self.ge("bold"):
-            self.zoom(b, "zoom", "punch", 1.12, key["start"], key["start"] + self.punch_len(key), hook_bound=True)
-        if self.tier == "max":
-            self.flash_or_glitch("flash", b.id, "flash", key["start"], 0.15, intrinsic=False, hook_bound=True)
-            boom = self.sfx(b.id, f"{b.id}.sfx2", "boom", key["start"], intrinsic=False, hook_bound=True)
-            self.shake(b, "shake", key["start"], 0.35, 18.0, paired=boom or not self.style.sfx, hook_bound=True)
+        cap = max(1, math.floor(self.dur / BEHIND_EVERY[self.tier] + 0.5)) if self.dur >= 6.0 else 0
+        pool = [b for b in self.beats if b.kind in ACCENT_KINDS and (b.kind == "hook" or b.strength >= 2)]
+        pool.sort(key=lambda o: (-o.strength, -PRIORITY[o.kind], o.start, o.id))
+        placed: list[float] = []
+        for b in pool:
+            if len(placed) >= cap:
+                break
+            i = self.beat_key_index(b)
+            if i is None:
+                continue
+            w = self.gwords[i]
+            if not self.is_content(str(w.get("text", ""))):
+                continue
+            t = _frame(w["start"] + 1 / FPS)
+            if any(abs(t - o) < BEHIND_EVERY[self.tier] * 0.5 for o in placed):
+                continue
+            end = min(self.dur - QUIET_TAIL, t + BEHIND_HOLD)
+            if end - t < 1.0 or t < QUIET_HEAD + 0.25 - EPS:
+                continue
+            # Its two reframes keep clear of transitions and real cuts, and it never holds across a cut.
+            near = [*self.transitions, *(float(c) for c in self.inp.cuts)]
+            if any(abs(t - c) < ZOOM_TRANSITION_GAP or abs(end - c) < ZOOM_TRANSITION_GAP or t < c < end
+                   for c in near):
+                continue
+            c = self.accent(b, "behind", "behind", t, end, text=self.text_of([w]), hook_bound=True)
+            if c is None:
+                continue
+            placed.append(t)
+            self.forced_events.append((c.start, b.id))
+            self.forced_events.append((c.end, b.id))
+            self.sfx(b.id, f"{c.id}.sfx", "boom", c.start, intrinsic=True, hook_bound=True)
 
-    def _b_emphasis(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("bold"):
+    def place_emoji(self) -> None:
+        """emoji_drop: an emoji under a keyword (spec §3.3), 2 frames before it is spoken, held until its caption
+        group changes. Only beats whose emoji depicts a thing the words name (the model's pick, else the keyword
+        map); never a tone face. One soft pop for every third emoji."""
+        if self.template != "emoji_drop" or self.serious or self.timing == "none":
             return
-        self.sfx(b.id, f"{b.id}.sfx", "pop", key["start"], intrinsic=False)
-        if self.tier == "max":
-            scale = self.rand(b.id, "zoom", 1.15, 1.25)
-            self.zoom(b, "zoom", "punch", scale, key["start"], key["start"] + self.punch_len(key))
-        elif b.strength >= 2:
-            self.zoom(b, "zoom", "punch", 1.15, key["start"], key["start"] + self.punch_len(key))
+        cap = per10_cap(EMOJI_RATE[self.tier], self.dur)
+        gap = EMOJI_GAP[self.tier]
+        pool = []
+        for b in self.beats:
+            if b.kind not in ACCENT_KINDS:
+                continue
+            if b.tone == "sad":
+                continue          # no emoji on a vulnerable moment
+            if b.emoji:
+                pool.append((0, -b.strength, b.start, b))
+            # No tone-emoji fallback: faces on abstract words read cheap; the references only show objects.
+        pool.sort(key=lambda x: (x[0], x[1], x[2], x[3].id))
+        placed: list[float] = []
+        count = 0
+        for _rank, _s, _t, b in pool:
+            if len(placed) >= cap:
+                break
+            i = self.beat_key_index(b)
+            if i is None:
+                continue
+            w = self.gwords[i]
+            start = max(0.0, w["start"] - EMOJI_LEAD)
+            if any(abs(start - o) < gap - EPS for o in placed):
+                continue
+            lo, hi = EMOJI_HOLD
+            end = min(max(self.group_end(i), start + lo), start + hi)
+            c = self.place_accent(f"{b.id}.accent", b.id, "emoji", start, end, text=self.text_of([w]), emoji=b.emoji,
+                                  hook_bound=True)
+            if c is None:
+                continue
+            placed.append(start)
+            if count % 3 == 0:
+                self.sfx(b.id, f"{c.id}.sfx", "pop", c.start, intrinsic=True, hook_bound=True)
+            count += 1
 
-    def _b_number(self, b, words, key, elig, accents) -> None:
-        if not elig:
+    # ------------------------------------------------------------------ reframes and nudges (spec §3.5)
+
+    def reframe_candidates(self) -> list[tuple[float, str]]:
+        """(time, beat id) in priority order: beat key words (eligible by strength), then sentence starts."""
+        out: list[tuple[float, str]] = []
+        for b in sorted(self.beats, key=lambda o: (-PRIORITY[o.kind], -o.strength, o.start, o.id)):
+            if b.kind not in ACCENT_KINDS or not self.eligible(b):
+                continue
+            key = self.key_word(self.beat_words(b))
+            out.append((_frame(max(0.0, key["start"] - 1 / FPS)), b.id))
+        for i, w in enumerate(self.words):
+            if i == 0:
+                continue
+            prev = self.words[i - 1]
+            if _ends_sentence(prev["text"]) or w["start"] - prev["end"] >= 0.5:
+                out.append((_frame(max(0.0, w["start"] - 1 / FPS)), ""))
+        return out
+
+    def reframe_ok(self, t: float, spacing: float, taken: Sequence[float]) -> bool:
+        if t < QUIET_HEAD + 0.25 - EPS or t > self.dur - 0.6 + EPS:
+            return False
+        if any(abs(t - o) < spacing - EPS for o in taken):
+            return False
+        if any(abs(t - float(c)) < 0.4 for c in self.inp.cuts):
+            return False
+        return not self.in_excl(t, t) and all(abs(t - c) >= ZOOM_TRANSITION_GAP - EPS for c in self.transitions)
+
+    def place_reframes(self) -> None:
+        """Hard reframes that hold (spec §3.5): events alternate in (scale up about the face) and out (back to the
+        base framing); a real cut also resets the framing. Forced events (behind words) always count."""
+        if self.tier == "style" or not self.style.zooms or self.timing == "none":
+            for t, beat in self.forced_events:
+                self.events.append(t)
+                self.event_beat[t] = beat
+            self.events.sort()
             return
-        counter = next((c for c in accents if c.fields["variant"] == "counter"), None)
-        hit_at = key["start"]
-        if counter is not None:
-            # The counter's lock sound is the number's stamp; the shake lands on the lock with it.
-            hit_at = counter.start + max(0.6, (b.end - b.start) + 0.4)
-            sound_ok = any(s in IMPACT_SOUNDS and bb == b.id and abs(t - hit_at) < 0.05 for t, s, bb in self.sounds)
-        else:
-            sound = "cash_register" if self.ge("bold") and b.prefix in CURRENCY_PREFIXES else "stamp"
-            sound_ok = self.sfx(b.id, f"{b.id}.sfx", sound, key["start"], intrinsic=False)
-            if not sound_ok and sound != "stamp":
-                sound_ok = self.sfx(b.id, f"{b.id}.sfx", "stamp", key["start"], intrinsic=False)
-        if self.tier == "max":
-            self.zoom(b, "zoom", "punch", 1.18, key["start"], key["start"] + self.punch_len(key))
-            self.shake(b, "shake", hit_at, 0.25, 10.0, paired=sound_ok or not self.style.sfx)
+        tier = self.tier
+        cap = per10_cap(REFRAME_RATE[tier], self.dur)
+        spacing = REFRAME_GAP[tier]
+        chosen: list[float] = []
+        beats: dict[float, str] = {}
+        for t, beat in self.forced_events:
+            t = _frame(t)
+            if t not in beats:
+                chosen.append(t)
+                beats[t] = beat
+        for t, beat in self.reframe_candidates():
+            if len(chosen) >= max(cap, len(self.forced_events)):
+                break
+            if not self.reframe_ok(t, spacing, chosen):
+                continue
+            chosen.append(t)
+            beats[t] = beat
+        chosen.sort()
+        self.events = chosen
+        self.event_beat = beats
+        cuts = sorted(float(c) for c in self.inp.cuts)
+        lo, hi = REFRAME_SCALE[tier]
+        n = 0
+        k = 0
+        while k < len(chosen):
+            t = chosen[k]
+            nxt = chosen[k + 1] if k + 1 < len(chosen) else self.dur
+            cut = next((c for c in cuts if t + EPS < c < nxt - EPS), None)
+            end = cut if cut is not None else nxt
+            for a, z in self.excl + self.reaction_windows:
+                if _overlaps(t, end, a, z):
+                    end = min(end, a)
+            beat_id = beats.get(t, "")
+            cue_id = f"z{round(t * FPS)}.zoom"      # frame-numbered: stable while its moment stays
+            n += 1
+            if end - t >= 0.4 and cue_id not in self.user_ids and not self.user_collides("zoom", t, end):
+                scale = lo + (hi - lo) * hash01(self.seed_of("", cue_id), 0)
+                if self.add(_Cand("zoom", cue_id, t, end, beat_id,
+                                  {"mode": "punch", "scale": _r(scale), "anchor": "face"}, "punch")):
+                    self.zooms.append((t, end))
+            # The "out" event is the next one; a cut inside the hold already reset the framing, so the next event
+            # after it is an "in" again.
+            k += 1 if cut is not None else 2
 
-    def _b_punchline(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("bold"):
+    def place_nudges(self) -> None:
+        """Short eased zooms (spec §3.5): +6-10 % over 11 frames on emphasis words. Between two reframes they
+        alternate: a nudge in holds until the next nudge, which eases back out over 11 frames (a `pull`); the last
+        one holds until the reframe or cut that ends the stretch. They never accumulate."""
+        if self.tier == "style" or not self.style.zooms or self.timing == "none":
             return
-        self.zoom(b, "zoom", "punch", 1.15, key["start"], key["start"] + self.punch_len(key))
-        self.sfx(b.id, f"{b.id}.sfx", "boom" if b.strength >= 3 else "pop", key["start"], intrinsic=False)
-        if self.tier == "max":
-            self.flash_or_glitch("glitch", b.id, "glitch", key["start"], 0.15, intrinsic=False, amount=0.6)
-            self.slow_tail(b, words)
+        tier = self.tier
+        cap = per10_cap(NUDGE_RATE[tier], self.dur)
+        lo, hi = NUDGE_SCALE[tier]
+        bounds = sorted({*self.events, *(float(c) for c in self.inp.cuts), self.dur})
+        candidates: list[tuple[float, str]] = []
+        for b in sorted(self.beats, key=lambda o: (-o.strength, -PRIORITY[o.kind], o.start, o.id)):
+            if b.kind in ACCENT_KINDS:
+                key = self.key_word(self.beat_words(b))
+                candidates.append((_frame(max(0.0, key["start"] - 1 / FPS)), b.id))
+        for i in sorted(self.keyword_words):
+            candidates.append((_frame(max(0.0, self.gwords[i]["start"] - 1 / FPS)), self.keyword_words[i]))
+        # Then long content words (what an editor leans on when the model marked nothing there).
+        for w in self.words:
+            text = str(w.get("text", ""))
+            if self.is_content(text) and (_letters(text) >= 6 or any(ch.isdigit() for ch in text)):
+                candidates.append((_frame(max(0.0, w["start"] - 1 / FPS)), ""))
+        chosen: dict[float, str] = {}
+        for t, beat_id in candidates:
+            if len(chosen) >= cap:
+                break
+            if t < QUIET_HEAD + 0.25 - EPS or t > self.dur - 1.0 or t in chosen:
+                continue
+            if any(abs(t - e) < NUDGE_GAP - EPS for e in [*self.events, *chosen]):
+                continue
+            end = next((x for x in bounds if x > t + EPS), self.dur)
+            if end - t < NUDGE_MIN_HOLD - EPS or self.in_excl(t, end):
+                continue
+            if not all(_interval_gap(t, end, c, c) >= ZOOM_TRANSITION_GAP - EPS for c in self.transitions):
+                continue
+            chosen[t] = beat_id
+        times = sorted(chosen)
+        n = 0
+        k = 0
+        while k < len(times):
+            t = times[k]
+            end = next((x for x in bounds if x > t + EPS), self.dur)
+            nxt = times[k + 1] if k + 1 < len(times) and times[k + 1] < end - EPS else None
+            cue_id = f"n{round(t * FPS)}.zoom"
+            n += 1
+            scale = _r(lo + (hi - lo) * hash01(self.seed_of("", cue_id), 0))
+            hold_end = nxt if nxt is not None else end
+            if cue_id in self.user_ids or self.user_collides("zoom", t, hold_end):
+                k += 1
+                continue
+            if self.add(_Cand("zoom", cue_id, t, hold_end, chosen[t], {"mode": "nudge", "scale": scale,
+                                                                        "anchor": "face"}, "push")):
+                self.zooms.append((t, hold_end))
+            if nxt is None:
+                k += 1
+                continue
+            # The next nudge eases back out to the base framing over 11 frames.
+            out_end = min(end, nxt + NUDGE_FRAMES / FPS)
+            out_id = f"n{round(nxt * FPS)}.zoom"
+            n += 1
+            if out_end - nxt > 2 / FPS and out_id not in self.user_ids and self.add(
+                    _Cand("zoom", out_id, nxt, out_end, chosen[nxt], {"mode": "pull", "scale": scale,
+                                                                      "anchor": "face"}, "push")):
+                self.zooms.append((nxt, out_end))
+            k += 2
 
-    def _b_swear(self, b, words, key, elig, accents) -> None:
-        # §8.4: the glitch sits ON the bleep, so there is none without one (censor off, approx timing, user-deleted).
-        bleep = f"{b.id}.bleep"
-        if self.tier == "max" and bleep in self.taken_ids and not self.is_suppressed(bleep):
-            self.flash_or_glitch("glitch", b.id, "glitch", b.start, 0.1, intrinsic=False, amount=0.5)
+    # ------------------------------------------------------------------ sounds on visual events (spec §3.7)
 
-    def _b_emotional_turn(self, b, words, key, elig, accents) -> None:
-        if not elig:
+    def place_event_sfx(self) -> None:
+        """A short low hit one frame before a share of the reframes and real cuts (bold 30 %, max 60 %), strongest
+        beats first. Graphic pop-ins and transitions carry their own sounds; plain talking gets none."""
+        share = EVENT_SFX_SHARE[self.tier]
+        if share <= 0 or not self.style.sfx:
             return
-        first, _last = self.sentence_bounds(b.start)
-        # Push over the sentence that turns (at least 1 s, at most the last 4 s of it).
-        sentence_start = self.words[first]["start"] if first is not None else b.start
-        start = max(sentence_start, b.end - 4.0)
-        if b.end - start < 1.0:
-            start = max(0.0, b.end - 1.0)
-        self.zoom(b, "push", "push", 1.04 if self.tier == "subtle" else 1.06, start, b.end)
-        if self.ge("bold"):
-            self.riser(b, b.start)
-        if self.tier == "max":
-            self.desaturate(b.id, "desat", b.start, b.start + 1.0, 0.6, 0.1)
-
-    def _b_build(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("bold"):
+        events = [(t, self.event_beat.get(t, "")) for t in self.events]
+        events += [(float(c), "") for c in self.inp.cuts
+                   if not any(abs(float(c) - t) < 0.2 for t in [*self.events, *self.transitions])]
+        if not events:
             return
-        self.zoom(b, "push", "push", 1.06, b.start, max(b.end, b.start + 1.0))
-        landing = next((o for o in sorted(self.beats, key=lambda o: (o.start, o.id))
-                        if o.kind in ("payoff", "punchline") and o.start >= b.end - EPS and o.start - b.end <= 8.0),
-                       None)
-        self.riser(b, landing.start if landing is not None else b.end)
-        lo, hi = (1.15, 1.25) if self.tier == "bold" else (1.2, 1.35)
-        runs = [list(words)]
-        if self.tier == "max":
-            # A wordless span ≥ 0.6 s inside the build plays fast; the speech around it keeps the ramp.
-            for i, (prev, nxt) in enumerate(zip(words, words[1:])):
-                if nxt["start"] - prev["end"] >= 0.6 - EPS:
-                    rate = self.rand(b.id, "fast", 1.5, 2.5)
-                    if self.speed(b.id, "fast", "fast", prev["end"] + 0.1, nxt["start"] - 0.1, rate):
-                        runs = [list(words[:i + 1]), list(words[i + 1:])]
-                        break
-        run = max(runs, key=lambda r: (r[-1]["end"] - r[0]["start"], -r[0]["start"]))
-        self.speech_ramp(b, run, self.rand(b.id, "ramp", lo, hi))
-
-    def _b_payoff(self, b, words, key, elig, accents) -> None:
-        if not elig or not self.ge("bold"):
-            return
-        self.wait_for_it(b)
-        self.zoom(b, "zoom", "punch", 1.15, key["start"], key["start"] + self.punch_len(key))
-        self.sfx(b.id, f"{b.id}.sfx", "impact", key["start"], intrinsic=False)
-        froze = False
-        if self.tier == "max" or (b.strength >= 3 and self.dur >= 15.0):
-            froze = self.payoff_freeze(b, words)
-        if not froze and self.tier == "max":
-            self.slow_tail(b, words)
-
-    # ------------------------------------------------------------------ bundle pieces
-
-    @staticmethod
-    def punch_len(key: dict) -> float:
-        return min(1.4, max(0.5, (key["end"] - key["start"]) + 0.35))
-
-    def riser(self, b: Beat, end_at: float) -> bool:
-        n = max(1, int(self.inp.sfx_variants.get("riser", 1) or 1))
-        options = [v for v in range(min(n, len(RISER_SECONDS))) if end_at - RISER_SECONDS[v] >= QUIET_HEAD - EPS]
-        if not options:
-            return False
-        pick = options[self.cseed(b.id, "riser") % len(options)]
-        return self.sfx(b.id, f"{b.id}.sfx2", "riser", end_at - RISER_SECONDS[pick], intrinsic=False, variant=pick)
-
-    def speech_ramp(self, b: Beat, words: list[dict], rate: float) -> bool:
-        if not self.warp_allowed() or not words:
-            return False
-        first, last = words[0], words[-1]
-        prev = self.prev_word_before(first["start"] - EPS)
-        nxt = self.next_word_after(last["end"] + EPS)
-        pad0 = min(0.05, (first["start"] - prev["end"]) / 2) if prev else 0.05
-        pad1 = min(0.05, (nxt["start"] - last["end"]) / 2) if nxt else 0.05
-        e0, e1 = first["start"] - max(0.0, pad0), last["end"] + max(0.0, pad1)
-        if e1 - e0 < 0.4:
-            return False
-        # The span carries no bleep, no swear, no caption-hiding accent and does not touch the hook.
-        if any(_overlaps(e0, e1, a, z) for a, z in self.swear_spans) or any(
-            o.kind == "swear" and _overlaps(e0, e1, o.start, o.end) for o in self.beats
-        ):
-            return False
-        if any(c.kind == "bleep" and _overlaps(e0, e1, c.start, c.end) for c in self.placed):
-            return False
-        if any(_overlaps(e0, e1, a, z) for a, z in self.hides):
-            return False
-        hook_spans = [self.inp.hook_window] if self.inp.hook_window else []
-        if self.hook_beat is not None:
-            hook_spans.append((self.hook_beat.start, self.hook_beat.end))
-        if any(_interval_gap(e0, e1, a, z) <= EPS for a, z in hook_spans):
-            return False
-        return self.speed(b.id, "ramp", "ramp", e0, e1, rate)
-
-    def slow_tail(self, b: Beat, words: list[dict]) -> bool:
-        last = words[-1]
-        nxt = self.next_word_after(last["end"] + EPS)
-        gap_end = nxt["start"] if nxt else self.dur
-        gap = gap_end - last["end"]
-        if gap < 0.25 - EPS or gap > 1.2 + EPS:
-            return False
-        e0 = math.ceil(last["end"] * FPS - 1e-6) / FPS
-        e1 = math.floor(gap_end * FPS + 1e-6) / FPS
-        if e1 - e0 < 0.2:
-            return False
-        if not self.speed(b.id, "slow", "slow", e0, e1, 0.5):
-            return False
-        self.sfx(b.id, f"{b.id}.slow.sfx", "tape_stop", e0, intrinsic=True)
-        return True
-
-    def payoff_freeze(self, b: Beat, words: list[dict]) -> bool:
-        last = words[-1]
-        nxt = self.next_word_after(last["end"] + EPS)
-        gap_end = nxt["start"] if nxt else self.dur
-        if gap_end - last["end"] < 0.3 - EPS:
-            return False
-        t = math.ceil(last["end"] * FPS - 1e-6) / FPS
-        if gap_end - t < 0.3 - EPS:                 # rule 7: the freeze sits ≥ 0.3 s before the next word
-            return False
-        hi = 0.8 if self.tier == "bold" else 1.0
-        hold = self.rand(b.id, "freeze", 0.6, hi)
-        label = b.label.strip() or self.text_of(self.key_phrase(words, 3), 40)
-        if not self.freeze(b, t, hold, label):
-            return False
-        self.sfx(b.id, f"{b.id}.freeze.sfx", "record_scratch", t, intrinsic=True)
-        return True
+        strength = {b.id: (b.strength, PRIORITY[b.kind]) for b in self.beats}
+        ranked = sorted(events, key=lambda e: (tuple(-x for x in strength.get(e[1], (0, -1))), e[0]))
+        want = max(1, math.floor(share * len(events) + 0.5))
+        for t, beat_id in ranked[:want]:
+            at = _frame(max(0.0, t - EVENT_SFX_LEAD))
+            cue_id = f"e{round(t * FPS)}.sfx"
+            pick = hash01(self.seed_of("", cue_id), 0)
+            sound = "boom" if pick < (0.5 if self.tier == "max" else 0.35) else "impact"
+            self.sfx("", cue_id, sound, at, intrinsic=False, hook_bound=True)
 
     def wait_for_it(self, b: Beat) -> bool:
         if not self.style.wait_for_it:
@@ -1109,7 +1224,7 @@ class _Planner:
                               {"sticker": "wait_for_it", "text": ""}, "wait")):
             return False
         self.count("wait", span[0], "")
-        self.sfx(b.id, "g.wait.sfx", "slap", span[0], intrinsic=True)
+        self.sfx(b.id, "g.wait.sfx", "pop", span[0], intrinsic=True)
         return True
 
     # ------------------------------------------------------------------ global steps
@@ -1202,8 +1317,10 @@ class _Planner:
                 self.reaction_windows.append((start, end))
 
     def place_transitions(self) -> None:
-        """Rule 6: visual-only transitions at junction centres, ranked by the strongest beat within 2 s."""
-        if self.tier == "style" or not self.style.transitions:
+        """Rule 6 (spec §3.6): hard cuts by default. Bold: at most one per 40 s, on passage breaks only, a 3-frame
+        flash; max: at most one per 20 s, a flash or a 6-frame light leak. Never inside a word or B-roll. A flash
+        carries a short whoosh-hit starting 2 frames before the cut."""
+        if self.tier in ("style", "subtle") or not self.style.transitions:
             return
         cap = transition_cap(self.tier, self.dur)
         breaks = [float(p) for p in self.inp.passage_breaks]
@@ -1218,7 +1335,7 @@ class _Planner:
         candidates = []
         for k, c in enumerate(self.inp.cuts):
             c = float(c)
-            if self.tier == "subtle" and not is_break(c):
+            if self.tier == "bold" and not is_break(c):
                 continue
             candidates.append((not is_break(c), tuple(-x for x in strength_near(c)), c, k))
         placed = 0
@@ -1229,11 +1346,8 @@ class _Planner:
             if cue_id in self.user_ids:
                 continue
             pool = list(TRANSITION_POOLS[self.tier])
-            if self.template == "decode_glitch":
-                pool += ["glitch", "glitch"]
-            mood = self.beats_meta.mood
-            if self.serious or mood in CALM_MOODS:
-                pool = [s for s in pool if s in ("light_leak", "flash", "whip")] + ["light_leak"]
+            if self.serious or self.beats_meta.mood in CALM_MOODS:
+                pool = ["light_leak"] if self.tier == "max" else pool
             style = pool[self.seed_of("", cue_id) % len(pool)]
             half = TRANSITION_HALF[style]
             if self.quiet(c, c, instant=True, hook_bound=False) is None or c < QUIET_HEAD:
@@ -1251,10 +1365,8 @@ class _Planner:
             self.hits.append((c, cue_id))
             self.ffg.append((c - half, c + half))
             self.transitions.append(c)
-            if style in ("whip", "zoom_through", "spin"):
-                self.sfx("", f"{cue_id}.sfx", "whoosh", max(0.0, c - 0.12), intrinsic=True)
-            elif style == "glitch":
-                self.sfx("", f"{cue_id}.sfx", "glitch", c, intrinsic=True)
+            if style == "flash":
+                self.sfx("", f"{cue_id}.sfx", "whoosh", _frame(max(0.0, c - 2 / FPS)), intrinsic=True)
 
     def place_kinetic_without_hook(self) -> None:
         """kinetic_stack's signature needs a hook sentence; without a hook beat, the first sentence plays that role."""
@@ -1272,36 +1384,6 @@ class _Planner:
             self.sfx("", "g.kinetic.sfx", "whoosh", c.start, intrinsic=True, hook_bound=True)
             self.desaturate("", "g.kinetic.desat", c.start, c.end, 0.7, 0.2, hook_bound=True)
 
-    def place_highlighter_words(self) -> None:
-        """highlighter_swipe at max: every content word ≥4 letters (accent caps apply)."""
-        if self.template != "highlighter_swipe" or self.tier != "max" or self.timing == "none":
-            return
-        for i, w in enumerate(self.words):
-            text = str(w.get("text", ""))
-            if _letters(text) < 4 or _norm(text) in STOPWORDS:
-                continue
-            if any(_overlaps(w["start"], w["end"], a, z) for a, z, _ in self.accent_spans):
-                continue
-            self.place_accent(f"w{i}.accent", "", "highlight", w["start"],
-                              min(max(w["end"], w["start"] + 0.8), w["start"] + 2.5), text=self.censored(w))
-
-    def place_wordless_speedups(self) -> None:
-        """Max: wordless spans ≥0.6 s play at 1.5-2.5x (0.1 s margin each side), away from landings."""
-        if self.tier != "max" or not self.warp_allowed():
-            return
-        guarded = [(o.start - 0.3, o.end + 0.3) for o in self.beats
-                   if o.kind in ("payoff", "punchline", "hook", "swear")]
-        gaps = []
-        for i, (prev, nxt) in enumerate(zip(self.words, self.words[1:])):
-            g0, g1 = prev["end"], nxt["start"]
-            if g1 - g0 >= 0.6 - EPS and not any(_overlaps(g0, g1, a, z) for a, z in guarded):
-                gaps.append((-(g1 - g0), i, g0, g1))
-        for _neg, i, g0, g1 in sorted(gaps):
-            if self.counts.get("fast", 0) >= family_cap(self.budget("fast"), self.dur):
-                break
-            rate = 1.5 + 1.0 * hash01(self.seed_of("", f"g.fast{i}"), 0)
-            self.speed("", f"g.fast{i}", "fast", g0 + 0.1, g1 - 0.1, rate)
-
     # ------------------------------------------------------------------ globals (rules 9, 10, 5)
 
     def music(self, cues: Sequence[FxCue]) -> Optional[MusicBed]:
@@ -1317,9 +1399,9 @@ class _Planner:
         if not ids:
             return None
         bed = ids[self.seed_of("", "g.music") % len(ids)]
-        gain, duck = MUSIC_LEVELS[self.tier]
+        gain, duck, attack, release = MUSIC_LEVELS[self.tier]
         if self.timing == "none":
-            gain, duck = NO_TIMING_MUSIC_DB, 0.0
+            gain, duck = gain + duck, 0.0       # no speech spans to duck under: hold the under-speech level
         offset, fade_in, fade_out = 0.0, 0.5, 0.8
         if self.loop:
             length = float(self.inp.bed_lengths.get(bed, 0.0) or 0.0)
@@ -1328,19 +1410,16 @@ class _Planner:
             if length > 0:
                 offset = (length - out % length) % length
             fade_in = fade_out = 0.02
-        return MusicBed(mood=mood, bed=bed, gain_db=gain, duck_db=duck, offset=_r(offset), fade_in=fade_in,
-                        fade_out=fade_out)
+        return MusicBed(mood=mood, bed=bed, gain_db=gain, duck_db=duck, attack=attack, release=release,
+                        offset=_r(offset), fade_in=fade_in, fade_out=fade_out)
 
     def grade(self) -> str:
         if not self.style.active:
             return "none"
         if self.style.grade != "auto":
             return self.style.grade
-        if self.tier == "bold":
-            return "punchy"
-        if self.tier == "max":
-            return "teal_orange" if self.beats_meta.mood in ("dramatic", "dark") else "punchy"
-        return "none"
+        # Spec §3.10: subtle and bold keep the picture neutral; max gets the punchy saturation.
+        return "punchy" if self.tier == "max" else "none"
 
     # ------------------------------------------------------------------ run
 
@@ -1350,12 +1429,16 @@ class _Planner:
         self.place_bleeps()
         self.place_reactions()
         self.place_transitions()
+        self.place_behind()                    # behind words first: they hide the captions and fix two reframes
+        self.place_keywords()
+        self.place_emoji()
+        self.place_reframes()
+        self.place_nudges()
         self.place_kinetic_without_hook()      # stands in for the hook treatment, so it goes before the bundles
         order = sorted(self.beats, key=lambda o: (-PRIORITY[o.kind], -o.strength, o.start, o.id))
         for b in order:
             self.bundle(b)
-        self.place_highlighter_words()
-        self.place_wordless_speedups()
+        self.place_event_sfx()
 
         cues: list[FxCue] = list(self.user_cues)
         for c in self.placed:

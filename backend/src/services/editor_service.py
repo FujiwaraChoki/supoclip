@@ -207,6 +207,37 @@ def initial_caption_style(
         "karaoke": template.get("animation") == "karaoke",
         "uppercase": bool(template.get("uppercase")),
         "template": task.get("caption_template") or "default",
+    } | _look_caption_seed(task, caption_settings, width, height)
+
+
+def _look_caption_seed(task: dict, caption_settings: dict, width: int, height: int) -> dict:
+    """Listed animated templates draw an intensity look (font, size, case, keyword colour, pill): seed the editor
+    with the look the clip was generated with, so the studio opens on the same captions. {} for other templates."""
+    from ..edit_fx.caption_groups import LOOK_MAX_WORDS
+    from ..edit_fx.caption_style import LOOKS, look_accent, look_pill
+    from ..edit_fx.contracts import caption_look_for
+    from ..edit_fx.settings import parse_edit_style
+
+    template_id = task.get("caption_template") or "default"
+    raw = task.get("edit_style")
+    try:
+        intensity = parse_edit_style(json.loads(raw) if isinstance(raw, str) else raw).intensity
+    except Exception:  # noqa: BLE001 - an unreadable stored style is "off"
+        intensity = "off"
+    look = caption_look_for(template_id, intensity)
+    if look not in LOOKS:
+        return {}
+    spec = LOOKS[look]
+    position_y = caption_settings.get("position_y") if caption_settings.get("position_is_center") else None
+    return {
+        "font": spec["font"],
+        "size": max(20, min(132, int(spec["px"]))),
+        "y": max(0.1, min(0.9, float(position_y if position_y is not None else spec["y"]))),
+        "wordsPerLine": LOOK_MAX_WORDS[look],
+        "uppercase": bool(spec["uppercase"]),
+        "accent": look_accent(template_id, look),
+        "background": look_pill(template_id, look) is not None,
+        "karaoke": False,
     }
 
 
@@ -582,12 +613,12 @@ def caption_looks(include_fx: bool = False, keep: tuple[str, ...] = ()) -> dict:
     """Template styling the editor preview draws on top of its own caption style.
 
     Legacy templates only, unless ``include_fx`` (the caller is allowed dynamic
-    edits, §0.4.9) adds every FX template; ``keep`` adds the FX templates a
-    stored draft already uses, so it always has its own look.
+    edits, §0.4.9) adds the listed FX templates; ``keep`` adds the FX templates a
+    stored draft already uses (unlisted ones included), so it always has its own look.
     """
-    from ..edit_fx.contracts import FX_CAPTION_TEMPLATES
+    from ..edit_fx.contracts import FX_CAPTION_TEMPLATES, LISTED_FX_CAPTION_TEMPLATES
 
-    fx_ids = tuple(t for t in FX_CAPTION_TEMPLATES if include_fx or t in keep)
+    fx_ids = tuple(t for t in FX_CAPTION_TEMPLATES if (include_fx and t in LISTED_FX_CAPTION_TEMPLATES) or t in keep)
     return _caption_looks(fx_ids)
 
 

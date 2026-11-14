@@ -448,9 +448,9 @@
     },
     "intensityHint": {
       "off": "Keine automatischen Edits. Deine eigenen bleiben.",
-      "subtle": "Ein paar Zooms und sanfte Soundeffekte.",
-      "bold": "Punch-ins, Whooshes und Musik bei den großen Momenten.",
-      "max": "Jeder Trick, auf jedem Beat."
+      "subtle": "Ab und zu neu geschnitten, leise Musik darunter.",
+      "bold": "Punch-ins an den wichtigen Stellen, Schläge auf manchen Schnitten.",
+      "max": "Schnelle Reframes, lautere Schläge und Musik."
     },
     "needsPlan": {
       "title": "Plane diesen Clip zuerst",
@@ -617,7 +617,7 @@
     "options": {
       "sfx": {
         "label": "Soundeffekte",
-        "hint": "Whooshes, Einschläge und Pops auf den Beats"
+        "hint": "Kurze Schläge und Pops auf Schnitten und Grafiken"
       },
       "music": {
         "label": "Musik",
@@ -625,7 +625,7 @@
       },
       "zooms": {
         "label": "Zooms",
-        "hint": "Reinzoomen bei Pointen und großen Zahlen"
+        "hint": "Reframes und kurze Zooms an den wichtigen Stellen"
       },
       "shake": {
         "label": "Kamerawackler",
@@ -633,7 +633,7 @@
       },
       "transitions": {
         "label": "Übergänge",
-        "hint": "Wischer und Blitze, wo der Clip schneidet"
+        "hint": "Selten ein Blitz, wo der Clip schneidet"
       },
       "speed": {
         "label": "Tempowechsel und Standbilder",

@@ -7,6 +7,7 @@ import type {
   AccentCue, AccentVariant, DoodleKind, FaceTrack, FxCaptionStyle, FxCaptionTemplate, FxCue, FxScene, FxWord,
 } from "./core/types";
 import type { FxContext2D } from "./core/host";
+import { isListedFxTemplate } from "./core/types";
 
 /** The demo renders in real output pixels so its layout is the clip's layout; tiles scale it down. */
 export const DEMO_WIDTH = 1080;
@@ -36,19 +37,19 @@ export const DEMO_TEMPLATE_LOOKS: Readonly<Record<FxCaptionTemplate, {
   shadow: boolean; background: string | null; y: number; wordsPerLine: number; uppercase: boolean;
 }>> = {
   marker_circle: { font: "TikTokSans-Bold", size: 30, color: "#FFFFFF", accent: "#FF3B30", stroke: "#000000", strokeWidth: 3, shadow: true, background: null, y: 0.78, wordsPerLine: 3, uppercase: false },
-  emoji_drop: { font: "Poppins-ExtraBold", size: 30, color: "#FFFFFF", accent: "#FFD23F", stroke: "#000000", strokeWidth: 3, shadow: true, background: null, y: 0.76, wordsPerLine: 3, uppercase: false },
+  emoji_drop: { font: "Poppins-ExtraBold", size: 30, color: "#FFFFFF", accent: "#FFD23F", stroke: "#000000", strokeWidth: 3, shadow: true, background: null, y: 0.55, wordsPerLine: 3, uppercase: false },
   slam: { font: "THEBOLDFONT", size: 34, color: "#FFFFFF", accent: "#FFE000", stroke: "#000000", strokeWidth: 4, shadow: true, background: null, y: 0.74, wordsPerLine: 3, uppercase: true },
-  behind_head: { font: "TikTokSans-Bold", size: 28, color: "#FFFFFF", accent: "#FFD54A", stroke: null, strokeWidth: 0, shadow: true, background: null, y: 0.8, wordsPerLine: 4, uppercase: false },
+  behind_head: { font: "TikTokSans-Bold", size: 28, color: "#FFFFFF", accent: "#FFD54A", stroke: null, strokeWidth: 0, shadow: true, background: null, y: 0.55, wordsPerLine: 4, uppercase: false },
   stat_counter: { font: "Poppins-ExtraBold", size: 30, color: "#FFFFFF", accent: "#00E676", stroke: null, strokeWidth: 0, shadow: true, background: null, y: 0.78, wordsPerLine: 4, uppercase: false },
   sticker_slap: { font: "TikTokSans-Bold", size: 30, color: "#FFFFFF", accent: "#FF5C8A", stroke: "#000000", strokeWidth: 3, shadow: true, background: null, y: 0.78, wordsPerLine: 3, uppercase: false },
   kinetic_stack: { font: "THEBOLDFONT", size: 32, color: "#FFFFFF", accent: "#FFE000", stroke: "#000000", strokeWidth: 4, shadow: true, background: null, y: 0.74, wordsPerLine: 3, uppercase: true },
   decode_glitch: { font: "TikTokSans-Bold", size: 28, color: "#FFFFFF", accent: "#00F0FF", stroke: "#000000", strokeWidth: 2, shadow: true, background: null, y: 0.78, wordsPerLine: 3, uppercase: true },
-  highlighter_swipe: { font: "TikTokSans-Bold", size: 28, color: "#111111", accent: "#FFE45C", stroke: null, strokeWidth: 0, shadow: false, background: "#FFFFFFE6", y: 0.8, wordsPerLine: 4, uppercase: false },
+  highlighter_swipe: { font: "Poppins-ExtraBold", size: 30, color: "#FFFFFF", accent: "#34FD87", stroke: null, strokeWidth: 0, shadow: false, background: "#170904D9", y: 0.55, wordsPerLine: 3, uppercase: false },
   face_doodles: { font: "TikTokSans-Bold", size: 30, color: "#FFFFFF", accent: "#FFD23F", stroke: "#000000", strokeWidth: 3, shadow: true, background: null, y: 0.78, wordsPerLine: 3, uppercase: false },
 };
 
 /** Every font a demo scene draws with, for the host to load before the first real frame. */
-export const DEMO_FONTS: readonly string[] = [...new Set(Object.values(DEMO_TEMPLATE_LOOKS).map((look) => look.font))];
+export const DEMO_FONTS: readonly string[] = [...new Set([...Object.values(DEMO_TEMPLATE_LOOKS).map((look) => look.font), "ArchivoBlack-Regular"])];
 
 /**
  * `edit_fx.caption_style.fx_caption_style` at the demo size: the size scales like `get_scaled_font_size`. `scale`
@@ -56,6 +57,15 @@ export const DEMO_FONTS: readonly string[] = [...new Set(Object.values(DEMO_TEMP
  */
 export function demoCaptionStyle(template: FxCaptionTemplate, width = DEMO_WIDTH, scale = 1): FxCaptionStyle {
   const look = DEMO_TEMPLATE_LOOKS[template];
+  if (isListedFxTemplate(template)) {
+    // == edit_fx.caption_style.look_caption_style(template, "bold"): the listed styles demo their Bold look.
+    return {
+      template, font: "Poppins-ExtraBold", size_px: Math.round(Math.round((72 * width) / 1080) * scale), color: "#FFFFFF",
+      accent: template === "highlighter_swipe" ? "#34FD87" : "#FFE00B", stroke_color: null, stroke_px: 0, shadow: true,
+      background: template === "highlighter_swipe" ? "#170904D9" : null, y: look.y, words_per_line: 3, uppercase: false,
+      enabled: true, placements: [], look: "bold",
+    };
+  }
   const sizePx = Math.round(Math.max(26, Math.min(132, Math.round(look.size * (width / 560)))) * scale);
   const strokePx = look.stroke && look.strokeWidth > 0
     ? Math.min(40, Math.max(look.strokeWidth, Math.round((sizePx * look.strokeWidth) / 26)))
@@ -116,9 +126,9 @@ export function demoCues(template: FxCaptionTemplate, words: readonly FxWord[], 
       cue(template, 3, "underline", last.start, last.start + 0.9, { text: last.text }),
     ];
     case "emoji_drop": return [
-      cue(template, 1, "emoji", key.start, key.start + 1.14, { text: key.text, emoji: "💰" }),
-      cue(template, 2, "emoji_burst", number.start, number.start + 1.0, { text: number.text, emoji: "🔥", value: 8 }),
-      cue(template, 3, "emoji", last.start, last.start + 0.9, { text: last.text, emoji: "📈" }),
+      cue(template, 1, "emoji", key.start - 2 / 30, key.start + 1.14, { text: key.text, emoji: "💰" }),
+      cue(template, 2, "highlight", number.start, number.start + 0.9, { text: number.text }),
+      cue(template, 3, "emoji", last.start - 2 / 30, last.start + 0.9, { text: last.text, emoji: "📈" }),
     ];
     case "slam": return [
       cue(template, 1, "slam", key.start, key.start + 0.8, { text: key.text }),
@@ -126,7 +136,10 @@ export function demoCues(template: FxCaptionTemplate, words: readonly FxWord[], 
       cue(template, 2, "slam", number.start, number.start + 0.9, { text: number.text }),
       { id: "demo2.shake", kind: "shake", start: number.start, end: round3(number.start + 0.25), seed: fnv1a32("demo:slam:shake2"), beat: "demo2", origin: "auto", amp: 16, freq: 18 },
     ];
-    case "behind_head": return [cue(template, 1, "behind", key.start, key.start + 2.0, { text: key.text })];
+    case "behind_head": return [
+      cue(template, 1, "behind", key.start + 1 / 30, key.start + 1.5, { text: key.text }),
+      cue(template, 2, "highlight", number.start, number.start + 0.9, { text: number.text }),
+    ];
     case "stat_counter": return [cue(template, 1, "counter", 0.25, 2.7, { text: number.text, ...spoken })];
     case "sticker_slap": return [
       cue(template, 1, "sticker", 0.5, 2.0, { text: sticker }),

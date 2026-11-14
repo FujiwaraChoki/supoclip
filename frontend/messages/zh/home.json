@@ -351,18 +351,18 @@
       },
       "subtle": {
         "label": "轻微",
-        "hint": "少量缩放和柔和音效"
+        "hint": "偶尔重新取景，轻柔背景音乐"
       },
       "bold": {
         "label": "强烈",
-        "hint": "推近、转场音效和音乐"
+        "hint": "关键时刻推近，切点配重击"
       },
       "max": {
         "label": "极致",
-        "hint": "所有技巧，每个节拍"
+        "hint": "快速重新取景，更响的重击和音乐"
       }
     },
-    "offHint": "开启剪辑，在关键时刻加上音效、音乐、缩放和定格。",
+    "offHint": "开启剪辑效果，在重要时刻加入重新取景、音效和音乐。",
     "groups": {
       "sound": "声音",
       "motion": "动态",
@@ -371,7 +371,7 @@
     "options": {
       "sfx": {
         "label": "音效",
-        "hint": "在节拍上加入嗖声、撞击声和弹出声"
+        "hint": "切点和图形出现时的短促重击和弹出声"
       },
       "music": {
         "label": "音乐",
@@ -380,7 +380,7 @@
       "musicMood": "音乐风格",
       "zooms": {
         "label": "缩放",
-        "hint": "在笑点和大数字上推近"
+        "hint": "关键时刻重新取景和短推近"
       },
       "shake": {
         "label": "镜头抖动",
@@ -388,7 +388,7 @@
       },
       "transitions": {
         "label": "转场",
-        "hint": "在剪切处加入甩镜和闪白"
+        "hint": "片段切换处偶尔一闪"
       },
       "speed": {
         "label": "变速和定格",
@@ -444,7 +444,7 @@
       },
       "emoji_drop": {
         "name": "表情掉落",
-        "description": "卡拉 OK 字幕，笑点下方弹出表情"
+        "description": "文字随说话逐词出现，重要时刻下方出现表情"
       },
       "slam": {
         "name": "重击",
@@ -452,7 +452,7 @@
       },
       "behind_head": {
         "name": "头后文字",
-        "description": "巨大的文字位于说话人身后"
+        "description": "说话人身后出现一个巨大的词"
       },
       "stat_counter": {
         "name": "数字计数",
@@ -472,7 +472,7 @@
       },
       "highlighter_swipe": {
         "name": "荧光笔",
-        "description": "荧光笔划过关键词"
+        "description": "文字随说话逐词出现，关键词放进实色方框"
       },
       "face_doodles": {
         "name": "脸部涂鸦",

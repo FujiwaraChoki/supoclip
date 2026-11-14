@@ -1,5 +1,5 @@
 // Mirror of backend/src/edit_fx/contracts.py. Keep names, literals and defaults identical.
-export const EDIT_FX_VERSION = "fx-v1";
+export const EDIT_FX_VERSION = "fx-v2";
 export const FX_SCENE_VERSION = 1;
 export const FPS = 30;
 export const FRAME = 1 / FPS;
@@ -27,9 +27,24 @@ export const FX_CAPTION_TEMPLATES = ["marker_circle", "emoji_drop", "slam", "beh
 export type FxCaptionTemplate = (typeof FX_CAPTION_TEMPLATES)[number];
 export const isFxTemplate = (id: string | null | undefined): id is FxCaptionTemplate =>
   !!id && (FX_CAPTION_TEMPLATES as readonly string[]).includes(id);
+/** The animated styles offered in catalogues and pickers; the others stay valid (stored tasks and drafts) but unlisted. */
+export const LISTED_FX_CAPTION_TEMPLATES = ["highlighter_swipe", "emoji_drop", "behind_head"] as const;
+export const isListedFxTemplate = (id: string | null | undefined): boolean =>
+  !!id && (LISTED_FX_CAPTION_TEMPLATES as readonly string[]).includes(id);
+export type CaptionLook = "template" | "subtle" | "bold" | "max";
+/** == contracts.caption_look_for: listed templates follow the intensity (off = Bold look, serious = Subtle). */
+export function captionLookFor(template: string | null | undefined, intensity: string | null | undefined,
+  sensitivity: string = "normal"): CaptionLook {
+  if (!isListedFxTemplate(template)) return "template";
+  if (sensitivity === "serious") return "subtle";
+  return intensity === "subtle" || intensity === "bold" || intensity === "max" ? intensity : "bold";
+}
+/** Flash: 3 frames (one before the cut, the cut, one after); light leak: 6 frames. */
 export const TRANSITION_HALF: Record<TransitionStyle, number> = {
-  whip: 0.12, flash: 0.1, glitch: 0.1, zoom_through: 0.18, spin: 0.2, light_leak: 0.35,
+  whip: 0.12, flash: 0.05, glitch: 0.1, zoom_through: 0.18, spin: 0.2, light_leak: 0.1,
 };
+/** Transition styles the resolver places on its own; the rest only by hand in the studio. */
+export const AUTO_TRANSITION_STYLES: readonly TransitionStyle[] = ["flash", "light_leak"];
 
 export interface EditStyle {
   intensity: Intensity; sfx: boolean; music: boolean; music_mood: "auto" | Mood; zooms: boolean; shake: boolean;
@@ -69,7 +84,7 @@ export interface EditBeats {
 interface CueBase { id: string; start: number; end: number; seed: number; beat: string; origin: "auto" | "user" }
 export type AccentCue = CueBase & { kind: "accent"; variant: AccentVariant; text: string; emoji: string;
   doodle: DoodleKind; value: number | null; prefix: string; suffix: string };
-export type ZoomCue = CueBase & { kind: "zoom"; mode: "punch" | "push" | "pull"; scale: number; anchor: "face" | "center" };
+export type ZoomCue = CueBase & { kind: "zoom"; mode: "punch" | "push" | "pull" | "nudge"; scale: number; anchor: "face" | "center" };
 export type ShakeCue = CueBase & { kind: "shake"; amp: number; freq: number };
 export type FlashCue = CueBase & { kind: "flash"; color: string; peak: number };
 export type GlitchCue = CueBase & { kind: "glitch"; amount: number };
@@ -103,6 +118,8 @@ export interface FxCaptionStyle {
   /** Caption centre offset from the middle as a fraction of width (studio global transform); absent = 0. */
   x?: number; words_per_line: number;
   uppercase: boolean; enabled: boolean; placements: CaptionPlacement[];
+  /** "template" (absent): the template's own motion; subtle/bold/max: the intensity looks (captions/looks.ts). */
+  look?: CaptionLook;
 }
 export interface FxWord { id: string; start: number; end: number; text: string; highlight: boolean; run: string }
 export interface WarpPieceJson { e0: number; e1: number; o0: number; rate: number; hold: number }

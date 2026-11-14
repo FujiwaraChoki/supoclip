@@ -593,6 +593,17 @@
           },
           "title": "Placements",
           "type": "array"
+        },
+        "look": {
+          "default": "template",
+          "enum": [
+            "template",
+            "subtle",
+            "bold",
+            "max"
+          ],
+          "title": "Look",
+          "type": "string"
         }
       },
       "required": [
@@ -1262,7 +1273,8 @@
           "enum": [
             "punch",
             "push",
-            "pull"
+            "pull",
+            "nudge"
           ],
           "title": "Mode",
           "type": "string"

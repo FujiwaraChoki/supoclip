@@ -48,7 +48,8 @@ cues (S time) and what you removed. Clips generated with effects open with them.
   edits** clears the effects. **Analyse face** appears when face-anchored effects
   need a face track the clip doesn't have yet (combined clips, for example).
 - **Effects** tab: grade and grain, next to brightness, contrast and saturation.
-- **Captions** tab: the animated styles appear in the template picker.
+- **Captions** tab: the three animated styles (Highlighter, Emoji Drop, Behind Head) appear in the template
+  picker; a draft that already uses an older animated style keeps it.
 - **Timeline**: the FX lane shows each effect, coloured by family (sound,
   picture, overlay, time). Click selects, drag moves (the effect becomes yours and
   survives a re-resolve), double-click opens it, Delete removes it (an automatic

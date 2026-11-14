@@ -72,13 +72,17 @@ Beat kinds:
 - hook: the opening line that grabs attention (at most 1, inside the first sentence or two)
 - emphasis: a word the speaker leans on or that carries the point
 - number: a spoken quantity, price, percent, count or year (tag only the number words)
-- punchline: a comedic or surprising landing
-- swear: profanity or a slur in ANY language (tag every one, only the swear word itself)
+- punchline: a comedic or surprising landing, only when the speaker means it to land as a joke or a twist
+- swear: profanity or a slur in ANY language (tag every one, only the swear word itself; never an ordinary word)
 - emotional_turn: the mood clearly flips
 - payoff: the line the clip builds to (at most 2)
 - build: rising tension right before a payoff or punchline
 A beat spans 1-8 consecutive words. strength: 3 = the 2-4 biggest moments of the clip, 2 = clear, 1 = minor.
-tone: how the moment feels. emoji: one emoji only when it literally depicts the word (money -> 💰), else "".
+tone: how the moment feels. Sincere, vulnerable or emotional moments (crying, grief, confession, faith, fear) are
+never funny, smug or awkward and never a punchline: tag them emphasis, emotional_turn or payoff with tone sad,
+wholesome or neutral.
+emoji: one emoji only when it literally depicts a concrete thing the word names (money -> 💰, car -> 🚗, fire -> 🔥),
+else "". Never pointing hands, faces, people or symbols for ideas.
 label: a 0-4 word sticker reacting to the moment (e.g. "WAIT WHAT"), in the transcript's language, else "".
 sensitivity: "serious" when the clip is about grief, illness, violence, abuse or tragedy, else "normal".
 mood: the background music that fits the whole clip. hook_last_word: id of the last word of the hook, -1 if none.

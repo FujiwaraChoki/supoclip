@@ -118,7 +118,8 @@ def test_the_fx_context_lists_style_beats_and_cues():
     assert "  e7 zoom punch 12.40-13.10 auto" in context
     assert '  u0 freeze hold 0.50s "wait" 5.00 user' in context
     assert "  b0 emphasis 1.00-1.80 strength 3" in context
-    assert "fx.intensity (" in context and "slam (" in context and "Effect kinds for add_effect" in context
+    assert "fx.intensity (" in context and "emoji_drop (" in context and "Effect kinds for add_effect" in context
+    assert "slam (" not in context                      # unlisted styles are never offered
     assert build_context(draft(), 20.0, None, "x", fx_allowed=True).count("Dynamic edits: off") == 1
 
 
@@ -143,8 +144,10 @@ async def test_setting_the_intensity_re_resolves_the_automatic_effects():
 
 
 async def test_fx_templates_are_accepted_and_resolve_style_only():
-    result, notes = await apply_fx(draft(), {"type": "set", "setting": "captions.template", "value": "marker_circle"})
-    assert notes == [] and result.captions.template == "marker_circle"
+    result, notes = await apply_fx(draft(), {"type": "set", "setting": "captions.template", "value": "highlighter_swipe"})
+    assert notes == [] and result.captions.template == "highlighter_swipe"
+    _, notes = await apply_fx(draft(), {"type": "set", "setting": "captions.template", "value": "marker_circle"})
+    assert notes and "doesn't exist" in notes[0]          # an unlisted style is never picked anew
     assert any(c.kind == "accent" for c in result.fx.cues)
 
 
@@ -201,7 +204,7 @@ async def test_an_over_budget_freeze_is_skipped_and_the_rest_applies():
 async def test_without_the_flag_a_draft_with_edits_can_keep_or_reduce_them_but_not_turn_more_on():
     """§0.4.8: an unflagged creator whose draft already has edits gets the fx grammar, but a legacy -> FX template
     or an intensity switched on from off is skipped (saving it would be refused), while lowering it works."""
-    styled = draft(captions={"template": "marker_circle"}, fx=planned())
+    styled = draft(captions={"template": "highlighter_swipe"}, fx=planned())
 
     async def unflagged(document, *operations):
         return await apply_plan(document, fx_plan(*operations), 20.0, fx_allowed=True, fx_seed=99,
@@ -210,13 +213,13 @@ async def test_without_the_flag_a_draft_with_edits_can_keep_or_reduce_them_but_n
     result, notes = await unflagged(styled, {"type": "set", "setting": "fx.intensity", "value": "bold"})
     assert result.fx.style.intensity == "off" and notes == ["fx.intensity: dynamic edits aren't available on your account yet"]
     bold = draft(fx=planned(style={"intensity": "bold"}))
-    result, notes = await unflagged(bold, {"type": "set", "setting": "captions.template", "value": "slam"})
+    result, notes = await unflagged(bold, {"type": "set", "setting": "captions.template", "value": "emoji_drop"})
     assert result.captions.template == "default" and "aren't available" in notes[0]
     result, notes = await unflagged(bold, {"type": "set", "setting": "fx.intensity", "value": "max"},
                                     {"type": "add_effect", "kind": "sfx", "start": 3, "end": 3, "variant": "pop"})
     assert notes == [] and result.fx.style.intensity == "max" and any(c.id == "u0" for c in result.fx.cues)
-    result, notes = await unflagged(styled, {"type": "set", "setting": "captions.template", "value": "slam"})
-    assert notes == [] and result.captions.template == "slam"
+    result, notes = await unflagged(styled, {"type": "set", "setting": "captions.template", "value": "emoji_drop"})
+    assert notes == [] and result.captions.template == "emoji_drop"
     result, notes = await unflagged(bold, {"type": "set", "setting": "fx.intensity", "value": "off"})
     assert notes == [] and result.fx.style.intensity == "off"
 

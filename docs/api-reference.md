@@ -292,8 +292,7 @@ the task catch-all proxy):
   "settings": [{"key": "sfx", "type": "bool", "default": true}, "…"],
   "music_moods": ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
   "grades": ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
-  "templates": ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter",
-                "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"],
+  "templates": ["emoji_drop", "behind_head", "highlighter_swipe"],
   "reactions_available": false
 }
 ```
@@ -306,12 +305,15 @@ choices, and ask `GET /caption-templates?include=fx`, only when it is `true`.
 
 ```json
 {"source": {"url": "https://www.youtube.com/watch?v=VIDEO_ID"},
- "caption_template": "stat_counter",
+ "caption_template": "highlighter_swipe",
  "edit_style": {"intensity": "bold", "music_mood": "hype", "progress_bar": true}}
 ```
 
 - `censor`: `off`, `bleep`, `bleep_bar` (bleep and a bar over the mouth) or `bleep_pixelate`.
 - An animated `caption_template` with no `edit_style` is "style only": animated captions, nothing else.
+- `templates` lists the offered animated styles. The older ids (`marker_circle`, `slam`, `stat_counter`,
+  `sticker_slap`, `kinetic_stack`, `decode_glitch`, `face_doodles`) are no longer listed anywhere but stay valid:
+  stored tasks and drafts that use them keep rendering with their own look, and the API still accepts them.
 - 422 `INVALID_EDIT_STYLE` for unknown keys or values, before any charge.
 - 403 `DYNAMIC_EDITS_NOT_AVAILABLE` when the request turns effects on (an active
   intensity or an animated template) and the flag is off for the caller's platform,

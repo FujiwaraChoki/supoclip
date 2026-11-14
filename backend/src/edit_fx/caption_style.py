@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
+from .caption_groups import LOOK_MAX_WORDS
 from .contracts import CaptionPlacement, FxCaptionStyle
 
 DEFAULT_ACCENT = "#FFE000"
@@ -19,6 +20,61 @@ DEFAULT_BOX = "#00000080"
 MAX_STROKE_PX = 40.0
 MAX_SIZE_PX = 400.0
 _HEX = re.compile(r"^#?([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
+
+
+# Intensity caption looks (spec §3.1, §3.10): font, size in px at 1080 wide, centre y with no layout preference, case and
+# the outline as a fraction of the size. Fonts are the closest bundled ones: TikTok Sans Bold for the DOAC/Inter
+# subtitle, Poppins ExtraBold for Hormozi's Poppins Bold, THE BOLD FONT for the Anton/Bebas clipper caps.
+LOOKS: dict[str, dict] = {
+    "subtle": {"font": "TikTokSans-Bold", "px": 52, "y": 0.68, "uppercase": False, "stroke_em": 0.0},
+    "bold": {"font": "Poppins-ExtraBold", "px": 72, "y": 0.55, "uppercase": False, "stroke_em": 0.0},
+    "max": {"font": "THEBOLDFONT", "px": 84, "y": 0.56, "uppercase": True, "stroke_em": 0.09},
+}
+# Keyword colour (box fill for the highlighter, word colour for the others) and the highlighter's pill per look.
+LOOK_ACCENTS: dict[tuple[str, str], str] = {
+    ("highlighter_swipe", "subtle"): "#FFE45C", ("highlighter_swipe", "bold"): "#34FD87",
+    ("highlighter_swipe", "max"): "#FFE45C",
+}
+LOOK_KEYWORD_COLORS: dict[str, str] = {"subtle": "#F2C14E", "bold": "#FFE00B", "max": "#FCFB2B"}
+LOOK_PILLS: dict[tuple[str, str], str] = {("highlighter_swipe", "bold"): "#170904D9"}
+
+
+def look_accent(template_id: str, look: str) -> str:
+    return LOOK_ACCENTS.get((template_id, look), LOOK_KEYWORD_COLORS.get(look, DEFAULT_ACCENT))
+
+
+def look_pill(template_id: str, look: str) -> str | None:
+    return LOOK_PILLS.get((template_id, look))
+
+
+def look_size_px(look: str, width: int) -> float:
+    """The look's caption size at ``width`` (px at 1080 wide scaled), as the ASS sizes round: half to even."""
+    return _clamp(float(max(1, round(LOOKS[look]["px"] * width / 1080))), 1.0, MAX_SIZE_PX)
+
+
+def look_caption_style(template_id: str, look: str, *, width: int, height: int, caption_y: float | None,
+                       font_color: str | None = None, enabled: bool = True) -> FxCaptionStyle:
+    """Generation: the intensity look of a listed template. ``caption_y`` is the layout's caption centre (a stacked
+    layout's seam), else the look's default."""
+    spec = LOOKS[look]
+    size_px = look_size_px(look, width)
+    stroke_px = round(spec["stroke_em"] * size_px, 2)
+    return FxCaptionStyle(
+        template=template_id,
+        font=spec["font"],
+        size_px=size_px,
+        color=_hex6(font_color, DEFAULT_COLOR),
+        accent=look_accent(template_id, look),
+        stroke_color="#000000" if stroke_px > 0 else None,
+        stroke_px=stroke_px,
+        shadow=True,
+        background=look_pill(template_id, look),
+        y=_clamp(float(caption_y if caption_y is not None else spec["y"]), 0.0, 1.0),
+        words_per_line=LOOK_MAX_WORDS[look],
+        uppercase=bool(spec["uppercase"]),
+        enabled=bool(enabled),
+        look=look,
+    )
 
 
 def scaled_font_px(base: float, width: int) -> float:
@@ -98,14 +154,37 @@ def fx_caption_style(template: dict, *, template_id: str, font_family: str | Non
 
 
 def fx_caption_style_from_document(captions: dict, template: dict, *, width: int, height: int,
-                                   placements: Sequence[CaptionPlacement] = ()) -> FxCaptionStyle:
+                                   placements: Sequence[CaptionPlacement] = (), look: str = "template") -> FxCaptionStyle:
     """Studio: ``EditDocument.captions`` (as a dict) over the template, like ``editor_document.write_ass``.
 
     ``size`` is in 1080-wide units; colour, accent, position, words per line, case and the background box are the
-    editor's; outline and shadow come from the template.
+    editor's; outline and shadow come from the template, or from the intensity ``look`` (the max look's outline is
+    0.09 em, the highlighter's pill appears with the background switch, the max look is always upper case).
     """
     size = float(captions.get("size", 54))
     size_px = _clamp(max(1, round(size * width / 1080)), 1.0, MAX_SIZE_PX)
+    if look in LOOKS:
+        template_id = str(captions.get("template") or template.get("id") or "default")
+        stroke_px = round(LOOKS[look]["stroke_em"] * size_px, 2)
+        pill = look_pill(template_id, look)
+        return FxCaptionStyle(
+            template=template_id[:50],
+            font=str(captions.get("font") or LOOKS[look]["font"])[:80],
+            size_px=size_px,
+            color=_hex6(captions.get("color"), DEFAULT_COLOR),
+            accent=_hex6(captions.get("accent") or look_accent(template_id, look), DEFAULT_ACCENT),
+            stroke_color="#000000" if stroke_px > 0 else None,
+            stroke_px=stroke_px,
+            shadow=True,
+            background=pill if (pill and captions.get("background", True)) else None,
+            y=_clamp(float(captions.get("y", 0.78)), 0.0, 1.0),
+            x=_clamp(float(captions.get("x", 0.0)), -1.0, 1.0),
+            words_per_line=_words_per_line(captions.get("wordsPerLine"), LOOK_MAX_WORDS[look]),
+            uppercase=bool(LOOKS[look]["uppercase"] or captions.get("uppercase", False)),
+            enabled=bool(captions.get("enabled", True)),
+            placements=tuple(placements),
+            look=look,
+        )
     background = _rgba(template.get("background_color") or DEFAULT_BOX) if captions.get("background", True) else None
     stroke_color = template.get("stroke_color")
     template_id = str(captions.get("template") or template.get("id") or "default")

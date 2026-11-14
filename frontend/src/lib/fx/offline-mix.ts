@@ -33,7 +33,7 @@ export const SOFT_CLIP_KNEE = 0.8;
 export const MUTE_FRAME = 0.001;
 
 /** §8.3 "SFX bus gain" (resolver.SFX_BUS_GAIN_DB), applied on top of each cue's gain_db. */
-export const SFX_BUS_GAIN_DB = { style: 0, subtle: -4, bold: 0, max: 2 } as const;
+export const SFX_BUS_GAIN_DB = { style: -16, subtle: -20, bold: -16, max: -10 } as const;
 
 /** resolver.sfx_bus_gain_db: style-only when intensity is off; serious mode forces subtle. */
 export function sfxBusGainDb(style: Pick<EditStyle, "intensity">, sensitivity: Sensitivity): number {

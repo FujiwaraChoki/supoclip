@@ -39,7 +39,7 @@ from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
 from ...feature_flags import DYNAMIC_EDITS, client_platform, is_enabled as feature_enabled
-from ...edit_fx.contracts import EditStyle, FX_CAPTION_TEMPLATES, GRADES, INTENSITIES, MOODS, is_fx_template
+from ...edit_fx.contracts import EditStyle, GRADES, INTENSITIES, LISTED_FX_CAPTION_TEMPLATES, MOODS, is_fx_template
 from ...edit_fx.jobs import fx_active
 from ...edit_fx.settings import EditStyleError, edit_style_schema, parse_edit_style, read_edit_style
 from ...services.clip_service import (
@@ -946,7 +946,8 @@ async def get_edit_styles(request: Request, db: AsyncSession = Depends(get_db)):
         "settings": edit_style_schema(),
         "music_moods": list(MOODS),
         "grades": list(GRADES),
-        "templates": list(FX_CAPTION_TEMPLATES),
+        # Only the listed animated styles are offered; unlisted ids stay valid for stored tasks and API callers.
+        "templates": list(LISTED_FX_CAPTION_TEMPLATES),
         "reactions_available": _reactions_available(),
     }
 

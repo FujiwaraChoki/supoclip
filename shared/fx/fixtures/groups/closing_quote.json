@@ -1,0 +1,51 @@
+{
+  "family": "groups",
+  "case": "closing_quote",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.38,
+        "text": "He"
+      },
+      {
+        "start": 0.46,
+        "end": 0.7,
+        "text": "said"
+      },
+      {
+        "start": 0.78,
+        "end": 1.11,
+        "text": "\"stop.\""
+      },
+      {
+        "start": 1.19,
+        "end": 1.43,
+        "text": "then"
+      },
+      {
+        "start": 1.51,
+        "end": 1.75,
+        "text": "left"
+      }
+    ],
+    "max_words": 4
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 2,
+      "start": 0.2,
+      "end": 1.19,
+      "text": "He said \"stop.\""
+    },
+    {
+      "first": 3,
+      "last": 4,
+      "start": 1.19,
+      "end": 1.75,
+      "text": "then left"
+    }
+  ]
+}

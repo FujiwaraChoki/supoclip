@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-14
 
-- **New:** Dynamic edits. Choose an edit intensity (Subtle, Bold or Max) and your clips get zooms, sound effects, a music bed that ducks under the voice, transitions, speed ramps and freeze frames on the moments that matter. The AI finds those moments; you choose how much happens, and can switch off music, bleeps for swearing or anything else you don't want. Ten new animated caption styles come with it, such as numbers that count up, words that slam onto the screen and text behind the speaker, and they also work on their own. Change intensity for existing clips from the results page, or adjust single effects in the clip studio. ([#NNN](https://github.com/FujiwaraChoki/supoclip/pull/NNN))
+- **New:** Dynamic edits. Choose an edit intensity and your clips are cut the way top short-form editors cut them: Subtle like a podcast clip, Bold like Hormozi (punch-ins that hold, a hit on some cuts), Max like a MrBeast short. Reframes, short pushes, sound effects on cuts and graphics, a steady music bed and the odd flash at a cut land on the moments the AI picks; you can switch off music, bleeps for swearing or anything else you don't want. Three animated caption styles come with it, with words appearing as they're spoken: Highlighter (the key word in a solid box), Emoji Drop and Behind Head, and they also work on their own. Change intensity for existing clips from the results page, or adjust single effects in the clip studio. ([#NNN](https://github.com/FujiwaraChoki/supoclip/pull/NNN))
 
 ## 2026-11-12
 

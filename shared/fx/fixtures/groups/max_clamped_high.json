@@ -1,0 +1,103 @@
+{
+  "family": "groups",
+  "case": "max_clamped_high",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.38,
+        "text": "So"
+      },
+      {
+        "start": 0.46,
+        "end": 0.7,
+        "text": "here"
+      },
+      {
+        "start": 0.78,
+        "end": 0.96,
+        "text": "is"
+      },
+      {
+        "start": 1.04,
+        "end": 1.25,
+        "text": "the"
+      },
+      {
+        "start": 1.33,
+        "end": 1.6,
+        "text": "thing"
+      },
+      {
+        "start": 1.68,
+        "end": 1.95,
+        "text": "about"
+      },
+      {
+        "start": 2.03,
+        "end": 2.3,
+        "text": "money"
+      },
+      {
+        "start": 2.38,
+        "end": 2.68,
+        "text": "nobody"
+      },
+      {
+        "start": 2.76,
+        "end": 3.03,
+        "text": "tells"
+      },
+      {
+        "start": 3.11,
+        "end": 3.35,
+        "text": "you,"
+      },
+      {
+        "start": 3.43,
+        "end": 3.64,
+        "text": "and"
+      },
+      {
+        "start": 3.72,
+        "end": 3.9,
+        "text": "it"
+      },
+      {
+        "start": 3.98,
+        "end": 4.31,
+        "text": "changes"
+      },
+      {
+        "start": 4.39,
+        "end": 4.84,
+        "text": "everything."
+      }
+    ],
+    "max_words": 99
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 7,
+      "start": 0.2,
+      "end": 2.76,
+      "text": "So here is the thing about money nobody"
+    },
+    {
+      "first": 8,
+      "last": 9,
+      "start": 2.76,
+      "end": 3.43,
+      "text": "tells you,"
+    },
+    {
+      "first": 10,
+      "last": 13,
+      "start": 3.43,
+      "end": 4.84,
+      "text": "and it changes everything."
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from src.edit_fx import constants
+from src.edit_fx.caption_groups import grouped_words, phrase_groups
 from src.edit_fx.censor import censor_text, censored_words
 from src.edit_fx.contracts import FxCue
 from src.edit_fx.duck import duck_envelope, envelope_db_at, speech_spans
@@ -20,7 +21,7 @@ from src.edit_fx.warp import build_warp
 BACKEND = Path(__file__).resolve().parents[3]
 SHARED = BACKEND.parent / "shared" / "fx"
 FIXTURES = SHARED / "fixtures"
-FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry")
+FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry", "groups")
 CUE = TypeAdapter(FxCue)
 
 
@@ -86,6 +87,11 @@ def compute(fixture):
         return censor_text(inp["text"])
     if fn == "censored_words":
         return censored_words(inp["words"], [tuple(s) for s in inp["spans"]])
+    if fn == "phrase_groups":
+        order = grouped_words(inp["words"])
+        return [{"first": g.first, "last": g.last, "start": g.start, "end": g.end,
+                 "text": " ".join(str(w["text"]) for w in order[g.first:g.last + 1])}
+                for g in phrase_groups(inp["words"], inp["max_words"])]
     if fn == "geometry":
         x, y, w, h = constants.reaction_rect(inp["width"], inp["height"])
         return {"unit": constants.unit(inp["width"], inp["height"]),

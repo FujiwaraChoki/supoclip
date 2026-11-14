@@ -12,8 +12,9 @@ import { spring, springOvershoot } from "../spring";
 import { placeAt, spriteOp } from "../layout";
 import { BASE_LOOKS, baseCaptionOps } from "./base";
 import { registerAccent, registerCaptionStyle } from "../registry";
-import { anchorAt, chunkBox, standaloneAnchor, type WordAnchor } from "./anchor";
+import { anchorAt, chunkBox, matchCue, standaloneAnchor, wordsBox, type WordAnchor } from "./anchor";
 import type { PreparedScene } from "../scene";
+import { activeLook, lookCaptionOps } from "./looks";
 
 const DEG = Math.PI / 180;
 
@@ -99,9 +100,58 @@ export function emojiAnchor(p: PreparedScene, cue: AccentCue, t: number): WordAn
   return anchorAt(p, cue, cue.start, false) ?? anchorAt(p, cue, t, false) ?? standaloneAnchor(p, cue, cue.start, false);
 }
 
+/** Look emoji (spec §3.3): 0.26 W, centred on the caption group, 0.11 H below the caption (above it when the face or the
+ *  bottom safe area is in the way), 2 frames in (0.85 → 1, alpha 0 → 1, linear), no spring, no wobble, cut out with
+ *  its caption group. */
+export const LOOK_EMOJI = { sizeW: 0.26, side: 0.08, offsetH: 0.11, inFrames: 2, inScale: 0.85 } as const;
+
+const placements = new WeakMap<PreparedScene, WeakMap<AccentCue, { x: number; y: number; size: number } | null>>();
+
+/** Where a look emoji sits (output px, its centre); decided once per cue from the settled caption layout. */
+export function lookEmojiPlacement(p: PreparedScene, cue: AccentCue): { x: number; y: number; size: number } | null {
+  let byCue = placements.get(p);
+  if (!byCue) { byCue = new WeakMap(); placements.set(p, byCue); }
+  if (byCue.has(cue)) return byCue.get(cue)!;
+  const W = p.width, H = p.height, size = LOOK_EMOJI.sizeW * Math.min(W, H);
+  const safe = captionSafe(W, H), side = LOOK_EMOJI.side * W;
+  const m = matchCue(p, cue);
+  let result: { x: number; y: number; size: number } | null = null;
+  const fallbackY = (p.scene.caption?.y ?? 0.6) * H;
+  const word = m ? wordsBox(m.chunk, m.first, m.last) : { x: W / 2, y: fallbackY, w: 0, h: 0 };
+  const block = m ? chunkBox(m.chunk) : { x: W / 2, y: fallbackY, w: 0, h: 0 };
+  // Centred on the caption group (it re-centres as words are added, so the keyword's own x would drift away from the
+  // line), clamped to the side safe area.
+  const x = clamp(m ? m.chunk.centerX : word.x + word.w / 2, side + size / 2, W - side - size / 2);
+  const below = block.y + block.h + LOOK_EMOJI.offsetH * H;
+  const above = block.y - LOOK_EMOJI.offsetH * H;
+  const face = p.faceAt(cue.start);
+  const fits = (y: number) => y - size / 2 >= safe.top && y + size / 2 <= H - safe.bottom;
+  const clear = (y: number) => !face || !(x + size / 2 > face.x && x - size / 2 < face.x + face.w
+    && y + size / 2 > face.y + 0.15 * face.h && y - size / 2 < face.y + face.h);
+  for (const y of [below, above]) {
+    if (fits(y) && clear(y)) { result = { x, y, size }; break; }
+  }
+  if (!result) {
+    const y = fits(below) ? below : fits(above) ? above : null;
+    result = y === null ? null : { x, y, size };
+  }
+  byCue.set(cue, result);
+  return result;
+}
+
+function lookEmojiOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
+  const at = lookEmojiPlacement(dc.scene, cue);
+  if (!at) return [];
+  const k = clamp01((dc.local + 1 / 30) / (LOOK_EMOJI.inFrames / 30));
+  const scale = LOOK_EMOJI.inScale + (1 - LOOK_EMOJI.inScale) * k;
+  return [spriteOp({ key: cue.emoji, x: -at.size / 2, y: -at.size / 2, w: at.size, h: at.size,
+    transform: placeAt(at.x, at.y, 0, scale), alpha: k })];
+}
+
 function emojiOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
   const key = cue.emoji;
   if (!key) return [];
+  if (activeLook(dc.scene)) return lookEmojiOps(cue, dc);
   const anchor = emojiAnchor(dc.scene, cue, dc.t);
   if (!anchor) return [];
   const u = dc.u, size = EMOJI.sizePx * u;
@@ -158,7 +208,7 @@ function burstOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
 
 registerCaptionStyle({
   template: "emoji_drop",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.emoji_drop),
+  line: (chunk, dc) => (activeLook(dc.scene) ? lookCaptionOps(chunk, dc) : baseCaptionOps(chunk, dc, BASE_LOOKS.emoji_drop)),
 });
 
 registerAccent({

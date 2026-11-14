@@ -351,18 +351,18 @@
       },
       "subtle": {
         "label": "Subtle",
-        "hint": "A few zooms and soft sound effects"
+        "hint": "Reframes now and then, a quiet music bed"
       },
       "bold": {
         "label": "Bold",
-        "hint": "Punch-ins, whooshes and music"
+        "hint": "Punch-ins on the key moments, hits on cuts"
       },
       "max": {
         "label": "Max",
-        "hint": "Every trick, every beat"
+        "hint": "Fast reframes, louder hits and music"
       }
     },
-    "offHint": "Turn edits on to add sound effects, music, zooms and freeze frames on the moments that matter.",
+    "offHint": "Turn edits on to add reframes, sound effects and music on the moments that matter.",
     "groups": {
       "sound": "Sound",
       "motion": "Motion",
@@ -371,7 +371,7 @@
     "options": {
       "sfx": {
         "label": "Sound effects",
-        "hint": "Whooshes, impacts and pops on the beats"
+        "hint": "Short hits and pops on cuts and graphics"
       },
       "music": {
         "label": "Music",
@@ -380,7 +380,7 @@
       "musicMood": "Music mood",
       "zooms": {
         "label": "Zooms",
-        "hint": "Punch in on punchlines and big numbers"
+        "hint": "Reframes and short pushes on the key moments"
       },
       "shake": {
         "label": "Camera shake",
@@ -388,7 +388,7 @@
       },
       "transitions": {
         "label": "Transitions",
-        "hint": "Whips and flashes where the clip cuts"
+        "hint": "A rare flash where the clip cuts"
       },
       "speed": {
         "label": "Speed ramps and freezes",
@@ -444,7 +444,7 @@
       },
       "emoji_drop": {
         "name": "Emoji Drop",
-        "description": "Karaoke captions with emoji that bounce in under the punchlines"
+        "description": "Words appear as they’re spoken, with an emoji under the big moments"
       },
       "slam": {
         "name": "Slam",
@@ -452,7 +452,7 @@
       },
       "behind_head": {
         "name": "Behind Head",
-        "description": "Giant words that sit behind the speaker"
+        "description": "One giant word appears behind the speaker"
       },
       "stat_counter": {
         "name": "Stat Counter",
@@ -471,8 +471,8 @@
         "description": "Letters scramble and lock into place"
       },
       "highlighter_swipe": {
-        "name": "Highlighter Swipe",
-        "description": "A highlighter swiped across the key words"
+        "name": "Highlighter",
+        "description": "Words appear as they’re spoken; the key word lands in a solid box"
       },
       "face_doodles": {
         "name": "Face Doodles",

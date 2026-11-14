@@ -335,8 +335,8 @@ async def supoclip_list_caption_templates() -> str:
     Each template id (e.g. ``default``, ``hormozi``, ``mrbeast``) can be passed
     as ``caption_template`` to ``supoclip_create_clip_task``. No auth required.
     When the configured account has dynamic edits (``supoclip_list_edit_styles``),
-    the list also holds the animated templates (``fx: true``, e.g. ``slam``,
-    ``behind_head``; ``requires`` says if one needs a face or a person matte).
+    the list also holds the animated templates (``fx: true``: ``highlighter_swipe``,
+    ``emoji_drop``, ``behind_head``; ``requires`` says if one needs a face or a person matte).
 
     Returns:
         str: JSON ``{"templates": [{"id", "name", "description", "animation",
@@ -508,12 +508,14 @@ async def supoclip_create_clip_task(
     guidance for any workflow (max 500 characters), e.g. "skip the sponsor read"
     or "focus on the hiring story".
 
-    Dynamic edits: ``intensity`` ("off", "subtle", "bold", "max") adds
-    AI-timed sound effects, music, zooms, transitions, speed ramps and freeze
-    frames on the moments that matter; ``edit_style`` fine-tunes them with the
-    API's keys (sfx, music, music_mood, zooms, shake, transitions, speed,
-    censor, grade, grain, progress_bar, loop_ending, wait_for_it, reactions).
-    Animated caption templates (e.g. ``slam``) work with intensity off too.
+    Dynamic edits: ``intensity`` ("off", "subtle", "bold", "max") edits like
+    short-form editors do (subtle ≈ podcast clips, bold ≈ Hormozi, max ≈ MrBeast):
+    hard reframes that hold, short pushes, hits on cuts and graphics, a steady
+    music bed and the odd flash at a cut; ``edit_style`` fine-tunes them with the
+    API's keys (sfx, music, music_mood, zooms, transitions, censor, grade, grain,
+    progress_bar, loop_ending, reactions; shake, speed and wait_for_it are accepted
+    but never placed automatically). Animated caption templates
+    (``highlighter_swipe``, ``emoji_drop``, ``behind_head``) work with intensity off too.
     Both need dynamic edits on for the account (403 DYNAMIC_EDITS_NOT_AVAILABLE);
     ``supoclip_list_edit_styles`` tells you first.
 

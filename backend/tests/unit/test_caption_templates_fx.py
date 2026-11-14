@@ -22,14 +22,14 @@ from src.edit_fx.contracts import FX_CAPTION_TEMPLATES, LEGACY_CAPTION_TEMPLATES
 # §5.3 table: ass_fallback, needs_face, needs_matte, font_family, animation
 SPEC = {
     "marker_circle": ("default", False, False, "TikTokSans-Bold", "pop"),
-    "emoji_drop": ("tiktok", False, False, "Poppins-ExtraBold", "karaoke"),
+    "emoji_drop": ("tiktok", False, False, "Poppins-ExtraBold", "none"),
     "slam": ("mrbeast", False, False, "THEBOLDFONT", "pop"),
     "behind_head": ("minimal", True, True, "TikTokSans-Bold", "fade"),
     "stat_counter": ("hormozi", False, False, "Poppins-ExtraBold", "pop"),
     "sticker_slap": ("tiktok", False, False, "TikTokSans-Bold", "pop"),
     "kinetic_stack": ("mrbeast", False, False, "THEBOLDFONT", "bounce"),
     "decode_glitch": ("neon", False, False, "TikTokSans-Bold", "fade"),
-    "highlighter_swipe": ("minimal", False, False, "TikTokSans-Bold", "none"),
+    "highlighter_swipe": ("minimal", False, False, "Poppins-ExtraBold", "none"),
     "face_doodles": ("default", True, False, "TikTokSans-Bold", "karaoke"),
 }
 FX_ONLY_KEYS = {"fx", "ass_fallback", "needs_face", "needs_matte"}
@@ -69,7 +69,9 @@ def test_each_fx_template_follows_the_design_table(template_id):
 def test_each_fx_template_carries_every_legacy_key_with_valid_values(template_id):
     template = FX_CAPTION_TEMPLATES_DICT[template_id]
     legacy_keys = set(CAPTION_TEMPLATES["default"])
-    assert set(template) == legacy_keys | FX_ONLY_KEYS
+    # Unlisted templates carry "hidden": True (never offered, still rendered for stored tasks).
+    assert set(template) - {"hidden"} == legacy_keys | FX_ONLY_KEYS
+    assert template.get("hidden", False) is (template_id not in ("highlighter_swipe", "emoji_drop", "behind_head"))
     assert template["name"] and template["description"]
     assert HEX6.match(template["font_color"]) and HEX6.match(template["highlight_color"])
     assert template["emphasis_color"] is None or HEX6.match(template["emphasis_color"])
@@ -118,11 +120,12 @@ def test_template_info_appends_fx_entries_only_when_asked():
     with_fx = get_template_info(include_fx=True)
     assert with_fx[: len(legacy)] == legacy
     extra = with_fx[len(legacy):]
-    assert [entry["id"] for entry in extra] == list(FX_CAPTION_TEMPLATES)
+    # Only the listed styles are offered (catalogue order); unlisted ones stay valid ids but are never listed.
+    assert [entry["id"] for entry in extra] == [t for t in FX_CAPTION_TEMPLATES
+                                                if t in ("highlighter_swipe", "emoji_drop", "behind_head")]
     by_id = {entry["id"]: entry for entry in extra}
     assert by_id["behind_head"]["requires"] == ["matte"]
-    assert by_id["face_doodles"]["requires"] == ["face"]
-    assert by_id["slam"]["requires"] == []
+    assert by_id["emoji_drop"]["requires"] == []
     for entry in extra:
         assert entry["fx"] is True
         assert set(entry) == set(legacy[0]) | {"fx", "requires"}
@@ -144,7 +147,8 @@ async def test_caption_templates_route_lists_fx_only_with_include_fx():
         response = await _get(f"/caption-templates?{query}")
         assert response.status_code == 200
         ids = [entry["id"] for entry in response.json()["templates"]]
-        assert ids == list(LEGACY_CAPTION_TEMPLATES) + list(FX_CAPTION_TEMPLATES)
+        assert ids == list(LEGACY_CAPTION_TEMPLATES) + [t for t in FX_CAPTION_TEMPLATES
+                                                        if t in ("highlighter_swipe", "emoji_drop", "behind_head")]
 
     other = await _get("/caption-templates?include=other")
     assert other.json() == default.json()

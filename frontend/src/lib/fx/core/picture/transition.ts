@@ -8,8 +8,9 @@
 //   zoom_through scale 1 → 1.35 into the cut and 1.35 → 1 out of it (plus 3 radial ghost draws, "pixel" layer);
 //   spin         one full turn (0 → 360°, easeInOutCubic over ±0.2 s, direction seeded); coverScale(θ) per frame;
 //   glitch       the glitch modifier's slices and RGB split at amount 0.8.
-// Overlays ("flash" layer): flash = a white flash peaking at the cut; light_leak = two warm radial leaks (#FF9A3C,
-// #FF4D6D) sweeping across in `screen`, peak alpha 0.6.
+// Overlays ("flash" layer), spec §3.6: flash = 3 frames of white (0.6 the frame before the cut, 0.95 on the cut,
+// 0.3 after); light_leak = 6 frames of two warm radial leaks (#FFB347, #FF6A3D) sweeping across in `screen`
+// (2 frames up, 3 at about 0.85, 1 down).
 import type { DrawOp } from "../host";
 import { easeInCubic, easeInOutCubic, easeOutCubic, easeInOutSine, lerp } from "../easing";
 import { gradientOp, pictureMatrix, rectOp, round3 } from "../layout";
@@ -23,8 +24,12 @@ export const WHIP_TRAVEL = 140;       // u px
 export const WHIP_BLUR = 36;          // u px
 export const ZOOM_THROUGH_PEAK = 1.35;
 export const TRANSITION_GLITCH = 0.8;
-export const LIGHT_LEAK_PEAK = 0.6;
+export const LIGHT_LEAK_PEAK = 0.85;
 export const FLASH_PEAK = 0.95;
+/** Flash alpha per frame from the cut (-1, 0, +1). */
+export const FLASH_FRAMES: Readonly<Record<string, number>> = { "-1": 0.6, "0": 0.95, "1": 0.3 };
+/** Light leak envelope per frame from the cut (-3 .. +2), as a fraction of LIGHT_LEAK_PEAK. */
+export const LEAK_FRAMES: Readonly<Record<string, number>> = { "-3": 0.4, "-2": 0.8, "-1": 1, "0": 1, "1": 1, "2": 0.45 };
 
 const halfOf = (style: TransitionStyle): number => TRANSITION_HALF[style] ?? 0.1;
 export const transitionWindow = (cue: TransitionCue): [number, number] => {
@@ -107,13 +112,13 @@ registerCue({
   ops: (cue, dc) => {
     const W = dc.scene.width, H = dc.scene.height;
     const p = transitionPhase(cue, dc.local);
+    const frame = String(Math.round(dc.local * 30));
     if (cue.style === "flash") {
-      const alpha = round3(FLASH_PEAK * (1 - Math.abs(p)) ** 1.5);
+      const alpha = FLASH_FRAMES[frame] ?? 0;
       return alpha > 0.004 ? [rectOp({ x: 0, y: 0, w: W, h: H, fill: "#FFFFFF", alpha })] : [];
     }
     if (cue.style !== "light_leak") return [];
-    const env = Math.sin((Math.PI * (p + 1)) / 2);
-    const alpha = round3(LIGHT_LEAK_PEAK * env);
+    const alpha = round3(LIGHT_LEAK_PEAK * (LEAK_FRAMES[frame] ?? 0));
     if (alpha <= 0.004) return [];
     const s = easeInOutSine((p + 1) / 2), dir = direction(dc.hash, 3);
     const big = Math.max(W, H);
@@ -123,11 +128,11 @@ registerCue({
     return [
       gradientOp({
         kind: "radial", x0: warmX, y0: warmY, r0: 0, x1: warmX, y1: warmY, r1: 0.7 * big, rect: [0, 0, W, H], alpha, blend: "screen",
-        stops: [[0, "rgba(255,154,60,1)"], [0.35, "rgba(255,154,60,0.65)"], [1, "rgba(255,154,60,0)"]],
+        stops: [[0, "rgba(255,179,71,1)"], [0.35, "rgba(255,179,71,0.7)"], [1, "rgba(255,179,71,0)"]],
       }),
       gradientOp({
         kind: "radial", x0: pinkX, y0: pinkY, r0: 0, x1: pinkX, y1: pinkY, r1: 0.55 * big, rect: [0, 0, W, H], alpha: round3(alpha * 0.85), blend: "screen",
-        stops: [[0, "rgba(255,77,109,1)"], [0.4, "rgba(255,77,109,0.55)"], [1, "rgba(255,77,109,0)"]],
+        stops: [[0, "rgba(255,106,61,1)"], [0.4, "rgba(255,106,61,0.6)"], [1, "rgba(255,106,61,0)"]],
       }),
     ];
   },

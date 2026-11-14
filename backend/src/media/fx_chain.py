@@ -64,7 +64,8 @@ FX_MAIN_TS = FX_RUNTIME_DIR / "main.ts"
 FX_DENO_CONFIG = FX_RUNTIME_DIR / "deno.json"
 
 # Bundled font stems fx-core's drawers use (§11 "Fonts are bundled stems"); registered as "FX-<stem>" in P2.
-DRAWER_FONT_STEMS: tuple[str, ...] = ("TikTokSans-Bold", "TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT")
+DRAWER_FONT_STEMS: tuple[str, ...] = ("TikTokSans-Bold", "TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT",
+                                      "ArchivoBlack-Regular")
 
 PIPE_SIZE = 1 << 20                 # F_SETPIPE_SZ target; one 1080x1920 RGBA frame is ~8 MB, so this only smooths
 POLL_SECONDS = 0.1
@@ -899,6 +900,7 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
         if voice is not None or bus_path is not None:
             voice = voice or _silent_voice(edit_duration)
             static_gain: float | None = None
+            mix_gain: float | None = None
             if request.loudness == "static":
                 static_gain = 0.0
                 if real_voice:
@@ -914,11 +916,22 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
                         lufs = None
                     if lufs is not None and math.isfinite(lufs):
                         static_gain = max(-STATIC_GAIN_LIMIT_DB, min(STATIC_GAIN_LIMIT_DB, TARGET_LUFS - lufs))
+                    if bus_path is not None:
+                        try:
+                            audio = _audio_module()
+                            measure_mix = getattr(audio, "measure_mix_lufs", None)
+                            if measure_mix is not None:
+                                mix_gain = audio.mix_gain_db(measure_mix(
+                                    input_path, measured, bus_path, voice_gain_db=static_gain,
+                                    duration=edit_duration))
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning("fx_mix_lufs_failed (%s); mix gain 0 dB", exc)
                     timings["lufs"] = round((time.monotonic() - lufs_started) * 1000.0, 1)
             audio_graph = _audio_module().audio_graph(
                 voice_fragment=voice, bleeps_e=_bleep_spans(plan), warp=warp, out_duration=av_duration,
                 has_bus=bus_path is not None, voice_gain=float(request.voice_gain), loudness=request.loudness,
                 static_gain_db=static_gain,
+                **({"mix_gain_db": mix_gain} if mix_gain is not None else {}),
                 # The voice crossfades into its own head only under P2's frame0 crossfade (full); at level safe the
                 # picture does not loop, so the audio must not either.
                 loop_crossfade=LOOP_CROSSFADE_SECONDS if full and plan.loop_ending == "crossfade" else 0.0,

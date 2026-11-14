@@ -257,7 +257,7 @@ export function drawEditorFrame(
 // ------------------------------------------------------------------------------------------- dynamic edits (fx-core)
 
 /** Fonts the fx-core drawers use (== fx_chain.DRAWER_FONT_STEMS), registered as "FX-<stem>". */
-export const FX_DRAWER_FONTS = ["TikTokSans-Bold", "TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT"] as const;
+export const FX_DRAWER_FONTS = ["TikTokSans-Bold", "TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT", "ArchivoBlack-Regular"] as const;
 
 let fxEpoch = 0;
 let fxAtlas: EmojiAtlas | null = null;

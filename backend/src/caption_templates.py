@@ -198,6 +198,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
 # ASS fallback never injects libass emoji.
 FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
     "marker_circle": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Marker Circle",
         "description": "Clean captions with hand-drawn circles, underlines and arrows on the key words",
         "font_family": "TikTokSans-Bold",
@@ -226,7 +227,7 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
     },
     "emoji_drop": {
         "name": "Emoji Drop",
-        "description": "Karaoke captions with emoji that bounce in under the punchlines",
+        "description": "Words appear as they're spoken, with an emoji under the key moments",
         "font_family": "Poppins-ExtraBold",
         "font_size": 30,
         "font_color": "#FFFFFF",
@@ -238,20 +239,21 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "background_color": None,
         "word_box": False,
         "word_box_color": None,
-        "animation": "karaoke",
+        "animation": "none",
         "word_pop": True,
         "emoji": False,
         "uppercase": False,
         "shadow": True,
         "glow": False,
         "max_words_per_line": 3,
-        "position_y": 0.76,
+        "position_y": 0.55,
         "fx": True,
         "ass_fallback": "tiktok",
         "needs_face": False,
         "needs_matte": False,
     },
     "slam": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Slam",
         "description": "Huge keywords slam onto the screen with a punch",
         "font_family": "THEBOLDFONT",
@@ -280,7 +282,7 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
     },
     "behind_head": {
         "name": "Behind Head",
-        "description": "Giant words that sit behind the speaker",
+        "description": "One giant word appears behind the speaker on the big moments",
         "font_family": "TikTokSans-Bold",
         "font_size": 28,
         "font_color": "#FFFFFF",
@@ -299,13 +301,14 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "shadow": True,
         "glow": False,
         "max_words_per_line": 4,
-        "position_y": 0.80,
+        "position_y": 0.55,
         "fx": True,
         "ass_fallback": "minimal",
         "needs_face": True,
         "needs_matte": True,
     },
     "stat_counter": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Stat Counter",
         "description": "Spoken numbers count up on screen and stamp into place",
         "font_family": "Poppins-ExtraBold",
@@ -333,6 +336,7 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "needs_matte": False,
     },
     "sticker_slap": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Sticker Slap",
         "description": "Die-cut sticker words slapped around the frame",
         "font_family": "TikTokSans-Bold",
@@ -360,6 +364,7 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "needs_matte": False,
     },
     "kinetic_stack": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Kinetic Stack",
         "description": "The hook stacks up the screen in bold rows of mixed sizes",
         "font_family": "THEBOLDFONT",
@@ -387,6 +392,7 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "needs_matte": False,
     },
     "decode_glitch": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Decode Glitch",
         "description": "Letters scramble and lock into place with a digital glitch",
         "font_family": "TikTokSans-Bold",
@@ -414,17 +420,17 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "needs_matte": False,
     },
     "highlighter_swipe": {
-        "name": "Highlighter Swipe",
-        "description": "Dark text on a light card with a highlighter swiped across key words",
-        "font_family": "TikTokSans-Bold",
-        "font_size": 28,
-        "font_color": "#111111",
-        "highlight_color": "#FFE45C",  # Highlighter yellow
-        "emphasis_color": "#FFE45C",
+        "name": "Highlighter",
+        "description": "Words appear as they're spoken; the key word lands in a solid colour box",
+        "font_family": "Poppins-ExtraBold",
+        "font_size": 30,
+        "font_color": "#FFFFFF",
+        "highlight_color": "#34FD87",  # Keyword box (Bold); the look picks yellow at Subtle and Max
+        "emphasis_color": "#34FD87",
         "stroke_color": None,
         "stroke_width": 0,
         "background": True,
-        "background_color": "#FFFFFFE6",  # Light card, 90% opaque
+        "background_color": "#170904D9",  # Dark pill behind the words (Bold)
         "word_box": False,
         "word_box_color": None,
         "animation": "none",
@@ -433,14 +439,15 @@ FX_CAPTION_TEMPLATES_DICT: Dict[str, Dict[str, Any]] = {
         "uppercase": False,
         "shadow": False,
         "glow": False,
-        "max_words_per_line": 4,
-        "position_y": 0.80,
+        "max_words_per_line": 3,
+        "position_y": 0.55,
         "fx": True,
         "ass_fallback": "minimal",
         "needs_face": False,
         "needs_matte": False,
     },
     "face_doodles": {
+        "hidden": True,  # unlisted (rendered for stored tasks only)
         "name": "Face Doodles",
         "description": "Hand-drawn sparkles, horns and arrows that follow the speaker's face",
         "font_family": "TikTokSans-Bold",
@@ -528,8 +535,9 @@ def _template_requires(template: Dict[str, Any]) -> list:
 def get_template_info(include_fx: bool = False) -> list:
     """Get list of template info for API response.
 
-    The legacy list is unchanged. ``include_fx`` appends the animated templates (``fx: true`` plus what they
-    ``require``); only callers that already know the user can make dynamic edits pass it.
+    The legacy list is unchanged. ``include_fx`` appends the listed animated templates (``fx: true`` plus what
+    they ``require``); only callers that already know the user can make dynamic edits pass it. Unlisted animated
+    templates (``hidden: True``) are never listed, but ``get_template`` still resolves them for stored tasks.
     """
     info = [
         {
@@ -559,5 +567,6 @@ def get_template_info(include_fx: bool = False) -> list:
                 "requires": _template_requires(template),
             }
             for name, template in FX_CAPTION_TEMPLATES_DICT.items()
+            if not template.get("hidden")
         )
     return info

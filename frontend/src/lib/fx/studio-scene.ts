@@ -21,6 +21,7 @@ import {
 import { censoredWords } from "./core/censor";
 import { FACE_MAX_GAP } from "./core/scene";
 import {
+  captionLookFor,
   isFxTemplate,
   type CaptionPlacement,
   type FaceTrack,
@@ -87,6 +88,18 @@ function rgba(value: unknown): string | null {
 const DEFAULT_ACCENT = "#FFE000", DEFAULT_COLOR = "#FFFFFF", DEFAULT_FONT = "TikTokSans-Bold", DEFAULT_BOX = "#00000080";
 const MAX_STROKE_PX = 40, MAX_SIZE_PX = 400, MAX_PLACEMENT_SCALE = 4, MIN_PLACEMENT_SCALE = 1e-3;
 
+/** == edit_fx.caption_style.LOOKS (studio: the font is the document's, seeded from these). */
+const STUDIO_LOOKS = {
+  subtle: { font: "TikTokSans-Bold", strokeEm: 0, uppercase: false, words: 4 },
+  bold: { font: "Poppins-ExtraBold", strokeEm: 0, uppercase: false, words: 3 },
+  max: { font: "THEBOLDFONT", strokeEm: 0.09, uppercase: true, words: 3 },
+} as const;
+/** == edit_fx.caption_style.look_accent. */
+function lookAccent(template: string, look: "subtle" | "bold" | "max"): string {
+  if (template === "highlighter_swipe") return look === "bold" ? "#34FD87" : "#FFE45C";
+  return { subtle: "#F2C14E", bold: "#FFE00B", max: "#FCFB2B" }[look];
+}
+
 /** The template fields the FX caption look reads (CaptionLook carries them: caption_looks). */
 type TemplateLook = Pick<CaptionLook, "strokeColor" | "strokeWidth" | "shadow" | "backgroundColor" | "highlightColor">;
 /** Used only when the session did not send the template's look (never expected for FX ids). */
@@ -114,6 +127,32 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
   const baseStroke = Math.trunc(Number(look.strokeWidth ?? 3) || 0);
   const hasStroke = look.strokeColor !== null && look.strokeColor !== undefined;
   const wordsPerLine = Math.trunc(Number(captions.wordsPerLine));
+  const captionLook = captionLookFor(templateId, doc.fx?.style.intensity ?? "off", doc.fx?.sensitivity ?? "normal");
+  if (captionLook !== "template") {
+    // == fx_caption_style_from_document with a look (edit_fx.caption_style.LOOKS / LOOK_ACCENTS / LOOK_PILLS).
+    const look = captionLook;
+    const spec = STUDIO_LOOKS[look];
+    const strokePx = roundTo(spec.strokeEm * sizePx, 2);
+    const pill = templateId === "highlighter_swipe" && look === "bold" ? "#170904D9" : null;
+    return {
+      template: templateId.slice(0, 50),
+      font: String(captions.font || spec.font).slice(0, 80),
+      size_px: sizePx,
+      color: hex6(captions.color, DEFAULT_COLOR),
+      accent: hex6(captions.accent || lookAccent(templateId, look), DEFAULT_ACCENT),
+      stroke_color: strokePx > 0 ? "#000000" : null,
+      stroke_px: strokePx,
+      shadow: true,
+      background: pill && captions.background ? pill : null,
+      y: clamp(y, 0, 1),
+      x,
+      words_per_line: clamp(Number.isFinite(wordsPerLine) ? wordsPerLine : spec.words, 1, 8),
+      uppercase: spec.uppercase || !!captions.uppercase,
+      enabled: true,
+      placements: captionPlacements(doc, { x, y: clamp(y, 0, 1), scale: layer ? layer.scale : 1 }),
+      look,
+    };
+  }
   return {
     template: templateId.slice(0, 50),
     font: String(captions.font || DEFAULT_FONT).slice(0, 80),
@@ -130,6 +169,7 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
     uppercase: !!captions.uppercase,
     enabled: true,
     placements: captionPlacements(doc, { x, y: clamp(y, 0, 1), scale: layer ? layer.scale : 1 }),
+    look: "template",
   };
 }
 

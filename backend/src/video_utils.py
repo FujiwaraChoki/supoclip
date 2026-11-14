@@ -787,6 +787,10 @@ def _av_mismatch(path: Path) -> bool:
     return abs(durations["video"] - durations["audio"]) > FX_AV_TOLERANCE_SECONDS
 
 
+# Vertical layouts made of separate panels (reactor over source, call tiles, two speakers at once): no frame zooms.
+FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap"})
+
+
 def _without_warp(plan: "FxPlan") -> "FxPlan":
     return plan.model_copy(update={"cues": tuple(c for c in plan.cues if c.kind not in ("speed", "freeze"))})
 
@@ -836,6 +840,7 @@ def _fx_ladder_setup(
     kenburns_eligible: bool,
     fx_template: bool,
     template: Dict[str, Any],
+    layout_kind: Optional[str] = None,
     caption_template: str,
     add_subtitles: bool,
     hook_title: Optional[str],
@@ -855,13 +860,19 @@ def _fx_ladder_setup(
     the hook band."""
     from .edit_fx.baseline import baseline_pushes
     from .edit_fx.caption_style import fx_caption_style
+    from .edit_fx.contracts import caption_look_for
     from .media.common import hook_title_window
 
     plan = clamp_fx_plan(fx.plan, ffprobe_duration(source_clip_path))
     duration = float(plan.edit_duration)
     cuts, _ = fx_junctions(effective_keep_ranges, output_offsets)
     all_broll_windows = fx_broll_windows(broll_overlays)
-    if kenburns_eligible and (plan.style.zooms or not plan.style.active):
+    if layout_kind in FX_PANEL_LAYOUTS:
+        # A zoom of the whole frame would cross the seam between stacked panels: keep the planned reframes out.
+        plan = plan.model_copy(update={"cues": tuple(
+            c for c in plan.cues if not (c.kind == "zoom" and c.origin == "auto"))})
+    # Slow baseline pushes only where the references use them: style-only and subtle (spec §3.5).
+    if kenburns_eligible and plan.style.intensity in ("off", "subtle") and (plan.style.zooms or not plan.style.active):
         plan = baseline_pushes(plan, cuts=cuts, broll_windows=all_broll_windows)
 
     bleeps = (
@@ -870,7 +881,23 @@ def _fx_ladder_setup(
         else []
     )
     caption_style = None
-    if fx_template and add_subtitles:
+    look = caption_look_for(caption_template, plan.style.intensity, plan.sensitivity)
+    if fx_template and add_subtitles and look != "template":
+        # Intensity looks own font, size and position; a layout's caption row (a stacked layout's seam) wins over
+        # the look's default, and burned-in source captions still push it clear.
+        from .edit_fx.caption_style import LOOKS, look_caption_style, look_size_px
+        from .media.captions import caption_center_clear_of_band
+
+        y = float(caption_y) if caption_y is not None else float(LOOKS[look]["y"])
+        if source_caption_band is not None:
+            text_height = int(look_size_px(look, width) * 1.5)
+            y = caption_center_clear_of_band(y * height, text_height, source_caption_band, height) / height
+        caption_style = look_caption_style(
+            caption_template, look, width=width, height=height, caption_y=max(0.0, min(1.0, y)),
+            font_color=fx_font_color(template, font_color),
+        )
+        report["caption_y"] = caption_style.y
+    elif fx_template and add_subtitles:
         caption_style = fx_caption_style(
             template,
             template_id=caption_template,
@@ -962,6 +989,7 @@ def _render_fx_ladder(
             kenburns_eligible=kenburns_eligible,
             fx_template=fx_template,
             template=template,
+            layout_kind=plan_report.get("kind"),
             caption_template=caption_template,
             add_subtitles=add_subtitles,
             hook_title=hook_title,

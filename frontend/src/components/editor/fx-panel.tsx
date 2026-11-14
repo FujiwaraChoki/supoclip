@@ -767,10 +767,10 @@ export function FxPanel({ doc, asset, endpoint, update, seek, editor, info, cueI
             </OptionSwitch>
           </Group>
           <Group title={t("fx.groups.motion")}>
-            {(["zooms", "shake", "transitions", "speed"] as const).map(toggle)}
+            {(["zooms", "transitions"] as const).map(toggle)}
           </Group>
           <Group title={t("fx.groups.retention")}>
-            {(["wait_for_it", "progress_bar", "loop_ending"] as const).map(toggle)}
+            {(["progress_bar", "loop_ending"] as const).map(toggle)}
             {(info?.reactions_available || style.reactions) && toggle("reactions")}
           </Group>
         </div>

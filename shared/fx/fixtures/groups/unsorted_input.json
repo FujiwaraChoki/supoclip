@@ -1,0 +1,58 @@
+{
+  "family": "groups",
+  "case": "unsorted_input",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 1.57,
+        "end": 1.9,
+        "text": "epsilon"
+      },
+      {
+        "start": 1.22,
+        "end": 1.49,
+        "text": "delta"
+      },
+      {
+        "start": 0.87,
+        "end": 1.14,
+        "text": "gamma"
+      },
+      {
+        "start": 0.55,
+        "end": 0.79,
+        "text": "beta"
+      },
+      {
+        "start": 0.2,
+        "end": 0.47,
+        "text": "alpha"
+      }
+    ],
+    "max_words": 2
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 1,
+      "start": 0.2,
+      "end": 0.87,
+      "text": "alpha beta"
+    },
+    {
+      "first": 2,
+      "last": 3,
+      "start": 0.87,
+      "end": 1.57,
+      "text": "gamma delta"
+    },
+    {
+      "first": 4,
+      "last": 4,
+      "start": 1.57,
+      "end": 1.9700000000000002,
+      "text": "epsilon"
+    }
+  ]
+}

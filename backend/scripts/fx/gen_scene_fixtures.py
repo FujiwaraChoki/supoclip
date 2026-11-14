@@ -143,6 +143,16 @@ def cases() -> dict[str, dict]:
         base="layout", face=face_track("layout"))
     behind = fx(cues=[cue("accent", "b6.behind", 1.6, 2.5, variant="behind", text="FOR ME"),
                       cue("accent", "b7.doodle", 0.45, 1.40, variant="doodle", doodle="horns")])
+    # The intensity caption looks of the listed styles (fx_caption_style_from_document look=…).
+    add("look_max_emoji_drop", document([("all", 0.0, 5.0)], template="emoji_drop",
+                                        fx_data=fx(style={"intensity": "max"}),
+                                        captions={"template": "emoji_drop", "size": 84, "font": "THEBOLDFONT"}))
+    add("look_subtle_highlighter", document([("all", 0.0, 5.0)], template="highlighter_swipe",
+                                            fx_data=fx(style={"intensity": "subtle"}),
+                                            captions={"template": "highlighter_swipe", "size": 52, "y": 0.68,
+                                                      "wordsPerLine": 4}))
+    add("look_serious_is_subtle", document([("all", 0.0, 5.0)], template="behind_head",
+                                           fx_data=fx(style={"intensity": "max"}, sensitivity="serious")))
     add("behind_with_matte", document([("a", 0.0, 2.6), ("b", 3.6, 5.0)], template="behind_head", fx_data=behind),
         face=face_clean, matte=True)
     add("behind_without_matte", document([("a", 0.0, 2.6)], template="behind_head", fx_data=behind), matte=False)

@@ -88,10 +88,12 @@ function OptionRow({ id, label, hint, checked, onChange, disabled, children }: {
   );
 }
 
+// Camera shake, speed ramps / freezes and the "wait for it" sticker are never placed automatically any more (none of
+// the reference edits use them), so their switches are not offered; the stored settings keep working.
 const BOOL_OPTIONS = {
   sound: ["sfx", "music"],
-  motion: ["zooms", "shake", "transitions", "speed"],
-  retention: ["wait_for_it", "progress_bar", "loop_ending"],
+  motion: ["zooms", "transitions"],
+  retention: ["progress_bar", "loop_ending"],
 } as const;
 
 /**

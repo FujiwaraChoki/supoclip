@@ -448,9 +448,9 @@
     },
     "intensityHint": {
       "off": "No automatic edits. Edits you added yourself stay.",
-      "subtle": "A few zooms and soft sound effects.",
-      "bold": "Punch-ins, whooshes and music on the big moments.",
-      "max": "Every trick, on every beat."
+      "subtle": "Reframes now and then and a quiet music bed.",
+      "bold": "Punch-ins on the key moments, hits on some cuts.",
+      "max": "Fast reframes, louder hits and music."
     },
     "needsPlan": {
       "title": "Plan this clip first",
@@ -476,7 +476,7 @@
     "options": {
       "sfx": {
         "label": "Sound effects",
-        "hint": "Whooshes, impacts and pops on the beats"
+        "hint": "Short hits and pops on cuts and graphics"
       },
       "music": {
         "label": "Music",
@@ -484,7 +484,7 @@
       },
       "zooms": {
         "label": "Zooms",
-        "hint": "Punch in on punchlines and big numbers"
+        "hint": "Reframes and short pushes on the key moments"
       },
       "shake": {
         "label": "Camera shake",
@@ -492,7 +492,7 @@
       },
       "transitions": {
         "label": "Transitions",
-        "hint": "Whips and flashes where the clip cuts"
+        "hint": "A rare flash where the clip cuts"
       },
       "speed": {
         "label": "Speed ramps and freezes",

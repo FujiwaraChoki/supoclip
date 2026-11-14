@@ -98,7 +98,21 @@ def test_sfx_lands_on_its_sample_at_the_cue_gain(tmp_path, click_sfx):
     assert click_sfx == [("pop", 2, 11)]
 
 
-@pytest.mark.parametrize("intensity,bus_db", [("subtle", -4.0), ("bold", 0.0), ("max", 2.0), ("off", 0.0)])
+REAL_BUS_GAIN = ("test_sfx_get_the_intensity_bus_gain", "test_serious_mode_uses_the_subtle_bus_gain")
+
+
+@pytest.fixture(autouse=True)
+def unit_bus_gain(request, monkeypatch):
+    """The mixing tests below read amplitudes at 0 dB bus gain (bold used to be 0 dB); the level table itself is pinned
+    by test_resolver.test_sfx_bus_gain_row_and_cue_gains_stay_relative and the two tests in REAL_BUS_GAIN."""
+    if request.node.originalname in REAL_BUS_GAIN:
+        return
+    from src.edit_fx import resolver
+
+    monkeypatch.setattr(resolver, "SFX_BUS_GAIN_DB", {"style": 0.0, "subtle": -4.0, "bold": 0.0, "max": 2.0})
+
+
+@pytest.mark.parametrize("intensity,bus_db", [("subtle", -20.0), ("bold", -16.0), ("max", -10.0), ("off", -16.0)])
 def test_sfx_get_the_intensity_bus_gain(tmp_path, click_sfx, intensity, bus_db):
     out = tmp_path / "fxbus.wav"
     plan = _plan(SfxCue(id="s", start=0.5, end=0.5, sound="pop"), intensity=intensity)
@@ -110,7 +124,7 @@ def test_serious_mode_uses_the_subtle_bus_gain(tmp_path, click_sfx):
     out = tmp_path / "fxbus.wav"
     plan = _plan(SfxCue(id="s", start=0.5, end=0.5, sound="whoosh"), intensity="max", sensitivity="serious")
     assert fx_audio.build_bus(plan, words_e=[], warp=identity_warp(1), out_duration=1, path=out)
-    assert _read(out)[SR // 2, 0] == pytest.approx(0.25 * 10 ** (-4 / 20), abs=1e-4)
+    assert _read(out)[SR // 2, 0] == pytest.approx(0.25 * 10 ** (-20 / 20), abs=1e-4)
 
 
 def test_normalisation_gain_of_a_drop_in_is_applied(tmp_path, monkeypatch):

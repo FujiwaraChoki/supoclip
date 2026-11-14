@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FxAssetManifest } from "./assets-client";
 import { duckEnvelope, envelopeDbAt, speechSpans } from "./core/duck";
 import type { BleepCue, FxCue, MusicBed, SfxCue, AccentCue } from "./core/types";
 import { buildWarp, identityWarp } from "./core/warp";
 import {
   MIX_SAMPLE_RATE,
+  SFX_BUS_GAIN_DB,
   applyMutes,
   avDuration,
   bleepTone,
@@ -71,14 +72,23 @@ const rms = (data: Float32Array, from: number, to: number) => {
 
 describe("sfxBusGainDb (resolver.SFX_BUS_GAIN_DB)", () => {
   it("follows the intensity tier; serious forces subtle; off is style-only", () => {
-    expect(sfxBusGainDb({ intensity: "off" }, "normal")).toBe(0);
-    expect(sfxBusGainDb({ intensity: "subtle" }, "normal")).toBe(-4);
-    expect(sfxBusGainDb({ intensity: "bold" }, "normal")).toBe(0);
-    expect(sfxBusGainDb({ intensity: "max" }, "normal")).toBe(2);
-    expect(sfxBusGainDb({ intensity: "max" }, "serious")).toBe(-4);
-    expect(sfxBusGainDb({ intensity: "off" }, "serious")).toBe(0);
+    expect(sfxBusGainDb({ intensity: "off" }, "normal")).toBe(-16);
+    expect(sfxBusGainDb({ intensity: "subtle" }, "normal")).toBe(-20);
+    expect(sfxBusGainDb({ intensity: "bold" }, "normal")).toBe(-16);
+    expect(sfxBusGainDb({ intensity: "max" }, "normal")).toBe(-10);
+    expect(sfxBusGainDb({ intensity: "max" }, "serious")).toBe(-20);
+    expect(sfxBusGainDb({ intensity: "off" }, "serious")).toBe(-16);
   });
 });
+
+// The mixing tests below read amplitudes at 0 dB bus gain (bold used to be 0 dB); the level table itself is pinned by
+// the sfxBusGainDb test above and by the backend resolver tests.
+const REAL_BUS = { ...SFX_BUS_GAIN_DB };
+beforeEach((ctx) => {
+  if (ctx.task.name.startsWith("follows the intensity tier")) return;
+  Object.assign(SFX_BUS_GAIN_DB as Record<string, number>, { style: 0, subtle: -4, bold: 0, max: 2 });
+});
+afterEach(() => { Object.assign(SFX_BUS_GAIN_DB as Record<string, number>, REAL_BUS); });
 
 describe("fxAudioProgram", () => {
   it("places SFX at F times with cue + file + bus gain and the mix_sfx_file pick", () => {

@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api.routes import tasks
-from src.edit_fx.contracts import EditStyle, FX_CAPTION_TEMPLATES
+from src.edit_fx.contracts import EditStyle, LISTED_FX_CAPTION_TEMPLATES
 from src.repositories.task_repository import KEEP_EDIT_STYLE, TaskRepository
 from src.services import clip_service
 from src.services.clip_service import FxClipJobRequest, QueuedClipJob
@@ -208,7 +208,7 @@ async def test_edit_styles_reports_the_flag_and_the_choices(user, flag, monkeypa
         ],
         "music_moods": ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
         "grades": ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
-        "templates": list(FX_CAPTION_TEMPLATES),
+        "templates": list(LISTED_FX_CAPTION_TEMPLATES),
         "reactions_available": False,
     }
     assert flag.mock.await_args.kwargs == {"platform": "ios", "user_id": "user-1"}

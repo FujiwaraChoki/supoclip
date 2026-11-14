@@ -962,7 +962,8 @@
           "enum": [
             "punch",
             "push",
-            "pull"
+            "pull",
+            "nudge"
           ],
           "title": "Mode",
           "type": "string"

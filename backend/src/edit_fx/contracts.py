@@ -13,8 +13,9 @@ from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-EDIT_FX_VERSION = "fx-v1"     # bump when resolver output changes for the same inputs
-BEATS_VERSION = "beats-v1"    # bump when the beat prompt, schema or validation changes
+EDIT_FX_VERSION = "fx-v2"     # bump when resolver output changes for the same inputs
+BEATS_VERSION = "beats-v2"    # bump when the beat prompt, schema or validation changes (the cache key; EditBeats.version
+                              # stays the stored schema version "beats-v1")
 FX_SCENE_VERSION = 1          # bump when FxScene (the P2 / browser contract) changes shape
 FPS = 30
 FRAME = 1.0 / FPS
@@ -49,10 +50,30 @@ FX_CAPTION_TEMPLATES: tuple[str, ...] = (
     "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles",
 )
 LEGACY_CAPTION_TEMPLATES: tuple[str, ...] = ("default", "hormozi", "mrbeast", "minimal", "tiktok", "neon", "podcast")
+# The animated styles offered in catalogues and pickers. The others stay valid ids (stored tasks, drafts and API
+# callers keep rendering them with their own drawers) but are never listed.
+LISTED_FX_CAPTION_TEMPLATES: tuple[str, ...] = ("highlighter_swipe", "emoji_drop", "behind_head")
+# Templates drawn with the intensity caption looks (CAPTION_LOOKS): phrase groups, word-by-word reveal, keyword boxes.
+LOOK_TEMPLATES: frozenset[str] = frozenset(LISTED_FX_CAPTION_TEMPLATES)
+CaptionLook = Literal["template", "subtle", "bold", "max"]
 
 
 def is_fx_template(template_id: str | None) -> bool:
     return template_id in FX_CAPTION_TEMPLATES
+
+
+def is_listed_fx_template(template_id: str | None) -> bool:
+    return template_id in LISTED_FX_CAPTION_TEMPLATES
+
+
+def caption_look_for(template_id: str | None, intensity: str | None, sensitivity: str = "normal") -> str:
+    """The caption look of a template at an intensity: hidden templates keep their own ("template"); listed ones
+    follow the intensity, style-only (off) draws the Bold look, serious clips the Subtle one."""
+    if template_id not in LOOK_TEMPLATES:
+        return "template"
+    if sensitivity == "serious":
+        return "subtle"
+    return intensity if intensity in ("subtle", "bold", "max") else "bold"
 
 
 class _Strict(BaseModel):
@@ -177,7 +198,8 @@ class AccentCue(CueBase):
 
 class ZoomCue(CueBase):
     kind: Literal["zoom"] = "zoom"
-    mode: Literal["punch", "push", "pull"]                 # punch = hard cut in; push/pull = eased ramp to/from `scale`
+    mode: Literal["punch", "push", "pull", "nudge"]        # punch = hard reframe held to `end`; push/pull = eased ramp
+                                                           # to/from `scale`; nudge = 11-frame eased push, then held
     scale: float = Field(ge=1.0, le=1.6)
     anchor: Literal["face", "center"] = "face"             # face falls back to centre (0.5, 0.38) when no face at t
 
@@ -255,14 +277,17 @@ FxCue = Annotated[
 ]
 
 TRANSITION_HALF: dict[str, float] = {      # visual half-window (s) around the cut, mirrored in fx-core
-    "whip": 0.12, "flash": 0.10, "glitch": 0.10, "zoom_through": 0.18, "spin": 0.20, "light_leak": 0.35,
+    # flash: 3 frames (one before the cut, the cut, one after); light_leak: 6 frames (3 before, 3 after)
+    "whip": 0.12, "flash": 0.05, "glitch": 0.10, "zoom_through": 0.18, "spin": 0.20, "light_leak": 0.10,
 }
+# Transition styles the resolver places on its own; the rest are only placed by hand in the studio.
+AUTO_TRANSITION_STYLES: tuple[str, ...] = ("flash", "light_leak")
 
 
 class MusicBed(_Strict):
     mood: Mood
     bed: str = Field(min_length=1, max_length=80)          # asset id, e.g. "hype" or "hype-mytrack"
-    gain_db: float = Field(default=-20, ge=-40, le=0)      # bed level with no speech
+    gain_db: float = Field(default=-20, ge=-40, le=12)     # bed level with no speech (0 dB = the bed at -20 LUFS)
     duck_db: float = Field(default=-12, ge=-30, le=0)      # extra attenuation under speech
     attack: float = Field(default=0.08, ge=0.01, le=1)
     release: float = Field(default=0.35, ge=0.05, le=2)
@@ -351,6 +376,10 @@ class FxCaptionStyle(_Strict):
     uppercase: bool = False
     enabled: bool = True
     placements: tuple[CaptionPlacement, ...] = ()
+    # "template": the template's own motion (fixed word groups, karaoke, entrances). subtle/bold/max: the intensity
+    # looks measured from reference edits (phrase groups of up to words_per_line, word-by-word reveal at bold/max,
+    # 0-frame entrances, a 2-frame pop at max, keyword boxes), see CAPTION_LOOKS in fx-core captions/looks.ts.
+    look: CaptionLook = "template"
 
 
 class FxWord(_Strict):

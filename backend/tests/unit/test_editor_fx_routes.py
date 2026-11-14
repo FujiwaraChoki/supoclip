@@ -121,9 +121,10 @@ async def test_opening_seeds_old_drafts_and_looks_follow_the_flag(studio):
     state = (await studio.http.get(BASE)).json()
     assert state["draft"]["document"]["fx"]["seed"] == 42
     assert state["original"]["fx"]["seed"] == 42
-    assert "slam" not in state["captionLooks"]
+    assert "emoji_drop" not in state["captionLooks"]
     studio.flag["on"] = True
-    assert (await studio.http.get(BASE)).json()["captionLooks"]["slam"]["fx"] is True
+    looks = (await studio.http.get(BASE)).json()["captionLooks"]
+    assert looks["emoji_drop"]["fx"] is True and "slam" not in looks      # unlisted styles are never offered
 
 
 async def test_a_stored_fx_template_always_gets_its_look(studio):
@@ -268,7 +269,8 @@ async def test_resolve_adds_baseline_pushes_only_without_a_baked_zoom(studio, as
     studio.flag["on"] = True
     doc = document(framing={"fit": "auto"}, fx=planned_fx(beats=[]))
     put(studio, doc, **asset)
-    response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": doc, "style": {"intensity": "bold"}})
+    # Baseline pushes exist at subtle (and style-only); bold and max reframe instead.
+    response = await studio.http.post(f"{BASE}/fx/resolve", json={"document": doc, "style": {"intensity": "subtle"}})
     assert response.status_code == 200, response.text
     assert any(c["id"].startswith("kb") for c in response.json()["document"]["fx"]["cues"]) is pushes
 

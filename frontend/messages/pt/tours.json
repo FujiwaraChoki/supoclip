@@ -53,11 +53,11 @@
     },
     "intensity": {
       "title": "Escolha a intensidade",
-      "body": "Sutil adiciona alguns zooms e sons suaves, Forte adiciona aproximações, whooshes e música de fundo, e Máxima usa todos os truques em cada momento. Desligada deixa os clipes como antes. Depois de ligar, os botões abaixo permitem tirar a música, os bipes de palavrões ou o que você não quiser."
+      "body": "Sutil reenquadra de vez em quando com uma música de fundo baixa, como um corte de podcast. Forte aproxima e afasta nos momentos-chave com um impacto em alguns cortes, como o Hormozi. Máximo reenquadra quase toda frase, com impactos e música mais altos, como um short do MrBeast. Desligado mantém os clipes exatamente como antes. Depois de ligar, os botões abaixo deixam você desligar a música, os bipes de palavrão ou o que não quiser."
     },
     "captions": {
       "title": "Estilos de legenda animados",
-      "body": "Dez estilos novos desenhados quadro a quadro, como números que sobem contando, palavras que batem na tela ou texto atrás de quem fala. Cada miniatura mostra o estilo real. Eles também funcionam sozinhos, com as edições desligadas."
+      "body": "Três estilos desenhados quadro a quadro: a palavra-chave numa caixa colorida, um emoji sob os grandes momentos ou uma palavra gigante atrás de quem fala. As palavras aparecem conforme são ditas. Cada miniatura toca o estilo real. Também funcionam sozinhos, com as edições desligadas."
     }
   },
   "dynamic-edits-studio": {
@@ -71,7 +71,7 @@
     },
     "lane": {
       "title": "Cada efeito na linha do tempo",
-      "body": "Cada zoom, som e sticker é um bloco aqui. Arraste para mover, clique duas vezes para mudar, ou selecione e aperte Delete para remover. Clique duas vezes em um espaço vazio para adicionar um som."
+      "body": "Cada zoom e cada som é um bloco aqui. Arraste para mover, clique duas vezes para mudar, ou selecione e aperte Delete para remover. Clique duas vezes num espaço vazio para adicionar um som."
     }
   },
   "skip": "Pular"

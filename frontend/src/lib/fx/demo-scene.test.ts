@@ -57,7 +57,9 @@ describe("demo scenes", () => {
   it("sizes captions like the generation path", () => {
     // fx_caption_style at 1080 wide: clamp(round(30 · 1080 / 560), 26, 132) = 58, outline round(58 · 3 / 26) = 7.
     expect(demoCaptionStyle("marker_circle")).toMatchObject({ size_px: 58, stroke_px: 7, stroke_color: "#000000", y: 0.78 });
-    expect(demoCaptionStyle("highlighter_swipe")).toMatchObject({ stroke_px: 0, stroke_color: null, background: "#FFFFFFE6" });
+    // The listed styles demo their Bold look (look_caption_style: 72 px at 1080, the highlighter's dark pill).
+    expect(demoCaptionStyle("highlighter_swipe")).toMatchObject({ size_px: 72, stroke_px: 0, stroke_color: null,
+      background: "#170904D9", accent: "#34FD87", look: "bold" });
     // Tiles enlarge captions (and their outline) so a thumbnail stays legible.
     expect(demoCaptionStyle("marker_circle", 1080, 1.7)).toMatchObject({ size_px: 99, stroke_px: 11 });
     expect(demoScene("slam", { captionScale: 1.7 }).caption?.size_px).toBe(Math.round(66 * 1.7));
