@@ -14,6 +14,8 @@ task never delete each other's files or inherit each other's failures.
 """
 from __future__ import annotations
 
+import contextvars
+import copy
 import logging
 import math
 import re
@@ -26,10 +28,15 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Iterable, Optional
-from urllib.parse import parse_qs, urlparse
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 
+from .stream_transfer import (
+    TransferBudget, TransferStopped, account_chunk, bounded_client,
+    check_transfer, local_work, transfer_scope,
+)
 from .config import get_config
 from .youtube_proxy import normalize_country, render_proxy_url, sticky_session_id
 from .youtube_source import CachedPiece, assemble_timeline, merge_ranges, ranges_from_segments
@@ -57,6 +64,11 @@ _DIRECT_RETRY_BACKOFF_SECONDS = 1.5
 _FAILED_TTL_SECONDS = 600.0
 _STATE_TTL_SECONDS = 6 * 3600.0
 _SECTION_TOLERANCE_SECONDS = 1.0
+# Selected sections of an HLS VOD are fetched fragment by fragment, a few at a
+# time: one proxied connection runs at ~1 MiB/s, slower than 1080p60 plays.
+_HLS_SECTION_WORKERS = 4
+_HLS_FRAGMENT_ATTEMPTS = 3
+_HLS_CHUNK_BYTES = 1024 * 1024
 # Actor media URLs are signed and expire; an old preflight result (e.g. a manual
 # retry hours later) is ignored so the actor may run once more instead.
 _SEEDED_MEDIA_TTL_SECONDS = 3600.0
@@ -116,6 +128,7 @@ class _Operation:
     failed_until: float = 0.0
     local_media: Optional[Path] = None
     touched: float = field(default_factory=time.monotonic)
+    budget: Optional[TransferBudget] = None
 
 
 _operations: dict[tuple[str, str], _Operation] = {}
@@ -265,6 +278,15 @@ def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, so
         "outtmpl": str(output), "noplaylist": True, "quiet": True, "no_warnings": True,
         "retries": 1, "fragment_retries": 3, "socket_timeout": socket_timeout,
         "max_filesize": c.youtube_download_max_bytes,
+        "external_downloader": {"default": "native"},
+        "hls_prefer_native": True,
+        "concurrent_fragment_downloads": 1,
+        "skip_unavailable_fragments": False,
+        # yt-dlp's HLS downloader may otherwise delegate unsupported manifests
+        # to ffmpeg, bypassing response accounting and cooperative cancellation.
+        # Local cutting/remuxing uses our own ffmpeg after the network closes.
+        "ffmpeg_location": str(_work_root() / ".network-ffmpeg-disabled"),
+        "fixup": "never",
     }
     if provider == "proxy":
         if not c.youtube_proxy_url:
@@ -277,17 +299,12 @@ def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, so
     # Kick HLS has no audio-only rendition; the smallest video keeps proxy traffic low.
     opts["format"] = (
         "bestaudio/worst[height<=360]/worst" if audio
-        else f"bestvideo[height<={c.youtube_max_height}]+bestaudio/best[height<={c.youtube_max_height}]/best"
+        # "best" means one rendition with both video and audio. Merging separate
+        # tracks needs yt-dlp's ffmpeg, which is disabled above.
+        else f"best[height<={c.youtube_max_height}]/best"
     )
-    if not audio:
-        opts["merge_output_format"] = "mkv"
     if ranges:
-        # "index" becomes %(section_number)s; without it every section is
-        # written to the same "section-NA" file and overwrites the previous one.
-        opts["download_ranges"] = lambda _info, _ydl: [
-            {"start_time": a, "end_time": b, "index": i} for i, (a, b) in enumerate(ranges, 1)
-        ]
-        opts["force_keyframes_at_cuts"] = True
+        raise StreamSourceError("Network section downloads are disabled; cut local media instead")
     return opts
 
 
@@ -299,13 +316,11 @@ def _socket_timeout(deadline: Optional[float], default: float = 10.0) -> float:
 
 def _extract(url: str, provider: str, *, session: str, deadline: Optional[float] = None) -> dict:
     """Metadata only (no media), with a real second attempt for ``direct_retry``."""
-    from yt_dlp import YoutubeDL
-
     attempts = 2 if provider == "direct_retry" else 1
     for attempt in range(attempts):
         try:
             options = _ydl_options(provider, Path("metadata"), session=session, socket_timeout=_socket_timeout(deadline))
-            with YoutubeDL(options) as ydl:
+            with bounded_client(options) as ydl:
                 info = ydl.extract_info(url, download=False, process=False)
             if not info:
                 raise RuntimeError("provider returned no metadata")
@@ -313,6 +328,7 @@ def _extract(url: str, provider: str, *, session: str, deadline: Optional[float]
         except ProviderSkipped:
             raise
         except Exception as exc:
+            check_transfer()
             out_of_time = deadline is not None and time.monotonic() + _DIRECT_RETRY_BACKOFF_SECONDS + 1 >= deadline
             if attempt + 1 == attempts or _is_private_error(exc) or out_of_time:
                 raise
@@ -323,16 +339,12 @@ def _extract(url: str, provider: str, *, session: str, deadline: Optional[float]
 
 def _download_info(info: dict, provider: str, template: Path, *, audio: bool, ranges, session: str) -> None:
     """Download from already-extracted metadata so the platform is not queried twice."""
-    from yt_dlp import YoutubeDL
-
-    with YoutubeDL(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
+    with bounded_client(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
         ydl.process_ie_result(info, download=True)
 
 
 def _download_url(url: str, provider: str, template: Path, *, audio: bool, ranges, session: str) -> None:
-    from yt_dlp import YoutubeDL
-
-    with YoutubeDL(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
+    with bounded_client(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session)) as ydl:
         ydl.extract_info(url, download=True)
 
 
@@ -365,6 +377,238 @@ def _finish(directory: Path, call_dir: Path, ranges) -> Path:
     return dest
 
 
+# ------------------------------------------------------------- HLS sections
+
+class _NoHlsSections(Exception):
+    """This rendition can't be fetched fragment by fragment; download it whole."""
+
+
+@dataclass(frozen=True)
+class _HlsSegment:
+    start: float
+    duration: float
+    uri: str
+    init: Optional[str]
+    discontinuity: bool
+
+    @property
+    def end(self) -> float:
+        return self.start + self.duration
+
+
+def _parse_media_playlist(text: str, base_url: str) -> list[_HlsSegment]:
+    """Segments of a plain (unencrypted, whole-file) HLS media playlist."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines or lines[0] != "#EXTM3U":
+        raise _NoHlsSections("not an HLS playlist")
+    segments: list[_HlsSegment] = []
+    position, duration, init, discontinuity = 0.0, None, None, False
+    for line in lines[1:]:
+        if line.startswith("#EXT-X-STREAM-INF") or line.startswith("#EXT-X-BYTERANGE"):
+            raise _NoHlsSections("master playlist or byte-range segments")
+        if line.startswith("#EXT-X-KEY"):
+            method = re.search(r"METHOD=([^,\s]+)", line)
+            if not method or method.group(1).upper() != "NONE":
+                raise _NoHlsSections("encrypted segments")
+        elif line.startswith("#EXT-X-MAP"):
+            uri = re.search(r'URI="([^"]+)"', line)
+            if not uri or "BYTERANGE" in line:
+                raise _NoHlsSections("unsupported init segment")
+            init = urljoin(base_url, uri.group(1))
+        elif line == "#EXT-X-DISCONTINUITY":
+            discontinuity = True
+        elif line.startswith("#EXTINF:"):
+            duration = _number(line[len("#EXTINF:"):].split(",", 1)[0])
+            if duration is None:
+                raise _NoHlsSections("segment without a duration")
+        elif not line.startswith("#"):
+            if duration is None:
+                raise _NoHlsSections("segment without a duration")
+            segments.append(_HlsSegment(position, duration, urljoin(base_url, line), init, discontinuity))
+            position += duration
+            duration, discontinuity = None, False
+    if not segments:
+        raise _NoHlsSections("playlist has no segments")
+    return segments
+
+
+def _segment_spans(segments: list[_HlsSegment], ranges) -> list[tuple[int, int]]:
+    """Inclusive segment index spans covering every range, merged when they touch."""
+    spans: list[tuple[int, int]] = []
+    for start, end in sorted(ranges):
+        first = next((i for i, seg in enumerate(segments) if seg.end > start), None)
+        last = next((i for i in range(len(segments) - 1, -1, -1) if segments[i].start < end), None)
+        if first is None or last is None or last < first:
+            raise RuntimeError(f"the playlist ({segments[-1].end:.1f}s) does not cover {start:.1f}-{end:.1f}s")
+        if spans and first <= spans[-1][1] + 1:
+            spans[-1] = (spans[-1][0], max(spans[-1][1], last))
+        else:
+            spans.append((first, last))
+    for first, last in spans:
+        if any(segments[i].discontinuity or segments[i].init != segments[first].init for i in range(first + 1, last + 1)):
+            raise _NoHlsSections("a section crosses a discontinuity")
+    return spans
+
+
+def _read_url(ydl, url: str, headers: dict, destination: Optional[Path] = None) -> tuple[bytes, str]:
+    """Fetch one URL through the bounded client, retrying transport errors.
+
+    Returns the body (empty when written to ``destination``) and the final URL
+    after redirects, which relative playlist entries resolve against.
+    """
+    from yt_dlp.networking import Request
+
+    for attempt in range(_HLS_FRAGMENT_ATTEMPTS):
+        try:
+            with ydl.urlopen(Request(url, headers=headers)) as response:
+                final_url = getattr(response, "url", None) or url
+                if destination is None:
+                    return response.read(), final_url
+                with destination.open("wb") as handle:
+                    while chunk := response.read(_HLS_CHUNK_BYTES):
+                        handle.write(chunk)
+                return b"", final_url
+        except TransferStopped:
+            raise
+        except Exception:
+            check_transfer()
+            if attempt + 1 == _HLS_FRAGMENT_ATTEMPTS:
+                raise
+            time.sleep(min(2.0, 0.5 * (attempt + 1)))
+    raise RuntimeError("unreachable")  # pragma: no cover
+
+
+def _clamp_to_playlist(ranges, total: float):
+    """Absorb rounding between the reported length and the playlist's end."""
+    clamped = []
+    for start, end in ranges:
+        if end > total:
+            if end - total > _SECTION_TOLERANCE_SECONDS or start >= total - 0.05:
+                raise RuntimeError(f"the playlist ({total:.1f}s) does not cover {start:.1f}-{end:.1f}s")
+            end = total
+        clamped.append((start, end))
+    return clamped
+
+
+def _normalize_span(source: Path, dest: Path) -> None:
+    """Remux a downloaded span so its first timestamp is zero.
+
+    MPEG-TS starts at an arbitrary PTS and fragmented MP4 keeps each fragment's
+    original decode time, so probing or seeking the raw span measures from the
+    wrong origin.
+    """
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-nostdin", "-i", str(source), "-map", "0:v:0", "-map", "0:a:0?",
+         "-c", "copy", "-avoid_negative_ts", "make_zero", str(dest)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or not dest.exists():
+        raise RuntimeError("could not remux a downloaded section")
+
+
+def _hls_section_pieces(source: dict | str, provider: str, work_dir: Path, ranges, *, session: str) -> tuple[list[tuple[CachedPiece, float, float]], float]:
+    """Download only the HLS fragments under ``ranges``.
+
+    ``source`` is extracted platform metadata or a playlist URL (Apify media).
+    Returns the slices to assemble and the playlist's total length.
+
+    yt-dlp's own section download hands the network to ffmpeg, which bypasses the
+    byte budget, so fragments are fetched here through the same bounded client.
+    Raises ``_NoHlsSections`` when the rendition is not plain HLS; the caller
+    then downloads the whole file as before.
+    """
+    if isinstance(source, dict) and not source.get("formats") and not source.get("url"):
+        raise _NoHlsSections("no formats to choose from")
+    work_dir.mkdir(parents=True, exist_ok=True)
+    with bounded_client(_ydl_options(provider, work_dir / "unused.%(ext)s", session=session)) as ydl:
+        try:
+            info = (
+                copy.deepcopy(source) if isinstance(source, dict)
+                else ydl.extract_info(source, download=False, process=False)
+            )
+            selected = ydl.process_ie_result(info, download=False)
+        except TransferStopped:
+            raise
+        except Exception as exc:
+            check_transfer()
+            raise _NoHlsSections(f"format selection failed: {_redact(exc)}") from exc
+        url = selected.get("url")
+        if selected.get("requested_formats") or not url or selected.get("protocol") not in {"m3u8", "m3u8_native"}:
+            raise _NoHlsSections("selected rendition is not a single HLS stream")
+        headers = dict(selected.get("http_headers") or {})
+        body, playlist_url = _read_url(ydl, url, headers)
+        segments = _parse_media_playlist(body.decode("utf-8", "replace"), playlist_url)
+        total = segments[-1].end
+        ranges = _clamp_to_playlist(ranges, total)
+        spans = _segment_spans(segments, ranges)
+        jobs = []
+        for number, (first, last) in enumerate(spans):
+            for index in range(first, last + 1):
+                jobs.append((segments[index].uri, work_dir / f"span-{number:03d}-{index:06d}.part"))
+        init_files = {
+            init: work_dir / f"init-{number:03d}.part"
+            for number, init in enumerate(sorted({segments[first].init for first, _last in spans if segments[first].init}))
+        }
+        jobs.extend(init_files.items())
+        logger.info(
+            "Stream HLS sections provider=%s spans=%d fragments=%d of %d",
+            provider, len(spans), len(jobs) - len(init_files), len(segments),
+        )
+        failed = threading.Event()
+
+        def fetch(uri: str, dest: Path) -> None:
+            if failed.is_set():
+                return
+            try:
+                _read_url(ydl, uri, headers, dest)
+            except BaseException:
+                failed.set()
+                raise
+
+        with ThreadPoolExecutor(max_workers=_HLS_SECTION_WORKERS) as pool:
+            # Each worker thread needs this call's transfer scope (a ContextVar).
+            futures = [pool.submit(contextvars.copy_context().run, fetch, uri, dest) for uri, dest in jobs]
+            for future in futures:
+                future.result()
+
+    pieces: list[CachedPiece] = []
+    with local_work():
+        for number, (first, last) in enumerate(spans):
+            init = segments[first].init
+            raw = work_dir / f"span-{number:03d}.raw{'.mp4' if init else '.ts'}"
+            with raw.open("wb") as handle:
+                parts = ([init_files[init]] if init else []) + [
+                    work_dir / f"span-{number:03d}-{index:06d}.part" for index in range(first, last + 1)
+                ]
+                for part in parts:
+                    with part.open("rb") as part_file:
+                        shutil.copyfileobj(part_file, handle, _HLS_CHUNK_BYTES)
+                    if part not in init_files.values():
+                        part.unlink()
+            span_path = work_dir / f"span-{number:03d}.mkv"
+            _normalize_span(raw, span_path)
+            raw.unlink()
+            start, end = segments[first].start, segments[last].end
+            actual, wanted = _probe(span_path), end - start
+            if actual is None or abs(actual - wanted) > max(_SECTION_TOLERANCE_SECONDS, wanted * 0.02):
+                raise RuntimeError(f"section {start:.1f}-{end:.1f}s came back {actual or 0:.1f}s long; refusing an inaccurate cut")
+            pieces.append(CachedPiece(start, end, span_path))
+    slices = []
+    for a, b in ranges:
+        piece = next((p for p in pieces if p.start <= a + 1e-6 and b <= p.end + 1e-6), None)
+        if piece is None:  # pragma: no cover - spans are built from these ranges
+            raise RuntimeError(f"no downloaded section covers {a:.1f}-{b:.1f}s")
+        slices.append((piece, a, b))
+    return slices, total
+
+
+def _assemble(slices, call_dir: Path) -> Path:
+    dest = call_dir / "selected-segments.mkv"
+    with local_work():
+        assemble_timeline(slices, dest)
+    return dest
+
+
 def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, template, *, audio, ranges, max_duration, session):
     attempts = 2 if provider == "direct_retry" else 1
     for attempt in range(attempts):
@@ -376,11 +620,32 @@ def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, templa
             # Enforce the plan cap before any media is downloaded.
             _check_cap(duration or state.expected_duration, max_duration)
             wanted = _clamp_ranges(ranges, duration or state.expected_duration)
-            _download_info(info, provider, template, audio=audio, ranges=wanted, session=session)
-            return _finish(attempt_dir, call_dir, wanted)
+            if ranges and state.local_media is not None and state.local_media.exists():
+                with local_work():
+                    return _from_local(state.local_media, call_dir, audio=False, ranges=wanted)
+            if ranges:
+                # Fetch only the fragments under the clips. Downloading a long
+                # VOD whole takes longer than the transfer allows and can exceed
+                # the byte budget (a 1-hour 1080p60 Twitch VOD is ~3.3 GB).
+                try:
+                    slices, _total = _hls_section_pieces(info, provider, attempt_dir / "hls", wanted, session=session)
+                except _NoHlsSections as exc:
+                    logger.info("Stream provider %s downloading the whole file: %s", provider, exc)
+                    shutil.rmtree(attempt_dir / "hls", ignore_errors=True)
+                else:
+                    return _assemble(slices, call_dir)
+            full_template = attempt_dir / "source.%(ext)s"
+            _download_info(info, provider, full_template, audio=audio, ranges=None, session=session)
+            with local_work():
+                result = _finish(attempt_dir, call_dir, None)
+                if not audio:
+                    state.local_media = result
+                return _from_local(result, call_dir, audio=False, ranges=wanted) if ranges else result
         except (ProviderSkipped, StreamSourceError):
             raise
         except Exception as exc:
+            if state.budget is not None:
+                state.budget.check()
             if attempt + 1 == attempts or _is_private_error(exc):
                 raise
             logger.info("Stream provider %s retrying download after: %s", provider, _redact(exc))
@@ -476,12 +741,14 @@ def _apify_info(url: str, provider: str, expected_duration: Optional[float] = No
     return {"id": source_id, "title": item.get("title"), "duration": duration, "media_url": item[media_key], "provider": provider}
 
 
-def _stream_download(response, destination: Path, max_bytes: int) -> None:
+def _stream_download(response, destination: Path, max_bytes: int, budget=None) -> None:
     response.raise_for_status()
     total = 0
     with destination.open("wb") as handle:
         for chunk in response.iter_content(1024 * 1024):
             total += len(chunk)
+            if budget is not None:
+                account_chunk(chunk)
             if total > max_bytes:
                 raise RuntimeError("Video download exceeds the configured byte budget")
             handle.write(chunk)
@@ -496,8 +763,8 @@ def _parsebird_file(info: dict, state: _Operation, op_dir: Path) -> Path:
     shared.mkdir(parents=True, exist_ok=True)
     raw, remuxed = shared / "parsebird.ts", shared / "parsebird.mp4"
     try:
-        with requests.get(info["media_url"], stream=True, timeout=(15, c.apify_stream_timeout_seconds)) as response:
-            _stream_download(response, raw, c.youtube_download_max_bytes)
+        with requests.get(info["media_url"], stream=True, timeout=(10, min(10, c.apify_stream_timeout_seconds))) as response:
+            _stream_download(response, raw, c.youtube_download_max_bytes, state.budget)
         result = subprocess.run(
             ["ffmpeg", "-y", "-nostdin", "-i", str(raw), "-map", "0", "-c", "copy", "-movflags", "+faststart", str(remuxed)],
             capture_output=True, text=True,
@@ -554,25 +821,66 @@ def _actor_media(url, provider, state: _Operation, op_dir, call_dir, attempt_dir
         return _from_local(_parsebird_file(info, state, op_dir), call_dir, audio=audio, ranges=ranges)
 
     media = info["media_url"]
-    actual = _probe(media)
+    actual = reported or state.expected_duration
     if not _close(actual, reported) or not _close(actual, state.expected_duration):
         raise RuntimeError("stream duration does not match the requested video")
     _check_cap(actual, max_duration)
     wanted = _clamp_ranges(ranges, actual or reported or state.expected_duration)
+    if ranges:
+        slices = _actor_hls_sections(media, state, attempt_dir, wanted, actual, session=session)
+        if slices is not None:
+            return _assemble(slices, call_dir)
     # Actor media URLs are fetched directly first; the proxy only if that fails.
     try:
-        _download_url(media, "direct", template, audio=audio, ranges=wanted, session=session)
+        _download_url(media, "direct", attempt_dir / "source.%(ext)s", audio=audio, ranges=None, session=session)
     except Exception as direct_exc:
+        if state.budget is not None:
+            state.budget.check()
         shutil.rmtree(attempt_dir, ignore_errors=True)
         attempt_dir.mkdir(parents=True, exist_ok=True)
         try:
-            _download_url(media, "proxy", template, audio=audio, ranges=wanted, session=session)
+            _download_url(media, "proxy", attempt_dir / "source.%(ext)s", audio=audio, ranges=None, session=session)
         except ProviderSkipped:
             # No proxy configured: report the real direct-download error.
             raise direct_exc
         except Exception as proxy_exc:
             raise RuntimeError(f"direct: {_redact(direct_exc)}; proxy: {_redact(proxy_exc)}") from proxy_exc
-    return _finish(attempt_dir, call_dir, wanted)
+    with local_work():
+        result = _finish(attempt_dir, call_dir, None)
+        if not _close(_probe(result), actual):
+            raise RuntimeError("stream duration does not match the requested video")
+        if not audio:
+            state.local_media = result
+        return _from_local(result, call_dir, audio=False, ranges=wanted) if ranges else result
+
+
+def _actor_hls_sections(media: str, state: _Operation, attempt_dir: Path, wanted, actual, *, session: str):
+    """Selected fragments of an actor's HLS media, direct first, then the proxy.
+
+    Returns ``None`` when the media is not plain HLS, so the caller downloads it
+    whole as before.
+    """
+    work_dir = attempt_dir / "hls"
+    errors: list[str] = []
+    for network in ("direct", "proxy"):
+        shutil.rmtree(work_dir, ignore_errors=True)
+        try:
+            slices, total = _hls_section_pieces(media, network, work_dir, wanted, session=session)
+        except _NoHlsSections as exc:
+            logger.info("Stream actor media downloading the whole file: %s", exc)
+            shutil.rmtree(work_dir, ignore_errors=True)
+            return None
+        except ProviderSkipped:
+            break
+        except Exception as exc:
+            if state.budget is not None:
+                state.budget.check()
+            errors.append(f"{network}: {_redact(exc)}")
+            continue
+        if not _close(total, actual):
+            raise RuntimeError("stream duration does not match the requested video")
+        return slices
+    raise RuntimeError("; ".join(errors) or "actor media could not be fetched")
 
 
 # ------------------------------------------------------------------ public API
@@ -641,7 +949,7 @@ def seed_stream_resolution(task_id: Optional[str], resolution: Optional[dict] = 
         state.actors_run.add(provider)
 
 
-def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
+def _download_unbounded(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
     source, kind, _source_id = detect_stream_source(url)
     task_key = _safe_component(task_id) if task_id else f"unscoped-{uuid.uuid4().hex}"
     op_key = _safe_component(operation) if operation else f"edit-{uuid.uuid4().hex[:12]}"
@@ -657,6 +965,17 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
     providers = _provider_order(source)
     if state.preferred in providers:
         providers = providers[providers.index(state.preferred):]
+    try:
+        return _try_providers(url, source, kind, providers, state, op_dir, call_dir, task_key,
+                              audio=audio, ranges=ranges, max_duration=max_duration)
+    except BaseException:
+        # A budget, timeout or cancellation stop raises past the per-provider
+        # cleanup; editor callers never get a path to clean up themselves.
+        shutil.rmtree(call_dir, ignore_errors=True)
+        raise
+
+
+def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call_dir, task_key, *, audio, ranges, max_duration) -> Path:
     failures: list[str] = []
     for provider in providers:
         attempt_dir = call_dir / provider
@@ -678,6 +997,8 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
             shutil.rmtree(call_dir, ignore_errors=True)
             raise
         except Exception as exc:
+            if state.budget is not None:
+                state.budget.check()
             shutil.rmtree(attempt_dir, ignore_errors=True)
             if provider in YTDLP_PROVIDERS and _is_private_error(exc):
                 shutil.rmtree(call_dir, ignore_errors=True)
@@ -688,6 +1009,26 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
     shutil.rmtree(call_dir, ignore_errors=True)
     logger.error("All stream download providers failed source=%s kind=%s failures=%s", source, kind, "; ".join(failures))
     raise StreamSourceError(FETCH_FAILED_MESSAGE)
+
+
+def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
+    # Persist the allowance across audio, sections, full fallback and repeated calls.
+    task_key = task_id or f"unscoped-{uuid.uuid4().hex}"
+    op_key = operation or f"edit-{uuid.uuid4().hex[:12]}"
+    state = _operation(_safe_component(task_key), _safe_component(op_key))
+    if state.budget is None:
+        state.budget = TransferBudget(get_config().youtube_download_max_bytes)
+    try:
+        config = get_config()
+        with transfer_scope(
+            state.budget,
+            getattr(config, "youtube_proxy_timeout_seconds", 300),
+            getattr(config, "stream_download_max_seconds", 2400),
+        ):
+            return _download_unbounded(url, audio=audio, ranges=ranges, expected_duration=expected_duration,
+                max_duration=max_duration, task_id=task_key, operation=op_key)
+    except TransferStopped as exc:
+        raise StreamSourceError(str(exc)) from exc
 
 
 def download_stream_audio(url, duration=None, task_id=None, *, max_duration=None, operation=None):

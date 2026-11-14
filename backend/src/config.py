@@ -67,6 +67,9 @@ class Config:
         # download chain changes until this template is set.
         self.youtube_proxy_url = os.getenv("YOUTUBE_PROXY_URL", "").strip()
         self.youtube_proxy_timeout_seconds = self._get_int_env("YOUTUBE_PROXY_TIMEOUT_SECONDS", 300)
+        # Twitch/Kick: YOUTUBE_PROXY_TIMEOUT_SECONDS is how long a download may go
+        # without receiving data; this caps one download call in total.
+        self.stream_download_max_seconds = self._get_int_env("STREAM_DOWNLOAD_MAX_SECONDS", 2400)
         self.youtube_proxy_country = os.getenv("YOUTUBE_PROXY_COUNTRY", "").strip()
         self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
         self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)
