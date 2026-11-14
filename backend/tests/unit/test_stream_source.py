@@ -79,6 +79,7 @@ class FakeYtdlp:
     def __init__(self, media, *, duration=MEDIA_DURATION, failures=None, wrong_sections=False):
         self.media, self.duration, self.failures = media, duration, dict(failures or {})
         self.wrong_sections = wrong_sections
+        self.availability = None
         self.calls: list[tuple] = []
 
     def _maybe_fail(self, key):
@@ -93,7 +94,10 @@ class FakeYtdlp:
         if provider == "proxy" and not subject.get_config().youtube_proxy_url:
             raise subject.ProviderSkipped("proxy is not configured")
         self._maybe_fail(provider)
-        return {"id": "x", "title": "Stream", "duration": self.duration}
+        info = {"id": "x", "title": "Stream", "duration": self.duration}
+        if self.availability:
+            info["availability"] = self.availability
+        return info
 
     def _write(self, template, ranges):
         template = Path(template)
@@ -104,12 +108,12 @@ class FakeYtdlp:
         else:
             shutil.copy(self.media.mkv, str(template).replace("%(ext)s", "mkv"))
 
-    def download_info(self, info, provider, template, *, audio, ranges, session):
+    def download_info(self, info, provider, template, *, audio, ranges, session, watch=None):
         self.calls.append(("download", provider, tuple(ranges or ())))
         self._maybe_fail(f"download:{provider}")
         self._write(template, ranges)
 
-    def download_url(self, url, provider, template, *, audio, ranges, session):
+    def download_url(self, url, provider, template, *, audio, ranges, session, watch=None):
         self.calls.append(("media", provider, url))
         if provider == "proxy" and not subject.get_config().youtube_proxy_url:
             raise subject.ProviderSkipped("proxy is not configured")
@@ -163,6 +167,9 @@ def env(monkeypatch, tmp_path, media):
     monkeypatch.setattr(subject, "_download_info", ytdlp.download_info)
     monkeypatch.setattr(subject, "_download_url", ytdlp.download_url)
     monkeypatch.setattr(subject, "_actor_items", actors)
+    # Actor media here is a placeholder URL; fragment downloads have their own
+    # loopback tests in test_stream_hls_sections.py.
+    monkeypatch.setattr(subject, "_actor_hls_sections", lambda *args, **kwargs: None)
     monkeypatch.setattr(subject, "_DIRECT_RETRY_BACKOFF_SECONDS", 0)
     real_probe = subject._probe
     monkeypatch.setattr(subject, "_probe", lambda target, timeout=60: ytdlp.duration if str(target).startswith("https://") else real_probe(target))
@@ -372,16 +379,19 @@ def test_yt_dlp_sections_are_verified_and_time_mapped(env):
     assert load_time_map(path).to_original(1.0) == pytest.approx(6.0)
 
 
-def test_inaccurate_sections_fail_the_provider(env):
-    env.ytdlp.wrong_sections = True
-    env.config.twitch_download_providers = "proxy"
-    with pytest.raises(subject.StreamSourceError, match="couldn't fetch"):
-        subject.download_stream_sections(TWITCH_VOD, [{"start_time": 5, "end_time": 9}], MEDIA_DURATION, "task1", operation="job")
+def test_sections_are_cut_locally_without_network_ranges(env):
+    env.ytdlp.wrong_sections = True  # Remote section cutting is never requested.
+    path = subject.download_stream_sections(TWITCH_VOD, [{"start_time": 5, "end_time": 9}], MEDIA_DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(4, abs=0.25)
+    assert env.ytdlp.calls[-1] == ("download", "proxy", ())
+    subject.download_stream_sections(TWITCH_VOD, [{"start_time": 10, "end_time": 12}], MEDIA_DURATION, "task1", operation="job")
+    assert len([call for call in env.ytdlp.calls if call[0] == "download"]) == 1
 
 
 def test_section_ranges_are_clamped_to_the_known_length(env):
-    subject.download_stream_sections(TWITCH_VOD, [{"start_time": 25, "end_time": 45}], None, "task1", operation="job")
-    assert env.ytdlp.calls[-1] == ("download", "proxy", ((25.0, MEDIA_DURATION),))
+    path = subject.download_stream_sections(TWITCH_VOD, [{"start_time": 25, "end_time": 45}], None, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(5, abs=0.25)
+    assert env.ytdlp.calls[-1] == ("download", "proxy", ())
 
 
 def test_no_rerun_after_every_provider_failed(env):
@@ -453,10 +463,11 @@ def test_real_direct_error_is_reported_when_proxy_is_not_configured(env, caplog)
 def test_actor_media_with_wrong_length_is_rejected(env, monkeypatch):
     env.ytdlp.failures = {"proxy": RuntimeError("down"), "direct": RuntimeError("down")}
     env.actors.results["twitch-actor"] = [twitch_item(lengthSeconds=MEDIA_DURATION)]
-    env.ytdlp.duration = 500.0  # what ffprobe reports for the actor's media URL
-    with pytest.raises(subject.StreamSourceError):
+    # The file is probed after it lands. A remote ffprobe of the signed HLS URL
+    # is not used: that read can hang and is not what the worker does.
+    monkeypatch.setattr(subject, "_probe", lambda *_args, **_kwargs: 500.0)
+    with pytest.raises(subject.StreamSourceError, match="couldn't fetch"):
         subject.download_stream_audio(TWITCH_VOD, MEDIA_DURATION, task_id="task1", operation="job")
-    assert env.ytdlp.providers("media") == []
 
 
 def test_seeded_preflight_result_is_reused_not_rerun(env):
@@ -573,11 +584,175 @@ def test_extract_bounds_socket_timeout_by_deadline(monkeypatch):
     assert seen["socket_timeout"] <= 3 and seen["download"] is False and seen["process"] is False
 
 
-def test_section_ranges_are_numbered_so_files_do_not_overwrite(monkeypatch):
+def test_media_timeouts_cover_a_slow_hls_playlist(monkeypatch):
+    monkeypatch.setattr(subject, "get_config", lambda: make_config(youtube_proxy_url=""))
+    media = subject._ydl_options("direct", Path("x/source.%(ext)s"), media=True)
+    metadata = subject._ydl_options("direct", Path("x/source.%(ext)s"))
+    assert media["socket_timeout"] >= 30
+    assert media["fragment_retries"] >= 10
+    assert media["retries"] >= 5
+    assert metadata["retries"] == 1 and metadata["fragment_retries"] == 1
+    assert subject.transfer_budget_seconds(30, audio=True) >= subject._MIN_TRANSFER_SECONDS
+    assert subject.transfer_budget_seconds(4 * 3600, audio=False) == subject._MAX_TRANSFER_SECONDS
+    assert subject.transfer_budget_seconds(4 * 3600, audio=False) > subject.transfer_budget_seconds(30, audio=False)
+
+
+def test_transfer_watch_allows_progress_and_stops_a_stall_or_overrun(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(subject.time, "monotonic", lambda: clock[0])
+    watch = subject._TransferWatch(stall_seconds=45, overall_seconds=180)
+    watch.hook({"status": "downloading", "downloaded_bytes": 0})
+    clock[0] = 44
+    watch.hook({"status": "downloading", "downloaded_bytes": 0})
+    watch.hook({"status": "downloading", "downloaded_bytes": 80_000})
+    clock[0] = 80
+    watch.hook({"status": "downloading", "downloaded_bytes": 160_000})
+    clock[0] = 130
+    with pytest.raises(TimeoutError, match="stalled"):
+        watch.hook({"status": "downloading", "downloaded_bytes": 160_000})
+
+    clock[0] = 0
+    watch = subject._TransferWatch(stall_seconds=45, overall_seconds=180)
+    watch.hook({"status": "downloading", "downloaded_bytes": 1_000_000})
+    clock[0] = 181
+    with pytest.raises(TimeoutError, match="timed out"):
+        watch.hook({"status": "downloading", "downloaded_bytes": 2_000_000})
+
+    # A later, smaller file reports its own counter. That progress is real.
+    clock[0] = 0
+    watch = subject._TransferWatch(stall_seconds=45, overall_seconds=180)
+    watch.hook({"status": "downloading", "filename": "a.mkv", "downloaded_bytes": 10_000_000})
+    clock[0] = 50
+    watch.hook({"status": "finished", "filename": "b.mkv", "downloaded_bytes": 1_000_000})
+    assert watch.bytes == 11_000_000
+
+
+def test_cdn_forbidden_is_not_a_subscriber_or_region_error():
+    assert not subject._is_private_error("HTTP Error 403: Forbidden")
+    assert subject._is_private_error("This video is only available to subscribers")
+    assert subject._is_region_error("This video is not available in your country")
+    assert not subject._is_region_error("HTTP Error 403: Forbidden")
+
+
+def test_subscriber_availability_stops_before_any_download(env):
+    env.ytdlp.availability = "subscriber_only"
+    with pytest.raises(subject.StreamSourceError, match="subscriber-only or private"):
+        subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    assert env.ytdlp.providers("download") == []
+    assert env.actors.calls == []
+
+
+def test_preflight_rejects_subscriber_availability(env):
+    env.ytdlp.availability = "needs_auth"
+    with pytest.raises(subject.StreamSourceError, match="subscriber-only or private"):
+        subject.fetch_stream_info(TWITCH_VOD)
+    assert env.actors.calls == []
+
+
+def test_region_lock_stops_paid_fallbacks(env):
+    env.ytdlp.failures = {"proxy": RuntimeError("This video is not available in your country")}
+    with pytest.raises(subject.StreamSourceError, match="regions we can download from"):
+        subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    assert env.actors.calls == []
+    assert env.ytdlp.providers("download") == []
+
+
+def test_proxy_timeout_is_retried_before_the_next_provider(env):
+    env.ytdlp.failures = {
+        "proxy": [RuntimeError("The read operation timed out"), RuntimeError("The read operation timed out")],
+        "direct": RuntimeError("HTTP Error 403: Forbidden"),
+    }
+    env.actors.results["twitch-actor"] = [twitch_item()]
+    path = subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    assert path.exists()
+    assert env.ytdlp.providers("extract").count("proxy") == 2
+    assert env.ytdlp.providers("extract").count("direct") == 1
+
+
+def test_repeated_timeouts_use_a_retry_message(env):
+    env.config.twitch_download_providers = "proxy,direct"
+    env.ytdlp.failures = {
+        "proxy": [RuntimeError("The read operation timed out"), RuntimeError("The read operation timed out")],
+        "direct": [RuntimeError("Read timed out"), RuntimeError("Read timed out")],
+    }
+    with pytest.raises(subject.StreamSourceError, match="timed out before the video finished"):
+        subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    calls = len(env.ytdlp.calls)
+    with pytest.raises(subject.StreamSourceError, match="timed out before the video finished"):
+        subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    assert len(env.ytdlp.calls) == calls
+
+
+def test_failure_log_records_the_cause_without_secrets(env, caplog):
+    secret = RuntimeError(
+        "timed out via http://user:s3cret@proxy.test:8000 fetching https://vod.example/seg.ts?token=sekret"
+    )
+    env.ytdlp.failures = {
+        "proxy": [secret, RuntimeError("The read operation timed out")],
+        "direct": RuntimeError("HTTP Error 403: Forbidden"),
+    }
+    env.actors.results["twitch-actor"] = RuntimeError("Apify actor failed: HTTP Error 502: Bad Gateway")
+    with caplog.at_level(logging.INFO), pytest.raises(subject.StreamSourceError, match="try again later") as caught:
+        subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    text = caplog.text
+    assert "stage=start" in text
+    assert "host=twitch.tv" in text
+    assert "http_status=403" in text
+    assert "http_status=502" in text
+    assert "fallback=direct" in text
+    assert "fallback=apify_twitch" in text
+    assert "exc_type=RuntimeError" in text
+    assert "bytes=" in text and "elapsed_ms=" in text and "attempt=" in text
+    assert "s3cret" not in text and "sekret" not in text and "token=" not in text
+    cause = str(caught.value.__cause__)
+    assert "502" in cause
+    assert "s3cret" not in cause and "sekret" not in cause and "token=" not in cause
+
+
+def test_stream_log_json_keeps_stage_fields_and_drops_secrets(caplog):
+    import json
+    from src.observability import JsonLogFormatter
+
+    with caplog.at_level(logging.INFO):
+        subject._log_stream(
+            logging.WARNING, "attempt_failed", provider="proxy", source="twitch", kind="vod",
+            host="twitch.tv", status="403",
+            exc=RuntimeError("timed out http://user:s3cret@proxy.test:8000 https://vod.example/a.ts?token=sekret"),
+            bytes_transferred=1234, elapsed=1.5, attempt=2, fallback="direct",
+        )
+    payload = json.loads(JsonLogFormatter().format(caplog.records[-1]))
+    assert payload["stream_stage"] == "attempt_failed"
+    assert payload["stream_provider"] == "proxy"
+    assert payload["stream_source"] == "twitch"
+    assert payload["stream_kind"] == "vod"
+    assert payload["stream_host"] == "twitch.tv"
+    assert payload["stream_http_status"] == "403"
+    assert payload["stream_exc_type"] == "RuntimeError"
+    assert payload["stream_bytes"] == 1234
+    assert payload["stream_elapsed_ms"] == 1500
+    assert payload["stream_attempt"] == 2
+    assert payload["stream_fallback"] == "direct"
+    encoded = json.dumps(payload)
+    assert "s3cret" not in encoded and "sekret" not in encoded and "token=" not in encoded
+
+
+def test_network_section_ranges_are_rejected(monkeypatch):
     monkeypatch.setattr(subject, "get_config", lambda: make_config())
-    options = subject._ydl_options("direct", Path("x/section-%(section_number)03d.%(ext)s"), ranges=[(1.0, 2.0), (3.0, 4.0)])
-    assert options["download_ranges"](None, None) == [
-        {"start_time": 1.0, "end_time": 2.0, "index": 1},
-        {"start_time": 3.0, "end_time": 4.0, "index": 2},
-    ]
-    assert options["force_keyframes_at_cuts"] is True
+    with pytest.raises(subject.StreamSourceError, match="cut local media"):
+        subject._ydl_options("direct", Path("section.%(ext)s"), ranges=[(1, 2)])
+
+
+def test_byte_budget_is_shared_between_phases_and_stops_fallbacks(env, monkeypatch):
+    env.config.youtube_download_max_bytes = 10
+    original = subject._download_info
+
+    def download(*args, **kwargs):
+        subject.account_chunk(b"123456")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(subject, "_download_info", download)
+    subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    with pytest.raises(subject.StreamSourceError, match="byte job limit"):
+        subject.download_stream_video(TWITCH_VOD, task_id="task1", operation="job")
+    assert env.ytdlp.providers("download") == ["proxy"]
+    assert env.actors.calls == []
