@@ -379,3 +379,22 @@ async def test_twitch_channel_link_is_rejected_before_any_metadata_call(monkeypa
     assert error.value.status_code == 422
     fetch.assert_not_called()
     assert_nothing_charged(creation)
+
+
+@pytest.mark.asyncio
+async def test_age_restricted_youtube_video_is_refused_before_charging(youtube_config, monkeypatch, creation):
+    youtube_config.youtube_metadata_provider = YOUTUBE_METADATA_PROVIDER_DATA_API
+    item = {
+        "id": "abcdefghijk",
+        "contentDetails": {"duration": "PT26M49S", "contentRating": {"ytRating": "ytAgeRestricted"}},
+    }
+    monkeypatch.setattr(youtube_utils.requests, "get", Mock(return_value=FakeResponse({"items": [item]})))
+
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(creation.request, db=None)
+
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "YOUTUBE_AGE_RESTRICTED"
+    assert "upload the file" in error.value.detail["message"]
+    assert "No minutes were used" in error.value.detail["message"]
+    assert_nothing_charged(creation)

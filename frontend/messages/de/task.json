@@ -56,6 +56,8 @@
   "cancelledBody": "Versuch diese Generierung erneut, wenn du bereit bist. Deine fertigen Clips bleiben erhalten.",
   "failedTitle": "Verarbeitung fehlgeschlagen",
   "failedBody": "Die Verarbeitung ist fehlgeschlagen. Versuch die Generierung erneut. Deine fertigen Clips bleiben erhalten.",
+  "failedBodyAgeRestricted": "Dieses YouTube-Video ist altersbeschränkt, daher können wir es nicht herunterladen. Lade das Video selbst herunter und lade die Datei hoch. Es wurden keine Minuten verbraucht.",
+  "failedBodyGeoRestricted": "Dieses YouTube-Video ist in unserer Region nicht verfügbar, daher können wir es nicht herunterladen. Lade das Video selbst herunter und lade die Datei hoch. Es wurden keine Minuten verbraucht.",
   "backHome": "Zurück zur Startseite",
   "noClipsTitle": "Keine Clips erzeugt",
   "noClipsBody": "Die Generierung ist fertig, aber es wurden keine Clips erzeugt. Das Video hatte vielleicht keinen passenden Inhalt zum Schneiden.",

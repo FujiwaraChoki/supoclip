@@ -56,6 +56,8 @@
   "cancelledBody": "Retry this generation when you are ready. Your completed clips will be kept.",
   "failedTitle": "Processing Failed",
   "failedBody": "Processing failed. Retry generation to try again. Your completed clips will be kept.",
+  "failedBodyAgeRestricted": "This YouTube video is age-restricted, so we can't download it. Download the video yourself and upload the file instead. No minutes were used.",
+  "failedBodyGeoRestricted": "This YouTube video isn't available in our region, so we can't download it. Download the video yourself and upload the file instead. No minutes were used.",
   "backHome": "Back to Home",
   "noClipsTitle": "No Clips Generated",
   "noClipsBody": "The generation completed but no clips were generated. The video may not have had suitable content for clipping.",

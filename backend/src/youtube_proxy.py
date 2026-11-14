@@ -54,6 +54,16 @@ class YouTubeGeoRestrictedError(YouTubeDownloadError):
         )
 
 
+class YouTubeAgeRestrictedError(YouTubeDownloadError):
+    """YouTube only plays the source to signed-in adults, which no provider can do."""
+
+    def __init__(self):
+        super().__init__(
+            "This YouTube video is age-restricted, and we can't download it. "
+            "Download the video yourself and upload the file instead."
+        )
+
+
 def _exception_chain(exc: BaseException):
     """yt-dlp also retains its extractor error in DownloadError.exc_info."""
     pending = [exc]
@@ -85,6 +95,16 @@ def is_geo_restricted_error(exc: BaseException) -> bool:
             "not available from your location",
             "this youtube video has regional restrictions",
         )):
+            return True
+    return False
+
+
+def is_age_restricted_error(exc: BaseException) -> bool:
+    for error in _exception_chain(exc):
+        if isinstance(error, YouTubeAgeRestrictedError):
+            return True
+        message = str(error).lower()
+        if "confirm your age" in message or "age-restricted" in message:
             return True
     return False
 
