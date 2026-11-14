@@ -30,6 +30,7 @@ from ..video_utils import (
     parse_timestamp_to_seconds,
     save_fx_render,
 )
+from ..stream_transfer import run_stream_download
 from ..utils.async_helpers import run_in_thread
 from ..clip_duration import clip_duration, normalize_clip_length
 from ..media.common import MAX_RENDERED_CLIP_SECONDS
@@ -959,7 +960,7 @@ class ClipEditingMixin:
         elif source_type in {"twitch", "kick"}:
             # Its own stream-work operation; cleaned below without touching
             # any other edit of this task.
-            video_path = await run_in_thread(
+            video_path = await run_stream_download(
                 download_stream_sections, source_url, segments,
                 task.get("source_duration_seconds"), task_id,
             )
@@ -2030,7 +2031,7 @@ class ClipEditingMixin:
                 transcript_video_path = Path(downloaded) if downloaded else None
                 downloaded_source = transcript_video_path
             elif source_type in {"twitch", "kick"} and source_url:
-                transcript_video_path = await run_in_thread(
+                transcript_video_path = await run_stream_download(
                     download_stream_sections, source_url,
                     [{"start_time": start, "end_time": end} for start, end in source_ranges],
                     task.get("source_duration_seconds"), task_id,

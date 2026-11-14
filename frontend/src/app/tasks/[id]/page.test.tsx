@@ -252,6 +252,14 @@ describe("task page workflows", () => {
     expect(screen.queryByRole("button", { name: "Retry generation" })).not.toBeInTheDocument();
   });
 
+  it("explains an age-restricted YouTube video instead of offering a retry", async () => {
+    serve(task({ status: "error", error_code: "youtube_age_restricted" }), []);
+    renderPage();
+
+    expect(await screen.findByText(/age-restricted, so we can't download it/)).toBeInTheDocument();
+    expect(screen.queryByText(/Retry generation to try again/)).not.toBeInTheDocument();
+  });
+
   it("keeps highlights sorted best first with a top pick", async () => {
     serve(task(), [clip(1, { virality_score: 60 }), clip(2, { virality_score: 90, hook_title: "The best one" })]);
     renderPage();

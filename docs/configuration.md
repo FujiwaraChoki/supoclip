@@ -29,6 +29,25 @@ preflight. An actor result found there is stored with the task and reused by the
 so each actor runs at most once per task, and a chain that has failed completely is not
 rerun for the same job.
 
+Selected sections of a plain HLS VOD are fetched fragment by fragment, four at a time,
+through the same byte budget. Encrypted, byte-range, master, or discontinuous playlists
+fall back to one full download and a local cut. A media read waits 30 seconds and retries
+a stalled fragment; metadata preflight keeps a 10-second read so a stalled proxy still
+leaves time for the next provider. `YOUTUBE_PROXY_TIMEOUT_SECONDS` is how long a download
+may go without receiving data (default 300). It is not a wall clock. The overall cap is
+the longer of `STREAM_DOWNLOAD_MAX_SECONDS` (default 2400) and a duration-based budget
+that grows with the VOD, up to an hour. Subscriber-only and private VODs fail before any
+paid fallback. A region-locked VOD asks the user to upload the file. Other failures say
+to try again. Each stage is logged with the provider, source, URL host, HTTP status,
+error type, bytes, elapsed time, attempt, and the fallback that ran next. Proxy
+credentials and signed query strings are not logged.
+
+The same code runs on every video worker, including a render worker on another machine.
+Scratch stays on that machine's `TEMP_DIR`. The YouTube proxy trial, when
+`YOUTUBE_PROXY_TRIAL_PREFIX` is set, keeps its admission in Redis so every worker shares
+one counter. `YOUTUBE_PROXY_TRIAL_SECRET_FILE` points at the mounted proxy template; the
+file is not in the image.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
@@ -489,7 +508,7 @@ YouTube metadata lookup is configurable independently from the download provider
 Behavior notes:
 
 - `yt_dlp` preserves the current metadata preflight behavior.
-- Task creation gives that lookup `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30, the same budget Twitch and Kick already use). Metadata requests and region retries share this deadline, with time reserved for the alternate metadata provider. A timeout returns HTTP 503 `VIDEO_METADATA_TIMEOUT` and does not create a task or use minutes. An exhausted regional restriction returns HTTP 422 `YOUTUBE_GEO_RESTRICTED` with upload guidance. Other metadata failures return `VIDEO_METADATA_UNAVAILABLE`.
+- Task creation gives that lookup `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30, the same budget Twitch and Kick already use). Metadata requests and region retries share this deadline, with time reserved for the alternate metadata provider. A timeout returns HTTP 503 `VIDEO_METADATA_TIMEOUT` and does not create a task or use minutes. An exhausted regional restriction returns HTTP 422 `YOUTUBE_GEO_RESTRICTED` with upload guidance. An age-restricted video (Data API `contentRating.ytRating = ytAgeRestricted`, or yt-dlp `age_limit` ≥ 18) returns HTTP 422 `YOUTUBE_AGE_RESTRICTED` with upload guidance: no download provider can fetch it without a signed-in account. A task resumed on such a video fails in the worker before any download with `error_code = youtube_age_restricted`. Other metadata failures return `VIDEO_METADATA_UNAVAILABLE`.
 - On Apple Silicon, the default `BACKEND_PLATFORM=linux/amd64` runs this lookup under emulation, and yt-dlp's deno step can use most of the 30 seconds. Raise the timeout (for example to 60) or set `BACKEND_PLATFORM=linux/arm64` with `BACKEND_CPU_ONLY=true` and rebuild the backend and worker. See [setup](./setup.md).
 - `youtube_data_api` uses YouTube Data API v3 `videos.list` as the primary metadata source.
 - If `YOUTUBE_DATA_API_KEY` is empty, the backend tries `GOOGLE_API_KEY` for YouTube Data API requests.

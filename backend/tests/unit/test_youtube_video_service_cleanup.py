@@ -71,3 +71,20 @@ async def test_only_unsupported_sections_retry_full_proxy(tmp_path, monkeypatch,
     monkeypatch.setattr(module, 'resolve_full_youtube_download', full)
     assert await VideoService.download_video(URL, ranges=[(10, 20)]) is None
     assert captured['skip_proxy'] is not unsupported
+
+
+@pytest.mark.asyncio
+async def test_age_restricted_source_fails_before_any_download(apify_setup, monkeypatch):
+    from src.youtube_proxy import YouTubeAgeRestrictedError
+
+    async def info(*_args, **_kwargs):
+        return {"duration": 1609, "age_restricted": True}
+
+    async def download(*_args, **_kwargs):
+        raise AssertionError("no provider should be tried for an age-restricted video")
+
+    monkeypatch.setattr(module, "async_get_youtube_video_info", info)
+    monkeypatch.setattr(VideoService, "download_video", download)
+
+    with pytest.raises(YouTubeAgeRestrictedError):
+        await VideoService.process_video_complete(URL, "youtube")
