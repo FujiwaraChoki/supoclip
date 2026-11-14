@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-14
 
-- **Fixed:** Twitch and Kick downloads that stall partway through now wait and retry instead of failing after a short timeout. A subscriber-only or private VOD, and a VOD that is blocked in our regions, is reported as such instead of a generic "try again later".
+- **Fixed:** Twitch and Kick downloads that stall partway through now wait and retry instead of failing after a short timeout. A subscriber-only or private VOD, and a VOD that is blocked in our regions, is reported as such instead of a generic "try again later". ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
 - **Fixed:** Age-restricted YouTube videos are now turned down when you submit them, with a note to download the video and upload the file instead. Before, they failed after a long wait with a message to retry, which couldn't work. No minutes are used. ([#391](https://github.com/FujiwaraChoki/supoclip/pull/391))
 
 ## 2026-11-12
