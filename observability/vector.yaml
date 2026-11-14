@@ -32,6 +32,12 @@ transforms:
         . = merge!(., parsed)
         .timestamp = parse_timestamp(.timestamp, "%+") ?? now()
       }
+      # Collector identity wins over a host field inside the JSON line.
+      host = get_env_var("SUPOCLIP_LOG_HOST") ?? "app"
+      if host == "" {
+        host = "app"
+      }
+      .host = host
 
   containers_filtered:
     type: filter
@@ -51,6 +57,11 @@ transforms:
         . = merge!(., parsed)
         del(.message)
       }
+      host = get_env_var("SUPOCLIP_LOG_HOST") ?? "app"
+      if host == "" {
+        host = "app"
+      }
+      .host = host
 
 sinks:
   axiom:

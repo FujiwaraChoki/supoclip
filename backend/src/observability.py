@@ -2,10 +2,18 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import queue
+import re
+import socket
+import threading
+import time
+import urllib.error
+import urllib.request
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from urllib.parse import quote
 from uuid import uuid4
 
 
@@ -113,22 +121,37 @@ def get_posthog_client() -> Any:
     return _posthog_client
 
 
+_PROXY_USERINFO = re.compile(r"(?i)(https?://)[^/\s:@]+:[^/\s@]+@")
+_SIGNED_QUERY = re.compile(
+    r"(?i)([?&](?:X-Amz-Signature|X-Amz-Credential|X-Amz-Security-Token|Signature|sig))=[^&\s]+"
+)
+
+
+def scrub_log_text(text: str) -> str:
+    """Remove proxy userinfo and signed query values from a log string."""
+    text = _PROXY_USERINFO.sub(r"\1***:***@", text or "")
+    return _SIGNED_QUERY.sub(r"\1=[redacted]", text)
+
+
 class JsonLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": scrub_log_text(record.getMessage()),
             "service": SERVICE_NAME,
             "trace_id": getattr(record, "trace_id", "-"),
         }
+        host = os.getenv("SUPOCLIP_LOG_HOST", "").strip()
+        if host:
+            payload["host"] = host
         user_id = getattr(record, "user_id", None)
         if user_id:
             payload["user_id"] = user_id
 
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            payload["exception"] = scrub_log_text(self.formatException(record.exc_info))
 
         # YouTube download attempts. These names are stable so Axiom can sum
         # bytes per provider. Proxy URLs are never attached to the record.
@@ -140,6 +163,9 @@ class JsonLogFormatter(logging.Formatter):
             "youtube_bytes",
             "youtube_error_type",
             "youtube_fallback",
+            "youtube_provider_fallback",
+            "youtube_retry_attempt",
+            "youtube_proxy_session_rotated",
             "task_id",
             # Task-creation source submissions. Values are sanitized; the raw
             # query string, fragment, and credentials are never attached.
@@ -166,9 +192,141 @@ class JsonLogFormatter(logging.Formatter):
         ):
             value = getattr(record, key, None)
             if value not in (None, ""):
-                payload[key] = value
+                payload[key] = scrub_log_text(value) if isinstance(value, str) else value
 
         return json.dumps(payload, ensure_ascii=True)
+
+
+_axiom_handler: "AxiomLogHandler | None" = None
+
+
+class AxiomLogHandler(logging.Handler):
+    """Ships JSON log lines to Axiom from a process that has no Vector collector.
+
+    The main host keeps Vector and leaves ``AXIOM_TOKEN`` unset on the app, so
+    this handler stays off there. A render worker sets the token and a host
+    name. Delivery is batched on a daemon thread and never raises into the
+    caller. The token is not written to the payload or to failure logs.
+    """
+
+    def __init__(
+        self,
+        *,
+        dataset: str,
+        token: str,
+        url: str,
+        host: str,
+        sender: Callable[[list[dict[str, Any]]], None] | None = None,
+        queue_size: int = 1000,
+    ) -> None:
+        super().__init__()
+        self.dataset = dataset
+        self._token = token
+        self.url = url.rstrip("/")
+        self.host = host
+        self._sender = sender
+        self._queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=queue_size)
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        if sender is None:
+            self._thread = threading.Thread(target=self._run, name="axiom-logs", daemon=True)
+            self._thread.start()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # Delivery failures are logged on this name. Never ship them back.
+        if record.name == "src.observability.axiom":
+            return
+        try:
+            payload = json.loads(self.format(record))
+        except Exception:
+            payload = {
+                "message": scrub_log_text(record.getMessage()),
+                "level": record.levelname,
+                "service": SERVICE_NAME,
+                "logger": record.name,
+            }
+        if not isinstance(payload, dict):
+            return
+        payload["host"] = payload.get("host") or self.host
+        payload.setdefault("service", SERVICE_NAME)
+        if payload.get("timestamp") and "_time" not in payload:
+            payload["_time"] = payload["timestamp"]
+        try:
+            self._queue.put_nowait(payload)
+        except queue.Full:
+            return
+
+    def drain(self) -> None:
+        """Send everything currently queued. Tests use this instead of the thread."""
+        batch: list[dict[str, Any]] = []
+        while True:
+            try:
+                batch.append(self._queue.get_nowait())
+            except queue.Empty:
+                break
+        if batch:
+            self._deliver(batch)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                first = self._queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            batch = [first]
+            deadline = time.monotonic() + 1
+            while len(batch) < 50 and time.monotonic() < deadline:
+                try:
+                    batch.append(self._queue.get_nowait())
+                except queue.Empty:
+                    break
+            self._deliver(batch)
+
+    def _deliver(self, batch: list[dict[str, Any]]) -> None:
+        try:
+            if self._sender is not None:
+                self._sender(batch)
+            else:
+                post_axiom_batch(self.url, self.dataset, self._token, batch)
+        except Exception:
+            logging.getLogger("src.observability.axiom").warning("Axiom log delivery failed")
+
+
+def post_axiom_batch(url: str, dataset: str, token: str, batch: list[dict[str, Any]]) -> None:
+    """POST one batch to Axiom's dataset ingest API. The body never contains the token."""
+    endpoint = f"{url.rstrip('/')}/v1/datasets/{quote(dataset, safe='')}/ingest"
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(batch).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        # The status is enough. Response bodies are not logged: they can echo
+        # request details, and the token must not land in a log line.
+        raise RuntimeError(f"Axiom ingest failed with HTTP {exc.code}") from None
+
+
+def axiom_log_handler() -> AxiomLogHandler | None:
+    """The process-wide Axiom handler, or None when ``AXIOM_TOKEN`` is unset."""
+    global _axiom_handler
+    token = os.getenv("AXIOM_TOKEN", "").strip()
+    if not token:
+        return None
+    if _axiom_handler is not None:
+        return _axiom_handler
+    dataset = os.getenv("AXIOM_DATASET", "").strip() or "supoclip-prod"
+    url = os.getenv("AXIOM_URL", "").strip() or "https://api.axiom.co"
+    host = os.getenv("SUPOCLIP_LOG_HOST", "").strip() or socket.gethostname()
+    _axiom_handler = AxiomLogHandler(dataset=dataset, token=token, url=url, host=host)
+    _axiom_handler.setFormatter(JsonLogFormatter())
+    return _axiom_handler
 
 
 def configure_logging() -> None:
@@ -209,6 +367,13 @@ def configure_logging() -> None:
         posthog_handler = PostHogExceptionHandler(posthog_client)
         posthog_handler.addFilter(trace_filter)
         root_logger.addHandler(posthog_handler)
+
+    # Off unless AXIOM_TOKEN is set on this process. The main host ships logs
+    # with Vector and does not set the token here.
+    axiom_handler = axiom_log_handler()
+    if axiom_handler is not None:
+        axiom_handler.addFilter(trace_filter)
+        root_logger.addHandler(axiom_handler)
 
     for logger_name in ("httpx", "httpcore"):
         logging.getLogger(logger_name).setLevel(logging.WARNING)

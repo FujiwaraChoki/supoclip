@@ -141,6 +141,31 @@ Admission lives in Redis, so workers on different machines share one counter.
 (production mounts it at `/run/geonode-trial.json`). The file is not in the
 image. Leave the prefix empty to keep the normal proxy.
 
+## Logs
+
+This machine's container logs do not reach the application host's Vector
+collector. The worker sends them itself when its private env file
+(`WORKER_ENV_FILE`) contains:
+
+- `AXIOM_TOKEN`
+- `AXIOM_DATASET`
+- `SUPOCLIP_LOG_HOST`
+- `AXIOM_URL` (optional; the client uses the default Axiom ingest host when it is unset)
+
+No extra compose service is required. `SUPOCLIP_SERVICE` is already `worker`.
+`SUPOCLIP_LOG_HOST` is the name of this machine and is stored as `host`, so
+these lines are distinct from the application host's worker (`host` `app`
+unless that host sets `SUPOCLIP_LOG_HOST`).
+
+Do not put `AXIOM_TOKEN` on the application host's API or worker containers.
+That host already ships logs with the `vector` service (`COMPOSE_PROFILES`
+includes `axiom`). After this release, recreate that service so container and
+nginx lines gain `host`. Set `SUPOCLIP_LOG_HOST` there only to override the
+default `app`.
+
+The worker needs outbound HTTPS to the Axiom ingest host. A bind-mounted log
+directory on this machine is local only; it is not what reaches Axiom.
+
 ## Checking it works
 
 Workers compete for jobs, so a given job may land on either machine. Look at
