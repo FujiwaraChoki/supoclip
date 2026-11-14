@@ -836,6 +836,8 @@ def download_youtube_video(
         if not downloaded_path:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error="no file")
             logger.warning("%s download failed for %s", provider, url)
+            if errors is not None:
+                errors.append(f"{provider}: no file")
             continue
 
         file_size = downloaded_path.stat().st_size if downloaded_path.is_file() else 0

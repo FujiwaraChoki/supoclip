@@ -967,6 +967,7 @@ def download_analysis_source(
     budget: Optional[ByteBudget] = None,
     duration: Optional[float] = None,
     download_full: Callable[[], Optional[Path]],
+    errors: Optional[list[str]] = None,
 ) -> tuple[Optional[Path], bool]:
     """Return ``(path, audio_first)`` for a proxied YouTube job.
 
@@ -974,7 +975,8 @@ def download_analysis_source(
     with HTTP 403 (the HLS retry lives inside ``download_audio``), the full
     timeline is fetched through the section downloader when a duration is
     known and the formats can be sliced. Anything else uses ``download_full``,
-    the existing full-file / API Router / Apify chain.
+    the existing full-file / API Router / Apify chain. ``errors`` collects
+    the redacted reason the proxy route failed.
     """
     failure = None
     try_sections = False
@@ -1003,6 +1005,8 @@ def download_analysis_source(
         "Proxy audio download failed for %s, falling back to a full file: %s",
         video_id, public_download_error(failure),
     )
+    if errors is not None:
+        errors.append(public_download_error(failure))
     # Run the independent provider outside the failed attempt's exception
     # handler. Its own transport, local-file and programming errors stay intact.
     report_download_recovery(DownloadRecovery.BACKUP)

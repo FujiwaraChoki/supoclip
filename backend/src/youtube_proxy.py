@@ -54,6 +54,30 @@ class YouTubeGeoRestrictedError(YouTubeDownloadError):
         )
 
 
+class YouTubeDownloadFailedError(YouTubeDownloadError):
+    """Every download route failed. ``str()`` stays the short public message.
+
+    ``reasons`` holds each attempt's redacted failure (no proxy credentials,
+    no media URLs) for logs and error tracking. They are also attached as an
+    exception note, so a logged traceback carries them; the task page does not.
+    """
+
+    MAX_REASONS = 10
+
+    def __init__(self, message: str, reasons: Optional[list[str]] = None):
+        super().__init__(message)
+        unique: list[str] = []
+        for reason in reasons or ():
+            text = public_download_error(reason).strip()
+            if text and text not in unique:
+                unique.append(text)
+        self.reasons: tuple[str, ...] = tuple(unique[: self.MAX_REASONS])
+        self.add_note(f"Download attempts failed: {self.reasons_text()}")
+
+    def reasons_text(self) -> str:
+        return "; ".join(self.reasons) or "no reason reported"
+
+
 def _exception_chain(exc: BaseException):
     """yt-dlp also retains its extractor error in DownloadError.exc_info."""
     pending = [exc]
