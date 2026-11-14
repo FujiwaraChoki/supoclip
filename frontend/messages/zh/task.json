@@ -56,6 +56,8 @@
   "cancelledBody": "准备好后可重试此生成任务。已完成的片段将保留。",
   "failedTitle": "处理失败",
   "failedBody": "处理失败。请重试生成。已完成的片段将保留。",
+  "failedBodyAgeRestricted": "此 YouTube 视频有年龄限制，我们无法下载。请自行下载视频后上传文件。未消耗任何分钟数。",
+  "failedBodyGeoRestricted": "此 YouTube 视频在我们所在地区不可用，我们无法下载。请自行下载视频后上传文件。未消耗任何分钟数。",
   "backHome": "返回首页",
   "noClipsTitle": "没有生成片段",
   "noClipsBody": "生成已完成，但没有产出片段。这段视频可能没有适合剪辑的内容。",

@@ -195,6 +195,12 @@ export default function TaskPage() {
   const { data: session } = useSession();
   const [task, setTask] = useState<TaskDetails | null>(null);
   const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
+  // Source failures a retry can't fix get their own explanation.
+  const failedBody = task?.error_code === "youtube_age_restricted"
+    ? t("failedBodyAgeRestricted")
+    : task?.error_code === "youtube_geo_restricted"
+      ? t("failedBodyGeoRestricted")
+      : t("failedBody");
   // Next steps on the failure screen stay inside what this user may make.
   const workflowsInfo = useWorkflowsInfo(Boolean(failureCode));
   const [clips, setClips] = useState<Clip[]>([]);
@@ -1027,7 +1033,7 @@ export default function TaskPage() {
             onResume={handleResume}
           />
         ) : task.status === "error" && clips.length === 0 ? (
-          <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={t("failedBody")}>
+          <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={failedBody}>
             <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />{t("backHome")}</Link></Button>
           </EmptyState>
         ) : clips.length === 0 ? (
@@ -1070,7 +1076,7 @@ export default function TaskPage() {
             {task.status === "error" && (
               <div role="status" className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
                 <p className="font-medium">{t("failedTitle")}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{t("failedBody")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{failedBody}</p>
               </div>
             )}
                         {workflow === "topic" && topicName && (

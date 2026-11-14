@@ -153,6 +153,7 @@ def _empty_video_info(video_id: Optional[str] = None) -> Dict[str, Any]:
         "resolution": None,
         "fps": None,
         "filesize": None,
+        "age_restricted": False,
     }
 
 
@@ -354,6 +355,7 @@ def _fetch_video_info_with_ytdlp(
         "resolution": info.get("resolution"),
         "fps": info.get("fps"),
         "filesize": info.get("filesize"),
+        "age_restricted": (_parse_optional_int(info.get("age_limit")) or 0) >= 18,
     }
 
 
@@ -387,7 +389,7 @@ def _fetch_video_info_with_youtube_data_api(
                 "items(id,"
                 "snippet(title,description,channelTitle,publishedAt,"
                 "thumbnails(default(url),medium(url),high(url),standard(url),maxres(url))),"
-                "contentDetails(duration),"
+                "contentDetails(duration,contentRating(ytRating)),"
                 "statistics(viewCount,likeCount))"
             ),
         },
@@ -403,7 +405,9 @@ def _fetch_video_info_with_youtube_data_api(
 
     item = items[0]
     snippet = item.get("snippet") or {}
-    raw_duration = (item.get("contentDetails") or {}).get("duration")
+    content_details = item.get("contentDetails") or {}
+    raw_duration = content_details.get("duration")
+    yt_rating = (content_details.get("contentRating") or {}).get("ytRating")
     statistics = item.get("statistics") or {}
     normalized = _empty_video_info(item.get("id") or video_id)
     normalized.update(
@@ -416,6 +420,7 @@ def _fetch_video_info_with_youtube_data_api(
             "view_count": _parse_optional_int(statistics.get("viewCount")),
             "like_count": _parse_optional_int(statistics.get("likeCount")),
             "thumbnail": _pick_best_thumbnail(snippet.get("thumbnails")),
+            "age_restricted": yt_rating == "ytAgeRestricted",
         }
     )
     return normalized

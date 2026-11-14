@@ -47,7 +47,7 @@ from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url, has_verified_duration
-from ...youtube_proxy import YouTubeGeoRestrictedError
+from ...youtube_proxy import YouTubeAgeRestrictedError, YouTubeGeoRestrictedError
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
     StreamDurationUnavailableError,
@@ -114,6 +114,8 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
         )
         if metadata is None:
             raise ValueError("No metadata provider answered")
+        if metadata.get("age_restricted"):
+            raise YouTubeAgeRestrictedError()
         if not has_verified_duration(metadata):
             raise _DurationUnavailable()
         duration = metadata["duration"]
@@ -124,6 +126,14 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             status_code=422,
             detail={
                 "code": "YOUTUBE_GEO_RESTRICTED",
+                "message": f"{exc} No minutes were used.",
+            },
+        ) from None
+    except YouTubeAgeRestrictedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "YOUTUBE_AGE_RESTRICTED",
                 "message": f"{exc} No minutes were used.",
             },
         ) from None

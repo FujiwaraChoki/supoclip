@@ -56,6 +56,8 @@
   "cancelledBody": "Vuelve a intentar esta generación cuando quieras. Los clips terminados se conservarán.",
   "failedTitle": "Error de procesamiento",
   "failedBody": "El procesamiento ha fallado. Reintenta la generación. Los clips terminados se conservarán.",
+  "failedBodyAgeRestricted": "Este video de YouTube tiene restricción de edad, así que no podemos descargarlo. Descarga el video tú mismo y sube el archivo. No se usaron minutos.",
+  "failedBodyGeoRestricted": "Este video de YouTube no está disponible en nuestra región, así que no podemos descargarlo. Descarga el video tú mismo y sube el archivo. No se usaron minutos.",
   "backHome": "Volver al inicio",
   "noClipsTitle": "No se generaron clips",
   "noClipsBody": "La generación terminó, pero no se crearon clips. Es posible que el video no tuviera contenido adecuado para recortar.",
