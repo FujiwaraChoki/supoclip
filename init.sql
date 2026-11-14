@@ -31,6 +31,7 @@ CREATE TABLE users (
     subscription_status VARCHAR(20) NOT NULL DEFAULT 'inactive',
     subscription_provider VARCHAR(20),
     stripe_customer_id VARCHAR(255) UNIQUE,
+    stripe_account_id VARCHAR(255),
     stripe_subscription_id VARCHAR(255) UNIQUE,
     billing_period_start TIMESTAMP WITH TIME ZONE,
     billing_period_end TIMESTAMP WITH TIME ZONE,
