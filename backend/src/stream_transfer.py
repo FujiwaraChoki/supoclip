@@ -38,10 +38,29 @@ _cancel = ContextVar("stream_transfer_cancel", default=None)
 
 
 class Transfer:
-    def __init__(self, budget, timeout):
+    """Stop a transfer that stops making progress, or that runs past a hard cap.
+
+    ``timeout`` is how long the transfer may go without receiving a byte; every
+    byte read pushes it back. ``max_seconds`` (optional) caps the whole transfer.
+    A slow but steady download of a long VOD is not a hung one: the byte budget,
+    not the clock, bounds what it costs.
+    """
+
+    def __init__(self, budget, timeout, max_seconds=None):
+        now = time.monotonic()
         self.budget = budget
-        self.deadline = time.monotonic() + timeout
+        self.idle_seconds = timeout
+        self.progressed = now
+        self.hard_deadline = now + max_seconds if max_seconds else None
         self.cancelled = _cancel.get()
+
+    @property
+    def deadline(self):
+        idle = self.progressed + self.idle_seconds
+        return idle if self.hard_deadline is None else min(idle, self.hard_deadline)
+
+    def progress(self):
+        self.progressed = time.monotonic()
 
     def check(self):
         self.budget.check()
@@ -53,8 +72,8 @@ class Transfer:
 
 
 @contextmanager
-def transfer_scope(budget, timeout=300):
-    transfer = Transfer(budget, max(1, timeout))
+def transfer_scope(budget, timeout=300, max_seconds=None):
+    transfer = Transfer(budget, max(1, timeout), max(1, max_seconds) if max_seconds else None)
     token = _active.set(transfer)
     try:
         transfer.check()
@@ -69,6 +88,8 @@ def account_chunk(data):
     if transfer is not None:
         transfer.check()
         transfer.budget.add(len(data))
+        if data:
+            transfer.progress()
 
 
 def check_transfer():
@@ -93,6 +114,8 @@ class LimitedResponse:
         try:
             data = self.response.read(size)
             self.transfer.budget.add(len(data))
+            if data:
+                self.transfer.progress()
             self.transfer.check()
             return data
         except BaseException:

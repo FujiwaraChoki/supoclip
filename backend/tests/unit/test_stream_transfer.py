@@ -105,3 +105,36 @@ async def test_user_cancel_flag_stops_running_reader():
     with pytest.raises(TransferStopped, match="cancelled"):
         await asyncio.wait_for(run_stream_download(download, should_cancel=cancelled), 2)
     assert stopped.is_set()
+
+
+def test_steady_progress_outlives_the_idle_timeout(monkeypatch):
+    from src import stream_transfer
+    now = [0.0]
+    monkeypatch.setattr(stream_transfer.time, "monotonic", lambda: now[0])
+    with transfer_scope(TransferBudget(1000), timeout=5, max_seconds=100) as transfer:
+        for _ in range(10):  # 40 seconds in total, never 5 without data.
+            now[0] += 4.0
+            assert LimitedResponse(BytesIO(b"x"), transfer).read(1) == b"x"
+
+
+def test_stalled_transfer_times_out(monkeypatch):
+    from src import stream_transfer
+    now = [0.0]
+    monkeypatch.setattr(stream_transfer.time, "monotonic", lambda: now[0])
+    with pytest.raises(TransferStopped, match="timed out"):
+        with transfer_scope(TransferBudget(1000), timeout=5, max_seconds=100) as transfer:
+            now[0] = 4.0
+            LimitedResponse(BytesIO(b"x"), transfer).read(1)
+            now[0] = 9.5
+            transfer.check()
+
+
+def test_hard_cap_stops_a_steady_transfer(monkeypatch):
+    from src import stream_transfer
+    now = [0.0]
+    monkeypatch.setattr(stream_transfer.time, "monotonic", lambda: now[0])
+    with pytest.raises(TransferStopped, match="timed out"):
+        with transfer_scope(TransferBudget(1000), timeout=5, max_seconds=20) as transfer:
+            for _ in range(10):
+                now[0] += 4.0
+                LimitedResponse(BytesIO(b"x"), transfer).read(1)
