@@ -67,6 +67,11 @@ class Config:
         # download chain changes until this template is set.
         self.youtube_proxy_url = os.getenv("YOUTUBE_PROXY_URL", "").strip()
         self.youtube_proxy_timeout_seconds = self._get_int_env("YOUTUBE_PROXY_TIMEOUT_SECONDS", 300)
+        # Twitch/Kick: YOUTUBE_PROXY_TIMEOUT_SECONDS is how long a download may go
+        # without receiving data. This is the shortest overall cap for one call.
+        # A long VOD is allowed longer, up to an hour, while data is still arriving.
+        # Do not use the idle timeout as that cap.
+        self.stream_download_max_seconds = self._get_int_env("STREAM_DOWNLOAD_MAX_SECONDS", 2400)
         self.youtube_proxy_country = os.getenv("YOUTUBE_PROXY_COUNTRY", "").strip()
         self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
         self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)

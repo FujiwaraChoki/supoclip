@@ -11,6 +11,7 @@ import json
 import subprocess
 import uuid
 
+from ..stream_transfer import run_stream_download
 from ..utils.async_helpers import run_in_thread
 from ..download_progress import (
     DownloadRecovery,
@@ -1462,9 +1463,10 @@ class VideoService:
                 # seeds that length), so no second metadata request is made here.
                 # Each provider checks the plan cap before downloading media.
                 try:
-                    video_path = await run_in_thread(
+                    video_path = await run_stream_download(
                         download_stream_audio, url, None, task_id,
                         max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                     )
                     audio_first = True
                 except StreamSourceError:
@@ -1473,9 +1475,10 @@ class VideoService:
                     raise
                 except Exception as exc:
                     logger.warning("Stream audio download unavailable; using full video: %s", exc)
-                    video_path = await run_in_thread(
+                    video_path = await run_stream_download(
                         download_stream_video, url, None, task_id,
                         max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                     )
             else:
                 if url.startswith("upload://s3/"):
@@ -1638,9 +1641,10 @@ class VideoService:
                 section_error = None
                 try:
                     if source_type in {"twitch", "kick"}:
-                        video_path = await run_in_thread(
+                        video_path = await run_stream_download(
                             download_stream_sections, url, segments_json, file_duration, task_id,
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                         )
                         # Shift word timings onto the stitched sections' timeline.
                         await run_in_thread(
@@ -1666,12 +1670,15 @@ class VideoService:
                         await progress_callback(65, DownloadRecovery.FULL_VIDEO.value, "processing")
                     logger.warning(
                         "Section download failed, falling back to a full download: %s",
-                        section_error,
+                        public_download_error(section_error),
+                        extra={"task_id": task_id, "youtube_download_kind": "section_materialization",
+                               "youtube_outcome": "failure", "youtube_error_type": type(section_error).__name__},
                     )
                     if source_type in {"twitch", "kick"}:
-                        video_path = await run_in_thread(
+                        video_path = await run_stream_download(
                             download_stream_video, url, file_duration, task_id,
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                         )
                     else:
                         video_path = await VideoService.download_video(
@@ -1684,7 +1691,7 @@ class VideoService:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                         await run_in_thread(persist_cache_sidecar, video_path)
                 if not video_path:
-                    raise Exception("Failed to download selected segments")
+                    raise Exception("Failed to download selected segments") from section_error
                 # Transcription used the audio download. The picture is only
                 # available now, so the 1080p/60 cap has to run again or a
                 # section download stays at the source resolution.

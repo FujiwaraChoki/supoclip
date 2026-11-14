@@ -121,6 +121,26 @@ Names that only resolve inside the application host's Compose network, such as
 `bgutil`, `redis`, `postgres` or `host.docker.internal`, do not work on another
 machine. Replace them with addresses the worker can reach.
 
+## Stream downloads and the YouTube proxy trial
+
+Twitch, Kick, and YouTube downloads run inside the video worker, on whichever
+machine takes the job. The API and a worker do not share a disk. Files under
+`TEMP_DIR` stay on that machine. Anything another process needs is in
+PostgreSQL, Redis, or the media bucket before the job reports it.
+
+`YOUTUBE_PROXY_TIMEOUT_SECONDS` is how long a Twitch or Kick download may go
+without receiving data. `STREAM_DOWNLOAD_MAX_SECONDS` is the shortest overall
+cap for one call; a long VOD is allowed longer, up to an hour, while data is
+still arriving. Set both on every worker, including this one, to the same
+values as the application host.
+
+When `YOUTUBE_PROXY_TRIAL_PREFIX` is set, YouTube jobs use the proxy trial.
+Admission lives in Redis, so workers on different machines share one counter.
+`YOUTUBE_PROXY_DEFAULT_PROVIDER` selects the active provider (`geonode` or
+`dataimpulse`). `YOUTUBE_PROXY_TRIAL_SECRET_FILE` is the mounted JSON template
+(production mounts it at `/run/geonode-trial.json`). The file is not in the
+image. Leave the prefix empty to keep the normal proxy.
+
 ## Checking it works
 
 Workers compete for jobs, so a given job may land on either machine. Look at

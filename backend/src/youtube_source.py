@@ -123,12 +123,12 @@ def missing_intervals(
                 continue
             if cached_start >= limit:
                 break
-            if cached_start > cursor:
+            if cached_start > cursor + COVERAGE_TOLERANCE_SECONDS:
                 gaps.append((cursor, min(cached_start, limit)))
             cursor = max(cursor, cached_end)
             if cursor >= limit:
                 break
-        if cursor < limit - 0.05:
+        if cursor < limit - COVERAGE_TOLERANCE_SECONDS:
             gaps.append((cursor, limit))
     return merge_ranges(gaps, padding=0.0)
 
@@ -1065,8 +1065,8 @@ def _cover_pieces(pieces: list[CachedPiece], start: float, end: float) -> Option
     """Greedy cover of ``[start, end]`` by cached pieces, in timeline order."""
     chosen: list[CachedPiece] = []
     cursor = start
-    while cursor < end - 0.05:
-        candidates = [piece for piece in pieces if piece.start <= cursor + 0.25 and piece.end > cursor + 0.05]
+    while cursor < end - COVERAGE_TOLERANCE_SECONDS:
+        candidates = [piece for piece in pieces if piece.start <= cursor + COVERAGE_TOLERANCE_SECONDS and piece.end > cursor + 0.05]
         if not candidates:
             return None
         best = max(candidates, key=lambda piece: piece.end)
@@ -1092,9 +1092,9 @@ def _plan_slices(
             continue
         slices.append((piece, slice_start, slice_end))
         cursor = slice_end
-        if cursor >= end - 0.05:
+        if cursor >= end - COVERAGE_TOLERANCE_SECONDS:
             break
-    if cursor < end - 0.05:
+    if cursor < end - COVERAGE_TOLERANCE_SECONDS:
         return []
     return slices
 

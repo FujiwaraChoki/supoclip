@@ -212,13 +212,13 @@ class ByteBudget:
 
 
 def proxy_configured(config=None) -> bool:
-    runtime = config or get_config()
+    runtime = trial_config(config or get_config())
     return bool((getattr(runtime, "youtube_proxy_url", "") or "").strip())
 
 
 def capped_height(value: int | None = None, config=None) -> int:
     """Never request above 1080p. Lower env values are honored."""
-    runtime = config or get_config()
+    runtime = trial_config(config or get_config())
     raw = runtime.youtube_max_height if value is None else value
     try:
         height = int(raw)
@@ -313,6 +313,10 @@ def is_forbidden_media_error(exc: BaseException) -> bool:
     return False
 
 
+from .youtube_proxy_trial import trial_config, trial_log, trial_retry
+
+
+@trial_log
 def log_youtube_attempt(
     *,
     provider: str,
@@ -361,7 +365,7 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
     Player clients are left at yt-dlp defaults. PO tokens are requested only
     when a bgutil HTTP provider URL is configured.
     """
-    runtime = config or get_config()
+    runtime = trial_config(config or get_config())
     session = session_id or sticky_session_id(task_id, video_id)
     country = normalize_country(
         getattr(runtime, "youtube_proxy_country", "") if country is None else country
@@ -463,6 +467,7 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
     return transient
 
 
+@trial_retry
 def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: str,
                       budget: ByteBudget, cleanup: Callable[[], None],
                       deadline: Optional[float] = None):
@@ -471,7 +476,7 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
     Each attempt re-extracts metadata, keeping signed URLs and all fragments on
     that attempt's session. Completed sections outside this operation are kept.
     """
-    runtime = get_config()
+    runtime = trial_config(get_config())
     initial_seconds = max(30, getattr(runtime, "youtube_proxy_timeout_seconds", 300))
     overall_deadline = time.monotonic() + initial_seconds + 60
     if deadline is not None:
@@ -1517,7 +1522,7 @@ def download_full_with_proxy(
     quality: Optional[str] = None,
 ) -> Path:
     """Download into owned staging paths, preserving shared media and sidecars."""
-    runtime = get_config()
+    runtime = trial_config(get_config())
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
     dest_dir.mkdir(parents=True, exist_ok=True)
     job_dir = Path(tempfile.mkdtemp(prefix=f"proxy-{video_id}-", dir=dest_dir))
