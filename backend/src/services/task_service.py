@@ -45,7 +45,7 @@ from .task_completion_email_service import (
 )
 from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
-from ..youtube_proxy import YouTubeGeoRestrictedError
+from ..youtube_proxy import YouTubeDownloadFailedError, YouTubeGeoRestrictedError
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_duration import clip_duration, validate_clip_length
@@ -995,7 +995,11 @@ class TaskService(ClipEditingMixin):
             }
 
         except Exception as e:
-            logger.error(f"Error processing task {task_id}: {e}")
+            if isinstance(e, YouTubeDownloadFailedError):
+                # Redacted provider reasons; the task page keeps the short message.
+                logger.error("Error processing task %s: %s (%s)", task_id, e, e.reasons_text())
+            else:
+                logger.error(f"Error processing task {task_id}: {e}")
             # Clear failed writes before recording the terminal error state.
             await self.db.rollback()
             if pending_clip_path and pending_clip_path != video_path:

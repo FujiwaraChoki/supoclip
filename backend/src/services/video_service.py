@@ -30,6 +30,7 @@ from ..youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    YouTubeDownloadFailedError,
     YouTubeGeoRestrictedError,
     proxy_configured,
     public_download_error,
@@ -1407,6 +1408,8 @@ class VideoService:
                         )
 
                 video_id = get_youtube_video_id(url)
+                # Each failed attempt's redacted reason, reported if all fail.
+                download_errors: list[str] = []
                 cached_full = (
                     await run_in_thread(cached_full_media, video_id, download_quality)
                     if video_id else None
@@ -1420,7 +1423,8 @@ class VideoService:
                                 url,
                                 video_id,
                                 lambda **kwargs: download_youtube_video(
-                                    url, 3, task_id, download_quality, **kwargs
+                                    url, 3, task_id, download_quality,
+                                    errors=download_errors, **kwargs,
                                 ),
                                 task_id=task_id,
                                 budget=job_budget,
@@ -1435,6 +1439,7 @@ class VideoService:
                             budget=job_budget,
                             duration=float(source_duration) if source_duration else None,
                             download_full=_download_full,
+                            errors=download_errors,
                         )
 
                     try:
@@ -1447,11 +1452,11 @@ class VideoService:
                     audio_first = False
                     video_path = cached_full or await VideoService.download_video(
                         url, task_id=task_id, quality=download_quality, budget=job_budget,
-                        progress_callback=progress_callback,
+                        errors=download_errors, progress_callback=progress_callback,
                     )
                 video_path = preserve_geo_restriction(video_path, metadata_error)
                 if not video_path:
-                    raise Exception("Failed to download video")
+                    raise YouTubeDownloadFailedError("Failed to download video", download_errors)
             elif source_type in {"twitch", "kick"}:
                 # The API preflight already measured the source (and the task
                 # seeds that length), so no second metadata request is made here.
@@ -1631,6 +1636,7 @@ class VideoService:
                         65, "Downloading selected segments...", "processing"
                     )
                 section_error = None
+                section_errors: list[str] = []
                 try:
                     if source_type in {"twitch", "kick"}:
                         video_path = await run_in_thread(
@@ -1661,7 +1667,7 @@ class VideoService:
                         await progress_callback(65, DownloadRecovery.FULL_VIDEO.value, "processing")
                     logger.warning(
                         "Section download failed, falling back to a full download: %s",
-                        section_error,
+                        public_download_error(section_error),
                     )
                     if source_type in {"twitch", "kick"}:
                         video_path = await run_in_thread(
@@ -1669,9 +1675,11 @@ class VideoService:
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
                         )
                     else:
+                        section_errors.append(public_download_error(section_error))
                         video_path = await VideoService.download_video(
                             url, task_id=task_id, quality=download_quality, budget=job_budget,
                             skip_proxy=not isinstance(section_error, PartialDownloadUnavailable),
+                            errors=section_errors,
                             progress_callback=progress_callback, download_progress=65,
                         )
                         video_path = preserve_geo_restriction(video_path, section_error)
@@ -1679,6 +1687,10 @@ class VideoService:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                         await run_in_thread(persist_cache_sidecar, video_path)
                 if not video_path:
+                    if source_type == "youtube":
+                        raise YouTubeDownloadFailedError(
+                            "Failed to download selected segments", section_errors,
+                        )
                     raise Exception("Failed to download selected segments")
                 # Transcription used the audio download. The picture is only
                 # available now, so the 1080p/60 cap has to run again or a
