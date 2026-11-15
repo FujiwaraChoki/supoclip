@@ -6,8 +6,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-15
 
-- **Fixed:** Changing a project's settings no longer adds the next sentence to the end of a clip that stopped right before it.
-- **Fixed:** Every clip's sound now fades out over its last fraction of a second, so the end never clicks. The same goes for trimmed and split clips and for studio exports.
+- **Fixed:** Changing a project's settings no longer adds the next sentence to the end of a clip that stopped right before it. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+- **Fixed:** Every clip's sound now fades out over its last fraction of a second, so the end never clicks. The same goes for trimmed and split clips and for studio exports. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
 
 ## 2026-11-14
 
