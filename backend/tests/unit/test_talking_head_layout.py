@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -221,3 +222,141 @@ def test_hook_title_can_be_centred_on_a_stacked_seam():
     assert "\\an5\\pos(540,960)" in events[0]
     _, default = build_hook_title_ass("Boss of the algorithm", template, 1080, 1920, 30.0, "Arial", 62)
     assert "\\pos(" not in default[0]
+
+
+# A host at a desk, talking to camera (1280x720): the face box is a third of
+# the frame tall, with a band of room above the head (top at 22.5%).
+HOST_720 = (546, 162, 182, 247)
+
+
+def _moving(boxes_at, count=36):
+    return [(index / 3.0, [tuple(boxes_at(index))]) for index in range(count)]
+
+
+def test_lone_presenter_with_headroom_gets_a_tight_solo_crop_not_a_stage():
+    layout = choose_talking_head_layout(1280, 720, _frames([HOST_720], count=36), scene_cuts=[])
+
+    assert layout is not None
+    assert layout["kind"] == "solo"
+    graph = layout["video_filter"]
+    # A crop scaled to fill the frame: no blurred fill, no letterbox band.
+    assert "gblur" not in graph and "overlay" not in graph
+    assert graph.endswith("[vout]")
+    match = re.search(r"crop=(\d+):(\d+):x=(\d+):y=(\d+)", graph)
+    assert match, graph
+    crop_w, crop_h, crop_x, _ = map(int, match.groups())
+    assert crop_h == 720 and abs(crop_w / crop_h - 9 / 16) < 0.01
+    # The face stays whole inside the crop, centred.
+    assert crop_x <= HOST_720[0] and crop_x + crop_w >= HOST_720[0] + HOST_720[2]
+    # Eyes near the upper third: the face-box centre sits around 0.36-0.42.
+    assert 0.3 <= layout["face_y"] <= 0.45
+    assert layout["upscale"] <= 2.7
+    assert layout["video_bottom"] == 1.0
+    assert 0.78 <= layout["caption_y"] <= 0.84
+
+
+def test_solo_crop_on_a_1080p_source_stays_within_the_sharp_upscale():
+    # A medium shot: face a sixth of the frame tall, top at 30%.
+    layout = choose_talking_head_layout(
+        1920, 1080, _frames([(860, 330, 150, 180)], count=36), scene_cuts=[]
+    )
+
+    assert layout is not None and layout["kind"] == "solo"
+    # 2.25x, give or take rounding the crop to even pixels.
+    assert layout["upscale"] <= 2.26
+    assert layout["face_y"] <= 0.45
+    crop_h = int(re.search(r"crop=\d+:(\d+):", layout["video_filter"]).group(1))
+    # Tighter than the full height: head and shoulders, not the whole desk.
+    assert crop_h < 1080
+
+
+def test_small_face_with_headroom_is_still_staged():
+    # Under SINGLE_MIN_FACE_H_FRAC (11% of the frame): a crop would invent a
+    # close-up from a few pixels, so the wider stage stays.
+    layout = choose_talking_head_layout(
+        1920, 1080, _frames([(900, 300, 90, 100)], count=36), scene_cuts=[]
+    )
+    assert layout is not None and layout["kind"] == "stage"
+
+
+def test_face_too_low_to_lift_within_the_upscale_cap_is_still_staged():
+    # The webcam face of test_low_webcam_face_is_staged_above_the_lower_half:
+    # the tightest allowed crop would leave its centre below mid-frame.
+    layout = choose_talking_head_layout(
+        1920, 1080, _frames([(800, 560, 280, 240)], count=36), scene_cuts=[]
+    )
+    assert layout is not None and layout["kind"] == "stage"
+
+
+def test_low_resolution_source_is_staged_instead_of_cropped_to_mush():
+    # 640x360: any 9:16 crop is a 5x enlargement.
+    layout = choose_talking_head_layout(
+        640, 360, _frames([(273, 81, 91, 124)], count=36), scene_cuts=[]
+    )
+    assert layout is not None and layout["kind"] == "stage"
+
+
+def test_a_second_person_for_part_of_the_clip_keeps_the_stage():
+    # A guest sits in for four seconds (under the 40% that marks a two-shot
+    # clip): the solo crop would cut them off, so the clip is staged as before.
+    samples = [
+        (i / 3.0, [HOST_720] + ([(120, 170, 170, 230)] if 12 <= i < 24 else []))
+        for i in range(36)
+    ]
+    layout = choose_talking_head_layout(1280, 720, samples, scene_cuts=[])
+    assert layout is not None and layout["kind"] == "stage"
+
+
+def test_solo_crop_follows_a_presenter_who_moves():
+    # The presenter drifts across the frame: the crop pans (an expression in
+    # time), never jumping from sample to sample.
+    layout = choose_talking_head_layout(
+        1280, 720, _moving(lambda i: (420 + i * 7, 170, 180, 245)), scene_cuts=[]
+    )
+    assert layout is not None and layout["kind"] == "solo"
+    assert re.search(r"crop=\d+:\d+:x='[^']*t[^']*'", layout["video_filter"])
+
+
+def test_solo_crop_reframes_at_a_jump_cut_and_reuses_a_setup():
+    # Wide-ish then closer framing after a jump cut at 4 s, then back to the
+    # first framing at 8 s: each shot is composed on its own, and both
+    # returns to the first setup share one zoom.
+    first, second = HOST_720, (520, 150, 230, 300)
+    samples = [
+        (i / 3.0, [first if i < 12 or i >= 24 else second]) for i in range(36)
+    ]
+    layout = choose_talking_head_layout(1280, 720, samples, scene_cuts=[4.0, 8.0], duration=12.0)
+    assert layout is not None and layout["kind"] == "solo"
+    graph = layout["video_filter"]
+    assert "concat=n=3" in graph
+    crops = re.findall(r"crop=(\d+:\d+):x=(\d+)", graph)
+    assert len(crops) == 3 and crops[0] == crops[2]
+
+
+def test_high_closeup_still_keeps_the_tracked_crop_without_a_solo_plan():
+    # Unchanged: a face already high in the frame is left to the tracked crop.
+    assert choose_talking_head_layout(1280, 720, _frames([(520, 60, 240, 300)], count=36)) is None
+
+
+def test_vertical_plan_uses_the_solo_crop_for_a_lone_presenter(tmp_path):
+    samples = _frames([HOST_720], count=36)
+    track = [(t, 637.0, 0.05) for t, _ in samples]
+    report = {}
+    with (
+        patch("src.media.reframing.ffprobe_duration", return_value=12.0),
+        patch("src.media.reframing.analyze_vertical_clip", return_value=(track, [], samples)),
+    ):
+        video_filter, mode, caption_y = build_vertical_filter_plan(
+            tmp_path / "clip.mp4", 1280, 720, report=report
+        )
+    assert report["kind"] == "solo"
+    assert mode == "complex" and video_filter.endswith("[vout]")
+    assert "gblur" not in video_filter
+    assert caption_y is not None and caption_y >= 0.78
+
+
+def test_solo_layout_is_a_content_kind_the_editor_bakes_beside_the_source():
+    from src.services.editor_service import CONTENT_LAYOUT_KINDS, PRESERVED_LAYOUT_KINDS
+
+    assert "solo" in CONTENT_LAYOUT_KINDS
+    assert "solo" not in PRESERVED_LAYOUT_KINDS

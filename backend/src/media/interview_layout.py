@@ -19,8 +19,10 @@ tracked crop, so a tripod shot stays still and a handheld one is followed.
 Every return to the same camera setup gets the same zoom.
 
 It only takes over clips that contain a real two-shot (see
-``plan_interview_layout``); single talking heads, calls, reactions, slides and
-sports keep their existing layouts. Diarized speaker cuts are not used here:
+``plan_interview_layout``); calls, reactions, slides and sports keep their
+existing layouts. A lone person whose face would otherwise be staged on a
+blurred frame gets the same ``single`` crop (``plan_solo_layout``, chosen by
+``talking_head_layout``). Diarized speaker cuts are not used here:
 both people stay on screen whenever the camera shows both.
 
 The filter decodes the input once: each composition reads only its own time
@@ -114,6 +116,15 @@ WEBCAM_FACE_TOP = 0.3
 
 # Output y of the seam between the two stacked panels (each 1080x960).
 PAIR_SEAM_Y = 0.5
+
+# A lone person on camera (``plan_solo_layout``) gets the single crop only when
+# its face centre lands at or above this share of the output height; lower,
+# the face cannot be lifted without zooming past the upscale cap.
+SOLO_MAX_FACE_Y = 0.48
+# A solo crop may enlarge at most this much. Any 9:16 crop of a 720p source
+# is 1920/720 = 2.67x (the plain tracked crop is too); smaller sources would
+# turn to mush, so they keep the staged layout.
+SOLO_MAX_UPSCALE = 2.7
 
 @dataclass
 class Segment:
@@ -497,6 +508,13 @@ def _crop(segment: Segment, index: int, size: Tuple[int, int], face_y: float, wi
     return f"crop={w}:{h}:x={x}:y={y}", bottom
 
 
+def _single_placement(box: Box, width: int, height: int) -> Tuple[float, float]:
+    """(face-centre output y, upscale) of a still single crop on ``box``."""
+    w, h = _single_size(box, width, height)
+    top = clamp_even(int(_vertical_offset(box, h, SINGLE_FACE_Y)), 0, max(0, height - h))
+    return (_centre(box)[1] - top) / max(h, 1), OUT_H / max(h, 1)
+
+
 def _single_chain(segment: Segment, width: int, height: int) -> Tuple[str, float]:
     size = _single_size(segment.people[0], width, height)
     crop, bottom = _crop(segment, 0, size, SINGLE_FACE_Y, width, height)
@@ -638,6 +656,85 @@ def precise_cuts(
     return sorted(hard + soft)
 
 
+def _on_exact_cuts(
+    build: Any, scene_cuts: Sequence[float], duration: float, input_path: Optional[Path]
+) -> Optional[List[Segment]]:
+    """``build(cuts)`` on the sampled cuts, then again on frame-accurate ones.
+
+    None when either plan is refused. If the frame search fails, the plan on
+    the sampled cuts stands.
+    """
+    coarse = [c for c in scene_cuts if 0 < c < duration]
+    segments = build(coarse)
+    if segments is None or input_path is None:
+        return segments
+    try:
+        times, thumbnails = frame_changes(input_path)
+        cuts = [c for c in precise_cuts(times, thumbnails, coarse) if 0 < c < duration]
+        segments = build(cuts)
+    except Exception as exc:
+        logger.warning("Frame-accurate cut search failed (%s); switching on sampled cuts", exc)
+    return segments
+
+
+def plan_solo_layout(
+    width: int,
+    height: int,
+    duration: float,
+    scene_cuts: Sequence[float],
+    face_samples: Sequence[FaceFrame],
+    input_path: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    """The interview's tight ``single`` crop for one person on camera, or None.
+
+    Every shot must show one person (one_person in ``_classify``: a face at
+    least SINGLE_MIN_FACE_H_FRAC of the frame tall, nobody else). The crop
+    follows that face, eyes near the upper third, and each return to the same
+    camera setup gets the same zoom. Refused (None) when a shot shows nobody,
+    a second person or only a small face, when the face sits too low in the
+    frame to reach SOLO_MAX_FACE_Y within the upscale cap, or when the source
+    is too small to crop sharply (SOLO_MAX_UPSCALE).
+    """
+    from .reframing import compute_vertical_crop_dims
+
+    if width < 2 or height < 2 or duration <= 0 or not face_samples:
+        return None
+    if width / height <= 1.05:
+        return None
+    crop_w, _ = compute_vertical_crop_dims(width, height)
+
+    def solo(cuts: Sequence[float]) -> Optional[List[Segment]]:
+        segments = _segments(duration, cuts, face_samples, (), width, height, crop_w)
+        if not segments or any(s.kind != "single" or s.reason != "one_person" for s in segments):
+            return None
+        return segments
+
+    segments = _on_exact_cuts(solo, scene_cuts, duration, input_path)
+    if segments is None:
+        return None
+    _pool_setups(segments, width)
+    placements = [_single_placement(s.people[0], width, height) for s in segments]
+    face_y = max(y for y, _ in placements)
+    upscale = max(scale for _, scale in placements)
+    if face_y > SOLO_MAX_FACE_Y or upscale > SOLO_MAX_UPSCALE:
+        logger.info("Solo crop refused: face at %.2f, upscale %.2fx", face_y, upscale)
+        return None
+    video_filter, lowest = build_interview_filter(segments, width, height)
+    summary = [
+        {"start": round(s.start, 3), "end": round(s.end, 3), "kind": s.kind, "reason": s.reason}
+        for s in segments
+    ]
+    logger.info("Solo layout: %s", summary)
+    return {
+        "kind": "solo",
+        "video_filter": video_filter,
+        "segments": summary,
+        "face_bottom": lowest,
+        "face_y": face_y,
+        "upscale": upscale,
+    }
+
+
 def plan_interview_layout(
     width: int,
     height: int,
@@ -673,19 +770,9 @@ def plan_interview_layout(
             return None
         return segments
 
-    coarse = [c for c in scene_cuts if 0 < c < duration]
-    segments = interview(coarse)
+    segments = _on_exact_cuts(interview, scene_cuts, duration, input_path)
     if segments is None:
         return None
-    if input_path is not None:
-        try:
-            times, thumbnails = frame_changes(input_path)
-            cuts = [c for c in precise_cuts(times, thumbnails, coarse) if 0 < c < duration]
-            segments = interview(cuts)
-        except Exception as exc:
-            logger.warning("Frame-accurate cut search failed (%s); switching on sampled cuts", exc)
-        if segments is None:
-            return None
     _pool_setups(segments, width)
     segments = _merge_neighbours(segments)
     video_filter, lowest = build_interview_filter(segments, width, height)

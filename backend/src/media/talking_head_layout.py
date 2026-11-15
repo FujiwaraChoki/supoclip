@@ -11,17 +11,24 @@ This module picks a layout from the face boxes already measured for reframing:
 - Two stable side-by-side webcams (a call) become a stacked pair of tiles.
   Each tile is a mild ~1.1x scale of that person's half, with the face in the
   upper part of the tile and captions in the gap between them.
-- A single low webcam face is placed on a blurred frame, cropped wide enough
-  to stay under ~1.32x and shifted so the face sits in the upper third.
+- One person whose face would sit low, or under a band of empty room, in a
+  full-height crop gets a tight tracked head-and-shoulders crop (``solo``,
+  the interview close-up from ``interview_layout``): up to 2.25x on a 1080p
+  source, eyes near the upper third.
+- Only when that face is small (under ~11% of the frame height), cannot be
+  lifted to the upper half within the upscale cap, or the source is too small
+  to crop sharply, is it placed on a blurred frame (``stage``), cropped wide
+  enough to stay under ~1.32x and shifted so the face sits in the upper third.
 - A gallery of three or more faces is shown in full (a downscale) on the blur,
   instead of zooming into one tiny tile.
 - A face already framed in the upper half, including a close podcast two-shot,
   returns None so the tracked crop and active-speaker cuts stay in charge.
 """
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .common import UPSCALE_SHARPEN_FILTER
+from .common import UPSCALE_SHARPEN_FILTER, logger
 from .ffmpeg import clamp_even, round_to_even
 
 OUT_W = 1080
@@ -279,12 +286,16 @@ def choose_talking_head_layout(
     height: int,
     samples: Sequence[FaceFrame],
     scene_cuts: Optional[Sequence[float]] = None,
+    duration: Optional[float] = None,
+    input_path: Optional[Path] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Return a stack, stage, or full-frame fit, or None to keep the tracked crop.
+    """Return a stack, solo crop, stage, or full-frame fit, or None to keep the tracked crop.
 
     ``samples`` are ``(time, [(x, y, w, h), ...])`` in source pixels. A busy
     cut-heavy clip is left alone: the scene-aware compositor already handles
-    slides and b-roll mixed into talking-head footage.
+    slides and b-roll mixed into talking-head footage. ``duration`` (else
+    estimated from the samples) and ``input_path`` (frame-accurate cuts)
+    only serve the solo crop.
     """
     if width < 2 or height < 2 or width / height <= 1.05:
         return None
@@ -317,5 +328,44 @@ def choose_talking_head_layout(
     _, y, _, h = box
     cy = y + h / 2
     if cy / height >= 0.48 or y / height >= 0.22:
+        # A full-height crop would leave the face low or under a band of
+        # empty room. One person big enough to crop gets a tight tracked
+        # crop (the interview close-up); only a small or unreachable face is
+        # staged on the blurred frame.
+        solo = _solo_plan(width, height, samples, scene_cuts or [], duration, input_path)
+        if solo:
+            return solo
         return _stage_plan(width, height, box)
     return None
+
+
+def _solo_plan(
+    width: int,
+    height: int,
+    samples: Sequence[FaceFrame],
+    scene_cuts: Sequence[float],
+    duration: Optional[float],
+    input_path: Optional[Path],
+) -> Optional[Dict[str, Any]]:
+    from .interview_layout import plan_solo_layout
+
+    if not duration:
+        times = sorted(t for t, _ in samples)
+        step = min((b - a for a, b in zip(times, times[1:]) if b > a), default=1 / 3)
+        duration = times[-1] + step if times else 0.0
+    try:
+        solo = plan_solo_layout(width, height, duration, scene_cuts, samples, input_path=input_path)
+    except Exception as exc:
+        logger.warning("Solo crop planning failed (%s); staging the face", exc)
+        return None
+    if not solo:
+        return None
+    return {
+        "kind": "solo",
+        "video_filter": solo["video_filter"],
+        "caption_y": round(caption_y_below_subject(solo["face_bottom"]), 4),
+        "upscale": solo["upscale"],
+        "face_y": solo["face_y"],
+        "video_bottom": 1.0,
+        "segments": solo["segments"],
+    }

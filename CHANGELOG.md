@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-15
+
+- **Improved:** A host or presenter talking to the camera on their own is framed as a tight crop on their face and shoulders, with the eyes near the top third, instead of the whole picture shrunk into a band with a blurred fill below. Their hand gestures no longer make the clip fall back to the full frame. Only a face too small or too low to crop sharply still gets the full picture.
+
 ## 2026-11-14
 
 - **Improved:** Interview clips are framed shot by shot instead of shrinking the whole video into a strip. When both people are on camera, each gets their own half of the screen, stacked; a close-up of one person becomes a tight crop on their face; on-screen graphics and b-roll are shown in full. The layout changes exactly on the video's own cuts. ([#392](https://github.com/FujiwaraChoki/supoclip/pull/392))

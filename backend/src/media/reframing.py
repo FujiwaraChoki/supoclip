@@ -1475,12 +1475,13 @@ def describe_vertical_layout(
     ``stack`` (side-by-side call tiles), ``overlap`` (two speakers at once)
     and ``interview`` (per shot: two people stacked, one cropped tight, or
     the full frame; see ``interview_layout``).
-    ``crop``, ``speaker``, ``stage``, ``fit`` and ``compositor`` stay on the
-    editor's vertical or original crop.
+    ``crop``, ``speaker``, ``solo``, ``stage``, ``fit`` and ``compositor``
+    stay on the editor's vertical or original crop.
 
     All-face clips use a face-aware layout when the subject would otherwise
-    sit low in a full-height crop (stacked call tiles, a wider stage for one
-    webcam, or the whole gallery). Well-framed closeups keep the tracked crop.
+    sit low in a full-height crop (stacked call tiles, a tight crop on one
+    person, a wider stage for a small webcam face, or the whole gallery).
+    Well-framed closeups keep the tracked crop.
     Clips containing content shots use the scene-aware compositor so tweets /
     graphs / slides are shown in full. With diarized speaker turns, multi-person
     wide shots that are not a video-call grid cut to whoever is talking.
@@ -1597,7 +1598,7 @@ def describe_vertical_layout(
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
     talking = (
-        choose_talking_head_layout(width, height, face_samples, scene_cuts)
+        choose_talking_head_layout(width, height, face_samples, scene_cuts, duration, input_path)
         if not content_fits else None
     )
     if not content_fits and speaker_words and (not talking or talking["kind"] == "stack"):

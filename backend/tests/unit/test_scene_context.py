@@ -31,7 +31,18 @@ def subject(time=0.0, **kwargs):
     (subject(face_count=2, face_span=0.2, face_area=0.03), None),
     (subject(face_area=0.03, text_rows=8), "screen_content_outside_crop"),
     (subject(face_area=0.08, face_center=0.9, text_rows=6), "screen_content_outside_crop"),
-    (subject(motion=0.12, outside_motion=0.8, motion_spread=1), "distributed_action"),
+    # Players in a wide shot: action across the frame needs the full frame.
+    (subject(face_area=0.02, motion=0.12, outside_motion=0.8, motion_spread=1), "distributed_action"),
+    # One head-and-shoulders presenter: the motion is their own gestures (and
+    # a chat overlay beside them), so the face crop stays.
+    (subject(face_area=0.048, motion=0.1, outside_motion=0.6, motion_spread=0.67), None),
+    (subject(face_area=0.03, motion=0.12, outside_motion=0.8, motion_spread=1), None),
+    # A big face at the frame edge (a facecam over gameplay) keeps the frame.
+    (subject(face_area=0.05, face_center=0.9, motion=0.12, outside_motion=0.8, motion_spread=1),
+     "distributed_action"),
+    # A second face is not a lone presenter.
+    (subject(face_count=2, face_span=0.25, motion=0.12, outside_motion=0.8, motion_spread=1),
+     "distributed_action"),
     (subject(), None),
     (subject(camera_motion=0.2), None),
     (subject(motion=0.2, outside_motion=0.1, motion_spread=0.2), None),
@@ -178,7 +189,10 @@ def test_failed_analysis_uses_full_frame_without_second_face_scan(analysis):
 
 
 def test_context_overrides_faces_and_speaker_turns():
-    evidence = [subject(i / 3, motion=0.2, outside_motion=0.8, motion_spread=1) for i in range(30)]
+    evidence = [
+        subject(i / 3, face_area=0.02, motion=0.2, outside_motion=0.8, motion_spread=1)
+        for i in range(30)
+    ]
     track = [(s.time, 960, s.face_area) for s in evidence]
     with patch.object(reframing, "ffprobe_duration", return_value=10), \
          patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], [], evidence)), \
