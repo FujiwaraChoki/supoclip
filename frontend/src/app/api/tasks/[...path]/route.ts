@@ -3,6 +3,14 @@ import { NextResponse } from "next/server";
 import { createProxyResponse, fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
+// Next aborts request.signal with a ResponseAborted error when the browser
+// disconnects, and fetch rejects with that same reason. Nobody reads the
+// response then, so answer 499 instead of reporting a server error.
+function clientDisconnected(request: Request, error: unknown) {
+  return request.signal.aborted && error === request.signal.reason &&
+    error instanceof Error && error.name === "ResponseAborted";
+}
+
 async function proxyTaskRequest(
   request: Request,
   { params }: { params: Promise<{ path: string[] }> }
@@ -20,28 +28,34 @@ async function proxyTaskRequest(
       ? undefined
       : await request.text();
 
-  const upstream = await fetchBackend(targetPath, {
-    method: request.method,
-    // Close the backend stream even when the client leaves before headers arrive.
-    signal: request.signal,
-    userId: session.user.id,
-    extraHeaders: {
-      ...(body && request.headers.get("content-type")
-        ? { "Content-Type": request.headers.get("content-type") as string }
-        : {}),
-      ...(request.headers.get("accept")
-        ? { Accept: request.headers.get("accept") as string }
-        : {}),
-      ...(request.headers.get("range")
-        ? { Range: request.headers.get("range") as string }
-        : {}),
-      ...(request.headers.get("if-range")
-        ? { "If-Range": request.headers.get("if-range") as string }
-        : {}),
-    },
-    body,
-    cache: "no-store",
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetchBackend(targetPath, {
+      method: request.method,
+      // Close the backend stream even when the client leaves before headers arrive.
+      signal: request.signal,
+      userId: session.user.id,
+      extraHeaders: {
+        ...(body && request.headers.get("content-type")
+          ? { "Content-Type": request.headers.get("content-type") as string }
+          : {}),
+        ...(request.headers.get("accept")
+          ? { Accept: request.headers.get("accept") as string }
+          : {}),
+        ...(request.headers.get("range")
+          ? { Range: request.headers.get("range") as string }
+          : {}),
+        ...(request.headers.get("if-range")
+          ? { "If-Range": request.headers.get("if-range") as string }
+          : {}),
+      },
+      body,
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (clientDisconnected(request, error)) return new Response(null, { status: 499 });
+    throw error;
+  }
 
   // Canvas video needs a CORS-enabled response. Following a same-origin
   // redirect to object storage can produce a request without Origin, so the
@@ -68,10 +82,16 @@ async function proxyTaskRequest(
     }
     // Location comes from the authenticated backend, never the client. Do not
     // send its signed backend-auth headers, cookies, or client credentials to S3.
-    const media = await fetch(target.toString(), {
-      method: "GET", headers: mediaHeaders, signal: request.signal,
-      cache: "no-store", credentials: "omit",
-    });
+    let media: Response;
+    try {
+      media = await fetch(target.toString(), {
+        method: "GET", headers: mediaHeaders, signal: request.signal,
+        cache: "no-store", credentials: "omit",
+      });
+    } catch (error) {
+      if (clientDisconnected(request, error)) return new Response(null, { status: 499 });
+      throw error;
+    }
     const response = createProxyResponse(media);
     response.headers.set("cache-control", "private, no-store");
     return response;
