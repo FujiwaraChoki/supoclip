@@ -390,6 +390,8 @@ async def process_cancellation_reviews(ctx: dict[str, Any] | None = None) -> dic
     source_account = config.stripe_source_account_id
     now = _now()
     async with AsyncSessionLocal() as db:
+        if not await has_table(db, "cancellation_reviews"):
+            return {"enabled": True, "waiting_for": "the API to apply the migration"}
         folded = await fold_pending_events(db, settle, source_account)
         reconciled = await reconcile(db, now, source_account)
         notes = await attach_late_notes(db, now)
