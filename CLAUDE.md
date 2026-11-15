@@ -257,6 +257,13 @@ table (one per user, `slug` cleared on decline).
   "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
   The app's paywall opens Apple's redeem sheet ("Have a creator code?").
 
+## Pull requests
+
+Every PR with a visible change includes a screenshot of the feature, and a short video (inline GIF, plus the
+`.mp4` link when needed) whenever the change can be recorded. Capture it from the running app with demo data,
+push the media to an orphan `pr-assets/<branch-name>` branch, and embed it via `raw.githubusercontent.com`.
+Backend-only PRs say there is nothing visual. Full rules: "Screenshots and video in PRs" in `AGENTS.md`.
+
 ## Feature tours
 
 When a change gives existing users something new to find, add a tour: an entry in
