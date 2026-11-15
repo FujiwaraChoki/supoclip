@@ -46,5 +46,11 @@
       "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
     }
   },
-  "skip": "Überspringen"
+  "skip": "Überspringen",
+  "assistant-connect": {
+    "agents": {
+      "title": "Claude, ChatGPT oder Grok verbinden",
+      "body": "Lass deinen KI-Assistenten Clips für dich erstellen. Füge SupoClip unter Agenten & API als Connector hinzu und melde dich an, ohne einen API-Schlüssel zu kopieren."
+    }
+  }
 }

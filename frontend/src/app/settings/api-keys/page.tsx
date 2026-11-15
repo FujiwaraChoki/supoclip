@@ -15,6 +15,7 @@ import { authClient, useSession } from "@/lib/auth-client";
 import { useCopyText } from "@/lib/copy-text";
 import { GITHUB_URL } from "@/lib/site";
 import { McpSetup } from "@/components/mcp-setup";
+import { AssistantConnect } from "@/components/assistant-connect";
 
 const DOCS = [
   {
@@ -258,6 +259,8 @@ export default function ApiKeysPage() {
               </AlertDescription>
             </Alert>
           )}
+
+          <AssistantConnect />
 
           {/* Create form */}
           <div className="mb-10 p-4 border rounded-lg">

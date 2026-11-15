@@ -46,5 +46,11 @@
       "body": "Durasi, teks, pembingkaian, pembersihan, dan B-roll kini ada dalam satu menu. Kami mengingat pilihanmu, jadi cukup diatur sekali."
     }
   },
-  "skip": "Lewati"
+  "skip": "Lewati",
+  "assistant-connect": {
+    "agents": {
+      "title": "Hubungkan Claude, ChatGPT, atau Grok",
+      "body": "Minta asisten AI-mu membuat clip. Di Agen & API, tambahkan SupoClip sebagai konektor dan masuk, tanpa menyalin kunci API."
+    }
+  }
 }

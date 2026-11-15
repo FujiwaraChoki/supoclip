@@ -38,7 +38,7 @@ export function mcpSnippets(url: string, key: string) {
   };
 }
 
-function Snippet({ label, value }: { label: string; value: string }) {
+export function Snippet({ label, value }: { label: string; value: string }) {
   const t = useTranslations("settings.apiKeys.mcp");
   const copyText = useCopyText();
   const ref = useRef<HTMLElement>(null);
@@ -67,7 +67,6 @@ export function McpSetup({ apiKey }: { apiKey?: string | null }) {
   const snippets = mcpSnippets(url, key);
   const tabs = [
     { id: "claude-code", label: t("tabs.claudeCode"), hint: t("hints.claudeCode"), value: snippets.claudeCode },
-    { id: "connectors", label: t("tabs.connectors"), hint: t("hints.connectors"), value: url },
     { id: "json", label: t("tabs.json"), hint: t("hints.json"), value: snippets.json },
     { id: "claude-desktop", label: t("tabs.claudeDesktop"), hint: t("hints.claudeDesktop"), value: snippets.claudeDesktop },
     { id: "stdio", label: t("tabs.stdio"), hint: t("hints.stdio"), value: snippets.stdio },

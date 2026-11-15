@@ -75,11 +75,16 @@ it("shows MCP setup with only the URL in the URL field, filled with a new key", 
     options?.method === "POST" ? { api_key: { key: "sk_only-once" } } : { api_keys: [] }
   ), { status: 200 }));
   render(<ApiKeysPage />);
-  expect(screen.getByText("https://mcp.supoclip.com/mcp")).toBeInTheDocument();
+  // Once for the chat assistants, once for clients that take a key.
+  expect(screen.getAllByText("https://mcp.supoclip.com/mcp")).toHaveLength(2);
   expect(screen.getByText('claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_..."')).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
   await screen.findByText('claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_only-once"');
   expect(screen.getByText("Authorization: Bearer sk_only-once")).toBeInTheDocument();
+  // Chat assistants sign in with OAuth: the new key never reaches their setup or links.
+  const assistants = screen.getByRole("region", { name: "Connect Claude, ChatGPT or Grok" });
+  expect(assistants.textContent).not.toContain("sk_only-once");
+  for (const link of screen.getAllByRole("link")) expect(link.getAttribute("href")).not.toContain("sk_only-once");
 });
 
 it("selects the new key when the clipboard blocks the copy", async () => {

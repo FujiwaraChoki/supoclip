@@ -46,5 +46,11 @@
       "body": "时长、字幕、构图、清理和 B-roll 现在都在一个菜单里。我们会记住你的选择，只需设置一次。"
     }
   },
-  "skip": "跳过"
+  "skip": "跳过",
+  "assistant-connect": {
+    "agents": {
+      "title": "连接 Claude、ChatGPT 或 Grok",
+      "body": "让你的 AI 助手为你制作剪辑。在“智能体与 API”中将 SupoClip 添加为连接器并登录，无需复制 API 密钥。"
+    }
+  }
 }

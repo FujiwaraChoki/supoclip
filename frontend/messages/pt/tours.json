@@ -46,5 +46,11 @@
       "body": "Duração, legendas, enquadramento, limpeza e B-roll agora ficam em um só menu. Lembramos suas escolhas, então você só configura uma vez."
     }
   },
-  "skip": "Pular"
+  "skip": "Pular",
+  "assistant-connect": {
+    "agents": {
+      "title": "Conecte Claude, ChatGPT ou Grok",
+      "body": "Peça ao seu assistente de IA para criar clipes por você. Em Agentes e API, adicione o SupoClip como conector e entre, sem copiar nenhuma chave de API."
+    }
+  }
 }
