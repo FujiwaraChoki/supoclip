@@ -136,16 +136,17 @@ async def user_context(db: AsyncSession, user_id: str) -> dict[str, Any] | None:
     ).first()
     breakdowns: dict[str, dict[str, int]] = {}
     for name, expression in (
-        ("errors", "error_code"),
-        ("sources", "COALESCE(source_metadata->>'source_type', 'unknown')"),
-        ("workflows", "workflow"),
-        ("clip_lengths", "COALESCE(source_metadata->>'clip_length', 'auto')"),
-        ("formats", "COALESCE(source_metadata->>'output_format', 'vertical')"),
-        ("caption_templates", "caption_template"),
+        ("errors", "t.error_code"),
+        ("sources", "COALESCE(t.source_metadata->>'source_type', s.type, 'unknown')"),
+        ("workflows", "t.workflow"),
+        ("clip_lengths", "COALESCE(t.source_metadata->>'clip_length', 'auto')"),
+        ("formats", "COALESCE(t.source_metadata->>'output_format', 'vertical')"),
+        ("caption_templates", "t.caption_template"),
     ):
-        where = "AND status = 'error'" if name == "errors" else ""
+        where = "AND t.status = 'error'" if name == "errors" else ""
         rows = await db.execute(
-            text(f"SELECT {expression} AS key, count(*) AS n FROM tasks WHERE user_id = :user_id {where} GROUP BY 1"),
+            text(f"SELECT {expression} AS key, count(*) AS n FROM tasks t LEFT JOIN sources s ON s.id = t.source_id "
+                 f"WHERE t.user_id = :user_id {where} GROUP BY 1"),
             {"user_id": user_id},
         )
         breakdowns[name] = {str(r.key): int(r.n) for r in rows if r.key is not None}

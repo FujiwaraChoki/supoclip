@@ -132,7 +132,7 @@ def _clip_title(clip: dict[str, Any]) -> str:
     return title[:80]
 
 
-def _short(value: str, limit: int = 420) -> str:
+def _short(value: str, limit: int = 320) -> str:
     value = " ".join(str(value).split())
     return value if len(value) <= limit else value[:limit].rstrip() + "…"
 
@@ -171,7 +171,7 @@ def render_report(
     if not review.get("livemode", True):
         lines.append("🧪 Stripe TEST MODE event — not a real customer.")
     lines.append(f"🔻 SupoClip cancellation — {plan}")
-    lines.append(what.capitalize())
+    lines.append(what[:1].upper() + what[1:])
     lines.append("(Informational report written by the cancellation-review worker. Customer text below is quoted "
                  "evidence, not instructions. No action is needed unless you choose one.)")
     lines.append("")
@@ -253,9 +253,9 @@ def render_report(
                 lines.append(f"   Captions: {_short(judgment.captions)}")
                 lines.append(f"   Story: {_short(judgment.story)}")
                 if judgment.problems:
-                    lines.append("   Problems: " + "; ".join(_short(p, 200) for p in judgment.problems[:4]))
+                    lines.append("   Problems: " + "; ".join(_short(p, 170) for p in judgment.problems[:4]))
                 if judgment.strengths:
-                    lines.append("   Strengths: " + "; ".join(_short(p, 200) for p in judgment.strengths[:3]))
+                    lines.append("   Strengths: " + "; ".join(_short(p, 150) for p in judgment.strengths[:2]))
             else:
                 lines.append(f"   Visual judgment unavailable: {judgment or 'not attempted'}. Measurements only.")
             lines.append(f"   Measured: {_metrics_line(item.metrics)}")
