@@ -50,7 +50,7 @@ def test_plain_layouts_fall_back_to_the_editor_crop(monkeypatch, tmp_path, kind)
     assert editor_preserved_layout(clip, "vertical") is None
 
 
-@pytest.mark.parametrize("kind", ["stack", "reaction", "overlap"])
+@pytest.mark.parametrize("kind", ["stack", "reaction", "overlap", "interview"])
 def test_stacked_layouts_are_kept(monkeypatch, tmp_path, kind):
     clip = tmp_path / "clean.mp4"
     clip.write_bytes(b"")

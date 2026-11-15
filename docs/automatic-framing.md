@@ -33,6 +33,41 @@ localized to the sampling interval (about 0.33 seconds); very short shots and
 subtle edits can be missed. Uncertain or busy footage can therefore stay wide
 longer than a human editor would choose.
 
+## Interviews
+
+A sit-down interview cuts between a wide two-shot and single close-ups. The two
+people in the two-shot sit too far apart for one 9:16 crop, which used to make
+that shot, and through the hysteresis above the whole clip, a letterboxed fit.
+`backend/src/media/interview_layout.py` composes such clips shot by shot
+instead (layout kind `interview`, logged as `Interview layout`):
+
+- **pair**: two people of similar size, side by side, too far apart for one
+  crop. Each gets a face-centred 1080×960 panel (face about a third of the
+  panel, eyes near its upper third), stacked with the left-hand person on top.
+- **single**: one person, or two close enough to share a crop. A tight
+  head-and-shoulders 9:16 crop (face about a quarter of the frame height).
+- **fit**: no usable subject (b-roll, aerials, a crowd of three or more) or an
+  on-screen paragraph (a tweet, a document, an explainer graphic: two or more
+  aligned lines of text, which book spines and foliage rarely form).
+
+Crops follow their face with the tracked crop's dead-zoned spring (still on a
+tripod, followed when handheld), never enlarge the source more than 2.25×
+(2.6× for a panel kept clear of a neighbour sitting close), and keep headroom
+for hair and caps. Every return to the same camera setup gets the same zoom.
+
+Layouts switch only at edits. A full-rate 64×36 decode finds each cut on its
+exact frame (straight cuts and one-to-three-frame whips, not pans or flashes),
+including cuts the 3 fps analysis missed; a lasting change in how many people
+are on screen also divides a shot. The graph decodes the source once: each
+composition `trim`s its own time range and the pieces are joined with
+`concat`, so the stored plan replays in the studio like any other.
+
+It takes over only when a clip has at least 1.5 s of such a two-shot, after the
+reaction layout. Two low faces side by side with nothing else (webcam tiles)
+keep the call stack. Clips without a two-shot (single talking heads, slides,
+sports) keep the policy above. Diarized speaker cuts are not used in an
+interview clip: both people stay on screen while the camera shows both.
+
 ## Reproduce the video checks
 
 With backend dependencies installed and `ffmpeg`/`ffprobe` on `PATH`, run from
