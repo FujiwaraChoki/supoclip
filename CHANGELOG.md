@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-15
+
+- **Fixed:** Changing a project's settings no longer adds the next sentence to the end of a clip that stopped right before it. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+- **Fixed:** Every clip's sound now fades out over its last fraction of a second, so the end never clicks. The same goes for trimmed and split clips and for studio exports. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+
 ## 2026-11-14
 
 - **New:** Dynamic edits. Choose an edit intensity and your clips are cut the way top short-form editors cut them: Subtle like a podcast clip, Bold like Hormozi (punch-ins that hold, a hit on some cuts), Max like a MrBeast short. Reframes, short pushes, sound effects on cuts and graphics, a steady music bed and the odd flash at a cut land on the moments the AI picks; you can switch off music, bleeps for swearing or anything else you don't want. Three animated caption styles come with it, with words appearing as they're spoken: Highlighter (the key word in a solid box), Emoji Drop and Behind Head, and they also work on their own. Change intensity for existing clips from the results page, or adjust single effects in the clip studio. ([#NNN](https://github.com/FujiwaraChoki/supoclip/pull/NNN))

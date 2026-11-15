@@ -78,6 +78,10 @@ CLIP_END_PADDING_SECONDS = 0.35
 # sentence never picks up the first syllable of the next one.
 CLIP_END_NEXT_WORD_GUARD_SECONDS = 0.03
 
+# Every rendered clip's audio fades out over its last moment, so a cut never
+# clicks. Short enough that it never softens the last word's final consonant.
+CLIP_END_AUDIO_FADE_SECONDS = 0.025
+
 # When the duration cap lands mid-sentence, the end may back off this share of
 # the cap (at least 3s) to the previous sentence end instead of cutting mid-thought.
 CLIP_CAP_SENTENCE_BACKOFF_FRACTION = 0.25

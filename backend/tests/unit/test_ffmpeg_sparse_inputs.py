@@ -88,7 +88,8 @@ def test_all_hard_cut_offsets_go_straight_to_concat(tmp_path, caplog):
 
     assert len(commands) == 1
     graph = commands[0][commands[0].index("-filter_complex") + 1]
-    assert "concat=n=2:v=1:a=1[v][a]" in graph
+    # The joined audio fades out over the clip's last 50 ms so the cut cannot click.
+    assert "concat=n=2:v=1:a=1[v][joined];[joined]afade=t=out:st=4.975:d=0.025[a]" in graph
     assert "xfade" not in graph
     assert "Crossfade stitch failed" not in caplog.text
 
@@ -263,7 +264,7 @@ def test_a_failed_legacy_crossfade_still_hard_concats(tmp_path):
     with patch.object(ffmpeg, "render_ranges_crossfade_ffmpeg", return_value=False):
         commands = _capture(tmp_path, [(1.0, 3.0), (5.0, 8.0)])
     graph = commands[0][commands[0].index("-filter_complex") + 1]
-    assert "concat=n=2:v=1:a=1[v][a]" in graph
+    assert "concat=n=2:v=1:a=1[v][joined];[joined]afade=t=out:st=4.975:d=0.025[a]" in graph
 
 
 def _peak_rss_mb(monkeypatch):
