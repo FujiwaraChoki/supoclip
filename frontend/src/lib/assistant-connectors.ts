@@ -17,6 +17,8 @@ export type AssistantConnector = {
   docsUrl: string;
   /** Number of steps under `settings.apiKeys.assistants.<id>.steps`. */
   steps: number;
+  /** The step that pastes the server URL; the copyable URL sits under it. */
+  urlStep: number;
 };
 
 export const ASSISTANT_CONNECTORS: readonly AssistantConnector[] = [
@@ -26,6 +28,7 @@ export const ASSISTANT_CONNECTORS: readonly AssistantConnector[] = [
     openUrl: "https://claude.ai/customize/connectors",
     docsUrl: "https://claude.com/docs/connectors/custom/add-unlisted",
     steps: 4,
+    urlStep: 2,
   },
   {
     id: "chatgpt",
@@ -33,6 +36,7 @@ export const ASSISTANT_CONNECTORS: readonly AssistantConnector[] = [
     openUrl: "https://chatgpt.com/plugins",
     docsUrl: "https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt",
     steps: 4,
+    urlStep: 2,
   },
   {
     id: "grok",
@@ -40,6 +44,7 @@ export const ASSISTANT_CONNECTORS: readonly AssistantConnector[] = [
     openUrl: "https://grok.com/connectors",
     docsUrl: "https://docs.x.ai/grok/connectors",
     steps: 3,
+    urlStep: 2,
   },
 ];
 
