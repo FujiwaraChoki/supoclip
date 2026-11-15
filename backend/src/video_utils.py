@@ -523,6 +523,11 @@ def create_optimized_clip(
                     **({"template_override": template_override} if template_override else {}),
                     **({"time_map": time_map} if time_map is not None else {}),
                     **({"censor_spans": censor_spans} if censor_spans else {}),
+                    # Only stacked interview openings move the hook title.
+                    **(
+                        {"hook_center_y": plan_report["hook_center_y"]}
+                        if plan_report.get("hook_center_y") is not None else {}
+                    ),
                 )
                 return ass_path if built else None
 
