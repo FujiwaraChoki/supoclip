@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "Agents & API",
     "intro": "Let Claude, Cursor and other AI agents clip videos for you through the <brand>SupoClip MCP server</brand>, or call the REST API from your own code. Treat keys like passwords; they grant full access to your account.",
-    "docs": {
-      "agentTitle": "Connect an agent",
-      "agentDescription": "Set up the MCP server in Claude, Cursor and other MCP clients.",
-      "restTitle": "REST API reference",
-      "restDescription": "Endpoints, authentication and examples for direct API access."
-    },
+    "docsMcp": "MCP docs",
+    "docsRest": "REST API docs",
+    "keysTitle": "API keys",
+    "keysIntro": "For scripts, CI and MCP clients that can't sign in through the browser.",
+    "createKey": "Create key",
+    "createTitle": "Create an API key",
+    "createDescription": "Name it after where you'll use it, so you know which one to revoke later.",
+    "nameLabel": "Name",
+    "createdTitle": "Your new API key",
+    "useIn": "Use it in an MCP client",
+    "done": "Done",
+    "cancel": "Cancel",
     "signIn": "Sign in to manage your API keys.",
     "signInAction": "Sign In",
     "verifyTitle": "Verify your email to create API keys",
@@ -107,12 +113,10 @@
     "invalidLink": "This verification link is invalid or expired. Request a new email below.",
     "reveal": "Copy your new key now — it won't be shown again.",
     "copy": "Copy API key",
-    "createLabel": "Create a new key",
     "namePlaceholder": "e.g. My laptop MCP",
     "create": "Create",
     "creating": "Creating…",
     "defaultName": "API Key",
-    "yourKeys": "Your keys",
     "empty": "No API keys yet.",
     "revoked": "Revoked",
     "meta": "Created {created} · Last used {used}",
@@ -122,27 +126,53 @@
     "createFailed": "Failed to create API key",
     "revokeFailed": "Failed to revoke API key",
     "mcp": {
-      "title": "Connect an agent",
-      "intro": "Create a key above, then copy the config for your client. Replace {placeholder} with your key, and put only the URL in a URL field.",
-      "introWithKey": "Your new key is filled in below. Copy the config for your client now; the key won't be shown again.",
-      "urlLabel": "Server URL",
-      "headerLabel": "Header",
       "copy": "Copy {label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor & others",
-        "claudeDesktop": "Claude Desktop",
-        "stdio": "Local (stdio)",
-        "connectors": "claude.ai & ChatGPT"
+        "stdio": "Local (stdio)"
       },
       "hints": {
-        "claudeCode": "Run this in a terminal.",
         "json": "For Cursor (~/.cursor/mcp.json), Windsurf and other clients that take a URL and headers.",
-        "claudeDesktop": "Add to claude_desktop_config.json. Needs Node.js; mcp-remote connects Claude Desktop to the hosted server.",
-        "stdio": "Runs the server on your computer, so downloaded clips are saved locally. Needs uv.",
-        "connectors": "Add this URL as a custom connector, then sign in and allow access. No key to copy: it creates its own key, listed below."
+        "stdio": "Runs the server on your computer, so downloaded clips are saved locally. Needs uv."
+      }
+    },
+    "assistants": {
+      "title": "Connect Claude, ChatGPT or Grok",
+      "intro": "No API key to copy: add SupoClip as a custom connector in the assistant, then sign in to SupoClip and allow access. The assistant gets its own key, listed under API keys.",
+      "urlLabel": "Server URL",
+      "pick": "Choose an assistant",
+      "open": "Open {name}",
+      "guide": "{name} setup guide",
+      "newTab": "(opens in a new tab)",
+      "revoke": "Each connection appears under API keys, named after the app (for example “Claude connector”). Revoke it to disconnect. Making clips through an assistant uses your plan's video minutes.",
+      "claude": {
+        "steps": {
+          "1": "In Claude, open <b>Customize › Connectors</b>, select <b>Add</b>, then <b>Add custom connector</b>.",
+          "2": "Name it SupoClip, paste the server URL and click <b>Continue</b>.",
+          "3": "Keep the sign-in settings Claude marks <b>Detected</b>. If it asks how Claude identifies itself, choose <b>Register automatically</b>. Click <b>Add</b>.",
+          "4": "Click <b>Connect</b>, sign in to SupoClip and select <b>Allow</b>."
+        },
+        "availability": "Anthropic supports custom connectors on Free (one connector), Pro, Max, Ultra, Team and Enterprise. On Team and Enterprise, an Owner adds it under Organization settings › Connectors, then each member clicks Connect.",
+        "code": "Claude Code: run these in a terminal and sign in when the browser opens.",
+        "codeLabel": "Claude Code commands"
       },
-      "planNote": "Making clips through an agent uses your plan's video minutes."
+      "chatgpt": {
+        "steps": {
+          "1": "On ChatGPT on the web, open <b>Plugins</b>, select <b>+</b>, then <b>Add custom MCP server</b>.",
+          "2": "Name it SupoClip and paste the server URL under <b>Connection</b>.",
+          "3": "Set authentication to <b>OAuth</b>, accept the risk warning and select <b>Create as a plugin</b>.",
+          "4": "Install the plugin, sign in to SupoClip and select <b>Allow</b>. ChatGPT asks you to confirm each action that makes or changes clips."
+        },
+        "availability": "OpenAI offers custom MCP servers on ChatGPT web for Business, Enterprise and Edu; on Business, admins and owners add them. Pro accounts only get read-only tools, so ChatGPT can list your clips but not make new ones. OpenAI doesn't document it for other plans."
+      },
+      "grok": {
+        "steps": {
+          "1": "On grok.com, open <b>Connectors</b>, select <b>New Connector</b>, then <b>Custom</b>.",
+          "2": "Paste the server URL.",
+          "3": "Complete the sign-in: sign in to SupoClip and select <b>Allow</b>."
+        },
+        "availability": "xAI says connectors are available to all Grok users; on Business and Enterprise an admin adds the connector in the xAI console first. xAI doesn't document which sign-in methods custom connectors support, so this flow is not confirmed for Grok. If it fails, connect another assistant or use an API key below."
+      }
     }
   },
   "creator": {

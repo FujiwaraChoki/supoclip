@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCopyText } from "@/lib/copy-text";
 import { GITHUB_URL, getMcpUrl } from "@/lib/site";
 
-const KEY_PLACEHOLDER = "sk_...";
 const STDIO_SOURCE = `git+${GITHUB_URL}#subdirectory=mcp`;
 
 /** Copy-paste config for each kind of MCP client. Only the URL ever goes in a URL field. */
@@ -38,7 +37,7 @@ export function mcpSnippets(url: string, key: string) {
   };
 }
 
-function Snippet({ label, value }: { label: string; value: string }) {
+export function Snippet({ label, value }: { label: string; value: string }) {
   const t = useTranslations("settings.apiKeys.mcp");
   const copyText = useCopyText();
   const ref = useRef<HTMLElement>(null);
@@ -60,52 +59,28 @@ function Snippet({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function McpSetup({ apiKey }: { apiKey?: string | null }) {
+/** Config for MCP clients that take a key, filled with a key that was just created. */
+export function KeyClientSetup({ apiKey }: { apiKey: string }) {
   const t = useTranslations("settings.apiKeys.mcp");
-  const url = getMcpUrl();
-  const key = apiKey || KEY_PLACEHOLDER;
-  const snippets = mcpSnippets(url, key);
+  const snippets = mcpSnippets(getMcpUrl(), apiKey);
   const tabs = [
-    { id: "claude-code", label: t("tabs.claudeCode"), hint: t("hints.claudeCode"), value: snippets.claudeCode },
-    { id: "connectors", label: t("tabs.connectors"), hint: t("hints.connectors"), value: url },
     { id: "json", label: t("tabs.json"), hint: t("hints.json"), value: snippets.json },
-    { id: "claude-desktop", label: t("tabs.claudeDesktop"), hint: t("hints.claudeDesktop"), value: snippets.claudeDesktop },
     { id: "stdio", label: t("tabs.stdio"), hint: t("hints.stdio"), value: snippets.stdio },
   ];
 
   return (
-    <section className="mb-10 rounded-lg border p-4" aria-labelledby="mcp-setup-title">
-      <h2 id="mcp-setup-title" className="text-sm font-semibold">{t("title")}</h2>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {apiKey ? t("introWithKey") : t("intro", { placeholder: KEY_PLACEHOLDER })}
-      </p>
-
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <dt className="mb-1 text-xs font-medium text-muted-foreground">{t("urlLabel")}</dt>
-          <dd><Snippet label={t("urlLabel")} value={url} /></dd>
-        </div>
-        <div>
-          <dt className="mb-1 text-xs font-medium text-muted-foreground">{t("headerLabel")}</dt>
-          <dd><Snippet label={t("headerLabel")} value={`Authorization: Bearer ${key}`} /></dd>
-        </div>
-      </dl>
-
-      <Tabs defaultValue="claude-code" className="mt-4">
-        <TabsList className="h-auto w-full flex-wrap sm:w-fit">
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id}>{tab.label}</TabsTrigger>
-          ))}
-        </TabsList>
+    <Tabs defaultValue="json">
+      <TabsList className="w-full sm:w-fit">
         {tabs.map((tab) => (
-          <TabsContent key={tab.id} value={tab.id} className="space-y-2">
-            <p className="text-xs text-muted-foreground">{tab.hint}</p>
-            <Snippet label={tab.label} value={tab.value} />
-          </TabsContent>
+          <TabsTrigger key={tab.id} value={tab.id}>{tab.label}</TabsTrigger>
         ))}
-      </Tabs>
-
-      <p className="mt-3 text-xs text-muted-foreground">{t("planNote")}</p>
-    </section>
+      </TabsList>
+      {tabs.map((tab) => (
+        <TabsContent key={tab.id} value={tab.id} className="min-w-0 space-y-2">
+          <p className="text-xs text-muted-foreground">{tab.hint}</p>
+          <Snippet label={tab.label} value={tab.value} />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }

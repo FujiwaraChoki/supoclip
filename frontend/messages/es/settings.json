@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "Agentes y API",
     "intro": "Deja que Claude, Cursor y otros agentes de IA recorten videos por ti con el <brand>servidor MCP de SupoClip</brand>, o llama a la API REST desde tu código. Trata las claves como contraseñas: dan acceso total a tu cuenta.",
-    "docs": {
-      "agentTitle": "Conectar un agente",
-      "agentDescription": "Configura el servidor MCP en Claude, Cursor y otros clientes MCP.",
-      "restTitle": "Referencia de la API REST",
-      "restDescription": "Endpoints, autenticación y ejemplos para usar la API directo."
-    },
+    "docsMcp": "Docs de MCP",
+    "docsRest": "Docs de la API REST",
+    "keysTitle": "Claves de API",
+    "keysIntro": "Para scripts, CI y clientes MCP que no pueden iniciar sesión en el navegador.",
+    "createKey": "Crear clave",
+    "createTitle": "Crear una clave de API",
+    "createDescription": "Ponle el nombre del lugar donde la usarás para saber cuál revocar más adelante.",
+    "nameLabel": "Nombre",
+    "createdTitle": "Tu nueva clave de API",
+    "useIn": "Úsala en un cliente MCP",
+    "done": "Listo",
+    "cancel": "Cancelar",
     "signIn": "Inicia sesión para administrar tus claves de API.",
     "signInAction": "Iniciar sesión",
     "verifyTitle": "Verifica tu correo para crear claves de API",
@@ -107,12 +113,10 @@
     "invalidLink": "Este enlace de verificación no es válido o venció. Pide otro correo abajo.",
     "reveal": "Copia tu clave nueva ahora — no se volverá a mostrar.",
     "copy": "Copiar clave de API",
-    "createLabel": "Crear una clave nueva",
     "namePlaceholder": "p. ej. MCP de mi laptop",
     "create": "Crear",
     "creating": "Creando…",
     "defaultName": "Clave de API",
-    "yourKeys": "Tus claves",
     "empty": "Todavía no hay claves de API.",
     "revoked": "Revocada",
     "meta": "Creada {created} · Último uso {used}",
@@ -122,27 +126,53 @@
     "createFailed": "No se pudo crear la clave de API",
     "revokeFailed": "No se pudo revocar la clave de API",
     "mcp": {
-      "title": "Conecta un agente",
-      "intro": "Crea una clave arriba y copia la configuración para tu cliente. Sustituye {placeholder} por tu clave y pon solo la URL en el campo de URL.",
-      "introWithKey": "Tu clave nueva ya está puesta abajo. Copia ahora la configuración para tu cliente; la clave no se volverá a mostrar.",
-      "urlLabel": "URL del servidor",
-      "headerLabel": "Encabezado",
       "copy": "Copiar {label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor y otros",
-        "claudeDesktop": "Claude Desktop",
-        "stdio": "Local (stdio)",
-        "connectors": "claude.ai y ChatGPT"
+        "stdio": "Local (stdio)"
       },
       "hints": {
-        "claudeCode": "Ejecútalo en una terminal.",
         "json": "Para Cursor (~/.cursor/mcp.json), Windsurf y otros clientes que aceptan una URL y encabezados.",
-        "claudeDesktop": "Añádelo a claude_desktop_config.json. Necesita Node.js; mcp-remote conecta Claude Desktop con el servidor alojado.",
-        "stdio": "Ejecuta el servidor en tu computadora, así los clips descargados se guardan en local. Necesita uv.",
-        "connectors": "Añade esta URL como conector personalizado, inicia sesión y permite el acceso. No hace falta copiar una clave: se crea una propia, que aparece abajo."
+        "stdio": "Ejecuta el servidor en tu computadora, así los clips descargados se guardan en local. Necesita uv."
+      }
+    },
+    "assistants": {
+      "title": "Conecta Claude, ChatGPT o Grok",
+      "intro": "Sin clave de API que copiar: añade SupoClip como conector personalizado en el asistente, inicia sesión en SupoClip y permite el acceso. El asistente recibe su propia clave, que aparece en Claves de API.",
+      "urlLabel": "URL del servidor",
+      "pick": "Elige un asistente",
+      "open": "Abrir {name}",
+      "guide": "Guía de {name}",
+      "newTab": "(se abre en una pestaña nueva)",
+      "revoke": "Cada conexión aparece en Claves de API con el nombre de la app (por ejemplo, «Claude connector»). Revócala para desconectar. Crear clips con un asistente usa los minutos de vídeo de tu plan.",
+      "claude": {
+        "steps": {
+          "1": "En Claude, abre <b>Customize › Connectors</b>, selecciona <b>Add</b> y luego <b>Add custom connector</b>.",
+          "2": "Llámalo SupoClip, pega la URL del servidor y haz clic en <b>Continue</b>.",
+          "3": "Mantén los ajustes de inicio de sesión que Claude marca como <b>Detected</b>. Si pregunta cómo se identifica Claude, elige <b>Register automatically</b>. Haz clic en <b>Add</b>.",
+          "4": "Haz clic en <b>Connect</b>, inicia sesión en SupoClip y selecciona <b>Allow</b>."
+        },
+        "availability": "Anthropic admite conectores personalizados en Free (un conector), Pro, Max, Ultra, Team y Enterprise. En Team y Enterprise, un Owner lo añade en Organization settings › Connectors y luego cada miembro hace clic en Connect.",
+        "code": "Claude Code: ejecuta estos comandos en una terminal e inicia sesión cuando se abra el navegador.",
+        "codeLabel": "Comandos de Claude Code"
       },
-      "planNote": "Los clips que crea un agente usan los minutos de video de tu plan."
+      "chatgpt": {
+        "steps": {
+          "1": "En ChatGPT web, abre <b>Plugins</b>, selecciona <b>+</b> y luego <b>Add custom MCP server</b>.",
+          "2": "Llámalo SupoClip y pega la URL del servidor en <b>Connection</b>.",
+          "3": "Elige <b>OAuth</b> como autenticación, acepta el aviso de riesgo y selecciona <b>Create as a plugin</b>.",
+          "4": "Instala el plugin, inicia sesión en SupoClip y selecciona <b>Allow</b>. ChatGPT te pide confirmar cada acción que crea o cambia clips."
+        },
+        "availability": "OpenAI ofrece servidores MCP personalizados en ChatGPT web para Business, Enterprise y Edu; en Business los añaden administradores y propietarios. Las cuentas Pro solo tienen herramientas de lectura: ChatGPT puede listar tus clips, pero no crear nuevos. OpenAI no lo documenta para otros planes."
+      },
+      "grok": {
+        "steps": {
+          "1": "En grok.com, abre <b>Connectors</b>, selecciona <b>New Connector</b> y luego <b>Custom</b>.",
+          "2": "Pega la URL del servidor.",
+          "3": "Completa el inicio de sesión: entra en SupoClip y selecciona <b>Allow</b>."
+        },
+        "availability": "Según xAI, los conectores están disponibles para todos los usuarios de Grok; en Business y Enterprise un administrador añade antes el conector en la consola de xAI. xAI no documenta qué métodos de inicio de sesión admiten los conectores personalizados, así que este flujo no está confirmado para Grok. Si falla, conecta otro asistente o usa una clave de API abajo."
+      }
     }
   },
   "creator": {

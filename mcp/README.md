@@ -47,13 +47,34 @@ The hosted server is at `https://mcp.supoclip.com/mcp` (Streamable HTTP). Send
 your key in the `Authorization` header. In every example below, replace
 `sk_...` with your own key, and put **only the URL** in a client's URL field.
 
-### claude.ai, ChatGPT and other apps with custom connectors
+### Claude, ChatGPT, Grok and other apps with custom connectors
 
 Add `https://mcp.supoclip.com/mcp` as a custom connector. The app sends you to
 supoclip.com to sign in and allow access; no key to copy. Allowing creates an
 API key named after the app (for example "Claude connector"), listed at
 [Settings → API Keys](https://www.supoclip.com/settings/api-keys); revoke it
 there to disconnect. The connection uses your plan's minutes like any key.
+The same page has these steps under "Connect Claude, ChatGPT or Grok". None of
+these apps can prefill a server URL from a link, so paste it yourself.
+
+- **Claude** ([guide](https://claude.com/docs/connectors/custom/add-unlisted)):
+  [Customize → Connectors](https://claude.ai/customize/connectors) → Add → Add
+  custom connector, paste the URL, keep the settings marked Detected (if asked
+  how Claude identifies itself, choose Register automatically), Add, Connect.
+  Free (one custom connector), Pro, Max, Ultra, Team and Enterprise; on Team and
+  Enterprise an Owner adds it under Organization settings → Connectors first.
+- **ChatGPT** ([guide](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt)):
+  on the web, [Plugins](https://chatgpt.com/plugins) → + → Add custom MCP
+  server, paste the URL under Connection, OAuth, Create as a plugin, then
+  install it. OpenAI offers this on Business, Enterprise and Edu; Pro accounts
+  get read-only tools only, so they can't create tasks.
+- **Grok** ([guide](https://docs.x.ai/grok/connectors)):
+  [grok.com/connectors](https://grok.com/connectors) → New Connector → Custom,
+  paste the URL and sign in. xAI doesn't document which sign-in methods custom
+  connectors support, so this one is not confirmed end to end.
+- **Claude Code** can use the same sign-in instead of a pasted key:
+  `claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp`, then
+  `claude mcp login supoclip` (or `/mcp` inside Claude Code).
 
 ### Claude Code
 
