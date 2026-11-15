@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-15
+
+- **Fixed:** Series, topic, recap and trailer runs no longer fail on long videos with "We couldn't read the whole video". ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
+
 ## 2026-11-14
 
 - **Fixed:** Long Twitch and Kick videos download the parts your clips use, instead of the whole stream, and a download that is still receiving data is no longer cut off after a few minutes. ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
