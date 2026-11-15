@@ -846,6 +846,7 @@ def _fx_ladder_setup(
     fx_template: bool,
     template: Dict[str, Any],
     layout_kind: Optional[str] = None,
+    panel_windows: "tuple[tuple[float, float], ...] | list" = (),
     caption_template: str,
     add_subtitles: bool,
     hook_title: Optional[str],
@@ -876,6 +877,12 @@ def _fx_ladder_setup(
         # A zoom of the whole frame would cross the seam between stacked panels: keep the planned reframes out.
         plan = plan.model_copy(update={"cues": tuple(
             c for c in plan.cues if not (c.kind == "zoom" and c.origin == "auto"))})
+    elif panel_windows:
+        # An interview stacks only its two-shots: reframes stay on the single-person shots.
+        plan = plan.model_copy(update={"cues": tuple(
+            c for c in plan.cues
+            if not (c.kind == "zoom" and c.origin == "auto"
+                    and any(c.start < end and start < max(c.end, c.start + 1e-3) for start, end in panel_windows)))})
     # Slow baseline pushes only where the references use them: style-only and subtle (spec §3.5).
     if kenburns_eligible and plan.style.intensity in ("off", "subtle") and (plan.style.zooms or not plan.style.active):
         plan = baseline_pushes(plan, cuts=cuts, broll_windows=all_broll_windows)
@@ -995,6 +1002,7 @@ def _render_fx_ladder(
             fx_template=fx_template,
             template=template,
             layout_kind=plan_report.get("kind"),
+            panel_windows=plan_report.get("panel_windows") or (),
             caption_template=caption_template,
             add_subtitles=add_subtitles,
             hook_title=hook_title,

@@ -13,7 +13,7 @@ import pytest
 
 from src import video_utils
 from src.caption_templates import get_template
-from src.edit_fx.contracts import EditStyle, FxPlan
+from src.edit_fx.contracts import EditStyle, FxPlan, ZoomCue
 from src.media.fx_chain import FxRenderInput, FxResult
 
 PLAIN_CHAIN = "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1"
@@ -48,7 +48,9 @@ def ladder(monkeypatch, tmp_path):
         calls["plan"].append(dict(kwargs))
         allow = kwargs.get("allow_kenburns", True)
         if report is not None:
-            report["kind"] = "crop"
+            report["kind"] = state.get("kind", "crop")
+            if state.get("panel_windows"):
+                report["panel_windows"] = state["panel_windows"]
             if not allow:
                 report["kenburns_eligible"] = state["eligible"]
         return (PLAIN_CHAIN if not allow else KB_CHAIN), "vf", 0.72
@@ -411,3 +413,12 @@ def test_without_fx_only_fx_templates_burn_their_ass_fallback(ladder, tmp_path, 
     else:
         assert "template_override" not in ass
     assert ladder.calls["plan"] == [{}]
+
+
+def test_interview_reframes_stay_off_the_stacked_two_shots(ladder):
+    ladder.state.update(kind="interview", panel_windows=[(0.0, 3.0), (6.0, 8.0)])
+    ladder.state["chain_results"] = [result()]
+    zooms = [ZoomCue(id=f"z{i}", start=t, end=t + 1.0, mode="punch", scale=1.15) for i, t in enumerate((1.0, 4.0, 6.5))]
+    ladder.run(fx_plan(cues=zooms))
+    sent = [c.id for c in fx_renders(ladder.calls)[0]["fx_request"].plan.cues if c.kind == "zoom"]
+    assert sent == ["z1"]

@@ -1468,6 +1468,8 @@ def build_vertical_filter_plan(
             report["kenburns_eligible"] = described["kenburns_eligible"]
         if described.get("hook_center_y") is not None:
             report["hook_center_y"] = described["hook_center_y"]
+        if described.get("panel_windows"):
+            report["panel_windows"] = described["panel_windows"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1615,6 +1617,9 @@ def describe_vertical_layout(
         )
         if interview.get("hook_center_y") is not None:
             result["hook_center_y"] = interview["hook_center_y"]
+        pairs = [(s["start"], s["end"]) for s in interview.get("segments", ()) if s["kind"] == "pair"]
+        if pairs:
+            result["panel_windows"] = pairs
         return result
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
