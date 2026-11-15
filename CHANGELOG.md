@@ -8,6 +8,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 - **Fixed:** Changing a project's settings no longer adds the next sentence to the end of a clip that stopped right before it. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
 - **Fixed:** Every clip's sound now fades out over its last fraction of a second, so the end never clicks. The same goes for trimmed and split clips and for studio exports. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+- **Improved:** A host or presenter talking to the camera on their own is framed as a tight crop on their face and shoulders, with the eyes near the top third, instead of the whole picture shrunk into a band with a blurred fill below. Their hand gestures no longer make the clip fall back to the full frame. Only a face too small or too low to crop sharply still gets the full picture. ([#402](https://github.com/FujiwaraChoki/supoclip/pull/402))
 
 ## 2026-11-14
 

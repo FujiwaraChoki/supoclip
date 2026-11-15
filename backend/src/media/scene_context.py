@@ -39,6 +39,11 @@ LAYOUT_FLASH_SECONDS = 0.5
 # a neighbouring face crop; an empty or crowded shot never does.
 SOFT_SINGLE_FACE_RATE = 0.6
 
+# One face away from the frame edge and at least this share of the frame (head
+# and shoulders, or closer) is the subject: motion around it is the person's
+# own gestures, or a chat overlay beside them, not action across the frame.
+PRESENTER_FACE_AREA = 0.03
+
 
 @dataclass(frozen=True)
 class SceneEvidence:
@@ -373,6 +378,8 @@ def context_reason(sample: SceneEvidence, crop_fraction: float) -> Optional[str]
     if sample.face_area < 0.045 and peripheral:
         return "peripheral_presenter"
     if sample.motion > 0.065 and sample.outside_motion > 0.45 and sample.motion_spread >= 0.5:
+        if sample.face_count == 1 and sample.face_area >= PRESENTER_FACE_AREA and not peripheral:
+            return None
         return "distributed_action"
     return None
 
