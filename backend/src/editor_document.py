@@ -457,6 +457,7 @@ def render_document(
     """Render a draft. ``broll_files`` maps footage keys to local files; B-roll
     whose footage is missing is left out rather than failing the export."""
     from .clip_editor import _ffprobe_size, _escape_filter_path
+    from .media.ffmpeg import audio_fade_out_filter
     from .media.broll_overlay import broll_input_args, broll_overlay_graph, normalize_broll_overlays
     from .video_utils import ass_fonts_dir
 
@@ -542,8 +543,11 @@ def render_document(
     # Mixed source/stock frame rates must not make ffmpeg duplicate tail frames.
     filters.append("[outv]fps=30[finalv]")
     if audio:
+        # Segment ends are wherever the user cut; the export's last moment
+        # fades so it cannot click.
         filters.append(
-            f"[audio]volume={0 if document.muted else document.volume}[outa]"
+            f"[audio]volume={0 if document.muted else document.volume},"
+            f"{audio_fade_out_filter(total)}[outa]"
         )
     output = directory / f"export-{job_id}.mp4"
     temporary = directory / f".export-{job_id}.mp4"
