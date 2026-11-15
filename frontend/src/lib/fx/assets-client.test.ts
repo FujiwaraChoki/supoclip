@@ -48,6 +48,27 @@ describe("sfxAsset mirrors mix_sfx_file", () => {
   it("returns null for a sound the manifest lacks", () => {
     expect(sfxAsset(manifest, "boom", 0, 0)).toBeNull();
   });
+
+  it("picks riser drop-ins by the built-in variant's length", () => {
+    const risers: FxAssetManifest = {
+      ...manifest,
+      sfx: [
+        { id: "riser-a", sound: "riser", variant: 0, url: url(20), duration: 1.5, gain_db: 0 },
+        { id: "riser-b", sound: "riser", variant: 1, url: url(21), duration: 2.5, gain_db: 0 },
+        { id: "riser-1s5-x", sound: "riser", variant: 0, url: url(22), duration: 1.5, gain_db: 0, custom: true },
+        { id: "riser-1s6-y", sound: "riser", variant: 1, url: url(23), duration: 1.62, gain_db: 0, custom: true },
+        { id: "riser-2s5-z", sound: "riser", variant: 2, url: url(24), duration: 2.5, gain_db: 0, custom: true },
+        { id: "riser-3s-w", sound: "riser", variant: 3, url: url(25), duration: 3.0, gain_db: 0, custom: true },
+      ],
+    };
+    // variant 0 (1.5 s): the 1.5 and 1.62 s drop-ins, by seed
+    expect([0, 1, 2, 3].map((seed) => sfxAsset(risers, "riser", 0, seed)?.id))
+      .toEqual(["riser-1s5-x", "riser-1s6-y", "riser-1s5-x", "riser-1s6-y"]);
+    // variant 1 (2.5 s): only the 2.5 s drop-in (3.0 s is 0.5 s farther than the closest)
+    expect([0, 1, 7].map((seed) => sfxAsset(risers, "riser", 1, seed)?.id)).toEqual(["riser-2s5-z", "riser-2s5-z", "riser-2s5-z"]);
+    // an out-of-range variant uses variant 0's length
+    expect(sfxAsset(risers, "riser", 9, 1)?.id).toBe("riser-1s6-y");
+  });
 });
 
 describe("bedAsset mirrors mix_bed_file", () => {

@@ -33,9 +33,10 @@ sys.path.insert(0, str(BACKEND))
 
 OUT_DIR = BACKEND / "tests" / "fixtures" / "fx_resolver"
 
-# Built-in manifest shape (§12): variant counts per sound, one bed per mood (32 bars at the mood's BPM).
-SFX_VARIANTS = {"whoosh": 3, "impact": 2, "pop": 3, "riser": 2, "record_scratch": 1, "boom": 1, "cash_register": 1,
-                "ticker": 1, "slap": 2, "stamp": 1, "glitch": 2, "tape_stop": 1}
+# Built-in manifest shape (§12): variant counts per sound (= manifest.json, checked by test_fx_assets_manifest),
+# one bed per mood (32 bars at the mood's BPM).
+SFX_VARIANTS = {"whoosh": 6, "impact": 7, "pop": 6, "riser": 8, "record_scratch": 6, "boom": 6, "cash_register": 5,
+                "ticker": 6, "slap": 6, "stamp": 6, "glitch": 6, "tape_stop": 6}
 BPM = {"hype": 124, "chill": 82, "dramatic": 70, "funny": 112, "inspiring": 96, "dark": 88}
 BEDS = {mood: (mood,) for mood in BPM}
 BED_LENGTHS = {mood: round(32 * 4 * 60 / bpm, 3) for mood, bpm in BPM.items()}

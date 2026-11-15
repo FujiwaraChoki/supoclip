@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import struct
 import subprocess
@@ -71,8 +72,9 @@ def test_manifest_shape_is_the_verbatim_one():
     music_keys = ["id", "mood", "file", "sha256", "duration", "loop_seconds", "bpm", "lufs", "source", "license"]
     for entry in MANIFEST["sfx"]:
         assert list(entry) == sfx_keys
-        assert entry["source"] == "synth" and entry["license"] == "CC0-1.0"
-        assert entry["file"] == f"sfx/{entry['id']}.wav" and entry["id"] == f"{entry['sound']}_{entry['variant']}"
+        assert re.fullmatch(r"https://freesound\.org/s/\d+/", entry["source"]) and entry["license"] == "CC0-1.0"
+        assert entry["file"] == f"sfx/{entry['id']}.wav" and entry["id"].startswith(f"{entry['sound']}-")
+        assert entry["gain_db"] == 0.0
     for entry in MANIFEST["music"]:
         assert list(entry) == music_keys
         assert entry["source"] == "synth" and entry["license"] == "CC0-1.0"
@@ -106,8 +108,31 @@ def test_no_unlisted_media_files():
 def test_licence_files_exist():
     sources = (ASSETS / "SOURCES.txt").read_text(encoding="utf-8")
     licence = (ASSETS / "LICENSE-noto-emoji.txt").read_text(encoding="utf-8")
-    assert "CC0-1.0" in sources and "OFL" in sources
+    assert "CC0-1.0" in sources and "OFL" in sources and "SOURCES-CC0.txt" in sources
     assert "SIL OPEN FONT LICENSE Version 1.1" in licence
+
+
+def _cc0_rows() -> dict[str, tuple[str, str]]:
+    """SOURCES-CC0.txt provenance table: file -> (Freesound URL, author)."""
+    rows = {}
+    for line in (ASSETS / "SOURCES-CC0.txt").read_text(encoding="utf-8").splitlines():
+        if line.startswith("sfx/"):
+            file, url, author, title = (part.strip() for part in line.split(" | ", 3))
+            assert file not in rows, f"{file} listed twice"
+            assert re.fullmatch(r"https://freesound\.org/s/\d+/", url), line
+            assert author and title, line
+            rows[file] = (url, author)
+    return rows
+
+
+def test_every_sfx_file_has_cc0_provenance():
+    text = (ASSETS / "SOURCES-CC0.txt").read_text(encoding="utf-8")
+    assert "License: CC0-1.0" in text and "https://creativecommons.org/publicdomain/zero/1.0/" in text
+    rows = _cc0_rows()
+    on_disk = {f"sfx/{p.name}" for p in (ASSETS / "sfx").iterdir() if not p.name.startswith(".")}
+    assert set(rows) == on_disk == {e["file"] for e in MANIFEST["sfx"]}
+    for entry in MANIFEST["sfx"]:
+        assert entry["source"] == rows[entry["file"]][0], entry["file"]
 
 
 # ----------------------------------------------------------------------------- SFX
@@ -118,34 +143,61 @@ def test_every_sound_id_has_a_file():
     assert sounds == set(SOUND_IDS)
 
 
+def test_manifest_sfx_matches_write_manifest():
+    """manifest.json is what write_manifest.py writes for the committed files (order, variants, hashes, levels)."""
+    assert _script("write_manifest").sfx_entries(ASSETS) == MANIFEST["sfx"]
+
+
+def test_riser_length_follows_variant_parity():
+    risers = sorted((e for e in MANIFEST["sfx"] if e["sound"] == "riser"), key=lambda e: e["variant"])
+    assert len(risers) >= 2
+    for entry in risers:
+        assert entry["duration"] == (1.5, 2.5)[entry["variant"] % 2], entry["id"]
+
+
+def test_resolver_fixtures_use_the_manifest_variant_counts():
+    from tests.fixtures.fx_resolver.builders import SFX_VARIANTS
+
+    counts: dict[str, int] = {}
+    for entry in MANIFEST["sfx"]:
+        counts[entry["sound"]] = counts.get(entry["sound"], 0) + 1
+    assert SFX_VARIANTS == counts
+    assert _script("gen_resolver_goldens").SFX_VARIANTS == counts
+    for name in ("talking_head", "story", "no_timing"):
+        data = json.loads((BACKEND / "tests" / "fixtures" / "fx_resolver" / f"{name}.input.json").read_text())
+        assert data["sfx_variants"] == counts, name
+
+
 @pytest.mark.parametrize("entry", MANIFEST["sfx"], ids=lambda e: e["id"])
 def test_sfx_levels_format_and_dc(entry):
+    # 48 kHz 16-bit PCM, mono or stereo as recorded: the mixer reads exactly this without ffmpeg (fx_audio._decode)
     pcm, params = _read_wav(ASSETS / entry["file"])
-    assert (params.nchannels, params.sampwidth, params.framerate) == (1, 2, SR)
-    x = pcm.astype(np.float64) / 32767.0
+    assert params.nchannels in (1, 2) and (params.sampwidth, params.framerate) == (2, SR)
+    x = pcm.astype(np.float64).reshape(-1, params.nchannels) / 32767.0
+    # the -6 dBFS sample peak the mixer's levels (SFX_TRIM_DB, the bus gain) were calibrated against
     peak_db = 20 * np.log10(np.max(np.abs(x)))
     assert -6.2 <= peak_db <= -5.8
     assert abs(entry["peak_db"] - peak_db) < 0.05
-    assert abs(float(np.mean(x))) < 1e-3, "DC offset"
+    assert float(np.max(np.abs(np.mean(x, axis=0)))) < 1e-3, "DC offset"
     assert len(x) / SR <= 2.5
     assert abs(entry["duration"] - len(x) / SR) < 1e-3
-    # 5 ms edge fades: the first and last samples are (near) silent
-    assert np.max(np.abs(x[:24])) < 0.05 and np.max(np.abs(x[-24:])) < 0.05
+    # edge fades: the first and last samples are (near) silent, so a cut-off head or tail never clicks
+    assert np.max(np.abs(x[0])) < 0.01 and np.max(np.abs(x[-1])) < 0.01
 
 
-def test_sfx_script_is_deterministic_and_matches_the_committed_files(tmp_path):
+def test_synth_fallback_is_deterministic_and_writes_valid_drop_ins(tmp_path):
+    from src.edit_fx import assets
+
     synth = _script("synth_sfx")
-    first, second = tmp_path / "a", tmp_path / "b"
-    synth.synthesise(first)
+    first, second = tmp_path / "a" / "sfx", tmp_path / "b" / "sfx"
+    written = synth.synthesise(first)
     synth.synthesise(second)
-    for entry in MANIFEST["sfx"]:
-        name = Path(entry["file"]).name
-        assert (first / name).read_bytes() == (second / name).read_bytes(), name
-        fresh, _ = _read_wav(first / name)
-        committed, _ = _read_wav(ASSETS / entry["file"])
-        assert fresh.shape == committed.shape, name
-        # identical on the machine that generated them; at most a rounding LSB apart on another numpy build
-        assert np.max(np.abs(fresh.astype(int) - committed.astype(int))) <= 1, name
+    assert {p.name for p in written} == {synth.drop_in_name(fid) for fid, *_ in synth.SOUNDS}
+    for path in written:
+        assert path.read_bytes() == (second / path.name).read_bytes(), path.name
+        assert assets._parse_drop_in("sfx", path) is not None, path.name
+        pcm, params = _read_wav(path)
+        assert params.nframes / SR <= 2.5
 
 
 # ----------------------------------------------------------------------------- music beds

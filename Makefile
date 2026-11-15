@@ -23,13 +23,13 @@ check:
 
 test-ci: check test-backend test-frontend test-e2e
 
-# Regenerate the committed dynamic-edit assets in backend/src/fx_assets (SFX, music beds, emoji atlas, manifest).
+# Regenerate the committed dynamic-edit assets in backend/src/fx_assets (music beds, emoji atlas, manifest). The SFX
+# are committed CC0 recordings (SOURCES-CC0.txt); write_manifest.py only hashes and measures them.
 # Needs ffmpeg, deno and the Noto Color Emoji font. CI never runs this; it only checks the manifest hashes.
 FX_PYTHON ?= .venv/bin/python
 DENO ?= deno
 
 fx-assets:
-	cd backend && $(FX_PYTHON) scripts/fx/synth_sfx.py
 	cd backend && $(FX_PYTHON) scripts/fx/synth_music.py
 	cd backend && $(FX_PYTHON) scripts/fx/emoji_list.py | $(DENO) run --allow-read --allow-write --allow-env \
 		--allow-ffi --allow-sys=homedir --allow-net=registry.npmjs.org scripts/fx/build_emoji_atlas.ts \

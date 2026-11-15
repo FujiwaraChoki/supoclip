@@ -14,23 +14,23 @@
   "cues": []
  },
  "marker_circle/bold": {
-  "sha256": "65416df71212988c4fdb5aef6a77fc6247c41b4b0a50509e4bb8723994c77b3e",
+  "sha256": "e9d9db6a8f3fae3e33cba9eb62be119311868f9f623a0a8955bb4bcf2a259ba8",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "marker_circle/max": {
-  "sha256": "8a2ec26f93699cea8fd29f0fed0d75525b410be041ecc3e5179037ebeeffe85f",
+  "sha256": "0b8d0d79658734aeeeed5aa9247f9731d788d16d260ae1a0fbfe480cad75337b",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -51,23 +51,23 @@
   "cues": []
  },
  "emoji_drop/bold": {
-  "sha256": "e52d6f2e578b225eaffcc4e4057a8324658cd699306c8ce21ba559332989f428",
+  "sha256": "2b0e752a3e4b837fc7c168c6f76699e0a09b169c4af2aacdcbb7dd4c5fdd0dff",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "emoji_drop/max": {
-  "sha256": "e02ecf67f8ddfe9c9f18be1f18b46847d9f59c896e9dfdd0f85700cd3e01a6e4",
+  "sha256": "5c277584b5884ab514a523b074339f42f2ce8e8f0ac823d313e9a113f62e4380",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -88,23 +88,23 @@
   "cues": []
  },
  "slam/bold": {
-  "sha256": "4d08556ebcd9bf8d7229c4ed695cee44c47c820e3854b396a2d8ed76b7aebf65",
+  "sha256": "57bb7499e0e308c4e2bc4337db5181fbacef7b567bfb3e713996382a78986089",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "slam/max": {
-  "sha256": "e71ef3e8a8bfd50cf7f14c26e6b4fae7c24713a781b865999180022ef659ddd4",
+  "sha256": "d38ebdab2b08e3b2c21e0b694e644a876a167553d2506c8be0bc7bdcc40a9791",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -125,23 +125,23 @@
   "cues": []
  },
  "behind_head/bold": {
-  "sha256": "a72d5256fd5f8adb1968e1e6624d6ed17266a8a0aef03c8cde58ee8392aeab49",
+  "sha256": "2aa21eb563815ea5e82143905a37936dab715e5e5c9a3019ed89696afe1cf5ed",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "behind_head/max": {
-  "sha256": "6f1a8e2bb2fe0a8ef92d5cb29e17415900797f8adee84dc41f05e385cd381e9f",
+  "sha256": "9e701c63de055bf7cfba70e524ab4fd918df9e13b1d14f8783942a64b6dbd356",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -162,23 +162,23 @@
   "cues": []
  },
  "stat_counter/bold": {
-  "sha256": "5d307c409cd4391d66e7f372ca84fb4956d0889459840c83bff6399232defb5c",
+  "sha256": "fcbbed6de8956a59c0bb6ff99ecf4409977346d8326aa6146008081b541883c4",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "stat_counter/max": {
-  "sha256": "3a255134b915e879c9d61ef3b8c04c68ec90b1af81129c69a93f6caef8153da3",
+  "sha256": "dc5bd7826d6f36f4cf1fee940ed3111b313598088d701a5d3c81f0d2b8abe657",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -199,23 +199,23 @@
   "cues": []
  },
  "sticker_slap/bold": {
-  "sha256": "7b96a39277d6afeff23e071153b0c5a742fd0f2f751316b83a3ac2eead4e614b",
+  "sha256": "efdd8412712afed9e26a2b2d946a724ee55175f8f4b204c9298ffcaa9cba469d",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "sticker_slap/max": {
-  "sha256": "a0617b54f9987cdd75306a3eb1c2537a2fff6aa196b68f158e8d5561c8479fb8",
+  "sha256": "cac325ce8416d47acea22f4c9de63a9a01df59a074d18e4ff0c64f9fd7ca1f0d",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -236,23 +236,23 @@
   "cues": []
  },
  "kinetic_stack/bold": {
-  "sha256": "1453ea0a2c38971384f3149d0c34aa8f029a770b6d2e21ad03b0da5d8450259a",
+  "sha256": "a15357205d9d46cc13bf105a629407b631f821dc4612424bae098321b3dd7d15",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "kinetic_stack/max": {
-  "sha256": "39f2fe3d4e749bcd75ad371d26bf87e52cf485c288627edb28f8a6ee2499c7dc",
+  "sha256": "c5c4d7753966378386f9ed64c5cb69bdd346f3a7894c1e1441ce5df3f91cf4d9",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -273,23 +273,23 @@
   "cues": []
  },
  "decode_glitch/bold": {
-  "sha256": "d599e2f8f905555becd521a49ddade5b3deb82a4beaf091b476cfde3eda8e5fc",
+  "sha256": "14e1b4c4f8be796d478c87de080ec7151f31c351f43ca688b7a5c111054d60f6",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "decode_glitch/max": {
-  "sha256": "9969a597da749466dc84b5a5f330af26d76897bb830ead5dbe534a23474ca3fe",
+  "sha256": "e6d7da2aa5c075aef9fd7d924a796e20732c86ce63160682c70bc4ed40fa9da9",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -310,23 +310,23 @@
   "cues": []
  },
  "highlighter_swipe/bold": {
-  "sha256": "a6646ec512cbdbc1862c51b4e361d5381c63ec507b6e7cd972729b22a0f4a6dd",
+  "sha256": "095415f2405ccda695eff7836b25b38e3d4a69a517de6387b66e66108d75062a",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "highlighter_swipe/max": {
-  "sha256": "f49c4b19b05914e7533c55833251a1ca613932ed852ec3c3f5c7176a118d6801",
+  "sha256": "593761e741d008d65e7aca343ff15bae6927546d559dc182c94f7dcf84dec7b2",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -347,23 +347,23 @@
   "cues": []
  },
  "face_doodles/bold": {
-  "sha256": "da0594d9b5c51b13c9d3f333b6f2fae78f8f50d50c28234cd9c23c44806f4d5b",
+  "sha256": "1031f56867195f8d9bcf87117bbd5c50f02c53e1a34733d946bf91061dbca314",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "face_doodles/max": {
-  "sha256": "69a6c96dac7d8f6e29163104d76c49d9cb27ecb1cd6b74eb944e64337c0d96cb",
+  "sha256": "89354fea90955e2925f5deba2803e3a351245f6df2363b8acf72d78621bffcae",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
@@ -377,23 +377,23 @@
   "cues": []
  },
  "default/bold": {
-  "sha256": "ba1f7166252cf72ff2dbc6e12debc2b9e84b545909a9b7fba233c9ad772a03fe",
+  "sha256": "50dbc886354fa30b6031da945a9a378724abe8175def15904491692b85ddeedd",
   "music": "hype -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.767-  9.767 e294.sfx         sfx        impact#1 +0dB",
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"
   ]
  },
  "default/max": {
-  "sha256": "75d2c776e2f691f210c3b4a09890ac8b7d95eb3e80b35aa49f84754072f12aa3",
+  "sha256": "0b8283ccd7f331f92e6f019403fe76d6edc0e385b8bd404875f61b0efff594b6",
   "music": "hype -4.0/0.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
-   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#2 -2dB",
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
    "  9.800-  9.800 t0.tr            transition flash",
    " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
    " 21.400- 21.400 t1.tr            transition flash"

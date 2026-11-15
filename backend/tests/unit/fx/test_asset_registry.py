@@ -20,6 +20,12 @@ MANIFEST = json.loads((BUILTIN / "manifest.json").read_text(encoding="utf-8"))
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
 
 
+def _builtin(sound: str, variant: int) -> Path:
+    """The built-in file of `sound` at `variant`, from manifest.json."""
+    (entry,) = [e for e in MANIFEST["sfx"] if e["sound"] == sound and e["variant"] == variant]
+    return BUILTIN / entry["file"]
+
+
 def _tone(path: Path, *, peak_db: float = -20.0, seconds: float = 0.3, freq: float = 440.0, channels: int = 1):
     path.parent.mkdir(parents=True, exist_ok=True)
     t = np.arange(int(48_000 * seconds)) / 48_000
@@ -70,8 +76,9 @@ def test_index_mirrors_the_builtin_manifest(empty_library):
     assert assets.sfx_variants() == expected
     assert set(index.sfx) == set(SOUND_IDS)
     for sound, files in index.sfx.items():
-        assert [p.name for p in files] == [f"{sound}_{i}.wav" for i in range(len(files))]
+        assert list(files) == [_builtin(sound, i) for i in range(len(files))]
         assert all(p.is_file() for p in files)
+        assert all(index.sfx_duration[p] <= 2.5 for p in files)
     assert {mood: ids for mood, ids in index.beds.items()} == {m: (m,) for m in MOODS}
     for entry in MANIFEST["music"]:
         assert index.bed_lengths[entry["id"]] == entry["loop_seconds"]
@@ -121,10 +128,49 @@ def test_load_index_is_cached(empty_library):
 
 def test_builtin_sfx_variant_and_missing_variant_falls_back_to_zero(empty_library):
     path, gain = assets.mix_sfx_file("whoosh", 2, seed=7)
-    assert path == BUILTIN / "sfx" / "whoosh_2.wav" and gain == 0.0
-    assert assets.mix_sfx_file("pop", 9, seed=1)[0] == BUILTIN / "sfx" / "pop_0.wav"
-    assert assets.mix_sfx_file("boom", 1, seed=1)[0] == BUILTIN / "sfx" / "boom_0.wav"
-    assert assets.mix_sfx_file("slap", -1, seed=1)[0] == BUILTIN / "sfx" / "slap_0.wav"
+    assert path == BUILTIN / "sfx" / "whoosh-slide-long.wav" and gain == 0.0
+    assert assets.mix_sfx_file("whoosh", 0, seed=7)[0] == BUILTIN / "sfx" / "whoosh-air-bright.wav"
+    assert assets.mix_sfx_file("pop", 15, seed=1)[0] == _builtin("pop", 0)
+    assert assets.mix_sfx_file("boom", 1, seed=1)[0] == _builtin("boom", 1)
+    assert assets.mix_sfx_file("slap", -1, seed=1)[0] == _builtin("slap", 0)
+
+
+def test_builtin_choice_is_the_variant_alone(empty_library):
+    """Built-ins ignore the seed: the cue's variant (chosen once by the resolver) names the file everywhere."""
+    for sound, count in assets.sfx_variants().items():
+        assert 4 <= count <= 16, sound   # SfxCue.variant is 0..15
+        for variant in range(count):
+            picks = {assets.mix_sfx_file(sound, variant, seed)[0] for seed in (0, 1, 2, 977, 2**32 - 1)}
+            assert picks == {_builtin(sound, variant)}, (sound, variant)
+
+
+def test_riser_length_follows_the_variant(empty_library):
+    index = assets.load_index(refresh=True)
+    for variant in range(assets.sfx_variants()["riser"]):
+        path, _gain = assets.mix_sfx_file("riser", variant, seed=0)
+        assert index.sfx_duration[path] == (1.5, 2.5)[variant % 2]
+
+
+def test_resolver_picks_every_builtin_variant_deterministically(empty_library):
+    """The resolver's seed % count over the real manifest: in range, stable, and spread over the takes."""
+    import dataclasses
+
+    from src.edit_fx.contracts import EditStyle, SfxCue
+    from src.edit_fx.resolver import resolve
+    from tests.fixtures.fx_resolver.builders import load_fixture
+
+    inp, seed = load_fixture("talking_head")
+    inp = dataclasses.replace(inp, sfx_variants=assets.sfx_variants())
+    used: dict[str, set[int]] = {}
+    for template in ("slam", "stat_counter", "emoji_drop"):
+        plan = resolve(inp, EditStyle(intensity="max"), template, seed)
+        assert plan == resolve(inp, EditStyle(intensity="max"), template, seed)
+        for cue in plan.cues:
+            if isinstance(cue, SfxCue):
+                assert 0 <= cue.variant < assets.sfx_variants()[cue.sound], cue
+                assert assets.mix_sfx_file(cue.sound, cue.variant, cue.seed)[0] == _builtin(cue.sound, cue.variant)
+                used.setdefault(cue.sound, set()).add(cue.variant)
+    assert sum(len(v) for v in used.values()) > len(used), used   # not every sound on one take
 
 
 def test_unknown_sound_raises(empty_library):
@@ -140,7 +186,7 @@ def test_drop_in_replaces_the_builtin_sound(library):
         assert path == mine
         assert gain == pytest.approx(14.0, abs=0.3)  # normalised to the built-ins' -6 dBFS peak
     # other sounds keep their built-ins
-    assert assets.mix_sfx_file("pop", 1, seed=3)[0] == BUILTIN / "sfx" / "pop_1.wav"
+    assert assets.mix_sfx_file("pop", 1, seed=3)[0] == _builtin("pop", 1)
 
 
 @needs_ffmpeg
@@ -154,6 +200,24 @@ def test_several_drop_ins_are_picked_by_seed_in_name_order(library, monkeypatch)
         assert assets.mix_sfx_file("impact", 1, seed)[0] == order[seed % 3]
 
 
+@needs_ffmpeg
+def test_riser_drop_ins_are_picked_by_the_builtin_variant_length(library, monkeypatch):
+    monkeypatch.setattr(assets, "drop_in_gain_db", lambda _f: 0.0)
+    short_a = _tone(library / "sfx" / "riser-a-short.wav", seconds=1.5)
+    short_b = _tone(library / "sfx" / "riser-b-short.wav", seconds=1.62)
+    long_ = _tone(library / "sfx" / "riser-c-long.wav", seconds=2.5)
+    _tone(library / "sfx" / "riser-d-longer.wav", seconds=3.0)       # 0.5 s farther than the 2.5 s one: never
+    shorts = [short_a, short_b]
+    for seed in range(6):
+        assert assets.mix_sfx_file("riser", 0, seed)[0] == shorts[seed % 2]      # variant 0 = 1.5 s
+        assert assets.mix_sfx_file("riser", 1, seed)[0] == long_                 # variant 1 = 2.5 s
+        assert assets.mix_sfx_file("riser", 99, seed)[0] == shorts[seed % 2]     # out of range = variant 0
+    # other sounds ignore length: every drop-in, by seed
+    a = _tone(library / "sfx" / "whoosh-a.wav", seconds=0.3)
+    b = _tone(library / "sfx" / "whoosh-b.wav", seconds=2.0)
+    assert [assets.mix_sfx_file("whoosh", 1, seed)[0] for seed in range(2)] == [a, b]
+
+
 def test_invalid_drop_in_names_are_ignored(library):
     _tone(library / "sfx" / "kazoo-honk.wav")       # not a SoundId
     _tone(library / "sfx" / "whoosh-x.flac")        # unsupported extension
@@ -164,7 +228,7 @@ def test_invalid_drop_in_names_are_ignored(library):
     _tone(library / "music" / "chill-x.ogg")        # ogg is SFX-only
     lib = assets.load_library(refresh=True)
     assert lib.files == () and lib.fingerprint == ""
-    assert assets.mix_sfx_file("whoosh", 1, seed=0)[0] == BUILTIN / "sfx" / "whoosh_1.wav"
+    assert assets.mix_sfx_file("whoosh", 1, seed=0)[0] == _builtin("whoosh", 1)
 
 
 # ----------------------------------------------------------------------------- mix-time beds
@@ -219,7 +283,7 @@ def test_broken_drop_ins_are_skipped_at_mix_time_and_in_the_served_manifest(libr
     for seed in range(4):
         assert assets.mix_sfx_file("pop", 0, seed)[0] == good
     (library / "sfx" / "pop-b-good.wav").unlink()
-    assert assets.mix_sfx_file("pop", 1, seed=0)[0] == BUILTIN / "sfx" / "pop_1.wav"
+    assert assets.mix_sfx_file("pop", 1, seed=0)[0] == _builtin("pop", 1)
 
     (library / "music" / "hype-broken.wav").write_bytes(b"nope")
     assert assets.mix_bed_file("hype-broken", "hype", seed=0)[0] == BUILTIN / "music" / "hype.m4a"

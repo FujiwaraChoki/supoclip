@@ -2,18 +2,18 @@
  "name": "no_timing",
  "seed": 977123401,
  "sfx_variants": {
-  "whoosh": 3,
-  "impact": 2,
-  "pop": 3,
-  "riser": 2,
-  "record_scratch": 1,
-  "boom": 1,
-  "cash_register": 1,
-  "ticker": 1,
-  "slap": 2,
-  "stamp": 1,
-  "glitch": 2,
-  "tape_stop": 1
+  "whoosh": 6,
+  "impact": 7,
+  "pop": 6,
+  "riser": 8,
+  "record_scratch": 6,
+  "boom": 6,
+  "cash_register": 5,
+  "ticker": 6,
+  "slap": 6,
+  "stamp": 6,
+  "glitch": 6,
+  "tape_stop": 6
  },
  "beds": {
   "hype": [

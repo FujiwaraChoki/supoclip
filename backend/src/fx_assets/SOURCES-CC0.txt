@@ -1,0 +1,91 @@
+SupoClip dynamic-edit sound effects (sfx/*.wav)
+===============================================
+
+License: CC0-1.0 (Creative Commons Zero 1.0 Universal, public domain dedication).
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Every file below was edited from a Freesound.org upload that its author released under CC0 1.0.
+The licence was read on each sound's Freesound page on 2026-11-14 (licence link
+http://creativecommons.org/publicdomain/zero/1.0/, label "Creative Commons 0").
+CC0 needs no attribution; authors are listed for provenance and thanks.
+Source audio: the Freesound HQ preview of each sound (Ogg Vorbis). Processing: high-pass, trim, fades,
+loudness matching with a peak limiter, peak -6 dBFS, 48 kHz 16-bit PCM WAV. The edits are also released
+under CC0 1.0. ticker-roll-* are arranged on a fixed tick grid from single ticks of the listed
+sources; tape_stop-synth-stab is a tape-stop render (deceleration) of the listed synth stab.
+
+file | Freesound sound | author | original title
+----------------------------------------------------------------------------------------------------
+sfx/whoosh-air-bright.wav | https://freesound.org/s/701104/ | xkeril | Whoosh stereo light (transition)
+sfx/whoosh-slide-in.wav | https://freesound.org/s/184325/ | _micro | Woosh slide-in 
+sfx/whoosh-slide-long.wav | https://freesound.org/s/212957/ | XDWX | Woosh Slide-in 2 (longer)
+sfx/whoosh-short-punch.wav | https://freesound.org/s/427823/ | Kinoton | Whoosh #1
+sfx/whoosh-electronic.wav | https://freesound.org/s/19307/ | martian | hi speed electronic whoosh 1.wav
+sfx/whoosh-swoosh-soft.wav | https://freesound.org/s/607250/ | D4XX | Swoosh 3
+sfx/impact-tight-sub.wav | https://freesound.org/s/645898/ | AudioPapkin | Impact sfx 027.wav
+sfx/impact-cinematic-clean.wav | https://freesound.org/s/755057/ | AudioPapkin | Sound Design Elements Impact SFX PS 020
+sfx/impact-crack-decay.wav | https://freesound.org/s/812725/ | AudioPapkin | Sound Design Elements Impact SFX PS 059
+sfx/impact-metal-body.wav | https://freesound.org/s/812740/ | AudioPapkin | Sound Design Elements Impact SFX PS 074
+sfx/impact-dense-short.wav | https://freesound.org/s/823236/ | AudioPapkin | Sound Design Elements Impact SFX PS 102
+sfx/impact-sharp-hit.wav | https://freesound.org/s/755056/ | AudioPapkin | Sound Design Elements Impact SFX PS 019
+sfx/impact-punch-sub.wav | https://freesound.org/s/348242/ | newagesoup | PUNCH-BOXING-03.wav
+sfx/pop-classic.wav | https://freesound.org/s/202230/ | deraj | Pop sound
+sfx/pop-plop.wav | https://freesound.org/s/569679/ | marokki | Plop Effect
+sfx/pop-mouth.wav | https://freesound.org/s/323741/ | Reitanna | mouth pop.wav
+sfx/pop-blop.wav | https://freesound.org/s/609207/ | helloIJustWantSomeSounds | Blop sound
+sfx/pop-tight.wav | https://freesound.org/s/789793/ | quatricise | Pop 4
+sfx/pop-bubble-soft.wav | https://freesound.org/s/762781/ | Sess8it | BubblePopping
+sfx/riser-2s5-noise-uplift.wav | https://freesound.org/s/611170/ | skullowner83 (username shortened: it is an e-mail address) | Uplifter-1
+sfx/riser-2s5-reverse-crash.wav | https://freesound.org/s/165155/ | rhythmpeople | Rpeople_RevCrash1.wav
+sfx/riser-2s5-sweep.wav | https://freesound.org/s/261415/ | Stereo Surgeon | Percusive Noise Riser.wav
+sfx/riser-2s5-dark.wav | https://freesound.org/s/683667/ | CogFireStudios | dark riser buildup
+sfx/riser-1s5-reverse-crash.wav | https://freesound.org/s/165154/ | rhythmpeople | Rpeople_RevCrash2.wav
+sfx/riser-1s5-reverse-crash-low.wav | https://freesound.org/s/674292/ | TheEndOfACycle | Reversed Crash Cymbal - Low
+sfx/riser-1s5-synth.wav | https://freesound.org/s/840719/ | SoundEffectsForAll | Simple Riser
+sfx/riser-1s5-noise-uplift.wav | https://freesound.org/s/611170/ | skullowner83 (username shortened: it is an e-mail address) | Uplifter-1
+sfx/record_scratch-classic.wav | https://freesound.org/s/71853/ | ludvique | record_scratch.wav
+sfx/record_scratch-dj-cut.wav | https://freesound.org/s/527374/ | Trapmusicallstar | DJ Scratch 1.wav
+sfx/record_scratch-quick.wav | https://freesound.org/s/274129/ | jameswrowles | Scratch.wav
+sfx/record_scratch-back-forth.wav | https://freesound.org/s/607040/ | primoferal | scratch-011.wav
+sfx/record_scratch-needle-rip.wav | https://freesound.org/s/439690/ | jzielke011 | Record Needle Rip
+sfx/record_scratch-stab.wav | https://freesound.org/s/205984/ | klangkonserve | Scratch1.wav
+sfx/boom-cinematic.wav | https://freesound.org/s/201571/ | Julien_Matthey | JM_FX_Boom 01a.wav
+sfx/boom-soft-cinematic.wav | https://freesound.org/s/560156/ | Rizzard | Soft Cinematic Impact
+sfx/boom-wide.wav | https://freesound.org/s/511877/ | AudioPapkin | Impact sfx 015.wav
+sfx/boom-short.wav | https://freesound.org/s/511878/ | AudioPapkin | Impact sfx 014.wav
+sfx/boom-deep.wav | https://freesound.org/s/430977/ | AudioPapkin | Big impact.wav
+sfx/boom-sub-crack.wav | https://freesound.org/s/541029/ | AudioPapkin | Very low frequency impact.wav
+sfx/cash_register-classic.wav | https://freesound.org/s/209578/ | Zott820 | Cash Register Purchase
+sfx/cash_register-ding.wav | https://freesound.org/s/184438/ | CapsLok | Cash Register Fake.wav
+sfx/cash_register-bell.wav | https://freesound.org/s/443334/ | rolandseer | MONEY_001.wav
+sfx/cash_register-chching.wav | https://freesound.org/s/728224/ | disman | cash register chching
+sfx/cash_register-designed.wav | https://freesound.org/s/878619/ | Qvantor | Purchase Ka-Ching
+sfx/ticker-stopwatch.wav | https://freesound.org/s/275802/ | DavidJGurney | Ticking Stopwatch (dry)
+sfx/ticker-timer.wav | https://freesound.org/s/487725/ | LilMati | Ticking Timer 05 Sec.wav
+sfx/ticker-tictoc.wav | https://freesound.org/s/187992/ | magundah14 | Tic Toc.wav
+sfx/ticker-roll-12.wav | https://freesound.org/s/275802/ | DavidJGurney | Ticking Stopwatch (dry)
+sfx/ticker-roll-16.wav | https://freesound.org/s/275802/ | DavidJGurney | Ticking Stopwatch (dry)
+sfx/ticker-roll-20.wav | https://freesound.org/s/487725/ | LilMati | Ticking Timer 05 Sec.wav
+sfx/slap-crisp.wav | https://freesound.org/s/444407/ | MootMcnoodles | Slap.wav
+sfx/slap-face.wav | https://freesound.org/s/539163/ | khenshom | Slap hit on the face or shoulder
+sfx/slap-cheek.wav | https://freesound.org/s/388274/ | Rodzuz | Slap in the face
+sfx/slap-hand.wav | https://freesound.org/s/704179/ | magicjoshua | Face slap sound effect
+sfx/slap-loud.wav | https://freesound.org/s/490768/ | steveuk87 | punch 1 - loud slap.ogg
+sfx/slap-wet.wav | https://freesound.org/s/495117/ | nebulasnails | Wet Splat 2.mp3
+sfx/stamp-rubber.wav | https://freesound.org/s/362624/ | kermite607 | Stamp
+sfx/stamp-rubber-2.wav | https://freesound.org/s/362622/ | kermite607 | Stamp
+sfx/stamp-rubber-3.wav | https://freesound.org/s/362623/ | kermite607 | Stamp
+sfx/stamp-heavy.wav | https://freesound.org/s/470710/ | I.fekry | traditional stamp.wav
+sfx/stamp-self-inking.wav | https://freesound.org/s/683155/ | sellos-empresa | Self inking stamp
+sfx/stamp-desk.wav | https://freesound.org/s/844058/ | TheArbuzikYT | Stamp
+sfx/glitch-burst.wav | https://freesound.org/s/424375/ | Elnosos | glitched sound 1.wav
+sfx/glitch-pitch-stutter.wav | https://freesound.org/s/717346/ | am_92 | Glitch (4)
+sfx/glitch-designed-stutter.wav | https://freesound.org/s/832725/ | JW_Audio | DSGNRythm_Glitch, Stutter, One-Shot, Pitched, Chaotic, Hard, Digital_18_JW Audio
+sfx/glitch-tech.wav | https://freesound.org/s/657816/ | The-Sacha-Rush | Tech Glitch 5 Rush Tone
+sfx/glitch-short.wav | https://freesound.org/s/332711/ | AmicaSys | Glitch
+sfx/glitch-hologram.wav | https://freesound.org/s/856168/ | brktkrgll | Cyberpunk Glitch Hologram Transition Whoosh
+sfx/tape_stop-classic.wav | https://freesound.org/s/326418/ | Wagna | pauseStart.wav
+sfx/tape_stop-vinyl-dark.wav | https://freesound.org/s/842582/ | loganzsound | Vinyl Rewind Dark 01
+sfx/tape_stop-record.wav | https://freesound.org/s/454718/ | G_M_D_THREE | RECORD_STOP_002.aif
+sfx/tape_stop-power-down.wav | https://freesound.org/s/492651/ | Rvgerxini | power down.mp3
+sfx/tape_stop-sweep-down.wav | https://freesound.org/s/348250/ | newagesoup | power-down-03.wav
+sfx/tape_stop-synth-stab.wav | https://freesound.org/s/213525/ | Garzul | Noisy analog synth stab

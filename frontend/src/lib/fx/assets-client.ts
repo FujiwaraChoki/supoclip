@@ -97,20 +97,36 @@ export function loadFxManifest(options: { refresh?: boolean; fetcher?: Fetcher }
   return manifestPromise;
 }
 
+/** Sounds whose drop-ins are picked by length (`assets.LENGTH_MATCHED_SOUNDS`): a 2.5 s riser stays 2.5 s. */
+const LENGTH_MATCHED_SOUNDS: ReadonlySet<SoundId> = new Set<SoundId>(["riser"]);
+const LENGTH_MATCH_SLACK = 0.25;
+
+/** Mirrors `assets.length_matched`: the entries closest in length to `target` (within the slack), in order. */
+export function lengthMatched<T extends { duration: number }>(entries: readonly T[], target: number): T[] {
+  if (!entries.length) return [];
+  const gaps = entries.map((e) => Math.abs(finite(e.duration) - target));
+  const limit = Math.min(...gaps) + LENGTH_MATCH_SLACK + 1e-6;
+  return entries.filter((_e, i) => gaps[i] <= limit);
+}
+
 /**
  * Mirrors `mix_sfx_file(sound, variant, seed)`: drop-ins for the sound replace the built-ins (`custom[seed % len]`, in
- * the manifest's mix order); otherwise the built-in variant, falling back to variant 0. Null for an unknown sound.
+ * the manifest's mix order; risers only among the drop-ins closest in length to the built-in variant); otherwise the
+ * built-in variant, falling back to variant 0. Null for an unknown sound.
  */
 export function sfxAsset(manifest: FxAssetManifest, sound: SoundId, variant: number, seed: number): FxMixAsset | null {
-  const custom = manifest.sfx.filter((e) => e.custom && e.sound === sound);
+  const builtins = manifest.sfx.filter((e) => !e.custom && e.sound === sound).sort((a, b) => a.variant - b.variant);
+  const builtin = builtins.length
+    ? (Number.isInteger(variant) && variant >= 0 && variant < builtins.length ? builtins[variant] : builtins[0])
+    : null;
+  let custom = manifest.sfx.filter((e) => e.custom && e.sound === sound);
   if (custom.length) {
+    if (builtin && LENGTH_MATCHED_SOUNDS.has(sound)) custom = lengthMatched(custom, finite(builtin.duration));
     const chosen = custom[index(seed, custom.length)];
     return { id: chosen.id, url: proxiedAssetUrl(chosen.url), gainDb: finite(chosen.gain_db), duration: finite(chosen.duration), custom: true };
   }
-  const builtins = manifest.sfx.filter((e) => !e.custom && e.sound === sound).sort((a, b) => a.variant - b.variant);
-  if (!builtins.length) return null;
-  const chosen = Number.isInteger(variant) && variant >= 0 && variant < builtins.length ? builtins[variant] : builtins[0];
-  return { id: chosen.id, url: proxiedAssetUrl(chosen.url), gainDb: finite(chosen.gain_db), duration: finite(chosen.duration), custom: false };
+  if (!builtin) return null;
+  return { id: builtin.id, url: proxiedAssetUrl(builtin.url), gainDb: finite(builtin.gain_db), duration: finite(builtin.duration), custom: false };
 }
 
 function bed(entry: FxMusicAsset): FxMixAsset {

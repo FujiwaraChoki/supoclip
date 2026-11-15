@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Write backend/src/fx_assets/manifest.json from the committed asset files (FINAL.md §12).
 
-Per file: sha256 and duration; SFX also peak/RMS dBFS (read with numpy), music beds also the loop length (from the
-synthesiser's tempo), BPM and integrated loudness (ffmpeg ebur128). The emoji entry hashes the atlas and its map and
-names the font version recorded by build_emoji_atlas.ts. Run after the synth scripts and the atlas build:
+Per file: sha256 and duration; SFX also peak/RMS dBFS (read with numpy) and their Freesound source (from
+SOURCES-CC0.txt), music beds also the loop length (from the synthesiser's tempo), BPM and integrated loudness (ffmpeg
+ebur128). The emoji entry hashes the atlas and its map and names the font version recorded by build_emoji_atlas.ts.
+
+SFX variant numbers come from ``SFX_FILES`` below: variant 0 is the most neutral take of each sound (the default for
+sounds added in the studio or by the AI edit), and risers alternate 1.5 s / 2.5 s, so a riser's length is
+``RISER_SECONDS[variant % 2]`` (the same as the synthesised riser_0/riser_1 it replaces). Run after the synth
+scripts and the atlas build:
 
     cd backend && .venv/bin/python scripts/fx/write_manifest.py [--assets DIR]
 
@@ -27,11 +32,30 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from synth_music import MOODS, SR, loop_samples, measure_lufs  # noqa: E402
-from synth_sfx import SOUNDS  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_ASSETS = BACKEND_DIR / "src" / "fx_assets"
 MANIFEST_VERSION = 1
+SFX_SOURCES = "SOURCES-CC0.txt"
+RISER_SECONDS = (1.5, 2.5)   # riser length by variant parity
+
+# Built-in SFX (sfx/<sound>-<name>.wav), in variant order per sound. Every file here must be listed in SOURCES-CC0.txt.
+SFX_FILES: dict[str, tuple[str, ...]] = {
+    "whoosh": ("air-bright", "slide-in", "slide-long", "short-punch", "electronic", "swoosh-soft"),
+    "impact": ("tight-sub", "cinematic-clean", "crack-decay", "metal-body", "dense-short", "sharp-hit", "punch-sub"),
+    "pop": ("classic", "plop", "mouth", "blop", "tight", "bubble-soft"),   # variant 1 = the emoji-burst pop
+    "riser": ("1s5-reverse-crash", "2s5-noise-uplift", "1s5-reverse-crash-low", "2s5-reverse-crash", "1s5-synth",
+              "2s5-sweep", "1s5-noise-uplift", "2s5-dark"),
+    "record_scratch": ("classic", "dj-cut", "quick", "back-forth", "needle-rip", "stab"),
+    "boom": ("cinematic", "soft-cinematic", "wide", "short", "deep", "sub-crack"),
+    "cash_register": ("classic", "ding", "bell", "chching", "designed"),
+    "ticker": ("stopwatch", "timer", "tictoc", "roll-12", "roll-16", "roll-20"),
+    "slap": ("crisp", "face", "cheek", "hand", "loud", "wet"),
+    "stamp": ("rubber", "rubber-2", "rubber-3", "heavy", "self-inking", "desk"),
+    "glitch": ("burst", "pitch-stutter", "designed-stutter", "tech", "short", "hologram"),
+    "tape_stop": ("classic", "vinyl-dark", "record", "power-down", "sweep-down", "synth-stab"),
+}
+_SOURCE_ROW = re.compile(r"^(sfx/[A-Za-z0-9_.-]+\.wav) \| (https://freesound\.org/s/\d+/) \| ")
 
 
 def sha256_file(path: Path) -> str:
@@ -65,26 +89,44 @@ def probe_duration(path: Path) -> float:
     return float(out)
 
 
+def sfx_sources(assets: Path) -> dict[str, str]:
+    """``sfx/<file>.wav`` -> Freesound URL, from the provenance table in SOURCES-CC0.txt."""
+    rows = {}
+    for line in (assets / SFX_SOURCES).read_text(encoding="utf-8").splitlines():
+        match = _SOURCE_ROW.match(line)
+        if match:
+            rows[match.group(1)] = match.group(2)
+    return rows
+
+
 def sfx_entries(assets: Path) -> list[dict]:
+    sources = sfx_sources(assets)
     entries = []
-    for file_id, sound, variant, _seed, _build in SOUNDS:
-        path = assets / "sfx" / f"{file_id}.wav"
-        samples, rate = read_wav(path)
-        if rate != SR:
-            raise ValueError(f"{path}: {rate} Hz, expected {SR}")
-        entries.append({
-            "id": file_id,
-            "sound": sound,
-            "variant": variant,
-            "file": f"sfx/{file_id}.wav",
-            "sha256": sha256_file(path),
-            "duration": round(len(samples) / rate, 4),
-            "peak_db": level_db(float(np.max(np.abs(samples)))),
-            "rms_db": round(level_db(float(np.sqrt(np.mean(samples**2)))), 1),
-            "gain_db": 0.0,
-            "source": "synth",
-            "license": "CC0-1.0",
-        })
+    for sound, names in SFX_FILES.items():
+        for variant, name in enumerate(names):
+            file = f"sfx/{sound}-{name}.wav"
+            if file not in sources:
+                raise ValueError(f"{file} is not listed in {SFX_SOURCES}")
+            path = assets / file
+            samples, rate = read_wav(path)
+            if rate != SR:
+                raise ValueError(f"{path}: {rate} Hz, expected {SR}")
+            duration = round(len(samples) / rate, 4)
+            if sound == "riser" and abs(duration - RISER_SECONDS[variant % 2]) > 1e-3:
+                raise ValueError(f"{file}: {duration} s, riser variant {variant} must be {RISER_SECONDS[variant % 2]} s")
+            entries.append({
+                "id": f"{sound}-{name}",
+                "sound": sound,
+                "variant": variant,
+                "file": file,
+                "sha256": sha256_file(path),
+                "duration": duration,
+                "peak_db": level_db(float(np.max(np.abs(samples)))),
+                "rms_db": round(level_db(float(np.sqrt(np.mean(samples**2)))), 1),
+                "gain_db": 0.0,
+                "source": sources[file],
+                "license": "CC0-1.0",
+            })
     return entries
 
 

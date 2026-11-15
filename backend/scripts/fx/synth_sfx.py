@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Synthesise the built-in dynamic-edit sound effects (FINAL.md §12).
+"""Synthesised dynamic-edit sound effects: DSP helpers for synth_music.py and a code-only fallback set.
+
+The built-in SFX in src/fx_assets/sfx are CC0 recordings from Freesound (see SOURCES-CC0.txt and
+write_manifest.py); this script no longer writes there. It is kept because synth_music.py builds the music beds
+from the DSP helpers below, and as a fallback for anyone who wants sounds made entirely from code: it writes one
+file per recipe under drop-in names (``<sound>-synth<variant>.wav``), so pointing FX_LIBRARY_DIR at the parent of
+``--out`` makes the mixer use them instead of the built-ins.
 
 Every file is made from code: numpy oscillators, noise and filters, a fixed
 `np.random.default_rng(<seed>)` per file, peak-normalised to -6 dBFS with 5 ms
 edge fades and written as 48 kHz mono 16-bit WAV with the stdlib `wave` module.
-Nothing is sampled from a recording, so the files are CC0 (see SOURCES.txt).
+Nothing is sampled from a recording, so the files are CC0.
 
-    cd backend && .venv/bin/python scripts/fx/synth_sfx.py [--out DIR]
+    cd backend && .venv/bin/python scripts/fx/synth_sfx.py --out fx_library/sfx [--only riser_0 ...]
 
-The output is deterministic: the same numpy build writes the same bytes. The
-DSP helpers here are also used by synth_music.py.
+The output is deterministic: the same numpy build writes the same bytes.
 """
 
 from __future__ import annotations
@@ -28,8 +33,6 @@ PEAK_DBFS = -6.0
 EDGE_FADE = 0.005
 MAX_SECONDS = 2.5
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_OUT = BACKEND_DIR / "src" / "fx_assets" / "sfx"
 
 
 # ----------------------------------------------------------------------------- DSP helpers
@@ -470,12 +473,20 @@ def render(file_id: str) -> np.ndarray:
     raise KeyError(file_id)
 
 
+def drop_in_name(file_id: str) -> str:
+    """``riser_1`` -> ``riser-synth1.wav``: an FX_LIBRARY_DIR drop-in name for the recipe's sound."""
+    for fid, sound, variant, _seed, _build in SOUNDS:
+        if fid == file_id:
+            return f"{sound}-synth{variant}.wav"
+    raise KeyError(file_id)
+
+
 def synthesise(out_dir: Path, only: set[str] | None = None) -> list[Path]:
     written = []
     for fid, *_rest in SOUNDS:
         if only and fid not in only:
             continue
-        path = out_dir / f"{fid}.wav"
+        path = out_dir / drop_in_name(fid)
         write_wav(path, render(fid))
         written.append(path)
     return written
@@ -483,8 +494,8 @@ def synthesise(out_dir: Path, only: set[str] | None = None) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
-    parser.add_argument("--only", nargs="*", help="file ids to render (default: all)")
+    parser.add_argument("--out", type=Path, required=True, help="output directory, e.g. fx_library/sfx")
+    parser.add_argument("--only", nargs="*", help="recipe ids to render, e.g. riser_0 (default: all)")
     args = parser.parse_args(argv)
     for path in synthesise(args.out, set(args.only) if args.only else None):
         print(path.relative_to(args.out.parent) if path.is_relative_to(args.out.parent) else path)

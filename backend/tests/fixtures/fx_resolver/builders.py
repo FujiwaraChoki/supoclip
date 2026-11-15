@@ -15,9 +15,10 @@ from src.edit_fx.resolver import ResolveInput, resolve
 
 FIXTURES = Path(__file__).resolve().parent
 
-# Built-in manifest shape (§12): variant counts per sound, one bed per mood.
-SFX_VARIANTS = {"whoosh": 3, "impact": 2, "pop": 3, "riser": 2, "record_scratch": 1, "boom": 1, "cash_register": 1,
-                "ticker": 1, "slap": 2, "stamp": 1, "glitch": 2, "tape_stop": 1}
+# Built-in manifest shape (§12): variant counts per sound (= manifest.json, checked by test_fx_assets_manifest),
+# one bed per mood.
+SFX_VARIANTS = {"whoosh": 6, "impact": 7, "pop": 6, "riser": 8, "record_scratch": 6, "boom": 6, "cash_register": 5,
+                "ticker": 6, "slap": 6, "stamp": 6, "glitch": 6, "tape_stop": 6}
 BEDS = {m: (m,) for m in ("hype", "chill", "dramatic", "funny", "inspiring", "dark")}
 BED_LENGTHS = {"hype": 61.935, "chill": 93.659, "dramatic": 109.714, "funny": 68.571, "inspiring": 80.0,
                "dark": 87.273}

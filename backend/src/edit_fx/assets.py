@@ -1,5 +1,9 @@
 """Dynamic-edit asset registry: built-in SFX, music beds and the emoji atlas, plus self-hoster drop-ins (§12).
 
+The built-in SFX are CC0 recordings (``fx_assets/SOURCES-CC0.txt``), 4-8 takes per sound id, 48 kHz 16-bit WAV at a
+-6 dBFS peak. A cue's ``variant`` names one take; the resolver picks it as ``seed % count`` (or 0 for sounds added
+by hand), so the same document always plays the same file. Riser takes alternate 1.5 s / 2.5 s by variant parity.
+
 Two views, kept apart on purpose (AI-H8, AP-M7, AI-L5):
 
 * ``load_index()`` is the **built-in** manifest committed in ``src/fx_assets`` (a JSON read, no ffmpeg, no
@@ -9,7 +13,8 @@ Two views, kept apart on purpose (AI-H8, AP-M7, AI-L5):
   ``music/<mood>-<name>.{m4a,mp3,wav}``). They are applied **at mix time** only, by ``mix_sfx_file`` and
   ``mix_bed_file``: when a sound or mood has drop-ins they replace the built-in files for it, picked by
   ``seed % len`` in file-name order among the drop-ins that decode (a broken file is skipped and logged once, never
-fatal). Every render machine must mount the same library; renders log
+  fatal). Riser drop-ins are first narrowed to the ones closest in length to the cue's built-in variant
+  (``length_matched``), so a 2.5 s riser stays a 2.5 s riser. Every render machine must mount the same library; renders log
   ``library_fingerprint()`` so a mismatch is visible.
 
 Drop-ins are measured lazily, once per file content per process (ffmpeg ``volumedetect``; call the measuring
@@ -40,6 +45,8 @@ SFX_PEAK_DB = -6.0                # built-in SFX are peak-normalised here; drop-
 BED_MEAN_DB = -20.3               # volumedetect mean of the built-in beds (~ -20 LUFS); drop-ins are matched to it
 BED_PEAK_CEILING_DB = -1.0        # a drop-in bed is never raised above this peak
 GAIN_LIMITS = (-30.0, 24.0)
+LENGTH_MATCHED_SOUNDS = frozenset({"riser"})   # drop-ins of these are picked by length (the built-in variant's)
+LENGTH_MATCH_SLACK = 0.25                      # s: drop-ins this much farther from the length than the closest count too
 LIBRARY_SFX_EXTS = (".wav", ".mp3", ".m4a", ".ogg")
 LIBRARY_MUSIC_EXTS = (".m4a", ".mp3", ".wav")
 SERVED_EXTS = frozenset({"wav", "mp3", "m4a", "ogg", "png", "json"})
@@ -67,6 +74,7 @@ class AssetIndex:
     atlas_json: Path
     manifest: dict                             # public manifest (no paths) for GET /fx/assets
     sfx_gain_db: Mapping[Path, float] = field(default_factory=dict)   # built-in file → manifest gain_db
+    sfx_duration: Mapping[Path, float] = field(default_factory=dict)  # built-in file → manifest duration (s)
     files_by_sha: Mapping[str, Path] = field(default_factory=dict)    # built-in sha256 → file (served URLs)
 
 
@@ -90,12 +98,14 @@ def _build_index(root: Path) -> AssetIndex:
 
     sfx: dict[str, list[tuple[int, Path]]] = {}
     gains: dict[Path, float] = {}
+    durations: dict[Path, float] = {}
     by_sha: dict[str, Path] = {}
     public_sfx = []
     for entry in raw["sfx"]:
         path = root / entry["file"]
         sfx.setdefault(entry["sound"], []).append((int(entry["variant"]), path))
         gains[path] = float(entry.get("gain_db", 0.0))
+        durations[path] = float(entry["duration"])
         by_sha[entry["sha256"]] = path
         public_sfx.append({
             "id": entry["id"], "sound": entry["sound"], "variant": int(entry["variant"]),
@@ -144,6 +154,7 @@ def _build_index(root: Path) -> AssetIndex:
         atlas_json=atlas_json,
         manifest=public,
         sfx_gain_db=MappingProxyType(gains),
+        sfx_duration=MappingProxyType(durations),
         files_by_sha=MappingProxyType(by_sha),
     )
 
@@ -377,20 +388,37 @@ def usable_drop_ins(drops: tuple[LibraryFile, ...] | None) -> tuple[LibraryFile,
     return tuple(f for f in (drops or ()) if measure(f) is not None)
 
 
+def _drop_in_duration(file: LibraryFile) -> float:
+    m = measure(file)
+    return round(m.duration, 3) if m else 0.0   # the served manifest's rounding, so the client compares the same
+
+
+def length_matched(drops: tuple[LibraryFile, ...], target: float) -> tuple[LibraryFile, ...]:
+    """The drop-ins whose length is closest to `target` seconds (within LENGTH_MATCH_SLACK of the closest), in mix
+    order. Never empty when `drops` is not. Mirrored by ``lengthMatched`` in the studio's assets-client.ts."""
+    if not drops:
+        return drops
+    gaps = [abs(_drop_in_duration(f) - target) for f in drops]
+    limit = min(gaps) + LENGTH_MATCH_SLACK + 1e-6
+    return tuple(f for f, gap in zip(drops, gaps) if gap <= limit)
+
+
 def mix_sfx_file(sound: str, variant: int, seed: int) -> tuple[Path, float]:
     """(file, normalisation gain dB) for an SfxCue at MIX time. Usable drop-ins for `sound` exist →
-    drop_ins[seed % len]; else the built-in `variant` (a missing variant → variant 0). Raises KeyError for an unknown
-    sound id."""
-    drops = usable_drop_ins(load_library().sfx.get(sound))
-    if drops:
-        chosen = drops[seed % len(drops)]
-        return chosen.path, drop_in_gain_db(chosen)
+    drop_ins[seed % len] (risers: among the drop-ins closest in length to the built-in `variant`); else the built-in
+    `variant` (a missing variant → variant 0). Raises KeyError for an unknown sound id."""
     index = load_index()
     files = index.sfx.get(sound)
-    if not files:
+    builtin = (files[variant] if 0 <= variant < len(files) else files[0]) if files else None
+    drops = usable_drop_ins(load_library().sfx.get(sound))
+    if drops:
+        if sound in LENGTH_MATCHED_SOUNDS and builtin is not None:
+            drops = length_matched(drops, index.sfx_duration[builtin])
+        chosen = drops[seed % len(drops)]
+        return chosen.path, drop_in_gain_db(chosen)
+    if builtin is None:
         raise KeyError(f"unknown sfx sound {sound!r}")
-    path = files[variant] if 0 <= variant < len(files) else files[0]
-    return path, index.sfx_gain_db.get(path, 0.0)
+    return builtin, index.sfx_gain_db.get(builtin, 0.0)
 
 
 def mix_bed_file(bed_id: str, mood: str, seed: int) -> tuple[Path, float]:
@@ -418,7 +446,8 @@ def mix_bed_file(bed_id: str, mood: str, seed: int) -> tuple[Path, float]:
 def public_manifest(include_library: bool = True) -> dict:
     """The served manifest: built-ins plus this machine's drop-ins flagged ``custom: true`` (no paths). Custom
     entries are listed per sound / mood in mix order (usable drop-ins only), so a client mirrors
-    ``mix_sfx_file``/``mix_bed_file`` with ``custom[seed % len]``. Measures unmeasured drop-ins (ffmpeg): call it from a thread."""
+    ``mix_sfx_file``/``mix_bed_file`` with ``custom[seed % len]`` (risers: after ``length_matched`` on the listed
+    durations). Measures unmeasured drop-ins (ffmpeg): call it from a thread."""
     base = load_index().manifest
     manifest = {"version": base["version"], "sfx": list(base["sfx"]), "music": list(base["music"]),
                 "emoji": dict(base["emoji"])}
