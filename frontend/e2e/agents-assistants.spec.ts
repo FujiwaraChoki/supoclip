@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// Fake account and keys only: nothing here reaches a real backend.
+// Fake account and keys only: nothing here reaches a real backend. Runs with the polish
+// config (mocked, like polish.spec.ts); also writes the screenshots to SCREENSHOT_DIR.
 const SHOTS = process.env.SCREENSHOT_DIR || "test-results";
 
 async function mockAgentsPage(page: Page) {
