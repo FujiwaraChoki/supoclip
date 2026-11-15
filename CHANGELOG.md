@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-15
+
+- **Fixed:** Changing a project's settings no longer adds the next sentence to the end of a clip that stopped right before it. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+- **Fixed:** Every clip's sound now fades out over its last fraction of a second, so the end never clicks. The same goes for trimmed and split clips and for studio exports. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+
 ## 2026-11-14
 
 - **Improved:** Interview clips are framed shot by shot instead of shrinking the whole video into a strip. When both people are on camera, each gets their own half of the screen, stacked; a close-up of one person becomes a tight crop on their face; on-screen graphics and b-roll are shown in full. The layout changes exactly on the video's own cuts. ([#392](https://github.com/FujiwaraChoki/supoclip/pull/392))
