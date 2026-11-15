@@ -82,6 +82,10 @@ async def fold_pending_events(db, settle: timedelta, source_account: str | None)
                     customer_id=row["customer_id"], user_id=user_id, **outcome.create,
                 )
             elif review is not None and outcome.update:
+                if review.status == "baseline" and outcome.update.get("status") == "pending":
+                    # Baselines were taken from `users`, without the event's account and mode.
+                    outcome.update.update(account_id=row["account_id"], customer_id=row["customer_id"],
+                                          livemode=row["livemode"])
                 await store.update_review(db, review.id, **outcome.update)
             if review is not None and outcome.notices:
                 current = await store.get_review(db, review.id)

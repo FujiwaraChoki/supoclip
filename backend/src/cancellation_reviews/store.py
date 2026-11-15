@@ -144,7 +144,7 @@ async def create_review(db: AsyncSession, *, account_id: str, livemode: bool, su
 
 
 _UPDATABLE = {
-    "status", "requested_at", "snapshot", "snapshot_at", "reported_feedback", "ended_at", "withdrawn_at", "not_before", "user_id",
+    "status", "requested_at", "account_id", "customer_id", "livemode", "snapshot", "snapshot_at", "reported_feedback", "ended_at", "withdrawn_at", "not_before", "user_id",
     "exclusion_reason", "attempts", "lease_expires_at", "last_error", "evidence", "report_text", "reported_at",
 }
 _JSON_COLUMNS = {"snapshot", "reported_feedback", "evidence"}
