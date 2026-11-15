@@ -29,6 +29,25 @@ preflight. An actor result found there is stored with the task and reused by the
 so each actor runs at most once per task, and a chain that has failed completely is not
 rerun for the same job.
 
+Selected sections of a plain HLS VOD are fetched fragment by fragment, four at a time,
+through the same byte budget. Encrypted, byte-range, master, or discontinuous playlists
+fall back to one full download and a local cut. A media read waits 30 seconds and retries
+a stalled fragment; metadata preflight keeps a 10-second read so a stalled proxy still
+leaves time for the next provider. `YOUTUBE_PROXY_TIMEOUT_SECONDS` is how long a download
+may go without receiving data (default 300). It is not a wall clock. The overall cap is
+the longer of `STREAM_DOWNLOAD_MAX_SECONDS` (default 2400) and a duration-based budget
+that grows with the VOD, up to an hour. Subscriber-only and private VODs fail before any
+paid fallback. A region-locked VOD asks the user to upload the file. Other failures say
+to try again. Each stage is logged with the provider, source, URL host, HTTP status,
+error type, bytes, elapsed time, attempt, and the fallback that ran next. Proxy
+credentials and signed query strings are not logged.
+
+The same code runs on every video worker, including a render worker on another machine.
+Scratch stays on that machine's `TEMP_DIR`. The YouTube proxy trial, when
+`YOUTUBE_PROXY_TRIAL_PREFIX` is set, keeps its admission in Redis so every worker shares
+one counter. `YOUTUBE_PROXY_TRIAL_SECRET_FILE` points at the mounted proxy template; the
+file is not in the image.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
