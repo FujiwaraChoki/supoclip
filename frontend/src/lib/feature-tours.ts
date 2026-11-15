@@ -67,12 +67,6 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     ],
   },
   {
-    id: "assistant-connect",
-    // Update to the day this reaches users.
-    releasedAt: "2026-11-16T00:00:00Z",
-    steps: [{ target: "nav-agents", message: "agents", side: "right" }],
-  },
-  {
     id: "composer-settings",
     releasedAt: "2026-11-06T00:00:00Z",
     steps: [{ target: "composer-settings", message: "settings", side: "top" }],

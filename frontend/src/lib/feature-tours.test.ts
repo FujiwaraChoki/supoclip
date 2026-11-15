@@ -29,7 +29,7 @@ describe("feature tours", () => {
   });
 
   it("doesn't repeat what an earlier tour already explained", () => {
-    expect(dueTours(BEFORE, ["workflows"]).map((tour) => tour.id)).not.toContain("composer-settings");
+    expect(dueTours(BEFORE, ["workflows"])).toEqual([]);
   });
 
   it("is for accounts older than the feature, once each", () => {

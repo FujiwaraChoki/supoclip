@@ -46,11 +46,5 @@
       "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
     }
   },
-  "skip": "Skip",
-  "assistant-connect": {
-    "agents": {
-      "title": "Connect Claude, ChatGPT or Grok",
-      "body": "Ask your AI assistant to make clips for you. Under Agents & API, add SupoClip as a connector and sign in, with no API key to copy."
-    }
-  }
+  "skip": "Skip"
 }

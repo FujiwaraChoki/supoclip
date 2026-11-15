@@ -23,7 +23,6 @@ export function AssistantConnect() {
 
   return (
     <section
-      data-tour="assistant-connect"
       className="mb-8 overflow-hidden rounded-xl border bg-card"
       aria-labelledby="assistant-connect-title"
     >

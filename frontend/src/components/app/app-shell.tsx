@@ -28,14 +28,14 @@ import { cn } from "@/lib/utils";
 
 // `mobile: false` keeps an item out of the five-slot mobile tab bar.
 // `social: true` items only show when social publishing is enabled for the user.
-type NavItem = { href: string; labelKey: "create" | "library" | "social" | "analytics" | "agents" | "settings"; icon: typeof Film; match: (path: string) => boolean; mobile?: boolean; social?: boolean; tour?: string };
+type NavItem = { href: string; labelKey: "create" | "library" | "social" | "analytics" | "agents" | "settings"; icon: typeof Film; match: (path: string) => boolean; mobile?: boolean; social?: boolean };
 
 const NAV: NavItem[] = [
   { href: "/", labelKey: "create", icon: Sparkles, match: (p) => p === "/" },
   { href: "/list", labelKey: "library", icon: Film, match: (p) => p.startsWith("/list") || p.startsWith("/tasks") },
   { href: "/settings/social", labelKey: "social", icon: Share2, match: (p) => p.startsWith("/settings/social"), social: true },
   { href: "/analytics", labelKey: "analytics", icon: ChartColumn, match: (p) => p.startsWith("/analytics"), social: true },
-  { href: "/settings/api-keys", labelKey: "agents", icon: Bot, match: (p) => p.startsWith("/settings/api-keys"), mobile: false, tour: "nav-agents" },
+  { href: "/settings/api-keys", labelKey: "agents", icon: Bot, match: (p) => p.startsWith("/settings/api-keys"), mobile: false },
   { href: "/settings", labelKey: "settings", icon: Settings, match: (p) => p === "/settings" },
 ];
 
@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {items.map((item) => {
             const active = item.match(pathname);
             return (
-              <SidebarLink key={item.href} compact={compact} href={item.href} label={item.label} active={active} tour={"tour" in item ? item.tour : undefined}>
+              <SidebarLink key={item.href} compact={compact} href={item.href} label={item.label} active={active}>
                 <item.icon className="size-4" />
               </SidebarLink>
             );
@@ -168,13 +168,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SidebarLink({ href, label, active, compact, shortcut, className, tour, children }: {
-  href: string; label: string; active?: boolean; compact: boolean; shortcut?: string; className?: string; tour?: string; children: React.ReactNode;
+function SidebarLink({ href, label, active, compact, shortcut, className, children }: {
+  href: string; label: string; active?: boolean; compact: boolean; shortcut?: string; className?: string; children: React.ReactNode;
 }) {
   const link = (
     <Link
       href={href}
-      data-tour={tour}
       aria-current={active ? "page" : undefined}
       aria-label={compact ? label : undefined}
       className={cn(
