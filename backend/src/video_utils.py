@@ -461,6 +461,9 @@ def create_optimized_clip(
                         "width": src_w,
                         "height": src_h,
                         "duration": ffprobe_duration(source_clip_path),
+                        # Interview shots: the studio derives its caption rows from them.
+                        **({"segments": plan_report["interview_segments"]}
+                           if plan_report.get("interview_segments") else {}),
                     }
                 except Exception as exc:
                     logger.warning("Could not record the vertical layout for the editor: %s", exc)
@@ -481,6 +484,8 @@ def create_optimized_clip(
                     source_caption_band = None
             if layout_report is not None and source_caption_band is not None:
                 layout_report["source_caption_band"] = source_caption_band
+                if isinstance(layout_report.get("vertical_layout"), dict) and plan_report.get("interview_segments"):
+                    layout_report["vertical_layout"]["caption_band"] = list(source_caption_band)
 
             override = caption_override or {}
             ass_font_size = override.get("font_size") or font_size
@@ -516,7 +521,8 @@ def create_optimized_clip(
                     include_captions=include_captions,
                     position_y_override=position_y,
                     avoid_band=source_caption_band,
-                    caption_layout_report=layout_report,
+                    # A hook-only ASS over fx-core captions must not overwrite where fx-core drew them.
+                    caption_layout_report=layout_report if (include_captions or fx is None) else None,
                     **offsets_kwargs,
                     **labels_kwargs,
                     **override_kwargs,
@@ -524,7 +530,8 @@ def create_optimized_clip(
                     **({"time_map": time_map} if time_map is not None else {}),
                     **({"censor_spans": censor_spans} if censor_spans else {}),
                     # Only stacked interview openings move the hook title.
-                    **_interview_hook_kwargs(plan_report, fx, caption_template, add_subtitles),
+                    **_interview_hook_kwargs(plan_report, fx, caption_template, add_subtitles,
+                                             caption_y_override=override.get("position_y")),
                 )
                 return ass_path if built else None
 
@@ -546,6 +553,7 @@ def create_optimized_clip(
                     font_color=font_color,
                     caption_template=caption_template,
                     caption_y=position_y,
+                    caption_y_pinned=override.get("position_y") is not None,
                     source_caption_band=source_caption_band,
                     caption_words=override.get("words"),
                     highlight_words=override.get("highlight_words"),
@@ -794,21 +802,28 @@ FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap"})
 
 
 def _interview_hook_kwargs(plan_report: Dict[str, Any], fx: Any, caption_template: Optional[str],
-                           include_captions: bool) -> Dict[str, Any]:
+                           include_captions: bool, caption_y_override: Optional[float] = None) -> Dict[str, Any]:
     """Where a stacked interview opening puts the hook title: on the panel seam, or, when intensity-look captions
-    own the seam, low on the lower person's chest (as on a reaction stack)."""
+    own the seam, low on the lower person's chest (as on a reaction stack). Captions the user placed away from the
+    seam (a caption edit's position) leave the seam to the hook."""
     if plan_report.get("hook_center_y") is None:
         return {}
     if fx is not None and include_captions:
         from .edit_fx.contracts import caption_look_for
 
         if caption_look_for(caption_template, fx.plan.style.intensity, fx.plan.sensitivity) != "template":
+            seam = float(plan_report["hook_center_y"])
+            if caption_y_override is not None and abs(float(caption_y_override) - seam) > INTERVIEW_HOOK_SEAM_CLEAR:
+                return {"hook_center_y": seam}
             return {"hook_position_y": INTERVIEW_HOOK_LOW_Y}
     return {"hook_center_y": plan_report["hook_center_y"]}
-# Intensity-look captions on an interview clip sit on the stacked seam (and under the chin on a close-up); the hook
-# title then moves low, its bottom edge at 0.94.
+# Intensity-look captions on an interview clip sit on the stacked seam on two-shots, at mid-chest on close-ups and
+# below the picture on fitted shots (per-shot rows, edit_fx.caption_rows); the hook title then moves low, its bottom
+# edge at 0.94. A caption edit's own position pins the captions instead (no rows).
 INTERVIEW_LOOK_CAPTION_Y = 0.5
 INTERVIEW_HOOK_LOW_Y = 0.94
+# Captions placed further than this from the seam leave it free for the hook title.
+INTERVIEW_HOOK_SEAM_CLEAR = 0.12
 
 
 def _without_warp(plan: "FxPlan") -> "FxPlan":
@@ -862,6 +877,10 @@ def _fx_ladder_setup(
     template: Dict[str, Any],
     layout_kind: Optional[str] = None,
     panel_windows: "tuple[tuple[float, float], ...] | list" = (),
+    interview_segments: "list[dict] | tuple" = (),
+    hook_low: bool = False,
+    src_size: Optional[Tuple[int, int]] = None,
+    caption_y_pinned: bool = False,
     caption_template: str,
     add_subtitles: bool,
     hook_title: Optional[str],
@@ -921,17 +940,30 @@ def _fx_ladder_setup(
         from .media.captions import caption_center_clear_of_band
 
         y = float(caption_y) if caption_y is not None else float(LOOKS[look]["y"])
-        if layout_kind == "interview":
-            # On the seam of a stacked two-shot and under the chin on a close-up, where the references put
-            # captions; not on the lower person's chest.
+        rows: tuple = ()
+        if layout_kind == "interview" and not caption_y_pinned:
+            # A row per shot, where the references put captions: on the seam of a stacked two-shot, at mid-chest on
+            # a close-up, below the picture of a fitted graphic; never on the lower person's face. The row changes
+            # at the first caption group after a cut (fx-core). A caption edit's own position pins them instead.
+            from .edit_fx.caption_rows import interview_caption_rows
+
             y = INTERVIEW_LOOK_CAPTION_Y
+            rows = interview_caption_rows(
+                interview_segments, text_px=look_size_px(look, width), width=width, height=height,
+                source_size=src_size, band=source_caption_band,
+                hook=(FX_HOOK_WINDOW_START, hook_title_window(duration))
+                if hook_low and hook_title and not plan.hook_title_suppressed else None,
+                duration=duration,
+            )
         if source_caption_band is not None:
             text_height = int(look_size_px(look, width) * 1.5)
             y = caption_center_clear_of_band(y * height, text_height, source_caption_band, height) / height
         caption_style = look_caption_style(
             caption_template, look, width=width, height=height, caption_y=max(0.0, min(1.0, y)),
-            font_color=fx_font_color(template, font_color),
+            font_color=fx_font_color(template, font_color), rows=rows,
         )
+        if rows:
+            report["caption_rows"] = [row.model_dump(mode="json") for row in rows]
         report["caption_y"] = caption_style.y
     elif fx_template and add_subtitles:
         caption_style = fx_caption_style(
@@ -977,6 +1009,7 @@ def _render_fx_ladder(
     caption_words: Optional[List[Dict[str, Any]]],
     highlight_words: Optional[List[str]],
     speaker_turns: List[Dict[str, Any]],
+    caption_y_pinned: bool = False,
     speaker_words: List[Dict[str, Any]],
     vertical_plan: Optional[Tuple[str, str]],
     plan_report: Dict[str, Any],
@@ -1027,6 +1060,12 @@ def _render_fx_ladder(
             template=template,
             layout_kind=plan_report.get("kind"),
             panel_windows=plan_report.get("panel_windows") or (),
+            interview_segments=plan_report.get("interview_segments") or (),
+            hook_low="hook_position_y" in _interview_hook_kwargs(
+                plan_report, fx, caption_template, add_subtitles,
+                caption_y_override=caption_y if caption_y_pinned else None),
+            src_size=src_size,
+            caption_y_pinned=caption_y_pinned,
             caption_template=caption_template,
             add_subtitles=add_subtitles,
             hook_title=hook_title,

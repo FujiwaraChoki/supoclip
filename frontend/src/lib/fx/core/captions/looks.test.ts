@@ -135,6 +135,32 @@ describe("look emoji", () => {
   });
 });
 
+describe("look emoji on caption rows (interview shots)", () => {
+  const emoji = accent("b0.accent", "emoji", WORDS[1].start - 2 * FRAME, 1.4, { text: "people", emoji: "💰" });
+  const rowScene = (rows: { start: number; end: number; y: number }[], words?: FxWord[]) => {
+    const base = scene("bold", "emoji_drop", [emoji], words ? { words } : {});
+    return { ...base, caption: { ...base.caption!, y: 0.5, rows } };
+  };
+  it("sits under its group on the row that group was placed on", () => {
+    const high = lookEmojiPlacement(prep(rowScene([{ start: 0, end: 9, y: 0.5 }])), emoji)!;
+    const low = lookEmojiPlacement(prep(rowScene([{ start: 0, end: 9, y: 0.65 }])), emoji)!;
+    expect(low.y - high.y).toBeCloseTo(0.15 * 1920, 6);
+  });
+  it("leaves with its caption group at a camera cut", () => {
+    const cut = 1.2;   // "people" (0.8) is on screen until the cut ends its group
+    const p = prep(rowScene([{ start: 0, end: cut, y: 0.65 }, { start: cut, end: 9, y: 0.5 }]));
+    const sprite = (t: number) => opsAt(p, t).find((o) => o.op === "sprite");
+    expect(sprite(cut - 2 * FRAME)).toBeDefined();
+    expect(sprite(cut + 1e-3)).toBeUndefined();
+  });
+  it("falls back to the row in effect at the emoji when its word is not on screen", () => {
+    const lone = words(["unrelated"], 3.5);
+    const at = (rows: { start: number; end: number; y: number }[]) => lookEmojiPlacement(prep(rowScene(rows, lone)), emoji)!;
+    const pair = at([{ start: 0, end: 9, y: 0.5 }]), single = at([{ start: 0, end: 0.5, y: 0.5 }, { start: 0.5, end: 9, y: 0.65 }]);
+    expect(single.y - pair.y).toBeCloseTo(0.15 * 1920, 6);
+  });
+});
+
 describe("look behind word", () => {
   it("is one lowercase word, about 0.6 W wide, and hides the captions while it shows", () => {
     expect(lookBehindText("Works, ")).toBe("works");

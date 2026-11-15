@@ -7,7 +7,7 @@ import { registerFxFonts } from "@/lib/fx/core/test-utils/napi-host";
 import type { FxCue } from "@/lib/fx/core/types";
 import { DEFAULT_DOC_FX, type DocFx, type EditDocument } from "./document";
 import { draft } from "./document.test-fixture";
-import { drawEditorFrame, drawEditorTextLayer, editorFxScene, fxCaptionBounds, textLayerBounds } from "./render";
+import { drawEditorFrame, drawEditorTextLayer, editorFxScene, fxCaptionBounds, fxCaptionRowShift, textLayerBounds } from "./render";
 
 beforeAll(() => {
   registerFxFonts();
@@ -132,6 +132,19 @@ describe("text layers with dynamic edits", () => {
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThan(0);
     expect(textLayerBounds(ctx, doc, 1080, 1920, 1.2, "captions")).toEqual(box);
+  });
+
+  it("gives a caption on an interview row its shift from the style's y, so its own transform starts there", () => {
+    const rows = { y: 0.5, rows: [{ start: 0, end: 0.9, y: 0.5 }, { start: 0.9, end: 3, y: 0.65 }] };
+    const doc = withFx({}, { captions: { ...draft.captions, template: "highlighter_swipe", y: 0.5 }, captionRows: rows });
+    expect(fxCaptionRowShift(doc, 1080, 1920, 0.2)).toBeCloseTo(0, 9);
+    expect(fxCaptionRowShift(doc, 1080, 1920, 1.2)).toBeCloseTo(0.15, 9);
+    const box = fxCaptionBounds(doc, 1080, 1920, 1.2)!;
+    expect(box.y + box.height / 2).toBeGreaterThan(0.6 * 1920);                // the drag box is where it is drawn
+    const placed = { ...doc, captionTransforms: { '["s","b"]': { x: 0, y: 0.15, scale: 1, size: null } } };
+    expect(fxCaptionRowShift(placed, 1080, 1920, 1.2)).toBe(0);                 // pinned: no row
+    expect(fxCaptionBounds(placed, 1080, 1920, 1.2)!.y).toBeCloseTo(box.y, 6);  // and exactly where it was
+    expect(fxCaptionRowShift({ ...doc, captionRows: undefined }, 1080, 1920, 1.2)).toBe(0);
   });
 
   it("hides a hook title the plan suppressed", () => {

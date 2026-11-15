@@ -396,6 +396,8 @@ def editor_preserved_layout(
         "landscape_recommended": described["kind"] in {"fit", "compositor"},
         "output_format": "vertical",
         "vertical_plan": (described["video_filter"], described["mode"]),
+        **({"segments": described["interview_segments"], "source_size": [width, height]}
+           if described.get("interview_segments") else {}),
     }
 
 
@@ -447,6 +449,8 @@ def stored_editor_layout(clean: Path, stored: dict | None) -> dict | None:
         "landscape_recommended": stored["kind"] in {"fit", "compositor"},
         "output_format": "vertical",
         "vertical_plan": (stored["video_filter"], stored["mode"]),
+        **({"segments": stored["segments"], "source_size": [width, height]} if stored.get("segments") else {}),
+        **({"caption_band": stored["caption_band"]} if stored.get("caption_band") else {}),
     }
 
 
@@ -466,7 +470,8 @@ def bake_editor_layout(
     of the generated clip, face tracking included. Without one (older clips,
     or a plan made on different media) the layout is detected again here.
     ``report``, when given, receives ``zoompan``: whether the baked frame has
-    a Ken Burns zoom in it.
+    a Ken Burns zoom in it, and for an interview layout its ``kind``, shot
+    ``segments``, ``source_size`` and ``caption_band`` (the caption rows).
     """
     from ..config import get_config
     from ..media.speaker_framing import build_clip_speaker_turns
@@ -494,6 +499,10 @@ def bake_editor_layout(
         return False
     if report is not None:
         report["zoompan"] = layout_filter_has_zoompan(layout)
+        report["kind"] = layout["kind"]
+        for key in ("segments", "source_size", "caption_band"):
+            if layout.get(key):
+                report[key] = layout[key]
     if preserve_content and layout["kind"] not in PRESERVED_LAYOUT_KINDS:
         destination = clean.with_name("layout.mp4")
         if apply_editor_layout(clean, layout, destination):
@@ -501,6 +510,26 @@ def bake_editor_layout(
             return True
         return False
     return apply_editor_layout(clean, layout)
+
+
+def editor_caption_rows(layout: dict, captions: dict, duration: float) -> dict | None:
+    """The draft's ``captionRows`` for a baked interview layout (``bake_editor_layout``'s report): the per-shot rows
+    of the session's look captions on clean.mp4's clock, seeded with their automatic ``captions.y``. None for other
+    layouts, legacy or hidden templates (their drafts stay as they were) and layouts stored without their shots."""
+    from ..edit_fx.caption_rows import interview_caption_rows
+    from ..edit_fx.contracts import is_listed_fx_template
+
+    if not layout.get("baked") or layout.get("kind") != "interview" or not layout.get("segments"):
+        return None
+    if not is_listed_fx_template(captions.get("template")):
+        return None
+    rows = interview_caption_rows(
+        layout["segments"], text_px=float(captions.get("size") or 54), width=1080, height=1920,
+        source_size=layout.get("source_size"), band=layout.get("caption_band"), duration=duration,
+    )
+    if not rows:
+        return None
+    return {"y": float(captions["y"]), "rows": [row.model_dump(mode="json") for row in rows]}
 
 
 def editor_broll_from_placements(placements: list, duration: float) -> list[dict]:
@@ -533,6 +562,25 @@ def rebased_broll(document: EditDocument, cursor: float = 0) -> list[dict]:
         }
         for piece in mapped_broll(document)
     ]
+
+
+def rebased_caption_rows(document: EditDocument, cursor: float = 0) -> list[dict]:
+    """A draft's interview caption rows on a combined source (like ``rebased_broll``): the rows that place its
+    captions (``studio_caption_rows``, E) moved by ``cursor``. [] when they don't apply to this draft."""
+    from ..editor_document import studio_caption_rows
+
+    return [
+        {"start": round(cursor + row.start, 4), "end": round(cursor + row.end, 4), "y": row.y}
+        for row in studio_caption_rows(document)
+    ]
+
+
+def combined_caption_rows(documents: list[dict], rows: list[dict]) -> dict | None:
+    """The combined draft's ``captionRows``: every part's rebased rows, seeded with the combined captions' ``y`` (the
+    first draft's), or None when no part has rows."""
+    if not rows:
+        return None
+    return {"y": float(documents[0].get("captions", {}).get("y", 0.78)), "rows": rows[:400]}
 
 
 def rebased_caption_transforms(document: EditDocument, words: list[dict]) -> dict:
@@ -972,7 +1020,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             if output_format in {"vertical", "vertical_split", "vertical_fit"}:
                 from ..clip_source_map import load_clip_vertical_layout
 
-                await run_in_thread(
+                layout_report["baked"] = await run_in_thread(
                     bake_editor_layout, clean, output_format, source, local_ranges, True,
                     load_clip_vertical_layout(metadata_path), layout_report,
                 )
@@ -1011,18 +1059,21 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             clip_width, clip_height = (
                 (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
             )
+            initial_captions = initial_caption_style(
+                task,
+                caption_settings,
+                source_settings.get("add_subtitles", True),
+                clip_width,
+                clip_height,
+            )
+            # Interview clips: the look captions keep a row per shot, as generated.
+            caption_rows = None if original_format else editor_caption_rows(layout_report, initial_captions, duration)
             initial = (
                 EditDocument.model_validate(
                     {
                         "segments": [{"id": "original", "start": 0, "end": duration}],
                         "framing": {"aspect": "original" if original_format else "vertical", "fit": "auto" if metadata.get("hasLayout") else "cover"},
-                        "captions": initial_caption_style(
-                            task,
-                            caption_settings,
-                            source_settings.get("add_subtitles", True),
-                            clip_width,
-                            clip_height,
-                        ),
+                        "captions": initial_captions,
                         "hookTitle": (burned_hook_title(clip) or "")[:200],
                         "broll": editor_broll_from_placements(broll_placements, duration),
                         "words": [
@@ -1037,6 +1088,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             if w["start"] < duration and w["end"] > 0
                         ],
                         **({"fx": seeded_fx} if seeded_fx is not None else {}),
+                        **({"captionRows": caption_rows} if caption_rows is not None else {}),
                     }
                 )
                 .validate_duration(duration)
@@ -1303,6 +1355,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 raise InterruptedError()
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
         all_broll = []
+        all_caption_rows: list[dict] = []
         drafts: list[EditDocument] = []
         fx_parts: list[dict] = []
         combined_offsets = []
@@ -1319,6 +1372,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
             all_broll += rebased_broll(document, cursor)
+            # And its interview caption rows, where they place its captions.
+            all_caption_rows += rebased_caption_rows(document, cursor)
             # So do its dynamic edits, on the combined timeline.
             drafts.append(document)
             fx_parts.append(rebased_fx(document, cursor, i))
@@ -1368,6 +1423,10 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             "hookTitle": "",
         }
         initial.pop("fx", None)
+        initial.pop("captionRows", None)
+        caption_rows = combined_caption_rows([entry["document"] for entry in entries], all_caption_rows)
+        if caption_rows is not None:
+            initial["captionRows"] = caption_rows
         fx = combined_fx(drafts, fx_parts)
         if fx is not None:
             initial["fx"] = fx
@@ -1420,7 +1479,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                         should_cancel=render.stop.is_set,
                         on_progress=lambda percent: render.report(50 + percent // 2),
                     )
-                fx_sidecar = combined_fx_sidecar(document, all_words, outcome) if fx_render else None
+                fx_sidecar = combined_fx_sidecar(document, all_words, outcome) if fx_render and document.fx is not None else None
                 await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
                 new_filename = f"combined_{uuid.uuid4().hex}.mp4"
                 clip_path = Path(get_config().temp_dir) / "clips" / new_filename

@@ -230,6 +230,35 @@
       "title": "CaptionPlacement",
       "type": "object"
     },
+    "CaptionRow": {
+      "additionalProperties": false,
+      "description": "Where captions sit during one stretch of the clip (an interview shot): the caption centre ``y`` for every\ncaption group shown from ``[start, end)``. A change of ``y`` is a camera cut, and a cut ends the caption group on\nscreen (``caption_groups.phrase_groups(cuts=...)``). E seconds (S in a studio document's ``captionRows``).",
+      "properties": {
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "y"
+      ],
+      "title": "CaptionRow",
+      "type": "object"
+    },
     "DesaturateCue": {
       "additionalProperties": false,
       "properties": {
@@ -604,6 +633,15 @@
           ],
           "title": "Look",
           "type": "string"
+        },
+        "rows": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CaptionRow"
+          },
+          "maxItems": 400,
+          "title": "Rows",
+          "type": "array"
         }
       },
       "required": [

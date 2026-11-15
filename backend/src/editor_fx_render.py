@@ -484,8 +484,11 @@ def studio_caption_style(document, width: int, height: int) -> FxCaptionStyle | 
     fx = document.fx
     look = caption_look_for(captions.template, fx.style.intensity if fx is not None else "off",
                             fx.sensitivity if fx is not None else "normal")
+    from .editor_document import studio_caption_rows
+
     return fx_caption_style_from_document(style, get_template(captions.template), width=width, height=height,
-                                          placements=placements, look=look)
+                                          placements=placements, look=look,
+                                          rows=studio_caption_rows(document) if look != "template" else ())
 
 
 def hook_range(document, total: float) -> tuple[float, float] | None:

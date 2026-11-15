@@ -67,7 +67,8 @@ export function captionBand(p: PreparedScene, a: number, b: number): Rect | null
   if (y0 === Infinity) {
     if (!style || !style.enabled || !p.captionFamily) return null;
     const half = style.size_px * 1.3;
-    y0 = style.y * p.height - half; y1 = style.y * p.height + half;
+    const cy = (p.captionYAt(a) ?? style.y) * p.height;
+    y0 = cy - half; y1 = cy + half;
   }
   const pad = 24 * p.u;
   return { x: 0, y: y0 - pad, w: p.width, h: y1 - y0 + 2 * pad };

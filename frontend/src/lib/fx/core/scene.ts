@@ -4,7 +4,7 @@
 import { captionSafe, unit } from "./constants";
 import type { CaptionChunk } from "./registry";
 import { clamp } from "./easing";
-import { isFxTemplate, type AccentCue, type FxCaptionTemplate, type FxCue, type FxKind, type FxScene, type FxWord, type MatteWindow } from "./types";
+import { captionRowY, isFxTemplate, rowCuts, type AccentCue, type FxCaptionStyle, type FxCaptionTemplate, type FxCue, type FxKind, type FxScene, type FxWord, type MatteWindow } from "./types";
 import { warpFromJson, type Warp } from "./warp";
 import type { FxHost } from "./host";
 import { BASE_LOOKS, DEFAULT_BASE_LOOK, outlineGap } from "./captions/base";
@@ -44,6 +44,9 @@ export interface PreparedScene {
   faceAt(t: number): FaceBox | null;
   /** The caption chunk on screen at edit time t. */
   chunkAt(t: number): CaptionChunk | null;
+  /** The automatic caption centre (fraction of H) at edit time t: the caption row in effect (per-shot rows), else the
+   *  style's y; null without FX captions. What overlays anchored to "the caption position" use when no chunk shows. */
+  captionYAt(t: number): number | null;
   hookActive(t: number): boolean;
   inBroll(t: number): boolean;
   matteAt(t: number): MatteWindow | null;
@@ -99,6 +102,7 @@ export function prepareScene(scene: FxScene, host: SceneMeasureHost): PreparedSc
     outFrames: Math.round(scene.out_duration * 30),
     family, measure, faceAt,
     chunkAt: (t) => findSpan(chunks, t),
+    captionYAt: (t) => (style ? captionRowY(style.rows, style.y, t) : null),
     hookActive: (t) => !!hook && t >= hook[0] && t < hook[1],
     inBroll: (t) => broll.some(([a, b]) => t >= a && t < b),
     matteAt: (t) => mattes.find((m) => t >= m.start && t < m.end) ?? null,
@@ -183,7 +187,8 @@ export function layoutCaptions(scene: FxScene, family: string, measure: Measure)
     const { space, widths, lines } = fit;
     const lineH = px * 1.2, blockH = lineH * lines.length;
     const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
-    let centerY = H * (style.y + (placement?.y ?? 0));
+    const row = placement ? null : groupRow(style, group[0].start);
+    let centerY = H * ((row ?? style.y) + (placement?.y ?? 0));
     if (!placement) centerY = clamp(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
     const laid: CaptionChunk["words"] = [];
     lines.forEach((idx, li) => {
@@ -195,7 +200,8 @@ export function layoutCaptions(scene: FxScene, family: string, measure: Measure)
         x += widths[i] + space;
       }
     });
-    return { key, words: laid, start: group[0].start, end: Math.max(group[0].start, group[group.length - 1].end), px, centerX, centerY, scale };
+    return { key, words: laid, start: group[0].start, end: Math.max(group[0].start, group[group.length - 1].end), px, centerX, centerY, scale,
+      ...(row !== null ? { row } : {}) };
   });
   // Bridge short gaps so a caption does not blink off between chunks; never overlap the next one.
   for (let i = 0; i < chunks.length; i++) {
@@ -220,7 +226,8 @@ export function layoutLookCaptions(scene: FxScene, look: ActiveLook, family: str
   const W = scene.width, H = scene.height, u = unit(W, H);
   const lead = LOOK_LEAD[look];
   const words = groupedWords(scene.words);
-  const groups = phraseGroups(words, style.words_per_line);
+  // Interview rows: each camera cut (a row change) ends the group on screen; no rows, no cuts, groups as always.
+  const groups = phraseGroups(words, style.words_per_line, rowCuts(style.rows));
   const placements = new Map(style.placements.map((p) => [p.key, p]));
   const safe = captionSafe(W, H);
   const boxed = keywordBoxed(scene.template);
@@ -269,9 +276,11 @@ export function layoutLookCaptions(scene: FxScene, look: ActiveLook, family: str
     const { space, widths, lines } = laid;
     const lineH = px * 1.25, blockH = lineH * lines.length;
     const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
-    let centerY = H * (style.y + (placement?.y ?? 0));
+    const row = placement ? null : groupRow(style, group.cut ?? group.start);
+    let centerY = H * ((row ?? style.y) + (placement?.y ?? 0));
     if (!placement) centerY = clamp(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
-    const start = group.start + lead;
+    // A group opening at a camera cut shows from the cut (on the new shot's row), never a few frames before it.
+    const start = group.cut !== undefined ? Math.max(group.start + lead, group.cut) : group.start + lead;
     const out: CaptionChunk["words"] = [];
     lines.forEach((idx, li) => {
       const total = idx.reduce((sum, i) => sum + widths[i], 0) + space * (idx.length - 1);
@@ -284,10 +293,22 @@ export function layoutLookCaptions(scene: FxScene, look: ActiveLook, family: str
         x += widths[i] + space;
       }
     });
-    chunks.push({ key, words: out, start, end: Math.max(start, group.end + lead), px, centerX, centerY, scale, space });
+    // A group still on screen at a cut leaves exactly at the cut.
+    const end = group.until !== undefined ? group.until : group.end + lead;
+    chunks.push({ key, words: out, start, end: Math.max(start, end), px, centerX, centerY, scale, space,
+      ...(row !== null ? { row } : {}) });
   }
   for (let i = 0; i + 1 < chunks.length; i++) chunks[i].end = Math.min(chunks[i].end, chunks[i + 1].start);
   return chunks.filter((c) => c.end > c.start);
+}
+
+/**
+ * The per-shot row of a caption group without a placement: the row in effect where it starts showing (look groups:
+ * the cut they open at, else their first word's onset; groups never span a cut, phraseGroups ends them there). Null
+ * without rows (the group sits at the style's y).
+ */
+export function groupRow(style: Pick<FxCaptionStyle, "rows" | "y">, shownFrom: number): number | null {
+  return style.rows?.length ? captionRowY(style.rows, style.y, shownFrom) : null;
 }
 
 /** Side margin (fraction of W) a caption line never crosses. */

@@ -452,7 +452,8 @@
       "uppercase": true,
       "enabled": true,
       "placements": [],
-      "look": "max"
+      "look": "max",
+      "rows": []
     },
     "grade": "none",
     "grain": 0.0,

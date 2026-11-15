@@ -39,6 +39,7 @@ import {
   captionKey,
   captionTransform,
   clamp,
+  outputSize,
   replaceWords,
   setCaptionVisualSize,
   textTransform,
@@ -48,6 +49,7 @@ import {
   type CaptionTransform,
   type EditorState,
 } from "@/lib/editor/document";
+import { fxCaptionRowShift } from "@/lib/editor/render";
 import { isFxTemplate } from "@/lib/fx/core/types";
 import { offeredFxTemplates } from "@/lib/fx/edit-style-request";
 import { cn } from "@/lib/utils";
@@ -182,6 +184,10 @@ export function Inspector({
   const captionId = activeCaption ? captionKey(doc, activeCaption) : undefined;
   const placement: CaptionTransform = activeCaption ? captionTransform(doc, activeCaption) : textTransform(doc, "captions");
   const captionSize = (placement.size ?? doc.captions.size) * placement.scale;
+  // A caption on a per-shot row (interview clips) shows where it is drawn until it gets its own position.
+  const outSize = outputSize(doc, asset.width, asset.height);
+  const rowShift = activeCaption && captionId && !doc.captionTransforms?.[captionId]
+    ? fxCaptionRowShift(doc, outSize.width, outSize.height, editTime, asset.captionLooks) : 0;
   const scriptWords = useRef(doc.words);
   const [script, setScript] = useState<string | null>(null),
     [applying, setApplying] = useState(false);
@@ -308,7 +314,7 @@ export function Inspector({
               />
               <Range
                 label={t("captions.position")}
-                value={(doc.captions.y + placement.y) * 100}
+                value={(doc.captions.y + placement.y + rowShift) * 100}
                 min={0}
                 max={100}
                 unit="%"

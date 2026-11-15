@@ -105,18 +105,20 @@ export function emojiAnchor(p: PreparedScene, cue: AccentCue, t: number): WordAn
  *  its caption group. */
 export const LOOK_EMOJI = { sizeW: 0.26, side: 0.08, offsetH: 0.11, inFrames: 2, inScale: 0.85 } as const;
 
-const placements = new WeakMap<PreparedScene, WeakMap<AccentCue, { x: number; y: number; size: number } | null>>();
+type EmojiPlacement = { x: number; y: number; size: number; until?: number };
+const placements = new WeakMap<PreparedScene, WeakMap<AccentCue, EmojiPlacement | null>>();
 
-/** Where a look emoji sits (output px, its centre); decided once per cue from the settled caption layout. */
-export function lookEmojiPlacement(p: PreparedScene, cue: AccentCue): { x: number; y: number; size: number } | null {
+/** Where a look emoji sits (output px, its centre); decided once per cue from the settled caption layout. With
+ *  interview rows, `until` is when its caption group leaves (a camera cut ends the group: the emoji leaves with it). */
+export function lookEmojiPlacement(p: PreparedScene, cue: AccentCue): EmojiPlacement | null {
   let byCue = placements.get(p);
   if (!byCue) { byCue = new WeakMap(); placements.set(p, byCue); }
   if (byCue.has(cue)) return byCue.get(cue)!;
   const W = p.width, H = p.height, size = LOOK_EMOJI.sizeW * Math.min(W, H);
   const safe = captionSafe(W, H), side = LOOK_EMOJI.side * W;
   const m = matchCue(p, cue);
-  let result: { x: number; y: number; size: number } | null = null;
-  const fallbackY = (p.scene.caption?.y ?? 0.6) * H;
+  let result: EmojiPlacement | null = null;
+  const fallbackY = (p.captionYAt(cue.start) ?? 0.6) * H;
   const word = m ? wordsBox(m.chunk, m.first, m.last) : { x: W / 2, y: fallbackY, w: 0, h: 0 };
   const block = m ? chunkBox(m.chunk) : { x: W / 2, y: fallbackY, w: 0, h: 0 };
   // Centred on the caption group (it re-centres as words are added, so the keyword's own x would drift away from the
@@ -135,13 +137,14 @@ export function lookEmojiPlacement(p: PreparedScene, cue: AccentCue): { x: numbe
     const y = fits(below) ? below : fits(above) ? above : null;
     result = y === null ? null : { x, y, size };
   }
+  if (result && m && p.scene.caption?.rows?.length) result = { ...result, until: m.chunk.end };
   byCue.set(cue, result);
   return result;
 }
 
 function lookEmojiOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
   const at = lookEmojiPlacement(dc.scene, cue);
-  if (!at) return [];
+  if (!at || (at.until !== undefined && dc.t >= at.until)) return [];
   const k = clamp01((dc.local + 1 / 30) / (LOOK_EMOJI.inFrames / 30));
   const scale = LOOK_EMOJI.inScale + (1 - LOOK_EMOJI.inScale) * k;
   return [spriteOp({ key: cue.emoji, x: -at.size / 2, y: -at.size / 2, w: at.size, h: at.size,

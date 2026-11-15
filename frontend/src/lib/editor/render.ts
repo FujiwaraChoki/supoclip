@@ -523,6 +523,20 @@ export function fxCaptionBounds(doc: EditDocument, width: number, height: number
   return box ? { x: box.x, y: box.y, width: box.w, height: box.h } : null;
 }
 
+/**
+ * Where per-shot caption rows (interview clips) put the FX caption on screen at edit time `time`, relative to the
+ * caption style's y (fraction of H); 0 without rows or for a caption placed by its own transform. A caption's own
+ * transform starts from here, so dragging or nudging a caption on a row never makes it jump.
+ */
+export function fxCaptionRowShift(doc: EditDocument, width: number, height: number, time: number,
+  looks?: Record<string, CaptionLook>): number {
+  if (!doc.captionRows || !doc.captions.enabled || !isFxTemplate(doc.captions.template)) return 0;
+  const prepared = editorFxScene(doc, looks, width, height, width, height);
+  const chunk = prepared.chunkAt(editorFxClock(prepared, time).e);
+  const style = prepared.scene.caption;
+  return chunk?.row !== undefined && style ? chunk.row - style.y : 0;
+}
+
 /** Transparent editable layers in the viewer; composited only when exporting. */
 export function drawEditorTextLayer(
   ctx: CanvasRenderingContext2D, doc: EditDocument, sourceWidth: number, sourceHeight: number,

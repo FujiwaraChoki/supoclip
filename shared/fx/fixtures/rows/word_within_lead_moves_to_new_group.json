@@ -1,0 +1,159 @@
+{
+  "family": "rows",
+  "case": "word_within_lead_moves_to_new_group",
+  "fn": "group_rows",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.38,
+        "text": "So"
+      },
+      {
+        "start": 0.46,
+        "end": 0.7,
+        "text": "here"
+      },
+      {
+        "start": 0.78,
+        "end": 0.96,
+        "text": "is"
+      },
+      {
+        "start": 1.04,
+        "end": 1.25,
+        "text": "the"
+      },
+      {
+        "start": 1.33,
+        "end": 1.6,
+        "text": "thing"
+      },
+      {
+        "start": 1.68,
+        "end": 1.95,
+        "text": "about"
+      },
+      {
+        "start": 2.03,
+        "end": 2.3,
+        "text": "money"
+      },
+      {
+        "start": 2.38,
+        "end": 2.68,
+        "text": "nobody"
+      },
+      {
+        "start": 2.76,
+        "end": 3.03,
+        "text": "tells"
+      },
+      {
+        "start": 3.11,
+        "end": 3.32,
+        "text": "you"
+      },
+      {
+        "start": 3.4,
+        "end": 3.61,
+        "text": "and"
+      },
+      {
+        "start": 3.69,
+        "end": 3.87,
+        "text": "it"
+      },
+      {
+        "start": 3.95,
+        "end": 4.28,
+        "text": "changes"
+      },
+      {
+        "start": 4.36,
+        "end": 4.78,
+        "text": "everything"
+      },
+      {
+        "start": 4.86,
+        "end": 5.07,
+        "text": "for"
+      },
+      {
+        "start": 5.15,
+        "end": 5.36,
+        "text": "you"
+      }
+    ],
+    "max_words": 3,
+    "rows": [
+      {
+        "start": 0.0,
+        "end": 1.78,
+        "y": 0.65
+      },
+      {
+        "start": 1.78,
+        "end": 30.0,
+        "y": 0.5
+      }
+    ],
+    "y": 0.5
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 2,
+      "start": 0.2,
+      "end": 1.04,
+      "cut": null,
+      "until": null,
+      "y": 0.65
+    },
+    {
+      "first": 3,
+      "last": 4,
+      "start": 1.04,
+      "end": 1.68,
+      "cut": null,
+      "until": 1.78,
+      "y": 0.65
+    },
+    {
+      "first": 5,
+      "last": 7,
+      "start": 1.68,
+      "end": 2.76,
+      "cut": 1.78,
+      "until": null,
+      "y": 0.5
+    },
+    {
+      "first": 8,
+      "last": 9,
+      "start": 2.76,
+      "end": 3.4,
+      "cut": null,
+      "until": null,
+      "y": 0.5
+    },
+    {
+      "first": 10,
+      "last": 12,
+      "start": 3.4,
+      "end": 4.36,
+      "cut": null,
+      "until": null,
+      "y": 0.5
+    },
+    {
+      "first": 13,
+      "last": 15,
+      "start": 4.36,
+      "end": 5.36,
+      "cut": null,
+      "until": null,
+      "y": 0.5
+    }
+  ]
+}

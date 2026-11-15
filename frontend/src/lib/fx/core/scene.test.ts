@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { captionKey, counterFormat, decimalsOf, faceInterpolator, formatNumber, prepareScene } from "./scene";
 import { clockAt } from "./frame";
-import type { AccentCue, FxScene } from "./types";
+import { captionRowY, type AccentCue, type FxScene } from "./types";
+import { LOOK_LEAD } from "./captions/groups";
 import { captionStyle, fakeMeasureHost, makeScene, sampleWords } from "./test-utils/fake-host";
 
 const prep = (s: Partial<FxScene> = {}) => prepareScene(makeScene(s), fakeMeasureHost);
@@ -191,5 +192,97 @@ describe("clock", () => {
     expect(p.inBroll(2)).toBe(false);
     expect(p.matteAt(2.5)?.person).toBe(true);
     expect(p.matteAt(3)).toBeNull();
+  });
+});
+
+describe("caption rows (interview shots)", () => {
+  // pair → single → fit → pair, in E seconds.
+  const rows = [
+    { start: 0, end: 1.28, y: 0.5 }, { start: 1.28, end: 2.3, y: 0.65 }, { start: 2.3, end: 3.4, y: 0.76 },
+    { start: 3.4, end: 5, y: 0.5 },
+  ];
+  const look = (overrides: Partial<FxScene> = {}, style: Partial<ReturnType<typeof captionStyle>> = {}) => prep({
+    template: "highlighter_swipe",
+    caption: captionStyle({ template: "highlighter_swipe", look: "bold", y: 0.5, rows, ...style }),
+    ...overrides,
+  });
+  const H = 1920;
+  const lead = LOOK_LEAD.bold;
+  const words6 = sampleWords("one two three four five six", 0.2, 0.4);   // groups of three at 0.2 and 1.4
+
+  it("never shows a group across a cut: every chunk lies inside one row, on that row", () => {
+    const p = look();
+    expect(p.chunks.length).toBeGreaterThan(4);
+    for (const chunk of p.chunks) {
+      const row = rows.find((r) => r.start <= chunk.start + 1e-9 && chunk.start < r.end)!;
+      expect(chunk.row).toBe(row.y);
+      expect(chunk.centerY).toBeCloseTo(H * row.y, 6);
+      expect(chunk.end).toBeLessThanOrEqual(row.end + 1e-9);
+    }
+    expect(new Set(p.chunks.map((c) => c.row))).toEqual(new Set([0.5, 0.65, 0.76]));
+  });
+
+  it("splits a group at a cut: earlier words leave at the cut, the rest show from it on the new row", () => {
+    const p = look({ words: words6 }, { rows: [{ start: 0, end: 0.9, y: 0.5 }, { start: 0.9, end: 9, y: 0.65 }] });
+    // "one two" (0.2, 0.6) stay; "three" (1.0) starts after the cut and opens the next group with "four five".
+    expect(p.chunks.map((c) => c.words.map((w) => w.text))).toEqual([["one", "two"], ["three", "four", "five"], ["six"]]);
+    expect(p.chunks.map((c) => c.row)).toEqual([0.5, 0.65, 0.65]);
+    expect(p.chunks[0].end).toBeCloseTo(0.9, 9);
+    expect(p.chunks[1].start).toBeCloseTo(1.0 + lead, 9);
+    expect(new Set(p.chunks[1].words.map((w) => w.y)).size).toBe(1);   // the word-by-word reveal never moves
+  });
+
+  it("puts a word starting just before the cut with the next shot, shown from the cut (no stub)", () => {
+    const cut = 1.1;   // "three" starts at 1.0, within CUT_LEAD before the cut
+    const p = look({ words: words6 }, { rows: [{ start: 0, end: cut, y: 0.65 }, { start: cut, end: 9, y: 0.5 }] });
+    expect(p.chunks.map((c) => c.words.map((w) => w.text))).toEqual([["one", "two"], ["three", "four", "five"], ["six"]]);
+    expect(p.chunks[0].end).toBeCloseTo(cut, 9);
+    expect(p.chunks[1].start).toBeCloseTo(cut, 9);
+    expect(p.chunks[1].words[0].shown).toBeCloseTo(cut, 9);
+    expect(p.chunks.map((c) => c.row)).toEqual([0.65, 0.5, 0.5]);
+    // A whole group within the lead just belongs to the new shot.
+    const late = look({ words: words6 }, { rows: [{ start: 0, end: 1.5, y: 0.65 }, { start: 1.5, end: 9, y: 0.5 }] });
+    expect(late.chunks.map((c) => [c.words[0].text, c.row])).toEqual([["one", 0.65], ["four", 0.5]]);
+    expect(late.chunks[1].start).toBeCloseTo(1.5, 9);
+    expect(late.chunks[0].end).toBeCloseTo(1.5, 9);
+  });
+
+  it("groups exactly as before without rows, or when rows keep one height", () => {
+    const plain = prep({ template: "highlighter_swipe", caption: captionStyle({ template: "highlighter_swipe", look: "bold", y: 0.5 }) });
+    const flat = look({}, { rows: [{ start: 0, end: 2, y: 0.65 }, { start: 2, end: 9, y: 0.65 }] });
+    expect(flat.chunks.map((c) => [c.key, c.start, c.end])).toEqual(plain.chunks.map((c) => [c.key, c.start, c.end]));
+    expect(plain.chunks.every((c) => c.row === undefined)).toBe(true);
+  });
+
+  it("lets a placement pin its caption: absolute y + offset, no row", () => {
+    const plain = look();
+    const key = plain.chunks[1].key;
+    const placed = look({}, { placements: [{ key, x: 0, y: 0.1, scale: 1 }] });
+    expect(placed.chunks[1].row).toBeUndefined();
+    expect(placed.chunks[1].centerY).toBeCloseTo(H * 0.6, 6);
+    expect(placed.chunks[0].centerY).toBeCloseTo(plain.chunks[0].centerY, 6);
+  });
+
+  it("template captions sit on the row at their start", () => {
+    const template = prep({ caption: captionStyle({ y: 0.5, rows }) });
+    for (const chunk of template.chunks) expect(chunk.row).toBe(captionRowY(rows, 0.5, chunk.start));
+  });
+
+  it("scales rows with the frame (720p) and reads them on the edit clock under a warp", () => {
+    const small = look({ width: 720, height: 1280 }, { size_px: 48 });
+    for (const chunk of small.chunks) expect(chunk.centerY).toBeCloseTo(1280 * chunk.row!, 6);
+    const warped = look({ warp: [{ e0: 0, e1: 2, o0: 0, rate: 1, hold: 0 }, { e0: 2, e1: 5, o0: 2, rate: 2, hold: 0 }],
+      out_duration: 3.5 });
+    expect(warped.chunks.map((c) => [c.start, c.end, c.row])).toEqual(look().chunks.map((c) => [c.start, c.end, c.row]));
+  });
+
+  it("answers the caption row at a time for overlays anchored to the caption", () => {
+    const p = look();
+    expect(p.captionYAt(0.1)).toBe(0.5);
+    expect(p.captionYAt(1.5)).toBe(0.65);
+    expect(p.captionYAt(2.9)).toBe(0.76);
+    expect(p.captionYAt(9)).toBe(0.5);
+    expect(look({}, { rows: [] }).captionYAt(2.9)).toBe(0.5);
+    expect(prep({ caption: null }).captionYAt(1)).toBeNull();
   });
 });

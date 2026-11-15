@@ -455,7 +455,8 @@
       "uppercase": false,
       "enabled": true,
       "placements": [],
-      "look": "template"
+      "look": "template",
+      "rows": []
     },
     "grade": "teal_orange",
     "grain": 0.3,

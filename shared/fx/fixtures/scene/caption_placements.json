@@ -489,7 +489,8 @@
           "scale": 1.2
         }
       ],
-      "look": "bold"
+      "look": "bold",
+      "rows": []
     },
     "grade": "none",
     "grain": 0.0,

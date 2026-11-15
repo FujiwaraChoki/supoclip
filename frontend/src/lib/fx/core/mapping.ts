@@ -1,6 +1,6 @@
 // S → E cue mapping through play-order segments: mirror of backend/src/edit_fx/mapping.py (mapped_cues/mapped_beats).
 // Follows mapped_broll (editor_document.py) for spans; instants map by their start only (INSTANT_KINDS).
-import { INSTANT_KINDS, type Beat, type FxCue } from "./types";
+import { INSTANT_KINDS, type Beat, type CaptionRow, type FxCue } from "./types";
 
 /** A play-order segment (already continuous-merged): id, S start, S end. Tuples mirror the Python signature. */
 export type SegmentSpan = readonly [string, number, number] | { readonly id: string; readonly start: number; readonly end: number };
@@ -89,4 +89,27 @@ export function mappedCues(segments: readonly SegmentSpan[], cues: readonly FxCu
 /** Beats (S) → E with the span rules of mappedCues (ids cut to 24 chars). src_start/src_end (A) are untouched. */
 export function mappedBeats(segments: readonly SegmentSpan[], beats: readonly Beat[], minPiece = 0.04): Beat[] {
   return mapTimed(segments, beats, () => false, minPiece, BEAT_ID_MAX);
+}
+
+/**
+ * S caption rows on the E clock (== caption_rows.mapped_caption_rows): each row cut by each play-order segment (a
+ * reordered or repeated segment brings its rows along) and placed at the segment's E cursor; touching pieces of one
+ * height join.
+ */
+export function mappedCaptionRows(segments: readonly SegmentSpan[], rows: readonly CaptionRow[]): CaptionRow[] {
+  const out: CaptionRow[] = [];
+  const ordered = [...rows].sort((a, b) => a.start - b.start);
+  let cursor = 0;
+  for (const [, segStart, segEnd] of normalise(segments)) {
+    for (const row of ordered) {
+      const start = Math.max(segStart, row.start), end = Math.min(segEnd, row.end);
+      if (end <= start) continue;
+      const e0 = cursor + start - segStart, e1 = cursor + end - segStart;
+      const last = out[out.length - 1];
+      if (last && last.y === row.y && Math.abs(last.end - e0) < 1e-6) last.end = e1;
+      else out.push({ start: e0, end: e1, y: row.y });
+    }
+    cursor += segEnd - segStart;
+  }
+  return out.slice(0, 400);
 }

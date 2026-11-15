@@ -129,6 +129,17 @@ export interface EditDocument {
   broll?: BRollClip[];
   /** Dynamic edits. Absent (never null on the wire) when the clip has none; see DocFx. */
   fx?: DocFx | null;
+  /** Interview caption rows (source seconds), seeded with the session; absent on other clips. See CaptionRows. */
+  captionRows?: CaptionRows | null;
+}
+/**
+ * Per-shot caption rows of an interview clip (mirror of `editor_document.CaptionRows`): the look captions sit on the
+ * row of the shot they start in while they keep their automatic position (`captions.y` still `y`, the caption layer
+ * not moved vertically, the full vertical frame); a caption's own transform pins that caption. See studioCaptionRows.
+ */
+export interface CaptionRows {
+  y: number;
+  rows: { start: number; end: number; y: number }[];
 }
 /**
  * Dynamic edits of one draft (mirror of `editor_document.DocFx`). Beats and cues are on the source (clean.mp4, S)

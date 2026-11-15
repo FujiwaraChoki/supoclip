@@ -137,7 +137,7 @@ export function standaloneAnchor(p: PreparedScene, cue: AccentCue, t: number, wi
   if (width0 > maxW) px *= maxW / width0;
   const w = label ? widthAt(p, label, family, px) : px;
   const safe = captionSafe(W, H);
-  const cy = clamp(H * (style?.y ?? 0.7), safe.top + px / 2, Math.max(safe.top + px / 2, H - safe.bottom - px / 2));
+  const cy = clamp(H * (p.captionYAt(cue.start) ?? style?.y ?? 0.7), safe.top + px / 2, Math.max(safe.top + px / 2, H - safe.bottom - px / 2));
   const box = { x: W / 2 - w / 2, y: cy - px / 2, w, h: px };
   // Same settle entrance as a caption line, timed from the cue.
   const ent = entranceAt("settle", t - cue.start, u);

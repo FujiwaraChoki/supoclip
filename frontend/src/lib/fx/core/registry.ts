@@ -88,7 +88,9 @@ export interface CaptionChunk { key: string; words: (FxWord & { x: number; y: nu
     shown?: number; kw?: boolean })[];
   start: number; end: number; px: number; centerX: number; centerY: number; scale: number;
   /** Look captions: the gap between laid-out words (px), so a partly revealed line can re-centre. */
-  space?: number }
+  space?: number;
+  /** The caption row (fraction of H) this chunk was placed on, when per-shot rows placed it (no placement). */
+  row?: number }
 
 const cueDrawers = new Map<FxKind, CueDrawer[]>();
 const accentDrawers = new Map<AccentVariant, AccentDrawer>();

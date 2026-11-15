@@ -267,14 +267,17 @@ def save_clip_vertical_layout(clip_path: Path, layout: dict | None) -> None:
 
     ``layout`` holds ``kind``, ``video_filter`` and ``mode`` from
     ``describe_vertical_layout``, plus the ``width``, ``height`` and
-    ``duration`` of the trimmed source the filter was planned on.
+    ``duration`` of the trimmed source the filter was planned on. An
+    interview layout may add its per-shot ``segments`` (start, end, kind)
+    and the burned-in source ``caption_band`` (top, bottom), from which the
+    studio derives the caption rows (``edit_fx.caption_rows``).
     """
     path = clip_source_map_path(clip_path)
     if not layout and not path.exists():
         return
     payload = _read_payload(path) or {"version": SOURCE_MAP_VERSION}
     if layout:
-        payload["vertical_layout"] = {
+        stored = {
             "kind": str(layout["kind"]),
             "video_filter": str(layout["video_filter"]),
             "mode": str(layout["mode"]),
@@ -282,6 +285,13 @@ def save_clip_vertical_layout(clip_path: Path, layout: dict | None) -> None:
             "height": int(layout["height"]),
             "duration": round(float(layout["duration"]), 3),
         }
+        segments = _layout_segments(layout.get("segments"))
+        if segments:
+            stored["segments"] = segments
+        band = _layout_band(layout.get("caption_band"))
+        if band is not None:
+            stored["caption_band"] = band
+        payload["vertical_layout"] = stored
     else:
         payload.pop("vertical_layout", None)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -313,7 +323,49 @@ def load_clip_vertical_layout(clip_path: Path) -> dict | None:
         or plan["height"] <= 0
     ):
         return None
+    # Optional caption-row facts: dropped (never the whole plan) when unreadable.
+    segments = _layout_segments(layout.get("segments"))
+    if segments:
+        plan["segments"] = segments
+    band = _layout_band(layout.get("caption_band"))
+    if band is not None:
+        plan["caption_band"] = band
     return plan
+
+
+MAX_LAYOUT_SEGMENTS = 500
+LAYOUT_SEGMENT_KINDS = frozenset({"pair", "single", "fit"})
+
+
+def _layout_segments(raw) -> list[dict] | None:
+    """An interview layout's shots as ``[{start, end, kind}]`` (finite, ordered, known kinds), or None when absent
+    or unreadable."""
+    if not isinstance(raw, list) or not raw or len(raw) > MAX_LAYOUT_SEGMENTS:
+        return None
+    out = []
+    for item in raw:
+        if not isinstance(item, dict) or item.get("kind") not in LAYOUT_SEGMENT_KINDS:
+            return None
+        try:
+            start, end = float(item["start"]), float(item["end"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not (math.isfinite(start) and math.isfinite(end)) or start < 0 or end <= start:
+            return None
+        out.append({"start": round(start, 3), "end": round(end, 3), "kind": str(item["kind"])})
+    return out
+
+
+def _layout_band(raw) -> list[float] | None:
+    if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+        return None
+    try:
+        top, bottom = float(raw[0]), float(raw[1])
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(top) and math.isfinite(bottom)) or not 0 <= top < bottom <= 1:
+        return None
+    return [round(top, 4), round(bottom, 4)]
 
 
 # --- dynamic edits (FX path only; §3.3) ------------------------------------------------------------------------------

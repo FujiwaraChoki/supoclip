@@ -159,6 +159,29 @@ class CaptionTransform(TextTransform):
     size: float | None = Field(default=None, ge=5, le=528)
 
 
+class CaptionRowDoc(Model):
+    """One interview shot's caption centre, on the draft's source clock S (``edit_fx.contracts.CaptionRow``)."""
+    start: float = Field(ge=0, le=86400)
+    end: float = Field(ge=0, le=86400)
+    y: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.end < self.start:
+            raise ValueError("Caption row end must follow its start")
+        return self
+
+
+class CaptionRows(Model):
+    """Per-shot caption rows of an interview clip (``edit_fx.caption_rows``), seeded when the session is prepared.
+
+    They place the intensity-look captions only while the captions keep their automatic position: ``captions.y``
+    still equals ``y`` (the position they were seeded with), the caption layer has not been moved and the framing
+    is the full vertical frame (``studio_caption_rows``). A caption's own transform pins that caption."""
+    y: float = Field(ge=0, le=1)
+    rows: list[CaptionRowDoc] = Field(default_factory=list, max_length=400)
+
+
 class DocFx(Model):                     # Model = extra="forbid", allow_inf_nan=False (existing base)
     version: Literal["fx-v1"] = "fx-v1"
     style: EditStyle = Field(default_factory=EditStyle)
@@ -197,12 +220,16 @@ class EditDocument(Model):
     # Dynamic edits (§5.1). None <=> the key is absent: it is never serialised as null, so every
     # document without dynamic edits stays byte-identical to what older releases wrote and read.
     fx: Optional[DocFx] = None           # None ⇔ key absent. NEVER serialised as null (see rules)
+    # Interview caption rows (S). None <=> the key is absent, like ``fx``: drafts without them stay byte-identical.
+    captionRows: Optional[CaptionRows] = None
 
     @model_serializer(mode="wrap")
     def _omit_unset_fx(self, handler):   # VERBATIM: keeps every non-FX document byte-identical to today (AI-H1)
         data = handler(self)
         if data.get("fx") is None:
             data.pop("fx", None)
+        if data.get("captionRows") is None:
+            data.pop("captionRows", None)
         return data
 
     def validate_duration(self, duration: float):
@@ -384,6 +411,35 @@ def mapped_fx(document: EditDocument) -> list[FxCue]:
         return []
     disabled = set(document.fx.disabled)
     return mapped_cues(fx_segments(document), [c for c in document.fx.cues if c.kind not in disabled])
+
+
+# captions.y within this of the seeded position still counts as the automatic position (the inspector rounds).
+CAPTION_ROWS_Y_TOLERANCE = 5e-4
+
+
+def studio_caption_rows(document: EditDocument) -> list:
+    """The draft's interview caption rows on the E clock (``edit_fx.caption_rows.mapped_caption_rows``), or [] when
+    they do not apply (== fx-core ``studioCaptionRows``): no rows, captions off or not an intensity look, the user
+    moved the captions (``captions.y`` changed or the caption layer moved vertically) or the frame is not the full
+    vertical picture the rows were measured on."""
+    from .edit_fx.caption_rows import mapped_caption_rows
+    from .edit_fx.contracts import CaptionRow, caption_look_for
+
+    rows = document.captionRows
+    captions = document.captions
+    if rows is None or not rows.rows or not captions.enabled:
+        return []
+    fx = document.fx
+    if caption_look_for(captions.template, fx.style.intensity if fx is not None else "off",
+                        fx.sensitivity if fx is not None else "normal") == "template":
+        return []
+    layer = document.textTransforms.get("captions")
+    if abs(captions.y - rows.y) > CAPTION_ROWS_Y_TOLERANCE or (layer is not None and layer.y != 0):
+        return []
+    if document.framing.aspect != "vertical" or document.framing.zoom != 1:
+        return []
+    stored = [CaptionRow(start=r.start, end=r.end, y=r.y) for r in rows.rows]
+    return mapped_caption_rows(fx_segments(document), stored)
 
 
 def document_needs_fx(document: EditDocument) -> bool:

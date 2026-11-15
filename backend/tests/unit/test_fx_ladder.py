@@ -51,6 +51,9 @@ def ladder(monkeypatch, tmp_path):
             report["kind"] = state.get("kind", "crop")
             if state.get("panel_windows"):
                 report["panel_windows"] = state["panel_windows"]
+            for key in ("interview_segments", "hook_center_y"):
+                if state.get(key) is not None:
+                    report[key] = state[key]
             if not allow:
                 report["kenburns_eligible"] = state["eligible"]
         return (PLAIN_CHAIN if not allow else KB_CHAIN), "vf", 0.72
@@ -84,7 +87,10 @@ def ladder(monkeypatch, tmp_path):
     monkeypatch.setattr(video_utils, "probe_video_geometry", lambda _path: SimpleNamespace(
         display_width=state["src"][0], display_height=state["src"][1], fps=30.0))
     monkeypatch.setattr(video_utils, "build_vertical_filter_plan", build_plan)
-    monkeypatch.setattr(video_utils, "detect_burned_caption_band", lambda _path: None)
+    monkeypatch.setattr(video_utils, "detect_burned_caption_band", lambda _path: state.get("band"))
+    monkeypatch.setattr("src.media.source_captions.detect_rendered_caption_band",
+                        lambda *_args: state.get("band"), raising=False)
+    monkeypatch.setattr("src.media.reframing.caption_probe_plan", lambda *_args: ("null", "vf"), raising=False)
     monkeypatch.setattr(video_utils, "build_assemblyai_ass_subtitles", build_ass)
     monkeypatch.setattr(video_utils, "render_reframed_clip_ffmpeg", render)
     monkeypatch.setattr(video_utils, "_av_mismatch", lambda _path: state["av"].pop(0) if state["av"] else False)
@@ -432,3 +438,151 @@ def test_interview_hook_title_moves_low_when_look_captions_take_the_seam():
     # Legacy captions sit low, so the hook keeps the seam; so does a clip without captions or without edits.
     assert video_utils._interview_hook_kwargs(seam, None, "default", True) == {"hook_center_y": 0.5}
     assert video_utils._interview_hook_kwargs(seam, look, "highlighter_swipe", False) == {"hook_center_y": 0.5}
+
+
+# ----------------------------------------------------------------------------------------- interview caption rows
+
+INTERVIEW = [  # pair → (flash) → single → pair → fit, stage-1 seconds
+    {"start": 0.0, "end": 2.5, "kind": "pair"}, {"start": 2.5, "end": 2.9, "kind": "single"},
+    {"start": 2.9, "end": 5.0, "kind": "single"}, {"start": 5.0, "end": 6.4, "kind": "pair"},
+    {"start": 6.4, "end": 8.0, "kind": "fit"},
+]
+
+
+def _interview(ladder, *, segments=INTERVIEW, hook_center=None, band=None):
+    ladder.state.update(kind="interview", interview_segments=segments, hook_center_y=hook_center, band=band,
+                        panel_windows=[(s["start"], s["end"]) for s in segments if s["kind"] == "pair"])
+    ladder.state["chain_results"] = [result()]
+    ladder.calls["render"].clear()
+
+
+def _caption(ladder):
+    (render,) = fx_renders(ladder.calls)
+    return render["fx_request"].caption
+
+
+def test_interview_look_captions_get_a_row_per_shot(ladder):
+    _interview(ladder)
+    out = ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", hook=None)
+    caption = _caption(ladder)
+    assert caption.y == 0.5 and caption.look == "bold"
+    # The 0.4 s close-up flash keeps the two-shot's row; the fit row clears the 16:9 picture band (0.34-0.66).
+    assert [(r.start, r.end, r.y) for r in caption.rows] == [
+        (0.0, 2.9, 0.5), (2.9, 5.0, 0.65), (5.0, 6.4, 0.5), (6.4, 8.0, 0.76)]
+    assert out["report"]["caption_rows"][1] == {"start": 2.9, "end": 5.0, "y": 0.65}
+    # The studio replays the shots: they are stored with the vertical layout.
+    assert out["report"]["vertical_layout"]["segments"] == INTERVIEW
+    assert out["report"]["caption_y"] == 0.5
+
+
+@pytest.mark.parametrize("kind,y", [("pair", 0.5), ("single", 0.65), ("fit", 0.76)])
+def test_a_clip_of_one_shot_kind_has_one_row(ladder, kind, y):
+    _interview(ladder, segments=[{"start": 0.0, "end": 8.0, "kind": kind}])
+    ladder.run(fx_plan(template="emoji_drop", intensity="max"), template="emoji_drop", hook=None)
+    assert [(r.start, r.end, r.y) for r in _caption(ladder).rows] == [(0.0, 8.0, y)]
+
+
+def test_rows_stay_clear_of_burned_in_source_captions(ladder):
+    _interview(ladder, band=(0.62, 0.70))
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", hook=None)
+    rows = _caption(ladder).rows
+    px = 72 * 1.5  # the bold look's text height at 1080 wide
+    for row in rows:
+        top, bottom = row.y * 1920 - px / 2, row.y * 1920 + px / 2
+        assert bottom <= 0.62 * 1920 or top >= 0.70 * 1920, row
+    assert rows[1].y < 0.62                     # the close-up row moved above the band
+
+
+def test_other_layouts_templates_and_the_off_path_get_no_rows(ladder):
+    ladder.state["chain_results"] = [result()]
+    ladder.state.update(interview_segments=INTERVIEW)                                     # shots, but not interview
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")       # a plain crop
+    assert _caption(ladder).rows == ()
+    _interview(ladder)
+    ladder.run(fx_plan(), template="marker_circle")                                       # hidden template look
+    assert _caption(ladder).rows == ()
+    _interview(ladder)
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", add_subtitles=False)
+    assert _caption(ladder) is None                                                       # captions off
+    _interview(ladder)
+    out = ladder.run(fx_plan(template="default", intensity="off"), template="default")    # legacy ASS captions
+    assert _caption(ladder) is None and "caption_rows" not in out["report"]
+
+
+def test_a_caption_edit_position_pins_the_captions_and_frees_the_seam_for_the_hook(ladder):
+    _interview(ladder, hook_center=0.5)
+    override = {"words": WORDS, "position_y": 0.78}
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", caption_override=override)
+    caption = _caption(ladder)
+    assert caption.rows == () and caption.y == pytest.approx(0.78, abs=0.01)
+    assert ladder.calls["ass"][-1]["kwargs"]["hook_center_y"] == 0.5
+    # A caption edit left on the seam keeps the hook low.
+    _interview(ladder, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe",
+               caption_override={"words": WORDS, "position_y": 0.52})
+    assert ladder.calls["ass"][-1]["kwargs"]["hook_position_y"] == 0.94
+    assert _caption(ladder).rows == ()
+
+
+@pytest.mark.parametrize("opening", ["pair", "single", "fit"])
+def test_rows_and_the_hook_never_collide_whatever_the_opening(ladder, opening):
+    from src.edit_fx.caption_rows import HOOK_LOW_TOP, ROW_GAP_FRAC, TWO_LINE_HALF_EM
+
+    # The opening shot, a cut inside the 4 s hook window, then a two-shot (the low hook needs one before 4 s).
+    segments = [{"start": 0.0, "end": 2.0, "kind": opening}, {"start": 2.0, "end": 3.5, "kind": "pair"},
+                {"start": 3.5, "end": 8.0, "kind": "fit" if opening != "fit" else "single"}]
+    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.run(fx_plan(template="emoji_drop", intensity="max"), template="emoji_drop")
+    caption, ass = _caption(ladder), ladder.calls["ass"][-1]["kwargs"]
+    assert ass["hook_position_y"] == 0.94                                  # the hook sits low (bottom at 0.94)
+    half = TWO_LINE_HALF_EM * caption.size_px / 1920
+    for row in caption.rows:
+        if row.start < 4.0:                                                # on screen with the hook
+            assert row.y + half + ROW_GAP_FRAC <= HOOK_LOW_TOP + 1e-4, row
+
+
+def test_a_fit_shot_under_a_low_hook_moves_its_row_up_not_the_hook(ladder):
+    from src.edit_fx.caption_rows import HOOK_LOW_TOP
+
+    segments = [{"start": 0.0, "end": 2.0, "kind": "fit"}, {"start": 2.0, "end": 8.0, "kind": "pair"}]
+    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
+    fit = _caption(ladder).rows[0]
+    assert 0.658 + 0.015 < fit.y < HOOK_LOW_TOP                            # between the picture and the hook
+    # Without the hook (or with it suppressed) the fit row is the usual 0.76.
+    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", hook=None)
+    assert _caption(ladder).rows[0].y == 0.76
+    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe", hook_title_suppressed=True), template="highlighter_swipe")
+    assert _caption(ladder).rows[0].y == 0.76
+
+
+def test_a_short_clip_hook_window_and_a_hook_spanning_a_cut(ladder):
+    # 2.4 s clip: the hook shows 0.12 .. 2.15 s and spans the 1.2 s cut into a fit shot.
+    ladder.state["probe"] = 2.4
+    segments = [{"start": 0.0, "end": 1.2, "kind": "pair"}, {"start": 1.2, "end": 2.4, "kind": "fit"}]
+    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe", duration=2.4), template="highlighter_swipe")
+    rows = _caption(ladder).rows
+    assert rows[0].y == 0.5 and rows[1].y < 0.76 and rows[-1].end == pytest.approx(2.4)
+
+
+def test_rows_are_on_the_edit_clock_with_a_warp(ladder):
+    """Speed and freeze cues map E → F at draw time; rows, words and the hook window all stay on E."""
+    from src.edit_fx.contracts import FreezeCue
+
+    _interview(ladder, hook_center=0.5)
+    freeze = FreezeCue(id="f", start=1.0, end=1.0, hold=1.0, origin="user")
+    ladder.run(fx_plan(template="highlighter_swipe", cues=(freeze,)), template="highlighter_swipe")
+    request = fx_renders(ladder.calls)[-1]["fx_request"]
+    assert [(r.start, r.y) for r in request.caption.rows][:2] == [(0.0, 0.5), (2.9, 0.65)]
+    assert request.hook_window == (0.12, 4.0)                              # E, mapped to F by the chain
+
+
+def test_rows_scale_with_a_720p_output(ladder):
+    from src.edit_fx.caption_rows import interview_caption_rows
+
+    full = interview_caption_rows(INTERVIEW, text_px=72, width=1080, height=1920, source_size=(1920, 1080))
+    small = interview_caption_rows(INTERVIEW, text_px=48, width=720, height=1280, source_size=(1920, 1080))
+    assert [(r.start, r.y) for r in full] == [(r.start, r.y) for r in small]

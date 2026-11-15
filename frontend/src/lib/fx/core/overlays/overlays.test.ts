@@ -249,3 +249,16 @@ describe("raster goldens", () => {
     expect(at(bar.cx, bar.cy + bar.h)).not.toEqual([0, 0, 0]);
   });
 });
+
+describe("sticker obstacles on caption rows", () => {
+  it("keeps the caption band of the row in effect clear when no caption shows", () => {
+    const rows = [{ start: 0, end: 2, y: 0.5 }, { start: 2, end: 9, y: 0.76 }];
+    const p = prepareScene(bareScene({ caption: captionStyle({ y: 0.5, rows }), words: [] }), fakeMeasureHost);
+    const band = (t: number) => {
+      const r = stickerObstacles(p, t).find((o) => o.w === 1080)!;
+      return r.y + r.h / 2;
+    };
+    expect(band(1)).toBeCloseTo(0.5 * 1920, 6);
+    expect(band(3)).toBeCloseTo(0.76 * 1920, 6);
+  });
+});

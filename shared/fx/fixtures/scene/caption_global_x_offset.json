@@ -477,7 +477,8 @@
           "scale": 1.2222222222222223
         }
       ],
-      "look": "template"
+      "look": "template",
+      "rows": []
     },
     "grade": "none",
     "grain": 0.0,

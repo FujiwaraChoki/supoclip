@@ -17,6 +17,7 @@ import {
   pyRound,
   resampleFaceTrack,
   storedCueId,
+  studioCaptionRows,
   studioCaptionStyle,
   studioScene,
   type StudioSceneOptions,
@@ -277,5 +278,33 @@ describe("the session face track on the edit timeline", () => {
     expect(studioScene(zoomed, looks, { ...opts, base: "clean", faceTrack: { base: "layout", track } }).face_track)
       .toEqual({ version: 1, space: "output", fps: 6, samples: [] });
     expect(placeFaceTrack(track, [0, 0, 1, 1])).toEqual({ ...track, space: "output" });
+  });
+});
+
+describe("interview caption rows in the studio", () => {
+  const rows = { y: 0.5, rows: [{ start: 0, end: 1, y: 0.5 }, { start: 1, end: 2.5, y: 0.65 }, { start: 2.5, end: 3, y: 0.76 }] };
+  const interview = (over: Partial<EditDocument> = {}): EditDocument => cutDoc({
+    captions: { ...draft.captions, template: "highlighter_swipe", y: 0.5 }, captionRows: rows, ...over,
+  });
+
+  it("maps the source rows through the cuts (a cut-out shot leaves no row, a reorder brings its rows along)", () => {
+    expect(studioCaptionRows(interview())).toEqual([
+      { start: 0, end: 1, y: 0.5 }, { start: 1, end: 2, y: 0.65 }, { start: 2, end: 2.5, y: 0.76 },
+    ]);
+    const reordered = interview({ segments: [{ id: "late", start: 2.5, end: 3 }, { id: "early", start: 0.5, end: 1.5 }] });
+    expect(studioCaptionRows(reordered).map((r) => [r.start, r.end, r.y])).toEqual([[0, 0.5, 0.76], [0.5, 1, 0.5], [1, 1.5, 0.65]]);
+    expect(studioCaptionStyle(interview(), looks, 1080)!.rows).toEqual(studioCaptionRows(interview()));
+  });
+
+  it("stops as soon as the user places the captions, and never applies to other looks or frames", () => {
+    expect(studioCaptionRows(interview({ captions: { ...draft.captions, template: "highlighter_swipe", y: 0.62 } }))).toEqual([]);
+    expect(studioCaptionRows(interview({ textTransforms: { captions: { x: 0, y: -0.05, scale: 1 } } }))).toEqual([]);
+    expect(studioCaptionRows(interview({ textTransforms: { captions: { x: 0.1, y: 0, scale: 1.3 } } }))).not.toEqual([]);
+    expect(studioCaptionRows(interview({ framing: { ...draft.framing, aspect: "square" } }))).toEqual([]);
+    expect(studioCaptionRows(interview({ framing: { ...draft.framing, zoom: 1.2 } }))).toEqual([]);
+    expect(studioCaptionRows(interview({ captions: { ...draft.captions, template: "slam", y: 0.5 } }))).toEqual([]);
+    expect(studioCaptionRows(interview({ captions: { ...draft.captions, template: "highlighter_swipe", y: 0.5, enabled: false } }))).toEqual([]);
+    expect(studioCaptionRows(interview({ captionRows: null }))).toEqual([]);   // sessions prepared before rows
+    expect(studioCaptionStyle(interview({ captionRows: undefined }), looks, 1080)!.rows).toEqual([]);
   });
 });

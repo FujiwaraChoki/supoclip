@@ -442,8 +442,8 @@
       "size_px": 52.0,
       "color": "#FFFFFF",
       "accent": "#FACC15",
-      "stroke_color": null,
-      "stroke_px": 0.0,
+      "stroke_color": "#000000",
+      "stroke_px": 3.64,
       "shadow": true,
       "background": null,
       "y": 0.68,
@@ -452,7 +452,8 @@
       "uppercase": false,
       "enabled": true,
       "placements": [],
-      "look": "subtle"
+      "look": "subtle",
+      "rows": []
     },
     "grade": "none",
     "grain": 0.0,

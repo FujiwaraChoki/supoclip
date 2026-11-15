@@ -112,6 +112,26 @@ export interface FxPlan {
 }
 export interface FaceTrack { version: 1; space: "picture" | "output"; fps: number; samples: [number, number[][]][] }
 export interface CaptionPlacement { key: string; x: number; y: number; scale: number }
+/** Caption centre `y` for one stretch of the clip (an interview shot), E seconds (== contracts.CaptionRow). A change of
+ *  `y` is a camera cut, which ends the caption group on screen (captions/groups.ts phraseGroups `cuts`). */
+export interface CaptionRow { start: number; end: number; y: number }
+/** == caption_rows.row_cuts: the camera cuts that end caption groups, where the row height changes. */
+export function rowCuts(rows: readonly CaptionRow[] | undefined): number[] {
+  const ordered = [...(rows ?? [])].sort((a, b) => a.start - b.start);
+  const cuts: number[] = [];
+  for (let i = 1; i < ordered.length; i++) if (ordered[i].y !== ordered[i - 1].y) cuts.push(ordered[i].start);
+  return cuts;
+}
+/** == contracts.caption_row_y: rows (sorted, not overlapping) as a step function; `defaultY` without rows. */
+export function captionRowY(rows: readonly CaptionRow[] | undefined, defaultY: number, t: number): number {
+  if (!rows || !rows.length) return defaultY;
+  let pick = rows[0];
+  for (const row of rows) {
+    if (row.start > t) break;
+    pick = row;
+  }
+  return pick.y;
+}
 export interface FxCaptionStyle {
   template: string; font: string; size_px: number; color: string; accent: string; stroke_color: string | null;
   stroke_px: number; shadow: boolean; background: string | null; y: number;
@@ -120,6 +140,10 @@ export interface FxCaptionStyle {
   uppercase: boolean; enabled: boolean; placements: CaptionPlacement[];
   /** "template" (absent): the template's own motion; subtle/bold/max: the intensity looks (captions/looks.ts). */
   look?: CaptionLook;
+  /** Per-shot rows (interview layouts): a row change is a camera cut that ends the group on screen; a group without a
+   *  placement sits on the row where it starts showing (its first word, or the cut it opens at). Absent or empty:
+   *  every group at `y`. */
+  rows?: CaptionRow[];
 }
 export interface FxWord { id: string; start: number; end: number; text: string; highlight: boolean; run: string }
 export interface WarpPieceJson { e0: number; e1: number; o0: number; rate: number; hold: number }

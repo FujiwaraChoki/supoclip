@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the cross-language dynamic-edit fixtures (G2) and the JSON Schemas from the Python implementation.
 
-Writes ``shared/fx/fixtures/{rng,warp,mapping,duck,censor,geometry,groups}/<case>.json`` and
+Writes ``shared/fx/fixtures/{rng,warp,mapping,duck,censor,geometry,groups,rows}/<case>.json`` and
 ``shared/fx/fx_cue.schema.json`` / ``shared/fx/fx_scene.schema.json`` at the repo root. pytest
 (``tests/unit/fx/test_fixtures_parity.py``) and vitest (``frontend/src/lib/fx/core/parity.test.ts``) assert both
 implementations reproduce them (floats within 1e-6, rng bit-exact).
@@ -29,15 +29,16 @@ from pydantic import TypeAdapter  # noqa: E402
 
 from src.edit_fx import constants  # noqa: E402
 from src.edit_fx.caption_groups import grouped_words, phrase_groups  # noqa: E402
+from src.edit_fx.caption_rows import group_rows, mapped_caption_rows  # noqa: E402
 from src.edit_fx.censor import censor_text, censored_words  # noqa: E402
-from src.edit_fx.contracts import FxCue, FxScene  # noqa: E402
+from src.edit_fx.contracts import CaptionRow, FxCue, FxScene  # noqa: E402
 from src.edit_fx.duck import duck_envelope, envelope_db_at, speech_spans  # noqa: E402
 from src.edit_fx.mapping import mapped_cues  # noqa: E402
 from src.edit_fx.rng import fnv1a32, hash01, mulberry32  # noqa: E402
 from src.edit_fx.warp import build_warp  # noqa: E402
 
 DEFAULT_OUT = BACKEND.parent / "shared" / "fx"
-FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry", "groups")
+FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry", "groups", "rows")
 CUE = TypeAdapter(FxCue)
 
 
@@ -305,9 +306,71 @@ def groups_cases() -> list[tuple[str, dict]]:
     ]
 
 
+# ---------------------------------------------------------------------------------------------------------- rows
+
+def _rows(*spec: tuple[float, float, float]) -> list[dict]:
+    return [CaptionRow(start=a, end=b, y=y).model_dump(mode="json") for a, b, y in spec]
+
+
+def _group_rows_case(name: str, words: list[dict], max_words: int, rows: list[dict], y: float = 0.5):
+    """Look caption groups ended by the rows' cuts, each on its row (fx-core ``layoutLookCaptions``)."""
+    parsed = [CaptionRow.model_validate(r) for r in rows]
+    return case("rows", name, "group_rows", {"words": words, "max_words": max_words, "rows": rows, "y": y},
+                group_rows(words, max_words, parsed, y))
+
+
+def _mapped_rows_case(name: str, segments: list, rows: list[dict]):
+    """S rows through play-order segments onto E (fx-core ``mappedCaptionRows``)."""
+    parsed = [CaptionRow.model_validate(r) for r in rows]
+    return case("rows", name, "mapped_caption_rows", {"segments": segments, "rows": rows},
+                [r.model_dump(mode="json") for r in mapped_caption_rows([tuple(s) for s in segments], parsed)])
+
+
+def rows_cases() -> list[tuple[str, dict]]:
+    talk = "So here is the thing about money nobody tells you and it changes everything for you"
+    words = _words(talk)
+    starts = [g.start for g in phrase_groups(words, 3)]
+    third = starts[2]                                         # "money nobody tells" starts here
+    mid = round((words[4]["start"] + words[5]["start"]) / 2, 3)   # between "thing" and "about" (group 2)
+    shots = _rows((0.0, 1.0, 0.5), (1.0, 2.0, 0.65), (2.0, 3.0, 0.76), (3.0, 30.0, 0.5))
+    paused = _words("we went |0.25| to the |0.9| market today")
+    return [
+        _group_rows_case("no_rows_keeps_style_y", words, 3, [], 0.5),
+        _group_rows_case("cut_at_a_group_start", words, 3, _rows((0.0, third, 0.5), (third, 30.0, 0.65))),
+        _group_rows_case("first_word_just_before_cut_opens_at_cut", words, 3,
+                         _rows((0.0, round(third + 0.1, 3), 0.5), (round(third + 0.1, 3), 30.0, 0.65))),
+        _group_rows_case("cut_splits_a_group", words, 3, _rows((0.0, mid, 0.5), (mid, 30.0, 0.65))),
+        _group_rows_case("word_within_lead_moves_to_new_group", words, 3,
+                         _rows((0.0, round(words[5]["start"] + 0.1, 3), 0.65),
+                               (round(words[5]["start"] + 0.1, 3), 30.0, 0.5))),
+        _group_rows_case("old_group_leaves_at_the_cut", paused, 4,
+                         _rows((0.0, round(paused[3]["end"] - 0.02, 3), 0.5),
+                               (round(paused[3]["end"] - 0.02, 3), 30.0, 0.76))),
+        _group_rows_case("cut_in_a_pause_after_the_group", paused, 4,
+                         _rows((0.0, round(paused[3]["end"] + 0.5, 3), 0.5),
+                               (round(paused[3]["end"] + 0.5, 3), 30.0, 0.76))),
+        _group_rows_case("alternating_shots", words, 3, shots),
+        _group_rows_case("subtle_groups_of_four", words, 4, shots),
+        _group_rows_case("same_height_rows_do_not_cut", words, 3, _rows((0.0, mid, 0.65), (mid, 30.0, 0.65))),
+        _group_rows_case("before_first_row_takes_first", words, 3, _rows((1.0, 30.0, 0.65))),
+        _group_rows_case("past_last_row_keeps_last", words, 3, _rows((0.0, 1.0, 0.5), (1.0, 2.0, 0.76))),
+        _group_rows_case("empty_words", [], 3, _rows((0.0, 1.0, 0.5), (1.0, 9.0, 0.65))),
+        _mapped_rows_case("identity", [["clip", 0.0, 6.0]], _rows((0.0, 2.0, 0.5), (2.0, 6.0, 0.65))),
+        _mapped_rows_case("trimmed_head_and_tail", [["mid", 1.0, 5.0]],
+                          _rows((0.0, 2.0, 0.5), (2.0, 4.5, 0.65), (4.5, 6.0, 0.76))),
+        _mapped_rows_case("reordered_segments", [["late", 3.0, 6.0], ["early", 0.0, 2.5]],
+                          _rows((0.0, 2.0, 0.5), (2.0, 6.0, 0.65))),
+        _mapped_rows_case("repeated_segment", [["a", 0.0, 3.0], ["again", 1.0, 2.5]],
+                          _rows((0.0, 2.0, 0.5), (2.0, 6.0, 0.65))),
+        _mapped_rows_case("cut_joins_equal_rows", [["a", 0.0, 1.5], ["b", 4.0, 6.0]],
+                          _rows((0.0, 2.0, 0.65), (2.0, 3.5, 0.5), (3.5, 6.0, 0.65))),
+        _mapped_rows_case("no_rows", [["a", 0.0, 6.0]], []),
+    ]
+
+
 GENERATORS: dict[str, Callable[[], list[tuple[str, dict]]]] = {
     "rng": rng_cases, "warp": warp_cases, "mapping": mapping_cases, "duck": duck_cases, "censor": censor_cases,
-    "geometry": geometry_cases, "groups": groups_cases,
+    "geometry": geometry_cases, "groups": groups_cases, "rows": rows_cases,
 }
 
 

@@ -293,7 +293,7 @@ export function standaloneDecodeOps(cue: AccentCue, dc: DrawerContext): DrawOp[]
   if (widthAt(px) > 0.88 * W) px *= (0.88 * W) / widthAt(px);
   const width = widthAt(px);
   const chunk = p.chunkAt(dc.t);
-  const yFrac = style ? style.y - (chunk ? 0.13 : 0) : 0.62;
+  const yFrac = style ? (p.captionYAt(cue.start) ?? style.y) - (chunk ? 0.13 : 0) : 0.62;
   const y = Math.min(H - px, Math.max(px, yFrac * H));
   const out = clamp01((dc.dur - dc.local) / 0.12);
   const look = lookFor(p, dc, family, px, out);

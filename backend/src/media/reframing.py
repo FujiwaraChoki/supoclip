@@ -1470,6 +1470,9 @@ def build_vertical_filter_plan(
             report["hook_center_y"] = described["hook_center_y"]
         if described.get("panel_windows"):
             report["panel_windows"] = described["panel_windows"]
+        if described.get("interview_segments"):
+            # Per-shot kinds (pair / single / fit, stage-1 seconds): the dynamic-edits caption rows, and the studio's.
+            report["interview_segments"] = described["interview_segments"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1620,6 +1623,8 @@ def describe_vertical_layout(
         pairs = [(s["start"], s["end"]) for s in interview.get("segments", ()) if s["kind"] == "pair"]
         if pairs:
             result["panel_windows"] = pairs
+        if interview.get("segments"):
+            result["interview_segments"] = [dict(s) for s in interview["segments"]]
         return result
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:

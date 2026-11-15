@@ -359,6 +359,35 @@ class CaptionPlacement(_Strict):
     scale: float = Field(default=1, gt=0, le=4)
 
 
+class CaptionRow(_Strict):
+    """Where captions sit during one stretch of the clip (an interview shot): the caption centre ``y`` for every
+    caption group shown from ``[start, end)``. A change of ``y`` is a camera cut, and a cut ends the caption group on
+    screen (``caption_groups.phrase_groups(cuts=...)``). E seconds (S in a studio document's ``captionRows``)."""
+    start: float = Field(ge=0)
+    end: float = Field(ge=0)
+    y: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        if self.end < self.start:
+            raise ValueError("caption row end before start")
+        return self
+
+
+def caption_row_y(rows, default_y: float, t: float) -> float:
+    """== fx-core ``captionRowY``: rows (sorted by start, not overlapping) as a step function: the ``y`` of the last
+    row starting at or before ``t`` (the first row before it), ``default_y`` when there are none. A time past the
+    last row, or in a gap, keeps the row before it."""
+    if not rows:
+        return default_y
+    pick = rows[0]
+    for row in rows:
+        if row.start > t:
+            break
+        pick = row
+    return pick.y
+
+
 class FxCaptionStyle(_Strict):
     """Resolved look for FX-template captions (drawn by fx-core, never by ASS)."""
     template: str = Field(max_length=50)
@@ -380,6 +409,11 @@ class FxCaptionStyle(_Strict):
     # looks measured from reference edits (phrase groups of up to words_per_line, word-by-word reveal at bold/max,
     # 0-frame entrances, a 2-frame pop at max, keyword boxes), see CAPTION_LOOKS in fx-core captions/looks.ts.
     look: CaptionLook = "template"
+    # Per-shot caption rows (interview layouts): a row change is a camera cut, which ends the caption group on screen;
+    # each look group without a placement sits on the row in effect where it starts showing (its first word, or the
+    # cut it opens at), so captions switch exactly at cuts and never move inside a group. Empty: every caption sits at
+    # ``y``. Placements are absolute (``y`` + offset) and ignore rows.
+    rows: tuple[CaptionRow, ...] = Field(default=(), max_length=400)
 
 
 class FxWord(_Strict):

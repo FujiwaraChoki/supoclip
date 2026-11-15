@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { captionGroups, captionKey, hookRange, hookTitleSuppressed, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
-import { drawEditorTextLayer, formatHookEditorText, loadEditorFont, onEditorFxResources, prepareTextDraft, textEditorLayout, textLayerBounds, type TextBounds, type TextDraft, type TextEditorLayout } from "@/lib/editor/render";
+import { drawEditorTextLayer, formatHookEditorText, fxCaptionRowShift, loadEditorFont, onEditorFxResources, prepareTextDraft, textEditorLayout, textLayerBounds, type TextBounds, type TextDraft, type TextEditorLayout } from "@/lib/editor/render";
 import { TransformableText } from "./transformable-text";
 
 /** Titles and subtitles remain independent of the decoded picture in the editor. */
@@ -83,6 +83,7 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
     />}
     {doc.captions.enabled && group && bounds.captions && <TransformableText
       {...shared} key={captionKey(doc, group)} captionId={captionKey(doc, group)} layer="captions" label={t("timeline.tracks.captions")}
+      rowShift={fxCaptionRowShift(doc, size.width, size.height, at, asset.captionLooks)}
       value={group.map(word => word.text).join(" ")} bounds={bounds.captions}
       buttonLabel={`${t("preview.region")}: ${group.map(word => word.text).join(" ")}`}
       measure={document => measure(document, "captions")}

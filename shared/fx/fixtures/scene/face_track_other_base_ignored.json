@@ -1275,7 +1275,8 @@
       "uppercase": false,
       "enabled": true,
       "placements": [],
-      "look": "template"
+      "look": "template",
+      "rows": []
     },
     "grade": "none",
     "grain": 0.0,

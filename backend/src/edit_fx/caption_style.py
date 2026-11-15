@@ -11,7 +11,7 @@ import re
 from typing import Sequence
 
 from .caption_groups import LOOK_MAX_WORDS
-from .contracts import CaptionPlacement, FxCaptionStyle
+from .contracts import CaptionPlacement, CaptionRow, FxCaptionStyle
 
 DEFAULT_ACCENT = "#FFE000"
 DEFAULT_COLOR = "#FFFFFF"
@@ -56,9 +56,10 @@ def look_size_px(look: str, width: int) -> float:
 
 
 def look_caption_style(template_id: str, look: str, *, width: int, height: int, caption_y: float | None,
-                       font_color: str | None = None, enabled: bool = True) -> FxCaptionStyle:
+                       font_color: str | None = None, enabled: bool = True,
+                       rows: Sequence[CaptionRow] = ()) -> FxCaptionStyle:
     """Generation: the intensity look of a listed template. ``caption_y`` is the layout's caption centre (a stacked
-    layout's seam), else the look's default."""
+    layout's seam), else the look's default; ``rows`` the interview layout's per-shot rows (``caption_rows``)."""
     spec = LOOKS[look]
     size_px = look_size_px(look, width)
     stroke_px = round(spec["stroke_em"] * size_px, 2)
@@ -77,6 +78,7 @@ def look_caption_style(template_id: str, look: str, *, width: int, height: int, 
         uppercase=bool(spec["uppercase"]),
         enabled=bool(enabled),
         look=look,
+        rows=tuple(rows),
     )
 
 
@@ -157,12 +159,14 @@ def fx_caption_style(template: dict, *, template_id: str, font_family: str | Non
 
 
 def fx_caption_style_from_document(captions: dict, template: dict, *, width: int, height: int,
-                                   placements: Sequence[CaptionPlacement] = (), look: str = "template") -> FxCaptionStyle:
+                                   placements: Sequence[CaptionPlacement] = (), look: str = "template",
+                                   rows: Sequence[CaptionRow] = ()) -> FxCaptionStyle:
     """Studio: ``EditDocument.captions`` (as a dict) over the template, like ``editor_document.write_ass``.
 
     ``size`` is in 1080-wide units; colour, accent, position, words per line, case and the background box are the
     editor's; outline and shadow come from the template, or from the intensity ``look`` (the max look's outline is
     0.09 em, the highlighter's pill appears with the background switch, the max look is always upper case).
+    ``rows`` are the draft's interview caption rows on E (``editor_document.studio_caption_rows``), looks only.
     """
     size = float(captions.get("size", 54))
     size_px = _clamp(max(1, round(size * width / 1080)), 1.0, MAX_SIZE_PX)
@@ -187,6 +191,7 @@ def fx_caption_style_from_document(captions: dict, template: dict, *, width: int
             enabled=bool(captions.get("enabled", True)),
             placements=tuple(placements),
             look=look,
+            rows=tuple(rows),
         )
     background = _rgba(template.get("background_color") or DEFAULT_BOX) if captions.get("background", True) else None
     stroke_color = template.get("stroke_color")

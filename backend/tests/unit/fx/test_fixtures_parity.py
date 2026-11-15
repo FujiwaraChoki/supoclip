@@ -12,7 +12,8 @@ from pydantic import TypeAdapter
 from src.edit_fx import constants
 from src.edit_fx.caption_groups import grouped_words, phrase_groups
 from src.edit_fx.censor import censor_text, censored_words
-from src.edit_fx.contracts import FxCue
+from src.edit_fx.caption_rows import group_rows, mapped_caption_rows
+from src.edit_fx.contracts import CaptionRow, FxCue
 from src.edit_fx.duck import duck_envelope, envelope_db_at, speech_spans
 from src.edit_fx.mapping import mapped_cues
 from src.edit_fx.rng import fnv1a32, hash01, mulberry32
@@ -21,7 +22,7 @@ from src.edit_fx.warp import build_warp
 BACKEND = Path(__file__).resolve().parents[3]
 SHARED = BACKEND.parent / "shared" / "fx"
 FIXTURES = SHARED / "fixtures"
-FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry", "groups")
+FAMILIES = ("rng", "warp", "mapping", "duck", "censor", "geometry", "groups", "rows")
 CUE = TypeAdapter(FxCue)
 
 
@@ -92,6 +93,12 @@ def compute(fixture):
         return [{"first": g.first, "last": g.last, "start": g.start, "end": g.end,
                  "text": " ".join(str(w["text"]) for w in order[g.first:g.last + 1])}
                 for g in phrase_groups(inp["words"], inp["max_words"])]
+    if fn == "group_rows":
+        return group_rows(inp["words"], inp["max_words"], [CaptionRow.model_validate(r) for r in inp["rows"]], inp["y"])
+    if fn == "mapped_caption_rows":
+        rows = mapped_caption_rows([tuple(s) for s in inp["segments"]],
+                                   [CaptionRow.model_validate(r) for r in inp["rows"]])
+        return [r.model_dump(mode="json") for r in rows]
     if fn == "geometry":
         x, y, w, h = constants.reaction_rect(inp["width"], inp["height"])
         return {"unit": constants.unit(inp["width"], inp["height"]),

@@ -110,6 +110,44 @@ letterboxed picture) wins over the look's row. The display time is calibrated ag
 own scripts: transcript word starts sit one to three frames after the heard onset, so −1 frame shows a word about one
 frame after it is heard, like Hormozi.
 
+**Interview clips get a row per shot** (`edit_fx/caption_rows.py`, `FxCaptionStyle.rows`). The `interview` layout
+composes each camera shot on its own, and one caption height can't suit them all:
+
+- **Two-shot (`pair`):** 0.50, on the seam between the stacked panels.
+- **Close-up (`single`):** 0.65, mid-chest under the chin.
+- **Graphic or b-roll (`fit`):** 0.76, on the blurred fill under the picture. It goes lower when the picture is taller
+  than 16:9, so it always clears the picture by 1.5 % H.
+
+The rows follow these rules:
+
+- **Short shots:** a shot under 1 s (a flash or a quick reaction) keeps the previous shot's row. A clip that opens on
+  one takes the next shot's row.
+- **A camera cut ends the caption group on screen** (a row change; `phrase_groups(cuts=...)` /
+  `phraseGroups(..., cuts)`). Words starting before the cut − 0.15 s (`CUT_LEAD`) stay in the old group, which leaves
+  exactly at the cut. The rest start the next shot's groups, grouped as usual from there, and show from the cut on the
+  new row. A word starting within 0.15 s before the cut goes with the next shot, so no stub flashes up for a few frames.
+  Captions therefore switch exactly at cuts, never move inside a group, and never sit on another shot's row.
+- **The look emoji** leaves with its group at a cut.
+- **Burned-in source captions:** they push each row clear.
+- **Low hook title:** while the hook title sits low (its bottom at 0.94 when a two-shot opens the clip), any row on
+  screen with it stays above 0.80. A fitted shot with no room there puts its captions above the picture instead.
+- **Overlays:** the look emoji, standalone keywords, the decode accent and sticker obstacles read the row in effect
+  (`PreparedScene.captionYAt`).
+- **The user's position wins:** a caption edit's position pins the captions with no rows, and if that position is away
+  from the seam, the hook title takes the seam.
+- **Where rows apply:** only the intensity looks on interview layouts. Other layouts, the hidden templates and legacy
+  ASS captions keep one row.
+
+In the studio, the stored `vertical_layout` keeps the shots (`segments`) and the burned-in `caption_band`. Preparing a
+session then seeds `EditDocument.captionRows` on the source clock: `{y, rows}`, where `y` is the automatic caption
+position the rows replace. Server export and browser draw both map the rows through the draft's segments
+(`studio_caption_rows` / `studioCaptionRows`, pinned by `shared/fx/fixtures/{rows,scene}`).
+
+Rows stop applying as soon as the user places the captions: `captions.y` changes, the caption layer moves vertically,
+or the frame is no longer the full vertical picture. A caption's own transform pins that caption, and dragging starts
+from where its row drew it. Combining drafts rebases each part's rows. Sessions prepared before rows existed have no
+`captionRows` and keep one row.
+
 Studio: the draft seeds font, size, case, words per line, accent and the pill switch from the look
 (`editor_service._look_caption_seed`), and the user can change them; the motion and outline follow the look of the
 draft's intensity. The studio's caption timeline still lists fixed word groups; the preview and export draw phrase

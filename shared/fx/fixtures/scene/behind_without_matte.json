@@ -291,14 +291,15 @@
       "stroke_color": null,
       "stroke_px": 0.0,
       "shadow": true,
-      "background": null,
+      "background": "#170904D9",
       "y": 0.78,
       "x": 0.0,
       "words_per_line": 4,
       "uppercase": false,
       "enabled": true,
       "placements": [],
-      "look": "bold"
+      "look": "bold",
+      "rows": []
     },
     "grade": "none",
     "grain": 0.0,

@@ -64,6 +64,21 @@ function editStyleToJson(style) {
   }
   return out;
 }
+function rowCuts(rows) {
+  const ordered = [...rows ?? []].sort((a, b) => a.start - b.start);
+  const cuts = [];
+  for (let i = 1; i < ordered.length; i++) if (ordered[i].y !== ordered[i - 1].y) cuts.push(ordered[i].start);
+  return cuts;
+}
+function captionRowY(rows, defaultY, t) {
+  if (!rows || !rows.length) return defaultY;
+  let pick = rows[0];
+  for (const row of rows) {
+    if (row.start > t) break;
+    pick = row;
+  }
+  return pick.y;
+}
 
 // src/lib/fx/core/rng.ts
 function fnv1a32(text) {
@@ -1592,6 +1607,7 @@ function baseCaptionOps(chunk, dc, look) {
 var PAUSE_BREAK = 0.25;
 var GROUP_BRIDGE = 0.3;
 var MIN_HOLD = 0.4;
+var CUT_LEAD = 0.15;
 var CONJUNCTIONS = /* @__PURE__ */ new Set(["and", "but", "so", "because", "or", "then", "cause", "cuz"]);
 var LOOK_LEAD = { subtle: -2 / 30, bold: -1 / 30, max: -1 / 30 };
 var BREAK_AFTER = /[.,!?;:…。！？，、]["'”’)\]]*$/u;
@@ -1600,20 +1616,22 @@ var breaksAfter = (text) => BREAK_AFTER.test(text.trim());
 function groupedWords(words) {
   return words.filter((w) => w.text.trim() !== "").sort((a, b) => a.start - b.start);
 }
-function phraseGroups(words, maxWords) {
+function phraseGroups(words, maxWords, cuts = []) {
   const limit = Math.max(1, Math.min(8, Math.trunc(maxWords) || 1));
+  const cutTimes = [...cuts].sort((a, b) => a - b);
+  const cutBetween = (a, b) => cutTimes.some((c) => a < c - CUT_LEAD && c - CUT_LEAD <= b);
   const spans = [];
   let first = 0;
   for (let i = 1; i < words.length; i++) {
     const prev = words[i - 1], word = words[i], size = i - first;
     const gap = word.start - prev.end;
-    if (size >= limit || breaksAfter(prev.text) || gap >= PAUSE_BREAK - 1e-9 || size >= 2 && CONJUNCTIONS.has(norm(word.text)) || (word.run ?? "clip") !== (prev.run ?? "clip")) {
+    if (size >= limit || breaksAfter(prev.text) || gap >= PAUSE_BREAK - 1e-9 || size >= 2 && CONJUNCTIONS.has(norm(word.text)) || (word.run ?? "clip") !== (prev.run ?? "clip") || cutTimes.length > 0 && cutBetween(prev.start, word.start)) {
       spans.push([first, i - 1]);
       first = i;
     }
   }
   if (words.length) spans.push([first, words.length - 1]);
-  return spans.map(([a, b], k) => {
+  const groups = spans.map(([a, b], k) => {
     const start = words[a].start;
     let end = Math.max(start, words[b].end);
     if (k + 1 < spans.length) {
@@ -1624,6 +1642,19 @@ function phraseGroups(words, maxWords) {
       end = Math.max(end, start + MIN_HOLD);
     }
     return { first: a, last: b, start, end };
+  });
+  if (!cutTimes.length) return groups;
+  const opened = groups.map((g) => cutTimes.find((c) => c - CUT_LEAD <= g.start && g.start <= c));
+  return groups.map((g, k) => {
+    const shown = opened[k] ?? g.start;
+    const leaves = cutTimes.filter((c) => shown < c && c < g.end);
+    const next = groups[k + 1];
+    if (next && opened[k + 1] !== void 0 && g.end >= next.start - 1e-9) leaves.push(opened[k + 1]);
+    return {
+      ...g,
+      ...opened[k] !== void 0 ? { cut: opened[k] } : {},
+      ...leaves.length ? { until: Math.min(...leaves) } : {}
+    };
   });
 }
 
@@ -1857,7 +1888,7 @@ function standaloneAnchor(p, cue, t, withText = true) {
   if (width0 > maxW) px *= maxW / width0;
   const w = label ? widthAt(p, label, family, px) : px;
   const safe = captionSafe(W, H);
-  const cy = clamp2(H * (style?.y ?? 0.7), safe.top + px / 2, Math.max(safe.top + px / 2, H - safe.bottom - px / 2));
+  const cy = clamp2(H * (p.captionYAt(cue.start) ?? style?.y ?? 0.7), safe.top + px / 2, Math.max(safe.top + px / 2, H - safe.bottom - px / 2));
   const box = { x: W / 2 - w / 2, y: cy - px / 2, w, h: px };
   const ent = entranceAt("settle", t - cue.start, u);
   const transform = ent.scale === 1 ? IDENTITY : scaleAbout(ent.scale, W / 2, cy);
@@ -1931,6 +1962,7 @@ function prepareScene(scene, host) {
     measure,
     faceAt,
     chunkAt: (t) => findSpan(chunks, t),
+    captionYAt: (t) => style ? captionRowY(style.rows, style.y, t) : null,
     hookActive: (t) => !!hook && t >= hook[0] && t < hook[1],
     inBroll: (t) => broll.some(([a, b]) => t >= a && t < b),
     matteAt: (t) => mattes.find((m) => t >= m.start && t < m.end) ?? null
@@ -2002,7 +2034,8 @@ function layoutCaptions(scene, family, measure) {
     const { space, widths, lines } = fit;
     const lineH = px * 1.2, blockH = lineH * lines.length;
     const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
-    let centerY = H * (style.y + (placement?.y ?? 0));
+    const row = placement ? null : groupRow(style, group[0].start);
+    let centerY = H * ((row ?? style.y) + (placement?.y ?? 0));
     if (!placement) centerY = clamp2(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
     const laid = [];
     lines.forEach((idx, li) => {
@@ -2014,7 +2047,17 @@ function layoutCaptions(scene, family, measure) {
         x += widths[i] + space;
       }
     });
-    return { key, words: laid, start: group[0].start, end: Math.max(group[0].start, group[group.length - 1].end), px, centerX, centerY, scale };
+    return {
+      key,
+      words: laid,
+      start: group[0].start,
+      end: Math.max(group[0].start, group[group.length - 1].end),
+      px,
+      centerX,
+      centerY,
+      scale,
+      ...row !== null ? { row } : {}
+    };
   });
   for (let i = 0; i < chunks.length; i++) {
     const next = chunks[i + 1];
@@ -2030,7 +2073,7 @@ function layoutLookCaptions(scene, look, family, measure) {
   const W = scene.width, H = scene.height, u = unit(W, H);
   const lead = LOOK_LEAD[look];
   const words = groupedWords(scene.words);
-  const groups = phraseGroups(words, style.words_per_line);
+  const groups = phraseGroups(words, style.words_per_line, rowCuts(style.rows));
   const placements3 = new Map(style.placements.map((p) => [p.key, p]));
   const safe = captionSafe(W, H);
   const boxed = keywordBoxed(scene.template);
@@ -2082,9 +2125,10 @@ function layoutLookCaptions(scene, look, family, measure) {
     const { space, widths, lines } = laid;
     const lineH = px * 1.25, blockH = lineH * lines.length;
     const centerX = W * (0.5 + (style.x ?? 0) + (placement?.x ?? 0));
-    let centerY = H * (style.y + (placement?.y ?? 0));
+    const row = placement ? null : groupRow(style, group.cut ?? group.start);
+    let centerY = H * ((row ?? style.y) + (placement?.y ?? 0));
     if (!placement) centerY = clamp2(centerY, safe.top + blockH / 2, Math.max(safe.top + blockH / 2, H - safe.bottom - blockH / 2));
-    const start = group.start + lead;
+    const start = group.cut !== void 0 ? Math.max(group.start + lead, group.cut) : group.start + lead;
     const out = [];
     lines.forEach((idx, li) => {
       const total = idx.reduce((sum, i) => sum + widths[i], 0) + space * (idx.length - 1);
@@ -2097,10 +2141,25 @@ function layoutLookCaptions(scene, look, family, measure) {
         x += widths[i] + space;
       }
     });
-    chunks.push({ key, words: out, start, end: Math.max(start, group.end + lead), px, centerX, centerY, scale, space });
+    const end = group.until !== void 0 ? group.until : group.end + lead;
+    chunks.push({
+      key,
+      words: out,
+      start,
+      end: Math.max(start, end),
+      px,
+      centerX,
+      centerY,
+      scale,
+      space,
+      ...row !== null ? { row } : {}
+    });
   }
   for (let i = 0; i + 1 < chunks.length; i++) chunks[i].end = Math.min(chunks[i].end, chunks[i + 1].start);
   return chunks.filter((c) => c.end > c.start);
+}
+function groupRow(style, shownFrom) {
+  return style.rows?.length ? captionRowY(style.rows, style.y, shownFrom) : null;
 }
 var CAPTION_SIDE = 0.06;
 function decimalsOf(value) {
@@ -2459,7 +2518,7 @@ function lookEmojiPlacement(p, cue) {
   const safe = captionSafe(W, H), side = LOOK_EMOJI.side * W;
   const m = matchCue(p, cue);
   let result = null;
-  const fallbackY = (p.scene.caption?.y ?? 0.6) * H;
+  const fallbackY = (p.captionYAt(cue.start) ?? 0.6) * H;
   const word = m ? wordsBox(m.chunk, m.first, m.last) : { x: W / 2, y: fallbackY, w: 0, h: 0 };
   const block = m ? chunkBox(m.chunk) : { x: W / 2, y: fallbackY, w: 0, h: 0 };
   const x = clamp2(m ? m.chunk.centerX : word.x + word.w / 2, side + size / 2, W - side - size / 2);
@@ -2478,12 +2537,13 @@ function lookEmojiPlacement(p, cue) {
     const y = fits(below) ? below : fits(above) ? above : null;
     result = y === null ? null : { x, y, size };
   }
+  if (result && m && p.scene.caption?.rows?.length) result = { ...result, until: m.chunk.end };
   byCue.set(cue, result);
   return result;
 }
 function lookEmojiOps(cue, dc) {
   const at = lookEmojiPlacement(dc.scene, cue);
-  if (!at) return [];
+  if (!at || at.until !== void 0 && dc.t >= at.until) return [];
   const k = clamp01((dc.local + 1 / 30) / (LOOK_EMOJI.inFrames / 30));
   const scale = LOOK_EMOJI.inScale + (1 - LOOK_EMOJI.inScale) * k;
   return [spriteOp({
@@ -2802,8 +2862,9 @@ function captionBand(p, a, b) {
   if (y0 === Infinity) {
     if (!style || !style.enabled || !p.captionFamily) return null;
     const half = style.size_px * 1.3;
-    y0 = style.y * p.height - half;
-    y1 = style.y * p.height + half;
+    const cy = (p.captionYAt(a) ?? style.y) * p.height;
+    y0 = cy - half;
+    y1 = cy + half;
   }
   const pad = 24 * p.u;
   return { x: 0, y: y0 - pad, w: p.width, h: y1 - y0 + 2 * pad };
@@ -3699,7 +3760,7 @@ function standaloneDecodeOps(cue, dc) {
   if (widthAt2(px) > 0.88 * W) px *= 0.88 * W / widthAt2(px);
   const width = widthAt2(px);
   const chunk = p.chunkAt(dc.t);
-  const yFrac = style ? style.y - (chunk ? 0.13 : 0) : 0.62;
+  const yFrac = style ? (p.captionYAt(cue.start) ?? style.y) - (chunk ? 0.13 : 0) : 0.62;
   const y = Math.min(H - px, Math.max(px, yFrac * H));
   const out = clamp01((dc.dur - dc.local) / 0.12);
   const look = lookFor(p, dc, family, px, out);
@@ -4384,7 +4445,7 @@ function stickerObstacles(p, t) {
     }
     out.push(inflate({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, chunk.px * 0.25));
   } else if (p.scene.caption?.enabled) {
-    const cy = p.scene.caption.y * p.height, band = p.scene.caption.size_px * 2.6;
+    const cy = (p.captionYAt(t) ?? p.scene.caption.y) * p.height, band = p.scene.caption.size_px * 2.6;
     out.push({ x: 0, y: cy - band / 2, w: p.width, h: band });
   }
   return out;
@@ -4861,6 +4922,7 @@ export {
   buildWarp,
   captionHitBoxes,
   captionLookFor,
+  captionRowY,
   censorText,
   censoredWords,
   duckEnvelope,
@@ -4879,6 +4941,7 @@ export {
   prepareScene,
   rasterize,
   renderFrame,
+  rowCuts,
   speechSpans,
   toEdit,
   toOutput,

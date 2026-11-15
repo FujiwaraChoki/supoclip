@@ -37,7 +37,7 @@ export function stickerObstacles(p: PreparedScene, t: number): Rect[] {
     out.push(inflate({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, chunk.px * 0.25));
   } else if (p.scene.caption?.enabled) {
     // No FX caption on screen (legacy template or a gap): keep the ASS caption band clear.
-    const cy = p.scene.caption.y * p.height, band = p.scene.caption.size_px * 2.6;
+    const cy = (p.captionYAt(t) ?? p.scene.caption.y) * p.height, band = p.scene.caption.size_px * 2.6;
     out.push({ x: 0, y: cy - band / 2, w: p.width, h: band });
   }
   return out;

@@ -12,17 +12,18 @@ import { describe, expect, it } from "vitest";
 import { captionSafe, HOOK_BAND, reactionRect, unit } from "./constants";
 import { censorText, censoredWords } from "./censor";
 import { duckEnvelope, envelopeDbAt, speechSpans, type DuckOptions } from "./duck";
-import { mappedCues, type SegmentSpan } from "./mapping";
+import { mappedCaptionRows, mappedCues, type SegmentSpan } from "./mapping";
+import { groupRow } from "./scene";
 import { fnv1a32, hash01, mulberry32 } from "./rng";
 import { groupedWords, phraseGroups } from "./captions/groups";
-import type { FxCue } from "./types";
+import { rowCuts, type CaptionRow, type FxCue } from "./types";
 import { buildWarp, isNontrivial, toEdit, toOutput, warpToJson } from "./warp";
 
 const SHARED = process.env.FX_SHARED_DIR
   ? resolve(process.env.FX_SHARED_DIR)
   : resolve(fileURLToPath(new URL(".", import.meta.url)), "../../../../../shared/fx");
 const ROOT = join(SHARED, "fixtures");
-const FAMILIES = ["rng", "warp", "mapping", "duck", "censor", "geometry", "groups"] as const;
+const FAMILIES = ["rng", "warp", "mapping", "duck", "censor", "geometry", "groups", "rows"] as const;
 const REQUIRED = process.env.FX_REQUIRE_FIXTURES === "1";
 const TOL = 0;   // the mirror is bit-for-bit (§20 WP3a); a non-zero tolerance would hide drift
 
@@ -107,6 +108,17 @@ function run(fx: Fixture): unknown {
         ...g, text: order.slice(g.first, g.last + 1).map((w) => w.text).join(" "),
       }));
     }
+    case "rows/group_rows": {
+      // == layoutLookCaptions: phrase groups ended by the rows' cuts, each on the row where it starts showing.
+      const order = groupedWords(i.words as { start: number; end: number; text: string; run?: string }[]);
+      const style = { y: num(i.y), rows: i.rows as CaptionRow[] };
+      return phraseGroups(order, num(i.max_words), rowCuts(style.rows)).map((g) => ({
+        first: g.first, last: g.last, start: g.start, end: g.end, cut: g.cut ?? null, until: g.until ?? null,
+        y: groupRow(style, g.cut ?? g.start) ?? style.y,
+      }));
+    }
+    case "rows/mapped_caption_rows":
+      return mappedCaptionRows(i.segments as SegmentSpan[], i.rows as CaptionRow[]);
     case "geometry/geometry": {
       const w = num(i.width);
       const h = num(i.height);

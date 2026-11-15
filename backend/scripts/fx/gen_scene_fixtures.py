@@ -178,6 +178,36 @@ def cases() -> dict[str, dict]:
         textTransforms={"captions": {"x": -0.18, "y": 0.05, "scale": 0.9}},
         captionTransforms={'["second","w5"]': {"x": 0.12, "y": -0.2, "scale": 1.1}}))
     add("no_hook_title", document([("all", 0.0, 5.0)], hookTitle=""))
+    # Interview caption rows (S): pair → single → fit → pair. They place the look captions while the captions keep
+    # their automatic position, mapped through the cuts like B-roll.
+    rows = {"y": 0.5, "rows": [{"start": 0.0, "end": 1.5, "y": 0.5}, {"start": 1.5, "end": 2.6, "y": 0.65},
+                               {"start": 2.6, "end": 3.7, "y": 0.76}, {"start": 3.7, "end": 5.0, "y": 0.5}]}
+    look = {"template": "highlighter_swipe", "y": 0.5, "size": 72, "wordsPerLine": 3, "font": "Poppins-ExtraBold"}
+
+    def interview(segments, **changes):
+        return document(segments, template="highlighter_swipe", captions={**look, **changes.pop("captions", {})},
+                        captionRows=changes.pop("captionRows", rows), **changes)
+
+    add("interview_rows", interview([("all", 0.0, 5.0)]))
+    add("interview_rows_reordered_and_trimmed", interview([("late", 2.0, 4.6), ("early", 0.2, 1.9)]))
+    add("interview_rows_repeated_segment", interview([("first", 0.0, 3.0), ("again", 1.0, 2.0)]))
+    add("interview_rows_warp", interview([("a", 0.0, 3.0), ("b", 3.6, 5.0)], fx_data=warp))
+    add("interview_rows_with_placement", interview(
+        [("all", 0.0, 5.0)], captionTransforms={'["all","w3"]': {"x": 0.0, "y": 0.2, "scale": 1.0}}))
+    add("interview_rows_pinned_by_caption_y", interview([("all", 0.0, 5.0)], captions={"y": 0.42}))
+    add("interview_rows_pinned_by_layer", interview(
+        [("all", 0.0, 5.0)], textTransforms={"captions": {"x": 0.0, "y": 0.1, "scale": 1.0}}))
+    add("interview_rows_layer_scale_keeps_rows", interview(
+        [("all", 0.0, 5.0)], textTransforms={"captions": {"x": 0.05, "y": 0.0, "scale": 1.2}}))
+    add("interview_rows_square_frame_off", interview(
+        [("all", 0.0, 5.0)], framing={"aspect": "square", "fit": "cover", "zoom": 1.0, "x": 0.5, "y": 0.5}))
+    add("interview_rows_zoomed_frame_off", interview(
+        [("all", 0.0, 5.0)], framing={"aspect": "vertical", "fit": "cover", "zoom": 1.3, "x": 0.5, "y": 0.5}))
+    add("interview_rows_template_look_off", document(
+        [("all", 0.0, 5.0)], template="marker_circle", captions={"template": "marker_circle", "y": 0.5},
+        captionRows=rows))
+    add("interview_rows_captions_disabled", interview([("all", 0.0, 5.0)], captions={"enabled": False}))
+    add("interview_rows_approx_timing", interview([("all", 0.0, 5.0)], fx_data=fx(timing="approx")))
     add("approx_timing_keeps_words", document([("all", 0.0, 5.0)], fx_data=fx(timing="approx")))
     return out
 

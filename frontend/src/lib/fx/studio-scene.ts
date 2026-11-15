@@ -19,11 +19,13 @@ import {
   type SessionFaceTrack,
 } from "@/lib/editor/document";
 import { censoredWords } from "./core/censor";
+import { mappedCaptionRows } from "./core/mapping";
 import { FACE_MAX_GAP } from "./core/scene";
 import {
   captionLookFor,
   isFxTemplate,
   type CaptionPlacement,
+  type CaptionRow,
   type FaceTrack,
   type FxCaptionStyle,
   type FxCue,
@@ -90,10 +92,12 @@ const MAX_STROKE_PX = 40, MAX_SIZE_PX = 400, MAX_PLACEMENT_SCALE = 4, MIN_PLACEM
 
 /** == edit_fx.caption_style.LOOKS (studio: the font is the document's, seeded from these). */
 const STUDIO_LOOKS = {
-  subtle: { font: "TikTokSans-Bold", strokeEm: 0, uppercase: false, words: 4 },
+  subtle: { font: "TikTokSans-Bold", strokeEm: 0.07, uppercase: false, words: 4 },
   bold: { font: "Poppins-ExtraBold", strokeEm: 0, uppercase: false, words: 3 },
   max: { font: "THEBOLDFONT", strokeEm: 0.09, uppercase: true, words: 3 },
 } as const;
+/** == edit_fx.caption_style.LOOK_PILLS: Bold is the dark pill for every listed style. */
+const LOOK_PILL = "#170904D9";
 /** == edit_fx.caption_style.look_accent. */
 function lookAccent(template: string, look: "subtle" | "bold" | "max"): string {
   if (template === "highlighter_swipe") return look === "bold" ? "#34FD87" : "#FFE45C";
@@ -133,7 +137,7 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
     const look = captionLook;
     const spec = STUDIO_LOOKS[look];
     const strokePx = roundTo(spec.strokeEm * sizePx, 2);
-    const pill = templateId === "highlighter_swipe" && look === "bold" ? "#170904D9" : null;
+    const pill = look === "bold" ? LOOK_PILL : null;
     return {
       template: templateId.slice(0, 50),
       font: String(captions.font || spec.font).slice(0, 80),
@@ -151,6 +155,7 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
       enabled: true,
       placements: captionPlacements(doc, { x, y: clamp(y, 0, 1), scale: layer ? layer.scale : 1 }),
       look,
+      rows: studioCaptionRows(doc),
     };
   }
   return {
@@ -170,7 +175,28 @@ export function studioCaptionStyle(doc: EditDocument, looks: Record<string, Capt
     enabled: true,
     placements: captionPlacements(doc, { x, y: clamp(y, 0, 1), scale: layer ? layer.scale : 1 }),
     look: "template",
+    rows: [],
   };
+}
+
+/** captions.y within this of the seeded position still counts as automatic (== CAPTION_ROWS_Y_TOLERANCE). */
+const CAPTION_ROWS_Y_TOLERANCE = 5e-4;
+
+/**
+ * The draft's interview caption rows on E (== editor_document.studio_caption_rows), or [] when they do not apply: no
+ * rows, captions off or not an intensity look, the user moved the captions (captions.y changed, or the caption layer
+ * moved vertically) or the frame is not the full vertical picture the rows were measured on.
+ */
+export function studioCaptionRows(doc: EditDocument): CaptionRow[] {
+  const stored = doc.captionRows;
+  const captions = doc.captions;
+  if (!stored || !stored.rows.length || !captions.enabled) return [];
+  if (captionLookFor(captions.template || "default", doc.fx?.style.intensity ?? "off", doc.fx?.sensitivity ?? "normal") === "template")
+    return [];
+  const layer = doc.textTransforms?.captions;
+  if (Math.abs(captions.y - stored.y) > CAPTION_ROWS_Y_TOLERANCE || (layer && layer.y !== 0)) return [];
+  if (doc.framing.aspect !== "vertical" || doc.framing.zoom !== 1) return [];
+  return mappedCaptionRows(continuousSegments(doc.segments), stored.rows);
 }
 
 /**
