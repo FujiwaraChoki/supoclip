@@ -233,6 +233,19 @@ class Config:
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
 
+        # Cancellation reviews (docs/cancellation-reviews.md). Stripe signs each account's
+        # endpoint with its own secret: "acct_A:whsec_...,acct_B:whsec_...". The legacy account
+        # id resolves users whose stripe_account_id is empty.
+        self.stripe_cancellation_webhook_secrets = self._get_optional_env("STRIPE_CANCELLATION_WEBHOOK_SECRETS")
+        self.stripe_source_account_id = self._get_optional_env("STRIPE_SOURCE_ACCOUNT_ID")
+        self.cancellation_reviews_enabled = self._get_bool_env("CANCELLATION_REVIEWS_ENABLED", False)
+        self.cancellation_review_settle_seconds = max(
+            60, self._get_int_env("CANCELLATION_REVIEW_SETTLE_SECONDS", 600)
+        )
+        # Signed chat webhook that receives the finished reports (HMAC V2, see delivery.py).
+        self.cancellation_report_webhook_url = self._get_optional_env("CANCELLATION_REPORT_WEBHOOK_URL")
+        self.cancellation_report_webhook_secret = self._get_optional_env("CANCELLATION_REPORT_WEBHOOK_SECRET")
+
         # Social publishing. Each provider needs an OAuth app registered by the
         # operator; users then connect their own accounts through that app.
         self.youtube_oauth_client_id = self._get_optional_env(
