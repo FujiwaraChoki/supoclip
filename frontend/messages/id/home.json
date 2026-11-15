@@ -422,7 +422,8 @@
       "dramatic": "Dramatis",
       "funny": "Lucu",
       "inspiring": "Inspiratif",
-      "dark": "Gelap"
+      "dark": "Gelap",
+      "aggressive": "Agresif"
     },
     "censor": {
       "off": "Biarkan apa adanya",

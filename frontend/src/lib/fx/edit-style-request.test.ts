@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_EDIT_STYLE, FX_CAPTION_TEMPLATES, type EditStyle } from "./core/types";
 import {
   EDIT_STYLES_UNAVAILABLE, editStylePreference, fetchEditStylesInfo, fxCreateFields, offeredFxTemplates,
-  parseEditStylePreference, parseEditStylesInfo, readEditStyle, sendableCaptionTemplate,
+  MOODS, parseEditStylePreference, parseEditStylesInfo, readEditStyle, sendableCaptionTemplate,
 } from "./edit-style-request";
 
 const ENABLED = {
@@ -11,7 +14,7 @@ const ENABLED = {
   intensities: ["off", "subtle", "bold", "max"],
   defaults: { ...DEFAULT_EDIT_STYLE, intensity: undefined },
   settings: [],
-  music_moods: ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
+  music_moods: ["hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"],
   grades: ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
   templates: [...FX_CAPTION_TEMPLATES, "from_the_future"],
   reactions_available: false,
@@ -35,6 +38,24 @@ describe("edit styles info", () => {
     expect(offeredFxTemplates(info)).toEqual(FX_CAPTION_TEMPLATES);
     expect(offeredFxTemplates(EDIT_STYLES_UNAVAILABLE)).toEqual([]);
     expect(offeredFxTemplates(null)).toEqual([]);
+  });
+
+  it("knows every music mood the backend lists, aggressive included, and drops unknown ones", () => {
+    expect(MOODS).toEqual(["hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"]);
+    expect(parseEditStylesInfo({ ...ENABLED, music_moods: [...ENABLED.music_moods, "polka"] }).music_moods).toEqual(MOODS);
+    expect(parseEditStylePreference({ intensity: "bold", music_mood: "aggressive" })?.music_mood).toBe("aggressive");
+  });
+
+  it("names every music mood in every language, on the create screen and in the studio", () => {
+    for (const locale of ["en", "es", "pt", "de", "zh", "id"]) {
+      const read = (file: string) => JSON.parse(readFileSync(join(process.cwd(), "messages", locale, file), "utf8"));
+      const create = read("home.json").edits.moods;
+      const studio = read("editor.json").fx.moods;
+      for (const mood of ["auto", ...MOODS]) {
+        expect(create[mood], `${locale} home edits.moods.${mood}`).toBeTruthy();
+        expect(studio[mood], `${locale} editor fx.moods.${mood}`).toBeTruthy();
+      }
+    }
   });
 
   it("reads a failed fetch, an error status and an old backend's 404 as not enabled", async () => {

@@ -445,17 +445,34 @@ async def test_swears_past_the_cap_are_still_tagged(monkeypatch):
 
 # ----------------------------------------------------------------------------- prompt (§7.2)
 
-SYSTEM_PROMPT_SHA256 = "de7c12a1"   # first 8 hex of sha256(BEATS_SYSTEM_PROMPT); bump BEATS_VERSION when it changes
+SYSTEM_PROMPT_SHA256 = "7e0afc60"   # first 8 hex of sha256(BEATS_SYSTEM_PROMPT); bump BEATS_VERSION when it changes
 
 
 def test_system_prompt_snapshot():
     text = beats_llm.BEATS_SYSTEM_PROMPT
     assert hashlib.sha256(text.encode()).hexdigest()[:8] == SYSTEM_PROMPT_SHA256, (
         "the beat prompt changed: bump BEATS_VERSION and update this snapshot")
-    assert BEATS_VERSION == "beats-v2"
+    assert BEATS_VERSION == "beats-v3"
     assert text.startswith("You tag moments in one short vertical video")
     assert text.endswith("Never tag filler. Never invent words.")
     assert "intensity" in text and "template" not in text.lower()
+
+
+def test_system_prompt_defines_every_mood():
+    from src.edit_fx.contracts import MOODS
+    text = beats_llm.BEATS_SYSTEM_PROMPT
+    for mood in MOODS:
+        assert f"- {mood}: " in text, mood
+    aggressive = next(line for line in text.splitlines() if line.startswith("- aggressive: "))
+    assert "rant" in aggressive and "calling someone out" in aggressive
+    assert "Sincere, vulnerable or grieving moments are never aggressive" in text
+
+
+async def test_the_model_may_tag_a_clip_aggressive(monkeypatch):
+    words = make_words("who approved this garbage halftime show honestly")
+    use_function_model(monkeypatch, lambda user, info: plan(mood="aggressive"))
+    beats = await beats_llm.plan_beats(words, words[-1]["end"], timing="word")
+    assert beats.source == "llm" and beats.mood == "aggressive"
 
 
 def test_user_prompt_snapshot():

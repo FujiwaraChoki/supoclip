@@ -110,7 +110,7 @@ FX_SETTINGS = {
     "fx.intensity": "off, subtle, bold or max: how much automatic editing (zooms, sounds, music, caption accents)",
     "fx.sfx": "true or false (sound effects)",
     "fx.music": "true or false (background music under the voice)",
-    "fx.music_mood": "auto, hype, chill, dramatic, funny, inspiring or dark",
+    "fx.music_mood": "auto, hype, chill, dramatic, funny, inspiring, dark or aggressive",
     "fx.zooms": "true or false (punch-in and push zooms)",
     "fx.shake": "true or false (camera shake on hits)",
     "fx.transitions": "true or false (transitions at cuts)",

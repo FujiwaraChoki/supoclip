@@ -3,7 +3,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_EDIT_STYLE, type EditStyle } from "@/lib/fx/core/types";
-import { EDIT_STYLES_UNAVAILABLE, parseEditStylesInfo } from "@/lib/fx/edit-style-request";
+import { EDIT_STYLES_UNAVAILABLE, MOODS, parseEditStylesInfo } from "@/lib/fx/edit-style-request";
 import { EditIntensity, useEditStylesInfo } from "./edit-intensity";
 
 const INFO = parseEditStylesInfo({
@@ -54,6 +54,13 @@ describe("EditIntensity", () => {
     expect(screen.getByRole("switch", { name: "GIF reactions" })).not.toBeChecked();
     expect(screen.getByRole("combobox", { name: "Music mood" })).toHaveTextContent("Match the video");
     expect(screen.getByRole("combobox", { name: "Swearing" })).toHaveTextContent("Bleep and cover mouth");
+  });
+
+  it("offers the aggressive mood and shows it when picked", () => {
+    const full = parseEditStylesInfo({ ...INFO, music_moods: [...MOODS] });
+    expect(full.music_moods).toContain("aggressive");
+    render(<Harness initial={{ ...DEFAULT_EDIT_STYLE, intensity: "bold", music_mood: "aggressive" }} info={full} />);
+    expect(screen.getByRole("combobox", { name: "Music mood" })).toHaveTextContent("Aggressive");
   });
 
   it("moves between intensities with the arrow keys", () => {

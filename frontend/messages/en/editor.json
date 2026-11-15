@@ -532,7 +532,8 @@
       "dramatic": "Dramatic",
       "funny": "Funny",
       "inspiring": "Inspiring",
-      "dark": "Dark"
+      "dark": "Dark",
+      "aggressive": "Aggressive"
     },
     "beats": {
       "title": "Beats",

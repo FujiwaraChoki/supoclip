@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from src.edit_fx.constants import LLM_ALLOWED_EMOJI, TONE_EMOJI
-from src.edit_fx.contracts import MOODS, SOUND_IDS
+from src.edit_fx.contracts import BED_FALLBACK, MOODS, SOUND_IDS
 from src.emoji_captions import EMOJI_KEYWORD_MAP
 
 BACKEND = Path(__file__).resolve().parents[3]
@@ -204,7 +204,10 @@ def test_synth_fallback_is_deterministic_and_writes_valid_drop_ins(tmp_path):
 
 
 def test_every_mood_has_a_bed():
-    assert {e["mood"] for e in MANIFEST["music"]} == set(MOODS)
+    built = {e["mood"] for e in MANIFEST["music"]}
+    assert built <= set(MOODS)
+    # a mood without its own built-in bed (aggressive, for now) borrows its BED_FALLBACK mood's bed
+    assert all(m in built or BED_FALLBACK.get(m) in built for m in MOODS)
 
 
 def test_loop_length_is_32_bars_at_the_manifest_tempo():

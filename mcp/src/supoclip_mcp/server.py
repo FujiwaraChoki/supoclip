@@ -104,7 +104,7 @@ SERIES_MIN_PARTS, SERIES_MAX_PARTS = 2, 10
 # Dynamic edits: mirrors EditStyle in backend/src/edit_fx/contracts.py (defaults included) so a bad value fails
 # here with a clear message. The backend validates again and stays the authority.
 INTENSITIES = ("off", "subtle", "bold", "max")
-MUSIC_MOODS = ("auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark")
+MUSIC_MOODS = ("auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive")
 GRADES = ("auto", "none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream")
 CENSORS = ("off", "bleep", "bleep_bar", "bleep_pixelate")
 EDIT_STYLE_DEFAULTS: dict = {

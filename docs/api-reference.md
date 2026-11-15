@@ -290,7 +290,7 @@ the task catch-all proxy):
                "transitions": true, "speed": true, "censor": "bleep_bar", "grade": "auto", "grain": false,
                "progress_bar": false, "loop_ending": false, "wait_for_it": true, "reactions": false},
   "settings": [{"key": "sfx", "type": "bool", "default": true}, "…"],
-  "music_moods": ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
+  "music_moods": ["hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"],
   "grades": ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
   "templates": ["emoji_drop", "behind_head", "highlighter_swipe"],
   "reactions_available": false

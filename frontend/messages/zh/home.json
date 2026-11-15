@@ -422,7 +422,8 @@
       "dramatic": "戏剧",
       "funny": "搞笑",
       "inspiring": "励志",
-      "dark": "暗黑"
+      "dark": "暗黑",
+      "aggressive": "激烈"
     },
     "censor": {
       "off": "保持原样",

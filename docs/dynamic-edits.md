@@ -196,7 +196,8 @@ What the resolver can place (cue kinds in `backend/src/edit_fx/contracts.py`, dr
   register, ticker, slap, stamp, glitch, tape stop) are unchanged; unlisted styles keep their own sounds.
 - **Bleeps**: a 1 kHz tone over every swear, optionally with a black bar or pixelation over the mouth (from face
   landmarks). Bleeps ignore budgets. No bleeps with approximate timing, and none with intensity Off.
-- **Music bed**: one of six moods (hype, chill, dramatic, funny, inspiring, dark; Auto follows the beat model),
+- **Music bed**: one of seven moods (hype, chill, dramatic, funny, inspiring, dark, aggressive; Auto follows the beat
+  model, which keeps aggressive for heated rants, call-outs and roasts and never gives it to a sincere moment),
   looped as a steady bed: about 11 dB under the voice at Subtle and 19 dB at Bold, constant; 6 dB under it at Max,
   rising about 7 dB in pauses (slow 0.25/0.6 s ramps, joined across short gaps, so it never pumps).
 - **Grades**: punchy, warm, teal & orange, noir, VHS, dream; Auto picks punchy at Max and none otherwise. **Grain**
@@ -363,7 +364,9 @@ To use your own sounds or music, drop files into `backend/fx_library/` (mounted 
 
 - `sfx/<sound>[-<name>].{wav,mp3,m4a,ogg}`, where `<sound>` is one of `whoosh impact pop riser record_scratch boom
   cash_register ticker slap stamp glitch tape_stop`.
-- `music/<mood>-<name>.{m4a,mp3,wav}`, where `<mood>` is one of `hype chill dramatic funny inspiring dark`.
+- `music/<mood>-<name>.{m4a,mp3,wav}`, where `<mood>` is one of `hype chill dramatic funny inspiring dark aggressive`.
+  Aggressive has no built-in bed yet: its plan borrows the hype bed (`BED_FALLBACK` in `contracts.py`), which
+  `aggressive-*` drop-ins replace at mix time like any other mood's.
 
 Drop-ins never change the plan. At mix time they replace the built-in files for that sound or mood (picked by
 `seed % count` in file-name order) and are gain-normalised. Risers are first narrowed to the drop-ins closest in

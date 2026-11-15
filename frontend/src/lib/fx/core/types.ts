@@ -6,7 +6,7 @@ export const FRAME = 1 / FPS;
 
 export type Intensity = "off" | "subtle" | "bold" | "max";
 export const INTENSITIES: readonly Intensity[] = ["off", "subtle", "bold", "max"];
-export type Mood = "hype" | "chill" | "dramatic" | "funny" | "inspiring" | "dark";
+export type Mood = "hype" | "chill" | "dramatic" | "funny" | "inspiring" | "dark" | "aggressive";
 export type GradeId = "none" | "punchy" | "warm" | "teal_orange" | "noir" | "vhs" | "dream";
 export type Censor = "off" | "bleep" | "bleep_bar" | "bleep_pixelate";
 export type BeatKind = "hook" | "emphasis" | "number" | "punchline" | "swear" | "emotional_turn" | "payoff" | "build";

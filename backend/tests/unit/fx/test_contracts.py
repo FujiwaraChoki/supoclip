@@ -131,6 +131,9 @@ def test_template_lists():
 def test_literal_tuples_match_their_types():
     assert c.INTENSITIES == typing.get_args(c.Intensity)
     assert c.MOODS == typing.get_args(c.Mood)
+    assert ("auto", *c.MOODS) == typing.get_args(c.EditStyle.model_fields["music_mood"].annotation)
+    assert "aggressive" in c.MOODS and set(c.BED_FALLBACK) <= set(c.MOODS) and set(c.BED_FALLBACK.values()) <= set(c.MOODS)
+    assert set(typing.get_args(c.EditPlanLLM.model_fields["mood"].annotation)) == set(c.MOODS)
     assert c.GRADES == typing.get_args(c.GradeId)
     assert c.SOUND_IDS == typing.get_args(c.SoundId)
     assert set(c.TRANSITION_HALF) == set(typing.get_args(c.TransitionStyle))

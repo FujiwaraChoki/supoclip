@@ -269,7 +269,7 @@ swears) and the intensity decides how hard each one hits.
 `sfx`, `music`, `zooms`, `shake`, `transitions`, `speed`, `grain`,
 `progress_bar`, `loop_ending`, `wait_for_it`, `reactions` (true/false),
 `music_mood` (`auto`, `hype`, `chill`, `dramatic`, `funny`, `inspiring`,
-`dark`), `censor` (`off`, `bleep`, `bleep_bar`, `bleep_pixelate`) and `grade`
+`dark`, `aggressive`), `censor` (`off`, `bleep`, `bleep_bar`, `bleep_pixelate`) and `grade`
 (`auto`, `none`, `punchy`, `warm`, `teal_orange`, `noir`, `vhs`, `dream`).
 `intensity` can go inside `edit_style` too; the argument wins when it isn't
 `off`. The request carries `edit_style` only when the intensity isn't `off`,

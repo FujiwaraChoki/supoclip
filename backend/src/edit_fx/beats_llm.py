@@ -85,7 +85,17 @@ emoji: one emoji only when it literally depicts a concrete thing the word names 
 else "". Never pointing hands, faces, people or symbols for ideas.
 label: a 0-4 word sticker reacting to the moment (e.g. "WAIT WHAT"), in the transcript's language, else "".
 sensitivity: "serious" when the clip is about grief, illness, violence, abuse or tragedy, else "normal".
-mood: the background music that fits the whole clip. hook_last_word: id of the last word of the hook, -1 if none.
+mood: the background music that fits the whole clip:
+- hype: positive excitement and energy (a win, a flex, big news, celebration)
+- aggressive: heated anger at someone or something (a rant, calling someone out, confrontation, roasting, hard
+  trash talk, fight energy)
+- dramatic: tension, high stakes or a story building to a reveal, without anger
+- funny: jokes, silliness, playful teasing
+- inspiring: hope, a lesson, a comeback, encouragement
+- chill: calm, relaxed talk or explanation
+- dark: eerie, ominous or disturbing (crime, horror, unsettling facts)
+Sincere, vulnerable or grieving moments are never aggressive, even when the speaker is upset.
+hook_last_word: id of the last word of the hook, -1 if none.
 reactions: up to 3 meme-reaction GIF search ideas (2-4 words) on the word they react to, only for genuinely
 funny or shocking moments; [] otherwise.
 Tag generously; the editor filters by intensity. Never tag filler. Never invent words."""

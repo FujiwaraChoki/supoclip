@@ -92,7 +92,8 @@ def test_schema_lists_every_setting_but_intensity():
     by_key = {entry["key"]: entry for entry in schema}
     assert by_key["censor"] == {"key": "censor", "type": "enum", "default": "bleep_bar",
                                 "choices": ["off", "bleep", "bleep_bar", "bleep_pixelate"]}
-    assert by_key["music_mood"]["choices"] == ["auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark"]
+    assert by_key["music_mood"]["choices"] == ["auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark",
+                                                  "aggressive"]
     assert by_key["grade"]["choices"][0] == "auto"
     assert all(entry["default"] == EditStyle.model_fields[entry["key"]].default for entry in schema)
     json.dumps(schema)

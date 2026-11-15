@@ -13,7 +13,7 @@ from itertools import combinations
 
 import pytest
 
-from src.edit_fx.contracts import TRANSITION_HALF, Beat, EditBeats, EditStyle, ReactionIdea
+from src.edit_fx.contracts import BED_FALLBACK, MOODS, TRANSITION_HALF, Beat, EditBeats, EditStyle, ReactionIdea
 from src.edit_fx.contracts import LOOK_TEMPLATES
 from src.edit_fx.resolver import (
     BUDGETS,
@@ -48,7 +48,6 @@ NUMBERS = (("$40,000", 40000.0, "$", ""), ("90%", 90.0, "", "%"), ("12", 12.0, "
 SWEARS = ("damn", "shit", "fucking", "hell")
 KINDS = ("emphasis", "emphasis", "emphasis", "number", "punchline", "swear", "emotional_turn", "build", "payoff")
 TONES = ("neutral", "hype", "funny", "shocked", "sad", "angry", "wholesome", "suspense", "awkward", "smug")
-MOODS = ("hype", "chill", "dramatic", "funny", "inspiring", "dark")
 
 
 def random_clip(seed: int) -> tuple[ResolveInput, dict]:
@@ -323,7 +322,8 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
         if inp.beats.timing == "none":
             gain, duck = gain + duck, 0.0
         assert (plan.music.gain_db, plan.music.duck_db) == (gain, duck)
-        assert plan.music.bed in BEDS[plan.music.mood]
+        # a mood without a built-in bed borrows its fallback's; the bed keeps its own mood for drop-ins
+        assert plan.music.bed in (BEDS.get(plan.music.mood) or BEDS[BED_FALLBACK[plan.music.mood]])
     if tier == "style":
         assert plan.grade == "none" and plan.grain == 0 and not plan.progress_bar
     else:

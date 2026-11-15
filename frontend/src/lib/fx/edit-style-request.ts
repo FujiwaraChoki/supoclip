@@ -18,7 +18,7 @@ import {
   type Mood,
 } from "@/lib/fx/core/types";
 
-export const MOODS: readonly Mood[] = ["hype", "chill", "dramatic", "funny", "inspiring", "dark"];
+export const MOODS: readonly Mood[] = ["hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"];
 export const GRADES: readonly GradeId[] = ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"];
 export const CENSORS: readonly Censor[] = ["off", "bleep", "bleep_bar", "bleep_pixelate"];
 

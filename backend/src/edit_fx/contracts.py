@@ -14,7 +14,7 @@ from typing import Annotated, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 EDIT_FX_VERSION = "fx-v2"     # bump when resolver output changes for the same inputs
-BEATS_VERSION = "beats-v2"    # bump when the beat prompt, schema or validation changes (the cache key; EditBeats.version
+BEATS_VERSION = "beats-v3"    # bump when the beat prompt, schema or validation changes (the cache key; EditBeats.version
                               # stays the stored schema version "beats-v1")
 FX_SCENE_VERSION = 1          # bump when FxScene (the P2 / browser contract) changes shape
 FPS = 30
@@ -22,8 +22,12 @@ FRAME = 1.0 / FPS
 
 Intensity = Literal["off", "subtle", "bold", "max"]
 INTENSITIES: tuple[str, ...] = ("off", "subtle", "bold", "max")
-Mood = Literal["hype", "chill", "dramatic", "funny", "inspiring", "dark"]
-MOODS: tuple[str, ...] = ("hype", "chill", "dramatic", "funny", "inspiring", "dark")
+Mood = Literal["hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"]
+MOODS: tuple[str, ...] = ("hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive")
+# A mood with no built-in bed borrows the built-in beds of the mood it maps to. The MusicBed keeps its own mood, so
+# that mood's drop-ins (FX_LIBRARY_DIR music/<mood>-*) still replace the borrowed file at mix time. Inert once the
+# built-in manifest has a bed of the mood.
+BED_FALLBACK: dict[str, str] = {"aggressive": "hype"}
 GradeId = Literal["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"]
 GRADES: tuple[str, ...] = ("none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream")
 Censor = Literal["off", "bleep", "bleep_bar", "bleep_pixelate"]
@@ -88,7 +92,7 @@ class EditStyle(_Strict):
     intensity: Intensity = "off"
     sfx: bool = True
     music: bool = True
-    music_mood: Literal["auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark"] = "auto"
+    music_mood: Literal["auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"] = "auto"
     zooms: bool = True
     shake: bool = True
     transitions: bool = True

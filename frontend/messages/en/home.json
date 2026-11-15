@@ -422,7 +422,8 @@
       "dramatic": "Dramatic",
       "funny": "Funny",
       "inspiring": "Inspiring",
-      "dark": "Dark"
+      "dark": "Dark",
+      "aggressive": "Aggressive"
     },
     "censor": {
       "off": "Leave as is",

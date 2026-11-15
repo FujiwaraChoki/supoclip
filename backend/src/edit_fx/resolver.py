@@ -39,6 +39,7 @@ from .caption_groups import LOOK_LEAD, LOOK_MAX_WORDS, PhraseGroup, grouped_word
 from .censor import censor_text
 from .constants import TONE_EMOJI
 from .contracts import (
+    BED_FALLBACK,
     LOOK_TEMPLATES,
     TRANSITION_HALF,
     AccentCue,
@@ -1395,7 +1396,7 @@ class _Planner:
             mood = self.beats_meta.mood if self.style.music_mood == "auto" else self.style.music_mood
         if mood is None:
             return None
-        ids = tuple(self.inp.beds.get(mood, ()))
+        ids = tuple(self.inp.beds.get(mood, ())) or tuple(self.inp.beds.get(BED_FALLBACK.get(mood, ""), ()))
         if not ids:
             return None
         bed = ids[self.seed_of("", "g.music") % len(ids)]

@@ -11,8 +11,9 @@ fonts. The folder ships empty.
       e.g. sfx/whoosh-swish.wav, sfx/boom.m4a
 
   music/<mood>-<name>.{m4a,mp3,wav}
-      mood is one of: hype chill dramatic funny inspiring dark
+      mood is one of: hype chill dramatic funny inspiring dark aggressive
       e.g. music/chill-lofi-rain.m4a
+      (aggressive has no built-in bed yet: without aggressive drop-ins it plays the hype one)
 
 How they are used
 - Drop-ins never change which effects a clip gets. The plan only ever names a sound or

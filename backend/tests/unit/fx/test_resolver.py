@@ -19,6 +19,8 @@ from src.edit_fx.contracts import (
 )
 from src.edit_fx.resolver import ResolveInput, resolve, sfx_bus_gain_db
 from tests.fixtures.fx_resolver.builders import (
+    BED_LENGTHS,
+    BEDS,
     FX_TEMPLATES,
     INTENSITIES,
     TEMPLATES,
@@ -470,6 +472,30 @@ def test_rule9_music_mood_bed_and_levels():
     assert plan.music.mood == "dark"
     assert run([], style=EditStyle(intensity="bold", music=False)).music is None
     assert run([], template="slam", intensity="off").music is None
+
+
+def test_rule9_aggressive_borrows_the_hype_bed_until_it_has_its_own():
+    # No built-in aggressive bed: the plan names the hype bed but keeps the mood, so aggressive drop-ins play.
+    picked = run([], style=EditStyle(intensity="bold", music_mood="aggressive"))
+    assert (picked.music.mood, picked.music.bed, picked.mood) == ("aggressive", "hype", "aggressive")
+    auto = run([], intensity="bold", meta={"mood": "aggressive"})
+    assert (auto.music.mood, auto.music.bed) == ("aggressive", "hype")
+    # Same levels as any other mood at the tier.
+    assert (auto.music.gain_db, auto.music.duck_db) == (run([], intensity="bold").music.gain_db, 0)
+    # Once the built-ins have an aggressive bed, it is used.
+    own = run([], intensity="bold", meta={"mood": "aggressive"}, beds={**BEDS, "aggressive": ("aggressive",)},
+              bed_lengths={**BED_LENGTHS, "aggressive": 25.6})
+    assert (own.music.mood, own.music.bed) == ("aggressive", "aggressive")
+    # Serious clips keep the inspiring bed whatever the pick, and a mood with neither bed nor fallback gets none.
+    serious = run([], style=EditStyle(intensity="bold", music_mood="aggressive"),
+                  meta={"mood": "aggressive", "sensitivity": "serious"})
+    assert serious.music.mood == "inspiring"
+    assert run([], intensity="bold", meta={"mood": "aggressive"}, beds={"chill": ("chill",)}).music is None
+
+
+def test_aggressive_is_not_a_calm_mood():
+    from src.edit_fx.resolver import CALM_MOODS
+    assert "aggressive" not in CALM_MOODS
 
 
 def test_rule9_loop_ending_offsets_the_bed_to_the_seam():

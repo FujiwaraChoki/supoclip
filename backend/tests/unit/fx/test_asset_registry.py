@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from src.edit_fx import assets
-from src.edit_fx.contracts import MOODS, SOUND_IDS
+from src.edit_fx.contracts import BED_FALLBACK, MOODS, SOUND_IDS
 
 BUILTIN = assets.builtin_dir()
 MANIFEST = json.loads((BUILTIN / "manifest.json").read_text(encoding="utf-8"))
@@ -79,7 +79,9 @@ def test_index_mirrors_the_builtin_manifest(empty_library):
         assert list(files) == [_builtin(sound, i) for i in range(len(files))]
         assert all(p.is_file() for p in files)
         assert all(index.sfx_duration[p] <= 2.5 for p in files)
-    assert {mood: ids for mood, ids in index.beds.items()} == {m: (m,) for m in MOODS}
+    assert {mood: ids for mood, ids in index.beds.items()} == {e["mood"]: (e["id"],) for e in MANIFEST["music"]}
+    assert set(index.beds) <= set(MOODS)
+    assert all(m in index.beds or BED_FALLBACK.get(m) in index.beds for m in MOODS)
     for entry in MANIFEST["music"]:
         assert index.bed_lengths[entry["id"]] == entry["loop_seconds"]
         assert index.bed_files[entry["id"]] == BUILTIN / entry["file"]
@@ -240,6 +242,8 @@ def test_beds_without_drop_ins(empty_library):
     assert assets.mix_bed_file("dark-gone", "dark", seed=4)[0] == BUILTIN / "music" / "dark.m4a"
     # a built-in id is honoured even if the mood says otherwise
     assert assets.mix_bed_file("funny", "hype", seed=0)[0] == BUILTIN / "music" / "funny.m4a"
+    # aggressive has no built-in bed: its plan borrows the hype bed, which plays as is without drop-ins
+    assert assets.mix_bed_file("hype", "aggressive", seed=2) == (BUILTIN / "music" / "hype.m4a", 0.0)
 
 
 @needs_ffmpeg
@@ -257,6 +261,22 @@ def test_bed_drop_ins(library, monkeypatch):
     assert assets.mix_bed_file("chill", "chill", seed=1)[0] == BUILTIN / "music" / "chill.m4a"
     # a missing custom id of a mood that has drop-ins uses one of them
     assert assets.mix_bed_file("hype-gone", "hype", seed=3)[0] in (one, two)
+
+
+@needs_ffmpeg
+def test_aggressive_drop_ins_replace_the_borrowed_hype_bed(library, monkeypatch):
+    monkeypatch.setattr(assets, "drop_in_gain_db", lambda _f: -3.0)
+    hype = _tone(library / "music" / "hype-one.wav", seconds=1.0, channels=2)
+    drill = _tone(library / "music" / "aggressive-drill.wav", seconds=1.0, channels=2)
+    trap = _tone(library / "music" / "aggressive-trap.mp3", seconds=1.0, channels=2)
+    lib = assets.load_library(refresh=True)
+    assert [f.id for f in lib.music["aggressive"]] == ["aggressive-drill", "aggressive-trap"]
+    # the plan names the borrowed built-in "hype"; the bed's own mood picks among the aggressive drop-ins
+    assert assets.mix_bed_file("hype", "aggressive", seed=0) == (drill, -3.0)
+    assert assets.mix_bed_file("hype", "aggressive", seed=1)[0] == trap
+    assert assets.mix_bed_file("hype", "hype", seed=0)[0] == hype
+    assert {e["id"] for e in assets.public_manifest()["music"] if e.get("mood") == "aggressive"} == {
+        "aggressive-drill", "aggressive-trap"}
 
 
 @needs_ffmpeg
