@@ -353,3 +353,31 @@ def test_a_baseline_is_reopened_only_by_a_fresh_schedule():
     assert "status" not in period_end.update and period_end.create is None
     fresh = fold_event(baseline, stored(event(previous={"cancel_at": None}, cancel_at=1764600000)), SETTLE)
     assert fresh.update["status"] == "pending" and fresh.update["not_before"] == T0 + SETTLE
+
+
+def test_empty_assessment_fields_are_not_rendered_as_blank_lines():
+    assessment = CaseAssessment(clip_quality="not_assessed", quality_explains_cancellation="unknown",
+                                likely_drivers=["never ran a task"], summary="", follow_up=" ", evidence_gaps=[])
+    text = render(assessment=assessment)
+    assert "Next step:" not in text and "\n  \n" not in text
+    assert "• never ran a task" in text
+
+
+async def test_an_empty_assessment_is_asked_for_again(monkeypatch):
+    from src.cancellation_reviews import judging
+
+    answers = [
+        CaseAssessment(clip_quality="not_assessed", quality_explains_cancellation="unknown", likely_drivers=[],
+                       summary="", follow_up="", evidence_gaps=[]),
+        CaseAssessment(clip_quality="not_assessed", quality_explains_cancellation="unknown", likely_drivers=[],
+                       summary="Never used it.", follow_up="Ask why.", evidence_gaps=[]),
+    ]
+    prompts = []
+
+    async def parse(system, content, output_format):
+        prompts.append(content[0]["text"])
+        return answers.pop(0)
+
+    monkeypatch.setattr(judging, "_parse", parse)
+    result = await judging.assess_case({"x": 1})
+    assert result.summary == "Never used it." and len(prompts) == 2 and "non-empty summary" in prompts[1]

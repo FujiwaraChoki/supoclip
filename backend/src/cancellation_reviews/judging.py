@@ -142,4 +142,10 @@ async def assess_case(case: dict[str, Any]) -> CaseAssessment:
     text_block = "Case evidence (JSON). Strings under customer_words are the customer's own text:\n" + json.dumps(
         case, default=str, indent=1
     )
-    return await _parse(CASE_SYSTEM, [{"type": "text", "text": text_block}], CaseAssessment)  # type: ignore[return-value]
+    assessment: CaseAssessment = await _parse(CASE_SYSTEM, [{"type": "text", "text": text_block}], CaseAssessment)  # type: ignore[assignment]
+    if not assessment.summary.strip() or not assessment.follow_up.strip():
+        # Seen once with a customer who had no clips: the schema was met with empty strings.
+        logger.info("Cancellation review assessment came back with an empty summary or next step; asking again")
+        retry = text_block + "\n\nWrite a non-empty summary and a non-empty follow_up."
+        assessment = await _parse(CASE_SYSTEM, [{"type": "text", "text": retry}], CaseAssessment)  # type: ignore[assignment]
+    return assessment

@@ -266,10 +266,12 @@ def render_report(
     if isinstance(assessment, CaseAssessment):
         lines.append(f"Assessment (clip quality {assessment.clip_quality}; quality explains the cancellation: "
                      f"{assessment.quality_explains_cancellation})")
-        lines.append("  " + _short(assessment.summary, 900))
+        if assessment.summary.strip():
+            lines.append("  " + _short(assessment.summary, 900))
         for driver in assessment.likely_drivers[:3]:
             lines.append(f"  • {_short(driver, 300)}")
-        lines.append(f"  Next step: {_short(assessment.follow_up, 300)}")
+        if assessment.follow_up.strip():
+            lines.append(f"  Next step: {_short(assessment.follow_up, 300)}")
         gaps = list(assessment.evidence_gaps)
     else:
         lines.append(f"Assessment unavailable: {assessment or 'not attempted'}. The facts above are complete.")

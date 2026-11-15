@@ -401,3 +401,23 @@ async def test_account_migration_transfer_is_excluded_until_the_customer_cancels
             await db_session.execute(text("DELETE FROM stripe_account_migrations WHERE source_subscription = :s"),
                                      {"s": sub_id})
         await db_session.commit()
+
+
+async def test_a_baseline_reopened_by_a_late_event_takes_the_event_account(
+    client, db_session, review_config, clean_tables, stub_model, chat, monkeypatch, tmp_path
+):
+    _user_id, customer = await seed_customer(db_session, tmp_path, with_clip=False)
+    monkeypatch.setattr(runner, "assess_case", _assess_no_words)
+    sub_id = f"sub_{uuid4().hex[:10]}"
+    await db_session.execute(
+        text("""INSERT INTO cancellation_reviews (id, account_id, livemode, subscription_id, customer_id, kind, status,
+                origin) VALUES (:id, '', TRUE, :s, :c, 'scheduled', 'baseline', 'baseline')"""),
+        {"id": str(uuid4()), "s": sub_id, "c": customer},
+    )
+    await db_session.commit()
+    body, headers = signed(subscription_event(sub_id, customer, previous={"cancel_at": None},
+                                              created=int(time.time()) - 3600))
+    await client.post(f"/webhooks/stripe/cancellations/{ACCOUNT}", content=body, headers=headers)
+    result = await run_until_idle(monkeypatch, review_config)
+    assert result["reviews"] == ["reported"]
+    assert f"account {ACCOUNT}" in chat[0]["message"]
