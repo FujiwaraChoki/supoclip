@@ -20,7 +20,7 @@ for (const viewport of [{ name: "desktop", width: 1280, height: 900 }, { name: "
     const section = page.getByRole("region", { name: "Connect Claude, ChatGPT or Grok" });
     await expect(section).toBeVisible();
     await expect(section.getByText("https://mcp.supoclip.com/mcp", { exact: true })).toBeVisible();
-    await expect(page.getByText("Claude connector", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "API keys" }).getByText("Claude connector", { exact: true })).toBeVisible();
 
     const open = section.getByRole("link", { name: /Open Claude/ });
     await expect(open).toHaveAttribute("href", "https://claude.ai/customize/connectors");

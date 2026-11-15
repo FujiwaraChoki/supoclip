@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "Agen & API",
     "intro": "Biarkan Claude, Cursor, dan agen AI lain membuat clip untukmu lewat <brand>server MCP SupoClip</brand>, atau panggil REST API dari kodemu sendiri. Perlakukan kunci seperti kata sandi; kunci memberi akses penuh ke akunmu.",
-    "docs": {
-      "agentTitle": "Hubungkan agen",
-      "agentDescription": "Siapkan server MCP di Claude, Cursor, dan klien MCP lain.",
-      "restTitle": "Referensi REST API",
-      "restDescription": "Endpoint, autentikasi, dan contoh untuk akses API langsung."
-    },
+    "docsMcp": "Dokumentasi MCP",
+    "docsRest": "Dokumentasi REST API",
+    "keysTitle": "Kunci API",
+    "keysIntro": "Untuk skrip, CI, dan klien MCP yang tidak bisa masuk lewat browser.",
+    "createKey": "Buat kunci",
+    "createTitle": "Buat kunci API",
+    "createDescription": "Beri nama sesuai tempat kamu memakainya, agar nanti tahu mana yang harus dicabut.",
+    "nameLabel": "Nama",
+    "createdTitle": "Kunci API barumu",
+    "useIn": "Pakai di klien MCP",
+    "done": "Selesai",
+    "cancel": "Batal",
     "signIn": "Masuk untuk mengelola kunci API-mu.",
     "signInAction": "Masuk",
     "verifyTitle": "Verifikasi emailmu untuk membuat kunci API",
@@ -107,12 +113,10 @@
     "invalidLink": "Tautan verifikasi ini tidak valid atau kedaluwarsa. Minta email baru di bawah.",
     "reveal": "Salin kunci barumu sekarang — kunci tidak akan ditampilkan lagi.",
     "copy": "Salin kunci API",
-    "createLabel": "Buat kunci baru",
     "namePlaceholder": "mis. MCP laptop saya",
     "create": "Buat",
     "creating": "Membuat…",
     "defaultName": "Kunci API",
-    "yourKeys": "Kuncimu",
     "empty": "Belum ada kunci API.",
     "revoked": "Dicabut",
     "meta": "Dibuat {created} · Terakhir dipakai {used}",
@@ -122,35 +126,25 @@
     "createFailed": "Gagal membuat kunci API",
     "revokeFailed": "Gagal mencabut kunci API",
     "mcp": {
-      "title": "Hubungkan agen",
-      "intro": "Buat kunci di atas, lalu salin konfigurasi untuk klienmu. Ganti {placeholder} dengan kuncimu, dan isi kolom URL hanya dengan URL.",
-      "introWithKey": "Kunci barumu sudah terisi di bawah. Salin konfigurasi untuk klienmu sekarang; kunci tidak akan ditampilkan lagi.",
-      "urlLabel": "URL server",
-      "headerLabel": "Header",
       "copy": "Salin {label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor & lainnya",
-        "claudeDesktop": "Claude Desktop",
         "stdio": "Lokal (stdio)"
       },
       "hints": {
-        "claudeCode": "Jalankan ini di terminal.",
         "json": "Untuk Cursor (~/.cursor/mcp.json), Windsurf, dan klien lain yang menerima URL dan header.",
-        "claudeDesktop": "Tambahkan ke claude_desktop_config.json. Perlu Node.js; mcp-remote menghubungkan Claude Desktop ke server yang di-hosting.",
         "stdio": "Menjalankan server di komputermu, jadi clip yang diunduh tersimpan di sana. Perlu uv."
-      },
-      "planNote": "Membuat clip lewat agen memakai menit video paketmu."
+      }
     },
     "assistants": {
       "title": "Hubungkan Claude, ChatGPT, atau Grok",
-      "intro": "Tidak perlu menyalin kunci API: tambahkan SupoClip sebagai konektor kustom di asisten, lalu masuk ke SupoClip dan izinkan akses. Asisten mendapat kuncinya sendiri, yang tercantum di Kuncimu.",
+      "intro": "Tidak perlu menyalin kunci API: tambahkan SupoClip sebagai konektor kustom di asisten, lalu masuk ke SupoClip dan izinkan akses. Asisten mendapat kuncinya sendiri, yang tercantum di Kunci API.",
       "urlLabel": "URL server",
       "pick": "Pilih asisten",
       "open": "Buka {name}",
       "guide": "Panduan {name}",
       "newTab": "(terbuka di tab baru)",
-      "revoke": "Setiap koneksi muncul di Kuncimu dengan nama aplikasinya (misalnya “Claude connector”). Cabut untuk memutuskan koneksi. Membuat clip lewat asisten memakai menit video paketmu.",
+      "revoke": "Setiap koneksi muncul di Kunci API dengan nama aplikasinya (misalnya “Claude connector”). Cabut untuk memutuskan koneksi. Membuat clip lewat asisten memakai menit video paketmu.",
       "claude": {
         "steps": {
           "1": "Di Claude, buka <b>Customize › Connectors</b>, pilih <b>Add</b>, lalu <b>Add custom connector</b>.",

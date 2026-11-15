@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "Agenten & API",
     "intro": "Lass Claude, Cursor und andere KI-Agenten Videos für dich schneiden, über den <brand>SupoClip-MCP-Server</brand>, oder ruf die REST-API aus deinem Code auf. Behandle Schlüssel wie Passwörter: Sie geben vollen Zugriff auf dein Konto.",
-    "docs": {
-      "agentTitle": "Einen Agenten verbinden",
-      "agentDescription": "Richte den MCP-Server in Claude, Cursor und anderen MCP-Clients ein.",
-      "restTitle": "REST-API-Referenz",
-      "restDescription": "Endpunkte, Authentifizierung und Beispiele für den direkten API-Zugriff."
-    },
+    "docsMcp": "MCP-Doku",
+    "docsRest": "REST-API-Doku",
+    "keysTitle": "API-Schlüssel",
+    "keysIntro": "Für Skripte, CI und MCP-Clients, die sich nicht im Browser anmelden können.",
+    "createKey": "Schlüssel erstellen",
+    "createTitle": "API-Schlüssel erstellen",
+    "createDescription": "Benenne ihn nach dem Ort, an dem du ihn nutzt, damit du später weißt, welchen du widerrufen musst.",
+    "nameLabel": "Name",
+    "createdTitle": "Dein neuer API-Schlüssel",
+    "useIn": "In einem MCP-Client verwenden",
+    "done": "Fertig",
+    "cancel": "Abbrechen",
     "signIn": "Melde dich an, um deine API-Schlüssel zu verwalten.",
     "signInAction": "Anmelden",
     "verifyTitle": "Bestätige deine E-Mail, um API-Schlüssel zu erstellen",
@@ -107,12 +113,10 @@
     "invalidLink": "Dieser Bestätigungslink ist ungültig oder abgelaufen. Fordere unten eine neue E-Mail an.",
     "reveal": "Kopier deinen neuen Schlüssel jetzt — er wird nicht noch einmal angezeigt.",
     "copy": "API-Schlüssel kopieren",
-    "createLabel": "Neuen Schlüssel erstellen",
     "namePlaceholder": "z. B. MCP auf meinem Laptop",
     "create": "Erstellen",
     "creating": "Wird erstellt…",
     "defaultName": "API-Schlüssel",
-    "yourKeys": "Deine Schlüssel",
     "empty": "Noch keine API-Schlüssel.",
     "revoked": "Widerrufen",
     "meta": "Erstellt {created} · Zuletzt genutzt {used}",
@@ -122,35 +126,25 @@
     "createFailed": "API-Schlüssel konnte nicht erstellt werden",
     "revokeFailed": "API-Schlüssel konnte nicht widerrufen werden",
     "mcp": {
-      "title": "Agent verbinden",
-      "intro": "Erstell oben einen Schlüssel und kopier dann die Konfiguration für deinen Client. Ersetze {placeholder} durch deinen Schlüssel und trag ins URL-Feld nur die URL ein.",
-      "introWithKey": "Dein neuer Schlüssel ist unten schon eingesetzt. Kopier die Konfiguration für deinen Client jetzt; der Schlüssel wird nicht noch einmal angezeigt.",
-      "urlLabel": "Server-URL",
-      "headerLabel": "Header",
       "copy": "{label} kopieren",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor & andere",
-        "claudeDesktop": "Claude Desktop",
         "stdio": "Lokal (stdio)"
       },
       "hints": {
-        "claudeCode": "Führ das in einem Terminal aus.",
         "json": "Für Cursor (~/.cursor/mcp.json), Windsurf und andere Clients, die eine URL und Header annehmen.",
-        "claudeDesktop": "In claude_desktop_config.json einfügen. Braucht Node.js; mcp-remote verbindet Claude Desktop mit dem gehosteten Server.",
         "stdio": "Startet den Server auf deinem Computer, heruntergeladene Clips landen also lokal. Braucht uv."
-      },
-      "planNote": "Clips, die ein Agent erstellt, verbrauchen die Videominuten deines Plans."
+      }
     },
     "assistants": {
       "title": "Claude, ChatGPT oder Grok verbinden",
-      "intro": "Kein API-Schlüssel zum Kopieren: Füge SupoClip im Assistenten als benutzerdefinierten Connector hinzu, melde dich dann bei SupoClip an und erlaube den Zugriff. Der Assistent erhält einen eigenen Schlüssel, der unter Deine Schlüssel steht.",
+      "intro": "Kein API-Schlüssel zum Kopieren: Füge SupoClip im Assistenten als benutzerdefinierten Connector hinzu, melde dich dann bei SupoClip an und erlaube den Zugriff. Der Assistent erhält einen eigenen Schlüssel, der unter API-Schlüssel steht.",
       "urlLabel": "Server-URL",
       "pick": "Assistenten wählen",
       "open": "{name} öffnen",
       "guide": "Anleitung von {name}",
       "newTab": "(öffnet in einem neuen Tab)",
-      "revoke": "Jede Verbindung erscheint unter Deine Schlüssel, benannt nach der App (zum Beispiel „Claude connector“). Widerrufe sie, um die Verbindung zu trennen. Clips über einen Assistenten verbrauchen die Videominuten deines Plans.",
+      "revoke": "Jede Verbindung erscheint unter API-Schlüssel, benannt nach der App (zum Beispiel „Claude connector“). Widerrufe sie, um die Verbindung zu trennen. Clips über einen Assistenten verbrauchen die Videominuten deines Plans.",
       "claude": {
         "steps": {
           "1": "Öffne in Claude <b>Customize › Connectors</b>, wähle <b>Add</b> und dann <b>Add custom connector</b>.",

@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "Agents & API",
     "intro": "Let Claude, Cursor and other AI agents clip videos for you through the <brand>SupoClip MCP server</brand>, or call the REST API from your own code. Treat keys like passwords; they grant full access to your account.",
-    "docs": {
-      "agentTitle": "Connect an agent",
-      "agentDescription": "Set up the MCP server in Claude, Cursor and other MCP clients.",
-      "restTitle": "REST API reference",
-      "restDescription": "Endpoints, authentication and examples for direct API access."
-    },
+    "docsMcp": "MCP docs",
+    "docsRest": "REST API docs",
+    "keysTitle": "API keys",
+    "keysIntro": "For scripts, CI and MCP clients that can't sign in through the browser.",
+    "createKey": "Create key",
+    "createTitle": "Create an API key",
+    "createDescription": "Name it after where you'll use it, so you know which one to revoke later.",
+    "nameLabel": "Name",
+    "createdTitle": "Your new API key",
+    "useIn": "Use it in an MCP client",
+    "done": "Done",
+    "cancel": "Cancel",
     "signIn": "Sign in to manage your API keys.",
     "signInAction": "Sign In",
     "verifyTitle": "Verify your email to create API keys",
@@ -107,12 +113,10 @@
     "invalidLink": "This verification link is invalid or expired. Request a new email below.",
     "reveal": "Copy your new key now — it won't be shown again.",
     "copy": "Copy API key",
-    "createLabel": "Create a new key",
     "namePlaceholder": "e.g. My laptop MCP",
     "create": "Create",
     "creating": "Creating…",
     "defaultName": "API Key",
-    "yourKeys": "Your keys",
     "empty": "No API keys yet.",
     "revoked": "Revoked",
     "meta": "Created {created} · Last used {used}",
@@ -122,35 +126,25 @@
     "createFailed": "Failed to create API key",
     "revokeFailed": "Failed to revoke API key",
     "mcp": {
-      "title": "Connect an agent",
-      "intro": "Create a key above, then copy the config for your client. Replace {placeholder} with your key, and put only the URL in a URL field.",
-      "introWithKey": "Your new key is filled in below. Copy the config for your client now; the key won't be shown again.",
-      "urlLabel": "Server URL",
-      "headerLabel": "Header",
       "copy": "Copy {label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor & others",
-        "claudeDesktop": "Claude Desktop",
         "stdio": "Local (stdio)"
       },
       "hints": {
-        "claudeCode": "Run this in a terminal.",
         "json": "For Cursor (~/.cursor/mcp.json), Windsurf and other clients that take a URL and headers.",
-        "claudeDesktop": "Add to claude_desktop_config.json. Needs Node.js; mcp-remote connects Claude Desktop to the hosted server.",
         "stdio": "Runs the server on your computer, so downloaded clips are saved locally. Needs uv."
-      },
-      "planNote": "Making clips through an agent uses your plan's video minutes."
+      }
     },
     "assistants": {
       "title": "Connect Claude, ChatGPT or Grok",
-      "intro": "No API key to copy: add SupoClip as a custom connector in the assistant, then sign in to SupoClip and allow access. The assistant gets its own key, listed under Your keys.",
+      "intro": "No API key to copy: add SupoClip as a custom connector in the assistant, then sign in to SupoClip and allow access. The assistant gets its own key, listed under API keys.",
       "urlLabel": "Server URL",
       "pick": "Choose an assistant",
       "open": "Open {name}",
       "guide": "{name} setup guide",
       "newTab": "(opens in a new tab)",
-      "revoke": "Each connection appears under Your keys, named after the app (for example “Claude connector”). Revoke it to disconnect. Making clips through an assistant uses your plan's video minutes.",
+      "revoke": "Each connection appears under API keys, named after the app (for example “Claude connector”). Revoke it to disconnect. Making clips through an assistant uses your plan's video minutes.",
       "claude": {
         "steps": {
           "1": "In Claude, open <b>Customize › Connectors</b>, select <b>Add</b>, then <b>Add custom connector</b>.",

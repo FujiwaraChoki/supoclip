@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "智能体与 API",
     "intro": "让 Claude、Cursor 和其他 AI 智能体通过 <brand>SupoClip MCP 服务器</brand>帮你剪视频，或者在你自己的代码里调用 REST API。密钥和密码一样：它们可以完全访问你的账号。",
-    "docs": {
-      "agentTitle": "连接智能体",
-      "agentDescription": "在 Claude、Cursor 和其他 MCP 客户端里设置 MCP 服务器。",
-      "restTitle": "REST API 参考",
-      "restDescription": "直接调用 API 的端点、身份验证和示例。"
-    },
+    "docsMcp": "MCP 文档",
+    "docsRest": "REST API 文档",
+    "keysTitle": "API 密钥",
+    "keysIntro": "用于脚本、CI 以及无法通过浏览器登录的 MCP 客户端。",
+    "createKey": "创建密钥",
+    "createTitle": "创建 API 密钥",
+    "createDescription": "按使用位置命名，方便以后知道该撤销哪一个。",
+    "nameLabel": "名称",
+    "createdTitle": "你的新 API 密钥",
+    "useIn": "在 MCP 客户端中使用",
+    "done": "完成",
+    "cancel": "取消",
     "signIn": "登录后管理你的 API 密钥。",
     "signInAction": "登录",
     "verifyTitle": "验证邮箱后才能创建 API 密钥",
@@ -107,12 +113,10 @@
     "invalidLink": "这个验证链接无效或已过期。请在下面重新请求邮件。",
     "reveal": "请马上复制新密钥 — 之后不会再显示。",
     "copy": "复制 API 密钥",
-    "createLabel": "创建新密钥",
     "namePlaceholder": "例如：我的笔记本电脑 MCP",
     "create": "创建",
     "creating": "正在创建…",
     "defaultName": "API 密钥",
-    "yourKeys": "你的密钥",
     "empty": "还没有 API 密钥。",
     "revoked": "已撤销",
     "meta": "创建于 {created} · 上次使用 {used}",
@@ -122,35 +126,25 @@
     "createFailed": "无法创建 API 密钥",
     "revokeFailed": "无法撤销 API 密钥",
     "mcp": {
-      "title": "连接智能体",
-      "intro": "先在上面创建密钥，再复制你所用客户端的配置。把 {placeholder} 换成你的密钥，URL 字段里只填 URL。",
-      "introWithKey": "你的新密钥已经填在下面。现在就复制客户端配置；密钥不会再次显示。",
-      "urlLabel": "服务器 URL",
-      "headerLabel": "请求头",
       "copy": "复制{label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor 等",
-        "claudeDesktop": "Claude Desktop",
         "stdio": "本地（stdio）"
       },
       "hints": {
-        "claudeCode": "在终端里运行。",
         "json": "适用于 Cursor（~/.cursor/mcp.json）、Windsurf 以及其他可以填写 URL 和请求头的客户端。",
-        "claudeDesktop": "加到 claude_desktop_config.json。需要 Node.js；mcp-remote 把 Claude Desktop 连接到托管服务器。",
         "stdio": "在你的电脑上运行服务器，下载的片段会保存在本地。需要 uv。"
-      },
-      "planNote": "通过智能体生成片段会消耗你套餐的视频分钟数。"
+      }
     },
     "assistants": {
       "title": "连接 Claude、ChatGPT 或 Grok",
-      "intro": "无需复制 API 密钥：在助手中将 SupoClip 添加为自定义连接器，然后登录 SupoClip 并允许访问。助手会获得自己的密钥，显示在“你的密钥”中。",
+      "intro": "无需复制 API 密钥：在助手中将 SupoClip 添加为自定义连接器，然后登录 SupoClip 并允许访问。助手会获得自己的密钥，显示在“API 密钥”中。",
       "urlLabel": "服务器 URL",
       "pick": "选择助手",
       "open": "打开 {name}",
       "guide": "{name} 设置指南",
       "newTab": "（在新标签页中打开）",
-      "revoke": "每个连接都会以应用名称显示在“你的密钥”中（例如“Claude connector”）。撤销即可断开连接。通过助手制作剪辑会消耗你套餐的视频分钟数。",
+      "revoke": "每个连接都会以应用名称显示在“API 密钥”中（例如“Claude connector”）。撤销即可断开连接。通过助手制作剪辑会消耗你套餐的视频分钟数。",
       "claude": {
         "steps": {
           "1": "在 Claude 中打开 <b>Customize › Connectors</b>，选择 <b>Add</b>，再选择 <b>Add custom connector</b>。",
