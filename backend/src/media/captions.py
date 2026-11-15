@@ -590,6 +590,7 @@ def build_assemblyai_ass_subtitles(
     center_x_override: Optional[int] = None,
     hook_editor_style: Optional[Dict[str, Any]] = None,
     hook_center_y: Optional[float] = None,
+    hook_position_y: Optional[float] = None,
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
@@ -740,7 +741,8 @@ def build_assemblyai_ass_subtitles(
             font_px,
             # An upper-third caption seam belongs to a reaction stack. Keep
             # the headline below the source subject, off the reactor's face.
-            position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
+            position_y=hook_position_y if hook_position_y is not None else (
+                0.94 if position_y_override is not None and position_y_override < .4 else None),
             editor_style=hook_editor_style,
             **({"time_map": time_map} if time_map is not None else {}),
             center_y=hook_center_y,

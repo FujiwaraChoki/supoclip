@@ -2648,7 +2648,19 @@ function behindTop(height, face) {
   if (!face) return BEHIND.noFaceTopFrac * height;
   return Math.max(BEHIND.minTopFrac * height, face.y - BEHIND.faceLift * face.h);
 }
-var LOOK_BEHIND = { font: "ArchivoBlack-Regular", widthFrac: 0.7, maxHeightFrac: 0.16, neck: 1.05, noFaceY: 0.45 };
+var LOOK_BEHIND = {
+  font: "ArchivoBlack-Regular",
+  widthFrac: 0.7,
+  maxHeightFrac: 0.16,
+  neck: 1.05,
+  noFaceY: 0.45,
+  // Close-ups (face ≥ 12 % of the height): the block's bottom edge sits 0.15 face heights above the top of the face
+  // box (the forehead), in the hair, so the head covers only the foot of its middle letters; its top never above
+  // 0.03 H.
+  closeUpFaceH: 0.12,
+  headOverlap: -0.15,
+  minTopFrac: 0.03
+};
 function lookBehindText(text) {
   const word = text.trim().split(/\s+/).filter(Boolean)[0] ?? "";
   return word.replace(/^[^\p{L}\p{N}$€£¥#]+|[^\p{L}\p{N}%]+$/gu, "").toLocaleLowerCase();
@@ -2663,7 +2675,8 @@ function lookBehindOps(cue, dc) {
     w100 > 0 ? LOOK_BEHIND.widthFrac * W * 100 / w100 : LOOK_BEHIND.maxHeightFrac * H,
     LOOK_BEHIND.maxHeightFrac * H
   );
-  const cy = dc.face ? Math.max(dc.face.y + LOOK_BEHIND.neck * dc.face.h, dc.face.y + 0.75 * dc.face.h + 0.5 * px) : LOOK_BEHIND.noFaceY * H;
+  const closeUp = dc.face !== void 0 && dc.face !== null && dc.face.h >= LOOK_BEHIND.closeUpFaceH * H;
+  const cy = !dc.face ? LOOK_BEHIND.noFaceY * H : closeUp ? Math.max(LOOK_BEHIND.minTopFrac * H + 0.5 * px, dc.face.y + LOOK_BEHIND.headOverlap * dc.face.h - 0.5 * px) : Math.max(dc.face.y + LOOK_BEHIND.neck * dc.face.h, dc.face.y + 0.75 * dc.face.h + 0.5 * px);
   const at = { text, font: family, px, x: W / 2, y: Math.min(cy, H - px) };
   const matte = p.matteAt(dc.t);
   if (matte?.person) {

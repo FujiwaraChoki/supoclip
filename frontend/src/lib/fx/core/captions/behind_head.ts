@@ -52,7 +52,13 @@ export function behindTop(height: number, face: DrawerContext["face"]): number {
  *  tall; 0.70 W, the top of the reference range, so the letters clear the chin on both sides), its block centred on
  *  the chin/neck (face top + 1.05 face heights), hard cut in and out (0 frames) on the
  *  reframes the resolver puts at both ends. */
-export const LOOK_BEHIND = { font: "ArchivoBlack-Regular", widthFrac: 0.7, maxHeightFrac: 0.16, neck: 1.05, noFaceY: 0.45 } as const;
+export const LOOK_BEHIND = {
+  font: "ArchivoBlack-Regular", widthFrac: 0.7, maxHeightFrac: 0.16, neck: 1.05, noFaceY: 0.45,
+  // Close-ups (face ≥ 12 % of the height): the block's bottom edge sits 0.15 face heights above the top of the face
+  // box (the forehead), in the hair, so the head covers only the foot of its middle letters; its top never above
+  // 0.03 H.
+  closeUpFaceH: 0.12, headOverlap: -0.15, minTopFrac: 0.03,
+} as const;
 
 export function lookBehindText(text: string): string {
   const word = text.trim().split(/\s+/).filter(Boolean)[0] ?? "";
@@ -67,11 +73,15 @@ function lookBehindOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
   const w100 = widthAt(p, text, family, 100);
   const px = Math.min(w100 > 0 ? (LOOK_BEHIND.widthFrac * W * 100) / w100 : LOOK_BEHIND.maxHeightFrac * H,
     LOOK_BEHIND.maxHeightFrac * H);
-  // Centred on the chin/neck; on a small (wide-shot) face the block drops so its top stays at the mouth line and the
-  // neck, not the whole head, crosses it.
-  const cy = dc.face
-    ? Math.max(dc.face.y + LOOK_BEHIND.neck * dc.face.h, dc.face.y + 0.75 * dc.face.h + 0.5 * px)
-    : LOOK_BEHIND.noFaceY * H;
+  // A close-up has torso, not background, below the chin: the word sits across the top of the head instead, the
+  // head covering only the lower part of its middle letters. On a small (wide-shot) face it is centred on the
+  // chin/neck, its top at least at the mouth line, so the neck, not the whole head, crosses it.
+  const closeUp = dc.face !== undefined && dc.face !== null && dc.face.h >= LOOK_BEHIND.closeUpFaceH * H;
+  const cy = !dc.face
+    ? LOOK_BEHIND.noFaceY * H
+    : closeUp
+      ? Math.max(LOOK_BEHIND.minTopFrac * H + 0.5 * px, dc.face.y + LOOK_BEHIND.headOverlap * dc.face.h - 0.5 * px)
+      : Math.max(dc.face.y + LOOK_BEHIND.neck * dc.face.h, dc.face.y + 0.75 * dc.face.h + 0.5 * px);
   const at = { text, font: family, px, x: W / 2, y: Math.min(cy, H - px) };
   const matte = p.matteAt(dc.t);
   if (matte?.person) {

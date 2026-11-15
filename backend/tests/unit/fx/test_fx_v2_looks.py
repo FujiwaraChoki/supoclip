@@ -43,7 +43,7 @@ def test_caption_look_for(template, intensity, sensitivity, expected):
 
 
 @pytest.mark.parametrize("look,px,font,upper,stroke", [
-    ("subtle", 52, "TikTokSans-Bold", False, 0.0), ("bold", 72, "Poppins-ExtraBold", False, 0.0),
+    ("subtle", 52, "TikTokSans-Bold", False, 3.64), ("bold", 72, "Poppins-ExtraBold", False, 0.0),
     ("max", 84, "THEBOLDFONT", True, 7.56),
 ])
 def test_look_caption_style_sizes_fonts_and_outline(look, px, font, upper, stroke):
@@ -55,7 +55,9 @@ def test_look_caption_style_sizes_fonts_and_outline(look, px, font, upper, strok
     # 720p: sizes scale with the width; a stacked layout's seam wins over the look's row.
     small = look_caption_style("emoji_drop", look, width=720, height=1280, caption_y=0.5)
     assert small.size_px == round(px * 720 / 1080) and small.y == 0.5
-    assert small.accent == {"subtle": "#F2C14E", "bold": "#FFE00B", "max": "#FCFB2B"}[look] and small.background is None
+    assert small.accent == {"subtle": "#F2C14E", "bold": "#FFE00B", "max": "#FCFB2B"}[look]
+    # Bold is the dark pill for every listed style (white words without an outline vanish over a white shirt).
+    assert small.background == ("#170904D9" if look == "bold" else None)
 
 
 def test_studio_document_style_follows_the_look():

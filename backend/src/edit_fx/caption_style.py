@@ -26,7 +26,7 @@ _HEX = re.compile(r"^#?([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 # the outline as a fraction of the size. Fonts are the closest bundled ones: TikTok Sans Bold for the DOAC/Inter
 # subtitle, Poppins ExtraBold for Hormozi's Poppins Bold, THE BOLD FONT for the Anton/Bebas clipper caps.
 LOOKS: dict[str, dict] = {
-    "subtle": {"font": "TikTokSans-Bold", "px": 52, "y": 0.68, "uppercase": False, "stroke_em": 0.0},
+    "subtle": {"font": "TikTokSans-Bold", "px": 52, "y": 0.68, "uppercase": False, "stroke_em": 0.07},
     "bold": {"font": "Poppins-ExtraBold", "px": 72, "y": 0.55, "uppercase": False, "stroke_em": 0.0},
     "max": {"font": "THEBOLDFONT", "px": 84, "y": 0.56, "uppercase": True, "stroke_em": 0.09},
 }
@@ -36,7 +36,10 @@ LOOK_ACCENTS: dict[tuple[str, str], str] = {
     ("highlighter_swipe", "max"): "#FFE45C",
 }
 LOOK_KEYWORD_COLORS: dict[str, str] = {"subtle": "#F2C14E", "bold": "#FFE00B", "max": "#FCFB2B"}
-LOOK_PILLS: dict[tuple[str, str], str] = {("highlighter_swipe", "bold"): "#170904D9"}
+# Bold is Hormozi's dark pill for every style: white words with no outline vanish over a white shirt.
+LOOK_PILLS: dict[tuple[str, str], str] = {
+    ("highlighter_swipe", "bold"): "#170904D9", ("emoji_drop", "bold"): "#170904D9", ("behind_head", "bold"): "#170904D9",
+}
 
 
 def look_accent(template_id: str, look: str) -> str:

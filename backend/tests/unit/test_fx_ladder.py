@@ -422,3 +422,13 @@ def test_interview_reframes_stay_off_the_stacked_two_shots(ladder):
     ladder.run(fx_plan(cues=zooms))
     sent = [c.id for c in fx_renders(ladder.calls)[0]["fx_request"].plan.cues if c.kind == "zoom"]
     assert sent == ["z1"]
+
+
+def test_interview_hook_title_moves_low_when_look_captions_take_the_seam():
+    seam = {"hook_center_y": 0.5}
+    look = FxRenderInput(plan=fx_plan(template="highlighter_swipe"), words=list(WORDS))
+    assert video_utils._interview_hook_kwargs({}, look, "highlighter_swipe", True) == {}
+    assert video_utils._interview_hook_kwargs(seam, look, "highlighter_swipe", True) == {"hook_position_y": 0.94}
+    # Legacy captions sit low, so the hook keeps the seam; so does a clip without captions or without edits.
+    assert video_utils._interview_hook_kwargs(seam, None, "default", True) == {"hook_center_y": 0.5}
+    assert video_utils._interview_hook_kwargs(seam, look, "highlighter_swipe", False) == {"hook_center_y": 0.5}

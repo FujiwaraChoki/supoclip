@@ -524,10 +524,7 @@ def create_optimized_clip(
                     **({"time_map": time_map} if time_map is not None else {}),
                     **({"censor_spans": censor_spans} if censor_spans else {}),
                     # Only stacked interview openings move the hook title.
-                    **(
-                        {"hook_center_y": plan_report["hook_center_y"]}
-                        if plan_report.get("hook_center_y") is not None else {}
-                    ),
+                    **_interview_hook_kwargs(plan_report, fx, caption_template, add_subtitles),
                 )
                 return ass_path if built else None
 
@@ -796,6 +793,24 @@ def _av_mismatch(path: Path) -> bool:
 FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap"})
 
 
+def _interview_hook_kwargs(plan_report: Dict[str, Any], fx: Any, caption_template: Optional[str],
+                           include_captions: bool) -> Dict[str, Any]:
+    """Where a stacked interview opening puts the hook title: on the panel seam, or, when intensity-look captions
+    own the seam, low on the lower person's chest (as on a reaction stack)."""
+    if plan_report.get("hook_center_y") is None:
+        return {}
+    if fx is not None and include_captions:
+        from .edit_fx.contracts import caption_look_for
+
+        if caption_look_for(caption_template, fx.plan.style.intensity, fx.plan.sensitivity) != "template":
+            return {"hook_position_y": INTERVIEW_HOOK_LOW_Y}
+    return {"hook_center_y": plan_report["hook_center_y"]}
+# Intensity-look captions on an interview clip sit on the stacked seam (and under the chin on a close-up); the hook
+# title then moves low, its bottom edge at 0.94.
+INTERVIEW_LOOK_CAPTION_Y = 0.5
+INTERVIEW_HOOK_LOW_Y = 0.94
+
+
 def _without_warp(plan: "FxPlan") -> "FxPlan":
     return plan.model_copy(update={"cues": tuple(c for c in plan.cues if c.kind not in ("speed", "freeze"))})
 
@@ -878,11 +893,16 @@ def _fx_ladder_setup(
         plan = plan.model_copy(update={"cues": tuple(
             c for c in plan.cues if not (c.kind == "zoom" and c.origin == "auto"))})
     elif panel_windows:
-        # An interview stacks only its two-shots: reframes stay on the single-person shots.
+        # An interview stacks only its two-shots: reframes stay on the single-person shots, and a word behind the
+        # speaker would be cut by the panel edge there.
+        def on_panels(c) -> bool:
+            return any(c.start < end and start < max(c.end, c.start + 1e-3) for start, end in panel_windows)
+
         plan = plan.model_copy(update={"cues": tuple(
             c for c in plan.cues
-            if not (c.kind == "zoom" and c.origin == "auto"
-                    and any(c.start < end and start < max(c.end, c.start + 1e-3) for start, end in panel_windows)))})
+            if not (on_panels(c) and ((c.kind == "zoom" and c.origin == "auto")
+                                      or (c.kind == "accent" and c.variant == "behind")))
+        )})
     # Slow baseline pushes only where the references use them: style-only and subtle (spec §3.5).
     if kenburns_eligible and plan.style.intensity in ("off", "subtle") and (plan.style.zooms or not plan.style.active):
         plan = baseline_pushes(plan, cuts=cuts, broll_windows=all_broll_windows)
@@ -901,6 +921,10 @@ def _fx_ladder_setup(
         from .media.captions import caption_center_clear_of_band
 
         y = float(caption_y) if caption_y is not None else float(LOOKS[look]["y"])
+        if layout_kind == "interview":
+            # On the seam of a stacked two-shot and under the chin on a close-up, where the references put
+            # captions; not on the lower person's chest.
+            y = INTERVIEW_LOOK_CAPTION_Y
         if source_caption_band is not None:
             text_height = int(look_size_px(look, width) * 1.5)
             y = caption_center_clear_of_band(y * height, text_height, source_caption_band, height) / height
