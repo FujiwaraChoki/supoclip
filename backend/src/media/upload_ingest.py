@@ -1,10 +1,16 @@
 """Store an uploaded video and answer before any transcode or remote copy.
 
-The request is finished once the bytes are on the shared uploads volume and
+The request is finished once the bytes are on the API's uploads volume and
 fsynced. Hashing happens while that file is published, so a retry of the same
 bytes can reuse it. Copying the original into object storage, and scaling
-sources above 1080p, both happen after the response: the copy on the worker
-(with the task's normal progress), and the scale inside ``prepare_source``.
+sources above 1080p, both happen after the response.
+
+With object storage on, a task may be picked up by a worker on another
+machine, which can only read the copy in object storage. Three things make
+that copy happen: the API starts it right after the response, a worker that
+shares the API's disk repeats it when the task starts, and the scheduler's
+``persist_pending_uploads`` finishes whatever a restart interrupted. A worker
+that cannot see the file waits for it (``upload_copy_pending``).
 """
 
 from __future__ import annotations
@@ -22,8 +28,10 @@ from ..config import get_config
 from ..database import AsyncSessionLocal
 from ..media.upload_limits import upload_too_large_detail
 from ..media_storage import MediaStorage
+from ..local_volume import volume_id
 from ..repositories.upload_repository import (
     get_stored_upload,
+    list_uncopied_uploads,
     save_storage_reference,
 )
 from ..utils.async_helpers import run_in_thread
@@ -193,6 +201,56 @@ async def persist_local_upload(video_path: str) -> None:
             open_handle.close()
 
         await run_in_thread(release, handle)
+
+
+async def upload_copy_pending(video_path: str) -> bool:
+    """True while an upload exists only on another machine's disk.
+
+    False once this process can read it: the file is on this disk, or object
+    storage has it. Also False when no copy is coming (storage is local, or
+    the file should be on this very disk and is not), so the caller reports
+    the missing file instead of waiting for it.
+    """
+    storage = MediaStorage()
+    if not storage.enabled:
+        return False
+    try:
+        path = local_upload_path(video_path)
+    except ValueError:
+        return False
+    if path.is_file():
+        return False
+    async with AsyncSessionLocal() as db:
+        row = await get_stored_upload(db, video_path)
+    if row is None or row.storage_reference:
+        return False
+    return row.staging_volume != volume_id(storage.config.temp_dir)
+
+
+async def persist_pending_uploads(limit: int = 5) -> int:
+    """Copy stored uploads on this disk that object storage does not have yet.
+
+    Recovers the copy the API starts after an upload when that process was
+    restarted or the copy failed. Uploads from before the disk was recorded
+    are tried too; a file that is not here is skipped.
+    """
+    storage = MediaStorage()
+    if not storage.enabled:
+        return 0
+    async with AsyncSessionLocal() as db:
+        pending = await list_uncopied_uploads(db, volume_id(storage.config.temp_dir))
+    copied = 0
+    for video_path in pending:
+        if copied >= limit:
+            break
+        try:
+            if not local_upload_path(video_path).is_file():
+                continue
+            await persist_local_upload(video_path)
+            copied += 1
+        except Exception:
+            logger.exception("Stored upload could not be copied to object storage; it will be retried")
+    return copied
 
 
 async def persist_upload_after_response(video_path: str) -> None:

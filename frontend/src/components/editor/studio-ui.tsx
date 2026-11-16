@@ -223,6 +223,13 @@ const EDITOR_ERROR_KEYS: Record<string, string> = {
   "Audio encoding is unavailable. Use background export.":
     "errors.audioEncodeUnavailable",
   "Export produced no video.": "errors.noVideo",
+  "The source video could not be fetched in full for this clip, so it was not opened with missing footage. Retry in a minute.":
+    "errors.sourceIncomplete",
+  "The original upload is shorter than this clip, so it cannot be opened for editing.":
+    "errors.uploadShorter",
+  "Wait for the current preparation or export to finish, then rebuild.": "errors.rebuildBusy",
+  "This draft changed in another tab. Reload it before rebuilding.": "errors.rebuildConflict",
+  "No earlier draft is kept for this clip": "errors.noBackup",
 };
 
 export function editorStatus(t: Translate, status: string) {

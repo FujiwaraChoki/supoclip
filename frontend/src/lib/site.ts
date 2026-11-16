@@ -5,6 +5,19 @@ export const COMPANY_REGISTERED_ADDRESS = "8 The Green, Suite B, Dover, DE 19901
 export const DEFAULT_SITE_URL = "https://www.supoclip.com";
 export const HOSTED_APP_URL = DEFAULT_SITE_URL;
 export const GITHUB_URL = "https://github.com/FujiwaraChoki/supoclip";
+/** The hosted MCP server's Streamable HTTP endpoint (legacy SSE clients use `/sse`). */
+export const HOSTED_MCP_URL = "https://mcp.supoclip.com/mcp";
+
+/** MCP endpoint shown in setup snippets; self-hosters set NEXT_PUBLIC_MCP_URL. */
+export function getMcpUrl() {
+  const value = process.env.NEXT_PUBLIC_MCP_URL?.trim();
+  if (!value) return HOSTED_MCP_URL;
+  try {
+    return new URL(value).toString().replace(/\/$/, "");
+  } catch {
+    return HOSTED_MCP_URL;
+  }
+}
 export const APP_STORE_ID = "6784760040";
 export const APP_STORE_URL = `https://apps.apple.com/us/app/supoclip/id${APP_STORE_ID}`;
 export const PRODUCT_HUNT_URL =

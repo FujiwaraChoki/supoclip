@@ -74,6 +74,8 @@ Notes:
 - The thank-you email is triggered after a successful Stripe checkout.
 - The cancellation email is triggered after Stripe subscription deletion.
 - Password reset links ("Forgot password?" on sign-in) are sent via `POST /account/password-reset-email`, which only accepts the frontend's signed session headers. Without SES configured, reset requests succeed silently but no email is sent.
+- Every email body is wrapped in a shared layout (`src/services/email_layout.py`). The logo and Geist font load from `{NEXT_PUBLIC_APP_URL}/email-assets/` (`frontend/public/email-assets`), self-hosted so opening an email never contacts a third party. On a plain-http app URL the layout shows a text wordmark and system fonts instead.
+- The "clips ready" email embeds stills of the top 3 clips (from their hook-title seconds) and of the source: the YouTube thumbnail, or the most colourful of a few random frames of an upload (skipped for portrait sources). They are sent as inline MIME parts, built within a 10-second budget, and left out if anything fails.
 
 ## YouTube Downloads
 

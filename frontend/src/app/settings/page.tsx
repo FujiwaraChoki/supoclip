@@ -58,6 +58,7 @@ export default function SettingsPage() {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
+  const [canCancelTransfer, setCanCancelTransfer] = useState(false);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   const { data: session, isPending } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
@@ -208,7 +209,7 @@ export default function SettingsPage() {
       setIsBillingActionLoading(true);
       const response = await fetch("/api/billing/portal", { method: "POST" });
       const responseText = await response.text();
-      let data: { url?: string; error?: string } = {};
+      let data: { url?: string; error?: string; code?: string } = {};
       if (responseText) {
         try {
           data = JSON.parse(responseText);
@@ -218,11 +219,29 @@ export default function SettingsPage() {
       }
 
       if (!response.ok || !data.url) {
+        setCanCancelTransfer(data.code === "billing_transfer_pending");
         throw new Error(data.error || t("plan.actionFailed"));
       }
 
       track("billing_portal_opened", { plan: billingSummary.plan });
       window.location.href = data.url;
+    } catch (billingError) {
+      setError(billingError instanceof Error ? billingError.message : t("plan.actionFailed"));
+    } finally {
+      setIsBillingActionLoading(false);
+    }
+  };
+
+  const cancelTransferRenewal = async () => {
+    if (!window.confirm(t("plan.transferCancelConfirm"))) return;
+    setIsBillingActionLoading(true);
+    try {
+      const response = await fetch("/api/billing/cancel", { method: "POST" });
+      const data: { error?: string } = await response.json();
+      if (!response.ok) throw new Error(data.error || t("plan.actionFailed"));
+      setCanCancelTransfer(false);
+      setError(null);
+      toast.success(t("plan.transferCancelSuccess"));
     } catch (billingError) {
       setError(billingError instanceof Error ? billingError.message : t("plan.actionFailed"));
     } finally {
@@ -600,7 +619,10 @@ export default function SettingsPage() {
         {error && (
           <Alert className="border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
             <AlertCircle className="h-4 w-4 text-red-500" />
-            <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
+            <AlertDescription className="text-sm text-red-700 dark:text-red-300">
+              {error}
+              {canCancelTransfer && <Button type="button" variant="outline" className="ml-3" disabled={isBillingActionLoading} onClick={cancelTransferRenewal}>{t("plan.transferCancel")}</Button>}
+            </AlertDescription>
           </Alert>
         )}
       </div>

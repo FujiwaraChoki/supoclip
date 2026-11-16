@@ -1,3 +1,4 @@
+import { stripeAccountsEnabled } from "@/lib/stripe-accounts";
 import { APIError } from "better-auth/api";
 import { monetizationEnabled } from "@/lib/monetization";
 import { deactivatePromotionCode } from "@/server/affiliates";
@@ -21,6 +22,11 @@ export const ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE =
  */
 export async function prepareAccountDeletion(userId: string): Promise<void> {
   const prisma = getPrismaClient();
+
+  if (stripeAccountsEnabled()) {
+    const migration = await prisma.stripeAccountMigration.findUnique({ where: { user_id: userId } });
+    if (migration && !["destination_active", "cancelled", "rollback_verified"].includes(migration.stage)) throw new APIError("BAD_REQUEST", { message: "Cancel the billing transfer from Manage Billing before deleting your account." });
+  }
 
   if (monetizationEnabled) {
     const user = await prisma.user.findUnique({

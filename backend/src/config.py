@@ -67,6 +67,11 @@ class Config:
         # download chain changes until this template is set.
         self.youtube_proxy_url = os.getenv("YOUTUBE_PROXY_URL", "").strip()
         self.youtube_proxy_timeout_seconds = self._get_int_env("YOUTUBE_PROXY_TIMEOUT_SECONDS", 300)
+        # Twitch/Kick: YOUTUBE_PROXY_TIMEOUT_SECONDS is how long a download may go
+        # without receiving data. This is the shortest overall cap for one call.
+        # A long VOD is allowed longer, up to an hour, while data is still arriving.
+        # Do not use the idle timeout as that cap.
+        self.stream_download_max_seconds = self._get_int_env("STREAM_DOWNLOAD_MAX_SECONDS", 2400)
         self.youtube_proxy_country = os.getenv("YOUTUBE_PROXY_COUNTRY", "").strip()
         self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
         self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)
@@ -142,6 +147,11 @@ class Config:
         self.media_failover_enabled = self._get_bool_env("MEDIA_FAILOVER_ENABLED", False)
         if self.media_failover_enabled and not self.media_fallback_enabled:
             raise ValueError("MEDIA_FAILOVER_ENABLED requires MEDIA_FALLBACK configuration")
+        self.media_preferred_store = os.getenv("MEDIA_PREFERRED_STORE", "primary").strip().lower()
+        if self.media_preferred_store not in {"primary", "fallback"}:
+            raise ValueError("MEDIA_PREFERRED_STORE must be primary or fallback")
+        if self.media_preferred_store == "fallback" and not self.media_failover_enabled:
+            raise ValueError("MEDIA_PREFERRED_STORE=fallback requires MEDIA_FAILOVER_ENABLED")
         self.media_url_ttl_seconds = min(3600, max(60, int(os.getenv("MEDIA_URL_TTL_SECONDS", "900"))))
         self.media_cache_ttl_seconds = max(14400, int(os.getenv("MEDIA_CACHE_TTL_SECONDS", "86400")))
         self.media_orphan_grace_seconds = max(86400, int(os.getenv("MEDIA_ORPHAN_GRACE_SECONDS", "86400")))
@@ -176,6 +186,11 @@ class Config:
         self.video_job_defer_seconds = min(
             300, max(5, self._get_int_env("VIDEO_JOB_DEFER_SECONDS", 20))
         )
+        # How long a worker on another machine waits for an upload to be
+        # copied from the API's disk to object storage before failing the task.
+        self.upload_copy_wait_seconds = max(
+            60, self._get_int_env("UPLOAD_COPY_WAIT_SECONDS", 1800)
+        )
         # Pickup delay (enqueue until a worker starts the job) that raises a
         # PostHog exception. Rate-limited so a backed-up queue pages once.
         self.queue_delay_alert_seconds = max(
@@ -188,6 +203,8 @@ class Config:
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
         self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
+        # Shared with the MCP server; enables its OAuth endpoints (/internal/mcp-oauth).
+        self.mcp_oauth_secret = self._get_optional_env("MCP_OAUTH_SECRET")
         self.allow_unsigned_backend_auth = self._get_bool_env(
             "ALLOW_UNSIGNED_BACKEND_AUTH", False
         )
@@ -215,6 +232,19 @@ class Config:
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
+
+        # Cancellation reviews (docs/cancellation-reviews.md). Stripe signs each account's
+        # endpoint with its own secret: "acct_A:whsec_...,acct_B:whsec_...". The legacy account
+        # id resolves users whose stripe_account_id is empty.
+        self.stripe_cancellation_webhook_secrets = self._get_optional_env("STRIPE_CANCELLATION_WEBHOOK_SECRETS")
+        self.stripe_source_account_id = self._get_optional_env("STRIPE_SOURCE_ACCOUNT_ID")
+        self.cancellation_reviews_enabled = self._get_bool_env("CANCELLATION_REVIEWS_ENABLED", False)
+        self.cancellation_review_settle_seconds = max(
+            60, self._get_int_env("CANCELLATION_REVIEW_SETTLE_SECONDS", 600)
+        )
+        # Signed chat webhook that receives the finished reports (HMAC V2, see delivery.py).
+        self.cancellation_report_webhook_url = self._get_optional_env("CANCELLATION_REPORT_WEBHOOK_URL")
+        self.cancellation_report_webhook_secret = self._get_optional_env("CANCELLATION_REPORT_WEBHOOK_SECRET")
 
         # Social publishing. Each provider needs an OAuth app registered by the
         # operator; users then connect their own accounts through that app.

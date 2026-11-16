@@ -211,6 +211,18 @@ CREATE TABLE api_keys (
     revoked_at TIMESTAMP WITH TIME ZONE
 );
 
+-- OAuth clients registered with the hosted MCP server (claude.ai, ChatGPT, ...).
+-- The access token a client receives is an API key above; no tokens are stored here.
+CREATE TABLE mcp_oauth_clients (
+    client_id VARCHAR(64) PRIMARY KEY,
+    client_secret VARCHAR(128),
+    client_name VARCHAR(200),
+    metadata JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX idx_mcp_oauth_clients_created_at ON mcp_oauth_clients (created_at);
+
 -- First-touch campaign attribution, written once shortly after sign-up
 CREATE TABLE user_acquisition (
     user_id VARCHAR(36) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

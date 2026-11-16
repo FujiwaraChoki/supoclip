@@ -1,5 +1,6 @@
 import { POST } from "./route";
 import { fetchBackend } from "@/server/backend-api";
+import { getPostHogServer } from "@/server/posthog";
 import { getPrismaClient } from "@/server/prisma";
 
 vi.mock("@/server/prisma", () => ({
@@ -8,6 +9,10 @@ vi.mock("@/server/prisma", () => ({
 
 vi.mock("@/server/backend-api", () => ({
   fetchBackend: vi.fn(),
+}));
+
+vi.mock("@/server/posthog", () => ({
+  getPostHogServer: vi.fn(),
 }));
 
 describe("/api/billing/revenuecat-webhook", () => {
@@ -273,5 +278,118 @@ describe("/api/billing/revenuecat-webhook", () => {
         }),
       }),
     );
+  });
+});
+
+describe("/api/billing/revenuecat-webhook analytics", () => {
+  const env = process.env;
+  const capture = vi.fn();
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(getPostHogServer).mockReturnValue({ capture } as never);
+    vi.mocked(fetchBackend).mockResolvedValue(new Response("{}", { status: 200 }));
+    process.env = { ...env, REVENUECAT_WEBHOOK_AUTH_HEADER: "rc_secret" };
+  });
+
+  afterAll(() => {
+    process.env = env;
+  });
+
+  function deliver(overrides: Record<string, unknown>) {
+    return POST(new Request("http://localhost/api/billing/revenuecat-webhook", {
+      method: "POST",
+      headers: { Authorization: "rc_secret" },
+      body: JSON.stringify({
+        event: {
+          id: "rc_evt_analytics",
+          type: "INITIAL_PURCHASE",
+          app_user_id: "user-1",
+          product_id: "com.samihindi.supoclip.scale.annual",
+          period_type: "NORMAL",
+          purchased_at_ms: 1770000000000,
+          expiration_at_ms: 1801536000000,
+          event_timestamp_ms: 1770000001000,
+          ...overrides,
+        },
+        api_version: "1.0",
+      }),
+    }));
+  }
+
+  function mockPrisma(user: Record<string, unknown> = {}) {
+    const ids = new Set<string>();
+    const update = vi.fn().mockResolvedValue({});
+    vi.mocked(getPrismaClient).mockReturnValue({
+      revenueCatWebhookEvent: {
+        create: vi.fn(async ({ data }: { data: { id: string } }) => {
+          if (ids.has(data.id)) throw { code: "P2002" };
+          ids.add(data.id);
+          return {};
+        }),
+        delete: vi.fn(async ({ where }: { where: { id: string } }) => {
+          ids.delete(where.id);
+          return {};
+        }),
+      },
+      affiliate: { findUnique: vi.fn().mockResolvedValue(null) },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: "user-1" }),
+        update,
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        ...user,
+      },
+    } as never);
+    return { update };
+  }
+
+  it("sends subscription_started once per App Store purchase", async () => {
+    mockPrisma();
+
+    expect((await deliver({})).status).toBe(200);
+    expect((await deliver({})).status).toBe(200);
+
+    expect(capture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      distinctId: "user-1",
+      event: "subscription_started",
+      timestamp: new Date(1770000001000),
+      properties: expect.objectContaining({
+        plan: "scale",
+        interval: "year",
+        provider: "apple",
+        trial: false,
+        $set: { plan: "scale", subscription_status: "active" },
+      }),
+    }));
+  });
+
+  it("sends nothing when the handler fails, and once when RevenueCat retries", async () => {
+    const { update } = mockPrisma();
+    update.mockRejectedValueOnce(new Error("database down"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect((await deliver({ type: "RENEWAL" })).status).toBe(500);
+    expect(capture).not.toHaveBeenCalled();
+    expect((await deliver({ type: "RENEWAL" })).status).toBe(200);
+    expect(capture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ event: "subscription_renewed" }));
+    error.mockRestore();
+  });
+
+  it("maps cancellation and expiration", async () => {
+    mockPrisma();
+
+    expect((await deliver({ id: "rc_cancel", type: "CANCELLATION", cancel_reason: "UNSUBSCRIBE" })).status).toBe(200);
+    expect((await deliver({ id: "rc_expire", type: "EXPIRATION" })).status).toBe(200);
+
+    expect(capture.mock.calls.map(([call]) => [call.event, call.properties.reason ?? null, call.properties.$set ?? null])).toEqual([
+      ["subscription_cancel_scheduled", "UNSUBSCRIBE", null],
+      ["subscription_canceled", null, { plan: "free", subscription_status: "inactive" }],
+    ]);
+  });
+
+  it("does not send an event when an expiration changed nothing", async () => {
+    mockPrisma({ updateMany: vi.fn().mockResolvedValue({ count: 0 }) });
+    expect((await deliver({ type: "EXPIRATION" })).status).toBe(200);
+    expect(capture).not.toHaveBeenCalled();
   });
 });

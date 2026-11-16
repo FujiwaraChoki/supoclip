@@ -36,6 +36,7 @@ from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
+from ...analytics import capture_clip_export, capture_event, request_client, source_kind
 from ...feature_flags import client_platform
 from ...source_identity import (
     duplicate_source_response,
@@ -45,10 +46,11 @@ from ...source_identity import (
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
-from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url
-from ...youtube_proxy import YouTubeGeoRestrictedError
+from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url, has_verified_duration
+from ...youtube_proxy import YouTubeAgeRestrictedError, YouTubeGeoRestrictedError
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
+    StreamDurationUnavailableError,
     StreamSourceError,
     fetch_stream_info,
 )
@@ -79,6 +81,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
+class _DurationUnavailable(Exception):
+    """Metadata came back, but with no positive length."""
+
+
+def _duration_unavailable_error(platform: str) -> HTTPException:
+    # Zero/missing length is what an in-progress livestream reports, but a
+    # provider glitch can too, so this says "may be", never "is".
+    return HTTPException(
+        status_code=422,
+        detail={
+            "code": "VIDEO_DURATION_UNAVAILABLE",
+            "message": (
+                f"We couldn't verify this {platform} video's length. It may be a "
+                "livestream that's still in progress, which isn't supported yet. "
+                "If it's a finished video, try again shortly; otherwise wait until "
+                "the stream ends and use the completed recording. No minutes were used."
+            ),
+        },
+    )
+
+
 async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
     """Check duration before creating a task or consuming a generation."""
     # wait_for cancels the awaiting task when this elapses. A yt-dlp call already
@@ -89,16 +112,28 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             async_get_youtube_video_info(url, deadline=time.monotonic() + timeout_seconds),
             timeout=timeout_seconds,
         )
-        duration = (metadata or {}).get("duration")
-        if isinstance(duration, bool) or not isinstance(duration, (int, float)):
-            raise ValueError("Missing video duration")
-        if not math.isfinite(duration) or duration <= 0:
-            raise ValueError("Invalid video duration")
+        if metadata is None:
+            raise ValueError("No metadata provider answered")
+        if metadata.get("age_restricted"):
+            raise YouTubeAgeRestrictedError()
+        if not has_verified_duration(metadata):
+            raise _DurationUnavailable()
+        duration = metadata["duration"]
+    except _DurationUnavailable:
+        raise _duration_unavailable_error("YouTube") from None
     except YouTubeGeoRestrictedError as exc:
         raise HTTPException(
             status_code=422,
             detail={
                 "code": "YOUTUBE_GEO_RESTRICTED",
+                "message": f"{exc} No minutes were used.",
+            },
+        ) from None
+    except YouTubeAgeRestrictedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "YOUTUBE_AGE_RESTRICTED",
                 "message": f"{exc} No minutes were used.",
             },
         ) from None
@@ -154,9 +189,11 @@ async def _preflight_stream_source(url: str, source: str, duration_limit: int) -
             run_in_thread(fetch_stream_info, url, deadline_seconds=STREAM_PREFLIGHT_DEADLINE_SECONDS),
             timeout=STREAM_PREFLIGHT_DEADLINE_SECONDS + 5,
         )
-        duration = (metadata or {}).get("duration")
-        if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
-            raise ValueError("Invalid video duration")
+        if not has_verified_duration(metadata):
+            raise _DurationUnavailable()
+        duration = metadata["duration"]
+    except (StreamDurationUnavailableError, _DurationUnavailable):
+        raise _duration_unavailable_error(source.title()) from None
     except StreamSourceError as exc:
         raise HTTPException(status_code=422, detail={"code": "VIDEO_UNAVAILABLE", "message": str(exc)}) from None
     except Exception:
@@ -771,6 +808,22 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 raise
 
             logger.info(f"Task {task_id} created and job {job_id} enqueued")
+            capture_event(
+                "task_created",
+                user_id,
+                {
+                    "task_id": task_id,
+                    "workflow": workflow_spec.workflow,
+                    "source_kind": source_kind(source_type, raw_source["url"]),
+                    "source_duration_seconds": math.ceil(duration_seconds),
+                    "has_instructions": bool(workflow_spec.options.instructions),
+                    "plan": billing.get("plan") if isinstance(billing, dict) else None,
+                    "client": request_client(request),
+                    "processing_mode": processing_mode,
+                    "output_format": output_format,
+                    "clip_length": clip_length,
+                },
+            )
 
             return {
                 "task_id": task_id,
@@ -1124,7 +1177,7 @@ async def get_clip_file(
     """Serve a clip file after verifying task ownership."""
     try:
         task_service = TaskService(db)
-        await _require_task_reader(request, task_service, db, task_id)
+        task = await _require_task_reader(request, task_service, db, task_id)
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
@@ -1132,10 +1185,14 @@ async def get_clip_file(
         if is_s3(clip["file_path"]):
             await db.close()
             url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"], attachment=download)
+            if download:
+                capture_clip_export(request, task, surface="original", format="original")
             return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
         clip_path = Path(clip["file_path"])
         if not clip_path.exists():
             raise HTTPException(status_code=404, detail="Clip file not found")
+        if download:
+            capture_clip_export(request, task, surface="original", format="original")
 
         # Release the DB connection before streaming: FastAPI keeps a
         # `Depends(get_db)` session open for the full response lifetime, and a
@@ -1218,6 +1275,7 @@ async def download_clip_archive(
     except clip_archive.ClipArchiveBusy as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from None
     filename = clip_archive.archive_filename(task.get("source_title"))
+    capture_clip_export(request, task, surface="zip", format="zip", clip_count=len(entries))
     return StreamingResponse(
         clip_archive.stream_with_slot(entries, MediaStorage(), slot),
         media_type="application/zip",
@@ -1493,7 +1551,7 @@ async def export_clip(
             )
 
         task_service = TaskService(db)
-        await _require_task_reader(request, task_service, db, task_id)
+        task = await _require_task_reader(request, task_service, db, task_id)
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
@@ -1514,6 +1572,7 @@ async def export_clip(
         )
 
         download_name = f"{Path(clip['filename']).stem}_{preset_name}.mp4"
+        capture_clip_export(request, task, surface="preset", format=preset_name)
         return FileResponse(
             path=str(output_path), media_type="video/mp4", filename=download_name,
             background=BackgroundTask(output_path.unlink, missing_ok=True),

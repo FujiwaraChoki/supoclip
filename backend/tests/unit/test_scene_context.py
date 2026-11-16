@@ -251,38 +251,41 @@ def test_all_fit_context_with_corner_reactor_uses_reaction_layout():
     assert analyze.call_args.kwargs == {"proc_width": 960, "analyze_context": False}
 
 
-def test_calm_wide_two_shot_is_full_frame_when_speaker_framing_declines():
+# A calm two-shot whose people are too far apart for one 9:16 crop used to
+# letterbox the whole clip (or, with diarized speakers, cut between them).
+# It is now an interview layout: both people stacked, each in a face crop
+# (see test_interview_layout.py for the composition itself).
+
+def test_calm_wide_two_shot_stacks_both_people_instead_of_letterboxing():
     evidence = _wide_pair()
     assert context_reason(evidence[0], 0.316) == "interaction_exceeds_crop"
     track = [(s.time, 400.0, s.face_area) for s in evidence]
     faces = _high_pair_boxes(evidence)
-    words = [{"text": "hello", "start": 0.2, "end": 0.6, "speaker": "A"}]
-    turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
     with patch.object(reframing, "ffprobe_duration", return_value=10), \
-         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], faces, evidence)), \
-         patch("src.media.speaker_framing.build_speaker_filter_plan", return_value=None):
-        graph, mode, caption_y = reframing.build_vertical_filter_plan(
-            Path("two-shot.mp4"), 1920, 1080, turns, words)
-    assert (graph, mode, caption_y) == (reframing.build_full_frame_filter(), "complex", 0.80)
-    assert "crop=606:" not in graph
+         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], faces, evidence)):
+        described = reframing.describe_vertical_layout(Path("two-shot.mp4"), 1920, 1080)
+    assert described["kind"] == "interview" and described["mode"] == "complex"
+    assert "vstack=inputs=2" in described["video_filter"]
+    assert "force_original_aspect_ratio=decrease" not in described["video_filter"]
 
 
-def test_calm_wide_two_shot_keeps_a_speaker_plan():
+def test_wide_two_shot_stays_stacked_with_diarized_speakers():
+    # Both people stay on screen while the camera shows both; speaker cuts
+    # remain for multi-person shots the interview layout does not take.
     evidence = _wide_pair()
     track = [(s.time, 400.0, s.face_area) for s in evidence]
     faces = _high_pair_boxes(evidence)
     words = [{"text": "hello", "start": 0.2, "end": 0.6, "speaker": "A"}]
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
-    speaker = ("crop=606:1080:x='100':y=0,scale=1080:1920", "vf")
     with patch.object(reframing, "ffprobe_duration", return_value=10), \
          patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], faces, evidence)), \
-         patch("src.media.speaker_framing.build_speaker_filter_plan", return_value=speaker):
+         patch("src.media.speaker_framing.build_speaker_filter_plan", side_effect=AssertionError("speaker cut")):
         graph, mode, _ = reframing.build_vertical_filter_plan(
             Path("two-shot.mp4"), 1920, 1080, turns, words)
-    assert (graph, mode) == speaker
+    assert mode == "complex" and "vstack=inputs=2" in graph
 
 
-def test_wide_two_shot_interval_stays_full_frame_beside_a_closeup():
+def test_wide_two_shot_beside_a_closeup_switches_at_the_cut():
     close = [subject(i / 3) for i in range(15)]
     wide = _wide_pair(count=15, start=5)
     evidence = close + wide
@@ -295,10 +298,10 @@ def test_wide_two_shot_interval_stays_full_frame_beside_a_closeup():
         graph, mode, _ = reframing.build_vertical_filter_plan(
             Path("mixed.mp4"), 1920, 1080, [{"speaker": "A"}], words)
     assert mode == "complex"
-    assert "[crsrc]" in graph
-    assert "between(t\\,0.000\\,5.000)" in graph
-    assert "between(t\\,5.000\\,10.000)" in graph
-    assert "force_original_aspect_ratio=decrease" in graph
+    # The close-up is a face crop until the cut, then both people are stacked.
+    assert "[s0]trim=end=5.000,crop=" in graph
+    assert "[s1]trim=start=5.000,split=2" in graph and "vstack=inputs=2" in graph
+    assert "force_original_aspect_ratio=decrease" not in graph
 
 
 def test_analyze_context_false_skips_flow_text_and_histograms():

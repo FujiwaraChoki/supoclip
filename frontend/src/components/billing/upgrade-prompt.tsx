@@ -24,6 +24,7 @@ import {
   type BillingPlanId,
   type PublicBillingPlan,
 } from "@/lib/billing-plans";
+import { trackEvent } from "@/lib/analytics";
 import { track } from "@/lib/datafast";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { startUpgrade } from "@/lib/start-upgrade";
@@ -245,6 +246,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
     if (open) {
       setSelected(preferred);
       track("upgrade_prompt_viewed", { reason: reason.kind, source, plan: billing?.plan ?? "free" });
+      trackEvent("upgrade_dialog_shown", { reason: reason.kind, plan: billing?.plan ?? "free", source });
     }
     // Only re-run when the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps

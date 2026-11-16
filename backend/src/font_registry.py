@@ -157,6 +157,108 @@ def find_font_path(
     return None
 
 
+# A user's font is uploaded to the API's disk. Captions are also rendered by
+# workers on other machines, so the font is kept in object storage as well and
+# a worker downloads it before the first render that needs it.
+
+
+def _font_storage():
+    from .media_storage import MediaStorage
+
+    storage = MediaStorage()
+    return storage if storage.enabled else None
+
+
+def _fetched_marker(font_path: Path) -> Path:
+    """Marks a copy downloaded from object storage, as opposed to the upload itself."""
+    return font_path.with_name(f".{font_path.name}.fetched")
+
+
+def user_font_reference(storage, user_id: str, filename: str) -> str:
+    return storage.reference(storage.key("fonts", sanitize_user_id_for_path(user_id), filename))
+
+
+def publish_user_font(font_path: Path, user_id: str) -> None:
+    storage = _font_storage()
+    if storage is not None:
+        storage.upload_file(font_path, storage.parse(user_font_reference(storage, user_id, font_path.name)))
+
+
+def unpublish_user_font(filename: str, user_id: str) -> None:
+    storage = _font_storage()
+    if storage is not None:
+        storage.delete(user_font_reference(storage, user_id, filename))
+
+
+def fetch_user_font(font_name: str, user_id: str) -> Path | None:
+    """Make a user's font available on this machine. None when the user has no such font."""
+    requested = (font_name or "").strip()
+    if not requested or not user_id or Path(requested).name != requested:
+        return None
+    storage = _font_storage()
+    local = find_user_font_path(requested, user_id)
+    if local is not None:
+        if storage is None or not _fetched_marker(local).exists():
+            return local
+        # A downloaded copy follows the stored font: the user may have deleted
+        # it, or deleted it and uploaded another file under the same name.
+        stored_size = storage.object_size(user_font_reference(storage, user_id, local.name))
+        if stored_size == local.stat().st_size:
+            return local
+        local.unlink(missing_ok=True)
+        _fetched_marker(local).unlink(missing_ok=True)
+        if stored_size is None:
+            return None
+    if storage is None:
+        return None
+    names = [requested] if Path(requested).suffix.lower() in SUPPORTED_FONT_EXTENSIONS else [
+        f"{requested}{extension}" for extension in SUPPORTED_FONT_EXTENSIONS
+    ]
+    directory = get_user_fonts_dir(user_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        target = directory / name
+        if storage.fetch(user_font_reference(storage, user_id, name), target):
+            _fetched_marker(target).touch()
+            return target
+    return None
+
+
+def publish_local_user_fonts() -> int:
+    """Store user fonts that only exist on this disk.
+
+    Fonts uploaded before they were kept in object storage are on the API's
+    disk only. Downloaded copies are skipped, so a font the user deleted is
+    not stored again from a worker's cache.
+    """
+    import logging
+
+    from .media_storage import STORAGE_ERRORS
+
+    storage = _font_storage()
+    if storage is None or not USER_FONTS_DIR.is_dir():
+        return 0
+    published = 0
+    try:
+        stored = set()
+        prefix = storage.key("fonts") + "/"
+        for page in storage.client.get_paginator("list_objects_v2").paginate(Bucket=storage.bucket, Prefix=prefix):
+            stored.update(obj["Key"] for obj in page.get("Contents", []))
+        for directory in USER_FONTS_DIR.iterdir():
+            if not directory.is_dir():
+                continue
+            for font_path in directory.iterdir():
+                if font_path.suffix.lower() not in SUPPORTED_FONT_EXTENSIONS or _fetched_marker(font_path).exists():
+                    continue
+                key = storage.key("fonts", directory.name, font_path.name)
+                if key not in stored:
+                    storage.upload_file(font_path, key)
+                    published += 1
+    except STORAGE_ERRORS:
+        logging.getLogger(__name__).warning("User fonts will be copied to object storage on a later pass")
+    return published
+
+
 def _decode_ttf_name(raw_value: bytes, platform_id: int) -> str:
     encodings = ["utf-16-be"] if platform_id in {0, 3} else ["mac_roman", "utf-8"]
     for encoding in encodings:

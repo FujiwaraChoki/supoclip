@@ -213,3 +213,11 @@ def test_long_hook_title_shrinks_below_the_preferred_size():
     assert size < 64
     assert size == max(1, int(usable / (len(word) * 0.52)))
     assert word in events[0]
+
+
+def test_hook_title_can_be_centred_on_a_stacked_seam():
+    template = {"font_color": "#FFFFFF", "stroke_color": "#000000", "stroke_width": 3}
+    _, events = build_hook_title_ass("Boss of the algorithm", template, 1080, 1920, 30.0, "Arial", 62, center_y=0.5)
+    assert "\\an5\\pos(540,960)" in events[0]
+    _, default = build_hook_title_ass("Boss of the algorithm", template, 1080, 1920, 30.0, "Arial", 62)
+    assert "\\pos(" not in default[0]

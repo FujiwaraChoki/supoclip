@@ -14,6 +14,7 @@ import logging
 import shutil
 import subprocess
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -122,12 +123,12 @@ def missing_intervals(
                 continue
             if cached_start >= limit:
                 break
-            if cached_start > cursor:
+            if cached_start > cursor + COVERAGE_TOLERANCE_SECONDS:
                 gaps.append((cursor, min(cached_start, limit)))
             cursor = max(cursor, cached_end)
             if cursor >= limit:
                 break
-        if cursor < limit - 0.05:
+        if cursor < limit - COVERAGE_TOLERANCE_SECONDS:
             gaps.append((cursor, limit))
     return merge_ranges(gaps, padding=0.0)
 
@@ -176,6 +177,14 @@ class TimeSpan:
         return self.local_start + (self.original_end - self.original_start)
 
 
+# Section cuts land on frame boundaries, so allow a few frames either side.
+COVERAGE_TOLERANCE_SECONDS = 0.15
+
+
+class SourceCoverageError(ValueError):
+    """A media file does not hold every requested source range."""
+
+
 @dataclass(frozen=True)
 class TimeMap:
     """Maps original source time onto a concatenated local file."""
@@ -213,9 +222,49 @@ class TimeMap:
             return nearest.original_start
         return nearest.original_end
 
-    def to_local_ranges(self, ranges: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
+    def covered_local_range(
+        self, start: float, end: float, tolerance: float = COVERAGE_TOLERANCE_SECONDS
+    ) -> Optional[tuple[float, float]]:
+        """The local range that plays ``start``-``end`` in full, or None.
+
+        The pieces of the file that hold the range must be adjacent both in
+        the source and in the file. Anything else would play a shorter or
+        different stretch of the video.
+        """
+        pieces = []
+        for span in self.spans:
+            a, b = max(start, span.original_start), min(end, span.original_end)
+            if b > a:
+                pieces.append((a, b, span.local_start + a - span.original_start, span.local_start + b - span.original_start))
+        if not pieces:
+            return None
+        pieces.sort()
+        if pieces[0][0] > start + tolerance or pieces[-1][1] < end - tolerance:
+            return None
+        for previous, current in zip(pieces, pieces[1:]):
+            if current[0] > previous[1] + tolerance or abs(current[2] - previous[3]) > tolerance:
+                return None
+        return pieces[0][2], pieces[-1][3]
+
+    def to_local_ranges(
+        self, ranges: Iterable[tuple[float, float]], *, strict: bool = False
+    ) -> list[tuple[float, float]]:
+        """Map source ranges onto the file.
+
+        By default a range the file does not hold is clamped to the nearest
+        piece. ``strict`` raises ``SourceCoverageError`` instead, so a caller
+        never renders a shorter clip than it asked for.
+        """
         converted = []
         for start, end in ranges:
+            if strict:
+                local = self.covered_local_range(float(start), float(end))
+                if local is None:
+                    raise SourceCoverageError(
+                        f"The source file does not contain {float(start):.2f}-{float(end):.2f}s"
+                    )
+                converted.append(local)
+                continue
             local_start = self.to_local(float(start))
             local_end = self.to_local(float(end))
             if local_end > local_start:
@@ -267,7 +316,11 @@ def save_time_map(media_path: Path, time_map: TimeMap) -> None:
             for span in time_map.spans
         ],
     }
-    timeline_path(media_path).write_text(json.dumps(payload), encoding="utf-8")
+    # Write then rename, so a reader never sees half a timeline.
+    destination = timeline_path(media_path)
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    temporary.write_text(json.dumps(payload), encoding="utf-8")
+    temporary.replace(destination)
 
 
 def load_time_map(media_path: Path) -> Optional[TimeMap]:
@@ -386,11 +439,58 @@ def restore_clip_timeline(clip_info: dict, time_map: Optional[TimeMap], original
     return clip_info
 
 
-def local_ranges_for(media_path: Path, ranges: list[tuple[float, float]]) -> list[tuple[float, float]]:
+def local_ranges_for(
+    media_path: Path, ranges: list[tuple[float, float]], *, strict: bool = False
+) -> list[tuple[float, float]]:
+    """Source ranges in ``media_path``'s own time.
+
+    ``strict`` raises ``SourceCoverageError`` when the file does not hold a
+    range in full, for a section file and for a full file alike.
+    """
     time_map = load_time_map(media_path)
-    if time_map is None:
-        return [(float(start), float(end)) for start, end in ranges]
-    return time_map.to_local_ranges(ranges)
+    if time_map is not None:
+        return time_map.to_local_ranges(ranges, strict=strict)
+    converted = [(float(start), float(end)) for start, end in ranges]
+    if strict and converted:
+        from .media.ffmpeg import ffprobe_duration
+
+        try:
+            duration = ffprobe_duration(Path(media_path))
+        except RuntimeError:
+            # Unreadable media fails the render itself; the prepared length
+            # is checked again afterwards.
+            logger.warning("Could not read the duration of %s", media_path)
+            return converted
+        last = max(end for _, end in converted)
+        if duration and last > duration + COVERAGE_TOLERANCE_SECONDS:
+            raise SourceCoverageError(
+                f"The source file ends before {last:.2f}s"
+            )
+    return converted
+
+
+def private_work_copy(media_path: Path, video_id: str, task_id: Optional[str]) -> Optional[Path]:
+    """Hard-link another job's assembled timeline into a new work directory.
+
+    A ``youtube-work`` file belongs to the job that assembled it, which may
+    delete its directory at any time. The links keep this job's copy whole
+    until it removes its own directory. None when linking is not possible.
+    """
+    import os
+
+    source = Path(media_path)
+    if not is_youtube_work_path(source) or not source.is_file():
+        return None
+    work = _work_dir(video_id, task_id)
+    try:
+        for sibling in source.parent.glob(f"{source.stem}.*"):
+            if sibling.is_file() and not sibling.name.endswith(".tmp"):
+                os.link(sibling, work / sibling.name)
+    except OSError:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    copy = work / source.name
+    return copy if copy.exists() else None
 
 
 @dataclass
@@ -522,36 +622,117 @@ def _persist_named(video_id: str, path: Path) -> None:
         logger.warning("Could not store YouTube cache file %s: %s", path.name, redact_secrets(str(exc)))
 
 
-def _restore_remote_cache(video_id: str, directory: Path) -> None:
-    if (directory / MANIFEST_NAME).exists():
-        return
-    storage = _storage()
-    if storage is None:
-        return
-    manifest_path = directory / MANIFEST_NAME
-    try:
-        found = storage._download(
-            storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME),
-            manifest_path,
-            optional=True,
-        )
-    except Exception as exc:
-        logger.warning("Could not restore YouTube cache for %s: %s", video_id, redact_secrets(str(exc)))
-        return
-    if not found:
-        return
-    manifest = _load_manifest(directory, video_id)
+# Each machine keeps its own copy of this cache and mirrors it to object
+# storage. The stored manifest is the union of what every machine cached, so a
+# machine that has not downloaded a section can fetch it from storage instead
+# of going back to YouTube.
+REMOTE_REFRESH_SECONDS = 300
+REMOTE_CHECKED_NAME = ".remote-checked"
+
+
+def _manifest_files(manifest: dict) -> list[str]:
     names = []
-    if manifest.get("audio"):
-        names.append(manifest["audio"])
-        names.append(str(Path(manifest["audio"]).with_suffix(".transcript_cache.json").name))
-    if manifest.get("full"):
-        names.append(manifest["full"])
-        names.append(str(Path(manifest["full"]).with_suffix(".transcript_cache.json").name))
+    for kind in ("audio", "full"):
+        if manifest.get(kind):
+            names.append(manifest[kind])
+            names.append(str(Path(manifest[kind]).with_suffix(".transcript_cache.json").name))
     for item in manifest.get("ranges") or []:
         if item.get("file"):
             names.append(item["file"])
-    for name in names:
+    return names
+
+
+def _merge_manifests(local: dict, remote: dict, usable: Optional[Callable[[str], bool]] = None) -> dict:
+    """``local`` plus the entries only ``remote`` has. ``usable`` filters those by file name."""
+    usable = usable or (lambda _name: True)
+    merged = dict(local)
+    if remote.get("audio_policy") != AUDIO_POLICY:
+        # Audio and sections chosen under an earlier policy are not reused.
+        remote = {"full": remote.get("full"), "full_height": remote.get("full_height")}
+    if not merged.get("audio") and remote.get("audio") and usable(remote["audio"]):
+        merged["audio"] = remote["audio"]
+    if remote.get("full") and usable(remote["full"]):
+        try:
+            better = int(remote.get("full_height") or 0) > int(merged.get("full_height") or 0)
+        except (TypeError, ValueError):
+            better = False
+        if not merged.get("full") or better:
+            merged["full"] = remote["full"]
+            merged["full_height"] = remote.get("full_height")
+    known = {item.get("file") for item in merged.get("ranges") or []}
+    merged["ranges"] = list(merged.get("ranges") or []) + [
+        item for item in remote.get("ranges") or []
+        if item.get("file") and item["file"] not in known and usable(item["file"])
+    ]
+    return merged
+
+
+def _remote_manifest(storage, video_id: str, directory: Path) -> Optional[dict]:
+    """The manifest in object storage, or None when there is none."""
+    temporary = directory / f".{MANIFEST_NAME}.remote"
+    try:
+        if not storage._download(storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME), temporary, optional=True):
+            return None
+        return json.loads(temporary.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _persist_manifest(video_id: str, directory: Path) -> None:
+    """Add this machine's entries to the stored manifest without dropping another machine's."""
+    storage = _storage()
+    path = directory / MANIFEST_NAME
+    if storage is None or not path.exists():
+        return
+    from contextlib import ExitStack
+
+    temporary = directory / f".{MANIFEST_NAME}.upload"
+    try:
+        with ExitStack() as stack:
+            try:
+                from . import sync_db
+
+                # Two machines reading, merging and writing at once would each
+                # lose the other's entry.
+                stack.enter_context(sync_db.advisory_lock(f"youtube-cache:{video_id}"))
+            except Exception:
+                logger.warning("YouTube cache manifest stored without a cross-machine lock")
+            remote = _remote_manifest(storage, video_id, directory)
+            local = _load_manifest(directory, video_id)
+            temporary.write_text(json.dumps(_merge_manifests(local, remote) if remote else local), encoding="utf-8")
+            storage.upload_file(temporary, storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME))
+    except Exception as exc:
+        logger.warning("Could not store YouTube cache manifest: %s", redact_secrets(str(exc)))
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _restore_remote_cache(video_id: str, directory: Path) -> None:
+    """Fetch cached files this machine lacks. Called with the cache lock held."""
+    storage = _storage()
+    if storage is None:
+        return
+    checked = directory / REMOTE_CHECKED_NAME
+    have_manifest = (directory / MANIFEST_NAME).exists()
+    try:
+        # A machine with its own manifest still looks for what others added,
+        # but not on every call: each job asks several times.
+        if have_manifest and time.time() - checked.stat().st_mtime < REMOTE_REFRESH_SECONDS:
+            return
+    except OSError:
+        pass
+    try:
+        remote = _remote_manifest(storage, video_id, directory)
+    except Exception as exc:
+        logger.warning("Could not restore YouTube cache for %s: %s", video_id, redact_secrets(str(exc)))
+        return
+    checked.touch()
+    if not remote:
+        return
+    local = _load_manifest(directory, video_id)
+    for name in _manifest_files(_merge_manifests(local, remote)):
         dest = directory / name
         if dest.exists():
             continue
@@ -559,6 +740,10 @@ def _restore_remote_cache(video_id: str, directory: Path) -> None:
             storage._download(storage.key(CACHE_DIRNAME, video_id, name), dest, optional=True)
         except Exception as exc:
             logger.warning("Could not restore %s for %s: %s", name, video_id, redact_secrets(str(exc)))
+    # Only entries whose file arrived are recorded, so a failed fetch is tried again.
+    merged = _merge_manifests(local, remote, usable=lambda name: (directory / name).is_file())
+    if merged != local or not have_manifest:
+        _save_manifest(directory, merged)
 
 
 def _pieces(directory: Path, manifest: dict) -> list[CachedPiece]:
@@ -700,7 +885,7 @@ def adopt_full_download(
     transcript = dest.with_suffix(".transcript_cache.json")
     if transcript.exists():
         _persist_named(video_id, transcript)
-    _persist_named(video_id, directory / MANIFEST_NAME)
+    _persist_manifest(video_id, directory)
     log_youtube_attempt(
         provider="cache",
         video_id=video_id,
@@ -872,7 +1057,7 @@ def download_audio_for_job(
         manifest["audio"] = downloaded.name
         _save_manifest(directory, manifest)
     _persist_named(video_id, downloaded)
-    _persist_named(video_id, directory / MANIFEST_NAME)
+    _persist_manifest(video_id, directory)
     return downloaded
 
 
@@ -880,8 +1065,8 @@ def _cover_pieces(pieces: list[CachedPiece], start: float, end: float) -> Option
     """Greedy cover of ``[start, end]`` by cached pieces, in timeline order."""
     chosen: list[CachedPiece] = []
     cursor = start
-    while cursor < end - 0.05:
-        candidates = [piece for piece in pieces if piece.start <= cursor + 0.25 and piece.end > cursor + 0.05]
+    while cursor < end - COVERAGE_TOLERANCE_SECONDS:
+        candidates = [piece for piece in pieces if piece.start <= cursor + COVERAGE_TOLERANCE_SECONDS and piece.end > cursor + 0.05]
         if not candidates:
             return None
         best = max(candidates, key=lambda piece: piece.end)
@@ -907,9 +1092,9 @@ def _plan_slices(
             continue
         slices.append((piece, slice_start, slice_end))
         cursor = slice_end
-        if cursor >= end - 0.05:
+        if cursor >= end - COVERAGE_TOLERANCE_SECONDS:
             break
-    if cursor < end - 0.05:
+    if cursor < end - COVERAGE_TOLERANCE_SECONDS:
         return []
     return slices
 
@@ -993,11 +1178,12 @@ def _concat_local(files: list[Path], dest: Path, *, durations: Optional[list[flo
 def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
     from .youtube_proxy import sticky_session_id
 
+    # Several jobs of one task (the task itself, editor preparations of its
+    # clips) can assemble timelines at the same time. Each gets its own
+    # directory, so none of them overwrites or deletes another's file.
     name = sticky_session_id(task_id, video_id)
-    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}"
-    if directory.exists():
-        shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}-{uuid.uuid4().hex[:12]}"
+    directory.mkdir(parents=True, exist_ok=False)
     return directory
 
 
@@ -1067,7 +1253,7 @@ def materialize_clip_source(
             })
             _save_manifest(directory, manifest)
             _persist_named(video_id, target)
-            _persist_named(video_id, directory / MANIFEST_NAME)
+            _persist_manifest(video_id, directory)
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)

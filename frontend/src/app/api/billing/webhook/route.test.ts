@@ -1,6 +1,7 @@
 import { POST } from "./route";
 import { fetchBackend } from "@/server/backend-api";
 import { getPrismaClient } from "@/server/prisma";
+import { getPostHogServer } from "@/server/posthog";
 import { getServerStripeClient } from "@/server/stripe";
 
 vi.mock("@/lib/monetization", () => ({
@@ -17,6 +18,10 @@ vi.mock("@/server/stripe", () => ({
 
 vi.mock("@/server/backend-api", () => ({
   fetchBackend: vi.fn(),
+}));
+
+vi.mock("@/server/posthog", () => ({
+  getPostHogServer: vi.fn(),
 }));
 
 describe("/api/billing/webhook", () => {
@@ -970,5 +975,257 @@ describe("/api/billing/webhook upgrade payment", () => {
       subscription("price_scale", "active", upgradeInvoice("open", 1500)),
     );
     expect(duplicateUpdate.plan).toBe("scale");
+  });
+});
+
+describe("/api/billing/webhook analytics", () => {
+  const env = process.env;
+  const capture = vi.fn();
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(getPostHogServer).mockReturnValue({ capture } as never);
+    vi.mocked(fetchBackend).mockResolvedValue(new Response("{}", { status: 200 }));
+    process.env = {
+      ...env,
+      STRIPE_WEBHOOK_SECRET: "whsec_test",
+      STRIPE_PRO_PRICE_ID: "price_pro",
+      STRIPE_SCALE_PRICE_ID: "price_scale",
+      STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+    };
+  });
+
+  afterAll(() => {
+    process.env = env;
+  });
+
+  /** A dedup table that behaves like the real one: a second insert of an id fails with P2002. */
+  function webhookEvents() {
+    const ids = new Set<string>();
+    return {
+      ids,
+      create: vi.fn(async ({ data }: { data: { id: string } }) => {
+        if (ids.has(data.id)) throw { code: "P2002" };
+        ids.add(data.id);
+        return {};
+      }),
+      delete: vi.fn(async ({ where }: { where: { id: string } }) => {
+        ids.delete(where.id);
+        return {};
+      }),
+    };
+  }
+
+  function deliver() {
+    return POST(new Request("http://localhost/api/billing/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "sig" },
+      body: "{}",
+    }));
+  }
+
+  function stripeEvent(id: string, type: string, object: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+    vi.mocked(getServerStripeClient).mockReturnValue({
+      webhooks: { constructEvent: vi.fn().mockReturnValue({ id, type, created: 1793491200, data: { object } }) },
+      ...extra,
+    } as never);
+  }
+
+  const activeSubscription = {
+    id: "sub_123",
+    customer: "cus_123",
+    status: "active",
+    trial_end: null,
+    cancel_at: null,
+    cancel_at_period_end: false,
+    items: {
+      data: [{
+        price: { id: "price_pro_annual", recurring: { interval: "year" } },
+        current_period_start: 1770000000,
+        current_period_end: 1801536000,
+      }],
+    },
+  };
+
+  it("sends subscription_started once, after checkout is processed", async () => {
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: webhookEvents(),
+      user: { update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    } as never);
+    stripeEvent(
+      "evt_checkout",
+      "checkout.session.completed",
+      {
+        mode: "subscription",
+        customer: "cus_123",
+        subscription: "sub_123",
+        metadata: { userId: "user-1", plan: "pro", interval: "year", creator_code: "CREATORCODE" },
+      },
+      { subscriptions: { retrieve: vi.fn().mockResolvedValue(activeSubscription) } },
+    );
+
+    expect((await deliver()).status).toBe(200);
+    expect((await deliver()).status).toBe(200);
+
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      distinctId: "user-1",
+      event: "subscription_started",
+      timestamp: new Date(1793491200 * 1000),
+      uuid: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      properties: {
+        plan: "pro",
+        interval: "year",
+        provider: "stripe",
+        trial: false,
+        has_creator_code: true,
+        platform: "web-server",
+        $set: { plan: "pro", subscription_status: "active" },
+      },
+    }));
+    // The code itself is not sent.
+    expect(JSON.stringify(capture.mock.calls[0][0])).not.toContain("CREATORCODE");
+  });
+
+  it("sends nothing for a failed delivery and once for its retry", async () => {
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: webhookEvents(),
+      user: { update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    } as never);
+    const retrieve = vi.fn()
+      .mockRejectedValueOnce(new Error("Stripe unavailable"))
+      .mockResolvedValue(activeSubscription);
+    stripeEvent(
+      "evt_checkout_retry",
+      "checkout.session.completed",
+      { mode: "subscription", customer: "cus_123", subscription: "sub_123", metadata: { userId: "user-1" } },
+      { subscriptions: { retrieve } },
+    );
+
+    await expect(deliver()).rejects.toThrow("Stripe unavailable");
+    expect(capture).not.toHaveBeenCalled();
+
+    expect((await deliver()).status).toBe(200);
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture.mock.calls[0][0].event).toBe("subscription_started");
+  });
+
+  it("sends subscription_cancel_scheduled once, only after the cancellation email went out", async () => {
+    const scheduled = { ...activeSubscription, cancel_at_period_end: true, cancel_at: 1801536000 };
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: webhookEvents(),
+      user: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", plan: "pro", subscription_provider: "stripe" }),
+      },
+    } as never);
+    vi.mocked(getServerStripeClient).mockReturnValue({
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_cancel",
+          type: "customer.subscription.updated",
+          data: { previous_attributes: { cancel_at_period_end: false, cancel_at: null }, object: scheduled },
+        }),
+      },
+      subscriptions: { retrieve: vi.fn().mockResolvedValue(scheduled) },
+    } as never);
+    vi.mocked(fetchBackend).mockResolvedValueOnce(new Response("SES unavailable", { status: 503 }));
+
+    await expect(deliver()).rejects.toThrow();
+    expect(capture).not.toHaveBeenCalled();
+
+    expect((await deliver()).status).toBe(200);
+    expect((await deliver()).status).toBe(200);
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      distinctId: "user-1",
+      event: "subscription_cancel_scheduled",
+      properties: expect.objectContaining({ plan: "pro", interval: "year", provider: "stripe" }),
+    }));
+  });
+
+  it("counts a renewal once although Stripe sends invoice.paid and invoice.payment_succeeded", async () => {
+    const events = webhookEvents();
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: events,
+      user: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "user-1",
+          plan: "pro",
+          subscription_provider: "stripe",
+          pending_plan: null,
+          pending_plan_invoice_id: null,
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    } as never);
+    const invoice = {
+      id: "in_renewal",
+      customer: "cus_123",
+      status: "paid",
+      billing_reason: "subscription_cycle",
+      amount_due: 999,
+      lines: { data: [{ amount: 999, period: { start: 1770000000, end: 1772592000 } }] },
+    };
+
+    stripeEvent("evt_invoice_paid", "invoice.paid", invoice);
+    expect((await deliver()).status).toBe(200);
+    stripeEvent("evt_invoice_payment_succeeded", "invoice.payment_succeeded", invoice);
+    expect((await deliver()).status).toBe(200);
+
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(expect.objectContaining({
+      distinctId: "user-1",
+      event: "subscription_renewed",
+      properties: expect.objectContaining({ plan: "pro", interval: "month", provider: "stripe" }),
+    }));
+    expect(events.ids.has("posthog:subscription_renewed:in_renewal")).toBe(true);
+  });
+
+  it("does not count the first invoice or a plan change as a renewal", async () => {
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: webhookEvents(),
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", plan: "pro", subscription_provider: "stripe" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    } as never);
+
+    for (const reason of ["subscription_create", "subscription_update"]) {
+      stripeEvent(`evt_${reason}`, "invoice.paid", {
+        id: `in_${reason}`,
+        customer: "cus_123",
+        status: "paid",
+        billing_reason: reason,
+        lines: { data: [] },
+      });
+      expect((await deliver()).status).toBe(200);
+    }
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it("sends subscription_canceled and sets the person back to free", async () => {
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: webhookEvents(),
+      affiliate: { findUnique: vi.fn().mockResolvedValue(null) },
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "stripe" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as never);
+    stripeEvent("evt_deleted", "customer.subscription.deleted", { ...activeSubscription, status: "canceled" });
+
+    expect((await deliver()).status).toBe(200);
+    expect(capture).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      distinctId: "user-1",
+      event: "subscription_canceled",
+      properties: expect.objectContaining({
+        plan: "pro",
+        interval: "year",
+        provider: "stripe",
+        kept_creator_pro: false,
+        $set: { plan: "free", subscription_status: "canceled" },
+      }),
+    }));
   });
 });

@@ -8,12 +8,10 @@ from pydantic import ValidationError
 
 from src.editor_document import (
     EditDocument,
-    RevisionConflict,
     editor_dir,
     mapped_words,
     output_size,
     render_document,
-    save_document,
     write_ass,
     caption_key,
 )
@@ -78,14 +76,16 @@ def test_ass_applies_a_placement_only_to_its_caption(tmp_path, template, karaoke
     assert "\\fs81" not in events[1]
 
 
-def test_revisions_protect_other_tabs_and_original(tmp_path):
+async def test_revisions_protect_other_tabs_and_original(editor_store):
     draft = document()
-    saved = save_document(tmp_path, draft, 0, 2)
-    assert saved["revision"] == 1
-    with pytest.raises(RevisionConflict):
-        save_document(tmp_path, document(muted=True), 0, 2)
-    assert json.loads((tmp_path / "draft.json").read_text()) == saved
-    assert save_document(tmp_path, document(muted=True), 1, 2)["revision"] == 2
+    key = editor_store.put_ready("task", "clip", "clip.mp4", {"duration": 2}, draft.model_dump())
+    assert await editor_store.save_draft(key, draft.model_dump(), 0) == 1
+    # A second tab still holding revision 0 must not overwrite the first save.
+    assert await editor_store.save_draft(key, document(muted=True).model_dump(), 0) is None
+    saved = await editor_store.load(key)
+    assert saved["draft"] == {"revision": 1, "document": draft.model_dump()}
+    assert saved["original"] == draft.model_dump()
+    assert await editor_store.save_draft(key, document(muted=True).model_dump(), 1) == 2
 
 
 @pytest.mark.parametrize(
@@ -333,10 +333,19 @@ def test_cancelled_render_does_not_publish_output(tmp_path):
     from src.editor_document import run_render
 
     job_id = "b" * 32
-    (tmp_path / f"cancel-{job_id}").touch()
     with pytest.raises(InterruptedError):
-        run_render(["sleep", "10"], tmp_path, job_id, 1)
+        run_render(["sleep", "10"], tmp_path, job_id, 1, should_cancel=lambda: True)
     assert not (tmp_path / f"export-{job_id}.mp4").exists()
+
+
+def test_render_reports_progress_to_its_owner(tmp_path):
+    from src.editor_document import run_render
+
+    seen = []
+    run_render(["sleep", "0.6"], tmp_path, "d" * 32, 1, on_progress=seen.append)
+    assert seen and set(seen) == {0}
+    # Nothing is left behind for another process to read.
+    assert not list(tmp_path.iterdir())
 
 
 def test_run_render_adds_progress_flags_only_for_ffmpeg(tmp_path, monkeypatch):
@@ -377,7 +386,7 @@ def test_run_render_adds_progress_flags_only_for_ffmpeg(tmp_path, monkeypatch):
 @pytest.mark.parametrize("layer", ["hook", "captions"])
 def test_text_transforms_persist_and_reject_invalid_values(tmp_path, layer):
     draft = document(textTransforms={layer: {"x": .2, "y": -.1, "scale": 1.7}})
-    payload = save_document(tmp_path, draft, 0, 2)
+    payload = {"document": EditDocument.model_validate(draft.model_dump()).validate_duration(2).model_dump()}
     assert payload["document"]["textTransforms"][layer] == {"x": .2, "y": -.1, "scale": 1.7}
     for value in (float("nan"), float("inf"), -1, 0, 4.1):
         with pytest.raises(ValidationError):

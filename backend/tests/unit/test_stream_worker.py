@@ -20,6 +20,7 @@ from src.services import video_service as video_module
 from src.services.task_service import TaskService
 from src.services.video_service import VideoService
 from src.youtube_source import build_time_map, save_time_map
+from tests.fixtures.editor_store import stored_state
 
 TWITCH_URL = "https://www.twitch.tv/videos/123456"
 KICK_URL = "https://kick.com/creator/videos/12345678-1234-1234-1234-123456789abc"
@@ -203,7 +204,7 @@ async def test_editor_prepares_stream_source_and_cleans_only_its_download(stream
     monkeypatch.setattr("src.services.task_service.TaskService", lambda _: service)
     monkeypatch.setattr("src.video_utils.create_optimized_clip", render)
     monkeypatch.setattr(editor_service, "make_assets", lambda _: {
-        "status": "ready", "width": 320, "height": 180, "fps": 30, "duration": 1.0, "hasAudio": False, "waveform": [],
+        "status": "ready", "width": 320, "height": 180, "fps": 30, "duration": 10.0, "hasAudio": False, "waveform": [],
     })
     monkeypatch.setattr("src.video_utils.load_cached_transcript_data", lambda _: None)
 
@@ -212,7 +213,7 @@ async def test_editor_prepares_stream_source_and_cleans_only_its_download(stream
     assert calls == [{"duration": 600, "task_id": "task"}]
     assert not (Path(stream_config.temp_dir) / "stream-work" / "task" / "edit-1").exists()
     assert other_edit.exists()
-    state = editor_service.read_state(editor_dir(str(tmp_path), "task", "clip", "clip.mp4"))
+    state = await stored_state("task", "clip", "clip.mp4")
     assert state["status"] == ("ready" if render_succeeds else "failed")
 
 

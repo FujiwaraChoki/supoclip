@@ -36,6 +36,7 @@ import { useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
+import { trackEvent } from "@/lib/analytics";
 import { track } from "@/lib/datafast";
 import { taskPathFromCreate } from "@/lib/task-create";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
@@ -247,6 +248,17 @@ export default function HomeApp() {
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
     : maxVideoUploadBytes();
+
+  // Product funnel: once per distinct link or file. The key stays in this tab; only the kind is sent.
+  const enteredSource = useRef<string | null>(null);
+  useEffect(() => {
+    const sourceKind = file ? "upload" : urlSource;
+    if (!sourceKind) return;
+    const key = file ? `upload:${file.name}:${file.size}` : url.trim();
+    if (key === enteredSource.current) return;
+    enteredSource.current = key;
+    trackEvent("source_entered", { source_kind: sourceKind });
+  }, [file, url, urlSource]);
 
   useEffect(() => {
     let cancelled = false;
@@ -726,6 +738,12 @@ export default function HomeApp() {
       setError(sourceTooShort ? t(`workflowErrors.${SOURCE_TOO_SHORT_CODES[activeWorkflow]}`) : partsProblem);
       return;
     }
+    trackEvent("generate_clicked", {
+      workflow: activeWorkflow,
+      source_kind: sourceType === "upload" ? "upload" : validateVideoSourceUrl(sourceUrl).source ?? "unknown",
+      has_instructions: Boolean(sentInstructions),
+      blocked_by_upgrade: generationRequiresUpgrade,
+    });
     if (generationRequiresUpgrade) {
       openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" });
       return;

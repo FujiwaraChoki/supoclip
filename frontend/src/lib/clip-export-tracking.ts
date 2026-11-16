@@ -1,5 +1,6 @@
 "use client";
 
+import { trackEvent } from "@/lib/analytics";
 import { attributionMetadata, getAccountAttribution } from "@/lib/attribution";
 import { track } from "@/lib/datafast";
 
@@ -14,6 +15,8 @@ export type ClipExportSurface = "task" | "editor" | "editor_queue";
 export async function trackClipExport({ userId, ...details }: { userId: string; surface: ClipExportSurface; format: string }) {
   const accountMetadata = attributionMetadata(getAccountAttribution(userId));
   track("clip_exported", { ...details, ...accountMetadata });
+  if (details.format === "zip") trackEvent("clips_zip_downloaded", { surface: details.surface });
+  else trackEvent("clip_downloaded", { surface: details.surface, format: details.format });
 
   try {
     const response = await fetch("/api/attribution/clip-export", { method: "POST", keepalive: true });
