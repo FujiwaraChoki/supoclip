@@ -1,11 +1,42 @@
 {
   "new": "Nuevo",
+  "welcomeBadge": "Bienvenida",
   "next": "Siguiente",
   "back": "Atrás",
   "done": "Listo",
   "start": "Muéstrame 👀",
   "notNow": "Ahora no",
   "progress": "{current} de {total}",
+  "welcome": {
+    "intro": {
+      "title": "Te damos la bienvenida a SupoClip",
+      "body": "Danos un video largo y convertimos sus mejores momentos en clips verticales cortos, con subtítulos y listos para publicar. Aquí tienes un vistazo de un minuto para crear los primeros."
+    },
+    "source": {
+      "title": "Empieza con un video",
+      "body": "Pega aquí un enlace de YouTube o sube un archivo con el clip. Los pódcasts, entrevistas y charlas de 10 minutos o más funcionan mejor."
+    },
+    "workflows": {
+      "title": "Elige qué crear",
+      "body": "Destacados te da los mejores momentos, cada uno funciona solo, y es la mejor opción para empezar. Los demás convierten un video en una serie, un resumen, un tráiler o todos los clips sobre un tema."
+    },
+    "settings": {
+      "title": "Define el estilo una vez",
+      "body": "La duración, los subtítulos, el encuadre y el B-roll están en este menú. Los valores por defecto son buenos y recordamos lo que cambies."
+    },
+    "generate": {
+      "title": "Y luego, a crear",
+      "body": "La mayoría de los videos tardan unos minutos. Puedes salir de la página mientras tanto; cada clip recibe una puntuación de lo bien que podría funcionar."
+    },
+    "library": {
+      "title": "Aquí llegan tus clips",
+      "body": "Abre uno para recortarlo, corregir un subtítulo o reencuadrarlo en el estudio, y luego descárgalo para publicarlo donde quieras."
+    },
+    "usage": {
+      "title": "Cómo cuenta tu plan",
+      "body": "Los planes se miden en minutos de los videos que traes, no en clips. Aquí ves cuánto has usado este mes."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Presentamos los flujos",

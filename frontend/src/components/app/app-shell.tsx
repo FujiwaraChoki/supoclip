@@ -205,7 +205,7 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
     ? t("usage.moreWith", { name: tCommon(`plans.${billingPlanMessageKey(upgrade.nextPlan.id)}`) })
     : null;
   return (
-    <Link href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
+    <Link data-tour="usage" href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
       <div className="flex items-center justify-between">
         <span className="font-semibold">{tCommon(`plans.${billingPlanMessageKey(billing.plan)}`)}</span>
         <span className="text-muted-foreground tabular-nums">

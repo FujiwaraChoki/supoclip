@@ -1,11 +1,42 @@
 {
   "new": "Novo",
+  "welcomeBadge": "Boas-vindas",
   "next": "Avançar",
   "back": "Voltar",
   "done": "Concluir",
   "start": "Mostrar 👀",
   "notNow": "Agora não",
   "progress": "{current} de {total}",
+  "welcome": {
+    "intro": {
+      "title": "Boas-vindas ao SupoClip",
+      "body": "Envie um vídeo longo e transformamos os melhores momentos em clipes verticais curtos, com legendas e prontos para postar. Veja em um minuto como criar os primeiros."
+    },
+    "source": {
+      "title": "Comece com um vídeo",
+      "body": "Cole um link do YouTube aqui ou envie um arquivo pelo clipe de papel. Podcasts, entrevistas e palestras de 10 minutos ou mais funcionam melhor."
+    },
+    "workflows": {
+      "title": "Escolha o que criar",
+      "body": "Destaques traz os melhores momentos, cada um funcionando sozinho, e é a melhor escolha para começar. Os outros transformam um vídeo em série, resumo, trailer ou todos os clipes sobre um tema."
+    },
+    "settings": {
+      "title": "Defina o estilo uma vez",
+      "body": "Duração, legendas, enquadramento e B-roll ficam neste menu. O padrão já é bom, e lembramos o que você mudar."
+    },
+    "generate": {
+      "title": "Depois, é só começar",
+      "body": "A maioria dos vídeos leva alguns minutos. Você pode sair da página enquanto isso; cada clipe recebe uma nota de quanto deve performar."
+    },
+    "library": {
+      "title": "Seus clipes aparecem aqui",
+      "body": "Abra um para cortar, corrigir uma legenda ou reenquadrar no estúdio, depois baixe e publique onde quiser."
+    },
+    "usage": {
+      "title": "Como seu plano conta",
+      "body": "Os planos são medidos em minutos dos vídeos que você envia, não em clipes. Aqui você vê quanto usou neste mês."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Apresentando os fluxos",

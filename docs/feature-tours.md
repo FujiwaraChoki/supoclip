@@ -1,6 +1,9 @@
 # Feature tours
 
-Short cards that introduce a new feature to people who already use SupoClip.
+Short cards on the real page. Two kinds:
+
+- **Feature tours** introduce a new feature to people who already use SupoClip.
+- **Onboarding** (`audience: "new"`) welcomes new accounts. The `welcome` tour walks a first visit through the create screen: the video, what to make, settings, generate, where clips land, and how the plan counts. Its `releasedAt` is the day it shipped, and only accounts created on or after it see it. It comes first in `FEATURE_TOURS` and its intro badge says "Welcome" instead of "New".
 
 ## Adding a tour
 
@@ -17,7 +20,7 @@ Short cards that introduce a new feature to people who already use SupoClip.
 - **Eight steps at most**, as few as the feature allows. A test enforces the limit.
 - **One idea per step**, in a sentence or two.
 - **Work on the real page.** A step can set `workflow` to select it while it talks about it, and everything is put back at the end. The page stays usable behind the spotlight.
-- **Existing users only.** `releasedAt` is the day the feature reached users; newer accounts never see the tour. For a gated feature, set it to the day it opens.
+- **Feature tours are for existing users only.** `releasedAt` is the day the feature reached users; newer accounts never see the tour. For a gated feature, set it to the day it opens. New accounts learn the page from the `welcome` tour, which skips steps whose target isn't there (no workflow picker while workflows are gated, no usage card when billing is off or on mobile).
 
 Each account and tour gets a row in `user_feature_tours` when it is shown, with `completed_at` or `dismissed_at` and `last_step` once it ends. That answers whether a tour helps, and deleting a row shows that tour to that person again.
 

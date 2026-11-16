@@ -1,11 +1,42 @@
 {
   "new": "Baru",
+  "welcomeBadge": "Selamat datang",
   "next": "Berikutnya",
   "back": "Kembali",
   "done": "Selesai",
   "start": "Tunjukkan 👀",
   "notNow": "Nanti saja",
   "progress": "{current} dari {total}",
+  "welcome": {
+    "intro": {
+      "title": "Selamat datang di SupoClip",
+      "body": "Berikan video panjang dan kami ubah momen terbaiknya menjadi klip vertikal pendek, lengkap dengan teks dan siap diunggah. Berikut gambaran satu menit untuk membuat klip pertamamu."
+    },
+    "source": {
+      "title": "Mulai dengan video",
+      "body": "Tempel tautan YouTube di sini, atau unggah file dengan ikon penjepit kertas. Podcast, wawancara, dan presentasi 10 menit atau lebih hasilnya paling bagus."
+    },
+    "workflows": {
+      "title": "Pilih yang ingin dibuat",
+      "body": "Highlights memberi momen terbaik yang berdiri sendiri, pilihan tepat untuk percobaan pertama. Pilihan lain mengubah satu video menjadi seri, rangkuman, trailer, atau semua klip tentang satu topik."
+    },
+    "settings": {
+      "title": "Atur tampilan sekali saja",
+      "body": "Durasi klip, gaya teks, pembingkaian, dan B-roll ada di menu ini. Pengaturan bawaannya sudah bagus, dan perubahanmu kami ingat."
+    },
+    "generate": {
+      "title": "Lalu mulai",
+      "body": "Sebagian besar video selesai dalam beberapa menit. Kamu boleh meninggalkan halaman ini; setiap klip mendapat skor seberapa besar peluangnya berhasil."
+    },
+    "library": {
+      "title": "Klipmu muncul di sini",
+      "body": "Buka salah satunya untuk memotong, memperbaiki teks, atau membingkai ulang di studio, lalu unduh dan unggah ke mana pun kamu mau."
+    },
+    "usage": {
+      "title": "Cara paketmu dihitung",
+      "body": "Paket dihitung dari menit video yang kamu bawa, bukan jumlah klip. Di sini terlihat berapa yang sudah kamu pakai bulan ini."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Memperkenalkan alur kerja",

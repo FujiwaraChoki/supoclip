@@ -52,6 +52,30 @@ const firstTitle = "Introducing workflows";
 const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
 
 describe("FeatureTourHost", () => {
+  it("welcomes a new account on the real page, skipping what isn't there", async () => {
+    account = { createdAt: "2030-01-01T00:00:00Z", seen: [] };
+    render(
+      <>
+        <form data-tour="composer"><div data-tour="composer-source">source</div><button data-tour="composer-settings">settings</button><div data-tour="generate">go</div></form>
+        <section data-tour="library">recent</section>
+        <FeatureTourHost enabled busy={false} />
+      </>,
+    );
+    await screen.findByText("Welcome to SupoClip", undefined, { timeout: 2500 });
+    expect(screen.getByText("Welcome")).toBeTruthy();
+    expect(posted).toEqual(["welcome"]);
+    fireEvent.click(screen.getByText("Show me 👀"));
+    // No workflow picker or usage card here: those steps are skipped.
+    for (const title of ["Start with a video", "Set the look once", "Then press go"]) {
+      expect(await screen.findByText(title)).toBeTruthy();
+      expect(screen.getByText(/of 4/)).toBeTruthy();
+      fireEvent.click(screen.getByText("Next"));
+    }
+    await screen.findByText("Your clips land here");
+    fireEvent.click(screen.getByText("Done"));
+    await waitFor(() => expect(endings).toEqual(["welcome:completed:4"]));
+  });
+
   it("asks first, then explains every workflow on the real page and puts the selection back", async () => {
     const onWorkflow = vi.fn();
     const onEnd = vi.fn();

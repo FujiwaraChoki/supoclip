@@ -28,13 +28,22 @@ describe("feature tours", () => {
     }
   });
 
+  it("welcomes accounts created since onboarding shipped, first and once", () => {
+    const welcome = FEATURE_TOURS.find((tour) => tour.id === "welcome")!;
+    expect(FEATURE_TOURS[0]).toBe(welcome);
+    expect(dueTours(welcome.releasedAt, []).map((tour) => tour.id)).toEqual(["welcome"]);
+    expect(dueTours(BEFORE, []).map((tour) => tour.id)).not.toContain("welcome");
+    expect(dueTours(AFTER, ["welcome"])).toEqual([]);
+  });
+
   it("doesn't repeat what an earlier tour already explained", () => {
     expect(dueTours(BEFORE, ["workflows"])).toEqual([]);
   });
 
   it("is for accounts older than the feature, once each", () => {
-    expect(dueTours(BEFORE, []).map((tour) => tour.id)).toEqual(FEATURE_TOURS.map((tour) => tour.id));
-    expect(dueTours(AFTER, [])).toEqual([]);
+    const features = FEATURE_TOURS.filter((tour) => tour.audience !== "new").map((tour) => tour.id);
+    expect(dueTours(BEFORE, []).map((tour) => tour.id)).toEqual(features);
+    expect(dueTours(AFTER, []).map((tour) => tour.id)).toEqual(["welcome"]);
     expect(dueTours(BEFORE, FEATURE_TOURS.map((tour) => tour.id))).toEqual([]);
     expect(dueTours(null, [])).toEqual([]);
     expect(dueTours("nonsense", [])).toEqual([]);

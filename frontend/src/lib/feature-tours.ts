@@ -1,8 +1,8 @@
 import type { Workflow } from "@/lib/workflows";
 
 /**
- * Short tours that introduce a new feature to people who already use SupoClip.
- * Adding one: write an entry here and its text in messages/<locale>/tours.json,
+ * Short tours on the real page: a welcome for new accounts, and new features for people
+ * who already use SupoClip. Adding one: write an entry here and its text in messages/<locale>/tours.json,
  * and put `data-tour="<target>"` on what each step points at. See docs/feature-tours.md.
  */
 export type TourStep = {
@@ -20,8 +20,13 @@ export type TourStep = {
 export type FeatureTour = {
   id: string;
   /**
-   * When the feature reached users. Only accounts older than this see the tour: someone
-   * newer never knew it any other way. Set it to the day a gated feature opens to them.
+   * `existing` (default): a new feature, for accounts older than `releasedAt`; someone newer
+   * never knew it any other way. `new`: onboarding, for accounts created on or after `releasedAt`.
+   */
+  audience?: "existing" | "new";
+  /**
+   * When the tour reached users. For a feature, the day it opens to them (a gated one included);
+   * for onboarding, the day it shipped, so accounts from before it don't get a welcome.
    */
   releasedAt: string;
   /** Looping video for the opening announcement, from `public/`: render it, don't screenshot it. */
@@ -43,6 +48,22 @@ export const TOUR_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 /** First match wins, so put what matters most first. */
 export const FEATURE_TOURS: readonly FeatureTour[] = [
+  {
+    // First visit: what SupoClip makes and how to get a first clip, instead of a bare composer.
+    id: "welcome",
+    audience: "new",
+    releasedAt: "2026-11-16T00:00:00Z",
+    covers: ["composer-settings"],
+    steps: [
+      { target: "composer", message: "intro", side: "bottom", intro: true },
+      { target: "composer-source", message: "source", side: "bottom" },
+      { target: "workflow-picker", message: "workflows", side: "bottom" },
+      { target: "composer-settings", message: "settings", side: "top" },
+      { target: "generate", message: "generate", side: "top" },
+      { target: "library", message: "library", side: "top" },
+      { target: "usage", message: "usage", side: "right" },
+    ],
+  },
   {
     id: "workflows",
     // Update to the day workflows open to everyone: accounts created until then should see this too.
@@ -77,10 +98,16 @@ export function isFeatureTourId(value: unknown): value is string {
   return FEATURE_TOURS.some((tour) => tour.id === value);
 }
 
+/** Whether a tour is meant for an account created at `created` (ms). */
+function forAccount(tour: FeatureTour, created: number): boolean {
+  const released = Date.parse(tour.releasedAt);
+  return tour.audience === "new" ? created >= released : created < released;
+}
+
 /** The tours this account should still see, most important first. */
 export function dueTours(createdAt: string | null | undefined, seen: readonly string[]): FeatureTour[] {
   const created = createdAt ? Date.parse(createdAt) : NaN;
   if (Number.isNaN(created)) return [];
   const covered = new Set(FEATURE_TOURS.filter((tour) => seen.includes(tour.id)).flatMap((tour) => tour.covers ?? []));
-  return FEATURE_TOURS.filter((tour) => created < Date.parse(tour.releasedAt) && !seen.includes(tour.id) && !covered.has(tour.id));
+  return FEATURE_TOURS.filter((tour) => forAccount(tour, created) && !seen.includes(tour.id) && !covered.has(tour.id));
 }

@@ -1,11 +1,42 @@
 {
   "new": "New",
+  "welcomeBadge": "Welcome",
   "next": "Next",
   "back": "Back",
   "done": "Done",
   "start": "Show me 👀",
   "notNow": "Not now",
   "progress": "{current} of {total}",
+  "welcome": {
+    "intro": {
+      "title": "Welcome to SupoClip",
+      "body": "Give us a long video and we turn its best moments into short vertical clips, captioned and ready to post. Here’s a one-minute look at how to make your first ones."
+    },
+    "source": {
+      "title": "Start with a video",
+      "body": "Paste a YouTube link here, or upload a file with the paperclip. Podcasts, interviews, and talks of 10 minutes or more work best."
+    },
+    "workflows": {
+      "title": "Choose what to make",
+      "body": "Highlights gives you the best standalone moments, and it’s the right pick for a first try. The others turn one video into a series, a recap, a trailer, or every clip about a topic."
+    },
+    "settings": {
+      "title": "Set the look once",
+      "body": "Clip length, caption style, framing, and B-roll live in this menu. The defaults are good, and whatever you change is remembered for next time."
+    },
+    "generate": {
+      "title": "Then press go",
+      "body": "Most videos take a few minutes. You can leave the page while it works; every clip gets a score for how likely it is to do well."
+    },
+    "library": {
+      "title": "Your clips land here",
+      "body": "Open one to trim it, fix a caption, or reframe it in the studio, then download it and post it wherever you like."
+    },
+    "usage": {
+      "title": "How your plan counts",
+      "body": "Plans are measured in minutes of the videos you bring, not in clips. This shows how much you’ve used this month."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Introducing workflows",
