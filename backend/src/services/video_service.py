@@ -65,9 +65,10 @@ from ..clip_source_map import (
     save_clip_broll,
     save_clip_source_ranges,
 )
-from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..ai import get_most_relevant_parts_by_transcript, localize_hook_titles, max_final_clips_for_duration
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
+from ..title_language import transcript_language
 from ..config import get_config
 from ..workflows.contracts import PlanCache, PlanContext, WorkflowResult, WorkflowSpec
 from ..workflows.durations import workflow_budget
@@ -812,6 +813,7 @@ class VideoService:
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
         instructions: Optional[str] = None,
+        source_language: Optional[str] = None,
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
@@ -827,6 +829,7 @@ class VideoService:
             clip_length=clip_length,
             include_reserve=True,
             **({"instructions": instructions} if instructions else {}),
+            **({"source_language": source_language} if source_language else {}),
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -1166,6 +1169,8 @@ class VideoService:
             )
 
         relevant_parts = None
+        transcript_data = load_cached_transcript_data(video_path)
+        source_language = transcript_language(transcript_data, transcript)
         if checkpoint.get("analysis"):
             cached_analysis_json = json.dumps(checkpoint["analysis"])
         if cached_analysis_json:
@@ -1212,6 +1217,7 @@ class VideoService:
                 performance_context=performance_context,
                 clip_length=clip_length,
                 **({"instructions": instructions} if instructions else {}),
+                **({"source_language": source_language} if source_language else {}),
             )
 
         await save_checkpoint({"analysis": {
@@ -1231,7 +1237,6 @@ class VideoService:
         prepared_segments = checkpoint.get("segments") or checkpoint.get("candidates")
         final_plan = bool(checkpoint.get("segments"))
         segments_json: List[Dict[str, Any]] = list(prepared_segments or [])
-        transcript_data = load_cached_transcript_data(video_path)
         for segment in ([] if prepared_segments else raw_segments):
             if isinstance(segment, dict):
                 virality = segment.get("virality") or {}
@@ -1299,6 +1304,13 @@ class VideoService:
         # slate can be replaced by the next already-ranked candidate.
         if not prepared_segments:
             segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]
+            # Fresh and cached analyses alike: a title in another language
+            # than the clip's speech is rewritten (or dropped) before render.
+            await localize_hook_titles(
+                segments_json,
+                source_language,
+                **({"instructions": instructions} if instructions else {}),
+            )
 
         if not segments_json:
             logger.warning(
