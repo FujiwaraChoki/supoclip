@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 /**
  * Line-art loop of what SupoClip does: a long video is scanned, its best
@@ -35,7 +37,7 @@ const WAVE = Array.from({ length: 54 }, (_, i) => {
 
 export function ClipCutAnimation() {
   const t = useTranslations("auth");
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const [cycle, setCycle] = useState(0);
   const [phase, setPhase] = useState<Phase>("scan");
 

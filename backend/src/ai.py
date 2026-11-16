@@ -498,10 +498,16 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     return None
 
 
+# Anthropic models the installed SDK has no profile for. They support native
+# structured output; without it, output falls back to a tool call with the
+# SDK's 4096-token cap, which cuts long schemas such as the source outline short.
+_NATIVE_OUTPUT_ANTHROPIC_MODELS = frozenset({"claude-sonnet-5-5", "claude-haiku-5-5"})
+
+
 def _uses_native_output(model_name: str) -> bool:
     provider, name = _split_llm_name(model_name)
     return provider == "openrouter" or (
-        provider == "anthropic" and name == "claude-sonnet-5-5"
+        provider == "anthropic" and name in _NATIVE_OUTPUT_ANTHROPIC_MODELS
     )
 
 
@@ -511,8 +517,8 @@ def _build_transcript_model(
     model_name = model_name or runtime_config.llm
     provider, provider_model_name = _split_llm_name(model_name)
     if provider == "anthropic" and _uses_native_output(model_name):
-        # The installed SDK predates Sonnet 5.5. This model requires native
-        # structured output rather than forced tool calls.
+        # The installed SDK predates Sonnet 5.5 and Haiku 5.5. Sonnet 5.5 rejects
+        # forced tool calls; both need native structured output.
         profile = AnthropicProvider.model_profile(provider_model_name).update(
             AnthropicModelProfile(supports_json_schema_output=True)
         )
