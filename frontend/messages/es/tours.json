@@ -14,7 +14,7 @@
     },
     "source": {
       "title": "Empieza con un video",
-      "body": "Pega aquí un enlace de YouTube o sube un archivo con el clip. Los pódcasts, entrevistas y charlas de 10 minutos o más funcionan mejor."
+      "body": "Pega aquí un enlace de YouTube, Twitch o Kick, o sube un archivo con el clip, y luego pulsa la flecha. Los pódcasts, entrevistas y charlas de 10 minutos o más funcionan mejor."
     },
     "workflows": {
       "title": "Elige qué crear",
@@ -24,17 +24,21 @@
       "title": "Define el estilo una vez",
       "body": "La duración, los subtítulos, el encuadre y el B-roll están en este menú. Los valores por defecto son buenos y recordamos lo que cambies."
     },
-    "generate": {
-      "title": "Y luego, a crear",
-      "body": "La mayoría de los videos tardan unos minutos. Puedes salir de la página mientras tanto; cada clip recibe una puntuación de lo bien que podría funcionar."
-    },
     "library": {
-      "title": "Aquí llegan tus clips",
-      "body": "Abre uno para recortarlo, corregir un subtítulo o reencuadrarlo en el estudio, y luego descárgalo para publicarlo donde quieras."
+      "title": "Biblioteca",
+      "body": "Cada video que has recortado, con todos sus clips. Puedes salir mientras uno se procesa; sigue adelante y aparece aquí. Abre un clip para recortarlo, corregir un subtítulo o reencuadrarlo en el estudio."
     },
-    "usage": {
-      "title": "Cómo cuenta tu plan",
-      "body": "Los planes se miden en minutos de los videos que traes, no en clips. Aquí ves cuánto has usado este mes."
+    "social": {
+      "title": "Redes y Analíticas",
+      "body": "Conecta tus cuentas de redes sociales para publicar clips directamente desde SupoClip y mira en Analíticas cuáles ve la gente."
+    },
+    "agents": {
+      "title": "Agentes y API",
+      "body": "Deja que un asistente de IA como Claude o ChatGPT cree clips por ti, o crea una clave de API para usar SupoClip desde tus propias herramientas."
+    },
+    "settingsPage": {
+      "title": "Ajustes",
+      "body": "Tu plan y los minutos que has usado este mes, el estilo de subtítulos y las fuentes por defecto, y los avisos por correo."
     }
   },
   "workflows": {

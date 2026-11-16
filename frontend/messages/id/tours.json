@@ -14,7 +14,7 @@
     },
     "source": {
       "title": "Mulai dengan video",
-      "body": "Tempel tautan YouTube di sini, atau unggah file dengan ikon penjepit kertas. Podcast, wawancara, dan presentasi 10 menit atau lebih hasilnya paling bagus."
+      "body": "Tempel tautan YouTube, Twitch, atau Kick di sini, atau unggah file dengan ikon penjepit kertas, lalu tekan panah. Podcast, wawancara, dan presentasi 10 menit atau lebih hasilnya paling bagus."
     },
     "workflows": {
       "title": "Pilih yang ingin dibuat",
@@ -24,17 +24,21 @@
       "title": "Atur tampilan sekali saja",
       "body": "Durasi klip, gaya teks, pembingkaian, dan B-roll ada di menu ini. Pengaturan bawaannya sudah bagus, dan perubahanmu kami ingat."
     },
-    "generate": {
-      "title": "Lalu mulai",
-      "body": "Sebagian besar video selesai dalam beberapa menit. Kamu boleh meninggalkan halaman ini; setiap klip mendapat skor seberapa besar peluangnya berhasil."
-    },
     "library": {
-      "title": "Klipmu muncul di sini",
-      "body": "Buka salah satunya untuk memotong, memperbaiki teks, atau membingkai ulang di studio, lalu unduh dan unggah ke mana pun kamu mau."
+      "title": "Pustaka",
+      "body": "Setiap video yang sudah kamu klip, beserta semua klipnya. Kamu boleh pergi saat video sedang diproses; prosesnya tetap berjalan dan hasilnya muncul di sini. Buka klip untuk memotong, memperbaiki teks, atau membingkai ulang di studio."
     },
-    "usage": {
-      "title": "Cara paketmu dihitung",
-      "body": "Paket dihitung dari menit video yang kamu bawa, bukan jumlah klip. Di sini terlihat berapa yang sudah kamu pakai bulan ini."
+    "social": {
+      "title": "Sosial dan Analitik",
+      "body": "Hubungkan akun media sosialmu untuk mengunggah klip langsung dari SupoClip, lalu lihat di Analitik klip mana yang ditonton orang."
+    },
+    "agents": {
+      "title": "Agen & API",
+      "body": "Biarkan asisten AI seperti Claude atau ChatGPT membuat klip untukmu, atau buat kunci API untuk memakai SupoClip dari alatmu sendiri."
+    },
+    "settingsPage": {
+      "title": "Pengaturan",
+      "body": "Paketmu dan menit yang sudah dipakai bulan ini, gaya teks dan font bawaan, serta notifikasi email."
     }
   },
   "workflows": {

@@ -14,7 +14,7 @@
     },
     "source": {
       "title": "Start with a video",
-      "body": "Paste a YouTube link here, or upload a file with the paperclip. Podcasts, interviews, and talks of 10 minutes or more work best."
+      "body": "Paste a YouTube, Twitch, or Kick link here, or upload a file with the paperclip, then press the arrow. Podcasts, interviews, and talks of 10 minutes or more work best."
     },
     "workflows": {
       "title": "Choose what to make",
@@ -24,17 +24,21 @@
       "title": "Set the look once",
       "body": "Clip length, caption style, framing, and B-roll live in this menu. The defaults are good, and whatever you change is remembered for next time."
     },
-    "generate": {
-      "title": "Then press go",
-      "body": "Most videos take a few minutes. You can leave the page while it works; every clip gets a score for how likely it is to do well."
-    },
     "library": {
-      "title": "Your clips land here",
-      "body": "Open one to trim it, fix a caption, or reframe it in the studio, then download it and post it wherever you like."
+      "title": "Library",
+      "body": "Every video you’ve clipped, with all its clips. You can leave while one is processing; it keeps going and shows up here. Open a clip to trim it, fix a caption, or reframe it in the studio."
     },
-    "usage": {
-      "title": "How your plan counts",
-      "body": "Plans are measured in minutes of the videos you bring, not in clips. This shows how much you’ve used this month."
+    "social": {
+      "title": "Social and Analytics",
+      "body": "Connect your social accounts to post clips straight from SupoClip, then see in Analytics which ones people watch."
+    },
+    "agents": {
+      "title": "Agents & API",
+      "body": "Let an AI assistant like Claude or ChatGPT make clips for you, or create an API key to use SupoClip from your own tools."
+    },
+    "settingsPage": {
+      "title": "Settings",
+      "body": "Your plan and the minutes you’ve used this month, default caption style and fonts, and email notifications."
     }
   },
   "workflows": {

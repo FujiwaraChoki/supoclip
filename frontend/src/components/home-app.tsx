@@ -1333,8 +1333,7 @@ export default function HomeApp() {
                 }
               />
 
-              {/* The tour points here, not at the button: without a video the button is disabled and would be skipped. */}
-              <div data-tour="generate" className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 {/* The shortcut hint gives way to the workflow chips; empty, it takes no room. */}
                 <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1 sm:empty:hidden">
                   {isLoading ? <span role="status">{statusMessage || t("status.working")}</span> : hasSource && !workflowsEnabled ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
@@ -1387,7 +1386,7 @@ export default function HomeApp() {
           </p>
         </div>
 
-        <section data-tour="library" className="mt-16 md:mt-24" aria-labelledby="recent-heading">
+        <section className="mt-16 md:mt-24" aria-labelledby="recent-heading">
           <div className="mb-4 flex items-end justify-between">
             <h2 id="recent-heading" className="font-display text-lg font-bold tracking-tight">{t("recent")}</h2>
             {recent && recent.length > 0 && (

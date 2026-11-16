@@ -6,10 +6,14 @@ import type { Workflow } from "@/lib/workflows";
  * and put `data-tour="<target>"` on what each step points at. See docs/feature-tours.md.
  */
 export type TourStep = {
-  /** The `data-tour` value of what this step points at. Steps whose target isn't on the page or is disabled are skipped. */
+  /**
+   * The `data-tour` value of what this step points at; the first visible match is used, so the sidebar
+   * and the mobile tab bar can share one. Steps whose target isn't on the page or is disabled are skipped.
+   */
   target: string;
   /** Key under `tours.<tour id>` holding `title` and `body`. */
   message: string;
+  /** On narrow screens `left`/`right` become `top`: the targets there sit in the bottom tab bar. */
   side?: "top" | "bottom" | "left" | "right";
   /** Select this workflow while the step shows, and draw what it makes on the card. */
   workflow?: Workflow;
@@ -29,6 +33,8 @@ export type FeatureTour = {
    * for onboarding, the day it shipped, so accounts from before it don't get a welcome.
    */
   releasedAt: string;
+  /** A picture drawn in code for the opening dialog, instead of `media`. */
+  art?: "welcome";
   /** Looping video for the opening announcement, from `public/`: render it, don't screenshot it. */
   media?: {
     poster: string;
@@ -49,19 +55,21 @@ export const TOUR_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 /** First match wins, so put what matters most first. */
 export const FEATURE_TOURS: readonly FeatureTour[] = [
   {
-    // First visit: what SupoClip makes and how to get a first clip, instead of a bare composer.
+    // First visit: what SupoClip makes, how to get a first clip, and what the other pages are for.
     id: "welcome",
     audience: "new",
     releasedAt: "2026-11-16T00:00:00Z",
+    art: "welcome",
     covers: ["composer-settings"],
     steps: [
       { target: "composer", message: "intro", side: "bottom", intro: true },
       { target: "composer-source", message: "source", side: "bottom" },
       { target: "workflow-picker", message: "workflows", side: "bottom" },
       { target: "composer-settings", message: "settings", side: "top" },
-      { target: "generate", message: "generate", side: "top" },
-      { target: "library", message: "library", side: "top" },
-      { target: "usage", message: "usage", side: "right" },
+      { target: "nav-library", message: "library", side: "right" },
+      { target: "nav-social", message: "social", side: "right" },
+      { target: "nav-agents", message: "agents", side: "right" },
+      { target: "nav-settings", message: "settingsPage", side: "right" },
     ],
   },
   {

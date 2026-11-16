@@ -52,26 +52,31 @@ const firstTitle = "Introducing workflows";
 const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
 
 describe("FeatureTourHost", () => {
-  it("welcomes a new account on the real page, skipping what isn't there", async () => {
+  it("welcomes a new account with a picture, then the create screen and the other pages", async () => {
     account = { createdAt: "2030-01-01T00:00:00Z", seen: [] };
+    const rects = vi.mocked(HTMLElement.prototype.getClientRects);
+    // The sidebar is hidden (as on a phone): its link is passed over for the tab bar's.
+    rects.mockImplementation(function (this: HTMLElement) { return (this.dataset.hidden ? [] : [{}]) as never; });
     render(
       <>
-        <form data-tour="composer"><div data-tour="composer-source">source</div><button data-tour="composer-settings">settings</button><div data-tour="generate">go</div></form>
-        <section data-tour="library">recent</section>
+        <form data-tour="composer"><div data-tour="composer-source">source</div><button data-tour="composer-settings">settings</button></form>
+        <aside><a data-tour="nav-library" data-hidden="1">sidebar library</a></aside>
+        <nav><a data-tour="nav-library">tab library</a><a data-tour="nav-settings">tab settings</a></nav>
         <FeatureTourHost enabled busy={false} />
       </>,
     );
     await screen.findByText("Welcome to SupoClip", undefined, { timeout: 2500 });
     expect(screen.getByText("Welcome")).toBeTruthy();
+    expect(document.querySelector(".wa")).toBeTruthy();
     expect(posted).toEqual(["welcome"]);
     fireEvent.click(screen.getByText("Show me 👀"));
-    // No workflow picker or usage card here: those steps are skipped.
-    for (const title of ["Start with a video", "Set the look once", "Then press go"]) {
+    // No workflow picker, Social or Agents link here: those steps are skipped.
+    for (const title of ["Start with a video", "Set the look once", "Library"]) {
       expect(await screen.findByText(title)).toBeTruthy();
       expect(screen.getByText(/of 4/)).toBeTruthy();
       fireEvent.click(screen.getByText("Next"));
     }
-    await screen.findByText("Your clips land here");
+    await screen.findByText("Settings");
     fireEvent.click(screen.getByText("Done"));
     await waitFor(() => expect(endings).toEqual(["welcome:completed:4"]));
   });

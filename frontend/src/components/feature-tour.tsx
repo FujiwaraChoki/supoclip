@@ -12,6 +12,7 @@ import { track } from "@/lib/datafast";
 import { dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourStep } from "@/lib/feature-tours";
 import type { Workflow } from "@/lib/workflows";
 import { WorkflowGlyph } from "@/components/workflow-picker";
+import { WelcomeArt } from "@/components/welcome-art";
 
 const LAST_SHOWN_KEY = "supoclip.featureTour.lastShown";
 const SEEN_KEY = "supoclip.featureTour.seen";
@@ -38,9 +39,17 @@ function record(id: string, event: "shown" | "completed" | "dismissed", step?: n
   void fetch("/api/feature-tours", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, event, step }), keepalive: true }).catch(() => {});
 }
 
+/** The first visible, enabled element for this step: the sidebar and the mobile tab bar can carry the same target. */
 function targetOf(step: TourStep): HTMLElement | null {
-  const element = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
-  return element && element.getClientRects().length > 0 && !element.matches(":disabled") ? element : null;
+  const elements = document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`);
+  return Array.from(elements).find((element) => element.getClientRects().length > 0 && !element.matches(":disabled")) ?? null;
+}
+
+/** Beside a sidebar link on desktop; above it in the mobile tab bar, where there's no room beside it. */
+function sideOf(step: TourStep): NonNullable<TourStep["side"]> {
+  const side = step.side ?? "bottom";
+  const narrow = window.matchMedia?.("(max-width: 767px)").matches ?? false;
+  return narrow && (side === "left" || side === "right") ? "top" : side;
 }
 
 /** `?tour=<id>` replays a tour for checking it, ignoring who has seen what. */
@@ -240,6 +249,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
           // Start on the answer most people want, not on the way out.
           onOpenAutoFocus={(event) => { event.preventDefault(); showMe.current?.focus(); }}
         >
+          {running.tour.art === "welcome" && <WelcomeArt />}
           {running.tour.media && <AnnouncementMedia media={running.tour.media} variantsUrl={running.preview ? running.tour.media.variants : undefined} />}
           <div className="px-6 pb-6 pt-5">
             <span className="inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">{running.tour.audience === "new" ? t("welcomeBadge") : t("new")}</span>
@@ -261,7 +271,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
       <Popover open onOpenChange={(open) => { if (!open) end("dismissed"); }} modal={false}>
         <PopoverAnchor virtualRef={{ current: target }} />
         <PopoverContent
-          side={step.side ?? "bottom"}
+          side={sideOf(step)}
           sideOffset={14}
           collisionPadding={12}
           role="status"

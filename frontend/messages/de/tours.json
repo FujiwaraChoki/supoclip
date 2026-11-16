@@ -14,7 +14,7 @@
     },
     "source": {
       "title": "Starte mit einem Video",
-      "body": "Füge hier einen YouTube-Link ein oder lade mit der Büroklammer eine Datei hoch. Podcasts, Interviews und Vorträge ab 10 Minuten funktionieren am besten."
+      "body": "Füge hier einen YouTube-, Twitch- oder Kick-Link ein oder lade mit der Büroklammer eine Datei hoch, und drück dann auf den Pfeil. Podcasts, Interviews und Vorträge ab 10 Minuten funktionieren am besten."
     },
     "workflows": {
       "title": "Wähle, was entstehen soll",
@@ -24,17 +24,21 @@
       "title": "Stil einmal festlegen",
       "body": "Cliplänge, Untertitel, Bildausschnitt und B-Roll findest du in diesem Menü. Die Standardwerte sind gut, und deine Änderungen merken wir uns."
     },
-    "generate": {
-      "title": "Dann geht’s los",
-      "body": "Die meisten Videos dauern ein paar Minuten. Du kannst die Seite währenddessen verlassen; jeder Clip bekommt eine Bewertung, wie gut er ankommen dürfte."
-    },
     "library": {
-      "title": "Hier landen deine Clips",
-      "body": "Öffne einen, um ihn im Studio zu kürzen, Untertitel zu korrigieren oder neu zuzuschneiden, und lade ihn dann herunter, um ihn überall zu posten."
+      "title": "Mediathek",
+      "body": "Jedes Video, das du geclippt hast, mit all seinen Clips. Du kannst die Seite verlassen, während eins verarbeitet wird; es läuft weiter und erscheint hier. Öffne einen Clip, um ihn im Studio zu kürzen, Untertitel zu korrigieren oder neu zuzuschneiden."
     },
-    "usage": {
-      "title": "So zählt dein Plan",
-      "body": "Pläne werden in Minuten der Videos gemessen, die du hochlädst, nicht in Clips. Hier siehst du, wie viel du diesen Monat verbraucht hast."
+    "social": {
+      "title": "Social und Analysen",
+      "body": "Verbinde deine Social-Media-Konten, um Clips direkt aus SupoClip zu posten, und sieh unter Analysen, welche angeschaut werden."
+    },
+    "agents": {
+      "title": "Agenten & API",
+      "body": "Lass einen KI-Assistenten wie Claude oder ChatGPT Clips für dich erstellen, oder erstelle einen API-Schlüssel, um SupoClip aus deinen eigenen Tools zu nutzen."
+    },
+    "settingsPage": {
+      "title": "Einstellungen",
+      "body": "Dein Plan und die Minuten, die du diesen Monat verbraucht hast, Standard-Untertitelstil und Schriften sowie E-Mail-Benachrichtigungen."
     }
   },
   "workflows": {

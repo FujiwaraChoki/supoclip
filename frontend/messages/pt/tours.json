@@ -14,7 +14,7 @@
     },
     "source": {
       "title": "Comece com um vídeo",
-      "body": "Cole um link do YouTube aqui ou envie um arquivo pelo clipe de papel. Podcasts, entrevistas e palestras de 10 minutos ou mais funcionam melhor."
+      "body": "Cole aqui um link do YouTube, Twitch ou Kick, ou envie um arquivo pelo clipe de papel, e depois toque na seta. Podcasts, entrevistas e palestras de 10 minutos ou mais funcionam melhor."
     },
     "workflows": {
       "title": "Escolha o que criar",
@@ -24,17 +24,21 @@
       "title": "Defina o estilo uma vez",
       "body": "Duração, legendas, enquadramento e B-roll ficam neste menu. O padrão já é bom, e lembramos o que você mudar."
     },
-    "generate": {
-      "title": "Depois, é só começar",
-      "body": "A maioria dos vídeos leva alguns minutos. Você pode sair da página enquanto isso; cada clipe recebe uma nota de quanto deve performar."
-    },
     "library": {
-      "title": "Seus clipes aparecem aqui",
-      "body": "Abra um para cortar, corrigir uma legenda ou reenquadrar no estúdio, depois baixe e publique onde quiser."
+      "title": "Biblioteca",
+      "body": "Todos os vídeos que você recortou, com todos os clipes. Você pode sair enquanto um é processado; ele continua e aparece aqui. Abra um clipe para cortar, corrigir uma legenda ou reenquadrar no estúdio."
     },
-    "usage": {
-      "title": "Como seu plano conta",
-      "body": "Os planos são medidos em minutos dos vídeos que você envia, não em clipes. Aqui você vê quanto usou neste mês."
+    "social": {
+      "title": "Redes e Análises",
+      "body": "Conecte suas redes sociais para publicar clipes direto do SupoClip e veja em Análises quais as pessoas assistem."
+    },
+    "agents": {
+      "title": "Agentes e API",
+      "body": "Deixe um assistente de IA como o Claude ou o ChatGPT criar clipes por você, ou crie uma chave de API para usar o SupoClip nas suas próprias ferramentas."
+    },
+    "settingsPage": {
+      "title": "Configurações",
+      "body": "Seu plano e os minutos usados neste mês, o estilo de legenda e as fontes padrão, e as notificações por e-mail."
     }
   },
   "workflows": {

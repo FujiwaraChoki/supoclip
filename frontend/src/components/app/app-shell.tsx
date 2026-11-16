@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {items.map((item) => {
             const active = item.match(pathname);
             return (
-              <SidebarLink key={item.href} compact={compact} href={item.href} label={item.label} active={active}>
+              <SidebarLink key={item.href} compact={compact} href={item.href} label={item.label} active={active} tour={"labelKey" in item ? `nav-${item.labelKey}` : undefined}>
                 <item.icon className="size-4" />
               </SidebarLink>
             );
@@ -155,7 +155,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {mobileNav.map((item) => {
           const active = item.match(pathname);
           return (
-            <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}
+            <Link key={item.href} href={item.href} data-tour={`nav-${item.labelKey}`} aria-current={active ? "page" : undefined}
               className={cn("flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium", active ? "text-foreground" : "text-muted-foreground")}>
               <item.icon className={cn("size-5", active && "text-brand")} />{item.label}
             </Link>
@@ -168,11 +168,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SidebarLink({ href, label, active, compact, shortcut, className, children }: {
-  href: string; label: string; active?: boolean; compact: boolean; shortcut?: string; className?: string; children: React.ReactNode;
+function SidebarLink({ href, label, active, compact, shortcut, className, tour, children }: {
+  href: string; label: string; active?: boolean; compact: boolean; shortcut?: string; className?: string; /** `data-tour` target for the welcome tour. */ tour?: string; children: React.ReactNode;
 }) {
   const link = (
     <Link
+      data-tour={tour}
       href={href}
       aria-current={active ? "page" : undefined}
       aria-label={compact ? label : undefined}
@@ -205,7 +206,7 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
     ? t("usage.moreWith", { name: tCommon(`plans.${billingPlanMessageKey(upgrade.nextPlan.id)}`) })
     : null;
   return (
-    <Link data-tour="usage" href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
+    <Link href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
       <div className="flex items-center justify-between">
         <span className="font-semibold">{tCommon(`plans.${billingPlanMessageKey(billing.plan)}`)}</span>
         <span className="text-muted-foreground tabular-nums">
