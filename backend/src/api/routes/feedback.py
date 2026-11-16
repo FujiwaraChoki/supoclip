@@ -8,7 +8,9 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ...auth_headers import get_authenticated_user_id
+from ...cancellation_reviews.store import insert_note
 from ...config import get_config
+from ...database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,15 @@ async def submit_feedback(body: FeedbackRequest, request: Request):
             status_code=422,
             detail=f"Invalid category. Must be one of: {', '.join(VALID_CATEGORIES)}",
         )
+
+    if body.category == "cancellation" and user_id:
+        # Kept for the cancellation review of this customer (docs/cancellation-reviews.md).
+        # Best effort: Discord still gets the note if the database write fails.
+        try:
+            async with AsyncSessionLocal() as db:
+                await insert_note(db, user_id, body.message)
+        except Exception:
+            logger.exception("Could not store a cancellation note")
 
     embed = {
         "title": CATEGORY_LABELS.get(body.category, body.category),

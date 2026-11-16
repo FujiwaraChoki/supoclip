@@ -27,6 +27,7 @@ from arq.connections import RedisSettings  # noqa: E402
 
 from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
+from ..cancellation_reviews.runner import process_cancellation_reviews  # noqa: E402
 from .media_cleanup import cleanup_media, copy_pending_uploads, sweep_orphaned_media  # noqa: E402
 from .media_replication import check_media_storage, replicate_pending_media  # noqa: E402
 from .tasks import (  # noqa: E402
@@ -71,4 +72,6 @@ class CronWorkerSettings:
         scheduled(copy_pending_uploads, second=10, run_at_startup=True, timeout=1800),
         scheduled(dispatch_scheduled_social_posts, second=0, timeout=300),
         scheduled(refresh_social_metrics, minute=7, second=0, timeout=1800),
+        # Off unless CANCELLATION_REVIEWS_ENABLED; a run handles at most three reviews.
+        scheduled(process_cancellation_reviews, second=30, timeout=1800),
     ]

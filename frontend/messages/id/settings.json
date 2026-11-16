@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "Agen & API",
     "intro": "Biarkan Claude, Cursor, dan agen AI lain membuat clip untukmu lewat <brand>server MCP SupoClip</brand>, atau panggil REST API dari kodemu sendiri. Perlakukan kunci seperti kata sandi; kunci memberi akses penuh ke akunmu.",
-    "docs": {
-      "agentTitle": "Hubungkan agen",
-      "agentDescription": "Siapkan server MCP di Claude, Cursor, dan klien MCP lain.",
-      "restTitle": "Referensi REST API",
-      "restDescription": "Endpoint, autentikasi, dan contoh untuk akses API langsung."
-    },
+    "docsMcp": "Dokumentasi MCP",
+    "docsRest": "Dokumentasi REST API",
+    "keysTitle": "Kunci API",
+    "keysIntro": "Untuk skrip, CI, dan klien MCP yang tidak bisa masuk lewat browser.",
+    "createKey": "Buat kunci",
+    "createTitle": "Buat kunci API",
+    "createDescription": "Beri nama sesuai tempat kamu memakainya, agar nanti tahu mana yang harus dicabut.",
+    "nameLabel": "Nama",
+    "createdTitle": "Kunci API barumu",
+    "useIn": "Pakai di klien MCP",
+    "done": "Selesai",
+    "cancel": "Batal",
     "signIn": "Masuk untuk mengelola kunci API-mu.",
     "signInAction": "Masuk",
     "verifyTitle": "Verifikasi emailmu untuk membuat kunci API",
@@ -107,12 +113,10 @@
     "invalidLink": "Tautan verifikasi ini tidak valid atau kedaluwarsa. Minta email baru di bawah.",
     "reveal": "Salin kunci barumu sekarang — kunci tidak akan ditampilkan lagi.",
     "copy": "Salin kunci API",
-    "createLabel": "Buat kunci baru",
     "namePlaceholder": "mis. MCP laptop saya",
     "create": "Buat",
     "creating": "Membuat…",
     "defaultName": "Kunci API",
-    "yourKeys": "Kuncimu",
     "empty": "Belum ada kunci API.",
     "revoked": "Dicabut",
     "meta": "Dibuat {created} · Terakhir dipakai {used}",
@@ -122,27 +126,53 @@
     "createFailed": "Gagal membuat kunci API",
     "revokeFailed": "Gagal mencabut kunci API",
     "mcp": {
-      "title": "Hubungkan agen",
-      "intro": "Buat kunci di atas, lalu salin konfigurasi untuk klienmu. Ganti {placeholder} dengan kuncimu, dan isi kolom URL hanya dengan URL.",
-      "introWithKey": "Kunci barumu sudah terisi di bawah. Salin konfigurasi untuk klienmu sekarang; kunci tidak akan ditampilkan lagi.",
-      "urlLabel": "URL server",
-      "headerLabel": "Header",
       "copy": "Salin {label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor & lainnya",
-        "claudeDesktop": "Claude Desktop",
-        "stdio": "Lokal (stdio)",
-        "connectors": "claude.ai & ChatGPT"
+        "stdio": "Lokal (stdio)"
       },
       "hints": {
-        "claudeCode": "Jalankan ini di terminal.",
         "json": "Untuk Cursor (~/.cursor/mcp.json), Windsurf, dan klien lain yang menerima URL dan header.",
-        "claudeDesktop": "Tambahkan ke claude_desktop_config.json. Perlu Node.js; mcp-remote menghubungkan Claude Desktop ke server yang di-hosting.",
-        "stdio": "Menjalankan server di komputermu, jadi clip yang diunduh tersimpan di sana. Perlu uv.",
-        "connectors": "Tambahkan URL ini sebagai konektor kustom, lalu masuk dan izinkan akses. Tidak perlu menyalin kunci: konektor membuat kuncinya sendiri, yang tercantum di bawah."
+        "stdio": "Menjalankan server di komputermu, jadi clip yang diunduh tersimpan di sana. Perlu uv."
+      }
+    },
+    "assistants": {
+      "title": "Hubungkan Claude, ChatGPT, atau Grok",
+      "intro": "Tidak perlu menyalin kunci API: tambahkan SupoClip sebagai konektor kustom di asisten, lalu masuk ke SupoClip dan izinkan akses. Asisten mendapat kuncinya sendiri, yang tercantum di Kunci API.",
+      "urlLabel": "URL server",
+      "pick": "Pilih asisten",
+      "open": "Buka {name}",
+      "guide": "Panduan {name}",
+      "newTab": "(terbuka di tab baru)",
+      "revoke": "Setiap koneksi muncul di Kunci API dengan nama aplikasinya (misalnya “Claude connector”). Cabut untuk memutuskan koneksi. Membuat clip lewat asisten memakai menit video paketmu.",
+      "claude": {
+        "steps": {
+          "1": "Di Claude, buka <b>Customize › Connectors</b>, pilih <b>Add</b>, lalu <b>Add custom connector</b>.",
+          "2": "Beri nama SupoClip, tempel URL server, lalu klik <b>Continue</b>.",
+          "3": "Biarkan pengaturan masuk yang ditandai Claude <b>Detected</b>. Jika ditanya bagaimana Claude mengidentifikasi diri, pilih <b>Register automatically</b>. Klik <b>Add</b>.",
+          "4": "Klik <b>Connect</b>, masuk ke SupoClip, lalu pilih <b>Allow</b>."
+        },
+        "availability": "Anthropic mendukung konektor kustom di Free (satu konektor), Pro, Max, Ultra, Team, dan Enterprise. Di Team dan Enterprise, Owner menambahkannya di Organization settings › Connectors, lalu setiap anggota mengklik Connect.",
+        "code": "Claude Code: jalankan perintah ini di terminal dan masuk saat browser terbuka.",
+        "codeLabel": "Perintah Claude Code"
       },
-      "planNote": "Membuat clip lewat agen memakai menit video paketmu."
+      "chatgpt": {
+        "steps": {
+          "1": "Di ChatGPT versi web, buka <b>Plugins</b>, pilih <b>+</b>, lalu <b>Add custom MCP server</b>.",
+          "2": "Beri nama SupoClip dan tempel URL server di <b>Connection</b>.",
+          "3": "Atur autentikasi ke <b>OAuth</b>, terima peringatan risiko, lalu pilih <b>Create as a plugin</b>.",
+          "4": "Instal plugin, masuk ke SupoClip, lalu pilih <b>Allow</b>. ChatGPT meminta konfirmasi untuk setiap tindakan yang membuat atau mengubah clip."
+        },
+        "availability": "OpenAI menyediakan server MCP kustom di ChatGPT web untuk Business, Enterprise, dan Edu; di Business, admin dan owner yang menambahkannya. Akun Pro hanya mendapat alat baca: ChatGPT bisa menampilkan clip-mu, tetapi tidak membuat yang baru. OpenAI tidak mendokumentasikannya untuk paket lain."
+      },
+      "grok": {
+        "steps": {
+          "1": "Di grok.com, buka <b>Connectors</b>, pilih <b>New Connector</b>, lalu <b>Custom</b>.",
+          "2": "Tempel URL server.",
+          "3": "Selesaikan proses masuk: masuk ke SupoClip, lalu pilih <b>Allow</b>."
+        },
+        "availability": "Menurut xAI, konektor tersedia untuk semua pengguna Grok; di Business dan Enterprise, admin menambahkan konektor di konsol xAI terlebih dahulu. xAI tidak mendokumentasikan metode masuk yang didukung konektor kustom, jadi alur ini belum terkonfirmasi untuk Grok. Jika gagal, hubungkan asisten lain atau gunakan kunci API di bawah."
+      }
     }
   },
   "creator": {

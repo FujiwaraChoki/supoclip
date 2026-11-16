@@ -6,10 +6,13 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-15
 
-- **Fixed:** Series, topic, recap and trailer runs no longer fail on long videos with "We couldn't read the whole video". ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
+- **Fixed:** Long videos processed with Claude Haiku have more room for their outlines, reducing incomplete outlines in series, topic, recap and trailer runs. ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
+
+- **New:** Settings → Agents & API shows how to connect Claude, ChatGPT or Grok: open the assistant's connector page, paste the SupoClip server URL and sign in. No key to copy. Each assistant lists which of its plans support this. Claude Code can sign in the same way. API keys moved into one tidy list with a Create key button; a new key opens with its Cursor and local config filled in. ([#403](https://github.com/FujiwaraChoki/supoclip/pull/403))
 
 ## 2026-11-14
 
+- **Improved:** Interview clips are framed shot by shot instead of shrinking the whole video into a strip. When both people are on camera, each gets their own half of the screen, stacked; a close-up of one person becomes a tight crop on their face; on-screen graphics and b-roll are shown in full. The layout changes exactly on the video's own cuts. ([#392](https://github.com/FujiwaraChoki/supoclip/pull/392))
 - **Fixed:** Long Twitch and Kick videos download the parts your clips use, instead of the whole stream, and a download that is still receiving data is no longer cut off after a few minutes. ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
 - **Fixed:** A subscriber-only or private VOD, and a VOD that is blocked in our regions, is reported as such instead of a generic "try again later". ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
 - **Fixed:** Age-restricted YouTube videos are now turned down when you submit them, with a note to download the video and upload the file instead. Before, they failed after a long wait with a message to retry, which couldn't work. No minutes are used. ([#391](https://github.com/FujiwaraChoki/supoclip/pull/391))
