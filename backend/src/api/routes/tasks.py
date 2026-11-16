@@ -618,7 +618,7 @@ async def _bind_existing_task(db, user_id, idempotency, response):
         await db.commit()
         return response
     # Another request already bound this key. Its hash must match.
-    return await _replay_task(db, user_id, idempotency)
+    return await _replay_task(db, user_id, idempotency) or response
 
 
 @router.post("/")
@@ -717,7 +717,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     if upload_request_key and db is not None:
         existing = await TaskRepository.find_recent_upload_task(db, user_id, upload_request_key)
         if existing is not None:
-            return await _bind_existing_task(db, user_id, idempotency, _queued_upload_task(existing.id, existing.job_id))
+            return await _bind_existing_task(
+                db, user_id, idempotency,
+                _queued_upload_task(existing.id, existing.job_id),
+            )
 
     # Same video already queued or rendering: hand back that task. This is
     # before preflight and before any minute charge. Callers that unit-test
@@ -728,7 +731,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         if source_key:
             existing = await TaskRepository.find_active_source_task(db, user_id, source_key)
             if existing is not None:
-                return await _bind_existing_task(db, user_id, idempotency, duplicate_source_response(str(existing.id), existing.job_id))
+                return await _bind_existing_task(
+                    db, user_id, idempotency,
+                    duplicate_source_response(str(existing.id), existing.job_id),
+                )
 
     try:
         billing_service = BillingService(db)
@@ -788,7 +794,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         db, user_id, source_key
                     )
                     if existing is not None:
-                        return await _bind_existing_task(db, user_id, idempotency, duplicate_source_response(str(existing.id), existing.job_id))
+                        return await _bind_existing_task(
+                            db, user_id, idempotency,
+                            duplicate_source_response(str(existing.id), existing.job_id),
+                        )
                 try:
                     task_id = await task_service.create_task_with_source(
                         user_id=user_id,

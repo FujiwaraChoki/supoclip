@@ -187,8 +187,8 @@ async def test_storage_refusing_the_parts_lets_a_corrected_list_complete(client,
     payload = await _uploaded(client, s3, auth_headers)
     wrong = {**payload, "parts": [payload["parts"][0], {"partNumber": 2, "etag": '"stale"'}]}
 
-    with pytest.raises(ClientError):
-        await client.post("/upload/complete", json=wrong, headers=auth_headers)
+    rejected = await client.post("/upload/complete", json=wrong, headers=auth_headers)
+    assert rejected.status_code == 400
     corrected = await client.post("/upload/complete", json=payload, headers=auth_headers)
 
     assert corrected.status_code == 200, corrected.text

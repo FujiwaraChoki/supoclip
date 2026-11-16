@@ -543,6 +543,7 @@ async def complete_upload(request: Request, db: AsyncSession = Depends(get_db)):
         except ClientError as exc:
             if exc.response["Error"]["Code"] in _PARTS_REJECTED:
                 await release_completion(db, session.id, digest)
+                raise HTTPException(400, "Storage rejected the multipart upload parts.") from None
             raise
         await finish_upload(db, session.id, 'completed')
         return result

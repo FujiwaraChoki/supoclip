@@ -245,6 +245,29 @@ async def test_concurrent_requests_with_one_key_make_one_task(client, app, auth_
 
 
 @pytest.mark.asyncio
+async def test_one_key_racing_on_two_sources_binds_only_one(client, app, auth_headers, db_session, monkeypatch):
+    await create_user(db_session, user_id="user-1")
+    # The two different source locks do not serialize these requests.
+    barrier = asyncio.Barrier(2)
+    original = TaskRepository.create_task
+
+    async def collide(*args, **kwargs):
+        await asyncio.wait_for(barrier.wait(), 5)
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(tasks, "_preflight_youtube_source", AsyncMock(return_value={"title": "Talk", "duration": 60}))
+    monkeypatch.setattr(TaskRepository, "create_task", staticmethod(collide))
+    before = len(app.state.queue_adapter.enqueued_jobs)
+    responses = await asyncio.gather(*(
+        _create(client, auth_headers, {"source": {"url": f"https://youtu.be/{video}"}}, "same-key-two-sources")
+        for video in ("dQw4w9WgXcQ", "aqz-KE-bpKQ")
+    ))
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    assert await _task_count(db_session, "user-1") == 1
+    assert len(_processing_jobs(app, before)) == 1
+
+
+@pytest.mark.asyncio
 async def test_concurrent_keyed_upload_creates_make_one_task(
     client, app, auth_headers, db_session, tmp_path, monkeypatch,
 ):
