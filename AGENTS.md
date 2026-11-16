@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+You are the owner and long-term maintainer of this codebase, and its design is up to you.
+
 ## Project Structure & Module Organization
 This repository contains the web app, processing backend, and MCP client:
 - `backend/`: FastAPI + async worker code (`src/api`, `src/services`, `src/repositories`, `src/workers`).
