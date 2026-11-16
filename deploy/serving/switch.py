@@ -23,6 +23,22 @@ def get(port, path):
         return response.read(32768)
 
 
+def check_frontend_auth(port):
+    # The anonymous Better Auth response can succeed without touching Prisma.
+    # Select the exact running container bound to the candidate loopback port.
+    rows = subprocess.check_output(
+        ["docker", "ps", "--format", "{{.ID}} {{.Ports}}"], text=True, timeout=5,
+    )
+    binding = f"127.0.0.1:{port}->3107/tcp"
+    containers = [row.split(" ", 1)[0] for row in rows.splitlines()
+                  if binding in row.partition(" ")[2].split(", ")]
+    if len(containers) != 1:
+        raise ValueError(f"cannot identify the frontend on port {port}")
+    with Path(__file__).with_name("check-auth.cjs").open("rb") as probe:
+        subprocess.run(["docker", "exec", "-i", containers[0], "node", "-"], stdin=probe,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=8)
+
+
 def ready(web, api):
     for path in ("/health/db", "/health/redis"):
         if json.loads(get(api, path)).get("status") != "healthy":
@@ -37,7 +53,7 @@ def wait_for(check, seconds, description):
         try:
             if check():
                 return
-        except (OSError, URLError, ValueError) as exc:
+        except (OSError, URLError, ValueError, subprocess.SubprocessError) as exc:
             last_error = type(exc).__name__
         else:
             last_error = "pending"
@@ -81,7 +97,7 @@ def workers(master):
     return result
 
 
-def main():
+def main(frontend_auth=check_frontend_auth):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["init", "switch"])
     parser.add_argument("web", type=int)
@@ -119,6 +135,7 @@ def main():
                 raise ValueError("install both named upstreams in the serving vhosts first")
         def candidate_ready():
             ready(args.web, args.api)
+            frontend_auth(args.web)
             return True
         wait_for(candidate_ready, args.ready_timeout, "candidate readiness")
         master = int(args.master_pid.read_text())

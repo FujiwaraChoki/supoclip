@@ -1,6 +1,6 @@
 # Switching the serving release
 
-On the hosted Linux application server, keep the old frontend and API running while a candidate starts. nginx sends new connections to the candidate after its API can query PostgreSQL and ping Redis and its frontend can serve an anonymous Better Auth session. An nginx worker keeps its loaded upstream configuration for the lifetime of the requests it is already serving. The old frontend also keeps using its own API. Video, AI and cron workers are a separate rollout.
+On the hosted Linux application server, keep the old frontend and API running while a candidate starts. nginx sends new connections to the candidate after its API can query PostgreSQL and ping Redis and its frontend can serve an anonymous Better Auth session and read the user, account and session tables through its packaged Prisma client. An nginx worker keeps its loaded upstream configuration for the lifetime of the requests it is already serving. The old frontend also keeps using its own API. Video, AI and cron workers are a separate rollout.
 
 ## Install once
 
@@ -20,7 +20,7 @@ deploy/serving/prepare.sh release-abc123 13001 18000 "$SCANNED_FRONTEND_IMAGE" "
 
 Prepare pins the supplied local image IDs and starts only the candidate API and frontend. Each release has its own Docker names. The API uses the existing data volumes and the image's packaged source, fonts and transitions. The frontend uses the standalone runner from its image and the candidate API's name. Verify any installation-specific media mounts against that layout. R2 and AWS settings come from the staged environment. Failed preparation leaves the existing serving release running and reports the error.
 
-Retain the candidate's assets, check both loopback ports, and verify the frontend can reach its paired API. Run the cutover from the application host:
+The switch needs Docker access to check the frontend container published on the selected web port. Retain the candidate's assets, check both loopback ports, and verify the frontend can reach its paired API. Run the cutover from the application host:
 
 ```sh
 sudo python3 deploy/serving/switch.py switch 13001 18000

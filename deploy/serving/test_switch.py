@@ -112,7 +112,11 @@ class ServingSwitch(unittest.TestCase):
             front, public_api, monitor = (free_port() for _ in range(3))
             conf, include, pid = (root / n for n in ("nginx.conf", "upstreams.conf", "master.pid"))
             def switch(action, web, api, *args):
-                return subprocess.run([sys.executable, str(SWITCH), action, str(web.server_port),
+                # These HTTP fixtures have no Prisma container. The Docker/image
+                # rehearsal covers that probe; this gate exercises nginx itself.
+                invoke = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
+                          "import switch; switch.main(frontend_auth=lambda port: None)")
+                return subprocess.run([sys.executable, "-c", invoke, str(SWITCH.parent), action, str(web.server_port),
                                        str(api.server_port), "--include", str(include), "--master-pid",
                                        str(pid), "--nginx-conf", str(conf), "--monitor", str(monitor),
                                        "--ready-timeout", "1", "--drain-timeout", "2", *args],
