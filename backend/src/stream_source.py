@@ -68,6 +68,8 @@ _DIRECT_RETRY_BACKOFF_SECONDS = 1.5
 _FAILED_TTL_SECONDS = 600.0
 _STATE_TTL_SECONDS = 6 * 3600.0
 _SECTION_TOLERANCE_SECONDS = 1.0
+# Decoding an hour of audio takes seconds; past this, keep the download unchecked.
+_AUDIO_CHECK_TIMEOUT_SECONDS = 600
 # Selected sections of an HLS VOD are fetched fragment by fragment, a few at a
 # time: one proxied connection runs at ~1 MiB/s, slower than 1080p60 plays.
 _HLS_SECTION_WORKERS = 4
@@ -453,6 +455,24 @@ def _probe(path_or_url: str | Path, timeout: int = 60) -> Optional[float]:
         return None
 
 
+def _check_audio_decodes(path: Path) -> None:
+    """Refuse a whole download whose audio track does not decode.
+
+    A provider can return a complete file with corrupt AAC. Transcription
+    cannot use it, so fail this provider and let the next one try. A file
+    without audio passes; a missing ffmpeg or a slow decode is not a verdict.
+    """
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-map", "0:a:0?", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=_AUDIO_CHECK_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return
+    if result.returncode != 0:
+        raise RuntimeError("downloaded audio could not be decoded")
+
+
 def _safe_component(value: str) -> str:
     value = str(value)
     if not _SAFE_COMPONENT.fullmatch(value) or value in {".", ".."}:
@@ -579,6 +599,7 @@ def _finish(directory: Path, call_dir: Path, ranges) -> Path:
     if not files:
         raise RuntimeError("provider returned no media file")
     if not ranges:
+        _check_audio_decodes(files[0])
         return files[0]
     if len(files) != len(ranges):
         raise RuntimeError("provider did not return every requested section")
@@ -1043,6 +1064,7 @@ def _parsebird_file(info: dict, state: _Operation, op_dir: Path) -> Path:
             raise RuntimeError("downloaded media has no readable duration")
         if not _close(actual, info.get("duration")) or not _close(actual, state.expected_duration):
             raise RuntimeError("downloaded media duration does not match the requested video")
+        _check_audio_decodes(remuxed)
     except Exception:
         shutil.rmtree(shared, ignore_errors=True)
         raise

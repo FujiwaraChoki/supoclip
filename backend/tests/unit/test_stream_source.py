@@ -756,3 +756,83 @@ def test_byte_budget_is_shared_between_phases_and_stops_fallbacks(env, monkeypat
         subject.download_stream_video(TWITCH_VOD, task_id="task1", operation="job")
     assert env.ytdlp.providers("download") == ["proxy"]
     assert env.actors.calls == []
+
+
+# ------------------------------------------------------- undecodable audio
+
+@pytest.fixture(scope="module")
+def corrupt_audio(tmp_path_factory, media):
+    """A whole ADTS AAC file whose frames do not decode, as a provider once returned."""
+    root = tmp_path_factory.mktemp("corrupt-audio")
+    good, bad = root / "good.aac", root / "bad.aac"
+    subprocess.run(
+        ["ffmpeg", "-y", "-nostdin", "-f", "lavfi", "-i", "sine=frequency=440:duration=5", "-c:a", "aac", "-f", "adts", str(good)],
+        check=True, capture_output=True,
+    )
+    data = bytearray(good.read_bytes())
+    # Keep every ADTS header so the file still parses; scramble the frames.
+    offset, state = 0, 1
+    while offset + 7 <= len(data):
+        length = ((data[offset + 3] & 0x03) << 11) | (data[offset + 4] << 3) | (data[offset + 5] >> 5)
+        for index in range(offset + 7, min(offset + length, len(data))):
+            state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+            data[index] = state & 0xFF
+        offset += max(length, 7)
+    bad.write_bytes(bytes(data))
+    return bad
+
+
+def test_audio_check_rejects_undecodable_audio_and_passes_good_media(media, corrupt_audio, tmp_path):
+    with pytest.raises(RuntimeError, match="could not be decoded"):
+        subject._check_audio_decodes(corrupt_audio)
+    subject._check_audio_decodes(media.mkv)
+    video_only = tmp_path / "video-only.mkv"
+    subprocess.run(["ffmpeg", "-y", "-nostdin", "-i", str(media.mkv), "-an", "-c", "copy", str(video_only)], check=True, capture_output=True)
+    subject._check_audio_decodes(video_only)
+
+
+def test_audio_check_without_ffmpeg_keeps_the_download(monkeypatch, corrupt_audio):
+    def missing(*_args, **_kwargs):
+        raise FileNotFoundError("ffmpeg")
+
+    monkeypatch.setattr(subject.subprocess, "run", missing)
+    subject._check_audio_decodes(corrupt_audio)
+
+
+def test_undecodable_whole_download_falls_through_to_the_next_provider(env, corrupt_audio, caplog, monkeypatch):
+    real_download = env.ytdlp.download_info
+
+    def download_info(info, provider, template, *, audio, ranges, session, watch=None):
+        if provider == "proxy":
+            env.ytdlp.calls.append(("download", provider, ()))
+            shutil.copy(corrupt_audio, str(template).replace("%(ext)s", "aac"))
+            return
+        real_download(info, provider, template, audio=audio, ranges=ranges, session=session, watch=watch)
+
+    monkeypatch.setattr(subject, "_download_info", download_info)
+    with caplog.at_level(logging.INFO):
+        path = subject.download_stream_audio(KICK_VOD, MEDIA_DURATION, task_id="task1", operation="job")
+    assert path.exists() and path.suffix == ".mkv"
+    subject._check_audio_decodes(path)
+    assert env.ytdlp.providers("download") == ["proxy", "direct_retry"]
+    assert env.actors.calls == []
+    assert "could not be decoded" in caplog.text
+    assert subject._operations[("task1", "job")].preferred == "direct_retry"
+
+
+def test_undecodable_parsebird_file_is_not_kept_for_later_calls(env, monkeypatch):
+    env.ytdlp.failures = {"proxy": RuntimeError("proxy down"), "direct": [RuntimeError("HTTP 403"), RuntimeError("HTTP 403")]}
+    env.actors.results["kick-hls-actor"] = [{"status": "failed", "id": None, "hlsUrl": None}]
+    env.actors.results["kick-mp4-actor"] = [parsebird_item()]
+    checked = []
+
+    def undecodable(path):
+        checked.append(Path(path).name)
+        raise RuntimeError("downloaded audio could not be decoded")
+
+    monkeypatch.setattr(subject, "_check_audio_decodes", undecodable)
+    with pytest.raises(subject.StreamSourceError):
+        subject.download_stream_video(KICK_VOD, MEDIA_DURATION, task_id="task1", operation="job")
+    assert checked == ["parsebird.mp4"]
+    assert subject._operations[("task1", "job")].local_media is None
+    assert not list(env.root.rglob("parsebird.*"))
