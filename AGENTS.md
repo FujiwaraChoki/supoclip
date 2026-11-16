@@ -73,5 +73,6 @@ Every PR that changes something a person can see or do must show it working in t
 ## Security & Configuration Tips
 - Never commit real secrets; use `.env.example` as the template.
 - Preserve the committed dependency lockfiles and patched base-image versions when deploying. Run the `Image security` checks against freshly built final images; do not bypass a failing critical-vulnerability check with a server-only tag or an unpinned package install.
+- For hosted frontend/API releases, follow [the serving rollout](deploy/serving/README.md) to stage an isolated candidate, switch nginx after readiness, and drain the previous release.
 - Before a production restart, check that no SupoClip tasks are queued or processing and the worker has no ongoing jobs; let active clips finish first.
 - Required runtime keys include `ASSEMBLY_AI_API_KEY` and either one hosted LLM provider key (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY`) or an Ollama model configuration (`LLM=ollama:*`, optional `OLLAMA_BASE_URL`).

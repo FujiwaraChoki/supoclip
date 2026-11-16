@@ -1,0 +1,29 @@
+# Last overlay for "docker compose run --no-deps". The two one-off containers
+# use release-specific names. Do not register the shared 'backend' DNS alias.
+services:
+  backend:
+    image: ${API_IMAGE_ID:?}
+    pull_policy: never
+    volumes: !override
+      - uploads:/app/uploads
+      - clips:/app/clips
+  frontend:
+    image: ${WEB_IMAGE_ID:?}
+    pull_policy: never
+    volumes: !reset []
+    environment:
+      NODE_ENV: production
+      BACKEND_INTERNAL_URL: http://supoclip-api-${RELEASE:?}:8000
+
+networks:
+  default: !override
+    external: true
+    name: ${SERVING_NETWORK:-supoclip-network}
+
+volumes:
+  uploads: !override
+    external: true
+    name: ${SERVING_UPLOADS_VOLUME:-supoclip_uploads}
+  clips: !override
+    external: true
+    name: ${SERVING_CLIPS_VOLUME:-supoclip_clips}
