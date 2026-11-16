@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-16
 
+- **New:** New accounts get a short welcome tour on their first visit: what SupoClip makes, where to put a video, what to make, where the settings are, and where finished clips appear. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))
 - **Fixed:** Exporting a clip while its clips are being regenerated no longer hangs and then fails. You're asked to try again in a moment, and if the clip was replaced you're told it's gone. ([#419](https://github.com/FujiwaraChoki/supoclip/pull/419))
 - **Improved:** Accounts can process two videos at once, reducing waits when several videos are queued. ([#418](https://github.com/FujiwaraChoki/supoclip/pull/418))
 
