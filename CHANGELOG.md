@@ -34,6 +34,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-10
 
+- **Fixed:** With reduced motion enabled, the homepage and sign-in and sign-up forms now keep their contents as the page becomes interactive. ([#358](https://github.com/FujiwaraChoki/supoclip/pull/358))
+
 - **Improved:** A studio export or clip preparation whose server stops unexpectedly is now retried or shown as failed within a few minutes, instead of staying in progress. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
 - **Under the hood:** Video rendering can run on additional servers. Studio drafts and exports are kept in the database, and uploads, fonts and finished videos are shared through storage instead of one server's disk. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
 - **Fixed:** When we can't verify a YouTube, Twitch or Kick video's length, the message explains that the stream may still be live and suggests using the completed recording. For YouTube, we check a second source for the length. If that check confirms a region restriction, we suggest uploading the video file. ([#356](https://github.com/FujiwaraChoki/supoclip/pull/356))
