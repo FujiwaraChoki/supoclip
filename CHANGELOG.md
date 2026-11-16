@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-16
 
-- **Improved:** Accounts can process two videos at once, reducing waits when several videos are queued. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
+- **Improved:** Accounts can process two videos at once, reducing waits when several videos are queued. ([#418](https://github.com/FujiwaraChoki/supoclip/pull/418))
 
 - **Under the hood:** Hosted deployments can switch new requests to a ready frontend and API while uploads and downloads on the previous release finish. ([#412](https://github.com/FujiwaraChoki/supoclip/pull/412))
 
