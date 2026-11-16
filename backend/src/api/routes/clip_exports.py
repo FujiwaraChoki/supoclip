@@ -15,6 +15,8 @@ from ...clip_editor import EXPORT_PRESETS
 from ...config import get_config
 from ...database import get_db
 from ...media_storage import MediaStorage, is_s3
+from ...repositories.clip_repository import ClipRepository
+from ...repositories.edit_transaction import TaskEditInProgress, hold_off_task_edits
 from ...services.clip_export_service import (
     FILE_MISSING_MESSAGE,
     ExportWorkerUnavailable,
@@ -60,10 +62,14 @@ async def _preset_from_request(request: Request, preset: str) -> str:
 async def _owned_clip(request: Request, db: AsyncSession, task_id: str, clip_id: str):
     task_service = TaskService(db)
     task = await _require_task_reader(request, task_service, db, task_id)
-    clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+    return task, await _task_clip(db, task_id, clip_id)
+
+
+async def _task_clip(db: AsyncSession, task_id: str, clip_id: str) -> dict:
+    clip = await ClipRepository.get_clip_by_id(db, clip_id)
     if not clip or clip.get("task_id") != task_id or not clip.get("file_path"):
         raise HTTPException(status_code=404, detail="Clip not found")
-    return task, clip
+    return clip
 
 
 @router.post("/{task_id}/clips/{clip_id}/exports", status_code=202)
@@ -75,8 +81,17 @@ async def start_clip_export(
     db: AsyncSession = Depends(get_db),
 ):
     """Queue a preset export. The same clip and options reuse a live or finished job."""
-    task, clip = await _owned_clip(request, db, task_id, clip_id)
+    task, _clip = await _owned_clip(request, db, task_id, clip_id)
     preset_name = await _preset_from_request(request, preset)
+    # An edit (a regeneration) may replace this clip. Hold edits off until the
+    # export row is committed, and read the clip again under that lock.
+    try:
+        await hold_off_task_edits(db, task_id)
+    except TaskEditInProgress as exc:
+        raise HTTPException(
+            status_code=409, detail=str(exc), headers={"Retry-After": "5"}
+        ) from None
+    clip = await _task_clip(db, task_id, clip_id)
     queue = getattr(request.app.state, "queue_adapter", None)
     if queue is None:
         from ...workers.job_queue import JobQueue
