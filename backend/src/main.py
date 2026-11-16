@@ -155,7 +155,7 @@ def create_app(
         return JSONResponse(
             status_code=exc.status_code,
             content=jsonable_encoder({"detail": exc.detail, "trace_id": trace_id}),
-            headers={TRACE_HEADER: trace_id},
+            headers={**(exc.headers or {}), TRACE_HEADER: trace_id},
         )
 
     @app.exception_handler(RequestValidationError)
