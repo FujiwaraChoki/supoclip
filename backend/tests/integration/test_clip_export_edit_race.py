@@ -7,13 +7,15 @@ the clips. An export used to wait on that and insert against the deleted clip
 
 import asyncio
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.repositories.clip_export_repository import ClipExportRepository
 from src.repositories.clip_repository import ClipRepository
 from src.repositories.edit_transaction import hold_off_task_edits, task_edit_transaction
-from tests.integration.test_clip_exports import exports_url, record_jobs, seed_clip
+from tests.integration.test_clip_exports import exports_url, headers_for, record_jobs, seed_clip
+from tests.fixtures.factories import create_user
 
 
 def sessions(initialized_database):
@@ -122,3 +124,93 @@ async def test_retries_reuse_one_export_once_the_edit_is_done(
     assert retry.json()["id"] == first.json()["id"]
     assert len(jobs) == 1
     assert await export_rows(db_session, clip_id) == 1
+
+
+@pytest.mark.parametrize("delete_clip", [True, False])
+async def test_export_rereads_a_clip_changed_after_authorization(
+    client, app, db_session, initialized_database, auth_headers, monkeypatch, delete_clip
+):
+    from src.api.routes import clip_exports
+
+    jobs = record_jobs(monkeypatch, app)
+    task_id, clip_id = await seed_clip(db_session, file_path="s3://test-bucket/media/clips/old.mp4")
+    new_path = "s3://test-bucket/media/clips/regenerated.mp4"
+    original_guard = clip_exports.hold_off_task_edits
+
+    async def edit_before_lock(db, requested_task):
+        # The route already authorized and read the original clip. Commit an
+        # edit now, before its guard can protect the subsequent read/insert.
+        async with sessions(initialized_database)() as editor:
+            async with task_edit_transaction(editor, requested_task):
+                if delete_clip:
+                    await ClipRepository.delete_clips_by_task(editor, requested_task)
+                else:
+                    await editor.execute(
+                        text("UPDATE generated_clips SET file_path = :path WHERE id = :id"),
+                        {"path": new_path, "id": clip_id},
+                    )
+        await original_guard(db, requested_task)
+
+    monkeypatch.setattr(clip_exports, "hold_off_task_edits", edit_before_lock)
+    response = await asyncio.wait_for(
+        client.post(exports_url(task_id, clip_id), headers=auth_headers, json={"preset": "tiktok"}),
+        timeout=5,
+    )
+    if delete_clip:
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Clip not found"
+        assert jobs == []
+        assert await export_rows(db_session, clip_id) == 0
+    else:
+        assert response.status_code == 202
+        row = await ClipExportRepository.get(db_session, response.json()["id"])
+        assert row["source_file_path"] == new_path
+        assert len(jobs) == 1
+
+
+async def test_export_guard_allows_progress_updates_and_other_exports(
+    client, app, db_session, initialized_database, auth_headers, monkeypatch
+):
+    jobs = record_jobs(monkeypatch, app)
+    task_id, clip_id = await seed_clip(db_session)
+    async with sessions(initialized_database)() as exporter, sessions(initialized_database)() as updater:
+        await hold_off_task_edits(exporter, task_id)
+        await asyncio.wait_for(updater.execute(
+            text("UPDATE tasks SET progress = 50 WHERE id = :id"), {"id": task_id}
+        ), timeout=5)
+        # Leave the progress update uncommitted as well. Neither its NO KEY
+        # UPDATE lock nor the first export's KEY SHARE should reject these.
+        responses = await asyncio.wait_for(asyncio.gather(*[
+            client.post(exports_url(task_id, clip_id), headers=auth_headers, json={"preset": "tiktok"})
+            for _ in range(3)
+        ]), timeout=5)
+        await updater.rollback()
+        await exporter.rollback()
+
+    assert [response.status_code for response in responses] == [202, 202, 202]
+    assert len({response.json()["id"] for response in responses}) == 1
+    assert len(jobs) == 1
+    assert await export_rows(db_session, clip_id) == 1
+
+
+async def test_busy_task_still_checks_authorization_and_preset_first(
+    client, app, db_session, initialized_database, auth_headers, monkeypatch
+):
+    jobs = record_jobs(monkeypatch, app)
+    task_id, clip_id = await seed_clip(db_session)
+    await create_user(db_session, user_id="outsider", email="outsider@example.com")
+    url = exports_url(task_id, clip_id)
+    async with sessions(initialized_database)() as editor:
+        async with task_edit_transaction(editor, task_id):
+            outsider = await asyncio.wait_for(
+                client.post(url, headers=headers_for("outsider"), json={"preset": "tiktok"}), timeout=5
+            )
+            invalid = await asyncio.wait_for(
+                client.post(url, headers=auth_headers, json={"preset": "invalid"}), timeout=5
+            )
+
+    assert outsider.status_code == 403
+    assert invalid.status_code == 400
+    assert "retry-after" not in outsider.headers
+    assert jobs == []
+    assert await export_rows(db_session, clip_id) == 0
