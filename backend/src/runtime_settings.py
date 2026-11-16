@@ -141,6 +141,8 @@ def apply_settings_to_process_env(resolved_settings: Mapping[str, str | None]) -
         if value:
             os.environ[key] = value
             _applied_process_env_keys.add(key)
+            if key == "GOOGLE_API_KEY":
+                os.environ["GEMINI_API_KEY"] = value
         elif _original_env_values.get(key):
             os.environ[key] = _original_env_values[key] or ""
         elif key in _applied_process_env_keys:
