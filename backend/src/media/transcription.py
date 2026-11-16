@@ -39,6 +39,9 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
 
     # Transcribe the same track the renderer cuts, not ffmpeg's implicit pick.
     audio_stream = select_audio_stream_index(video_path)
+    # Write beside the cache name and rename on success, so an interrupted or
+    # failed extraction never leaves a partial file that a later call reuses.
+    partial_path = audio_path.with_name(f"{audio_path.name}.part")
     command = [
         "ffmpeg",
         "-y",
@@ -52,7 +55,9 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
         "16000",
         "-b:a",
         "64k",
-        str(audio_path),
+        "-f",
+        "mp3",
+        str(partial_path),
     ]
     try:
         result = run_ffmpeg_command(command, timeout=900)
@@ -61,13 +66,17 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
             "ffmpeg is not available; falling back to source video for transcription"
         )
         return video_path
+    except BaseException:
+        partial_path.unlink(missing_ok=True)
+        raise
 
-    if result.returncode != 0 or not audio_path.exists() or audio_path.stat().st_size == 0:
-        logger.warning(
-            "Failed to extract transcription audio with ffmpeg; falling back to source video"
-        )
-        return video_path
+    if result.returncode != 0 or not partial_path.exists() or partial_path.stat().st_size == 0:
+        partial_path.unlink(missing_ok=True)
+        # ffmpeg could not decode this audio, so the provider cannot either.
+        # Uploading the source anyway only trades this error for a vaguer one.
+        raise RuntimeError("Could not decode the video's audio for transcription")
 
+    partial_path.replace(audio_path)
     logger.info(
         "Prepared transcription audio: %s (%.2f MB)",
         audio_path,
