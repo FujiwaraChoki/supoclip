@@ -164,6 +164,12 @@ async def process_video_task(
             # Retry without rewriting task state or creating a dead-letter entry.
             raise Retry(defer=2)
         except Exception as e:
+            if await _is_confirmed_stream_cancel(e, ctx["redis"], task_id):
+                # The user's cancel stopped a Twitch/Kick download. The cancel
+                # route already marked the task cancelled (and billing refunded
+                # it), so this is not a failure: no traceback, no dead letter.
+                logger.info("Task %s cancelled during stream download", task_id)
+                return {"task_id": task_id, "status": "cancelled"}
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
             try:
                 job_try = int(ctx.get("job_try", 1))
@@ -192,6 +198,24 @@ async def process_video_task(
                     await wake_next_video_jobs(wake_db, ctx["redis"], user_id)
             except Exception:
                 logger.exception("Could not wake the next video task after task %s", task_id)
+
+
+async def _is_confirmed_stream_cancel(exc, redis, task_id) -> bool:
+    """A stopped stream download counts as a cancel only if the user asked for one.
+
+    Timeouts, size limits and provider errors keep their own messages, and the
+    same message without the cancel flag is still reported as a failure.
+    """
+    from ..stream_source import StreamSourceError
+    from ..stream_transfer import CANCELLED_MESSAGE
+
+    if not isinstance(exc, StreamSourceError) or str(exc) != CANCELLED_MESSAGE:
+        return False
+    try:
+        return bool(await redis.get(f"task_cancel:{task_id}"))
+    except Exception:
+        logger.warning("Could not read the cancel flag of task %s", task_id)
+        return False
 
 
 async def _social_service(db):
