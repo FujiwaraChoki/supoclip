@@ -8,12 +8,15 @@ deterministic and cheap, so every clip can be checked after analysis:
 - Script: a title written in a script the clip's own speech barely uses
   (Latin over Cyrillic, Cyrillic over Arabic, ...) is in another language.
   This needs no language code and works for any script.
-- English over a Latin-script language: when the transcript's language is
-  known and isn't English, a title full of English function words over speech
-  that has almost none is an English title.
+- English over a Latin-script language: when the transcript is Spanish,
+  Portuguese, French, Italian, German or Dutch, a title full of English
+  function words over speech that has almost none is an English title. Other
+  languages get the script check only, since their own words ("to", "on",
+  "her") look like English markers.
 
 A segment that itself mixes languages (code-switching, an English quote)
-passes, because both checks compare the title with that segment's speech.
+passes, because both checks compare the title with that segment's speech,
+and title words said in the clip (a name such as "The Last of Us") don't count.
 """
 
 from __future__ import annotations
@@ -40,26 +43,20 @@ ENGLISH_MARKERS = frozenset({
     "by", "into", "about", "just", "really", "never", "every", "there", "here", "which", "would", "could",
     "should", "than", "then", "out", "up", "over", "only",
 })
-# Markers that are ordinary words in a language, so they say nothing there.
-_MARKER_COLLISIONS = {
-    "nl": {"is", "was", "in", "we", "of", "had", "over", "up"},
-    "af": {"is", "in", "was", "we", "of", "het", "on", "over"},
-    "de": {"was", "will", "so", "an", "in", "hat", "over"},
-    "fr": {"on", "or", "but", "an", "est"},
-    "es": {"he", "has", "no", "to"},
-    "pt": {"do", "no", "has", "to"},
-    "it": {"in", "he", "ho", "do", "an"},
-    "ro": {"are", "do", "an"},
-    "sv": {"for", "is", "an", "her", "at", "hade"},
-    "da": {"for", "at", "is", "her", "to", "har"},
-    "no": {"for", "at", "is", "her", "to", "har", "over"},
-    "fil": {"at", "can", "may", "is"},
-    "id": {"to", "it"},
-    "ms": {"to", "it"},
-    "sw": {"we", "he"},
+# The English check runs only for these languages, each with the markers that
+# are ordinary words in it. Others (Polish "to", Finnish "on", Turkish "her",
+# unknown codes) get the script check alone: a missed English title keeps the
+# old behaviour, a false alarm would replace a correct title.
+_ENGLISH_CHECK_COLLISIONS = {
+    "es": {"he", "has", "no", "do"},
+    "pt": {"do", "no", "has", "era"},
+    "fr": {"on", "or", "an", "if", "do"},
+    "it": {"do", "or", "era", "he"},
+    "de": {"was", "will", "an", "her", "so", "in", "be"},
+    "nl": {"is", "was", "in", "we", "of", "had", "over", "will", "at", "her", "door"},
 }
-# The English possessive ("collector's") marks English too, except where "'s" is native.
-_POSSESSIVE_NATIVE = {"nl", "af", "de", "lb"}
+# The English possessive ("collector's") marks English too, where "'s" is not native.
+_POSSESSIVE_FOREIGN = {"es", "pt", "fr", "it"}
 MIN_TITLE_ENGLISH_MARKERS = 2
 MIN_TITLE_ENGLISH_SHARE = 0.25
 # Speech with at least this share of English markers is (partly) English itself.
@@ -155,12 +152,55 @@ def title_language_mismatch(title: Optional[str], segment_text: str, language: O
         return True
 
     code = normalize_language_code(language)
-    if not code or code == "en" or title_script != "LATIN" or dominant_script(segment_text) != "LATIN":
+    collisions = _ENGLISH_CHECK_COLLISIONS.get(code or "")
+    if collisions is None or title_script != "LATIN" or dominant_script(segment_text) != "LATIN":
         return False
-    markers = ENGLISH_MARKERS - _MARKER_COLLISIONS.get(code, set())
-    possessive = code not in _POSSESSIVE_NATIVE
-    title_hits, title_share = _english_share(_words(title), markers, possessive)
+    markers = ENGLISH_MARKERS - collisions
+    possessive = code in _POSSESSIVE_FOREIGN
+    # Title words said in the clip ("The Last of Us") are a name, not English.
+    unspoken = [word for word in _words(title) if word not in spoken]
+    title_hits, _ = _english_share(unspoken, markers, possessive)
+    title_share = title_hits / len(_words(title))
     if title_hits < MIN_TITLE_ENGLISH_MARKERS or title_share < MIN_TITLE_ENGLISH_SHARE:
         return False
     _, text_share = _english_share(_words(segment_text), markers, possessive)
     return text_share < MAX_SEGMENT_ENGLISH_SHARE
+
+
+# Words that show creator instructions ask for a language: "language" itself,
+# and the common names for languages, English first, in several languages.
+_LANGUAGE_REQUEST_TERMS = (
+    "language", "idioma", "lengua", "língua", "lingua", "langue", "sprache", "taal", "język", "jezyk",
+    "язык", "мов", "kieli", "språk", "sprog", "nyelv", "english", "inglés", "ingles", "inglês", "anglais",
+    "englisch", "engels", "inglese", "angielsk", "английск", "англійськ", "ingilizce", "englanni", "engelsk",
+    "angol", "español", "espanol", "castellano", "português", "portugues", "français", "francais",
+    "deutsch", "italiano", "polski", "русск", "türkçe", "turkce", "nederlands", "suomi", "svenska",
+)
+_LANGUAGE_REQUEST_CJK = ("言語", "语言", "語言", "언어", "英語", "英语", "英文", "영어", "日本語", "中文", "한국어")
+_LANGUAGE_REQUEST_OTHER = ("لغة", "الإنجليزية", "انجليزي", "العربية", "भाषा", "अंग्रेज", "हिंदी")
+_LANGUAGE_REQUEST_RE = re.compile(
+    r"(?<!\w)(?:"
+    + "|".join(
+        re.escape(term)
+        for term in sorted(
+            {*_LANGUAGE_REQUEST_TERMS, *(name.casefold() for name in LANGUAGE_NAMES.values())},
+            key=len,
+            reverse=True,
+        )
+    )
+    + ")"
+)
+
+
+def instructions_mention_language(instructions: Optional[str]) -> bool:
+    """Whether creator instructions may ask for a title language ("titles in English").
+
+    Generous on purpose: a mention leaves the creator's titles as the model
+    wrote them, which is how they were before titles were checked.
+    """
+    text = (instructions or "").casefold()
+    if not text.strip():
+        return False
+    if any(term in text for term in (*_LANGUAGE_REQUEST_CJK, *_LANGUAGE_REQUEST_OTHER)):
+        return True
+    return bool(_LANGUAGE_REQUEST_RE.search(text))

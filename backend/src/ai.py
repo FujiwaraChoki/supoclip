@@ -28,7 +28,7 @@ from pydantic import AliasChoices, BaseModel, Field, field_validator
 from .config import Config, get_config
 from .clip_duration import clip_duration
 from .runtime_settings import apply_settings_to_process_env
-from .title_language import language_display_name, title_language_mismatch
+from .title_language import instructions_mention_language, language_display_name, title_language_mismatch
 from .workflows.prompts import fence_safe, instructions_block
 
 logger = logging.getLogger(__name__)
@@ -787,12 +787,15 @@ async def localize_hook_titles(
 ) -> int:
     """Replace hook titles that are not in their clip's spoken language, in place.
 
-    Only titles that are clearly in another language are touched, in one model
-    call. A replacement that is still in the wrong language, or a failed call,
-    leaves the clip without a title rather than with a foreign one. With
-    creator instructions the model's replacement is kept as written: it may be
-    the language the creator asked for. Returns how many titles changed.
+    Only titles that are clearly in another language are sent, in one model
+    call, and a replacement is used only when it passes the same check. A
+    failed call or a replacement that still fails keeps the original title, so
+    a title is never removed. Creator instructions that mention a language may
+    have asked for it ("titles in English"): their titles are left alone.
+    Returns how many titles changed.
     """
+    if instructions_mention_language(instructions):
+        return 0
     flagged = [
         segment
         for segment in segments
@@ -822,22 +825,18 @@ async def localize_hook_titles(
                 replacements[item.clip_id] = sanitize_hook_title(item.hook_title)
     except Exception as error:
         # Do not log the error text: provider bodies may contain transcript data.
-        logger.warning("Hook title rewrite failed (%s)", type(error).__name__)
+        logger.warning("Hook title rewrite failed (%s); keeping the titles", type(error).__name__)
+        return 0
 
     changed = 0
     for index, segment in enumerate(flagged):
         title = replacements.get(index)
-        if instructions:
-            # The flagged title may be the language the creator asked for.
-            title = title or segment.get("hook_title")
-        elif title and title_language_mismatch(title, segment.get("text") or "", source_language):
-            title = None
-        if title != segment.get("hook_title"):
-            segment["hook_title"] = title
-            changed += 1
-    dropped = sum(1 for segment in flagged if not segment.get("hook_title"))
-    if dropped:
-        logger.warning("Dropped %d hook titles that stayed in another language", dropped)
+        if not title or title_language_mismatch(title, segment.get("text") or "", source_language):
+            continue
+        segment["hook_title"] = title
+        changed += 1
+    if changed < len(flagged):
+        logger.warning("Kept %d hook titles the rewrite could not replace", len(flagged) - changed)
     return changed
 
 

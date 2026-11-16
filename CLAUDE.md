@@ -428,7 +428,7 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 - Subtitles positioned at 75% down the frame
 - Virality scoring: `hook_score`, `engagement_score`, `value_score`, `shareability_score` (0-25 each, summed to `virality_score` 0-100)
 - Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
-- Hook titles are in the clip's spoken language: the transcript's detected `language_code` is named in the analysis prompt, and `title_language.py` flags titles in another script, or English over a known non-English source; `localize_hook_titles` rewrites them in one call (cached analyses too) or drops them. Creator instructions may ask for another language
+- Hook titles are in the clip's spoken language: the transcript's detected `language_code` is named in the analysis prompt, and `title_language.py` flags titles in another script, or English over es/pt/fr/it/de/nl speech; `localize_hook_titles` rewrites them in one call (cached analyses too) and keeps the original when no checked rewrite comes back. Instructions that mention a language leave titles alone
 - Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
 
 ## Observability

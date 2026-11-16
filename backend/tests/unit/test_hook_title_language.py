@@ -22,7 +22,7 @@ from src.ai import (
 )
 from src.services import video_service as video_service_module
 from src.services.video_service import VideoService
-from src.title_language import title_language_mismatch, transcript_language
+from src.title_language import instructions_mention_language, title_language_mismatch, transcript_language
 
 RU_TEXT = "Я открыл сорок кейсов подряд и наконец выбил редкий нож. Он стоит пять тысяч, представляешь?"
 PT_TEXT = "Gente, o mapa do jogo vazou numa loja parceira. Eles tiraram fotos da edição de colecionador e é o mapa."
@@ -65,6 +65,20 @@ def test_a_title_in_another_language_than_the_speech_is_flagged(title, text, lan
         ("パート2の真相", "これは本当に驚きました。パート2の真相をお話しします。", "ja"),
         (None, RU_TEXT, "ru"),
         ("Сорок кейсов", "ok", "ru"),  # too little speech to judge
+        # Native titles whose own words look like English markers ("to", "on", "her"),
+        # over speech that doesn't repeat them. All five were flagged before.
+        ("To nie przypadek, to plan",
+         "Nie jest przypadek. Mamy plan i robimy wszystko krok po kroku, każdego dnia, bez wymówek i bez przerwy.", "pl"),
+        ("On aika toimia, on aika muuttua",
+         "Nyt meidän täytyy toimia. Meidän täytyy muuttua, muuten mikään ei parane tässä maailmassa koskaan.", "fi"),
+        ("Her gün, her yerde fırsat",
+         "Yeni bir fırsat var. İnsanlar bunu görmüyor ama fırsatlar sokakta, işte ve evde bekliyor.", "tr"),
+        # An unknown code gets the script check only.
+        ("Was this map really leaked from a store?", PT_TEXT, "xx"),
+        # A name said in the clip ("Last of Us") counts for neither language.
+        ("The Last of Us regresa",
+         "Chicos, el nuevo Last of Us regresa este año con una nueva temporada increíble, y yo estoy muy emocionado "
+         "porque la primera me encantó muchísimo y la segunda promete todavía más drama.", "es"),
     ],
 )
 def test_a_title_in_the_speech_language_is_left_alone(title, text, language):
@@ -158,46 +172,86 @@ async def test_matching_titles_need_no_model_call(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_rewrite_still_in_english_drops_the_title(monkeypatch):
+async def test_a_rewrite_still_in_english_keeps_the_original_title(monkeypatch):
     _fake_model(monkeypatch, titles=["The knife was worth five thousand"])
     segments = _segments()
 
-    await localize_hook_titles(segments, "ru")
+    assert await localize_hook_titles(segments, "ru") == 0
 
-    assert segments[0]["hook_title"] is None
+    assert segments[0]["hook_title"] == "Predicted the price, the knife was worth less"
 
 
 @pytest.mark.asyncio
-async def test_a_failed_rewrite_drops_foreign_titles_and_keeps_the_rest(monkeypatch):
+async def test_a_failed_or_partial_rewrite_never_removes_a_title(monkeypatch):
     _fake_model(monkeypatch, error=RuntimeError("provider down"))
     segments = _segments()
 
-    await localize_hook_titles(segments, "ru")
+    assert await localize_hook_titles(segments, "ru") == 0
 
-    assert segments[0]["hook_title"] is None
-    assert segments[1]["hook_title"] == "Сорок кейсов ради одного ножа"
+    assert [segment["hook_title"] for segment in segments] == [
+        "Predicted the price, the knife was worth less", "Сорок кейсов ради одного ножа", None,
+    ]
+
+    _fake_model(monkeypatch, titles=[])  # the model returned nothing usable
+    segments = _segments()
+    await localize_hook_titles(segments, "ru")
+    assert segments[0]["hook_title"] == "Predicted the price, the knife was worth less"
 
 
 @pytest.mark.asyncio
-async def test_creator_instructions_can_ask_for_another_title_language(monkeypatch):
+@pytest.mark.parametrize(
+    "instructions",
+    [
+        "Write the titles in English",
+        "Titles in english please",
+        "Títulos en inglés",
+        "Заголовки на английском",
+        "タイトルは英語で",
+        "Keep the original language of the video",
+    ],
+)
+async def test_instructions_that_ask_for_a_language_keep_the_models_titles(monkeypatch, instructions):
+    prompts = _fake_model(monkeypatch, titles=["Нож за пять тысяч"])
+    segments = _segments()
+
+    assert await localize_hook_titles(segments, "ru", instructions=instructions) == 0
+
+    assert segments[0]["hook_title"] == "Predicted the price, the knife was worth less"
+    assert prompts == []
+
+
+@pytest.mark.asyncio
+async def test_other_instructions_still_validate_the_rewrite(monkeypatch):
     prompts = _fake_model(monkeypatch, titles=["The knife was worth five thousand"])
     segments = _segments()
 
-    await localize_hook_titles(segments, "ru", instructions="Write the titles in English")
+    await localize_hook_titles(segments, "ru", instructions="Focus on the funniest reactions")
 
-    assert segments[0]["hook_title"] == "The knife was worth five thousand"
-    assert "<creator_instructions>" in prompts[0]
-    assert "Write the titles in English" in prompts[0]
-
-
-@pytest.mark.asyncio
-async def test_with_instructions_a_failed_rewrite_keeps_the_original_title(monkeypatch):
-    _fake_model(monkeypatch, error=RuntimeError("provider down"))
-    segments = _segments()
-
-    await localize_hook_titles(segments, "ru", instructions="Write the titles in English")
-
+    # Still English: the original stays rather than an unchecked rewrite.
     assert segments[0]["hook_title"] == "Predicted the price, the knife was worth less"
+    assert "<creator_instructions>" in prompts[0]
+    assert "Focus on the funniest reactions" in prompts[0]
+
+    _fake_model(monkeypatch, titles=["Самая смешная реакция на нож"])
+    segments = _segments()
+    await localize_hook_titles(segments, "ru", instructions="Focus on the funniest reactions")
+    assert segments[0]["hook_title"] == "Самая смешная реакция на нож"
+
+
+@pytest.mark.parametrize(
+    "instructions, expected",
+    [
+        ("Write the titles in English", True),
+        ("Titel auf Deutsch", True),
+        ("Use Portuguese for the titles", True),
+        ("Focus on the funniest reactions", False),
+        ("Make the titles punchy and short", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_instructions_mention_language(instructions, expected):
+    assert instructions_mention_language(instructions) is expected
 
 
 def test_clip_text_cannot_break_out_of_the_rewrite_prompt():

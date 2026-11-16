@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-16
+
+- **Fixed:** The title shown at the top of a clip is now written in the language spoken in the video. Clips from Russian, Portuguese, Spanish and other non-English videos often had English titles over the speech and captions. If your instructions ask for titles in a specific language, that still wins. ([#417](https://github.com/FujiwaraChoki/supoclip/pull/417))
+
 ## 2026-11-15
 
 - **Fixed:** Long videos processed with Claude Haiku have more room for their outlines, reducing incomplete outlines in series, topic, recap and trailer runs. ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
