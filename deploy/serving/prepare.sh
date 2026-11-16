@@ -6,7 +6,10 @@ if (( $# != 5 )); then
   exit 2
 fi
 export RELEASE=$1
-[[ $RELEASE =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]]
+if [[ ! $RELEASE =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]]; then
+  echo "Use a 1–39 character release name starting with a lowercase letter or digit." >&2
+  exit 2
+fi
 web_port=$2
 api_port=$3
 for port in "$web_port" "$api_port"; do

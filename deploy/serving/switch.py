@@ -68,12 +68,14 @@ def workers(master):
     # Linux /proc also identifies process reuse by start time. Include previous
     # generations still draining after a timeout or a later rollback.
     children = Path(f"/proc/{master}/task/{master}/children").read_text().split()
-    result = set()
+    result = {}
     for child in children:
         proc = Path("/proc") / child
         try:
-            if b"nginx: worker process" in (proc / "cmdline").read_bytes():
-                result.add((child, (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]))
+            title = (proc / "cmdline").read_bytes()
+            if b"nginx: worker process" in title:
+                started = (proc / "stat").read_text().rsplit(")", 1)[1].split()[19]
+                result[(child, started)] = b"shutting down" in title
         except FileNotFoundError:
             pass
     return result
@@ -120,27 +122,31 @@ def main():
             return True
         wait_for(candidate_ready, args.ready_timeout, "candidate readiness")
         master = int(args.master_pid.read_text())
-        prior = workers(master)
+        prior = set(workers(master))
         if not prior:
             raise RuntimeError("cannot identify serving nginx workers")
         if new == old:
             # A repeated switch must still fence a previously timed out drain.
-            # Reloading the same endpoints gives all existing workers a deadline
-            # to finish voluntarily and leaves a fresh generation for new work.
+            # Reloading the same endpoints lets prior generations finish and
+            # leaves a fresh generation for new work.
             print("Rechecking the drain on the current release", flush=True)
         replace(args.include, new)
         try:
             subprocess.run([*nginx, "-t"], check=True)
             subprocess.run([*nginx, "-s", "reload"], check=True)
             wait_for(lambda: get(args.monitor, "/serving").decode() == f"{args.web}/{args.api}"
-                     and bool(workers(master) - prior), 15, "nginx switch")
+                     and bool(set(workers(master)) - prior), 15, "nginx switch")
         except BaseException:
             replace(args.include, old)
             subprocess.run([*nginx, "-s", "reload"], check=True)
             wait_for(lambda: get(args.monitor, "/serving").decode() == previous, 15, "rollback")
             raise
         print("New connections switched. Waiting for old nginx workers to finish.", flush=True)
-        wait_for(lambda: not (prior & workers(master)), args.drain_timeout,
+        def drained():
+            current = workers(master)
+            return bool(current) and prior.isdisjoint(current) and not any(current.values())
+
+        wait_for(drained, args.drain_timeout,
                  "old nginx workers still serving; both releases retained")
         print("Old nginx connections drained. Both releases retained.")
 
