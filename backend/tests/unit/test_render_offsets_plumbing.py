@@ -218,3 +218,26 @@ def test_caption_ass_breaks_the_line_at_the_beat_change(video_path):
     dialogue = [line for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("Dialogue")]
 
     assert not any("EVERYTHING" in line.upper() and "LOST" in line.upper() for line in dialogue)
+
+
+def test_the_vertical_plan_is_reported_for_the_editor(video_path, tmp_path, render_spies, monkeypatch):
+    def plan(*_args, report=None, **_kwargs):
+        if report is not None:
+            report["kind"] = "speaker"
+        return "crop=606:1080:10:0,scale=1080:1920", "vf", None
+
+    monkeypatch.setattr(video_utils, "build_vertical_filter_plan", plan)
+    monkeypatch.setattr(video_utils, "ffprobe_duration", lambda _path: 12.0)
+    report = {}
+    assert video_utils.create_optimized_clip(
+        video_path, 19.9, 31.95, tmp_path / "out.mp4", True, None, None, None, "default", "vertical",
+        RANGES, "A hook", extend_to_sentence=False, layout_report=report,
+    )
+    assert report["vertical_layout"] == {
+        "kind": "speaker",
+        "video_filter": "crop=606:1080:10:0,scale=1080:1920",
+        "mode": "vf",
+        "width": 1920,
+        "height": 1080,
+        "duration": 12.0,
+    }

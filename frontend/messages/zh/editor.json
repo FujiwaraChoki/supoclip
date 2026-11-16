@@ -32,7 +32,12 @@
     "canvasUnavailable": "画布不可用。请使用后台导出。",
     "cannotDecode": "此浏览器无法解码源视频。请使用后台导出。",
     "audioEncodeUnavailable": "音频编码不可用。请使用后台导出。",
-    "noVideo": "导出没有生成视频。"
+    "noVideo": "导出没有生成视频。",
+    "sourceIncomplete": "我们无法完整获取此片段的源视频，因此没有在缺少画面的情况下打开它。请一分钟后重试。",
+    "uploadShorter": "原始上传的视频比此片段短，因此无法打开编辑。",
+    "rebuildBusy": "请等待当前的准备或导出完成后再重建。",
+    "rebuildConflict": "此草稿已在另一个标签页中更改。请先重新加载再重建。",
+    "noBackup": "此片段没有保存之前的草稿。"
   },
   "keys": {
     "space": "空格",
@@ -267,7 +272,7 @@
     "backup": "备份草稿",
     "reloadSaved": "重新加载已保存的版本",
     "retryPreparation": "重试准备",
-    "storageFull": "本地草稿存储已满或不可用。请保持此标签页打开，直到服务器确认更改已保存。",
+    "storageFull": "此浏览器为 SupoClip 分配的存储空间已满，无法再保存你最新更改的备份副本。你的编辑仍会保存到你的账户：请等到显示“所有更改已保存”后再关闭此标签页。",
     "yourClips": "你的片段",
     "clips": "片段",
     "editClip": "编辑片段 {order}",
@@ -375,5 +380,27 @@
     "viewPlans": "查看套餐"
   },
   "partLabel": "第 {n} 集",
-  "partClipLabel": "第 {n} 集 · {title}"
+  "partClipLabel": "第 {n} 集 · {title}",
+  "recovery": {
+    "sourceIncomplete": "此片段的编辑副本只有 {duration}，而不是 {expected}，因此这里缺少部分内容。你生成的片段不受影响。重建编辑副本即可修复。",
+    "rebuild": "重建编辑副本",
+    "rebuildTitle": "重建编辑副本？",
+    "rebuildDescription": "SupoClip 会从原始视频重新准备此片段，保留完整时长和生成时使用的画面构图。",
+    "rebuildWarning": "你在编辑器中对此片段所做的编辑不会带到新副本中。当前草稿会保存在我们的服务器上：随时可以通过 ⋯ 菜单中的“下载之前的草稿”下载。",
+    "rebuildConfirm": "重建",
+    "rebuildStarted": "正在重建编辑副本…",
+    "downloadPrevious": "下载之前的草稿",
+    "browserBackups": "浏览器备份",
+    "manageBackups": "查看已存储内容",
+    "backupsTitle": "草稿的浏览器备份",
+    "backupsDescription": "你的草稿保存在 SupoClip 账户中。为防止标签页关闭或网络断开，此浏览器还会保存尚未到达服务器的更改的小副本，以及最近几个片段的简短撤销记录。删除项目不会改变这部分存储。",
+    "backupsSummary": "{entries, plural, =0 {没有片段在浏览器中有备份} other {# 个片段在浏览器中有备份}}（{size}）",
+    "backupsUnsaved": "{count, plural, =0 {它们都已保存到你的账户。} other {其中 # 个有尚未保存到账户的更改，会被保留。}}",
+    "backupsClear": "移除已保存的副本",
+    "backupsClearNote": "移除已保存的副本只会让这些片段在重新加载后失去撤销记录。你的草稿仍保存在账户中。",
+    "backupsCleared": "已释放 {size}。未保存的更改已保留。",
+    "backupsNothing": "没有可移除的内容。未保存的更改会保留到它们保存到你的账户为止。",
+    "backupsBrowserNote": "清除此浏览器中 SupoClip 的网站数据也会删除这些副本并让你退出登录。请仅在所有打开的片段都显示“所有更改已保存”后再这样做。",
+    "done": "完成"
+  }
 }

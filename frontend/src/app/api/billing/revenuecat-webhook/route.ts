@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { restoreAffiliateProIfApproved } from "@/server/affiliates";
 import { NextResponse } from "next/server";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
+import { WebhookAnalytics, intervalFromPeriod } from "@/server/analytics";
 import { fetchBackend } from "@/server/backend-api";
 import { getPrismaClient } from "@/server/prisma";
 
@@ -25,6 +26,8 @@ type RevenueCatEvent = {
   grace_period_expiration_at_ms?: number | string | null;
   transferred_from?: unknown;
   transferred_to?: unknown;
+  cancel_reason?: string | null;
+  event_timestamp_ms?: number | string | null;
 };
 
 const DEFAULT_PRODUCT_IDS: Record<BillingPlan, string[]> = {
@@ -74,6 +77,21 @@ function getProductPlan(productId: string | null | undefined): BillingPlan | nul
     return "scale";
   }
   return null;
+}
+
+/** Product ids end in `.monthly` / `.annual`; otherwise the purchased period decides. */
+function appleInterval(event: RevenueCatEvent): "month" | "year" | null {
+  const productId = event.product_id?.toLowerCase() ?? "";
+  if (/(annual|yearly|year)$/.test(productId)) return "year";
+  if (/(monthly|month)$/.test(productId)) return "month";
+  const start = toDate(event.purchased_at_ms)?.getTime();
+  const end = toDate(event.expiration_at_ms)?.getTime();
+  return intervalFromPeriod(start === undefined ? null : start / 1000, end === undefined ? null : end / 1000);
+}
+
+/** RevenueCat's own enum (UNSUBSCRIBE, BILLING_ERROR, ...); anything else is dropped. */
+function cancelReason(value: unknown): string | null {
+  return typeof value === "string" && /^[A-Z_]{1,40}$/.test(value) ? value : null;
 }
 
 function toDate(ms: number | string | null | undefined): Date | null {
@@ -212,7 +230,11 @@ async function grantAppleSubscription(userId: string, event: RevenueCatEvent) {
   await sendSubscriptionEmailBestEffort(userId, "subscribed");
 }
 
-async function downgradeAppleSubscription(userId: string, eventExpiration?: Date | null) {
+/** "creator_pro" when an approved creator went back to their free Pro. */
+async function downgradeAppleSubscription(
+  userId: string,
+  eventExpiration?: Date | null,
+): Promise<"unchanged" | "downgraded" | "creator_pro"> {
   // A retried/out-of-order EXPIRATION must not revoke access that a later
   // RENEWAL already extended past the event's own expiration date.
   const stalenessFilter = eventExpiration
@@ -243,9 +265,11 @@ async function downgradeAppleSubscription(userId: string, eventExpiration?: Date
   });
 
   if (result.count > 0) {
-    if (await restoreAffiliateProIfApproved(getPrismaClient(), userId)) return;
+    if (await restoreAffiliateProIfApproved(getPrismaClient(), userId)) return "creator_pro";
     await sendSubscriptionEmailBestEffort(userId, "unsubscribed");
+    return "downgraded";
   }
+  return "unchanged";
 }
 
 async function handleBillingIssue(userId: string, event: RevenueCatEvent) {
@@ -304,7 +328,7 @@ async function handleTransfer(event: RevenueCatEvent) {
   }
 }
 
-async function handleRevenueCatEvent(event: RevenueCatEvent) {
+async function handleRevenueCatEvent(event: RevenueCatEvent, analytics: WebhookAnalytics) {
   if (event.type === "TRANSFER") {
     await handleTransfer(event);
     return;
@@ -319,17 +343,52 @@ async function handleRevenueCatEvent(event: RevenueCatEvent) {
     return;
   }
 
+  const plan = getProductPlan(event.product_id);
+  const interval = appleInterval(event);
+
   if (GRANT_EVENTS.has(event.type || "")) {
     await grantAppleSubscription(userId, event);
+    if (plan && event.type === "INITIAL_PURCHASE") {
+      const trial = event.period_type === "TRIAL";
+      analytics.add({
+        event: "subscription_started",
+        distinctId: userId,
+        properties: { plan, interval, provider: "apple", trial },
+        set: { plan, subscription_status: trial ? "trialing" : "active" },
+      });
+    } else if (plan && event.type === "RENEWAL") {
+      analytics.add({
+        event: "subscription_renewed",
+        distinctId: userId,
+        properties: { plan, interval, provider: "apple" },
+        set: { plan, subscription_status: "active" },
+      });
+    }
     return;
   }
 
   if (event.type === "CANCELLATION") {
+    // Auto-renew turned off (or a refund): access lasts until EXPIRATION.
+    analytics.add({
+      event: "subscription_cancel_scheduled",
+      distinctId: userId,
+      properties: { plan, interval, provider: "apple", reason: cancelReason(event.cancel_reason) },
+    });
     return;
   }
 
   if (event.type === "EXPIRATION") {
-    await downgradeAppleSubscription(userId, toDate(event.expiration_at_ms));
+    const outcome = await downgradeAppleSubscription(userId, toDate(event.expiration_at_ms));
+    if (outcome !== "unchanged") {
+      analytics.add({
+        event: "subscription_canceled",
+        distinctId: userId,
+        properties: { plan, interval, provider: "apple", kept_creator_pro: outcome === "creator_pro" },
+        set: outcome === "creator_pro"
+          ? { plan: "pro", subscription_status: "active" }
+          : { plan: "free", subscription_status: "inactive" },
+      });
+    }
     return;
   }
 
@@ -378,8 +437,14 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  const eventTime = toDate(event.event_timestamp_ms);
+  const analytics = new WebhookAnalytics(
+    `revenuecat:${event.id}`,
+    eventTime && !Number.isNaN(eventTime.getTime()) ? eventTime : undefined,
+  );
+
   try {
-    await handleRevenueCatEvent(event);
+    await handleRevenueCatEvent(event, analytics);
   } catch (error) {
     await getPrismaClient()
       .revenueCatWebhookEvent.delete({ where: { id: event.id } })
@@ -388,5 +453,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "RevenueCat webhook handler failed" }, { status: 500 });
   }
 
+  // Only after the handler succeeded, so a delivery that RevenueCat retries is counted once.
+  await analytics.flush();
   return NextResponse.json({ ok: true });
 }

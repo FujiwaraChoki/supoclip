@@ -1,6 +1,5 @@
 """Authenticated draft, preview and background export endpoints."""
 
-from pathlib import Path
 import logging
 import math
 import json
@@ -9,20 +8,21 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
-from ...media_storage import MediaStorage, STORAGE_ERRORS, is_s3, media_work
+from ...media_storage import MediaStorage, STORAGE_ERRORS, media_work
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...analytics import capture_clip_export
 from ...database import get_db
-from ...editor_document import (
-    EditDocument,
-    RevisionConflict,
-    atomic_json,
-    editor_dir,
-    editor_lock,
-    save_document,
+from ...editor_document import EditDocument, RevisionConflict
+from ...editor_state import (
+    get_store,
+    new_job_id,
+    open_session,
+    reap_jobs,
+    render_job_id,
 )
-from ...services.editor_service import caption_looks, read_state, upgrade_document
+from ...services.editor_service import caption_looks, upgrade_document
 from ...services.task_service import TaskService
 from ...services.ai_edit_allowance_service import (
     AIEditAllowanceService, AIEditLimitExceeded, refund_ai_edit_usage,
@@ -40,15 +40,14 @@ async def owned_context(request, db, task_id, clip_id):
     clip = await service.clip_repo.get_clip_by_id(db, clip_id)
     if not clip or clip["task_id"] != task_id:
         raise HTTPException(404, "Clip not found")
-    directory = editor_dir(service.config.temp_dir, task_id, clip_id, clip["filename"])
     await db.close()
-    await run_in_thread(MediaStorage().restore_editor, directory, s3_backed=is_s3(clip["file_path"]))
-    return task, clip, directory
+    session = await open_session(service.config.temp_dir, task_id, clip)
+    return task, clip, session
 
 
 async def context(request, db, task_id, clip_id):
-    _, clip, directory = await owned_context(request, db, task_id, clip_id)
-    return clip, directory
+    _, clip, session = await owned_context(request, db, task_id, clip_id)
+    return clip, session
 
 
 def _clip_broll(clip: dict) -> list:
@@ -61,21 +60,39 @@ def _clip_broll(clip: dict) -> list:
         return []
 
 
-def job_path(directory: Path, job_id: str):
+async def _job(session, job_id: str) -> dict:
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(404, "Export not found")
-    path = directory / f"job-{job_id}.json"
-    if not path.exists():
+    job = await get_store().job(session.key, job_id)
+    if job is None:
         raise HTTPException(404, "Export not found")
-    return path
+    return job
+
+
+async def _stored_media(storage: MediaStorage, session, name: str, download_name: str, *, attachment=False):
+    """Redirect to the object storage copy, or None when the file is only on this disk."""
+    local = session.directory / name
+    # A bucket that is configured but no longer the default still holds
+    # media that an earlier configuration stored there.
+    if not (storage.enabled or (storage.bucket and not local.exists())):
+        return None
+    reference = storage.editor_reference(session.directory, name)
+    try:
+        if await run_in_thread(storage.exists, reference):
+            url = await run_in_thread(storage.signed_url, reference, download_name, attachment=attachment)
+            return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
+    except STORAGE_ERRORS:
+        if not local.exists():
+            raise HTTPException(503, "Media storage is temporarily unavailable") from None
+    return None
 
 
 @router.get("/{task_id}/clips/{clip_id}/editor")
 async def get_editor(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    task, clip, directory = await owned_context(request, db, task_id, clip_id)
-    state = await run_in_thread(read_state, directory)
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    state = await session.state()
     if state.get("status") == "ready":
         draft = state["draft"]
         placements = []
@@ -89,39 +106,126 @@ async def get_editor(
         state["aiEditing"] = ai_editing_configured()
         if state["aiEditing"]:
             state["aiEditUsage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+    if state.get("status") == "ready":
+        incomplete = await run_in_thread(_incomplete_source, clip, state)
+        if incomplete:
+            state["sourceIncomplete"] = incomplete
     state["basis"] = clip["filename"]
-    state["jobs"] = [
-        {"id": p.stem[4:], **json.loads(p.read_text())}
-        for p in sorted(
-            directory.glob("job-*.json"), key=lambda p: p.stat().st_mtime, reverse=True
-        )[:20]
-    ]
+    await reap_jobs(session.key)
+    state["jobs"] = await get_store().jobs(session.key)
     return state
+
+
+def _incomplete_source(clip: dict, state: dict) -> dict | None:
+    """``{duration, expected}`` when the prepared source lost part of the clip.
+
+    Sessions prepared before the source was checked can hold a truncated
+    copy (two preparations of one task once shared a work file). The studio
+    offers to rebuild them.
+    """
+    from ...clip_source_map import load_clip_output_offsets, load_clip_source_ranges
+    from ...services.editor_service import expected_prepared_duration, prepared_too_short
+
+    duration = state.get("duration")
+    if not isinstance(duration, (int, float)):
+        return None
+    expected = state.get("expectedDuration")
+    if not isinstance(expected, (int, float)):
+        try:
+            path = MediaStorage().local_path(clip["file_path"], metadata_only=True)
+            ranges = load_clip_source_ranges(path)
+            if not ranges:
+                return None
+            expected = expected_prepared_duration(ranges, load_clip_output_offsets(path, ranges))
+        except Exception:
+            logging.getLogger(__name__).warning("Could not read the clip's source ranges", exc_info=True)
+            return None
+    if not prepared_too_short(float(duration), float(expected)):
+        return None
+    return {"duration": round(float(duration), 2), "expected": round(float(expected), 2)}
+
+
+async def _enqueue_prepare(store, session, task_id: str, clip: dict, job: str) -> None:
+    try:
+        await JobQueue.enqueue_job("prepare_editor", task_id, clip["id"], clip["filename"], _job_id=job)
+    except Exception:
+        await store.fail_prepare(
+            session.key,
+            task_id,
+            clip["id"],
+            clip["filename"],
+            "The rendering worker is unavailable. Try again shortly.",
+            only_stale=True,
+        )
+        raise HTTPException(
+            503, "The rendering worker is unavailable. Try again shortly."
+        )
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/rebuild", status_code=202)
+async def rebuild(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Prepare the clip's editing copy again and start a fresh draft.
+
+    The client sends the draft revision it shows, so a rebuild never discards
+    edits it has not seen. The replaced draft stays downloadable from
+    ``GET .../editor/backup``.
+    """
+    payload = await _read_json_object(request)
+    revision = payload.get("revision")
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
+        raise HTTPException(400, "Invalid draft revision")
+    clip, session = await context(request, db, task_id, clip_id)
+    store = get_store()
+    job = f"editor-prepare:{uuid.uuid4().hex}"
+    outcome = await store.rebuild(session.key, revision, job)
+    if outcome == "missing":
+        raise HTTPException(404, "This clip has not been opened in the editor yet")
+    if outcome == "busy":
+        raise HTTPException(409, "Wait for the current preparation or export to finish, then rebuild.")
+    if outcome == "conflict":
+        raise HTTPException(409, "This draft changed in another tab. Reload it before rebuilding.")
+    await _enqueue_prepare(store, session, task_id, clip, job)
+    return {"status": "preparing"}
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/backup")
+async def draft_backup(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """The draft a rebuild replaced, as a downloadable JSON file."""
+    from fastapi.responses import JSONResponse
+
+    clip, session = await context(request, db, task_id, clip_id)
+    backup = await get_store().draft_backup(session.key)
+    if not isinstance(backup, dict) or not isinstance(backup.get("document"), dict):
+        raise HTTPException(404, "No earlier draft is kept for this clip")
+    stem = re.sub(r"[^A-Za-z0-9_-]", "_", clip["filename"].rsplit(".", 1)[0])[:80] or "clip"
+    return JSONResponse(
+        {"clip": clip_id, "basis": clip["filename"], **backup},
+        headers={
+            "Content-Disposition": f'attachment; filename="{stem}-previous-draft.json"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.post("/{task_id}/clips/{clip_id}/editor/prepare", status_code=202)
 async def prepare(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    clip, directory = await context(request, db, task_id, clip_id)
-    with editor_lock(directory):
-        state = read_state(directory)
-        if state["status"] in {"ready", "preparing"}:
-            return {"status": state["status"]}
-        atomic_json(directory / "asset.json", {"status": "preparing"})
-    try:
-        await JobQueue.enqueue_job("prepare_editor", task_id, clip_id, clip["filename"])
-    except Exception:
-        atomic_json(
-            directory / "asset.json",
-            {
-                "status": "failed",
-                "error": "The rendering worker is unavailable. Try again shortly.",
-            },
-        )
-        raise HTTPException(
-            503, "The rendering worker is unavailable. Try again shortly."
-        )
+    clip, session = await context(request, db, task_id, clip_id)
+    state = await session.state()
+    if state["status"] in {"ready", "preparing"}:
+        return {"status": state["status"]}
+    store = get_store()
+    job = f"editor-prepare:{uuid.uuid4().hex}"
+    # One request wins the claim; the others report the preparation it started.
+    claimed = await store.claim_prepare(session.key, task_id, clip_id, clip["filename"], job)
+    if claimed != "claimed":
+        return {"status": claimed}
+    await _enqueue_prepare(store, session, task_id, clip, job)
     return {"status": "preparing"}
 
 
@@ -132,22 +236,15 @@ async def save(
     service = TaskService(db)
     await _require_task_owner(request, service, db, task_id)
     payload = await _read_json_object(request)
-    # Restore missing files before checking the local draft revision.
-    clip, directory = await context(request, db, task_id, clip_id)
+    clip, session = await context(request, db, task_id, clip_id)
     try:
-        # Drafts have their own file lock and revision check. They do not
-        # mutate task/clip rows, so renders must not block autosave.
-        clip = await service.clip_repo.get_clip_by_id(db, clip_id)
-        if not clip or clip["task_id"] != task_id:
-            raise HTTPException(404, "Clip not found")
+        # Drafts have their own revision check. They do not mutate task/clip
+        # rows, so renders must not block autosave.
         if payload.get("basis") != clip["filename"]:
             raise HTTPException(
                 409, "The original clip changed. Reopen the editor."
             )
-        directory = editor_dir(
-            service.config.temp_dir, task_id, clip_id, clip["filename"]
-        )
-        state = read_state(directory)
+        state = await session.state()
         if state["status"] != "ready":
             raise HTTPException(
                 409, "Wait for the editor preview to finish preparing"
@@ -160,14 +257,13 @@ async def save(
         ):
             raise ValueError("Invalid draft revision")
         document = EditDocument.model_validate(payload.get("document"))
-        result = await run_in_thread(
-            save_document, directory, document, revision, state["duration"]
-        )
-        try:
-            await run_in_thread(MediaStorage().save_editor, directory, metadata_only=True, blocking=False)
-        except STORAGE_ERRORS:
-            logging.getLogger(__name__).warning("Draft saved locally; S3 snapshot will retry")
-        return result
+        document.validate_duration(state["duration"])
+        saved = await get_store().save_draft(session.key, document.model_dump(), revision)
+        if saved is None:
+            raise RevisionConflict(
+                "This clip was edited in another tab. Reload the saved draft before continuing."
+            )
+        return {"revision": saved, "document": document.model_dump()}
     except RevisionConflict as exc:
         raise HTTPException(409, str(exc))
     except (ValueError, ValidationError) as exc:
@@ -182,21 +278,16 @@ async def media(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
-    _, directory = await context(request, db, task_id, clip_id)
+    _, session = await context(request, db, task_id, clip_id)
     if asset not in {"clean.mp4", "layout.mp4", "thumbnails.jpg"}:
         raise HTTPException(404, "Preview not ready")
-    storage = MediaStorage()
-    try:
-        if (storage.enabled or (directory / ".s3-manifest").exists()) and await run_in_thread(storage.exists, storage.editor_reference(directory, asset)):
-            url = await run_in_thread(storage.signed_url, storage.editor_reference(directory, asset), asset)
-            return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
-    except STORAGE_ERRORS:
-        if not (directory / asset).exists():
-            raise HTTPException(503, "Media storage is temporarily unavailable") from None
-    if not (directory / asset).exists():
+    redirect = await _stored_media(MediaStorage(), session, asset, asset)
+    if redirect is not None:
+        return redirect
+    if not (session.directory / asset).exists():
         raise HTTPException(404, "Preview not ready")
     return FileResponse(
-        directory / asset,
+        session.directory / asset,
         media_type="video/mp4" if asset.endswith("mp4") else "image/jpeg",
         headers={"Cache-Control": "private, no-cache"},
     )
@@ -206,9 +297,9 @@ async def media(
 async def start_export(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    clip, directory = await context(request, db, task_id, clip_id)
+    clip, session = await context(request, db, task_id, clip_id)
     payload = await _read_json_object(request)
-    state = read_state(directory)
+    state = await session.state()
     if state["status"] != "ready":
         raise HTTPException(409, "Prepare the editor preview before exporting")
     if payload.get("basis") != clip["filename"]:
@@ -222,35 +313,21 @@ async def start_export(
         ).validate_duration(state["duration"])
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    with editor_lock(directory):
-        active = [
-            p
-            for p in directory.glob("job-*.json")
-            if json.loads(p.read_text()).get("status") in {"queued", "rendering"}
-        ]
-        if len(active) >= 3:
-            raise HTTPException(429, "Three exports are already running for this clip")
-        job_id = uuid.uuid4().hex
-        atomic_json(
-            directory / f"request-{job_id}.json",
-            {"document": document.model_dump(), "preset": preset},
-        )
-        atomic_json(
-            directory / f"job-{job_id}.json", {"status": "queued", "progress": 0}
-        )
+    store = get_store()
+    # A render whose worker died must not count against the limit.
+    await reap_jobs(session.key)
+    job_id = new_job_id()
+    # The job keeps the exact document it renders; later saves do not change it.
+    if not await store.create_job(
+        session.key, job_id, "export", {"document": document.model_dump(), "preset": preset}
+    ):
+        raise HTTPException(429, "Three exports are already running for this clip")
     try:
         await JobQueue.enqueue_job(
-            "export_editor", task_id, clip_id, clip["filename"], job_id
+            "export_editor", task_id, clip_id, clip["filename"], job_id, _job_id=render_job_id(job_id)
         )
     except Exception:
-        atomic_json(
-            directory / f"job-{job_id}.json",
-            {
-                "status": "failed",
-                "progress": 0,
-                "error": "The rendering worker is unavailable.",
-            },
-        )
+        await store.fail_job(job_id, "The rendering worker is unavailable.", expected="queued")
         raise HTTPException(
             503, "The rendering worker is unavailable. Your draft is safe."
         )
@@ -265,8 +342,9 @@ async def export_status(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    _, directory = await context(request, db, task_id, clip_id)
-    return {"id": job_id, **json.loads(job_path(directory, job_id).read_text())}
+    _, session = await context(request, db, task_id, clip_id)
+    await reap_jobs(session.key)
+    return await _job(session, job_id)
 
 
 @router.delete("/{task_id}/clips/{clip_id}/editor/exports/{job_id}")
@@ -277,18 +355,10 @@ async def cancel_export(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    _, directory = await context(request, db, task_id, clip_id)
-    status = json.loads(job_path(directory, job_id).read_text())
-    if status["status"] in {"queued", "rendering"}:
-        (directory / f"cancel-{job_id}").touch()
-        if status["status"] == "queued":
-            atomic_json(
-                directory / f"job-{job_id}.json", {"status": "cancelled", "progress": 0}
-            )
-            return {"status": "cancelled"}
-    return {
-        "status": "cancelling" if status["status"] == "rendering" else status["status"]
-    }
+    _, session = await context(request, db, task_id, clip_id)
+    await _job(session, job_id)
+    # The worker rendering this job sees the request on its next heartbeat.
+    return {"status": await get_store().cancel_job(session.key, job_id)}
 
 
 @router.get("/{task_id}/clips/{clip_id}/editor/exports/{job_id}/file")
@@ -299,26 +369,23 @@ async def export_file(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
-    _, directory = await context(request, db, task_id, clip_id)
-    status = json.loads(job_path(directory, job_id).read_text())
-    output = directory / f"export-{job_id}.mp4"
-    if status["status"] != "completed":
+    task, _, session = await owned_context(request, db, task_id, clip_id)
+    job = await _job(session, job_id)
+    if job["status"] != "completed":
         raise HTTPException(409, "Export is not ready")
-    storage = MediaStorage()
-    reference = storage.editor_reference(directory, output.name)
-    try:
-        if (storage.enabled or (directory / ".s3-manifest").exists()) and await run_in_thread(storage.exists, reference):
-            url = await run_in_thread(storage.signed_url, reference, f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4", attachment=True)
-            return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
-    except STORAGE_ERRORS:
-        if not output.exists():
-            raise HTTPException(503, "Media storage is temporarily unavailable") from None
+    output = session.directory / f"export-{job_id}.mp4"
+    filename = f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4"
+    redirect = await _stored_media(MediaStorage(), session, output.name, filename, attachment=True)
+    if redirect is not None:
+        capture_clip_export(request, task, surface="editor", format="editor")
+        return redirect
     if not output.exists():
         raise HTTPException(409, "Export is not ready")
+    capture_clip_export(request, task, surface="editor", format="editor")
     return FileResponse(
         output,
         media_type="video/mp4",
-        filename=f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4",
+        filename=filename,
         headers={"Cache-Control": "private, no-store"},
     )
 
@@ -338,15 +405,14 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
     ):
         raise HTTPException(400, "Select between 2 and 20 distinct clips")
     entries = []
+    anchor_session = None
     for clip_id in ids:
         clip = await service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip["task_id"] != task_id:
             raise HTTPException(404, "Clip not found")
-        directory = editor_dir(
-            service.config.temp_dir, task_id, clip_id, clip["filename"]
-        )
-        await run_in_thread(MediaStorage().restore_editor, directory)
-        state = read_state(directory)
+        session = await open_session(service.config.temp_dir, task_id, {**clip, "id": clip_id})
+        anchor_session = anchor_session or session
+        state = await session.state()
         if state["status"] != "ready":
             raise HTTPException(409, "Prepare each selected clip before combining")
         placements = (
@@ -363,44 +429,27 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                 "document": upgrade_document(
                     state["draft"]["document"], clip, task, placements, state["duration"]
                 ),
-                "state": {k: state[k] for k in ("width", "height", "hasAudio")},
+                "state": {k: state[k] for k in ("width", "height", "hasAudio", "mediaVersion") if k in state},
                 "ranges": source_ranges,
                 "source_offsets": source_offsets,
             }
         )
     await db.close()
     anchor = entries[0]
-    directory = editor_dir(
-        service.config.temp_dir, task_id, anchor["id"], anchor["filename"]
-    )
-    job_id = uuid.uuid4().hex
-    with editor_lock(directory):
-        active = [
-            p
-            for p in directory.glob("job-*.json")
-            if json.loads(p.read_text()).get("status") in {"queued", "rendering"}
-        ]
-        if len(active) >= 3:
-            raise HTTPException(
-                429, "Wait for an existing export to finish before combining"
-            )
-        atomic_json(directory / f"request-{job_id}.json", {"inputs": entries})
-        atomic_json(
-            directory / f"job-{job_id}.json", {"status": "queued", "progress": 0}
+    store = get_store()
+    await reap_jobs(anchor_session.key)
+    job_id = new_job_id()
+    # The job carries each draft as it was when the user asked to combine.
+    if not await store.create_job(anchor_session.key, job_id, "combine", {"inputs": entries}):
+        raise HTTPException(
+            429, "Wait for an existing export to finish before combining"
         )
     try:
         await JobQueue.enqueue_job(
-            "combine_editor", task_id, anchor["id"], anchor["filename"], job_id
+            "combine_editor", task_id, anchor["id"], anchor["filename"], job_id, _job_id=render_job_id(job_id)
         )
     except Exception:
-        atomic_json(
-            directory / f"job-{job_id}.json",
-            {
-                "status": "failed",
-                "progress": 0,
-                "error": "The rendering worker is unavailable.",
-            },
-        )
+        await store.fail_job(job_id, "The rendering worker is unavailable.", expected="queued")
         raise HTTPException(503, "The rendering worker is unavailable")
     return {"id": job_id, "anchor_clip_id": anchor["id"]}
 
@@ -442,8 +491,8 @@ async def broll_search(
         raise HTTPException(400, "Enter something to search for")
     if not 1 <= page <= 20 or aspect not in {"vertical", "square", "original"}:
         raise HTTPException(400, "Invalid search")
-    _, directory = await context(request, db, task_id, clip_id)
-    orientation, short_side = _broll_target(aspect, read_state(directory))
+    _, session = await context(request, db, task_id, clip_id)
+    orientation, short_side = _broll_target(aspect, await session.state())
     results = await search_footage(query, orientation, short_side, page)
     return {"results": results, "provider": "pexels"}
 
@@ -457,8 +506,8 @@ async def broll_suggest(
 
     _require_broll()
     payload = await _read_json_object(request)
-    _, directory = await context(request, db, task_id, clip_id)
-    state = read_state(directory)
+    _, session = await context(request, db, task_id, clip_id)
+    state = await session.state()
     if state["status"] != "ready":
         raise HTTPException(409, "Wait for the editor preview to finish preparing")
     try:
@@ -553,8 +602,8 @@ async def start_ai_edit(
     if not ai_editing_configured():
         raise HTTPException(503, "AI editing isn't set up on this server.")
     payload = await _read_json_object(request)
-    task, clip, directory = await owned_context(request, db, task_id, clip_id)
-    state = read_state(directory)
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    state = await session.state()
     if state["status"] != "ready":
         raise HTTPException(409, "Wait for the editor preview to finish preparing")
     if payload.get("basis") != clip["filename"]:

@@ -68,8 +68,16 @@ def create_app(
                 await load_runtime_settings_cache(db)
             logger.info("✅ Runtime settings loaded")
 
-            await queue_adapter.get_pool()
+            pool = await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
+            try:
+                # A worker compares this with its own disk before it renders
+                # clips that only this API's disk could serve.
+                from .local_volume import API_VOLUME_KEY, volume_id
+
+                await pool.set(API_VOLUME_KEY, volume_id(runtime_config.temp_dir))
+            except Exception:
+                logger.warning("Could not publish the API media volume id", exc_info=True)
 
             yield
         finally:
@@ -194,6 +202,9 @@ def create_app(
     from .api.routes.social import router as social_router
     from .api.routes.email_preferences import router as email_preferences_router
     from .api.routes.feature_flags import router as feature_flags_router
+    from .api.routes.stripe_cancellations import router as stripe_cancellations_router
+    from .api.routes.mcp_oauth import consent_router as mcp_oauth_consent_router
+    from .api.routes.mcp_oauth import internal_router as mcp_oauth_internal_router
 
     app.include_router(media_router)
     app.include_router(feedback_router)
@@ -203,6 +214,9 @@ def create_app(
     app.include_router(social_router)
     app.include_router(email_preferences_router)
     app.include_router(feature_flags_router)
+    app.include_router(stripe_cancellations_router)
+    app.include_router(mcp_oauth_internal_router)
+    app.include_router(mcp_oauth_consent_router)
 
     @app.get("/")
     def read_root():
@@ -270,19 +284,21 @@ def create_app(
     @app.get("/health/storage")
     async def check_storage_health():
         """Read cached worker probes; public requests never perform writes."""
-        import json
-        from pathlib import Path
+        from .media_replication_ledger import read_storage_health
 
         config = get_config()
         if not getattr(config, "media_fallback_enabled", False):
             return {"status": "unmonitored", "replication": "disabled"}
         try:
-            report = json.loads((Path(config.temp_dir) / "media-replication" / "health.json").read_text())
+            # The probe runs on the cron host; the report is in PostgreSQL so any API host can answer.
+            async with AsyncSessionLocal() as session:
+                report = await read_storage_health(session)
             if time.time() - report["checked_at"] > 180:
                 report = {"status": "unhealthy", "reason": "stale_probe"}
-        except (OSError, ValueError, KeyError):
+        except Exception:
+            # A missing or malformed report and an unreachable database look the same to a monitor.
             report = {"status": "unhealthy", "reason": "probe_unavailable"}
-        return JSONResponse(status_code=200 if report["status"] == "healthy" else 503, content=report,
+        return JSONResponse(status_code=200 if report.get("status") == "healthy" else 503, content=report,
                             headers={"Cache-Control": "no-store"})
 
     return app

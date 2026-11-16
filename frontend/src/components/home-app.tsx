@@ -36,7 +36,9 @@ import { useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
+import { trackEvent } from "@/lib/analytics";
 import { track } from "@/lib/datafast";
+import { taskPathFromCreate } from "@/lib/task-create";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults, STOCK_FONT_DEFAULTS } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
@@ -246,6 +248,17 @@ export default function HomeApp() {
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
     : maxVideoUploadBytes();
+
+  // Product funnel: once per distinct link or file. The key stays in this tab; only the kind is sent.
+  const enteredSource = useRef<string | null>(null);
+  useEffect(() => {
+    const sourceKind = file ? "upload" : urlSource;
+    if (!sourceKind) return;
+    const key = file ? `upload:${file.name}:${file.size}` : url.trim();
+    if (key === enteredSource.current) return;
+    enteredSource.current = key;
+    trackEvent("source_entered", { source_kind: sourceKind });
+  }, [file, url, urlSource]);
 
   useEffect(() => {
     let cancelled = false;
@@ -725,6 +738,12 @@ export default function HomeApp() {
       setError(sourceTooShort ? t(`workflowErrors.${SOURCE_TOO_SHORT_CODES[activeWorkflow]}`) : partsProblem);
       return;
     }
+    trackEvent("generate_clicked", {
+      workflow: activeWorkflow,
+      source_kind: sourceType === "upload" ? "upload" : validateVideoSourceUrl(sourceUrl).source ?? "unknown",
+      has_instructions: Boolean(sentInstructions),
+      blocked_by_upgrade: generationRequiresUpgrade,
+    });
     if (generationRequiresUpgrade) {
       openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" });
       return;
@@ -797,7 +816,8 @@ export default function HomeApp() {
       }
 
       const startResult = await startResponse.json();
-      track("task_created", {
+      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
+      if (!alreadyProcessing) track("task_created", {
         // Analytics keeps ten fields, so workflow runs lead with theirs; plain highlights reports as before.
         ...(activeWorkflow !== "highlights" || sentInstructions ? {
           workflow: activeWorkflow,
@@ -815,7 +835,7 @@ export default function HomeApp() {
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
-      window.location.href = `/tasks/${startResult.task_id}`;
+      window.location.href = taskPathFromCreate(startResult);
     } catch (error) {
       console.error("Error processing video:", error);
       setError(error instanceof Error ? error.message : t("errors.processVideo"));

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...analytics import capture_clip_export
 from ...clip_editor import EXPORT_PRESETS
 from ...config import get_config
 from ...database import get_db
@@ -116,7 +117,7 @@ async def download_clip_export(
     """Stream a finished export, or redirect to a presigned object URL."""
     from ...repositories.clip_export_repository import ClipExportRepository
 
-    await _owned_clip(request, db, task_id, clip_id)
+    task, _clip = await _owned_clip(request, db, task_id, clip_id)
     row = await ClipExportRepository.get_for_task_clip(db, export_id, task_id, clip_id)
     if not row:
         raise HTTPException(status_code=404, detail="Export not found")
@@ -129,6 +130,7 @@ async def download_clip_export(
     await db.close()
     if not file_path:
         raise HTTPException(status_code=404, detail=FILE_MISSING_MESSAGE)
+    capture_clip_export(request, task, surface="preset", format=str((current or row).get("preset") or "preset"))
     if is_s3(file_path):
         download_url = payload.get("download_url") or ""
         if not download_url.startswith("http"):

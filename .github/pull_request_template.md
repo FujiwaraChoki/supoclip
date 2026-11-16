@@ -2,6 +2,11 @@
 
 <!-- What changed and why. -->
 
+## Screenshots / video
+
+<!-- A screenshot of the feature or fix, and a short video/GIF of it in use whenever
+possible. Backend-only change? Say there is nothing visual. -->
+
 ## Changelog
 
 User-facing pull requests need a line in `CHANGELOG.md` (today's date, a

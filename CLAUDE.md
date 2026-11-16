@@ -33,8 +33,8 @@ uv sync
 # API server (uses refactored entry point)
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
-# Worker process (required for video processing)
-arq src.workers.tasks.WorkerSettings
+# Worker process (required for video processing). Also starts the cron worker.
+python -m src.workers.run_workers
 ```
 
 ### Frontend (local)
@@ -85,6 +85,10 @@ utils/               → Thread pool helpers for blocking operations (async_help
 - Blocking operations (video processing, downloads, transcription) wrapped in `run_in_thread()` to avoid blocking the async event loop
 - Progress tracking uses Redis pub/sub → SSE to frontend
 - Task status flow: `queued → processing → completed/error/cancelled`
+- **No shared disk between the API and a worker.** A video worker may run on another machine
+  (`docs/render-worker.md`). State another process needs goes in PostgreSQL, Redis or the bucket,
+  never in a file under `TEMP_DIR`; that directory is each machine's own scratch. A job publishes
+  its output before it reports it. Local storage (`MEDIA_STORAGE=local`) still means one machine.
 
 ### Video Processing Pipeline
 
@@ -133,6 +137,11 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workers/tasks.py` | ARQ worker task definitions |
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
+| `src/workers/video_admission.py` | Per-account render slots; holds a job until its upload is in the bucket |
+| `src/workers/media_cleanup.py` | Deletion outbox, orphan sweeps, per-machine scratch cleanup |
+| `src/editor_state.py` | Clip studio sessions, drafts and export/combine jobs in PostgreSQL |
+| `src/local_volume.py` | Id of the disk behind `TEMP_DIR`; tags rows that name a local path |
+| `src/media_replication_ledger.py`, `src/sync_db.py` | Pending two-bucket replication in PostgreSQL, usable from boto threads |
 | `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
 | `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
@@ -147,6 +156,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/services/social_service.py` | Account connections, publish/schedule, metrics refresh, AI performance context |
 | `src/repositories/social_repository.py` | `social_accounts`, `social_posts`, `social_post_metrics` SQL |
 | `src/api/routes/social.py` | `/social/*` routes |
+| `src/cancellation_reviews/` | Investigates every Stripe cancellation and reports it to the operator chat (`docs/cancellation-reviews.md`) |
 
 ## API Endpoints (routes in `api/routes/`)
 
@@ -248,6 +258,13 @@ table (one per user, `slug` cleared on decline).
   "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
   The app's paywall opens Apple's redeem sheet ("Have a creator code?").
 
+## Pull requests
+
+Every PR with a visible change includes a screenshot of the feature, and a short video (inline GIF, plus the
+`.mp4` link when needed) whenever the change can be recorded. Capture it from the running app with demo data,
+push the media to an orphan `pr-assets/<branch-name>` branch, and embed it via `raw.githubusercontent.com`.
+Backend-only PRs say there is nothing visual. Full rules: "Screenshots and video in PRs" in `AGENTS.md`.
+
 ## Feature tours
 
 When a change gives existing users something new to find, add a tour: an entry in
@@ -282,6 +299,9 @@ INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagra
 SOCIAL_PERFORMANCE_MIN_POSTS=3       # Measured posts before AI selection is personalized
 SOCIAL_PUBLISHING_ACCESS=off         # Rollout gate: off (default) | admins (admins + allowlist) | all
 SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=admins
+STRIPE_CANCELLATION_WEBHOOK_SECRETS= # Cancellation reviews: acct_X:whsec_... per Stripe endpoint (API)
+CANCELLATION_REVIEWS_ENABLED=false   # Cron worker investigates cancellations and posts reports (docs/cancellation-reviews.md)
+CANCELLATION_REPORT_WEBHOOK_URL=     # Signed operator-chat webhook (+ CANCELLATION_REPORT_WEBHOOK_SECRET)
 WORKFLOWS_ACCESS=admins              # Series/topic/recap/trailer + instructions: off | admins | all (self-host: all)
 WORKFLOWS_ALLOWED_EMAILS=            # Comma-separated beta emails when access=admins
 WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=admins, e.g. trailer,topic
@@ -291,8 +311,9 @@ WORKFLOW_FULL_CONTEXT_MAX_WORDS=0    # Words read in one outline call; 0 = provi
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
+UPLOAD_COPY_WAIT_SECONDS=1800        # Worker on another machine: wait for an upload to reach the bucket
 AI_EDIT_DAILY_LIMIT=150              # Studio AI edits per user per day (needs ANTHROPIC_API_KEY)
-TEMP_DIR=/tmp                        # Temp file storage
+TEMP_DIR=/tmp                        # Uploads, caches, renders; per machine when MEDIA_STORAGE=s3
 DATABASE_URL=postgresql+asyncpg://...
 BETTER_AUTH_SECRET=...               # Frontend auth secret
 ```
@@ -354,6 +375,19 @@ inspector on top, a full-width sequence timeline (`timeline.tsx`: V1 segments, B
 edit time) below. Drafts are `EditDocument`s on the `clean.mp4` (source) timeline; `sequence`/`locate` map between
 edit and source time. Preview and browser export draw through `lib/editor/render.ts`, the server export through
 `render_document`. Generated clips' B-roll opens as editable items (`broll-panel.tsx`).
+
+**State:** sessions, drafts (revision compare-and-swap) and export/combine jobs are rows (`editor_state.py`:
+`editor_sessions`, `editor_jobs`). A job row carries the document it renders, its progress (worker heartbeat) and
+the cancel request. Editor media goes to `media/editor/<session>/` in the bucket before a session is marked ready;
+`TEMP_DIR/editor/<session>/` is a per-machine cache (`asset.mediaVersion` tells a machine its copy is stale). Unit tests use `tests/fixtures/editor_store.py`.
+
+**Preparation never shortens a clip:** each job assembles its YouTube timeline in its own `youtube-work/` directory and
+reads another job's file only through a hard-linked copy. Source ranges map with `local_ranges_for(..., strict=True)`, and
+a `clean.mp4` shorter than the clip's ranges fails with `SOURCE_INCOMPLETE`. Generation saves its 9:16 plan in the source map
+(`vertical_layout`), which the editor replays into `layout.mp4` so the studio opens on the clip's own framing.
+`POST .../editor/rebuild` prepares a session again with a fresh draft; the replaced draft stays in `draft_backup`
+(`GET .../editor/backup`). The browser keeps a bounded copy per clip (`lib/editor/draft-cache.ts`): unsaved edits always,
+undo history only for the last few saved clips.
 
 **AI editing:** the "AI edit" field under the viewer (`ai-prompt.tsx`, ⌘J) posts `POST .../editor/ai` → Redis → `ai_edit_job` on the
 AI worker → Claude Sonnet 5.5 returns typed operations (`keep_ranges`, `remove_words`, `set`, `add_broll`, ...) →

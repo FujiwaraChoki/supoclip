@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "task-1" }),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: { user: { id: "user-1" } }, isPending: false }),
@@ -249,6 +250,14 @@ describe("task page workflows", () => {
     expect(screen.queryByText(/Part 1 of/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry generation" })).not.toBeInTheDocument();
+  });
+
+  it("explains an age-restricted YouTube video instead of offering a retry", async () => {
+    serve(task({ status: "error", error_code: "youtube_age_restricted" }), []);
+    renderPage();
+
+    expect(await screen.findByText(/age-restricted, so we can't download it/)).toBeInTheDocument();
+    expect(screen.queryByText(/Retry generation to try again/)).not.toBeInTheDocument();
   });
 
   it("keeps highlights sorted best first with a top pick", async () => {

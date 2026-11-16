@@ -32,7 +32,12 @@
     "canvasUnavailable": "Die Arbeitsfläche ist nicht verfügbar. Nutze den Hintergrundexport.",
     "cannotDecode": "Dieser Browser kann die Quelle nicht dekodieren. Nutze den Hintergrundexport.",
     "audioEncodeUnavailable": "Audiokodierung ist nicht verfügbar. Nutze den Hintergrundexport.",
-    "noVideo": "Der Export hat kein Video erzeugt."
+    "noVideo": "Der Export hat kein Video erzeugt.",
+    "sourceIncomplete": "Wir konnten das Quellvideo für diesen Clip nicht vollständig laden und haben ihn deshalb nicht mit fehlendem Material geöffnet. Versuche es in einer Minute erneut.",
+    "uploadShorter": "Der ursprüngliche Upload ist kürzer als dieser Clip und kann deshalb nicht zum Bearbeiten geöffnet werden.",
+    "rebuildBusy": "Warte, bis die laufende Vorbereitung oder der Export fertig ist, und erstelle die Kopie dann neu.",
+    "rebuildConflict": "Dieser Entwurf wurde in einem anderen Tab geändert. Lade ihn neu, bevor du die Kopie neu erstellst.",
+    "noBackup": "Für diesen Clip ist kein früherer Entwurf gespeichert."
   },
   "keys": {
     "space": "Leertaste",
@@ -267,7 +272,7 @@
     "backup": "Entwurf sichern",
     "reloadSaved": "Gespeicherte Version neu laden",
     "retryPreparation": "Vorbereitung erneut versuchen",
-    "storageFull": "Der lokale Entwurfsspeicher ist voll oder nicht verfügbar. Lass diesen Tab offen, bis der Server bestätigt, dass deine Änderungen gespeichert sind.",
+    "storageFull": "Der Speicher dieses Browsers für SupoClip ist voll, daher kann er keine Sicherungskopie deiner letzten Änderungen behalten. Deine Bearbeitungen werden weiterhin in deinem Konto gespeichert: Warte auf „Alle Änderungen gespeichert“, bevor du diesen Tab schließt.",
     "yourClips": "Deine Clips",
     "clips": "Clips",
     "editClip": "Clip {order} bearbeiten",
@@ -375,5 +380,27 @@
     "viewPlans": "Tarife ansehen"
   },
   "partLabel": "Teil {n}",
-  "partClipLabel": "Teil {n} · {title}"
+  "partClipLabel": "Teil {n} · {title}",
+  "recovery": {
+    "sourceIncomplete": "Die Bearbeitungskopie dieses Clips ist nur {duration} statt {expected} lang, hier fehlt also ein Teil des Clips. Dein generierter Clip ist nicht betroffen. Erstelle die Bearbeitungskopie neu, um das zu beheben.",
+    "rebuild": "Bearbeitungskopie neu erstellen",
+    "rebuildTitle": "Bearbeitungskopie neu erstellen?",
+    "rebuildDescription": "SupoClip bereitet diesen Clip erneut aus dem Originalvideo vor, in voller Länge und mit dem Bildausschnitt, mit dem er generiert wurde.",
+    "rebuildWarning": "Bearbeitungen, die du im Studio an diesem Clip gemacht hast, werden nicht in die neue Kopie übernommen. Dein aktueller Entwurf bleibt auf unseren Servern gespeichert: Lade ihn jederzeit über „Vorherigen Entwurf herunterladen“ im ⋯-Menü herunter.",
+    "rebuildConfirm": "Neu erstellen",
+    "rebuildStarted": "Bearbeitungskopie wird neu erstellt…",
+    "downloadPrevious": "Vorherigen Entwurf herunterladen",
+    "browserBackups": "Browser-Sicherungen",
+    "manageBackups": "Gespeichertes ansehen",
+    "backupsTitle": "Browser-Sicherungen deiner Entwürfe",
+    "backupsDescription": "Deine Entwürfe werden in deinem SupoClip-Konto gespeichert. Dieser Browser behält zusätzlich eine kleine Kopie von Änderungen, die den Server noch nicht erreicht haben, falls der Tab geschlossen wird oder die Verbindung abbricht, sowie einen kurzen Rückgängig-Verlauf für deine letzten Clips. Das Löschen von Projekten ändert diesen Speicher nicht.",
+    "backupsSummary": "{entries, plural, =0 {Kein Clip hat eine Browser-Sicherung} one {# Clip hat eine Browser-Sicherung} other {# Clips haben eine Browser-Sicherung}} ({size})",
+    "backupsUnsaved": "{count, plural, =0 {Alle sind bereits in deinem Konto gespeichert.} one {# hat Änderungen, die noch nicht in deinem Konto sind. Sie bleibt erhalten.} other {# haben Änderungen, die noch nicht in deinem Konto sind. Sie bleiben erhalten.}}",
+    "backupsClear": "Gespeicherte Kopien entfernen",
+    "backupsClearNote": "Das Entfernen gespeicherter Kopien löscht nur ihren Rückgängig-Verlauf nach einem Neuladen. Deine Entwürfe bleiben in deinem Konto.",
+    "backupsCleared": "{size} freigegeben. Nicht gespeicherte Änderungen wurden behalten.",
+    "backupsNothing": "Nichts zu entfernen. Nicht gespeicherte Änderungen bleiben, bis sie in deinem Konto sind.",
+    "backupsBrowserNote": "Wenn du die Websitedaten von SupoClip in diesem Browser löschst, werden auch diese Kopien entfernt und du wirst abgemeldet. Tu das erst, wenn jeder offene Clip „Alle Änderungen gespeichert“ anzeigt.",
+    "done": "Fertig"
+  }
 }

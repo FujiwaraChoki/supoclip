@@ -43,7 +43,7 @@ In separate terminals, from `backend/`:
 
 ```sh
 .venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8100
-.venv/bin/arq src.workers.tasks.WorkerSettings
+.venv/bin/python -m src.workers.run_workers
 ```
 
 From `frontend/`, use the equivalent plain `postgresql://` database URL, then run:

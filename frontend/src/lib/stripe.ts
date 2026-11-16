@@ -1,8 +1,13 @@
 import Stripe from "stripe";
+import { scopedStripeClient } from "@/lib/stripe-accounts";
 
 let stripeClient: Stripe | null = null;
 
 export function getStripeClient(): Stripe {
+  return scopedStripeClient(getLegacyStripeClient);
+}
+
+function getLegacyStripeClient(): Stripe {
   if (stripeClient) {
     return stripeClient;
   }

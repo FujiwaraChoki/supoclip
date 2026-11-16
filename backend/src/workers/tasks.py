@@ -5,11 +5,10 @@ Worker tasks - background jobs processed by arq workers.
 import logging
 from typing import Dict, Any, Optional
 import json
-from arq import Retry, cron
+from arq import Retry
 from arq.worker import func
-from .media_cleanup import cleanup_media, sweep_orphaned_media
-from .media_replication import check_media_storage, replicate_pending_media
 from ..repositories.task_run_guard import TaskRunBusy
+from ..youtube_proxy_trial import run_trial_job
 
 from ..observability import configure_logging, set_trace_id, set_user_id
 
@@ -59,12 +58,65 @@ async def process_video_task(
     set_user_id(user_id)
     logger.info(f"Worker processing task {task_id}")
 
+    from ..font_registry import fetch_user_font
+    from ..utils.async_helpers import run_in_thread
+    from .video_admission import (
+        UPLOAD_LOST_MESSAGE,
+        UPLOAD_WAIT_MESSAGE,
+        admit_video_job,
+        hold_for_upload,
+        release_video_slot,
+        wake_next_video_jobs,
+    )
+
+    job_args = (
+        task_id,
+        url,
+        source_type,
+        user_id,
+        font_family,
+        font_size,
+        font_color,
+        caption_template,
+        processing_mode,
+        output_format,
+        add_subtitles,
+        cleanup_settings,
+        clip_length,
+    )
+
     # Create progress tracker
     progress = ProgressTracker(ctx["redis"], task_id)
 
     async with AsyncSessionLocal() as db:
         await load_runtime_settings_cache(db)
+        decision = await admit_video_job(
+            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args, url=url
+        )
+        if decision != "run":
+            logger.info("Video task %s admission=%s", task_id, decision)
+            return {"task_id": task_id, "admission": decision}
+
+        # An upload this machine cannot read yet goes back on the queue.
+        decision = await hold_for_upload(
+            ctx, db, task_id=task_id, user_id=user_id, url=url, job_args=job_args
+        )
+        if decision != "run":
+            if decision == "failed":
+                await progress.error(UPLOAD_LOST_MESSAGE)
+            else:
+                await progress.update(0, UPLOAD_WAIT_MESSAGE, "queued")
+            return {"task_id": task_id, "admission": decision}
+
+        # Admission only read. Close that transaction before the render writes.
+        await db.commit()
         task_service = TaskService(db)
+        if font_family:
+            try:
+                # A font the user uploaded lives on the API's disk and in object storage.
+                await run_in_thread(fetch_user_font, font_family, user_id)
+            except Exception:
+                logger.warning("Could not fetch font for task %s; captions use the default", task_id, exc_info=True)
 
         try:
             # Progress callback
@@ -84,7 +136,8 @@ async def process_video_task(
                 await progress.clip_ready(clip_index, total_clips, clip_data)
 
             # Process the video
-            result = await task_service.process_task(
+            result = await run_trial_job(
+                task_service.process_task, ctx["redis"], task_id, source_type,
                 task_id=task_id,
                 url=url,
                 source_type=source_type,
@@ -130,6 +183,15 @@ async def process_video_task(
                 logger.exception("Failed to persist dead-letter payload")
             # Error will be caught by arq and task status will be updated
             raise
+        finally:
+            # The slot is held only while this process is actually rendering.
+            await release_video_slot(ctx["redis"], user_id, task_id)
+            # Hand it to the account's next task now instead of after its deferral.
+            try:
+                async with AsyncSessionLocal() as wake_db:
+                    await wake_next_video_jobs(wake_db, ctx["redis"], user_id)
+            except Exception:
+                logger.exception("Could not wake the next video task after task %s", task_id)
 
 
 async def _social_service(db):
@@ -196,6 +258,74 @@ async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
     return {"refreshed": refreshed, "purged_oauth_states": purged}
 
 
+SCRATCH_SWEEP_SECONDS = 10 * 60
+ORPHAN_SWEEP_EVERY = 36  # passes, about six hours
+
+
+async def check_media_volume(redis) -> None:
+    """Refuse to render into a disk the API cannot read.
+
+    With local storage, finished clips are files the API serves from its own
+    disk. That only works when this worker mounts the same volume. A worker
+    on another machine needs MEDIA_STORAGE=s3.
+    """
+    from ..config import get_config
+    from ..local_volume import API_VOLUME_KEY, volume_id
+
+    config = get_config()
+    if config.media_storage == "s3":
+        return
+    api_volume = await redis.get(API_VOLUME_KEY)
+    if isinstance(api_volume, bytes):
+        api_volume = api_volume.decode()
+    if api_volume and api_volume != volume_id(config.temp_dir):
+        raise RuntimeError(
+            "This worker does not share the API's media volume (TEMP_DIR). "
+            "Mount the same volume, or set MEDIA_STORAGE=s3 on the API and every worker "
+            "so they exchange media through object storage."
+        )
+
+
+async def _maintain_scratch_forever() -> None:
+    """Each machine cleans its own disk; the scheduler only sees the one it runs on."""
+    import asyncio
+    import random
+
+    from .media_cleanup import maintain_local_scratch
+
+    passes = 0
+    # Workers started together should not all sweep in the same second.
+    await asyncio.sleep(random.uniform(30, 120))
+    while True:
+        try:
+            await maintain_local_scratch(orphans=passes % ORPHAN_SWEEP_EVERY == 0)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Local scratch cleanup failed; it runs again next pass")
+        passes += 1
+        await asyncio.sleep(SCRATCH_SWEEP_SECONDS)
+
+
+async def on_worker_startup(ctx: Dict[str, Any]) -> None:
+    import asyncio
+
+    await check_media_volume(ctx["redis"])
+    ctx["scratch_maintenance"] = asyncio.create_task(_maintain_scratch_forever())
+
+
+async def on_worker_shutdown(ctx: Dict[str, Any]) -> None:
+    import asyncio
+
+    maintenance = ctx.get("scratch_maintenance")
+    if maintenance is not None:
+        maintenance.cancel()
+        try:
+            await maintenance
+        except asyncio.CancelledError:
+            pass
+
+
 from ..services.editor_service import prepare_editor, export_editor, combine_editor
 from ..services.clip_export_service import (
     CLIP_EXPORT_JOB_TIMEOUT_SECONDS,
@@ -241,15 +371,12 @@ class WorkerSettings:
     max_tries = 3  # Retry failed jobs up to 3 times
     job_timeout = 10800  # 3 hour timeout for video processing
 
-    # Worker pool settings
+    # Worker pool settings. Cron jobs live on CronWorkerSettings so they never
+    # take one of these slots or pile up behind a long render.
     max_jobs = 4  # Process up to 4 jobs simultaneously
-    cron_jobs = [
-        cron(check_media_storage, second=20, run_at_startup=True, timeout=120),
-        cron(replicate_pending_media, second=40, run_at_startup=True, timeout=1800),
-        cron(cleanup_media, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, run_at_startup=True),
-        cron(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
-        # Every minute: promote due scheduled posts and poll async publishes.
-        cron(dispatch_scheduled_social_posts, second=0, timeout=300),
-        # Hourly: pull audience metrics back for the performance loop.
-        cron(refresh_social_metrics, minute=7, second=0, timeout=1800),
-    ]
+    cron_jobs = []
+
+    from .queue_delay import on_video_job_start as on_job_start
+
+    on_startup = on_worker_startup
+    on_shutdown = on_worker_shutdown

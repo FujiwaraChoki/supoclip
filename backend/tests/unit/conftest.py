@@ -28,3 +28,17 @@ def isolated_clip_edits(monkeypatch):
 def disable_paid_youtube_fallback(monkeypatch):
     """Local dotenv credentials must never turn a unit test into a paid request."""
     monkeypatch.setenv("RAPIDAPI_YOUTUBE_API_KEY", "")
+
+
+@pytest.fixture(autouse=True)
+def editor_store():
+    """Studio sessions and jobs in memory; unit tests have no PostgreSQL."""
+    from src import editor_state
+    from tests.fixtures.editor_store import MemoryEditorStore
+
+    store = MemoryEditorStore()
+    editor_state.set_store(store)
+    try:
+        yield store
+    finally:
+        editor_state.set_store(None)

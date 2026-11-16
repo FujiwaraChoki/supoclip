@@ -10,10 +10,13 @@ import {
   CloudOff,
   Download,
   Film,
+  HardDrive,
+  History,
   Keyboard,
   Layers,
   Loader2,
   MoreHorizontal,
+  RefreshCw,
   Redo2,
   RotateCcw,
   Undo2,
@@ -55,6 +58,13 @@ import { Inspector, type InspectorTab } from "./inspector";
 import { ExportPanel, readyEditor, type ClipSummary } from "./export-panel";
 import { partTitle } from "@/components/app/clip-wall";
 import { AIPrompt } from "./ai-prompt";
+import {
+  BrowserBackupsDialog,
+  RebuildDialog,
+  SourceIncompleteAlert,
+  downloadPreviousDraft,
+} from "./editor-recovery";
+import { draftCacheKey, pruneDrafts } from "@/lib/editor/draft-cache";
 import { editorMessage, editorStatus, Keys, Panel, ToolButton } from "./studio-ui";
 
 const SHORTCUTS: [string[], string][] = [
@@ -116,7 +126,14 @@ export function EditorWorkspace({
   const [exportOpen, setExportOpen] = useState(false),
     [helpOpen, setHelpOpen] = useState(false),
     [restoreOpen, setRestoreOpen] = useState(false),
-    [reloadOpen, setReloadOpen] = useState(false);
+    [reloadOpen, setReloadOpen] = useState(false),
+    [rebuildOpen, setRebuildOpen] = useState(false),
+    [backupsOpen, setBackupsOpen] = useState(false);
+  // Older releases kept every opened clip's full undo history in this
+  // browser. Shrink those copies; unsaved changes always stay.
+  useEffect(() => {
+    pruneDrafts({ keep: draftCacheKey(endpoint) });
+  }, [endpoint]);
   const [selected, setSelected] = useState<string[]>([]),
     [combining, setCombining] = useState(false);
   const [brollId, setBrollId] = useState<string | null>(null);
@@ -224,6 +241,8 @@ export function EditorWorkspace({
         exportOpen ||
         restoreOpen ||
         reloadOpen ||
+        rebuildOpen ||
+        backupsOpen ||
         !doc ||
         !asset
       )
@@ -315,6 +334,8 @@ export function EditorWorkspace({
     exportOpen,
     restoreOpen,
     reloadOpen,
+    rebuildOpen,
+    backupsOpen,
     t,
   ]);
   const saved = editor.status === "All changes saved",
@@ -475,6 +496,29 @@ export function EditorWorkspace({
                 <RotateCcw />
                 {t("workspace.restore")}
               </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={asset?.status !== "ready"}
+                onSelect={() => setRebuildOpen(true)}
+              >
+                <RefreshCw />
+                {t("recovery.rebuild")}
+              </DropdownMenuItem>
+              {asset?.draftBackup && (
+                <DropdownMenuItem
+                  onSelect={() =>
+                    void downloadPreviousDraft(endpoint, clip.id).catch((e) =>
+                      toast.error(editorMessage(t, (e as Error).message)),
+                    )
+                  }
+                >
+                  <History />
+                  {t("recovery.downloadPrevious")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => setBackupsOpen(true)}>
+                <HardDrive />
+                {t("recovery.browserBackups")}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("workspace.draftNote")}</p>
             </DropdownMenuContent>
@@ -485,8 +529,15 @@ export function EditorWorkspace({
           {t("workspace.export")}
         </Button>
       </header>
-      {(editor.error || editor.storageError) && (
+      {(editor.error || editor.storageError || asset?.sourceIncomplete) && (
         <div className="shrink-0 space-y-2 border-b px-3 py-2 sm:px-4">
+          {asset?.sourceIncomplete && !editor.error && (
+            <SourceIncompleteAlert
+              duration={asset.sourceIncomplete.duration}
+              expected={asset.sourceIncomplete.expected}
+              onRebuild={() => setRebuildOpen(true)}
+            />
+          )}
           {editor.error && (
             <Alert variant="destructive" className="border-0 bg-destructive/5 py-2">
               <AlertCircle />
@@ -547,7 +598,13 @@ export function EditorWorkspace({
           {editor.storageError && (
             <Alert variant="destructive" className="border-0 bg-destructive/5 py-2">
               <AlertCircle />
-              <AlertDescription>{t("workspace.storageFull")}</AlertDescription>
+              <AlertDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="mr-auto">{t("workspace.storageFull")}</span>
+                <Button size="sm" variant="outline" onClick={() => setBackupsOpen(true)}>
+                  <HardDrive />
+                  {t("recovery.manageBackups")}
+                </Button>
+              </AlertDescription>
             </Alert>
           )}
         </div>
@@ -681,6 +738,16 @@ export function EditorWorkspace({
           </dl>
         </DialogContent>
       </Dialog>
+      <RebuildDialog
+        open={rebuildOpen}
+        onOpenChange={setRebuildOpen}
+        onRebuild={async () => {
+          await editor.rebuild();
+          setSegmentIndex(0);
+          seek(0);
+        }}
+      />
+      <BrowserBackupsDialog open={backupsOpen} onOpenChange={setBackupsOpen} />
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

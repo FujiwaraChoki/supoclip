@@ -1,5 +1,6 @@
 "use client";
 
+import { removeTaskDrafts } from "@/lib/editor/draft-cache";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -11,7 +12,8 @@ import { getClipUrl, requestAction, EXPORT_PRESETS } from "@/lib/clip-actions";
 import { clipExportFilePath, pollClipExport, triggerFileDownload } from "@/lib/clip-export";
 import { downloadAllClips } from "@/lib/clip-archive";
 import { trackClipExport } from "@/lib/clip-export-tracking";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { taskPathFromCreate } from "@/lib/task-create";
 import { Button } from "@/components/ui/button";
 import { PageLoading, PageError } from "@/components/app/page-state";
 import { Input } from "@/components/ui/input";
@@ -187,10 +189,18 @@ export default function TaskPage() {
   const copyText = useCopyText();
   const locale = useLocale();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const alreadyProcessing = searchParams.get("already") === "1";
   const router = useRouter();
   const { data: session } = useSession();
   const [task, setTask] = useState<TaskDetails | null>(null);
   const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
+  // Source failures a retry can't fix get their own explanation.
+  const failedBody = task?.error_code === "youtube_age_restricted"
+    ? t("failedBodyAgeRestricted")
+    : task?.error_code === "youtube_geo_restricted"
+      ? t("failedBodyGeoRestricted")
+      : t("failedBody");
   // Next steps on the failure screen stay inside what this user may make.
   const workflowsInfo = useWorkflowsInfo(Boolean(failureCode));
   const [clips, setClips] = useState<Clip[]>([]);
@@ -503,6 +513,7 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
+        removeTaskDrafts(String(params.id));
         router.push("/list");
       } else {
         toast.error(await buildSupportError(response, t("errors.deleteTask")));
@@ -525,6 +536,7 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
+        removeTaskDrafts(String(params.id), clipId);
         setClips(clips.filter((clip) => clip.id !== clipId));
         setDeletingClipId(null);
       } else {
@@ -705,9 +717,9 @@ export default function TaskPage() {
         }
         throw new Error(formatSupportMessage(info));
       }
-      const created = (await response.json()) as { task_id?: string };
+      const created = (await response.json()) as { task_id?: string; duplicate?: boolean; code?: string };
       if (!created.task_id) throw new Error(t("errors.createTask"));
-      window.location.href = `/tasks/${created.task_id}`;
+      window.location.href = taskPathFromCreate(created);
     });
   };
 
@@ -986,11 +998,16 @@ export default function TaskPage() {
       )}
 
       <div className="mt-8">
+        {alreadyProcessing && task && (task.status === "queued" || task.status === "processing") && (
+          <p role="status" className="mb-4 text-sm text-muted-foreground">{t("alreadyProcessing")}</p>
+        )}
         {reconnecting && <p role="status" className="mb-4 text-sm text-muted-foreground">{readOnly ? t("reconnectingOther") : t("reconnectingOwn")}</p>}
 
         {isActive && task ? (
           <div className="space-y-8">
-            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} startedAt={Date.parse(task.created_at)} workflow={workflow} />
+            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} workflow={workflow}
+              phaseSince={Date.parse(task.updated_at)} sourceSeconds={task.source_duration_seconds}
+              upload={videoSourceKind(task.source_type) === "upload"} outputs={Math.max(clips.length, expectedTotal)} />
             <ProcessingSlots status={task.status} progress={progress} message={progressMessage}
               className={SINGLE_OUTPUT.has(workflow) ? "mx-auto max-w-[16rem] grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1" : undefined}
               total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedTotal)}>
@@ -1016,7 +1033,7 @@ export default function TaskPage() {
             onResume={handleResume}
           />
         ) : task.status === "error" && clips.length === 0 ? (
-          <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={t("failedBody")}>
+          <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={failedBody}>
             <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />{t("backHome")}</Link></Button>
           </EmptyState>
         ) : clips.length === 0 ? (
@@ -1059,7 +1076,7 @@ export default function TaskPage() {
             {task.status === "error" && (
               <div role="status" className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
                 <p className="font-medium">{t("failedTitle")}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{t("failedBody")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{failedBody}</p>
               </div>
             )}
                         {workflow === "topic" && topicName && (

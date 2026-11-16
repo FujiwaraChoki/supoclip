@@ -307,7 +307,30 @@ def test_fetch_video_info_with_youtube_data_api_normalizes_response(monkeypatch)
             "resolution": None,
             "fps": None,
             "filesize": None,
+            "age_restricted": False,
         }
+    finally:
+        set_config_override(None)
+
+
+def test_fetch_video_info_with_youtube_data_api_reports_age_restriction(monkeypatch):
+    config = Config()
+    config.youtube_data_api_key = "youtube-key"
+
+    def fake_get(url, params=None, timeout=None):
+        assert "contentRating(ytRating)" in params["fields"]
+        return FakeResponse({"items": [{
+            "id": "abcdefghijk",
+            "snippet": {"title": "Adult"},
+            "contentDetails": {"duration": "PT26M49S", "contentRating": {"ytRating": "ytAgeRestricted"}},
+        }]})
+
+    set_config_override(config)
+    try:
+        monkeypatch.setattr("src.youtube_utils.requests.get", fake_get)
+        result = _fetch_video_info_with_youtube_data_api("https://www.youtube.com/watch?v=abcdefghijk")
+        assert result["age_restricted"] is True
+        assert result["duration"] == 1609
     finally:
         set_config_override(None)
 
@@ -356,7 +379,7 @@ def test_get_youtube_video_info_uses_ytdlp_by_default(monkeypatch):
     try:
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_ytdlp",
-            lambda _url: {"title": "From yt-dlp"},
+            lambda _url: {"title": "From yt-dlp", "duration": 60},
         )
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_youtube_data_api",
@@ -365,7 +388,7 @@ def test_get_youtube_video_info_uses_ytdlp_by_default(monkeypatch):
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "From yt-dlp"}
+        assert result == {"title": "From yt-dlp", "duration": 60}
     finally:
         set_config_override(None)
 
@@ -378,7 +401,7 @@ def test_get_youtube_video_info_uses_youtube_data_api_when_selected(monkeypatch)
     try:
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_youtube_data_api",
-            lambda _url: {"title": "From API"},
+            lambda _url: {"title": "From API", "duration": 60},
         )
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_ytdlp",
@@ -387,7 +410,7 @@ def test_get_youtube_video_info_uses_youtube_data_api_when_selected(monkeypatch)
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "From API"}
+        assert result == {"title": "From API", "duration": 60}
     finally:
         set_config_override(None)
 
@@ -404,12 +427,12 @@ def test_get_youtube_video_info_falls_back_to_ytdlp_on_data_api_failure(monkeypa
         )
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_ytdlp",
-            lambda _url: {"title": "Fallback yt-dlp"},
+            lambda _url: {"title": "Fallback yt-dlp", "duration": 60},
         )
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "Fallback yt-dlp"}
+        assert result == {"title": "Fallback yt-dlp", "duration": 60}
     finally:
         set_config_override(None)
 
@@ -426,12 +449,12 @@ def test_get_youtube_video_info_falls_back_to_data_api_on_ytdlp_failure(monkeypa
         )
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_youtube_data_api",
-            lambda _url: {"title": "Fallback API"},
+            lambda _url: {"title": "Fallback API", "duration": 60},
         )
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "Fallback API"}
+        assert result == {"title": "Fallback API", "duration": 60}
     finally:
         set_config_override(None)
 
@@ -449,12 +472,12 @@ def test_get_youtube_video_info_falls_back_when_data_api_returns_empty_items(mon
         monkeypatch.setattr("src.youtube_utils.requests.get", fake_get)
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_ytdlp",
-            lambda _url: {"title": "Fallback yt-dlp"},
+            lambda _url: {"title": "Fallback yt-dlp", "duration": 60},
         )
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "Fallback yt-dlp"}
+        assert result == {"title": "Fallback yt-dlp", "duration": 60}
     finally:
         set_config_override(None)
 
@@ -472,12 +495,12 @@ def test_get_youtube_video_info_falls_back_when_data_api_http_errors(monkeypatch
         monkeypatch.setattr("src.youtube_utils.requests.get", fake_get)
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_ytdlp",
-            lambda _url: {"title": "Fallback yt-dlp"},
+            lambda _url: {"title": "Fallback yt-dlp", "duration": 60},
         )
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "Fallback yt-dlp"}
+        assert result == {"title": "Fallback yt-dlp", "duration": 60}
     finally:
         set_config_override(None)
 
@@ -492,12 +515,12 @@ def test_get_youtube_video_info_falls_back_to_ytdlp_when_no_data_api_key(monkeyp
     try:
         monkeypatch.setattr(
             "src.youtube_utils._fetch_video_info_with_ytdlp",
-            lambda _url: {"title": "Fallback yt-dlp"},
+            lambda _url: {"title": "Fallback yt-dlp", "duration": 60},
         )
 
         result = get_youtube_video_info("https://www.youtube.com/watch?v=abcdefghijk")
 
-        assert result == {"title": "Fallback yt-dlp"}
+        assert result == {"title": "Fallback yt-dlp", "duration": 60}
     finally:
         set_config_override(None)
 

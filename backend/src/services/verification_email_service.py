@@ -3,6 +3,7 @@ from typing import Optional
 
 from ..config import Config
 from ..models import User
+from .email_layout import email_button
 from .email_service import EmailContent, SesEmailService, first_name_for
 
 
@@ -19,8 +20,8 @@ class VerificationEmailService:
             html=(
                 f"<p>Hi {escape(name)},</p>"
                 "<p>Verify your email address to create SupoClip API keys.</p>"
-                f'<p><a href="{escape(url, quote=True)}">Verify email address</a></p>'
-                "<p>This link expires in 1 hour. If you did not request this, "
+                + email_button(url, "Verify email address")
+                + "<p>This link expires in 1 hour. If you did not request this, "
                 "you can ignore this email.</p><p>Team SupoClip</p>"
             ),
             text=(

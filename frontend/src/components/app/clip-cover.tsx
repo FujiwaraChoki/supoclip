@@ -56,7 +56,7 @@ export function ScoreRing({ score, size = 36, className }: { score: number; size
   const clamped = Math.max(0, Math.min(100, score));
   return (
     <span
-      className={cn("relative inline-flex items-center justify-center", className)}
+      className={cn("relative flex shrink-0 items-center justify-center", className)}
       style={{ width: size, height: size }}
       role="img"
       aria-label={`Virality score ${clamped} out of 100`}

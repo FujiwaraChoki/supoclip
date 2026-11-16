@@ -30,6 +30,8 @@ def test_download_follows_s3_redirect_without_forwarding_auth(monkeypatch, tmp_p
         requests.append(request)
         if request.url.host == "api.supoclip.test":
             assert "x-supoclip-signature" in request.headers
+            # The backend counts MCP traffic separately in its analytics.
+            assert request.headers["user-agent"].startswith("supoclip-mcp/")
             return httpx.Response(307, headers={"Location": "https://private-s3.test/video.mp4?signature=test"})
         assert "x-supoclip-signature" not in request.headers
         assert "x-supoclip-user-id" not in request.headers

@@ -9,6 +9,8 @@ This repository contains the web app, processing backend, and MCP client:
 
 Infra and bootstrap files live at the root: `docker-compose.yml`, `init.sql`, `.env.example`, and `start.sh`.
 
+A video worker may run on a different machine from the API (`docs/render-worker.md`). State that another process needs belongs in PostgreSQL, Redis, or the media bucket. Files under `TEMP_DIR` are scratch for the machine that wrote them.
+
 ## Build, Test, and Development Commands
 Use Docker for full-stack development:
 - `docker-compose up -d --build`: start frontend, backend, worker, Postgres, and Redis.
@@ -20,7 +22,7 @@ Local app commands:
 - `cd frontend && pnpm run build && pnpm run start`: production build + serve.
 - `cd frontend && pnpm run lint`: run ESLint.
 - `cd backend && uv sync && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000`: run API locally.
-- `cd backend && .venv/bin/arq src.workers.tasks.WorkerSettings`: run the worker.
+- `cd backend && .venv/bin/python -m src.workers.run_workers`: run the video worker and the cron worker.
 
 ## Coding Style & Naming Conventions
 - Python: 4-space indentation, type hints where practical, `snake_case` for functions/modules.
@@ -47,9 +49,17 @@ Recent history favors short imperative commit subjects (`Add list endpoint`, `Fi
 PRs should include:
 - What changed and why.
 - Any env/config or migration impact.
-- Screenshots/GIFs for UI changes.
+- Visual proof of the change (see below).
 - Linked issue(s) and manual verification steps.
 - A `CHANGELOG.md` entry for user-visible changes, or a brief explanation of why no entry is needed.
+
+### Screenshots and video in PRs
+Every PR that changes something a person can see or do must show it working in the real app:
+- **Always** at least one screenshot of the feature or fix (before/after for visual changes).
+- **A video too whenever possible**: any flow with more than one step, an animation, or a fix that is only visible over time (progress, playback, drag, undo). Record it with Playwright (`video: "on"` in a throwaway config or `page.video()`), or a screen recorder, against the running app. Keep it short (under ~30 s) and convert to a GIF (`ffmpeg ... -vf "fps=12,scale=960:-1"`) so it plays inline; link the `.mp4`/`.webm` as well when the GIF loses detail.
+- Host media on an orphan branch named `pr-assets/<branch-name>` (never commit it to the feature branch or `main`), then embed with `https://raw.githubusercontent.com/FujiwaraChoki/supoclip/pr-assets/<branch-name>/<file>`. Images and GIFs render inline; videos show as links.
+- Use demo data only: no real customer names, emails, IDs, or private videos in any capture.
+- Backend-only or internal changes with nothing visible: say so in the PR instead (and show test output or logs where useful).
 
 ## Changelog Requirements
 - Update the root `CHANGELOG.md` in the same PR as every user-visible feature, improvement, or bug fix. This includes UI wording changes and backend fixes that affect the user experience.

@@ -150,6 +150,9 @@ The default Compose stack contains five services:
 - `worker`
   - ARQ background worker
   - Processes long-running video jobs from Redis
+  - Also starts the cron worker (`EMBED_CRON_WORKER=1`) so scheduled jobs use queue `supoclip_cron` and do not wait behind renders
+- `cron-worker` (optional, Compose profile `cron`)
+  - Same cron process on its own. Set `EMBED_CRON_WORKER=0` on the worker when using it. A normal `docker compose up` of backend, worker, and frontend does not start this service
 - `postgres`
   - Stores users, sessions, tasks, sources, clips, billing metadata, and auth rotation state
 - `redis`
@@ -187,7 +190,7 @@ In a second terminal:
 ```bash
 cd backend
 source .venv/bin/activate
-arq src.workers.tasks.WorkerSettings
+python -m src.workers.run_workers
 ```
 
 ### Frontend

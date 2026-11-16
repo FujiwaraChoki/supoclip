@@ -4,6 +4,42 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-15
+
+- **New:** Settings → Agents & API shows how to connect Claude, ChatGPT or Grok: open the assistant's connector page, paste the SupoClip server URL and sign in. No key to copy. Each assistant lists which of its plans support this. Claude Code can sign in the same way. API keys moved into one tidy list with a Create key button; a new key opens with its Cursor and local config filled in. ([#403](https://github.com/FujiwaraChoki/supoclip/pull/403))
+
+## 2026-11-14
+
+- **Improved:** Interview clips are framed shot by shot instead of shrinking the whole video into a strip. When both people are on camera, each gets their own half of the screen, stacked; a close-up of one person becomes a tight crop on their face; on-screen graphics and b-roll are shown in full. The layout changes exactly on the video's own cuts. ([#392](https://github.com/FujiwaraChoki/supoclip/pull/392))
+- **Fixed:** Long Twitch and Kick videos download the parts your clips use, instead of the whole stream, and a download that is still receiving data is no longer cut off after a few minutes. ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
+- **Fixed:** A subscriber-only or private VOD, and a VOD that is blocked in our regions, is reported as such instead of a generic "try again later". ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
+- **Fixed:** Age-restricted YouTube videos are now turned down when you submit them, with a note to download the video and upload the file instead. Before, they failed after a long wait with a message to retry, which couldn't work. No minutes are used. ([#391](https://github.com/FujiwaraChoki/supoclip/pull/391))
+
+## 2026-11-12
+
+- **Fixed:** Opening several clips in the studio at once no longer leaves one of them shorter than the clip. If the whole source can't be fetched, the studio says so instead of opening part of it. A clip that already opened short shows the problem and offers to rebuild its editing copy; your earlier draft stays downloadable. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** The studio opens a clip with the framing it was generated with, including face tracking and the blurred full-frame fit, instead of a centred crop. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** The studio no longer fills your browser's storage. It keeps a small copy of unsaved changes and a short undo history for your last few clips, and removes a generation's copies when you delete it. If storage does fill up, the message explains that your edits still save to your account, and ⋯ → Browser backups shows what is stored and frees what's already saved. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** When you queue several videos, they now start in the order you submitted them, and the next one starts as soon as the previous one finishes. Before, a video submitted earlier could keep waiting while later ones went ahead. ([#378](https://github.com/FujiwaraChoki/supoclip/pull/378))
+- **Under the hood:** Media playback, downloads and uploads can prefer the independent storage replica to reduce transfer costs, while keeping the other provider as a backup. ([#376](https://github.com/FujiwaraChoki/supoclip/pull/376))
+
+- **Improved:** When you connect claude.ai, ChatGPT or another app and your email isn't verified yet, the approval page sends the verification email itself, and the link brings you straight back to approve. Connection requests now stay open for 30 minutes. ([#375](https://github.com/FujiwaraChoki/supoclip/pull/375))
+- **Under the hood:** We now measure the main steps from sign-up to a first video, a subscription and later renewals. Only the kind of step is recorded, never your links, files, instructions or captions. ([#370](https://github.com/FujiwaraChoki/supoclip/pull/370))
+- **New:** Connect SupoClip to claude.ai, ChatGPT and other apps with custom connectors: add `https://mcp.supoclip.com/mcp`, sign in, and allow access. No key to copy. Each connection gets its own API key, listed in Settings → Agents & API, where you can revoke it to disconnect. ([#372](https://github.com/FujiwaraChoki/supoclip/pull/372))
+- **Fixed:** The time left on a generation now includes downloading the chosen moments and rendering each clip, so it no longer says "less than a minute" while several minutes remain. ([#371](https://github.com/FujiwaraChoki/supoclip/pull/371))
+- **Fixed:** The SupoClip MCP server at `mcp.supoclip.com` now works with clients that use the current MCP connection type, as well as older SSE clients, including ones already set up with the old address. When a connection fails, the error says what is missing, such as an API key or a placeholder that wasn't replaced. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Improved:** Settings → Agents & API shows ready-to-copy setup for Claude Code, Cursor, Claude Desktop and a local server, with your new key filled in. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Improved:** When an agent tries to make clips on an account without a paid plan or without minutes left, it gets a plain explanation and a link to choose a plan instead of a raw error. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Under the hood:** Billing can keep existing subscriptions with their current payment account while preparing a new account, with separate payment recovery and refund handling. ([#367](https://github.com/FujiwaraChoki/supoclip/pull/367))
+
+## 2026-11-10
+
+- **Improved:** A studio export or clip preparation whose server stops unexpectedly is now retried or shown as failed within a few minutes, instead of staying in progress. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
+- **Under the hood:** Video rendering can run on additional servers. Studio drafts and exports are kept in the database, and uploads, fonts and finished videos are shared through storage instead of one server's disk. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
+- **Fixed:** When we can't verify a YouTube, Twitch or Kick video's length, the message explains that the stream may still be live and suggests using the completed recording. For YouTube, we check a second source for the length. If that check confirms a region restriction, we suggest uploading the video file. ([#356](https://github.com/FujiwaraChoki/supoclip/pull/356))
+- **Fixed:** Submitting a video that is already queued or processing opens that generation instead of starting a second one. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
+- **Under the hood:** Each account renders one video at a time by default, maintenance jobs run on their own worker, and a long queue wait is reported to error tracking. ([#354](https://github.com/FujiwaraChoki/supoclip/pull/354))
+
 ## 2026-11-08
 
 - **Fixed:** Retrying a generation after a dropped connection no longer creates and charges a second one, and a video upload whose final step lost its answer no longer has to be sent again. ([#349](https://github.com/FujiwaraChoki/supoclip/pull/349))

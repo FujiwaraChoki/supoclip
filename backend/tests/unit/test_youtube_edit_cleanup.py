@@ -11,6 +11,7 @@ from src.config import Config
 from src.editor_document import editor_dir
 from src.services import clip_service, editor_service
 from src.services.task_service import TaskService
+from tests.fixtures.editor_store import stored_state
 
 
 VIDEO_ID = "abcdefghijk"
@@ -72,7 +73,7 @@ async def test_editor_preparation_removes_its_download(tmp_path, monkeypatch, re
 
     assert not source.exists()
     assert not source.parent.exists()
-    state = editor_service.read_state(editor_dir(str(tmp_path), "task", "clip", "clip.mp4"))
+    state = await stored_state("task", "clip", "clip.mp4")
     assert state["status"] == ("ready" if render_succeeds else "failed")
 
 
@@ -194,7 +195,7 @@ async def test_editor_preparation_reports_why_the_youtube_download_failed(tmp_pa
 
     await editor_service.prepare_editor({}, "task", "clip", "clip.mp4")
 
-    state = editor_service.read_state(editor_dir(str(tmp_path), "task", "clip", "clip.mp4"))
+    state = await stored_state("task", "clip", "clip.mp4")
     assert state["status"] == "failed"
     if geo_restricted:
         assert "regional restrictions" in state["error"]

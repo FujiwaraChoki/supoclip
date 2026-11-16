@@ -78,11 +78,18 @@ async def test_late_retry_returns_the_task_long_after_the_short_dedupe_window(
     unkeyed = await client.post("/tasks/", headers=auth_headers, json=body)
     assert unkeyed.status_code == 200, unkeyed.text
     assert unkeyed.json()["task_id"] != task_id
-    # A new key is a new request.
+    # A different key for the same active source binds to the existing task.
     fresh = await _create(client, auth_headers, body, "ios-key-0002")
     assert fresh.status_code == 200, fresh.text
-    assert fresh.json()["task_id"] not in {task_id, unkeyed.json()["task_id"]}
-    assert await _task_count(db_session, "user-1") == 3
+    assert fresh.json()["task_id"] == unkeyed.json()["task_id"]
+    await db_session.execute(text("""
+        UPDATE tasks SET status = 'completed', completed_at = NOW() - INTERVAL '20 minutes'
+        WHERE id = :id
+    """), {"id": fresh.json()["task_id"]})
+    await db_session.commit()
+    late = await _create(client, auth_headers, body, "ios-key-0002")
+    assert late.json()["task_id"] == fresh.json()["task_id"]
+    assert await _task_count(db_session, "user-1") == 2
 
 
 @pytest.mark.asyncio
@@ -194,7 +201,7 @@ async def test_keyed_link_requests_replay_too(client, app, auth_headers, db_sess
 
 @pytest.mark.asyncio
 async def test_concurrent_requests_with_one_key_make_one_task(client, app, auth_headers, db_session, monkeypatch):
-    """Self-hosted link creates aren't serialized: the key's primary key decides."""
+    """Concurrent requests pass preflight before either acquires the source lock."""
     await create_user(db_session, user_id="user-1")
 
     async def _preflight(_url, _max):
@@ -202,15 +209,13 @@ async def test_concurrent_requests_with_one_key_make_one_task(client, app, auth_
 
     monkeypatch.setattr(tasks, "_preflight_youtube_source", _preflight)
     before = len(app.state.queue_adapter.enqueued_jobs)
-    original = TaskRepository.create_task
     barrier = asyncio.Barrier(2)
 
-    async def both_past_every_lookup(*args, **kwargs):
-        # Both requests have checked for the key; only the insert can decide.
+    async def concurrent_preflight(url, maximum):
         await asyncio.wait_for(barrier.wait(), 5)
-        return await original(*args, **kwargs)
+        return await _preflight(url, maximum)
 
-    monkeypatch.setattr(TaskRepository, "create_task", staticmethod(both_past_every_lookup))
+    monkeypatch.setattr(tasks, "_preflight_youtube_source", concurrent_preflight)
     url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
     orphan_sql = text("""
         SELECT count(*) FROM sources s WHERE s.url = :url

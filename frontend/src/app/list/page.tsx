@@ -1,5 +1,6 @@
 "use client";
 
+import { removeTaskDrafts } from "@/lib/editor/draft-cache";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { ACTIVE_TASK_STATUSES, RETRYABLE_TASK_STATUSES } from "@/components/app/status-badge";
@@ -285,7 +286,11 @@ export default function ListPage() {
     await runBatchAction(
       "delete",
       targetTaskIds,
-      (taskId) => fetch(`/api/tasks/${taskId}`, { method: "DELETE" }),
+      async (taskId) => {
+        const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+        if (response.ok) removeTaskDrafts(taskId);
+        return response;
+      },
       {
         empty: t("delete.empty"),
         fallback: t("delete.fallback"),

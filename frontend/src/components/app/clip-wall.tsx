@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getClipUrl } from "@/lib/clip-actions";
 import { formatClipDuration } from "@/lib/generations";
 import { DELAY_MESSAGE_KEYS, isDownloadRecovery } from "@/lib/download-recovery";
+import { estimateRemainingSeconds, type EtaPhase } from "@/lib/processing-eta";
 import { cn } from "@/lib/utils";
 import { SINGLE_OUTPUT, type SourceRange, type Workflow, type WorkflowClipFields } from "@/lib/workflows";
 
@@ -350,38 +351,85 @@ function useElapsed(since: number | undefined) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (since === undefined) return;
+    setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 5000);
     return () => window.clearInterval(id);
   }, [since]);
   return since === undefined ? 0 : Math.max(0, (now - since) / 1000);
 }
 
-export function ProcessingPanel({ status, progress, message, startedAt, elapsedSeconds, clipProgress, workflow = "highlights" }: {
+/** The estimator's phase: step 2 also covers downloading the picked segments, the longest wait of a YouTube run. */
+function etaPhase(step: number, message: string): EtaPhase {
+  if (step >= 3) return "render";
+  if (step === 2) return /selected segments/i.test(message) ? "sections" : "find";
+  return step === 1 ? "transcribe" : "fetch";
+}
+
+/**
+ * When the current phase (or clip) started, and the seconds per clip measured
+ * so far. `initialSince` dates the phase the page opens on.
+ */
+function usePhaseClock(key: string, clip: number | undefined, initialSince: number | undefined) {
+  const [clock, setClock] = useState(() => {
+    const since = Math.min(initialSince ?? Date.now(), Date.now());
+    return { key, since, firstClip: clip === undefined ? null : { clip, at: since }, perClip: null as number | null };
+  });
+  useEffect(() => {
+    setClock((prev) => {
+      if (prev.key === key) return prev;
+      const at = Date.now();
+      if (clip === undefined) return { ...prev, key, since: at };
+      if (!prev.firstClip || clip < prev.firstClip.clip) return { key, since: at, firstClip: { clip, at }, perClip: prev.perClip };
+      const done = clip - prev.firstClip.clip;
+      return { ...prev, key, since: at, perClip: done > 0 ? (at - prev.firstClip.at) / 1000 / done : prev.perClip };
+    });
+  }, [key, clip]);
+  return clock;
+}
+
+export function ProcessingPanel({ status, progress, message, phaseSince, sourceSeconds, upload = false, outputs, remainingSeconds, clipProgress, workflow = "highlights" }: {
   status: string;
   progress: number;
   message: string;
   /** Relabels the steps and the counter for what the generation makes. */
   workflow?: Workflow;
-  /** Epoch ms the task started; drives the time-left estimate. */
-  startedAt?: number;
-  /** Overrides the clock (landing demo). */
-  elapsedSeconds?: number;
+  /** Epoch ms the current progress message was set (the task's updated_at); dates the phase the page opens on. */
+  phaseSince?: number;
+  /** Source length, which most phases scale with. */
+  sourceSeconds?: number | null;
+  /** Uploaded file: no segment download after analysis. */
+  upload?: boolean;
+  /** Outputs the run is expected to make, until the render counter says. */
+  outputs?: number;
+  /** Overrides the estimate (landing demo). */
+  remainingSeconds?: number;
   /** Overrides parsing "clip x/y" out of the message. */
   clipProgress?: { current: number; total: number } | null;
 }) {
   const t = useTranslations("task");
   const [delayMessage] = useState(() => DELAY_MESSAGE_KEYS[Math.floor(Math.random() * DELAY_MESSAGE_KEYS.length)]);
-  const ticking = useElapsed(elapsedSeconds === undefined ? startedAt : undefined);
-  const elapsed = elapsedSeconds ?? ticking;
   const recovery = status === "processing" && isDownloadRecovery(message);
   const step = activeStep(status, progress, message);
   const clip = clipProgress === undefined ? clipProgressFromMessage(message) : clipProgress;
-  const remaining = progress > 0 ? (elapsed * (100 - progress)) / progress : Infinity;
+  const phase = etaPhase(step, message);
+  const currentClip = phase === "render" ? clip?.current ?? 1 : undefined;
+  const clock = usePhaseClock(`${status}:${phase}:${currentClip ?? ""}`, currentClip, phaseSince);
+  const phaseElapsed = useElapsed(remainingSeconds === undefined ? clock.since : undefined);
+  const remaining = remainingSeconds ?? estimateRemainingSeconds({
+    phase,
+    phaseElapsed,
+    sourceSeconds,
+    upload,
+    workflow,
+    outputs: clip?.total ?? outputs ?? 1,
+    currentClip,
+    observedSecondsPerClip: clock.perClip,
+  });
   const eta = recovery ? t("recovery.heading")
     : status === "queued" ? t("eta.queued")
-    : progress < 10 || elapsed < 5 ? t("eta.estimating")
+    : !message && remainingSeconds === undefined ? t("eta.estimating")
       : remaining < 50 ? t("eta.underMinute")
-        : t("eta.minutes", { count: Math.round(remaining / 60) });
+        : t("eta.minutes", { count: Math.max(1, Math.round(remaining / 60)) });
   return (
     <section className="relative isolate" aria-live="polite">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 -inset-y-16 -z-10 overflow-hidden [mask-image:radial-gradient(60%_70%_at_30%_50%,black,transparent)]">

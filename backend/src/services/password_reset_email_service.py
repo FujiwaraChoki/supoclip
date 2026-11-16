@@ -5,6 +5,7 @@ from typing import Optional
 
 from ..config import Config
 from ..models import User
+from .email_layout import email_button
 from .email_service import EmailContent, SesEmailService, first_name_for
 
 
@@ -25,15 +26,14 @@ class PasswordResetEmailService:
 
     def _build_reset_email(self, user: User, reset_url: str) -> EmailContent:
         first_name = first_name_for(first_name=user.first_name, full_name=user.name)
-        safe_url = escape(reset_url, quote=True)
 
         return EmailContent(
             subject="Reset your SupoClip password",
             html=(
                 f"<p>Hi {escape(first_name)},</p>"
                 "<p>We received a request to reset the password for your SupoClip account.</p>"
-                f'<p><a href="{safe_url}">Reset your password</a></p>'
-                "<p>This link expires in 1 hour. If you did not request a password reset, "
+                + email_button(reset_url, "Reset your password")
+                + "<p>This link expires in 1 hour. If you did not request a password reset, "
                 "you can ignore this email; your password will not change.</p>"
                 "<p>Team SupoClip</p>"
             ),

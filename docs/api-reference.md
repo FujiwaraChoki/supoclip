@@ -25,7 +25,11 @@ curl https://api.supoclip.com/tasks/ \
   -H "x-api-key: sk_..."
 ```
 
-API keys authenticate `/tasks/*`, `/fonts` and `/upload`. Revoking a key in the app takes effect immediately. For AI agents (Claude, Cursor and other MCP clients), use the [SupoClip MCP server](../mcp/README.md), which wraps this API.
+API keys authenticate `/tasks/*`, `/fonts` and `/upload`. Revoking a key in the app takes effect immediately. For AI agents (Claude, Cursor and other MCP clients), use the [SupoClip MCP server](../mcp/README.md), which wraps this API. The hosted server is at `https://mcp.supoclip.com/mcp` with the same key as a header:
+
+```bash
+claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_..."
+```
 
 ## API Layers
 

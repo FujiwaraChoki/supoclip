@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, parseApiError } from "@/lib/api-error";
 import { remapCaptionTransforms, type EditDocument, type EditorState } from "@/lib/editor/document";
+import { draftCacheKey, readDraft, removeDraft, writeDraft } from "@/lib/editor/draft-cache";
 
 export async function editorRequest<T>(
   url: string,
@@ -63,24 +64,17 @@ export function useEditor(endpoint: string) {
     saved = useRef("");
   const inFlight = useRef<Promise<void> | null>(null);
   const mounted = useRef(true);
-  const cacheKey = `supoclip-editor:${endpoint}`;
+  const cacheKey = draftCacheKey(endpoint);
   const lastEdit = useRef({ group: "", at: 0 });
+  const [generation, setGeneration] = useState(0);
+  // A bounded browser copy: unsaved edits, plus a short undo history across reloads.
   const cache = useCallback(
     (value: History) => {
-      try {
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            basis: assetRef.current?.basis,
-            revision: revision.current,
-            saved: saved.current,
-            history: value,
-          }),
-        );
-        setStorageError(false);
-      } catch {
-        setStorageError(true);
-      }
+      const basis = assetRef.current?.basis;
+      const unsaved = JSON.stringify(value.present) !== saved.current;
+      const stored = !!basis && writeDraft(cacheKey, basis, revision.current, value, unsaved);
+      // Failing to keep undo history for a saved draft is not worth a warning.
+      setStorageError(!stored && unsaved);
     },
     [cacheKey],
   );
@@ -211,11 +205,12 @@ export function useEditor(endpoint: string) {
           present: state.draft.document,
           future: [],
         };
+        let conflict = false;
         try {
-          const local = JSON.parse(localStorage.getItem(cacheKey) || "null");
+          const local = readDraft(cacheKey);
           if (
             local?.basis === state.basis &&
-            local.history?.present?.version === 1
+            local.history.present?.version === 1
           ) {
             const restored = upgradeCachedHistory(local.history, state.draft.document);
             if (
@@ -223,8 +218,9 @@ export function useEditor(endpoint: string) {
               JSON.stringify(restored.present) === saved.current
             )
               h = restored;
-            else if (JSON.stringify(local.history.present) !== local.saved) {
+            else if (local.unsaved) {
               h = restored;
+              conflict = true;
               revision.current = local.revision;
               setError(
                 "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.",
@@ -233,6 +229,11 @@ export function useEditor(endpoint: string) {
           }
         } catch {
           /* An unreadable local cache never prevents server recovery. */
+        }
+        // Rewrite the copy in the bounded format (older releases kept 50 steps).
+        if (!conflict) {
+          const unsaved = JSON.stringify(h.present) !== saved.current;
+          if (!writeDraft(cacheKey, state.basis, revision.current, h, unsaved) && unsaved) setStorageError(true);
         }
         historyRef.current = h;
         setHistory(h);
@@ -252,7 +253,7 @@ export function useEditor(endpoint: string) {
       mounted.current = false;
       clearTimeout(timer);
     };
-  }, [cacheKey, endpoint]);
+  }, [cacheKey, endpoint, generation]);
   useEffect(() => {
     if (!history || error) return;
     const timer = setTimeout(() => void save().catch(() => {}), 700);
@@ -284,6 +285,25 @@ export function useEditor(endpoint: string) {
     setError(null);
     setStatus("All changes saved");
   };
+  /**
+   * Prepare the clip's editing copy again from the original video and start
+   * a fresh draft. The server keeps the replaced draft as a backup; the
+   * caller explains that before calling this.
+   */
+  const rebuild = async () => {
+    if (inFlight.current) await inFlight.current.catch(() => {});
+    await editorRequest(`${endpoint}/rebuild`, "POST", { revision: revision.current });
+    removeDraft(cacheKey);
+    historyRef.current = null;
+    assetRef.current = null;
+    saved.current = "";
+    setHistory(null);
+    setAsset(null);
+    setError(null);
+    setStorageError(false);
+    setStatus("Preparing preview…");
+    setGeneration((value) => value + 1);
+  };
   return {
     asset,
     document: history?.present ?? null,
@@ -294,6 +314,7 @@ export function useEditor(endpoint: string) {
     canRedo: !!history?.future.length,
     save,
     reload,
+    rebuild,
     status,
     error,
     storageError,
