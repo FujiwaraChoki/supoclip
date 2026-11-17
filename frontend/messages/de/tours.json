@@ -48,30 +48,34 @@
   },
   "dynamic-edits": {
     "intro": {
-      "title": "Neu: Dynamische Schnitte",
-      "body": "Deine Clips lassen sich jetzt schneiden wie von den besten Kurzvideo-Editoren: Zooms, Soundeffekte, Musik und animierte Untertitel genau auf den Momenten, die zählen. Die KI findet diese Momente, du entscheidest, wie viel passiert."
+      "title": "Neu: Dynamische Edits",
+      "body": "Deine Clips lassen sich jetzt schneiden wie von den besten Kurzvideo-Editoren: animierte Untertitel, Reframes, Soundeffekte und Musik genau auf den Momenten, die zählen. Die KI findet diese Momente, du entscheidest, wie hart sie einschlagen."
     },
     "intensity": {
       "title": "Wähle, wie stark es knallt",
-      "body": "Dezent schneidet ab und zu neu und legt leise Musik darunter, wie ein Podcast-Clip. Kräftig zoomt an den wichtigen Stellen rein und raus, manche Schnitte mit einem Schlag, wie bei Hormozi. Maximal schneidet fast jede Zeile neu, mit lauteren Schlägen und Musik, wie ein MrBeast-Short. Aus lässt Clips genau wie bisher. Ist es an, schaltest du mit den Schaltern unten Musik, Piepser für Schimpfwörter oder alles andere ab, was du nicht willst."
+      "body": "Dezent: Untertitel mit Kontur, ab und zu ein Reframe und leise Musik, wie ein Podcast-Clip. Kräftig: Untertitel im Hormozi-Stil auf einer dunklen Pille, Wort für Wort, das Schlüsselwort in einer Box, dazu Zooms, die stehen bleiben. Maximal: fette Großbuchstaben mit Kontur, fast jede Zeile ein Reframe, lautere Schläge und ab und zu ein Blitz an einem Schnitt. Aus lässt Clips, wie sie sind."
+    },
+    "sound": {
+      "title": "Sound, Musik und Flüche",
+      "body": "Soundeffekte landen auf Schnitten und Momenten im Bild, nie auf bloßem Reden. Musik gibt es in sieben Stimmungen, von entspannt bis aggressiv: Lass sie auf „Passend zum Video“, dann wählt die KI eine passende, oder wähle selbst. Flüche werden überpiept und in den Untertiteln als f*** gezeigt. Sobald Edits an sind, gibt es für alles hier einen Schalter."
     },
     "captions": {
-      "title": "Animierte Untertitelstile",
-      "body": "Drei Stile, Bild für Bild gezeichnet: das Schlüsselwort in einem farbigen Kasten, ein Emoji unter den großen Momenten oder ein riesiges Wort hinter der sprechenden Person. Die Wörter erscheinen, während sie gesprochen werden. Jede Kachel zeigt den echten Stil. Sie funktionieren auch allein, mit ausgeschalteten Edits."
+      "title": "Animierte Untertitel-Stile",
+      "body": "Textmarker setzt das Schlüsselwort in eine Box, Emoji Drop zeigt ein Emoji unter dem, worüber gesprochen wird, und Hinter dem Kopf stellt ein riesiges Wort hinter die sprechende Person. Jeder Stil übernimmt den Look deiner Intensität und funktioniert auch allein, mit Edits aus."
     }
   },
   "dynamic-edits-studio": {
     "intro": {
-      "title": "Dynamische Schnitte im Studio",
-      "body": "Jeden Effekt eines Clips kannst du jetzt hier einzeln ändern, bevor du exportierst. Ein kurzer Blick, wo sie liegen."
+      "title": "Dynamische Edits im Studio",
+      "body": "Jeden Effekt eines Clips kannst du hier vor dem Export ändern, einzeln oder alle auf einmal."
     },
     "panel": {
       "title": "Der Tab Edits",
-      "body": "Ändere die Intensität für diesen Clip, schalte Sound, Musik oder Zooms an und aus oder entferne alle Schnitte auf einmal. Änderungen gelten sofort und lassen sich rückgängig machen."
+      "body": "Ändere Intensität, Musikstimmung oder Schalter für diesen Clip, lass die KI die Edits neu planen oder entferne alle. Die Liste zeigt jeden Moment, den die KI gewählt hat: Ein Klick springt dorthin. Jede Änderung lässt sich rückgängig machen."
     },
     "lane": {
-      "title": "Jeder Effekt auf der Zeitleiste",
-      "body": "Jeder Zoom und jeder Sound ist hier ein Block. Ziehen zum Verschieben, Doppelklick zum Ändern, oder auswählen und Entf drücken zum Entfernen. Doppelklick auf eine leere Stelle fügt einen Sound hinzu."
+      "title": "Jeder Effekt auf der Timeline",
+      "body": "Jeder Zoom und jeder Sound ist hier ein Block, und die Musikspur zeigt die Musik unter der Stimme. Zieh einen Block, um ihn zu verschieben, doppelklicke, um ihn zu ändern, oder wähl ihn aus und drück Entf. Doppelklicke auf eine leere Stelle, um einen Sound hinzuzufügen."
     }
   },
   "skip": "Überspringen"

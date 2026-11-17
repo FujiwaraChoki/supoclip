@@ -1,10 +1,11 @@
 """Render the Dynamic edits tour announcement (frontend/public/tours/dynamic-edits.{webm,mp4,webp}).
 
-Three 9:16 panels side by side on the 2:1 announcement card, each a real dynamic-edits render through the production
-chain (ffmpeg → deno fx-core compositor → ffmpeg, ``media.fx_chain.run_fx_chain``) of a procedural demo scene: a
-gradient backdrop with a swaying silhouette, no stock footage and no real person. Each panel's beats are written
-here (standing in for the beat model) and the real resolver turns them into the plan, so what the card shows is what
-a clip with those beats gets.
+Three 9:16 panels side by side on the 2:1 announcement card, one per intensity (Subtle, Bold, Max), each drawing a
+listed animated caption style with that intensity's caption look. Each is a real dynamic-edits render through the
+production chain (ffmpeg → deno fx-core compositor → ffmpeg, ``media.fx_chain.run_fx_chain``) of a procedural demo
+scene: a gradient backdrop with a swaying silhouette, no stock footage and no real person. Each panel's beats are
+written here (standing in for the beat model) and the real resolver turns them into the plan, so what the card shows
+is what a clip with those beats gets. Behind Head is left out: it needs a real person for its matte.
 
     cd backend && .venv/bin/python scripts/fx/render_tour_media.py            # writes the three files
     cd backend && .venv/bin/python scripts/fx/render_tour_media.py --keep     # also keeps the scratch renders
@@ -26,11 +27,10 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND))
 
-from src.caption_templates import get_template  # noqa: E402
 from src.edit_fx import assets as fx_assets  # noqa: E402
 from src.edit_fx.beats import words_hash  # noqa: E402
-from src.edit_fx.caption_style import fx_caption_style  # noqa: E402
-from src.edit_fx.contracts import Beat, EditBeats, EditStyle  # noqa: E402
+from src.edit_fx.caption_style import look_caption_style  # noqa: E402
+from src.edit_fx.contracts import Beat, EditBeats, EditStyle, caption_look_for  # noqa: E402
 from src.edit_fx.resolver import ResolveInput, resolve  # noqa: E402
 from src.media import fx_chain  # noqa: E402
 
@@ -39,28 +39,36 @@ OUT_DIR = REPO / "frontend" / "public" / "tours"
 FONTS = BACKEND / "fonts"
 
 FPS = 30
-DURATION = 5.0
+# 6 s: the shortest clip that gets at least one of every budgeted effect (resolver.per10_cap), so Subtle shows its emoji.
+DURATION = 6.0
 # Each panel renders at this size, then is scaled into the card.
 PANEL_W, PANEL_H = 540, 960
+# Captions are drawn as if the panel were this much wider: the card shows each panel at about 400 px wide, where the
+# looks' real sizes would be hard to read.
+CAPTION_SCALE = 1.4
 # The announcement card is 2:1 (feature-tour.tsx, `aspect-[2/1]`, object-cover), 1600x800 (docs/feature-tours.md).
 CARD_W, CARD_H = 1600, 800
 SHOWN_H = 720
 SHOWN_W = 406  # 9:16 at 720 tall, even
 GAP = 48
-POSTER_AT = 2.25  # a frame where every panel has its effect on screen
+POSTER_AT = 2.6  # a frame where every panel has its effect on screen
 
 # (template, intensity, spoken line, beats as (kind, first word, last word, extra fields), backdrop top/bottom colours).
-# The beats stand in for the beat model's tags, so each panel shows its style's signature move.
+# The beats stand in for the beat model's tags. One panel per intensity, each with a listed style and that
+# intensity's caption look: Subtle's outlined subtitle with an emoji, Bold's Hormozi pill revealed word by word with
+# the key word boxed, Max's heavy outlined caps.
 PANELS: tuple[tuple[str, str, str, tuple[tuple[str, int, int, dict], ...], tuple[int, int]], ...] = (
-    ("stat_counter", "bold", "We grew revenue 300% in one year",
-     (("number", 3, 3, {"value": 300.0, "suffix": "%", "strength": 3}),),
+    ("emoji_drop", "subtle", "We made our first million dollars online",
+     (("hook", 0, 2, {}), ("number", 4, 5, {"strength": 3, "tone": "hype", "emoji": "\U0001F4B0"})),
      (0x2A3F9E, 0x0B0F2E)),
-    ("slam", "max", "This changes absolutely everything",
-     (("hook", 0, 1, {}), ("emphasis", 3, 3, {"strength": 3, "tone": "shocked"})),
-     (0x8A2442, 0x1C0710)),
-    ("emoji_drop", "bold", "The secret is showing up every day",
-     (("hook", 0, 2, {}), ("punchline", 4, 6, {"strength": 3, "tone": "hype", "emoji": "\U0001F525"})),
+    ("highlighter_swipe", "bold", "The secret is showing up every single day",
+     (("hook", 0, 1, {}), ("emphasis", 3, 3, {"strength": 3, "tone": "hype"}),
+      ("punchline", 5, 7, {"strength": 3, "tone": "hype"})),
      (0x1F6B55, 0x061A14)),
+    ("highlighter_swipe", "max", "This changes absolutely everything for you",
+     (("hook", 0, 1, {}), ("emphasis", 3, 3, {"strength": 3, "tone": "shocked"}),
+      ("payoff", 4, 6, {"strength": 3, "tone": "hype"})),
+     (0x8A2442, 0x1C0710)),
 )
 
 
@@ -86,7 +94,7 @@ def backdrop(path: Path, colours: tuple[int, int]) -> Path:
 
     def channel(a: int, b: int, shade: int) -> str:
         grad = f"({a}+({b}-{a})*Y/H)"
-        cx = "(W/2+14*sin(2*PI*T/5))"  # one sway per loop, so the loop is seamless
+        cx = f"(W/2+14*sin(2*PI*T/{DURATION}))"  # one sway per loop, so the loop is seamless
         head = f"lte(hypot(X-{cx},(Y-0.40*H)*0.92),0.15*W)"
         body = f"lte(hypot((X-{cx})/(0.42*W),(Y-0.86*H)/(0.24*H)),1)"
         rim = f"lte(hypot(X-{cx},(Y-0.40*H)*0.92),0.158*W)"
@@ -131,11 +139,10 @@ def render_panel(scratch: Path, index: int, template_id: str, intensity: str, li
         ),
         style, template_id, seed=4242 + index,
     )
-    template = get_template(template_id)
-    # Bigger than a clip's captions: the card shows each panel at about 300 px wide.
-    caption = fx_caption_style(template, template_id=template_id, font_family=None,
-                               font_size=round(template.get("font_size", 32) * 1.45), font_color=None,
-                               width=PANEL_W, height=PANEL_H, caption_y=None)
+    # The intensity's caption look, as generation draws a listed style (video_utils._fx_ladder_setup), larger for the card.
+    look = caption_look_for(template_id, intensity)
+    caption = look_caption_style(template_id, look, width=round(PANEL_W * CAPTION_SCALE), height=PANEL_H,
+                                 caption_y=None)
     request = fx_chain.FxRequest(
         plan=plan, words=[{**w, "highlight": False} for w in words], caption=caption, loudness="none",
     )

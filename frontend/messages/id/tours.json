@@ -48,30 +48,34 @@
   },
   "dynamic-edits": {
     "intro": {
-      "title": "Memperkenalkan editan dinamis",
-      "body": "Klipmu kini bisa diedit seperti editor video pendek terbaik: zoom, efek suara, musik, dan teks animasi tepat di momen yang penting. AI menemukan momen itu; kamu yang memilih seberapa banyak efeknya."
+      "title": "Kenalan dengan Edit dinamis",
+      "body": "Klipmu sekarang bisa diedit seperti editor video pendek terbaik: teks animasi, bingkai ulang, efek suara, dan musik tepat di momen yang penting. AI menemukan momen-momen itu; kamu yang pilih seberapa keras hantamannya."
     },
     "intensity": {
-      "title": "Pilih seberapa kuat",
-      "body": "Halus sesekali membingkai ulang dengan musik latar yang pelan, seperti klip podcast. Tegas memperbesar dan memperkecil di momen penting dengan hentakan di beberapa potongan, seperti Hormozi. Maksimal membingkai ulang hampir setiap kalimat dengan hentakan dan musik lebih keras, seperti short MrBeast. Mati membuat klip tetap seperti sebelumnya. Setelah aktif, sakelar di bawah memungkinkan kamu mematikan musik, bip untuk kata kasar, atau apa pun yang tidak kamu inginkan."
+      "title": "Pilih seberapa keras hantamannya",
+      "body": "Halus: subtitle bergaris tepi, sesekali bingkai ulang, dan musik pelan, seperti klip podcast. Tegas: teks gaya Hormozi di atas kapsul gelap, kata demi kata dengan kata kunci di dalam kotak, plus zoom yang bertahan. Maksimal: huruf kapital tebal bergaris tepi, bingkai ulang hampir di setiap kalimat, hantaman lebih keras, dan sesekali kilatan di potongan. Mati membiarkan klip apa adanya."
+    },
+    "sound": {
+      "title": "Suara, musik, dan kata kasar",
+      "body": "Efek suara jatuh di potongan dan momen di layar, tidak pernah di obrolan biasa. Musik hadir dalam tujuh suasana, dari santai sampai agresif: biarkan di “Sesuai video” dan AI memilih yang cocok, atau pilih sendiri. Kata kasar disensor dengan bunyi bip dan ditampilkan sebagai f*** di teks. Setelah edit aktif, semuanya punya sakelar di sini."
     },
     "captions": {
       "title": "Gaya teks animasi",
-      "body": "Tiga gaya yang digambar per frame: kata kunci di kotak berwarna, emoji di bawah momen besar, atau satu kata raksasa di belakang pembicara. Kata muncul saat diucapkan. Setiap kotak memutar gaya aslinya. Gaya ini juga bisa dipakai sendiri, dengan edit dimatikan."
+      "body": "Stabilo memasukkan kata kunci ke kotak, Emoji Drop menaruh emoji di bawah hal yang sedang dibicarakan, dan Di Belakang Kepala menaruh satu kata raksasa di belakang pembicara. Masing-masing mengikuti tampilan intensitasmu, dan bisa dipakai sendiri saat edit mati."
     }
   },
   "dynamic-edits-studio": {
     "intro": {
-      "title": "Editan dinamis di studio",
-      "body": "Setiap efek di klip kini bisa diubah satu per satu di sini sebelum diekspor. Lihat sekilas di mana letaknya."
+      "title": "Edit dinamis di studio",
+      "body": "Setiap efek di klip bisa diubah di sini sebelum diekspor, satu per satu atau sekaligus."
     },
     "panel": {
       "title": "Tab Edit",
-      "body": "Ubah intensitas untuk klip ini, nyalakan atau matikan suara, musik, atau zoom, atau hapus semua editan sekaligus. Perubahan langsung berlaku dan bisa dibatalkan."
+      "body": "Ubah intensitas, suasana musik, atau sakelar klip ini, minta AI merencanakan ulang edit, atau hapus semuanya. Daftar menampilkan setiap momen yang dipilih AI: klik salah satunya untuk melompat ke sana. Setiap perubahan bisa dibatalkan."
     },
     "lane": {
       "title": "Setiap efek di linimasa",
-      "body": "Setiap zoom dan suara adalah satu blok di sini. Seret untuk memindahkan, klik dua kali untuk mengubah, atau pilih lalu tekan Delete untuk menghapus. Klik dua kali di tempat kosong untuk menambahkan suara."
+      "body": "Setiap zoom dan suara adalah satu blok di sini, dan jalur musik menunjukkan musik di bawah suara. Seret blok untuk memindahkannya, klik dua kali untuk mengubahnya, atau pilih lalu tekan Delete. Klik dua kali di tempat kosong untuk menambah suara."
     }
   },
   "skip": "Lewati"

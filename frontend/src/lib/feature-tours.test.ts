@@ -80,6 +80,7 @@ describe("feature tours", () => {
     // Targets that only exist once a closed menu or tab is open, and the page that can open it.
     const hidden: Record<string, { opener: "settingsSection" | "inspectorTab"; value: string }> = {
       "edit-intensity": { opener: "settingsSection", value: "edits" },
+      "edit-options": { opener: "settingsSection", value: "edits" },
       "caption-styles": { opener: "settingsSection", value: "captions" },
       "studio-edits-tab": { opener: "inspectorTab", value: "edits" },
     };

@@ -97,7 +97,8 @@ const BOOL_OPTIONS = {
 } as const;
 
 /**
- * Intensity as four radio cards (`data-tour="edit-intensity"`) and, once edits are on, the switches for what they use.
+ * Intensity as four radio cards (`data-tour="edit-intensity"`) and, once edits are on, the switches for what they use
+ * (`data-tour="edit-options"`, on the "turn edits on" hint while they are off).
  * Off sends nothing new: the request stays exactly what it was before dynamic edits.
  */
 export function EditIntensity({ value, onChange, info, disabled }: {
@@ -181,7 +182,7 @@ export function EditIntensity({ value, onChange, info, disabled }: {
       </div>
 
       {active ? (
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour="edit-options">
           <section aria-labelledby="edits-sound">
             <p id="edits-sound" className="text-xs font-medium text-muted-foreground">{t("edits.groups.sound")}</p>
             <div className="divide-y">
@@ -220,7 +221,7 @@ export function EditIntensity({ value, onChange, info, disabled }: {
           </section>
         </div>
       ) : (
-        <p className="rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">{t("edits.offHint")}</p>
+        <p data-tour="edit-options" className="rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">{t("edits.offHint")}</p>
       )}
     </div>
   );
