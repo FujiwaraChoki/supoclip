@@ -331,7 +331,7 @@
     },
     "broll": {
       "title": "Maksimal, dengan b-roll",
-      "caption": "Footage stok muncul saat pembicara menyebut sesuatu yang bisa diperlihatkan, sementara subtitle, hentakan, dan musik tetap berjalan di atasnya."
+      "caption": "Cuplikan sisipan dari episode itu sendiri memenuhi bingkai vertikal, bukan menyusut jadi strip, dengan teks, hentakan, dan musik tetap berjalan di atasnya."
     },
     "points": {
       "captions": {
@@ -350,7 +350,8 @@
         "title": "Semuanya tetap bisa diedit",
         "description": "Ubah intensitas klip yang sudah ada, atau sesuaikan satu efek di studio klip."
       }
-    }
+    },
+    "source": "Kedua klip dibuat oleh SupoClip dari <link>{title}</link>."
   },
   "editor": {
     "eyebrow": "Editor",

@@ -331,7 +331,7 @@
     },
     "broll": {
       "title": "At Max, with b-roll",
-      "caption": "Stock footage cuts in when the speaker names something you can show, with the captions, hits and music running on top."
+      "caption": "The episode's own cutaways fill the vertical frame instead of shrinking into a strip, with the captions, hits and music running on top."
     },
     "points": {
       "captions": {
@@ -350,7 +350,8 @@
         "title": "Everything stays editable",
         "description": "Change the intensity of clips you already have, or fine-tune a single effect in the clip studio."
       }
-    }
+    },
+    "source": "Both clips were made by SupoClip from <link>{title}</link>."
   },
   "editor": {
     "eyebrow": "Editor",

@@ -13,6 +13,7 @@ import {
   type DynamicEditsIntensity,
   type DynamicEditsVideo,
 } from "@/lib/dynamic-edits-demo";
+import { DEMO_SOURCE } from "@/lib/demo";
 import { cn } from "@/lib/utils";
 import { Reveal, SectionHeading } from "./reveal";
 
@@ -376,6 +377,16 @@ export function DynamicEditsSection() {
                 </p>
               </div>
             </div>
+            <p className="relative mt-10 text-center text-xs text-muted-foreground">
+              {t.rich("source", {
+                title: DEMO_SOURCE.title,
+                link: (chunks) => (
+                  <a href={DEMO_SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">
+                    {chunks}
+                  </a>
+                ),
+              })}
+            </p>
           </div>
         </Reveal>
 

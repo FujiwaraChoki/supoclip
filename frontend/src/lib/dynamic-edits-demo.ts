@@ -5,6 +5,10 @@ import type { Intensity } from "@/lib/fx/core/types";
  * renders are the same clip, cut from one source moment, so the player can
  * swap between them at the same playback position. Files live in
  * public/clips/dynamic-edits/; swapping media is a change to this file only.
+ *
+ * Real SupoClip renders (production render path, built-in sounds and music) of DEMO_SOURCE (lib/demo.ts):
+ * the intensity clip is 04:20.6–04:46.9 (Highlighter captions; Off uses the default template), the b-roll clip
+ * 28:57.8–29:26.3 at Max. Web previews: 540x960 H.264 CRF 26, AAC 96k.
  */
 export type DynamicEditsIntensity = Intensity;
 

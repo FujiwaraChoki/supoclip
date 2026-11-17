@@ -331,7 +331,7 @@
     },
     "broll": {
       "title": "Maximal, mit B-Roll",
-      "caption": "Stockvideos werden eingeblendet, sobald etwas Zeigbares genannt wird, und Untertitel, Schläge und Musik laufen darüber weiter."
+      "caption": "Die eigenen Zwischenschnitte der Folge füllen das Hochformat, statt zu einem Streifen zu schrumpfen, und Untertitel, Effekte und Musik laufen darüber weiter."
     },
     "points": {
       "captions": {
@@ -350,7 +350,8 @@
         "title": "Alles bleibt bearbeitbar",
         "description": "Ändere die Intensität bestehender Clips oder justiere einzelne Effekte im Clip-Studio."
       }
-    }
+    },
+    "source": "Beide Clips hat SupoClip aus <link>{title}</link> erstellt."
   },
   "editor": {
     "eyebrow": "Editor",

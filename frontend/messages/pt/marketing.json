@@ -331,7 +331,7 @@
     },
     "broll": {
       "title": "Na Máxima, com b-roll",
-      "caption": "Imagens de banco entram quando quem fala cita algo que dá para mostrar, com as legendas, os impactos e a música por cima."
+      "caption": "As imagens de apoio do próprio episódio preenchem o formato vertical em vez de encolher numa faixa, com legendas, impactos e música por cima."
     },
     "points": {
       "captions": {
@@ -350,7 +350,8 @@
         "title": "Tudo continua editável",
         "description": "Mude a intensidade de clipes que você já tem ou ajuste um único efeito no estúdio de clipes."
       }
-    }
+    },
+    "source": "Os dois clipes foram feitos pelo SupoClip a partir de <link>{title}</link>."
   },
   "editor": {
     "eyebrow": "Editor",

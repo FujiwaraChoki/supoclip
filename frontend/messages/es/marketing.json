@@ -331,7 +331,7 @@
     },
     "broll": {
       "title": "En Máxima, con b-roll",
-      "caption": "Entran imágenes de archivo cuando se nombra algo que se puede mostrar, con los subtítulos, los golpes y la música por encima."
+      "caption": "Los planos de recurso del propio episodio llenan el formato vertical en lugar de encogerse en una franja, con los subtítulos, los golpes y la música por encima."
     },
     "points": {
       "captions": {
@@ -350,7 +350,8 @@
         "title": "Todo sigue siendo editable",
         "description": "Cambia la intensidad de los clips que ya tienes o ajusta un solo efecto en el estudio de clips."
       }
-    }
+    },
+    "source": "SupoClip creó ambos clips a partir de <link>{title}</link>."
   },
   "editor": {
     "eyebrow": "Editor",
