@@ -199,7 +199,9 @@ What the resolver can place (cue kinds in `backend/src/edit_fx/contracts.py`, dr
 - **Music bed**: one of seven moods (hype, chill, dramatic, funny, inspiring, dark, aggressive; Auto follows the beat
   model, which keeps aggressive for heated rants, call-outs and roasts and never gives it to a sincere moment),
   looped as a steady bed: about 11 dB under the voice at Subtle and 19 dB at Bold, constant; 6 dB under it at Max,
-  rising about 7 dB in pauses (slow 0.25/0.6 s ramps, joined across short gaps, so it never pumps).
+  rising about 7 dB in pauses (slow 0.25/0.6 s ramps, joined across short gaps, so it never pumps). Each mood has
+  7–8 curated beds and the plan picks one by seed. Aggressive beds sit 4 dB and hype beds 2 dB above those levels
+  (`MOOD_MUSIC_TRIM_DB` in `resolver.py`): a drill beat under a rant should be felt, not whispered.
 - **Grades**: punchy, warm, teal & orange, noir, VHS, dream; Auto picks punchy at Max and none otherwise. **Grain**
   is optional.
 - **Retention**: a progress bar along the bottom, a loop ending (the last 0.4 s crossfades into the first frame,
@@ -229,7 +231,7 @@ only" is a listed caption style with intensity Off. The source of truth is the t
 | Hits on reframes and cuts | – | – | 50 % | 60 % |
 | Sound effects (cap / gap) | style sounds, 10 per min / 1.0 s | 6 per min / 2.5 s | 18 per min / 0.8 s | 36 per min / 0.35 s |
 | Transitions at real cuts | – | – | 1 per 40 s, passage breaks | 1 per 20 s |
-| Music bed under speech / duck | – | about −11 dB / 0 | about −19 dB / 0 | about −6 dB / 7 dB |
+| Music bed under speech / duck (aggressive +4 dB, hype +2 dB) | – | about −11 dB / 0 | about −19 dB / 0 | about −6 dB / 7 dB |
 | SFX bus gain | −16 dB | −20 dB | −16 dB | −10 dB |
 | Grain (when on) | – | 0.15 | 0.20 | 0.30 |
 
@@ -332,7 +334,9 @@ licence-clean:
 - `sfx/`: 74 sound effects, 4–8 takes per sound id, CC0 1.0. They are edited from Freesound.org uploads whose
   authors released them under CC0; each source's licence was checked on its Freesound page.
   `SOURCES-CC0.txt` lists every file with its Freesound URL, author, original title and the processing.
-- `music/`: six synthesised, seamlessly looping beds, one per mood (`synth_music.py`, CC0).
+- `music/`: 53 curated, seamlessly looping beds, 7–8 per mood, CC0 1.0 (from Free Music Archive, Freesound and
+  OpenGameArt tracks whose authors released them under CC0). `music/SOURCES-CC0.txt` lists every bed with its source
+  page, author and original title; `music/beds.json` adds tempo, key and the date each licence was checked.
 - `emoji/`: an atlas of Noto Color Emoji glyphs (`build_emoji_atlas.ts`, OFL-1.1).
 - `manifest.json`: hashes, durations, levels and each sound's source (`write_manifest.py`).
 
@@ -358,6 +362,23 @@ update `SFX_VARIANTS` in `scripts/fx/gen_resolver_goldens.py` and `tests/fixture
 regenerate the goldens with `gen_resolver_goldens.py --accept`; only the variant numbers in them change.
 `scripts/fx/synth_sfx.py` keeps the older synthesised set as a code-only alternative that writes drop-ins.
 
+**Music beds.** `music/<mood>-<name>.mp3`, ids like `aggressive-tlc` (the file name without `.mp3`): aggressive, chill,
+funny and hype have 8 beds, dark, dramatic and inspiring 7. Each is one whole-bar loop cut from its track, its seam
+crossfaded, set to −20 LUFS integrated (the level the mixer assumes for built-ins, `assets.BED_MEAN_DB`) and encoded as
+MP3 128 kbit/s CBR, 48 kHz stereo, with its gapless header; the 53 files take 61 MB. An MP3 smears its first and last
+milliseconds, so each file holds 100 ms of the loop's own audio before and after the loop: the manifest's `loop_start`
+(0.1 s) says where the loop begins and `loop_seconds` how long it is (to the sample), and the server mix, the studio
+preview and the browser export all tile `[loop_start, loop_start + loop_seconds)` and never play the padding. Plans
+and documents saved before these beds name the old one-per-mood ids (`hype`, `chill`, …; aggressive borrowed `hype`);
+those play the first built-in bed of the bed's mood (`mix_bed_file`, `bedAsset`).
+
+**Adding or changing a bed.** The beds are imported from a curated library kept outside the repo (`catalog.json` plus
+48 kHz 16-bit stereo `masters/<id>.wav`): `cd backend && .venv/bin/python scripts/fx/import_music.py
+/path/to/music-library` rewrites `music/` (the MP3s, `beds.json`, `SOURCES-CC0.txt`), then `write_manifest.py`
+measures and hashes them (`make fx-assets MUSIC_LIBRARY=/path/to/music-library` runs both). Only CC0 tracks are
+accepted. The resolver fixtures read the beds from the manifest, so regenerate the goldens with
+`gen_resolver_goldens.py --accept`; only the music lines (bed id, level) and plan hashes may change.
+
 `GET /fx/assets` serves the manifest with content-addressed URLs so the studio preview plays the same files.
 
 To use your own sounds or music, drop files into `backend/fx_library/` (mounted at `FX_LIBRARY_DIR`), like fonts:
@@ -365,8 +386,8 @@ To use your own sounds or music, drop files into `backend/fx_library/` (mounted 
 - `sfx/<sound>[-<name>].{wav,mp3,m4a,ogg}`, where `<sound>` is one of `whoosh impact pop riser record_scratch boom
   cash_register ticker slap stamp glitch tape_stop`.
 - `music/<mood>-<name>.{m4a,mp3,wav}`, where `<mood>` is one of `hype chill dramatic funny inspiring dark aggressive`.
-  Aggressive has no built-in bed yet: its plan borrows the hype bed (`BED_FALLBACK` in `contracts.py`), which
-  `aggressive-*` drop-ins replace at mix time like any other mood's.
+  A mood's drop-ins replace all of its built-in beds; a drop-in plays from its first sample (it has no `loop_start`)
+  and loops with a short crossfade.
 
 Drop-ins never change the plan. At mix time they replace the built-in files for that sound or mood (picked by
 `seed % count` in file-name order) and are gain-normalised. Risers are first narrowed to the drop-ins closest in
