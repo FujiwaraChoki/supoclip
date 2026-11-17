@@ -10,7 +10,7 @@
   "welcome": {
     "intro": {
       "title": "Welcome to SupoClip",
-      "body": "Give us a long video and we turn its best moments into short vertical clips, captioned and ready to post. Here’s a one-minute look at how to make your first ones."
+      "body": "Give us a long video and we turn its best moments into short vertical clips, captioned and ready to post. Take a two-minute tour: how to make your first clips, then every page you’ll use."
     },
     "source": {
       "title": "Start with a video",
@@ -26,19 +26,35 @@
     },
     "library": {
       "title": "Library",
-      "body": "Every video you’ve clipped, with all its clips. You can leave while one is processing; it keeps going and shows up here. Open a clip to trim it, fix a caption, or reframe it in the studio."
+      "body": "Every video you clip lands here, newest first, and you can search them. You can leave while one is processing; it keeps going and shows up here when it’s done."
+    },
+    "libraryClips": {
+      "title": "Your clips, ranked",
+      "body": "Open a video to see its clips, best score first. Download one or all of them, or open a clip in the studio to trim it, fix a caption, or reframe it."
     },
     "social": {
-      "title": "Social and Analytics",
-      "body": "Connect your social accounts to post clips straight from SupoClip, then see in Analytics which ones people watch."
+      "title": "Connect your accounts",
+      "body": "Link your social accounts here to post clips straight from SupoClip, without downloading them first."
+    },
+    "analytics": {
+      "title": "See what works",
+      "body": "Views, likes, and comments from your posts come back here, by platform, hook, and length. After a few posts, SupoClip uses them to pick clips more like your best ones."
     },
     "agents": {
-      "title": "Agents & API",
-      "body": "Let an AI assistant like Claude or ChatGPT make clips for you, or create an API key to use SupoClip from your own tools."
+      "title": "Clip from your AI assistant",
+      "body": "Connect Claude, ChatGPT, or Grok and ask for clips in a chat: paste the server URL and sign in, no key to copy. Building something? Create an API key below."
     },
-    "settingsPage": {
-      "title": "Settings",
-      "body": "Your plan and the minutes you’ve used this month, default caption style and fonts, and email notifications."
+    "captions": {
+      "title": "Your caption style",
+      "body": "Set the font, size, and color every new video starts with, and see a preview. You can still change them for a single video."
+    },
+    "plan": {
+      "title": "Your plan",
+      "body": "Plans count minutes of the videos you bring, not clips. See what you’ve used this month, and change your plan here."
+    },
+    "finish": {
+      "title": "You’re ready",
+      "body": "That’s everything. Paste your first link here and we’ll take it from there."
     }
   },
   "workflows": {

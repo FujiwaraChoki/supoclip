@@ -10,7 +10,7 @@
   "welcome": {
     "intro": {
       "title": "Willkommen bei SupoClip",
-      "body": "Gib uns ein langes Video, und wir machen aus seinen besten Momenten kurze Hochformat-Clips, mit Untertiteln und bereit zum Posten. Hier siehst du in einer Minute, wie du deine ersten erstellst."
+      "body": "Gib uns ein langes Video, und wir machen aus seinen besten Momenten kurze Hochformat-Clips, mit Untertiteln und bereit zum Posten. Eine Tour von zwei Minuten: wie du deine ersten Clips erstellst, dann jede Seite, die du nutzen wirst."
     },
     "source": {
       "title": "Starte mit einem Video",
@@ -26,19 +26,35 @@
     },
     "library": {
       "title": "Mediathek",
-      "body": "Jedes Video, das du geclippt hast, mit all seinen Clips. Du kannst die Seite verlassen, während eins verarbeitet wird; es läuft weiter und erscheint hier. Öffne einen Clip, um ihn im Studio zu kürzen, Untertitel zu korrigieren oder neu zuzuschneiden."
+      "body": "Jedes Video, das du clippst, landet hier, das neueste zuerst, und du kannst sie durchsuchen. Du kannst die Seite verlassen, während eins verarbeitet wird; es läuft weiter und erscheint hier, sobald es fertig ist."
+    },
+    "libraryClips": {
+      "title": "Deine Clips, nach Bewertung",
+      "body": "Öffne ein Video, um seine Clips zu sehen, die beste Bewertung zuerst. Lade einen oder alle herunter, oder öffne einen Clip im Studio, um ihn zu kürzen, Untertitel zu korrigieren oder neu zuzuschneiden."
     },
     "social": {
-      "title": "Social und Analysen",
-      "body": "Verbinde deine Social-Media-Konten, um Clips direkt aus SupoClip zu posten, und sieh unter Analysen, welche angeschaut werden."
+      "title": "Verbinde deine Konten",
+      "body": "Verknüpfe hier deine Social-Media-Konten, um Clips direkt aus SupoClip zu posten, ohne sie vorher herunterzuladen."
+    },
+    "analytics": {
+      "title": "Sieh, was funktioniert",
+      "body": "Aufrufe, Likes und Kommentare deiner Posts kommen hierher zurück, nach Plattform, Hook und Länge. Nach ein paar Posts wählt SupoClip damit Clips, die deinen besten ähneln."
     },
     "agents": {
-      "title": "Agenten & API",
-      "body": "Lass einen KI-Assistenten wie Claude oder ChatGPT Clips für dich erstellen, oder erstelle einen API-Schlüssel, um SupoClip aus deinen eigenen Tools zu nutzen."
+      "title": "Clips aus deinem KI-Assistenten",
+      "body": "Verbinde Claude, ChatGPT oder Grok und bitte im Chat um Clips: Server-URL einfügen und anmelden, kein Schlüssel nötig. Du baust etwas? Erstelle unten einen API-Schlüssel."
     },
-    "settingsPage": {
-      "title": "Einstellungen",
-      "body": "Dein Plan und die Minuten, die du diesen Monat verbraucht hast, Standard-Untertitelstil und Schriften sowie E-Mail-Benachrichtigungen."
+    "captions": {
+      "title": "Dein Untertitelstil",
+      "body": "Lege Schrift, Größe und Farbe fest, mit denen jedes neue Video startet, mit Vorschau. Für einzelne Videos kannst du sie weiterhin ändern."
+    },
+    "plan": {
+      "title": "Dein Plan",
+      "body": "Pläne zählen Minuten der Videos, die du mitbringst, nicht Clips. Hier siehst du, was du diesen Monat verbraucht hast, und kannst deinen Plan ändern."
+    },
+    "finish": {
+      "title": "Du bist startklar",
+      "body": "Das war alles. Füge hier deinen ersten Link ein, den Rest erledigen wir."
     }
   },
   "workflows": {

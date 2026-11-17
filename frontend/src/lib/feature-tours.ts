@@ -15,6 +15,16 @@ export type TourStep = {
   message: string;
   /** On narrow screens `left`/`right` become `top`: the targets there sit in the bottom tab bar. */
   side?: "top" | "bottom" | "left" | "right";
+  /**
+   * The page this step is on. The tour goes there first, so one tour can walk through several pages.
+   * Without it, the step is on whatever page the tour started on.
+   */
+  path?: string;
+  /**
+   * A `data-tour` target that must be somewhere in the document (shown or not), checked before going to `path`:
+   * a page that isn't open to this account (no Social link, no plan card) is passed over without a visit.
+   */
+  requires?: string;
   /** Select this workflow while the step shows, and draw what it makes on the card. */
   workflow?: Workflow;
   /** The opening step: offers "Show me" or "Not now" so nobody is walked through anything they didn't ask for. */
@@ -33,8 +43,6 @@ export type FeatureTour = {
    * for onboarding, the day it shipped, so accounts from before it don't get a welcome.
    */
   releasedAt: string;
-  /** A picture drawn in code for the opening dialog, instead of `media`. */
-  art?: "welcome";
   /** Looping video for the opening announcement, from `public/`: render it, don't screenshot it. */
   media?: {
     poster: string;
@@ -49,27 +57,48 @@ export type FeatureTour = {
 
 /** Long enough to explain a real feature, short enough to finish. A test holds every tour to it. */
 export const MAX_TOUR_STEPS = 8;
+/** Onboarding walks through every page, a step or two each, so it gets more room. */
+export const MAX_ONBOARDING_STEPS = 12;
+
+export function maxSteps(tour: FeatureTour): number {
+  return tour.audience === "new" ? MAX_ONBOARDING_STEPS : MAX_TOUR_STEPS;
+}
+
+/** Whether the tour visits other pages than the one it starts on. */
+export function crossesPages(tour: FeatureTour): boolean {
+  return tour.steps.some((step) => step.path !== undefined);
+}
 /** Never two tours close together, however many features ship. */
 export const TOUR_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 /** First match wins, so put what matters most first. */
 export const FEATURE_TOURS: readonly FeatureTour[] = [
   {
-    // First visit: what SupoClip makes, how to get a first clip, and what the other pages are for.
+    // First visit: how to make a first clip, then a walk through every page, ending back where they start.
     id: "welcome",
     audience: "new",
     releasedAt: "2026-11-16T00:00:00Z",
-    art: "welcome",
+    media: {
+      poster: "/tours/welcome.webp",
+      videos: [
+        { src: "/tours/welcome.webm", type: "video/webm" },
+        { src: "/tours/welcome.mp4", type: "video/mp4" },
+      ],
+    },
     covers: ["composer-settings"],
     steps: [
-      { target: "composer", message: "intro", side: "bottom", intro: true },
-      { target: "composer-source", message: "source", side: "bottom" },
-      { target: "workflow-picker", message: "workflows", side: "bottom" },
-      { target: "composer-settings", message: "settings", side: "top" },
-      { target: "nav-library", message: "library", side: "right" },
-      { target: "nav-social", message: "social", side: "right" },
-      { target: "nav-agents", message: "agents", side: "right" },
-      { target: "nav-settings", message: "settingsPage", side: "right" },
+      { path: "/", target: "composer", message: "intro", side: "bottom", intro: true },
+      { path: "/", target: "composer-source", message: "source", side: "bottom" },
+      { path: "/", target: "workflow-picker", message: "workflows", side: "bottom" },
+      { path: "/", target: "composer-settings", message: "settings", side: "top" },
+      { path: "/list", target: "library-header", message: "library", side: "bottom" },
+      { path: "/list", target: "library-content", message: "libraryClips", side: "top" },
+      { path: "/settings/social", requires: "nav-social", target: "social-connect", message: "social", side: "bottom" },
+      { path: "/analytics", requires: "nav-analytics", target: "analytics-header", message: "analytics", side: "bottom" },
+      { path: "/settings/api-keys", target: "assistant-connect", message: "agents", side: "bottom" },
+      { path: "/settings", target: "settings-captions", message: "captions", side: "bottom" },
+      { path: "/settings", requires: "usage", target: "settings-plan", message: "plan", side: "top" },
+      { path: "/", target: "composer-source", message: "finish", side: "bottom" },
     ],
   },
   {

@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-16
 
-- **New:** New accounts get a short welcome tour on their first visit. It opens with an animation of a long video becoming clips, shows where to put a video, what to make and where the settings are, then introduces Library, Social, Agents & API and Settings. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))
+- **New:** New accounts get a welcome tour on their first visit. It opens with a short animation, shows how to make a first clip, then goes to each page in turn: Library, Social and Analytics, Agents & API and Settings, and ends back on Create at the link field. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))
 - **Fixed:** Exporting a clip while its clips are being regenerated no longer hangs and then fails. You're asked to try again in a moment, and if the clip was replaced you're told it's gone. ([#419](https://github.com/FujiwaraChoki/supoclip/pull/419))
 - **Improved:** Accounts can process two videos at once, reducing waits when several videos are queued. ([#418](https://github.com/FujiwaraChoki/supoclip/pull/418))
 

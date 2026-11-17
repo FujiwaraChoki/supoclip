@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { ComposerSettings } from "@/components/composer-settings";
-import { FeatureTourHost } from "@/components/feature-tour";
 import { OUTPUT_FORMATS, parseCreateSettings, type CreateSettings, type LengthWorkflow, type OutputFormat } from "@/lib/create-settings";
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
@@ -863,7 +862,7 @@ export default function HomeApp() {
     : null;
 
   return (
-    <AppShell>
+    <AppShell tour={{ busy: hasSource || isLoading || upgradeReason !== null, onWorkflow: previewWorkflow, onEnd: endWorkflowPreview }}>
       <main className="mx-auto w-full max-w-5xl px-4 pb-20 pt-10 sm:px-8 md:pt-[12vh]">
         {billingSummary?.cancel_at && billingSummary.subscription_provider === "stripe" && (
           <SubscriptionCancelBanner
@@ -1378,8 +1377,6 @@ export default function HomeApp() {
               <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
             </Alert>
           )}
-
-          <FeatureTourHost enabled={Boolean(session?.user?.id)} busy={hasSource || isLoading || upgradeReason !== null} onWorkflow={previewWorkflow} onEnd={endWorkflowPreview} />
 
           <p id="source-limits" className="sr-only">
             {t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}{limitNote ? ` ${limitNote}` : ""}

@@ -136,7 +136,7 @@ export default function AnalyticsPage() {
 
   return (
     <main className={PAGE}>
-      <div className="mb-8">
+      <div data-tour="analytics-header" className="mb-8">
         <h1 className="font-display text-3xl font-bold tracking-tight">{t("title")}</h1>
         <p className="mt-2 text-muted-foreground">
           {t("intro")}
