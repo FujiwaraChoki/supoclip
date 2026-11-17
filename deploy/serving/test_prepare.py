@@ -1,6 +1,7 @@
 """Exercise the release budget without touching Docker or live containers."""
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -26,6 +27,11 @@ else:
         log.write(" ".join(args) + "\\n")
 ''')
             docker.chmod(0o755)
+            if not shutil.which("flock"):
+                # macOS test hosts lack util-linux; retain the same OS lock.
+                flock = root / "flock"
+                flock.write_text("#!/usr/bin/env python3\nimport fcntl, sys\nfcntl.flock(int(sys.argv[-1]), fcntl.LOCK_EX)\n")
+                flock.chmod(0o755)
             mutations = root / "mutations"
             result = subprocess.run(
                 ["bash", str(Path(__file__).with_name("prepare.sh")),
