@@ -76,6 +76,12 @@ def validate_webhook_url(url: str, kind: str) -> WebhookTarget:
     elif host == "localhost" or host.endswith(_BLOCKED_SUFFIXES) or "." not in host:
         raise UnsafeWebhookUrl("url_private_address", "Webhook URLs must point to a public internet address.")
 
+    if literal is None:
+        try:
+            host = host.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise UnsafeWebhookUrl("url_invalid", "The webhook URL is not valid.") from exc
+
     if kind == "discord":
         if host not in DISCORD_HOSTS or not parts.path.startswith("/api/webhooks/"):
             raise UnsafeWebhookUrl(

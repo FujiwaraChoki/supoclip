@@ -21,14 +21,12 @@ vi.mock("@/server/backend-api", () => ({
 
 function mockPrisma(user: Record<string, unknown> | null, affiliate: Record<string, unknown> | null = null) {
   const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
-  const executeRaw = vi.fn().mockResolvedValue(1);
   vi.mocked(getPrismaClient).mockReturnValue({
     user: { findUnique: vi.fn().mockResolvedValue(user) },
     affiliate: { findUnique: vi.fn().mockResolvedValue(affiliate) },
     source: { deleteMany },
-    $executeRaw: executeRaw,
   } as never);
-  return { deleteMany, executeRaw };
+  return { deleteMany };
 }
 
 const stripeUser = {
@@ -51,15 +49,6 @@ describe("prepareAccountDeletion", () => {
       message: ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE,
     });
     expect(deleteMany).not.toHaveBeenCalled();
-  });
-
-  it("clears the email snapshot on the user's feedback", async () => {
-    const { executeRaw } = mockPrisma(null);
-
-    await prepareAccountDeletion("user-1");
-    const [sql, userId] = executeRaw.mock.calls[0];
-    expect(sql.join("?")).toBe("UPDATE feedback_submissions SET email = NULL WHERE user_id = ?");
-    expect(userId).toBe("user-1");
   });
 
   it("allows a Stripe subscription already scheduled to cancel", async () => {

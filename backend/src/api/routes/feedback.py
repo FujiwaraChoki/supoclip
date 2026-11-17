@@ -12,7 +12,7 @@ from ...config import get_config
 from ...database import get_db
 from ...feature_flags import client_platform
 from ...feedback.delivery import schedule_immediate_delivery
-from ...feedback.service import FeedbackRateLimited, SubmissionInput, submit_feedback as store_submission
+from ...feedback.service import FeedbackRateLimited, FeedbackUserGone, SubmissionInput, submit_feedback as store_submission
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,8 @@ async def submit_feedback(body: FeedbackRequest, request: Request, db: AsyncSess
                 locale=body.locale,
             ),
         )
+    except FeedbackUserGone:
+        raise HTTPException(status_code=401, detail="Account no longer exists")
     except FeedbackRateLimited:
         raise HTTPException(status_code=429, detail="Too many messages. Try again in a few minutes.")
     if stored["deliveries"]:

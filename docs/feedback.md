@@ -27,7 +27,10 @@ written in one transaction. Nothing about webhooks can fail or slow the request:
 the row is committed, even when no webhook exists.
 
 Deleting an account keeps its messages: `user_id` is set to NULL by the foreign key and
-`prepareAccountDeletion` clears the email snapshot.
+a PostgreSQL trigger clears the email snapshot in that same transaction, including direct SQL deletions.
+Submissions lock their user row, so deletion cannot leave a concurrently inserted snapshot behind.
+A signed request for a deleted user returns 401; it cannot submit as an anonymous user.
+Messages and notes are retained as written and may themselves contain personal information.
 
 ## Tables
 
@@ -52,8 +55,13 @@ The migration copies existing `cancellation_notes` into `feedback_submissions` (
 2. The cron worker's `deliver_feedback_webhooks` (every minute, `supoclip_cron` queue) sends
    whatever is still due.
 
-A sender claims a delivery with a two-minute lease (`FOR UPDATE SKIP LOCKED`), so the API and the
-cron worker never send the same one at once. Outcomes:
+A sender claims one delivery immediately before sending, with a two-minute lease
+(`FOR UPDATE SKIP LOCKED`). A unique lease token fences late completion after another sender
+reclaims it or an admin cancels/retries it. DNS plus HTTP has a 20-second total deadline; unused
+response bodies are never buffered. Reads commit before external I/O, releasing the database
+connection. The API runs at most four immediate delivery tasks per process; cron handles overflow.
+Unexpected sender errors consume the same retry budget. Expired final attempts and interrupted
+one-shot tests become failed on the next cron pass. Outcomes:
 
 | Answer | Result |
 |---|---|
@@ -63,10 +71,13 @@ cron worker never send the same one at once. Outcomes:
 
 Admins can retry a `failed` or `cancelled` delivery from the submission or the webhook's delivery
 log; it gets a fresh set of attempts. Disabling a webhook cancels its pending deliveries, so turning
-it back on never sends a backlog. A test send is one attempt, logged with `is_test`.
+it back on never sends a backlog. Fan-out locks destinations until commit so disabling cannot
+miss an uncommitted delivery. A request already in flight may still reach the receiver; disabling
+cannot retract external side effects. A test send is one attempt, logged with `is_test`.
 
 Delivery is at least once: a send that times out after the receiver got it is sent again with the
-same delivery id. Deduplicate on it.
+same delivery id. Deduplicate on it. Lease fencing protects database outcomes, not external
+exactly-once delivery (for example after a process pause or a lost acknowledgement).
 
 ### URL safety (SSRF)
 
@@ -146,7 +157,10 @@ def verify(secret: str, raw_body: bytes, header: str, tolerance: int = 300) -> b
 ```
 
 The secret (`whsec_…`) is shown once, when the webhook is created or its secret is rotated
-("New secret"). Rotating takes effect on the next attempt.
+("New secret"). Rotating takes effect when the next attempt loads its destination. An already in-flight attempt
+may still use the old signing secret; receivers should allow both secrets during a short transition.
+Verify the signed timestamp with a bounded tolerance and durably deduplicate delivery ids before
+applying side effects. Each retry is newly timestamped/signed; its submission reflects current data.
 
 ## Admin API
 
@@ -180,3 +194,37 @@ invalid URL is skipped, logged, and tried again on the next start.
 
 Once the rows show up in `/admin/feedback/webhooks`, the variables can be removed from the
 environment. Nothing depends on the worker having them.
+
+
+## Encryption keys and migration operations
+
+Use a dedicated, high-entropy `APP_SETTINGS_ENCRYPTION_KEY`, shared by both API slots and the cron
+worker. Keep it in the secret manager and backups. The existing encryption helper falls back to
+`BACKEND_AUTH_SECRET` or `BETTER_AUTH_SECRET`; changing that fallback also changes the encryption
+key. AES-GCM ciphertext is authenticated and randomly nonced, but there is no online encryption-key
+ring or automatic re-encryption. Do not rotate the encryption key independently on one process.
+Coordinate re-encryption of existing runtime settings and webhook URL/secret rows under the new
+key before switching all readers, retaining the old key until verification completes. If a key was
+lost, restore it from backup or re-enter destination URLs and rotate signing secrets. Decryption
+failures are visible as bounded failed deliveries and can be retried after the key is repaired.
+Signing-secret rotation in the UI is separate from encryption-key rotation.
+
+The schema is additive. The original migration creates indexes only on new tables, but its foreign
+keys briefly lock `users`, and the cancellation backfill runs in the migration transaction. Test a
+production-size copy before rollout: the migration bounds lock waits to 5 seconds and statements
+to 30 seconds, so an oversized backfill fails/rolls back instead of indefinitely blocking writes.
+If that bound is exceeded, plan a separate batched backfill before deploying; do not raise it blindly.
+The safety migration adds a lease token and an anonymization trigger. Both migrations are
+idempotent. The migration runner now preserves dollar-quoted function bodies when splitting SQL.
+
+For application rollback, leave these additive tables and the privacy trigger in place. Do not drop
+them: that destroys submissions, outbox state, and env-import markers. The previous app can still
+use `cancellation_notes`, but it does not persist new general feedback; reconcile any messages sent
+during a rollback before re-enabling inbox delivery. Rollbacks do not undo webhooks already sent.
+
+Compatibility: successful feedback requests still return HTTP 200 with `status: "ok"` plus an
+additive `id`. Invalid categories and whitespace-only messages return 422 (previously 400 for an
+invalid category); clients should treat all non-2xx responses as failure. Existing signed iOS
+requests are covered by integration tests. API-key feedback was not supported before this PR and
+remains unsupported. The native iOS source is not in this repository, so its error-message rendering
+needs a separate client smoke test if it distinguishes 400 from 422.

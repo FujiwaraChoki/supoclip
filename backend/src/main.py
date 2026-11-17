@@ -171,13 +171,18 @@ def create_app(
         trace_id = get_trace_id()
         # Task creation logs a sanitized source line instead of exc.errors(),
         # which includes the submitted input (query tokens and all).
-        if is_task_create_request(request.method, request.url.path):
+        errors = exc.errors()
+        if request.url.path == "/admin/feedback-webhooks" or request.url.path.startswith("/admin/feedback-webhooks/"):
+            # Missing fields and malformed JSON can echo the entire secret-bearing body.
+            errors = [{"type": e["type"], "loc": e["loc"], "msg": "Invalid webhook input"} for e in errors]
+            logger.warning("Webhook validation error: %s", errors)
+        elif is_task_create_request(request.method, request.url.path):
             await log_task_create_validation_error(request, exc)
         else:
-            logger.warning("Validation error: %s", exc.errors())
+            logger.warning("Validation error: %s", errors)
         return JSONResponse(
             status_code=422,
-            content={"detail": exc.errors(), "trace_id": trace_id},
+            content={"detail": errors, "trace_id": trace_id},
             headers={TRACE_HEADER: trace_id},
         )
 

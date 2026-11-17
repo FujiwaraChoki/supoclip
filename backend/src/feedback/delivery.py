@@ -42,6 +42,7 @@ EVENT_TEST = "feedback.test"
 PAYLOAD_VERSION = 1
 USER_AGENT = "SupoClip-Webhooks/1"
 TIMEOUT_SECONDS = 10
+SEND_DEADLINE_SECONDS = 20
 LEASE = timedelta(minutes=2)
 # Delay before attempt 2, 3, ...; after the last one the delivery is failed (about 19 hours in all).
 RETRY_DELAYS = (30, 120, 600, 1800, 7200, 21600, 43200)
@@ -170,21 +171,24 @@ async def post_pinned(url: str, kind: str, body: bytes, headers: dict[str, str])
     netloc_host = f"[{address}]" if ":" in address else address
     netloc = f"{netloc_host}:{target.port}" if parts.port else netloc_host
     pinned = urlunsplit((parts.scheme, netloc, parts.path or "/", parts.query, ""))
-    host_header = target.host if not parts.port else f"{target.host}:{target.port}"
+    host = f"[{target.host}]" if ":" in target.host else target.host
+    host_header = host if not parts.port else f"{host}:{target.port}"
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, follow_redirects=False, trust_env=False) as client:
-        return await client.post(
-            pinned,
+        async with client.stream(
+            "POST", pinned,
             content=body,
             headers={**headers, "Host": host_header},
             extensions={"sni_hostname": target.host},
-        )
+        ) as response:
+            # Only the status and headers matter; never buffer an untrusted body.
+            return response
 
 
 def _retry_after(response: httpx.Response) -> int | None:
     value = response.headers.get("retry-after")
     try:
         return min(MAX_RETRY_AFTER, max(1, int(float(value)))) if value else None
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
 
 
@@ -194,10 +198,11 @@ async def send(destination: dict[str, Any], event: str, delivery_id: str, submis
     started = time.monotonic()
     elapsed = lambda: int((time.monotonic() - started) * 1000)  # noqa: E731
     try:
-        response = await post_pinned(destination["url"], destination["kind"], body, headers)
+        async with asyncio.timeout(SEND_DEADLINE_SECONDS):
+            response = await post_pinned(destination["url"], destination["kind"], body, headers)
     except UnsafeWebhookUrl as exc:
         return SendResult(False, None, f"blocked: {exc.code}", exc.code == "url_unresolvable", None, elapsed())
-    except httpx.TimeoutException:
+    except (httpx.TimeoutException, TimeoutError):
         return SendResult(False, None, "timed out", True, None, elapsed())
     except httpx.HTTPError as exc:
         return SendResult(False, None, f"network error ({type(exc).__name__})", True, None, elapsed())
@@ -211,12 +216,19 @@ async def send(destination: dict[str, Any], event: str, delivery_id: str, submis
 
 
 async def _claim(db: AsyncSession, *, submission_id: str | None, limit: int) -> list[dict[str, Any]]:
+    # Crashes count toward the retry budget. Test sends are never retried.
+    await db.execute(text(
+        "UPDATE feedback_webhook_deliveries SET status = 'failed', lease_expires_at = NULL, "
+        "lease_token = NULL, last_error = 'sender lease expired', updated_at = NOW() "
+        "WHERE status = 'pending' AND lease_expires_at < clock_timestamp() "
+        "AND (is_test OR attempts >= :maximum)"
+    ), {"maximum": MAX_ATTEMPTS})
     scope = "AND submission_id = :submission_id" if submission_id else ""
     rows = await db.execute(
         text(
             f"""
             UPDATE feedback_webhook_deliveries d
-            SET lease_expires_at = clock_timestamp() + make_interval(secs => :lease), attempts = d.attempts + 1, updated_at = NOW()
+            SET lease_token = uuid_generate_v4()::text, lease_expires_at = clock_timestamp() + make_interval(secs => :lease), attempts = d.attempts + 1, updated_at = NOW()
             WHERE d.id IN (
                 SELECT id FROM feedback_webhook_deliveries
                 WHERE status = 'pending' AND NOT is_test AND next_attempt_at <= clock_timestamp()
@@ -225,7 +237,7 @@ async def _claim(db: AsyncSession, *, submission_id: str | None, limit: int) -> 
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING d.id, d.submission_id, d.webhook_id, d.attempts, d.is_test
+            RETURNING d.id, d.submission_id, d.webhook_id, d.attempts, d.is_test, d.lease_token
             """
         ),
         {"lease": LEASE.total_seconds(), "limit": limit, "submission_id": submission_id},
@@ -252,29 +264,33 @@ async def record_attempt(db: AsyncSession, delivery: dict[str, Any], result: Sen
         status, next_at = "pending", datetime.now(timezone.utc) + timedelta(seconds=delay)
     else:
         status, next_at = "failed", None
-    await db.execute(
-        text(
-            """
-            INSERT INTO feedback_webhook_attempts (delivery_id, attempt, status_code, error, duration_ms)
-            VALUES (:id, :attempt, :code, :error, :duration)
-            """
-        ),
-        {"id": delivery["id"], "attempt": attempt, "code": result.status_code, "error": result.error,
-         "duration": result.duration_ms},
-    )
-    await db.execute(
-        text(
-            """
+    # A unique token also fences a cancelled delivery which an admin retried.
+    updated = await db.execute(
+        text("""
             UPDATE feedback_webhook_deliveries
-            SET status = :status, lease_expires_at = NULL, last_status_code = :code, last_error = :error,
+            SET status = :status, lease_expires_at = NULL, lease_token = NULL,
+                last_status_code = :code, last_error = :error,
                 next_attempt_at = COALESCE(:next_at, next_attempt_at),
                 delivered_at = CASE WHEN :delivered THEN NOW() ELSE delivered_at END,
                 updated_at = NOW()
-            WHERE id = :id
-            """
-        ),
-        {"id": delivery["id"], "status": status, "delivered": status == "delivered", "code": result.status_code,
+            WHERE id = :id AND status = 'pending' AND lease_token = :token
+              AND lease_expires_at > clock_timestamp()
+            RETURNING id
+        """),
+        {"id": delivery["id"], "token": delivery["lease_token"], "status": status,
+         "delivered": status == "delivered", "code": result.status_code,
          "error": result.error, "next_at": next_at},
+    )
+    if updated.scalar_one_or_none() is None:
+        await db.commit()
+        return "stale"
+    await db.execute(
+        text("""
+            INSERT INTO feedback_webhook_attempts (delivery_id, attempt, status_code, error, duration_ms)
+            VALUES (:id, :attempt, :code, :error, :duration)
+        """),
+        {"id": delivery["id"], "attempt": attempt, "code": result.status_code,
+         "error": result.error, "duration": result.duration_ms},
     )
     await db.commit()
     return status
@@ -283,13 +299,16 @@ async def record_attempt(db: AsyncSession, delivery: dict[str, Any], result: Sen
 async def _deliver_one(db: AsyncSession, delivery: dict[str, Any]) -> str:
     destination = await load_destination(db, delivery["webhook_id"])
     submission = await _submission(db, delivery["submission_id"]) if delivery["submission_id"] else None
+    # Release the pooled connection and read transaction before any DNS/HTTP I/O.
+    await db.commit()
     if destination is None or submission is None:
         return await record_attempt(db, delivery, SendResult(False, None, "webhook or submission is gone", False))
     if not destination["enabled"]:
         await db.execute(
             text("UPDATE feedback_webhook_deliveries SET status = 'cancelled', lease_expires_at = NULL, "
-                 "updated_at = NOW() WHERE id = :id"),
-            {"id": delivery["id"]},
+                 "lease_token = NULL, updated_at = NOW() WHERE id = :id AND status = 'pending' "
+                 "AND lease_token = :token"),
+            {"id": delivery["id"], "token": delivery["lease_token"]},
         )
         await db.commit()
         return "cancelled"
@@ -305,14 +324,20 @@ async def _deliver_one(db: AsyncSession, delivery: dict[str, Any]) -> str:
 
 async def deliver_due(db: AsyncSession, *, submission_id: str | None = None, limit: int = BATCH_SIZE) -> dict[str, int]:
     outcomes: dict[str, int] = {}
-    for delivery in await _claim(db, submission_id=submission_id, limit=limit):
+    for _ in range(limit):
+        claimed = await _claim(db, submission_id=submission_id, limit=1)
+        if not claimed:
+            break
+        delivery = claimed[0]
         try:
             status = await _deliver_one(db, delivery)
-        except Exception:
-            # The lease runs out and the next run tries again.
+        except Exception as exc:
             await db.rollback()
-            logger.exception("Feedback webhook delivery %s crashed", delivery["id"])
-            status = "error"
+            # Decryption/configuration failures must also exhaust the retry budget.
+            # Exception text can contain a URL, so persist/log only the class name.
+            result = SendResult(False, None, f"sender error ({type(exc).__name__})", True)
+            status = await record_attempt(db, delivery, result)
+            logger.warning("Feedback webhook delivery %s: %s", delivery["id"], result.error)
         outcomes[status] = outcomes.get(status, 0) + 1
     return outcomes
 
@@ -344,6 +369,9 @@ def schedule_immediate_delivery(submission_id: str) -> None:
         except Exception:
             logger.exception("Immediate feedback delivery for %s failed", submission_id)
 
+    # The durable cron queue handles overflow; do not accumulate waiting tasks.
+    if len(_background) >= 4:
+        return
     task = asyncio.get_running_loop().create_task(run())
     _background.add(task)
     task.add_done_callback(_background.discard)
@@ -355,7 +383,7 @@ async def retry_delivery(db: AsyncSession, delivery_id: str) -> bool:
         text(
             """
             UPDATE feedback_webhook_deliveries
-            SET status = 'pending', attempts = 0, next_attempt_at = clock_timestamp(), lease_expires_at = NULL, updated_at = NOW()
+            SET status = 'pending', attempts = 0, next_attempt_at = clock_timestamp(), lease_expires_at = NULL, lease_token = NULL, updated_at = NOW()
             WHERE id = :id AND status IN ('failed', 'cancelled') AND NOT is_test
             """
         ),
@@ -374,12 +402,13 @@ async def send_test(db: AsyncSession, webhook_id: str, admin: dict[str, Any]) ->
     if destination is None:
         return None
     delivery_id = str(uuid.uuid4())
+    token = str(uuid.uuid4())
     await db.execute(
         text(
-            "INSERT INTO feedback_webhook_deliveries (id, webhook_id, is_test, attempts, status, lease_expires_at) "
-            "VALUES (:id, :webhook, TRUE, 1, 'pending', NOW() + INTERVAL '1 minute')"
+            "INSERT INTO feedback_webhook_deliveries (id, webhook_id, is_test, attempts, status, lease_expires_at, lease_token) "
+            "VALUES (:id, :webhook, TRUE, 1, 'pending', NOW() + INTERVAL '2 minutes', :token)"
         ),
-        {"id": delivery_id, "webhook": webhook_id},
+        {"id": delivery_id, "webhook": webhook_id, "token": token},
     )
     await db.commit()
     sample = {
@@ -395,7 +424,7 @@ async def send_test(db: AsyncSession, webhook_id: str, admin: dict[str, Any]) ->
     }
     result = await send(destination, EVENT_TEST, delivery_id, sample)
     # A test is one attempt: never retried.
-    status = await record_attempt(db, {"id": delivery_id, "attempts": MAX_ATTEMPTS},
+    status = await record_attempt(db, {"id": delivery_id, "attempts": 1, "lease_token": token},
                                   SendResult(result.ok, result.status_code, result.error, False, None,
                                              result.duration_ms))
     return {"id": delivery_id, "status": status, "status_code": result.status_code, "error": result.error}

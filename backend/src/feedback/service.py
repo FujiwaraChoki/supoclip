@@ -1,7 +1,7 @@
 """Storing submissions and reading them back for the admin inbox.
 
 ``submit_feedback`` is the one way a submission is created (``POST /feedback``
-from the web app, the iOS app and API keys). The row, its cancellation note and
+from the web app and the iOS app using signed backend headers). The row, its cancellation note and
 one outbox delivery per matching enabled webhook are written in one transaction,
 so a webhook that is down never loses or fails a submission.
 """
@@ -22,6 +22,10 @@ RATE_LIMIT_COUNT = 10
 RATE_LIMIT_WINDOW_MINUTES = 10
 MAX_NOTE_LENGTH = 4000
 PAGE_SIZE = 50
+
+
+class FeedbackUserGone(Exception):
+    pass
 
 
 class FeedbackRateLimited(Exception):
@@ -54,6 +58,15 @@ async def submit_feedback(db: AsyncSession, data: SubmissionInput) -> dict[str, 
 
     email = None
     if data.user_id:
+        # Serialize count + insert, and hold the user row until commit so deletion
+        # cannot race the email snapshot. All callers lock before reading the count.
+        user = (await db.execute(
+            text("SELECT email FROM users WHERE id = :user_id FOR NO KEY UPDATE"),
+            {"user_id": data.user_id},
+        )).mappings().first()
+        if user is None:
+            raise FeedbackUserGone()
+        email = user["email"]
         recent = (
             await db.execute(
                 text(
@@ -65,9 +78,6 @@ async def submit_feedback(db: AsyncSession, data: SubmissionInput) -> dict[str, 
         ).scalar()
         if recent >= RATE_LIMIT_COUNT:
             raise FeedbackRateLimited()
-        email = (
-            await db.execute(text("SELECT email FROM users WHERE id = :user_id"), {"user_id": data.user_id})
-        ).scalar()
 
     submission_id = str(uuid.uuid4())
     await db.execute(
@@ -80,7 +90,7 @@ async def submit_feedback(db: AsyncSession, data: SubmissionInput) -> dict[str, 
         ),
         {
             "id": submission_id,
-            # A deleted account's signed headers can outlive it; keep the message anyway.
+            # Authenticated submissions retain their owner until account deletion.
             "user_id": data.user_id if email is not None else None,
             "email": email,
             "category": data.category,
@@ -105,6 +115,7 @@ async def submit_feedback(db: AsyncSession, data: SubmissionInput) -> dict[str, 
             SELECT uuid_generate_v4()::text, :submission_id, w.id
             FROM feedback_webhooks w
             WHERE w.enabled AND :category = ANY(w.categories)
+            ORDER BY w.id FOR SHARE
             """
         ),
         {"submission_id": submission_id, "category": data.category},

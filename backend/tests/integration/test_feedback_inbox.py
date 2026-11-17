@@ -369,6 +369,7 @@ async def test_webhook_urls_and_secrets_never_come_back(client, db_session, clea
     # An empty URL kept the old one: the test went to it.
     assert receiver.calls[0]["url"] == JSON_URL and receiver.calls[0]["body"]["type"] == "feedback.test"
     assert responses[3].json()["deliveries"][0]["is_test"] is True
+    assert responses[3].json()["deliveries"][0]["attempt_log"][0]["attempt"] == 1
 
     rotated = (await client.post(f"/admin/feedback-webhooks/{hook_id}/rotate-secret", headers=auth_headers)).json()["secret"]
     assert rotated != secret
@@ -461,8 +462,11 @@ async def test_migration_is_idempotent_and_copies_cancellation_notes(db_session,
         {"id": note_id, "u": user["id"]},
     )
     await db_session.commit()
+    from src.sql_statements import split_sql_statements
+
+    safety = MIGRATION.with_name("20261118_0001_feedback_delivery_safety.sql")
     for _ in range(2):
-        for statement in MIGRATION.read_text().split(";"):
+        for statement in split_sql_statements(MIGRATION.read_text() + safety.read_text()):
             if statement.strip():
                 await db_session.execute(text(statement))
         await db_session.commit()
@@ -470,3 +474,259 @@ async def test_migration_is_idempotent_and_copies_cancellation_notes(db_session,
         text("SELECT email, category, message, status FROM feedback_submissions WHERE id = :id"), {"id": note_id})).all()
     assert [tuple(r) for r in rows] == [("leaving@example.com", "cancellation", "Too pricey", "resolved")]
     assert await deliveries(db_session, submission_id=note_id) == []
+
+
+async def test_slow_send_releases_the_only_database_connection(
+    client, db_session, clean, no_immediate, monkeypatch, test_database_url
+):
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    await _one_submission(client, db_session)
+    engine = create_async_engine(test_database_url, pool_size=1, max_overflow=0, pool_timeout=0.2)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def slow_send(*args):
+        entered.set()
+        await release.wait()
+        return delivery.SendResult(True, 204, None, False)
+
+    monkeypatch.setattr(delivery, "send", slow_send)
+    try:
+        async with sessions() as sender:
+            task = asyncio.create_task(delivery.deliver_due(sender))
+            try:
+                await asyncio.wait_for(entered.wait(), 2)
+                async with sessions() as unrelated:
+                    assert (await unrelated.execute(text("SELECT 1"))).scalar() == 1
+            finally:
+                release.set()
+                await task
+    finally:
+        await engine.dispose()
+
+
+async def test_only_the_delivery_about_to_send_is_leased(
+    client, db_session, clean, no_immediate, monkeypatch, initialized_database
+):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    await _one_submission(client, db_session)
+    await _one_submission(client, db_session)
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+
+    async def check_leases(*args):
+        async with sessions() as observer:
+            assert (await observer.execute(text(
+                "SELECT count(*) FROM feedback_webhook_deliveries WHERE lease_token IS NOT NULL"
+            ))).scalar() == 1
+        return delivery.SendResult(True, 204, None, False)
+
+    monkeypatch.setattr(delivery, "send", check_leases)
+    assert await delivery.deliver_due(db_session) == {"delivered": 3}
+
+
+async def test_expired_sender_cannot_overwrite_newer_result(client, db_session, clean, no_immediate):
+    await _one_submission(client, db_session)
+    [old] = await delivery._claim(db_session, submission_id=None, limit=1)
+    await db_session.execute(text("UPDATE feedback_webhook_deliveries SET lease_expires_at = NOW() - INTERVAL '1 second'"))
+    await db_session.commit()
+    [new] = await delivery._claim(db_session, submission_id=None, limit=1)
+    assert old["lease_token"] != new["lease_token"]
+    assert await delivery.record_attempt(db_session, new, delivery.SendResult(True, 204, None, False)) == "delivered"
+    assert await delivery.record_attempt(db_session, old, delivery.SendResult(False, 500, "HTTP 500", True)) == "stale"
+    [row] = await deliveries(db_session)
+    assert (row["status"], row["attempts"], row["last_status_code"]) == ("delivered", 2, 204)
+    assert (await db_session.execute(text("SELECT count(*) FROM feedback_webhook_attempts"))).scalar() == 1
+
+
+async def test_disable_and_retry_fences_inflight_sender(client, db_session, clean, no_immediate):
+    _, hook, _ = await _one_submission(client, db_session)
+    [old] = await delivery._claim(db_session, submission_id=None, limit=1)
+    await webhooks.update_webhook(db_session, hook["id"], admin_id=None, enabled=False)
+    assert await delivery.retry_delivery(db_session, old["id"])
+    await webhooks.update_webhook(db_session, hook["id"], admin_id=None, enabled=True)
+    [new] = await delivery._claim(db_session, submission_id=None, limit=1)
+    assert old["attempts"] == new["attempts"] == 1  # attempt number alone cannot fence retries
+    assert await delivery.record_attempt(db_session, old, delivery.SendResult(True, 204, None, False)) == "stale"
+    assert await delivery.record_attempt(db_session, new, delivery.SendResult(False, 400, "HTTP 400", False)) == "failed"
+
+
+async def test_sender_exceptions_exhaust_retries_without_secret_leaks(
+    client, db_session, clean, no_immediate, monkeypatch, caplog
+):
+    await _one_submission(client, db_session)
+
+    async def broken(*args):
+        raise ValueError(DISCORD)
+
+    monkeypatch.setattr(delivery, "load_destination", broken)
+    for _ in range(delivery.MAX_ATTEMPTS):
+        await make_due(db_session)
+        await delivery.deliver_due(db_session)
+    [row] = await deliveries(db_session)
+    assert (row["status"], row["attempts"]) == ("failed", delivery.MAX_ATTEMPTS)
+    assert row["last_error"] == "sender error (ValueError)"
+    assert DISCORD not in caplog.text
+
+
+async def test_expired_last_attempt_and_test_are_recovered(client, db_session, clean, no_immediate):
+    _, hook, _ = await _one_submission(client, db_session)
+    await db_session.execute(text(
+        "UPDATE feedback_webhook_deliveries SET attempts = :max, lease_expires_at = NOW() - INTERVAL '1 second'"
+    ), {"max": delivery.MAX_ATTEMPTS})
+    await db_session.execute(text(
+        "INSERT INTO feedback_webhook_deliveries (id, webhook_id, is_test, attempts, lease_expires_at) "
+        "VALUES (:id, :hook, true, 1, NOW() - INTERVAL '1 second')"
+    ), {"id": str(uuid4()), "hook": hook["id"]})
+    await db_session.commit()
+    assert await delivery.deliver_due(db_session) == {}
+    rows = await deliveries(db_session)
+    assert len(rows) == 2 and all(row["status"] == "failed" for row in rows)
+
+
+async def test_concurrent_submissions_enforce_limit(db_session, clean, initialized_database):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from src.feedback.service import FeedbackRateLimited, SubmissionInput, submit_feedback
+
+    user = await create_user(db_session)
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+
+    async def submit_one():
+        async with sessions() as session:
+            try:
+                await submit_feedback(session, SubmissionInput(category="bug", message="Hello", user_id=user["id"]))
+                return True
+            except FeedbackRateLimited:
+                return False
+
+    outcomes = await asyncio.gather(*(submit_one() for _ in range(15)))
+    assert sum(outcomes) == 10
+
+
+async def test_deleted_user_cannot_bypass_rate_limit(client, db_session, clean, no_immediate):
+    user = await create_user(db_session)
+    await db_session.execute(text("DELETE FROM users WHERE id = :id"), {"id": user["id"]})
+    await db_session.commit()
+    assert (await submit(client, user["id"])).status_code == 401
+    assert (await db_session.execute(text("SELECT count(*) FROM feedback_submissions"))).scalar() == 0
+
+
+async def test_anonymization_is_atomic_and_rolls_back_with_deletion(client, db_session, clean, no_immediate):
+    user = await create_user(db_session, email="private@example.com")
+    submission_id = (await submit(client, user["id"])).json()["id"]
+    await db_session.execute(text("DELETE FROM users WHERE id = :id"), {"id": user["id"]})
+    row = (await db_session.execute(text("SELECT user_id, email FROM feedback_submissions WHERE id = :id"),
+                                    {"id": submission_id})).one()
+    assert tuple(row) == (None, None)
+    await db_session.rollback()
+    row = (await db_session.execute(text("SELECT user_id, email FROM feedback_submissions WHERE id = :id"),
+                                    {"id": submission_id})).one()
+    assert tuple(row) == (user["id"], "private@example.com")
+
+
+async def test_two_api_slots_import_only_one_destination(db_session, clean, app, initialized_database):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    config = app.state.config
+    config.discord_feedback_webhook_url = DISCORD
+    config.discord_sales_webhook_url = None
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+
+    async def import_one():
+        async with sessions() as session:
+            return await webhooks.import_env_webhooks(session, config)
+
+    results = await asyncio.gather(import_one(), import_one())
+    assert sorted(map(len, results)) == [0, 1]
+    assert len(await webhooks.list_webhooks(db_session)) == 1
+
+
+@pytest.mark.parametrize("body", [
+    {"kind": "json", "url": DISCORD, "categories": ["bug"]},
+    {"name": "Hook", "kind": "json", "url": DISCORD},
+    {"name": "Hook", "kind": "json", "url": {"secret": DISCORD}, "categories": ["bug"]},
+])
+async def test_invalid_webhook_bodies_never_echo_secrets(client, clean, admin, auth_headers, caplog, body):
+    response = await client.post("/admin/feedback-webhooks", json=body, headers=auth_headers)
+    assert response.status_code == 422
+    assert "SECRET-DISCORD-TOKEN" not in response.text + caplog.text
+
+
+async def test_invalid_webhook_json_never_echoes_secrets(client, clean, admin, auth_headers, caplog):
+    response = await client.post("/admin/feedback-webhooks", content='{"url":"' + DISCORD + '" BROKEN}',
+                                headers={**auth_headers, "content-type": "application/json"})
+    assert response.status_code == 422
+    assert "SECRET-DISCORD-TOKEN" not in response.text + caplog.text
+
+
+async def test_disabling_waits_for_uncommitted_fanout(db_session, clean, initialized_database):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from src.feedback.service import SubmissionInput, submit_feedback
+
+    user = await create_user(db_session)
+    hook, _ = await make_webhook(db_session)
+    await db_session.commit()
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+    ready, release = asyncio.Event(), asyncio.Event()
+    async with sessions() as sender, sessions() as disabler:
+        commit = sender.commit
+
+        async def pause_before_commit():
+            ready.set()
+            await release.wait()
+            await commit()
+
+        sender.commit = pause_before_commit
+        submission = asyncio.create_task(submit_feedback(sender, SubmissionInput(
+            category="bug", message="Race", user_id=user["id"]
+        )))
+        await asyncio.wait_for(ready.wait(), 2)
+        disable = asyncio.create_task(webhooks.update_webhook(disabler, hook["id"], admin_id=None, enabled=False))
+        try:
+            await asyncio.sleep(0.1)
+            assert not disable.done(), "Disable must wait until fan-out commits"
+        finally:
+            release.set()
+            await submission
+            await disable
+    await webhooks.update_webhook(db_session, hook["id"], admin_id=None, enabled=True)
+    [row] = await deliveries(db_session)
+    assert row["status"] == "cancelled"
+
+
+async def test_deletion_waits_for_submission_and_scrubs_snapshot(db_session, clean, initialized_database):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from src.feedback.service import SubmissionInput, submit_feedback
+
+    user = await create_user(db_session)
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+    ready, release = asyncio.Event(), asyncio.Event()
+    async with sessions() as sender, sessions() as deleter:
+        commit = sender.commit
+
+        async def pause_before_commit():
+            ready.set()
+            await release.wait()
+            await commit()
+
+        async def delete_user():
+            await deleter.execute(text("DELETE FROM users WHERE id = :id"), {"id": user["id"]})
+            await deleter.commit()
+
+        sender.commit = pause_before_commit
+        submission = asyncio.create_task(submit_feedback(sender, SubmissionInput(
+            category="bug", message="Race", user_id=user["id"]
+        )))
+        await asyncio.wait_for(ready.wait(), 2)
+        deletion = asyncio.create_task(delete_user())
+        try:
+            await asyncio.sleep(0.1)
+            assert not deletion.done()
+        finally:
+            release.set()
+            result = await submission
+            await deletion
+    row = (await db_session.execute(text("SELECT user_id, email FROM feedback_submissions WHERE id = :id"),
+                                    {"id": result["id"]})).one()
+    assert tuple(row) == (None, None)

@@ -1,3 +1,7 @@
+-- Fail startup transaction safely instead of waiting indefinitely on live writes.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '30s';
+
 -- Feedback inbox (docs/feedback.md): every in-app feedback, bug, sales and cancellation
 -- message is stored here, triaged in /admin/feedback, and fanned out to admin-managed
 -- webhooks through a durable outbox. Read and written by backend/src/feedback/.
@@ -115,4 +119,7 @@ INSERT INTO feedback_submissions (id, user_id, email, category, message, status,
 SELECT n.id, u.id, u.email, 'cancellation', n.message, 'resolved', n.created_at, n.created_at, n.created_at
 FROM cancellation_notes n
 LEFT JOIN users u ON u.id = n.user_id
-ON CONFLICT (id) DO NOTHING
+ON CONFLICT (id) DO NOTHING;
+
+SET LOCAL lock_timeout = DEFAULT;
+SET LOCAL statement_timeout = DEFAULT;

@@ -142,7 +142,7 @@ async def update_webhook(
         # Disabling stops what is still queued, so re-enabling never sends a backlog.
         await db.execute(
             text(
-                "UPDATE feedback_webhook_deliveries SET status = 'cancelled', updated_at = NOW() "
+                "UPDATE feedback_webhook_deliveries SET status = 'cancelled', lease_token = NULL, lease_expires_at = NULL, updated_at = NOW() "
                 "WHERE webhook_id = :id AND status = 'pending'"
             ),
             {"id": webhook_id},

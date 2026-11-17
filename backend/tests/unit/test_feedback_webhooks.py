@@ -186,3 +186,75 @@ async def test_send_errors_never_contain_the_url(monkeypatch):
     result = await delivery.send({"kind": "discord", "url": DISCORD}, delivery.EVENT_CREATED, "d", SUBMISSION)
     assert result.retryable and result.error == "network error (ConnectError)"
     assert "TOKEN" not in result.error
+
+
+async def test_sender_does_not_read_receiver_body(monkeypatch):
+    _resolver(monkeypatch, "93.184.216.34")
+
+    class UnreadBody(httpx.AsyncByteStream):
+        closed = False
+
+        async def __aiter__(self):
+            raise AssertionError("Untrusted response body must not be read")
+            yield b""
+
+        async def aclose(self):
+            self.closed = True
+
+    body = UnreadBody()
+    transport = httpx.MockTransport(lambda request: httpx.Response(204, stream=body))
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(delivery.httpx, "AsyncClient", lambda **kwargs: real_client(transport=transport, **kwargs))
+    assert (await delivery.post_pinned(DISCORD, "discord", b"{}", {})).status_code == 204
+    assert body.closed
+
+
+async def test_send_has_total_deadline_including_dns(monkeypatch):
+    import asyncio
+
+    async def stuck(*args):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(delivery, "post_pinned", stuck)
+    monkeypatch.setattr(delivery, "SEND_DEADLINE_SECONDS", 0.01)
+    result = await delivery.send({"kind": "discord", "url": DISCORD}, delivery.EVENT_CREATED, "d", SUBMISSION)
+    assert result.retryable and result.error == "timed out"
+
+
+@pytest.mark.parametrize("value", ["inf", "1e999", "nan", "bad"])
+def test_invalid_retry_after_is_ignored(value):
+    assert delivery._retry_after(httpx.Response(429, headers={"retry-after": value})) is None
+
+
+@pytest.mark.parametrize("url,host", [
+    ("https://bücher.example/hook", "xn--bcher-kva.example"),
+    ("https://[2606:4700:4700::1111]:8443/hook", "[2606:4700:4700::1111]:8443"),
+])
+async def test_idn_and_ipv6_host_headers(monkeypatch, url, host):
+    _resolver(monkeypatch, "93.184.216.34")
+
+    async def handler(request):
+        assert request.headers["host"] == host
+        return httpx.Response(204)
+
+    transport = httpx.MockTransport(handler)
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(delivery.httpx, "AsyncClient", lambda **kwargs: real_client(transport=transport, **kwargs))
+    assert (await delivery.post_pinned(url, "json", b"{}", {})).status_code == 204
+
+
+@pytest.mark.parametrize("url", [
+    "https://2130706433/x", "https://0x7f000001/x", "https://127.1/x", "https://0177.0.0.1/x",
+    "https://[::ffff:10.0.0.1]/x", "https://[2002:7f00:1::]/x", "https://[ff02::1]/x",
+    "https://example.com/\r\nX-Evil:yes",
+])
+async def test_legacy_and_transition_ip_forms_are_blocked(url):
+    with pytest.raises(UnsafeWebhookUrl):
+        target = validate_webhook_url(url, "json")
+        await resolve_public_address(target)
+
+
+async def test_immediate_delivery_overflow_is_left_for_cron(monkeypatch):
+    monkeypatch.setattr(delivery, "_background", {object() for _ in range(4)})
+    delivery.schedule_immediate_delivery("durably-stored-submission")
+    assert len(delivery._background) == 4

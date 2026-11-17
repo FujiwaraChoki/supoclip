@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from .sql_statements import split_sql_statements
+
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase
@@ -137,8 +139,8 @@ async def init_db():
 
                 sql = migration_file.read_text()
                 # asyncpg doesn't support multiple statements in one execute(),
-                # so split on semicolons and run each statement individually
-                for statement in sql.split(";"):
+                # so split outside quoted function bodies and strings.
+                for statement in split_sql_statements(sql):
                     statement = statement.strip()
                     if statement:
                         await conn.execute(text(statement))
