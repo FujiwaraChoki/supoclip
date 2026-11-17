@@ -16,6 +16,20 @@ for port in "$web_port" "$api_port"; do
   [[ $port =~ ^[1-9][0-9]{0,4}$ ]] && (( port < 65536 )) || exit 2
 done
 [[ $web_port != "$api_port" ]]
+# Serialize the count and candidate creation across operator checkouts.
+lock_dir="${XDG_STATE_HOME:-$HOME/.local/state}/supoclip"
+mkdir -p "$lock_dir"
+exec 9>"$lock_dir/prepare.lock"
+flock -w 30 9
+# Keep at most the serving pair and one candidate/draining pair. Never stop
+# transfers here: the operator must verify the previous release has drained.
+live_releases=$(docker ps --format '{{.Names}}' | awk '/^supoclip-(api|web)-/ {print}')
+live_count=$(printf '%s\n' "$live_releases" | awk 'NF {n++} END {print n+0}')
+if (( live_count > 2 )); then
+  echo "Retire the drained previous release before staging another pair:" >&2
+  printf '%s\n' "$live_releases" >&2
+  exit 1
+fi
 WEB_IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$4")
 API_IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$5")
 export WEB_IMAGE_ID API_IMAGE_ID

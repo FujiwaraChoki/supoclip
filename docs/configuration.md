@@ -214,9 +214,20 @@ Fonts and transitions are configured by mounted files rather than environment va
 | `REDIS_HOST` | `redis` in Docker, `localhost` in code | Redis hostname |
 | `REDIS_PORT` | `6379` | Redis port |
 | `DATABASE_URL` | injected by Docker | PostgreSQL connection string |
+| `DATABASE_POOL_SIZE` | `5` | Retained SQLAlchemy connections per API/worker process; must be positive |
+| `DATABASE_MAX_OVERFLOW` | `0` | Extra SQLAlchemy connections per process; must be nonnegative |
+| `DATABASE_POOL_TIMEOUT_SECONDS` | `10` | Maximum wait for a SQLAlchemy connection |
 | `POSTGRES_DB` | `supoclip` | PostgreSQL database name |
 | `POSTGRES_USER` | `supoclip` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | `supoclip_password` | PostgreSQL password |
+
+Each frontend process defaults to five Prisma connections and a ten-second
+pool wait. Override with positive `connection_limit` and `pool_timeout` parameters
+in its `DATABASE_URL`. CPU count no longer determines the frontend pool size.
+Count every API, web, video, AI and cron process, including a candidate during
+deployment, when budgeting connections. Advisory-lock and media connections
+also need headroom. The serving prepare script refuses a third release pair;
+drain and retire the previous pair before another deployment.
 
 ## Self-Host and Monetization Settings
 

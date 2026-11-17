@@ -32,6 +32,12 @@ A drain timeout exits nonzero. New requests still use the candidate. Leave the o
 
 Retire the old pair only after the drain succeeds, direct callers have moved, queued/processing tasks and active worker jobs have cleared, and the rollback window is over. Check for background work in the old API container as well, including legacy upload persistence. Leave the old containers running if any check is uncertain. Stop only their specific container names. Never use project-wide Compose down or remove shared volumes during a serving rollout.
 
+Preparation refuses to add a third running release pair. Retained idle database
+pools still consume PostgreSQL slots, so a drained release must be stopped before
+staging the next candidate. Default ORM pools use at most five connections per
+process; include workers, the direct MCP API and advisory-lock connections in the
+database budget. A refusal never stops containers or interrupts a transfer.
+
 ## Rehearsal
 
 On a Linux host with Python 3 and nginx, run `python3 deploy/serving/test_switch.py`. The rehearsal starts its own unprivileged nginx master and two frontend/API pairs on ephemeral loopback ports. It verifies readiness refusal, an upload and download spanning the switch, new traffic on both upstreams, drain timeout, byte integrity and rollback. It uses synthetic HTTP services and temporary configuration.
