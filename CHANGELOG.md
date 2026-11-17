@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
+- **Fixed:** House promo codes in referral links or entered before checkout are recognised again when billing uses multiple payment accounts. Code validation now uses the same payment account as checkout. ([#382](https://github.com/FujiwaraChoki/supoclip/pull/382))
 - **Fixed:** Long YouTube downloads save completed sections so a connection failure has less video to download again. Series jobs show a range for the wait, and the task page tells you when a download is taking longer than expected. ([#426](https://github.com/FujiwaraChoki/supoclip/pull/426))
 
 ## 2026-11-16
