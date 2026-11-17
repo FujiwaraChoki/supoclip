@@ -73,11 +73,16 @@ async def resolve_user(db: AsyncSession, account_id: str, customer_id: str | Non
 async def migration_for_subscription(db: AsyncSession, account_id: str, subscription_id: str) -> dict[str, Any] | None:
     if not await has_table(db, "stripe_account_migrations"):
         return None
+    requested_at = (
+        "cancellation_requested_at"
+        if await has_column(db, "stripe_account_migrations", "cancellation_requested_at")
+        else "CAST(NULL AS TIMESTAMPTZ)"
+    )
     row = (
         await db.execute(
             text(
-                """
-                SELECT user_id, stage, cancellation_requested, review_reason,
+                f"""
+                SELECT user_id, stage, cancellation_requested, review_reason, {requested_at} AS cancellation_requested_at,
                        (source_subscription = :subscription) AS is_source
                 FROM stripe_account_migrations
                 WHERE source_subscription = :subscription OR destination_subscription = :subscription

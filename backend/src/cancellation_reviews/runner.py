@@ -38,7 +38,7 @@ from .evidence import (
 from .folding import feedback_of, fold_event
 from .judging import ClipJudgment, JudgeUnavailable, assess_case, judge_clip, model_name
 from .report import customer_text, plan_hint, render_report, render_update
-from .schema import account_column, has_table
+from .schema import account_column, has_column, has_table
 
 logger = logging.getLogger(__name__)
 
@@ -142,11 +142,18 @@ async def reconcile(db, now: datetime, source_account: str | None) -> int:
         return created
     # A customer who cancels mid-transfer: their source subscription was stopped by the transfer
     # (excluded), and the cancellation itself only shows up in the migration row.
+    # The review keeps the migration's source stop as its request time unless it is replaced: the
+    # customer's own cancellation time when the ledger recorded it, else now (classify says so).
+    cancelled_at = (
+        "COALESCE(m.cancellation_requested_at, CAST(:now AS TIMESTAMPTZ))"
+        if await has_column(db, "stripe_account_migrations", "cancellation_requested_at")
+        else "CAST(:now AS TIMESTAMPTZ)"
+    )
     reopened = await db.execute(
         text(
-            """
+            f"""
             UPDATE cancellation_reviews r SET status = 'pending', exclusion_reason = NULL, not_before = :now,
-                   attempts = 0, updated_at = NOW()
+                   requested_at = {cancelled_at}, attempts = 0, updated_at = NOW()
             FROM stripe_account_migrations m
             WHERE r.status = 'excluded' AND r.exclusion_reason = 'account_migration_transfer'
               AND m.cancellation_requested AND m.source_subscription = r.subscription_id
@@ -184,6 +191,9 @@ async def classify(db, review: dict[str, Any]) -> tuple[str, str | None, list[st
             return "exclude", "account_migration_rollback", flags
     if migration and migration["cancellation_requested"]:
         flags.append("cancelled during the move between Stripe accounts")
+        if migration.get("cancellation_requested_at") is None:
+            flags.append("the moment the customer cancelled was not recorded: the request time shown is when "
+                         "SupoClip noticed the cancellation, not when the customer cancelled")
         other = (
             await db.execute(
                 text(

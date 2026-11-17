@@ -100,6 +100,7 @@ export function createPrismaMigrationStore(db: PrismaClient): MigrationStore {
           where: { id: row.id },
           data: {
             cancellation_requested: true,
+            cancellation_requested_at: new Date(),
             revision: { increment: 1 },
           },
         });

@@ -373,10 +373,10 @@ async def test_account_migration_transfer_is_excluded_until_the_customer_cancels
                source_account VARCHAR(255), source_customer VARCHAR(255), source_subscription VARCHAR(255),
                destination_account VARCHAR(255), destination_customer VARCHAR(255),
                destination_subscription VARCHAR(255), stage VARCHAR(32), cancellation_requested BOOLEAN,
-               review_reason TEXT)"""))
+               review_reason TEXT, cancellation_requested_at TIMESTAMPTZ)"""))
     await db_session.execute(
         text("""INSERT INTO stripe_account_migrations VALUES (:id, :u, :acct, :cus, :sub, 'acct_dest', 'cus_dest',
-                NULL, 'destination_staged', FALSE, NULL)"""),
+                NULL, 'destination_staged', FALSE, NULL, NULL)"""),
         {"id": str(uuid4()), "u": user_id, "acct": ACCOUNT, "cus": customer, "sub": sub_id},
     )
     await db_session.commit()
@@ -388,12 +388,19 @@ async def test_account_migration_transfer_is_excluded_until_the_customer_cancels
         result = await run_until_idle(monkeypatch, review_config)
         assert result["reviews"] == ["excluded (account_migration_transfer)"] and chat == []
 
-        await db_session.execute(text("UPDATE stripe_account_migrations SET cancellation_requested = TRUE "
-                                      "WHERE source_subscription = :s"), {"s": sub_id})
+        cancelled = datetime(2026, 11, 17, 13, 29, 23, tzinfo=timezone.utc)
+        await db_session.execute(text("UPDATE stripe_account_migrations SET cancellation_requested = TRUE, "
+                                      "cancellation_requested_at = :at WHERE source_subscription = :s"),
+                                 {"s": sub_id, "at": cancelled})
         await db_session.commit()
         result = await run_until_idle(monkeypatch, review_config)
         assert result["reviews"] == ["reported"]
         assert "cancelled during the move between Stripe accounts" in chat[0]["message"]
+        assert "was not recorded" not in chat[0]["message"]
+        requested_at = (await db_session.execute(
+            text("SELECT requested_at FROM cancellation_reviews WHERE subscription_id = :s"), {"s": sub_id})).scalar()
+        # The customer's own cancellation, not the migration's source stop.
+        assert requested_at == cancelled
     finally:
         if created_table:
             await db_session.execute(text("DROP TABLE stripe_account_migrations"))
@@ -421,3 +428,49 @@ async def test_a_baseline_reopened_by_a_late_event_takes_the_event_account(
     result = await run_until_idle(monkeypatch, review_config)
     assert result["reviews"] == ["reported"]
     assert f"account {ACCOUNT}" in chat[0]["message"]
+
+
+async def test_a_reopened_transfer_without_a_recorded_cancel_time_says_so(
+    client, db_session, review_config, clean_tables, stub_model, chat, monkeypatch, tmp_path
+):
+    user_id, customer = await seed_customer(db_session, tmp_path, with_clip=False)
+    monkeypatch.setattr(runner, "assess_case", _assess_no_words)
+    sub_id = f"sub_{uuid4().hex[:10]}"
+    created_table = not (await db_session.execute(text("SELECT to_regclass('public.stripe_account_migrations')"))).scalar()
+    if created_table:
+        await db_session.execute(text(
+            """CREATE TABLE stripe_account_migrations (id VARCHAR(255) PRIMARY KEY, user_id VARCHAR(255),
+               source_account VARCHAR(255), source_customer VARCHAR(255), source_subscription VARCHAR(255),
+               destination_account VARCHAR(255), destination_customer VARCHAR(255),
+               destination_subscription VARCHAR(255), stage VARCHAR(32), cancellation_requested BOOLEAN,
+               review_reason TEXT, cancellation_requested_at TIMESTAMPTZ)"""))
+    await db_session.execute(
+        text("""INSERT INTO stripe_account_migrations VALUES (:id, :u, :acct, :cus, :sub, 'acct_dest', 'cus_dest',
+                NULL, 'destination_staged', FALSE, NULL, NULL)"""),
+        {"id": str(uuid4()), "u": user_id, "acct": ACCOUNT, "cus": customer, "sub": sub_id},
+    )
+    await db_session.commit()
+    try:
+        transfer = subscription_event(sub_id, customer, previous={"cancel_at_period_end": False},
+                                      cancel_at_period_end=True, metadata={"billing_migration_operation": "op-1"},
+                                      created=int(time.time()) - 86400)
+        body, headers = signed(transfer)
+        await client.post(f"/webhooks/stripe/cancellations/{ACCOUNT}", content=body, headers=headers)
+        await run_until_idle(monkeypatch, review_config)
+        await db_session.execute(text("UPDATE stripe_account_migrations SET cancellation_requested = TRUE "
+                                      "WHERE source_subscription = :s"), {"s": sub_id})
+        await db_session.commit()
+        before = datetime.now(timezone.utc)
+        result = await run_until_idle(monkeypatch, review_config)
+        assert result["reviews"] == ["reported"]
+        assert "was not recorded" in chat[0]["message"]
+        requested_at = (await db_session.execute(
+            text("SELECT requested_at FROM cancellation_reviews WHERE subscription_id = :s"), {"s": sub_id})).scalar()
+        assert requested_at >= before - timedelta(minutes=1)  # the reopen time, not yesterday's source stop
+    finally:
+        if created_table:
+            await db_session.execute(text("DROP TABLE stripe_account_migrations"))
+        else:
+            await db_session.execute(text("DELETE FROM stripe_account_migrations WHERE source_subscription = :s"),
+                                     {"s": sub_id})
+        await db_session.commit()
