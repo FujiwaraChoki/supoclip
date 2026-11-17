@@ -144,6 +144,12 @@
       "label": "Twitch VOD to Shorts",
       "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
     },
+    "blog_how_to_clip_gta_6": {
+      "eyebrow": "GTA-6-Clipping",
+      "title": "GTA 6 clippen: so geht's",
+      "label": "GTA 6 clippen",
+      "description": "Was Clipping-Kampagnen zahlen, Rockstars Regeln und der Workflow vom VOD zum Hochformat-Clip."
+    },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
       "title": "Repurpose a webinar into social media clips",

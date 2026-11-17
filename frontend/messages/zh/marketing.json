@@ -144,6 +144,12 @@
       "label": "Twitch VOD to Shorts",
       "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
     },
+    "blog_how_to_clip_gta_6": {
+      "eyebrow": "GTA 6 剪辑",
+      "title": "如何剪辑 GTA 6",
+      "label": "剪辑 GTA 6",
+      "description": "剪辑活动的实际收益、Rockstar 的规则，以及从直播回放到竖屏短片的完整流程。"
+    },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
       "title": "Repurpose a webinar into social media clips",

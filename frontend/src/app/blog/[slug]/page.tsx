@@ -1,5 +1,6 @@
 import { formatArticleDate } from "@/components/articles/article-shell";
 import { CreatorGuideArticle } from "@/components/articles/creator-guide-article";
+import { Gta6ClippingArticle } from "@/components/articles/gta6/gta6-clipping-article";
 import { OpusClipComparisonArticle } from "@/components/articles/opusclip-comparison-article";
 import { SelfHostingGuideArticle } from "@/components/articles/self-hosting-guide-article";
 import { TikTokPublishingArticle } from "@/components/articles/tiktok-publishing-article";
@@ -72,6 +73,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   if (slug === "tiktok-publishing-is-live") {
     return <TikTokPublishingArticle post={basePost} />;
+  }
+  if (slug === "how-to-clip-gta-6") {
+    return <Gta6ClippingArticle post={basePost} />;
   }
 
   const guide = getCreatorGuide(slug);

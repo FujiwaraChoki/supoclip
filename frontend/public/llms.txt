@@ -23,6 +23,7 @@ SupoClip can be used as a hosted web application, as a native iOS app, or self-h
 - [Self-host SupoClip with Docker Compose](https://www.supoclip.com/blog/self-host-supoclip-docker): Requirements, environment setup, fully local Whisper + Ollama option, and production checklist.
 - [SupoClip vs OpusClip](https://www.supoclip.com/blog/supoclip-vs-opusclip): Sourced comparison of deployment, pricing model, watermarks, and workflow.
 - [Best free, self-hosted OpusClip alternative](https://www.supoclip.com/blog/best-free-opusclip-alternative): When self-hosting the open-source app beats a credit-based tool.
+- [How to clip GTA 6](https://www.supoclip.com/blog/how-to-clip-gta-6): What clipping campaigns pay, Rockstar's video rules, and the workflow from a stream VOD to captioned vertical clips.
 - [SupoClip vs supo.live](https://www.supoclip.com/blog/supoclip-vs-supo-live): Open-source control compared with a hosted live-clipping service.
 
 ## Key capabilities
