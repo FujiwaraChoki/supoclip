@@ -35,6 +35,10 @@ LAYOUT_HOLD_SECONDS = 2.5
 # A fit run this short is a one-sample flash: it cannot be read anyway.
 LAYOUT_FLASH_SECONDS = 0.5
 
+# A clip whose crops and fits alternate this often uses one full-context
+# composition, so it does not flicker between them.
+LAYOUT_MAX_RUNS = 5
+
 # A small but steady single face (a wide shot of the same speaker) may inherit
 # a neighbouring face crop; an empty or crowded shot never does.
 SOFT_SINGLE_FACE_RATE = 0.6
@@ -503,14 +507,9 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
     # Repeated crop/fit changes or a predominantly wide demonstration use one
     # full-context composition. First resolve soft/brief shots above, so a lone
     # speaker's wide angle does not needlessly shrink the whole clip.
-    if any(p["kind"] == "cover" for p in plan):
-        # Cover shots fill the frame like crops, so a montage of footage with one document or graphic in it keeps
-        # its crops; only a clip that is mostly fitted content letterboxes throughout.
-        if hard_fit and fit_duration > duration * .5:
-            return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context",
-                     "soft": False}]
-        return plan
-    if hard_fit and (len(runs) >= 3 or (len(runs) > 1 and fit_duration > duration * .6)):
+    # A speaker with a graph or a document cut in (crop, fit, crop) keeps the crops around it; cover shots fill the
+    # frame like crops. Only a clip that is mostly fitted content, or one that keeps flipping, letterboxes throughout.
+    if hard_fit and len(runs) > 1 and (fit_duration > duration * .5 or len(runs) >= LAYOUT_MAX_RUNS):
         return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context", "soft": False}]
     return plan
 
