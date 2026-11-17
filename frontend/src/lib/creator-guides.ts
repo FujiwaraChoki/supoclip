@@ -134,7 +134,7 @@ export const creatorGuides: CreatorGuide[] = [
           ["Silent gameplay", "The actual play in the source footage", "Select manually; speech analysis may miss it"],
           ["Chat response", "The question plus a clear answer", "Preserve context without exposing private information"],
         ] },
-        links: [{ href: "/blog/find-best-moments-in-video", label: "Check whether a highlight stands on its own" }],
+        links: [{ href: "/blog/find-best-moments-in-video", label: "Check whether a highlight stands on its own" }, { href: "/blog/how-to-clip-gta-6", label: "Clipping GTA 6 streams? Follow the full workflow" }],
       },
       {
         id: "frame", heading: "3. Keep the important action inside the vertical frame",

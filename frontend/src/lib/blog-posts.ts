@@ -24,6 +24,21 @@ export interface BlogPost {
 export const blogPosts: BlogPost[] = [
   {
     language: "en",
+    slug: "how-to-clip-gta-6",
+    image: { src: "/blog/how-to-clip-gta-6.webp", alt: "Illustration of a GTA-style sunset stream with a webcam inset turning into three vertical captioned clips", width: 1672, height: 941 },
+    title: "How to Clip GTA 6 (and What It Really Pays)",
+    description: "Clip GTA 6 streams into TikToks and Shorts: what clipping campaigns pay, Rockstar's rules, and a step-by-step workflow from VOD to captioned vertical clips.",
+    eyebrow: "GTA 6 clipping",
+    category: "Guide",
+    publishedAt: "2026-11-17",
+    updatedAt: "2026-11-17",
+    readingTime: "10 min read",
+    author: "SupoClip Team",
+    keywords: ["how to clip GTA 6", "GTA 6 clipping", "make money clipping GTA 6", "GTA 6 clipping campaign", "GTA 6 clips", "clip GTA 6 streams", "GTA 6 TikTok clips"],
+    summary: "Everyone is clipping GTA 6. Here is what it pays, which clips get taken down, and the workflow from a four-hour stream to vertical clips worth posting.",
+  },
+  {
+    language: "en",
     slug: "tiktok-publishing-is-live",
     title: "TikTok publishing is now live in SupoClip",
     description: "Publish clips straight to TikTok, select TikTok and YouTube together on the web, and schedule ahead on Creator. Here’s how to get started.",
