@@ -56,6 +56,9 @@ describe("look captions: grouping and timing", () => {
     // Bold strips edge punctuation ("never," → "never", "jobs." → "jobs").
     expect(stripEdgePunct("“yes,”")).toBe("yes");
     expect(stripEdgePunct("$40,000")).toBe("$40,000");
+    // A censored word keeps its stars.
+    expect(stripEdgePunct("n****.")).toBe("n****");
+    expect(stripEdgePunct("“f***,”")).toBe("f***");
   });
 
   it("re-centres the line as words appear and never animates (0-frame entrance)", () => {

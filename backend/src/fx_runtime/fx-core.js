@@ -1691,7 +1691,7 @@ function activeLook(p) {
 }
 var keywordBoxed = (template) => template === "highlighter_swipe";
 function stripEdgePunct(text) {
-  const out = text.replace(/^[^\p{L}\p{N}$€£¥#]+/u, "").replace(/[^\p{L}\p{N}%']+$/u, "");
+  const out = text.replace(/^[^\p{L}\p{N}$€£¥#]+/u, "").replace(/[^\p{L}\p{N}%'*]+$/u, "");
   return out || text;
 }
 function visibleLayout(chunk, t) {

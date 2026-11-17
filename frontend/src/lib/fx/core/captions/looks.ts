@@ -57,9 +57,12 @@ export function activeLook(p: Pick<PreparedScene, "scene">): ActiveLook | null {
 /** Keyword treatment: the highlighter boxes it, the others colour it. */
 export const keywordBoxed = (template: string): boolean => template === "highlighter_swipe";
 
-/** Edge punctuation off ("crazy," → "crazy", "“yes”" → "yes"); currency, %, inner apostrophes and digits stay. */
+/**
+ * Edge punctuation off ("crazy," → "crazy", "“yes”" → "yes"); currency, %, inner apostrophes and digits stay, and so
+ * do the stars of a censored word ("n****." → "n****", never "n").
+ */
 export function stripEdgePunct(text: string): string {
-  const out = text.replace(/^[^\p{L}\p{N}$€£¥#]+/u, "").replace(/[^\p{L}\p{N}%']+$/u, "");
+  const out = text.replace(/^[^\p{L}\p{N}$€£¥#]+/u, "").replace(/[^\p{L}\p{N}%'*]+$/u, "");
   return out || text;
 }
 
