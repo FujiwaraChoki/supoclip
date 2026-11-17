@@ -89,12 +89,18 @@
   "apiKeys": {
     "title": "智能体与 API",
     "intro": "让 Claude、Cursor 和其他 AI 智能体通过 <brand>SupoClip MCP 服务器</brand>帮你剪视频，或者在你自己的代码里调用 REST API。密钥和密码一样：它们可以完全访问你的账号。",
-    "docs": {
-      "agentTitle": "连接智能体",
-      "agentDescription": "在 Claude、Cursor 和其他 MCP 客户端里设置 MCP 服务器。",
-      "restTitle": "REST API 参考",
-      "restDescription": "直接调用 API 的端点、身份验证和示例。"
-    },
+    "docsMcp": "MCP 文档",
+    "docsRest": "REST API 文档",
+    "keysTitle": "API 密钥",
+    "keysIntro": "用于脚本、CI 以及无法通过浏览器登录的 MCP 客户端。",
+    "createKey": "创建密钥",
+    "createTitle": "创建 API 密钥",
+    "createDescription": "按使用位置命名，方便以后知道该撤销哪一个。",
+    "nameLabel": "名称",
+    "createdTitle": "你的新 API 密钥",
+    "useIn": "在 MCP 客户端中使用",
+    "done": "完成",
+    "cancel": "取消",
     "signIn": "登录后管理你的 API 密钥。",
     "signInAction": "登录",
     "verifyTitle": "验证邮箱后才能创建 API 密钥",
@@ -107,12 +113,10 @@
     "invalidLink": "这个验证链接无效或已过期。请在下面重新请求邮件。",
     "reveal": "请马上复制新密钥 — 之后不会再显示。",
     "copy": "复制 API 密钥",
-    "createLabel": "创建新密钥",
     "namePlaceholder": "例如：我的笔记本电脑 MCP",
     "create": "创建",
     "creating": "正在创建…",
     "defaultName": "API 密钥",
-    "yourKeys": "你的密钥",
     "empty": "还没有 API 密钥。",
     "revoked": "已撤销",
     "meta": "创建于 {created} · 上次使用 {used}",
@@ -122,27 +126,53 @@
     "createFailed": "无法创建 API 密钥",
     "revokeFailed": "无法撤销 API 密钥",
     "mcp": {
-      "title": "连接智能体",
-      "intro": "先在上面创建密钥，再复制你所用客户端的配置。把 {placeholder} 换成你的密钥，URL 字段里只填 URL。",
-      "introWithKey": "你的新密钥已经填在下面。现在就复制客户端配置；密钥不会再次显示。",
-      "urlLabel": "服务器 URL",
-      "headerLabel": "请求头",
       "copy": "复制{label}",
       "tabs": {
-        "claudeCode": "Claude Code",
         "json": "Cursor 等",
-        "claudeDesktop": "Claude Desktop",
-        "stdio": "本地（stdio）",
-        "connectors": "claude.ai 和 ChatGPT"
+        "stdio": "本地（stdio）"
       },
       "hints": {
-        "claudeCode": "在终端里运行。",
         "json": "适用于 Cursor（~/.cursor/mcp.json）、Windsurf 以及其他可以填写 URL 和请求头的客户端。",
-        "claudeDesktop": "加到 claude_desktop_config.json。需要 Node.js；mcp-remote 把 Claude Desktop 连接到托管服务器。",
-        "stdio": "在你的电脑上运行服务器，下载的片段会保存在本地。需要 uv。",
-        "connectors": "把这个 URL 添加为自定义连接器，然后登录并允许访问。无需复制密钥：它会自动创建自己的密钥，显示在下方列表中。"
+        "stdio": "在你的电脑上运行服务器，下载的片段会保存在本地。需要 uv。"
+      }
+    },
+    "assistants": {
+      "title": "连接 Claude、ChatGPT 或 Grok",
+      "intro": "无需复制 API 密钥：在助手中将 SupoClip 添加为自定义连接器，然后登录 SupoClip 并允许访问。助手会获得自己的密钥，显示在“API 密钥”中。",
+      "urlLabel": "服务器 URL",
+      "pick": "选择助手",
+      "open": "打开 {name}",
+      "guide": "{name} 设置指南",
+      "newTab": "（在新标签页中打开）",
+      "revoke": "每个连接都会以应用名称显示在“API 密钥”中（例如“Claude connector”）。撤销即可断开连接。通过助手制作剪辑会消耗你套餐的视频分钟数。",
+      "claude": {
+        "steps": {
+          "1": "在 Claude 中打开 <b>Customize › Connectors</b>，选择 <b>Add</b>，再选择 <b>Add custom connector</b>。",
+          "2": "命名为 SupoClip，粘贴服务器 URL，然后点击 <b>Continue</b>。",
+          "3": "保留 Claude 标记为 <b>Detected</b> 的登录设置。如果询问 Claude 如何标识自己，请选择 <b>Register automatically</b>。点击 <b>Add</b>。",
+          "4": "点击 <b>Connect</b>，登录 SupoClip 并选择 <b>Allow</b>。"
+        },
+        "availability": "Anthropic 在 Free（一个连接器）、Pro、Max、Ultra、Team 和 Enterprise 中支持自定义连接器。在 Team 和 Enterprise 中，由 Owner 在 Organization settings › Connectors 中添加，然后每位成员点击 Connect。",
+        "code": "Claude Code：在终端运行以下命令，并在浏览器打开时登录。",
+        "codeLabel": "Claude Code 命令"
       },
-      "planNote": "通过智能体生成片段会消耗你套餐的视频分钟数。"
+      "chatgpt": {
+        "steps": {
+          "1": "在网页版 ChatGPT 中打开 <b>Plugins</b>，选择 <b>+</b>，再选择 <b>Add custom MCP server</b>。",
+          "2": "命名为 SupoClip，并在 <b>Connection</b> 下粘贴服务器 URL。",
+          "3": "将身份验证设为 <b>OAuth</b>，接受风险提示，然后选择 <b>Create as a plugin</b>。",
+          "4": "安装插件，登录 SupoClip 并选择 <b>Allow</b>。ChatGPT 会在每次制作或修改剪辑前请你确认。"
+        },
+        "availability": "OpenAI 在网页版 ChatGPT 中为 Business、Enterprise 和 Edu 提供自定义 MCP 服务器；在 Business 中由管理员和所有者添加。Pro 账户只能使用只读工具：ChatGPT 可以列出你的剪辑，但不能制作新剪辑。OpenAI 未说明其他套餐的情况。"
+      },
+      "grok": {
+        "steps": {
+          "1": "在 grok.com 打开 <b>Connectors</b>，选择 <b>New Connector</b>，再选择 <b>Custom</b>。",
+          "2": "粘贴服务器 URL。",
+          "3": "完成登录：登录 SupoClip 并选择 <b>Allow</b>。"
+        },
+        "availability": "xAI 表示所有 Grok 用户都可以使用连接器；在 Business 和 Enterprise 中，需要管理员先在 xAI 控制台添加连接器。xAI 未说明自定义连接器支持哪些登录方式，因此此流程尚未在 Grok 上得到确认。如果失败，请连接其他助手或使用下方的 API 密钥。"
+      }
     }
   },
   "creator": {

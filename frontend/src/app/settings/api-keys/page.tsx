@@ -3,32 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { ArrowUpRight, Bot, Braces, Copy, Check, Trash2, AlertCircle, Plus } from "lucide-react";
+import { ArrowUpRight, Copy, Check, Trash2, AlertCircle, Plus, KeyRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient, useSession } from "@/lib/auth-client";
 import { useCopyText } from "@/lib/copy-text";
 import { GITHUB_URL } from "@/lib/site";
-import { McpSetup } from "@/components/mcp-setup";
+import { KeyClientSetup } from "@/components/mcp-setup";
+import { AssistantConnect } from "@/components/assistant-connect";
 
 const DOCS = [
-  {
-    titleKey: "agentTitle",
-    descriptionKey: "agentDescription",
-    href: `${GITHUB_URL}/blob/main/mcp/README.md`,
-    icon: Bot,
-  },
-  {
-    titleKey: "restTitle",
-    descriptionKey: "restDescription",
-    href: `${GITHUB_URL}/blob/main/docs/api-reference.md#authenticating-with-api-keys`,
-    icon: Braces,
-  },
+  { labelKey: "docsMcp", href: `${GITHUB_URL}/blob/main/mcp/README.md` },
+  { labelKey: "docsRest", href: `${GITHUB_URL}/blob/main/docs/api-reference.md#authenticating-with-api-keys` },
 ] as const;
 
 interface ApiKey {
@@ -59,6 +51,7 @@ export default function ApiKeysPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
   const emailVerified = session?.user?.emailVerified === true;
@@ -159,6 +152,16 @@ export default function ApiKeysPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCreateOpenChange = (open: boolean) => {
+    setCreateOpen(open);
+    if (!open) {
+      // Shown once: closing the dialog forgets the key.
+      setNewKey(null);
+      setName("");
+      setCopied(false);
+    }
+  };
+
   if (isPending) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -182,151 +185,165 @@ export default function ApiKeysPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
-        <div>
-          <div className="mb-8">
-            <h1 className="font-display text-3xl font-bold tracking-tight">{t("apiKeys.title")}</h1>
-            <p className="mt-2 text-muted-foreground">
-              {t.rich("apiKeys.intro", {
-                brand: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
-              })}
-            </p>
-          </div>
-
-          <div className="mb-8 grid gap-3 sm:grid-cols-2">
-            {DOCS.map((doc) => (
-              <a
-                key={doc.href}
-                href={doc.href}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex items-start gap-3 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"><doc.icon className="size-4" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1 text-sm font-semibold">
-                    {t(`apiKeys.docs.${doc.titleKey}`)}
-                    <ArrowUpRight className="size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{t(`apiKeys.docs.${doc.descriptionKey}`)}</span>
-                </span>
+      <div className="mb-8">
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("apiKeys.title")}</h1>
+        <p className="mt-2 text-muted-foreground">
+          {t.rich("apiKeys.intro", {
+            brand: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+          })}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {DOCS.map((doc) => (
+            <Button key={doc.href} asChild size="sm" variant="outline">
+              <a href={doc.href} target="_blank" rel="noreferrer">
+                {t(`apiKeys.${doc.labelKey}`)}
+                <ArrowUpRight className="size-3.5 opacity-60" aria-hidden />
               </a>
-            ))}
-          </div>
+            </Button>
+          ))}
+        </div>
+      </div>
 
-          {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-          {!emailVerified && (
-            <Alert className="mb-6">
-              <AlertDescription>
-                <p className="font-medium">{t("apiKeys.verifyTitle")}</p>
-                <p className="mt-1">{t("apiKeys.verifyBody", { email: session.user.email })}</p>
-                {verificationSent && (
-                  <p role="status" className="mt-2">{t("apiKeys.verifySent")}</p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={handleSendVerification} disabled={isSendingVerification}>
-                    {isSendingVerification ? t("apiKeys.sending") : verificationSent ? t("apiKeys.resendVerification") : t("apiKeys.sendVerification")}
-                  </Button>
-                  <Button variant="ghost" onClick={() => void refetch()}>
-                    {t("apiKeys.verified")}
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* One-time key reveal */}
-          {newKey && (
-            <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-900/60 dark:bg-green-950/40">
-              <AlertDescription>
-                <p className="font-medium text-green-900 mb-2 dark:text-green-100">
-                  {t("apiKeys.reveal")}
-                </p>
-                <div className="flex items-center gap-2">
-                  <code ref={newKeyRef} tabIndex={-1} className="flex-1 select-text px-3 py-2 bg-muted border rounded text-sm break-all">
-                    {newKey}
-                  </code>
-                  <Button size="sm" variant="outline" onClick={handleCopy} aria-label={t("apiKeys.copy")}>
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Create form */}
-          <div className="mb-10 p-4 border rounded-lg">
-            <Label htmlFor="key-name" className="mb-2 block">
-              {t("apiKeys.createLabel")}
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="key-name"
-                placeholder={t("apiKeys.namePlaceholder")}
-                value={name}
-                maxLength={120}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isCreating || !emailVerified}
-              />
-              <Button onClick={handleCreate} disabled={isCreating || !emailVerified}>
-                <Plus className="w-4 h-4" />
-                {isCreating ? t("apiKeys.creating") : t("apiKeys.create")}
+      {!emailVerified && (
+        <Alert className="mb-6">
+          <AlertDescription>
+            <p className="font-medium">{t("apiKeys.verifyTitle")}</p>
+            <p className="mt-1">{t("apiKeys.verifyBody", { email: session.user.email })}</p>
+            {verificationSent && (
+              <p role="status" className="mt-2">{t("apiKeys.verifySent")}</p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleSendVerification} disabled={isSendingVerification}>
+                {isSendingVerification ? t("apiKeys.sending") : verificationSent ? t("apiKeys.resendVerification") : t("apiKeys.sendVerification")}
+              </Button>
+              <Button variant="ghost" onClick={() => void refetch()}>
+                {t("apiKeys.verified")}
               </Button>
             </div>
-          </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
-          <McpSetup apiKey={newKey} />
+      <AssistantConnect />
 
-          {/* Key list */}
-          <div>
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
-              {t("apiKeys.yourKeys")}
-            </h2>
-            {isFetching ? (
-              <Skeleton className="h-20 w-full" />
-            ) : keys.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("apiKeys.empty")}</p>
-            ) : (
-              <div className="space-y-3">
-                {keys.map((key) => (
-                  <div
-                    key={key.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground truncate">{key.name}</span>
-                        {key.revoked && <Badge variant="secondary">{t("apiKeys.revoked")}</Badge>}
-                      </div>
-                      <p className="text-xs text-muted-foreground font-mono mt-1">
-                        {key.key_prefix}…
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {t("apiKeys.meta", { created: formatDate(key.created_at), used: formatDate(key.last_used_at) })}
-                      </p>
-                    </div>
-                    {!key.revoked && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
-                        onClick={() => handleRevoke(key.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        {t("apiKeys.revoke")}
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+      <section className="overflow-hidden rounded-xl border bg-card" aria-labelledby="api-keys-title">
+        <div className="flex flex-wrap items-start justify-between gap-3 p-5">
+          <div className="min-w-0">
+            <h2 id="api-keys-title" className="text-sm font-semibold">{t("apiKeys.keysTitle")}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("apiKeys.keysIntro")}</p>
           </div>
+          <Button size="sm" onClick={() => setCreateOpen(true)} disabled={!emailVerified}>
+            <Plus className="size-4" />
+            {t("apiKeys.createKey")}
+          </Button>
         </div>
+
+        <div className="border-t">
+          {isFetching ? (
+            <div className="p-5"><Skeleton className="h-12 w-full" /></div>
+          ) : keys.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-muted-foreground">{t("apiKeys.empty")}</p>
+          ) : (
+            <ul className="divide-y">
+              {keys.map((key) => (
+                <li key={key.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                    <KeyRound className="size-3.5" aria-hidden />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{key.name}</span>
+                      <code className="hidden shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground sm:inline">{key.key_prefix}…</code>
+                      {key.revoked && <Badge variant="secondary">{t("apiKeys.revoked")}</Badge>}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t("apiKeys.meta", { created: formatDate(key.created_at), used: formatDate(key.last_used_at) })}
+                    </p>
+                  </div>
+                  {!key.revoked && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                      onClick={() => handleRevoke(key.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span className="sr-only sm:not-sr-only">{t("apiKeys.revoke")}</span>
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <Dialog open={createOpen} onOpenChange={handleCreateOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          {newKey ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t("apiKeys.createdTitle")}</DialogTitle>
+                <DialogDescription>{t("apiKeys.reveal")}</DialogDescription>
+              </DialogHeader>
+              <div className="flex min-w-0 items-center gap-2">
+                <code ref={newKeyRef} tabIndex={-1} className="min-w-0 flex-1 select-text break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                  {newKey}
+                </code>
+                <Button size="icon" variant="outline" onClick={handleCopy} aria-label={t("apiKeys.copy")}>
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </div>
+              <div className="min-w-0 space-y-2 border-t pt-4">
+                <p className="text-sm font-medium">{t("apiKeys.useIn")}</p>
+                <KeyClientSetup apiKey={newKey} />
+              </div>
+              <DialogFooter>
+                <Button onClick={() => handleCreateOpenChange(false)}>{t("apiKeys.done")}</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <form
+              className="grid gap-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleCreate();
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>{t("apiKeys.createTitle")}</DialogTitle>
+                <DialogDescription>{t("apiKeys.createDescription")}</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-2">
+                <Label htmlFor="key-name">{t("apiKeys.nameLabel")}</Label>
+                <Input
+                  id="key-name"
+                  autoFocus
+                  placeholder={t("apiKeys.namePlaceholder")}
+                  value={name}
+                  maxLength={120}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isCreating}
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => handleCreateOpenChange(false)}>{t("apiKeys.cancel")}</Button>
+                <Button type="submit" disabled={isCreating || !emailVerified}>
+                  {isCreating ? t("apiKeys.creating") : t("apiKeys.create")}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

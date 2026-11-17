@@ -131,6 +131,8 @@
   "eta": {
     "queued": "Aguardando um worker",
     "estimating": "Calculando o tempo restante…",
+    "stillDownloading": "O download do vídeo continua…",
+    "minuteRange": "Faltam cerca de {low} a {high} min",
     "underMinute": "Menos de um minuto",
     "minutes": "Cerca de {count} min restantes"
   },

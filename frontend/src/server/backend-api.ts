@@ -12,6 +12,7 @@ export const DEFAULT_FORWARDED_HEADERS = [
   "etag",
   "last-modified",
   "location",
+  "retry-after",
   "x-trace-id",
 ] as const;
 

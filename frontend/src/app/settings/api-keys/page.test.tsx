@@ -28,7 +28,7 @@ beforeEach(() => {
 it("blocks creation but lets unverified users send a link and revoke an existing key", async () => {
   mocks.send.mockResolvedValue({ data: { status: true } });
   render(<ApiKeysPage />);
-  expect(screen.getByRole("button", { name: /^Create$/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Create key" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Send verification email" }));
   await screen.findByRole("status");
   expect(mocks.send).toHaveBeenCalledWith({ email: "owner@example.com", callbackURL: "/settings/api-keys" });
@@ -43,7 +43,7 @@ it("shows send failures and keeps creation blocked", async () => {
   render(<ApiKeysPage />);
   fireEvent.click(screen.getByRole("button", { name: "Send verification email" }));
   await screen.findByText("Please try again later");
-  expect(screen.getByRole("button", { name: /^Create$/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Create key" })).toBeDisabled();
 });
 
 it("shows invalid verification callbacks after loading keys", async () => {
@@ -62,24 +62,39 @@ it("allows a verified user to create and copy a key", async () => {
   ), { status: 200 }));
   render(<ApiKeysPage />);
   expect(screen.queryByRole("button", { name: "Send verification email" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Create$/ }));
   await screen.findByText("sk_only-once");
   fireEvent.click(screen.getByRole("button", { name: "Copy API key" }));
   await waitFor(() => expect(writeText).toHaveBeenCalledWith("sk_only-once"));
   expect(toast.success).toHaveBeenCalledWith("Copied to clipboard");
 });
 
-it("shows MCP setup with only the URL in the URL field, filled with a new key", async () => {
+it("fills the new key into MCP client config, never into the assistants' setup", async () => {
   mocks.verified = true;
   vi.mocked(fetch).mockImplementation(async (_url, options) => new Response(JSON.stringify(
     options?.method === "POST" ? { api_key: { key: "sk_only-once" } } : { api_keys: [] }
   ), { status: 200 }));
   render(<ApiKeysPage />);
-  expect(screen.getByText("https://mcp.supoclip.com/mcp")).toBeInTheDocument();
-  expect(screen.getByText('claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_..."')).toBeInTheDocument();
+  // Only the chat assistants show the URL until a key exists.
+  expect(screen.getAllByText("https://mcp.supoclip.com/mcp")).toHaveLength(1);
+  expect(screen.queryByText(/Bearer sk_/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+  fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "Cursor" } });
   fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
-  await screen.findByText('claude mcp add --transport http supoclip https://mcp.supoclip.com/mcp --header "Authorization: Bearer sk_only-once"');
-  expect(screen.getByText("Authorization: Bearer sk_only-once")).toBeInTheDocument();
+  await screen.findByText("sk_only-once");
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/api-keys", expect.objectContaining({ body: JSON.stringify({ name: "Cursor" }) })));
+  const config = JSON.parse(screen.getByText(/"mcpServers"/).textContent ?? "");
+  expect(config.mcpServers.supoclip).toEqual({ url: "https://mcp.supoclip.com/mcp", headers: { Authorization: "Bearer sk_only-once" } });
+  // Chat assistants sign in with OAuth: the new key never reaches their setup or links.
+  // (The open dialog hides the page from the accessibility tree, hence `hidden`.)
+  const assistants = screen.getByRole("region", { name: "Connect Claude, ChatGPT or Grok", hidden: true });
+  expect(assistants.textContent).not.toContain("sk_only-once");
+  for (const link of screen.getAllByRole("link", { hidden: true })) expect(link.getAttribute("href")).not.toContain("sk_only-once");
+
+  // Shown once: closing the dialog forgets the key.
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(screen.queryByText("sk_only-once")).not.toBeInTheDocument());
 });
 
 it("selects the new key when the clipboard blocks the copy", async () => {
@@ -91,7 +106,8 @@ it("selects the new key when the clipboard blocks the copy", async () => {
     options?.method === "POST" ? { api_key: { key: "sk_only-once" } } : { api_keys: [] }
   ), { status: 200 }));
   render(<ApiKeysPage />);
-  fireEvent.click(screen.getByRole("button", { name: /^Create$/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Create$/ }));
   const key = await screen.findByText("sk_only-once");
   fireEvent.click(screen.getByRole("button", { name: "Copy API key" }));
   await waitFor(() => expect(toast.message).toHaveBeenCalledWith("Clipboard is blocked. The text is selected so you can copy it manually."));

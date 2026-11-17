@@ -131,6 +131,8 @@
   "eta": {
     "queued": "Menunggu worker",
     "estimating": "Memperkirakan sisa waktu…",
+    "stillDownloading": "Video Anda masih diunduh…",
+    "minuteRange": "Sekitar {low}–{high} menit lagi",
     "underMinute": "Kurang dari satu menit lagi",
     "minutes": "Sekitar {count} menit lagi"
   },

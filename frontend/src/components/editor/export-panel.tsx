@@ -38,6 +38,7 @@ import {
   browserExportRefusal,
   type BrowserExportRefusal,
 } from "@/lib/fx/offline-mix";
+import { singleFlight } from "@/lib/editor/single-flight";
 import { editorRequest } from "./use-editor";
 import { editorMessage } from "./studio-ui";
 import { toast } from "sonner";
@@ -162,11 +163,14 @@ export function ExportPanel({
       stopped = true;
     };
   }, [open, size.width, size.height, preset, asset.hasAudio]);
-  const refresh = useCallback(async () => {
+  // One refresh is one editor GET per clip. Ticks must not stack up behind a
+  // slow response, or each one adds another burst for the backend.
+  const [flight] = useState(singleFlight);
+  const load = useCallback(async (signal: AbortSignal) => {
     const results = await Promise.allSettled(
       clips.map(async (c) => {
         const url = `/api/tasks/${taskId}/clips/${c.id}/editor`;
-        const state = await editorRequest<EditorState>(url);
+        const state = await editorRequest<EditorState>(url, "GET", undefined, signal);
         return (state.jobs || []).map((job) => ({
           ...job,
           endpoint: url,
@@ -174,17 +178,28 @@ export function ExportPanel({
         }));
       }),
     );
+    // Closed or unmounted while this was loading.
+    if (signal.aborted) return;
     const fulfilled = results.filter(
       (r): r is PromiseFulfilledResult<Job[]> => r.status === "fulfilled",
     );
     if (fulfilled.length) setJobs(fulfilled.flatMap((r) => r.value));
   }, [clips, taskId]);
+  const refresh = useCallback(() => flight(load), [flight, load]);
   useEffect(() => {
     if (!open) return;
     void refresh();
-    const timer = setInterval(() => void refresh(), 3000);
-    return () => clearInterval(timer);
-  }, [open, refresh]);
+    const timer = setInterval(
+      () => void flight(load, { skipIfBusy: true }),
+      3000,
+    );
+    return () => {
+      clearInterval(timer);
+      flight.reset();
+    };
+  }, [open, refresh, flight, load]);
+  // Also covers a refresh started while the panel was closed.
+  useEffect(() => () => flight.reset(), [flight]);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     if (!busy || mode !== "browser") return;

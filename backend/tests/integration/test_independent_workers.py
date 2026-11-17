@@ -7,6 +7,7 @@ its own files, and the same database and object storage.
 from contextlib import contextmanager
 import copy
 import hashlib
+import os
 from pathlib import Path
 import time
 from unittest.mock import AsyncMock
@@ -177,7 +178,11 @@ async def test_a_lost_upload_fails_instead_of_waiting_forever(db_session, media_
 
 @pytest.fixture
 async def redis():
-    client = redis_asyncio.Redis(host="127.0.0.1", port=6379, decode_responses=True)
+    client = redis_asyncio.Redis(
+        host=os.getenv("REDIS_HOST", "127.0.0.1"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        decode_responses=True,
+    )
     yield client
     await client.aclose()
 

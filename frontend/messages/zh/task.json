@@ -131,6 +131,8 @@
   "eta": {
     "queued": "正在等待处理",
     "estimating": "正在估算剩余时间…",
+    "stillDownloading": "仍在下载视频…",
+    "minuteRange": "大约还需 {low}–{high} 分钟",
     "underMinute": "不到一分钟",
     "minutes": "大约还需 {count} 分钟"
   },

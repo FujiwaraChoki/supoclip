@@ -155,7 +155,7 @@ def create_app(
         return JSONResponse(
             status_code=exc.status_code,
             content=jsonable_encoder({"detail": exc.detail, "trace_id": trace_id}),
-            headers={TRACE_HEADER: trace_id},
+            headers={**(exc.headers or {}), TRACE_HEADER: trace_id},
         )
 
     @app.exception_handler(RequestValidationError)
@@ -203,6 +203,7 @@ def create_app(
     from .api.routes.email_preferences import router as email_preferences_router
     from .api.routes.feature_flags import router as feature_flags_router
     from .api.routes.fx import router as fx_router
+    from .api.routes.stripe_cancellations import router as stripe_cancellations_router
     from .api.routes.mcp_oauth import consent_router as mcp_oauth_consent_router
     from .api.routes.mcp_oauth import internal_router as mcp_oauth_internal_router
 
@@ -215,6 +216,7 @@ def create_app(
     app.include_router(email_preferences_router)
     app.include_router(feature_flags_router)
     app.include_router(fx_router)
+    app.include_router(stripe_cancellations_router)
     app.include_router(mcp_oauth_internal_router)
     app.include_router(mcp_oauth_consent_router)
 

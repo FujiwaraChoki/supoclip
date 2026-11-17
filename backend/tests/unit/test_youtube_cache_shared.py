@@ -118,3 +118,46 @@ def test_a_better_full_file_from_another_machine_replaces_a_lower_one():
     outdated = {**remote, "audio_policy": "earlier", "ranges": [{"start": 0, "end": 1, "file": "r.mp4"}]}
     merged = source._merge_manifests({"audio_policy": source.AUDIO_POLICY, "ranges": []}, outdated)
     assert merged.get("audio") is None and merged["ranges"] == [] and merged["full"] == "full-1080.mp4"
+
+
+def test_long_section_resumes_from_last_completed_fragment_on_another_worker(machines, monkeypatch):
+    client, first, second, use = machines
+    runtime = Config()
+    runtime.youtube_proxy_url = "http://proxy.example"
+    runtime.youtube_section_padding_seconds = 0
+    monkeypatch.setattr(source, "get_config", lambda: runtime)
+    calls = []
+
+    def download(url, video_id, start, end, dest, *, task_id, budget):
+        calls.append((start, end))
+        if dest.parent == first[1] and len(calls) == 2:
+            raise TimeoutError("connection lost")
+        # Simulate whole fragments covering a little extra at both ends.
+        dest.write_bytes(b"complete media")
+        return dest, max(0, start - 1), end + 2
+
+    monkeypatch.setattr(source, "download_section_file", download)
+    monkeypatch.setattr(source, "_trim_local", lambda path, dest, *args: dest.write_bytes(path.read_bytes()))
+    monkeypatch.setattr(source, "_concat_local", lambda files, dest, **kwargs: dest.write_bytes(b"render"))
+
+    def render(machine):
+        directory = use(machine)
+        runtime.temp_dir = str(directory.parent.parent)
+        return source.materialize_clip_source(
+            "https://www.youtube.com/watch?v=abcdefghijk", VIDEO_ID,
+            [{"start_time": 15, "end_time": 605}], duration=900,
+        )
+
+    with pytest.raises(TimeoutError):
+        render(first)
+    checkpoint = stored_manifest(client)["ranges"]
+    assert len(checkpoint) == 1 and checkpoint[0]["end"] == 77
+    assert calls == [(15, 75), (77, 137)]
+    calls.clear()
+    result = render(second)
+    assert calls[0] == (77, 137)
+    assert calls[-1][1] == 605
+    assert all(end - start <= 60 for start, end in calls)
+    timeline = source.load_time_map(result)
+    assert timeline.to_local_ranges([(15, 605)], strict=True) == [(0, 590)]
+    assert timeline.to_original_ranges([(0, 590)]) == [(15, 605)]

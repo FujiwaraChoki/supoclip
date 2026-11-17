@@ -144,6 +144,11 @@ services:
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
+      # The API serves bursts of editor and SSE requests, so it gets a larger
+      # pool than the workers (default 5, no overflow). Budget in docs/configuration.md.
+      - DATABASE_POOL_SIZE=10
+      - DATABASE_MAX_OVERFLOW=5
+      - DATABASE_POOL_TIMEOUT_SECONDS=10
       - TEMP_DIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
@@ -246,6 +251,9 @@ services:
       - "SES_FROM_EMAIL=${SES_FROM_EMAIL:-SupoClip <onboarding@example.com>}"
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - DISCORD_FEEDBACK_WEBHOOK_URL=${DISCORD_FEEDBACK_WEBHOOK_URL}
+      # Cancellation reviews: Stripe signing secrets per account (no Stripe API key)
+      - STRIPE_CANCELLATION_WEBHOOK_SECRETS=${STRIPE_CANCELLATION_WEBHOOK_SECRETS:-}
+      - STRIPE_SOURCE_ACCOUNT_ID=${STRIPE_SOURCE_ACCOUNT_ID:-}
       # Social publishing (OAuth apps; users connect their own accounts)
       - YOUTUBE_OAUTH_CLIENT_ID=${YOUTUBE_OAUTH_CLIENT_ID}
       - YOUTUBE_OAUTH_CLIENT_SECRET=${YOUTUBE_OAUTH_CLIENT_SECRET}
@@ -428,6 +436,13 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
+      # Cancellation reviews (cron worker): investigate and post reports to the chat webhook
+      - CANCELLATION_REVIEWS_ENABLED=${CANCELLATION_REVIEWS_ENABLED:-false}
+      - CANCELLATION_REVIEW_SETTLE_SECONDS=${CANCELLATION_REVIEW_SETTLE_SECONDS:-600}
+      - CANCELLATION_REVIEW_MODEL=${CANCELLATION_REVIEW_MODEL:-claude-sonnet-5-5}
+      - CANCELLATION_REPORT_WEBHOOK_URL=${CANCELLATION_REPORT_WEBHOOK_URL:-}
+      - CANCELLATION_REPORT_WEBHOOK_SECRET=${CANCELLATION_REPORT_WEBHOOK_SECRET:-}
+      - STRIPE_SOURCE_ACCOUNT_ID=${STRIPE_SOURCE_ACCOUNT_ID:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
       - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
