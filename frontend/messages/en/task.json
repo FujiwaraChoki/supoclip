@@ -131,6 +131,8 @@
   "eta": {
     "queued": "Waiting for a worker",
     "estimating": "Estimating time left…",
+    "stillDownloading": "Still downloading your video…",
+    "minuteRange": "About {low}–{high} min left",
     "underMinute": "Less than a minute left",
     "minutes": "About {count} min left"
   },

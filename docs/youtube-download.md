@@ -14,7 +14,9 @@ When the modest https audio download fails with HTTP 403 or yt-dlp's "unable to 
 
 The HLS retry does not pass a format string such as `bestaudio[protocol^=m3u8]`. A format string can make yt-dlp hand the playlist to ffmpeg, which would leave from the server IP. The retry selects one format and downloads it with the native client. Player clients stay at yt-dlp defaults, so an info response that listed no HLS formats cannot be repaired here. `--download-sections` is still not used.
 
-Audio and individual section downloads retry a transient timeout or proxy connection failure once with fresh metadata and a new session. The extra attempt has a 60-second deadline and shares the original byte allowance, including bytes spent on failed attempts. Completed sections remain cached. Budget failures, unsupported formats, private videos and bot checks do not trigger this transport retry. The existing HLS-on-403 recovery and provider fallbacks remain in place.
+Long selections are requested in windows of up to 60 seconds of source video. Each window is saved as soon as it completes, including any extra frames in the final source fragment. A retry reuses those saved windows.
+
+Audio and individual windows retry a transient timeout or proxy connection failure once with fresh metadata and a new session. An audio retry has a 60-second deadline. For a window, 60 seconds without new media bytes triggers recovery. A window that keeps receiving bytes may use the time remaining in that provider's overall allowance for the window (six minutes by default), including on the retry. All attempts count against the same job byte allowance.
 
 Uploads and non-YouTube download paths are unchanged. Without a proxy, YouTube jobs still download a full file, now capped at 1080p, and that file is cached too.
 

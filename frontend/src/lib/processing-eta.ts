@@ -35,7 +35,7 @@ export interface EtaInput {
 
 /** Median render time of one output: parts and single cuts run longer than highlights. */
 export function secondsPerClip(workflow: Workflow) {
-  if (workflow === "series") return 35;
+  if (workflow === "series") return 44;
   if (workflow === "recap" || workflow === "trailer") return 40;
   return 20;
 }
@@ -46,7 +46,11 @@ function phaseSeconds(phase: Exclude<EtaPhase, "render">, input: EtaInput) {
     case "fetch": return input.upload ? 6 : 22;
     case "transcribe": return 11 + 0.62 * minutes;
     // Workflows plan with several model calls before any cut.
-    case "find": return (input.workflow === "highlights" ? 7 : 30) + 0.43 * minutes;
+    case "find":
+      // A 30-minute series typically needs several minutes to plan its parts.
+      // Larger sources still produce at most ten parts.
+      if (input.workflow === "series") return 45 + 9 * Math.min(minutes, 32);
+      return (input.workflow === "highlights" ? 7 : 30) + 0.43 * minutes;
     case "sections": return input.upload ? 0 : 85 + 5.9 * minutes;
   }
 }
@@ -74,4 +78,18 @@ export function estimateRemainingSeconds(input: EtaInput) {
     remaining += later === "render" ? outputs * perClip : phaseSeconds(later, input);
   }
   return remaining;
+}
+
+export function isDownloadOverdue(input: EtaInput) {
+  if (input.upload || (input.phase !== "fetch" && input.phase !== "sections")) return false;
+  return input.phaseElapsed > phaseSeconds(input.phase, input);
+}
+
+/** Rounded pre-render range for remote series. In November's 20–45 minute
+ * YouTube cohort, median processing time was 18 min, p25 12 min and p90 31 min. */
+export function seriesEtaRange(seconds: number) {
+  return {
+    low: Math.max(1, Math.floor(seconds * 0.66 / 60)),
+    high: Math.max(2, Math.ceil(seconds * 1.7 / 60)),
+  };
 }

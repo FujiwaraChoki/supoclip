@@ -131,6 +131,8 @@
   "eta": {
     "queued": "Wartet auf einen freien Worker",
     "estimating": "Restzeit wird geschätzt…",
+    "stillDownloading": "Dein Video wird noch heruntergeladen…",
+    "minuteRange": "Noch etwa {low}–{high} Min.",
     "underMinute": "Weniger als eine Minute",
     "minutes": "Noch etwa {count} Min."
   },

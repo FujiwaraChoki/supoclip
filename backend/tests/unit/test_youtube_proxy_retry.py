@@ -94,6 +94,59 @@ def test_retry_exhaustion_returns_control_to_existing_fallback(downloads, kind, 
     assert not list(tmp_path.rglob("*.mp4"))
 
 
+def test_section_retry_with_new_bytes_can_finish_after_sixty_seconds(downloads, monkeypatch):
+    state, run = downloads
+    download = proxy.native_download_format
+
+    def slow_retry(options, url, video_id, fmt, stem, fragments=None):
+        if not state["failures"] and stem.name == "video":
+            # Each new fragment arrives within the idle limit. Check using the
+            # copied options that yt-dlp's socket client actually receives.
+            socket_options = dict(options)
+            for received in (1, 2, 3):
+                state["clock"] += 45
+                assert proxy._check_deadline(socket_options) > 0
+                options["progress_hooks"][0]({
+                    "status": "downloading", "filename": str(stem.with_suffix(".mp4")),
+                    "downloaded_bytes": received,
+                })
+        return download(options, url, video_id, fmt, stem, fragments)
+
+    monkeypatch.setattr(proxy, "native_download_format", slow_retry)
+    budget = proxy.ByteBudget(100)
+    assert run("section", budget).exists()
+    assert state["clock"] == 235
+    assert len(state["metadata"]) == 2
+    assert budget.snapshot() == 15
+
+
+@pytest.mark.parametrize("stall", [False, True], ids=["hard-cap", "idle"])
+def test_section_byte_progress_cannot_extend_past_limits(downloads, monkeypatch, stall):
+    state, run = downloads
+    failed_at = []
+
+    def slow_download(options, url, video_id, fmt, stem, fragments=None):
+        hook = options["progress_hooks"][0]
+        hook({"status": "downloading", "filename": str(stem),
+              "downloaded_bytes": 0, "total_bytes": 1_000_000})
+        for i in range(1, 20):
+            state["clock"] += 30
+            try:
+                hook({"status": "downloading", "filename": str(stem),
+                      "downloaded_bytes": 1 if stall else i})
+            except proxy.DownloadDeadlineExceeded:
+                failed_at.append(state["clock"])
+                raise
+        pytest.fail("section download must stop")
+
+    monkeypatch.setattr(proxy, "native_download_format", slow_download)
+    with pytest.raises(proxy.DownloadDeadlineExceeded):
+        run("section")
+    # A duplicate count never buys more time. The idle case rotates the
+    # connection once; the hard cap exhausts the original provider allowance.
+    assert failed_at == ([190, 280] if stall else [460])
+
+
 @pytest.mark.parametrize("kind", ["audio", "section"])
 def test_failed_bytes_cannot_get_a_new_allowance_on_retry(downloads, kind):
     state, run = downloads

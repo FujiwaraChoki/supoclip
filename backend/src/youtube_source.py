@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 CACHE_DIRNAME = "youtube-cache"
 WORK_DIRNAME = "youtube-work"
 MANIFEST_NAME = "manifest.json"
+# Checkpoint long selections in minutes of source media, independent of transfer speed.
+SECTION_WINDOW_SECONDS = 60
 # v2 rejects auto-dub tracks before language_preference. Cached v1 audio is discarded.
 AUDIO_POLICY = "original-v2"
 
@@ -295,7 +297,12 @@ def build_time_map(pieces: Iterable[tuple[float, float]]) -> TimeMap:
         start_value, end_value = float(start), float(end)
         if end_value <= start_value:
             continue
-        spans.append(TimeSpan(start_value, end_value, local))
+        # A cache-file boundary in a continuous shot is not an edit.
+        if spans and spans[-1].original_end == start_value:
+            previous = spans[-1]
+            spans[-1] = TimeSpan(previous.original_start, end_value, previous.local_start)
+        else:
+            spans.append(TimeSpan(start_value, end_value, local))
         local += end_value - start_value
     return TimeMap(tuple(spans))
 
@@ -1187,6 +1194,33 @@ def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
     return directory
 
 
+def _cache_section_gap(
+    url: str, video_id: str, start: float, end: float, directory: Path,
+    manifest: dict, task_id: Optional[str], budget: ByteBudget,
+) -> None:
+    """Publish each completed window before asking the proxy for the next."""
+    while start < end - COVERAGE_TOLERANCE_SECONDS:
+        window_end = min(start + SECTION_WINDOW_SECONDS, end)
+        target = directory / _range_filename(start, window_end)
+        _, media_start, media_end = download_section_file(
+            url, video_id, start, window_end, target, task_id=task_id, budget=budget,
+        )
+        if (media_start > start + COVERAGE_TOLERANCE_SECONDS
+                or media_end < window_end - COVERAGE_TOLERANCE_SECONDS):
+            raise YouTubeDownloadError(f"Downloaded section does not cover {start:.2f}-{window_end:.2f}s")
+        manifest["ranges"] = [
+            item for item in manifest["ranges"] if item.get("file") != target.name
+        ]
+        manifest["ranges"].append({
+            "start": media_start, "end": media_end, "file": target.name, "bytes": target.stat().st_size,
+        })
+        _save_manifest(directory, manifest)
+        _persist_named(video_id, target)
+        _persist_manifest(video_id, directory)
+        # The last complete media fragment may extend beyond the requested window.
+        start = media_end
+
+
 def materialize_clip_source(
     url: str,
     video_id: str,
@@ -1235,25 +1269,7 @@ def materialize_clip_source(
         # Recheck and fill gaps under the same lock so a waiting job reuses
         # completed files instead of writing to another job's native parts.
         for gap_start, gap_end in gaps:
-            filename = _range_filename(gap_start, gap_end)
-            target = directory / filename
-            _path, media_start, media_end = download_section_file(
-                url, video_id, gap_start, gap_end, target, task_id=task_id, budget=counter,
-            )
-            manifest = _load_manifest(directory, video_id)
-            manifest["ranges"] = [
-                item for item in manifest.get("ranges") or []
-                if not (abs(float(item.get("start", -1)) - media_start) < 0.05 and item.get("file") == filename)
-            ]
-            manifest["ranges"].append({
-                "start": media_start,
-                "end": media_end,
-                "file": filename,
-                "bytes": target.stat().st_size,
-            })
-            _save_manifest(directory, manifest)
-            _persist_named(video_id, target)
-            _persist_manifest(video_id, directory)
+            _cache_section_gap(url, video_id, gap_start, gap_end, directory, manifest, task_id, counter)
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)

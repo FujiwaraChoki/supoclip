@@ -356,7 +356,7 @@ export function expectedOutputs(
   if (workflow === "series") {
     if (partCount) return partCount;
     if (!sourceSeconds) return 4;
-    return Math.min(6, Math.max(SERIES_MIN_PARTS, Math.round(sourceSeconds / 90)));
+    return Math.min(SERIES_MAX_PARTS, Math.max(SERIES_MIN_PARTS, Math.round(sourceSeconds / 90)));
   }
   if (workflow === "topic") return 5;
   return expectedHighlightCount(sourceSeconds);
