@@ -1,11 +1,62 @@
 {
   "new": "Novo",
+  "welcomeBadge": "Boas-vindas",
   "next": "Avançar",
   "back": "Voltar",
   "done": "Concluir",
   "start": "Mostrar 👀",
   "notNow": "Agora não",
   "progress": "{current} de {total}",
+  "welcome": {
+    "intro": {
+      "title": "Boas-vindas ao SupoClip",
+      "body": "Envie um vídeo longo e transformamos os melhores momentos em clipes verticais curtos, com legendas e prontos para postar. Um tour de dois minutos: como criar seus primeiros clipes e depois cada página que você vai usar."
+    },
+    "source": {
+      "title": "Comece com um vídeo",
+      "body": "Cole aqui um link do YouTube, Twitch ou Kick, ou envie um arquivo pelo clipe de papel, e depois toque na seta. Podcasts, entrevistas e palestras de 10 minutos ou mais funcionam melhor."
+    },
+    "workflows": {
+      "title": "Escolha o que criar",
+      "body": "Destaques traz os melhores momentos, cada um funcionando sozinho, e é a melhor escolha para começar. Os outros transformam um vídeo em série, resumo, trailer ou todos os clipes sobre um tema."
+    },
+    "settings": {
+      "title": "Defina o estilo uma vez",
+      "body": "Duração, legendas, enquadramento e B-roll ficam neste menu. O padrão já é bom, e lembramos o que você mudar."
+    },
+    "library": {
+      "title": "Biblioteca",
+      "body": "Todo vídeo que você recorta aparece aqui, o mais recente primeiro, e dá para pesquisar. Você pode sair enquanto um é processado; ele continua e aparece aqui quando terminar."
+    },
+    "libraryClips": {
+      "title": "Seus clipes, por nota",
+      "body": "Abra um vídeo para ver os clipes, com a melhor nota primeiro. Baixe um ou todos, ou abra um clipe no estúdio para cortar, corrigir uma legenda ou reenquadrar."
+    },
+    "social": {
+      "title": "Conecte suas contas",
+      "body": "Vincule aqui suas redes sociais para publicar clipes direto do SupoClip, sem precisar baixá-los antes."
+    },
+    "analytics": {
+      "title": "Veja o que funciona",
+      "body": "Visualizações, curtidas e comentários das suas postagens voltam para cá, por plataforma, gancho e duração. Depois de algumas postagens, o SupoClip usa isso para escolher clipes parecidos com os seus melhores."
+    },
+    "agents": {
+      "title": "Clipes pelo seu assistente de IA",
+      "body": "Conecte Claude, ChatGPT ou Grok e peça clipes num chat: cole a URL do servidor e entre, sem chave para copiar. Está construindo algo? Crie uma chave de API abaixo."
+    },
+    "captions": {
+      "title": "Seu estilo de legenda",
+      "body": "Defina a fonte, o tamanho e a cor com que cada vídeo novo começa, com prévia. Você ainda pode mudá-los em um vídeo específico."
+    },
+    "plan": {
+      "title": "Seu plano",
+      "body": "Os planos contam minutos dos vídeos que você envia, não clipes. Veja quanto usou neste mês e mude seu plano aqui."
+    },
+    "finish": {
+      "title": "Tudo pronto",
+      "body": "É isso. Cole aqui seu primeiro link e a gente cuida do resto."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Apresentando os fluxos",

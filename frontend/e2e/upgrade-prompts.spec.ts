@@ -63,7 +63,7 @@ test("free users explore first and see plans when they generate", async ({ page 
   await mockApp(page, free);
   await page.goto("/");
   await expect(
-    page.getByRole("main").getByText("Pick a plan to start clipping", { exact: true }),
+    page.getByRole("main").getByText("One long video. A week of shorts.", { exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: "test-results/upgrade-home-free.png" });
 

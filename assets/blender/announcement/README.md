@@ -7,6 +7,8 @@ rendered with Cycles on the GPU. Every motion is driven by the loop phase
 | Script | Status |
 |---|---|
 | `prism-wall.py` | **In use**: the workflows announcement (`frontend/public/tours/workflows.*`). A wall of glass prisms turning in a wave, slicing a five-colour field into shards. |
+| `ribbon-gate.py` | **In use**: the welcome tour for new accounts (`frontend/public/tours/welcome.*`). A twisting satin band of five colours streams in from the left and passes behind a row of tall 9:16 glass panels that slice, refract and disperse it: one long video becoming clips. |
+| `slice-loaf.py` | **In use**: the free-plan card above the composer (`frontend/public/billing/start-plan.*`, 900×900). A long glass loaf of colour slides through a glowing 9:16 gate; every cut leaves a tile with its own clip on its face (subject, hook bar, captions) that turns to the camera and marches off, with sparks at each cut. |
 | `silk-cascade.py` | Kept for a future announcement (`renders/silk-cascade.*`). Hundreds of satin ribbons wrung through one knot, leaving as five colour bands. |
 | `liquid-chrome.py` | Kept for a future announcement (`renders/liquid-chrome.*`). A rolling sea of oil-slick chrome under neon light. |
 
