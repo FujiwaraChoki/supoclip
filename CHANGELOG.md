@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-17
+
+- **Fixed:** House promo codes in referral links or entered before checkout are recognised again when billing uses multiple payment accounts. Code validation now uses the same payment account as checkout. ([#382](https://github.com/FujiwaraChoki/supoclip/pull/382))
+
 ## 2026-11-16
 
 - **Fixed:** Exporting a clip while its clips are being regenerated no longer hangs and then fails. You're asked to try again in a moment, and if the clip was replaced you're told it's gone. ([#419](https://github.com/FujiwaraChoki/supoclip/pull/419))

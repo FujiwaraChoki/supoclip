@@ -2,12 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import {
   BillingAccountHoldError,
-  checkoutStripeAccountId,
-  runWithStripeAccount,
   stripeAccountsEnabled,
-  verifiedStripeClient,
 } from "@/lib/stripe-accounts";
-import { findCreatorOffer } from "@/server/affiliates";
+import { findCheckoutCreatorOffer, findCreatorOffer, validateSlug } from "@/server/affiliates";
 import { getPrismaClient } from "@/server/prisma";
 import { billingAccountRoute } from "@/server/stripe-account-routing";
 
@@ -22,7 +19,7 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({ code: offer.code });
     };
-    if (!stripeAccountsEnabled()) return await lookup();
+    if (!stripeAccountsEnabled() || !validateSlug(code).ok) return await lookup();
 
     // Validate against the same account Checkout will use. The route also
     // serves anonymous referral links, before a user has a billing record.
@@ -30,9 +27,10 @@ export async function GET(request: Request) {
     if (session?.user?.id) {
       return await billingAccountRoute(session.user.id, "checkout", lookup);
     }
-    const accountId = checkoutStripeAccountId();
-    const client = await verifiedStripeClient(accountId);
-    return await runWithStripeAccount({ accountId, client }, lookup);
+    const offer = await findCheckoutCreatorOffer(getPrismaClient(), code);
+    return offer
+      ? NextResponse.json({ code: offer.code })
+      : NextResponse.json({ error: "Unknown creator code" }, { status: 404 });
   } catch (error) {
     if (error instanceof BillingAccountHoldError) {
       return NextResponse.json(
