@@ -64,7 +64,7 @@ function Tile({ label, value, detail }: { label: string; value: string; detail: 
   return (
     <div className="rounded-xl border bg-background p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-foreground">{value}</p>
+      <div className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-foreground">{value}</div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
     </div>
   );

@@ -92,7 +92,7 @@ export function MomentMap() {
         <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <kind.Icon className="size-3.5" aria-hidden="true" />{kind.label}
         </p>
-        <p className="mt-2 font-semibold text-foreground"><span className="font-mono text-muted-foreground">{clock(moment.minute)}</span> · {moment.title}</p>
+        <div className="mt-2 font-semibold text-foreground"><span className="font-mono text-muted-foreground">{clock(moment.minute)}</span> · {moment.title}</div>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{moment.note}</p>
       </div>
 
