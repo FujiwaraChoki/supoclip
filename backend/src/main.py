@@ -67,6 +67,14 @@ def create_app(
             async with AsyncSessionLocal() as db:
                 await load_runtime_settings_cache(db)
             logger.info("✅ Runtime settings loaded")
+            try:
+                # Pre-inbox Discord webhooks become admin-managed rows, once (docs/feedback.md).
+                from .feedback.webhooks import import_env_webhooks
+
+                async with AsyncSessionLocal() as db:
+                    await import_env_webhooks(db, runtime_config)
+            except Exception:
+                logger.exception("Could not import the environment feedback webhooks")
 
             pool = await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
@@ -196,6 +204,7 @@ def create_app(
 
     from .api.routes.media import router as media_router
     from .api.routes.feedback import router as feedback_router
+    from .api.routes.admin_feedback import router as admin_feedback_router
     from .api.routes.billing import router as billing_router
     from .api.routes.api_keys import router as api_keys_router
     from .api.routes.account import router as account_router
@@ -208,6 +217,7 @@ def create_app(
 
     app.include_router(media_router)
     app.include_router(feedback_router)
+    app.include_router(admin_feedback_router)
     app.include_router(billing_router)
     app.include_router(api_keys_router)
     app.include_router(account_router)

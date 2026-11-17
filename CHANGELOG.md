@@ -6,6 +6,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
+- **Under the hood:** Feedback, bug reports, sales questions and cancellation reasons sent from the app are now kept and followed up from one inbox, so none get lost when a chat channel is down. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
+
 - **New:** A guide to clipping GTA 6 on the blog: what clipping campaigns pay, which clips get taken down, and the steps from a stream recording to finished vertical clips. It includes a payout calculator you can adjust to your own numbers. ([#431](https://github.com/FujiwaraChoki/supoclip/pull/431))
 - **New:** New accounts get a welcome tour on their first visit. It opens with a short animation, shows how to make a first clip, then goes to each page in turn: Library, Social and Analytics, Agents & API and Settings, and ends back on Create at the link field. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))
 - **Improved:** Free accounts see what a plan gets them above the link field, with a short animation of a long video being cut into clips. The plan picker's self-hosting option is now a small link. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))

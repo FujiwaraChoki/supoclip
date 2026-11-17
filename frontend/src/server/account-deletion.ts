@@ -18,7 +18,7 @@ export const ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE =
  * charging them. Otherwise removes the user's video sources: `sources` has no
  * user column, so the `users -> tasks` cascade would leave them orphaned.
  * Tasks, generated clips, sessions, accounts, API keys and social accounts
- * cascade from `users`.
+ * cascade from `users`; feedback submissions are kept, anonymized.
  */
 export async function prepareAccountDeletion(userId: string): Promise<void> {
   const prisma = getPrismaClient();
@@ -63,6 +63,14 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
   // Social account rows cascade away with the user; revoke their grants at the
   // platforms first, while the backend can still decrypt the tokens.
   await revokeSocialConnections(userId);
+
+  // Feedback stays in the admin inbox without the person: user_id is set to NULL by
+  // the foreign key, and the email snapshot goes here (backend/src/feedback/).
+  try {
+    await prisma.$executeRaw`UPDATE feedback_submissions SET email = NULL WHERE user_id = ${userId}`;
+  } catch (error) {
+    console.error("Failed to clear feedback email snapshots", error);
+  }
 
   // Only sources no other user's task points at.
   await prisma.source.deleteMany({
