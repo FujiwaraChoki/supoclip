@@ -353,3 +353,73 @@ def test_analyze_context_true_still_records_scene_evidence():
     analyzer.return_value.measure.assert_called_once()
     assert len(track) == 1 and len(faces) == 1 and cuts == []
     assert decoder.stdout.closed
+
+
+def footage(time, **kwargs):
+    """A sample of moving live footage without a close face (b-roll, a POV walk)."""
+    return replace(SceneEvidence(time, motion=0.12, outside_motion=0.4, motion_spread=0.6,
+                                 detail_left=0.1, detail_right=0.8), **kwargs)
+
+
+def test_moving_footage_without_a_face_fills_the_frame_at_its_detail():
+    plan = build_context_layout_plan([footage(i / 3) for i in range(30)], [], 10, 0.316)
+    assert [(p["kind"], p["reason"]) for p in plan] == [("cover", "no_reliable_close_subject")]
+    assert plan[0]["x"] == pytest.approx(0.45)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"motion": 0.0},                                   # a still graphic or a side-by-side comparison
+    {"text_block_lines": 3},                           # a document, a tweet, a slide
+    {"face_count": 3, "face_area": 0.004, "face_span": 0.6},   # a crowd
+], ids=["still", "document", "crowd"])
+def test_content_keeps_the_full_frame(kwargs):
+    plan = build_context_layout_plan([footage(i / 3, **kwargs) for i in range(30)], [], 10, 0.316)
+    assert [p["kind"] for p in plan] == ["fit"]
+
+
+def test_a_lone_small_face_in_moving_footage_is_the_crop_centre():
+    samples = [footage(i / 3, face_count=1, face_area=0.004, face_span=0.05, face_center=0.7) for i in range(30)]
+    plan = build_context_layout_plan(samples, [], 10, 0.316)
+    assert plan[0]["kind"] == "cover" and plan[0]["x"] == pytest.approx(0.7)
+
+
+def test_a_montage_with_one_document_keeps_its_crops():
+    # 0-4 s b-roll, 4-7 s a document on screen, 7-12 s the speaker, 12-16 s b-roll.
+    samples = (
+        [footage(i / 3) for i in range(12)]
+        + [SceneEvidence(4 + i / 3, text_block_lines=4, text_rows=8) for i in range(9)]
+        + [subject(7 + i / 3) for i in range(15)]
+        + [footage(12 + i / 3, detail_left=0.4, detail_right=1.0) for i in range(12)]
+    )
+    plan = build_context_layout_plan(samples, [4, 7, 12], 16, 0.316)
+    assert [(p["kind"], p["start"], p["end"]) for p in plan] == [
+        ("cover", 0, 4), ("fit", 4, 7), ("face", 7, 12), ("cover", 12, 16)]
+    assert plan[3]["x"] == pytest.approx(0.7)
+
+
+def test_mostly_fitted_content_still_letterboxes_throughout():
+    samples = [footage(i / 3) for i in range(6)] + [SceneEvidence(2 + i / 3, text_block_lines=4) for i in range(30)]
+    plan = build_context_layout_plan(samples, [2], 12, 0.316)
+    assert [(p["kind"], p["reason"]) for p in plan] == [("fit", "stable_context")]
+
+
+def test_cover_shots_render_as_full_height_crops():
+    evidence = [footage(i / 3) for i in range(30)]
+    report = {}
+    with patch.object(reframing, "ffprobe_duration", return_value=10), \
+         patch.object(reframing, "analyze_vertical_clip", return_value=([], [], [], evidence)):
+        graph, mode, caption_y = reframing.build_vertical_filter_plan(Path("broll.mp4"), 1920, 1080, report=report)
+    # 0.45 of 1920 is the centre: x = 864 - 303 = 561 → even 560.
+    assert report["kind"] == "crop" and mode == "complex" and caption_y is None
+    assert "crop=606:ih:x='560':y=0,scale=1080:-2" in graph
+
+
+def test_cover_and_face_shots_switch_at_the_cut():
+    evidence = [footage(i / 3) for i in range(15)] + [subject(5 + i / 3, face_center=0.3) for i in range(15)]
+    track = [(s.time, 576, s.face_area) for s in evidence[15:]]
+    report = {}
+    with patch.object(reframing, "ffprobe_duration", return_value=10), \
+         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [5.0], [], evidence)):
+        graph, _, _ = reframing.build_vertical_filter_plan(Path("doc.mp4"), 1920, 1080, report=report)
+    assert report["kind"] == "compositor"
+    assert "crop=606:ih:x='560'" in graph and "between(t\\,0.000\\,5.000)" in graph

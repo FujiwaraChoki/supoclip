@@ -1305,6 +1305,17 @@ def plan_fit_windows(
     return windows
 
 
+def cover_windows(plan: List[Dict[str, Any]], width: int, crop_w: int) -> List[FitWindow]:
+    """Full-height 9:16 crops (start, end, crop_w, x) for the plan's ``cover`` shots, centred on their ``x``."""
+    if crop_w >= width:
+        return []
+    return [
+        (shot["start"], shot["end"], crop_w,
+         clamp_even(int(float(shot["x"]) * width - crop_w / 2), 0, width - crop_w))
+        for shot in plan if shot["kind"] == "cover"
+    ]
+
+
 def build_fit_layers(
     fit_intervals: List[Tuple[float, float]],
     windows: Optional[List[FitWindow]] = None,
@@ -1527,15 +1538,21 @@ def describe_vertical_layout(
     except Exception as exc:
         logger.warning("Readable fit planning failed (%s); keeping the plain fit", exc)
         fit_windows = []
+    covers = cover_windows(plan, width, crop_w)
+    if covers:
+        # Live footage fills the frame: a full-height crop, drawn by the same fit layers as a readable zoom.
+        fit_windows = sorted((fit_windows or [
+            (s["start"], s["end"], None, 0) for s in plan if s["kind"] == "fit"
+        ]) + covers)
     if fit_windows:
         logger.info("Readable fit windows (start, end, crop_w, x): %s", fit_windows)
-    fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
+    fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] in ("fit", "cover")]
     # Two people who cannot share a 9:16 crop are not slide or sports content.
     # Call/stage layouts and speaker framing still apply; if both decline, that
     # shot keeps the full frame instead of a dominant-face crop.
     content_fits = [
         shot for shot in plan
-        if shot["kind"] == "fit" and shot.get("reason") != "interaction_exceeds_crop"
+        if shot["kind"] in ("fit", "cover") and shot.get("reason") != "interaction_exceeds_crop"
     ]
 
     # A persistent reaction inset is independent of fit intervals, camera cuts,
@@ -1591,8 +1608,11 @@ def describe_vertical_layout(
             result["hook_center_y"] = interview["hook_center_y"]
         return result
 
-    if all(s["kind"] == "fit" for s in plan) and content_fits:
-        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+    if all(s["kind"] in ("fit", "cover") for s in plan) and content_fits:
+        if all(s["kind"] == "cover" for s in plan):
+            return _described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None)
+        kind = "compositor" if covers else "fit"
+        return _described(kind, build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
