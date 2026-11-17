@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getClipUrl } from "@/lib/clip-actions";
 import { formatClipDuration } from "@/lib/generations";
 import { DELAY_MESSAGE_KEYS, isDownloadRecovery } from "@/lib/download-recovery";
-import { estimateRemainingSeconds, type EtaPhase } from "@/lib/processing-eta";
+import { estimateRemainingSeconds, isDownloadOverdue, seriesEtaRange, type EtaPhase } from "@/lib/processing-eta";
 import { cn } from "@/lib/utils";
 import { SINGLE_OUTPUT, type SourceRange, type Workflow, type WorkflowClipFields } from "@/lib/workflows";
 
@@ -415,7 +415,7 @@ export function ProcessingPanel({ status, progress, message, phaseSince, sourceS
   const currentClip = phase === "render" ? clip?.current ?? 1 : undefined;
   const clock = usePhaseClock(`${status}:${phase}:${currentClip ?? ""}`, currentClip, phaseSince);
   const phaseElapsed = useElapsed(remainingSeconds === undefined ? clock.since : undefined);
-  const remaining = remainingSeconds ?? estimateRemainingSeconds({
+  const etaInput = {
     phase,
     phaseElapsed,
     sourceSeconds,
@@ -424,12 +424,21 @@ export function ProcessingPanel({ status, progress, message, phaseSince, sourceS
     outputs: clip?.total ?? outputs ?? 1,
     currentClip,
     observedSecondsPerClip: clock.perClip,
-  });
-  const eta = recovery ? t("recovery.heading")
-    : status === "queued" ? t("eta.queued")
-    : !message && remainingSeconds === undefined ? t("eta.estimating")
-      : remaining < 50 ? t("eta.underMinute")
-        : t("eta.minutes", { count: Math.max(1, Math.round(remaining / 60)) });
+  };
+  const remaining = remainingSeconds ?? estimateRemainingSeconds(etaInput);
+  function timeLeftLabel() {
+    if (recovery) return t("recovery.heading");
+    if (status === "queued") return t("eta.queued");
+    if (remainingSeconds === undefined) {
+      if (!message) return t("eta.estimating");
+      if (/^downloading\b/i.test(message) && isDownloadOverdue(etaInput)) return t("eta.stillDownloading");
+      if (workflow === "series" && !upload && phase !== "render") {
+        return t("eta.minuteRange", seriesEtaRange(remaining));
+      }
+    }
+    return remaining < 50 ? t("eta.underMinute")
+      : t("eta.minutes", { count: Math.max(1, Math.round(remaining / 60)) });
+  }
   return (
     <section className="relative isolate" aria-live="polite">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 -inset-y-16 -z-10 overflow-hidden [mask-image:radial-gradient(60%_70%_at_30%_50%,black,transparent)]">
@@ -437,7 +446,7 @@ export function ProcessingPanel({ status, progress, message, phaseSince, sourceS
           style={{ background: `radial-gradient(circle at 40% 50%, oklch(0.87 0.06 ${stepHue(step)}), transparent 65%)` }} />
       </div>
       <div className="flex items-baseline justify-between gap-6">
-        <p className="font-display text-2xl font-bold tracking-tight tabular-nums">{eta}</p>
+        <p className="font-display text-2xl font-bold tracking-tight tabular-nums">{timeLeftLabel()}</p>
         {clip && !SINGLE_OUTPUT.has(workflow) && <p className="text-sm tabular-nums text-muted-foreground">{workflow === "series" ? t("partOf", { n: clip.current, total: clip.total }) : t("clipOf", clip)}</p>}
       </div>
       {recovery && (

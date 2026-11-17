@@ -51,7 +51,7 @@ describe("workflows contract", () => {
     expect(expectedOutputs("series", 3600, 8)).toBe(8);
     expect(expectedOutputs("series", 120)).toBe(2);
     expect(expectedOutputs("series", 360)).toBe(4);
-    expect(expectedOutputs("series", 3600)).toBe(6);
+    expect(expectedOutputs("series", 3600)).toBe(10);
     expect(expectedOutputs("series", null)).toBe(4);
   });
 

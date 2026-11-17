@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -145,8 +146,23 @@ class AudioDownloadForbidden(YouTubeDownloadError):
     """Direct audio was forbidden and the HLS audio retry did not produce a file."""
 
 
+_SECTION_IDLE_SECONDS = 60
+
+
+@dataclass
+class _SectionTransferClock:
+    # Socket options are copied for each audio/video format. Both clients and
+    # yt-dlp's progress hook must observe the same deadline.
+    deadline: float
+    hard_deadline: float
+
+    def on_new_bytes(self) -> None:
+        self.deadline = min(self.hard_deadline, time.monotonic() + _SECTION_IDLE_SECONDS)
+
+
 def _check_deadline(options: dict) -> float:
-    deadline = options.get("_youtube_deadline")
+    section_clock = options.get("_youtube_section_clock")
+    deadline = section_clock.deadline if section_clock else options.get("_youtube_deadline")
     remaining = deadline - time.monotonic() if deadline is not None else 20.0
     if remaining <= 0:
         raise DownloadDeadlineExceeded("Residential proxy download attempt timed out")
@@ -402,16 +418,21 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
     return params
 
 
-def _progress_hook(budget: ByteBudget, seen: dict[str, int]) -> Callable[[dict], None]:
-    def hook(status: dict) -> None:
+def _progress_hook(budget: ByteBudget, seen: dict[str, int]) -> Callable[[dict], bool]:
+    def hook(status: dict) -> bool:
         if status.get("status") not in {"downloading", "finished"}:
-            return
+            return False
         filename = str(status.get("filename") or status.get("tmpfilename") or "")
-        downloaded = int(status.get("downloaded_bytes") or status.get("total_bytes") or 0)
+        downloaded = status.get("downloaded_bytes")
+        if downloaded is None and status["status"] == "finished":
+            downloaded = status.get("total_bytes")
+        downloaded = int(downloaded or 0)
         previous = seen.get(filename, 0)
         if downloaded > previous:
             seen[filename] = downloaded
             budget.add(downloaded - previous)
+            return True
+        return False
 
     return hook
 
@@ -436,8 +457,11 @@ def download_options(
     options["_youtube_seen_bytes"] = observed
 
     def bounded_progress(status):
-        count_bytes(status)
+        received = count_bytes(status)
         _check_deadline(options)
+        section_clock = options.get("_youtube_section_clock")
+        if received and section_clock:
+            section_clock.on_new_bytes()
 
     options["progress_hooks"] = [bounded_progress]
     # Guard: section cuts must not be delegated to ffmpeg's protocol handler.
@@ -495,6 +519,7 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
         options["_youtube_deadline"] = min(
             overall_deadline, retry_deadline if attempt else time.monotonic() + initial_seconds
         )
+        options["_youtube_overall_deadline"] = overall_deadline
         options["_youtube_metadata_ready"] = lambda country=country, session=session: (
             budget.remember_proxy_route(task_id, video_id, country, session)
         )
@@ -1419,6 +1444,12 @@ def _download_section_attempt(
             raise PartialDownloadUnavailable("Audio and video fragment windows do not overlap")
         work.mkdir(parents=True, exist_ok=True)
         before_media = counter.snapshot()
+        # First byte still has to arrive inside this attempt's deadline.
+        # After that, a moving transfer can use the remaining shared time.
+        options["_youtube_section_clock"] = _SectionTransferClock(
+            deadline=min(options["_youtube_deadline"], time.monotonic() + _SECTION_IDLE_SECONDS),
+            hard_deadline=options["_youtube_overall_deadline"],
+        )
         video_path = native_download_format(
             options, url, video_id, video_fmt, work / "video", video_fragments
         )
