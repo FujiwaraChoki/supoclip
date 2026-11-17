@@ -32,6 +32,7 @@ import {
 import { useSession } from "@/lib/auth-client";
 import { trackClipExport } from "@/lib/clip-export-tracking";
 import { exportDraft } from "@/lib/editor/export-draft";
+import { singleFlight } from "@/lib/editor/single-flight";
 import { editorRequest } from "./use-editor";
 import { editorMessage } from "./studio-ui";
 import { toast } from "sonner";
@@ -142,7 +143,10 @@ export function ExportPanel({
       stopped = true;
     };
   }, [open, size.width, size.height, preset, asset.hasAudio]);
-  const refresh = useCallback(async () => {
+  // One refresh is one editor GET per clip. Ticks must not stack up behind a
+  // slow response, or each one adds another burst for the backend.
+  const [flight] = useState(singleFlight);
+  const load = useCallback(async () => {
     const results = await Promise.allSettled(
       clips.map(async (c) => {
         const url = `/api/tasks/${taskId}/clips/${c.id}/editor`;
@@ -159,12 +163,16 @@ export function ExportPanel({
     );
     if (fulfilled.length) setJobs(fulfilled.flatMap((r) => r.value));
   }, [clips, taskId]);
+  const refresh = useCallback(() => flight(load), [flight, load]);
   useEffect(() => {
     if (!open) return;
     void refresh();
-    const timer = setInterval(() => void refresh(), 3000);
+    const timer = setInterval(
+      () => void flight(load, { skipIfBusy: true }),
+      3000,
+    );
     return () => clearInterval(timer);
-  }, [open, refresh]);
+  }, [open, refresh, flight, load]);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     if (!busy || mode !== "browser") return;

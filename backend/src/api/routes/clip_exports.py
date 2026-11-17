@@ -25,9 +25,10 @@ from ...services.clip_export_service import (
 )
 from ...services.task_service import TaskService
 from ...utils.async_helpers import run_in_thread
+from ..pool_timeout import PoolTimeoutRoute
 from .tasks import _require_task_reader
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], route_class=PoolTimeoutRoute)
 
 
 def _preset_name(value: str) -> str:

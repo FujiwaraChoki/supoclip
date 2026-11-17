@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
+- **Fixed:** The clip studio no longer fails to open, or to start an export, when several clips load at the same moment. A request now uses one database connection at a time, the export list stops piling up refreshes behind a slow one, and a briefly busy server says to try again in a few seconds instead of showing a generic error. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
 - **Fixed:** Creating a generation no longer fails when old deployments fill the database connection limit. Connection pools are bounded, and deployments require the previous release to be retired before another is staged. ([#427](https://github.com/FujiwaraChoki/supoclip/pull/427))
 
 - **Fixed:** House promo codes in referral links or entered before checkout are recognised again when billing uses multiple payment accounts. Code validation now uses the same payment account as checkout. ([#382](https://github.com/FujiwaraChoki/supoclip/pull/382))
