@@ -32,6 +32,8 @@ from .youtube_proxy import (
     extract_video_info,
     YouTubeDownloadError,
     YouTubeGeoRestrictedError,
+    _exception_chain,
+    _progress_hook,
     is_geo_restricted_error,
     log_youtube_attempt,
     proxy_configured,
@@ -621,15 +623,27 @@ def download_youtube_video_with_apify(
     )
 
 
+def _reraise_budget_exceeded(exc: BaseException) -> None:
+    """Retrying cannot get a job back under its byte limit, even if yt-dlp wrapped it."""
+    for error in _exception_chain(exc):
+        if isinstance(error, DownloadBudgetExceeded):
+            raise error
+
+
 def _download_youtube_video_with_ytdlp(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
     quality: Optional[str] = None,
+    *,
+    budget: Optional[ByteBudget] = None,
 ) -> Optional[Path]:
     """
     Download YouTube video with optimized settings and retry logic.
     Returns the path to the downloaded file, or None if download fails.
+
+    ``budget`` is charged as bytes arrive, so crossing the job limit stops
+    the download mid-stream rather than after the whole file is on disk.
     """
     logger.info(f"Starting YouTube download: {url}")
 
@@ -651,6 +665,8 @@ def _download_youtube_video_with_ytdlp(
             ydl_opts = downloader.get_optimal_download_options(
                 video_id, int(quality) if quality else None
             )
+            if budget is not None:
+                ydl_opts["progress_hooks"] = [_progress_hook(budget, {})]
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
@@ -686,6 +702,7 @@ def _download_youtube_video_with_ytdlp(
             logger.warning("No video file found after download attempt %s", attempt + 1)
 
         except yt_dlp.utils.DownloadError as e:
+            _reraise_budget_exceeded(e)
             # Retrying the same datacenter cannot change a country restriction.
             # Let independent download providers try their own regions instead.
             if is_geo_restricted_error(e):
@@ -700,6 +717,7 @@ def _download_youtube_video_with_ytdlp(
                 logger.error("All download attempts failed")
 
         except Exception as e:
+            _reraise_budget_exceeded(e)
             if is_geo_restricted_error(e):
                 raise YouTubeGeoRestrictedError() from e
             last_error = str(e)
@@ -812,7 +830,9 @@ def download_youtube_video(
                     timeout_seconds=config.rapidapi_youtube_timeout_seconds,
                 )
             elif provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
-                downloaded_path = _download_youtube_video_with_ytdlp(url, max_retries, task_id, quality)
+                downloaded_path = _download_youtube_video_with_ytdlp(
+                    url, max_retries, task_id, quality, budget=job_budget,
+                )
             else:
                 downloaded_path = download_youtube_video_with_apify(url, video_id, quality)
         except DownloadBudgetExceeded as exc:
