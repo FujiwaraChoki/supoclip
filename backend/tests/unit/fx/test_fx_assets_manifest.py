@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from src.edit_fx.constants import LLM_ALLOWED_EMOJI, TONE_EMOJI
-from src.edit_fx.contracts import BED_FALLBACK, MOODS, SOUND_IDS
+from src.edit_fx.contracts import MOODS, SOUND_IDS
 from src.emoji_captions import EMOJI_KEYWORD_MAP
 
 BACKEND = Path(__file__).resolve().parents[3]
@@ -69,7 +69,8 @@ def test_manifest_shape_is_the_verbatim_one():
     assert set(MANIFEST) == {"version", "sfx", "music", "emoji"}
     sfx_keys = ["id", "sound", "variant", "file", "sha256", "duration", "peak_db", "rms_db", "gain_db", "source",
                 "license"]
-    music_keys = ["id", "mood", "file", "sha256", "duration", "loop_seconds", "bpm", "lufs", "source", "license"]
+    music_keys = ["id", "mood", "file", "sha256", "duration", "loop_start", "loop_seconds", "bpm", "lufs", "source",
+                  "license"]
     for entry in MANIFEST["sfx"]:
         assert list(entry) == sfx_keys
         assert re.fullmatch(r"https://freesound\.org/s/\d+/", entry["source"]) and entry["license"] == "CC0-1.0"
@@ -77,7 +78,8 @@ def test_manifest_shape_is_the_verbatim_one():
         assert entry["gain_db"] == 0.0
     for entry in MANIFEST["music"]:
         assert list(entry) == music_keys
-        assert entry["source"] == "synth" and entry["license"] == "CC0-1.0"
+        assert re.fullmatch(r"https://\S+", entry["source"]) and entry["license"] == "CC0-1.0"
+        assert entry["file"] == f"music/{entry['id']}.mp3" and entry["id"].startswith(f"{entry['mood']}-")
     assert list(MANIFEST["emoji"]) == ["atlas", "map", "sha256", "cell", "count", "source", "license"]
     assert MANIFEST["emoji"]["license"] == "OFL-1.1"
     assert MANIFEST["emoji"]["source"].startswith("Noto Color Emoji ")
@@ -101,7 +103,7 @@ def test_manifest_sha256_matches_every_file():
 
 def test_no_unlisted_media_files():
     listed = {e["file"] for e in (*MANIFEST["sfx"], *MANIFEST["music"])}
-    on_disk = {f"{p.parent.name}/{p.name}" for p in ASSETS.glob("*/*") if p.suffix in (".wav", ".m4a")}
+    on_disk = {f"{p.parent.name}/{p.name}" for p in ASSETS.glob("*/*") if p.suffix in (".wav", ".m4a", ".mp3", ".ogg")}
     assert on_disk == listed
 
 
@@ -168,6 +170,19 @@ def test_resolver_fixtures_use_the_manifest_variant_counts():
         assert data["sfx_variants"] == counts, name
 
 
+def test_resolver_fixtures_use_the_manifest_beds():
+    from tests.fixtures.fx_resolver.builders import BED_LENGTHS, BEDS
+
+    beds: dict[str, list[str]] = {}
+    for entry in MANIFEST["music"]:
+        beds.setdefault(entry["mood"], []).append(entry["id"])
+    lengths = {e["id"]: e["loop_seconds"] for e in MANIFEST["music"]}
+    assert {k: list(v) for k, v in BEDS.items()} == beds and BED_LENGTHS == lengths
+    for name in ("talking_head", "story", "no_timing"):
+        data = json.loads((BACKEND / "tests" / "fixtures" / "fx_resolver" / f"{name}.input.json").read_text())
+        assert (data["beds"], data["bed_lengths"]) == (beds, lengths), name
+
+
 @pytest.mark.parametrize("entry", MANIFEST["sfx"], ids=lambda e: e["id"])
 def test_sfx_levels_format_and_dc(entry):
     # 48 kHz 16-bit PCM, mono or stereo as recorded: the mixer reads exactly this without ffmpeg (fx_audio._decode)
@@ -203,42 +218,83 @@ def test_synth_fallback_is_deterministic_and_writes_valid_drop_ins(tmp_path):
 # ----------------------------------------------------------------------------- music beds
 
 
-def test_every_mood_has_a_bed():
-    built = {e["mood"] for e in MANIFEST["music"]}
-    assert built <= set(MOODS)
-    # a mood without its own built-in bed (aggressive, for now) borrows its BED_FALLBACK mood's bed
-    assert all(m in built or BED_FALLBACK.get(m) in built for m in MOODS)
+BEDS_JSON = json.loads((ASSETS / "music" / "beds.json").read_text(encoding="utf-8"))
+LOOP_PAD = 0.1                      # import_music.PAD: seconds of the loop's own audio on each side of it in the file
+MP3_FRAME = 1152                    # samples: the decoder may keep up to one frame of encoder padding at the end
 
 
-def test_loop_length_is_32_bars_at_the_manifest_tempo():
+def test_every_mood_has_beds():
+    built: dict[str, int] = {}
     for entry in MANIFEST["music"]:
-        bars = entry["loop_seconds"] * entry["bpm"] / 60 / 4
-        assert abs(bars - 32) < 1e-3, entry["id"]
-        assert abs(entry["loop_seconds"] - entry["duration"]) <= 0.001, entry["id"]
+        built[entry["mood"]] = built.get(entry["mood"], 0) + 1
+    assert set(built) == set(MOODS)
+    assert all(count >= 7 for count in built.values()), built
+    assert [e["id"] for e in MANIFEST["music"]] == sorted(e["id"] for e in MANIFEST["music"])
+
+
+def test_manifest_music_matches_beds_json():
+    """manifest.json's music is beds.json (import_music.py) plus hash, duration and loudness (write_manifest.py)."""
+    assert [e["id"] for e in MANIFEST["music"]] == [b["id"] for b in BEDS_JSON]
+    for entry, bed in zip(MANIFEST["music"], BEDS_JSON, strict=True):
+        for key in ("mood", "file", "loop_start", "loop_seconds", "bpm", "license"):
+            assert entry[key] == bed[key], (entry["id"], key)
+        assert entry["source"] == bed["url"], entry["id"]
+
+
+def test_every_bed_has_cc0_provenance():
+    text = (ASSETS / "music" / "SOURCES-CC0.txt").read_text(encoding="utf-8")
+    assert "License: CC0-1.0" in text and "https://creativecommons.org/publicdomain/zero/1.0/" in text
+    rows = {}
+    for line in text.splitlines():
+        if line.startswith("music/"):
+            file, url, author, title = (part.strip() for part in line.split(" | ", 3))
+            assert file not in rows and author and title, line
+            rows[file] = url
+    assert rows == {e["file"]: e["source"] for e in MANIFEST["music"]}
+    for bed in BEDS_JSON:
+        assert bed["license"] == "CC0-1.0" and bed["author"] and bed["title"] and bed["checked"], bed["id"]
+
+
+def test_bed_loop_geometry_and_level():
+    for entry in MANIFEST["music"]:
+        assert entry["loop_start"] == LOOP_PAD, entry["id"]
+        # the loop length is the period to the sample: round(loop_seconds * SR) is what every player tiles
+        assert entry["loop_seconds"] == round(round(entry["loop_seconds"] * SR) / SR, 6), entry["id"]
+        # long enough that a 60 s clip hears it at most three times
+        assert entry["loop_seconds"] >= 20.0, entry["id"]
+        expected = 2 * entry["loop_start"] + entry["loop_seconds"]
+        assert expected - 0.001 <= entry["duration"] <= expected + MP3_FRAME / SR + 0.001, entry["id"]
+        assert entry["bpm"] is None or 60 <= entry["bpm"] <= 200, entry["id"]
         assert -21.0 <= entry["lufs"] <= -19.0, entry["id"]
+
+
+def _seam_error(a: np.ndarray, b: np.ndarray) -> float:
+    return float(np.sum(np.square(a - b)) / (np.sum(np.square(a)) + 1e-12))
 
 
 @needs_ffmpeg
 @pytest.mark.parametrize("entry", MANIFEST["music"], ids=lambda e: e["id"])
 def test_bed_decodes_to_its_loop_length_and_loops_seamlessly(entry):
-    x = _decode(ASSETS / entry["file"]).mean(axis=1)
-    n = len(x)
-    assert abs(n / SR - entry["loop_seconds"]) <= 0.001
+    x = _decode(ASSETS / entry["file"]).mean(axis=1).astype(np.float64)
+    start, length = round(entry["loop_start"] * SR), round(entry["loop_seconds"] * SR)
+    # the file is the loop with LOOP_PAD of its own audio on each side (plus at most one frame of encoder padding)
+    assert 2 * start + length <= len(x) < 2 * start + length + MP3_FRAME
 
-    # The seam (end → start) must sound like the same musical moment inside the loop: bar 17 (the mid-loop section
-    # turn) has the same pattern, so the RMS just before, across and just after the seam stays within ±1 dB of it.
-    looped = np.concatenate([x[-SR:], x[:SR]])
-    seam, mid, h = SR, n // 2, SR // 4  # 250 ms windows
-    pairs = (
-        (looped[seam - h:seam], x[mid - h:mid]),
-        (looped[seam - h:seam + h], x[mid - h:mid + h]),
-        (looped[seam:seam + h], x[mid:mid + h]),
-    )
-    for at_seam, inside in pairs:
-        assert abs(_rms_db(at_seam) - _rms_db(inside)) <= 1.0
-    # no click: the sample step across the seam is no larger than the steps around it
-    steps = np.abs(np.diff(looped))
-    assert steps[seam - 1] <= np.max(np.delete(steps, seam - 1))
+    # The padding after the loop is the loop's start and the padding before it is the loop's end, encoded where they
+    # sit in continuous playback. Tiling [start, start + length) must line up with them to the sample: the error is
+    # smallest at lag 0 and only coding noise, so the tiled seam plays exactly what the file plays through it.
+    h = SR // 20  # 50 ms
+    after = {k: _seam_error(x[start:start + h], x[start + length + k:start + length + k + h]) for k in range(-3, 4)}
+    before = {k: _seam_error(x[start + length - h:start + length], x[start - h + k:start + k]) for k in range(-3, 4)}
+    for errors in (after, before):
+        assert min(errors, key=errors.get) == 0 and errors[0] < 0.3, errors
+
+    # no click: the sample step across the tiled seam is no larger than the steps around it
+    loop = x[start:start + length]
+    tiled = np.concatenate([loop[-SR // 10:], loop[:SR // 10]])
+    steps = np.abs(np.diff(tiled))
+    seam = SR // 10 - 1
+    assert steps[seam] <= np.max(np.delete(steps, seam))
 
 
 @needs_ffmpeg
@@ -246,14 +302,6 @@ def test_bed_peaks_leave_headroom():
     for entry in MANIFEST["music"]:
         x = _decode(ASSETS / entry["file"])
         assert np.max(np.abs(x)) < 10 ** (-1 / 20), entry["id"]
-
-
-def test_music_render_is_deterministic():
-    music = _script("synth_music")
-    a = music.render_mood("hype")
-    b = music.render_mood("hype")
-    assert a.shape == (2, music.loop_samples(124))
-    assert np.array_equal(a, b)
 
 
 # ----------------------------------------------------------------------------- emoji atlas

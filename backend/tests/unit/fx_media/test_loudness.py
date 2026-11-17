@@ -158,7 +158,7 @@ def test_full_mix_static_render_is_minus_14(tmp_path, peak):
     voice = _write(tmp_path / "v.wav", _speech(DURATION, peak))
     cues = [SfxCue(id=f"s{i}", start=1.0 + i * 2.0, end=1.0 + i * 2.0, sound=sound)
             for i, sound in enumerate(("whoosh", "impact", "pop", "boom", "stamp"))]
-    plan = _plan(*cues, music=MusicBed(mood="hype", bed="hype", gain_db=-20, duck_db=-12))
+    plan = _plan(*cues, music=MusicBed(mood="hype", bed="hype-tent", gain_db=-20, duck_db=-12))
     bus = tmp_path / "fxbus.wav"
     assert fx_audio.build_bus(plan, words_e=_words(), warp=identity_warp(DURATION), out_duration=DURATION, path=bus)
     gain = fx_audio.static_gain_db(fx_audio.measure_voice_lufs(voice, VOICE, duration=DURATION))
@@ -168,24 +168,29 @@ def test_full_mix_static_render_is_minus_14(tmp_path, peak):
 
 
 def test_music_under_speech_is_at_least_10_db_down_on_the_mix(tmp_path):
-    """Static gain: the music level is measured directly with a music-only render (same gain) against the envelope."""
+    """Static gain: the music level is measured directly with a music-only render (same gain). A real bed's level moves
+    with the music, so the ducked render is compared with the same render undiminished, window for window."""
     talk = ((3.0, 7.0),)
     voice = _write(tmp_path / "v.wav", _speech(DURATION, 0.1, talk=talk))
     gain = fx_audio.static_gain_db(fx_audio.measure_voice_lufs(voice, VOICE, duration=DURATION))
     assert gain != 0
-    plan = _plan(music=MusicBed(mood="chill", bed="chill", gain_db=-20, duck_db=-12))
-    bus = tmp_path / "fxbus.wav"
-    assert fx_audio.build_bus(plan, words_e=_words(talk), warp=identity_warp(DURATION), out_duration=DURATION,
-                              path=bus)
-    music_only = _render(
-        _graph(voice_fragment=fx_audio.silent_voice_fragment(DURATION), has_bus=True, static_gain_db=gain),
-        voice, bus, tmp_path / "music.wav",
-    )
-    music = _samples(music_only)[:, 0]
-    during = _rms_db(music[int(3.5 * SR): int(6.5 * SR)])
-    open_ = _rms_db(np.concatenate([music[int(1.0 * SR): int(2.5 * SR)], music[int(8.0 * SR): int(11.0 * SR)]]))
-    assert open_ - during >= 10.0
-    assert open_ - during == pytest.approx(12.0, abs=1.5)
+    music = {}
+    for duck in (-12.0, 0.0):
+        plan = _plan(music=MusicBed(mood="chill", bed="chill-something-in-the-air", gain_db=-20, duck_db=duck))
+        bus = tmp_path / f"fxbus{duck}.wav"
+        assert fx_audio.build_bus(plan, words_e=_words(talk), warp=identity_warp(DURATION), out_duration=DURATION,
+                                  path=bus)
+        music_only = _render(
+            _graph(voice_fragment=fx_audio.silent_voice_fragment(DURATION), has_bus=True, static_gain_db=gain),
+            voice, bus, tmp_path / f"music{duck}.wav",
+        )
+        music[duck] = _samples(music_only)[:, 0]
+    during = slice(int(3.5 * SR), int(6.5 * SR))
+    open_ = np.r_[int(1.0 * SR): int(2.5 * SR), int(8.0 * SR): int(11.0 * SR)]
+    down = _rms_db(music[0.0][during]) - _rms_db(music[-12.0][during])
+    assert down >= 10.0
+    assert down == pytest.approx(12.0, abs=1.5)
+    assert _rms_db(music[0.0][open_]) - _rms_db(music[-12.0][open_]) == pytest.approx(0.0, abs=0.5)
 
 
 def test_bleep_silences_the_voice_and_carries_the_tone(tmp_path):

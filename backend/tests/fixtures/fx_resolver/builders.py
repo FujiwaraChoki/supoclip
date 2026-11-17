@@ -1,4 +1,5 @@
-"""Builders for resolver tests and golden generation (WP2b). Pure data helpers, no I/O except `load_fixture`."""
+"""Builders for resolver tests and golden generation (WP2b). Pure data helpers; I/O only to read the built-in beds
+from manifest.json and in `load_fixture`."""
 
 from __future__ import annotations
 
@@ -16,12 +17,21 @@ from src.edit_fx.resolver import ResolveInput, resolve
 FIXTURES = Path(__file__).resolve().parent
 
 # Built-in manifest shape (§12): variant counts per sound (= manifest.json, checked by test_fx_assets_manifest),
-# one bed per mood.
+# and the built-in beds of each mood with their loop lengths, read from manifest.json.
 SFX_VARIANTS = {"whoosh": 6, "impact": 7, "pop": 6, "riser": 8, "record_scratch": 6, "boom": 6, "cash_register": 5,
                 "ticker": 6, "slap": 6, "stamp": 6, "glitch": 6, "tape_stop": 6}
-BEDS = {m: (m,) for m in ("hype", "chill", "dramatic", "funny", "inspiring", "dark")}
-BED_LENGTHS = {"hype": 61.935, "chill": 93.659, "dramatic": 109.714, "funny": 68.571, "inspiring": 80.0,
-               "dark": 87.273}
+
+
+def _manifest_beds() -> tuple[dict[str, tuple[str, ...]], dict[str, float]]:
+    manifest = FIXTURES.parents[2] / "src" / "fx_assets" / "manifest.json"
+    music = json.loads(manifest.read_text(encoding="utf-8"))["music"]
+    beds: dict[str, tuple[str, ...]] = {}
+    for entry in music:
+        beds[entry["mood"]] = (*beds.get(entry["mood"], ()), entry["id"])
+    return beds, {entry["id"]: float(entry["loop_seconds"]) for entry in music}
+
+
+BEDS, BED_LENGTHS = _manifest_beds()
 FX_TEMPLATES = ("marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter", "sticker_slap",
                 "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles")
 TEMPLATES = (*FX_TEMPLATES, "default")

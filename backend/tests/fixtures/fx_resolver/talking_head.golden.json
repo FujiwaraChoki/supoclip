@@ -14,8 +14,8 @@
   ]
  },
  "marker_circle/subtle": {
-  "sha256": "38e2b08682d5b156748b3bd6c847da006cfa853ce2f1e2b5bb1e415fdc8adb34",
-  "music": "hype -8.0/0.0",
+  "sha256": "6edcb1657807c872ea9c7dc4a777ba5df6ce01fd1f21a3718de571b8a443f871",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -35,8 +35,8 @@
   ]
  },
  "marker_circle/bold": {
-  "sha256": "320895d0b7edd284d130d76f70ab87ff71a93f0b17ec7bfbf133ad02adcfefb3",
-  "music": "hype -15.0/0.0",
+  "sha256": "7349cb4c3f26c6596d075e0880f48a419fd747f8b77cead50d6c5d3d428c7936",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -70,8 +70,8 @@
   ]
  },
  "marker_circle/max": {
-  "sha256": "dc31d5ce612df282b08db000f883a4255acba2ab6b98d51a4abfd78389bb3072",
-  "music": "hype 3.0/-7.0",
+  "sha256": "d1db4dbe1f6905cfb28d6505d095c0f3dad8dc8db7e0a4c1c72b35dc2a80d16d",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -142,8 +142,8 @@
   ]
  },
  "emoji_drop/subtle": {
-  "sha256": "61c3c3d3c7dc6cd2dab114e5da2572ed4363a40afea64ed18420db6cd6b6c122",
-  "music": "hype -8.0/0.0",
+  "sha256": "7465aec4f8582b8065d00a38a4d9ae119c94ee0384897a613a72f76b46b9f812",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -163,8 +163,8 @@
   ]
  },
  "emoji_drop/bold": {
-  "sha256": "3c1fef57ef2915627515d559706806d79394f73d10aa91cb2ee6c143a04091ed",
-  "music": "hype -15.0/0.0",
+  "sha256": "f84154538d534b7a718db1a3121e3f993da924ac6962bafecc88376ede5707d6",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -204,8 +204,8 @@
   ]
  },
  "emoji_drop/max": {
-  "sha256": "99167b4064911e851181e997fae170117ead5d086d4dc6d65ce108659ef946ba",
-  "music": "hype 3.0/-7.0",
+  "sha256": "1fec3f42885ae3dfb3a6b3e2b11763ffc3946a6d9c7be9469c172d81180c307a",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -280,8 +280,8 @@
   ]
  },
  "slam/subtle": {
-  "sha256": "93d245520d45e37de5f051f86757979c167282521cbc8983f90da10b85ee0c50",
-  "music": "hype -8.0/0.0",
+  "sha256": "42a341a94aadcf260d03b65926aa4d466515c44244d0f11752f182543a7b2d69",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -305,8 +305,8 @@
   ]
  },
  "slam/bold": {
-  "sha256": "6a5996de5e2b48a8357f9beda4c2cd0c035d6f01a42b423c0b2b40d7f1783056",
-  "music": "hype -15.0/0.0",
+  "sha256": "f2d06eacf2d2eccce1329f63c42eed66454a5f9cded1135552d8778280d43715",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -342,8 +342,8 @@
   ]
  },
  "slam/max": {
-  "sha256": "73dc7157fab33c9e1f0bd176dcb05f25ece1129217b30ed093e0fdb406dbf3c4",
-  "music": "hype 3.0/-7.0",
+  "sha256": "75656ac579bf10f73c8567e485828b7d9cdf5b43f96fb000835c8ebcec1c4723",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
   "cues": [
@@ -417,8 +417,8 @@
   ]
  },
  "behind_head/subtle": {
-  "sha256": "d6136f2dd22b4bc792312a4aeb471823c2e0698455070d3a9d791ae41f0020dd",
-  "music": "hype -8.0/0.0",
+  "sha256": "a05b57607408b2ed26ee5a9f5d4a8aaabdeb7ee4ccd5932161d847a7bfff0bc3",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -438,8 +438,8 @@
   ]
  },
  "behind_head/bold": {
-  "sha256": "ca398f6dacf67f91cb0a633deb2c39763ebb52b7a162501cd677f4ae4aadeec9",
-  "music": "hype -15.0/0.0",
+  "sha256": "f9b4aab12cf8e3c3dd831358788dba52d7fab1d1ce7ae89c620f54e073efb910",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -482,8 +482,8 @@
   ]
  },
  "behind_head/max": {
-  "sha256": "425c2d222af06921c29d6a8ffea83adce0df6b77f19fba5cd97d1a4134af0e8d",
-  "music": "hype 3.0/-7.0",
+  "sha256": "1cda49b36f283d7a13b58eb0dd6a73e6f76fcbbfe3538aba72be44affc52712b",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -556,8 +556,8 @@
   ]
  },
  "stat_counter/subtle": {
-  "sha256": "efacc205c53699f1d2f845d709dbb8e2d1ff9036d1f8b8ff4e7066ac2e0d7f36",
-  "music": "hype -8.0/0.0",
+  "sha256": "b8899da68b05b82eaeb2047ebe352e0c2661d2241c1c8069232c59840d9c6282",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -581,8 +581,8 @@
   ]
  },
  "stat_counter/bold": {
-  "sha256": "b86ccd9c90f6cf3be7e151cbf94c6a98396e9807f52a61d68101ac99632a7e70",
-  "music": "hype -15.0/0.0",
+  "sha256": "e7451e1abb20ad033db3cad327244d64fb3f0a3202145a84b7354c083b48f552",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -618,8 +618,8 @@
   ]
  },
  "stat_counter/max": {
-  "sha256": "dfbaadfba7ca2322f1d8f859f07b5972ac4f71e340b898694aea880f7457165c",
-  "music": "hype 3.0/-7.0",
+  "sha256": "f3608f1fcacf4498fae7199cb9257d8fba9b32543d4e194500128618432c182c",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -688,8 +688,8 @@
   ]
  },
  "sticker_slap/subtle": {
-  "sha256": "20b204cda4a26a01ca98fb295782975f00863720e0da78a8bbb254c6273bac86",
-  "music": "hype -8.0/0.0",
+  "sha256": "1e8af3bb64a3317d0452d7ac7720aa2ccac110d93389467c30becfe952a29b31",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -713,8 +713,8 @@
   ]
  },
  "sticker_slap/bold": {
-  "sha256": "6dcf4e0486414817d537f2b351fa2badfb273dd9c6029b0abba0f42336e50d3a",
-  "music": "hype -15.0/0.0",
+  "sha256": "daf8fee72c679bd3506e68eb33a3897a0caf1767091f7d70d3cffb807b7e4a5d",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -754,8 +754,8 @@
   ]
  },
  "sticker_slap/max": {
-  "sha256": "c6cc211121005912666a18fb6b3ab0cb561fc6c55914eabdc4c39a867d654f3d",
-  "music": "hype 3.0/-7.0",
+  "sha256": "03df3bf247bf066920d2044aebdcf3e2bd60cca90950d06245b41a5b1c98f00c",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -822,8 +822,8 @@
   ]
  },
  "kinetic_stack/subtle": {
-  "sha256": "dcfdf55d4844b220b9e12967b8dad5ec98d2b1585e402b78d8c9fd099f5f2493",
-  "music": "hype -8.0/0.0",
+  "sha256": "795ed0d1792c21e1353ee6c7cd37df606dc39f50e9d7f3f4fdc2e823a47ce4cb",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -845,8 +845,8 @@
   ]
  },
  "kinetic_stack/bold": {
-  "sha256": "fdcc859a2676c4bd855ef881a688dff566d46408f2a0c02a0a2f4025b417a52c",
-  "music": "hype -15.0/0.0",
+  "sha256": "da2631bde425f0e4ec9353e6c33d05949167c182d84bffac7687135226b214ff",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -882,8 +882,8 @@
   ]
  },
  "kinetic_stack/max": {
-  "sha256": "f81298176ef4fe6b2802ebeb96a93f27a717e85a9ea031403e016718c2dc9978",
-  "music": "hype 3.0/-7.0",
+  "sha256": "b0d81439ccd704cc28225c968549128f410f2c9210372cd100c0c64cdb1d1eff",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
   "cues": [
@@ -951,8 +951,8 @@
   ]
  },
  "decode_glitch/subtle": {
-  "sha256": "82e28c450d352ebbcb44b8146e6d9325346a71dea32f4f66d1e6a0105ba4c1d8",
-  "music": "hype -8.0/0.0",
+  "sha256": "ba7410ecef2f15cf1c6a0ad3ab191f46fb1f2d419069012ec18b9d6297d2da1c",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -976,8 +976,8 @@
   ]
  },
  "decode_glitch/bold": {
-  "sha256": "8c241c0a967d1ce41d2b836838c6ab191ab58fb7f4cb35ce6287cf7430805a49",
-  "music": "hype -15.0/0.0",
+  "sha256": "f6bf56eca68ace64015d101613c9390fffa46445722738f496e17c5a3a630380",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1015,8 +1015,8 @@
   ]
  },
  "decode_glitch/max": {
-  "sha256": "53c333324c43c7a758b001d13c00e28ef696045804a4761570987ca1ef341b5f",
-  "music": "hype 3.0/-7.0",
+  "sha256": "ec0a229f2e595c923db4131d0e08be5bf42b4a062295d87db31bcb5ed2cde987",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -1087,8 +1087,8 @@
   ]
  },
  "highlighter_swipe/subtle": {
-  "sha256": "4dd714424df81b2d7b68f8ac269754f3e580a5c16e39110bbabe9af0b0b52c3a",
-  "music": "hype -8.0/0.0",
+  "sha256": "8e1e3f8c09777ebc40a42e36d0200f249342b2ff0284270b2bebf62609e784fd",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1106,8 +1106,8 @@
   ]
  },
  "highlighter_swipe/bold": {
-  "sha256": "22c6ed50ee26ce05edee1a1e661781b420912b5ca2dede8fbff8a1e6af157af6",
-  "music": "hype -15.0/0.0",
+  "sha256": "967e70998731c9fc44558d0d75d8c9bf15777ba61e3fb1bb9b7d18e3ae176bfe",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1146,8 +1146,8 @@
   ]
  },
  "highlighter_swipe/max": {
-  "sha256": "41ccff836694e198cfbb4699dc38fb2db1e7da488981673453812bbbc82eed2e",
-  "music": "hype 3.0/-7.0",
+  "sha256": "3afd7cd3a535173ccbf5e4d8af5b3cfbb86fcdb220d9c3a1f06eebde62e8453f",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -1224,8 +1224,8 @@
   ]
  },
  "face_doodles/subtle": {
-  "sha256": "2dd43af78bb2007f2bf89f044fbb64f559d201b8dbe382a3b0063f446a2aa417",
-  "music": "hype -8.0/0.0",
+  "sha256": "c4b356c34332b4ba14a2f9361de609ce8dba84d64569b1354726bef063b271eb",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1250,8 +1250,8 @@
   ]
  },
  "face_doodles/bold": {
-  "sha256": "d780ae6ad5c867a315992760b367e17f7d84126f32efa7deda736b5a6235ccd0",
-  "music": "hype -15.0/0.0",
+  "sha256": "0b6feec8379936978a83c1bacf366d977022b7f32dac08eee8bc1e774ee27a78",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1290,8 +1290,8 @@
   ]
  },
  "face_doodles/max": {
-  "sha256": "de9c4ad4f1159aa3618b0d95f2cef1a28330be8ea535ae06180d2cc46cdbc8f1",
-  "music": "hype 3.0/-7.0",
+  "sha256": "751c5eaa8e810744012b12bed39376f8a5f9ae03435bd460ec7533a890b40311",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -1341,8 +1341,8 @@
   ]
  },
  "default/subtle": {
-  "sha256": "24cfa1f754aeff2fbc802901c599479b82c4e561fd3f795652d4b759f7f8d817",
-  "music": "hype -8.0/0.0",
+  "sha256": "1186c049d5c8a120f50cc83376f3ea669eb599a7fc7a19a9bc6d5f92f110958f",
+  "music": "hype-mirror-of-the-week -6.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1356,8 +1356,8 @@
   ]
  },
  "default/bold": {
-  "sha256": "5d82551c3678e5c2e4acc3560b5d11c438f3cc1f63ed9e58165356043f7b97cc",
-  "music": "hype -15.0/0.0",
+  "sha256": "38ba62c67dd0ec0199ebcb558d486153e2ab353085bc05d4031bad5181f9e4d1",
+  "music": "hype-mirror-of-the-week -13.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1381,8 +1381,8 @@
   ]
  },
  "default/max": {
-  "sha256": "ff8589e2a3eec27c660b97510781568c523c1fa7b8ca1f53ef682681759875af",
-  "music": "hype 3.0/-7.0",
+  "sha256": "2f0bb531d5b06f3b5a5dfa3721c277d508c338f50fdea05d9510c0439a04db45",
+  "music": "hype-mirror-of-the-week 5.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [

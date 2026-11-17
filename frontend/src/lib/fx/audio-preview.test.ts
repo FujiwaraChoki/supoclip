@@ -267,6 +267,27 @@ describe("FxAudioPreview music", () => {
     expect(first.value).toBeCloseTo(dbToGain(envelopeDbAt(points, 4.6) - 2), 12);
   });
 
+  it("loops a built-in bed between its loop start and end, starting at loop start + offset", async () => {
+    const padded = { ...music, asset: asset("/music/hype", 8, { loopStart: 0.1, loopSeconds: 7.5 }), offset: 3 };
+    const { ctx, preview } = await setup(program({ sfx: [], music: padded }));
+    preview.play(0);
+    let bedSource = ctx.sources.find((s) => s.loop)!;
+    expect([bedSource.loopStart, bedSource.loopEnd]).toEqual([0.1, 7.6]);
+    expect(bedSource.started!.offset).toBeCloseTo(3.1, 9);
+    preview.seek(4.6);                                         // 3 + 4.6 = 7.6 → 0.1 into the loop → 0.2 in the file
+    bedSource = ctx.sources.filter((s) => s.loop).at(-1)!;
+    expect(bedSource.started!.offset).toBeCloseTo(0.2, 9);
+  });
+
+  it("ignores a loop start on a drop-in bed", async () => {
+    const dropIn = { ...music, asset: asset("/music/mine", 8, { loopStart: 0.1, loopSeconds: 7.5, custom: true }) };
+    const { ctx, preview } = await setup(program({ sfx: [], music: dropIn }));
+    preview.play(0);
+    const bedSource = ctx.sources.find((s) => s.loop)!;
+    expect([bedSource.loopStart, bedSource.loopEnd]).toEqual([0, 8]);
+    expect(bedSource.started!.offset).toBeCloseTo(1, 9);
+  });
+
   it("envelopeRamps covers (from, to] and splits big dB moves", () => {
     const pts: [number, number][] = [[0, -60], [1, -20], [2, -20]];
     const ramps = envelopeRamps(pts, 0, 1.5);

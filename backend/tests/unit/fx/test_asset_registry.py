@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from src.edit_fx import assets
-from src.edit_fx.contracts import BED_FALLBACK, MOODS, SOUND_IDS
+from src.edit_fx.contracts import MOODS, SOUND_IDS
 
 BUILTIN = assets.builtin_dir()
 MANIFEST = json.loads((BUILTIN / "manifest.json").read_text(encoding="utf-8"))
@@ -24,6 +24,17 @@ def _builtin(sound: str, variant: int) -> Path:
     """The built-in file of `sound` at `variant`, from manifest.json."""
     (entry,) = [e for e in MANIFEST["sfx"] if e["sound"] == sound and e["variant"] == variant]
     return BUILTIN / entry["file"]
+
+
+def _bed(bed_id: str) -> Path:
+    """The built-in file of bed `bed_id`, from manifest.json."""
+    (entry,) = [e for e in MANIFEST["music"] if e["id"] == bed_id]
+    return BUILTIN / entry["file"]
+
+
+def _first_bed(mood: str) -> Path:
+    """The first built-in bed of `mood` in manifest order: where a missing or retired bed id of that mood lands."""
+    return BUILTIN / next(e["file"] for e in MANIFEST["music"] if e["mood"] == mood)
 
 
 def _tone(path: Path, *, peak_db: float = -20.0, seconds: float = 0.3, freq: float = 440.0, channels: int = 1):
@@ -79,11 +90,14 @@ def test_index_mirrors_the_builtin_manifest(empty_library):
         assert list(files) == [_builtin(sound, i) for i in range(len(files))]
         assert all(p.is_file() for p in files)
         assert all(index.sfx_duration[p] <= 2.5 for p in files)
-    assert {mood: ids for mood, ids in index.beds.items()} == {e["mood"]: (e["id"],) for e in MANIFEST["music"]}
-    assert set(index.beds) <= set(MOODS)
-    assert all(m in index.beds or BED_FALLBACK.get(m) in index.beds for m in MOODS)
+    expected_beds: dict[str, tuple[str, ...]] = {}
+    for entry in MANIFEST["music"]:
+        expected_beds[entry["mood"]] = (*expected_beds.get(entry["mood"], ()), entry["id"])
+    assert dict(index.beds) == expected_beds
+    assert set(index.beds) == set(MOODS) and all(len(ids) >= 7 for ids in index.beds.values())
     for entry in MANIFEST["music"]:
         assert index.bed_lengths[entry["id"]] == entry["loop_seconds"]
+        assert index.bed_starts[entry["id"]] == entry["loop_start"]
         assert index.bed_files[entry["id"]] == BUILTIN / entry["file"]
     assert index.atlas_png == BUILTIN / "emoji" / "atlas.png" and index.atlas_json.is_file()
     assert "🔥" in index.emoji_keys and len(index.emoji_keys) == MANIFEST["emoji"]["count"]
@@ -93,12 +107,13 @@ def test_public_index_manifest_has_no_paths_and_content_addressed_urls(empty_lib
     public = assets.load_index(refresh=True).manifest
     blob = json.dumps(public, ensure_ascii=False)
     assert "/fx_assets" not in blob and '"file"' not in blob and "sha256" not in blob
-    url = re.compile(r"^/fx/assets/[0-9a-f]{64}\.(wav|m4a|png|json)$")
+    url = re.compile(r"^/fx/assets/[0-9a-f]{64}\.(wav|mp3|png|json)$")
     assert len(public["sfx"]) == len(MANIFEST["sfx"]) and len(public["music"]) == len(MANIFEST["music"])
     for entry in public["sfx"]:
         assert set(entry) == {"id", "sound", "variant", "url", "duration", "gain_db"} and url.match(entry["url"])
     for entry in public["music"]:
-        assert set(entry) == {"id", "mood", "url", "duration", "loop_seconds"} and url.match(entry["url"])
+        assert set(entry) == {"id", "mood", "url", "duration", "loop_start", "loop_seconds"} and url.match(entry["url"])
+        assert entry["loop_start"] == 0.1 and entry["url"].endswith(".mp3")
     assert set(public["emoji"]) == {"atlas", "map", "cell"}
     assert url.match(public["emoji"]["atlas"]) and url.match(public["emoji"]["map"])
 
@@ -237,13 +252,26 @@ def test_invalid_drop_in_names_are_ignored(library):
 
 
 def test_beds_without_drop_ins(empty_library):
-    assert assets.mix_bed_file("chill", "chill", seed=4) == (BUILTIN / "music" / "chill.m4a", 0.0)
-    # a missing (custom) bed falls back to the built-in of that mood
-    assert assets.mix_bed_file("dark-gone", "dark", seed=4)[0] == BUILTIN / "music" / "dark.m4a"
+    assert assets.mix_bed_file("chill-unwind", "chill", seed=4) == (_bed("chill-unwind"), 0.0)
+    # a missing (custom) bed falls back to the first built-in of that mood
+    assert assets.mix_bed_file("dark-gone", "dark", seed=4)[0] == _first_bed("dark")
     # a built-in id is honoured even if the mood says otherwise
-    assert assets.mix_bed_file("funny", "hype", seed=0)[0] == BUILTIN / "music" / "funny.m4a"
-    # aggressive has no built-in bed: its plan borrows the hype bed, which plays as is without drop-ins
-    assert assets.mix_bed_file("hype", "aggressive", seed=2) == (BUILTIN / "music" / "hype.m4a", 0.0)
+    assert assets.mix_bed_file("funny-ukulele", "hype", seed=0)[0] == _bed("funny-ukulele")
+    # aggressive has built-in beds of its own
+    assert assets.mix_bed_file("aggressive-tlc", "aggressive", seed=2) == (_bed("aggressive-tlc"), 0.0)
+
+
+@pytest.mark.parametrize("mood", ["hype", "chill", "dramatic", "funny", "inspiring", "dark"])
+def test_retired_synth_bed_ids_play_the_first_bed_of_their_mood(empty_library, mood):
+    # Plans and studio documents saved before the curated beds name the old one-per-mood ids ("hype", ...).
+    assert mood not in assets.load_index().bed_files
+    for seed in range(3):
+        assert assets.mix_bed_file(mood, mood, seed=seed) == (_first_bed(mood), 0.0)
+
+
+def test_retired_borrowed_hype_bed_of_an_aggressive_plan_plays_an_aggressive_bed(empty_library):
+    # Before aggressive had beds, its plans named the borrowed "hype" bed and kept their own mood.
+    assert assets.mix_bed_file("hype", "aggressive", seed=1) == (_first_bed("aggressive"), 0.0)
 
 
 @needs_ffmpeg
@@ -255,28 +283,33 @@ def test_bed_drop_ins(library, monkeypatch):
     # explicit custom id → it, whatever the mood
     assert assets.mix_bed_file("dark-mine", "hype", seed=5) == (mine, -3.0)
     # built-in id + drop-ins of that mood → drop_ins[seed % len]
-    assert assets.mix_bed_file("hype", "hype", seed=0)[0] == one
-    assert assets.mix_bed_file("hype", "hype", seed=1)[0] == two
+    assert assets.mix_bed_file("hype-tent", "hype", seed=0)[0] == one
+    assert assets.mix_bed_file("hype-tent", "hype", seed=1)[0] == two
     # moods without drop-ins keep their built-in
-    assert assets.mix_bed_file("chill", "chill", seed=1)[0] == BUILTIN / "music" / "chill.m4a"
+    assert assets.mix_bed_file("chill-unwind", "chill", seed=1)[0] == _bed("chill-unwind")
     # a missing custom id of a mood that has drop-ins uses one of them
     assert assets.mix_bed_file("hype-gone", "hype", seed=3)[0] in (one, two)
 
 
 @needs_ffmpeg
-def test_aggressive_drop_ins_replace_the_borrowed_hype_bed(library, monkeypatch):
+def test_aggressive_drop_ins_replace_the_builtin_aggressive_beds(library, monkeypatch):
     monkeypatch.setattr(assets, "drop_in_gain_db", lambda _f: -3.0)
     hype = _tone(library / "music" / "hype-one.wav", seconds=1.0, channels=2)
     drill = _tone(library / "music" / "aggressive-drill.wav", seconds=1.0, channels=2)
     trap = _tone(library / "music" / "aggressive-trap.mp3", seconds=1.0, channels=2)
     lib = assets.load_library(refresh=True)
     assert [f.id for f in lib.music["aggressive"]] == ["aggressive-drill", "aggressive-trap"]
-    # the plan names the borrowed built-in "hype"; the bed's own mood picks among the aggressive drop-ins
+    # the plan names a built-in aggressive bed; the bed's mood picks among the aggressive drop-ins instead
+    assert assets.mix_bed_file("aggressive-tlc", "aggressive", seed=0) == (drill, -3.0)
+    assert assets.mix_bed_file("aggressive-tlc", "aggressive", seed=1)[0] == trap
+    # so does an old plan that still names the hype bed aggressive used to borrow
     assert assets.mix_bed_file("hype", "aggressive", seed=0) == (drill, -3.0)
-    assert assets.mix_bed_file("hype", "aggressive", seed=1)[0] == trap
-    assert assets.mix_bed_file("hype", "hype", seed=0)[0] == hype
-    assert {e["id"] for e in assets.public_manifest()["music"] if e.get("mood") == "aggressive"} == {
+    assert assets.mix_bed_file("hype-tent", "hype", seed=0)[0] == hype
+    served = assets.public_manifest()["music"]
+    assert {e["id"] for e in served if e.get("mood") == "aggressive" and e.get("custom")} == {
         "aggressive-drill", "aggressive-trap"}
+    assert len([e for e in served if e.get("mood") == "aggressive" and not e.get("custom")]) == len(
+        [e for e in MANIFEST["music"] if e["mood"] == "aggressive"])
 
 
 @needs_ffmpeg
@@ -306,7 +339,7 @@ def test_broken_drop_ins_are_skipped_at_mix_time_and_in_the_served_manifest(libr
     assert assets.mix_sfx_file("pop", 1, seed=0)[0] == _builtin("pop", 1)
 
     (library / "music" / "hype-broken.wav").write_bytes(b"nope")
-    assert assets.mix_bed_file("hype-broken", "hype", seed=0)[0] == BUILTIN / "music" / "hype.m4a"
+    assert assets.mix_bed_file("hype-broken", "hype", seed=0)[0] == _first_bed("hype")
     served = assets.public_manifest()
     assert not [e for e in served["sfx"] + served["music"] if e.get("custom")]
 

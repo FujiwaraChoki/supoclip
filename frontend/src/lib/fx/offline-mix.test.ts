@@ -248,6 +248,23 @@ describe("renderBus (build_bus)", () => {
     expect(bus[0][Math.round(7 * SR)] / g).toBeCloseTo(0.5 / 8, 4);   // 1.5 + 7 = 8.5 → wraps to 0.5
   });
 
+  it("tiles a built-in bed from its loop start, never playing the padding around the loop", () => {
+    // Built-in files hold a little of the loop's own audio before and after it: [loop_start, loop_start + loop_seconds)
+    const padded: FxAssetManifest = {
+      ...manifest,
+      music: [{ id: "hype", mood: "hype", url: "/fx/assets/hype.mp3", duration: 8, loop_start: 0.5, loop_seconds: 7 }],
+    };
+    const program = fxAudioProgram(input({ music: { ...bed, offset: 1.5, fade_in: 0, fade_out: 0 }, warp: identityWarp(10) }), padded);
+    expect(program.music!.asset).toMatchObject({ loopStart: 0.5, loopSeconds: 7 });
+    const ramp = buffer(8, (i) => i / (8 * SR));                       // level encodes the file position
+    const bus = renderBus(program, new Map([["/api/fx/assets/hype.mp3", ramp]]))!;
+    const g = dbToGain(-20);
+    expect(bus[0][0] / g).toBeCloseTo(2 / 8, 4);                            // 0.5 + 1.5 s into the file
+    expect(bus[0][Math.round(5.4 * SR)] / g).toBeCloseTo(7.4 / 8, 4);       // just before the seam
+    expect(bus[0][Math.round(5.5 * SR)] / g).toBeCloseTo(0.5 / 8, 4);       // 1.5 + 5.5 = 7 → back to the loop start
+    expect(bus[0][Math.round(9 * SR)] / g).toBeCloseTo(4 / 8, 4);           // 10.5 % 7 = 3.5 → 0.5 + 3.5
+  });
+
   it("crossfades a drop-in bed's seam with equal power", () => {
     const dropIn: FxAssetManifest = {
       ...manifest, music: [{ id: "hype-mine", mood: "hype", url: "/fx/assets/m.wav", duration: 1, loop_seconds: 1, custom: true }],

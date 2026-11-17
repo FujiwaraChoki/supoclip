@@ -34,12 +34,14 @@ sys.path.insert(0, str(BACKEND))
 OUT_DIR = BACKEND / "tests" / "fixtures" / "fx_resolver"
 
 # Built-in manifest shape (§12): variant counts per sound (= manifest.json, checked by test_fx_assets_manifest),
-# one bed per mood (32 bars at the mood's BPM).
+# and every built-in bed of each mood with its loop length (from manifest.json).
 SFX_VARIANTS = {"whoosh": 6, "impact": 7, "pop": 6, "riser": 8, "record_scratch": 6, "boom": 6, "cash_register": 5,
                 "ticker": 6, "slap": 6, "stamp": 6, "glitch": 6, "tape_stop": 6}
-BPM = {"hype": 124, "chill": 82, "dramatic": 70, "funny": 112, "inspiring": 96, "dark": 88}
-BEDS = {mood: (mood,) for mood in BPM}
-BED_LENGTHS = {mood: round(32 * 4 * 60 / bpm, 3) for mood, bpm in BPM.items()}
+_MUSIC = json.loads((BACKEND / "src" / "fx_assets" / "manifest.json").read_text(encoding="utf-8"))["music"]
+BEDS: dict[str, list[str]] = {}
+for _entry in _MUSIC:
+    BEDS.setdefault(_entry["mood"], []).append(_entry["id"])
+BED_LENGTHS = {entry["id"]: float(entry["loop_seconds"]) for entry in _MUSIC}
 DEFAULT_CLEANUP = {"cut_long_pauses": True, "pause_threshold_ms": 1200, "remove_filler_words": True,
                    "filtered_words": []}
 PAUSE = re.compile(r"^\|(\d+(?:\.\d+)?)\|$")
@@ -205,7 +207,7 @@ def build_inputs() -> dict[str, dict]:
     th = cleaned(th_raw, 119.9, th_raw[-1]["end"] + 0.4)
     story_raw = raw_words(STORY, 3600.0)
     st = cleaned(story_raw, 3599.8, story_raw[-1]["end"] + 0.6)
-    common = {"sfx_variants": SFX_VARIANTS, "beds": {k: list(v) for k, v in BEDS.items()},
+    common = {"sfx_variants": SFX_VARIANTS, "beds": BEDS,
               "bed_lengths": BED_LENGTHS, "reactions_available": True, "max_clip_seconds": 90.0,
               "broll_windows": [], "user_cues": [], "suppressed": []}
     talking_head = {

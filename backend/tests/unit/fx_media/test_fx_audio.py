@@ -241,7 +241,7 @@ def _bed_file(tmp_path: Path, seconds=2.0, hz=220.0) -> Path:
 
 
 def _music(**kw) -> MusicBed:
-    base = dict(mood="hype", bed="hype", gain_db=-20, duck_db=-12, attack=0.08, release=0.35, offset=0,
+    base = dict(mood="hype", bed="hype-tent", gain_db=-20, duck_db=-12, attack=0.08, release=0.35, offset=0,
                 fade_in=0.5, fade_out=0.8)
     base.update(kw)
     return MusicBed(**base)
@@ -309,31 +309,47 @@ def test_drop_in_bed_loops_with_an_equal_power_seam(tmp_path, monkeypatch):
 @needs_ffmpeg
 def test_builtin_bed_tiles_exactly_at_its_loop_length(tmp_path, monkeypatch):
     monkeypatch.setenv("FX_LIBRARY_DIR", str(tmp_path / "empty-library"))
-    path, _ = assets.mix_bed_file("funny", "funny", 0)
-    loop = assets.load_index().bed_lengths["funny"]
-    samples = fx_audio._builtin_loop_samples(path, SR)
-    assert samples == int(round(loop * SR))
+    path, _ = assets.mix_bed_file("funny-ukulele", "funny", 0)
+    index = assets.load_index()
+    start, samples = fx_audio._builtin_loop(path, SR)
+    bed_id = "funny-ukulele"
+    assert (start, samples) == (round(index.bed_starts[bed_id] * SR), round(index.bed_lengths[bed_id] * SR))
+    assert start == round(0.1 * SR)
     decoded = fx_audio._decode(path, SR)
-    # ffmpeg 9 trims the AAC end padding, 6.1/7.1 keep ~731 samples of it: the mix cuts to the loop length.
-    assert 0 <= decoded.shape[0] - samples < 1024
-    decoded = decoded[:samples]
-    start = decoded.shape[0] - 1000
-    looped = fx_audio._looped(decoded, start, 3000, seamless=True, sample_rate=SR)
-    assert np.array_equal(looped[:1000], decoded[-1000:]) and np.array_equal(looped[1000:], decoded[:2000])
+    # the file holds the loop with 100 ms of its own audio on each side (and at most one MP3 frame of end padding)
+    assert 0 <= decoded.shape[0] - (2 * start + samples) < 1152
+    loop = decoded[start:start + samples]
+    tail = loop.shape[0] - 1000
+    looped = fx_audio._looped(loop, tail, 3000, seamless=True, sample_rate=SR)
+    assert np.array_equal(looped[:1000], loop[-1000:]) and np.array_equal(looped[1000:], loop[:2000])
+
+
+@needs_ffmpeg
+def test_builtin_bed_mix_starts_at_its_loop_not_at_the_file_padding(tmp_path, monkeypatch):
+    monkeypatch.setenv("FX_LIBRARY_DIR", str(tmp_path / "empty-library"))
+    path, _ = assets.mix_bed_file("funny-ukulele", "funny", 0)
+    start, samples = fx_audio._builtin_loop(path, SR)
+    loop = fx_audio._decode(path, SR)[start:start + samples]
+    out = tmp_path / "fxbus.wav"
+    music = _music(mood="funny", bed="funny-ukulele", gain_db=0, duck_db=0, fade_in=0, fade_out=0, offset=1.0)
+    assert fx_audio.build_bus(_plan(music=music), words_e=[], warp=identity_warp(2), out_duration=2, path=out)
+    bus = _read(out)
+    expected = loop[SR:SR + bus.shape[0]]                                  # offset 1 s into the loop, not the file
+    assert np.max(np.abs(bus - expected)) < 2e-3
 
 
 @needs_ffmpeg
 def test_real_builtin_bed_mixes(tmp_path, monkeypatch):
     monkeypatch.setenv("FX_LIBRARY_DIR", str(tmp_path / "empty-library"))
     out = tmp_path / "fxbus.wav"
-    plan = _plan(music=_music(mood="dramatic", bed="dramatic"))
+    plan = _plan(music=_music(mood="dramatic", bed="dramatic-war-room"))
     assert fx_audio.build_bus(plan, words_e=[], warp=identity_warp(4), out_duration=4, path=out)
     bus = _read(out)
     assert -45 < _window_db(bus, 1, 3) < -15
 
 
 def test_drop_in_beds_are_not_treated_as_builtin(tmp_path):
-    assert fx_audio._builtin_loop_samples(_bed_file(tmp_path), SR) is None
+    assert fx_audio._builtin_loop(_bed_file(tmp_path), SR) is None
 
 
 def test_undecodable_bed_is_skipped(tmp_path, monkeypatch, caplog):

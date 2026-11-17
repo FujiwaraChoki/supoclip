@@ -16,8 +16,9 @@ const manifest: FxAssetManifest = {
     { id: "pop-b", sound: "pop", variant: 1, url: url(6), duration: 0.2, gain_db: -2, custom: true },
   ],
   music: [
-    { id: "hype", mood: "hype", url: url(7, "m4a"), duration: 61.9, loop_seconds: 61.9355 },
-    { id: "chill", mood: "chill", url: url(8, "m4a"), duration: 93.6, loop_seconds: 93.6585 },
+    { id: "hype-tent", mood: "hype", url: url(7, "mp3"), duration: 107.72, loop_start: 0.1, loop_seconds: 107.52 },
+    { id: "hype-tribal-bass", mood: "hype", url: url(13, "mp3"), duration: 44.5059, loop_start: 0.1, loop_seconds: 44.305896 },
+    { id: "chill-unwind", mood: "chill", url: url(8, "mp3"), duration: 81.0421, loop_start: 0.1, loop_seconds: 80.842104 },
     { id: "chill-mine", mood: "chill", url: url(9, "mp3"), duration: 40, loop_seconds: 40, gain_db: 4, custom: true },
     { id: "chill-yours", mood: "chill", url: url(10, "mp3"), duration: 30, loop_seconds: 30, gain_db: -1, custom: true },
   ],
@@ -77,15 +78,30 @@ describe("bedAsset mirrors mix_bed_file", () => {
   });
 
   it("uses the mood's drop-ins by seed before the built-in", () => {
-    expect(bedAsset(manifest, "chill", "chill", 0)?.id).toBe("chill-mine");
-    expect(bedAsset(manifest, "chill", "chill", 3)?.id).toBe("chill-yours");
+    expect(bedAsset(manifest, "chill-unwind", "chill", 0)?.id).toBe("chill-mine");
+    expect(bedAsset(manifest, "chill-unwind", "chill", 3)?.id).toBe("chill-yours");
   });
 
-  it("falls back to the built-in id, then the mood's built-in, then any built-in", () => {
-    expect(bedAsset(manifest, "hype", "hype", 0)).toMatchObject({ id: "hype", gainDb: 0, loopSeconds: 61.9355, custom: false });
-    expect(bedAsset(manifest, "gone-bed", "hype", 0)?.id).toBe("hype");
-    expect(bedAsset(manifest, "gone-bed", "dark", 0)?.id).toBe("hype");
+  it("falls back to the built-in id, then the mood's first built-in, then any built-in", () => {
+    expect(bedAsset(manifest, "hype-tribal-bass", "hype", 0)).toMatchObject({
+      id: "hype-tribal-bass", gainDb: 0, loopStart: 0.1, loopSeconds: 44.305896, custom: false,
+    });
+    expect(bedAsset(manifest, "gone-bed", "hype", 0)?.id).toBe("hype-tent");
+    expect(bedAsset(manifest, "gone-bed", "dark", 0)?.id).toBe("hype-tent");
     expect(bedAsset({ ...manifest, music: [] }, "hype", "hype", 0)).toBeNull();
+  });
+
+  it("plays a retired one-per-mood bed id as the first built-in of its mood, whatever the seed", () => {
+    // documents saved before the curated beds name "hype", "chill", ...; aggressive ones borrowed "hype"
+    for (const seed of [0, 1, 7]) expect(bedAsset(manifest, "hype", "hype", seed)?.id).toBe("hype-tent");
+    const noDropIns = { ...manifest, music: manifest.music.filter((e) => !e.custom) };
+    expect(bedAsset(noDropIns, "chill", "chill", 5)).toMatchObject({ id: "chill-unwind", loopStart: 0.1 });
+  });
+
+  it("gives built-ins their loop start and drop-ins none", () => {
+    expect(bedAsset(manifest, "chill-mine", "chill", 0)).toMatchObject({ loopStart: 0, loopSeconds: 40, custom: true });
+    const old = { ...manifest, music: [{ id: "hype-old", mood: "hype" as const, url: url(14, "mp3"), duration: 30, loop_seconds: 30 }] };
+    expect(bedAsset(old, "hype-old", "hype", 0)?.loopStart).toBe(0);   // a manifest without loop_start
   });
 });
 

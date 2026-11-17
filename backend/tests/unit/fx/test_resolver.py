@@ -9,6 +9,7 @@ import re
 import pytest
 
 from src.edit_fx.contracts import (
+    MOODS,
     SOUND_IDS,
     BleepCue,
     EditStyle,
@@ -17,7 +18,7 @@ from src.edit_fx.contracts import (
     SpeedCue,
     ZoomCue,
 )
-from src.edit_fx.resolver import ResolveInput, resolve, sfx_bus_gain_db
+from src.edit_fx.resolver import MOOD_MUSIC_TRIM_DB, MUSIC_LEVELS, ResolveInput, resolve, sfx_bus_gain_db
 from tests.fixtures.fx_resolver.builders import (
     BED_LENGTHS,
     BEDS,
@@ -463,34 +464,50 @@ def test_rule8_resolver_never_emits_kenburns():
 def test_rule9_music_mood_bed_and_levels():
     plan = run([mid("wallet", "emphasis")], intensity="bold", meta={"mood": "funny"})
     # constant beds at subtle and bold, a 7 dB duck at max (levels calibrated against the references)
-    assert (plan.music.mood, plan.music.bed, plan.music.gain_db, plan.music.duck_db) == ("funny", "funny", -15, 0)
-    subtle = run([], intensity="subtle").music
+    assert (plan.music.mood, plan.music.gain_db, plan.music.duck_db) == ("funny", -15, 0)
+    assert plan.music.bed in BEDS["funny"] and len(BEDS["funny"]) > 1
+    subtle = run([], intensity="subtle", meta={"mood": "funny"}).music
     assert (subtle.gain_db, subtle.duck_db) == (-8, 0)
-    wild = run([], intensity="max").music
+    wild = run([], intensity="max", meta={"mood": "funny"}).music
     assert (wild.gain_db, wild.duck_db, wild.attack, wild.release) == (3, -7, 0.25, 0.6)
     plan = run([], style=EditStyle(intensity="bold", music_mood="dark"))
-    assert plan.music.mood == "dark"
+    assert plan.music.mood == "dark" and plan.music.bed in BEDS["dark"]
     assert run([], style=EditStyle(intensity="bold", music=False)).music is None
     assert run([], template="slam", intensity="off").music is None
 
 
-def test_rule9_aggressive_borrows_the_hype_bed_until_it_has_its_own():
-    # No built-in aggressive bed: the plan names the hype bed but keeps the mood, so aggressive drop-ins play.
+def test_rule9_the_bed_is_a_seeded_pick_among_the_moods_beds():
+    picks = {run([], seed=seed, meta={"mood": "chill"}).music.bed for seed in range(40)}
+    assert picks <= set(BEDS["chill"]) and len(picks) > 1
+    assert run([], seed=7, meta={"mood": "chill"}).music.bed == run([], seed=7, meta={"mood": "chill"}).music.bed
+
+
+def test_mood_music_trim_raises_the_aggressive_and_hype_beds():
+    # A drill or trap bed under a rant is meant to be felt: aggressive and hype sit 4 and 2 dB over the tier level.
+    assert MOOD_MUSIC_TRIM_DB == {"aggressive": 4.0, "hype": 2.0}
+    for intensity in ("subtle", "bold", "max"):
+        gain, duck, _attack, _release = MUSIC_LEVELS[intensity]
+        for mood in MOODS:
+            music = run([], style=EditStyle(intensity=intensity, music_mood=mood)).music
+            assert music.mood == mood and music.bed in BEDS[mood]
+            assert (music.gain_db, music.duck_db) == (gain + MOOD_MUSIC_TRIM_DB.get(mood, 0.0), duck), (intensity, mood)
+
+
+def test_rule9_aggressive_has_its_own_beds():
+    # Aggressive has built-in beds of its own (no borrowing); the plan names one of them and keeps the mood, so
+    # aggressive drop-ins (FX_LIBRARY_DIR music/aggressive-*) still replace it at mix time.
     picked = run([], style=EditStyle(intensity="bold", music_mood="aggressive"))
-    assert (picked.music.mood, picked.music.bed, picked.mood) == ("aggressive", "hype", "aggressive")
+    assert (picked.music.mood, picked.mood) == ("aggressive", "aggressive")
+    assert picked.music.bed in BEDS["aggressive"] and picked.music.bed.startswith("aggressive-")
     auto = run([], intensity="bold", meta={"mood": "aggressive"})
-    assert (auto.music.mood, auto.music.bed) == ("aggressive", "hype")
-    # Same levels as any other mood at the tier.
-    assert (auto.music.gain_db, auto.music.duck_db) == (run([], intensity="bold").music.gain_db, 0)
-    # Once the built-ins have an aggressive bed, it is used.
-    own = run([], intensity="bold", meta={"mood": "aggressive"}, beds={**BEDS, "aggressive": ("aggressive",)},
-              bed_lengths={**BED_LENGTHS, "aggressive": 25.6})
-    assert (own.music.mood, own.music.bed) == ("aggressive", "aggressive")
-    # Serious clips keep the inspiring bed whatever the pick, and a mood with neither bed nor fallback gets none.
+    assert auto.music.mood == "aggressive" and auto.music.bed in BEDS["aggressive"]
+    # Louder than any other mood at the tier (MOOD_MUSIC_TRIM_DB).
+    assert (auto.music.gain_db, auto.music.duck_db) == (MUSIC_LEVELS["bold"][0] + 4.0, 0)
+    # Serious clips keep the inspiring bed whatever the pick, and a mood without built-in beds gets no music.
     serious = run([], style=EditStyle(intensity="bold", music_mood="aggressive"),
                   meta={"mood": "aggressive", "sensitivity": "serious"})
-    assert serious.music.mood == "inspiring"
-    assert run([], intensity="bold", meta={"mood": "aggressive"}, beds={"chill": ("chill",)}).music is None
+    assert serious.music.mood == "inspiring" and serious.music.bed in BEDS["inspiring"]
+    assert run([], intensity="bold", meta={"mood": "aggressive"}, beds={"chill": BEDS["chill"]}).music is None
 
 
 def test_aggressive_is_not_a_calm_mood():
@@ -500,7 +517,7 @@ def test_aggressive_is_not_a_calm_mood():
 
 def test_rule9_loop_ending_offsets_the_bed_to_the_seam():
     plan = run([], style=EditStyle(intensity="bold", loop_ending=True))
-    length = 61.935
+    length = BED_LENGTHS[plan.music.bed]
     assert plan.music.offset == pytest.approx((length - plan.edit_duration % length) % length, abs=1e-3)
     assert plan.music.fade_in == plan.music.fade_out == 0.02
     assert plan.loop_ending == "crossfade"
@@ -585,7 +602,8 @@ def test_no_timing_only_global_fx():
     plan = resolve(inp, EditStyle(intensity="bold", grain=True, progress_bar=True), "marker_circle", seed)
     assert {c.kind for c in plan.cues} <= {"transition", "sfx"}
     assert all(c.kind == "transition" or c.id.endswith(".tr.sfx") or c.id.startswith("e") for c in plan.cues)
-    assert plan.music.gain_db == -15 and plan.music.duck_db == 0
+    # the fixture's mood is hype: the bold level plus its trim, nothing to duck under
+    assert plan.music.gain_db == -15 + MOOD_MUSIC_TRIM_DB["hype"] and plan.music.duck_db == 0
     assert plan.grade == "none" and plan.grain == 0.2 and plan.progress_bar and plan.timing == "none"
 
 
@@ -820,5 +838,5 @@ def test_loop_music_offset_uses_the_emitted_warp():
     plan = run(beats, style=EditStyle(intensity="max", loop_ending=True), user_cues=(user,), **kw)
     out = build_warp(plan.cues, plan.edit_duration).out_duration
     assert out < plan.edit_duration
-    length = 61.935
+    length = BED_LENGTHS[plan.music.bed]
     assert plan.music.offset == pytest.approx((length - out % length) % length, abs=1e-3)

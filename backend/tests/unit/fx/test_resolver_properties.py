@@ -13,7 +13,7 @@ from itertools import combinations
 
 import pytest
 
-from src.edit_fx.contracts import BED_FALLBACK, MOODS, TRANSITION_HALF, Beat, EditBeats, EditStyle, ReactionIdea
+from src.edit_fx.contracts import MOODS, TRANSITION_HALF, Beat, EditBeats, EditStyle, ReactionIdea
 from src.edit_fx.contracts import LOOK_TEMPLATES
 from src.edit_fx.resolver import (
     BUDGETS,
@@ -21,6 +21,7 @@ from src.edit_fx.resolver import (
     GRAIN,
     KEYWORD_GAP,
     KEYWORD_RATE,
+    MOOD_MUSIC_TRIM_DB,
     MUSIC_LEVELS,
     NUDGE_SCALE,
     REFRAME_RATE,
@@ -319,11 +320,12 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
         assert plan.music is None
     elif plan.music is not None:
         gain, duck, _attack, _release = MUSIC_LEVELS[tier]
+        gain += MOOD_MUSIC_TRIM_DB.get(plan.music.mood, 0.0)
         if inp.beats.timing == "none":
             gain, duck = gain + duck, 0.0
         assert (plan.music.gain_db, plan.music.duck_db) == (gain, duck)
-        # a mood without a built-in bed borrows its fallback's; the bed keeps its own mood for drop-ins
-        assert plan.music.bed in (BEDS.get(plan.music.mood) or BEDS[BED_FALLBACK[plan.music.mood]])
+        # every mood has built-in beds; the plan names one of its own mood's
+        assert plan.music.bed in BEDS[plan.music.mood]
     if tier == "style":
         assert plan.grade == "none" and plan.grain == 0 and not plan.progress_bar
     else:

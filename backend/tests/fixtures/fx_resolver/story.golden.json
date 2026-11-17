@@ -15,8 +15,8 @@
   ]
  },
  "marker_circle/subtle": {
-  "sha256": "edf63663979d262c43243720d407436ce6f32578ef95772db398c543f23b2937",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "f9f955b3fc12fb4ffcfd756a9d50cb77240a4e4264a642e974eff90e9755daec",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -38,8 +38,8 @@
   ]
  },
  "marker_circle/bold": {
-  "sha256": "79ea71f3417749a1bbbcbf44efacb366d0bf96b1b4d7e1ea900a619ccf3ed799",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "46cf5552458e9755da94fb439bfe54525b81588967da3b0bfd1d0ce1744fb762",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -79,8 +79,8 @@
   ]
  },
  "marker_circle/max": {
-  "sha256": "ab68f1c4504e4ac8bf6a12d10dd8bde4d71916401ecba07cd2854479b3bbff19",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "749bef0cb434594cf677b83db8d54a19cf3a103c70af8e55c6bf668163b82a76",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -154,8 +154,8 @@
   ]
  },
  "emoji_drop/subtle": {
-  "sha256": "b16642bad32ce9b713f2b63f5ca278b0dffd4b9e83717afca0d60b357f1efdb8",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "ca1d839640101fa1e069e3b05bf3cf828e8ce78b97d11a98a8cde17a9f59f5b9",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -177,8 +177,8 @@
   ]
  },
  "emoji_drop/bold": {
-  "sha256": "698a2d8b58bb5ad3ff4a7f6dd221fba80e442f39eebdef2631cce2304876528d",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "d61e65f5be2b51cacfc44b86da89d29d43703f4713f544d86af932b98cce2292",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -237,8 +237,8 @@
   ]
  },
  "emoji_drop/max": {
-  "sha256": "a4bbd2bb829981ee35b6cf8463df2193d5bd890d143cf2e786f03f277aacbe8a",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "680cb4040ac47ac7769627a0758f8c5b6a9d1ed0d919fdac0e78b15044a52f4f",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -324,8 +324,8 @@
   ]
  },
  "slam/subtle": {
-  "sha256": "18b44c9d3e0e550a21bec06d6302280e8f5249a8a5d96108401202877de0f5a0",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "054b55ff94a71aac076bc60b0bc716e12e737d6f25b57a68822f02ca4de29fa0",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -353,8 +353,8 @@
   ]
  },
  "slam/bold": {
-  "sha256": "d79f71dc2034a7f654201805da65431d33cdc4512323a28b300e0e6e0562da3d",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "5a4b500e63e0dc3209d17da41cce7b19fdd9d7856dcf27925f6800ae6c5e09a5",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -397,8 +397,8 @@
   ]
  },
  "slam/max": {
-  "sha256": "b69ce1de0c7f3a64e08739a014ff7330606f98ce9e48a4c9e305218a6f4d13d6",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "222b785fe964d9129f34ab06be6c232c91d6c947a7d2a87ef88bee46360f37b7",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
   "cues": [
@@ -479,8 +479,8 @@
   ]
  },
  "behind_head/subtle": {
-  "sha256": "7870744ee582ae7077e8bdb944114644e88fae1508db16eaffb5e68fa680e0d9",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "1b14e6ae6444ab1c146ba5c79e076f22edd381a2ea7c7883eac8243b7a6a7aa3",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -505,8 +505,8 @@
   ]
  },
  "behind_head/bold": {
-  "sha256": "edd63d4ebb86a126d0161aff35535661b458e1e4e57fd16cf3d007e2fd15310e",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "e71b74e2a28e7030aa6d6d26a8deb657670a7a88ed4d35ce2603a45cd73af8ac",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -567,8 +567,8 @@
   ]
  },
  "behind_head/max": {
-  "sha256": "2fe949120fe02a124fff856fd689a92aa1e68dfe2f44afed8fa2c3e111c939bc",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "40b11a40038d1fb41f97ab57a139ca8ed0bfa227bfc91ce744c5dfead22640a5",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -653,8 +653,8 @@
   ]
  },
  "stat_counter/subtle": {
-  "sha256": "c878e884ad1b64497cde57f1526bd6fb7486dfb15eee8357398b60d4cc791395",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "5dd6ce819301bba8cac4708e0df898e8c9751d4b5c58668589dce8daeb0913db",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -680,8 +680,8 @@
   ]
  },
  "stat_counter/bold": {
-  "sha256": "c7ecff7c944dad7e50df04bb58ed90854b5ac45906acfe7afe3614c307835e24",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "eee21188c3c0de5a4a1f4560d33b4a6a89e9645d138a840af967e384fbfb7fcb",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -723,8 +723,8 @@
   ]
  },
  "stat_counter/max": {
-  "sha256": "d434dd5b348c9912340d5e1a073d8ea4a2137d1cbacdf035223e174bb82a1fa2",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "0fc442cfe7abf603d24c28909cc3ea5927759c2f1eb2fe636d795ec6de22c2ce",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -793,8 +793,8 @@
   ]
  },
  "sticker_slap/subtle": {
-  "sha256": "3643e941684437b68adb24139b13fbc01222118c0d19df349e650c91233919b3",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "e47032c428c171f941718cd37b82371c626e4ed665fff6cafda565e96352336a",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -822,8 +822,8 @@
   ]
  },
  "sticker_slap/bold": {
-  "sha256": "82224f8ef858b7aea45d38c6381d3cce6a02506eb572f3a81a07edb434f957b1",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "206a88e34606b388e9baafd27bac4f00e2657faf7a274618219ae7339f2bf219",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -863,8 +863,8 @@
   ]
  },
  "sticker_slap/max": {
-  "sha256": "a353cbd973a699b36a879d63e3c5b10e580079d0f35f19b4717858d44299df5b",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "5c64ee349bccc41cf21031c370835c1788a684d49c7e2d71ab200c6af98ebe92",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -927,8 +927,8 @@
   ]
  },
  "kinetic_stack/subtle": {
-  "sha256": "7884541e8d7038ecc3b0b9dc959370b7f00e8172cb7499238ed59ce5da7a9197",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "90c62b8b30a48faff283a5c9ec5cd6fa779edc5d58f6b548e7e338cfddf41fc9",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -952,8 +952,8 @@
   ]
  },
  "kinetic_stack/bold": {
-  "sha256": "f99fc4cb4d55ad3f88cfa6cfbca2f99f563d06815378411c4d9d69d696540069",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "71d0979da284478eead08c0a3b211dc27e96e69c74b5d21f83b30015407911da",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": true,
   "cues": [
@@ -994,8 +994,8 @@
   ]
  },
  "kinetic_stack/max": {
-  "sha256": "55e6b43431f4a9f05cb09f5e426f3502b69cfc76c559014cd0001263b536a690",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "edc24c1f73f5029236fd88a60c8536cc1b325d604b19b7228303c849227acc05",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": true,
   "cues": [
@@ -1063,8 +1063,8 @@
   ]
  },
  "decode_glitch/subtle": {
-  "sha256": "010f0114c45280721ea6e4744831c7bd8fed83529d10da408d5439eb3b149823",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "ce605421fc67c37307e1a5da6908be67dd2b59569ed5243785bc82b8be77afd2",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1092,8 +1092,8 @@
   ]
  },
  "decode_glitch/bold": {
-  "sha256": "9e9f13fefa33bfc1e6fdc6d448012fa7d378cf2dac2e73854f4768357f8c80db",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "91bfb544265e5b049ea925833d5b3f4121a25da27f51bec738ff7a098e689406",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1133,8 +1133,8 @@
   ]
  },
  "decode_glitch/max": {
-  "sha256": "14e947ce97d555642f10a1ec2f62fe0816e20786c68dc5edd7cc6ec9fff69370",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "a803adb6410682ee5a90ad9b3d35349fac7d3ee7ed0d0964279a681300c915a4",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -1209,8 +1209,8 @@
   ]
  },
  "highlighter_swipe/subtle": {
-  "sha256": "c3cddf6af9198f45a48a1f59812cace8119da7760327fb5187c0210e74be659c",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "1f8aa2348928b836c3eebe3948e1b3511eee30e27d01ed6c97dc736c299b1ba0",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1232,8 +1232,8 @@
   ]
  },
  "highlighter_swipe/bold": {
-  "sha256": "d7e47a33afa50fad72d85dcc7410855e34ede307d4104b43c7280abdc0f642e4",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "8ab68549b398f72faf1ba38d50aa6a1dfd0fe466a507870e63f41d04a8b2adf8",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1292,8 +1292,8 @@
   ]
  },
  "highlighter_swipe/max": {
-  "sha256": "f9387b8a3d7ca3d355dc9eeb3178f54c5530ee4bc361f719e5b10588cad1a072",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "880f16faed35fc30e3d998b336a3ad4dac8b62feb3e6e04fd00b58436d2deb0e",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -1376,8 +1376,8 @@
   ]
  },
  "face_doodles/subtle": {
-  "sha256": "b68064baaafc552076c78c6e95d2e29bbd62ae8b1b95b9fa543c79ea1bce7834",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "7d87bd396d60cee6b50e11db0cf8a4a850ae559ec9a52721f44e32d8f7865feb",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1402,8 +1402,8 @@
   ]
  },
  "face_doodles/bold": {
-  "sha256": "c8b01c6650f3301d9d077f83ef30d276c7d307caee363b98fd376474081f30a1",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "191dac813e50c3b056290cc7ef1321b8a07aba009f6bdcd4aa4bf69f13c3d15c",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1443,8 +1443,8 @@
   ]
  },
  "face_doodles/max": {
-  "sha256": "ffa74a10d805117cefc39d45f5d6c6a7bacf57ff549ee36d8fb435d6c73d2bf1",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "2627e8da827b317570cad93b61aec454c98c749588ec4b5830b92ccf62296c9e",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [
@@ -1488,8 +1488,8 @@
   ]
  },
  "default/subtle": {
-  "sha256": "89e5803d168ef5b16979f8542a99f32edc5c31ee9074b7f09de908d0b2cc476c",
-  "music": "dramatic -8.0/0.0",
+  "sha256": "856c6e7d2fdaef56b05277fcada8baf9dba922fff2af3d37b9d7c39283b0136d",
+  "music": "dramatic-war-room -8.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1504,8 +1504,8 @@
   ]
  },
  "default/bold": {
-  "sha256": "b005b9e10fa51bde141b02695c6439b31d10cf679170aeed475d2516d93231c3",
-  "music": "dramatic -15.0/0.0",
+  "sha256": "7a3ce9e3c47cb2b457946fad819bf2bd7d1dab1faaee9cc253ef165064000acd",
+  "music": "dramatic-war-room -15.0/0.0",
   "grade": "none",
   "hook_title_suppressed": false,
   "cues": [
@@ -1537,8 +1537,8 @@
   ]
  },
  "default/max": {
-  "sha256": "6a4fa06d1c17d8d1225d6e5dbbb03f8f7f26557356ffb25bc6eadc9d52901a0e",
-  "music": "dramatic 3.0/-7.0",
+  "sha256": "ebf6662084a6b5019709939befe39cdb48b62ecce717366d986df01e909a0704",
+  "music": "dramatic-war-room 3.0/-7.0",
   "grade": "punchy",
   "hook_title_suppressed": false,
   "cues": [

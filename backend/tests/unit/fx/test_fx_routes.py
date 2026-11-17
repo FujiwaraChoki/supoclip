@@ -93,7 +93,7 @@ async def test_manifest_lists_builtins_without_paths(client, auth_headers, libra
     assert body["emoji"]["cell"] == MANIFEST["emoji"]["cell"]
     sfx = body["sfx"][0]
     assert set(sfx) == {"id", "sound", "variant", "url", "duration", "gain_db"}
-    assert set(body["music"][0]) == {"id", "mood", "url", "duration", "loop_seconds"}
+    assert set(body["music"][0]) == {"id", "mood", "url", "duration", "loop_start", "loop_seconds"}
 
     # No file names or paths anywhere: every URL is content-addressed and nothing names a directory.
     for url in _urls(body):
@@ -137,7 +137,7 @@ async def test_files_are_served_by_hash_with_immutable_caching(client, auth_head
     response = await client.get(f"/fx/assets/{entry['sha256']}.{ext}", headers=auth_headers)
     assert response.status_code == 200
     assert response.headers["cache-control"] == IMMUTABLE
-    assert response.headers["content-type"].startswith({"wav": "audio/wav", "m4a": "audio/mp4"}[ext])
+    assert response.headers["content-type"].startswith({"wav": "audio/wav", "mp3": "audio/mpeg"}[ext])
     assert response.content == (BUILTIN / entry["file"]).read_bytes()
 
 
@@ -153,7 +153,8 @@ async def test_every_manifest_url_resolves(client, auth_headers, library):
 
 async def test_range_requests_are_supported_for_media(client, auth_headers, library):
     entry = MANIFEST["music"][0]
-    response = await client.get(f"/fx/assets/{entry['sha256']}.m4a", headers={**auth_headers, "range": "bytes=0-99"})
+    ext = Path(entry["file"]).suffix.lstrip(".")
+    response = await client.get(f"/fx/assets/{entry['sha256']}.{ext}", headers={**auth_headers, "range": "bytes=0-99"})
     assert response.status_code == 206
     assert response.headers["content-range"].startswith("bytes 0-99/")
     assert len(response.content) == 100
