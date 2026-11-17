@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
-- **Improved:** Clips with b-roll, handheld or POV footage, or a drone shot now fill the vertical frame with a crop on the action instead of showing the picture as a thin strip on a blurred background. Screenshots, documents, side-by-side comparisons and group shots still show the full picture, so nothing important is cut off. ([#432](https://github.com/FujiwaraChoki/supoclip/pull/432))
+- **Improved:** Clips with b-roll, handheld or POV footage, or a drone shot now fill the vertical frame with a crop on the action instead of showing the picture as a thin strip on a blurred background. Screenshots, documents, side-by-side comparisons and group shots still show the full picture, so nothing important is cut off. A single graph or slide cut into a talking-head clip is shown in full without shrinking the speaker for the rest of the clip. ([#432](https://github.com/FujiwaraChoki/supoclip/pull/432))
 - **Fixed:** The clip studio no longer fails to open, or to start an export, when several clips load at the same moment. A request now uses one database connection at a time, the export list stops piling up refreshes behind a slow one, checking an export's file in storage no longer holds a connection, and a briefly busy server says to try again in a few seconds instead of showing a generic error. ([#429](https://github.com/FujiwaraChoki/supoclip/pull/429))
 - **Fixed:** Creating a generation no longer fails when old deployments fill the database connection limit. Connection pools are bounded, and deployments require the previous release to be retired before another is staged. ([#427](https://github.com/FujiwaraChoki/supoclip/pull/427))
 
