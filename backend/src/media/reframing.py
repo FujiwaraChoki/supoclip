@@ -1579,6 +1579,17 @@ def describe_vertical_layout(
     if fit_windows:
         logger.info("Readable fit windows (start, end, crop_w, x): %s", fit_windows)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] in ("fit", "cover")]
+
+    def with_shots(result: Dict[str, Any]) -> Dict[str, Any]:
+        # A clip that switches between frame-filling crops and fitted content gets its shots, in the interview
+        # layout's terms (crop or cover = "single", fit = "fit"), so the look captions sit at mid-chest on a crop
+        # and below the picture of a fitted graphic instead of across it (edit_fx.caption_rows).
+        if any(s["kind"] == "fit" for s in plan) and any(s["kind"] != "fit" for s in plan):
+            result["interview_segments"] = [
+                {"start": float(s["start"]), "end": float(s["end"]), "kind": "fit" if s["kind"] == "fit" else "single"}
+                for s in plan
+            ]
+        return result
     # Two people who cannot share a 9:16 crop are not slide or sports content.
     # Call/stage layouts and speaker framing still apply; if both decline, that
     # shot keeps the full frame instead of a dominant-face crop.
@@ -1648,8 +1659,10 @@ def describe_vertical_layout(
     if all(s["kind"] in ("fit", "cover") for s in plan) and content_fits:
         if all(s["kind"] == "cover" for s in plan):
             return described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None)
-        kind = "compositor" if covers else "fit"
-        return described(kind, build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+        if covers:
+            return with_shots(described(
+                "compositor", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80))
+        return described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
@@ -1733,14 +1746,14 @@ def describe_vertical_layout(
         "Scene-aware vertical layout: %d face shot(s), %d content shot(s)",
         len(face_intervals), len(fit_intervals),
     )
-    return described(
+    return with_shots(described(
         "compositor",
         build_vertical_compositor_filter(
             crop_chain, face_intervals, fit_intervals, fit_windows=fit_windows
         ),
         "complex",
         bleed_caption(face_samples),
-    )
+    ))
 
 
 def render_reframed_clip_ffmpeg(

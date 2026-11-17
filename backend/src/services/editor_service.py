@@ -519,7 +519,7 @@ def editor_caption_rows(layout: dict, captions: dict, duration: float) -> dict |
     from ..edit_fx.caption_rows import interview_caption_rows
     from ..edit_fx.contracts import is_listed_fx_template
 
-    if not layout.get("baked") or layout.get("kind") != "interview" or not layout.get("segments"):
+    if not layout.get("baked") or layout.get("kind") not in ("interview", "compositor") or not layout.get("segments"):
         return None
     if not is_listed_fx_template(captions.get("template")):
         return None

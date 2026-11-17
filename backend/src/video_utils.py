@@ -941,7 +941,7 @@ def _fx_ladder_setup(
 
         y = float(caption_y) if caption_y is not None else float(LOOKS[look]["y"])
         rows: tuple = ()
-        if layout_kind == "interview" and not caption_y_pinned:
+        if (layout_kind == "interview" or (layout_kind == "compositor" and interview_segments)) and not caption_y_pinned:
             # A row per shot, where the references put captions: on the seam of a stacked two-shot, at mid-chest on
             # a close-up, below the picture of a fitted graphic; never on the lower person's face. The row changes
             # at the first caption group after a cut (fx-core). A caption edit's own position pins them instead.
