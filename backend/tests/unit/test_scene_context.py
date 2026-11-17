@@ -391,6 +391,12 @@ def test_content_keeps_the_full_frame(kwargs):
     assert [p["kind"] for p in plan] == ["fit"]
 
 
+def test_a_slow_push_in_over_a_photo_fills_the_frame():
+    samples = [footage(i / 3, motion=0.0, camera_motion=0.005, text_rows=6) for i in range(30)]
+    plan = build_context_layout_plan(samples, [], 10, 0.316)
+    assert plan[0]["kind"] == "cover"
+
+
 def test_a_lone_small_face_in_moving_footage_is_the_crop_centre():
     samples = [footage(i / 3, face_count=1, face_area=0.004, face_span=0.05, face_center=0.7) for i in range(30)]
     plan = build_context_layout_plan(samples, [], 10, 0.316)
