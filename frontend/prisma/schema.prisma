@@ -473,6 +473,7 @@ model StripeAccountMigration {
   destination_disabled_verified Boolean @default(false)
   destination_paid_invoice String? @db.VarChar(255)
   cancellation_requested Boolean @default(false)
+  cancellation_requested_at DateTime? @db.Timestamptz
   recovery_required Boolean @default(false)
   review_reason String? @db.Text
   livemode Boolean

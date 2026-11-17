@@ -6,6 +6,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
+- **Fixed:** Cancellation reports for customers cancelling during the move between payment accounts show when the customer cancelled, not when the move stopped their old subscription, so the report's timeline and activity are no longer shifted. Cancellations from before this change say the time wasn't recorded. ([#430](https://github.com/FujiwaraChoki/supoclip/pull/430))
+
 - **Fixed:** Creating a generation no longer fails when old deployments fill the database connection limit. Connection pools are bounded, and deployments require the previous release to be retired before another is staged. ([#427](https://github.com/FujiwaraChoki/supoclip/pull/427))
 
 - **Fixed:** House promo codes in referral links or entered before checkout are recognised again when billing uses multiple payment accounts. Code validation now uses the same payment account as checkout. ([#382](https://github.com/FujiwaraChoki/supoclip/pull/382))
