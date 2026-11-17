@@ -179,6 +179,28 @@ describe("time left", () => {
     expect(screen.queryByText("Less than a minute left")).not.toBeInTheDocument();
   });
 
+  it("shows the spread of plausible times for a remote series before rendering", () => {
+    render(<ProcessingPanel status="processing" progress={10} message="Downloading video..."
+      workflow="series" sourceSeconds={1838} outputs={10} />);
+    // Similar completed series took ~12 min at p25 and ~31 min at p90.
+    const [, low, high] = screen.getByText(/About (\d+)–(\d+) min left/).textContent!.match(/(\d+)–(\d+)/)!;
+    expect(Number(low)).toBeGreaterThanOrEqual(10);
+    expect(Number(low)).toBeLessThanOrEqual(13);
+    expect(Number(high)).toBeGreaterThanOrEqual(30);
+    expect(Number(high)).toBeLessThanOrEqual(35);
+  });
+
+  it("replaces an overdue download estimate until rendering supplies a new estimate", () => {
+    const { rerender } = render(<ProcessingPanel status="processing" progress={65}
+      message="Downloading selected segments..." phaseSince={Date.now() - 6 * 60_000}
+      workflow="series" sourceSeconds={1838} outputs={10} />);
+    expect(screen.getByText("Still downloading your video…")).toBeVisible();
+    expect(screen.queryByText(/min left/)).not.toBeInTheDocument();
+    rerender(<ProcessingPanel status="processing" progress={72} message="Creating part 1/10..."
+      workflow="series" sourceSeconds={1838} outputs={10} />);
+    expect(screen.getByText(/About \d+ min left/)).toBeVisible();
+  });
+
   it("counts the clips still to render", () => {
     render(<ProcessingPanel status="processing" progress={95} message="Creating clip 10/10..." sourceSeconds={3000} outputs={10} />);
     expect(screen.getByText("Less than a minute left")).toBeVisible();
