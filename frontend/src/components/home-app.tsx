@@ -1507,12 +1507,9 @@ function PlanStatusNudge({
   if (!state.isPaid) {
     const entry = getPublicBillingPlans()[0];
     return (
-      <UpgradeNudge
-        className="mt-6"
-        title={t("nudge.startTitle")}
+      <StartPlanCard
         description={entry ? t("nudge.startDescription", { price: `$${entry.priceMonthly}`, length: formatMinutes(entry.minuteLimit) }) : undefined}
-        action={t("nudge.seePlans")}
-        onAction={() => onUpgrade({ kind: "start" })}
+        onStart={() => onUpgrade({ kind: "start" })}
       />
     );
   }
@@ -1542,4 +1539,67 @@ function PlanStatusNudge({
   }
 
   return null;
+}
+
+const START_PERKS = ["ai", "captions", "formats"] as const;
+const START_MEDIA = { poster: "/billing/start-plan.webp", webm: "/billing/start-plan.webm", mp4: "/billing/start-plan.mp4" };
+
+/** The rendered loop; reduced motion keeps the poster still. */
+function StartPlanVideo({ className }: { className?: string }) {
+  return (
+    <video
+      className={className}
+      poster={START_MEDIA.poster}
+      autoPlay
+      loop
+      muted
+      playsInline
+      preload="auto"
+      aria-hidden
+      ref={(node) => { if (node && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) node.pause(); }}
+    >
+      <source src={START_MEDIA.webm} type="video/webm" />
+      <source src={START_MEDIA.mp4} type="video/mp4" />
+    </video>
+  );
+}
+
+/** What a free account sees above the composer: what a plan gets them, and the way in. */
+function StartPlanCard({ description, onStart }: { description?: string; onStart: () => void }) {
+  const t = useTranslations("home");
+  return (
+    <div className="relative isolate mt-6">
+      {/* The render's colours glow out around the card's edge and drift. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-0.5 -z-10 rounded-[1.1rem] bg-[linear-gradient(100deg,#ff5200,#ff0552,#7305ff,#0052ff,#00d98c,#7305ff,#ff5200)] bg-[length:300%_100%] opacity-60 blur-xl animate-[start-plan-glow_9s_ease-in-out_infinite_alternate] motion-reduce:animate-none dark:opacity-45"
+      />
+      <section data-testid="start-plan-card" className="relative overflow-hidden rounded-2xl bg-[#08060c] text-white ring-1 ring-white/10">
+        {/* The render fades into the card: no edge between picture and text. */}
+        <div className="relative h-44 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] sm:absolute sm:inset-y-0 sm:left-0 sm:h-auto sm:w-[19rem] sm:[mask-image:linear-gradient(to_right,black_50%,transparent)]">
+          <StartPlanVideo className="absolute inset-0 size-full object-cover" />
+        </div>
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(115,5,255,0.22),transparent_55%)]" />
+        <div className="relative min-w-0 p-5 pt-1 sm:py-6 sm:pl-[16.5rem] sm:pr-6">
+          <h2 className="font-display text-xl font-bold tracking-tight">{t("nudge.startTitle")}</h2>
+          {description && <p className="mt-1 text-sm text-white/65">{description}</p>}
+          <ul className="mt-4 space-y-1.5">
+            {START_PERKS.map((perk) => (
+              <li key={perk} className="flex items-start gap-2 text-sm text-white/90">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-brand" strokeWidth={2.5} />
+                {t(`nudge.startPerks.${perk}`)}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button type="button" onClick={onStart} className="rounded-full bg-white px-5 text-black hover:bg-white/90">
+              {t("nudge.startAction")}
+              <ArrowRight className="size-4" />
+            </Button>
+            <span className="text-xs text-white/50">{t("nudge.startFootnote")}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
