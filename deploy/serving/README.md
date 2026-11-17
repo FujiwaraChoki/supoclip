@@ -34,9 +34,10 @@ Retire the old pair only after the drain succeeds, direct callers have moved, qu
 
 Preparation refuses to add a third running release pair. Retained idle database
 pools still consume PostgreSQL slots, so a drained release must be stopped before
-staging the next candidate. Default ORM pools use at most five connections per
-process; include workers, the direct MCP API and advisory-lock connections in the
-database budget. A refusal never stops containers or interrupts a transfer.
+staging the next candidate. Each API slot can hold 15 ORM connections (pool 10,
+overflow 5) and each worker 5; include workers, the direct MCP API and
+advisory-lock connections in the database budget (`docs/configuration.md`,
+"Connection budget"). A refusal never stops containers or interrupts a transfer.
 
 ## Rehearsal
 
