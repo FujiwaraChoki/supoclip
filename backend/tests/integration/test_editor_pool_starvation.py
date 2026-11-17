@@ -126,3 +126,14 @@ async def test_a_full_pool_answers_503_with_retry_after(client, auth_headers, st
     assert response.headers["retry-after"] == "5"
     # The connection is free again: the same request succeeds.
     assert (await client.get(f"/tasks/{task_id}/clips/{clips[0]['id']}/editor", headers=auth_headers)).status_code == 200
+
+
+@pytest.mark.parametrize("route", ["file", "export?preset=tiktok"])
+async def test_legacy_clip_routes_answer_503_on_a_full_pool(client, auth_headers, studio, route):
+    """These routes turn unexpected errors into 500; a full pool is not one."""
+    task_id, clips, _doc, pool = studio
+    engine = await pool(1, timeout=1)
+    async with engine.connect():
+        response = await client.get(f"/tasks/{task_id}/clips/{clips[0]['id']}/{route}", headers=auth_headers)
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "5"

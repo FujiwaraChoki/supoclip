@@ -11,6 +11,21 @@ logger = logging.getLogger(__name__)
 POOL_BUSY_RETRY_AFTER_SECONDS = 5
 
 
+def pool_busy(request) -> HTTPException:
+    """The 503 for a pool checkout timeout. Call it inside the ``except`` block."""
+    logger.error(
+        "No database connection free for %s %s",
+        request.method,
+        request.url.path,
+        exc_info=True,
+    )
+    return HTTPException(
+        503,
+        "The server is busy. Try again in a few seconds.",
+        headers={"Retry-After": str(POOL_BUSY_RETRY_AFTER_SECONDS)},
+    )
+
+
 class PoolTimeoutRoute(APIRoute):
     """A full connection pool is a moment of overload, not a broken request.
 
@@ -26,16 +41,6 @@ class PoolTimeoutRoute(APIRoute):
             try:
                 return await handler(request)
             except PoolTimeout:
-                logger.error(
-                    "No database connection free for %s %s",
-                    request.method,
-                    request.url.path,
-                    exc_info=True,
-                )
-                raise HTTPException(
-                    503,
-                    "The server is busy. Try again in a few seconds.",
-                    headers={"Retry-After": str(POOL_BUSY_RETRY_AFTER_SECONDS)},
-                ) from None
+                raise pool_busy(request) from None
 
         return route_handler

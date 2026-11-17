@@ -146,11 +146,11 @@ export function ExportPanel({
   // One refresh is one editor GET per clip. Ticks must not stack up behind a
   // slow response, or each one adds another burst for the backend.
   const [flight] = useState(singleFlight);
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal: AbortSignal) => {
     const results = await Promise.allSettled(
       clips.map(async (c) => {
         const url = `/api/tasks/${taskId}/clips/${c.id}/editor`;
-        const state = await editorRequest<EditorState>(url);
+        const state = await editorRequest<EditorState>(url, "GET", undefined, signal);
         return (state.jobs || []).map((job) => ({
           ...job,
           endpoint: url,
@@ -158,6 +158,8 @@ export function ExportPanel({
         }));
       }),
     );
+    // Closed or unmounted while this was loading.
+    if (signal.aborted) return;
     const fulfilled = results.filter(
       (r): r is PromiseFulfilledResult<Job[]> => r.status === "fulfilled",
     );
@@ -171,8 +173,13 @@ export function ExportPanel({
       () => void flight(load, { skipIfBusy: true }),
       3000,
     );
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      flight.reset();
+    };
   }, [open, refresh, flight, load]);
+  // Also covers a refresh started while the panel was closed.
+  useEffect(() => () => flight.reset(), [flight]);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     if (!busy || mode !== "browser") return;

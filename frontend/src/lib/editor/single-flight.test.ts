@@ -65,4 +65,25 @@ describe("singleFlight", () => {
     await run(async () => void (ran = true), { skipIfBusy: true });
     expect(ran).toBe(true);
   });
+
+  it("reset aborts the load in flight and drops queued runs", async () => {
+    const run = singleFlight();
+    const slow = deferred();
+    let signal: AbortSignal | undefined;
+    const first = run((s) => {
+      signal = s;
+      return slow.promise;
+    });
+    let queued = false;
+    const waiting = run(async () => void (queued = true));
+    run.reset();
+    expect(signal?.aborted).toBe(true);
+    slow.resolve();
+    await Promise.all([first, waiting]);
+    expect(queued).toBe(false);
+    // Later runs start at once and are not aborted.
+    let fresh: AbortSignal | undefined;
+    await run(async (s) => void (fresh = s), { skipIfBusy: true });
+    expect(fresh?.aborted).toBe(false);
+  });
 });
