@@ -160,6 +160,9 @@ SFX_BUS_GAIN_DB: dict[str, float] = {"style": -16.0, "subtle": -20.0, "bold": -1
 MUSIC_LEVELS: dict[str, tuple[float, float, float, float]] = {
     "subtle": (-8.0, 0.0, 0.08, 0.35), "bold": (-15.0, 0.0, 0.08, 0.35), "max": (3.0, -7.0, 0.25, 0.6),
 }
+# Moods whose bed drives the edit sit higher in the mix (all beds are -20 LUFS): a drill beat under a rant is felt,
+# not a whisper. Aggressive at Bold lands about 15 dB under the voice instead of about 19 dB.
+MOOD_MUSIC_TRIM_DB: dict[str, float] = {"aggressive": 4.0, "hype": 2.0}
 GRAIN: dict[str, float] = {"subtle": 0.15, "bold": 0.20, "max": 0.30}
 
 # Sounds removed by serious mode (rule 1), template-intrinsic ones included.
@@ -1400,6 +1403,7 @@ class _Planner:
             return None
         bed = ids[self.seed_of("", "g.music") % len(ids)]
         gain, duck, attack, release = MUSIC_LEVELS[self.tier]
+        gain += MOOD_MUSIC_TRIM_DB.get(mood, 0.0)
         if self.timing == "none":
             gain, duck = gain + duck, 0.0       # no speech spans to duck under: hold the under-speech level
         offset, fade_in, fade_out = 0.0, 0.5, 0.8
