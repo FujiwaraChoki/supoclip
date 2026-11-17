@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
+- **Fixed:** Uploads and other requests are less likely to fail because the database ran out of connections. A server that has gone quiet, such as the previous release while it drains, now gives its unused database connections back after 10 minutes instead of holding them indefinitely. ([#428](https://github.com/FujiwaraChoki/supoclip/pull/428))
 - **Fixed:** The clip studio no longer fails to open, or to start an export, when several clips load at the same moment. A request now uses one database connection at a time, the export list stops piling up refreshes behind a slow one, checking an export's file in storage no longer holds a connection, and a briefly busy server says to try again in a few seconds instead of showing a generic error. ([#429](https://github.com/FujiwaraChoki/supoclip/pull/429))
 - **Fixed:** Creating a generation no longer fails when old deployments fill the database connection limit. Connection pools are bounded, and deployments require the previous release to be retired before another is staged. ([#427](https://github.com/FujiwaraChoki/supoclip/pull/427))
 
