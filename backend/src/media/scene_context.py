@@ -49,9 +49,11 @@ SOFT_SINGLE_FACE_RATE = 0.6
 # close subject was found qualify (never crowds, cut text, slides or a
 # presenter beside a screen), and only when something in the picture moves: a
 # still shot is a composed graphic, a comparison or a screen, and keeps the
-# full frame. A drone crossing a static wall already moves enough.
+# full frame. A drone crossing a static wall already moves enough, and so does
+# a slow push-in over a photo (camera motion with nothing moving inside it).
 COVER_REASONS = frozenset({"no_reliable_close_subject", "peripheral_presenter"})
 COVER_MIN_MOTION = 0.008
+COVER_MIN_CAMERA_MOTION = 0.003
 # Share of a shot's samples that may show an aligned paragraph (a document,
 # a tweet, a slide) before it is content rather than footage. Shelf labels
 # and brick courses in moving footage stay under it.
@@ -407,7 +409,8 @@ def _cover_x(shot: Sequence[SceneEvidence], reason: str) -> Optional[float]:
     """
     if reason not in COVER_REASONS or not shot:
         return None
-    if float(np.median([s.motion for s in shot])) < COVER_MIN_MOTION:
+    if (float(np.median([s.motion for s in shot])) < COVER_MIN_MOTION
+            and float(np.median([s.camera_motion for s in shot])) < COVER_MIN_CAMERA_MOTION):
         return None
     if sum(s.text_block_lines >= 2 for s in shot) / len(shot) > COVER_MAX_TEXT_BLOCK_RATE:
         return None
@@ -508,8 +511,10 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
     # full-context composition. First resolve soft/brief shots above, so a lone
     # speaker's wide angle does not needlessly shrink the whole clip.
     # A speaker with a graph or a document cut in (crop, fit, crop) keeps the crops around it; cover shots fill the
-    # frame like crops. Only a clip that is mostly fitted content, or one that keeps flipping, letterboxes throughout.
-    if hard_fit and len(runs) > 1 and (fit_duration > duration * .5 or len(runs) >= LAYOUT_MAX_RUNS):
+    # frame like crops. Only a clip that is mostly fitted content, or a speaker that keeps flipping to the screen,
+    # letterboxes throughout. A documentary montage (footage between documents) keeps its covers at every cut.
+    flipping = len(runs) >= LAYOUT_MAX_RUNS and not any(p["kind"] == "cover" for p in plan)
+    if hard_fit and len(runs) > 1 and (fit_duration > duration * .5 or flipping):
         return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context", "soft": False}]
     return plan
 
