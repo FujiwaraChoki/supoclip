@@ -4,6 +4,14 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-17
+
+- **Fixed:** The clip studio no longer fails to open, or to start an export, when several clips load at the same moment. A request now uses one database connection at a time, the export list stops piling up refreshes behind a slow one, checking an export's file in storage no longer holds a connection, and a briefly busy server says to try again in a few seconds instead of showing a generic error. ([#429](https://github.com/FujiwaraChoki/supoclip/pull/429))
+- **Fixed:** Creating a generation no longer fails when old deployments fill the database connection limit. Connection pools are bounded, and deployments require the previous release to be retired before another is staged. ([#427](https://github.com/FujiwaraChoki/supoclip/pull/427))
+
+- **Fixed:** House promo codes in referral links or entered before checkout are recognised again when billing uses multiple payment accounts. Code validation now uses the same payment account as checkout. ([#382](https://github.com/FujiwaraChoki/supoclip/pull/382))
+- **Fixed:** Long YouTube downloads save completed sections so a connection failure has less video to download again. Series jobs show a range for the wait, and the task page tells you when a download is taking longer than expected. ([#426](https://github.com/FujiwaraChoki/supoclip/pull/426))
+
 ## 2026-11-16
 
 - **New:** New accounts get a welcome tour on their first visit. It opens with a short animation, shows how to make a first clip, then goes to each page in turn: Library, Social and Analytics, Agents & API and Settings, and ends back on Create at the link field. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))

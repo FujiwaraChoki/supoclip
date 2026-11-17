@@ -348,3 +348,61 @@ def test_non_keyframe_cuts_keep_later_spans_on_the_source_timeline(hls_server):
         search = reference[lo:int((original+.4)*8000)+len(needle)]
         best = np.argmax(np.correlate(search, needle, mode='valid'))
         assert abs((lo+best)/8000 - original) < .1
+
+
+def test_interrupted_selection_reuses_media_and_keeps_audio_in_sync(hls_server, monkeypatch):
+    import numpy as np
+
+    base, directory, requests = hls_server
+    config = mod.get_config()
+    monkeypatch.setattr(source, 'get_config', lambda: config)
+    monkeypatch.setattr(mod, 'get_config', lambda: config)
+    monkeypatch.setattr(config, 'temp_dir', str(directory))
+    monkeypatch.setattr(config, 'youtube_proxy_url', 'http://unused.example:823')
+    monkeypatch.setattr(config, 'youtube_section_padding_seconds', 0)
+    monkeypatch.setattr(source, '_storage', lambda: None)
+    monkeypatch.setattr(source, 'SECTION_WINDOW_SECONDS', 6)
+    monkeypatch.setattr(mod, '_hls_url', urljoin)
+    monkeypatch.setattr(mod, 'base_proxy_params', lambda *args, **kwargs: {
+        'proxy': '', 'quiet': True, 'logger': Quiet(), 'socket_timeout': 5,
+    })
+    formats = [
+        {'url': base + 'video.m3u8', 'format_id': 'v', 'protocol': 'm3u8_native',
+         'ext': 'mp4', 'height': 90, 'vcodec': 'avc1', 'acodec': 'none'},
+        {'url': base + 'audio.m3u8', 'format_id': 'a', 'protocol': 'm3u8_native',
+         'ext': 'm4a', 'vcodec': 'none', 'acodec': 'aac'},
+    ]
+    info = {'duration': 20, 'formats': formats}
+    monkeypatch.setattr(mod, 'extract_video_info', Mock(side_effect=[
+        info, mod.YouTubeDownloadError('interrupted'),
+    ]))
+
+    def materialize():
+        return source.materialize_clip_source(
+            'https://youtube.com/watch?v=abcdefghijk', 'abcdefghijk',
+            [{'source_ranges': [[1.0, 18.0]]}], task_id='test-worker', duration=20,
+        )
+
+    with pytest.raises(mod.YouTubeDownloadError, match='interrupted'):
+        materialize()
+    assert any(path.startswith('/v000.') for path in requests)
+    requests.clear()
+    monkeypatch.setattr(mod, 'extract_video_info', lambda *args: info)
+    output = materialize()
+    assert not any(path.startswith('/v000.') for path in requests)
+    timeline = source.load_time_map(output)
+    assert timeline.covered_local_range(1, 18) == pytest.approx((0, 17))
+
+    def pcm(path):
+        samples = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', str(path),
+            '-map', '0:a:0', '-ar', '8000', '-f', 'f32le', '-'])
+        return np.frombuffer(samples, dtype=np.float32)
+
+    reference, actual = pcm(directory / 'audio.m3u8'), pcm(output)
+    assert len(actual) / 8000 == pytest.approx(17, abs=0.15)
+    # Verify the audio near the end, after crossing both download boundaries.
+    needle = actual[15*8000:16*8000]
+    window_start = int(15.6*8000)
+    window = reference[window_start:int(17.4*8000)]
+    offset = np.argmax(np.correlate(window, needle, mode='valid'))
+    assert (window_start + offset) / 8000 == pytest.approx(16, abs=0.15)

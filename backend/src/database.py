@@ -31,11 +31,17 @@ class Base(DeclarativeBase):
 
 
 def _build_engine(database_url: str) -> AsyncEngine:
+    pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
+    max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "0"))
+    pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT_SECONDS", "10"))
+    if pool_size < 1 or max_overflow < 0 or pool_timeout < 1:
+        raise ValueError("Database pool size and timeout must be positive; overflow must be nonnegative")
     return create_async_engine(
         database_url,
         echo=False,
-        pool_size=10,
-        max_overflow=20,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
         pool_pre_ping=True,
         pool_recycle=3600,
         # Safety net for the primary leak fix in api/routes/tasks.py

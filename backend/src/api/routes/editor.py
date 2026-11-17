@@ -29,9 +29,15 @@ from ...services.ai_edit_allowance_service import (
 )
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
+from ..pool_timeout import PoolTimeoutRoute
 from .tasks import _require_task_owner, _read_json_object
 
-router = APIRouter(prefix="/tasks", tags=["editor"])
+# A request holds at most one pooled connection at a time. The editor store
+# opens a short session per statement, so a route closes the request's
+# session (``db``) before it calls the store or does slow I/O; otherwise
+# overlapping requests each hold one connection while waiting for another and
+# starve the pool.
+router = APIRouter(prefix="/tasks", tags=["editor"], route_class=PoolTimeoutRoute)
 
 
 async def owned_context(request, db, task_id, clip_id):
@@ -106,6 +112,8 @@ async def get_editor(
         state["aiEditing"] = ai_editing_configured()
         if state["aiEditing"]:
             state["aiEditUsage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+            # The allowance read reopened the request's session.
+            await db.close()
     if state.get("status") == "ready":
         incomplete = await run_in_thread(_incomplete_source, clip, state)
         if incomplete:
@@ -235,6 +243,8 @@ async def save(
 ):
     service = TaskService(db)
     await _require_task_owner(request, service, db, task_id)
+    # Don't hold a connection while the body uploads; context() checks again.
+    await db.close()
     payload = await _read_json_object(request)
     clip, session = await context(request, db, task_id, clip_id)
     try:
@@ -404,12 +414,16 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         or len(set(ids)) != len(ids)
     ):
         raise HTTPException(400, "Select between 2 and 20 distinct clips")
-    entries = []
-    anchor_session = None
+    clips = []
     for clip_id in ids:
         clip = await service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip["task_id"] != task_id:
             raise HTTPException(404, "Clip not found")
+        clips.append(clip)
+    await db.close()
+    entries = []
+    anchor_session = None
+    for clip_id, clip in zip(ids, clips):
         session = await open_session(service.config.temp_dir, task_id, {**clip, "id": clip_id})
         anchor_session = anchor_session or session
         state = await session.state()
@@ -434,7 +448,6 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                 "source_offsets": source_offsets,
             }
         )
-    await db.close()
     anchor = entries[0]
     store = get_store()
     await reap_jobs(anchor_session.key)

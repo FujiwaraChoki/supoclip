@@ -214,9 +214,48 @@ Fonts and transitions are configured by mounted files rather than environment va
 | `REDIS_HOST` | `redis` in Docker, `localhost` in code | Redis hostname |
 | `REDIS_PORT` | `6379` | Redis port |
 | `DATABASE_URL` | injected by Docker | PostgreSQL connection string |
+| `DATABASE_POOL_SIZE` | `5` | Retained SQLAlchemy connections per API/worker process; must be positive |
+| `DATABASE_MAX_OVERFLOW` | `0` | Extra SQLAlchemy connections per process; must be nonnegative |
+| `DATABASE_POOL_TIMEOUT_SECONDS` | `10` | Maximum wait for a SQLAlchemy connection |
 | `POSTGRES_DB` | `supoclip` | PostgreSQL database name |
 | `POSTGRES_USER` | `supoclip` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | `supoclip_password` | PostgreSQL password |
+
+Each frontend process defaults to five Prisma connections and a ten-second
+pool wait. Override with positive `connection_limit` and `pool_timeout` parameters
+in its `DATABASE_URL`. CPU count no longer determines the frontend pool size.
+Count every API, web, video, AI and cron process, including a candidate during
+deployment, when budgeting connections. Advisory-lock and media connections
+also need headroom. The serving prepare script refuses a third release pair;
+drain and retire the previous pair before another deployment.
+
+### Connection budget
+
+`docker-compose.yml` gives the API service (`backend`) a pool of 10 with 5
+overflow, so one API process can open 15 ORM connections. Editor loads, export
+polling and SSE arrive in bursts, and the default 5 ran out on 17 November 2026.
+Workers keep the default 5 with no overflow. Every backend process can also open
+up to two connections for signed media URLs (`sync_db.py`) and one unpooled
+connection per advisory lock it holds or waits for.
+
+Size the total against PostgreSQL `max_connections` (100 by default, 3 of them
+reserved for superusers). A serving deployment runs two API slots at once, the
+candidate and the draining release, so count the API twice:
+
+| Process | Connections |
+|---|---|
+| API, serving slot (10 + 5, plus 2 media) | 17 |
+| API, candidate or draining slot | 17 |
+| Direct API container used by MCP (`supoclip-backend`), if it runs this compose | 17 |
+| Web, two slots (Prisma, 5 each) | 10 |
+| Each worker process: video, cron, AI, remote render (5, plus 2 media) | 7 each |
+
+With three local workers and one remote render worker that is about 89 of the 97
+usable connections, before advisory locks and operator sessions. A third
+release pair would push it over, which is why `prepare.sh` refuses one. Raise a
+pool only after raising `max_connections` or removing a process from this list.
+Override the API values in a server's `docker-compose.override.yml`; a value set
+under `environment:` there replaces the one here.
 
 ## Self-Host and Monetization Settings
 
