@@ -44,6 +44,24 @@ SOFT_SINGLE_FACE_RATE = 0.6
 # own gestures, or a chat overlay beside them, not action across the frame.
 PRESENTER_FACE_AREA = 0.03
 
+# Cover: a fitted shot of live footage (b-roll, a POV or handheld vlog, a wide
+# scene) fills the 9:16 frame with a full-height crop instead of a letterboxed
+# strip, the way short-form editors cut it. Only shots whose risk is that no
+# close subject was found qualify (never crowds, cut text, slides or a
+# presenter beside a screen), and only when something in the picture moves: a
+# still shot is a composed graphic, a comparison or a screen, and keeps the
+# full frame. A drone crossing a static wall already moves enough.
+COVER_REASONS = frozenset({"no_reliable_close_subject", "peripheral_presenter"})
+COVER_MIN_MOTION = 0.008
+# Share of a shot's samples that may show an aligned paragraph (a document,
+# a tweet, a slide) before it is content rather than footage. Shelf labels
+# and brick courses in moving footage stay under it.
+COVER_MAX_TEXT_BLOCK_RATE = 0.35
+# Share of samples with two or more faces that makes a shot a group.
+COVER_MAX_GROUP_RATE = 0.3
+# A crop centre this close to the last one continues the same composition.
+COVER_SAME_X = 0.05
+
 
 @dataclass(frozen=True)
 class SceneEvidence:
@@ -384,6 +402,32 @@ def context_reason(sample: SceneEvidence, crop_fraction: float) -> Optional[str]
     return None
 
 
+def _cover_x(shot: Sequence[SceneEvidence], reason: str) -> Optional[float]:
+    """Centre (0-1 of the width) of a full-height crop for a fitted shot of live footage, or None to keep the fit.
+
+    A lone face, however small, is the subject: the crop centres on it. Otherwise the crop centres on the visible
+    detail, which is the middle of the frame for most handheld and b-roll footage.
+    """
+    if reason not in COVER_REASONS or not shot:
+        return None
+    if float(np.median([s.motion for s in shot])) < COVER_MIN_MOTION:
+        return None
+    if sum(s.text_block_lines >= 2 for s in shot) / len(shot) > COVER_MAX_TEXT_BLOCK_RATE:
+        return None
+    if sum(s.face_count >= 2 for s in shot) / len(shot) >= COVER_MAX_GROUP_RATE:
+        return None
+    faces = [s.face_center for s in shot if s.face_count == 1 and s.face_area > 0]
+    if len(faces) / len(shot) >= SOFT_SINGLE_FACE_RATE:
+        return float(np.median(faces))
+    return float(np.median([(s.detail_left + s.detail_right) / 2 for s in shot]))
+
+
+def _same_layout(a: dict, b: dict) -> bool:
+    if a["kind"] != b["kind"] or a["reason"] != b["reason"]:
+        return False
+    return a["kind"] != "cover" or abs(a["x"] - b["x"]) <= COVER_SAME_X
+
+
 def _soft_fit(shot: Sequence[SceneEvidence], reason: str) -> bool:
     """A fit chosen only because one steady speaker looks small (a wide shot)."""
     if reason != "no_reliable_close_subject" or not shot:
@@ -419,7 +463,11 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
                 continue
             neighbours = [runs[j] for j in (index - 1, index + 1) if 0 <= j < len(runs)]
             if plan[a]["kind"] == "face":
-                flip, rank = True, 1
+                # Widening never loses content; a crop next to a cover already fills the frame like it.
+                flip, rank = any(plan[r[0]]["kind"] == "fit" for r in neighbours), 1
+                neighbours = [r for r in neighbours if plan[r[0]]["kind"] == "fit"]
+            elif plan[a]["kind"] == "cover":
+                flip, rank = length < LAYOUT_FLASH_SECONDS, 2
             else:
                 soft = all(p.get("soft") for p in plan[a:b])
                 flip = soft or length < LAYOUT_FLASH_SECONDS
@@ -442,10 +490,13 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
             entry["kind"] = source["kind"]
             entry["reason"] = source["reason"]
             entry["soft"] = source.get("soft", False)
+            entry.pop("x", None)
+            if "x" in source:
+                entry["x"] = source["x"]
         merged = [plan[0]]
         for entry in plan[1:]:
             last = merged[-1]
-            if entry["kind"] == last["kind"] and entry["reason"] == last["reason"]:
+            if _same_layout(entry, last):
                 last["end"] = entry["end"]
                 last["soft"] = last.get("soft", False) and entry.get("soft", False)
             else:
@@ -459,6 +510,13 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
     # Repeated crop/fit changes or a predominantly wide demonstration use one
     # full-context composition. First resolve soft/brief shots above, so a lone
     # speaker's wide angle does not needlessly shrink the whole clip.
+    if any(p["kind"] == "cover" for p in plan):
+        # Cover shots fill the frame like crops, so a montage of footage with one document or graphic in it keeps
+        # its crops; only a clip that is mostly fitted content letterboxes throughout.
+        if hard_fit and fit_duration > duration * .5:
+            return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context",
+                     "soft": False}]
+        return plan
     if hard_fit and (len(runs) >= 3 or (len(runs) > 1 and fit_duration > duration * .6)):
         return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context", "soft": False}]
     return plan
@@ -470,7 +528,9 @@ def build_context_layout_plan(samples: Sequence[SceneEvidence], scene_cuts: Sequ
 
     A brief missed face in an otherwise confident close-up does not change the
     layout. Sustained context risk wins over face tracking, including a small
-    webcam over gameplay. Short shots then inherit their neighbours'
+    webcam over gameplay. A fitted shot of moving footage without a close
+    subject (b-roll, a POV) becomes a ``cover`` shot: a full-height crop
+    centred at ``x`` (see ``_cover_x``). Short shots then inherit their neighbours'
     composition (see ``stabilize_layout_plan``).
     """
     if duration <= 0 or not samples:
@@ -490,11 +550,15 @@ def build_context_layout_plan(samples: Sequence[SceneEvidence], scene_cuts: Sequ
             reason = "analysis_unavailable"
         kind = "fit" if fit else "face"
         soft = kind == "fit" and _soft_fit(shot, reason)
-        if plan and plan[-1]["kind"] == kind and plan[-1]["reason"] == reason:
+        entry = {"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft}
+        x = _cover_x(shot, reason) if fit else None
+        if x is not None:
+            entry.update(kind="cover", soft=False, x=x)
+        if plan and _same_layout(plan[-1], entry):
             plan[-1]["end"] = end
-            plan[-1]["soft"] = plan[-1]["soft"] and soft
+            plan[-1]["soft"] = plan[-1]["soft"] and entry["soft"]
         else:
-            plan.append({"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft})
+            plan.append(entry)
     try:
         return stabilize_layout_plan(plan)
     except Exception as exc:  # pragma: no cover - defensive
