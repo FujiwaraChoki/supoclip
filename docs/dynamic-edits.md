@@ -23,15 +23,21 @@ Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) 
 Open **Settings** in the composer:
 
 - **Edits** tab: **Edit intensity** is Off, Subtle, Bold or Max.
-  - **Subtle** (podcast clippers): a reframe now and then, a constant music bed 11 dB under the voice, almost no
-    sound effects.
-  - **Bold** (Hormozi): punch-ins that hold until the next one (about 2.5 framing changes per 10 s), short 11-frame
-    pushes on emphasis words, a short hit on half of the cuts, a quiet bed (−19 dB).
-  - **Max** (MrBeast and clipper channels): reframes on almost every line (about 5.5 per 10 s, 20–35 %), louder hits,
-    a loud bed (−6 dB) that ducks in pauses, the odd 3-frame flash or 6-frame light leak at a real cut.
-  - Once it's on, switches turn off what you don't want: sound effects, music (and its mood), zooms, transitions,
-    the swearing treatment (leave, bleep, bleep and cover the mouth with a bar, bleep and pixelate the mouth), a
-    progress bar, a loop ending, and GIF reactions where the server offers them. Camera shake, speed ramps and
+  - **Subtle** (podcast clippers): outlined subtitles a phrase at a time, a reframe now and then, a constant music
+    bed 11 dB under the voice, almost no sound effects.
+  - **Bold** (Hormozi): captions on a dark pill, revealed word by word, the key word in a box or colour; punch-ins
+    that hold until the next one (about 2.5 framing changes per 10 s), short 11-frame pushes on emphasis words, a
+    short hit on half of the reframes, a quiet bed (−19 dB).
+  - **Max** (MrBeast and clipper channels): heavy outlined caps, word by word; reframes on almost every line (about
+    5.5 per 10 s, 20–35 %), louder hits, a loud bed (−6 dB) that rises in pauses, the odd 3-frame flash or 6-frame
+    light leak at a real cut.
+  - At every intensity zooms are reframes that hold, transitions happen only at real cuts, sound effects land only
+    on visual events, the music is a steady bed and the clip ends at −14 LUFS ([Effects](#effects)).
+  - Once it's on, switches turn off what you don't want: sound effects, music (and its mood: Auto lets the AI pick
+    one of seven, or pick aggressive, hype, chill, dramatic, inspiring, funny or dark yourself), zooms, transitions,
+    the swearing treatment (leave, bleep, bleep and cover the mouth with a bar, bleep and pixelate the mouth; the
+    captions show a bleeped word as `f***`), a progress bar, a loop ending, and GIF reactions where the server
+    offers them. Camera shake, speed ramps and
     freezes and the "Wait for it" sticker are never placed automatically (no reference edit uses them); their stored
     settings stay valid and hand-made cues of those kinds still render.
 - **Captions** tab: an **Animated** group with the [three styles](#animated-caption-styles). Each tile is the
@@ -59,11 +65,21 @@ none; "Re-plan with AI" asks again. "Remove all edits" clears everything. **Grad
 double-click an empty spot to add a sound) and a **Music lane** showing how the bed ducks under the voice. Every
 change is one undoable step. See [editor.md](editor.md#dynamic-edits).
 
-### Through the API and MCP
+The studio's **AI edit** field can change the same settings ("make it calmer", "no music"): it sets the `fx.*`
+settings (intensity, switches, mood, censoring, grade) and can switch the captions to one of the three listed styles.
+
+### Through the API, MCP and iOS
 
 `POST /tasks/` takes `edit_style` ([API reference](api-reference.md#dynamic-edits)). The MCP tool
 `supoclip_create_clip_task` takes `intensity` and an `edit_style` passthrough; `supoclip_list_edit_styles` lists
-the choices, and `supoclip_list_caption_templates` includes the animated styles when they are enabled.
+the choices, and `supoclip_list_caption_templates` includes the animated styles when they are enabled. The iOS app
+offers the same choices once `ios_enabled` is on for the `dynamic_edits` flag; clips rendered on the server carry
+their effects for every client.
+
+### On the homepage
+
+The landing page has a **Dynamic edits** section (`frontend/src/components/landing/dynamic-edits-section.tsx`) that
+plays one real demo clip at Off, Subtle, Bold and Max (switch while it plays), plus a Max clip with b-roll.
 
 ## Animated caption styles
 
@@ -73,9 +89,9 @@ the drawing stage (`ass_fallback`). Three are offered (`LISTED_FX_CAPTION_TEMPLA
 
 | Id | Name | What it does | Classic fallback | Needs |
 |---|---|---|---|---|
-| `highlighter_swipe` | Highlighter | The key word of a caption group in CAPS, black on an opaque rounded box (green at Bold, yellow at Subtle and Max), there on the word's first frame and gone with its group. At Bold the line sits on a dark pill. | `minimal` | – |
+| `highlighter_swipe` | Highlighter | The key word of a caption group in CAPS, black on an opaque rounded box (green at Bold, yellow at Subtle and Max), there on the word's first frame and gone with its group. | `minimal` | – |
 | `emoji_drop` | Emoji Drop | An emoji (only one the model picked because it depicts a thing the words name: 💰, 🚗, 📈) under the caption, 0.26 W, 2 frames in, held until the caption group changes. Never a face emoji, never on a sad moment. | `tiktok` | – |
-| `behind_head` | Behind Head | One giant lowercase word (Archivo Black, 0.70 W, at most 0.16 H) behind the speaker at chin/neck height: the person is cut out (matte) and drawn over it. It hard-cuts in on a reframe and out on the next; the captions step aside while it shows. Without a person in frame the word goes in front. | `minimal` | face, matte |
+| `behind_head` | Behind Head | One giant lowercase word (Archivo Black, 0.70 W, at most 0.16 H) behind the speaker: the person is cut out (matte) and drawn over it. On a wide shot it sits at chin/neck height; on a close-up (face at least 12 % of the height) it goes across the top of the head, so the head covers only the foot of its middle letters. It hard-cuts in on a reframe and out on the next; the captions step aside while it shows. Without a person in frame the word goes in front; on an interview's stacked two-shots it is dropped. | `minimal` | face, matte |
 
 **Unlisted styles.** `marker_circle`, `slam`, `stat_counter`, `sticker_slap`, `kinetic_stack`, `decode_glitch` and
 `face_doodles` (`hidden: True`) are no longer offered anywhere: not in `GET /caption-templates?include=fx`, the
@@ -98,7 +114,7 @@ The listed styles draw captions with the look of the clip's intensity (`FxCaptio
 | Group | phrase, up to 4 words, shown whole | phrase, up to 3 words, word by word | phrase, up to 3 words, word by word |
 | Display time | first word − 2 frames | each word − 1 frame | each word − 1 frame |
 | Entrance | none | none (the line re-centres) | 2 frames: 0.85 scale at 60 %, then 1.0 |
-| Edge | soft shadow | soft shadow, or the highlighter's dark pill | black outline 0.09 em, hard shadow |
+| Edge | black outline 0.07 em, soft shadow | dark pill (`#170904`, 85 %) behind the line, every listed style | black outline 0.09 em, hard shadow |
 | Keyword | box (highlighter) or gold | CAPS, green box (highlighter) or yellow | box (highlighter) or yellow |
 | Keyword rate (per 10 s, min gap) | 1.25, 4 s | 4, 1.2 s | 5.5, 0.8 s |
 | Row (no layout preference) | 0.68 H | 0.55 H | 0.56 H |
@@ -110,8 +126,11 @@ letterboxed picture) wins over the look's row. The display time is calibrated ag
 own scripts: transcript word starts sit one to three frames after the heard onset, so −1 frame shows a word about one
 frame after it is heard, like Hormozi.
 
-**Interview clips get a row per shot** (`edit_fx/caption_rows.py`, `FxCaptionStyle.rows`). The `interview` layout
-composes each camera shot on its own, and one caption height can't suit them all:
+**Interview and mixed clips get a row per shot** (`edit_fx/caption_rows.py`, `FxCaptionStyle.rows`). The
+`interview` layout composes each camera shot on its own, and one caption height can't suit them all. A `compositor`
+layout that switches between frame-filling crops (or covers) and fitted graphics reports its shots the same way
+(`describe_vertical_layout`, `interview_segments`: a crop or cover is `single`, a fitted shot `fit`), so its captions
+sit at mid-chest on the speaker and below the picture of a graph instead of across it:
 
 - **Two-shot (`pair`):** 0.50, on the seam between the stacked panels.
 - **Close-up (`single`):** 0.65, mid-chest under the chin.
@@ -135,8 +154,11 @@ The rows follow these rules:
   (`PreparedScene.captionYAt`).
 - **The user's position wins:** a caption edit's position pins the captions with no rows, and if that position is away
   from the seam, the hook title takes the seam.
-- **Where rows apply:** only the intensity looks on interview layouts. Other layouts, the hidden templates and legacy
-  ASS captions keep one row.
+- **Where rows apply:** only the intensity looks, on interview layouts and on compositor layouts that mix crops and
+  fitted shots. Other layouts, the hidden templates and legacy ASS captions keep one row.
+- **Stacked two-shots:** automatic reframes and behind-the-head words are dropped while an interview shows its two
+  speakers stacked (`panel_windows` in `video_utils._fx_ladder_setup`); a zoom would cross the seam and the panel
+  edge would cut the word. Single-person shots keep theirs.
 
 In the studio, the stored `vertical_layout` keeps the shots (`segments`) and the burned-in `caption_band`. Preparing a
 session then seeds `EditDocument.captionRows` on the source clock: `{y, rows}`, where `y` is the automatic caption
@@ -180,7 +202,7 @@ What the resolver can place (cue kinds in `backend/src/edit_fx/contracts.py`, dr
 - **Reframes** (`zoom` mode `punch`): a hard step to 110–115 % (Subtle), 112–120 % (Bold) or 120–135 % (Max) about the
   face, held until the next reframe ("out", back to the base framing) or the next real cut. Placed on beat key words
   and sentence starts one frame early, at least 1.2 s (Bold) / 0.8 s (Max) apart; never across a stacked layout's
-  panels (`reaction`, `stack`, `overlap` layouts get none).
+  panels (`reaction`, `stack`, `overlap` layouts get none, and an interview's stacked two-shots drop theirs).
 - **Nudges** (`zoom` mode `nudge`): +6–10 % over 11 frames, nearly linear with a soft landing, held; between two
   reframes they alternate with an 11-frame ease back out (`pull`), so they never stack. Slow baseline pushes
   (`kb<n>`) only at Subtle and style-only.
@@ -195,9 +217,12 @@ What the resolver can place (cue kinds in `backend/src/edit_fx/contracts.py`, dr
   before a flash. Plain talking gets none. The sound ids (whoosh, impact, pop, riser, record scratch, boom, cash
   register, ticker, slap, stamp, glitch, tape stop) are unchanged; unlisted styles keep their own sounds.
 - **Bleeps**: a 1 kHz tone over every swear, optionally with a black bar or pixelation over the mouth (from face
-  landmarks). Bleeps ignore budgets. No bleeps with approximate timing, and none with intensity Off.
-- **Music bed**: one of seven moods (hype, chill, dramatic, funny, inspiring, dark, aggressive; Auto follows the beat
-  model, which keeps aggressive for heated rants, call-outs and roasts and never gives it to a sincere moment),
+  landmarks). Bleeps ignore budgets. No bleeps with approximate timing, and none with intensity Off. The captions
+  mask every word a bleep covers by at least 30 ms: the first letter stays and every later letter becomes a star
+  (`fuck` → `f***`, `edit_fx/censor.py`, mirrored by fx-core `censor.ts`). Bold and Max strip edge punctuation but
+  keep the stars.
+- **Music bed**: one of 53 curated CC0 beds in seven moods (hype, chill, dramatic, funny, inspiring, dark,
+  aggressive; Auto follows the beat model, which keeps aggressive for heated rants, call-outs and roasts and never gives it to a sincere moment),
   looped as a steady bed: about 11 dB under the voice at Subtle and 19 dB at Bold, constant; 6 dB under it at Max,
   rising about 7 dB in pauses (slow 0.25/0.6 s ramps, joined across short gaps, so it never pumps). Each mood has
   7–8 curated beds and the plan picks one by seed. Aggressive beds sit 4 dB and hype beds 2 dB above those levels
@@ -369,8 +394,8 @@ MP3 128 kbit/s CBR, 48 kHz stereo, with its gapless header; the 53 files take 61
 milliseconds, so each file holds 100 ms of the loop's own audio before and after the loop: the manifest's `loop_start`
 (0.1 s) says where the loop begins and `loop_seconds` how long it is (to the sample), and the server mix, the studio
 preview and the browser export all tile `[loop_start, loop_start + loop_seconds)` and never play the padding. Plans
-and documents saved before these beds name the old one-per-mood ids (`hype`, `chill`, …; aggressive borrowed `hype`);
-those play the first built-in bed of the bed's mood (`mix_bed_file`, `bedAsset`).
+and documents saved before these beds name the old one-per-mood ids (`hype`, `chill`, …); those play the first
+built-in bed of the bed's mood (`mix_bed_file`, `bedAsset`).
 
 **Adding or changing a bed.** The beds are imported from a curated library kept outside the repo (`catalog.json` plus
 48 kHz 16-bit stereo `masters/<id>.wav`): `cd backend && .venv/bin/python scripts/fx/import_music.py
@@ -426,6 +451,8 @@ dominates the pipeline. The audio bus and voice loudness pass take 0.1–0.2 s t
 2.0× budget and none is near the 3.0× blocker. The compositor averages 16–25 ms per frame, inside the 35 ms target.
 
 Caveats:
+- These numbers predate the cut to three listed styles: the bench still renders the unlisted `marker_circle` and
+  `slam` templates (`bench_fx.py`). Re-run it with the listed styles before quoting it for the rollout gate.
 - The laptop was busy during the run: a Docker image build, a sample-render job and a pytest run shared the
   machine (load average 6–15). The first run was 15–35 % slower than the second (bold 93.8 s against 61.1 s,
   classic 47.1 s against 40.9 s); the second, quieter run gives 1.22–1.55×.
@@ -528,8 +555,9 @@ ending and transitions).
   layout kind yet, so a studio re-resolve of such a clip can add reframes across the panels (delete them, or turn
   Zooms off for that clip).
 - There is no "editorial" flavour yet (the study's Iman Gadzhi look: text 5 frames early, blur-in, film-burn flashes).
-- Caption rows follow the vertical layout when it has one (a letterboxed picture puts captions under it, about
-  0.8 H), so they sit lower than the references' 0.50–0.57 H on those layouts.
+- Caption rows follow the vertical layout when it has one: a clip that letterboxes throughout (mostly fitted
+  content) puts captions under the picture, about 0.8 H, lower than the references' 0.50–0.57 H. B-roll, POV and
+  handheld footage fill the frame instead (a full-height crop), so most clips no longer letterbox.
 
 ## Troubleshooting
 

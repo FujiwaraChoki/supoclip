@@ -443,7 +443,9 @@ story, adjacent parts share one exact cut), `topic` (every strong moment about `
 
 Optional effects on any workflow; full guide `docs/dynamic-edits.md`. `tasks.edit_style`
 (`EditStyle`, intensity `off|subtle|bold|max` + toggles) and/or an FX caption template (10 ids in
-`FX_CAPTION_TEMPLATES_DICT`, each with an `ass_fallback`) turn it on; `generated_clips.fx_meta` marks FX clips.
+`FX_CAPTION_TEMPLATES_DICT`, each with an `ass_fallback`; only `LISTED_FX_CAPTION_TEMPLATES` = highlighter_swipe,
+emoji_drop, behind_head are offered, the other 7 are `hidden` and render for stored tasks only) turn it on;
+`generated_clips.fx_meta` marks FX clips. Listed styles draw the intensity's caption look (`caption_style.LOOKS`).
 
 - **Pipeline:** LLM beats by word id (`edit_fx/beats_llm.py`, heuristic fallback) → pure seeded `resolve` → `FxPlan` cues
   (S time; E after cuts, F after warp) → one TS renderer `frontend/src/lib/fx/core` (browser) and the same bundle under deno +

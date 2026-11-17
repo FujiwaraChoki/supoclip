@@ -282,15 +282,20 @@ swears) and the intensity decides how hard each one hits.
 | `intensity` | Adds |
 |---|---|
 | `off` (default) | Nothing: the request is exactly what it was before dynamic edits |
-| `subtle` | A few zooms and soft sound effects |
-| `bold` | Punch-ins, whooshes, transitions and music |
-| `max` | Every trick, every beat: speed ramps, freeze frames, shakes |
+| `subtle` | Outlined subtitles, a reframe now and then, a steady music bed, almost no sound effects |
+| `bold` | Hormozi-style captions on a dark pill, punch-ins that hold, hits on some reframes, a quiet music bed |
+| `max` | Heavy outlined caps, reframes on almost every line, louder hits, a louder bed, the odd flash at a cut |
+
+Zooms are reframes that hold, transitions happen only at real cuts, sound
+effects only on visual events, and every clip ends at −14 LUFS. Camera shake,
+speed ramps and freeze frames are never placed automatically. With `censor` on,
+swear words are bleeped and the captions show them as `f***`.
 
 `edit_style` fine-tunes them with the API's keys, passed through as given:
 `sfx`, `music`, `zooms`, `shake`, `transitions`, `speed`, `grain`,
 `progress_bar`, `loop_ending`, `wait_for_it`, `reactions` (true/false),
-`music_mood` (`auto`, `hype`, `chill`, `dramatic`, `funny`, `inspiring`,
-`dark`, `aggressive`), `censor` (`off`, `bleep`, `bleep_bar`, `bleep_pixelate`) and `grade`
+`music_mood` (`auto` lets the AI pick, or `hype`, `chill`, `dramatic`,
+`funny`, `inspiring`, `dark`, `aggressive`; 53 built-in beds across them), `censor` (`off`, `bleep`, `bleep_bar`, `bleep_pixelate`) and `grade`
 (`auto`, `none`, `punchy`, `warm`, `teal_orange`, `noir`, `vhs`, `dream`).
 `intensity` can go inside `edit_style` too; the argument wins when it isn't
 `off`. The request carries `edit_style` only when the intensity isn't `off`,
