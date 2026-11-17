@@ -223,8 +223,9 @@ use `cancellation_notes`, but it does not persist new general feedback; reconcil
 during a rollback before re-enabling inbox delivery. Rollbacks do not undo webhooks already sent.
 
 Compatibility: successful feedback requests still return HTTP 200 with `status: "ok"` plus an
-additive `id`. Invalid categories and whitespace-only messages return 422 (previously 400 for an
-invalid category); clients should treat all non-2xx responses as failure. Existing signed iOS
+additive `id`. Invalid categories retain main's existing 422 status and string `detail`; whitespace-only messages
+are now rejected with 422. The old 400 "Feedback is not configured" becomes a successful stored
+submission even without webhooks. Clients should treat all non-2xx responses as failure. Existing signed iOS
 requests are covered by integration tests. API-key feedback was not supported before this PR and
 remains unsupported. The native iOS source is not in this repository, so its error-message rendering
 needs a separate client smoke test if it distinguishes 400 from 422.

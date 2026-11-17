@@ -1,7 +1,7 @@
 """Feedback submissions: stored in the inbox, then sent to the admin's webhooks (docs/feedback.md)."""
 
 import logging
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -11,6 +11,7 @@ from ...auth_headers import get_authenticated_user_id
 from ...config import get_config
 from ...database import get_db
 from ...feature_flags import client_platform
+from ...feedback import CATEGORIES
 from ...feedback.delivery import schedule_immediate_delivery
 from ...feedback.service import FeedbackRateLimited, FeedbackUserGone, SubmissionInput, submit_feedback as store_submission
 
@@ -22,7 +23,7 @@ APP_VERSION_HEADER = "x-supoclip-app-version"
 
 
 class FeedbackRequest(BaseModel):
-    category: Literal["bug", "feature", "general", "sales", "cancellation"]
+    category: str = Field(..., description="One of: bug, feature, general, sales, cancellation")
     message: str = Field(..., min_length=1, max_length=2000)
     page_url: Optional[str] = Field(default=None, max_length=2000, description="Page the user was on")
     locale: Optional[str] = Field(default=None, max_length=20)
@@ -32,6 +33,9 @@ class FeedbackRequest(BaseModel):
 @router.post("/feedback")
 async def submit_feedback(body: FeedbackRequest, request: Request, db: AsyncSession = Depends(get_db)):
     user_id = get_authenticated_user_id(request, get_config())
+    if body.category not in CATEGORIES:
+        # Keep the existing 422 + string detail contract for signed mobile clients.
+        raise HTTPException(status_code=422, detail=f"Invalid category. Must be one of: {', '.join(CATEGORIES)}")
     if not body.message.strip():
         raise HTTPException(status_code=422, detail="Message is empty")
     try:

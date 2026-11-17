@@ -152,7 +152,9 @@ async def test_submissions_are_rate_limited_per_user(client, db_session, clean, 
 
 async def test_invalid_submissions_are_rejected(client, db_session, clean, no_immediate):
     user = await create_user(db_session)
-    assert (await submit(client, user["id"], category="spam")).status_code == 422
+    invalid = await submit(client, user["id"], category="spam")
+    assert invalid.status_code == 422
+    assert isinstance(invalid.json()["detail"], str)
     assert (await submit(client, user["id"], message="   ")).status_code == 422
     assert (await submit(client, user["id"], message="x" * 2001)).status_code == 422
     assert (await client.post("/feedback", json={"category": "bug", "message": "hi"})).status_code == 401
