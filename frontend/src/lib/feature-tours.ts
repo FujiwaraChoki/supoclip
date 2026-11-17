@@ -77,7 +77,7 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     // First visit: how to make a first clip, then a walk through every page, ending back where they start.
     id: "welcome",
     audience: "new",
-    releasedAt: "2026-11-16T00:00:00Z",
+    releasedAt: "2026-11-17T00:00:00Z",
     media: {
       poster: "/tours/welcome.webp",
       videos: [
