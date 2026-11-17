@@ -24,6 +24,8 @@ export interface FxMusicAsset {
   url: string;
   duration: number;
   loop_seconds: number;
+  /** Built-ins: seconds of padding before the loop (the file holds a little of the loop on each side of it). */
+  loop_start?: number;
   /** Present on drop-ins (normalisation to the built-ins' level); built-ins are 0 dB. */
   gain_db?: number;
   custom?: boolean;
@@ -44,6 +46,8 @@ export interface FxMixAsset {
   duration: number;
   /** Loop length for music beds (== duration for drop-ins); undefined for SFX. */
   loopSeconds?: number;
+  /** Where the loop starts in the file (built-in beds); 0 for drop-ins. */
+  loopStart?: number;
   custom: boolean;
 }
 
@@ -136,6 +140,7 @@ function bed(entry: FxMusicAsset): FxMixAsset {
     gainDb: entry.custom ? finite(entry.gain_db) : 0,
     duration: finite(entry.duration),
     loopSeconds: finite(entry.loop_seconds, finite(entry.duration)),
+    loopStart: entry.custom ? 0 : finite(entry.loop_start),
     custom: !!entry.custom,
   };
 }

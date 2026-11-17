@@ -318,18 +318,19 @@ export class FxAudioPreview {
       const source = this.context.createBufferSource();
       source.buffer = buffer;
       source.playbackRate.value = p.rate;
+      const loopStart = music.asset.custom ? 0 : Math.min(music.asset.loopStart ?? 0, buffer.duration);
       const loopSeconds = !music.asset.custom && music.asset.loopSeconds
-        ? Math.min(music.asset.loopSeconds, buffer.duration)
+        ? Math.min(music.asset.loopSeconds, buffer.duration - loopStart)
         : buffer.duration;
       source.loop = true;
-      source.loopStart = 0;
-      source.loopEnd = loopSeconds;
+      source.loopStart = loopStart;
+      source.loopEnd = loopStart + loopSeconds;
       const gain = this.context.createGain();
       const start = this.context.currentTime;
       gain.gain.setValueAtTime(dbToGain(envelopeDbAt(music.points, now) + music.normDb), start);
       source.connect(gain);
       gain.connect(this.destination);
-      const offset = loopSeconds > 0 ? (music.offset + now) % loopSeconds : 0;
+      const offset = loopStart + (loopSeconds > 0 ? (music.offset + now) % loopSeconds : 0);
       source.start(start, offset);
       source.stop(this.when(p, outDuration));
       p.music = source;

@@ -76,6 +76,7 @@ class AssetIndex:
     sfx_gain_db: Mapping[Path, float] = field(default_factory=dict)   # built-in file → manifest gain_db
     sfx_duration: Mapping[Path, float] = field(default_factory=dict)  # built-in file → manifest duration (s)
     files_by_sha: Mapping[str, Path] = field(default_factory=dict)    # built-in sha256 → file (served URLs)
+    bed_starts: Mapping[str, float] = field(default_factory=dict)     # bed id → seconds of padding before its loop
 
 
 _index_lock = threading.Lock()
@@ -116,16 +117,19 @@ def _build_index(root: Path) -> AssetIndex:
     beds: dict[str, list[str]] = {}
     bed_files: dict[str, Path] = {}
     bed_lengths: dict[str, float] = {}
+    bed_starts: dict[str, float] = {}
     public_music = []
     for entry in raw["music"]:
         path = root / entry["file"]
         beds.setdefault(entry["mood"], []).append(entry["id"])
         bed_files[entry["id"]] = path
         bed_lengths[entry["id"]] = float(entry["loop_seconds"])
+        bed_starts[entry["id"]] = float(entry.get("loop_start", 0.0))
         by_sha[entry["sha256"]] = path
         public_music.append({
             "id": entry["id"], "mood": entry["mood"], "url": asset_url(entry["sha256"], _ext(entry["file"])),
-            "duration": entry["duration"], "loop_seconds": entry["loop_seconds"],
+            "duration": entry["duration"], "loop_start": float(entry.get("loop_start", 0.0)),
+            "loop_seconds": entry["loop_seconds"],
         })
 
     emoji = raw["emoji"]
@@ -149,6 +153,7 @@ def _build_index(root: Path) -> AssetIndex:
         beds=MappingProxyType({k: tuple(v) for k, v in beds.items()}),
         bed_files=MappingProxyType(bed_files),
         bed_lengths=MappingProxyType(bed_lengths),
+        bed_starts=MappingProxyType(bed_starts),
         emoji_keys=frozenset(glyphs),
         atlas_png=atlas_png,
         atlas_json=atlas_json,

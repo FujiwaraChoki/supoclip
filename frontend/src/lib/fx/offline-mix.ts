@@ -314,12 +314,13 @@ function mixTones(bus: Stereo, program: FxAudioProgram, sr: number): boolean {
  * _looped: the sample index into the bed for bus sample `i` (bed started `start` samples in). Built-ins tile at their
  * loop length; drop-ins restart `xf` samples in after a crossfade region handled by `loopedSample`.
  */
-function loopedReader(bed: AudioBuffer, loopSamples: number | null, sr: number, start: number) {
-  const length = loopSamples && loopSamples > 0 ? Math.min(loopSamples, bed.length) : bed.length;
+function loopedReader(bed: AudioBuffer, loopSamples: number | null, sr: number, start: number, loopStart = 0) {
+  const skip = loopSamples ? Math.min(Math.max(0, loopStart), bed.length) : 0;
+  const length = loopSamples && loopSamples > 0 ? Math.min(loopSamples, bed.length - skip) : bed.length;
   const xf = Math.round(BED_SEAM_CROSSFADE * sr);
   const seamless = !!loopSamples || length <= 2 * xf;
-  const left = channel(bed, 0);
-  const right = channel(bed, 1);
+  const left = channel(bed, 0).subarray(skip, skip + length);
+  const right = channel(bed, 1).subarray(skip, skip + length);
   const data = [left, right];
   const period = length - xf;
   // _looped: a drop-in's start wraps at its file length (the first pass plays the whole head, no seam).
@@ -343,7 +344,8 @@ function mixMusic(bus: Stereo, program: FxAudioProgram, buffers: Map<string, Aud
   const buffer = buffers.get(music.asset.url);
   if (!buffer || !buffer.length) return false;
   const loopSamples = music.asset.custom ? null : Math.round((music.asset.loopSeconds ?? 0) * sr) || null;
-  const read = loopedReader(buffer, loopSamples, sr, Math.round(music.offset * sr));
+  const loopStart = music.asset.custom ? 0 : Math.round((music.asset.loopStart ?? 0) * sr);
+  const read = loopedReader(buffer, loopSamples, sr, Math.round(music.offset * sr), loopStart);
   const n = bus[0].length;
   const points = music.points;
   let k = 0;                                  // breakpoint cursor (times are increasing)

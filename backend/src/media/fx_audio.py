@@ -462,11 +462,13 @@ def _mix_bleep_tones(bus: np.ndarray, plan: FxPlan, warp: Warp, sample_rate: int
     return mixed
 
 
-def _builtin_loop_samples(path: Path, sample_rate: int) -> int | None:
-    """The loop length in samples of a built-in bed (manifest ``loop_seconds``), None for a drop-in.
+def _builtin_loop(path: Path, sample_rate: int) -> tuple[int, int] | None:
+    """(start, length) in samples of a built-in bed's loop (manifest ``loop_start``, ``loop_seconds``), None for a
+    drop-in.
 
-    ffmpeg before 8 keeps the AAC encoder's end padding (~15 ms), so a decoded built-in is cut to its loop length
-    before it is tiled; otherwise every seam would carry a short dip and drift off the resolver's ``offset``.
+    A built-in file carries a little of its loop's own audio before and after it, so the encoder's smeared edges are
+    never played; the decoded bed is cut to exactly the loop before it is tiled, otherwise every seam would click
+    and drift off the resolver's ``offset``.
     """
     try:
         resolved = path.resolve()
@@ -477,7 +479,8 @@ def _builtin_loop_samples(path: Path, sample_rate: int) -> int | None:
     for bed_id, bed_path in index.bed_files.items():
         if bed_path.resolve() == resolved:
             seconds = float(index.bed_lengths.get(bed_id, 0.0) or 0.0)
-            return int(round(seconds * sample_rate)) if seconds > 0 else None
+            start = int(round(float(index.bed_starts.get(bed_id, 0.0) or 0.0) * sample_rate))
+            return (start, int(round(seconds * sample_rate))) if seconds > 0 else None
     return None
 
 
@@ -518,13 +521,13 @@ def _mix_music(bus: np.ndarray, plan: FxPlan, words_e: Sequence[dict], warp: War
     except (KeyError, OSError, RuntimeError, subprocess.SubprocessError, ValueError, StopIteration) as exc:
         logger.warning("fx_bus_music_skipped bed=%s: %s", bed.bed, exc)
         return False
-    loop_samples = _builtin_loop_samples(path, sample_rate)
-    if loop_samples:
-        audio = audio[:loop_samples]
+    loop = _builtin_loop(path, sample_rate)
+    if loop:
+        audio = audio[loop[0]:loop[0] + loop[1]]
     if audio.shape[0] == 0:
         return False
     n = bus.shape[0]
-    music = _looped(audio, int(round(bed.offset * sample_rate)), n, loop_samples is not None, sample_rate)
+    music = _looped(audio, int(round(bed.offset * sample_rate)), n, loop is not None, sample_rate)
 
     words_f = []
     for word in words_e:

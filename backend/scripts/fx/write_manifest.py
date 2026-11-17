@@ -2,13 +2,14 @@
 """Write backend/src/fx_assets/manifest.json from the committed asset files (FINAL.md §12).
 
 Per file: sha256 and duration; SFX also peak/RMS dBFS (read with numpy) and their Freesound source (from
-SOURCES-CC0.txt), music beds also the loop length (from the synthesiser's tempo), BPM and integrated loudness (ffmpeg
-ebur128). The emoji entry hashes the atlas and its map and names the font version recorded by build_emoji_atlas.ts.
+SOURCES-CC0.txt), music beds also their loop (from music/beds.json, written by import_music.py), BPM and integrated
+loudness (ffmpeg ebur128). The emoji entry hashes the atlas and its map and names the font version recorded by
+build_emoji_atlas.ts.
 
 SFX variant numbers come from ``SFX_FILES`` below: variant 0 is the most neutral take of each sound (the default for
 sounds added in the studio or by the AI edit), and risers alternate 1.5 s / 2.5 s, so a riser's length is
-``RISER_SECONDS[variant % 2]`` (the same as the synthesised riser_0/riser_1 it replaces). Run after the synth
-scripts and the atlas build:
+``RISER_SECONDS[variant % 2]`` (the same as the synthesised riser_0/riser_1 it replaces). Run after
+import_music.py and the atlas build:
 
     cd backend && .venv/bin/python scripts/fx/write_manifest.py [--assets DIR]
 
@@ -29,13 +30,10 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from synth_music import MOODS, SR, loop_samples, measure_lufs  # noqa: E402
-
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_ASSETS = BACKEND_DIR / "src" / "fx_assets"
 MANIFEST_VERSION = 1
+SR = 48_000
 SFX_SOURCES = "SOURCES-CC0.txt"
 RISER_SECONDS = (1.5, 2.5)   # riser length by variant parity
 
@@ -89,6 +87,18 @@ def probe_duration(path: Path) -> float:
     return float(out)
 
 
+def measure_lufs(path: Path) -> float:
+    """Integrated loudness (ffmpeg ebur128) of a music bed."""
+    proc = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af", "ebur128=framelog=quiet", "-f", "null", "-"],
+        capture_output=True, text=True, check=True,
+    )
+    matches = re.findall(r"I:\s+(-?[\d.]+) LUFS", proc.stderr)
+    if not matches:
+        raise RuntimeError(f"no loudness for {path}")
+    return float(matches[-1])
+
+
 def sfx_sources(assets: Path) -> dict[str, str]:
     """``sfx/<file>.wav`` -> Freesound URL, from the provenance table in SOURCES-CC0.txt."""
     rows = {}
@@ -131,20 +141,22 @@ def sfx_entries(assets: Path) -> list[dict]:
 
 
 def music_entries(assets: Path) -> list[dict]:
+    """The curated CC0 beds listed in music/beds.json (written by import_music.py), in mood then id order."""
     entries = []
-    for spec in MOODS:
-        path = assets / "music" / f"{spec.mood}.m4a"
+    for bed in json.loads((assets / "music" / "beds.json").read_text(encoding="utf-8")):
+        path = assets / bed["file"]
         entries.append({
-            "id": spec.mood,
-            "mood": spec.mood,
-            "file": f"music/{spec.mood}.m4a",
+            "id": bed["id"],
+            "mood": bed["mood"],
+            "file": bed["file"],
             "sha256": sha256_file(path),
             "duration": round(probe_duration(path), 4),
-            "loop_seconds": round(loop_samples(spec.bpm) / SR, 4),
-            "bpm": spec.bpm,
+            "loop_start": bed["loop_start"],
+            "loop_seconds": bed["loop_seconds"],
+            "bpm": bed["bpm"],
             "lufs": round(measure_lufs(path), 1),
-            "source": "synth",
-            "license": "CC0-1.0",
+            "source": bed["url"],
+            "license": bed["license"],
         })
     return entries
 

@@ -24,10 +24,6 @@ Intensity = Literal["off", "subtle", "bold", "max"]
 INTENSITIES: tuple[str, ...] = ("off", "subtle", "bold", "max")
 Mood = Literal["hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive"]
 MOODS: tuple[str, ...] = ("hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive")
-# A mood with no built-in bed borrows the built-in beds of the mood it maps to. The MusicBed keeps its own mood, so
-# that mood's drop-ins (FX_LIBRARY_DIR music/<mood>-*) still replace the borrowed file at mix time. Inert once the
-# built-in manifest has a bed of the mood.
-BED_FALLBACK: dict[str, str] = {"aggressive": "hype"}
 GradeId = Literal["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"]
 GRADES: tuple[str, ...] = ("none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream")
 Censor = Literal["off", "bleep", "bleep_bar", "bleep_pixelate"]
@@ -290,7 +286,7 @@ AUTO_TRANSITION_STYLES: tuple[str, ...] = ("flash", "light_leak")
 
 class MusicBed(_Strict):
     mood: Mood
-    bed: str = Field(min_length=1, max_length=80)          # asset id, e.g. "hype" or "hype-mytrack"
+    bed: str = Field(min_length=1, max_length=80)          # asset id, e.g. "hype-tent" or a drop-in "hype-mytrack"
     gain_db: float = Field(default=-20, ge=-40, le=12)     # bed level with no speech (0 dB = the bed at -20 LUFS)
     duck_db: float = Field(default=-12, ge=-30, le=0)      # extra attenuation under speech
     attack: float = Field(default=0.08, ge=0.01, le=1)

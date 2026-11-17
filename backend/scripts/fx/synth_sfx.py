@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Synthesised dynamic-edit sound effects: DSP helpers for synth_music.py and a code-only fallback set.
+"""Synthesised dynamic-edit sound effects: a code-only fallback set.
 
 The built-in SFX in src/fx_assets/sfx are CC0 recordings from Freesound (see SOURCES-CC0.txt and
-write_manifest.py); this script no longer writes there. It is kept because synth_music.py builds the music beds
-from the DSP helpers below, and as a fallback for anyone who wants sounds made entirely from code: it writes one
-file per recipe under drop-in names (``<sound>-synth<variant>.wav``), so pointing FX_LIBRARY_DIR at the parent of
-``--out`` makes the mixer use them instead of the built-ins.
+write_manifest.py); this script no longer writes there. It is kept as a fallback for anyone who wants sounds made
+entirely from code: it writes one file per recipe under drop-in names (``<sound>-synth<variant>.wav``), so pointing
+FX_LIBRARY_DIR at the parent of ``--out`` makes the mixer use them instead of the built-ins.
 
 Every file is made from code: numpy oscillators, noise and filters, a fixed
 `np.random.default_rng(<seed>)` per file, peak-normalised to -6 dBFS with 5 ms
