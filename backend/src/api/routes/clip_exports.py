@@ -20,14 +20,16 @@ from ...repositories.edit_transaction import TaskEditInProgress, hold_off_task_e
 from ...services.clip_export_service import (
     FILE_MISSING_MESSAGE,
     ExportWorkerUnavailable,
+    check_finished_export,
     present_export,
     start_export,
 )
 from ...services.task_service import TaskService
 from ...utils.async_helpers import run_in_thread
+from ..pool_timeout import PoolTimeoutRoute
 from .tasks import _require_task_reader
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], route_class=PoolTimeoutRoute)
 
 
 def _preset_name(value: str) -> str:
@@ -81,8 +83,11 @@ async def start_clip_export(
     db: AsyncSession = Depends(get_db),
 ):
     """Queue a preset export. The same clip and options reuse a live or finished job."""
-    task, _clip = await _owned_clip(request, db, task_id, clip_id)
+    task, clip = await _owned_clip(request, db, task_id, clip_id)
+    # Don't hold a connection while the body uploads or storage answers.
+    await db.close()
     preset_name = await _preset_from_request(request, preset)
+    artifacts = await check_finished_export(db, clip=clip, preset=preset_name)
     # An edit (a regeneration) may replace this clip. Hold edits off until the
     # export row is committed, and read the clip again under that lock.
     try:
@@ -98,7 +103,9 @@ async def start_clip_export(
 
         queue = JobQueue
     try:
-        return await start_export(db, task=task, clip=clip, preset=preset_name, queue=queue)
+        return await start_export(
+            db, task=task, clip=clip, preset=preset_name, queue=queue, artifacts=artifacts
+        )
     except ExportWorkerUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from None
 

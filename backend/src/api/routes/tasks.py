@@ -7,6 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from ...media_storage import MediaStorage, STORAGE_ERRORS, is_s3, media_work
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
@@ -50,6 +51,7 @@ from ...source_identity import (
     source_key_for_url,
 )
 from ...workers.job_queue import JobQueue
+from ..pool_timeout import pool_busy
 from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url, has_verified_duration
@@ -1286,6 +1288,8 @@ async def get_clip_file(
         )
     except HTTPException:
         raise
+    except PoolTimeout:
+        raise pool_busy(request) from None
     except Exception as e:
         logger.error(f"Error serving clip file: {e}")
         raise HTTPException(status_code=500, detail=f"Error serving clip file: {str(e)}")
@@ -1654,6 +1658,8 @@ async def export_clip(
         )
     except HTTPException:
         raise
+    except PoolTimeout:
+        raise pool_busy(request) from None
     except Exception as e:
         logger.error(f"Error exporting clip: {e}")
         raise HTTPException(status_code=500, detail=f"Error exporting clip: {str(e)}")

@@ -255,15 +255,21 @@ async def resolve_download_url(storage: MediaStorage, row: dict) -> str | None:
     return api_download_path(row)
 
 
-async def present_export(db: AsyncSession, row: dict) -> dict:
-    """Reclaim a dead job or a missing file, then attach a download URL."""
+async def present_export(db: AsyncSession, row: dict, *, artifact: str | None = None) -> dict:
+    """Reclaim a dead job or a missing file, then attach a download URL.
+
+    ``artifact`` is a storage state the caller already read for this row.
+    """
     failed = await reap_stale_exports(db, export_id=row["id"])
     if failed:
         await db.commit()
         refreshed = await ClipExportRepository.get(db, row["id"])
         row = refreshed or row
+    # End the transaction before asking storage: a HEAD can take seconds, and
+    # the task page polls this for every export it starts.
+    await db.commit()
     if row["status"] == "succeeded":
-        state = await run_in_thread(artifact_state, MediaStorage(), row.get("file_path"))
+        state = artifact or await run_in_thread(artifact_state, MediaStorage(), row.get("file_path"))
         if state == "missing":
             if row.get("file_path"):
                 await queue_delete(db, row["file_path"])
@@ -280,6 +286,23 @@ async def present_export(db: AsyncSession, row: dict) -> dict:
     return serialize_export(row, download_url)
 
 
+async def check_finished_export(db: AsyncSession, *, clip: dict, preset: str) -> dict[str, str]:
+    """Storage state of the clip's finished export, read with no transaction open.
+
+    ``start_export`` holds the options lock, the row and the task's edit
+    hold-off; a storage HEAD can take seconds, so it is done here first and
+    passed in. Returns ``{export_id: state}``, or ``{}`` when nothing finished.
+    """
+    existing = await ClipExportRepository.get_live(
+        db, clip["id"], export_options_hash(preset, clip["file_path"])
+    )
+    await db.commit()
+    if not existing or existing["status"] != "succeeded":
+        return {}
+    state = await run_in_thread(artifact_state, MediaStorage(), existing.get("file_path"))
+    return {existing["id"]: state}
+
+
 async def start_export(
     db: AsyncSession,
     *,
@@ -287,7 +310,13 @@ async def start_export(
     clip: dict,
     preset: str,
     queue,
+    artifacts: dict[str, str] | None = None,
 ) -> dict:
+    """Reuse or queue an export. ``artifacts`` comes from ``check_finished_export``.
+
+    No storage I/O happens under the locks. A row that finished after that
+    check counts as present here; ``present_export`` checks it after commit.
+    """
     options_hash = export_options_hash(preset, clip["file_path"])
     await ClipExportRepository.lock_options(db, clip["id"], options_hash)
     await reap_stale_exports(db, clip_id=clip["id"], options_hash=options_hash)
@@ -295,9 +324,7 @@ async def start_export(
         db, clip["id"], options_hash, for_update=True
     )
     if existing and existing["status"] == "succeeded":
-        state = await run_in_thread(
-            artifact_state, MediaStorage(), existing.get("file_path")
-        )
+        state = (artifacts or {}).get(existing["id"], "unknown")
         if state == "missing" or _expired(existing):
             if existing.get("file_path"):
                 await queue_delete(db, existing["file_path"])
@@ -309,7 +336,8 @@ async def start_export(
     if existing:
         await db.commit()
         refreshed = await ClipExportRepository.get(db, existing["id"])
-        return await present_export(db, refreshed or existing)
+        checked = (artifacts or {}).get(existing["id"])
+        return await present_export(db, refreshed or existing, artifact=checked)
 
     export_id = str(uuid4())
     created = await ClipExportRepository.insert(

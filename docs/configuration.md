@@ -229,6 +229,34 @@ deployment, when budgeting connections. Advisory-lock and media connections
 also need headroom. The serving prepare script refuses a third release pair;
 drain and retire the previous pair before another deployment.
 
+### Connection budget
+
+`docker-compose.yml` gives the API service (`backend`) a pool of 10 with 5
+overflow, so one API process can open 15 ORM connections. Editor loads, export
+polling and SSE arrive in bursts, and the default 5 ran out on 17 November 2026.
+Workers keep the default 5 with no overflow. Every backend process can also open
+up to two connections for signed media URLs (`sync_db.py`) and one unpooled
+connection per advisory lock it holds or waits for.
+
+Size the total against PostgreSQL `max_connections` (100 by default, 3 of them
+reserved for superusers). A serving deployment runs two API slots at once, the
+candidate and the draining release, so count the API twice:
+
+| Process | Connections |
+|---|---|
+| API, serving slot (10 + 5, plus 2 media) | 17 |
+| API, candidate or draining slot | 17 |
+| Direct API container used by MCP (`supoclip-backend`), if it runs this compose | 17 |
+| Web, two slots (Prisma, 5 each) | 10 |
+| Each worker process: video, cron, AI, remote render (5, plus 2 media) | 7 each |
+
+With three local workers and one remote render worker that is about 89 of the 97
+usable connections, before advisory locks and operator sessions. A third
+release pair would push it over, which is why `prepare.sh` refuses one. Raise a
+pool only after raising `max_connections` or removing a process from this list.
+Override the API values in a server's `docker-compose.override.yml`; a value set
+under `environment:` there replaces the one here.
+
 ## Self-Host and Monetization Settings
 
 These determine whether the app behaves like an open self-hosted product or a monetized hosted product.

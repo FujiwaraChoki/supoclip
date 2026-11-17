@@ -142,6 +142,11 @@ services:
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
+      # The API serves bursts of editor and SSE requests, so it gets a larger
+      # pool than the workers (default 5, no overflow). Budget in docs/configuration.md.
+      - DATABASE_POOL_SIZE=10
+      - DATABASE_MAX_OVERFLOW=5
+      - DATABASE_POOL_TIMEOUT_SECONDS=10
       - TEMP_DIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
       - MEDIA_S3_BUCKET=${MEDIA_S3_BUCKET:-}
