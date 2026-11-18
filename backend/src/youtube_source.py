@@ -11,6 +11,7 @@ from __future__ import annotations
 import fcntl
 import json
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -1148,7 +1149,7 @@ def _trim_local(source: Path, dest: Path, offset: float, duration: float) -> Non
         # Stream copy seeks to keyframes, extending cuts and shifting every
         # later span away from the transcript's original-source timestamps.
         "-map", "0:v:0", "-map", "0:a:0",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "2",
+        "-c:v", "libx264", "-preset", os.getenv("INTERMEDIATE_VIDEO_PRESET", "ultrafast"), "-crf", "18", "-threads", "2",
         # Encode AAC only once after joining. Per-piece AAC priming otherwise
         # becomes audible padding and shifts later transcript spans.
         "-c:a", "pcm_s16le", "-ar", "48000",
