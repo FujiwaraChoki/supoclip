@@ -528,6 +528,30 @@ async def test_only_the_delivery_about_to_send_is_leased(
     assert await delivery.deliver_due(db_session) == {"delivered": 3}
 
 
+async def test_a_claim_never_leases_more_than_its_limit(client, db_session, clean, no_immediate):
+    user = await create_user(db_session)
+    await make_webhook(db_session)
+    for _ in range(3):
+        await submit(client, user["id"])
+    # Picking the rows in an IN subquery leased all three when the planner chose an
+    # unmaterialized nested loop: the LIMIT subquery reran per row and skipped the rows
+    # already updated. Steer toward that plan (statistics still decide, so this catches
+    # the old query most runs, not every run); distinct due times keep the scan in order.
+    for _ in range(3):
+        for setting in ("enable_hashjoin", "enable_mergejoin", "enable_material", "enable_hashagg",
+                        "enable_indexscan", "enable_bitmapscan"):
+            await db_session.execute(text(f"SET LOCAL {setting} = off"))
+        claimed = await delivery._claim(db_session, submission_id=None, limit=1)
+        leased = (await db_session.execute(text(
+            "SELECT count(*) FROM feedback_webhook_deliveries WHERE lease_token IS NOT NULL"
+        ))).scalar()
+        assert (len(claimed), leased) == (1, 1)
+        await db_session.execute(text(
+            "UPDATE feedback_webhook_deliveries SET lease_token = NULL, lease_expires_at = NULL, attempts = 0"
+        ))
+        await db_session.commit()
+
+
 async def test_expired_sender_cannot_overwrite_newer_result(client, db_session, clean, no_immediate):
     await _one_submission(client, db_session)
     [old] = await delivery._claim(db_session, submission_id=None, limit=1)

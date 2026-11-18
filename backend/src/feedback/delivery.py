@@ -226,10 +226,11 @@ async def _claim(db: AsyncSession, *, submission_id: str | None, limit: int) -> 
     scope = "AND submission_id = :submission_id" if submission_id else ""
     rows = await db.execute(
         text(
+            # MATERIALIZED runs the pick once. As an IN subquery PostgreSQL may rerun
+            # it per row, and with SKIP LOCKED and clock_timestamp() that leased more
+            # than :limit rows, which then sat unsent until the lease expired.
             f"""
-            UPDATE feedback_webhook_deliveries d
-            SET lease_token = uuid_generate_v4()::text, lease_expires_at = clock_timestamp() + make_interval(secs => :lease), attempts = d.attempts + 1, updated_at = NOW()
-            WHERE d.id IN (
+            WITH picked AS MATERIALIZED (
                 SELECT id FROM feedback_webhook_deliveries
                 WHERE status = 'pending' AND NOT is_test AND next_attempt_at <= clock_timestamp()
                   AND (lease_expires_at IS NULL OR lease_expires_at < clock_timestamp()) {scope}
@@ -237,6 +238,10 @@ async def _claim(db: AsyncSession, *, submission_id: str | None, limit: int) -> 
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED
             )
+            UPDATE feedback_webhook_deliveries d
+            SET lease_token = uuid_generate_v4()::text, lease_expires_at = clock_timestamp() + make_interval(secs => :lease), attempts = d.attempts + 1, updated_at = NOW()
+            FROM picked
+            WHERE d.id = picked.id
             RETURNING d.id, d.submission_id, d.webhook_id, d.attempts, d.is_test, d.lease_token
             """
         ),
