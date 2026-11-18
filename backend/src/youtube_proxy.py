@@ -471,7 +471,7 @@ def download_options(
 
 # yt-dlp and http.client word IncompleteRead as "N bytes read, M more expected",
 # or "N bytes read" ending the message or a clause, e.g. "IncompleteRead(0 bytes read)".
-_INCOMPLETE_READ = re.compile(r"\b\d+ bytes read(?:, \d+ more expected\b|(?=[).,;:]|\s*$))")
+_INCOMPLETE_READ = re.compile(r"\b(\d+) bytes read(?:, \d+ more expected\b|(?=[).,;:]|\s*$))")
 
 
 def is_transient_proxy_error(exc: BaseException) -> bool:
@@ -1529,7 +1529,7 @@ def _account_failed_media(
     )
     if has_components:
         media = [path for path in media if str(path).startswith(component_prefix)]
-    incomplete = re.search(r"\b(\d+) bytes read, \d+ more expected\b", str(exc)) if include_incomplete else None
+    incomplete = _INCOMPLETE_READ.search(str(exc).lower()) if include_incomplete else None
     for path in media:
         count_bytes({
             "status": "downloading", "filename": str(path).removesuffix(".part"),

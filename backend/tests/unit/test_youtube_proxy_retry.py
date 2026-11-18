@@ -2,12 +2,17 @@
 
 import copy
 import logging
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
+from yt_dlp.utils import DownloadError
 
 from src import youtube_proxy as proxy
 from src.config import Config, set_config_override
 from tests.unit.test_youtube_audio_fallback import FORMATS, PROXY, URL, VIDEO_ID
+
+NATIVE_DOWNLOAD_FORMAT = proxy.native_download_format
 
 
 @pytest.fixture
@@ -222,3 +227,32 @@ def test_section_incomplete_read_without_expected_count_retries_on_new_session(d
     first, retry = state["metadata"]
     assert first["proxy"] != retry["proxy"]
     assert retry["_youtube_deadline"] == 160
+
+
+@pytest.mark.parametrize("message", [
+    "35152 bytes read",
+    "IncompleteRead(35152 bytes read)",
+    "ERROR: [download] Got error: 35152 bytes read. Giving up after 10 retries",
+    "35152 bytes read, 7 more expected",
+])
+def test_native_audio_read_failed_before_any_write_is_charged_in_every_form(downloads, monkeypatch, message):
+    """A retry must not spend bytes the failed read already received for free."""
+    _state, run = downloads
+    monkeypatch.setattr(proxy, "native_download_format", NATIVE_DOWNLOAD_FORMAT)
+    calls = []
+
+    @contextmanager
+    def client(options):
+        class Client:
+            def process_info(self, info):
+                calls.append(options)
+                if len(calls) == 1:
+                    raise DownloadError("ERROR: " + message)
+                Path(options["outtmpl"].replace("%(ext)s", info["ext"])).write_bytes(b"12345")
+
+        yield Client()
+
+    monkeypatch.setattr(proxy, "_proxy_client", client)
+    with pytest.raises(proxy.DownloadBudgetExceeded):
+        run("audio", proxy.ByteBudget(1000))
+    assert len(calls) == 1
