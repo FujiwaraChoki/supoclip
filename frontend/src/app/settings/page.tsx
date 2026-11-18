@@ -331,7 +331,7 @@ export default function SettingsPage() {
           <LanguageSwitcher />
         </Section>
 
-        <Section icon={<Type className="size-4" />} title={t("captions.title")} description={t("captions.description")}>
+        <Section tour="settings-captions" icon={<Type className="size-4" />} title={t("captions.title")} description={t("captions.description")}>
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_150px]">
             <div className="space-y-5">
               <div className="space-y-2">
@@ -415,7 +415,7 @@ export default function SettingsPage() {
         </Section>
 
         {billingSummary?.monetization_enabled && (
-          <Section id="plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={paymentNeedsUpdate || isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
+          <Section id="plan" tour="settings-plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={paymentNeedsUpdate || isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
             <div className="space-y-4">
               <div className="rounded-xl bg-muted/50 p-4">
                 <div className="flex items-baseline justify-between gap-3">
@@ -644,9 +644,9 @@ export default function SettingsPage() {
   );
 }
 
-function Section({ id, icon, title, description, children }: { id?: string; icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
+function Section({ id, tour, icon, title, description, children }: { id?: string; /** `data-tour` target for the welcome tour. */ tour?: string; icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-6 rounded-2xl border bg-background">
+    <section id={id} data-tour={tour} className="scroll-mt-6 rounded-2xl border bg-background">
       <div className="flex items-start gap-3 border-b px-5 py-4">
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">{icon}</span>
         <div>
