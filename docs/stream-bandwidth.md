@@ -5,11 +5,17 @@ Stream downloads count response bytes against `YOUTUBE_DOWNLOAD_MAX_BYTES`
 within one task operation share the allowance. Retried bytes count again.
 Exhaustion is terminal: another provider or a full-video retry cannot reset it.
 
-A download call fails when it receives no data for `YOUTUBE_PROXY_TIMEOUT_SECONDS`
+A provider stops when it receives no data for `YOUTUBE_PROXY_TIMEOUT_SECONDS`
 (default 300 seconds). That value is an idle limit: every byte received pushes
 it back. It is not a wall clock. The overall cap is the longer of
 `STREAM_DOWNLOAD_MAX_SECONDS` (default 2400) and a duration-based budget, and
 it never exceeds one hour unless `STREAM_DOWNLOAD_MAX_SECONDS` is set higher.
+Both limits apply to each provider separately. A provider that times out
+(stalled or too slow) hands over to the next provider in the chain, which
+starts with full limits. A call therefore runs for at most one overall cap per
+configured provider. If every provider times out, the user sees the retry
+message ("The download timed out before the video finished…"). A cancellation
+or an exhausted byte budget still ends the whole chain at once.
 Probing, cutting and re-encoding inside a download call count towards neither
 limit. Media socket reads use 30 seconds. Metadata preflight keeps 10 seconds
 so one stalled proxy read does not consume the whole preflight deadline.
