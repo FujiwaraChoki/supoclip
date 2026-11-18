@@ -32,6 +32,11 @@ class Base(DeclarativeBase):
     pass
 
 
+def idle_session_timeout_seconds() -> int:
+    """Seconds PostgreSQL lets a pooled connection sit unused before closing it; 0 is off."""
+    return int(os.getenv("DATABASE_IDLE_SESSION_TIMEOUT_SECONDS", "600"))
+
+
 def _build_engine(database_url: str) -> AsyncEngine:
     pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
     max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "0"))
@@ -39,7 +44,7 @@ def _build_engine(database_url: str) -> AsyncEngine:
     # A pooled connection unused this long is closed by PostgreSQL. Without it every
     # process keeps its busiest moment's connections for life, so a draining release
     # slot holds its whole pool. 0 leaves it off (PostgreSQL before 14 rejects it).
-    idle_session_timeout = int(os.getenv("DATABASE_IDLE_SESSION_TIMEOUT_SECONDS", "600"))
+    idle_session_timeout = idle_session_timeout_seconds()
     if pool_size < 1 or max_overflow < 0 or pool_timeout < 1:
         raise ValueError("Database pool size and timeout must be positive; overflow must be nonnegative")
     if idle_session_timeout < 0:

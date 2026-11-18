@@ -259,7 +259,22 @@ async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 SCRATCH_SWEEP_SECONDS = 10 * 60
-ORPHAN_SWEEP_EVERY = 36  # passes, about six hours
+ORPHAN_SWEEP_EVERY = 36  # passes, about six hours at the full interval
+
+
+def scratch_sweep_seconds() -> float:
+    """Pause between sweeps, well inside PostgreSQL's idle-session timeout.
+
+    LIFO pooling hands each pass the connection the last pass used. Waking as
+    the server closes it for idleness makes pre-ping race the close, which
+    asyncpg reports as "another operation in progress" instead of a disconnect.
+    """
+    from ..database import idle_session_timeout_seconds
+
+    idle_timeout = idle_session_timeout_seconds()
+    if idle_timeout <= 0:
+        return SCRATCH_SWEEP_SECONDS
+    return max(60.0, min(SCRATCH_SWEEP_SECONDS, idle_timeout * 0.75))
 
 
 async def check_media_volume(redis) -> None:
@@ -304,7 +319,7 @@ async def _maintain_scratch_forever() -> None:
         except Exception:
             logger.exception("Local scratch cleanup failed; it runs again next pass")
         passes += 1
-        await asyncio.sleep(SCRATCH_SWEEP_SECONDS)
+        await asyncio.sleep(scratch_sweep_seconds())
 
 
 async def on_worker_startup(ctx: Dict[str, Any]) -> None:
