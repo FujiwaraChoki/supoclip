@@ -49,6 +49,10 @@ MANIFEST_NAME = "manifest.json"
 SECTION_WINDOW_SECONDS = 60
 # v2 rejects auto-dub tracks before language_preference. Cached v1 audio is discarded.
 AUDIO_POLICY = "original-v2"
+# An uploader can trim or replace a video under the same id. Cached media whose
+# source length differs from YouTube's current length by more than this is
+# another version of the video and is not reused.
+SOURCE_DURATION_TOLERANCE_SECONDS = 2.0
 
 
 def parse_clock(value) -> Optional[float]:
@@ -585,6 +589,69 @@ def _load_manifest(directory: Path, video_id: str) -> dict:
     return payload
 
 
+def _has_media(manifest: dict) -> bool:
+    return bool(manifest.get("audio") or manifest.get("full") or manifest.get("ranges"))
+
+
+def _same_source_duration(first, second) -> bool:
+    first, second = _positive_duration(first), _positive_duration(second)
+    return first is not None and second is not None and abs(first - second) <= SOURCE_DURATION_TOLERANCE_SECONDS
+
+
+def _stored_source_duration(directory: Path, manifest: dict) -> Optional[float]:
+    """Length of the source version this cache holds, or None when unknown.
+
+    Manifests written before lengths were recorded are measured from their
+    audio or full file. Sections alone cannot tell, so they count as unknown.
+    """
+    recorded = _positive_duration(manifest.get("source_duration"))
+    if recorded is not None:
+        return recorded
+    from .media.ffmpeg import ffprobe_duration
+
+    for path in (_audio_path(directory, manifest), _full_path(directory, manifest)):
+        if path is None:
+            continue
+        try:
+            return _positive_duration(ffprobe_duration(path))
+        except Exception:
+            continue
+    return None
+
+
+def _current_manifest(directory: Path, video_id: str, duration: Optional[float] = None) -> dict:
+    """The manifest, emptied when it caches another version of the video.
+
+    ``duration`` is the source length YouTube reports now. Without it the
+    manifest is returned as stored. Cached media of a different or unknown
+    length is dropped, files included: a fresh download reuses the same names.
+    Called with the cache lock held.
+    """
+    manifest = _load_manifest(directory, video_id)
+    current = _positive_duration(duration)
+    if current is None:
+        return manifest
+    if not _has_media(manifest):
+        manifest["source_duration"] = current
+        return manifest
+    stored = _stored_source_duration(directory, manifest)
+    if _same_source_duration(stored, current):
+        if manifest.get("source_duration") is None:
+            manifest["source_duration"] = current
+            _save_manifest(directory, manifest)
+        return manifest
+    logger.warning(
+        "YouTube cache for %s holds a %s s source, the video is now %.0f s; downloading it again",
+        video_id, f"{stored:.0f}" if stored is not None else "unknown-length", current,
+    )
+    for name in _manifest_files(manifest):
+        (directory / name).unlink(missing_ok=True)
+    fresh = _empty_manifest(video_id)
+    fresh["source_duration"] = current
+    _save_manifest(directory, fresh)
+    return fresh
+
+
 def _save_manifest(directory: Path, manifest: dict) -> None:
     target = directory / MANIFEST_NAME
     temporary = target.with_suffix(".json.tmp")
@@ -650,9 +717,21 @@ def _manifest_files(manifest: dict) -> list[str]:
 
 
 def _merge_manifests(local: dict, remote: dict, usable: Optional[Callable[[str], bool]] = None) -> dict:
-    """``local`` plus the entries only ``remote`` has. ``usable`` filters those by file name."""
+    """``local`` plus the entries only ``remote`` has. ``usable`` filters those by file name.
+
+    Entries are taken only from a manifest of the same source version: both
+    record the same length, or neither records one. A local manifest without
+    a length and without media takes the remote one's.
+    """
     usable = usable or (lambda _name: True)
     merged = dict(local)
+    local_duration = local.get("source_duration")
+    remote_duration = remote.get("source_duration")
+    if local_duration is None and remote_duration is not None and not _has_media(local):
+        merged["source_duration"] = remote_duration
+    elif local_duration is not None or remote_duration is not None:
+        if not _same_source_duration(local_duration, remote_duration):
+            return merged
     if remote.get("audio_policy") != AUDIO_POLICY:
         # Audio and sections chosen under an earlier policy are not reused.
         remote = {"full": remote.get("full"), "full_height": remote.get("full_height")}
@@ -716,8 +795,15 @@ def _persist_manifest(video_id: str, directory: Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _restore_remote_cache(video_id: str, directory: Path) -> None:
-    """Fetch cached files this machine lacks. Called with the cache lock held."""
+def _restore_remote_cache(video_id: str, directory: Path, duration: Optional[float] = None) -> None:
+    """Fetch cached files this machine lacks. Called with the cache lock held.
+
+    ``duration`` is the source's current length; a stored manifest of another
+    length is not restored.
+    """
+    # A stale local copy is dropped first, so its file names do not pass for
+    # the current version's files below.
+    local = _current_manifest(directory, video_id, duration)
     storage = _storage()
     if storage is None:
         return
@@ -738,7 +824,6 @@ def _restore_remote_cache(video_id: str, directory: Path) -> None:
     checked.touch()
     if not remote:
         return
-    local = _load_manifest(directory, video_id)
     for name in _manifest_files(_merge_manifests(local, remote)):
         dest = directory / name
         if dest.exists():
@@ -849,6 +934,7 @@ def adopt_full_download(
     *,
     task_id: Optional[str] = None,
     quality: Optional[str] = None,
+    duration: Optional[float] = None,
 ) -> Path:
     """Move a full download into the durable cache and return that path.
 
@@ -862,8 +948,8 @@ def adopt_full_download(
     directory = cache_dir_for(video_id, runtime)
     height = requested_height(quality)
     with _cache_lock(directory):
-        _restore_remote_cache(video_id, directory)
-        manifest = _load_manifest(directory, video_id)
+        _restore_remote_cache(video_id, directory, duration)
+        manifest = _current_manifest(directory, video_id, duration)
         previous = _full_path(directory, manifest)
         existing = _usable_full(directory, manifest, quality)
         if existing is not None and existing.resolve() != source.resolve():
@@ -961,7 +1047,7 @@ def _full_timeline_via_sections(
                 kept.unlink()
             shutil.move(str(path), kept)
             return kept
-        return adopt_full_download(video_id, path, task_id=task_id)
+        return adopt_full_download(video_id, path, task_id=task_id, duration=length)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -986,7 +1072,9 @@ def download_analysis_source(
     failure = None
     try_sections = False
     try:
-        return download_audio_for_job(url, video_id, task_id=task_id, budget=budget), True
+        return download_audio_for_job(
+            url, video_id, task_id=task_id, budget=budget, duration=duration,
+        ), True
     except DownloadBudgetExceeded:
         raise
     except AudioDownloadForbidden as exc:
@@ -1035,14 +1123,19 @@ def download_audio_for_job(
     *,
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
+    duration: Optional[float] = None,
 ) -> Path:
-    """Return cached full-duration audio, downloading it through the proxy when needed."""
+    """Return cached full-duration audio, downloading it through the proxy when needed.
+
+    ``duration`` is the video's current length; audio cached from a version of
+    another length is downloaded again.
+    """
     runtime = get_config()
     sweep_expired_cache(runtime)
     directory = cache_dir_for(video_id, runtime)
     with _cache_lock(directory):
-        _restore_remote_cache(video_id, directory)
-        manifest = _load_manifest(directory, video_id)
+        _restore_remote_cache(video_id, directory, duration)
+        manifest = _current_manifest(directory, video_id, duration)
         existing = _audio_path(directory, manifest)
         if existing:
             log_youtube_attempt(
@@ -1237,7 +1330,9 @@ def materialize_clip_source(
     A cached full download at or above ``quality`` is returned unchanged
     (original timestamps). Sections are always fetched at the global cap.
     Otherwise only missing padded ranges are fetched, then assembled into a
-    local timeline with a ``.timeline.json`` sidecar.
+    local timeline with a ``.timeline.json`` sidecar. ``duration`` is the
+    source's current length; media cached from a version of another length
+    is not reused.
     """
     runtime = get_config()
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
@@ -1251,8 +1346,8 @@ def materialize_clip_source(
         raise YouTubeDownloadError("No clip ranges to download")
 
     with _cache_lock(directory):
-        _restore_remote_cache(video_id, directory)
-        manifest = _load_manifest(directory, video_id)
+        _restore_remote_cache(video_id, directory, duration)
+        manifest = _current_manifest(directory, video_id, duration)
         full = _usable_full(directory, manifest, quality)
         if full:
             log_youtube_attempt(
@@ -1303,8 +1398,13 @@ def materialize_clip_source(
     return render_path
 
 
-def cached_full_media(video_id: str, quality: Optional[str] = None) -> Optional[Path]:
-    """Return a fresh cached full download at or above ``quality``, if stored."""
+def cached_full_media(
+    video_id: str, quality: Optional[str] = None, duration: Optional[float] = None,
+) -> Optional[Path]:
+    """Return a fresh cached full download at or above ``quality``, if stored.
+
+    ``duration`` is the video's current length; a file of another version is not returned.
+    """
     runtime = get_config()
     if not getattr(runtime, "youtube_source_cache", True):
         return None
@@ -1313,8 +1413,8 @@ def cached_full_media(video_id: str, quality: Optional[str] = None) -> Optional[
     if not directory.exists() and _storage() is None:
         return None
     with _cache_lock(directory):
-        _restore_remote_cache(video_id, directory)
-        return _usable_full(directory, _load_manifest(directory, video_id), quality)
+        _restore_remote_cache(video_id, directory, duration)
+        return _usable_full(directory, _current_manifest(directory, video_id, duration), quality)
 
 
 def resolve_full_youtube_download(
@@ -1326,20 +1426,21 @@ def resolve_full_youtube_download(
     budget: Optional[ByteBudget] = None,
     skip_proxy: bool = False,
     quality: Optional[str] = None,
+    duration: Optional[float] = None,
 ) -> Optional[Path]:
     """Return a cached full file, or download one and store it.
 
     ``download_full`` is the existing provider chain (proxy first unless
     skipped) and must download at ``quality``. A cached file below it is not
-    reused.
+    reused, nor is one cached from a version of another ``duration``.
     """
     runtime = get_config()
     if getattr(runtime, "youtube_source_cache", True):
         sweep_expired_cache(runtime)
         directory = cache_dir_for(video_id, runtime)
         with _cache_lock(directory):
-            _restore_remote_cache(video_id, directory)
-            full = _usable_full(directory, _load_manifest(directory, video_id), quality)
+            _restore_remote_cache(video_id, directory, duration)
+            full = _usable_full(directory, _current_manifest(directory, video_id, duration), quality)
         if full:
             log_youtube_attempt(
                 provider="cache", video_id=video_id, kind="full",
@@ -1350,7 +1451,9 @@ def resolve_full_youtube_download(
     if not downloaded:
         return None
     if getattr(runtime, "youtube_source_cache", True):
-        return adopt_full_download(video_id, Path(downloaded), task_id=task_id, quality=quality)
+        return adopt_full_download(
+            video_id, Path(downloaded), task_id=task_id, quality=quality, duration=duration,
+        )
     return Path(downloaded)
 
 

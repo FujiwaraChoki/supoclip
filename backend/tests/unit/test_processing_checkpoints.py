@@ -297,3 +297,27 @@ async def test_new_word_timings_discard_a_frozen_workflow_plan(series):
 
     assert series.plan.await_count == 2
     assert result["workflow_plan_restored"] is False
+
+
+@pytest.mark.asyncio
+async def test_cached_full_media_is_checked_against_the_current_length(pipeline, monkeypatch):
+    lengths = []
+    monkeypatch.setattr(module, "cached_full_media", lambda *args: lengths.append(args[2:]) or None)
+    pipeline.state["fail_sections"] = False
+    await pipeline.run()
+    # The metadata length (120 s) keeps a full file of an earlier version out.
+    assert lengths == [(120.0,)]
+
+
+@pytest.mark.asyncio
+async def test_cached_analysis_past_the_end_of_the_source_is_not_reused(pipeline):
+    """A trimmed video keeps its URL: the shared analysis of the old version is not reused."""
+    p = pipeline
+    p.state["fail_sections"] = False
+    stale = {"summary": "old", "key_topics": [], "most_relevant_segments": [
+        {"start_time": "35:00", "end_time": "35:40", "text": "gone", "relevance_score": .9},
+    ]}
+    result = await p.run(cached_transcript="[35:00 - 35:40] gone", cached_analysis_json=json.dumps(stale))
+    p.transcription.assert_awaited_once()
+    p.analysis.assert_awaited_once()
+    assert [s["start_time"] for s in result["segments_to_render"]] == ["00:00"]
