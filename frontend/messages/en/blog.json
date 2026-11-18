@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Source access",
-          "supoclip": "Public AGPL-3.0 repository",
+          "supoclip": "SupoClip Noncommercial Source License",
           "supolive": "No open-source or self-hosting option advertised on its homepage"
         },
         "usecase": {
@@ -157,7 +157,7 @@
     },
     "cost": {
       "heading": "Cost: free source code, real operating costs",
-      "p1": "SupoClip’s open-source code is free to self-host. Your actual costs depend on compute, storage, transcription, paid model usage, and the time needed to maintain the installation. Capacity follows the resources you provision and provider limits. This can be attractive for teams that already run infrastructure, but it is not a promise that every workload costs less.",
+      "p1": "SupoClip is free to self-host for noncommercial use. Your actual costs depend on compute, storage, transcription, paid model usage, and the time needed to maintain the installation. Capacity follows the resources you provision and provider limits. This can be attractive for teams that already run infrastructure, but it is not a promise that every workload costs less.",
       "p2": "The hosted SupoClip service is a separate option with its own pricing and terms. Choose it when you want to start with less setup; choose self-hosting when control over the deployment is the priority."
     },
     "choose": {
@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "Is SupoClip free to self-host?",
-        "answer": "SupoClip provides free source code under AGPL-3.0. Running it still involves hardware or hosting, storage, transcription, and any paid LLM usage. Hosted SupoClip has its own service terms and pricing."
+        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. Running it still involves hardware or hosting, storage, transcription, and any paid LLM usage. Hosted SupoClip has its own service terms and pricing."
       },
       "2": {
         "question": "Can SupoClip replace live-stream clipping and automatic posting?",
@@ -223,7 +223,7 @@
       },
       "2": {
         "question": "Does hosted SupoClip have a free plan?",
-        "answer": "No. The hosted app requires a Pro or Creator subscription to process videos. The free route is self-hosting the open-source code, where there are no plan limits; you pay only for your own infrastructure and any AI providers you configure."
+        "answer": "No. The hosted app requires a Pro or Creator subscription to process videos. For noncommercial use, the free route is self-hosting, where there are no plan limits; you pay only for your own infrastructure and any AI providers you configure."
       },
       "3": {
         "question": "Which one is faster or makes better clips?",
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Source code",
-        "supoclip": "Public, <license>AGPL-3.0</license>"
+        "supoclip": "Public, <license>SupoClip Noncommercial Source License</license>"
       },
       "pricing": {
         "label": "Pricing model",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "Is self-hosted SupoClip free?",
-        "answer": "The code is free under AGPL-3.0 and self-host mode has no generation limits or paywall. You still pay for your own hardware or server, and for any cloud transcription or LLM usage you configure. A Whisper + Ollama setup avoids per-request AI fees but needs enough local compute."
+        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. You still pay for your own hardware or server, and for any cloud transcription or LLM usage you configure. A Whisper + Ollama setup avoids per-request AI fees but needs enough local compute."
       },
       "1": {
         "question": "Can SupoClip run without any cloud AI services?",
@@ -557,11 +557,11 @@
     "faqs": {
       "0": {
         "question": "Is a self-hosted OpusClip alternative really free?",
-        "answer": "The SupoClip source has no license fee under AGPL-3.0. You still provide compute, storage, maintenance, and any paid transcription or AI usage. Compare those costs with a hosted plan before deciding."
+        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. You still provide compute, storage, maintenance, and any paid transcription or AI usage. Compare those costs with a hosted plan before deciding."
       },
       "1": {
         "question": "Is SupoClip completely free?",
-        "answer": "The SupoClip codebase is free and open source, and self-hosted installs have no plan limits. You still pay for your own infrastructure and any transcription or LLM provider you configure. The hosted app requires a paid plan."
+        "answer": "Noncommercial self-hosting has no license fee or plan limits. Commercial use requires prior written permission from Shiori LLC. You still pay for your own infrastructure and any transcription or LLM provider you configure. The hosted app requires a paid plan."
       },
       "2": {
         "question": "Does SupoClip add a watermark?",

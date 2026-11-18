@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "Über",
+    "credit": "Basiert auf SupoClip.",
+    "repository": "Original-Repository"
+  },
   "title": "Einstellungen",
   "intro": "Standards für neue Generierungen, Benachrichtigungen und deinen Plan.",
   "languageDescription": "Die Sprache in SupoClip.",

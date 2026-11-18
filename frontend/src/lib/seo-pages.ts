@@ -87,7 +87,7 @@ export const seoPages: SeoPage[] = [
         heading: "Choose managed hosting or an open-source setup",
         paragraphs: [
           "Use hosted SupoClip when you want processing managed for you. The paid plans include a monthly allowance measured in source-video minutes; producing more clips from the same recording does not multiply that recording’s duration. Check current plans for output resolution, source limits, and publishing access before choosing. A creator can start with one recording and review its finished clips before making the workflow part of a weekly schedule.",
-          "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. The source is free under AGPL-3.0; managed hosting is paid. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
+          "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. Noncommercial self-hosting has no license fee. Commercial use requires prior written permission from Shiori LLC. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
         ],
         links: [
           { href: "/blog/supoclip-vs-opusclip", label: "How SupoClip compares with OpusClip" },
@@ -109,7 +109,7 @@ export const seoPages: SeoPage[] = [
       {
         question: "Is SupoClip open source?",
         answer:
-          "Yes. The SupoClip codebase is available under the AGPL-3.0 license and can be self-hosted or modified.",
+          "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC.",
       },
       {
         question: "Which video sources does SupoClip accept?",
@@ -137,7 +137,7 @@ export const seoPages: SeoPage[] = [
     tableCaption: "Hosted and self-hosted SupoClip compared",
     tableHeaders: ["Decision", "Managed SupoClip", "Self-hosted SupoClip"],
     tableRows: [
-      ["Source access", "Full AGPL-3.0 repository", "Full AGPL-3.0 repository"],
+      ["Source access", "Public repository", "Public repository"],
       ["Infrastructure", "Managed for you", "Your server or local environment"],
       ["Model choice", "Managed provider configuration", "Supported hosted providers or Ollama"],
       ["Customization", "App settings; source available separately", "Application and pipeline source code"],
@@ -146,7 +146,7 @@ export const seoPages: SeoPage[] = [
       {
         heading: "An open-source clipping app you can inspect and change",
         paragraphs: [
-          "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The application is available under AGPL-3.0. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
+          "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The SupoClip Noncommercial Source License allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
           "The documented Docker Compose stack includes the frontend, backend, worker, PostgreSQL, and Redis. Begin with the self-hosting guide and a short video you know well. Verify that a task moves through processing, that a finished clip plays, and that captions and framing match the source. The examples above show the kind of output to inspect; they are not a benchmark for your hardware, models, or footage. Do a small first run before processing a backlog.",
         ],
       },
@@ -180,7 +180,7 @@ export const seoPages: SeoPage[] = [
       {
         question: "Is SupoClip free to self-host?",
         answer:
-          "The source code is free under the AGPL-3.0 license. You remain responsible for infrastructure and any paid transcription or AI-provider usage.",
+          "Noncommercial self-hosting has no license fee. Commercial use requires prior written permission from Shiori LLC. You remain responsible for infrastructure and any paid transcription or AI-provider usage.",
       },
       {
         question: "Can SupoClip use a local language model?",

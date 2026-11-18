@@ -34,8 +34,9 @@ import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Info, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEFAULT_SITE_URL, GITHUB_URL } from "@/lib/site";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
 interface UserPreferences {
@@ -607,6 +608,13 @@ export default function SettingsPage() {
           </span>
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
+
+        <Section icon={<Info className="size-4" />} title={t("about.title")} description={t("about.credit")}>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <a className="underline underline-offset-4" href={GITHUB_URL}>{t("about.repository")}</a>
+            <a className="underline underline-offset-4" href={DEFAULT_SITE_URL}>supoclip.com</a>
+          </div>
+        </Section>
 
         <DeleteAccountSection
           email={session.user.email}

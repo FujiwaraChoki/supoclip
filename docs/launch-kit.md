@@ -41,7 +41,7 @@ Use these claims freely. Each one is backed by the code or the site:
 
 | Claim | Source |
 |-------|--------|
-| Open source under AGPL-3.0 | `LICENSE` |
+| Noncommercial self-hosting and forks | `LICENSE` |
 | Runs hosted, on iOS, or self-hosted with Docker Compose | `docker-compose.yml`, App Store listing |
 | Self-hosted installs have no plan limits | `billing_service.py` (`self_host` plan) |
 | No watermark on exports | No watermark step anywhere in `backend/src` |
@@ -106,7 +106,7 @@ posting, and reply to comments for the first few hours.
 > pick self-contained moments, and renders 9:16 clips with word-synced captions,
 > a hook title, and face-aware framing.
 >
-> It's AGPL-3.0 and runs with `docker compose up`. You choose the models:
+> It's available for noncommercial self-hosting and runs with `docker compose up`. You choose the models:
 > OpenAI, Google, Anthropic, OpenRouter, or Ollama, plus AssemblyAI or local
 > Whisper for transcription, so it can run without cloud AI. There's also a
 > REST API and an MCP server, so agents can create and download clips.
@@ -130,7 +130,7 @@ posting, and reply to comments for the first few hours.
 
 > **SupoClip: self-hosted AI video clipper (long videos → vertical clips), Docker Compose, works with Whisper + Ollama**
 >
-> I build SupoClip, an AGPL-3.0 alternative to tools like OpusClip. It turns
+> I build SupoClip, an open-source alternative to tools like OpusClip. It turns
 > podcasts, streams, and talks into captioned 9:16 clips.
 >
 > - `docker compose up -d --build`: frontend, API, worker, Postgres, Redis
@@ -144,10 +144,10 @@ posting, and reply to comments for the first few hours.
 
 ### X thread
 
-1. We open-sourced our AI video clipper. Paste a long video, get vertical, captioned clips with hook titles. Self-host it free, or use the hosted app. 🧵
+1. We published the source for our AI video clipper. Paste a long video, get vertical, captioned clips with hook titles. Self-host it for noncommercial use, or use the hosted app. 🧵
 2. Here's real output from a long-form interview, with links back to each source timestamp: [demo link]
 3. Bring your own AI: OpenAI, Google, Anthropic, OpenRouter, or fully local Whisper + Ollama.
-4. No watermark. No plan limits when self-hosted. AGPL-3.0: [GitHub link]
+4. No watermark. No plan limits when self-hosted. Noncommercial license: [GitHub link]
 5. Comparing tools? Our SupoClip vs OpusClip comparison links a source for every claim: [comparison link]
 
 Attach the demo video (own footage) to tweet 1, not the third-party demo clips.
@@ -158,7 +158,7 @@ Attach the demo video (own footage) to tweet 1, not the third-party demo clips.
 > recordings like podcasts, webinars, and talks into short vertical clips with
 > captions, so one recording becomes a week of posts.
 >
-> It's open source, so teams with data requirements can run it on their own
+> You can run it for noncommercial use on your own
 > infrastructure with their own AI models. There's also a hosted version.
 >
 > See real output: [demo link]

@@ -49,7 +49,7 @@ import {
   getMarketingLink,
   type MarketingLink,
 } from "@/lib/marketing-links";
-import { APP_STORE_URL, DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL } from "@/lib/site";
+import { APP_STORE_URL, DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL, SOURCE_LICENSE_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -587,7 +587,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── OPEN SOURCE ─── */}
+      {/* ─── SELF-HOSTING ─── */}
       <section id="open-source" className="scroll-mt-24 border-y bg-canvas py-24 md:py-32">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 lg:grid-cols-2 lg:gap-16">
           <div>
@@ -597,7 +597,9 @@ export default function LandingPage() {
                 {(["license", "docker", "models"] as const).map((fact) => (
                   <li key={fact} className="flex items-start gap-3">
                     <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    {t(`openSource.facts.${fact}`)}
+                    {fact === "license" ? (
+                      <a href={SOURCE_LICENSE_URL} className="underline underline-offset-4">{t("openSource.facts.license")}</a>
+                    ) : t(`openSource.facts.${fact}`)}
                   </li>
                 ))}
               </ul>

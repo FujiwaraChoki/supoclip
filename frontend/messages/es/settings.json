@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "Acerca de",
+    "credit": "Basado en SupoClip.",
+    "repository": "Repositorio original"
+  },
   "title": "Ajustes",
   "intro": "Valores predeterminados para las nuevas generaciones, las notificaciones y tu plan.",
   "languageDescription": "El idioma de SupoClip.",

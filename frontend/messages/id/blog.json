@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Akses sumber",
-          "supoclip": "Repositori AGPL-3.0 publik",
+          "supoclip": "Lisensi Kode Sumber Nonkomersial SupoClip",
           "supolive": "Tidak ada opsi open source atau host sendiri yang diiklankan di halaman utamanya"
         },
         "usecase": {
@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "Apakah SupoClip gratis untuk di-host sendiri?",
-        "answer": "SupoClip menyediakan kode sumber gratis di bawah AGPL-3.0. Menjalankannya tetap melibatkan perangkat atau hosting, penyimpanan, transkripsi, dan pemakaian LLM berbayar apa pun. SupoClip yang di-host punya ketentuan layanan dan harganya sendiri."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Menjalankannya tetap melibatkan perangkat atau hosting, penyimpanan, transkripsi, dan pemakaian LLM berbayar apa pun. SupoClip yang di-host punya ketentuan layanan dan harganya sendiri."
       },
       "2": {
         "question": "Bisakah SupoClip menggantikan clipping siaran langsung dan posting otomatis?",
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Kode sumber",
-        "supoclip": "Publik, <license>AGPL-3.0</license>"
+        "supoclip": "Publik, <license>Lisensi Kode Sumber Nonkomersial SupoClip</license>"
       },
       "pricing": {
         "label": "Model harga",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "Apakah SupoClip yang di-host sendiri gratis?",
-        "answer": "Kodenya gratis di bawah AGPL-3.0 dan mode host sendiri tidak punya batas generasi atau paywall. Kamu tetap membayar perangkat atau server sendiri, serta pemakaian transkripsi cloud atau LLM apa pun yang kamu konfigurasi. Penyiapan Whisper + Ollama menghindari biaya AI per permintaan, tapi butuh komputasi lokal yang cukup."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Kamu tetap membayar perangkat atau server sendiri, serta pemakaian transkripsi cloud atau LLM apa pun yang kamu konfigurasi. Penyiapan Whisper + Ollama menghindari biaya AI per permintaan, tapi butuh komputasi lokal yang cukup."
       },
       "1": {
         "question": "Bisakah SupoClip berjalan tanpa layanan AI cloud sama sekali?",
