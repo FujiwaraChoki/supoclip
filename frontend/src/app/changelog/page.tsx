@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { intlLocale } from "@/i18n/config";
 import { readChangelog, type ChangelogCategory } from "@/lib/changelog";
-import { GITHUB_URL, HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
+import { DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
 
 const GITHUB_CHANGELOG_URL = `${GITHUB_URL}/blob/main/CHANGELOG.md`;
 
@@ -85,6 +85,15 @@ export default async function ChangelogPage() {
           <Badge variant="secondary">{t("eyebrow")}</Badge>
           <h1 className="font-display mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl">{t("title")}</h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">{t("intro")}</p>
+          <a
+            href={DISCORD_COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-flex items-center gap-2 rounded-sm text-sm font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground"
+          >
+            {t("discordUpdates")}
+            <ExternalLink aria-hidden="true" className="size-3.5" />
+          </a>
         </div>
       </section>
 

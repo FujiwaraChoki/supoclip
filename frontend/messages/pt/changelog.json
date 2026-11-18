@@ -10,6 +10,7 @@
   "startClipping": "Comece a criar clipes",
   "relatedChange": "Alteração relacionada {label}",
   "viewOnGitHub": "Ver o changelog no GitHub",
+  "discordUpdates": "Receba novidades no Discord",
   "categories": {
     "new": "Novo",
     "improved": "Melhorado",

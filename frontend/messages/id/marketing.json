@@ -23,10 +23,16 @@
       "website": "AI video clipping open source untuk konten pendek."
     }
   },
+  "community": {
+    "title": "Gabung dengan komunitas SupoClip",
+    "body": "Bagikan klip, dapatkan masukan, bertukar tips penyuntingan, dan pilih fitur yang ingin kamu lihat berikutnya.",
+    "join": "Gabung di Discord"
+  },
   "footer": {
     "tagline": "AI video clipper open source. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
     "github": "GitHub",
     "ios": "Aplikasi iOS",
+    "discord": "Komunitas Discord",
     "columns": {
       "guides": "Panduan",
       "compare": "Bandingkan",

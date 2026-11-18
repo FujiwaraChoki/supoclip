@@ -13,6 +13,7 @@ import {
   Github,
   Info,
   Menu,
+  MessageCircle,
   Upload,
   X,
 } from "lucide-react";
@@ -49,7 +50,7 @@ import {
   getMarketingLink,
   type MarketingLink,
 } from "@/lib/marketing-links";
-import { APP_STORE_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL } from "@/lib/site";
+import { APP_STORE_URL, DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -536,6 +537,28 @@ export default function LandingPage() {
       </section>
 
       <FaqSection />
+
+      <section id="community" aria-labelledby="community-title" className="scroll-mt-24 px-6 pb-16 md:pb-24">
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 rounded-3xl border bg-muted/35 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <MessageCircle aria-hidden="true" className="mt-0.5 size-9 shrink-0 rounded-xl border bg-background p-2" />
+            <div>
+              <h2 id="community-title" className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+                {t("community.title")}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {t("community.body")}
+              </p>
+            </div>
+          </div>
+          <Button asChild variant="outline" className="shrink-0 rounded-full bg-background">
+            <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
+              {t("community.join")}
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </a>
+          </Button>
+        </div>
+      </section>
 
       {/* ─── OPEN SOURCE ─── */}
       <section id="open-source" className="scroll-mt-24 border-y bg-canvas py-24 md:py-32">

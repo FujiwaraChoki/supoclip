@@ -23,10 +23,16 @@
       "website": "Open-Source-KI-Videoclipping für Kurzform-Content."
     }
   },
+  "community": {
+    "title": "Tritt der SupoClip-Community bei",
+    "body": "Teile Clips, hol dir Feedback, tausche Schnitttipps aus und stimme über neue Funktionen ab.",
+    "join": "Auf Discord beitreten"
+  },
   "footer": {
     "tagline": "Open-Source-KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",
     "github": "GitHub",
     "ios": "iOS-App",
+    "discord": "Discord-Community",
     "columns": {
       "guides": "Guides",
       "compare": "Vergleich",

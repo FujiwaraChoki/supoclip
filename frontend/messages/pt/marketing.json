@@ -23,10 +23,16 @@
       "website": "Clipping de vídeo com IA de código aberto para conteúdo curto."
     }
   },
+  "community": {
+    "title": "Junte-se à comunidade do SupoClip",
+    "body": "Compartilhe clipes, receba feedback, troque dicas de edição e vote nos próximos recursos.",
+    "join": "Entre no Discord"
+  },
   "footer": {
     "tagline": "Clipper de vídeo com IA de código aberto. Use o app hospedado ou rode na sua própria infraestrutura.",
     "github": "GitHub",
     "ios": "App para iOS",
+    "discord": "Comunidade no Discord",
     "columns": {
       "guides": "Guias",
       "compare": "Comparar",
