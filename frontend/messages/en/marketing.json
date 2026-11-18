@@ -23,10 +23,22 @@
       "website": "Open-source AI video clipping for short-form content."
     }
   },
+  "community": {
+    "eyebrow": "SupoClip on Discord",
+    "title": "Make better clips together.",
+    "body": "Get a second opinion on a cut, trade editing tips, and tell us what would make SupoClip better.",
+    "join": "Join on Discord",
+    "activities": {
+      "showcase": "Share a clip and get feedback",
+      "tips": "Swap editing tips",
+      "ideas": "Vote on feature ideas"
+    }
+  },
   "footer": {
     "tagline": "Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.",
     "github": "GitHub",
     "ios": "iOS App",
+    "discord": "Discord community",
     "columns": {
       "guides": "Guides",
       "compare": "Compare",

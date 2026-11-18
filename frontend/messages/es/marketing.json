@@ -23,10 +23,22 @@
       "website": "Recorte de video con IA de código abierto para contenido de formato corto."
     }
   },
+  "community": {
+    "eyebrow": "SupoClip en Discord",
+    "title": "Creemos mejores clips en comunidad.",
+    "body": "Pide una segunda opinión sobre un corte, intercambia consejos de edición y cuéntanos cómo mejorar SupoClip.",
+    "join": "Únete en Discord",
+    "activities": {
+      "showcase": "Comparte un clip y recibe comentarios",
+      "tips": "Intercambia consejos de edición",
+      "ideas": "Vota por nuevas funciones"
+    }
+  },
   "footer": {
     "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
     "github": "GitHub",
     "ios": "App para iOS",
+    "discord": "Comunidad de Discord",
     "columns": {
       "guides": "Guías",
       "compare": "Comparar",

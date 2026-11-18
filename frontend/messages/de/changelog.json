@@ -10,6 +10,8 @@
   "startClipping": "Jetzt clippen",
   "relatedChange": "Zugehörige Änderung {label}",
   "viewOnGitHub": "Changelog auf GitHub ansehen",
+  "discordUpdates": "Updates auf Discord erhalten",
+  "discordDescription": "Aktiviere Benachrichtigungen für neue Versionshinweise.",
   "categories": {
     "new": "Neu",
     "improved": "Verbessert",
