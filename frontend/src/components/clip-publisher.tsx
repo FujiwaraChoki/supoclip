@@ -125,9 +125,22 @@ function metricsSummary(post: SocialPost, label: (value: number | null | undefin
   return [label(views, "view"), label(likes, "like"), label(comments, "comment")].join(" · ");
 }
 
+/** A queued post with a message failed before and waits for its retry (e.g. a platform quota reset). */
+function isWaitingToRetry(post: SocialPost): boolean {
+  return post.status === "queued" && Boolean(post.error_message);
+}
+
 function PostStatus({ post }: { post: SocialPost }) {
   const t = useTranslations("social");
   const locale = useLocale();
+  if (isWaitingToRetry(post)) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+        <Clock className="size-3.5" />
+        {t("postStatus.waiting")}
+      </span>
+    );
+  }
   switch (post.status) {
     case "queued":
     case "publishing":
@@ -248,6 +261,10 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
               </div>
               {post.status === "failed" && post.error_message ? (
                 <p className="mt-0.5 line-clamp-2 text-xs text-destructive" title={post.error_message}>
+                  {post.error_message}
+                </p>
+              ) : isWaitingToRetry(post) ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {post.error_message}
                 </p>
               ) : metrics ? (

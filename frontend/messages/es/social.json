@@ -12,6 +12,7 @@
   },
   "postStatus": {
     "starting": "Iniciando la subida…",
+    "waiting": "Esperando para reintentar",
     "uploading": "Subiendo…",
     "scheduled": "Programada",
     "published": "Publicada",

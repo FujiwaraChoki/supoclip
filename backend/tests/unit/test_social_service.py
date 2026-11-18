@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -1623,11 +1624,23 @@ class FakeRedis:
             raise ConnectionError("redis down")
         return self.values.get(key)
 
-    async def set(self, key, value, ex=None):
+    async def set(self, key, value, ex=None, nx=False):
         if self.fail:
             raise ConnectionError("redis down")
+        if nx and key in self.values:
+            return None
         self.values[key] = value.encode()
         self.ttls[key] = ex
+        return True
+
+    async def delete(self, key):
+        if self.fail:
+            raise ConnectionError("redis down")
+        self.values.pop(key, None)
+        self.ttls.pop(key, None)
+
+    def cooldowns(self):
+        return {k: v for k, v in self.values.items() if k.startswith("social:quota-cooldown:")}
 
     def expire_all(self):
         """What Redis does once the reset time passes."""
@@ -1668,6 +1681,11 @@ class YouTubeApi:
 
     def uploads(self):
         return [url for method, url in self.calls if method == "PUT"]
+
+    def respond(self, status, body):
+        self.responses.append(SimpleNamespace(
+            status_code=status, headers={}, text=json.dumps(body), json=lambda: body,
+        ))
 
     def refuse(self, status, reason, message="Refused"):
         self.responses.append(SimpleNamespace(
@@ -1716,6 +1734,10 @@ def _quota_key():
     return social_module.QUOTA_COOLDOWN_KEY.format(provider="youtube")
 
 
+def _wait_key(post_id):
+    return social_module.QUOTA_WAIT_KEY.format(post_id=post_id)
+
+
 @pytest.mark.asyncio
 async def test_daily_quota_defers_the_retry_to_the_reset_not_minutes(service, youtube):
     from src.social.youtube import next_quota_reset
@@ -1727,10 +1749,12 @@ async def test_daily_quota_defers_the_retry_to_the_reset_not_minutes(service, yo
     result = await service.publish_post(post["id"])
 
     assert result["status"] == "queued"
-    assert result["attempts"] == 1
+    assert result["attempts"] == 0  # refused before anything happened: not counted
     assert "retried automatically after" in result["error_message"]
     retry = service.queue_adapter.jobs[-1]
-    assert retry[2]["_job_id"] == f"social:{post['id']}:1"
+    assert retry[2]["_job_id"] == (
+        f"social:{post['id']}:0:quota:{int(next_quota_reset().timestamp())}"
+    )
     wait = (next_quota_reset() - datetime.now(timezone.utc)).total_seconds()
     assert abs(retry[2]["_defer_by"].total_seconds() - wait) < 10
     assert retry[2]["_defer_by"] > timedelta(seconds=3600) or wait < 3600
@@ -1779,7 +1803,7 @@ async def test_recovery_after_the_reset_uploads_each_post_once(service, youtube)
     await service.publish_post(second["id"])
 
     assert (done_first["status"], done_first["external_post_id"], done_first["attempts"]) == (
-        "published", "vid-1", 2,
+        "published", "vid-1", 1,
     )
     assert (done_second["status"], done_second["external_post_id"], done_second["attempts"]) == (
         "published", "vid-2", 1,
@@ -1787,12 +1811,55 @@ async def test_recovery_after_the_reset_uploads_each_post_once(service, youtube)
     assert done_first["error_message"] is None
     assert len(youtube.uploads()) == 2
     assert len(youtube.starts()) == 3
+    assert not service.queue_adapter.redis.cooldowns()
 
 
 @pytest.mark.asyncio
-async def test_daily_quota_on_the_last_attempt_fails_with_the_reason(service, youtube):
+@pytest.mark.parametrize("max_attempts,earlier", [(3, 2), (1, 0)])
+async def test_daily_quota_on_the_last_attempt_still_waits_for_the_reset(
+    service, youtube, max_attempts, earlier
+):
+    from src.social.youtube import next_quota_reset
+
+    service.config.social_publish_max_attempts = max_attempts
     post = await _youtube_post(service)
-    service.repo.posts[post["id"]]["attempts"] = 2  # two earlier failures
+    service.repo.posts[post["id"]]["attempts"] = earlier
+    youtube.active = True
+    youtube.refuse(403, "quotaExceeded", "quota")
+
+    result = await service.publish_post(post["id"])
+
+    assert result["status"] == "queued"
+    assert result["attempts"] == earlier  # the refused claim gave its attempt back
+    assert "retried automatically after" in result["error_message"]
+    retry = service.queue_adapter.jobs[-1]
+    assert retry[1] == (post["id"],)
+    wait = (next_quota_reset() - datetime.now(timezone.utc)).total_seconds()
+    assert abs(retry[2]["_defer_by"].total_seconds() - wait) < 10
+
+
+@pytest.mark.asyncio
+async def test_daily_quota_refusals_on_many_days_spend_no_attempts(service, youtube):
+    post = await _youtube_post(service)
+    youtube.active = True
+    for _ in range(5):  # five resets in a row, each refused again
+        service.queue_adapter.redis.values.pop(_quota_key(), None)  # the reset passed
+        youtube.refuse(403, "quotaExceeded", "quota")
+        result = await service.publish_post(post["id"])
+        assert (result["status"], result["attempts"]) == ("queued", 0)
+
+    service.queue_adapter.redis.values.pop(_quota_key())
+    youtube.accept("vid-1")
+    result = await service.publish_post(post["id"])
+    assert (result["status"], result["attempts"]) == ("published", 1)
+
+
+@pytest.mark.asyncio
+async def test_daily_quota_wait_is_bounded_by_max_wait_days(service, youtube):
+    service.config.social_quota_max_wait_days = 7
+    post = await _youtube_post(service)
+    started = datetime.now(timezone.utc) - timedelta(days=7, minutes=1)
+    service.queue_adapter.redis.values[_wait_key(post["id"])] = started.isoformat().encode()
     youtube.active = True
     youtube.refuse(403, "quotaExceeded", "quota")
     jobs_before = len(service.queue_adapter.jobs)
@@ -1800,9 +1867,108 @@ async def test_daily_quota_on_the_last_attempt_fails_with_the_reason(service, yo
     result = await service.publish_post(post["id"])
 
     assert result["status"] == "failed"
-    assert result["attempts"] == 3
-    assert "daily upload quota" in result["error_message"]
+    assert "waited 7 days" in result["error_message"]
     assert len(service.queue_adapter.jobs) == jobs_before
+
+
+@pytest.mark.asyncio
+async def test_queued_post_past_the_max_wait_stops_parking_on_the_cooldown(service, youtube):
+    from src.social.youtube import next_quota_reset
+
+    post = await _youtube_post(service)
+    redis = service.queue_adapter.redis
+    redis.values[_quota_key()] = next_quota_reset().isoformat().encode()
+    started = datetime.now(timezone.utc) - timedelta(days=8)
+    redis.values[_wait_key(post["id"])] = started.isoformat().encode()
+    youtube.active = True
+    youtube.refuse(403, "quotaExceeded", "quota")
+
+    result = await service.publish_post(post["id"])
+
+    # It tried once more instead of waiting again, and gave up.
+    assert len(youtube.calls) == 1
+    assert result["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_manual_retry_restarts_the_quota_wait(service, youtube):
+    post = await _youtube_post(service)
+    redis = service.queue_adapter.redis
+    redis.values[_wait_key(post["id"])] = b"2026-01-01T00:00:00+00:00"
+    service.repo.posts[post["id"]].update(status="failed", error_message="quota")
+
+    await service.retry_post("user-1", post["id"])
+
+    assert _wait_key(post["id"]) not in redis.values
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("earlier,status,attempts", [(0, "queued", 1), (2, "failed", 3)])
+async def test_daily_quota_without_redis_counts_the_attempt_as_before(
+    service, youtube, earlier, status, attempts
+):
+    post = await _youtube_post(service)
+    service.repo.posts[post["id"]]["attempts"] = earlier
+    service.queue_adapter.redis.fail = True
+    youtube.active = True
+    youtube.refuse(403, "quotaExceeded", "quota")
+
+    result = await service.publish_post(post["id"])
+
+    # Without a record of when the wait began, attempts bound it instead.
+    assert (result["status"], result["attempts"]) == (status, attempts)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stored", [b"\xff\xfe", b"not a time", b"2026-13-45T99:00:00"])
+async def test_unparseable_cooldown_counts_as_none(service, youtube, stored):
+    post = await _youtube_post(service)
+    service.queue_adapter.redis.values[_quota_key()] = stored
+    youtube.active = True
+    youtube.accept("vid-1")
+
+    result = await service.publish_post(post["id"])
+
+    assert result["status"] == "published"
+    assert _quota_key() not in service.queue_adapter.redis.values
+
+
+@pytest.mark.asyncio
+async def test_far_future_cooldown_is_capped_at_the_next_reset(service, youtube):
+    from src.social.youtube import next_quota_reset
+
+    post = await _youtube_post(service)
+    redis = service.queue_adapter.redis
+    redis.values[_quota_key()] = b"2099-01-01T08:05:00+00:00"
+    youtube.active = True
+
+    result = await service.publish_post(post["id"])
+
+    reset = next_quota_reset()
+    wait = (reset - datetime.now(timezone.utc)).total_seconds()
+    job = service.queue_adapter.jobs[-1]
+    assert result["status"] == "queued"
+    assert job[2]["_job_id"] == f"social:{post['id']}:0:quota:{int(reset.timestamp())}"
+    assert abs(job[2]["_defer_by"].total_seconds() - wait) < 10
+    assert "2099" not in result["error_message"]
+    # The key itself is repaired, so it expires at the real reset.
+    assert redis.values[_quota_key()] == reset.isoformat().encode()
+    assert abs(redis.ttls[_quota_key()] - wait) < 10
+
+
+@pytest.mark.asyncio
+async def test_job_deferred_to_the_reset_does_not_park_on_a_skewed_cooldown(service, youtube):
+    post = await _youtube_post(service)
+    # Another worker's clock is a few seconds ahead: the cooldown it stored
+    # has a moment left when this job, deferred to that reset, runs.
+    soon = datetime.now(timezone.utc) + timedelta(seconds=5)
+    service.queue_adapter.redis.values[_quota_key()] = soon.isoformat().encode()
+    youtube.active = True
+    youtube.accept("vid-1")
+
+    result = await service.publish_post(post["id"])
+
+    assert result["status"] == "published"
 
 
 @pytest.mark.asyncio
@@ -1830,6 +1996,49 @@ async def test_channel_upload_limit_fails_without_retrying(service, youtube):
     assert result["status"] == "failed"
     assert "channel has reached YouTube's upload limit" in result["error_message"]
     assert len(service.queue_adapter.jobs) == jobs_before
+    assert service.queue_adapter.redis.values == {}
+
+
+@pytest.mark.asyncio
+async def test_documented_400_upload_limit_fails_with_the_channel_message(service, youtube):
+    post = await _youtube_post(service)
+    youtube.active = True
+    youtube.refuse(400, "uploadLimitExceeded", "The user has exceeded the number of videos they may upload.")
+    jobs_before = len(service.queue_adapter.jobs)
+
+    result = await service.publish_post(post["id"])
+
+    assert result["status"] == "failed"
+    assert "channel has reached YouTube's upload limit" in result["error_message"]
+    assert len(service.queue_adapter.jobs) == jobs_before
+    assert service.queue_adapter.redis.values == {}
+
+
+@pytest.mark.asyncio
+async def test_per_minute_quota_errorinfo_keeps_the_short_backoff(service, youtube):
+    post = await _youtube_post(service)
+    youtube.active = True
+    youtube.respond(429, {"error": {
+        "code": 429,
+        "status": "RESOURCE_EXHAUSTED",
+        "message": "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute' "
+        "of service 'youtube.googleapis.com'.",
+        "details": [{
+            "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+            "reason": "RATE_LIMIT_EXCEEDED",
+            "domain": "googleapis.com",
+            "metadata": {
+                "quota_limit": "QueriesPerMinutePerProject",
+                "quota_metric": "youtube.googleapis.com/queries",
+                "service": "youtube.googleapis.com",
+            },
+        }],
+    }})
+
+    result = await service.publish_post(post["id"])
+
+    assert (result["status"], result["attempts"]) == ("queued", 1)
+    assert service.queue_adapter.jobs[-1][2]["_defer_by"] == timedelta(seconds=300)
     assert service.queue_adapter.redis.values == {}
 
 

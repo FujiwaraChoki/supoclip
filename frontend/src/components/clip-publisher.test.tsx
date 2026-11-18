@@ -198,6 +198,40 @@ it("shows a spinner while a post is uploading and offers no actions", () => {
   expect(screen.queryByRole("button", { name: "Post actions" })).toBeNull();
 });
 
+it("shows when a post deferred by the daily quota will be retried instead of a spinner", () => {
+  const message =
+    "YouTube's daily upload quota for SupoClip is used up. It will be retried automatically after 2026-11-19 08:05 UTC.";
+  const post = {
+    id: "post-3",
+    provider: "youtube",
+    status: "queued",
+    scheduled_for: "2026-11-18T07:00:00Z",
+    error_message: message,
+    account: { display_name: "My Channel", username: null, avatar_url: null, status: "active" },
+    metrics: null,
+  } as unknown as SocialPost;
+  render(<ClipPostList posts={[post]} onChanged={vi.fn()} />);
+  expect(screen.getByText("Waiting to retry")).toBeInTheDocument();
+  expect(screen.getByText(message)).toBeInTheDocument();
+  expect(screen.queryByText("Starting upload…")).toBeNull();
+  // A waiting post can still be cancelled.
+  expect(screen.getByRole("button", { name: "Post actions" })).toBeInTheDocument();
+});
+
+it("shows a freshly queued post as starting", () => {
+  const post = {
+    id: "post-4",
+    provider: "youtube",
+    status: "queued",
+    error_message: null,
+    account: { display_name: "My Channel", username: null, avatar_url: null, status: "active" },
+    metrics: null,
+  } as unknown as SocialPost;
+  render(<ClipPostList posts={[post]} onChanged={vi.fn()} />);
+  expect(screen.getByText("Starting upload…")).toBeInTheDocument();
+  expect(screen.queryByText("Waiting to retry")).toBeNull();
+});
+
 const tikTokConnection = () => connection({ id: "tt-1", provider: "tiktok", display_name: "My TikTok" });
 const tikTokProvider = () => provider({ provider: "tiktok", display_name: "TikTok", supported_privacy_levels: ["public", "private"], default_privacy_level: "private" });
 

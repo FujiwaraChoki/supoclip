@@ -718,6 +718,35 @@ def _youtube_error(status, reason, message="Request refused"):
     )
 
 
+def _google_quota_error(status, quota_limit, message=None):
+    """A Google ErrorInfo quota refusal (https://google.aip.dev/193)."""
+    window = "per day" if "PerDay" in quota_limit else "per minute"
+    return FakeResponse(
+        status,
+        {
+            "error": {
+                "code": status,
+                "status": "RESOURCE_EXHAUSTED",
+                "message": message
+                or f"Quota exceeded for quota metric 'Queries' and limit 'Queries {window}' "
+                "of service 'youtube.googleapis.com'.",
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": "RATE_LIMIT_EXCEEDED",
+                        "domain": "googleapis.com",
+                        "metadata": {
+                            "quota_limit": quota_limit,
+                            "quota_metric": "youtube.googleapis.com/queries",
+                            "service": "youtube.googleapis.com",
+                        },
+                    }
+                ],
+            }
+        },
+    )
+
+
 def _youtube_start_failure(clip_file, response):
     session = FakeSession({("POST", "upload/youtube/v3/videos"): response})
     with pytest.raises(SocialProviderError) as exc:
@@ -734,8 +763,8 @@ def _youtube_start_failure(clip_file, response):
             "The request cannot be completed because you have exceeded your quota.",
         ),
         _youtube_error(403, "dailyLimitExceeded", "Daily Limit Exceeded"),
-        # No reason code, but the message says what happened.
-        FakeResponse(403, {"error": {"code": 403, "message": "You have exceeded your quota."}}),
+        # Google's ErrorInfo shape: the per-day quota limit says it is daily.
+        _google_quota_error(429, "DefaultPerDayPerProject"),
     ],
 )
 def test_youtube_daily_quota_waits_for_the_pacific_midnight_reset(clip_file, response):
@@ -774,9 +803,33 @@ def test_youtube_rate_limits_keep_the_short_backoff(clip_file, status, reason):
     assert error.quota_reset_at is None
 
 
-def test_youtube_channel_upload_limit_fails_with_a_clear_message(clip_file):
+@pytest.mark.parametrize(
+    "response",
+    [
+        _google_quota_error(429, "QueriesPerMinutePerProject"),
+        _google_quota_error(403, "QueriesPerMinutePerUser"),
+        # The reason alone, without metadata, is a rate limit too.
+        FakeResponse(
+            429,
+            {"error": {"code": 429, "message": "Quota exceeded.", "details": [
+                {"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "RATE_LIMIT_EXCEEDED"}
+            ]}},
+        ),
+        # "quota" in the message with no daily reason is not the daily quota.
+        FakeResponse(403, {"error": {"code": 403, "message": "You have exceeded your quota."}}),
+    ],
+)
+def test_youtube_per_minute_quota_keeps_the_short_backoff(clip_file, response):
+    error = _youtube_start_failure(clip_file, response)
+    assert error.retryable is True
+    assert error.quota_reset_at is None
+
+
+@pytest.mark.parametrize("status", [400, 403, 429])
+def test_youtube_channel_upload_limit_fails_with_a_clear_message(clip_file, status):
+    # videos.insert documents uploadLimitExceeded as HTTP 400.
     error = _youtube_start_failure(
-        clip_file, _youtube_error(403, "uploadLimitExceeded", "The user has exceeded the number of videos they may upload.")
+        clip_file, _youtube_error(status, "uploadLimitExceeded", "The user has exceeded the number of videos they may upload.")
     )
     assert error.retryable is False
     assert error.quota_reset_at is None
