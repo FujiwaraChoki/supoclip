@@ -242,6 +242,9 @@ def _retry_after(response: httpx.Response) -> int | None:
 
 async def send(destination: dict[str, Any], event: str, delivery_id: str, submission: dict[str, Any]) -> SendResult:
     """One attempt. Errors name the failure, never the URL (it holds Discord's token)."""
+    if destination["kind"] == HERMES_KIND and not (destination.get("url") and destination.get("secret")):
+        # This process lacks HERMES_FEEDBACK_WEBHOOK_*; one that has them may pick it up on a retry.
+        return SendResult(False, None, "not configured on this server", True)
     body, headers = build_request(destination, event, delivery_id, submission)
     started = time.monotonic()
     elapsed = lambda: int((time.monotonic() - started) * 1000)  # noqa: E731

@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy import text
 
 from src.feedback import delivery, webhooks
+from src.runtime_settings import encrypt_setting_value
 from tests.fixtures.factories import create_user
 
 MIGRATION = Path(__file__).parents[2] / "src/migrations/sql/20261117_0001_feedback_inbox.sql"
@@ -812,8 +813,10 @@ async def test_without_the_hermes_env_there_is_no_row_and_nothing_is_sent(client
 async def test_hermes_receives_every_category_signed_and_filed(client, db_session, clean, app, hermes, no_immediate):
     assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app)) == "created"
     row = await hermes_row(db_session)
-    assert row["enabled"] and row["categories"] == ["bug", "feature", "general", "sales", "cancellation"]
-    assert row["url_hint"] == "" and HERMES_SECRET not in row["secret_encrypted"] and "8644" not in row["url_encrypted"]
+    # Neither value is stored, and no categories, so an older release never queues for it.
+    assert row["enabled"] and row["categories"] == [] and row["url_hint"] == "" and row["secret_encrypted"] is None
+    [listed] = await webhooks.list_webhooks(db_session)
+    assert listed["categories"] == ["bug", "feature", "general", "sales", "cancellation"]
 
     user = await create_user(db_session)
     for category in ("bug", "sales", "cancellation"):
@@ -878,7 +881,7 @@ async def test_admins_can_only_switch_test_and_read_the_hermes_webhook(
     assert (await client.patch(hook, json={"enabled": False}, headers=auth_headers)).status_code == 200
     assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app, secret="ROTATED")) == "updated"
     destination = await webhooks.load_destination(db_session, webhook["id"])
-    assert destination["enabled"] is False and destination["secret"] == "ROTATED"
+    assert destination["enabled"] is False and destination["secret"] == "ROTATED" and destination["url"] == HERMES_URL
     user = await create_user(db_session)
     await submit(client, user["id"])
     assert [d for d in await deliveries(db_session) if not d["is_test"]] == []
@@ -902,6 +905,41 @@ async def test_admin_entered_webhooks_still_cannot_point_at_the_gateway(client, 
     response = await client.patch(f"/admin/feedback-webhooks/{hook['id']}", headers=auth_headers,
                                   json={"url": "https://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip"})
     assert response.status_code == 422 and response.json()["detail"]["code"] == "url_private_address"
+
+
+async def test_older_releases_cannot_queue_for_or_redirect_hermes(client, db_session, clean, app, hermes, no_immediate):
+    """During a release switch the previous API shares the database with this one."""
+    await webhooks.sync_hermes_webhook(db_session, hermes_config(app))
+    row = await hermes_row(db_session)
+    # The previous release's fan-out query matches on categories only.
+    previous_fanout = await db_session.execute(
+        text("SELECT id FROM feedback_webhooks w WHERE w.enabled AND :category = ANY(w.categories)"), {"category": "bug"})
+    assert previous_fanout.all() == []
+    # Its admin API could still rewrite the row's URL: the sender never reads it.
+    await db_session.execute(
+        text("UPDATE feedback_webhooks SET url_encrypted = :url, secret_encrypted = :secret WHERE id = :id"),
+        {"id": row["id"], "url": encrypt_setting_value("https://rebind.example.com/x"), "secret": encrypt_setting_value("x")})
+    await db_session.commit()
+    user = await create_user(db_session)
+    await submit(client, user["id"])
+    assert await delivery.deliver_due(db_session) == {"delivered": 1}
+    assert hermes.calls[0]["url"] == HERMES_URL
+    timestamp = hermes.calls[0]["headers"]["X-Webhook-Timestamp"]
+    assert hermes.calls[0]["headers"]["X-Webhook-Signature-V2"] == hmac.new(
+        HERMES_SECRET.encode(), f"{timestamp}.".encode() + hermes.calls[0]["raw"], hashlib.sha256).hexdigest()
+
+
+async def test_a_sender_without_the_hermes_env_leaves_it_for_one_that_has_it(client, db_session, clean, app, hermes, no_immediate):
+    await webhooks.sync_hermes_webhook(db_session, hermes_config(app))
+    user = await create_user(db_session)
+    submission_id = (await submit(client, user["id"])).json()["id"]
+    hermes_config(app, None, None)  # say, a cron worker started without the variables
+    assert await delivery.deliver_due(db_session) == {"pending": 1}
+    [row] = await deliveries(db_session, submission_id=submission_id)
+    assert row["last_error"] == "not configured on this server" and hermes.calls == []
+    hermes_config(app)
+    await make_due(db_session)
+    assert await delivery.deliver_due(db_session) == {"delivered": 1}
 
 
 async def test_hermes_url_must_be_http(db_session, clean, app):

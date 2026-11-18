@@ -342,6 +342,17 @@ async def test_hermes_answer_is_read_up_to_a_limit(monkeypatch):
     assert seen["url"] == HERMES["url"]
 
 
+@pytest.mark.asyncio
+async def test_hermes_without_its_environment_is_retried_unsent(monkeypatch):
+    async def post_configured(*_args):
+        raise AssertionError("Nothing to send to")
+
+    monkeypatch.setattr(delivery, "post_configured", post_configured)
+    for missing in ({"url": None}, {"secret": None}):
+        result = await delivery.send({**HERMES, **missing}, delivery.EVENT_CREATED, DELIVERY_ID, SUBMISSION)
+        assert (result.ok, result.retryable, result.error) == (False, True, "not configured on this server")
+
+
 @pytest.mark.parametrize("kind", ["json", "discord"])
 def test_admin_entered_urls_still_cannot_reach_the_gateway(kind):
     for url in (HERMES["url"], "https://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip",

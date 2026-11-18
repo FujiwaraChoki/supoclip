@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import get_config
 from ..runtime_settings import decrypt_setting_value, encrypt_setting_value
 from . import CATEGORIES, ENV_WEBHOOKS, HERMES_KIND, HERMES_NAME, WEBHOOK_KINDS
 from .url_safety import UnsafeWebhookUrl, resolve_public_address, url_hint, validate_webhook_url
@@ -74,16 +75,30 @@ async def checked_url(url: str, kind: str) -> str:
     return target.url
 
 
+# What the Hermes row stores instead of a URL. Its real URL and secret are read from the
+# environment by each sender, so nothing written to the row (an older API's admin edit
+# during a release switch, say) can redirect it, and an older sender fails on this.
+HERMES_URL_PLACEHOLDER = "server-configured:HERMES_FEEDBACK_WEBHOOK_URL"
+
+
+def _public(row) -> dict[str, Any]:
+    webhook = dict(row)
+    if webhook["kind"] == HERMES_KIND:
+        # Stored empty so older code never queues for it; it receives every category.
+        webhook["categories"] = list(CATEGORIES)
+    return webhook
+
+
 async def list_webhooks(db: AsyncSession) -> list[dict[str, Any]]:
     rows = await db.execute(text(f"SELECT {PUBLIC_COLUMNS} FROM feedback_webhooks w ORDER BY w.created_at, w.name"))
-    return [dict(row) for row in rows.mappings().all()]
+    return [_public(row) for row in rows.mappings().all()]
 
 
 async def get_webhook(db: AsyncSession, webhook_id: str) -> dict[str, Any] | None:
     row = (
         await db.execute(text(f"SELECT {PUBLIC_COLUMNS} FROM feedback_webhooks w WHERE w.id = :id"), {"id": webhook_id})
     ).mappings().first()
-    return dict(row) if row else None
+    return _public(row) if row else None
 
 
 async def create_webhook(
@@ -195,14 +210,14 @@ async def load_destination(db: AsyncSession, webhook_id: str) -> dict[str, Any] 
     ).mappings().first()
     if row is None:
         return None
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "kind": row["kind"],
-        "enabled": row["enabled"],
-        "url": decrypt_setting_value(row["url_encrypted"]),
-        "secret": decrypt_setting_value(row["secret_encrypted"]) if row["secret_encrypted"] else None,
-    }
+    if row["kind"] == HERMES_KIND:
+        # From this process's environment only; None when it isn't set here (the sender retries).
+        config = get_config()
+        url, secret = config.hermes_feedback_webhook_url, config.hermes_feedback_webhook_secret
+    else:
+        url = decrypt_setting_value(row["url_encrypted"])
+        secret = decrypt_setting_value(row["secret_encrypted"]) if row["secret_encrypted"] else None
+    return {"id": row["id"], "name": row["name"], "kind": row["kind"], "enabled": row["enabled"], "url": url, "secret": secret}
 
 
 async def import_env_webhooks(db: AsyncSession, config) -> list[str]:
@@ -250,10 +265,12 @@ async def sync_hermes_webhook(db: AsyncSession, config) -> str:
     """Keep the server-configured Hermes webhook in step with the environment. Runs at API start.
 
     Both ``HERMES_FEEDBACK_WEBHOOK_URL`` and ``HERMES_FEEDBACK_WEBHOOK_SECRET`` set: one
-    ``hermes`` row for every category, its URL and secret refreshed (encrypted, like the
-    others, so the cron worker sends from the row and needs neither variable). The admin's
-    on/off choice is kept. Either one unset: the row and its delivery log are removed, so
-    nothing is queued for it. Returns "created", "updated", "removed" or "absent".
+    ``hermes`` row, which ``service.submit_feedback`` queues for every category. The row holds
+    neither value (``load_destination`` reads them from the sender's own environment, so the
+    cron worker needs both too) and no categories, so an older release running alongside
+    never queues for it. The admin's on/off choice is kept. Either one unset: the row and its
+    delivery log are removed, so nothing is queued for it. Returns "created", "updated",
+    "removed" or "absent".
 
     The URL is not held to the public-https rule for admin-entered webhooks: it comes from
     the operator and may name the gateway on an internal address. It must be http(s).
@@ -266,17 +283,11 @@ async def sync_hermes_webhook(db: AsyncSession, config) -> str:
         return "removed" if removed.rowcount else "absent"
     if urlsplit(url).scheme.lower() not in ("http", "https") or not urlsplit(url).hostname:
         raise InvalidWebhook("url_invalid", "HERMES_FEEDBACK_WEBHOOK_URL must be an http(s) URL.")
-    params = {
-        "kind": HERMES_KIND,
-        "name": HERMES_NAME,
-        "url": encrypt_setting_value(url),
-        "secret": encrypt_setting_value(secret),
-        "categories": list(CATEGORIES),
-    }
+    params = {"kind": HERMES_KIND, "name": HERMES_NAME, "url": encrypt_setting_value(HERMES_URL_PLACEHOLDER)}
     updated = await db.execute(
         text(
             "UPDATE feedback_webhooks SET name = :name, url_encrypted = :url, url_hint = '', "
-            "secret_encrypted = :secret, categories = :categories, env_source = 'HERMES_FEEDBACK_WEBHOOK_URL', "
+            "secret_encrypted = NULL, categories = '{}', env_source = 'HERMES_FEEDBACK_WEBHOOK_URL', "
             "updated_at = NOW() WHERE kind = :kind"
         ),
         params,
@@ -289,7 +300,7 @@ async def sync_hermes_webhook(db: AsyncSession, config) -> str:
             """
             INSERT INTO feedback_webhooks
                 (id, name, kind, url_encrypted, url_hint, secret_encrypted, categories, enabled, env_source)
-            VALUES (:id, :name, :kind, :url, '', :secret, :categories, TRUE, 'HERMES_FEEDBACK_WEBHOOK_URL')
+            VALUES (:id, :name, :kind, :url, '', NULL, '{}', TRUE, 'HERMES_FEEDBACK_WEBHOOK_URL')
             ON CONFLICT (kind) WHERE kind = 'hermes' DO NOTHING
             """
         ),

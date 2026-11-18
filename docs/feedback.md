@@ -166,11 +166,16 @@ applying side effects. Each retry is newly timestamped/signed; its submission re
 
 The operator chat's Hermes gateway route, configured on the server rather than by an admin. When
 both `HERMES_FEEDBACK_WEBHOOK_URL` and `HERMES_FEEDBACK_WEBHOOK_SECRET` are set, each API start
-keeps one `hermes` row ("Hermes assistant") for every category, with the URL and secret stored
-encrypted like the others, so the cron worker sends from the row and needs neither variable.
-If either is unset, the API removes the row and its delivery log at start, so nothing is queued for it.
+keeps one `hermes` row ("Hermes assistant") that every submission is queued for. If either is
+unset, the API removes the row and its delivery log at start, so nothing is queued for it.
 Admins see it in `/admin/feedback/webhooks` as "Configured on the server", with no URL: they can
 switch it off (kept across restarts), send a test and read its log, but not edit or delete it.
+
+The row stores neither value. Every sender (the API and the cron worker) reads them from its own
+environment, so the cron worker needs both variables too; a sender without them leaves the
+delivery for a retry ("not configured on this server"). The row also stores no categories:
+submissions are queued for it by kind. Both keep an older release that runs alongside during a
+release switch from queueing for it, sending to it, or redirecting it with an admin edit.
 
 The URL is the operator's, so it skips the public-https rule above (it may name the gateway on an
 internal address); it must be `http` or `https`, and redirects and proxy variables are still ignored.

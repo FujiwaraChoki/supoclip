@@ -114,7 +114,7 @@ async def submit_feedback(db: AsyncSession, data: SubmissionInput) -> dict[str, 
             INSERT INTO feedback_webhook_deliveries (id, submission_id, webhook_id)
             SELECT uuid_generate_v4()::text, :submission_id, w.id
             FROM feedback_webhooks w
-            WHERE w.enabled AND :category = ANY(w.categories)
+            WHERE w.enabled AND (:category = ANY(w.categories) OR w.kind = 'hermes')
             ORDER BY w.id FOR SHARE
             """
         ),
