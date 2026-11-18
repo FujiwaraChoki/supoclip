@@ -1,26 +1,26 @@
 {
   "metadata": {
-    "title": "SupoClip – 面向 Shorts 的开源 AI 视频剪辑工具",
-    "description": "用开源 AI 剪辑、传播潜力评分和人脸感知的 9:16 裁切，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
-    "openGraphDescription": "用开源 AI 剪辑，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
-    "twitterDescription": "开源 AI 剪辑、传播潜力评分、字幕，以及人脸感知的竖屏裁切。",
+    "title": "SupoClip – 面向 Shorts 的公开源码 AI 视频剪辑工具",
+    "description": "用公开源码 AI 剪辑、传播潜力评分和人脸感知的 9:16 裁切，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "openGraphDescription": "用公开源码 AI 剪辑，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "twitterDescription": "公开源码 AI 剪辑、传播潜力评分、字幕，以及人脸感知的竖屏裁切。",
     "keywords": {
       "clipper": "AI 视频剪辑工具",
-      "openSource": "开源视频剪辑工具",
+      "openSource": "公开源码视频剪辑工具",
       "shorts": "YouTube Shorts 剪辑工具",
       "longToShorts": "长视频转短视频",
       "maker": "AI 短片制作"
     },
     "structured": {
-      "software": "一款开源 AI 视频剪辑工具，用于找出高光、制作竖屏裁切、添加逐词同步字幕并导出短视频。",
+      "software": "一款公开源码 AI 视频剪辑工具，用于找出高光、制作竖屏裁切、添加逐词同步字幕并导出短视频。",
       "featureDiscovery": "AI 辅助的片段发现与传播潜力评分",
       "featureCrop": "人脸感知的 9:16 竖屏裁切",
       "featureCaptions": "逐词同步的动画字幕",
       "featureExports": "导出到 YouTube Shorts、TikTok 和 Instagram Reels",
-      "featureSelfHost": "开源自托管",
-      "offerCategory": "自托管开源版本",
+      "featureSelfHost": "非商业用途自托管",
+      "offerCategory": "提供非商业自托管源代码",
       "ios": "SupoClip iOS 应用：在 iPhone 上把长视频剪成带字幕的竖屏短片。",
-      "website": "面向短视频内容的开源 AI 视频剪辑。"
+      "website": "面向短视频内容的公开源码 AI 视频剪辑。"
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "开源 AI 视频剪辑工具。使用托管应用，或在你自己的基础设施上运行。",
+    "tagline": "公开源码 AI 视频剪辑工具。使用托管应用，或在你自己的基础设施上运行。",
     "github": "GitHub",
     "ios": "iOS 应用",
     "discord": "Discord 社区",
@@ -85,9 +85,9 @@
       "description": "一套挑选、加字幕、重新构图和复查短片的实用流程。"
     },
     "open_source_video_clipper": {
-      "label": "开源剪辑工具",
-      "eyebrow": "开源",
-      "title": "你可以自己掌控的开源视频剪辑工具",
+      "label": "公开源码剪辑工具",
+      "eyebrow": "公开源码",
+      "title": "你可以自己掌控的公开源码视频剪辑工具",
       "description": "自托管会怎样改变控制权、模型服务商和基础设施。"
     },
     "blog_self_host_supoclip_docker": {
@@ -106,12 +106,12 @@
       "label": "自托管的 OpusClip 替代",
       "eyebrow": "对比",
       "title": "最好的免费自托管 OpusClip 替代方案",
-      "description": "什么时候自托管的开源剪辑工具比按额度计费的工具更合适。"
+      "description": "什么时候自托管的公开源码剪辑工具比按额度计费的工具更合适。"
     },
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "对比",
-      "title": "SupoClip vs supo.live：开源掌控",
+      "title": "SupoClip vs supo.live：公开源码掌控",
       "description": "在选定视频工具之前，比较自托管、AI 剪辑和编辑流程。"
     },
     "sign_up": {
@@ -195,7 +195,7 @@
     "features": "功能",
     "editor": "编辑器",
     "pricing": "价格",
-    "openSource": "开源",
+    "openSource": "公开源码",
     "blog": "博客",
     "changelog": "更新日志",
     "affiliate": "联盟计划",
@@ -207,7 +207,7 @@
     "faq": "常见问题"
   },
   "hero": {
-    "badge": "开源，可自托管。也有 iPhone 版。",
+    "badge": "公开源码，可自托管。也有 iPhone 版。",
     "titleLine1": "一条长视频。",
     "titleLine2": "一周的短视频。",
     "body": "SupoClip 从你的视频、直播回放和上传文件中找出值得发布的片段，配上逐字同步的字幕裁成 9:16 竖屏，并排期发布到 YouTube Shorts。",
@@ -216,7 +216,7 @@
     "viewSource": "查看源码",
     "appStoreAria": "在 App Store 下载 SupoClip",
     "appStoreAlt": "在 App Store 下载",
-    "productHuntAlt": "SupoClip - 开源 AI 剪辑工具：把长视频变成会传播的短片 | Product Hunt",
+    "productHuntAlt": "SupoClip - 公开源码 AI 剪辑工具：把长视频变成会传播的短片 | Product Hunt",
     "sources": {
       "upload": "你自己的文件",
       "label": "素材来源"
@@ -472,7 +472,7 @@
       },
       "selfHost": {
         "question": "自托管真的免费吗？",
-        "answer": "是的。SupoClip 以 AGPL-3.0 协议开源，用 Docker Compose 就能在你自己的机器上运行。你只需为自己选择的转写和 AI 服务付费（如果有的话）。"
+        "answer": "SupoClip 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。"
       },
       "cancel": {
         "question": "可以随时取消吗？",
@@ -481,13 +481,13 @@
     }
   },
   "openSource": {
-    "badge": "AGPL-3.0 许可",
+    "badge": "SupoClip 非商业源代码许可",
     "title": "公开构建",
-    "body": "完全开源。在你的基础设施上自托管，贡献功能，或者 fork 之后改成你自己的。",
+    "body": "提供非商业自托管源代码",
     "commandLabel": "自托管",
     "comment": "# 在 .env 中添加转录和 LLM 服务商",
     "facts": {
-      "license": "AGPL-3.0 许可，所有代码都在 GitHub 上",
+      "license": "SupoClip 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。",
       "docker": "一条 Docker Compose 命令即可自行部署",
       "models": "自选模型：Gemini、OpenAI、Anthropic 或 Ollama"
     },
@@ -501,7 +501,7 @@
   },
   "cta": {
     "title": "你的下一条视频，已经是一周的内容。",
-    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或免费自托管开源版本。"
+    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或为非商业用途免费自托管。"
   },
   "faqPage": {
     "title": "语言、字幕与剪辑",

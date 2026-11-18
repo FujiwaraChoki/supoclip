@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "Tentang",
+    "credit": "Berdasarkan SupoClip.",
+    "repository": "Repositori asli"
+  },
   "title": "Pengaturan",
   "intro": "Bawaan untuk generasi baru, notifikasi, dan paketmu.",
   "languageDescription": "Bahasa yang dipakai di seluruh SupoClip.",

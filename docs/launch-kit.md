@@ -19,7 +19,7 @@ activated users (people who export a clip), not just visits.
 | Demo | `https://www.supoclip.com/demo` | Social posts: real output, with timestamps back to the source |
 | Self-hosting guide | `https://www.supoclip.com/blog/self-host-supoclip-docker` | r/selfhosted, developer communities |
 | SupoClip vs OpusClip | `https://www.supoclip.com/blog/supoclip-vs-opusclip` | "OpusClip alternative" threads and questions |
-| Open-source clipper | `https://www.supoclip.com/open-source-video-clipper` | Open-source communities |
+| Source-available clipper | `https://www.supoclip.com/open-source-video-clipper` | Source-available communities |
 | GitHub | `https://github.com/FujiwaraChoki/supoclip` | Hacker News, developer audiences |
 
 **Visual assets in the repo**
@@ -41,7 +41,7 @@ Use these claims freely. Each one is backed by the code or the site:
 
 | Claim | Source |
 |-------|--------|
-| Open source under AGPL-3.0 | `LICENSE` |
+| Source available for noncommercial use | `LICENSE` |
 | Runs hosted, on iOS, or self-hosted with Docker Compose | `docker-compose.yml`, App Store listing |
 | Self-hosted installs have no plan limits | `billing_service.py` (`self_host` plan) |
 | No watermark on exports | No watermark step anywhere in `backend/src` |
@@ -100,13 +100,13 @@ posting, and reply to comments for the first few hours.
 
 ### Show HN
 
-> **Show HN: SupoClip – open-source AI clipper that turns long videos into Shorts**
+> **Show HN: SupoClip – source-available AI clipper that turns long videos into Shorts**
 >
 > SupoClip takes a YouTube link or uploaded video, transcribes it, has an LLM
 > pick self-contained moments, and renders 9:16 clips with word-synced captions,
 > a hook title, and face-aware framing.
 >
-> It's AGPL-3.0 and runs with `docker compose up`. You choose the models:
+> It's available for noncommercial self-hosting and runs with `docker compose up`. You choose the models:
 > OpenAI, Google, Anthropic, OpenRouter, or Ollama, plus AssemblyAI or local
 > Whisper for transcription, so it can run without cloud AI. There's also a
 > REST API and an MCP server, so agents can create and download clips.
@@ -121,16 +121,16 @@ posting, and reply to comments for the first few hours.
 
 ### Product Hunt
 
-- **Tagline (≤60 chars):** `Open-source AI clipper: long videos into captioned Shorts`
+- **Tagline (≤60 chars):** `Source-available AI clipper: long videos into captioned Shorts`
 - **Description (≤260 chars):** `SupoClip finds the best moments in long videos and turns them into vertical, captioned clips for Shorts, Reels, and TikTok. Use the hosted app or self-host it for free with your own AI models, including fully local Whisper + Ollama.`
-- **First comment:** why it's open source, what self-hosting unlocks, the hosted plans, and one specific question for feedback.
+- **First comment:** why it's source-available, what self-hosting unlocks, the hosted plans, and one specific question for feedback.
 - **Gallery:** the demo video (below), the editor screenshot, the banner.
 
 ### r/selfhosted
 
 > **SupoClip: self-hosted AI video clipper (long videos → vertical clips), Docker Compose, works with Whisper + Ollama**
 >
-> I build SupoClip, an AGPL-3.0 alternative to tools like OpusClip. It turns
+> I build SupoClip, a source-available alternative to tools like OpusClip. It turns
 > podcasts, streams, and talks into captioned 9:16 clips.
 >
 > - `docker compose up -d --build`: frontend, API, worker, Postgres, Redis
@@ -144,10 +144,10 @@ posting, and reply to comments for the first few hours.
 
 ### X thread
 
-1. We open-sourced our AI video clipper. Paste a long video, get vertical, captioned clips with hook titles. Self-host it free, or use the hosted app. 🧵
+1. We published the source for our AI video clipper. Paste a long video, get vertical, captioned clips with hook titles. Self-host it for noncommercial use, or use the hosted app. 🧵
 2. Here's real output from a long-form interview, with links back to each source timestamp: [demo link]
 3. Bring your own AI: OpenAI, Google, Anthropic, OpenRouter, or fully local Whisper + Ollama.
-4. No watermark. No plan limits when self-hosted. AGPL-3.0: [GitHub link]
+4. No watermark. No plan limits when self-hosted. Noncommercial license: [GitHub link]
 5. Comparing tools? Our SupoClip vs OpusClip comparison links a source for every claim: [comparison link]
 
 Attach the demo video (own footage) to tweet 1, not the third-party demo clips.
@@ -158,14 +158,14 @@ Attach the demo video (own footage) to tweet 1, not the third-party demo clips.
 > recordings like podcasts, webinars, and talks into short vertical clips with
 > captions, so one recording becomes a week of posts.
 >
-> It's open source, so teams with data requirements can run it on their own
+> It's source-available, so you can run it for noncommercial use on your own
 > infrastructure with their own AI models. There's also a hosted version.
 >
 > See real output: [demo link]
 
 ### Newsletter blurb
 
-> **SupoClip is open source.** Turn long videos into captioned Shorts, Reels,
+> **SupoClip is source-available.** Turn long videos into captioned Shorts, Reels,
 > and TikToks. Use the hosted app, or self-host it free with your own AI models.
 > [See the demo →]
 
@@ -183,7 +183,7 @@ podcast episode with written permission).
 | 20–35s | Clip wall sorted by score; open one; show the score breakdown | "Each clip is scored on hook, engagement, value, and shareability, so you know what to review first." |
 | 35–50s | Editor: trim, change caption style, preview | "Adjust timing and captions before exporting." |
 | 50–60s | Export with the TikTok preset; download completes | "Export for TikTok, Reels, or Shorts. No watermark." |
-| 60–70s | Terminal: `docker compose up -d --build`, then GitHub repo | "It's open source. Run it yourself, or use the hosted app." |
+| 60–70s | Terminal: `docker compose up -d --build`, then GitHub repo | "It's source-available. Run it yourself, or use the hosted app." |
 | End card | Logo + `supoclip.com/demo` | |
 
 Don't show a processing time unless it's the real, unedited duration, and say

@@ -13,7 +13,7 @@
     "agreement": {
       "title": "Perjanjian",
       "p1": "Ketentuan Layanan ini (“Ketentuan”) merupakan perjanjian antara Anda dan {company} (“kami”), operator aplikasi dan layanan terkelola SupoClip (“Layanan”), yang mengubah video panjang menjadi klip pendek dengan takarir. Dengan membuat akun atau menggunakan Layanan, Anda menyetujui Ketentuan ini. Jika tidak setuju, jangan gunakan Layanan.",
-      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi open source yang berlaku dan ketentuan operatornya sendiri."
+      "p2": "SupoClip juga tersedia sebagai perangkat lunak dengan kode sumber publik yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi dengan kode sumber publik yang berlaku dan ketentuan operatornya sendiri."
     },
     "account": {
       "title": "Akunmu",
@@ -75,7 +75,7 @@
     "overview": {
       "title": "Ringkasan",
       "p1": "{company} (“kami”) mengoperasikan aplikasi dan layanan terkelola SupoClip (“Layanan”) dan merupakan pengendali data yang bertanggung jawab atas data pribadi yang diproses untuk menyediakannya. Kebijakan Privasi ini menjelaskan cara kami mengumpulkan, menggunakan, membagikan, dan melindungi informasi saat Anda menggunakan Layanan, yang mengubah video panjang menjadi klip pendek dengan takarir.",
-      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Jika kamu memakai instans yang di-host sendiri dan dioperasikan olehmu atau pihak ketiga, operator itu—bukan SupoClip—yang bertanggung jawab atas data yang diproses instans tersebut. Kebijakan ini menjelaskan layanan yang di-host dan dioperasikan SupoClip."
+      "p2": "SupoClip juga tersedia sebagai perangkat lunak dengan kode sumber publik yang bisa kamu host sendiri. Jika kamu memakai instans yang di-host sendiri dan dioperasikan olehmu atau pihak ketiga, operator itu—bukan SupoClip—yang bertanggung jawab atas data yang diproses instans tersebut. Kebijakan ini menjelaskan layanan yang di-host dan dioperasikan SupoClip."
     },
     "collect": {
       "title": "Informasi yang kami kumpulkan",

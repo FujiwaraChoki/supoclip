@@ -60,7 +60,7 @@ If you are new to the project, start here:
 
 ## What SupoClip Is
 
-SupoClip is an open-source AI video clipping application. It takes long-form videos, transcribes them, uses an LLM to select the most promising short segments, and renders vertical or source-aspect clips with subtitles and optional effects.
+SupoClip is a source-available AI video clipping application. It takes long-form videos, transcribes them, uses an LLM to select the most promising short segments, and renders vertical or source-aspect clips with subtitles and optional effects.
 
 The current repository snapshot includes:
 

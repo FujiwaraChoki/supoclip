@@ -1,26 +1,26 @@
 {
   "metadata": {
-    "title": "SupoClip – Open-Source AI Video Clipper for Shorts",
-    "description": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping, virality scoring, and face-aware 9:16 crops.",
-    "openGraphDescription": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping.",
-    "twitterDescription": "Open-source AI clipping, virality scoring, captions, and face-aware vertical crops.",
+    "title": "SupoClip – Source-available AI Video Clipper for Shorts",
+    "description": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with source-available AI clipping, virality scoring, and face-aware 9:16 crops.",
+    "openGraphDescription": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with source-available AI clipping.",
+    "twitterDescription": "Source-available AI clipping, virality scoring, captions, and face-aware vertical crops.",
     "keywords": {
       "clipper": "AI video clipper",
-      "openSource": "open-source video clipper",
+      "openSource": "source-available video clipper",
       "shorts": "YouTube Shorts clipper",
       "longToShorts": "long video to shorts",
       "maker": "AI clip maker"
     },
     "structured": {
-      "software": "An open-source AI video clipper for finding highlights, creating vertical crops, adding word-synced captions, and exporting short-form videos.",
+      "software": "A source-available AI video clipper for finding highlights, creating vertical crops, adding word-synced captions, and exporting short-form videos.",
       "featureDiscovery": "AI-assisted clip discovery and virality scoring",
       "featureCrop": "Face-aware 9:16 vertical cropping",
       "featureCaptions": "Word-synced animated captions",
       "featureExports": "YouTube Shorts, TikTok, and Instagram Reels exports",
-      "featureSelfHost": "Open-source self-hosting",
-      "offerCategory": "Self-hosted open-source edition",
+      "featureSelfHost": "Self-host for noncommercial use",
+      "offerCategory": "Source available for noncommercial self-hosting",
       "ios": "The SupoClip iOS app: clip long videos into captioned vertical shorts from your iPhone.",
-      "website": "Open-source AI video clipping for short-form content."
+      "website": "Source-available AI video clipping for short-form content."
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.",
+    "tagline": "Source-available AI video clipper. Use the hosted app or run it on your own infrastructure.",
     "github": "GitHub",
     "ios": "iOS App",
     "discord": "Discord community",
@@ -85,9 +85,9 @@
       "description": "A practical workflow for selecting, captioning, reframing, and reviewing clips."
     },
     "open_source_video_clipper": {
-      "label": "Open-source clipper",
-      "eyebrow": "Open source",
-      "title": "Open-source video clipper you can control",
+      "label": "Source-available clipper",
+      "eyebrow": "Source-available",
+      "title": "Source-available video clipper you can control",
       "description": "What self-hosting changes about control, model providers, and infrastructure."
     },
     "blog_self_host_supoclip_docker": {
@@ -111,7 +111,7 @@
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "Comparison",
-      "title": "SupoClip vs supo.live: open-source control",
+      "title": "SupoClip vs supo.live: control through source access",
       "description": "Compare self-hosting, AI clipping, and editing workflows before choosing a video tool."
     },
     "sign_up": {
@@ -181,9 +181,9 @@
       "description": "Build a distinct batch, review each clip, and verify scheduled publication."
     },
     "blog_open_source_video_clippers": {
-      "eyebrow": "Open-source comparison",
+      "eyebrow": "Source-available comparison",
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
-      "label": "Open-source video clippers",
+      "label": "Source-available video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
     "faq": {
@@ -195,7 +195,7 @@
     "features": "Features",
     "editor": "Editor",
     "pricing": "Pricing",
-    "openSource": "Open Source",
+    "openSource": "Source-available",
     "blog": "Blog",
     "changelog": "Changelog",
     "affiliate": "Affiliate",
@@ -207,7 +207,7 @@
     "faq": "FAQ"
   },
   "hero": {
-    "badge": "Open source and self-hostable. Also on iPhone.",
+    "badge": "Source-available and self-hostable. Also on iPhone.",
     "titleLine1": "One long video.",
     "titleLine2": "A week of shorts.",
     "body": "SupoClip finds the moments worth posting in your videos, VODs, and uploads, reframes them to 9:16 with word-synced captions, and schedules them to YouTube Shorts.",
@@ -216,7 +216,7 @@
     "viewSource": "View Source",
     "appStoreAria": "Download SupoClip on the App Store",
     "appStoreAlt": "Download on the App Store",
-    "productHuntAlt": "SupoClip - Open-source AI clipper: long videos into viral shorts | Product Hunt",
+    "productHuntAlt": "SupoClip - Source-available AI clipper: long videos into viral shorts | Product Hunt",
     "sources": {
       "upload": "Your own files",
       "label": "Clip from"
@@ -472,7 +472,7 @@
       },
       "selfHost": {
         "question": "Is it really free to self-host?",
-        "answer": "Yes. SupoClip is open source under AGPL-3.0 and runs with Docker Compose on your own machine. You only pay for the transcription and AI providers you choose, if any."
+        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC."
       },
       "cancel": {
         "question": "Can I cancel anytime?",
@@ -481,13 +481,13 @@
     }
   },
   "openSource": {
-    "badge": "AGPL-3.0 licensed",
+    "badge": "SupoClip Noncommercial Source License",
     "title": "Built in the open",
-    "body": "Fully open source. Self-host on your infrastructure, contribute features, or fork it and make it yours.",
+    "body": "Source available for noncommercial self-hosting",
     "commandLabel": "self-host",
     "comment": "# add a transcription + LLM provider to .env",
     "facts": {
-      "license": "AGPL-3.0, with every line on GitHub",
+      "license": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC.",
       "docker": "One Docker Compose command to run it yourself",
       "models": "Bring your own models: Gemini, OpenAI, Anthropic, or Ollama"
     },
@@ -501,7 +501,7 @@
   },
   "cta": {
     "title": "Your next video is already a week of content.",
-    "body": "Paste a link and see what SupoClip finds. Use the hosted app, or self-host the open-source version for free."
+    "body": "Paste a link and see what SupoClip finds. Use the hosted app, or self-host for noncommercial use."
   },
   "faqPage": {
     "title": "Languages, captions, and clipping",

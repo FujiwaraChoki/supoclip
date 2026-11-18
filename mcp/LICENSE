@@ -1,0 +1,50 @@
+# SupoClip Noncommercial Source License
+
+Version 1.0
+
+- **Licensor** Shiori LLC
+- **Commercial permissions** support@supoclip.com
+
+## 1. Software covered
+
+This license applies to SupoClip releases the Licensor expressly makes available under these terms. The **Software** means the covered SupoClip code and accompanying materials, including copies and modified versions, to the extent the Licensor has the right to license them. Separately licensed third-party components are governed by their own terms. This license leaves intact rights already granted under earlier licenses, including AGPL-3.0.
+
+## 2. Noncommercial permissions
+
+Subject to these terms, the Licensor grants you a worldwide, royalty-free, nonexclusive license to use, run, self-host, copy, modify, and share the Software for noncommercial purposes. You may publish and maintain a noncommercial fork and share its source code or builds under Section 5. You may pay for ordinary computing, storage, or network infrastructure to run your own noncommercial instance.
+
+## 3. Commercial use requires prior written permission
+
+You must obtain the Licensor's express written permission before making any commercial use of the Software. **Commercial use** means using, copying, modifying, distributing, hosting, or otherwise making the Software available in connection with a business activity or for direct or indirect commercial advantage or compensation. This includes the following uses.
+
+- Internal use for a business, including evaluation for business adoption, development, testing, and production, even when only staff have access.
+- Use in compensated client work or a revenue-generating workflow, including producing clips for monetized channels or paid campaigns.
+- Selling copies or charging for access, integration, operation, or support that involves exercising rights under this license.
+
+This requirement applies to individuals and organizations of any legal or tax status. Written permission must identify who may use the Software and what use is authorized. Any other use remains subject to these terms.
+
+## 4. Commercial hosting requires specific written permission
+
+You must obtain the Licensor's express prior written permission covering hosted or managed services before offering or operating the Software for others as part of a commercial offering. This applies to the original Software and to modified, renamed, and rebranded versions, whether offered through a web interface, API, or intermediary acting on your behalf.
+
+This includes selling access, charging to operate an instance, bundling the Software into a paid offering, running an ad-supported service, and offering a free tier of a commercial service. Permission to use the Software internally does not authorize offering it as a hosted or managed service.
+
+## 5. Attribution and forks
+
+Preserve existing copyright, license, and SupoClip attribution notices. When you share the Software or a modified version, supply a copy of this license and include the attribution below in a clearly visible place in the repository README or equivalent distribution documentation. Include the attribution in the accompanying notices for any packaged builds and container images you distribute.
+
+Display the same attribution in a readily accessible About, Credits, or equivalent screen of every deployed or distributed version with a graphical interface. For an interface without a graphical screen, include it in the user-facing documentation supplied with that interface. You may adapt the wording and layout if the credit to SupoClip stays clear and both URLs remain present and clickable where the format supports links.
+
+> Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
+
+Identify distributed forks as modified versions of SupoClip. You may give your fork a distinct name if you retain the required credit and avoid implying that the fork is official or endorsed by the Licensor. This license permits use of the SupoClip name for truthful attribution and identification. Other uses of the SupoClip name or logo that require authorization must be separately approved.
+
+Recipients receive their rights in the covered SupoClip material directly from the Licensor under these terms. You may license your own original contributions separately. Any terms you apply to those contributions must preserve the conditions on use of the covered SupoClip material. Only the Licensor can grant commercial permission under this license.
+
+## 6. Termination and rights under law
+
+Your rights under this license end automatically if you breach its terms. After termination, you must stop exercising those rights unless the Licensor reinstates them in writing. Termination leaves compliant recipients' rights in place. Rights and remedies that cannot be waived under applicable law remain available.
+
+## 7. Warranty and liability
+
+To the extent permitted by applicable law, the Software is provided as is, without any express or implied warranty, including warranties of merchantability, fitness for a particular purpose, title, and noninfringement. To the extent permitted by applicable law, the Licensor and contributors are not liable for losses or damages arising out of this license or the use of, or inability to use, the Software. If a provision is unenforceable, the remaining provisions continue to apply to the extent permitted by law.

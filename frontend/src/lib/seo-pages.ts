@@ -40,7 +40,7 @@ export const seoPages: SeoPage[] = [
     metaDescription: "Find highlights in long videos, edit captions and framing, and export Shorts, Reels, or TikToks. See real SupoClip output before choosing hosted or self-hosted.",
     eyebrow: "AI Video Clipping",
     heading: "AI video clipper for turning long videos into better shorts",
-    summary: "Paste a YouTube, Twitch, or Kick recording link, or upload a video. SupoClip suggests moments from the transcript, adds word-synced captions, and reframes them for short-form video. Review every cut in the editor, then export. Use managed hosting or run the open-source app yourself.",
+    summary: "Paste a YouTube, Twitch, or Kick recording link, or upload a video. SupoClip suggests moments from the transcript, adds word-synced captions, and reframes them for short-form video. Review every cut in the editor, then export. Use managed hosting or run the source-available app yourself.",
     keywords: [
       "AI video clipper",
       "AI clip maker",
@@ -84,14 +84,14 @@ export const seoPages: SeoPage[] = [
         ],
       },
       {
-        heading: "Choose managed hosting or an open-source setup",
+        heading: "Choose managed hosting or a source-available setup",
         paragraphs: [
           "Use hosted SupoClip when you want processing managed for you. The paid plans include a monthly allowance measured in source-video minutes; producing more clips from the same recording does not multiply that recording’s duration. Check current plans for output resolution, source limits, and publishing access before choosing. A creator can start with one recording and review its finished clips before making the workflow part of a weekly schedule.",
-          "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. The source is free under AGPL-3.0; managed hosting is paid. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
+          "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. Noncommercial self-hosting has no license fee. Commercial use requires prior written permission from Shiori LLC. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
         ],
         links: [
           { href: "/blog/supoclip-vs-opusclip", label: "How SupoClip compares with OpusClip" },
-          { href: "/open-source-video-clipper", label: "Why teams choose an open-source clipper" },
+          { href: "/open-source-video-clipper", label: "Explore self-hosting and source access" },
         ],
       },
     ],
@@ -107,9 +107,9 @@ export const seoPages: SeoPage[] = [
           "Yes. SupoClip accepts YouTube URLs, identifies candidate moments, and can render vertical, captioned clips suitable for YouTube Shorts.",
       },
       {
-        question: "Is SupoClip open source?",
+        question: "Can I self-host SupoClip?",
         answer:
-          "Yes. The SupoClip codebase is available under the AGPL-3.0 license and can be self-hosted or modified.",
+          "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC.",
       },
       {
         question: "Which video sources does SupoClip accept?",
@@ -120,33 +120,33 @@ export const seoPages: SeoPage[] = [
   },
   {
     slug: "open-source-video-clipper",
-    metaTitle: "Open-Source Video Clipper You Can Self-Host",
+    metaTitle: "Video Clipper You Can Self-Host",
     metaDescription: "Self-host SupoClip for AI clip discovery, editable captions, vertical framing, and exports. Compare local and hosted processing, real output, setup, and costs.",
-    eyebrow: "Open Source & Self-Hosted",
-    heading: "Open-source video clipper with full control of the workflow",
+    eyebrow: "Source Access & Self-Hosting",
+    heading: "Source-available video clipper with full control of the workflow",
     summary: "Run a complete video clipping app on your own infrastructure: discover moments, edit cuts and captions, adjust vertical framing, and export. Inspect the real output below, understand what stays local, and choose between self-hosting and managed hosting.",
     keywords: [
-      "open-source video clipper",
+      "source-available video clipper",
       "self-hosted AI video editor",
-      "open-source AI clip maker",
+      "source-available AI clip maker",
       "self-hosted video clipping",
-      "open-source OpusClip alternative",
+      "source-available OpusClip alternative",
     ],
     publishedAt: "2026-07-27",
     updatedAt: "2026-10-26",
     tableCaption: "Hosted and self-hosted SupoClip compared",
     tableHeaders: ["Decision", "Managed SupoClip", "Self-hosted SupoClip"],
     tableRows: [
-      ["Source access", "Full AGPL-3.0 repository", "Full AGPL-3.0 repository"],
+      ["Source access", "Public repository", "Public repository"],
       ["Infrastructure", "Managed for you", "Your server or local environment"],
       ["Model choice", "Managed provider configuration", "Supported hosted providers or Ollama"],
       ["Customization", "App settings; source available separately", "Application and pipeline source code"],
     ],
     sections: [
       {
-        heading: "An open-source clipping app you can inspect and change",
+        heading: "A source-available clipping app you can inspect and change",
         paragraphs: [
-          "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The application is available under AGPL-3.0. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
+          "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The SupoClip Noncommercial Source License allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
           "The documented Docker Compose stack includes the frontend, backend, worker, PostgreSQL, and Redis. Begin with the self-hosting guide and a short video you know well. Verify that a task moves through processing, that a finished clip plays, and that captions and framing match the source. The examples above show the kind of output to inspect; they are not a benchmark for your hardware, models, or footage. Do a small first run before processing a backlog.",
         ],
       },
@@ -167,7 +167,7 @@ export const seoPages: SeoPage[] = [
       {
         heading: "Choose a complete app or integrate a smaller tool",
         paragraphs: [
-          "If you need an interface for reviewing clips, timing captions, and correcting crops, evaluate the complete SupoClip app. If you are building a custom processing service, a library may be a better starting point. Automatic silence removal is another distinct editing job; it does not by itself decide which story or explanation makes a good social clip. Compare tools against the task you need to finish instead of assuming every open-source video project replaces the same workflow.",
+          "If you need an interface for reviewing clips, timing captions, and correcting crops, evaluate the complete SupoClip app. If you are building a custom processing service, a library may be a better starting point. Automatic silence removal is another distinct editing job; it does not by itself decide which story or explanation makes a good social clip. Compare tools against the task you need to finish instead of assuming every source-available video project replaces the same workflow.",
           "Test a recording you have permission to use and know well. Check complete thoughts, speaker changes, proper nouns, visual context, and final exports. Record setup effort separately from processing time, and include human review and provider costs in your decision. You can use paid hosted SupoClip to focus on creating clips or self-host to control the application and its configuration. Both routes benefit from checking the real output before adopting a repeatable workflow.",
         ],
         links: [
@@ -180,7 +180,7 @@ export const seoPages: SeoPage[] = [
       {
         question: "Is SupoClip free to self-host?",
         answer:
-          "The source code is free under the AGPL-3.0 license. You remain responsible for infrastructure and any paid transcription or AI-provider usage.",
+          "Noncommercial self-hosting has no license fee. Commercial use requires prior written permission from Shiori LLC. You remain responsible for infrastructure and any paid transcription or AI-provider usage.",
       },
       {
         question: "Can SupoClip use a local language model?",

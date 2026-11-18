@@ -1,26 +1,26 @@
 {
   "metadata": {
-    "title": "SupoClip – Recortador de video con IA de código abierto para Shorts",
-    "description": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos, recorte con IA de código abierto, puntuación de viralidad y encuadres 9:16 centrados en el rostro.",
-    "openGraphDescription": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos y recorte con IA de código abierto.",
-    "twitterDescription": "Recorte con IA de código abierto, puntuación de viralidad, subtítulos y encuadres verticales centrados en el rostro.",
+    "title": "SupoClip – Recortador de video con IA de código fuente público para Shorts",
+    "description": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos, recorte con IA de código fuente público, puntuación de viralidad y encuadres 9:16 centrados en el rostro.",
+    "openGraphDescription": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos y recorte con IA de código fuente público.",
+    "twitterDescription": "Recorte con IA de código fuente público, puntuación de viralidad, subtítulos y encuadres verticales centrados en el rostro.",
     "keywords": {
       "clipper": "recortador de video con IA",
-      "openSource": "recortador de video de código abierto",
+      "openSource": "recortador de video de código fuente público",
       "shorts": "recortador de YouTube Shorts",
       "longToShorts": "video largo a shorts",
       "maker": "creador de clips con IA"
     },
     "structured": {
-      "software": "Un recortador de video con IA de código abierto para encontrar momentos destacados, crear encuadres verticales, agregar subtítulos sincronizados por palabra y exportar videos cortos.",
+      "software": "Un recortador de video con IA de código fuente público para encontrar momentos destacados, crear encuadres verticales, agregar subtítulos sincronizados por palabra y exportar videos cortos.",
       "featureDiscovery": "Descubrimiento de clips asistido por IA y puntuación de viralidad",
       "featureCrop": "Recorte vertical 9:16 centrado en el rostro",
       "featureCaptions": "Subtítulos animados sincronizados por palabra",
       "featureExports": "Exportaciones para YouTube Shorts, TikTok e Instagram Reels",
-      "featureSelfHost": "Autoalojamiento de código abierto",
-      "offerCategory": "Edición de código abierto autoalojada",
+      "featureSelfHost": "Autoalojamiento para fines no comerciales",
+      "offerCategory": "Código fuente para autoalojamiento no comercial",
       "ios": "La app de SupoClip para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
-      "website": "Recorte de video con IA de código abierto para contenido de formato corto."
+      "website": "Recorte de video con IA de código fuente público para contenido de formato corto."
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
+    "tagline": "Recortador de video con IA de código fuente público. Usa la app alojada o ejecútala en tu propia infraestructura.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidad de Discord",
@@ -85,9 +85,9 @@
       "description": "Un flujo práctico para elegir, subtitular, reencuadrar y revisar clips."
     },
     "open_source_video_clipper": {
-      "label": "Recortador de código abierto",
-      "eyebrow": "Código abierto",
-      "title": "Un recortador de video de código abierto que puedes controlar",
+      "label": "Recortador de código fuente público",
+      "eyebrow": "Código fuente disponible",
+      "title": "Un recortador de video de código fuente público que puedes controlar",
       "description": "Qué cambia el autoalojamiento en el control, los proveedores de modelos y la infraestructura."
     },
     "blog_self_host_supoclip_docker": {
@@ -106,12 +106,12 @@
       "label": "Alternativa autoalojada a OpusClip",
       "eyebrow": "Comparación",
       "title": "La mejor alternativa gratis y autoalojada a OpusClip",
-      "description": "Cuándo un recortador de código abierto y autoalojado conviene más que una herramienta basada en créditos."
+      "description": "Cuándo un recortador de código fuente público y autoalojado conviene más que una herramienta basada en créditos."
     },
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "Comparación",
-      "title": "SupoClip vs supo.live: control de código abierto",
+      "title": "SupoClip vs supo.live: control de código fuente público",
       "description": "Compara autoalojamiento, recorte con IA y flujos de edición antes de elegir una herramienta de video."
     },
     "sign_up": {
@@ -181,9 +181,9 @@
       "description": "Build a distinct batch, review each clip, and verify scheduled publication."
     },
     "blog_open_source_video_clippers": {
-      "eyebrow": "Open-source comparison",
+      "eyebrow": "Código fuente disponible comparison",
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
-      "label": "Open-source video clippers",
+      "label": "Código fuente disponible video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
     "faq": {
@@ -195,7 +195,7 @@
     "features": "Funciones",
     "editor": "Editor",
     "pricing": "Precios",
-    "openSource": "Código abierto",
+    "openSource": "Código fuente disponible",
     "blog": "Blog",
     "changelog": "Novedades",
     "affiliate": "Afiliados",
@@ -207,7 +207,7 @@
     "faq": "Preguntas frecuentes"
   },
   "hero": {
-    "badge": "Código abierto y autoalojable. También en iPhone.",
+    "badge": "Código fuente disponible y autoalojable. También en iPhone.",
     "titleLine1": "Un video largo.",
     "titleLine2": "Una semana de shorts.",
     "body": "SupoClip encuentra los momentos que vale la pena publicar en tus videos, VODs y archivos, los reencuadra a 9:16 con subtítulos sincronizados palabra por palabra y los programa en YouTube Shorts.",
@@ -216,7 +216,7 @@
     "viewSource": "Ver el código",
     "appStoreAria": "Descarga SupoClip en el App Store",
     "appStoreAlt": "Descargar en el App Store",
-    "productHuntAlt": "SupoClip - Recortador de video con IA de código abierto: videos largos en shorts virales | Product Hunt",
+    "productHuntAlt": "SupoClip - Recortador de video con IA de código fuente público: videos largos en shorts virales | Product Hunt",
     "sources": {
       "upload": "Tus propios archivos",
       "label": "Recorta desde"
@@ -472,7 +472,7 @@
       },
       "selfHost": {
         "question": "¿De verdad es gratis autoalojarlo?",
-        "answer": "Sí. SupoClip es de código abierto bajo AGPL-3.0 y funciona con Docker Compose en tu propia máquina. Solo pagas los proveedores de transcripción e IA que elijas, si usas alguno."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC."
       },
       "cancel": {
         "question": "¿Puedo cancelar cuando quiera?",
@@ -481,13 +481,13 @@
     }
   },
   "openSource": {
-    "badge": "Licencia AGPL-3.0",
+    "badge": "Licencia de código fuente no comercial de SupoClip",
     "title": "Hecho en público",
-    "body": "Totalmente de código abierto. Autoalója en tu infraestructura, aporta funciones o haz un fork y adáptalo.",
+    "body": "Código fuente para autoalojamiento no comercial",
     "commandLabel": "autoalojar",
     "comment": "# agrega un proveedor de transcripción y de LLM en .env",
     "facts": {
-      "license": "AGPL-3.0, con cada línea en GitHub",
+      "license": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC.",
       "docker": "Un solo comando de Docker Compose para ejecutarlo tú mismo",
       "models": "Usa tus propios modelos: Gemini, OpenAI, Anthropic u Ollama"
     },
@@ -501,7 +501,7 @@
   },
   "cta": {
     "title": "Tu próximo video ya es una semana de contenido.",
-    "body": "Pega un enlace y mira lo que encuentra SupoClip. Usa la app alojada o aloja gratis la versión de código abierto."
+    "body": "Pega un enlace y mira lo que encuentra SupoClip. Usa la app alojada o aloja gratis la versión de código fuente público."
   },
   "faqPage": {
     "title": "Idiomas, subtítulos y clips",

@@ -55,18 +55,18 @@ export const blogPosts: BlogPost[] = [
   {
     slug: "supoclip-vs-supo-live",
     image: { src: "/blog/supoclip-open-source-clipping.webp", alt: "Editorial illustration of a podcast recording becoming three vertical video clips", width: 1672, height: 941 },
-    title: "SupoClip vs supo.live: Why Open Source Wins",
+    title: "SupoClip vs supo.live: Self-Hosting and Source Access",
     description:
-      "Compare SupoClip and supo.live for AI video clipping. See why SupoClip wins for open-source control, self-hosting, and customizable video workflows.",
+      "Compare SupoClip and supo.live for AI video clipping. See why SupoClip wins for control through source access, self-hosting, and customizable video workflows.",
     eyebrow: "Supo.live Alternative",
     category: "Comparison",
     publishedAt: "2026-09-21",
     updatedAt: "2026-10-05",
     readingTime: "5 min read",
     author: "SupoClip",
-    keywords: ["SupoClip vs supo.live", "supo.live alternative", "open-source video clipper", "self-hosted AI video clipping", "AI clip maker"],
+    keywords: ["SupoClip vs supo.live", "supo.live alternative", "source-available video clipper", "self-hosted AI video clipping", "AI clip maker"],
     summary:
-      "For creators and teams who want control over their clipping workflow, SupoClip is the better open-source alternative to supo.live.",
+      "For creators and teams who want control over their clipping workflow, SupoClip is the better source-available alternative to supo.live.",
   },
   {
     slug: "supoclip-vs-opusclip",
@@ -82,7 +82,7 @@ export const blogPosts: BlogPost[] = [
     keywords: [
       "SupoClip vs OpusClip",
       "OpusClip alternative",
-      "OpusClip vs open source",
+      "OpusClip vs source-available",
       "self-hosted OpusClip alternative",
       "OpusClip watermark",
     ],
@@ -93,7 +93,7 @@ export const blogPosts: BlogPost[] = [
     slug: "self-host-supoclip-docker",
     title: "How to Self-Host SupoClip with Docker Compose",
     description:
-      "Self-host SupoClip, the open-source AI video clipper: requirements, .env setup, a fully local Whisper + Ollama option, first-run checks, and a production checklist.",
+      "Self-host SupoClip, the source-available AI video clipper: requirements, .env setup, a fully local Whisper + Ollama option, first-run checks, and a production checklist.",
     eyebrow: "Self-Hosting Guide",
     category: "Guide",
     publishedAt: "2026-10-05",
@@ -103,7 +103,7 @@ export const blogPosts: BlogPost[] = [
     keywords: [
       "self-host SupoClip",
       "self-hosted AI video clipper",
-      "open-source video clipper Docker",
+      "source-available video clipper Docker",
       "self-hosted OpusClip alternative",
       "Whisper Ollama video clipping",
     ],
@@ -125,7 +125,7 @@ export const blogPosts: BlogPost[] = [
       "OpusClip alternative",
       "AI clip maker",
       "free AI video clipper",
-      "open-source OpusClip alternative",
+      "source-available OpusClip alternative",
       "YouTube shorts clipper",
     ],
     summary: "The SupoClip source is free. This guide explains the hardware, provider costs, and maintenance behind a self-hosted clipping workflow so you can decide whether it fits.",

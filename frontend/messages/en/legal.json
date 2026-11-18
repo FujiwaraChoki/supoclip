@@ -13,7 +13,7 @@
     "agreement": {
       "title": "Agreement",
       "p1": "These Terms of Service (“Terms”) are between you and {company} (“we,” “us,” “our”), the operator of the SupoClip apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips. By creating an account or using the Service you agree to these Terms. If you do not agree, do not use the Service.",
-      "p2": "SupoClip is also available as open-source software you can self-host. These Terms apply to the SupoClip-operated hosted service; self-hosted instances are governed by the applicable open-source license and the operator’s own terms."
+      "p2": "SupoClip is also available as source-available software you can self-host. These Terms apply to the SupoClip-operated hosted service; self-hosted instances are governed by the applicable software license and the operator’s own terms."
     },
     "account": {
       "title": "Your Account",
@@ -75,7 +75,7 @@
     "overview": {
       "title": "Overview",
       "p1": "{company} (“we,” “us”) operates the SupoClip apps and hosted service (the “Service”) and is the controller responsible for personal data processed to provide them. This Privacy Policy explains how we collect, use, share, and protect information when you use the Service, which turns long-form videos into short, captioned clips.",
-      "p2": "SupoClip is also available as open-source software you can self-host. If you use a self-hosted instance operated by you or a third party, that operator—not SupoClip—is responsible for the data processed by that instance. This policy describes the SupoClip-operated hosted service."
+      "p2": "SupoClip is also available as source-available software you can self-host. If you use a self-hosted instance operated by you or a third party, that operator—not SupoClip—is responsible for the data processed by that instance. This policy describes the SupoClip-operated hosted service."
     },
     "collect": {
       "title": "Information We Collect",

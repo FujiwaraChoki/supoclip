@@ -293,8 +293,8 @@ export const creatorGuides: CreatorGuide[] = [
     related: ["/blog/podcast-to-shorts", "/youtube-shorts-clipper", "/blog/repurpose-webinar-clips"],
   },
   {
-    post: { ...post("open-source-video-clippers", "Open-Source Video Clippers: SupoClip, Clips AI, and Auto-Editor", "Compare an open-source clipping app, a Python clipping library, and a command-line editor. Understand their workflows, setup tradeoffs, and how to test your own footage.", ["open source video clippers", "open source clipping tool", "Clips AI vs SupoClip", "self hosted video clipper"], "6 min read"), eyebrow: "Open-source comparison", category: "Comparison" },
-    intro: "Open-source video tools solve different parts of the editing job. A complete clipping app, a Python library, and an editor that removes quiet sections are not interchangeable. Choose based on the workflow you need to finish, then test the same recording before committing your archive to it.",
+    post: { ...post("open-source-video-clippers", "Video Clippers with Public Source Code: SupoClip, Clips AI, and Auto-Editor", "Compare a source-available clipping app, a Python clipping library, and a command-line editor. Understand their workflows, setup tradeoffs, and how to test your own footage.", ["source-available video clippers", "source-available clipping tool", "Clips AI vs SupoClip", "self hosted video clipper"], "6 min read"), eyebrow: "Source access comparison", category: "Comparison" },
+    intro: "Video tools with public source code solve different parts of the editing job. A complete clipping app, a Python library, and an editor that removes quiet sections are not interchangeable. Choose based on the workflow you need to finish, then test the same recording before committing your archive to it.",
     sections: [
       {
         id: "scope", heading: "What this comparison establishes",
@@ -311,7 +311,7 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "supoclip", heading: "SupoClip: a clipping workflow with an interface",
-        paragraphs: ["SupoClip accepts supported source links and uploaded video, proposes segments from speech, and gives you an editor for cuts, captions, framing, and exports. You can use the paid hosted service or run the application yourself under AGPL-3.0. The public demo shows actual generated clips with linked source moments.", "Self-hosting means operating the application, worker, database, media storage, and your chosen transcription and model providers. A local Whisper and Ollama configuration is available; using external providers changes where data is processed and what usage costs you incur. Choose the hosted service if your main goal is publishing rather than maintaining that stack."],
+        paragraphs: ["SupoClip accepts supported source links and uploaded video, proposes segments from speech, and gives you an editor for cuts, captions, framing, and exports. You can use the paid hosted service or self-host for noncommercial use. Commercial use of the self-hosted software requires prior written permission from Shiori LLC. The public demo shows actual generated clips with linked source moments.", "Self-hosting means operating the application, worker, database, media storage, and your chosen transcription and model providers. A local Whisper and Ollama configuration is available; using external providers changes where data is processed and what usage costs you incur. Choose the hosted service if your main goal is publishing rather than maintaining that stack."],
         links: [{ href: "/demo", label: "Inspect real SupoClip output" }, { href: "/blog/self-host-supoclip-docker", label: "Read the setup requirements" }],
       },
       {
@@ -327,8 +327,8 @@ export const creatorGuides: CreatorGuide[] = [
       },
     ],
     faqs: [
-      { question: "Which open-source video clipper is best?", answer: "The answer depends on the job. Evaluate SupoClip for a complete clipping interface, Clips AI for Python integration, and Auto-Editor for automated editing rules. This article does not establish a comparative quality or speed winner." },
-      { question: "Does open source mean processing has no cost?", answer: "No. You still provide hardware, storage, operating time, and any external services you choose. Check the project's license and the dependencies required for your particular workflow." },
+      { question: "Which video clipper fits my workflow?", answer: "The answer depends on the job. Evaluate SupoClip for a complete clipping interface, Clips AI for Python integration, and Auto-Editor for automated editing rules. This article does not establish a comparative quality or speed winner." },
+      { question: "Does access to the source mean processing has no cost?", answer: "No. You still provide hardware, storage, operating time, and any external services you choose. Check the project's license and the dependencies required for your particular workflow." },
       { question: "Were all three tools tested on the same video?", answer: "No. This comparison uses official documentation and SupoClip's own implementation and demo. Use the test checklist to evaluate output on your recording; no cross-tool benchmark results are claimed here." },
     ],
     cta: { title: "Try the complete SupoClip workflow", body: "Use the paid hosted app to start with a recording, or follow the self-hosting guide if you want to operate the application yourself.", label: "Start with SupoClip" },

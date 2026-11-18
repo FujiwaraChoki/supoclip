@@ -59,7 +59,7 @@
     "metaDescription": "Usa SupoClip para encontrar lo mejor de videos largos, puntuar momentos prometedores, crear recortes verticales que siguen el rostro, agregar subtítulos y exportar clips listos para redes.",
     "eyebrow": "Recorte de video con IA",
     "heading": "Recortador de video con IA para convertir videos largos en mejores shorts",
-    "summary": "SupoClip reúne transcripción, detección de momentos asistida por IA, puntaje de viralidad, reencuadre que sigue el rostro, subtítulos sincronizados por palabra y ajustes de exportación en un solo flujo de código abierto.",
+    "summary": "SupoClip reúne transcripción, detección de momentos asistida por IA, puntaje de viralidad, reencuadre que sigue el rostro, subtítulos sincronizados por palabra y ajustes de exportación en un solo flujo de código fuente público.",
     "tableCaption": "Matriz de capacidades de recorte con IA de SupoClip",
     "tableHeaders": {
       "0": "Etapa del flujo",
@@ -101,7 +101,7 @@
       "1": {
         "heading": "Cómo funciona el flujo de SupoClip",
         "p1": "Pega un enlace de YouTube, Twitch o Kick o sube un archivo de origen. SupoClip transcribe la grabación, propone los límites de cada clip y presenta los candidatos más fuertes para que los revises. Los momentos elegidos se pueden renderizar como videos verticales con subtítulos para plataformas de formato corto.",
-        "p2": "Como SupoClip es de código abierto, los equipos pueden inspeccionar el proceso, elegir modelos de lenguaje alojados o locales compatibles y adaptar el procesamiento a su propia infraestructura. También hay una versión alojada para quien no quiere administrar el despliegue.",
+        "p2": "Como SupoClip es de código fuente público, los equipos pueden inspeccionar el proceso, elegir modelos de lenguaje alojados o locales compatibles y adaptar el procesamiento a su propia infraestructura. También hay una versión alojada para quien no quiere administrar el despliegue.",
         "link1": "Paso a paso: convierte un video de YouTube en Shorts",
         "link2": "Ejecuta el proceso tú mismo con Docker"
       },
@@ -110,7 +110,7 @@
         "p1": "El flujo encaja con pódcasts, docentes, fundadores, agencias y equipos de video que ya producen grabaciones largas y necesitan una forma repetible de publicar más clips cortos.",
         "p2": "Es especialmente útil cuando importa ser dueño: quien autoaloja conserva el control de la aplicación y puede modificar el código en lugar de depender por completo de una plataforma de edición cerrada.",
         "link1": "Cómo se compara SupoClip con OpusClip",
-        "link2": "Por qué los equipos eligen un recortador de código abierto"
+        "link2": "Por qué los equipos eligen un recortador de código fuente público"
       }
     },
     "faqs": {
@@ -123,8 +123,8 @@
         "answer": "Sí. SupoClip acepta URL de YouTube, identifica momentos candidatos y puede renderizar clips verticales con subtítulos aptos para YouTube Shorts."
       },
       "2": {
-        "question": "¿SupoClip es de código abierto?",
-        "answer": "Sí. El código de SupoClip está disponible bajo la licencia AGPL-3.0 y se puede autoalojar o modificar."
+        "question": "¿Puedo autoalojar SupoClip?",
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC."
       },
       "3": {
         "question": "¿Qué fuentes de video acepta SupoClip?",
@@ -133,10 +133,10 @@
     }
   },
   "open-source-video-clipper": {
-    "metaTitle": "Recortador de video de código abierto que puedes autoalojar",
-    "metaDescription": "SupoClip es un recortador de video con IA de código abierto para detectar momentos, recortes verticales que siguen el rostro, subtítulos y exportaciones de formato corto en tu propio servidor.",
-    "eyebrow": "Código abierto y autoalojado",
-    "heading": "Recortador de video de código abierto con control total del flujo",
+    "metaTitle": "Recortador de video de código fuente público que puedes autoalojar",
+    "metaDescription": "SupoClip es un recortador de video con IA de código fuente público para detectar momentos, recortes verticales que siguen el rostro, subtítulos y exportaciones de formato corto en tu propio servidor.",
+    "eyebrow": "Código fuente disponible y autoalojado",
+    "heading": "Recortador de video de código fuente público con control total del flujo",
     "summary": "Ejecuta el recorte de video asistido por IA en tu propia infraestructura, inspecciona el código, elige el proveedor del modelo y personaliza cómo se puntúan, subtitulan, encuadran y exportan los clips.",
     "tableCaption": "Comparación de SupoClip alojado y autoalojado",
     "tableHeaders": {
@@ -147,8 +147,8 @@
     "tableRows": {
       "0": {
         "0": "Acceso al código",
-        "1": "Repositorio completo AGPL-3.0",
-        "2": "Repositorio completo AGPL-3.0"
+        "1": "Licencia de código fuente no comercial de SupoClip",
+        "2": "Licencia de código fuente no comercial de SupoClip"
       },
       "1": {
         "0": "Infraestructura",
@@ -174,8 +174,8 @@
       },
       "1": {
         "heading": "Qué sigue siendo tu responsabilidad",
-        "p1": "Código abierto no significa que cada dependencia sea gratis. Quien autoaloja pone su propio cómputo, almacenamiento, servicio de transcripción y configuración del modelo de lenguaje. El intercambio es responsabilidad operativa a cambio de control sobre el código.",
-        "p2": "Los equipos también deben revisar la licencia AGPL-3.0, proteger sus variables de entorno, mantener las dependencias actualizadas y vigilar el worker y las capas de almacenamiento en producción.",
+        "p1": "Código fuente disponible no significa que cada dependencia sea gratis. Quien autoaloja pone su propio cómputo, almacenamiento, servicio de transcripción y configuración del modelo de lenguaje. El intercambio es responsabilidad operativa a cambio de control sobre el código.",
+        "p2": "Los equipos también deben revisar la licencia Licencia de código fuente no comercial de SupoClip, proteger sus variables de entorno, mantener las dependencias actualizadas y vigilar el worker y las capas de almacenamiento en producción.",
         "bullet1": "Provisiona cómputo y almacenamiento persistente",
         "bullet2": "Configura la transcripción y los proveedores de modelo",
         "bullet3": "Protege secretos y rutas autenticadas",
@@ -185,7 +185,7 @@
       "2": {
         "heading": "Empieza con Docker y personaliza cuando haga falta",
         "p1": "La puesta en marcha más rápida es clonar el repositorio, copiar la plantilla de entorno, agregar las credenciales de proveedor necesarias y levantar la pila con Docker Compose. Después, quien desarrolla puede cambiar la lógica de puntaje, los ajustes de subtítulos, la interfaz o el modelo de despliegue a medida que evoluciona el flujo.",
-        "p2": "Quien prefiere no operar infraestructura puede usar la aplicación alojada de SupoClip y dejar el repositorio de código abierto como camino de migración.",
+        "p2": "Quien prefiere no operar infraestructura puede usar la aplicación alojada de SupoClip y dejar el repositorio de código fuente público como camino de migración.",
         "link1": "Autoaloja SupoClip con Docker Compose",
         "link2": "SupoClip autoalojado frente a OpusClip alojado"
       }
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "¿Autoalojar SupoClip es gratis?",
-        "answer": "El código fuente es gratuito bajo la licencia AGPL-3.0. Sigues siendo responsable de la infraestructura y de cualquier uso de pago de transcripción o de proveedores de IA."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC. Sigues siendo responsable de la infraestructura y de cualquier uso de pago de transcripción o de proveedores de IA."
       },
       "1": {
         "question": "¿SupoClip puede usar un modelo de lenguaje local?",
@@ -292,7 +292,7 @@
     "hostedBody": "Pro parte de US${price}/mes con {hours} horas de vídeo fuente al mes y clips en {resolution}. Gestionamos el procesamiento. La app alojada requiere un plan de pago.",
     "plans": "Ver planes actuales",
     "selfHostTitle": "Alojarlo por tu cuenta",
-    "selfHostBody": "El código es gratuito bajo AGPL-3.0. Tú proporcionas el equipo, almacenamiento, mantenimiento y los servicios de transcripción o IA de pago que elijas.",
+    "selfHostBody": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC. Tú proporcionas el equipo, almacenamiento, mantenimiento y los servicios de transcripción o IA de pago que elijas.",
     "selfHostButton": "Leer la guía de autoalojamiento",
     "ai-video-clipper": {
       "title": "Convierte tu grabación en clips listos para publicar",
@@ -306,7 +306,7 @@
     },
     "open-source-video-clipper": {
       "title": "Elige cómo ejecutar tu herramienta de clips",
-      "body": "Usa el flujo de código abierto en tu infraestructura o elige alojamiento gestionado para centrarte en crear clips.",
+      "body": "Usa el flujo de código fuente público en tu infraestructura o elige alojamiento gestionado para centrarte en crear clips.",
       "button": "Usar la app alojada"
     }
   }

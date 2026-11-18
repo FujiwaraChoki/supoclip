@@ -197,7 +197,7 @@ export async function createSocialImageResponse() {
               marginTop: 8,
             }}
           >
-            {["AI-Powered", "Auto Subtitles", "9:16 Vertical", "Open Source"].map(
+            {["AI-Powered", "Auto Subtitles", "9:16 Vertical", "Source-available"].map(
               (label) => (
                 <div
                   key={label}
