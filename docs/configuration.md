@@ -217,6 +217,7 @@ Fonts and transitions are configured by mounted files rather than environment va
 | `DATABASE_POOL_SIZE` | `5` | Retained SQLAlchemy connections per API/worker process; must be positive |
 | `DATABASE_MAX_OVERFLOW` | `0` | Extra SQLAlchemy connections per process; must be nonnegative |
 | `DATABASE_POOL_TIMEOUT_SECONDS` | `10` | Maximum wait for a SQLAlchemy connection |
+| `DATABASE_IDLE_SESSION_TIMEOUT_SECONDS` | `600` | PostgreSQL closes a pooled connection left unused this long; `0` turns it off (needed on PostgreSQL 13 or older) |
 | `POSTGRES_DB` | `supoclip` | PostgreSQL database name |
 | `POSTGRES_USER` | `supoclip` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | `supoclip_password` | PostgreSQL password |
@@ -237,6 +238,15 @@ polling and SSE arrive in bursts, and the default 5 ran out on 17 November 2026.
 Workers keep the default 5 with no overflow. Every backend process can also open
 up to two connections for signed media URLs (`sync_db.py`) and one unpooled
 connection per advisory lock it holds or waits for.
+
+The figures below are ceilings, reached only while a process is busy. A pooled
+connection left unused for `DATABASE_IDLE_SESSION_TIMEOUT_SECONDS` (10 minutes)
+is closed by PostgreSQL, the pool hands out the most recently used connection
+first, and pre-ping replaces a closed one on checkout without an error. So a
+quiet process, such as a draining slot whose only traffic is health checks,
+falls back to about one connection. Advisory lock connections and the media
+URL connections are separate and not affected. Plan for the ceilings anyway:
+two slots can both be busy during a switch.
 
 Size the total against PostgreSQL `max_connections` (100 by default, 3 of them
 reserved for superusers). A serving deployment runs two API slots at once, the
