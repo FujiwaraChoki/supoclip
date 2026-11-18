@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-18
 
-- **Fixed:** When a Twitch or Kick download is too slow on one route, SupoClip now tries the next download route instead of failing the video. If every route times out, you see a clear "try again in a few minutes" message. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** When a Twitch or Kick download is too slow on one route, SupoClip now tries the next download route instead of failing the video. If every route times out, you see a clear "try again in a few minutes" message. ([#448](https://github.com/FujiwaraChoki/supoclip/pull/448))
 - **New:** After you subscribe or change plans, your plan card on Settings turns into a thank-you note with a colourful wave, and back into your upgraded plan when you click Done. ([#440](https://github.com/FujiwaraChoki/supoclip/pull/440))
 - **Fixed:** The MCP tool for waiting on a generation returns by the requested timeout, even when the next status check is delayed or the API stalls. ([#442](https://github.com/FujiwaraChoki/supoclip/pull/442))
 - **Improved:** SupoClip's new source license allows noncommercial self-hosting and forks. Internal business use, paid hosting, and other commercial use require written permission. The website footer links to the license, and Settings → About links to the original project and website. ([#441](https://github.com/FujiwaraChoki/supoclip/pull/441))
