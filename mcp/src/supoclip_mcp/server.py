@@ -674,39 +674,42 @@ async def supoclip_wait_for_task(
         str: JSON ``{"status", "progress", "timed_out": bool, "task": {...}}``.
         When ``status`` is ``completed`` the ``task.clips`` array holds results.
     """
-    deadline = time.monotonic() + timeout_seconds
     last: dict = {}
-    while True:
-        last = await _client().request("GET", f"/tasks/{task_id}")
-        status = str(last.get("status", "unknown"))
-        progress = last.get("progress", 0)
 
-        if ctx is not None:
-            try:
-                await ctx.report_progress(
-                    progress=float(progress or 0) / 100.0,
-                    message=f"{status}: {last.get('progress_message', '')}",
-                )
-            except Exception:
-                pass
+    async def poll_until_finished() -> None:
+        nonlocal last
+        while True:
+            last = await _client().request("GET", f"/tasks/{task_id}")
+            status = str(last.get("status", "unknown"))
+            if ctx is not None:
+                try:
+                    await ctx.report_progress(
+                        progress=float(last.get("progress") or 0) / 100.0,
+                        message=f"{status}: {last.get('progress_message', '')}",
+                    )
+                except Exception:
+                    pass
+            if status in TERMINAL_STATES:
+                return
+            await asyncio.sleep(poll_interval_seconds)
 
-        if status in TERMINAL_STATES:
-            return _json(
-                {"status": status, "progress": progress, "timed_out": False, "task": last}
-            )
+    try:
+        await asyncio.wait_for(poll_until_finished(), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        # A progress notification can stall after the final status arrives.
+        pass
 
-        if time.monotonic() >= deadline:
-            return _json(
-                {
-                    "status": status,
-                    "progress": progress,
-                    "timed_out": True,
-                    "message": f"Still '{status}' after {timeout_seconds}s; poll again later.",
-                    "task": last,
-                }
-            )
-
-        await asyncio.sleep(poll_interval_seconds)
+    status = str(last.get("status", "unknown"))
+    timed_out = status not in TERMINAL_STATES
+    result = {
+        "status": status,
+        "progress": last.get("progress", 0),
+        "timed_out": timed_out,
+        "task": last,
+    }
+    if timed_out:
+        result["message"] = f"Still '{status}' after {timeout_seconds}s; poll again later."
+    return _json(result)
 
 
 @mcp.tool(
