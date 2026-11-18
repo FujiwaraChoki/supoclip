@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
+    "licenseNotice": "El uso comercial, incluido el uso interno en empresas, requiere <license>autorización por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidad de Discord",

@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "开源 AI 视频剪辑工具。使用托管应用，或在你自己的基础设施上运行。",
+    "licenseNotice": "商业使用（包括企业内部使用）须获得<license>书面许可</license>。",
     "github": "GitHub",
     "ios": "iOS 应用",
     "discord": "Discord 社区",

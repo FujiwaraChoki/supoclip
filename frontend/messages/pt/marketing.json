@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Clipper de vídeo com IA de código aberto. Use o app hospedado ou rode na sua própria infraestrutura.",
+    "licenseNotice": "O uso comercial, inclusive o uso interno em empresas, exige <license>autorização por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidade no Discord",

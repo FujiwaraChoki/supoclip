@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "AI video clipper open source. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
+    "licenseNotice": "Penggunaan komersial, termasuk untuk keperluan internal perusahaan, memerlukan <license>izin tertulis</license>.",
     "github": "GitHub",
     "ios": "Aplikasi iOS",
     "discord": "Komunitas Discord",

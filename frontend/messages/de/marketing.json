@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Open-Source-KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",
+    "licenseNotice": "Kommerzielle Nutzung, auch firmenintern, erfordert eine <license>schriftliche Genehmigung</license>.",
     "github": "GitHub",
     "ios": "iOS-App",
     "discord": "Discord-Community",

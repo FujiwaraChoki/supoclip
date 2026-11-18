@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.",
+    "licenseNotice": "Commercial use, including internal business use, requires <license>written permission</license>.",
     "github": "GitHub",
     "ios": "iOS App",
     "discord": "Discord community",
