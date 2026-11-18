@@ -156,6 +156,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/services/social_service.py` | Account connections, publish/schedule, metrics refresh, AI performance context |
 | `src/repositories/social_repository.py` | `social_accounts`, `social_posts`, `social_post_metrics` SQL |
 | `src/api/routes/social.py` | `/social/*` routes |
+| `src/feedback/` | Feedback inbox: stored submissions, admin triage, webhook outbox with SSRF-safe delivery (`docs/feedback.md`) |
 | `src/cancellation_reviews/` | Investigates every Stripe cancellation and reports it to the operator chat (`docs/cancellation-reviews.md`) |
 
 ## API Endpoints (routes in `api/routes/`)
@@ -184,6 +185,10 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /upload` — Upload video file
 - `GET /clips/{filename}` — Serve generated clips
 
+**Feedback:**
+- `POST /feedback` — Store a bug/feature/general/sales/cancellation message (the only way one is created); webhooks are fanned out from an outbox
+- `/admin/feedback*`, `/admin/feedback-webhooks*` — Admin inbox (filters, status, notes) and webhook destinations (Discord or HMAC-signed JSON). URLs and secrets are encrypted and never returned. UI at `/admin/feedback`
+
 **Social publishing:**
 - `GET /social/providers`, `GET /social/connections` — configured platforms and connected accounts
 - `POST /social/connections/{provider}/authorize` + `/callback` — OAuth handshake (session auth only)
@@ -194,6 +199,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `GET /social/media/{token}` — public token-gated clip stream for Instagram
 
 Worker crons (`workers/tasks.py`): every minute `dispatch_scheduled_social_posts`, hourly `refresh_social_metrics`.
+Feedback webhook retries: every minute `deliver_feedback_webhooks` (`feedback/delivery.py`).
 Post status flow: `scheduled → queued → publishing → published/failed/cancelled`.
 
 **API keys (programmatic access):**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
@@ -30,6 +30,7 @@ export function SubscriptionCancelBanner({
   className,
 }: SubscriptionCancelBannerProps) {
   const t = useTranslations("settings");
+  const locale = useLocale();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,7 +67,7 @@ export function SubscriptionCancelBanner({
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: "cancellation", message: reason.trim() }),
+        body: JSON.stringify({ category: "cancellation", message: reason.trim(), page_url: window.location.pathname, locale }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

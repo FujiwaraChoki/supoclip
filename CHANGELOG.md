@@ -4,7 +4,13 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-18
+
+- **Fixed:** Feedback delivery no longer ties up the app during slow webhooks, retries stop reliably, and deleting an account clears saved feedback email addresses atomically. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
+
 ## 2026-11-17
+
+- **Under the hood:** Feedback, bug reports, sales questions and cancellation reasons sent from the app are now kept and followed up from one inbox, so none get lost when a chat channel is down. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
 
 - **New:** A guide to clipping GTA 6 on the blog: what clipping campaigns pay, which clips get taken down, and the steps from a stream recording to finished vertical clips. It includes a payout calculator you can adjust to your own numbers. ([#431](https://github.com/FujiwaraChoki/supoclip/pull/431))
 - **New:** New accounts get a welcome tour on their first visit. It opens with a short animation, shows how to make a first clip, then goes to each page in turn: Library, Social and Analytics, Agents & API and Settings, and ends back on Create at the link field. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))

@@ -366,12 +366,18 @@ classic repeating coupon can discount an entire annual renewal within its
 discount period. It does not enforce a once-per-customer offer limit; support
 must check previous use before applying it.
 
-### Discord feedback forwarding
+### Feedback webhooks
+
+Feedback is stored in the database and admins choose where it goes at
+`/admin/feedback/webhooks` (Discord or signed JSON, per category). See
+[feedback.md](feedback.md).
 
 | Variable | Purpose |
 |---|---|
-| `DISCORD_FEEDBACK_WEBHOOK_URL` | Receives product feedback messages |
-| `DISCORD_SALES_WEBHOOK_URL` | Receives sales or lead-oriented submissions |
+| `DISCORD_FEEDBACK_WEBHOOK_URL` | Legacy. Imported once, on API start, as a Discord webhook for bug, feature, general and cancellation messages |
+| `DISCORD_SALES_WEBHOOK_URL` | Legacy. Imported once, on API start, as a Discord webhook for sales messages |
+
+After the import the variables are no longer read and can be removed.
 
 ## Social Publishing Settings
 

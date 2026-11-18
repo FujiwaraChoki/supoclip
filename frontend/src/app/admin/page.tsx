@@ -286,7 +286,10 @@ export default async function AdminPage({
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">{t("title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
-        <Link href="/admin/announcements" className="mt-3 inline-block text-sm font-medium text-brand underline-offset-4 hover:underline">{t("manageAnnouncements")}</Link>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+          <Link href="/admin/feedback" className="text-sm font-medium text-brand underline-offset-4 hover:underline">{t("feedbackInbox")}</Link>
+          <Link href="/admin/announcements" className="text-sm font-medium text-brand underline-offset-4 hover:underline">{t("manageAnnouncements")}</Link>
+        </div>
       </div>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
