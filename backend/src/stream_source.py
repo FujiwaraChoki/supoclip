@@ -50,6 +50,12 @@ REGION_VOD_MESSAGE = (
 FETCH_FAILED_MESSAGE = "We couldn't fetch this video, try again later"
 TIMEOUT_MESSAGE = "The download timed out before the video finished. Try again in a few minutes."
 LIVE_MESSAGE = "Live streams aren't supported. Use a VOD or clip URL instead."
+LIVE_VOD_MESSAGE = (
+    "This stream is still live, so its VOD isn't finished yet. Try again after the broadcast ends."
+)
+UNSUPPORTED_HLS_MESSAGE = (
+    "This VOD uses a video format we can't download. Upload the video file instead."
+)
 TWITCH_UNSUPPORTED_MESSAGE = "Unsupported Twitch URL. Use a Twitch VOD (twitch.tv/videos/<id>) or clip URL."
 KICK_UNSUPPORTED_MESSAGE = "Unsupported Kick URL. Use a Kick VOD (kick.com/<channel>/videos/<id>) or clip URL."
 UNSUPPORTED_SOURCE_MESSAGE = "Only YouTube, Twitch VOD/clip, Kick VOD/clip, or uploaded video sources are supported"
@@ -557,7 +563,41 @@ def _extract(url: str, provider: str, *, session: str, deadline: Optional[float]
 def _download_info(info: dict, provider: str, template: Path, *, audio: bool, ranges, session: str, watch: Optional[_TransferWatch] = None) -> None:
     """Download from already-extracted metadata so the platform is not queried twice."""
     with bounded_client(_ydl_options(provider, template, audio=audio, ranges=ranges, session=session, media=True, watch=watch)) as ydl:
-        ydl.process_ie_result(info, download=True)
+        ydl.process_ie_result(_native_hls_info(ydl, info), download=True)
+
+
+def _native_hls_info(ydl, info: dict) -> dict:
+    """``info`` for yt-dlp's native HLS downloader, or a refusal.
+
+    yt-dlp hands live-marked HLS, and manifests its native downloader can't
+    read, to ffmpeg, which ``_ydl_options`` disables for network transfers.
+    Such a download fails the same way on every provider, so it ends the chain
+    here instead of walking the proxy and paid fallbacks. A rendition still
+    marked live whose playlist is complete (``#EXT-X-ENDLIST``) is a finished
+    VOD and downloads natively.
+    """
+    from yt_dlp.downloader.hls import HlsFD
+
+    try:
+        selected = ydl.process_ie_result(copy.deepcopy(info), download=False)
+    except TransferStopped:
+        raise
+    except Exception:
+        check_transfer()
+        return info  # The real download reports the selection error.
+    url = selected.get("url")
+    if selected.get("requested_formats") or not url or selected.get("protocol") not in {"m3u8", "m3u8_native"}:
+        return info
+    body, _final_url = _read_url(ydl, url, dict(selected.get("http_headers") or {}))
+    manifest = body.decode("utf-8", "replace")
+    live = bool(selected.get("is_live"))
+    if live and "#EXT-X-ENDLIST" not in manifest:
+        raise StreamSourceError(LIVE_VOD_MESSAGE)
+    if not HlsFD.can_download(manifest, {**selected, "is_live": False}):
+        raise StreamSourceError(UNSUPPORTED_HLS_MESSAGE)
+    if not live:
+        return info
+    return {**info, "is_live": False, "live_status": "was_live"}
 
 
 def _download_url(url: str, provider: str, template: Path, *, audio: bool, ranges, session: str, watch: Optional[_TransferWatch] = None) -> None:
