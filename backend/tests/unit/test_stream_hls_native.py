@@ -2,8 +2,10 @@
 
 yt-dlp hands live-marked HLS, and manifests its native downloader can't read,
 to ffmpeg. Network ffmpeg is disabled for stream downloads, so those inputs
-used to fail on every provider and then on the paid actors. Real yt-dlp and a
-loopback HTTP server; no platform or paid traffic.
+used to fail on every provider and then on the paid actors. Now another
+rendition or provider is tried, and only when none is readable natively is the
+source refused, before the paid actors. Real yt-dlp and a loopback HTTP server;
+no platform or paid traffic.
 """
 from __future__ import annotations
 
@@ -15,6 +17,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 
 import pytest
+from Cryptodome.Cipher import AES
+from Cryptodome.Util.Padding import pad
 from yt_dlp.downloader.external import FFmpegFD
 
 from src import stream_source as subject
@@ -51,6 +55,26 @@ def vod(tmp_path_factory):
             "#EXT-X-TARGETDURATION", '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin"\n#EXT-X-TARGETDURATION', 1,
         )
     )
+    # A finished recording: VOD playlists never change (RFC 8216), end tag or not.
+    (root / "vod-no-endlist.m3u8").write_text(playlist.replace("#EXT-X-ENDLIST\n", ""))
+    # An HTTP 200 that is not a playlist, e.g. a challenge page.
+    (root / "challenge.m3u8").write_text("<html><body>Checking your browser</body></html>\n")
+    # A master playlist handed over as the selected URL.
+    (root / "master-sample-aes.m3u8").write_text(
+        '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=200000,RESOLUTION=160x90\nsample-aes.m3u8\n'
+    )
+    # AES-128 is decrypted by the native downloader.
+    key = b"0123456789abcdef"
+    (root / "key.bin").write_bytes(key)
+    aes = playlist.replace(
+        "#EXT-X-TARGETDURATION", '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXT-X-TARGETDURATION', 1,
+    )
+    for index, segment in enumerate(sorted(root.glob("seg*.ts"))):
+        encrypted = root / f"aes-{segment.name}"
+        cipher = AES.new(key, AES.MODE_CBC, iv=index.to_bytes(16, "big"))
+        encrypted.write_bytes(cipher.encrypt(pad(segment.read_bytes(), 16)))
+        aes = aes.replace(segment.name, encrypted.name)
+    (root / "aes128.m3u8").write_text(aes)
 
     requests: list[str] = []
 
@@ -156,6 +180,117 @@ def test_a_manifest_the_native_downloader_cannot_read_is_refused_without_fallbac
     env.state.playlist = "sample-aes.m3u8"
     with pytest.raises(subject.StreamSourceError) as raised:
         subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert str(raised.value) == subject.UNSUPPORTED_HLS_MESSAGE
+    assert env.ffmpeg_calls == [] and env.actors == []
+    assert _segments_requested(env.vod) == []
+
+
+def _extractions(monkeypatch, *playlists):
+    """Each extraction serves the next playlist; the last one repeats."""
+    original = subject._extract
+    served: list[str] = []
+
+    def extract(*args, **kwargs):
+        info = original(*args, **kwargs)
+        playlist = playlists[min(len(served), len(playlists) - 1)]
+        served.append(playlist)
+        info["formats"][0]["url"] = info["formats"][0]["url"].rsplit("/", 1)[0] + "/" + playlist
+        return info
+
+    monkeypatch.setattr(subject, "_extract", extract)
+    return served
+
+
+def test_an_unreadable_rendition_on_one_provider_falls_through_to_the_next(env, monkeypatch):
+    subject.get_config().twitch_download_providers = "direct,direct_retry,apify_twitch"
+    served = _extractions(monkeypatch, "sample-aes.m3u8", "index.m3u8")
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert served == ["sample-aes.m3u8", "index.m3u8"]
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_an_unreadable_best_rendition_falls_back_to_a_readable_one(env, monkeypatch):
+    original = subject._extract
+
+    def extract(*args, **kwargs):
+        info = original(*args, **kwargs)
+        best = dict(info["formats"][0], format_id="1080p60", height=1080, width=1920,
+                    url=f"{env.vod.base}/sample-aes.m3u8")
+        readable = dict(info["formats"][0], format_id="720p60", height=720, width=1280)
+        info["formats"] = [readable, best]
+        return info
+
+    monkeypatch.setattr(subject, "_extract", extract)
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert "/sample-aes.m3u8" in env.vod.requests
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_master_playlist_is_checked_through_its_media_rendition(env):
+    env.state.playlist = "master-sample-aes.m3u8"
+    with pytest.raises(subject.StreamSourceError) as raised:
+        subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert str(raised.value) == subject.UNSUPPORTED_HLS_MESSAGE
+    assert "/sample-aes.m3u8" in env.vod.requests
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_vod_playlist_without_an_end_tag_is_finished_even_when_marked_live(env):
+    env.state.live, env.state.playlist = True, "vod-no-endlist.m3u8"
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_finished_event_playlist_not_marked_live_downloads(env):
+    env.state.playlist = "live.m3u8"
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_aes128_is_decrypted_natively(env):
+    env.state.playlist = "aes128.m3u8"
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_page_that_is_not_a_playlist_is_not_taken_for_a_live_stream(env, monkeypatch):
+    subject.get_config().twitch_download_providers = "direct,direct_retry,apify_twitch"
+    env.state.live = True
+    served = _extractions(monkeypatch, "challenge.m3u8", "vod-no-endlist.m3u8")
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert served[0] == "challenge.m3u8"
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_page_that_is_not_a_playlist_keeps_the_ordinary_fallbacks(env):
+    env.state.live, env.state.playlist = True, "challenge.m3u8"
+    with pytest.raises(subject.StreamSourceError) as raised:
+        subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert str(raised.value) not in {subject.LIVE_VOD_MESSAGE, subject.UNSUPPORTED_HLS_MESSAGE}
+    assert env.actors == ["apify_twitch"]
+    assert env.ffmpeg_calls == []
+
+
+def test_refusals_talk_about_the_video_and_keep_the_upload_route():
+    for message in (subject.LIVE_VOD_MESSAGE, subject.UNSUPPORTED_HLS_MESSAGE):
+        assert "VOD" not in message and "video" in message
+        assert "upload the video file" in message.lower()
+        assert "encrypt" not in message.lower()
+
+
+def test_kick_spends_no_actor_once_every_native_route_refused(env):
+    subject.get_config().kick_download_providers = "proxy,direct_retry,apify_kick_hls,apify_kick_mp4"
+    env.state.playlist = "sample-aes.m3u8"
+    with pytest.raises(subject.StreamSourceError) as raised:
+        subject.download_stream_video(
+            "https://kick.com/demo/videos/12345678-1234-1234-1234-123456789abc", DURATION, "task1", operation="job",
+        )
     assert str(raised.value) == subject.UNSUPPORTED_HLS_MESSAGE
     assert env.ffmpeg_calls == [] and env.actors == []
     assert _segments_requested(env.vod) == []

@@ -51,10 +51,11 @@ FETCH_FAILED_MESSAGE = "We couldn't fetch this video, try again later"
 TIMEOUT_MESSAGE = "The download timed out before the video finished. Try again in a few minutes."
 LIVE_MESSAGE = "Live streams aren't supported. Use a VOD or clip URL instead."
 LIVE_VOD_MESSAGE = (
-    "This stream is still live, so its VOD isn't finished yet. Try again after the broadcast ends."
+    "We can't download this video yet because the platform still lists it as live. "
+    "Try again later, or upload the video file instead."
 )
 UNSUPPORTED_HLS_MESSAGE = (
-    "This VOD uses a video format we can't download. Upload the video file instead."
+    "This video uses a streaming format we can't download. Upload the video file instead."
 )
 TWITCH_UNSUPPORTED_MESSAGE = "Unsupported Twitch URL. Use a Twitch VOD (twitch.tv/videos/<id>) or clip URL."
 KICK_UNSUPPORTED_MESSAGE = "Unsupported Kick URL. Use a Kick VOD (kick.com/<channel>/videos/<id>) or clip URL."
@@ -78,6 +79,8 @@ _SECTION_TOLERANCE_SECONDS = 1.0
 # time: one proxied connection runs at ~1 MiB/s, slower than 1080p60 plays.
 _HLS_SECTION_WORKERS = 4
 _HLS_FRAGMENT_ATTEMPTS = 3
+# Renditions checked per extraction before a provider gives up on native HLS.
+_NATIVE_HLS_RENDITION_CHECKS = 8
 _HLS_CHUNK_BYTES = 1024 * 1024
 # Actor media URLs are signed and expire; an old preflight result (e.g. a manual
 # retry hours later) is ignored so the actor may run once more instead.
@@ -566,38 +569,105 @@ def _download_info(info: dict, provider: str, template: Path, *, audio: bool, ra
         ydl.process_ie_result(_native_hls_info(ydl, info), download=True)
 
 
-def _native_hls_info(ydl, info: dict) -> dict:
-    """``info`` for yt-dlp's native HLS downloader, or a refusal.
+class _NativeHlsUnavailable(RuntimeError):
+    """This route's HLS needs yt-dlp's ffmpeg, which stream downloads disable.
 
-    yt-dlp hands live-marked HLS, and manifests its native downloader can't
-    read, to ffmpeg, which ``_ydl_options`` disables for network transfers.
-    Such a download fails the same way on every provider, so it ends the chain
-    here instead of walking the proxy and paid fallbacks. A rendition still
-    marked live whose playlist is complete (``#EXT-X-ENDLIST``) is a finished
-    VOD and downloads natively.
+    Not a ``StreamSourceError``: another provider's extraction may offer a
+    readable rendition, so it fails one provider. Only when every native route
+    failed this way does ``_try_providers`` refuse, before the paid actors.
     """
+
+    def __init__(self, public: str):
+        super().__init__(public)
+        self.public = public
+
+
+def _media_playlist(ydl, url: str, headers: dict) -> str:
+    """The media playlist behind ``url``, resolving one master level.
+
+    Raises a plain provider failure when the body is not an HLS playlist (an
+    HTTP 200 challenge or error page has no end tag either, which proves nothing).
+    """
+    for _level in range(2):
+        body, final_url = _read_url(ydl, url, headers)
+        text = body.decode("utf-8", "replace").lstrip("\ufeff \t\r\n")
+        if not text.startswith("#EXTM3U"):
+            raise RuntimeError("stream playlist response is not an HLS playlist")
+        if "#EXTINF" in text:
+            return text
+        if "#EXT-X-STREAM-INF" not in text:
+            break
+        # Every rendition of one broadcast shares its live state and encryption;
+        # check the one with the highest bandwidth.
+        variants: list[tuple[int, str]] = []
+        lines = [line.strip() for line in text.splitlines()]
+        for index, line in enumerate(lines):
+            if not line.startswith("#EXT-X-STREAM-INF"):
+                continue
+            uri = next((item for item in lines[index + 1:] if item and not item.startswith("#")), None)
+            bandwidth = re.search(r"[:,]BANDWIDTH=(\d+)", line)
+            if uri:
+                variants.append((int(bandwidth.group(1)) if bandwidth else 0, uri))
+        if not variants:
+            break
+        url = urljoin(final_url, max(variants)[1])
+    raise RuntimeError("stream playlist has no media segments")
+
+
+def _native_hls_problem(ydl, selected: dict) -> tuple[Optional[str], bool]:
+    """(refusal message or None, whether the playlist is complete) for one rendition."""
     from yt_dlp.downloader.hls import HlsFD
 
-    try:
-        selected = ydl.process_ie_result(copy.deepcopy(info), download=False)
-    except TransferStopped:
-        raise
-    except Exception:
-        check_transfer()
-        return info  # The real download reports the selection error.
-    url = selected.get("url")
-    if selected.get("requested_formats") or not url or selected.get("protocol") not in {"m3u8", "m3u8_native"}:
-        return info
-    body, _final_url = _read_url(ydl, url, dict(selected.get("http_headers") or {}))
-    manifest = body.decode("utf-8", "replace")
-    live = bool(selected.get("is_live"))
-    if live and "#EXT-X-ENDLIST" not in manifest:
-        raise StreamSourceError(LIVE_VOD_MESSAGE)
+    manifest = _media_playlist(ydl, selected["url"], dict(selected.get("http_headers") or {}))
+    # RFC 8216 4.3.3.5: a VOD-type playlist never changes, with or without an end tag.
+    complete = "#EXT-X-ENDLIST" in manifest or bool(re.search(r"^#EXT-X-PLAYLIST-TYPE:\s*VOD\s*$", manifest, re.M))
+    if selected.get("is_live") and not complete:
+        return LIVE_VOD_MESSAGE, complete
     if not HlsFD.can_download(manifest, {**selected, "is_live": False}):
-        raise StreamSourceError(UNSUPPORTED_HLS_MESSAGE)
-    if not live:
-        return info
-    return {**info, "is_live": False, "live_status": "was_live"}
+        return UNSUPPORTED_HLS_MESSAGE, complete
+    return None, complete
+
+
+def _native_hls_info(ydl, info: dict) -> dict:
+    """``info`` narrowed to a rendition yt-dlp's native HLS downloader can read.
+
+    yt-dlp hands live-marked HLS, and manifests its native downloader can't
+    read, to ffmpeg, which ``_ydl_options`` disables for network transfers. An
+    unreadable rendition is dropped and the format selection runs again, so a
+    readable one (or a non-HLS format) is used instead. A rendition marked live
+    whose playlist is complete (``#EXT-X-ENDLIST`` or a VOD playlist type) is a
+    finished recording and downloads natively. When nothing readable is left
+    this provider fails with ``_NativeHlsUnavailable``.
+    """
+    candidate = info
+    refused: Optional[_NativeHlsUnavailable] = None
+    for _check in range(_NATIVE_HLS_RENDITION_CHECKS):
+        try:
+            selected = ydl.process_ie_result(copy.deepcopy(candidate), download=False)
+        except TransferStopped:
+            raise
+        except Exception:
+            check_transfer()
+            if refused is not None:
+                raise refused
+            return info  # The real download reports the selection error.
+        url = selected.get("url")
+        if selected.get("requested_formats") or not url or selected.get("protocol") not in {"m3u8", "m3u8_native"}:
+            return candidate
+        public, complete = _native_hls_problem(ydl, selected)
+        if public is None:
+            if selected.get("is_live") and complete:
+                return {**candidate, "is_live": False, "live_status": "was_live"}
+            return candidate
+        refused = _NativeHlsUnavailable(public)
+        if public == LIVE_VOD_MESSAGE:
+            raise refused  # Every rendition of a live broadcast is live.
+        formats = candidate.get("formats") or []
+        remaining = [item for item in formats if item.get("format_id") != selected.get("format_id")]
+        if not selected.get("format_id") or len(remaining) == len(formats) or not remaining:
+            raise refused
+        candidate = {**candidate, "formats": remaining}
+    raise refused or RuntimeError("no readable HLS rendition")
 
 
 def _download_url(url: str, provider: str, template: Path, *, audio: bool, ranges, session: str, watch: Optional[_TransferWatch] = None) -> None:
@@ -941,6 +1011,7 @@ def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, templa
             retry = (
                 attempt + 1 < attempts
                 and not gated
+                and not isinstance(exc, _NativeHlsUnavailable)
                 and (provider == "direct_retry" or _is_transient_error(exc))
             )
             _log_stream(
@@ -1305,7 +1376,18 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
     last_exc: BaseException | None = None
     transient_only = True
     attempted = 0
+    native_refusals: list[_NativeHlsUnavailable] = []
     for index, provider in enumerate(providers):
+        if provider in APIFY_PROVIDERS and attempted and len(native_refusals) == attempted:
+            # Every native route reached the media and found HLS that needs
+            # ffmpeg. HLS actors' media goes through the same downloader, and
+            # the MP4 actor is too expensive to spend on a source the platform
+            # lists as live or serves in a format we can't read.
+            _log_stream(
+                logging.INFO, "skipped", provider=provider, source=source, kind=kind, host=host,
+                exc=native_refusals[-1], fallback="-",
+            )
+            break
         attempt_dir = call_dir / provider
         attempt_dir.mkdir(exist_ok=True)
         template = attempt_dir / ("section-%(section_number)03d.%(ext)s" if ranges else "source.%(ext)s")
@@ -1341,6 +1423,8 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
         except Exception as exc:
             last_exc = exc
             attempted += 1
+            if isinstance(exc, _NativeHlsUnavailable):
+                native_refusals.append(exc)
             transient_only = transient_only and _is_transient_error(exc)
             _annotate_transfer(exc, None, started)
             if isinstance(exc, TransferStopped) or (state.budget is not None and state.budget.failure):
@@ -1368,7 +1452,10 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
                 elapsed=float(getattr(exc, "stream_elapsed", time.monotonic() - started) or 0),
                 attempt=index + 1, fallback=fallback,
             )
-    public = TIMEOUT_MESSAGE if attempted and transient_only else FETCH_FAILED_MESSAGE
+    if attempted and len(native_refusals) == attempted:
+        public = native_refusals[-1].public
+    else:
+        public = TIMEOUT_MESSAGE if attempted and transient_only else FETCH_FAILED_MESSAGE
     state.failure_public = public
     state.failed_until = time.monotonic() + _FAILED_TTL_SECONDS
     shutil.rmtree(call_dir, ignore_errors=True)
