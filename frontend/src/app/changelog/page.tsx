@@ -91,8 +91,8 @@ export default async function ChangelogPage() {
             rel="noopener noreferrer"
             className="mt-5 inline-flex items-center gap-2 rounded-sm text-sm font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground"
           >
+            <Image src="/discord-mark.svg" alt="" width={18} height={13} className="h-auto shrink-0" />
             {t("discordUpdates")}
-            <ExternalLink aria-hidden="true" className="size-3.5" />
           </a>
         </div>
       </section>

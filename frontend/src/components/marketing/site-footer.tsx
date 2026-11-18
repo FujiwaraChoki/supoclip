@@ -60,7 +60,10 @@ export function SiteFooter() {
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.github")}</a>
             <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.ios")}</a>
-            <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.discord")}</a>
+            <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1.5 ${linkClassName}`}>
+              <Image src="/discord-mark.svg" alt="" width={16} height={12} className="h-auto shrink-0" />
+              {t("footer.discord")}
+            </a>
             <span>&copy; {new Date().getFullYear()} {COMPANY_NAME}</span>
           </div>
         </div>

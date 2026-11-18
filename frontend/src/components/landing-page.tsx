@@ -13,7 +13,6 @@ import {
   Github,
   Info,
   Menu,
-  MessageCircle,
   Upload,
   X,
 } from "lucide-react";
@@ -541,7 +540,9 @@ export default function LandingPage() {
       <section id="community" aria-labelledby="community-title" className="scroll-mt-24 px-6 pb-16 md:pb-24">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 rounded-3xl border bg-muted/35 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
-            <MessageCircle aria-hidden="true" className="mt-0.5 size-9 shrink-0 rounded-xl border bg-background p-2" />
+            <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border bg-background">
+              <Image src="/discord-mark.svg" alt="" width={26} height={19} className="h-auto" />
+            </span>
             <div>
               <h2 id="community-title" className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
                 {t("community.title")}
