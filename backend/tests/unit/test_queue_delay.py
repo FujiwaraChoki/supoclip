@@ -24,7 +24,8 @@ class _Redis:
         self.keys.add(key)
         return True
 
-    async def zcard(self, _name):
+    async def zcount(self, _name, _min, _max):
+        self.zcount_args = (_min, _max)
         return self.depth
 
 
@@ -85,11 +86,82 @@ async def test_a_long_wait_reports_once_with_depth_and_no_account():
     assert properties["fingerprint"] == QUEUE_DELAY_FINGERPRINT
     assert properties["queue_depth"] == 284
     assert properties["wait_seconds"] == 4850
+    assert properties["wait_measured_from"] == "enqueue_time"
     assert properties["queue"] == "supoclip_tasks"
     assert "user" not in properties
     assert exc.__class__.__name__ == "QueueDelayExceeded"
     assert redis.sets[0][1] is True
     assert redis.sets[0][2] == 900
+
+
+@pytest.mark.asyncio
+async def test_a_deferred_job_started_on_time_does_not_report():
+    # A social publish retry deferred 600s, picked up 1s after it fell due:
+    # enqueue age is 601s, but the job was not late.
+    redis = _Redis()
+    client = _Client()
+    now = datetime.now(timezone.utc)
+    enqueue_time = (now - timedelta(seconds=601)).replace(tzinfo=None)
+    score = int((now - timedelta(seconds=1)).timestamp() * 1000)
+    reported = await maybe_report_queue_delay(
+        redis,
+        enqueue_time=enqueue_time,
+        score=score,
+        now=now,
+        threshold_seconds=600,
+        client=client,
+        rate_limit_key="queue_delay_alert:test-deferred",
+    )
+    assert reported is False
+    assert redis.sets == []
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_job_overdue_past_its_due_time_still_reports():
+    redis = _Redis(depth=7)
+    client = _Client()
+    now = datetime.now(timezone.utc)
+    enqueue_time = (now - timedelta(seconds=1500)).replace(tzinfo=None)
+    # Deferred 300s, then waited 1200s past its due time.
+    score = int((now - timedelta(seconds=1200)).timestamp() * 1000)
+    reported = await maybe_report_queue_delay(
+        redis,
+        enqueue_time=enqueue_time,
+        score=score,
+        now=now,
+        threshold_seconds=600,
+        client=client,
+        rate_limit_key="queue_delay_alert:test-overdue",
+    )
+    assert reported is True
+    assert len(client.calls) == 1
+    _exc, _distinct_id, properties = client.calls[0]
+    assert properties["wait_seconds"] == 1200
+    assert properties["enqueue_age_seconds"] == 1500
+    assert properties["wait_measured_from"] == "due_time"
+    assert properties["queue_depth"] == 7
+    # Depth counts only jobs already due, not ones deferred into the future.
+    assert redis.zcount_args == ("-inf", int(now.timestamp() * 1000))
+
+
+@pytest.mark.asyncio
+async def test_job_start_hook_passes_the_due_time(monkeypatch):
+    from src.workers import queue_delay
+
+    seen = {}
+
+    async def fake_report(redis, **kwargs):
+        seen.update(kwargs)
+        return False
+
+    monkeypatch.setattr(queue_delay, "maybe_report_queue_delay", fake_report)
+    enqueue_time = datetime(2026, 11, 18, 3, 0, 0)
+    await queue_delay.on_video_job_start(
+        {"redis": object(), "enqueue_time": enqueue_time, "score": 1763434800000}
+    )
+    assert seen["enqueue_time"] == enqueue_time
+    assert seen["score"] == 1763434800000
 
 
 @pytest.mark.asyncio

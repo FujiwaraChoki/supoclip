@@ -1,9 +1,13 @@
 """Report when a video-queue job waits too long before a worker starts it.
 
-The wait is enqueue time to pickup, which is what grows when renders occupy
-every slot. A per-user deferral creates a new job, so its own wait stays
-short and does not page on top of the original delay. One PostHog exception
-per interval keeps the critical-alert webhook from firing on every late job.
+The wait is the job's due time to pickup, which is what grows when renders
+occupy every slot. arq's ``score`` is when a job became eligible to run, so a
+job enqueued with ``_defer_by`` (such as a social publish retry ten minutes
+out) is measured from its scheduled start, not from when it was enqueued.
+Enqueue age is still reported as a diagnostic. A per-user deferral creates a
+new job, so its own wait stays short and does not page on top of the original
+delay. One PostHog exception per interval keeps the critical-alert webhook
+from firing on every late job.
 """
 
 from __future__ import annotations
@@ -38,10 +42,18 @@ def wait_seconds(enqueue_time: datetime | None, now: datetime) -> float:
     return (now - enqueue_time).total_seconds()
 
 
+def due_time(score: Any) -> datetime | None:
+    """arq's job score (ms since the epoch) as the time the job became due."""
+    if isinstance(score, bool) or not isinstance(score, (int, float)) or score <= 0:
+        return None
+    return datetime.fromtimestamp(score / 1000, tz=timezone.utc)
+
+
 async def maybe_report_queue_delay(
     redis,
     *,
     enqueue_time: datetime | None,
+    score: Any = None,
     queue_name: str = DEFAULT_QUEUE_NAME,
     now: datetime | None = None,
     client: Any = None,
@@ -50,6 +62,9 @@ async def maybe_report_queue_delay(
     rate_limit_key: str = QUEUE_DELAY_ALERT_KEY,
 ) -> bool:
     """Send at most one ``queue_delay_exceeded`` exception per interval.
+
+    ``score`` is arq's due time in ms; without it the wait falls back to
+    enqueue age.
 
     Returns True when this call won the rate-limit slot, whether or not
     PostHog is configured. No account id is attached.
@@ -65,7 +80,9 @@ async def maybe_report_queue_delay(
         if interval_seconds is None
         else interval_seconds
     )
-    waited = wait_seconds(enqueue_time, now or datetime.now(timezone.utc))
+    now = now or datetime.now(timezone.utc)
+    due = due_time(score)
+    waited = wait_seconds(due if due is not None else enqueue_time, now)
     if waited < threshold:
         return False
     try:
@@ -78,7 +95,9 @@ async def maybe_report_queue_delay(
 
     depth = -1
     try:
-        depth = int(await redis.zcard(queue_name))
+        # Only jobs already due; deferred jobs sit in the same sorted set.
+        now_ms = int(now.timestamp() * 1000)
+        depth = int(await redis.zcount(queue_name, "-inf", now_ms))
     except Exception:
         logger.exception("Queue depth lookup failed")
     waited_s = max(0, int(waited))
@@ -87,6 +106,8 @@ async def maybe_report_queue_delay(
         "fingerprint": QUEUE_DELAY_FINGERPRINT,
         "queue_depth": depth,
         "wait_seconds": waited_s,
+        "enqueue_age_seconds": max(0, int(wait_seconds(enqueue_time, now))),
+        "wait_measured_from": "due_time" if due is not None else "enqueue_time",
         "queue": queue_name,
         "threshold_seconds": int(threshold),
     }
@@ -117,6 +138,7 @@ async def on_video_job_start(ctx) -> None:
         await maybe_report_queue_delay(
             ctx["redis"],
             enqueue_time=ctx.get("enqueue_time"),
+            score=ctx.get("score"),
             queue_name=DEFAULT_QUEUE_NAME,
         )
     except Exception:
