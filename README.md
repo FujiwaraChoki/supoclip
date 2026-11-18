@@ -14,6 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0" /></a>
   <a href="https://www.supoclip.com"><img src="https://img.shields.io/badge/hosted-supoclip.com-black.svg" alt="Hosted at supoclip.com" /></a>
   <a href="docs/README.md"><img src="https://img.shields.io/badge/docs-docs%2F-green.svg" alt="Documentation" /></a>
+  <a href="https://discord.gg/Sz9ZD5REXg"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&amp;logoColor=white" alt="Join the SupoClip Discord community" /></a>
 </p>
 
 <p align="center">
@@ -110,6 +111,10 @@ Everything beyond this page lives in [`docs/`](docs/README.md):
 | [API Reference](docs/api-reference.md) | Backend endpoints, API keys, admin and billing routes |
 | [Development](docs/development.md) | Running locally without Docker, testing, contributing workflow |
 | [Troubleshooting](docs/troubleshooting.md) | Fixes for the common ways things go wrong |
+
+## Community
+
+Join the [SupoClip Discord](https://discord.gg/Sz9ZD5REXg) to share your clips, swap editing tips, ask for help with self-hosting, or suggest a feature.
 
 ## Development & Testing
 
