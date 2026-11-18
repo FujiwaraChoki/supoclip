@@ -210,6 +210,10 @@ async def list_feedback_webhook_deliveries(webhook_id: str, request: Request, db
 @router.delete("/feedback-webhooks/{webhook_id}")
 async def delete_feedback_webhook(webhook_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     await _admin(request, db)
-    if not await webhooks.delete_webhook(db, webhook_id):
+    try:
+        deleted = await webhooks.delete_webhook(db, webhook_id)
+    except webhooks.ManagedWebhook as exc:
+        raise HTTPException(status_code=409, detail={"code": exc.code, "message": str(exc)})
+    if not deleted:
         raise HTTPException(status_code=404, detail="Webhook not found")
     return {"status": "deleted"}

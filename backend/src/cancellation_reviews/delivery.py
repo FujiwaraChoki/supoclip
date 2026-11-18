@@ -12,13 +12,12 @@ is retried with backoff.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
-import time
 from dataclasses import dataclass
 
 import httpx
+
+from ..hermes_webhook import signed_headers
 
 PAYLOAD_TYPE = "supoclip.cancellation_report"
 MAX_MESSAGE_CHARS = 12000
@@ -36,15 +35,8 @@ def signed_request(secret: str, delivery_id: str, message: str, kind: str, *, no
         separators=(",", ":"),
         ensure_ascii=False,
     ).encode()
-    timestamp = str(now if now is not None else int(time.time()))
-    signature = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
-    return body, {
-        "Content-Type": "application/json",
-        "X-Webhook-Timestamp": timestamp,
-        "X-Webhook-Signature-V2": signature,
-        # The gateway's replay guard keys on this, so a retry of the same delivery is a duplicate.
-        "X-Request-ID": delivery_id,
-    }
+    # The gateway's replay guard keys on X-Request-ID, so a retry of the same delivery is a duplicate.
+    return body, signed_headers(secret, body, delivery_id, now=now)
 
 
 def interpret(status_code: int, payload: object) -> DeliveryResult:

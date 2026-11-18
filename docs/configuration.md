@@ -376,8 +376,12 @@ Feedback is stored in the database and admins choose where it goes at
 |---|---|
 | `DISCORD_FEEDBACK_WEBHOOK_URL` | Legacy. Imported once, on API start, as a Discord webhook for bug, feature, general and cancellation messages |
 | `DISCORD_SALES_WEBHOOK_URL` | Legacy. Imported once, on API start, as a Discord webhook for sales messages |
+| `HERMES_FEEDBACK_WEBHOOK_URL` | Optional. Hermes gateway route that gets every submission (e.g. `https://<hermes host>/p/supoclip/webhooks/feedback-supoclip`). May be an internal address. API only |
+| `HERMES_FEEDBACK_WEBHOOK_SECRET` | The route's secret, for Hermes' V2 signature. Both set adds a read-only "Hermes assistant" webhook on API start; either unset removes it. API only |
 
-After the import the variables are no longer read and can be removed.
+After the import the Discord variables are no longer read and can be removed. The Hermes pair
+is read on every API start: set it on every API instance, or a start without it removes the
+destination. See [feedback.md](feedback.md#hermes-assistant).
 
 ## Social Publishing Settings
 

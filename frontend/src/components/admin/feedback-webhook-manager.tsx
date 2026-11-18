@@ -28,16 +28,15 @@ import {
   type FeedbackCategory,
   type FeedbackWebhook,
   type WebhookDelivery,
-  type WebhookKind,
 } from "@/lib/feedback-inbox";
 
 const API = "/api/admin/feedback-webhooks";
 const KNOWN_ERRORS = new Set([
   "url_required", "url_too_long", "url_invalid", "url_not_https", "url_has_credentials", "url_private_address",
-  "url_unresolvable", "url_not_discord", "categories_required", "invalid_name",
+  "url_unresolvable", "url_not_discord", "categories_required", "invalid_name", "webhook_managed",
 ]);
 
-type Editor = { name: string; kind: WebhookKind; url: string; categories: FeedbackCategory[]; enabled: boolean };
+type Editor = { name: string; kind: (typeof WEBHOOK_KINDS)[number]; url: string; categories: FeedbackCategory[]; enabled: boolean };
 const emptyEditor = (): Editor => ({ name: "", kind: "discord", url: "", categories: [...FEEDBACK_CATEGORIES], enabled: true });
 
 /** Webhook destinations for new feedback (/admin/feedback/webhooks). URLs and secrets are write-only. */
@@ -291,91 +290,101 @@ export function FeedbackWebhookManager() {
         <p className="rounded-2xl border p-8 text-center text-sm text-muted-foreground">{t("feedback.webhooks.empty")}</p>
       ) : (
         <ul className="divide-y overflow-hidden rounded-2xl border bg-background">
-          {webhooks.map((webhook) => (
-            <li key={webhook.id} className="space-y-3 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-semibold">{webhook.name}</h2>
-                    <Badge variant="outline">{t(`feedback.webhooks.kind.${webhook.kind}`)}</Badge>
-                    {!webhook.enabled && <Badge variant="secondary">{t("feedback.webhooks.off")}</Badge>}
-                    {webhook.failed > 0 && <Badge variant="destructive">{t("feedback.failedDeliveries", { count: webhook.failed })}</Badge>}
+          {webhooks.map((webhook) => {
+            // The Hermes assistant comes from the server's environment: on/off, test and log only.
+            const managed = webhook.kind === "hermes";
+            return (
+              <li key={webhook.id} className="space-y-3 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-semibold">{webhook.name}</h2>
+                      <Badge variant="outline">{t(`feedback.webhooks.kind.${webhook.kind}`)}</Badge>
+                      {!webhook.enabled && <Badge variant="secondary">{t("feedback.webhooks.off")}</Badge>}
+                      {webhook.failed > 0 && <Badge variant="destructive">{t("feedback.failedDeliveries", { count: webhook.failed })}</Badge>}
+                    </div>
+                    {managed
+                      ? <p className="mt-1 text-xs text-muted-foreground">{t("feedback.webhooks.serverConfigured")}</p>
+                      : <p className="mt-1 font-mono text-xs text-muted-foreground">{webhook.url_hint}</p>}
                   </div>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">{webhook.url_hint}</p>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={webhook.enabled}
+                      disabled={busy !== null}
+                      onCheckedChange={(value) => toggle(webhook, value)}
+                      aria-label={t("feedback.webhooks.enableNamed", { name: webhook.name })}
+                    />
+                    <span aria-hidden>{webhook.enabled ? t("feedback.webhooks.on") : t("feedback.webhooks.off")}</span>
+                  </label>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={webhook.enabled}
-                    disabled={busy !== null}
-                    onCheckedChange={(value) => toggle(webhook, value)}
-                    aria-label={t("feedback.webhooks.enableNamed", { name: webhook.name })}
-                  />
-                  <span aria-hidden>{webhook.enabled ? t("feedback.webhooks.on") : t("feedback.webhooks.off")}</span>
-                </label>
-              </div>
-              <div className="flex flex-wrap gap-1.5" aria-label={t("feedback.webhooks.categories")}>
-                {webhook.categories.map((category) => <Badge key={category} variant="secondary">{categoryLabel(category)}</Badge>)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {webhook.last_delivered_at ? t("feedback.webhooks.lastDelivered", { date: when(webhook.last_delivered_at) }) : t("feedback.webhooks.neverDelivered")}
-                {webhook.pending > 0 && ` · ${t("feedback.webhooks.pendingCount", { count: webhook.pending })}`}
-                {webhook.env_source && ` · ${t("feedback.webhooks.fromEnv", { env: webhook.env_source })}`}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => test(webhook)}>
-                  {busy === `test-${webhook.id}` ? t("feedback.webhooks.testing") : t("feedback.webhooks.test")}
-                </Button>
-                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => {
-                  setEditingId(webhook.id);
-                  setEditor({ name: webhook.name, kind: webhook.kind, url: "", categories: webhook.categories, enabled: webhook.enabled });
-                  setMessage(null);
-                }}>{t("feedback.webhooks.edit")}</Button>
-                <Button size="sm" variant="outline" aria-expanded={logFor === webhook.id} aria-controls={`log-${webhook.id}`} onClick={() => toggleLog(webhook.id)}>
-                  {logFor === webhook.id ? t("feedback.webhooks.hideLog") : t("feedback.webhooks.showLog")}
-                </Button>
-                {webhook.kind === "json" && (
-                  <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => rotate(webhook)}>{t("feedback.webhooks.rotate")}</Button>
-                )}
-                <Button size="sm" variant="ghost" className="text-red-600" disabled={busy !== null} onClick={() => setDeleting(webhook)}>{t("feedback.webhooks.delete")}</Button>
-              </div>
-              {logFor === webhook.id && (
-                <div id={`log-${webhook.id}`} className="rounded-xl border">
-                  {log === null ? (
-                    <p className="p-4 text-sm text-muted-foreground">{t("feedback.webhooks.loading")}</p>
-                  ) : !log.length ? (
-                    <p className="p-4 text-sm text-muted-foreground">{t("feedback.webhooks.noDeliveries")}</p>
-                  ) : (
-                    <ul className="divide-y text-sm">
-                      {log.map((item) => (
-                        <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
-                          <div>
-                            <p>
-                              {item.is_test ? t("feedback.webhooks.testDelivery") : item.submission_id ? (
-                                <a className="font-medium hover:underline" href={`/admin/feedback/${item.submission_id}`}>
-                                  {item.category ? categoryLabel(item.category) : item.submission_id.slice(0, 8)}
-                                </a>
-                              ) : "—"}
-                              <span className="text-muted-foreground"> · <time dateTime={item.created_at}>{when(item.created_at)}</time></span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.attempt_log.map((attempt) => attempt.status_code ? `HTTP ${attempt.status_code}` : attempt.error).filter(Boolean).join(" → ") || t("feedback.webhooks.attempts", { count: item.attempts })}
-                              {item.status === "pending" && item.next_attempt_at && ` · ${t("feedback.webhooks.nextAttempt", { date: when(item.next_attempt_at) })}`}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <FeedbackStatusBadge status={item.status} label={t(`feedback.webhooks.deliveryStatus.${item.status}`)} />
-                            {!item.is_test && (item.status === "failed" || item.status === "cancelled") && (
-                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => retry(item.id, webhook.id)}>{t("feedback.triage.retry")}</Button>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                <div className="flex flex-wrap gap-1.5" aria-label={t("feedback.webhooks.categories")}>
+                  {webhook.categories.map((category) => <Badge key={category} variant="secondary">{categoryLabel(category)}</Badge>)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {webhook.last_delivered_at ? t("feedback.webhooks.lastDelivered", { date: when(webhook.last_delivered_at) }) : t("feedback.webhooks.neverDelivered")}
+                  {webhook.pending > 0 && ` · ${t("feedback.webhooks.pendingCount", { count: webhook.pending })}`}
+                  {webhook.env_source && !managed && ` · ${t("feedback.webhooks.fromEnv", { env: webhook.env_source })}`}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => test(webhook)}>
+                    {busy === `test-${webhook.id}` ? t("feedback.webhooks.testing") : t("feedback.webhooks.test")}
+                  </Button>
+                  {!managed && (
+                    <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => {
+                      setEditingId(webhook.id);
+                      setEditor({ name: webhook.name, kind: webhook.kind === "json" ? "json" : "discord", url: "", categories: webhook.categories, enabled: webhook.enabled });
+                      setMessage(null);
+                    }}>{t("feedback.webhooks.edit")}</Button>
+                  )}
+                  <Button size="sm" variant="outline" aria-expanded={logFor === webhook.id} aria-controls={`log-${webhook.id}`} onClick={() => toggleLog(webhook.id)}>
+                    {logFor === webhook.id ? t("feedback.webhooks.hideLog") : t("feedback.webhooks.showLog")}
+                  </Button>
+                  {webhook.kind === "json" && (
+                    <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => rotate(webhook)}>{t("feedback.webhooks.rotate")}</Button>
+                  )}
+                  {!managed && (
+                    <Button size="sm" variant="ghost" className="text-red-600" disabled={busy !== null} onClick={() => setDeleting(webhook)}>{t("feedback.webhooks.delete")}</Button>
                   )}
                 </div>
-              )}
-            </li>
-          ))}
+                {logFor === webhook.id && (
+                  <div id={`log-${webhook.id}`} className="rounded-xl border">
+                    {log === null ? (
+                      <p className="p-4 text-sm text-muted-foreground">{t("feedback.webhooks.loading")}</p>
+                    ) : !log.length ? (
+                      <p className="p-4 text-sm text-muted-foreground">{t("feedback.webhooks.noDeliveries")}</p>
+                    ) : (
+                      <ul className="divide-y text-sm">
+                        {log.map((item) => (
+                          <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                            <div>
+                              <p>
+                                {item.is_test ? t("feedback.webhooks.testDelivery") : item.submission_id ? (
+                                  <a className="font-medium hover:underline" href={`/admin/feedback/${item.submission_id}`}>
+                                    {item.category ? categoryLabel(item.category) : item.submission_id.slice(0, 8)}
+                                  </a>
+                                ) : "—"}
+                                <span className="text-muted-foreground"> · <time dateTime={item.created_at}>{when(item.created_at)}</time></span>
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.attempt_log.map((attempt) => attempt.error || (attempt.status_code ? `HTTP ${attempt.status_code}` : null)).filter(Boolean).join(" → ") || t("feedback.webhooks.attempts", { count: item.attempts })}
+                                {item.status === "pending" && item.next_attempt_at && ` · ${t("feedback.webhooks.nextAttempt", { date: when(item.next_attempt_at) })}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <FeedbackStatusBadge status={item.status} label={t(`feedback.webhooks.deliveryStatus.${item.status}`)} />
+                              {!item.is_test && (item.status === "failed" || item.status === "cancelled") && (
+                                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => retry(item.id, webhook.id)}>{t("feedback.triage.retry")}</Button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

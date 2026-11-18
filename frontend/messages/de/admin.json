@@ -251,7 +251,8 @@
       "type": "Typ",
       "kind": {
         "discord": "Discord",
-        "json": "JSON (signiert)"
+        "json": "JSON (signiert)",
+        "hermes": "Hermes"
       },
       "kindHint": {
         "discord": "Postet ein Embed in einen Discord-Kanal-Webhook.",
@@ -317,8 +318,10 @@
         "url_unresolvable": "Der Hostname konnte nicht aufgelöst werden.",
         "url_not_discord": "Discord-Webhook-URLs sehen so aus: https://discord.com/api/webhooks/…",
         "categories_required": "Wähle mindestens eine Kategorie.",
-        "invalid_name": "Gib einen Namen ein (bis zu 80 Zeichen)."
-      }
+        "invalid_name": "Gib einen Namen ein (bis zu 80 Zeichen).",
+        "webhook_managed": "Dieser Webhook ist auf dem Server eingerichtet. Du kannst ihn nur ein- oder ausschalten, testen und sein Protokoll lesen."
+      },
+      "serverConfigured": "Auf dem Server eingerichtet. Erhält alle Kategorien."
     }
   }
 }

@@ -756,3 +756,155 @@ async def test_deletion_waits_for_submission_and_scrubs_snapshot(db_session, cle
     row = (await db_session.execute(text("SELECT user_id, email FROM feedback_submissions WHERE id = :id"),
                                     {"id": result["id"]})).one()
     assert tuple(row) == (None, None)
+
+
+# --- Hermes assistant (server-configured) ----------------------------------------------
+
+HERMES_URL = "http://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip"
+HERMES_SECRET = "HERMES-ROUTE-SECRET"
+
+
+@pytest.fixture
+def hermes(monkeypatch):
+    """The gateway: answers each send with the next (status, body) in ``hermes.answers``."""
+
+    class Gateway:
+        answers: list[tuple[int, dict]] = []
+        calls: list[dict] = []
+
+    async def post_configured(url, body, headers):
+        Gateway.calls.append({"url": url, "raw": body, "body": json.loads(body), "headers": headers})
+        status, answer = Gateway.answers.pop(0) if Gateway.answers else (202, {"status": "accepted"})
+        return httpx.Response(status), json.dumps(answer).encode()
+
+    Gateway.answers, Gateway.calls = [], []
+    monkeypatch.setattr(delivery, "post_configured", post_configured)
+    return Gateway
+
+
+def hermes_config(app, url=HERMES_URL, secret=HERMES_SECRET):
+    config = app.state.config
+    config.hermes_feedback_webhook_url = url
+    config.hermes_feedback_webhook_secret = secret
+    return config
+
+
+async def hermes_row(db_session):
+    return (await db_session.execute(text("SELECT * FROM feedback_webhooks WHERE kind = 'hermes'"))).mappings().first()
+
+
+async def test_without_the_hermes_env_there_is_no_row_and_nothing_is_sent(client, db_session, clean, app, hermes, no_immediate):
+    for url, secret in ((None, None), (HERMES_URL, None), (None, HERMES_SECRET), ("", "")):
+        assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app, url, secret)) == "absent"
+    user = await create_user(db_session)
+    assert (await submit(client, user["id"])).status_code in (200, 201)
+    assert await hermes_row(db_session) is None
+    assert await deliveries(db_session) == []
+    await delivery.deliver_due(db_session)
+    assert hermes.calls == []
+
+    # Unsetting the variables later removes the destination.
+    assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app)) == "created"
+    assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app, None, None)) == "removed"
+    assert await hermes_row(db_session) is None
+
+
+async def test_hermes_receives_every_category_signed_and_filed(client, db_session, clean, app, hermes, no_immediate):
+    assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app)) == "created"
+    row = await hermes_row(db_session)
+    assert row["enabled"] and row["categories"] == ["bug", "feature", "general", "sales", "cancellation"]
+    assert row["url_hint"] == "" and HERMES_SECRET not in row["secret_encrypted"] and "8644" not in row["url_encrypted"]
+
+    user = await create_user(db_session)
+    for category in ("bug", "sales", "cancellation"):
+        assert (await submit(client, user["id"], category=category)).status_code in (200, 201)
+    assert await delivery.deliver_due(db_session) == {"delivered": 3}
+    assert {call["body"]["submission"]["category"] for call in hermes.calls} == {"bug", "sales", "cancellation"}
+    call = hermes.calls[0]
+    assert call["url"] == HERMES_URL
+    [stored] = await deliveries(db_session, submission_id=call["body"]["submission"]["id"])
+    assert call["body"]["delivery_id"] == stored["id"] == call["headers"]["X-Request-ID"]
+    assert set(call["body"]) == {"type", "version", "delivery_id", "submission"} and call["body"]["type"] == "supoclip.feedback"
+    assert set(call["body"]["submission"]) == {
+        "id", "category", "message", "user_id", "email", "page_url", "platform", "app_version", "created_at"}
+    assert call["body"]["submission"]["email"] == user["email"] and call["body"]["submission"]["platform"] == "ios"
+    timestamp = call["headers"]["X-Webhook-Timestamp"]
+    assert call["headers"]["X-Webhook-Signature-V2"] == hmac.new(
+        HERMES_SECRET.encode(), f"{timestamp}.".encode() + call["raw"], hashlib.sha256).hexdigest()
+
+
+async def test_an_ignored_hermes_delivery_is_retried_with_the_same_id(client, db_session, clean, app, hermes, no_immediate):
+    await webhooks.sync_hermes_webhook(db_session, hermes_config(app))
+    user = await create_user(db_session)
+    submission_id = (await submit(client, user["id"])).json()["id"]
+    hermes.answers = [(200, {"status": "ignored", "reason": "script"}), (202, {"status": "accepted"})]
+
+    assert await delivery.deliver_due(db_session) == {"pending": 1}
+    [row] = await deliveries(db_session, submission_id=submission_id)
+    assert (row["status"], row["last_status_code"], row["last_error"]) == ("pending", 200, "HTTP 200 ignored")
+    await make_due(db_session)
+    assert await delivery.deliver_due(db_session) == {"delivered": 1}
+    assert hermes.calls[0]["body"]["delivery_id"] == hermes.calls[1]["body"]["delivery_id"] == row["id"]
+
+
+async def test_admins_can_only_switch_test_and_read_the_hermes_webhook(
+    client, db_session, clean, app, admin, auth_headers, hermes, no_immediate
+):
+    await webhooks.sync_hermes_webhook(db_session, hermes_config(app))
+    listed = await client.get("/admin/feedback-webhooks", headers=auth_headers)
+    [webhook] = [w for w in listed.json()["webhooks"] if w["kind"] == "hermes"]
+    assert webhook["name"] == "Hermes assistant" and webhook["url_hint"] == ""
+    assert "8644" not in listed.text and HERMES_SECRET not in listed.text
+    hook = f"/admin/feedback-webhooks/{webhook['id']}"
+
+    for change in ({"name": "Mine"}, {"url": "https://hooks.example.com/x"}, {"categories": ["bug"]}):
+        response = await client.patch(hook, json=change, headers=auth_headers)
+        assert response.status_code == 422 and response.json()["detail"]["code"] == "webhook_managed", change
+    assert (await client.delete(hook, headers=auth_headers)).status_code == 409
+    assert (await client.post(f"{hook}/rotate-secret", headers=auth_headers)).status_code == 404
+    created = await client.post("/admin/feedback-webhooks", headers=auth_headers,
+                                json={"name": "x", "kind": "hermes", "url": HERMES_URL, "categories": ["bug"]})
+    assert created.status_code == 422
+
+    tested = await client.post(f"{hook}/test", headers=auth_headers)
+    assert tested.status_code == 200 and tested.json()["delivery"]["status"] == "delivered"
+    sample = hermes.calls[-1]["body"]
+    assert sample["submission"]["category"] == "test" and sample["submission"]["message"] == "Test from SupoClip admin"
+    assert sample["delivery_id"] == tested.json()["delivery"]["id"]
+    log = (await client.get(f"{hook}/deliveries", headers=auth_headers)).json()["deliveries"]
+    assert log[0]["is_test"] and log[0]["status"] == "delivered"
+
+    # Off stays off across restarts; the URL and secret follow the environment.
+    assert (await client.patch(hook, json={"enabled": False}, headers=auth_headers)).status_code == 200
+    assert await webhooks.sync_hermes_webhook(db_session, hermes_config(app, secret="ROTATED")) == "updated"
+    destination = await webhooks.load_destination(db_session, webhook["id"])
+    assert destination["enabled"] is False and destination["secret"] == "ROTATED"
+    user = await create_user(db_session)
+    await submit(client, user["id"])
+    assert [d for d in await deliveries(db_session) if not d["is_test"]] == []
+
+
+async def test_a_failed_hermes_test_is_reported(client, db_session, clean, app, admin, auth_headers, hermes):
+    await webhooks.sync_hermes_webhook(db_session, hermes_config(app))
+    row = await hermes_row(db_session)
+    hermes.answers = [(200, {"status": "ignored"})]
+    tested = (await client.post(f"/admin/feedback-webhooks/{row['id']}/test", headers=auth_headers)).json()["delivery"]
+    assert tested["status"] == "failed" and tested["error"] == "HTTP 200 ignored"
+
+
+async def test_admin_entered_webhooks_still_cannot_point_at_the_gateway(client, db_session, clean, app, admin, auth_headers):
+    await webhooks.sync_hermes_webhook(db_session, hermes_config(app))
+    for url in (HERMES_URL, "https://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip"):
+        response = await client.post("/admin/feedback-webhooks", headers=auth_headers,
+                                      json={"name": "x", "kind": "json", "url": url, "categories": ["bug"]})
+        assert response.status_code == 422 and response.json()["detail"]["code"] in ("url_not_https", "url_private_address")
+    hook = (await make_webhook(db_session, kind="json", url=JSON_URL))[0]
+    response = await client.patch(f"/admin/feedback-webhooks/{hook['id']}", headers=auth_headers,
+                                  json={"url": "https://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip"})
+    assert response.status_code == 422 and response.json()["detail"]["code"] == "url_private_address"
+
+
+async def test_hermes_url_must_be_http(db_session, clean, app):
+    with pytest.raises(webhooks.InvalidWebhook):
+        await webhooks.sync_hermes_webhook(db_session, hermes_config(app, url="file:///etc/passwd"))
+    assert await hermes_row(db_session) is None

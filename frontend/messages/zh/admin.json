@@ -251,7 +251,8 @@
       "type": "类型",
       "kind": {
         "discord": "Discord",
-        "json": "JSON（已签名）"
+        "json": "JSON（已签名）",
+        "hermes": "Hermes"
       },
       "kindHint": {
         "discord": "向 Discord 频道 webhook 发布一条 embed 消息。",
@@ -317,8 +318,10 @@
         "url_unresolvable": "无法解析主机名。",
         "url_not_discord": "Discord webhook URL 的格式为 https://discord.com/api/webhooks/…",
         "categories_required": "请至少选择一个类别。",
-        "invalid_name": "请输入名称（最多 80 个字符）。"
-      }
+        "invalid_name": "请输入名称（最多 80 个字符）。",
+        "webhook_managed": "此 Webhook 在服务器上配置。你只能开启或关闭、测试并查看其日志。"
+      },
+      "serverConfigured": "在服务器上配置，接收所有类别。"
     }
   }
 }

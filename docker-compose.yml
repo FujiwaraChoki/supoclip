@@ -249,6 +249,9 @@ services:
       - "SES_FROM_EMAIL=${SES_FROM_EMAIL:-SupoClip <onboarding@example.com>}"
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - DISCORD_FEEDBACK_WEBHOOK_URL=${DISCORD_FEEDBACK_WEBHOOK_URL}
+      # Hermes assistant route for every feedback submission (docs/feedback.md)
+      - HERMES_FEEDBACK_WEBHOOK_URL=${HERMES_FEEDBACK_WEBHOOK_URL:-}
+      - HERMES_FEEDBACK_WEBHOOK_SECRET=${HERMES_FEEDBACK_WEBHOOK_SECRET:-}
       # Cancellation reviews: Stripe signing secrets per account (no Stripe API key)
       - STRIPE_CANCELLATION_WEBHOOK_SECRETS=${STRIPE_CANCELLATION_WEBHOOK_SECRETS:-}
       - STRIPE_SOURCE_ACCOUNT_ID=${STRIPE_SOURCE_ACCOUNT_ID:-}

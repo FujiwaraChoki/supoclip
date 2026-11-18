@@ -8,7 +8,7 @@ const webhook = {
   url_hint: "discord.com/…k3Yz",
   categories: ["bug", "feature"],
   enabled: true,
-  env_source: null,
+  env_source: null as string | null,
   has_secret: false,
   created_at: "2026-11-17T09:00:00Z",
   updated_at: "2026-11-17T09:00:00Z",
@@ -32,6 +32,28 @@ describe("FeedbackWebhookManager", () => {
     expect(screen.getByText("Bug report")).toBeInTheDocument();
     expect(screen.getByText("2 failed deliveries")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Send feedback to Team Discord" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("shows the server-configured Hermes webhook read-only, with its switch, test and log", async () => {
+    const hermes = {
+      ...webhook, id: "hook-h", name: "Hermes assistant", kind: "hermes", url_hint: "", env_source: "HERMES_FEEDBACK_WEBHOOK_URL",
+      categories: ["bug", "feature", "general", "sales", "cancellation"], failed: 0,
+    };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(listing([hermes]))
+      .mockResolvedValueOnce(Response.json({ delivery: { id: "d1", status: "delivered", status_code: 202, error: null } }));
+    render(<FeedbackWebhookManager />);
+
+    const row = (await screen.findByText("Hermes assistant")).closest("li")!;
+    expect(within(row).getByText("Configured on the server. Receives every category.")).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(within(row).queryByText(/HERMES_FEEDBACK_WEBHOOK_URL/)).not.toBeInTheDocument();
+    expect(within(row).getByRole("switch", { name: "Send feedback to Hermes assistant" })).toBeEnabled();
+    expect(within(row).getByRole("button", { name: "Deliveries" })).toBeInTheDocument();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Send test" }));
+    await waitFor(() => expect(fetch).toHaveBeenLastCalledWith("/api/admin/feedback-webhooks/hook-h/test", { method: "POST" }));
   });
 
   it("creates a JSON webhook and shows its secret once", async () => {

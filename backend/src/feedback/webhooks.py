@@ -12,12 +12,13 @@ import logging
 import secrets
 import uuid
 from typing import Any, Iterable
+from urllib.parse import urlsplit
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..runtime_settings import decrypt_setting_value, encrypt_setting_value
-from . import CATEGORIES, ENV_WEBHOOKS, WEBHOOK_KINDS
+from . import CATEGORIES, ENV_WEBHOOKS, HERMES_KIND, HERMES_NAME, WEBHOOK_KINDS
 from .url_safety import UnsafeWebhookUrl, resolve_public_address, url_hint, validate_webhook_url
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,13 @@ class InvalidWebhook(ValueError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+class ManagedWebhook(InvalidWebhook):
+    """The Hermes webhook comes from the server's environment: admins may only switch it on or off."""
+
+    def __init__(self):
+        super().__init__("webhook_managed", "This webhook is configured on the server. You can only turn it on or off.")
 
 
 def new_secret() -> str:
@@ -123,6 +131,8 @@ async def update_webhook(
     ).mappings().first()
     if current is None:
         return None
+    if current["kind"] == HERMES_KIND and (name is not None or (url or "").strip() or categories is not None):
+        raise ManagedWebhook()
     sets, params = ["updated_by = :admin", "updated_at = NOW()"], {"id": webhook_id, "admin": admin_id}
     if name is not None:
         sets.append("name = :name")
@@ -165,6 +175,11 @@ async def rotate_secret(db: AsyncSession, webhook_id: str, admin_id: str) -> str
 
 
 async def delete_webhook(db: AsyncSession, webhook_id: str) -> bool:
+    kind = (
+        await db.execute(text("SELECT kind FROM feedback_webhooks WHERE id = :id"), {"id": webhook_id})
+    ).scalar()
+    if kind == HERMES_KIND:
+        raise ManagedWebhook()
     result = await db.execute(text("DELETE FROM feedback_webhooks WHERE id = :id"), {"id": webhook_id})
     await db.commit()
     return bool(result.rowcount)
@@ -229,3 +244,56 @@ async def import_env_webhooks(db: AsyncSession, config) -> list[str]:
         imported.append(env_key)
         logger.info("Imported %s as feedback webhook %s", env_key, webhook["id"])
     return imported
+
+
+async def sync_hermes_webhook(db: AsyncSession, config) -> str:
+    """Keep the server-configured Hermes webhook in step with the environment. Runs at API start.
+
+    Both ``HERMES_FEEDBACK_WEBHOOK_URL`` and ``HERMES_FEEDBACK_WEBHOOK_SECRET`` set: one
+    ``hermes`` row for every category, its URL and secret refreshed (encrypted, like the
+    others, so the cron worker sends from the row and needs neither variable). The admin's
+    on/off choice is kept. Either one unset: the row and its delivery log are removed, so
+    nothing is queued for it. Returns "created", "updated", "removed" or "absent".
+
+    The URL is not held to the public-https rule for admin-entered webhooks: it comes from
+    the operator and may name the gateway on an internal address. It must be http(s).
+    """
+    url = (getattr(config, "hermes_feedback_webhook_url", None) or "").strip()
+    secret = (getattr(config, "hermes_feedback_webhook_secret", None) or "").strip()
+    if not url or not secret:
+        removed = await db.execute(text("DELETE FROM feedback_webhooks WHERE kind = :kind"), {"kind": HERMES_KIND})
+        await db.commit()
+        return "removed" if removed.rowcount else "absent"
+    if urlsplit(url).scheme.lower() not in ("http", "https") or not urlsplit(url).hostname:
+        raise InvalidWebhook("url_invalid", "HERMES_FEEDBACK_WEBHOOK_URL must be an http(s) URL.")
+    params = {
+        "kind": HERMES_KIND,
+        "name": HERMES_NAME,
+        "url": encrypt_setting_value(url),
+        "secret": encrypt_setting_value(secret),
+        "categories": list(CATEGORIES),
+    }
+    updated = await db.execute(
+        text(
+            "UPDATE feedback_webhooks SET name = :name, url_encrypted = :url, url_hint = '', "
+            "secret_encrypted = :secret, categories = :categories, env_source = 'HERMES_FEEDBACK_WEBHOOK_URL', "
+            "updated_at = NOW() WHERE kind = :kind"
+        ),
+        params,
+    )
+    if updated.rowcount:
+        await db.commit()
+        return "updated"
+    await db.execute(
+        text(
+            """
+            INSERT INTO feedback_webhooks
+                (id, name, kind, url_encrypted, url_hint, secret_encrypted, categories, enabled, env_source)
+            VALUES (:id, :name, :kind, :url, '', :secret, :categories, TRUE, 'HERMES_FEEDBACK_WEBHOOK_URL')
+            ON CONFLICT (kind) WHERE kind = 'hermes' DO NOTHING
+            """
+        ),
+        {**params, "id": str(uuid.uuid4())},
+    )
+    await db.commit()
+    return "created"
