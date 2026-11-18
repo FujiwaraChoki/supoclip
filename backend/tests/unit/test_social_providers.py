@@ -706,3 +706,106 @@ def test_tiktok_profile_only_requests_basic_scope_fields():
     assert profile.external_account_id == "o1"
     assert profile.display_name == "Creator"
     assert profile.username is None
+
+
+# ----------------------------------------------------------------------
+# YouTube quota and rate limits
+# ----------------------------------------------------------------------
+def _youtube_error(status, reason, message="Request refused"):
+    return FakeResponse(
+        status,
+        {"error": {"code": status, "message": message, "errors": [{"reason": reason, "message": message}]}},
+    )
+
+
+def _youtube_start_failure(clip_file, response):
+    session = FakeSession({("POST", "upload/youtube/v3/videos"): response})
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(YouTubeProvider(_config(), session=session), _request(clip_file))
+    return exc.value
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        _youtube_error(
+            403,
+            "quotaExceeded",
+            "The request cannot be completed because you have exceeded your quota.",
+        ),
+        _youtube_error(403, "dailyLimitExceeded", "Daily Limit Exceeded"),
+        # No reason code, but the message says what happened.
+        FakeResponse(403, {"error": {"code": 403, "message": "You have exceeded your quota."}}),
+    ],
+)
+def test_youtube_daily_quota_waits_for_the_pacific_midnight_reset(clip_file, response):
+    from src.social.youtube import next_quota_reset
+
+    error = _youtube_start_failure(clip_file, response)
+    assert error.retryable is True
+    assert error.quota_reset_at is not None
+    assert abs((error.quota_reset_at - next_quota_reset()).total_seconds()) < 5
+    assert "daily upload quota" in str(error)
+    assert error.outcome_unknown is False
+
+
+def test_youtube_daily_quota_on_the_upload_itself_is_not_outcome_unknown(clip_file):
+    session = FakeSession({
+        ("POST", "upload/youtube/v3/videos"): FakeResponse(
+            200, {}, headers={"Location": "https://upload.example/session"}
+        ),
+        ("PUT", "upload.example/session"): _youtube_error(403, "quotaExceeded", "quota"),
+    })
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(YouTubeProvider(_config(), session=session), _request(clip_file))
+    assert exc.value.quota_reset_at is not None
+    assert exc.value.outcome_unknown is False
+
+
+@pytest.mark.parametrize(
+    "status,reason", [(403, "rateLimitExceeded"), (403, "userRateLimitExceeded"), (429, "rateLimitExceeded")]
+)
+def test_youtube_rate_limits_keep_the_short_backoff(clip_file, status, reason):
+    # Rate limit messages often mention "quota" too; the reason decides.
+    error = _youtube_start_failure(
+        clip_file, _youtube_error(status, reason, "Too many requests for this quota bucket.")
+    )
+    assert error.retryable is True
+    assert error.quota_reset_at is None
+
+
+def test_youtube_channel_upload_limit_fails_with_a_clear_message(clip_file):
+    error = _youtube_start_failure(
+        clip_file, _youtube_error(403, "uploadLimitExceeded", "The user has exceeded the number of videos they may upload.")
+    )
+    assert error.retryable is False
+    assert error.quota_reset_at is None
+    assert "channel has reached YouTube's upload limit" in str(error)
+
+
+def test_youtube_other_forbidden_errors_are_not_retried(clip_file):
+    error = _youtube_start_failure(clip_file, _youtube_error(403, "forbidden", "Forbidden"))
+    assert error.retryable is False
+    assert error.quota_reset_at is None
+
+
+@pytest.mark.parametrize(
+    "now,reset",
+    [
+        # Winter (PST, UTC-8).
+        ("2026-11-18T10:00:00+00:00", "2026-11-19T08:05:00+00:00"),
+        # 23:30 Pacific: the reset is half an hour away, not a day.
+        ("2026-11-18T07:30:00+00:00", "2026-11-18T08:05:00+00:00"),
+        # Summer (PDT, UTC-7).
+        ("2026-07-01T12:00:00+00:00", "2026-07-02T07:05:00+00:00"),
+        # The night DST ends (1 Nov 2026): midnight before it is still PDT.
+        ("2026-10-31T20:00:00+00:00", "2026-11-01T07:05:00+00:00"),
+        ("2026-11-01T12:00:00+00:00", "2026-11-02T08:05:00+00:00"),
+    ],
+)
+def test_next_quota_reset_is_pacific_midnight(now, reset):
+    from datetime import datetime
+
+    from src.social.youtube import next_quota_reset
+
+    assert next_quota_reset(datetime.fromisoformat(now)) == datetime.fromisoformat(reset)

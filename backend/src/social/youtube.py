@@ -11,8 +11,9 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..config import Config, get_config
 from .base import (
@@ -35,6 +36,26 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API_BASE = "https://www.googleapis.com/youtube/v3"
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
+
+# Error reasons (``error.errors[].reason``) that YouTube returns on 403/429.
+# The project's daily quota resets at midnight Pacific time; retrying before
+# then only fails again.
+DAILY_QUOTA_REASONS = frozenset({"quotaExceeded", "dailyLimitExceeded"})
+# Short-lived throttling: a backoff of minutes is enough.
+RATE_LIMIT_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
+# The channel itself may not upload more for now (a per-channel cap).
+CHANNEL_UPLOAD_LIMIT_REASONS = frozenset({"uploadLimitExceeded"})
+QUOTA_TIMEZONE = "America/Los_Angeles"
+# Retry a little after midnight so clock skew never lands us just before it.
+QUOTA_RESET_GRACE = timedelta(minutes=5)
+DAILY_QUOTA_MESSAGE = (
+    "YouTube's daily upload quota for SupoClip is used up. It resets at "
+    "midnight Pacific time"
+)
+CHANNEL_UPLOAD_LIMIT_MESSAGE = (
+    "This YouTube channel has reached YouTube's upload limit for now. "
+    "YouTube usually lifts it within 24 hours; retry the post then."
+)
 
 SCOPES = (
     "https://www.googleapis.com/auth/youtube.upload",
@@ -287,14 +308,59 @@ class YouTubeProvider(SocialProvider):
                 f"YouTube rejected the credentials while trying to {action}: {message}",
                 reauth=True,
             )
+        reasons = _error_reasons(response)
+        if response.status_code in (403, 429):
+            if reasons & CHANNEL_UPLOAD_LIMIT_REASONS:
+                raise SocialProviderError(CHANNEL_UPLOAD_LIMIT_MESSAGE)
+            if reasons & DAILY_QUOTA_REASONS or (
+                not reasons & RATE_LIMIT_REASONS and "quota" in message.lower()
+            ):
+                raise SocialProviderError(
+                    f"{DAILY_QUOTA_MESSAGE} (while trying to {action}).",
+                    retryable=True,
+                    quota_reset_at=next_quota_reset(),
+                )
         retryable = response.status_code in (403, 429, 500, 502, 503, 504) and (
-            "quota" in message.lower()
+            bool(reasons & RATE_LIMIT_REASONS)
             or "rate" in message.lower()
+            or response.status_code == 429
             or response.status_code >= 500
         )
         raise SocialProviderError(
             f"Failed to {action}: {message}", retryable=retryable
         )
+
+
+def _error_reasons(response) -> Set[str]:
+    """The ``reason`` codes of a Google API error body."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return set()
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return set()
+    entries = list(error.get("errors") or []) + list(error.get("details") or [])
+    return {
+        str(entry["reason"])
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("reason")
+    }
+
+
+def next_quota_reset(now: Optional[datetime] = None) -> datetime:
+    """The next midnight Pacific time (plus a small grace), in UTC."""
+    now = now or datetime.now(timezone.utc)
+    try:
+        zone = ZoneInfo(QUOTA_TIMEZONE)
+    except ZoneInfoNotFoundError:
+        # Without tz data assume PST: never earlier than the real reset.
+        zone = timezone(timedelta(hours=-8))
+    local = now.astimezone(zone)
+    midnight = datetime(local.year, local.month, local.day, tzinfo=zone) + timedelta(days=1)
+    # Re-anchor after adding a day so a DST change lands on local midnight.
+    midnight = datetime(midnight.year, midnight.month, midnight.day, tzinfo=zone)
+    return midnight.astimezone(timezone.utc) + QUOTA_RESET_GRACE
 
 
 def _to_int(value: Any) -> Optional[int]:

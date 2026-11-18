@@ -58,6 +58,7 @@ class SocialProviderError(Exception):
         reauth: bool = False,
         rejected: bool = False,
         outcome_unknown: bool = False,
+        quota_reset_at: Optional[datetime] = None,
     ):
         # Messages reach logs, the database and API responses.
         super().__init__(redact(message))
@@ -72,6 +73,10 @@ class SocialProviderError(Exception):
         # (e.g. a timeout after the video was sent). Retrying automatically
         # could publish it twice, so only the user may retry.
         self.outcome_unknown = outcome_unknown
+        # ``quota_reset_at`` means the platform refused because our app's
+        # daily quota is used up (shared by every connected account). Nothing
+        # was published; a retry before this time fails the same way.
+        self.quota_reset_at = quota_reset_at
 
 
 @dataclass

@@ -67,6 +67,11 @@ PUBLISH_JOB_TIMEOUT_SECONDS = 3600
 # timeout so a live upload is never swept.
 STALE_PUBLISHING_SECONDS = 2 * PUBLISH_JOB_TIMEOUT_SECONDS
 MAX_HASHTAGS = 30
+# Redis key (on the job queue's Redis) holding when a provider's app-wide
+# daily quota resets. Every worker checks it before claiming a post, so one
+# quota error parks the whole queue instead of each post hitting the API.
+QUOTA_COOLDOWN_KEY = "social:quota-cooldown:{provider}"
+PROVIDER_LABELS = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 # The views chart only appears once there are this many days of measurements.
 VIEWS_CHART_MIN_DAYS = 3
 # OAuth states started from the native app carry this prefix, so the web
@@ -735,6 +740,12 @@ class SocialService:
             logger.info("Skipping publish for post %s in status %s", post_id, post["status"])
             return post
 
+        # The app's daily quota is used up: wait for the reset without
+        # claiming (no attempt spent) or calling the platform.
+        reset_at = await self._quota_cooldown(post["provider"])
+        if reset_at is not None:
+            return await self._defer_until_quota_reset(post, reset_at)
+
         claimed = await self.repo.claim_post(
             self.db,
             post_id,
@@ -885,8 +896,16 @@ class SocialService:
             and not exc.outcome_unknown
             and attempts < max(1, self.config.social_publish_max_attempts)
         )
+        if exc.quota_reset_at is not None:
+            await self._set_quota_cooldown(post["provider"], exc.quota_reset_at)
         if can_retry:
-            delay = min(3600, 300 * attempts)
+            if exc.quota_reset_at is not None:
+                # Minutes of backoff can't outlast a daily quota: retry once,
+                # after the reset. The claim already counted this attempt.
+                delay = _seconds_until(exc.quota_reset_at)
+                message = _quota_wait_message(message, exc.quota_reset_at)
+            else:
+                delay = min(3600, 300 * attempts)
             await self.repo.update_post(
                 self.db, post["id"], status="queued", error_message=message, **handle_fields
             )
@@ -903,6 +922,65 @@ class SocialService:
                 self.db, post["id"], status="failed", error_message=message, **handle_fields
             )
             logger.error("Publish failed for post %s: %s", post["id"], message)
+        return await self.repo.get_post(self.db, post["id"]) or post
+
+    async def _quota_cooldown(self, provider: str) -> Optional[datetime]:
+        """When ``provider``'s exhausted daily quota resets, or ``None``."""
+        get_pool = getattr(self.queue_adapter, "get_pool", None)
+        if get_pool is None:
+            return None
+        try:
+            redis = await get_pool()
+            value = await redis.get(QUOTA_COOLDOWN_KEY.format(provider=provider))
+        except Exception as exc:  # noqa: BLE001 - publishing never depends on it
+            logger.warning("Could not read the %s quota cooldown: %s", provider, redact(exc))
+            return None
+        if isinstance(value, bytes):
+            value = value.decode()
+        reset_at = _parse_datetime(value) if value else None
+        if reset_at is None or reset_at <= datetime.now(timezone.utc):
+            return None
+        return reset_at
+
+    async def _set_quota_cooldown(self, provider: str, reset_at: datetime) -> None:
+        get_pool = getattr(self.queue_adapter, "get_pool", None)
+        if get_pool is None:
+            return
+        try:
+            redis = await get_pool()
+            await redis.set(
+                QUOTA_COOLDOWN_KEY.format(provider=provider),
+                reset_at.isoformat(),
+                ex=_seconds_until(reset_at),
+            )
+        except Exception as exc:  # noqa: BLE001 - the post itself is still deferred
+            logger.warning("Could not store the %s quota cooldown: %s", provider, redact(exc))
+
+    async def _defer_until_quota_reset(
+        self, post: Dict[str, Any], reset_at: datetime
+    ) -> Dict[str, Any]:
+        """Leave a queued post queued and run its job again after the reset."""
+        attempts = int(post.get("attempts") or 0)
+        delay = _seconds_until(reset_at)
+        # A job id of its own: the running job still holds ``social:{id}:{n}``.
+        job_id = f"social:{post['id']}:{attempts}:quota:{int(reset_at.timestamp())}"
+        kwargs: Dict[str, Any] = {"_job_id": job_id, "_defer_by": timedelta(seconds=delay)}
+        try:
+            await self.queue_adapter.enqueue_job(PUBLISH_JOB_NAME, post["id"], **kwargs)
+        except DuplicateJobError:
+            pass
+        await self.repo.update_post(
+            self.db,
+            post["id"],
+            error_message=_quota_wait_message(
+                f"{PROVIDER_LABELS.get(post['provider'], post['provider'])}'s daily upload "
+                "quota for SupoClip is used up.",
+                reset_at,
+            ),
+        )
+        logger.info(
+            "Post %s waits %ss for the %s quota reset", post["id"], delay, post["provider"]
+        )
         return await self.repo.get_post(self.db, post["id"]) or post
 
     async def resolve_pending_post(self, post: Dict[str, Any]) -> Dict[str, Any]:
@@ -1154,6 +1232,15 @@ def _parse_schedule(value: Optional[str]) -> Optional[datetime]:
     if parsed is None:
         raise SocialValidationError("scheduled_for must be an ISO-8601 timestamp")
     return parsed
+
+
+def _seconds_until(moment: datetime) -> int:
+    return max(1, int((moment - datetime.now(timezone.utc)).total_seconds()) + 1)
+
+
+def _quota_wait_message(reason: str, reset_at: datetime) -> str:
+    when = reset_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return f"{reason.rstrip('.')}. It will be retried automatically after {when}."[:2000]
 
 
 def _parse_datetime(value: Any) -> Optional[datetime]:
