@@ -352,7 +352,7 @@ class WorkerSettings:
     """Configuration for arq worker."""
 
     from ..config import Config
-    from arq.connections import RedisSettings
+    from .redis_settings import arq_redis_settings
 
     config = Config()
 
@@ -377,9 +377,7 @@ class WorkerSettings:
     health_check_interval = 30
 
     # Redis settings from environment
-    redis_settings = RedisSettings(
-        host=config.redis_host, port=config.redis_port, password=config.redis_password, database=0
-    )
+    redis_settings = arq_redis_settings(config)
 
     # Retry settings
     max_tries = 3  # Retry failed jobs up to 3 times

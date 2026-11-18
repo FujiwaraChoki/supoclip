@@ -213,6 +213,8 @@ Fonts and transitions are configured by mounted files rather than environment va
 |---|---|---|
 | `REDIS_HOST` | `redis` in Docker, `localhost` in code | Redis hostname |
 | `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_CONNECT_TIMEOUT_SECONDS` | `10` | Time arq (API enqueue and every worker) allows to open a Redis connection |
+| `REDIS_CONNECT_RETRIES` | `5` | Retries, with backoff, when opening a Redis connection times out or fails, at startup and while a worker runs |
 | `DATABASE_URL` | injected by Docker | PostgreSQL connection string |
 | `DATABASE_POOL_SIZE` | `5` | Retained SQLAlchemy connections per API/worker process; must be positive |
 | `DATABASE_MAX_OVERFLOW` | `0` | Extra SQLAlchemy connections per process; must be nonnegative |

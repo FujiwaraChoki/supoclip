@@ -7,6 +7,7 @@ from typing import Optional
 from arq import create_pool
 from arq.connections import RedisSettings, ArqRedis
 from ..config import get_config
+from .redis_settings import arq_redis_settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,7 @@ class DuplicateJobError(RuntimeError):
 
 
 def _get_redis_settings() -> RedisSettings:
-    config = get_config()
-    return RedisSettings(host=config.redis_host, port=config.redis_port, password=config.redis_password, database=0)
+    return arq_redis_settings(get_config())
 
 
 class JobQueue:

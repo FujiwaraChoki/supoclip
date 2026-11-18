@@ -23,13 +23,13 @@ import os
 os.environ["SUPOCLIP_SERVICE"] = "cron-worker"
 
 from arq import cron  # noqa: E402
-from arq.connections import RedisSettings  # noqa: E402
 
 from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
 from ..cancellation_reviews.runner import process_cancellation_reviews  # noqa: E402
 from ..feedback.delivery import deliver_feedback_webhooks  # noqa: E402
 from .media_cleanup import cleanup_media, copy_pending_uploads, sweep_orphaned_media  # noqa: E402
+from .redis_settings import arq_redis_settings  # noqa: E402
 from .media_replication import check_media_storage, replicate_pending_media  # noqa: E402
 from .tasks import (  # noqa: E402
     dispatch_scheduled_social_posts,
@@ -51,12 +51,7 @@ class CronWorkerSettings:
     config = Config()
     functions = []
     queue_name = CRON_QUEUE_NAME
-    redis_settings = RedisSettings(
-        host=config.redis_host,
-        port=config.redis_port,
-        password=config.redis_password,
-        database=0,
-    )
+    redis_settings = arq_redis_settings(config)
     max_jobs = 4
     max_tries = 1
     job_timeout = 3600
