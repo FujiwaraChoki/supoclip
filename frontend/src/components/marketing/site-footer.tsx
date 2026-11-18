@@ -57,13 +57,18 @@ export function SiteFooter() {
           <p className="mt-2 text-xs leading-6 text-muted-foreground">
             {t("footer.operator", { company: COMPANY_NAME })}
           </p>
+          <a
+            href={DISCORD_COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border bg-[#5865f2]/5 px-3 py-2 text-xs font-medium transition-colors hover:border-[#5865f2]/40 hover:bg-[#5865f2]/10"
+          >
+            <Image src="/discord-mark.svg" alt="" width={16} height={12} className="h-auto shrink-0" />
+            {t("footer.discord")}
+          </a>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.github")}</a>
             <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.ios")}</a>
-            <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1.5 ${linkClassName}`}>
-              <Image src="/discord-mark.svg" alt="" width={16} height={12} className="h-auto shrink-0" />
-              {t("footer.discord")}
-            </a>
             <span>&copy; {new Date().getFullYear()} {COMPANY_NAME}</span>
           </div>
         </div>

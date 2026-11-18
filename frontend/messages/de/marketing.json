@@ -24,9 +24,15 @@
     }
   },
   "community": {
-    "title": "Tritt der SupoClip-Community auf Discord bei",
-    "body": "Teile Clips, hol dir Feedback, tausche Schnitttipps aus und stimme über neue Funktionen ab.",
-    "join": "Auf Discord beitreten"
+    "eyebrow": "SupoClip auf Discord",
+    "title": "Gemeinsam bessere Clips machen.",
+    "body": "Hol dir eine zweite Meinung zu deinem Schnitt, tausche Schnitttipps aus und sag uns, wie wir SupoClip verbessern können.",
+    "join": "Auf Discord beitreten",
+    "activities": {
+      "showcase": "Teile einen Clip und hol dir Feedback",
+      "tips": "Tausche Schnitttipps aus",
+      "ideas": "Stimme über Funktionsideen ab"
+    }
   },
   "footer": {
     "tagline": "Open-Source-KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",

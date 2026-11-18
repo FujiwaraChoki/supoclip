@@ -89,10 +89,16 @@ export default async function ChangelogPage() {
             href={DISCORD_COMMUNITY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-5 inline-flex items-center gap-2 rounded-sm text-sm font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground"
+            className="mt-7 flex w-fit items-center gap-3 rounded-2xl border bg-background p-3 pr-4 transition-colors hover:border-[#5865f2]/40 hover:bg-[#5865f2]/5"
           >
-            <Image src="/discord-mark.svg" alt="" width={18} height={13} className="h-auto shrink-0" />
-            {t("discordUpdates")}
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#5865f2]/10">
+              <Image src="/discord-mark.svg" alt="" width={22} height={16} className="h-auto" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold">{t("discordUpdates")}</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{t("discordDescription")}</span>
+            </span>
+            <ExternalLink aria-hidden="true" className="ml-1 size-3.5 shrink-0 text-muted-foreground" />
           </a>
         </div>
       </section>

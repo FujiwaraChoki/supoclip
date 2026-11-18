@@ -11,6 +11,7 @@
   "relatedChange": "Related change {label}",
   "viewOnGitHub": "View the changelog on GitHub",
   "discordUpdates": "Get updates on Discord",
+  "discordDescription": "Opt in to a ping when new release notes go live.",
   "categories": {
     "new": "New",
     "improved": "Improved",

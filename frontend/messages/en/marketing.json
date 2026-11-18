@@ -24,9 +24,15 @@
     }
   },
   "community": {
-    "title": "Join the SupoClip community on Discord",
-    "body": "Share clips, get feedback, swap editing tips, and vote on what we build next.",
-    "join": "Join on Discord"
+    "eyebrow": "SupoClip on Discord",
+    "title": "Make better clips together.",
+    "body": "Get a second opinion on a cut, trade editing tips, and tell us what would make SupoClip better.",
+    "join": "Join on Discord",
+    "activities": {
+      "showcase": "Share a clip and get feedback",
+      "tips": "Swap editing tips",
+      "ideas": "Vote on feature ideas"
+    }
   },
   "footer": {
     "tagline": "Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.",

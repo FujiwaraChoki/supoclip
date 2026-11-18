@@ -11,6 +11,7 @@
   "relatedChange": "Alteração relacionada {label}",
   "viewOnGitHub": "Ver o changelog no GitHub",
   "discordUpdates": "Receba novidades no Discord",
+  "discordDescription": "Ative os avisos quando publicarmos novas notas de versão.",
   "categories": {
     "new": "Novo",
     "improved": "Melhorado",

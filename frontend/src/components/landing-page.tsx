@@ -8,11 +8,14 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
+  Clapperboard,
   Clock,
   ExternalLink,
   Github,
   Info,
+  Lightbulb,
   Menu,
+  MessagesSquare,
   Upload,
   X,
 } from "lucide-react";
@@ -537,27 +540,50 @@ export default function LandingPage() {
 
       <FaqSection />
 
-      <section id="community" aria-labelledby="community-title" className="scroll-mt-24 px-6 pb-16 md:pb-24">
-        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 rounded-3xl border bg-muted/35 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-4">
-            <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border bg-background">
-              <Image src="/discord-mark.svg" alt="" width={26} height={19} className="h-auto" />
-            </span>
+      <section id="community" aria-labelledby="community-title" className="scroll-mt-24 px-6 pb-20 md:pb-28">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[32px] border bg-background">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_#5865f224,_transparent_65%)]"
+          />
+          <div className="relative grid gap-9 px-6 py-9 sm:p-10 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-16 lg:p-14">
             <div>
-              <h2 id="community-title" className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-semibold">
+                <Image src="/discord-mark.svg" alt="" width={19} height={14} className="h-auto shrink-0" />
+                {t("community.eyebrow")}
+              </div>
+              <h2 id="community-title" className="mt-5 max-w-lg text-balance font-display text-4xl font-bold leading-[1.04] tracking-tight sm:text-5xl">
                 {t("community.title")}
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground">
                 {t("community.body")}
               </p>
+              <Button asChild size="lg" className="mt-7 rounded-full bg-[#5865f2] px-6 text-white hover:bg-[#4752c4]">
+                <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
+                  {t("community.join")}
+                  <ArrowUpRight aria-hidden="true" className="size-4" />
+                </a>
+              </Button>
             </div>
+
+            <ul className="divide-y rounded-2xl border bg-background/85 px-4 shadow-sm sm:px-6">
+              {[
+                { key: "showcase", channel: "#showcase", Icon: Clapperboard },
+                { key: "tips", channel: "#creator-tips", Icon: MessagesSquare },
+                { key: "ideas", channel: "#feature-requests", Icon: Lightbulb },
+              ].map(({ key, channel, Icon }) => (
+                <li key={key} className="flex items-start gap-3 py-4 sm:items-center sm:py-5">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#5865f2]/10 text-[#4752c4] dark:text-[#b8bfff]">
+                    <Icon aria-hidden="true" className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{t(`community.activities.${key}`)}</p>
+                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">{channel}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-          <Button asChild variant="outline" className="shrink-0 rounded-full bg-background">
-            <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
-              {t("community.join")}
-              <ArrowUpRight aria-hidden="true" className="size-4" />
-            </a>
-          </Button>
         </div>
       </section>
 

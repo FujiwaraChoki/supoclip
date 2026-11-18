@@ -24,9 +24,15 @@
     }
   },
   "community": {
-    "title": "Únete a la comunidad de SupoClip en Discord",
-    "body": "Comparte clips, recibe comentarios, intercambia consejos de edición y vota por las próximas funciones.",
-    "join": "Únete en Discord"
+    "eyebrow": "SupoClip en Discord",
+    "title": "Creemos mejores clips en comunidad.",
+    "body": "Pide una segunda opinión sobre un corte, intercambia consejos de edición y cuéntanos cómo mejorar SupoClip.",
+    "join": "Únete en Discord",
+    "activities": {
+      "showcase": "Comparte un clip y recibe comentarios",
+      "tips": "Intercambia consejos de edición",
+      "ideas": "Vota por nuevas funciones"
+    }
   },
   "footer": {
     "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
