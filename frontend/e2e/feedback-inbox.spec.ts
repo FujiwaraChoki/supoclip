@@ -156,6 +156,25 @@ test("admins triage feedback and manage its webhooks", async ({ page }) => {
   await expect(page.getByText("demo-token")).toHaveCount(0);
   await page.screenshot({ path: `${shots}/webhooks.png`, fullPage: true });
 
+  // The Hermes assistant is configured on the server (HERMES_FEEDBACK_WEBHOOK_*); the row stands in for an API start.
+  const hermesId = randomUUID();
+  await prisma.$executeRaw`
+    INSERT INTO feedback_webhooks (id, name, kind, url_encrypted, url_hint, secret_encrypted, categories, enabled, env_source, created_at)
+    VALUES (${hermesId}, 'Hermes assistant', 'hermes', 'not-a-real-url', '', 'not-a-real-secret',
+      ARRAY['bug', 'feature', 'general', 'sales', 'cancellation'], TRUE, 'HERMES_FEEDBACK_WEBHOOK_URL', ${minutesAgo(1)})`;
+  await seedDeliveries(prisma, hermesId, ids);
+  await page.reload();
+  const hermes = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Hermes assistant" }) });
+  await expect(hermes.getByText("Configured on the server. Receives every category.")).toBeVisible();
+  await expect(hermes.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await expect(hermes.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await expect(hermes.getByRole("button", { name: "Send test" })).toBeVisible();
+  await hermes.getByRole("button", { name: "Deliveries" }).click();
+  await expect(hermes.getByText("HTTP 502 → HTTP 502 → HTTP 503")).toBeVisible();
+  await hermes.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${shots}/webhooks-hermes.png`, fullPage: true });
+  await hermes.getByRole("button", { name: "Hide deliveries" }).click();
+
   await page.getByRole("switch", { name: "Send feedback to Internal tools" }).click();
   await expect(page.getByText(/Internal tools is off/)).toBeVisible();
   await page.screenshot({ path: `${shots}/webhooks-disabled.png`, fullPage: true });
