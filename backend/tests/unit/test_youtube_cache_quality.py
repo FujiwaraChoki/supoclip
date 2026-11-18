@@ -61,7 +61,7 @@ def test_720p_cache_is_not_reused_for_a_1080p_request(cache, tmp_path):
 
 
 def test_720p_cache_does_not_short_circuit_1080p_sections(cache, monkeypatch):
-    _store(cache, "full-720.mp4", full_height=720)
+    _store(cache, "full-720.mp4", full_height=720, source_duration=100)
     segments = [{"start_time": 10, "end_time": 20}]
 
     with pytest.raises(source.PartialDownloadUnavailable):

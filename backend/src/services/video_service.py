@@ -672,6 +672,7 @@ class VideoService:
         errors: Optional[list] = None,
         progress_callback: Optional[ProgressCallback] = None,
         download_progress: int = 10,
+        duration: Optional[float] = None,
     ) -> Optional[Path]:
         """
         Download YouTube media for rendering.
@@ -679,7 +680,8 @@ class VideoService:
         With a proxy configured, ``ranges`` downloads only those padded
         sections (reusing the cache). Otherwise this returns a full file,
         stored so later edits do not fetch it again. ``errors`` collects the
-        redacted reason of each failed attempt.
+        redacted reason of each failed attempt. ``duration`` is the source's
+        current length, so media cached from another version is not reused.
         """
         logger.info(f"Starting video download: {url}")
         video_id = get_youtube_video_id(url)
@@ -703,6 +705,7 @@ class VideoService:
                         task_id=task_id,
                         budget=job_budget,
                         quality=quality,
+                        duration=duration,
                     )
                 except DownloadBudgetExceeded:
                     raise
@@ -728,6 +731,7 @@ class VideoService:
                 budget=job_budget,
                 skip_proxy=bypass_proxy,
                 quality=quality,
+                duration=duration,
             )
             return preserve_geo_restriction(path, section_error)
 
@@ -1134,6 +1138,20 @@ class VideoService:
         return source
 
     @staticmethod
+    def _segments_outlast_source(segments: List[Dict[str, Any]], duration: Optional[float]) -> bool:
+        """True when a segment ends past ``duration`` (with a 2 s tolerance)."""
+        if not duration or duration <= 0:
+            return False
+        for segment in segments:
+            try:
+                end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
+            except Exception:
+                continue
+            if end > duration + 2:
+                return True
+        return False
+
+    @staticmethod
     async def _select_highlight_segments(
         *,
         video_path: Path,
@@ -1175,6 +1193,12 @@ class VideoService:
                 if not segments and not (checkpoint.get("candidates") or checkpoint.get("segments")):
                     logger.info(
                         "Ignoring cached transcript analysis with no clip segments"
+                    )
+                elif VideoService._segments_outlast_source(segments, file_duration):
+                    # The URL's video was trimmed since this analysis was cached.
+                    logger.warning(
+                        "Ignoring cached transcript analysis with moments past the %.0f s source",
+                        file_duration,
                     )
                 else:
 
@@ -1413,8 +1437,11 @@ class VideoService:
                         )
 
                 video_id = get_youtube_video_id(url)
+                # The current length keeps media cached from an earlier
+                # version of the video (an uploader's trim) out of this job.
+                current_duration = float(source_duration) if source_duration else None
                 cached_full = (
-                    await run_in_thread(cached_full_media, video_id, download_quality)
+                    await run_in_thread(cached_full_media, video_id, download_quality, current_duration)
                     if video_id else None
                 )
                 # Audio first only when a proxy is configured and we do not
@@ -1432,6 +1459,7 @@ class VideoService:
                                 budget=job_budget,
                                 skip_proxy=True,
                                 quality=download_quality,
+                                duration=current_duration,
                             )
 
                         return download_analysis_source(
@@ -1439,7 +1467,7 @@ class VideoService:
                             video_id,
                             task_id=task_id,
                             budget=job_budget,
-                            duration=float(source_duration) if source_duration else None,
+                            duration=current_duration,
                             download_full=_download_full,
                         )
 
@@ -1453,7 +1481,7 @@ class VideoService:
                     audio_first = False
                     video_path = cached_full or await VideoService.download_video(
                         url, task_id=task_id, quality=download_quality, budget=job_budget,
-                        progress_callback=progress_callback,
+                        progress_callback=progress_callback, duration=current_duration,
                     )
                 video_path = preserve_geo_restriction(video_path, metadata_error)
                 if not video_path:
@@ -1685,6 +1713,7 @@ class VideoService:
                             url, task_id=task_id, quality=download_quality, budget=job_budget,
                             skip_proxy=not isinstance(section_error, PartialDownloadUnavailable),
                             progress_callback=progress_callback, download_progress=65,
+                            duration=file_duration,
                         )
                         video_path = preserve_geo_restriction(video_path, section_error)
                     if video_path and audio_path:
