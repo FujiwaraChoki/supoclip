@@ -59,7 +59,7 @@
     "metaDescription": "Mit SupoClip findest du Highlights in langen Videos, bewertest vielversprechende Momente, setzt gesichtsbezogene vertikale Ausschnitte, fügst Untertitel hinzu und exportierst Clips für Social Media.",
     "eyebrow": "KI-Video-Clipping",
     "heading": "KI-Video-Clipper, der aus langen Videos bessere Shorts macht",
-    "summary": "SupoClip verbindet Transkription, KI-gestützte Highlight-Erkennung, Viralitätsbewertung, gesichtsbezogenes Umrahmen, wortgenaue Untertitel und Export-Vorlagen in einem Ablauf.",
+    "summary": "SupoClip verbindet Transkription, KI-gestützte Highlight-Erkennung, Viralitätsbewertung, gesichtsbezogenes Umrahmen, wortgenaue Untertitel und Export-Vorlagen in einem Open-Source-Ablauf.",
     "tableCaption": "Funktionsmatrix für KI-Clipping in SupoClip",
     "tableHeaders": {
       "0": "Arbeitsschritt",
@@ -101,7 +101,7 @@
       "1": {
         "heading": "So läuft der SupoClip-Ablauf",
         "p1": "Füg einen YouTube-, Twitch- oder Kick-Link ein oder lade eine Quelldatei hoch. SupoClip transkribiert die Aufnahme, schlägt Clip-Grenzen vor und zeigt die stärksten Kandidaten zur Prüfung. Gewählte Momente lassen sich als vertikale Videos mit Untertiteln für Kurzformate rendern.",
-        "p2": "Weil der Quellcode von SupoClip öffentlich einsehbar ist, können Teams die Pipeline ansehen, unterstützte gehostete oder lokale Sprachmodelle wählen und die Verarbeitung an die eigene Infrastruktur anpassen. Wer das Deployment nicht selbst betreiben will, kann die gehostete Version nutzen.",
+        "p2": "Weil SupoClip Open Source ist, können Teams die Pipeline ansehen, unterstützte gehostete oder lokale Sprachmodelle wählen und die Verarbeitung an die eigene Infrastruktur anpassen. Wer das Deployment nicht selbst betreiben will, kann die gehostete Version nutzen.",
         "link1": "Schritt für Schritt: aus einem YouTube-Video Shorts machen",
         "link2": "Die Pipeline selbst mit Docker starten"
       },
@@ -110,7 +110,7 @@
         "p1": "Der Ablauf passt zu Podcasts, Lehrenden, Gründerinnen und Gründern, Agenturen und Videoteams, die schon Langaufnahmen produzieren und einen wiederholbaren Weg zu mehr Kurzclips brauchen.",
         "p2": "Besonders nützlich ist es, wenn dir die Kontrolle wichtig ist: Wer selbst hostet, behält die Anwendung und kann den Quellcode ändern, statt ganz von einer geschlossenen Schnittplattform abzuhängen.",
         "link1": "Wie SupoClip im Vergleich zu OpusClip dasteht",
-        "link2": "Warum Teams einen Clipper wählen"
+        "link2": "Warum Teams einen Open-Source-Clipper wählen"
       }
     },
     "faqs": {
@@ -133,10 +133,10 @@
     }
   },
   "open-source-video-clipper": {
-    "metaTitle": "Video-Clipper, den du selbst hosten kannst",
-    "metaDescription": "SupoClip ist ein KI-Video-Clipper für selbst gehostete Highlight-Erkennung, gesichtsbezogene vertikale Ausschnitte, Untertitel und Kurzformat-Exporte.",
-    "eyebrow": "Öffentlich einsehbarer Quellcode und selbst gehostet",
-    "heading": "Video-Clipper mit voller Kontrolle über den Ablauf",
+    "metaTitle": "Open-Source-Video-Clipper, den du selbst hosten kannst",
+    "metaDescription": "SupoClip ist ein Open-Source-KI-Video-Clipper für selbst gehostete Highlight-Erkennung, gesichtsbezogene vertikale Ausschnitte, Untertitel und Kurzformat-Exporte.",
+    "eyebrow": "Open Source und selbst gehostet",
+    "heading": "Open-Source-Video-Clipper mit voller Kontrolle über den Ablauf",
     "summary": "Lass KI-gestütztes Video-Clipping auf deiner eigenen Infrastruktur laufen, sieh dir den Quellcode an, wähl den Modellanbieter und bestimm, wie Clips bewertet, untertitelt, gerahmt und exportiert werden.",
     "tableCaption": "Gehostetes und selbst betriebenes SupoClip im Vergleich",
     "tableHeaders": {
@@ -174,7 +174,7 @@
       },
       "1": {
         "heading": "Wofür du weiter verantwortlich bist",
-        "p1": "Öffentlich einsehbarer Quellcode heißt nicht, dass jede Abhängigkeit kostenlos ist. Wer selbst hostet, stellt Rechenleistung, Speicher, Transkription und die Sprachmodell-Konfiguration selbst. Der Tausch ist Betriebsverantwortung gegen Kontrolle über den Quellcode.",
+        "p1": "Open Source heißt nicht, dass jede Abhängigkeit kostenlos ist. Wer selbst hostet, stellt Rechenleistung, Speicher, Transkription und die Sprachmodell-Konfiguration selbst. Der Tausch ist Betriebsverantwortung gegen Kontrolle über den Quellcode.",
         "p2": "Teams sollten außerdem die Nichtkommerzielle SupoClip-Quellcodelizenz lesen, Umgebungsvariablen absichern, Abhängigkeiten aktuell halten und Worker sowie Speicher in Produktion beobachten.",
         "bullet1": "Rechenleistung und dauerhaften Speicher bereitstellen",
         "bullet2": "Transkription und Modellanbieter einrichten",
@@ -185,7 +185,7 @@
       "2": {
         "heading": "Mit Docker starten und bei Bedarf anpassen",
         "p1": "Am schnellsten klonst du das Repository, kopierst die Umgebungsvorlage, trägst die nötigen Anbieter-Zugangsdaten ein und startest den Stack mit Docker Compose. Danach kannst du Bewertung, Untertitel-Vorlagen, Oberfläche oder Deployment anpassen, wenn sich der Ablauf ändert.",
-        "p2": "Wer keine Infrastruktur betreiben will, kann die gehostete SupoClip-Anwendung nutzen und das öffentliche Repository als Migrationsweg behalten.",
+        "p2": "Wer keine Infrastruktur betreiben will, kann die gehostete SupoClip-Anwendung nutzen und das Open-Source-Repository als Migrationsweg behalten.",
         "link1": "SupoClip mit Docker Compose selbst hosten",
         "link2": "Selbst gehostetes SupoClip gegenüber gehostetem OpusClip"
       }
@@ -306,7 +306,7 @@
     },
     "open-source-video-clipper": {
       "title": "Wähle, wie du deinen Clipper betreiben möchtest",
-      "body": "Nutze den Ablauf auf deiner Infrastruktur oder wähle verwaltetes Hosting, um dich auf die Clips zu konzentrieren.",
+      "body": "Nutze den Open-Source-Ablauf auf deiner Infrastruktur oder wähle verwaltetes Hosting, um dich auf die Clips zu konzentrieren.",
       "button": "Gehostete App nutzen"
     }
   }

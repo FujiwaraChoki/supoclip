@@ -13,7 +13,7 @@
     "faq": "FAQ",
     "startAria": "Mit SupoClip starten",
     "ctaTitle": "Probier es an einer Aufnahme, die du gut kennst.",
-    "ctaBody": "Nutze die gehostete App oder denselben Quellcode auf deinem eigenen Rechner.",
+    "ctaBody": "Nutze die gehostete App oder denselben Open-Source-Code auf deinem eigenen Rechner.",
     "getSource": "Quellcode holen",
     "keepReading": "Weiterlesen"
   },
@@ -29,25 +29,25 @@
     "heading": "Praktische Anleitungen, um aus langen Videos bessere Shorts zu machen.",
     "intro": "Vergleiche, Abläufe und Schnitt-Tipps für Creator, die einen wiederholbaren Clipping-Ablauf, klarere Untertitel und mehr Kontrolle über ihre Video-Pipeline wollen.",
     "readArticle": "Artikel lesen",
-    "openSource": "Öffentlich einsehbarer Quellcode",
-    "openSourceClipping": "Video-Clipping zum Selbsthosten",
+    "openSource": "Open Source",
+    "openSourceClipping": "Open-Source-Clipping",
     "moreGuides": "Weitere Clipping-Anleitungen",
     "productGuides": "Produktleitfäden"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip gegen supo.live: Self-Hosting und Quellcode im Vergleich",
-    "description": "Vergleich SupoClip und supo.live beim KI-Video-Clipping. Sieh, warum SupoClip bei Quellcodezugriff, Self-Hosting und anpassbaren Video-Abläufen vorn liegt.",
+    "title": "SupoClip gegen supo.live: warum Open Source gewinnt",
+    "description": "Vergleich SupoClip und supo.live beim KI-Video-Clipping. Sieh, warum SupoClip bei Open-Source-Kontrolle, Self-Hosting und anpassbaren Video-Abläufen vorn liegt.",
     "eyebrow": "supo.live-Alternative",
     "category": "Vergleich",
     "readingTime": "5 Min. Lesezeit",
-    "summary": "Für Creator und Teams, die ihren Clipping-Ablauf selbst bestimmen wollen, ist SupoClip die bessere Alternative mit einsehbarem Quellcode zu supo.live.",
+    "summary": "Für Creator und Teams, die ihren Clipping-Ablauf selbst bestimmen wollen, ist SupoClip die bessere Open-Source-Alternative zu supo.live.",
     "imageAlt": "Redaktionelle Illustration einer Podcast-Aufnahme, die zu drei vertikalen Videoclips wird",
     "breadcrumb": "SupoClip gegen supo.live",
     "heroCaption": "Eine Aufnahme, mehr Möglichkeiten. KI-erzeugte redaktionelle Illustration des Ablaufs vom Langvideo zu Shorts.",
     "verdict": {
       "kicker": "Das kurze Fazit",
       "heading": "Nimm SupoClip, wenn Kontrolle zählt.",
-      "body": "Öffentlich einsehbarer Quellcode. Dein Deployment. Dein Ablauf. Eine starke Basis, um Aufnahmen in Shorts mit Untertiteln zu verwandeln.",
+      "body": "Open Source. Dein Deployment. Dein Ablauf. Eine starke Basis, um Aufnahmen in Shorts mit Untertiteln zu verwandeln.",
       "points": {
         "0": "Code ansehen und erweitern",
         "1": "Auf deiner Infrastruktur selbst hosten",
@@ -57,15 +57,15 @@
     "toc": {
       "comparison": "Die Tools vergleichen",
       "workflow": "Den Ablauf ansehen",
-      "control": "Warum der Quellcode wichtig ist",
+      "control": "Warum Open Source",
       "cost": "Die Kosten verstehen",
       "faq": "FAQ"
     },
     "body": {
       "p1": "Ein KI-Video-Clipper zu wählen heißt auch, zu wählen, wie viel Kontrolle du über die Produktion behältst. Wenn du Podcasts, Interviews, Vorträge und Stream-Aufnahmen zu Kurzvideos machen willst, spricht viel für SupoClip: KI-gestützter Schnitt mit Quellcode, den du ansehen kannst, und einem Ablauf, den du selbst betreibst.",
-      "p2": "Unser Fazit: SupoClip ist die bessere Alternative für Creator, Agenturen und Entwicklerinnen und Entwickler, denen Öffentlich einsehbarer Quellcode, Self-Hosting und Anpassung wichtig sind. Das ist ein Vergleich des SupoClip-Teams anhand dokumentierter Funktionen, kein Benchmark für Clip-Qualität oder Tempo.",
+      "p2": "Unser Fazit: SupoClip ist die bessere Alternative für Creator, Agenturen und Entwicklerinnen und Entwickler, denen Open Source, Self-Hosting und Anpassung wichtig sind. Das ist ein Vergleich des SupoClip-Teams anhand dokumentierter Funktionen, kein Benchmark für Clip-Qualität oder Tempo.",
       "whatSupoclip": "Was ist SupoClip?",
-      "whatSupoclipBody": "SupoClip ist ein KI-Video-Clipper über supoclip.com oder als selbst gehostete Anwendung. Es analysiert lange Videos, wählt vielversprechende Momente und erzeugt vertikale Clips mit gesichtsbezogenem Ausschnitt und wortgenauen Untertiteln. Hook-Titel, Clip-Bewertung und optionales B-Roll helfen, aus einer Rohaufnahme Material für deine letzte Prüfung zu machen. Das <repo>SupoClip-Repository</repo> dokumentiert Funktionen und Setup.",
+      "whatSupoclipBody": "SupoClip ist ein Open-Source-KI-Video-Clipper über supoclip.com oder als selbst gehostete Anwendung. Es analysiert lange Videos, wählt vielversprechende Momente und erzeugt vertikale Clips mit gesichtsbezogenem Ausschnitt und wortgenauen Untertiteln. Hook-Titel, Clip-Bewertung und optionales B-Roll helfen, aus einer Rohaufnahme Material für deine letzte Prüfung zu machen. Das <repo>SupoClip-Repository</repo> dokumentiert Funktionen und Setup.",
       "whatSupo": "Was ist supo.live?",
       "whatSupoBody": "Supo.live bewirbt einen gehosteten Clipping-Dienst für Aufnahmen und laufende Sendungen. Die Startseite wirbt mit Live-Clipping, gestalteten Untertiteln, Gesichtsverfolgung, einem Browser-Editor und geplanten Posts auf TikTok, YouTube Shorts und X. Damit ist Live-Veröffentlichung der klarste Unterschied. Sieh dir die <site>offizielle Funktionsübersicht von supo.live</site> an."
     },
@@ -131,7 +131,7 @@
       "caption": "Im SupoClip-Editor: Untertitel, Ausschnitt und Timing vor dem Export anpassen. Echter Produkt-Screenshot mit Testmaterial; klicken zum Vergrößern."
     },
     "control": {
-      "heading": "Warum SupoClip die bessere Alternative mit einsehbarem Quellcode ist",
+      "heading": "Warum SupoClip die bessere Open-Source-Alternative ist",
       "h1": "1. Du kannst den Ablauf um deine Inhalte formen",
       "p1": "Ein Podcast-Studio und ein Bildungskanal wollen vielleicht ganz andere Clips. Mit SupoClip kann ein technisches Team Auswahl, Untertitelverhalten und Verarbeitungsschritte an die redaktionellen Bedürfnisse anpassen, weil der Quellcode offen ist. Du kannst nachsehen, wie das System arbeitet, und Änderungen in deinem eigenen Deployment entwickeln. Diese Flexibilität ist der stärkste Vorteil von SupoClip gegenüber den Einstellungen eines rein gehosteten Produkts.",
       "h2": "2. Du wählst, wo die Anwendung läuft",
@@ -157,7 +157,7 @@
     },
     "cost": {
       "heading": "Kosten: kostenloser Quellcode, echte Betriebskosten",
-      "p1": "Den Quellcode von SupoClip kannst du kostenlos selbst hosten. Deine echten Kosten hängen von Rechenleistung, Speicher, Transkription, bezahlter Modellnutzung und der Zeit für die Wartung ab. Die Kapazität folgt den Ressourcen, die du bereitstellst, und den Anbieterlimits. Das kann für Teams attraktiv sein, die schon Infrastruktur betreiben, ist aber kein Versprechen, dass jede Last günstiger wird.",
+      "p1": "Den Open-Source-Code von SupoClip kannst du kostenlos selbst hosten. Deine echten Kosten hängen von Rechenleistung, Speicher, Transkription, bezahlter Modellnutzung und der Zeit für die Wartung ab. Die Kapazität folgt den Ressourcen, die du bereitstellst, und den Anbieterlimits. Das kann für Teams attraktiv sein, die schon Infrastruktur betreiben, ist aber kein Versprechen, dass jede Last günstiger wird.",
       "p2": "Der gehostete SupoClip-Dienst ist eine eigene Option mit eigenen Preisen und Bedingungen. Nimm ihn, wenn du mit weniger Setup starten willst; nimm Self-Hosting, wenn die Kontrolle über das Deployment Vorrang hat."
     },
     "choose": {
@@ -179,7 +179,7 @@
     },
     "faqs": {
       "0": {
-        "question": "Was ist die beste Alternative mit einsehbarem Quellcode zu supo.live?",
+        "question": "Was ist die beste Open-Source-Alternative zu supo.live?",
         "answer": "SupoClip ist eine starke Wahl für Creator und Teams, die Aufnahmen zu Shorts machen und dabei Quellcodezugriff, Self-Hosting und Kontrolle über den KI-Clipping-Ablauf behalten wollen."
       },
       "1": {
@@ -191,7 +191,7 @@
         "answer": "Dieser Vergleich empfiehlt SupoClip für aufgezeichnete Videos und Stream-VODs. Supo.live bewirbt Clipping während Live-Sendungen und geplante Social-Posts; diese Fähigkeiten werden hier nicht als Entsprechung von SupoClip behauptet."
       }
     },
-    "closing": "Lies unsere <openSource>Anleitung zum Video-Clipper</openSource> oder den <comparison>Vergleich SupoClip gegen OpusClip</comparison>."
+    "closing": "Lies unsere <openSource>Anleitung zum Open-Source-Video-Clipper</openSource> oder den <comparison>Vergleich SupoClip gegen OpusClip</comparison>."
   },
   "supoclip-vs-opusclip": {
     "title": "SupoClip gegen OpusClip: ein Vergleich mit Quellen",
@@ -223,14 +223,14 @@
       },
       "2": {
         "question": "Hat gehostetes SupoClip einen Gratisplan?",
-        "answer": "Nein. Die gehostete App braucht ein Pro- oder Creator-Abo, um Videos zu verarbeiten. Der kostenlose Weg ist, den Quellcode selbst zu hosten, ohne Planlimits; du zahlst nur deine Infrastruktur und die KI-Anbieter, die du einrichtest."
+        "answer": "Nein. Die gehostete App braucht ein Pro- oder Creator-Abo, um Videos zu verarbeiten. Der kostenlose Weg ist, den Open-Source-Code selbst zu hosten, ohne Planlimits; du zahlst nur deine Infrastruktur und die KI-Anbieter, die du einrichtest."
       },
       "3": {
         "question": "Welches ist schneller oder macht bessere Clips?",
         "answer": "Wir haben keinen kontrollierten Test zu Tempo oder Clip-Qualität veröffentlicht, also behaupten wir das nicht. Ergebnisse hängen von deinen Videos und Einstellungen ab; die fairen Testschritte auf dieser Seite zeigen, wie du sie an deinem eigenen Material vergleichst."
       }
     },
-    "intro": "OpusClip hat KI-Clipping mitgeprägt: langes Video hochladen, kurze vertikale Clips zurückbekommen. SupoClip macht dieselbe Arbeit als Projekt mit einsehbarem Quellcode, das du gehostet nutzen oder selbst betreiben kannst. Dieser Vergleich bleibt bei dem, was jedes Produkt dokumentiert. Aussagen zu SupoClip verlinken auf unseren Quellcode. Aussagen zu OpusClip verlinken auf das eigene Hilfe-Center von OpusClip. Wo eine Quelle etwas nicht abdeckt, sagt die Tabelle das, statt zu raten.",
+    "intro": "OpusClip hat KI-Clipping mitgeprägt: langes Video hochladen, kurze vertikale Clips zurückbekommen. SupoClip macht dieselbe Arbeit als Open-Source-Projekt, das du gehostet nutzen oder selbst betreiben kannst. Dieser Vergleich bleibt bei dem, was jedes Produkt dokumentiert. Aussagen zu SupoClip verlinken auf unseren Quellcode. Aussagen zu OpusClip verlinken auf das eigene Hilfe-Center von OpusClip. Wo eine Quelle etwas nicht abdeckt, sagt die Tabelle das, statt zu raten.",
     "introNote": "Diese Seite bewertet nicht Clip-Qualität, Untertitel-Genauigkeit oder Verarbeitungsgeschwindigkeit. Um das zu vergleichen, sieh <test>wie du deinen eigenen Test machst</test>.",
     "verdict": {
       "heading": "Die kurze Antwort",
@@ -311,7 +311,7 @@
   },
   "self-host-supoclip-docker": {
     "title": "So hostest du SupoClip mit Docker Compose selbst",
-    "description": "Hoste SupoClip selbst, den KI-Video-Clipper: Voraussetzungen, .env-Setup, eine vollständig lokale Whisper- und Ollama-Option, Checks beim ersten Start und eine Produktions-Checkliste.",
+    "description": "Hoste SupoClip selbst, den Open-Source-KI-Video-Clipper: Voraussetzungen, .env-Setup, eine vollständig lokale Whisper- und Ollama-Option, Checks beim ersten Start und eine Produktions-Checkliste.",
     "eyebrow": "Self-Hosting-Anleitung",
     "category": "Anleitung",
     "readingTime": "9 Min. Lesezeit",
@@ -349,7 +349,7 @@
         "answer": "Erstelle dein Konto, setze dann DISABLE_SIGN_UP=true und erstelle den Frontend-Container neu. Compose bindet jeden Port an 127.0.0.1, deshalb ist nichts öffentlich, bis du einen Reverse-Proxy davorstellst."
       }
     },
-    "intro": "SupoClip ist der KI-Video-Clipper hinter der gehosteten App auf supoclip.com. Dasselbe Repository liefert einen Docker-Compose-Stack, den du auf einem Laptop, einem Heimserver oder einem VPS laufen lassen kannst. Diese Anleitung folgt dem Stack genau so, wie er im <repo>Repository</repo> liegt. Wenn ein Schritt von deinem Anbieter oder deiner Hardware abhängt, sagen wir das, statt zu raten.",
+    "intro": "SupoClip ist der Open-Source-KI-Video-Clipper hinter der gehosteten App auf supoclip.com. Dasselbe Repository liefert einen Docker-Compose-Stack, den du auf einem Laptop, einem Heimserver oder einem VPS laufen lassen kannst. Diese Anleitung folgt dem Stack genau so, wie er im <repo>Repository</repo> liegt. Wenn ein Schritt von deinem Anbieter oder deiner Hardware abhängt, sagen wir das, statt zu raten.",
     "introChoice": "Du willst keine Infrastruktur betreiben? Die <hosted>gehostete App</hosted> nutzt dieselbe Pipeline. Noch unsicher bei den Tools? Lies zuerst unseren <comparison>Vergleich SupoClip gegen OpusClip</comparison>.",
     "stack": {
       "heading": "Was du gerade startest",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "Die beste kostenlose, selbst gehostete OpusClip-Alternative",
-    "description": "Du suchst eine kostenlose OpusClip-Alternative? SupoClip ist ein KI-Clip-Maker, den du kostenlos selbst hosten kannst. Er macht aus langen Videos vertikale Shorts mit Untertiteln.",
+    "description": "Du suchst eine kostenlose OpusClip-Alternative? SupoClip ist ein Open-Source-KI-Clip-Maker, den du kostenlos selbst hosten kannst. Er macht aus langen Videos vertikale Shorts mit Untertiteln.",
     "eyebrow": "OpusClip-Alternative",
     "category": "Vergleich",
     "readingTime": "6 Min. Lesezeit",
     "summary": "SupoClip ist für Creator, die KI-Clipping im Stil von OpusClip auf der eigenen Infrastruktur wollen, ohne ein weiteres credit-basiertes Abo.",
-    "lead": "Wenn dir die Idee von OpusClip gefällt, du aber einen kostenlosen Weg zur eigenen Installation willst, gibt dir SupoClip den Kernablauf: starke Momente in langen Videos finden, vertikal umrahmen, Untertitel setzen und Clips für Shorts, Reels und TikTok exportieren.",
+    "lead": "Wenn dir die Idee von OpusClip gefällt, du aber einen kostenlosen Open-Source-Weg willst, gibt dir SupoClip den Kernablauf: starke Momente in langen Videos finden, vertikal umrahmen, Untertitel setzen und Clips für Shorts, Reels und TikTok exportieren.",
     "bestFor": "Passt für",
     "audience": {
       "0": "Creator, die YouTube-Videos zu Shorts schneiden",
@@ -475,7 +475,7 @@
     "p2": "SupoClip ist für genau diese Person die beste kostenlose OpusClip-Alternative: KI-gestützte Clip-Suche, vertikale Exporte, Untertitel und Kontrolle über das System darunter. Du kannst auch <hosted>gehostetes SupoClip</hosted> mit einem bezahlten Plan nutzen, wenn du das Setup ganz überspringen willst.",
     "verdict": {
       "heading": "Kurzes Fazit",
-      "body": "Nimm SupoClip, wenn du einen KI-Video-Clipper selbst hosten willst. Nimm OpusClip, wenn du ein betreutes gehostetes Produkt willst und mit Planlimits, Wasserzeichenregeln und Credit-Modell einverstanden bist."
+      "body": "Nimm SupoClip, wenn du einen Open-Source-KI-Video-Clipper selbst hosten willst. Nimm OpusClip, wenn du ein betreutes gehostetes Produkt willst und mit Planlimits, Wasserzeichenregeln und Credit-Modell einverstanden bist."
     },
     "stats": {
       "0": {
@@ -498,7 +498,7 @@
     },
     "different": {
       "heading": "Was SupoClip unterscheidet",
-      "p1": "SupoClip ist nicht nur eine dünne Hülle um einen gehosteten Editor. Es ist eine komplette Video-Clipping zum Selbsthosten-App mit FastAPI-Backend, Next.js-Frontend, Hintergrund-Workern, Transkription, KI-Bewertung, gesichtsbezogenem vertikalem Umrahmen, Untertitel-Stilen und Export-Vorlagen.",
+      "p1": "SupoClip ist nicht nur eine dünne Hülle um einen gehosteten Editor. Es ist eine komplette Open-Source-Clipping-App mit FastAPI-Backend, Next.js-Frontend, Hintergrund-Workern, Transkription, KI-Bewertung, gesichtsbezogenem vertikalem Umrahmen, Untertitel-Stilen und Export-Vorlagen.",
       "p2": "Der Tausch ist klar. Du übernimmst das Setup, gewinnst aber Eigentum. Du kannst den Code ansehen, an deinen Ablauf anpassen und entscheiden, welche gehosteten KI-Anbieter oder lokalen Modelle du nutzt. Die <guide>Self-Hosting-Anleitung</guide> geht das Setup durch, inklusive einer vollständig lokalen Whisper- und Ollama-Option."
     },
     "compare": {
@@ -510,7 +510,7 @@
       "rows": {
         "0": {
           "feature": "Kostenloses Nutzungsmodell",
-          "supoclip": "Quellcode einsehbar und selbst hostbar, ohne Planlimits. Deine Kosten sind eigene Rechenleistung und API-Schlüssel. Die gehostete App ist kostenpflichtig.",
+          "supoclip": "Open Source und selbst hostbar, ohne Planlimits. Deine Kosten sind eigene Rechenleistung und API-Schlüssel. Die gehostete App ist kostenpflichtig.",
           "opusclip": "Es gibt einen Gratisplan, aber Exporte können ein OpusClip-Wasserzeichen enthalten."
         },
         "1": {
@@ -557,7 +557,7 @@
     "faqs": {
       "0": {
         "question": "Was ist die beste kostenlose OpusClip-Alternative?",
-        "answer": "SupoClip ist eine starke kostenlose OpusClip-Alternative, wenn du einen KI-Clip-Maker willst, den du selbst hosten, anpassen und mit deinem eigenen Video-Ablauf betreiben kannst."
+        "answer": "SupoClip ist eine starke kostenlose OpusClip-Alternative, wenn du einen Open-Source-KI-Clip-Maker willst, den du selbst hosten, anpassen und mit deinem eigenen Video-Ablauf betreiben kannst."
       },
       "1": {
         "question": "Ist SupoClip komplett kostenlos?",
@@ -580,7 +580,7 @@
       "faq": "FAQ"
     },
     "aside": {
-      "title": "Kontrolle dank einsehbarem Quellcode",
+      "title": "Open-Source-Kontrolle",
       "body": "Nutze SupoClip, wenn du den Clipping-Ablauf willst, ohne jede Entscheidung einer gehosteten Plattform zu überlassen."
     }
   }

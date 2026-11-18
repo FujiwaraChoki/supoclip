@@ -1,18 +1,18 @@
 {
   "metadata": {
-    "title": "SupoClip – Clipper de vídeo com IA de código-fonte público para Shorts",
-    "description": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados, com clipping de IA de código-fonte público, pontuação de viralidade e cortes 9:16 centrados no rosto.",
-    "openGraphDescription": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados com clipping de IA de código-fonte público.",
-    "twitterDescription": "Clipping de IA de código-fonte público, pontuação de viralidade, legendas e cortes verticais centrados no rosto.",
+    "title": "SupoClip – Clipper de vídeo com IA de código aberto para Shorts",
+    "description": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados, com clipping de IA de código aberto, pontuação de viralidade e cortes 9:16 centrados no rosto.",
+    "openGraphDescription": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados com clipping de IA de código aberto.",
+    "twitterDescription": "Clipping de IA de código aberto, pontuação de viralidade, legendas e cortes verticais centrados no rosto.",
     "keywords": {
       "clipper": "clipper de vídeo com IA",
-      "openSource": "clipper de vídeo de código-fonte público",
+      "openSource": "clipper de vídeo de código aberto",
       "shorts": "clipper de YouTube Shorts",
       "longToShorts": "vídeo longo para shorts",
       "maker": "criador de clipes com IA"
     },
     "structured": {
-      "software": "Um clipper de vídeo com IA de código-fonte público para encontrar destaques, criar cortes verticais, adicionar legendas sincronizadas por palavra e exportar vídeos curtos.",
+      "software": "Um clipper de vídeo com IA de código aberto para encontrar destaques, criar cortes verticais, adicionar legendas sincronizadas por palavra e exportar vídeos curtos.",
       "featureDiscovery": "Descoberta de clipes com IA e pontuação de viralidade",
       "featureCrop": "Corte vertical 9:16 centrado no rosto",
       "featureCaptions": "Legendas animadas sincronizadas por palavra",
@@ -20,7 +20,7 @@
       "featureSelfHost": "Auto-hospedagem para fins não comerciais",
       "offerCategory": "Código-fonte para auto-hospedagem não comercial",
       "ios": "O app SupoClip para iOS: transforme vídeos longos em shorts verticais legendados no seu iPhone.",
-      "website": "Clipping de vídeo com IA de código-fonte público para conteúdo curto."
+      "website": "Clipping de vídeo com IA de código aberto para conteúdo curto."
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "Clipper de vídeo com IA de código-fonte público. Use o app hospedado ou rode na sua própria infraestrutura.",
+    "tagline": "Clipper de vídeo com IA de código aberto. Use o app hospedado ou rode na sua própria infraestrutura.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidade no Discord",
@@ -85,9 +85,9 @@
       "description": "Um fluxo prático para escolher, legendar, reenquadrar e revisar clipes."
     },
     "open_source_video_clipper": {
-      "label": "Clipper de código-fonte público",
-      "eyebrow": "Código-fonte disponível",
-      "title": "Um clipper de vídeo de código-fonte público que você controla",
+      "label": "Clipper de código aberto",
+      "eyebrow": "Código aberto",
+      "title": "Um clipper de vídeo de código aberto que você controla",
       "description": "O que a auto-hospedagem muda em controle, provedores de modelo e infraestrutura."
     },
     "blog_self_host_supoclip_docker": {
@@ -106,12 +106,12 @@
       "label": "Alternativa auto-hospedada ao OpusClip",
       "eyebrow": "Comparação",
       "title": "A melhor alternativa gratuita e auto-hospedada ao OpusClip",
-      "description": "Quando um clipper de código-fonte público e auto-hospedado é melhor do que uma ferramenta baseada em créditos."
+      "description": "Quando um clipper de código aberto e auto-hospedado é melhor do que uma ferramenta baseada em créditos."
     },
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "Comparação",
-      "title": "SupoClip vs supo.live: controle de código-fonte público",
+      "title": "SupoClip vs supo.live: controle de código aberto",
       "description": "Compare auto-hospedagem, clipping com IA e fluxos de edição antes de escolher uma ferramenta de vídeo."
     },
     "sign_up": {
@@ -181,9 +181,9 @@
       "description": "Build a distinct batch, review each clip, and verify scheduled publication."
     },
     "blog_open_source_video_clippers": {
-      "eyebrow": "Código-fonte disponível comparison",
+      "eyebrow": "Open-source comparison",
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
-      "label": "Código-fonte disponível video clippers",
+      "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
     "faq": {
@@ -195,7 +195,7 @@
     "features": "Recursos",
     "editor": "Editor",
     "pricing": "Preços",
-    "openSource": "Código-fonte disponível",
+    "openSource": "Código aberto",
     "blog": "Blog",
     "changelog": "Novidades",
     "affiliate": "Afiliados",
@@ -207,7 +207,7 @@
     "faq": "Perguntas frequentes"
   },
   "hero": {
-    "badge": "Código-fonte disponível e auto-hospedável. Também no iPhone.",
+    "badge": "Código aberto e auto-hospedável. Também no iPhone.",
     "titleLine1": "Um vídeo longo.",
     "titleLine2": "Uma semana de shorts.",
     "body": "O SupoClip encontra os momentos que valem a pena postar nos seus vídeos, VODs e uploads, reenquadra tudo em 9:16 com legendas sincronizadas palavra por palavra e agenda no YouTube Shorts.",
@@ -216,7 +216,7 @@
     "viewSource": "Ver o código",
     "appStoreAria": "Baixe o SupoClip na App Store",
     "appStoreAlt": "Baixar na App Store",
-    "productHuntAlt": "SupoClip - Clipper de vídeo com IA de código-fonte público: vídeos longos em shorts virais | Product Hunt",
+    "productHuntAlt": "SupoClip - Clipper de vídeo com IA de código aberto: vídeos longos em shorts virais | Product Hunt",
     "sources": {
       "upload": "Seus próprios arquivos",
       "label": "Corte de"
@@ -501,7 +501,7 @@
   },
   "cta": {
     "title": "Seu próximo vídeo já é uma semana de conteúdo.",
-    "body": "Cole um link e veja o que o SupoClip encontra. Use o app hospedado ou hospede de graça a versão de código-fonte público."
+    "body": "Cole um link e veja o que o SupoClip encontra. Use o app hospedado ou hospede de graça a versão de código aberto."
   },
   "faqPage": {
     "title": "Idiomas, legendas e clipes",

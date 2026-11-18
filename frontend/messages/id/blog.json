@@ -13,7 +13,7 @@
     "faq": "FAQ",
     "startAria": "Mulai dengan SupoClip",
     "ctaTitle": "Coba di satu rekaman yang kamu kenal baik.",
-    "ctaBody": "Pakai aplikasi yang di-host, atau jalankan kode dengan kode sumber publik yang sama di mesinmu sendiri.",
+    "ctaBody": "Pakai aplikasi yang di-host, atau jalankan kode open source yang sama di mesinmu sendiri.",
     "getSource": "Ambil sumbernya",
     "keepReading": "Lanjut baca"
   },
@@ -29,25 +29,25 @@
     "heading": "Panduan praktis untuk mengubah video panjang jadi short yang lebih baik.",
     "intro": "Perbandingan, alur kerja, dan saran edit untuk kreator yang ingin alur clipping yang bisa diulang, caption yang lebih bersih, dan kendali lebih atas pipeline video mereka.",
     "readArticle": "Baca artikel",
-    "openSource": "Kode sumber publik",
-    "openSourceClipping": "Clipping dengan kode sumber publik",
+    "openSource": "Open source",
+    "openSourceClipping": "Clipping open source",
     "moreGuides": "Panduan clipping lainnya",
     "productGuides": "Panduan produk"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip vs supo.live: Kenapa Kode sumber publik Menang",
-    "description": "Bandingkan SupoClip dan supo.live untuk AI video clipping. Lihat kenapa SupoClip unggul untuk kendali dengan kode sumber publik, host sendiri, dan alur video yang bisa disesuaikan.",
+    "title": "SupoClip vs supo.live: Kenapa Open Source Menang",
+    "description": "Bandingkan SupoClip dan supo.live untuk AI video clipping. Lihat kenapa SupoClip unggul untuk kendali open source, host sendiri, dan alur video yang bisa disesuaikan.",
     "eyebrow": "Alternatif Supo.live",
     "category": "Perbandingan",
     "readingTime": "5 mnt baca",
-    "summary": "Untuk kreator dan tim yang ingin kendali atas alur clipping mereka, SupoClip adalah alternatif dengan kode sumber publik yang lebih baik daripada supo.live.",
+    "summary": "Untuk kreator dan tim yang ingin kendali atas alur clipping mereka, SupoClip adalah alternatif open source yang lebih baik daripada supo.live.",
     "imageAlt": "Ilustrasi editorial rekaman podcast yang menjadi tiga clip video vertikal",
     "breadcrumb": "SupoClip vs supo.live",
     "heroCaption": "Satu rekaman, lebih banyak kemungkinan. Ilustrasi editorial yang dihasilkan AI dari alur video-panjang-jadi-short.",
     "verdict": {
       "kicker": "Putusan singkat",
       "heading": "Pilih SupoClip saat kendali penting.",
-      "body": "Kode sumber publik. Deployment-mu. Alur kerjamu. Fondasi yang kuat untuk mengubah konten rekaman jadi short ber-caption.",
+      "body": "Open source. Deployment-mu. Alur kerjamu. Fondasi yang kuat untuk mengubah konten rekaman jadi short ber-caption.",
       "points": {
         "0": "Periksa dan kembangkan kodenya",
         "1": "Host sendiri di infrastrukturmu",
@@ -57,15 +57,15 @@
     "toc": {
       "comparison": "Bandingkan alatnya",
       "workflow": "Lihat alur kerjanya",
-      "control": "Kenapa dengan kode sumber publik",
+      "control": "Kenapa open source",
       "cost": "Pahami biayanya",
       "faq": "FAQ"
     },
     "body": {
       "p1": "Memilih AI video clipper juga berarti memilih seberapa banyak kendali yang kamu simpan atas proses produksimu. Kalau kamu ingin mengubah podcast, wawancara, talk, dan rekaman siaran jadi video pendek, SupoClip punya alasan yang kuat: edit berbantuan AI dengan kode sumber yang bisa kamu periksa dan alur kerja yang bisa kamu jalankan sendiri.",
-      "p2": "Putusan kami: SupoClip adalah alternatif yang lebih baik untuk kreator, agensi, dan developer yang mengutamakan dengan kode sumber publik, host sendiri, dan kustomisasi. Ini perbandingan dari tim SupoClip, berdasarkan kemampuan yang terdokumentasi, bukan tolok ukur kualitas clip atau kecepatan pemrosesan.",
+      "p2": "Putusan kami: SupoClip adalah alternatif yang lebih baik untuk kreator, agensi, dan developer yang mengutamakan open source, host sendiri, dan kustomisasi. Ini perbandingan dari tim SupoClip, berdasarkan kemampuan yang terdokumentasi, bukan tolok ukur kualitas clip atau kecepatan pemrosesan.",
       "whatSupoclip": "Apa itu SupoClip?",
-      "whatSupoclipBody": "SupoClip adalah alat AI video clipping dengan kode sumber publik yang tersedia lewat supoclip.com atau sebagai aplikasi yang di-host sendiri. SupoClip menganalisis video panjang, memilih momen yang menjanjikan, dan menghasilkan clip vertikal dengan crop yang berpusat pada wajah serta subtitle yang sinkron per kata. Judul hook, penilaian clip, dan B-roll opsional membantu mengubah rekaman mentah jadi materi yang siap untuk tinjauan akhirmu. <repo>Repositori SupoClip</repo> mendokumentasikan fitur dan penyiapannya.",
+      "whatSupoclipBody": "SupoClip adalah alat AI video clipping open source yang tersedia lewat supoclip.com atau sebagai aplikasi yang di-host sendiri. SupoClip menganalisis video panjang, memilih momen yang menjanjikan, dan menghasilkan clip vertikal dengan crop yang berpusat pada wajah serta subtitle yang sinkron per kata. Judul hook, penilaian clip, dan B-roll opsional membantu mengubah rekaman mentah jadi materi yang siap untuk tinjauan akhirmu. <repo>Repositori SupoClip</repo> mendokumentasikan fitur dan penyiapannya.",
       "whatSupo": "Apa itu supo.live?",
       "whatSupoBody": "Supo.live memasarkan layanan clipping yang di-host untuk rekaman maupun siaran yang sedang berlangsung. Halaman utamanya mengiklankan clipping langsung, caption bergaya, pelacakan wajah, editor browser, dan posting terjadwal ke TikTok, YouTube Shorts, dan X. Itu membuat publikasi langsung menjadi pembeda yang paling jelas. Lihat <site>ringkasan fitur resmi supo.live</site>."
     },
@@ -131,7 +131,7 @@
       "caption": "Di dalam editor SupoClip: sesuaikan caption, framing, dan waktu sebelum ekspor. Tangkapan layar produk sungguhan memakai footage uji sampel; klik untuk memperbesar."
     },
     "control": {
-      "heading": "Kenapa SupoClip alternatif dengan kode sumber publik yang lebih baik",
+      "heading": "Kenapa SupoClip alternatif open source yang lebih baik",
       "h1": "1. Kamu bisa membentuk alur kerja di sekitar kontenmu",
       "p1": "Studio podcast dan kanal edukasi mungkin ingin clip yang sangat berbeda. Dengan SupoClip, akses sumber memungkinkan tim teknis menyesuaikan logika pemilihan, perilaku caption, dan langkah pemrosesan dengan kebutuhan editorialnya. Kamu bisa memeriksa cara sistem bekerja dan mengembangkan perubahan di deployment-mu sendiri. Fleksibilitas itu adalah keunggulan terkuat SupoClip dibanding bergantung sepenuhnya pada pengaturan produk yang di-host.",
       "h2": "2. Kamu memilih tempat aplikasi berjalan",
@@ -157,7 +157,7 @@
     },
     "cost": {
       "heading": "Biaya: kode sumber gratis, biaya operasi yang nyata",
-      "p1": "Kode dengan kode sumber publik SupoClip gratis untuk di-host sendiri. Biaya aktualmu bergantung pada komputasi, penyimpanan, transkripsi, pemakaian model berbayar, dan waktu yang diperlukan untuk merawat instalasi. Kapasitas mengikuti sumber daya yang kamu sediakan dan batas penyedia. Ini bisa menarik untuk tim yang sudah menjalankan infrastruktur, tapi bukan janji bahwa setiap beban kerja lebih murah.",
+      "p1": "Kode open source SupoClip gratis untuk di-host sendiri. Biaya aktualmu bergantung pada komputasi, penyimpanan, transkripsi, pemakaian model berbayar, dan waktu yang diperlukan untuk merawat instalasi. Kapasitas mengikuti sumber daya yang kamu sediakan dan batas penyedia. Ini bisa menarik untuk tim yang sudah menjalankan infrastruktur, tapi bukan janji bahwa setiap beban kerja lebih murah.",
       "p2": "Layanan SupoClip yang di-host adalah opsi terpisah dengan harga dan ketentuannya sendiri. Pilih itu kalau kamu ingin mulai dengan penyiapan yang lebih sedikit; pilih host sendiri kalau kendali atas deployment adalah prioritas."
     },
     "choose": {
@@ -179,7 +179,7 @@
     },
     "faqs": {
       "0": {
-        "question": "Apa alternatif dengan kode sumber publik terbaik untuk supo.live?",
+        "question": "Apa alternatif open source terbaik untuk supo.live?",
         "answer": "SupoClip adalah pilihan yang kuat untuk kreator dan tim yang ingin mengubah video rekaman jadi short sambil mempertahankan akses sumber, host sendiri, dan kendali atas alur AI clipping mereka."
       },
       "1": {
@@ -191,7 +191,7 @@
         "answer": "Perbandingan ini merekomendasikan SupoClip untuk video rekaman dan VOD siaran. Supo.live mengiklankan clipping selama siaran langsung dan posting sosial terjadwal; kemampuan itu tidak diklaim sebagai padanan SupoClip di sini."
       }
     },
-    "closing": "Jelajahi <openSource>panduan video clipper dengan kode sumber publik</openSource> kami atau baca <comparison>perbandingan SupoClip vs OpusClip</comparison>."
+    "closing": "Jelajahi <openSource>panduan video clipper open source</openSource> kami atau baca <comparison>perbandingan SupoClip vs OpusClip</comparison>."
   },
   "supoclip-vs-opusclip": {
     "title": "SupoClip vs OpusClip: Perbandingan Bersumber",
@@ -223,14 +223,14 @@
       },
       "2": {
         "question": "Apakah SupoClip yang di-host punya paket gratis?",
-        "answer": "Tidak. Aplikasi yang di-host membutuhkan langganan Pro atau Creator untuk memproses video. Jalur gratisnya adalah host sendiri kode dengan kode sumber publik, yang tidak punya batas paket; kamu hanya membayar infrastruktur sendiri dan penyedia AI yang kamu konfigurasi."
+        "answer": "Tidak. Aplikasi yang di-host membutuhkan langganan Pro atau Creator untuk memproses video. Jalur gratisnya adalah host sendiri kode open source, yang tidak punya batas paket; kamu hanya membayar infrastruktur sendiri dan penyedia AI yang kamu konfigurasi."
       },
       "3": {
         "question": "Yang mana lebih cepat atau membuat clip yang lebih baik?",
         "answer": "Kami belum memublikasikan tes terkontrol untuk kecepatan atau kualitas clip, jadi kami tidak membuat klaim itu. Hasil bergantung pada videomu dan pengaturan; langkah tes yang adil di halaman ini menunjukkan cara membandingkannya pada kontenmu sendiri."
       }
     },
-    "intro": "OpusClip membantu mendefinisikan AI clipping: unggah video panjang, dapatkan clip vertikal pendek kembali. SupoClip mengerjakan pekerjaan yang sama sebagai proyek dengan kode sumber publik yang bisa kamu pakai dalam versi yang di-host atau jalankan sendiri. Perbandingan ini berpegang pada apa yang didokumentasikan tiap produk. Klaim SupoClip tertaut ke kode sumber kami. Klaim OpusClip tertaut ke pusat bantuan OpusClip sendiri. Kalau sebuah sumber tidak membahas sesuatu, tabel mengatakannya, bukan menebak.",
+    "intro": "OpusClip membantu mendefinisikan AI clipping: unggah video panjang, dapatkan clip vertikal pendek kembali. SupoClip mengerjakan pekerjaan yang sama sebagai proyek open source yang bisa kamu pakai dalam versi yang di-host atau jalankan sendiri. Perbandingan ini berpegang pada apa yang didokumentasikan tiap produk. Klaim SupoClip tertaut ke kode sumber kami. Klaim OpusClip tertaut ke pusat bantuan OpusClip sendiri. Kalau sebuah sumber tidak membahas sesuatu, tabel mengatakannya, bukan menebak.",
     "introNote": "Halaman ini tidak menilai kualitas clip, akurasi caption, atau kecepatan pemrosesan. Untuk membandingkan itu, lihat <test>cara menjalankan tesmu sendiri</test>.",
     "verdict": {
       "heading": "Jawaban singkatnya",
@@ -311,7 +311,7 @@
   },
   "self-host-supoclip-docker": {
     "title": "Cara Host Sendiri SupoClip dengan Docker Compose",
-    "description": "Host sendiri SupoClip, AI video clipper dengan kode sumber publik: kebutuhan, penyiapan .env, opsi Whisper + Ollama yang sepenuhnya lokal, pemeriksaan pertama, dan daftar periksa produksi.",
+    "description": "Host sendiri SupoClip, AI video clipper open source: kebutuhan, penyiapan .env, opsi Whisper + Ollama yang sepenuhnya lokal, pemeriksaan pertama, dan daftar periksa produksi.",
     "eyebrow": "Panduan Host Sendiri",
     "category": "Panduan",
     "readingTime": "9 mnt baca",
@@ -349,7 +349,7 @@
         "answer": "Buat akunmu, lalu atur DISABLE_SIGN_UP=true dan buat ulang kontainer frontend. Compose mengikat setiap port ke 127.0.0.1, jadi tidak ada yang publik sampai kamu menambahkan reverse proxy."
       }
     },
-    "intro": "SupoClip adalah AI video clipper dengan kode sumber publik di balik aplikasi yang di-host di supoclip.com. Repositori yang sama menyertakan stack Docker Compose yang bisa kamu jalankan di laptop, server rumah, atau VPS. Panduan ini mengikuti stack itu persis seperti yang ada di <repo>repositori</repo>. Kalau sebuah langkah bergantung pada penyedia atau perangkatmu, kami mengatakannya alih-alih menebak.",
+    "intro": "SupoClip adalah AI video clipper open source di balik aplikasi yang di-host di supoclip.com. Repositori yang sama menyertakan stack Docker Compose yang bisa kamu jalankan di laptop, server rumah, atau VPS. Panduan ini mengikuti stack itu persis seperti yang ada di <repo>repositori</repo>. Kalau sebuah langkah bergantung pada penyedia atau perangkatmu, kami mengatakannya alih-alih menebak.",
     "introChoice": "Lebih suka tidak menjalankan infrastruktur? <hosted>Aplikasi yang di-host</hosted> menjalankan pipeline yang sama. Masih memilih alat? Baca <comparison>perbandingan SupoClip vs OpusClip</comparison> kami dulu.",
     "stack": {
       "heading": "Yang sedang kamu jalankan",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "Alternatif OpusClip Gratis Terbaik yang Di-host Sendiri",
-    "description": "Mencari alternatif OpusClip yang gratis? SupoClip adalah pembuat clip AI dengan kode sumber publik yang bisa kamu host sendiri secara gratis. SupoClip mengubah video panjang jadi short vertikal ber-caption.",
+    "description": "Mencari alternatif OpusClip yang gratis? SupoClip adalah pembuat clip AI open source yang bisa kamu host sendiri secara gratis. SupoClip mengubah video panjang jadi short vertikal ber-caption.",
     "eyebrow": "Alternatif OpusClip",
     "category": "Perbandingan",
     "readingTime": "6 mnt baca",
     "summary": "SupoClip dibuat untuk kreator yang ingin AI clipping gaya OpusClip di infrastruktur mereka sendiri, tanpa langganan berbasis kredit yang lain.",
-    "lead": "Kalau kamu suka ide OpusClip tapi ingin jalur yang gratis dan dengan kode sumber publik, SupoClip memberimu alur inti: temukan momen kuat di video panjang, bingkai ulang secara vertikal, tambahkan caption, dan ekspor clip untuk Shorts, Reels, dan TikTok.",
+    "lead": "Kalau kamu suka ide OpusClip tapi ingin jalur yang gratis dan open source, SupoClip memberimu alur inti: temukan momen kuat di video panjang, bingkai ulang secara vertikal, tambahkan caption, dan ekspor clip untuk Shorts, Reels, dan TikTok.",
     "bestFor": "Paling cocok untuk",
     "audience": {
       "0": "Kreator yang meng-clip video YouTube jadi short",
@@ -475,7 +475,7 @@
     "p2": "SupoClip adalah alternatif OpusClip gratis terbaik untuk kreator yang spesifik itu: seseorang yang ingin penemuan clip berbantuan AI, ekspor vertikal, caption, dan kendali atas sistem di baliknya. Kamu juga bisa <hosted>memakai SupoClip yang di-host</hosted> dengan paket berbayar kalau kamu ingin melewati penyiapan sama sekali.",
     "verdict": {
       "heading": "Putusan singkat",
-      "body": "Pilih SupoClip kalau kamu ingin AI video clipper dengan kode sumber publik yang bisa kamu host sendiri. Pilih OpusClip kalau kamu ingin produk yang di-host dan dikelola, dan nyaman dengan batas paket, aturan watermark, serta model kreditnya."
+      "body": "Pilih SupoClip kalau kamu ingin AI video clipper open source yang bisa kamu host sendiri. Pilih OpusClip kalau kamu ingin produk yang di-host dan dikelola, dan nyaman dengan batas paket, aturan watermark, serta model kreditnya."
     },
     "stats": {
       "0": {
@@ -498,7 +498,7 @@
     },
     "different": {
       "heading": "Yang membuat SupoClip berbeda",
-      "p1": "SupoClip bukan sekadar pembungkus tipis di atas editor yang di-host. Ini aplikasi clipping dengan kode sumber publik yang lengkap, dengan backend FastAPI, frontend Next.js, worker latar belakang, transkripsi, penilaian AI, reframing vertikal yang mengikuti wajah, gaya caption, dan preset ekspor.",
+      "p1": "SupoClip bukan sekadar pembungkus tipis di atas editor yang di-host. Ini aplikasi clipping open source yang lengkap, dengan backend FastAPI, frontend Next.js, worker latar belakang, transkripsi, penilaian AI, reframing vertikal yang mengikuti wajah, gaya caption, dan preset ekspor.",
       "p2": "Itu membuat imbangannya jelas. Kamu menanggung penyiapan, tapi mendapat kepemilikan. Kamu bisa memeriksa kode, menyesuaikannya dengan alur kerjamu, dan memutuskan penyedia AI yang di-host atau model lokal mana yang dipakai. <guide>Panduan host sendiri</guide> memandu penyiapannya, termasuk opsi Whisper + Ollama yang sepenuhnya lokal."
     },
     "compare": {
@@ -510,7 +510,7 @@
       "rows": {
         "0": {
           "feature": "Model pemakaian gratis",
-          "supoclip": "Kode sumber publik dan bisa di-host sendiri tanpa batas paket. Biayamu adalah komputasi dan kunci API milikmu. Aplikasi yang di-host berbayar.",
+          "supoclip": "Open source dan bisa di-host sendiri tanpa batas paket. Biayamu adalah komputasi dan kunci API milikmu. Aplikasi yang di-host berbayar.",
           "opusclip": "Paket gratis ada, tapi ekspor bisa menyertakan watermark OpusClip."
         },
         "1": {
@@ -557,11 +557,11 @@
     "faqs": {
       "0": {
         "question": "Apa alternatif OpusClip gratis yang terbaik?",
-        "answer": "SupoClip adalah alternatif OpusClip gratis yang kuat kalau kamu ingin pembuat clip AI dengan kode sumber publik yang bisa kamu host sendiri, sesuaikan, dan jalankan dengan alur video milikmu."
+        "answer": "SupoClip adalah alternatif OpusClip gratis yang kuat kalau kamu ingin pembuat clip AI open source yang bisa kamu host sendiri, sesuaikan, dan jalankan dengan alur video milikmu."
       },
       "1": {
         "question": "Apakah SupoClip sepenuhnya gratis?",
-        "answer": "Basis kode SupoClip gratis dan dengan kode sumber publik, dan instalasi yang di-host sendiri tidak punya batas paket. Kamu tetap membayar infrastruktur sendiri serta penyedia transkripsi atau LLM apa pun yang kamu konfigurasi. Aplikasi yang di-host membutuhkan paket berbayar."
+        "answer": "Basis kode SupoClip gratis dan open source, dan instalasi yang di-host sendiri tidak punya batas paket. Kamu tetap membayar infrastruktur sendiri serta penyedia transkripsi atau LLM apa pun yang kamu konfigurasi. Aplikasi yang di-host membutuhkan paket berbayar."
       },
       "2": {
         "question": "Apakah SupoClip menambahkan watermark?",
@@ -580,7 +580,7 @@
       "faq": "FAQ"
     },
     "aside": {
-      "title": "Kendali dengan kode sumber publik",
+      "title": "Kendali open source",
       "body": "Pakai SupoClip saat kamu ingin alur clipping tanpa menyerahkan setiap keputusan ke platform yang di-host."
     }
   }

@@ -29,7 +29,7 @@
 
 ---
 
-SupoClip is a source-available, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Run it yourself, customize it, inspect it — or use the hosted version and skip the setup.
+SupoClip is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Inspect the code, self-host for noncommercial use, or use the hosted version. Commercial use of the self-hosted code requires [written permission](LICENSE) from Shiori LLC.
 
 **See it first:** [watch real clips SupoClip generated](https://www.supoclip.com/demo) from a long-form interview, or follow the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) to run it on your own machine.
 
@@ -51,7 +51,7 @@ SupoClip gives you the same core pipeline without the leash:
 
 - **Self-hostable** — run it on your own hardware, process as much as it can handle
 - **No watermarks** — your content stays yours
-- **Source available** — inspect the code, self-host, and share noncommercial forks under the [license](LICENSE)
+- **Open source** — inspect the code, self-host, and share noncommercial forks under the [license](LICENSE)
 - **Hosted option** — when you'd rather not manage servers, the cloud version is there
 
 ## Features

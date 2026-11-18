@@ -1,18 +1,18 @@
 {
   "metadata": {
-    "title": "SupoClip – KI-Videoclipper für Shorts",
-    "description": "Mach aus langen Videos und Twitch- oder Kick-VODs untertitelte YouTube Shorts, TikToks und Reels – mit KI-Clipping, Viralitätsbewertung und gesichtsbewussten 9:16-Schnitten.",
-    "openGraphDescription": "Mach aus langen Videos und Twitch- oder Kick-VODs untertitelte YouTube Shorts, TikToks und Reels mit KI-Clipping.",
-    "twitterDescription": "KI-Clipping, Viralitätsbewertung, Untertitel und gesichtsbewusste Hochformatschnitte.",
+    "title": "SupoClip – Open-Source-KI-Videoclipper für Shorts",
+    "description": "Mach aus langen Videos und Twitch- oder Kick-VODs untertitelte YouTube Shorts, TikToks und Reels – mit Open-Source-KI-Clipping, Viralitätsbewertung und gesichtsbewussten 9:16-Schnitten.",
+    "openGraphDescription": "Mach aus langen Videos und Twitch- oder Kick-VODs untertitelte YouTube Shorts, TikToks und Reels mit Open-Source-KI-Clipping.",
+    "twitterDescription": "Open-Source-KI-Clipping, Viralitätsbewertung, Untertitel und gesichtsbewusste Hochformatschnitte.",
     "keywords": {
       "clipper": "KI-Videoclipper",
-      "openSource": "Videoclipper",
+      "openSource": "Open-Source-Videoclipper",
       "shorts": "YouTube-Shorts-Clipper",
       "longToShorts": "langes Video zu Shorts",
       "maker": "KI-Clip-Maker"
     },
     "structured": {
-      "software": "Ein KI-Videoclipper, der Highlights findet, Hochformatschnitte erstellt, wortgenaue Untertitel setzt und Kurzvideos exportiert.",
+      "software": "Ein Open-Source-KI-Videoclipper, der Highlights findet, Hochformatschnitte erstellt, wortgenaue Untertitel setzt und Kurzvideos exportiert.",
       "featureDiscovery": "KI-gestützte Clip-Suche und Viralitätsbewertung",
       "featureCrop": "Gesichtsbewusster 9:16-Hochformatschnitt",
       "featureCaptions": "Wortgenaue animierte Untertitel",
@@ -20,7 +20,7 @@
       "featureSelfHost": "Für nichtkommerzielle Zwecke selbst hosten",
       "offerCategory": "Quellcode für nichtkommerzielles Self-Hosting",
       "ios": "Die SupoClip-App für iOS: Mach aus langen Videos untertitelte Hochformat-Shorts auf deinem iPhone.",
-      "website": "KI-Videoclipping für Kurzform-Content."
+      "website": "Open-Source-KI-Videoclipping für Kurzform-Content."
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",
+    "tagline": "Open-Source-KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",
     "github": "GitHub",
     "ios": "iOS-App",
     "discord": "Discord-Community",
@@ -85,9 +85,9 @@
       "description": "Ein praktischer Ablauf zum Auswählen, Untertiteln, Neu-Rahmen und Prüfen von Clips."
     },
     "open_source_video_clipper": {
-      "label": "Clipper",
-      "eyebrow": "Öffentlich einsehbarer Quellcode",
-      "title": "Ein Videoclipper, den du selbst steuerst",
+      "label": "Open-Source-Clipper",
+      "eyebrow": "Open Source",
+      "title": "Ein Open-Source-Videoclipper, den du selbst steuerst",
       "description": "Was Self-Hosting an Kontrolle, Modellanbietern und Infrastruktur ändert."
     },
     "blog_self_host_supoclip_docker": {
@@ -106,12 +106,12 @@
       "label": "Selbst gehostete OpusClip-Alternative",
       "eyebrow": "Vergleich",
       "title": "Die beste kostenlose, selbst gehostete OpusClip-Alternative",
-      "description": "Wann ein selbst gehosteter Clipper die bessere Wahl ist als ein Credit-Tool."
+      "description": "Wann ein selbst gehosteter Open-Source-Clipper die bessere Wahl ist als ein Credit-Tool."
     },
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "Vergleich",
-      "title": "SupoClip vs supo.live: Kontrolle dank einsehbarem Quellcode",
+      "title": "SupoClip vs supo.live: Open-Source-Kontrolle",
       "description": "Vergleich Self-Hosting, KI-Clipping und Schnittabläufe, bevor du ein Videotool wählst."
     },
     "sign_up": {
@@ -181,9 +181,9 @@
       "description": "Build a distinct batch, review each clip, and verify scheduled publication."
     },
     "blog_open_source_video_clippers": {
-      "eyebrow": "Vergleich",
+      "eyebrow": "Open-source comparison",
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
-      "label": "Videoclipper im Vergleich",
+      "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
     "faq": {
@@ -195,7 +195,7 @@
     "features": "Funktionen",
     "editor": "Editor",
     "pricing": "Preise",
-    "openSource": "Öffentlich einsehbarer Quellcode",
+    "openSource": "Open Source",
     "blog": "Blog",
     "changelog": "Änderungen",
     "affiliate": "Partnerprogramm",
@@ -207,7 +207,7 @@
     "faq": "FAQ"
   },
   "hero": {
-    "badge": "Quellcode einsehbar und selbst hostbar. Auch fürs iPhone.",
+    "badge": "Open Source und selbst hostbar. Auch fürs iPhone.",
     "titleLine1": "Ein langes Video.",
     "titleLine2": "Eine Woche Shorts.",
     "body": "SupoClip findet die Momente in deinen Videos, VODs und Uploads, die sich zum Posten lohnen, schneidet sie mit wortgenauen Untertiteln auf 9:16 zu und plant sie für YouTube Shorts ein.",
@@ -216,7 +216,7 @@
     "viewSource": "Quellcode ansehen",
     "appStoreAria": "SupoClip im App Store laden",
     "appStoreAlt": "Im App Store laden",
-    "productHuntAlt": "SupoClip - KI-Clipper: lange Videos werden virale Shorts | Product Hunt",
+    "productHuntAlt": "SupoClip - Open-Source-KI-Clipper: lange Videos werden virale Shorts | Product Hunt",
     "sources": {
       "upload": "Eigene Dateien",
       "label": "Clips aus"

@@ -1,18 +1,18 @@
 {
   "metadata": {
-    "title": "SupoClip – AI Video Clipper Kode sumber publik untuk Shorts",
-    "description": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping dengan kode sumber publik, skor viral, dan crop 9:16 yang mengikuti wajah.",
-    "openGraphDescription": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping dengan kode sumber publik.",
-    "twitterDescription": "AI clipping dengan kode sumber publik, skor viral, caption, dan crop vertikal yang mengikuti wajah.",
+    "title": "SupoClip – AI Video Clipper Open Source untuk Shorts",
+    "description": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping open source, skor viral, dan crop 9:16 yang mengikuti wajah.",
+    "openGraphDescription": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping open source.",
+    "twitterDescription": "AI clipping open source, skor viral, caption, dan crop vertikal yang mengikuti wajah.",
     "keywords": {
       "clipper": "alat clip video AI",
-      "openSource": "video clipper dengan kode sumber publik",
+      "openSource": "video clipper open source",
       "shorts": "clipper YouTube Shorts",
       "longToShorts": "video panjang jadi shorts",
       "maker": "pembuat clip AI"
     },
     "structured": {
-      "software": "AI video clipper dengan kode sumber publik untuk menemukan highlight, membuat crop vertikal, menambahkan caption yang sinkron per kata, dan mengekspor video pendek.",
+      "software": "AI video clipper open source untuk menemukan highlight, membuat crop vertikal, menambahkan caption yang sinkron per kata, dan mengekspor video pendek.",
       "featureDiscovery": "Penemuan clip berbantuan AI dan skor viral",
       "featureCrop": "Crop vertikal 9:16 yang mengikuti wajah",
       "featureCaptions": "Caption animasi yang sinkron per kata",
@@ -20,7 +20,7 @@
       "featureSelfHost": "Hosting mandiri untuk penggunaan nonkomersial",
       "offerCategory": "Kode sumber untuk hosting mandiri nonkomersial",
       "ios": "Aplikasi iOS SupoClip: ubah video panjang jadi short vertikal ber-caption dari iPhone.",
-      "website": "AI video clipping dengan kode sumber publik untuk konten pendek."
+      "website": "AI video clipping open source untuk konten pendek."
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "AI video clipper dengan kode sumber publik. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
+    "tagline": "AI video clipper open source. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
     "github": "GitHub",
     "ios": "Aplikasi iOS",
     "discord": "Komunitas Discord",
@@ -85,9 +85,9 @@
       "description": "Alur praktis untuk memilih, memberi caption, membingkai ulang, dan meninjau clip."
     },
     "open_source_video_clipper": {
-      "label": "Clipper dengan kode sumber publik",
-      "eyebrow": "Kode sumber publik",
-      "title": "Video clipper dengan kode sumber publik yang bisa kamu kendalikan",
+      "label": "Clipper open source",
+      "eyebrow": "Open Source",
+      "title": "Video clipper open source yang bisa kamu kendalikan",
       "description": "Apa yang berubah saat host sendiri: kendali, penyedia model, dan infrastruktur."
     },
     "blog_self_host_supoclip_docker": {
@@ -106,12 +106,12 @@
       "label": "Alternatif OpusClip yang di-host sendiri",
       "eyebrow": "Perbandingan",
       "title": "Alternatif OpusClip gratis terbaik yang di-host sendiri",
-      "description": "Kapan clipper dengan kode sumber publik yang di-host sendiri lebih tepat daripada alat berbasis kredit."
+      "description": "Kapan clipper open source yang di-host sendiri lebih tepat daripada alat berbasis kredit."
     },
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "Perbandingan",
-      "title": "SupoClip vs supo.live: kendali dengan kode sumber publik",
+      "title": "SupoClip vs supo.live: kendali open source",
       "description": "Bandingkan host sendiri, AI clipping, dan alur edit sebelum memilih alat video."
     },
     "sign_up": {
@@ -181,9 +181,9 @@
       "description": "Build a distinct batch, review each clip, and verify scheduled publication."
     },
     "blog_open_source_video_clippers": {
-      "eyebrow": "Kode sumber publik comparison",
+      "eyebrow": "Open-source comparison",
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
-      "label": "Kode sumber publik video clippers",
+      "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
     "faq": {
@@ -195,7 +195,7 @@
     "features": "Fitur",
     "editor": "Editor",
     "pricing": "Harga",
-    "openSource": "Kode sumber publik",
+    "openSource": "Open Source",
     "blog": "Blog",
     "changelog": "Catatan perubahan",
     "affiliate": "Afiliasi",
@@ -207,7 +207,7 @@
     "faq": "FAQ"
   },
   "hero": {
-    "badge": "Kode sumber publik dan bisa di-host sendiri. Juga tersedia di iPhone.",
+    "badge": "Open source dan bisa di-host sendiri. Juga tersedia di iPhone.",
     "titleLine1": "Satu video panjang.",
     "titleLine2": "Seminggu konten shorts.",
     "body": "SupoClip menemukan momen yang layak diposting dari video, VOD, dan unggahanmu, membingkai ulang ke 9:16 dengan subtitle yang sinkron per kata, lalu menjadwalkannya ke YouTube Shorts.",
@@ -216,7 +216,7 @@
     "viewSource": "Lihat sumber",
     "appStoreAria": "Unduh SupoClip di App Store",
     "appStoreAlt": "Unduh di App Store",
-    "productHuntAlt": "SupoClip - AI clipper dengan kode sumber publik: video panjang jadi short viral | Product Hunt",
+    "productHuntAlt": "SupoClip - AI clipper open source: video panjang jadi short viral | Product Hunt",
     "sources": {
       "upload": "File milikmu",
       "label": "Potong dari"
@@ -501,7 +501,7 @@
   },
   "cta": {
     "title": "Video berikutnya sudah jadi konten seminggu.",
-    "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Pakai aplikasi yang di-host, atau host sendiri versi dengan kode sumber publik secara gratis."
+    "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
   },
   "faqPage": {
     "title": "Bahasa, subtitle, dan klip",

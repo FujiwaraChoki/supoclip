@@ -13,7 +13,7 @@
     "faq": "常见问题",
     "startAria": "从 SupoClip 开始",
     "ctaTitle": "拿一条你很熟悉的录像试一次。",
-    "ctaBody": "用托管应用，或者在你自己的机器上运行同一套公开源码代码。",
+    "ctaBody": "用托管应用，或者在你自己的机器上运行同一套开源代码。",
     "getSource": "获取源码",
     "keepReading": "继续阅读"
   },
@@ -29,25 +29,25 @@
     "heading": "把长视频做成更好短片的实用指南。",
     "intro": "对比、工作流和剪辑建议，适合想要可重复的剪辑流程、更干净的字幕，以及对视频流水线有更多控制的创作者。",
     "readArticle": "阅读文章",
-    "openSource": "公开源码",
-    "openSourceClipping": "公开源码剪辑",
+    "openSource": "开源",
+    "openSourceClipping": "开源剪辑",
     "moreGuides": "更多剪辑指南",
     "productGuides": "产品指南"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip 与 supo.live：为什么公开源码更合适",
-    "description": "比较 SupoClip 和 supo.live 的 AI 视频剪辑。看看为什么 SupoClip 在公开源码控制、自托管和可定制视频流程上更合适。",
+    "title": "SupoClip 与 supo.live：为什么开源更合适",
+    "description": "比较 SupoClip 和 supo.live 的 AI 视频剪辑。看看为什么 SupoClip 在开源控制、自托管和可定制视频流程上更合适。",
     "eyebrow": "supo.live 的替代",
     "category": "对比",
     "readingTime": "5 分钟阅读",
-    "summary": "对想掌控剪辑流程的创作者和团队来说，SupoClip 是比 supo.live 更好的公开源码选择。",
+    "summary": "对想掌控剪辑流程的创作者和团队来说，SupoClip 是比 supo.live 更好的开源选择。",
     "imageAlt": "一幅编辑插图：一段播客录音变成三条竖屏视频短片",
     "breadcrumb": "SupoClip 与 supo.live",
     "heroCaption": "一次录像，更多可能。AI 生成的编辑插图，表现从长视频到短片的流程。",
     "verdict": {
       "kicker": "简短结论",
       "heading": "当控制权重要时，选 SupoClip。",
-      "body": "公开源码。你的部署。你的流程。把录制内容做成带字幕短片的坚实基础。",
+      "body": "开源。你的部署。你的流程。把录制内容做成带字幕短片的坚实基础。",
       "points": {
         "0": "查看并扩展代码",
         "1": "在你的基础设施上自托管",
@@ -57,15 +57,15 @@
     "toc": {
       "comparison": "比较工具",
       "workflow": "看流程",
-      "control": "为什么公开源码",
+      "control": "为什么开源",
       "cost": "理解成本",
       "faq": "常见问题"
     },
     "body": {
       "p1": "选择 AI 视频剪辑工具，也是在选择你对制作过程保留多少控制。如果你想把播客、访谈、演讲和直播录像做成短视频，SupoClip 的理由很直接：AI 辅助剪辑，源码可以查看，流程可以自己跑。",
-      "p2": "我们的结论：对把公开源码、自托管和定制放在前面的创作者、机构和开发者来说，SupoClip 是更好的选择。这是 SupoClip 团队基于已写明能力做的对比，不是短片质量或处理速度的基准测试。",
+      "p2": "我们的结论：对把开源、自托管和定制放在前面的创作者、机构和开发者来说，SupoClip 是更好的选择。这是 SupoClip 团队基于已写明能力做的对比，不是短片质量或处理速度的基准测试。",
       "whatSupoclip": "什么是 SupoClip？",
-      "whatSupoclipBody": "SupoClip 是公开源码的 AI 视频剪辑工具，可通过 supoclip.com 使用，也可以作为自托管应用。它分析长视频，选出有潜力的时刻，并做出以人脸为中心裁切、逐词同步字幕的竖屏短片。钩子标题、短片评分和可选的 B-roll 帮助把原始录像变成可供你最终审看的素材。<repo>SupoClip 仓库</repo>写明了功能和安装。",
+      "whatSupoclipBody": "SupoClip 是开源的 AI 视频剪辑工具，可通过 supoclip.com 使用，也可以作为自托管应用。它分析长视频，选出有潜力的时刻，并做出以人脸为中心裁切、逐词同步字幕的竖屏短片。钩子标题、短片评分和可选的 B-roll 帮助把原始录像变成可供你最终审看的素材。<repo>SupoClip 仓库</repo>写明了功能和安装。",
       "whatSupo": "什么是 supo.live？",
       "whatSupoBody": "supo.live 推广的是面向录像和正在进行的直播的托管剪辑服务。它的首页宣传直播剪辑、样式字幕、人脸跟踪、浏览器编辑器，以及定时发布到 TikTok、YouTube Shorts 和 X。因此直播发布是它最清楚的区别。请看 <site>supo.live 官方功能概览</site>。"
     },
@@ -131,7 +131,7 @@
       "caption": "在 SupoClip 编辑器里：导出前调整字幕、构图和时间。这是使用测试样片的真实产品截图；点击可放大。"
     },
     "control": {
-      "heading": "为什么 SupoClip 是更好的公开源码替代",
+      "heading": "为什么 SupoClip 是更好的开源替代",
       "h1": "1. 你可以按内容来塑造流程",
       "p1": "播客工作室和教育频道可能想要很不一样的短片。有了 SupoClip，源码访问让技术团队按编辑需要调整选择逻辑、字幕行为和处理步骤。你可以查看系统如何工作，并在自己的部署里开发改动。这种灵活性是 SupoClip 相对于完全依赖托管产品设置的最大优势。",
       "h2": "2. 你选择应用跑在哪里",
@@ -157,7 +157,7 @@
     },
     "cost": {
       "heading": "成本：免费源码，真实的运营费用",
-      "p1": "SupoClip 的公开源码代码可以免费自托管。实际费用取决于算力、存储、转写、付费模型用量，以及维护安装所需的时间。容量跟着你准备的资源和提供方限制走。对已经在跑基础设施的团队，这可能有吸引力，但这并不保证每种工作量都更便宜。",
+      "p1": "SupoClip 的开源代码可以免费自托管。实际费用取决于算力、存储、转写、付费模型用量，以及维护安装所需的时间。容量跟着你准备的资源和提供方限制走。对已经在跑基础设施的团队，这可能有吸引力，但这并不保证每种工作量都更便宜。",
       "p2": "托管的 SupoClip 服务是另一条路，有自己的价格和条款。想少做安装时选它；当部署控制是优先事项时，选自托管。"
     },
     "choose": {
@@ -179,7 +179,7 @@
     },
     "faqs": {
       "0": {
-        "question": "supo.live 最好的公开源码替代是什么？",
+        "question": "supo.live 最好的开源替代是什么？",
         "answer": "对想把录好的视频做成短片，同时保留源码访问、自托管和对 AI 剪辑流程的控制的创作者和团队，SupoClip 是很强的选择。"
       },
       "1": {
@@ -191,7 +191,7 @@
         "answer": "这篇对比建议把 SupoClip 用于录好的视频和直播回放。supo.live 宣传在直播进行中剪辑以及定时社交发布；这里不把这些能力说成 SupoClip 的对等功能。"
       }
     },
-    "closing": "看看我们的<openSource>公开源码视频剪辑指南</openSource>，或阅读<comparison>SupoClip 与 OpusClip 的对比</comparison>。"
+    "closing": "看看我们的<openSource>开源视频剪辑指南</openSource>，或阅读<comparison>SupoClip 与 OpusClip 的对比</comparison>。"
   },
   "supoclip-vs-opusclip": {
     "title": "SupoClip 与 OpusClip：附来源的对比",
@@ -223,14 +223,14 @@
       },
       "2": {
         "question": "托管的 SupoClip 有免费方案吗？",
-        "answer": "没有。托管应用处理视频需要 Pro 或 Creator 订阅。免费路径是自托管公开源码代码，没有方案上限；你只为自己的基础设施和所配置的 AI 提供方付费。"
+        "answer": "没有。托管应用处理视频需要 Pro 或 Creator 订阅。免费路径是自托管开源代码，没有方案上限；你只为自己的基础设施和所配置的 AI 提供方付费。"
       },
       "3": {
         "question": "哪一个更快，或短片更好？",
         "answer": "我们没有公布过关于速度或短片质量的对照测试，所以不做这种声称。结果取决于你的视频和设置；本页的公平测试步骤说明如何用你自己的内容来比较。"
       }
     },
-    "intro": "OpusClip 帮助定义了 AI 剪辑：上传长视频，拿回竖屏短片。SupoClip 以公开源码项目做同样的事，你可以托管使用，也可以自己运行。这篇对比只谈每个产品写明的内容。关于 SupoClip 的说法链到我们的源码。关于 OpusClip 的说法链到 OpusClip 自己的帮助中心。来源没写到的地方，表格会标明，而不是猜测。",
+    "intro": "OpusClip 帮助定义了 AI 剪辑：上传长视频，拿回竖屏短片。SupoClip 以开源项目做同样的事，你可以托管使用，也可以自己运行。这篇对比只谈每个产品写明的内容。关于 SupoClip 的说法链到我们的源码。关于 OpusClip 的说法链到 OpusClip 自己的帮助中心。来源没写到的地方，表格会标明，而不是猜测。",
     "introNote": "本页不评价短片质量、字幕准确性或处理速度。要比较这些，请看<test>如何自己做测试</test>。",
     "verdict": {
       "heading": "简短回答",
@@ -311,7 +311,7 @@
   },
   "self-host-supoclip-docker": {
     "title": "如何用 Docker Compose 自托管 SupoClip",
-    "description": "自托管公开源码 AI 视频剪辑工具 SupoClip：环境要求、.env 配置、完全本地的 Whisper + Ollama 方案、首次运行检查，以及生产检查清单。",
+    "description": "自托管开源 AI 视频剪辑工具 SupoClip：环境要求、.env 配置、完全本地的 Whisper + Ollama 方案、首次运行检查，以及生产检查清单。",
     "eyebrow": "自托管指南",
     "category": "指南",
     "readingTime": "9 分钟阅读",
@@ -349,7 +349,7 @@
         "answer": "先创建账号，再设置 DISABLE_SIGN_UP=true 并重建 frontend 容器。Compose 把每个端口绑在 127.0.0.1 上，所以在你加上反向代理之前，外面都访问不到。"
       }
     },
-    "intro": "SupoClip 是 supoclip.com 托管应用背后的公开源码 AI 视频剪辑工具。同一个仓库带有一套 Docker Compose 栈，可以跑在笔记本、家用服务器或 VPS 上。本指南严格按照它在<repo>仓库</repo>里的样子来写。某一步取决于你的提供方或硬件时，我们会说出来，而不是猜测。",
+    "intro": "SupoClip 是 supoclip.com 托管应用背后的开源 AI 视频剪辑工具。同一个仓库带有一套 Docker Compose 栈，可以跑在笔记本、家用服务器或 VPS 上。本指南严格按照它在<repo>仓库</repo>里的样子来写。某一步取决于你的提供方或硬件时，我们会说出来，而不是猜测。",
     "introChoice": "不想自己跑基础设施？<hosted>托管应用</hosted>跑的是同一套流程。还在工具之间犹豫？先读我们的<comparison>SupoClip 与 OpusClip 对比</comparison>。",
     "stack": {
       "heading": "你正在运行什么",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "最好的免费、可自托管的 OpusClip 替代",
-    "description": "在找免费的 OpusClip 替代？SupoClip 是可以免费自托管的公开源码 AI 短片工具。它把长视频做成带字幕的竖屏短片。",
+    "description": "在找免费的 OpusClip 替代？SupoClip 是可以免费自托管的开源 AI 短片工具。它把长视频做成带字幕的竖屏短片。",
     "eyebrow": "OpusClip 的替代",
     "category": "对比",
     "readingTime": "6 分钟阅读",
     "summary": "SupoClip 面向想在自己的基础设施上做 OpusClip 式 AI 剪辑、而不想再买一套按额度计费订阅的创作者。",
-    "lead": "如果你喜欢 OpusClip 的思路，但想要一条免费、公开源码的路，SupoClip 提供核心流程：在长视频里找出有力的时刻，做成竖屏，加上字幕，再导出到 Shorts、Reels 和 TikTok。",
+    "lead": "如果你喜欢 OpusClip 的思路，但想要一条免费、开源的路，SupoClip 提供核心流程：在长视频里找出有力的时刻，做成竖屏，加上字幕，再导出到 Shorts、Reels 和 TikTok。",
     "bestFor": "适合",
     "audience": {
       "0": "把 YouTube 视频剪成短片的创作者",
@@ -475,7 +475,7 @@
     "p2": "对这类创作者，SupoClip 是最好的免费 OpusClip 替代：想要 AI 辅助找短片、竖屏导出、字幕，以及控制底层系统。如果想完全跳过安装，也可以在付费方案上<hosted>使用托管的 SupoClip</hosted>。",
     "verdict": {
       "heading": "简短结论",
-      "body": "如果你想要可以自托管的公开源码 AI 视频剪辑工具，选 SupoClip。如果你想要托管好的产品，并且接受它的方案上限、水印规则和额度模式，选 OpusClip。"
+      "body": "如果你想要可以自托管的开源 AI 视频剪辑工具，选 SupoClip。如果你想要托管好的产品，并且接受它的方案上限、水印规则和额度模式，选 OpusClip。"
     },
     "stats": {
       "0": {
@@ -498,7 +498,7 @@
     },
     "different": {
       "heading": "SupoClip 的不同之处",
-      "p1": "SupoClip 不只是托管编辑器外面的薄包装。它是一套完整的公开源码剪辑应用，有 FastAPI 后端、Next.js 前端、后台 worker、转写、AI 评分、跟随人脸的竖屏重构图、字幕样式和导出预设。",
+      "p1": "SupoClip 不只是托管编辑器外面的薄包装。它是一套完整的开源剪辑应用，有 FastAPI 后端、Next.js 前端、后台 worker、转写、AI 评分、跟随人脸的竖屏重构图、字幕样式和导出预设。",
       "p2": "取舍因此很清楚。你承担安装，但获得所有权。你可以查看代码、按自己的流程改它，并决定用哪些托管 AI 提供方或本地模型。<guide>自托管指南</guide>会带你完成安装，包括完全本地的 Whisper + Ollama 方案。"
     },
     "compare": {
@@ -510,7 +510,7 @@
       "rows": {
         "0": {
           "feature": "免费使用模式",
-          "supoclip": "公开源码且可自托管，没有方案上限。费用是你自己的算力和 API 密钥。托管应用是付费的。",
+          "supoclip": "开源且可自托管，没有方案上限。费用是你自己的算力和 API 密钥。托管应用是付费的。",
           "opusclip": "有免费方案，但导出可能带有 OpusClip 水印。"
         },
         "1": {
@@ -557,11 +557,11 @@
     "faqs": {
       "0": {
         "question": "最好的免费 OpusClip 替代是什么？",
-        "answer": "如果你想要可以自托管、定制，并用自己的视频流程运行的公开源码 AI 短片工具，SupoClip 是很强的免费 OpusClip 替代。"
+        "answer": "如果你想要可以自托管、定制，并用自己的视频流程运行的开源 AI 短片工具，SupoClip 是很强的免费 OpusClip 替代。"
       },
       "1": {
         "question": "SupoClip 完全免费吗？",
-        "answer": "SupoClip 的代码免费且公开源码，自托管安装没有方案上限。你仍然要为自己的基础设施以及所配置的转写或 LLM 提供方付费。托管应用需要付费方案。"
+        "answer": "SupoClip 的代码免费且开源，自托管安装没有方案上限。你仍然要为自己的基础设施以及所配置的转写或 LLM 提供方付费。托管应用需要付费方案。"
       },
       "2": {
         "question": "SupoClip 会加水印吗？",
@@ -580,7 +580,7 @@
       "faq": "常见问题"
     },
     "aside": {
-      "title": "公开源码控制",
+      "title": "开源控制",
       "body": "当你想要剪辑流程、又不想把每个决定都交给托管平台时，用 SupoClip。"
     }
   }

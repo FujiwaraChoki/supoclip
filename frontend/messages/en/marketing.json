@@ -1,26 +1,26 @@
 {
   "metadata": {
-    "title": "SupoClip – Source-available AI Video Clipper for Shorts",
-    "description": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with source-available AI clipping, virality scoring, and face-aware 9:16 crops.",
-    "openGraphDescription": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with source-available AI clipping.",
-    "twitterDescription": "Source-available AI clipping, virality scoring, captions, and face-aware vertical crops.",
+    "title": "SupoClip – Open-Source AI Video Clipper for Shorts",
+    "description": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping, virality scoring, and face-aware 9:16 crops.",
+    "openGraphDescription": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping.",
+    "twitterDescription": "Open-source AI clipping, virality scoring, captions, and face-aware vertical crops.",
     "keywords": {
       "clipper": "AI video clipper",
-      "openSource": "source-available video clipper",
+      "openSource": "open-source video clipper",
       "shorts": "YouTube Shorts clipper",
       "longToShorts": "long video to shorts",
       "maker": "AI clip maker"
     },
     "structured": {
-      "software": "A source-available AI video clipper for finding highlights, creating vertical crops, adding word-synced captions, and exporting short-form videos.",
+      "software": "An open-source AI video clipper for finding highlights, creating vertical crops, adding word-synced captions, and exporting short-form videos.",
       "featureDiscovery": "AI-assisted clip discovery and virality scoring",
       "featureCrop": "Face-aware 9:16 vertical cropping",
       "featureCaptions": "Word-synced animated captions",
       "featureExports": "YouTube Shorts, TikTok, and Instagram Reels exports",
       "featureSelfHost": "Self-host for noncommercial use",
-      "offerCategory": "Source available for noncommercial self-hosting",
+      "offerCategory": "Noncommercial self-hosting",
       "ios": "The SupoClip iOS app: clip long videos into captioned vertical shorts from your iPhone.",
-      "website": "Source-available AI video clipping for short-form content."
+      "website": "Open-source AI video clipping for short-form content."
     }
   },
   "community": {
@@ -35,7 +35,7 @@
     }
   },
   "footer": {
-    "tagline": "Source-available AI video clipper. Use the hosted app or run it on your own infrastructure.",
+    "tagline": "Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.",
     "github": "GitHub",
     "ios": "iOS App",
     "discord": "Discord community",
@@ -85,9 +85,9 @@
       "description": "A practical workflow for selecting, captioning, reframing, and reviewing clips."
     },
     "open_source_video_clipper": {
-      "label": "Source-available clipper",
-      "eyebrow": "Source-available",
-      "title": "Source-available video clipper you can control",
+      "label": "Open-source clipper",
+      "eyebrow": "Open source",
+      "title": "Open-source video clipper you can control",
       "description": "What self-hosting changes about control, model providers, and infrastructure."
     },
     "blog_self_host_supoclip_docker": {
@@ -111,7 +111,7 @@
     "blog_supoclip_vs_supo_live": {
       "label": "SupoClip vs supo.live",
       "eyebrow": "Comparison",
-      "title": "SupoClip vs supo.live: control through source access",
+      "title": "SupoClip vs supo.live: open-source control",
       "description": "Compare self-hosting, AI clipping, and editing workflows before choosing a video tool."
     },
     "sign_up": {
@@ -181,9 +181,9 @@
       "description": "Build a distinct batch, review each clip, and verify scheduled publication."
     },
     "blog_open_source_video_clippers": {
-      "eyebrow": "Source-available comparison",
+      "eyebrow": "Open-source comparison",
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
-      "label": "Source-available video clippers",
+      "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
     "faq": {
@@ -195,7 +195,7 @@
     "features": "Features",
     "editor": "Editor",
     "pricing": "Pricing",
-    "openSource": "Source-available",
+    "openSource": "Open Source",
     "blog": "Blog",
     "changelog": "Changelog",
     "affiliate": "Affiliate",
@@ -207,7 +207,7 @@
     "faq": "FAQ"
   },
   "hero": {
-    "badge": "Source-available and self-hostable. Also on iPhone.",
+    "badge": "Open source and self-hostable. Also on iPhone.",
     "titleLine1": "One long video.",
     "titleLine2": "A week of shorts.",
     "body": "SupoClip finds the moments worth posting in your videos, VODs, and uploads, reframes them to 9:16 with word-synced captions, and schedules them to YouTube Shorts.",
@@ -216,7 +216,7 @@
     "viewSource": "View Source",
     "appStoreAria": "Download SupoClip on the App Store",
     "appStoreAlt": "Download on the App Store",
-    "productHuntAlt": "SupoClip - Source-available AI clipper: long videos into viral shorts | Product Hunt",
+    "productHuntAlt": "SupoClip - Open-source AI clipper: long videos into viral shorts | Product Hunt",
     "sources": {
       "upload": "Your own files",
       "label": "Clip from"
@@ -483,7 +483,7 @@
   "openSource": {
     "badge": "SupoClip Noncommercial Source License",
     "title": "Built in the open",
-    "body": "Source available for noncommercial self-hosting",
+    "body": "Browse the code and self-host SupoClip for noncommercial use.",
     "commandLabel": "self-host",
     "comment": "# add a transcription + LLM provider to .env",
     "facts": {

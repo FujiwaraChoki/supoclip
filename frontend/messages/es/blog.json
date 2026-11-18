@@ -13,7 +13,7 @@
     "faq": "Preguntas frecuentes",
     "startAria": "Empieza con SupoClip",
     "ctaTitle": "Pruébalo con una grabación que conozcas bien.",
-    "ctaBody": "Usa la app alojada, o ejecuta el mismo código fuente público en tu propia máquina.",
+    "ctaBody": "Usa la app alojada, o ejecuta el mismo código abierto en tu propia máquina.",
     "getSource": "Obtén el código",
     "keepReading": "Sigue leyendo"
   },
@@ -29,25 +29,25 @@
     "heading": "Guías prácticas para convertir videos largos en mejores shorts.",
     "intro": "Comparaciones, flujos de trabajo y consejos de edición para quienes quieren un proceso de recorte repetible, subtítulos más limpios y más control sobre su pipeline de video.",
     "readArticle": "Leer artículo",
-    "openSource": "Código fuente disponible",
-    "openSourceClipping": "Recorte de código fuente público",
+    "openSource": "Código abierto",
+    "openSourceClipping": "Recorte de código abierto",
     "moreGuides": "Más guías de recorte",
     "productGuides": "Guías del producto"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip frente a supo.live: por qué gana el código fuente público",
-    "description": "Compara SupoClip y supo.live para recorte de video con IA. Mira por qué SupoClip gana en control de código fuente público, autoalojamiento y flujos de video personalizables.",
+    "title": "SupoClip frente a supo.live: por qué gana el código abierto",
+    "description": "Compara SupoClip y supo.live para recorte de video con IA. Mira por qué SupoClip gana en control de código abierto, autoalojamiento y flujos de video personalizables.",
     "eyebrow": "Alternativa a supo.live",
     "category": "Comparación",
     "readingTime": "Lectura de 5 min",
-    "summary": "Para creadores y equipos que quieren control sobre su flujo de recorte, SupoClip es la mejor alternativa de código fuente público a supo.live.",
+    "summary": "Para creadores y equipos que quieren control sobre su flujo de recorte, SupoClip es la mejor alternativa de código abierto a supo.live.",
     "imageAlt": "Ilustración editorial de una grabación de pódcast que se convierte en tres clips de video verticales",
     "breadcrumb": "SupoClip frente a supo.live",
     "heroCaption": "Una grabación, más posibilidades. Ilustración editorial generada por IA del flujo de video largo a shorts.",
     "verdict": {
       "kicker": "El veredicto rápido",
       "heading": "Elige SupoClip cuando el control importa.",
-      "body": "Código fuente disponible. Tu despliegue. Tu flujo. Una base sólida para convertir contenido grabado en shorts con subtítulos.",
+      "body": "Código abierto. Tu despliegue. Tu flujo. Una base sólida para convertir contenido grabado en shorts con subtítulos.",
       "points": {
         "0": "Inspecciona y amplía el código",
         "1": "Autoaloja en tu infraestructura",
@@ -57,15 +57,15 @@
     "toc": {
       "comparison": "Compara las herramientas",
       "workflow": "Mira el flujo",
-      "control": "Por qué el código fuente público",
+      "control": "Por qué el código abierto",
       "cost": "Entiende los costos",
       "faq": "Preguntas frecuentes"
     },
     "body": {
       "p1": "Elegir un recortador de video con IA también es elegir cuánto control conservas sobre tu proceso de producción. Si quieres convertir pódcasts, entrevistas, charlas y grabaciones de transmisiones en videos cortos, SupoClip tiene un argumento claro: edición asistida por IA con código que puedes inspeccionar y un flujo que puedes ejecutar tú.",
-      "p2": "Nuestro veredicto: SupoClip es la mejor alternativa para creadores, agencias y desarrolladores que priorizan el código fuente público, el autoalojamiento y la personalización. Esta comparación la hace el equipo de SupoClip a partir de capacidades documentadas, no es una prueba de calidad de clips ni de velocidad de procesamiento.",
+      "p2": "Nuestro veredicto: SupoClip es la mejor alternativa para creadores, agencias y desarrolladores que priorizan el código abierto, el autoalojamiento y la personalización. Esta comparación la hace el equipo de SupoClip a partir de capacidades documentadas, no es una prueba de calidad de clips ni de velocidad de procesamiento.",
       "whatSupoclip": "¿Qué es SupoClip?",
-      "whatSupoclipBody": "SupoClip es una herramienta de recorte de video con IA de código fuente público, disponible en supoclip.com o como aplicación autoalojada. Analiza videos largos, elige momentos prometedores y produce clips verticales con recorte centrado en el rostro y subtítulos sincronizados por palabra. Los títulos de gancho, el puntaje de clips y el B-roll opcional ayudan a convertir una grabación en bruto en material listo para tu revisión final. El <repo>repositorio de SupoClip</repo> documenta las funciones y la instalación.",
+      "whatSupoclipBody": "SupoClip es una herramienta de recorte de video con IA de código abierto, disponible en supoclip.com o como aplicación autoalojada. Analiza videos largos, elige momentos prometedores y produce clips verticales con recorte centrado en el rostro y subtítulos sincronizados por palabra. Los títulos de gancho, el puntaje de clips y el B-roll opcional ayudan a convertir una grabación en bruto en material listo para tu revisión final. El <repo>repositorio de SupoClip</repo> documenta las funciones y la instalación.",
       "whatSupo": "¿Qué es supo.live?",
       "whatSupoBody": "Supo.live promociona un servicio de recorte alojado tanto para grabaciones como para transmisiones en curso. Su página de inicio anuncia recorte en vivo, subtítulos con estilo, seguimiento de rostros, un editor en el navegador y publicaciones programadas en TikTok, YouTube Shorts y X. Eso hace de la publicación en vivo su diferencia más clara. Mira el <site>resumen oficial de funciones de supo.live</site>."
     },
@@ -131,7 +131,7 @@
       "caption": "Dentro del editor de SupoClip: ajusta subtítulos, encuadre y tiempo antes de exportar. Captura real del producto con material de prueba; haz clic para ampliar."
     },
     "control": {
-      "heading": "Por qué SupoClip es la mejor alternativa de código fuente público",
+      "heading": "Por qué SupoClip es la mejor alternativa de código abierto",
       "h1": "1. Puedes moldear el flujo alrededor de tu contenido",
       "p1": "Un estudio de pódcast y un canal educativo pueden querer clips muy distintos. Con SupoClip, el acceso al código permite que un equipo técnico adapte la lógica de selección, el comportamiento de los subtítulos y los pasos de procesamiento a sus necesidades editoriales. Puedes ver cómo funciona el sistema y desarrollar cambios en tu propio despliegue. Esa flexibilidad es la mayor ventaja de SupoClip frente a depender por completo de los ajustes de un producto alojado.",
       "h2": "2. Tú eliges dónde corre la aplicación",
@@ -157,7 +157,7 @@
     },
     "cost": {
       "heading": "Costo: código gratis, costos reales de operación",
-      "p1": "El código fuente público de SupoClip es gratis de autoalojar. Tus costos reales dependen del cómputo, el almacenamiento, la transcripción, el uso de modelos de pago y el tiempo para mantener la instalación. La capacidad sigue los recursos que provisionas y los límites del proveedor. Puede atraer a equipos que ya operan infraestructura, pero no promete que cada carga de trabajo salga más barata.",
+      "p1": "El código abierto de SupoClip es gratis de autoalojar. Tus costos reales dependen del cómputo, el almacenamiento, la transcripción, el uso de modelos de pago y el tiempo para mantener la instalación. La capacidad sigue los recursos que provisionas y los límites del proveedor. Puede atraer a equipos que ya operan infraestructura, pero no promete que cada carga de trabajo salga más barata.",
       "p2": "El servicio alojado de SupoClip es una opción aparte, con sus propios precios y condiciones. Elígelo cuando quieras empezar con menos instalación; elige autoalojar cuando la prioridad sea controlar el despliegue."
     },
     "choose": {
@@ -179,7 +179,7 @@
     },
     "faqs": {
       "0": {
-        "question": "¿Cuál es la mejor alternativa de código fuente público a supo.live?",
+        "question": "¿Cuál es la mejor alternativa de código abierto a supo.live?",
         "answer": "SupoClip es una opción sólida para creadores y equipos que quieren convertir videos grabados en shorts y conservar el acceso al código, el autoalojamiento y el control de su flujo de recorte con IA."
       },
       "1": {
@@ -191,7 +191,7 @@
         "answer": "Esta comparación recomienda SupoClip para videos grabados y VOD de transmisiones. Supo.live anuncia recorte durante transmisiones en vivo y publicaciones sociales programadas; aquí no se presentan esas capacidades como equivalentes de SupoClip."
       }
     },
-    "closing": "Explora nuestra <openSource>guía del recortador de video de código fuente público</openSource> o lee la <comparison>comparación de SupoClip frente a OpusClip</comparison>."
+    "closing": "Explora nuestra <openSource>guía del recortador de video de código abierto</openSource> o lee la <comparison>comparación de SupoClip frente a OpusClip</comparison>."
   },
   "supoclip-vs-opusclip": {
     "title": "SupoClip frente a OpusClip: una comparación con fuentes",
@@ -223,14 +223,14 @@
       },
       "2": {
         "question": "¿SupoClip alojado tiene un plan gratis?",
-        "answer": "No. La app alojada exige una suscripción Pro o Creator para procesar videos. La ruta gratis es autoalojar el código fuente público, donde no hay límites de plan; solo pagas tu propia infraestructura y los proveedores de IA que configures."
+        "answer": "No. La app alojada exige una suscripción Pro o Creator para procesar videos. La ruta gratis es autoalojar el código abierto, donde no hay límites de plan; solo pagas tu propia infraestructura y los proveedores de IA que configures."
       },
       "3": {
         "question": "¿Cuál es más rápido o hace mejores clips?",
         "answer": "No hemos publicado una prueba controlada de velocidad o calidad de clips, así que no hacemos esa afirmación. Los resultados dependen de tus videos y ajustes; los pasos de prueba justa de esta página muestran cómo compararlos con tu propio contenido."
       }
     },
-    "intro": "OpusClip ayudó a definir el recorte con IA: subes un video largo y recibes clips verticales cortos. SupoClip hace el mismo trabajo como proyecto de código fuente público que puedes usar alojado o ejecutar tú. Esta comparación se queda en lo que documenta cada producto. Las afirmaciones sobre SupoClip enlazan a nuestro código. Las de OpusClip enlazan a su propio centro de ayuda. Donde una fuente no cubre algo, la tabla lo dice en lugar de adivinar.",
+    "intro": "OpusClip ayudó a definir el recorte con IA: subes un video largo y recibes clips verticales cortos. SupoClip hace el mismo trabajo como proyecto de código abierto que puedes usar alojado o ejecutar tú. Esta comparación se queda en lo que documenta cada producto. Las afirmaciones sobre SupoClip enlazan a nuestro código. Las de OpusClip enlazan a su propio centro de ayuda. Donde una fuente no cubre algo, la tabla lo dice en lugar de adivinar.",
     "introNote": "Esta página no califica la calidad de los clips, la exactitud de los subtítulos ni la velocidad de procesamiento. Para comparar eso, mira <test>cómo hacer tu propia prueba</test>.",
     "verdict": {
       "heading": "La respuesta corta",
@@ -311,7 +311,7 @@
   },
   "self-host-supoclip-docker": {
     "title": "Cómo autoalojar SupoClip con Docker Compose",
-    "description": "Autoaloja SupoClip, el recortador de video con IA de código fuente público: requisitos, configuración de .env, una opción totalmente local con Whisper y Ollama, comprobaciones del primer arranque y una lista para producción.",
+    "description": "Autoaloja SupoClip, el recortador de video con IA de código abierto: requisitos, configuración de .env, una opción totalmente local con Whisper y Ollama, comprobaciones del primer arranque y una lista para producción.",
     "eyebrow": "Guía de autoalojamiento",
     "category": "Guía",
     "readingTime": "Lectura de 9 min",
@@ -349,7 +349,7 @@
         "answer": "Crea tu cuenta, luego define DISABLE_SIGN_UP=true y vuelve a crear el contenedor del frontend. Compose ata cada puerto a 127.0.0.1, así que nada es público hasta que agregues un proxy inverso."
       }
     },
-    "intro": "SupoClip es el recortador de video con IA de código fuente público detrás de la app alojada en supoclip.com. El mismo repositorio trae una pila de Docker Compose que puedes correr en una laptop, un servidor de casa o un VPS. Esta guía sigue esa pila tal como existe en el <repo>repositorio</repo>. Cuando un paso depende de tu proveedor o de tu hardware, lo decimos en lugar de adivinar.",
+    "intro": "SupoClip es el recortador de video con IA de código abierto detrás de la app alojada en supoclip.com. El mismo repositorio trae una pila de Docker Compose que puedes correr en una laptop, un servidor de casa o un VPS. Esta guía sigue esa pila tal como existe en el <repo>repositorio</repo>. Cuando un paso depende de tu proveedor o de tu hardware, lo decimos en lugar de adivinar.",
     "introChoice": "¿Prefieres no operar infraestructura? La <hosted>app alojada</hosted> corre el mismo proceso. ¿Todavía eliges entre herramientas? Lee primero nuestra <comparison>comparación de SupoClip frente a OpusClip</comparison>.",
     "stack": {
       "heading": "Qué estás ejecutando",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "La mejor alternativa gratis y autoalojada a OpusClip",
-    "description": "¿Buscas una alternativa gratis a OpusClip? SupoClip es un creador de clips con IA de código fuente público que puedes autoalojar gratis. Convierte videos largos en shorts verticales con subtítulos.",
+    "description": "¿Buscas una alternativa gratis a OpusClip? SupoClip es un creador de clips con IA de código abierto que puedes autoalojar gratis. Convierte videos largos en shorts verticales con subtítulos.",
     "eyebrow": "Alternativa a OpusClip",
     "category": "Comparación",
     "readingTime": "Lectura de 6 min",
     "summary": "SupoClip está hecho para quienes quieren un recorte con IA al estilo de OpusClip en su propia infraestructura, sin otra suscripción basada en créditos.",
-    "lead": "Si te gusta la idea de OpusClip pero quieres un camino gratis y de código fuente público, SupoClip te da el flujo central: encontrar momentos fuertes en videos largos, reencuadrarlos en vertical, agregar subtítulos y exportar clips para Shorts, Reels y TikTok.",
+    "lead": "Si te gusta la idea de OpusClip pero quieres un camino gratis y de código abierto, SupoClip te da el flujo central: encontrar momentos fuertes en videos largos, reencuadrarlos en vertical, agregar subtítulos y exportar clips para Shorts, Reels y TikTok.",
     "bestFor": "Ideal para",
     "audience": {
       "0": "Quienes recortan videos de YouTube en shorts",
@@ -475,7 +475,7 @@
     "p2": "SupoClip es la mejor alternativa gratis a OpusClip para ese creador: alguien que quiere descubrimiento de clips asistido por IA, exportaciones verticales, subtítulos y control del sistema de fondo. También puedes <hosted>usar SupoClip alojado</hosted> con un plan de pago si quieres saltarte la instalación.",
     "verdict": {
       "heading": "Veredicto rápido",
-      "body": "Elige SupoClip si quieres un recortador de video con IA de código fuente público que puedas autoalojar. Elige OpusClip si quieres un producto alojado administrado y te parecen bien sus límites de plan, reglas de marca de agua y modelo de créditos."
+      "body": "Elige SupoClip si quieres un recortador de video con IA de código abierto que puedas autoalojar. Elige OpusClip si quieres un producto alojado administrado y te parecen bien sus límites de plan, reglas de marca de agua y modelo de créditos."
     },
     "stats": {
       "0": {
@@ -498,7 +498,7 @@
     },
     "different": {
       "heading": "Qué hace distinto a SupoClip",
-      "p1": "SupoClip no es solo una capa delgada sobre un editor alojado. Es una app de recorte de código fuente público completa, con backend en FastAPI, frontend en Next.js, workers en segundo plano, transcripción, puntaje de IA, reencuadre vertical que sigue el rostro, estilos de subtítulos y ajustes de exportación.",
+      "p1": "SupoClip no es solo una capa delgada sobre un editor alojado. Es una app de recorte de código abierto completa, con backend en FastAPI, frontend en Next.js, workers en segundo plano, transcripción, puntaje de IA, reencuadre vertical que sigue el rostro, estilos de subtítulos y ajustes de exportación.",
       "p2": "Eso deja claro el intercambio. Asumes la instalación, pero ganas propiedad. Puedes inspeccionar el código, adaptarlo a tu flujo y decidir qué proveedores de IA alojados o modelos locales usar. La <guide>guía de autoalojamiento</guide> recorre la instalación, incluida una opción totalmente local con Whisper y Ollama."
     },
     "compare": {
@@ -510,7 +510,7 @@
       "rows": {
         "0": {
           "feature": "Modelo de uso gratis",
-          "supoclip": "Código fuente disponible y autoalojable, sin límites de plan. Tus costos son tu propio cómputo y las claves de API. La app alojada es de pago.",
+          "supoclip": "Código abierto y autoalojable, sin límites de plan. Tus costos son tu propio cómputo y las claves de API. La app alojada es de pago.",
           "opusclip": "Existe un plan gratis, pero las exportaciones pueden incluir una marca de agua de OpusClip."
         },
         "1": {
@@ -557,11 +557,11 @@
     "faqs": {
       "0": {
         "question": "¿Cuál es la mejor alternativa gratis a OpusClip?",
-        "answer": "SupoClip es una alternativa gratis sólida a OpusClip si quieres un creador de clips con IA de código fuente público que puedas autoalojar, personalizar y ejecutar con tu propio flujo de video."
+        "answer": "SupoClip es una alternativa gratis sólida a OpusClip si quieres un creador de clips con IA de código abierto que puedas autoalojar, personalizar y ejecutar con tu propio flujo de video."
       },
       "1": {
         "question": "¿SupoClip es completamente gratis?",
-        "answer": "El código de SupoClip es gratis y de código fuente público, y las instalaciones autoalojadas no tienen límites de plan. Igual pagas tu propia infraestructura y cualquier proveedor de transcripción o LLM que configures. La app alojada exige un plan de pago."
+        "answer": "El código de SupoClip es gratis y de código abierto, y las instalaciones autoalojadas no tienen límites de plan. Igual pagas tu propia infraestructura y cualquier proveedor de transcripción o LLM que configures. La app alojada exige un plan de pago."
       },
       "2": {
         "question": "¿SupoClip agrega una marca de agua?",
@@ -580,7 +580,7 @@
       "faq": "Preguntas frecuentes"
     },
     "aside": {
-      "title": "Control de código fuente público",
+      "title": "Control de código abierto",
       "body": "Usa SupoClip cuando quieras el flujo de recorte sin entregar cada decisión a una plataforma alojada."
     }
   }

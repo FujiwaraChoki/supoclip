@@ -8,7 +8,7 @@
   "summary": "{count, plural, one {# clip} other {# clips}} · {duration} de momentos destacados",
   "topVirality": "puntaje de viralidad más alto",
   "ctaTitle": "Convierte tus videos largos en clips como estos.",
-  "ctaBody": "SupoClip encuentra los mejores momentos, encuadra a quien habla y escribe los subtítulos. Código fuente disponible y gratis para autoalojar.",
+  "ctaBody": "SupoClip encuentra los mejores momentos, encuadra a quien habla y escribe los subtítulos. Código abierto y gratis para autoalojar.",
   "try": "Probar SupoClip",
   "workflowBadge": {
     "series": "Serie · {count, plural, one {# parte} other {# partes}}",
