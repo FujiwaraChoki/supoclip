@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-# Build context is the repository root (docker-compose.yml) so CHANGELOG.md
-# can be copied in from outside frontend/. Paths below are relative to that root.
+# Build context is the repository root (docker-compose.yml) so the changelog
+# and license can be copied in from outside frontend/. Paths below are relative to that root.
 
 # Use Node.js with pnpm as the package manager
 FROM node:22.23.4-bookworm-slim AS base
@@ -36,7 +36,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
 # Application code is overridden by volume mounts in dev.
 COPY frontend/ .
-COPY CHANGELOG.md ./CHANGELOG.md
+COPY CHANGELOG.md LICENSE ./
 
 # Generate Prisma client
 RUN pnpm exec prisma generate
@@ -61,7 +61,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ .
-COPY CHANGELOG.md ./CHANGELOG.md
+COPY CHANGELOG.md LICENSE ./
 
 # Generate Prisma client before building
 RUN pnpm exec prisma generate
@@ -133,7 +133,7 @@ RUN useradd --system --uid 1001 --gid nodejs nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/CHANGELOG.md ./CHANGELOG.md
+COPY --from=builder --chown=nextjs:nodejs /app/CHANGELOG.md /app/LICENSE ./
 
 # Copy Prisma generated client and schema
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated/prisma ./src/generated/prisma

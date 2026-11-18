@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { catalogKey } from "@/i18n/config";
 import { getMarketingLink, getMarketingLinks } from "@/lib/marketing-links";
-import { APP_STORE_URL, COMPANY_NAME, DISCORD_COMMUNITY_URL, GITHUB_URL } from "@/lib/site";
+import { APP_STORE_URL, COMPANY_NAME, DISCORD_COMMUNITY_URL, GITHUB_URL, SOURCE_LICENSE_URL } from "@/lib/site";
 
 const linkClassName = "hover:text-foreground transition-colors";
 
@@ -72,6 +72,13 @@ export function SiteFooter() {
           </Link>
           <p className="mt-3 max-w-xs text-xs leading-6 text-muted-foreground">
             {t("footer.tagline")}
+          </p>
+          <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">
+            {t.rich("footer.licenseNotice", {
+              license: (text) => (
+                <a href={SOURCE_LICENSE_URL} className="underline underline-offset-2 hover:text-foreground">{text}</a>
+              ),
+            })}
           </p>
           <p className="mt-2 text-xs leading-6 text-muted-foreground">
             {t("footer.operator", { company: COMPANY_NAME })}

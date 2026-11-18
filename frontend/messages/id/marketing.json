@@ -17,8 +17,8 @@
       "featureCrop": "Crop vertikal 9:16 yang mengikuti wajah",
       "featureCaptions": "Caption animasi yang sinkron per kata",
       "featureExports": "Ekspor YouTube Shorts, TikTok, dan Instagram Reels",
-      "featureSelfHost": "Self-hosting open source",
-      "offerCategory": "Edisi open source yang di-host sendiri",
+      "featureSelfHost": "Hosting mandiri untuk penggunaan nonkomersial",
+      "offerCategory": "Kode sumber untuk hosting mandiri nonkomersial",
       "ios": "Aplikasi iOS SupoClip: ubah video panjang jadi short vertikal ber-caption dari iPhone.",
       "website": "AI video clipping open source untuk konten pendek."
     }
@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "AI video clipper open source. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
+    "licenseNotice": "Penggunaan komersial, termasuk untuk keperluan internal perusahaan, memerlukan <license>izin tertulis</license>.",
     "github": "GitHub",
     "ios": "Aplikasi iOS",
     "discord": "Komunitas Discord",
@@ -472,7 +473,7 @@
       },
       "selfHost": {
         "question": "Benarkah host sendiri itu gratis?",
-        "answer": "Benar. SupoClip open source dengan lisensi AGPL-3.0 dan berjalan dengan Docker Compose di mesinmu sendiri. Kamu hanya membayar penyedia transkripsi dan AI yang kamu pilih, jika ada."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
       },
       "cancel": {
         "question": "Bisakah saya berhenti berlangganan kapan saja?",
@@ -481,13 +482,13 @@
     }
   },
   "openSource": {
-    "badge": "Berlisensi AGPL-3.0",
+    "badge": "Lisensi Kode Sumber Nonkomersial SupoClip",
     "title": "Dibangun secara terbuka",
-    "body": "Sepenuhnya open source. Host sendiri di infrastrukturmu, sumbang fitur, atau fork dan jadikan milikmu.",
+    "body": "Kode sumber untuk hosting mandiri nonkomersial",
     "commandLabel": "host sendiri",
     "comment": "# tambahkan penyedia transkripsi + LLM ke .env",
     "facts": {
-      "license": "AGPL-3.0, setiap baris kode ada di GitHub",
+      "license": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC.",
       "docker": "Satu perintah Docker Compose untuk menjalankannya sendiri",
       "models": "Pakai model pilihanmu: Gemini, OpenAI, Anthropic, atau Ollama"
     },

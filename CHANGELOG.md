@@ -7,6 +7,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-18
 
 - **New:** After you subscribe or change plans, your plan card on Settings turns into a thank-you note with a colourful wave, and back into your upgraded plan when you click Done. ([#440](https://github.com/FujiwaraChoki/supoclip/pull/440))
+- **Fixed:** The MCP tool for waiting on a generation returns by the requested timeout, even when the next status check is delayed or the API stalls. ([#442](https://github.com/FujiwaraChoki/supoclip/pull/442))
+- **Improved:** SupoClip's new source license allows noncommercial self-hosting and forks. Internal business use, paid hosting, and other commercial use require written permission. The website footer links to the license, and Settings → About links to the original project and website. ([#441](https://github.com/FujiwaraChoki/supoclip/pull/441))
 - **New:** Join the SupoClip Discord community from the homepage, changelog, or site footer to share clips, get editing tips, and vote on feature ideas. ([#437](https://github.com/FujiwaraChoki/supoclip/pull/437))
 - **Under the hood:** Every feedback message, bug report, sales question and cancellation reason now also reaches the team's assistant chat, alongside Discord, with the same retries. Admins see it in the webhook list and can switch it off or test it. ([#435](https://github.com/FujiwaraChoki/supoclip/pull/435))
 - **Fixed:** Feedback delivery no longer ties up the app during slow webhooks, retries stop reliably, and deleting an account clears saved feedback email addresses atomically. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))

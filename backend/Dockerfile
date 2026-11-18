@@ -44,6 +44,7 @@ RUN uv venv .venv && \
 
 # Copy source code
 COPY src/ ./src/
+COPY LICENSE ./
 
 # Copy fonts and transitions directories
 COPY fonts/ ./fonts/

@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "关于",
+    "credit": "基于 SupoClip。",
+    "repository": "原始代码仓库"
+  },
   "title": "设置",
   "intro": "新生成内容的默认值、通知和你的方案。",
   "languageDescription": "SupoClip 使用的语言。",

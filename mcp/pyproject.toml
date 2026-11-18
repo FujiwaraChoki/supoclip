@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Model Context Protocol server for SupoClip — turn long videos into viral short clips."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "AGPL-3.0-or-later" }
+license = { file = "LICENSE" }
 authors = [{ name = "SupoClip" }]
 keywords = ["mcp", "supoclip", "video", "clips", "ai"]
 dependencies = [

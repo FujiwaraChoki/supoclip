@@ -17,8 +17,8 @@
       "featureCrop": "Corte vertical 9:16 centrado no rosto",
       "featureCaptions": "Legendas animadas sincronizadas por palavra",
       "featureExports": "Exportações para YouTube Shorts, TikTok e Instagram Reels",
-      "featureSelfHost": "Auto-hospedagem de código aberto",
-      "offerCategory": "Edição de código aberto auto-hospedada",
+      "featureSelfHost": "Auto-hospedagem para fins não comerciais",
+      "offerCategory": "Código-fonte para auto-hospedagem não comercial",
       "ios": "O app SupoClip para iOS: transforme vídeos longos em shorts verticais legendados no seu iPhone.",
       "website": "Clipping de vídeo com IA de código aberto para conteúdo curto."
     }
@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Clipper de vídeo com IA de código aberto. Use o app hospedado ou rode na sua própria infraestrutura.",
+    "licenseNotice": "O uso comercial, inclusive o uso interno em empresas, exige <license>autorização por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidade no Discord",
@@ -472,7 +473,7 @@
       },
       "selfHost": {
         "question": "Auto-hospedar é mesmo de graça?",
-        "answer": "Sim. O SupoClip é de código aberto sob AGPL-3.0 e roda com Docker Compose na sua própria máquina. Você só paga pelos provedores de transcrição e IA que escolher, se escolher algum."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC."
       },
       "cancel": {
         "question": "Posso cancelar quando quiser?",
@@ -481,13 +482,13 @@
     }
   },
   "openSource": {
-    "badge": "Licença AGPL-3.0",
+    "badge": "Licença de Código-Fonte Não Comercial do SupoClip",
     "title": "Feito às claras",
-    "body": "Totalmente de código aberto. Auto-hospede na sua infraestrutura, contribua com recursos ou faça um fork e deixe do seu jeito.",
+    "body": "Código-fonte para auto-hospedagem não comercial",
     "commandLabel": "auto-hospedar",
     "comment": "# adicione um provedor de transcrição e de LLM no .env",
     "facts": {
-      "license": "AGPL-3.0, com cada linha no GitHub",
+      "license": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC.",
       "docker": "Um comando do Docker Compose para rodar por conta própria",
       "models": "Use seus próprios modelos: Gemini, OpenAI, Anthropic ou Ollama"
     },

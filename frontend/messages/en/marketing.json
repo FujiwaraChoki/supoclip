@@ -17,8 +17,8 @@
       "featureCrop": "Face-aware 9:16 vertical cropping",
       "featureCaptions": "Word-synced animated captions",
       "featureExports": "YouTube Shorts, TikTok, and Instagram Reels exports",
-      "featureSelfHost": "Open-source self-hosting",
-      "offerCategory": "Self-hosted open-source edition",
+      "featureSelfHost": "Self-host for noncommercial use",
+      "offerCategory": "Noncommercial self-hosting",
       "ios": "The SupoClip iOS app: clip long videos into captioned vertical shorts from your iPhone.",
       "website": "Open-source AI video clipping for short-form content."
     }
@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.",
+    "licenseNotice": "Commercial use, including internal business use, requires <license>written permission</license>.",
     "github": "GitHub",
     "ios": "iOS App",
     "discord": "Discord community",
@@ -472,7 +473,7 @@
       },
       "selfHost": {
         "question": "Is it really free to self-host?",
-        "answer": "Yes. SupoClip is open source under AGPL-3.0 and runs with Docker Compose on your own machine. You only pay for the transcription and AI providers you choose, if any."
+        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC."
       },
       "cancel": {
         "question": "Can I cancel anytime?",
@@ -481,13 +482,13 @@
     }
   },
   "openSource": {
-    "badge": "AGPL-3.0 licensed",
+    "badge": "SupoClip Noncommercial Source License",
     "title": "Built in the open",
-    "body": "Fully open source. Self-host on your infrastructure, contribute features, or fork it and make it yours.",
+    "body": "Browse the code and self-host SupoClip for noncommercial use.",
     "commandLabel": "self-host",
     "comment": "# add a transcription + LLM provider to .env",
     "facts": {
-      "license": "AGPL-3.0, with every line on GitHub",
+      "license": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC.",
       "docker": "One Docker Compose command to run it yourself",
       "models": "Bring your own models: Gemini, OpenAI, Anthropic, or Ollama"
     },
@@ -501,7 +502,7 @@
   },
   "cta": {
     "title": "Your next video is already a week of content.",
-    "body": "Paste a link and see what SupoClip finds. Use the hosted app, or self-host the open-source version for free."
+    "body": "Paste a link and see what SupoClip finds. Use the hosted app, or self-host for noncommercial use."
   },
   "faqPage": {
     "title": "Languages, captions, and clipping",

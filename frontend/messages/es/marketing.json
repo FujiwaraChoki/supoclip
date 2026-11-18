@@ -17,8 +17,8 @@
       "featureCrop": "Recorte vertical 9:16 centrado en el rostro",
       "featureCaptions": "Subtítulos animados sincronizados por palabra",
       "featureExports": "Exportaciones para YouTube Shorts, TikTok e Instagram Reels",
-      "featureSelfHost": "Autoalojamiento de código abierto",
-      "offerCategory": "Edición de código abierto autoalojada",
+      "featureSelfHost": "Autoalojamiento para fines no comerciales",
+      "offerCategory": "Código fuente para autoalojamiento no comercial",
       "ios": "La app de SupoClip para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
       "website": "Recorte de video con IA de código abierto para contenido de formato corto."
     }
@@ -36,6 +36,7 @@
   },
   "footer": {
     "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
+    "licenseNotice": "El uso comercial, incluido el uso interno en empresas, requiere <license>autorización por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidad de Discord",
@@ -472,7 +473,7 @@
       },
       "selfHost": {
         "question": "¿De verdad es gratis autoalojarlo?",
-        "answer": "Sí. SupoClip es de código abierto bajo AGPL-3.0 y funciona con Docker Compose en tu propia máquina. Solo pagas los proveedores de transcripción e IA que elijas, si usas alguno."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC."
       },
       "cancel": {
         "question": "¿Puedo cancelar cuando quiera?",
@@ -481,13 +482,13 @@
     }
   },
   "openSource": {
-    "badge": "Licencia AGPL-3.0",
+    "badge": "Licencia de código fuente no comercial de SupoClip",
     "title": "Hecho en público",
-    "body": "Totalmente de código abierto. Autoalója en tu infraestructura, aporta funciones o haz un fork y adáptalo.",
+    "body": "Código fuente para autoalojamiento no comercial",
     "commandLabel": "autoalojar",
     "comment": "# agrega un proveedor de transcripción y de LLM en .env",
     "facts": {
-      "license": "AGPL-3.0, con cada línea en GitHub",
+      "license": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC.",
       "docker": "Un solo comando de Docker Compose para ejecutarlo tú mismo",
       "models": "Usa tus propios modelos: Gemini, OpenAI, Anthropic u Ollama"
     },
