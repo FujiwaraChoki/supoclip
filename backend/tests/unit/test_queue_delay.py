@@ -146,6 +146,46 @@ async def test_a_job_overdue_past_its_due_time_still_reports():
 
 
 @pytest.mark.asyncio
+async def test_a_backdated_due_time_is_floored_at_the_enqueue_time():
+    # Enqueued just now with _defer_until 1200s in the past: the job has
+    # existed for 0s, so it has not waited 1200s.
+    redis = _Redis()
+    client = _Client()
+    now = datetime.now(timezone.utc)
+    score = int((now - timedelta(seconds=1200)).timestamp() * 1000)
+    reported = await maybe_report_queue_delay(
+        redis,
+        enqueue_time=now.replace(tzinfo=None),
+        score=score,
+        now=now,
+        threshold_seconds=600,
+        client=client,
+        rate_limit_key="queue_delay_alert:test-backdated",
+    )
+    assert reported is False
+    assert redis.sets == []
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_missing_score_falls_back_to_the_enqueue_time():
+    redis = _Redis()
+    client = _Client()
+    now = datetime.now(timezone.utc)
+    reported = await maybe_report_queue_delay(
+        redis,
+        enqueue_time=(now - timedelta(seconds=900)).replace(tzinfo=None),
+        score=None,
+        now=now,
+        threshold_seconds=600,
+        client=client,
+        rate_limit_key="queue_delay_alert:test-noscore",
+    )
+    assert reported is True
+    assert client.calls[0][2]["wait_measured_from"] == "enqueue_time"
+
+
+@pytest.mark.asyncio
 async def test_job_start_hook_passes_the_due_time(monkeypatch):
     from src.workers import queue_delay
 

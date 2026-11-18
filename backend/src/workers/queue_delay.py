@@ -1,10 +1,12 @@
 """Report when a video-queue job waits too long before a worker starts it.
 
-The wait is the job's due time to pickup, which is what grows when renders
-occupy every slot. arq's ``score`` is when a job became eligible to run, so a
-job enqueued with ``_defer_by`` (such as a social publish retry ten minutes
-out) is measured from its scheduled start, not from when it was enqueued.
-Enqueue age is still reported as a diagnostic. A per-user deferral creates a
+The wait runs from the later of the job's enqueue time and its due time to
+pickup, which is what grows when renders occupy every slot. arq's ``score`` is
+when a job became eligible to run, so a job enqueued with ``_defer_by`` (such
+as a social publish retry ten minutes out) is measured from its scheduled
+start, not from when it was enqueued. A due time in the past (``_defer_until``
+backdated) cannot make a job wait longer than it has existed, so the enqueue
+time is the floor. Enqueue age is still reported as a diagnostic. A per-user deferral creates a
 new job, so its own wait stays short and does not page on top of the original
 delay. One PostHog exception per interval keeps the critical-alert webhook
 from firing on every late job.
@@ -42,6 +44,17 @@ def wait_seconds(enqueue_time: datetime | None, now: datetime) -> float:
     return (now - enqueue_time).total_seconds()
 
 
+def _later(enqueue_time: datetime | None, due: datetime | None) -> datetime | None:
+    """The wait starts when the job both existed and was due."""
+    if not isinstance(enqueue_time, datetime):
+        return due
+    if due is None:
+        return enqueue_time
+    if enqueue_time.tzinfo is None:
+        enqueue_time = enqueue_time.replace(tzinfo=timezone.utc)
+    return max(enqueue_time, due)
+
+
 def due_time(score: Any) -> datetime | None:
     """arq's job score (ms since the epoch) as the time the job became due."""
     if isinstance(score, bool) or not isinstance(score, (int, float)) or score <= 0:
@@ -63,8 +76,8 @@ async def maybe_report_queue_delay(
 ) -> bool:
     """Send at most one ``queue_delay_exceeded`` exception per interval.
 
-    ``score`` is arq's due time in ms; without it the wait falls back to
-    enqueue age.
+    ``score`` is arq's due time in ms; the wait starts at the later of it and
+    the enqueue time. Without a score it is the enqueue age.
 
     Returns True when this call won the rate-limit slot, whether or not
     PostHog is configured. No account id is attached.
@@ -82,7 +95,8 @@ async def maybe_report_queue_delay(
     )
     now = now or datetime.now(timezone.utc)
     due = due_time(score)
-    waited = wait_seconds(due if due is not None else enqueue_time, now)
+    baseline = _later(enqueue_time, due)
+    waited = wait_seconds(baseline, now)
     if waited < threshold:
         return False
     try:
@@ -107,7 +121,9 @@ async def maybe_report_queue_delay(
         "queue_depth": depth,
         "wait_seconds": waited_s,
         "enqueue_age_seconds": max(0, int(wait_seconds(enqueue_time, now))),
-        "wait_measured_from": "due_time" if due is not None else "enqueue_time",
+        "wait_measured_from": (
+            "due_time" if baseline is due and due is not None else "enqueue_time"
+        ),
         "queue": queue_name,
         "threshold_seconds": int(threshold),
     }
