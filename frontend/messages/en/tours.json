@@ -97,5 +97,15 @@
       "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
     }
   },
+  "preview-renders": {
+    "notice": {
+      "title": "Your clips are ready sooner",
+      "body": "The clips here are quick previews, so you can watch and pick them as soon as the generation finishes."
+    },
+    "download": {
+      "title": "Full quality when you need it",
+      "body": "Download, export or publish a clip and SupoClip renders it in full quality first. That takes about a minute; after that the clip downloads instantly."
+    }
+  },
   "skip": "Skip"
 }

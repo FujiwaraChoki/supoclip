@@ -43,6 +43,8 @@ from .scene_context import (
 from .ffmpeg import (
     build_audio_output_args,
     build_final_video_encode_args,
+    final_encode_args,
+    EncodeProfile,
     clamp_even,
     ffmpeg_escape_filter_path,
     ffprobe_duration,
@@ -1695,6 +1697,7 @@ def render_reframed_clip_ffmpeg(
     vertical_plan: Optional[Tuple[str, str]] = None,
     speaker_plan: Optional[Dict[str, Any]] = None,
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
+    encode_profile: Optional[EncodeProfile] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -1703,6 +1706,9 @@ def render_reframed_clip_ffmpeg(
     output and loudness-normalised audio. ``broll_overlays`` (path, start and
     duration on the clip timeline) are composited over the framed picture and
     under the captions.
+
+    ``encode_profile`` encodes the same picture smaller and/or faster (see
+    ``EncodeProfile``). The returned size is the composed size either way.
     """
     width, height = ffprobe_video_size(input_path)
     has_audio = ffprobe_has_audio(input_path)
@@ -1729,7 +1735,7 @@ def render_reframed_clip_ffmpeg(
             *broll_input_args(overlays),
             "-filter_complex", f"{head};{graph}",
             "-map", label, "-map", "0:a?",
-            *build_final_video_encode_args(**encode),
+            *final_encode_args(out_w, out_h, encode_profile, **encode),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -1781,7 +1787,7 @@ def render_reframed_clip_ffmpeg(
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-vf", ",".join(filters),
-            *build_final_video_encode_args(fps=encode_fps, level=encode_level),
+            *final_encode_args(out_w, out_h, encode_profile, fps=encode_fps, level=encode_level),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -1818,7 +1824,7 @@ def render_reframed_clip_ffmpeg(
             "ffmpeg", "-y", "-i", str(input_path),
             "-filter_complex", video_filter,
             "-map", "[v]", "-map", "0:a?",
-            *build_final_video_encode_args(),
+            *final_encode_args(1080, 1920, encode_profile),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -1837,7 +1843,7 @@ def render_reframed_clip_ffmpeg(
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-vf", video_filter,
-            *build_final_video_encode_args(),
+            *final_encode_args(1080, 1920, encode_profile),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -1869,7 +1875,7 @@ def render_reframed_clip_ffmpeg(
             "ffmpeg", "-y", "-i", str(input_path),
             "-filter_complex", graph,
             "-map", map_label, "-map", "0:a?",
-            *build_final_video_encode_args(),
+            *final_encode_args(1080, 1920, encode_profile),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -1881,7 +1887,7 @@ def render_reframed_clip_ffmpeg(
     command = [
         "ffmpeg", "-y", "-i", str(input_path),
         "-vf", video_filter,
-        *build_final_video_encode_args(),
+        *final_encode_args(1080, 1920, encode_profile),
         *audio_args,
         "-movflags", "+faststart",
         str(output_path),

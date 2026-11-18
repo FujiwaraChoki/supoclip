@@ -97,5 +97,15 @@
       "body": "Durasi, teks, pembingkaian, pembersihan, dan B-roll kini ada dalam satu menu. Kami mengingat pilihanmu, jadi cukup diatur sekali."
     }
   },
+  "preview-renders": {
+    "notice": {
+      "title": "Klipmu siap lebih cepat",
+      "body": "Klip di sini adalah pratinjau cepat, jadi kamu bisa menonton dan memilihnya begitu pembuatan selesai."
+    },
+    "download": {
+      "title": "Kualitas penuh saat kamu butuh",
+      "body": "Saat kamu mengunduh, mengekspor, atau memublikasikan klip, SupoClip membuatnya dulu dalam kualitas penuh. Prosesnya sekitar satu menit; setelah itu klip langsung terunduh."
+    }
+  },
   "skip": "Lewati"
 }

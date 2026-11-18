@@ -32,7 +32,9 @@ describe("feature tours", () => {
   it("welcomes accounts created since onboarding shipped, first and once", () => {
     const welcome = FEATURE_TOURS.find((tour) => tour.id === "welcome")!;
     expect(FEATURE_TOURS[0]).toBe(welcome);
-    expect(dueTours(welcome.releasedAt, []).map((tour) => tour.id)).toEqual(["welcome"]);
+    // Features that shipped after onboarding still reach the accounts it welcomed, after it.
+    const later = FEATURE_TOURS.filter((tour) => tour.audience !== "new" && Date.parse(tour.releasedAt) > Date.parse(welcome.releasedAt));
+    expect(dueTours(welcome.releasedAt, []).map((tour) => tour.id)).toEqual(["welcome", ...later.map((tour) => tour.id)]);
     expect(dueTours(BEFORE, []).map((tour) => tour.id)).not.toContain("welcome");
     expect(dueTours(AFTER, ["welcome"])).toEqual([]);
   });
@@ -47,7 +49,10 @@ describe("feature tours", () => {
   });
 
   it("doesn't repeat what an earlier tour already explained", () => {
-    expect(dueTours(BEFORE, ["workflows"])).toEqual([]);
+    const covered = FEATURE_TOURS.find((tour) => tour.id === "workflows")!.covers ?? [];
+    expect(covered.length).toBeGreaterThan(0);
+    const due = dueTours(BEFORE, ["workflows"]).map((tour) => tour.id);
+    for (const id of ["workflows", ...covered]) expect(due).not.toContain(id);
   });
 
   it("is for accounts older than the feature, once each", () => {

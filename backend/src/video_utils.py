@@ -21,6 +21,7 @@ from .media.common import (
     uuid,
 )
 from .media.ffmpeg import (
+    EncodeProfile,
     audio_stream_map_args,
     ffprobe_duration,
     ffprobe_video_size,
@@ -279,8 +280,17 @@ def create_optimized_clip(
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
     output_offsets: Optional[List[float]] = None,
     point_labels: Optional[List[Dict[str, Any]]] = None,
+    preview: Optional[EncodeProfile] = None,
+    render_inputs_dir: Optional[Path] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
+
+    ``preview`` encodes the final pass as a cheap preview. With
+    ``render_inputs_dir`` the inputs of that pass (the stitched source, the
+    captions and the framing plan) are written there, so
+    ``render_full_from_inputs`` can encode the full-quality clip later from
+    exactly the same plan. ``layout_report["render_quality"]`` says which one
+    was made.
 
     ``broll_overlays`` are stock cutaways (path, start, duration on the clip
     timeline) composited under the captions. If that render fails the clip is
@@ -498,6 +508,14 @@ def create_optimized_clip(
                     font_family or get_template(caption_template)["font_family"]
                 )
 
+            # A preview and its later full render must frame the clip the same
+            # way, so the speaker plan is found once and kept with the inputs.
+            speaker_plan = None
+            if preview is not None and reframe_format in {"vertical_pan", "vertical_split"}:
+                speaker_plan = detect_speaker_reframe_plan(source_clip_path, reframe_format)
+            plan_kwargs = {"speaker_plan": speaker_plan} if speaker_plan is not None else {}
+            preview_kwargs = {"encode_profile": preview} if preview is not None else {}
+
             def render(overlays):
                 return render_reframed_clip_ffmpeg(
                     source_clip_path,
@@ -509,6 +527,8 @@ def create_optimized_clip(
                     speaker_words=speaker_words,
                     vertical_plan=vertical_plan,
                     broll_overlays=overlays,
+                    **plan_kwargs,
+                    **preview_kwargs,
                 )[0]
 
             framed_ok = render(broll_overlays)
@@ -522,6 +542,27 @@ def create_optimized_clip(
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")
 
+            if preview is not None:
+                if render_inputs_dir is not None:
+                    save_render_inputs(
+                        render_inputs_dir,
+                        source_clip_path=source_clip_path,
+                        ass_path=burn_ass_path,
+                        recipe={
+                            "output_format": reframe_format,
+                            "vertical_plan": list(vertical_plan) if vertical_plan else None,
+                            "speaker_plan": speaker_plan,
+                            "speaker_turns": speaker_turns,
+                            "speaker_words": speaker_words,
+                            "fonts_family": (
+                                font_family or get_template(caption_template)["font_family"]
+                            ) if burn_ass_path else None,
+                            "broll_applied": broll_applied,
+                        },
+                    )
+                if layout_report is not None:
+                    layout_report["render_quality"] = "preview"
+
             shutil.move(str(final_clip_path), str(output_path))
             logger.info(f"Successfully created clip with ffmpeg: {output_path}")
             return True
@@ -529,6 +570,92 @@ def create_optimized_clip(
     except Exception as e:
         logger.error(f"Failed to create clip: {e}")
         return False
+
+
+RENDER_RECIPE_NAME = "render.json"
+RENDER_SOURCE_NAME = "render-source.bin"
+RENDER_CAPTIONS_NAME = "render-captions.ass"
+RENDER_RECIPE_VERSION = 1
+
+
+def save_render_inputs(
+    directory: Path,
+    *,
+    source_clip_path: Path,
+    ass_path: Optional[Path],
+    recipe: Dict[str, Any],
+) -> None:
+    """Keep what the final pass read: the stitched source, captions and plan.
+
+    The source keeps a non-video suffix so the bucket's orphan sweep, which
+    looks at video files one by one, leaves it to its clip directory.
+    """
+    import json
+
+    directory.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source_clip_path, directory / RENDER_SOURCE_NAME)
+    if ass_path is not None and ass_path.exists():
+        shutil.copyfile(ass_path, directory / RENDER_CAPTIONS_NAME)
+    payload = {
+        "version": RENDER_RECIPE_VERSION,
+        **recipe,
+        "captions": bool(ass_path is not None and ass_path.exists()),
+    }
+    (directory / RENDER_RECIPE_NAME).write_text(json.dumps(payload, default=str))
+
+
+def render_full_from_inputs(
+    directory: Path,
+    output_path: Path,
+    broll_overlays: Optional[List[Dict[str, Any]]] = None,
+    max_short_side: Optional[int] = None,
+) -> bool:
+    """Encode the full-quality clip from inputs saved by a preview render.
+
+    Same stitched source, same captions file, same framing plan and B-roll:
+    only the encoder settings and size differ from the preview.
+    ``max_short_side`` (720p plans) scales in the same pass.
+    """
+    import json
+
+    recipe = json.loads((directory / RENDER_RECIPE_NAME).read_text())
+    if int(recipe.get("version") or 0) != RENDER_RECIPE_VERSION:
+        raise ValueError(f"Unsupported render recipe version {recipe.get('version')}")
+    source = directory / RENDER_SOURCE_NAME
+    captions = directory / RENDER_CAPTIONS_NAME if recipe.get("captions") else None
+    fonts_dir = ass_fonts_dir(recipe.get("fonts_family")) if captions else None
+    vertical_plan = recipe.get("vertical_plan")
+    speaker_plan = recipe.get("speaker_plan")
+    work_path = output_path.with_name(f".{output_path.stem}.full{output_path.suffix}")
+
+    def render(overlays):
+        return render_reframed_clip_ffmpeg(
+            source,
+            work_path,
+            recipe.get("output_format") or "vertical",
+            subtitle_ass_path=captions,
+            fonts_dir=fonts_dir,
+            speaker_turns=recipe.get("speaker_turns") or [],
+            speaker_words=recipe.get("speaker_words") or [],
+            vertical_plan=tuple(vertical_plan) if vertical_plan else None,
+            broll_overlays=overlays,
+            **({"speaker_plan": speaker_plan} if speaker_plan is not None else {}),
+            **(
+                {"encode_profile": EncodeProfile(short_side=int(max_short_side))}
+                if max_short_side
+                else {}
+            ),
+        )[0]
+
+    ok = render(broll_overlays or None)
+    if not ok and broll_overlays:
+        logger.warning("Full render with B-roll failed; rendering the clip without it")
+        ok = render(None)
+    if not ok:
+        work_path.unlink(missing_ok=True)
+        return False
+    work_path.replace(output_path)
+    return True
 
 
 def create_clips_from_segments(

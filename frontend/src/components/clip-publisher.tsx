@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { ensureFullQuality, isPreviewClip, type RenderQualityFields } from "@/lib/full-quality";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -64,7 +65,7 @@ import {
 } from "@/lib/social";
 import type { WorkflowClipFields } from "@/lib/workflows";
 
-interface PublishableClip extends WorkflowClipFields {
+interface PublishableClip extends WorkflowClipFields, RenderQualityFields {
   id: string;
   clip_order: number;
   hook_title: string | null;
@@ -323,6 +324,8 @@ export function ClipPublishButton({
   const [schedule, setSchedule] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // A preview clip is rendered at full quality before any post is created.
+  const [preparingProgress, setPreparingProgress] = useState<number | null>(null);
   const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
   const captionRevision = useRef(0);
   const captionRequest = useRef(0);
@@ -484,6 +487,26 @@ export function ClipPublishButton({
     setIsSubmitting(true);
     setError(null);
     try {
+      if (isPreviewClip(clip)) {
+        setPreparingProgress(0);
+        try {
+          await ensureFullQuality({
+            taskApiUrl: "/api/tasks",
+            taskId,
+            clipId: clip.id,
+            trigger: "publish",
+            onProgress: setPreparingProgress,
+            readError: (response) => readError(response, tTask("errors.fullQuality")),
+            failedMessage: tTask("errors.fullQuality"),
+            timeoutMessage: tTask("errors.fullQualityTimeout"),
+          });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : tTask("errors.fullQuality"));
+          return;
+        } finally {
+          setPreparingProgress(null);
+        }
+      }
       const results = await Promise.all(pendingConnections.map(async (connection) => {
         const record = (result: typeof submissions[string]) => {
           setSubmissions((previous) => ({ ...previous, [connection.id]: result }));
@@ -717,7 +740,7 @@ export function ClipPublishButton({
             {activeConnections.length > 0 && (
               <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingCaption || pendingConnections.length === 0 || !privacyReady}>
                 {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : schedule ? <Clock className="size-4" /> : <Send className="size-4" />}
-                {isSubmitting ? (schedule ? t("scheduling") : t("publishing")) : schedule ? (pendingConnections.length > 1 ? t("scheduleToAccounts", { count: pendingConnections.length }) : t("schedule")) : (pendingConnections.length > 1 ? t("publishToAccounts", { count: pendingConnections.length }) : t("publishNow"))}
+                {preparingProgress !== null ? tTask("previewQuality.preparing", { progress: preparingProgress }) : isSubmitting ? (schedule ? t("scheduling") : t("publishing")) : schedule ? (pendingConnections.length > 1 ? t("scheduleToAccounts", { count: pendingConnections.length }) : t("schedule")) : (pendingConnections.length > 1 ? t("publishToAccounts", { count: pendingConnections.length }) : t("publishNow"))}
               </Button>
             )}
           </SheetFooter>

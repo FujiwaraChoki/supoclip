@@ -46,7 +46,15 @@ function initials(name?: string | null, email?: string | null) {
   return source.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 }
 
-/** What the create screen tells the tour host; other pages need nothing. */
+/**
+ * Pages a new tour may start on: the create screen, and a generation's results (the preview-renders
+ * tour points at its clips). A tour whose targets aren't on the page keeps waiting.
+ */
+export function tourCanStartOn(pathname: string): boolean {
+  return pathname === "/" || /^\/tasks\/[^/]+$/.test(pathname);
+}
+
+/** What a page that can start tours tells the tour host; other pages need nothing. */
 export type ShellTour = {
   /** The user is doing something: don't start a tour, and leave one that's showing. */
   busy: boolean;
@@ -55,7 +63,7 @@ export type ShellTour = {
 };
 
 /** Signed-in application chrome: sidebar on desktop, tab bar on mobile, ⌘K palette and feature tours everywhere. */
-export function AppShell({ children, tour }: { children: React.ReactNode; /** Set by the create screen, the only page a tour starts on. */ tour?: ShellTour }) {
+export function AppShell({ children, tour }: { children: React.ReactNode; /** Set by the pages a tour can start on (see `tourCanStartOn`). */ tour?: ShellTour }) {
   const t = useTranslations("shell");
   const { data: session } = useSession();
   const pathname = usePathname();
@@ -179,7 +187,7 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
         enabled={Boolean(user) && !immersive}
         pathname={pathname}
         navigate={navigate}
-        canStart={tour !== undefined && pathname === "/"}
+        canStart={tour !== undefined && tourCanStartOn(pathname)}
         busy={tour?.busy}
         onWorkflow={tour?.onWorkflow}
         onEnd={tour?.onEnd}

@@ -207,6 +207,28 @@ async def generate_caption(request: Request, db: AsyncSession = Depends(get_db))
         raise _http_error(exc)
 
 
+async def _full_quality_for_post(
+    request: Request, db: AsyncSession, user_id: str, task_id: str, clip_id: str
+) -> None:
+    """Platforms get the full-quality clip: a preview is rendered before the post exists.
+
+    The post publishes the clip's file when it is claimed, and a clip never
+    goes back from full quality to a preview, so this holds for scheduled posts too.
+    """
+    from ...repositories.clip_repository import ClipRepository
+    from ...repositories.task_repository import TaskRepository
+    from ...services.full_render_service import is_preview
+    from .full_renders import require_full_clip
+
+    clip = await ClipRepository.get_clip_by_id(db, clip_id)
+    if not is_preview(clip) or clip.get("task_id") != task_id:
+        return
+    task = await TaskRepository.get_task_by_id(db, task_id)
+    if not task or task.get("user_id") != user_id:
+        return  # create_post answers with the right error
+    await require_full_clip(request, db, task, clip, trigger="publish")
+
+
 @router.post("/posts")
 async def create_post(request: Request, db: AsyncSession = Depends(get_db)):
     """Publish (or schedule) a clip to a connected account."""
@@ -218,6 +240,7 @@ async def create_post(request: Request, db: AsyncSession = Depends(get_db)):
     hashtags = body.get("hashtags")
     if isinstance(hashtags, str):
         hashtags = [hashtags]
+    await _full_quality_for_post(request, db, user_id, str(body["task_id"]), str(body["clip_id"]))
     try:
         post = await _service(request, db).create_post(
             user_id,

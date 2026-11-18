@@ -196,6 +196,10 @@ class Task(Base):
     include_broll: Mapped[Optional[bool]] = mapped_column(
         Boolean, nullable=True, server_default=sql_text("'false'")
     )
+    # Clips render as previews; full quality is rendered on demand.
+    preview_renders: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sql_text("false")
+    )
     processing_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=sql_text("'fast'")
     )
@@ -344,6 +348,20 @@ class GeneratedClip(Base):
     part_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     workflow_meta: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=sql_text("'{}'::jsonb")
+    )
+    # Preview renders (services/full_render_service.py): 'preview' until the
+    # full-quality render replaces file_path.
+    render_quality: Mapped[str] = mapped_column(
+        String(10), nullable=False, server_default=sql_text("'full'")
+    )
+    render_inputs_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    full_render_status: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    full_render_progress: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=sql_text("0")
+    )
+    full_render_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    full_render_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(

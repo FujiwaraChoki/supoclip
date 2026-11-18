@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from typing import Iterator
 from typing import List
 from typing import Optional
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
 from ..clip_source_map import normalize_source_ranges
@@ -330,6 +331,58 @@ def build_final_video_encode_args(
         "-r", str(fps),
         "-x264-params", "keyint=120:min-keyint=30:scenecut=40",
     ]
+
+
+@dataclass(frozen=True)
+class EncodeProfile:
+    """Final-pass encoder settings for a smaller output from the same filter graph.
+
+    Captions, hook titles and B-roll are composed at full size first; the
+    encoder's scaler then shrinks the finished frame, so the result matches
+    the full-size layout exactly. ``crf``/``preset`` default to the final
+    pass's. Previews also lower those; a capped full render (720p plans) only
+    sets ``short_side``, which saves the separate ``cap_video_short_side`` pass.
+    """
+
+    short_side: int
+    crf: Optional[int] = None
+    preset: Optional[str] = None
+
+
+def preview_profile(config=None) -> EncodeProfile:
+    config = config or get_config()
+    return EncodeProfile(
+        short_side=config.preview_render_short_side,
+        crf=config.preview_render_crf,
+        preset=config.preview_render_preset,
+    )
+
+
+def scaled_output_size(width: int, height: int, short_side: int) -> Tuple[int, int]:
+    """``width``x``height`` scaled so its shorter side is at most ``short_side`` (even)."""
+    if min(width, height) <= short_side:
+        return width, height
+    scale = short_side / min(width, height)
+    return round_to_even(round(width * scale)), round_to_even(round(height * scale))
+
+
+def final_encode_args(
+    out_w: int, out_h: int, profile: Optional[EncodeProfile] = None, **encode
+) -> List[str]:
+    """Final-pass encoder args, optionally for a smaller or cheaper output."""
+    if profile is None:
+        return build_final_video_encode_args(**encode)
+    if profile.crf is not None:
+        encode.setdefault("crf", profile.crf)
+    if profile.preset is not None:
+        encode.setdefault("preset", profile.preset)
+    args = build_final_video_encode_args(**encode)
+    width, height = scaled_output_size(out_w, out_h, profile.short_side)
+    if (width, height) != (out_w, out_h):
+        # As an output option ``-s`` scales after the whole filter graph;
+        # lanczos like cap_video_short_side.
+        args += ["-s", f"{width}x{height}", "-sws_flags", "lanczos"]
+    return args
 
 
 def cap_video_short_side(video_path: Path, short_side: int) -> bool:

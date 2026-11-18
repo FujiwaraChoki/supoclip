@@ -63,3 +63,52 @@ def test_external_redirect_requires_https(monkeypatch, tmp_path):
     mock_requests(monkeypatch, lambda _: httpx.Response(307, headers={"Location": "http://private-s3.test/video.mp4"}))
     with pytest.raises(SupoClipError, match="HTTPS"):
         asyncio.run(configured_client().download("/tasks/task/clips/clip/file", str(tmp_path), "clip.mp4"))
+
+
+def test_download_waits_while_the_full_quality_clip_is_prepared(monkeypatch, tmp_path):
+    import supoclip_mcp.client as client_module
+
+    calls = []
+    waits = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        if len(calls) < 3:
+            return httpx.Response(
+                503,
+                headers={"Retry-After": "7"},
+                json={"detail": {"code": "FULL_QUALITY_PREPARING", "message": "Preparing"}},
+            )
+        return httpx.Response(200, content=b"full quality")
+
+    async def no_wait(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(client_module, "_sleep", no_wait)
+    mock_requests(monkeypatch, handler)
+    result = asyncio.run(configured_client().download("/tasks/task/clips/clip/file", str(tmp_path), "clip.mp4"))
+    assert result["bytes"] == len(b"full quality")
+    assert waits == [7.0, 7.0]
+    assert len(calls) == 3
+
+
+def test_other_503s_are_errors(monkeypatch, tmp_path):
+    mock_requests(monkeypatch, lambda _: httpx.Response(503, json={"detail": "The render worker is unavailable."}))
+    with pytest.raises(SupoClipError, match="unavailable"):
+        asyncio.run(configured_client().download("/tasks/task/clips/clip/file", str(tmp_path), "clip.mp4"))
+
+
+def test_a_full_quality_render_that_never_finishes_gives_up(monkeypatch, tmp_path):
+    import supoclip_mcp.client as client_module
+
+    async def no_wait(seconds):
+        return None
+
+    monkeypatch.setattr(client_module, "_sleep", no_wait)
+    monkeypatch.setattr(client_module, "PREPARING_WAIT_SECONDS", 5)
+    mock_requests(monkeypatch, lambda _: httpx.Response(
+        503, headers={"Retry-After": "10"}, json={"detail": {"code": "FULL_QUALITY_PREPARING"}}
+    ))
+    with pytest.raises(SupoClipError, match="still being prepared"):
+        asyncio.run(configured_client().download("/tasks/task/clips/clip/file", str(tmp_path), "clip.mp4"))
+    assert list(tmp_path.glob("*.part")) == []

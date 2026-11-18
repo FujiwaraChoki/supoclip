@@ -13,7 +13,9 @@
     "share": "Failed to create share link",
     "disableShare": "Failed to disable share link",
     "downloadAll": "Could not download the clips. Please try again.",
-    "createTask": "Couldn't start the new generation"
+    "createTask": "Couldn't start the new generation",
+    "fullQuality": "Couldn't prepare the full-quality clip. Please try again.",
+    "fullQualityTimeout": "The full-quality clip is taking longer than usual. Try again in a minute."
   },
   "alreadyProcessing": "This video is already being processed.",
   "toasts": {
@@ -285,5 +287,10 @@
       "bumps": "A few bumps along the way. We're working through them—just a little more time.",
       "slower": "Things are moving a bit slower than usual. We're still on it."
     }
+  },
+  "previewQuality": {
+    "badge": "Preview",
+    "notice": "Preview quality: you get the full-quality clip when you export or publish it.",
+    "preparing": "Preparing full quality… {progress}%"
   }
 }

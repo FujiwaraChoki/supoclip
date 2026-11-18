@@ -129,6 +129,16 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     releasedAt: "2026-11-06T00:00:00Z",
     steps: [{ target: "composer-settings", message: "settings", side: "top" }],
   },
+  {
+    // Preview renders (feature flag `preview_renders`): shown on a generation's results the first
+    // time its clips are previews. Set releasedAt to the day the flag opens to users.
+    id: "preview-renders",
+    releasedAt: "2026-11-18T00:00:00Z",
+    steps: [
+      { target: "preview-quality", message: "notice", side: "bottom" },
+      { target: "clip-download", message: "download", side: "top" },
+    ],
+  },
 ];
 
 export function isFeatureTourId(value: unknown): value is string {

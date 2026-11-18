@@ -13,7 +13,9 @@
     "share": "无法创建分享链接",
     "disableShare": "无法停用分享链接",
     "downloadAll": "无法下载片段，请重试。",
-    "createTask": "无法开始新的生成"
+    "createTask": "无法开始新的生成",
+    "fullQuality": "无法准备完整画质的片段，请重试。",
+    "fullQualityTimeout": "完整画质的片段比平时花的时间更长，请一分钟后再试。"
   },
   "alreadyProcessing": "这个视频正在处理。",
   "toasts": {
@@ -285,5 +287,10 @@
       "bumps": "路上有点小颠簸，我们正在处理，再给我们一点时间。",
       "slower": "这次的节奏比平时慢一点，我们还在继续努力。"
     }
+  },
+  "previewQuality": {
+    "badge": "预览",
+    "notice": "预览画质：导出或发布时，你会得到完整画质的片段。",
+    "preparing": "正在准备完整画质… {progress}%"
   }
 }

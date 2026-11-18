@@ -8,6 +8,10 @@ process renders, a second drains ``supoclip_cron``.
 Set ``EMBED_CRON_WORKER=0`` when the optional Compose ``cron-worker`` service
 (profile ``cron``) is running instead. A stable cron job id makes running
 both safe, but one scheduler is enough.
+
+A third process drains ``supoclip_finals``: on-demand full-quality renders of
+preview clips (``FULL_RENDER_MAX_JOBS`` at once). Set
+``EMBED_FINAL_RENDER_WORKER=0`` on a machine that should not take them.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ import sys
 
 VIDEO_WORKER = "src.workers.tasks.WorkerSettings"
 CRON_WORKER = "src.workers.cron_worker.CronWorkerSettings"
+FINAL_RENDER_WORKER = "src.workers.final_render_worker.FinalRenderWorkerSettings"
 
 
 def embed_cron_worker(value: str | None = None) -> bool:
@@ -26,10 +31,19 @@ def embed_cron_worker(value: str | None = None) -> bool:
     return raw.strip().lower() not in {"0", "false", "no", "off"}
 
 
-def worker_settings(embed_cron: bool | None = None) -> list[str]:
+def embed_final_render_worker(value: str | None = None) -> bool:
+    raw = os.getenv("EMBED_FINAL_RENDER_WORKER", "1") if value is None else value
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def worker_settings(
+    embed_cron: bool | None = None, embed_final_render: bool | None = None
+) -> list[str]:
     settings = [VIDEO_WORKER]
     if embed_cron_worker() if embed_cron is None else embed_cron:
         settings.append(CRON_WORKER)
+    if embed_final_render_worker() if embed_final_render is None else embed_final_render:
+        settings.append(FINAL_RENDER_WORKER)
     return settings
 
 

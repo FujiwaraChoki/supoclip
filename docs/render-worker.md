@@ -7,7 +7,10 @@ synchronized folders.
 
 Workers on any number of machines consume the same queue (`supoclip_tasks`).
 Any of them may receive a generation, an editor preparation, an export, a
-combine or a social publish.
+combine or a social publish. Each machine also drains `supoclip_finals`, the
+on-demand full-quality renders of preview clips (`FULL_RENDER_MAX_JOBS`, see
+`docs/preview-renders.md`); set `EMBED_FINAL_RENDER_WORKER=0` to keep a machine
+off it. Their inputs are in the bucket, so any machine can take them.
 
 ## Requirements
 

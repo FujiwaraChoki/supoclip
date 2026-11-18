@@ -44,6 +44,7 @@ from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
+from ... import feature_flags
 from ...feature_flags import client_platform
 from ...source_identity import (
     duplicate_source_response,
@@ -473,6 +474,7 @@ PUBLIC_CLIP_FIELDS = {
     "hook_title",
     "part_number",
     "workflow_role",
+    "render_quality",
 }
 
 
@@ -686,6 +688,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         error = workflow_not_available()
         raise HTTPException(status_code=error.status, detail=error.to_detail())
     workflow_options = workflow_spec.options.to_json()
+    preview_renders = await _preview_renders_for(request, db, user_id)
     cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
@@ -816,6 +819,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         workflow=workflow_spec.workflow,
                         workflow_options=workflow_options,
                         **({"idempotency": idempotency} if idempotency else {}),
+                        **({"preview_renders": True} if preview_renders else {}),
                     )
                 except TaskIdempotencyReplay:
                     # A concurrent request with this key committed its task first
@@ -973,6 +977,7 @@ async def get_shared_task(share_token: str, db: AsyncSession = Depends(get_db)):
 async def get_shared_clip_file(
     share_token: str,
     clip_id: str,
+    request: Request,
     download: bool = False,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
@@ -985,6 +990,11 @@ async def get_shared_clip_file(
     clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
     if not clip or clip.get("task_id") != task_id:
         raise HTTPException(status_code=404, detail="Clip not found")
+    from .full_renders import is_preview, needs_full_file, require_full_clip
+
+    if is_preview(clip) and needs_full_file(request, download):
+        owner = await task_service.task_repo.get_task_by_id(db, task_id) or {}
+        clip = await require_full_clip(request, db, owner, clip, trigger="download")
 
     if is_s3(clip["file_path"]):
         await db.close()
@@ -1243,6 +1253,38 @@ async def delete_clip(
         raise HTTPException(status_code=500, detail=f"Error deleting clip: {str(e)}")
 
 
+async def _preview_renders_for(request: Request, db: Optional[AsyncSession], user_id: str) -> bool:
+    """Whether a new task renders preview clips (flag ``preview_renders``).
+
+    Evaluated once, at creation: a resume renders the way the task started.
+    A flag that can't be read leaves the task on full-quality renders.
+    """
+    if db is None:
+        return False
+    try:
+        return await feature_flags.is_enabled(
+            db, feature_flags.PREVIEW_RENDERS, platform=client_platform(request), user_id=user_id
+        )
+    except Exception:  # noqa: BLE001 - never fail a task over a rollout flag
+        logger.warning("Could not read the preview_renders flag; rendering full quality", exc_info=True)
+        return False
+
+
+async def _full_quality_for_edit(
+    request: Request, db: AsyncSession, task: Dict[str, Any], clip_ids: list[str]
+) -> None:
+    """Edits that cut the rendered file start from the full-quality clip, never a preview."""
+    from ...repositories.clip_repository import ClipRepository
+    from .full_renders import is_preview, require_full_clip
+
+    if db is None:
+        return
+    for clip_id in clip_ids:
+        clip = await ClipRepository.get_clip_by_id(db, clip_id)
+        if clip and clip.get("task_id") == task.get("id") and is_preview(clip):
+            await require_full_clip(request, db, task, clip, trigger="edit")
+
+
 @router.get("/{task_id}/clips/{clip_id}/file")
 async def get_clip_file(
     task_id: str,
@@ -1258,6 +1300,11 @@ async def get_clip_file(
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
+        from .full_renders import needs_full_file, require_full_clip
+
+        if needs_full_file(request, download):
+            # A preview plays inline on the web; anything saved is full quality.
+            clip = await require_full_clip(request, db, task, clip, trigger="download")
 
         if is_s3(clip["file_path"]):
             await db.close()
@@ -1300,6 +1347,11 @@ async def _prepare_clip_archive(request: Request, db: AsyncSession, task_id: str
     task_service = TaskService(db)
     user_id, task = await _authorize_task_reader(request, task_service, db, task_id)
     clips = await task_service.clip_repo.get_clips_by_task(db, task_id)
+    from .full_renders import require_full_clips
+
+    # Previews are rendered at full quality first; the archive holds what a
+    # single download would.
+    clips = await require_full_clips(request, db, task, clips, trigger="zip")
     # Release the DB connection before storage lookups and the long stream;
     # see get_clip_file.
     await db.close()
@@ -1381,7 +1433,8 @@ async def trim_clip(
             raise HTTPException(status_code=400, detail="Offsets must be non-negative")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        await _full_quality_for_edit(request, db, task, [clip_id])
         updated_clip = await task_service.trim_clip(
             task_id, clip_id, start_offset, end_offset
         )
@@ -1409,7 +1462,8 @@ async def split_clip(
             )
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        await _full_quality_for_edit(request, db, task, [clip_id])
         result = await task_service.split_clip(task_id, clip_id, split_time)
         return result
     except ValueError as e:
@@ -1433,7 +1487,8 @@ async def merge_clips(
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        await _full_quality_for_edit(request, db, task, clip_ids)
         result = await task_service.merge_clips(task_id, clip_ids)
         return result
     except ValueError as e:
@@ -1475,7 +1530,8 @@ async def update_clip_captions(
             raise ValueError("Invalid caption position")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        await _full_quality_for_edit(request, db, task, [clip_id])
         updated_clip = await task_service.update_clip_captions(
             task_id,
             clip_id,
@@ -1513,7 +1569,8 @@ async def regenerate_clip(
         end_offset = _finite_number(payload.get("end_offset", 0), "end_offset")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        await _full_quality_for_edit(request, db, task, [clip_id])
         updated_clip = await task_service.trim_clip(
             task_id, clip_id, start_offset, end_offset
         )
@@ -1634,6 +1691,9 @@ async def export_clip(
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
+        from .full_renders import require_full_clip
+
+        clip = await require_full_clip(request, db, task, clip, trigger="export")
 
         from pathlib import Path
 

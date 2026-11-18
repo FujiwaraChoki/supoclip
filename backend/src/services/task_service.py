@@ -12,6 +12,8 @@ from pathlib import Path
 import asyncio
 import copy
 import json
+import shutil
+from uuid import uuid4
 import hashlib
 from time import perf_counter
 
@@ -28,6 +30,8 @@ from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from ..repositories.task_checkpoint_repository import TaskCheckpointRepository, checkpoint_input_key
 from .video_service import VideoService
+from .full_render_service import finalize_locally, local_inputs_dir, publish_render_inputs
+from ..media.ffmpeg import preview_profile
 from .clip_service import ClipEditingMixin, fill_output_starts
 from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
 from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
@@ -359,6 +363,7 @@ class TaskService(ClipEditingMixin):
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
         idempotency: Optional[tuple[str, str]] = None,
+        preview_renders: bool = False,
     ) -> str:
         """
         Create a new task with associated source.
@@ -424,6 +429,7 @@ class TaskService(ClipEditingMixin):
                 workflow=workflow,
                 workflow_options=workflow_options,
                 **({"idempotency": idempotency} if idempotency else {}),
+                **({"preview_renders": True} if preview_renders else {}),
             )
         except TaskIdempotencyReplay:
             # The task insert rolled back. Drop the source made for it.
@@ -774,6 +780,11 @@ class TaskService(ClipEditingMixin):
             render_start = perf_counter()
             # Read from the task so queued jobs and resumes honour the setting.
             include_broll = bool(task_row.get("include_broll"))
+            # Set at creation from the preview_renders flag. Previews keep the
+            # inputs of their final pass; the full clip is rendered on demand.
+            preview_encode = (
+                preview_profile(self.config) if task_row.get("preview_renders") else None
+            )
             broll_session = BRollSession()
             wants_previews: Optional[bool] = None  # checked once a clip renders
             # (virality, render order, still) for each saved clip.
@@ -806,6 +817,12 @@ class TaskService(ClipEditingMixin):
                     else clip_duration(clip_length).maximum
                 )
 
+                inputs_dir = (
+                    local_inputs_dir(self.config.temp_dir, task_id, uuid4().hex)
+                    if preview_encode is not None
+                    else None
+                )
+
                 async def render_clip():
                     return await self.video_service.create_single_clip(
                         video_path,
@@ -823,6 +840,11 @@ class TaskService(ClipEditingMixin):
                         max_clip_seconds=max_clip_seconds,
                         include_broll=include_broll,
                         broll_session=broll_session,
+                        **(
+                            {"preview": preview_encode, "render_inputs_dir": inputs_dir}
+                            if preview_encode is not None
+                            else {}
+                        ),
                     )
 
                 clip_info = await render_clip()
@@ -838,8 +860,28 @@ class TaskService(ClipEditingMixin):
                 pending_clip_path = Path(clip_info["path"]) if clip_info else None
                 await check_cancelled()
                 if clip_info is None:
+                    if inputs_dir is not None:
+                        shutil.rmtree(inputs_dir, ignore_errors=True)
                     failed_positions.append(i + 1)
                     continue
+                render_inputs_path = None
+                if clip_info.get("render_quality") == "preview":
+                    try:
+                        render_inputs_path = await self._publish_preview_inputs(
+                            task_id, clip_info, inputs_dir
+                        )
+                    except Exception:
+                        logger.exception("Dropping %s %d: no full-quality path", noun, i + 1)
+                        Path(clip_info["path"]).unlink(missing_ok=True)
+                        pending_clip_path = None
+                        if segment.get("required"):
+                            raise WorkflowError(
+                                "render_incomplete", _render_failure_message(spec, segment)
+                            )
+                        failed_positions.append(i + 1)
+                        continue
+                elif inputs_dir is not None:
+                    shutil.rmtree(inputs_dir, ignore_errors=True)
                 # Take the email still now: once saved, the clip may move to S3/R2.
                 if wants_previews is None:
                     wants_previews = await self._completion_email_wanted(task_id)
@@ -896,6 +938,11 @@ class TaskService(ClipEditingMixin):
                         hook_type=clip_info.get("hook_type"),
                         hook_title=clip_info.get("hook_title"),
                         **workflow_fields,
+                        **(
+                            {"render_quality": "preview", "render_inputs_path": render_inputs_path}
+                            if render_inputs_path
+                            else {}
+                        ),
                     )
 
                     # Update task's clip IDs array
@@ -1101,6 +1148,35 @@ class TaskService(ClipEditingMixin):
                 # path (and therefore before the generic path cleanup can run).
                 await run_in_thread(cleanup_stream_task, task_id)
 
+    async def _publish_preview_inputs(
+        self, task_id: str, clip_info: Dict[str, Any], inputs_dir: Optional[Path]
+    ) -> Optional[str]:
+        """Store a preview's render inputs for any worker. None after a fallback.
+
+        A job publishes before it reports: the clip row is written only after
+        its inputs are stored. If they can't be stored, the full-quality clip
+        is rendered right here instead, so the clip never depends on a file
+        only this machine has.
+        """
+        if inputs_dir is not None:
+            try:
+                return await run_in_thread(
+                    publish_render_inputs, MediaStorage(), inputs_dir, task_id
+                )
+            except Exception:
+                logger.exception(
+                    "Could not store render inputs for %s; rendering it at full quality now",
+                    clip_info.get("filename"),
+                )
+        try:
+            if inputs_dir is None:
+                raise FileNotFoundError("No render inputs")
+            await finalize_locally(inputs_dir, Path(clip_info["path"]), clip_info.get("broll"))
+        except Exception as exc:
+            raise RuntimeError(f"Could not render {clip_info.get('filename')} at full quality") from exc
+        clip_info["render_quality"] = "full"
+        return None
+
     async def _discard_task_clips(self, task_id: str) -> None:
         """Delete every clip of a failed all-or-nothing task (refund precondition)."""
         try:
@@ -1261,7 +1337,10 @@ class TaskService(ClipEditingMixin):
         clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
         task["clips"] = [
             {
-                **{key: value for key, value in clip.items() if key != "file_path"},
+                **{
+                    key: value for key, value in clip.items()
+                    if key not in {"file_path", "render_inputs_path"}
+                },
                 "caption_settings": await run_in_thread(
                     MediaStorage().caption_settings,
                     clip["file_path"],

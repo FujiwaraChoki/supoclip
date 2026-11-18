@@ -97,5 +97,15 @@
       "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
     }
   },
+  "preview-renders": {
+    "notice": {
+      "title": "Deine Clips sind schneller da",
+      "body": "Die Clips hier sind schnelle Vorschauen. So kannst du sie ansehen und auswählen, sobald die Generierung fertig ist."
+    },
+    "download": {
+      "title": "Volle Qualität, wenn du sie brauchst",
+      "body": "Lädst du einen Clip herunter, exportierst oder veröffentlichst ihn, erstellt SupoClip ihn zuerst in voller Qualität. Das dauert etwa eine Minute; danach lädt der Clip sofort."
+    }
+  },
   "skip": "Überspringen"
 }

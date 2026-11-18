@@ -13,7 +13,9 @@
     "share": "Falha ao criar o link de compartilhamento",
     "disableShare": "Falha ao desativar o link de compartilhamento",
     "downloadAll": "Não foi possível baixar os clipes. Tente novamente.",
-    "createTask": "Não foi possível iniciar a nova geração"
+    "createTask": "Não foi possível iniciar a nova geração",
+    "fullQuality": "Não foi possível preparar o clipe em qualidade total. Tente novamente.",
+    "fullQualityTimeout": "O clipe em qualidade total está demorando mais que o normal. Tente novamente em um minuto."
   },
   "alreadyProcessing": "Este vídeo já está sendo processado.",
   "toasts": {
@@ -285,5 +287,10 @@
       "bumps": "Alguns solavancos pelo caminho. Estamos resolvendo—só mais um pouquinho de tempo.",
       "slower": "As coisas estão um pouco mais lentas que o normal. Seguimos trabalhando."
     }
+  },
+  "previewQuality": {
+    "badge": "Prévia",
+    "notice": "Qualidade de prévia: você recebe o clipe em qualidade total ao exportá-lo ou publicá-lo.",
+    "preparing": "Preparando qualidade total… {progress}%"
   }
 }

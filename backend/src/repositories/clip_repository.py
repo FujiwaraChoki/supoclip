@@ -49,24 +49,65 @@ _CLIP_COLUMNS = """id, task_id, filename, file_path, start_time, end_time, durat
 _SCORE_COLUMNS = """virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
        hook_title"""
 _WORKFLOW_COLUMNS = "workflow_role, part_number, workflow_meta"
+_RENDER_COLUMNS = """render_quality, render_inputs_path, full_render_status, full_render_progress,
+       full_render_error, full_render_updated_at"""
 
 
-def _clip_select(where: str, *, scores: bool, workflow: bool) -> str:
+def _clip_select(where: str, *, scores: bool, workflow: bool, render: bool = False) -> str:
     columns = [_CLIP_COLUMNS]
     if scores:
         columns.append(_SCORE_COLUMNS)
     if workflow:
         columns.append(_WORKFLOW_COLUMNS)
+    if render:
+        columns.append(_RENDER_COLUMNS)
     return f"SELECT {', '.join(columns)} FROM generated_clips WHERE {where}"
 
 
 def _clip_selects(where: str) -> List[str]:
-    """Newest schema first: workflow columns, then scores, then the base columns."""
+    """Newest schema first: render state, workflow columns, scores, then the base columns."""
     return [
+        _clip_select(where, scores=True, workflow=True, render=True),
         _clip_select(where, scores=True, workflow=True),
         _clip_select(where, scores=True, workflow=False),
         _clip_select(where, scores=False, workflow=False),
     ]
+
+
+async def _clip_media_rows(db: AsyncSession, where: str, params: Dict[str, Any]):
+    """The columns that name a clip's media, render inputs included when the schema has them."""
+    return await _execute_newest_supported(db, [
+        (f"SELECT id, task_id, filename, file_path, render_inputs_path FROM generated_clips WHERE {where}", params),
+        (f"SELECT id, task_id, filename, file_path FROM generated_clips WHERE {where}", params),
+    ])
+
+
+def full_render_state(row: Any) -> Dict[str, Any]:
+    """Where a clip's full-quality render stands, for clients.
+
+    ``status`` is ``ready`` for a full-quality clip, ``none`` for a preview
+    nobody asked for yet, else ``queued``, ``running`` or ``failed``.
+    """
+    if isinstance(row, dict) and "full_render_status" not in row and isinstance(row.get("full_render"), dict):
+        # A clip dict from this repository already carries its state.
+        return dict(row["full_render"])
+    get = row.get if isinstance(row, dict) else (lambda key, default=None: getattr(row, key, default))
+    if (get("render_quality") or "full") != "preview":
+        return {"status": "ready", "progress": 100, "error": None}
+    status = get("full_render_status") or "none"
+    return {
+        "status": status,
+        "progress": int(get("full_render_progress") or 0) if status in {"queued", "running"} else 0,
+        "error": get("full_render_error") if status == "failed" else None,
+    }
+
+
+def _render_fields(row: Any) -> Dict[str, Any]:
+    return {
+        "render_quality": getattr(row, "render_quality", None) or "full",
+        "render_inputs_path": getattr(row, "render_inputs_path", None),
+        "full_render": full_render_state(row),
+    }
 
 
 class ClipRepository:
@@ -96,12 +137,18 @@ class ClipRepository:
         workflow_role: Optional[str] = None,
         part_number: Optional[int] = None,
         workflow_meta: Optional[Dict[str, Any]] = None,
+        render_quality: str = "full",
+        render_inputs_path: Optional[str] = None,
     ) -> str:
-        """Create a new clip record and return its ID."""
-        previous = await db.execute(sa_text(
-            "SELECT id, task_id, filename, file_path FROM generated_clips "
-            "WHERE task_id = :task_id AND clip_order = :clip_order"
-        ), {"task_id": task_id, "clip_order": clip_order})
+        """Create a new clip record and return its ID.
+
+        ``render_quality="preview"`` records a preview render whose final pass
+        can be repeated at full quality from ``render_inputs_path``.
+        """
+        previous = await _clip_media_rows(
+            db, "task_id = :task_id AND clip_order = :clip_order",
+            {"task_id": task_id, "clip_order": clip_order},
+        )
         old_clip = previous.mappings().first()
         file_path = await persist_clip(db, file_path, task_id)
         if old_clip and old_clip["file_path"] != file_path:
@@ -230,8 +277,46 @@ class ClipRepository:
         clip_id = result.scalar()
         if not clip_id:
             raise RuntimeError("Failed to create clip: no ID returned")
+        # The insert may have replaced a row at this position: reset its render
+        # state too, so a new full render never inherits a preview's.
+        await ClipRepository.set_render_quality(
+            db, str(clip_id), render_quality, render_inputs_path
+        )
         logger.debug(f"Created clip {clip_id} for task {task_id}")
         return str(clip_id)
+
+    @staticmethod
+    async def set_render_quality(
+        db: AsyncSession,
+        clip_id: str,
+        render_quality: str = "full",
+        render_inputs_path: Optional[str] = None,
+    ) -> None:
+        """Record what a clip's file is. Full quality works before the migration too."""
+        if render_quality not in {"full", "preview"}:
+            raise ValueError(f"Unknown render quality {render_quality!r}")
+        statement = sa_text(
+            """
+            UPDATE generated_clips
+            SET render_quality = :quality,
+                render_inputs_path = :inputs,
+                full_render_status = NULL,
+                full_render_progress = 0,
+                full_render_error = NULL,
+                full_render_updated_at = NULL
+            WHERE id = :clip_id
+            """
+        )
+        params = {"clip_id": clip_id, "quality": render_quality, "inputs": render_inputs_path}
+        if render_quality == "preview":
+            await db.execute(statement, params)
+            return
+        try:
+            async with db.begin_nested():
+                await db.execute(statement, params)
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42703":
+                raise
 
     @staticmethod
     async def get_clips_by_task(db: AsyncSession, task_id: str) -> List[Dict[str, Any]]:
@@ -268,6 +353,7 @@ class ClipRepository:
                     "workflow_role": getattr(row, "workflow_role", None),
                     "part_number": getattr(row, "part_number", None),
                     "workflow_meta": _workflow_meta(getattr(row, "workflow_meta", None)),
+                    **_render_fields(row),
                 }
             )
 
@@ -287,9 +373,7 @@ class ClipRepository:
     @staticmethod
     async def delete_clips_by_task(db: AsyncSession, task_id: str) -> int:
         """Delete all clips for a task. Returns count of deleted clips."""
-        rows = await db.execute(sa_text(
-            "SELECT id, task_id, filename, file_path FROM generated_clips WHERE task_id = :task_id"
-        ), {"task_id": task_id})
+        rows = await _clip_media_rows(db, "task_id = :task_id", {"task_id": task_id})
         for clip in rows.mappings():
             await queue_clip_delete(db, clip)
         await ClipExportRepository.queue_file_deletes(db, task_id=task_id)
@@ -306,9 +390,7 @@ class ClipRepository:
     @staticmethod
     async def delete_clip(db: AsyncSession, clip_id: str) -> None:
         """Delete a single clip by ID."""
-        rows = await db.execute(sa_text(
-            "SELECT id, task_id, filename, file_path FROM generated_clips WHERE id = :clip_id"
-        ), {"clip_id": clip_id})
+        rows = await _clip_media_rows(db, "id = :clip_id", {"clip_id": clip_id})
         clip = rows.mappings().first()
         if clip:
             await queue_clip_delete(db, clip)
@@ -358,6 +440,7 @@ class ClipRepository:
             "workflow_meta": _workflow_meta(getattr(row, "workflow_meta", None)),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
+            **_render_fields(row),
         }
 
     @staticmethod
@@ -377,9 +460,7 @@ class ClipRepository:
         ``workflow_meta``, when given, replaces the clip's workflow metadata
         (a split narrows a planned clip's ranges to the half it kept).
         """
-        rows = await db.execute(sa_text(
-            "SELECT id, task_id, filename, file_path FROM generated_clips WHERE id = :clip_id"
-        ), {"clip_id": clip_id})
+        rows = await _clip_media_rows(db, "id = :clip_id", {"clip_id": clip_id})
         previous = rows.mappings().first()
         if not previous:
             raise ValueError("Clip not found")
@@ -413,6 +494,8 @@ class ClipRepository:
                 {**params, "workflow_meta": json.dumps(workflow_meta)},
             ))
         await _execute_newest_supported(db, attempts)
+        # An edit renders a new full-quality file.
+        await ClipRepository.set_render_quality(db, clip_id, "full")
         await commit_unless_editing(db)
 
     @staticmethod

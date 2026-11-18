@@ -14,6 +14,7 @@ supports three modes, tried in priority order:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -119,53 +120,39 @@ class SupoClipClient:
         *,
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Stream a binary file (a clip) to ``destination_dir`` and return its path."""
+        """Stream a binary file (a clip) to ``destination_dir`` and return its path.
+
+        A preview clip is rendered at full quality before it downloads. While
+        that runs the backend answers ``503`` with ``code: FULL_QUALITY_PREPARING``
+        and ``Retry-After``; this waits and asks again (up to
+        ``PREPARING_WAIT_SECONDS``), so the file on disk is always full quality.
+        """
         self._require_auth()
-        headers = {**self._auth_headers(), "User-Agent": USER_AGENT}
         url = f"{self.settings.api_url}{path}"
 
         dest_dir = Path(destination_dir).expanduser()
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / filename
 
-        bytes_written = 0
         temporary = dest_path.with_name(f".{dest_path.name}.{uuid.uuid4().hex}.part")
         backend_origin = urlsplit(self.settings.api_url)[:2]
+        deadline = time.monotonic() + PREPARING_WAIT_SECONDS
         try:
             async with httpx.AsyncClient(timeout=None) as client:
-                download_url = url
-                for _ in range(6):
-                    async with client.stream("GET", download_url, params=params, headers=headers) as response:
-                        if response.is_redirect:
-                            location = response.headers.get("location")
-                            if not location:
-                                raise SupoClipError("Download redirect has no destination.")
-                            download_url = urljoin(download_url, location)
-                            target = urlsplit(download_url)
-                            same_backend = target[:2] == backend_origin
-                            if target.scheme not in {"http", "https"} or (not same_backend and target.scheme != "https"):
-                                raise SupoClipError("Download redirect must use HTTPS for external storage.")
-                            # HTTP clients do not automatically strip custom HMAC
-                            # headers on a cross-origin redirect. Send no backend
-                            # credentials to storage; the URL carries its own grant.
-                            headers = {**self._auth_headers(), "User-Agent": USER_AGENT} if same_backend else {}
-                            params = None
-                            continue
-                        if response.status_code not in {200, 206}:
-                            if urlsplit(download_url)[:2] != backend_origin:
-                                raise SupoClipError(f"Storage download failed ({response.status_code}). Please retry.")
-                            body = (await response.aread()).decode("utf-8", "replace")
-                            raise SupoClipError(
-                                _error_message(response.status_code, body, path, self.settings.app_url)
-                            )
-                        with temporary.open("wb") as handle:
-                            async for chunk in response.aiter_bytes(chunk_size=1 << 16):
-                                handle.write(chunk)
-                                bytes_written += len(chunk)
-                        temporary.replace(dest_path)
+                while True:
+                    outcome = await self._download_once(
+                        client, url, params, path, temporary, backend_origin
+                    )
+                    if isinstance(outcome, int):
                         break
-                else:
-                    raise SupoClipError("Download redirected too many times.")
+                    wait = outcome
+                    if time.monotonic() + wait > deadline:
+                        raise SupoClipError(
+                            "The full-quality clip is still being prepared. Try the download again in a minute."
+                        )
+                    await _sleep(wait)
+                bytes_written = outcome
+                temporary.replace(dest_path)
         except httpx.HTTPError as exc:
             # Exceptions may contain signed storage URLs. Keep them out of the
             # user-visible error while retaining the exception type for support.
@@ -179,6 +166,53 @@ class SupoClipClient:
             "bytes": bytes_written,
         }
 
+    async def _download_once(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        params: Optional[Dict[str, Any]],
+        path: str,
+        temporary: Path,
+        backend_origin: tuple,
+    ) -> "int | float":
+        """Bytes written, or the seconds to wait while the full-quality clip is prepared."""
+        headers = {**self._auth_headers(), "User-Agent": USER_AGENT}
+        download_url = url
+        for _ in range(6):
+            async with client.stream("GET", download_url, params=params, headers=headers) as response:
+                if response.is_redirect:
+                    location = response.headers.get("location")
+                    if not location:
+                        raise SupoClipError("Download redirect has no destination.")
+                    download_url = urljoin(download_url, location)
+                    target = urlsplit(download_url)
+                    same_backend = target[:2] == backend_origin
+                    if target.scheme not in {"http", "https"} or (not same_backend and target.scheme != "https"):
+                        raise SupoClipError("Download redirect must use HTTPS for external storage.")
+                    # HTTP clients do not automatically strip custom HMAC
+                    # headers on a cross-origin redirect. Send no backend
+                    # credentials to storage; the URL carries its own grant.
+                    headers = {**self._auth_headers(), "User-Agent": USER_AGENT} if same_backend else {}
+                    params = None
+                    continue
+                if response.status_code not in {200, 206}:
+                    if urlsplit(download_url)[:2] != backend_origin:
+                        raise SupoClipError(f"Storage download failed ({response.status_code}). Please retry.")
+                    body = (await response.aread()).decode("utf-8", "replace")
+                    wait = _preparing_retry_after(response.status_code, response.headers, body)
+                    if wait is not None:
+                        return wait
+                    raise SupoClipError(
+                        _error_message(response.status_code, body, path, self.settings.app_url)
+                    )
+                written = 0
+                with temporary.open("wb") as handle:
+                    async for chunk in response.aiter_bytes(chunk_size=1 << 16):
+                        handle.write(chunk)
+                        written += len(chunk)
+                return written
+        raise SupoClipError("Download redirected too many times.")
+
     # -- helpers ------------------------------------------------------------
     def _parse(self, response: httpx.Response, path: str) -> Any:
         if response.status_code >= 400:
@@ -191,6 +225,29 @@ class SupoClipClient:
             return response.json()
         except ValueError:
             return {"raw": response.text}
+
+
+PREPARING_CODE = "FULL_QUALITY_PREPARING"
+# Longest wait for a preview clip's full-quality render before giving up.
+PREPARING_WAIT_SECONDS = 15 * 60
+_sleep = asyncio.sleep
+
+
+def _preparing_retry_after(status: int, headers: httpx.Headers, body: str) -> Optional[float]:
+    """Seconds to wait when the backend is still rendering the full-quality clip."""
+    if status != 503:
+        return None
+    try:
+        detail = json.loads(body).get("detail")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(detail, dict) or detail.get("code") != PREPARING_CODE:
+        return None
+    try:
+        seconds = float(headers.get("retry-after") or 10)
+    except ValueError:
+        seconds = 10.0
+    return min(60.0, max(1.0, seconds))
 
 
 def _plan_message(detail: dict, app_url: str) -> str:

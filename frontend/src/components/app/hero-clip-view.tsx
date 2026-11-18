@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Download, Loader2, Scissors } from "lucide-react";
+import { PreviewQualityNotice, useDownloadLabel } from "@/components/app/preview-quality";
+import { isPreviewClip } from "@/lib/full-quality";
 import { sourceTimestamp, type WallClip } from "@/components/app/clip-wall";
 import { Button } from "@/components/ui/button";
 import { getClipUrl } from "@/lib/clip-actions";
@@ -77,18 +79,21 @@ function activeMoment(moments: HeroMoment[], time: number) {
 }
 
 /** A recap or trailer: one centred 9:16 player with its points or beats. */
-export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onDownload, actions }: {
+export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, preparing, onDownload, actions }: {
   workflow: "recap" | "trailer";
   clip: WallClip;
   plan?: WorkflowPlan | null;
   taskId: string;
   editable: boolean;
   busy: boolean;
+  /** Progress of the full-quality render a download is waiting for. */
+  preparing?: number | null;
   onDownload: () => void;
   /** Extra actions (publishing). */
   actions?: React.ReactNode;
 }) {
   const t = useTranslations("task");
+  const downloadLabel = useDownloadLabel();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [time, setTime] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -139,10 +144,11 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
       <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t(`workflowBadge.${workflow}`)} · <span className="tabular-nums">{formatClipDuration(clip.duration)}</span></p>
         <h2 className="mt-1.5 font-display text-2xl font-bold leading-tight tracking-tight">{title}</h2>
+        {isPreviewClip(clip) && <PreviewQualityNotice className="mt-3" />}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={onDownload} disabled={busy}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t("download")}
+          <Button size="sm" onClick={onDownload} disabled={busy} data-tour={isPreviewClip(clip) ? "clip-download" : undefined}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{downloadLabel(preparing)}
           </Button>
           {editable && (
             <Button size="sm" variant="outline" asChild>

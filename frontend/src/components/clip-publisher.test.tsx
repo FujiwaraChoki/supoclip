@@ -413,3 +413,47 @@ it("prefills a series part's planned caption instead of drafting one", async () 
   expect(screen.getByLabelText("Title")).toHaveValue("Part 2");
   expect(fetch).not.toHaveBeenCalledWith("/api/social/captions", expect.anything());
 });
+
+it("renders a preview clip at full quality before creating the post", async () => {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    calls.push(`${options?.method ?? "GET"} ${url}`);
+    if (url === "/api/social/captions") return Response.json({ caption: "A caption" });
+    if (url.endsWith("/full-render")) {
+      return Response.json(options?.method === "POST"
+        ? { render_quality: "preview", full_render: { status: "running", progress: 50, error: null } }
+        : { render_quality: "full", full_render: { status: "ready", progress: 100, error: null } });
+    }
+    return Response.json({ post: { id: "post-1", status: "queued" } });
+  }));
+  const onChanged = vi.fn();
+  render(<ClipPublishButton taskId="task-1" clip={{ ...clip, render_quality: "preview" }} connections={[connection()]} providers={[provider()]} onChanged={onChanged} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  await waitFor(() => expect(screen.getByLabelText("Caption")).toHaveValue("A caption"));
+  fireEvent.click(screen.getByRole("button", { name: "Publish now" }));
+  await waitFor(() => expect(onChanged).toHaveBeenCalledOnce(), { timeout: 4000 });
+  const render_ = calls.filter((call) => call.includes("full-render") || call.endsWith("/api/social/posts"));
+  expect(render_).toEqual([
+    "POST /api/tasks/task-1/clips/clip-1/full-render",
+    "GET /api/tasks/task-1/clips/clip-1/full-render",
+    "POST /api/social/posts",
+  ]);
+});
+
+it("doesn't create a post when the full-quality render fails", async () => {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    calls.push(`${options?.method ?? "GET"} ${url}`);
+    if (url === "/api/social/captions") return Response.json({ caption: "A caption" });
+    if (url.endsWith("/full-render")) {
+      return Response.json({ render_quality: "preview", full_render: { status: "failed", progress: 0, error: "Regenerate the clip." } });
+    }
+    return Response.json({ post: { id: "post-1", status: "queued" } });
+  }));
+  render(<ClipPublishButton taskId="task-1" clip={{ ...clip, render_quality: "preview" }} connections={[connection()]} providers={[provider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  await waitFor(() => expect(screen.getByLabelText("Caption")).toHaveValue("A caption"));
+  fireEvent.click(screen.getByRole("button", { name: "Publish now" }));
+  expect(await screen.findByText("Regenerate the clip.")).toBeInTheDocument();
+  expect(calls).not.toContain("POST /api/social/posts");
+});

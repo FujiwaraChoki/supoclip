@@ -8,19 +8,21 @@ import {
   Play, Scissors, Share2, Star, Trash2, TrendingUp,
 } from "lucide-react";
 import { ClipCover, ScoreRing } from "@/components/app/clip-cover";
+import { PreviewQualityBadge, useDownloadLabel } from "@/components/app/preview-quality";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
 import { TranscriptPreview } from "@/components/transcript-preview";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getClipUrl } from "@/lib/clip-actions";
+import { isPreviewClip, type RenderQualityFields } from "@/lib/full-quality";
 import { formatClipDuration } from "@/lib/generations";
 import { DELAY_MESSAGE_KEYS, isDownloadRecovery } from "@/lib/download-recovery";
 import { estimateRemainingSeconds, isDownloadOverdue, seriesEtaRange, type EtaPhase } from "@/lib/processing-eta";
 import { cn } from "@/lib/utils";
 import { SINGLE_OUTPUT, type SourceRange, type Workflow, type WorkflowClipFields } from "@/lib/workflows";
 
-export interface WallClip extends WorkflowClipFields {
+export interface WallClip extends WorkflowClipFields, RenderQualityFields {
   id: string;
   filename: string;
   start_time: string;
@@ -90,10 +92,12 @@ function sourceMoments(clip: WallClip): SourceRange[] | null {
   return Array.isArray(ranges) && ranges.length > 1 ? ranges : null;
 }
 
-export function ClipTile({ clip, taskId, busy, best, editable, partTotal, onOpen, onDownload, onDelete }: {
+export function ClipTile({ clip, taskId, busy, preparing, best, editable, partTotal, onOpen, onDownload, onDelete }: {
   clip: WallClip;
   taskId: string;
   busy: boolean;
+  /** Progress of the full-quality render a download is waiting for. */
+  preparing?: number | null;
   best: boolean;
   editable: boolean;
   /** Parts in the series, for the "Part n of N" badge. */
@@ -103,6 +107,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, partTotal, onOpen
   onDelete?: () => void;
 }) {
   const t = useTranslations("task");
+  const downloadLabel = useDownloadLabel();
   const title = clipTitle(clip, t);
   const why = clip.workflow_meta?.why;
   return (
@@ -135,6 +140,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, partTotal, onOpen
           <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
             <span className="flex size-12 items-center justify-center rounded-full bg-white/90 text-black shadow-lg"><Play className="ml-0.5 size-5 fill-current" /></span>
           </span>
+          {isPreviewClip(clip) && <PreviewQualityBadge className="absolute bottom-2 left-2" />}
           <span className="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">{formatClipDuration(clip.duration)}</span>
         </ClipCover>
       </button>
@@ -151,8 +157,10 @@ export function ClipTile({ clip, taskId, busy, best, editable, partTotal, onOpen
         )}
         <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{clip.start_time} – {clip.end_time}</p>
         <div className="mt-2 flex items-center gap-1">
-          <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={t("downloadNamed", { title })}>
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">{t("download")}</span>
+          <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy}
+            aria-label={typeof preparing === "number" ? downloadLabel(preparing) : t("downloadNamed", { title })}
+            data-tour={isPreviewClip(clip) ? "clip-download" : undefined}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">{downloadLabel(preparing)}</span>
           </Button>
           {editable && (
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs" asChild>
@@ -177,12 +185,14 @@ const BREAKDOWN = [
   { key: "shareability_score", labelKey: "shareability", icon: Share2 },
 ] as const;
 
-export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel, actions, children }: {
+export function ClipFocus({ clip, taskId, index, total, busy, preparing, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel, actions, children }: {
   clip: WallClip | null;
   taskId: string;
   index: number;
   total: number;
   busy: boolean;
+  /** Progress of the full-quality render a download is waiting for. */
+  preparing?: number | null;
   editable: boolean;
   onNavigate: (delta: number) => void;
   onClose: () => void;
@@ -195,6 +205,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   children?: React.ReactNode;
 }) {
   const t = useTranslations("task");
+  const downloadLabel = useDownloadLabel();
   const moments = clip ? sourceMoments(clip) : null;
   const meta = clip?.workflow_meta;
   useEffect(() => {
@@ -235,6 +246,9 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                   <DialogDescription className="mt-1 tabular-nums">
                     {moments ? formatClipDuration(clip.duration) : <>{clip.start_time} – {clip.end_time} · {formatClipDuration(clip.duration)}</>}
                   </DialogDescription>
+                  {isPreviewClip(clip) && (
+                    <p className="mt-2 text-xs text-muted-foreground">{t("previewQuality.notice")}</p>
+                  )}
                 </div>
 
                 {isPart(clip) && (meta?.delivers || meta?.ends_on) && (
@@ -289,7 +303,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t bg-muted/30 px-5 py-3">
                 <Button size="sm" onClick={onDownload} disabled={busy}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t("download")}
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{downloadLabel(preparing)}
                 </Button>
                 {editable && (
                   <Button size="sm" variant="outline" asChild>

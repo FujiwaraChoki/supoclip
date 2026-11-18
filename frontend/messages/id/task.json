@@ -13,7 +13,9 @@
     "share": "Gagal membuat tautan berbagi",
     "disableShare": "Gagal menonaktifkan tautan berbagi",
     "downloadAll": "Tidak dapat mengunduh klip. Silakan coba lagi.",
-    "createTask": "Tidak bisa memulai generasi baru"
+    "createTask": "Tidak bisa memulai generasi baru",
+    "fullQuality": "Tidak bisa menyiapkan klip kualitas penuh. Silakan coba lagi.",
+    "fullQualityTimeout": "Klip kualitas penuh butuh waktu lebih lama dari biasanya. Coba lagi dalam satu menit."
   },
   "alreadyProcessing": "Video ini sedang diproses.",
   "toasts": {
@@ -285,5 +287,10 @@
       "bumps": "Ada beberapa rintangan di perjalanan. Sedang kami atasi—butuh sedikit waktu lagi.",
       "slower": "Prosesnya sedikit lebih lambat dari biasanya. Kami masih mengerjakannya."
     }
+  },
+  "previewQuality": {
+    "badge": "Pratinjau",
+    "notice": "Kualitas pratinjau: kamu mendapat klip kualitas penuh saat mengekspor atau memublikasikannya.",
+    "preparing": "Menyiapkan kualitas penuh… {progress}%"
   }
 }

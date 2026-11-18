@@ -33,7 +33,8 @@ uv sync
 # API server (uses refactored entry point)
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
-# Worker process (required for video processing). Also starts the cron worker.
+# Worker process (required for video processing). Also starts the cron worker
+# and the full-render worker (supoclip_finals).
 python -m src.workers.run_workers
 ```
 
@@ -138,6 +139,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
 | `src/workers/video_admission.py` | Per-account render slots; holds a job until its upload is in the bucket |
+| `src/services/full_render_service.py` | Preview clips: render inputs, on-demand full-quality render (`supoclip_finals` queue), swap-in (`docs/preview-renders.md`) |
+| `src/api/routes/full_renders.py` | `.../full-render` routes and `require_full_clip`, the gate on download/ZIP/export/publish/edit routes |
 | `src/workers/media_cleanup.py` | Deletion outbox, orphan sweeps, per-machine scratch cleanup |
 | `src/editor_state.py` | Clip studio sessions, drafts and export/combine jobs in PostgreSQL |
 | `src/local_volume.py` | Id of the disk behind `TEMP_DIR`; tags rows that name a local path |
@@ -178,6 +181,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /tasks/{id}/clips/merge` — Merge selected clips
 - `PATCH /tasks/{id}/clips/{clip_id}/captions` — Update captions
 - `GET /tasks/{id}/clips/{clip_id}/export?preset=tiktok` — Export with platform preset
+- `POST|GET /tasks/{id}/clips/{clip_id}/full-render`, `POST|GET /tasks/{id}/full-render` — Render preview clips at full quality and poll progress (clips carry `render_quality` and `full_render`)
 - `GET /tasks/{id}/clips/zip` — Stream every existing clip as one ZIP, built on the fly (`clip_archive.py`); `GET .../clips/zip/preflight` runs the same checks first. One ZIP download per user at a time (Redis slot, 429)
 
 **Media:**
@@ -321,6 +325,9 @@ QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
 UPLOAD_COPY_WAIT_SECONDS=1800        # Worker on another machine: wait for an upload to reach the bucket
 AI_EDIT_DAILY_LIMIT=150              # Studio AI edits per user per day (needs ANTHROPIC_API_KEY)
 TEMP_DIR=/tmp                        # Uploads, caches, renders; per machine when MEDIA_STORAGE=s3
+PREVIEW_RENDER_SHORT_SIDE=540        # Preview renders (flag preview_renders): preview size, also _CRF=28, _PRESET=veryfast
+FULL_RENDER_MAX_JOBS=2               # On-demand full renders per worker machine (supoclip_finals; EMBED_FINAL_RENDER_WORKER=0 to skip)
+FULL_RENDER_DOWNLOAD_WAIT_SECONDS=300 # A download waits this long for a full render, then 503 + Retry-After
 DATABASE_URL=postgresql+asyncpg://...
 BETTER_AUTH_SECRET=...               # Frontend auth secret
 ```
@@ -343,6 +350,11 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   access (unaudited, TikTok rejects posts from public accounts). Off, `/social/providers` reports TikTok `configured: false,
   paused: true` (the web shows a short notice; iOS hides it) and connect/options/publish/retry return 503. Self-hosters
   with their own audited TikTok app turn it on in /admin.
+- **`preview_renders`:** seeded off on web and iOS (admins bypass), read once at task creation into
+  `tasks.preview_renders`. On, generation encodes cheap preview clips and keeps their final pass's inputs; the
+  full-quality clip is rendered on demand on the `supoclip_finals` queue (download, ZIP, export, publish, edits;
+  started in the background when the studio opens) and replaces the preview. Download routes wait for it, then answer
+  503 `FULL_QUALITY_PREPARING` with `Retry-After`. Full design: `docs/preview-renders.md`.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
   `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 

@@ -359,6 +359,22 @@ class Config:
         # Cut between speakers on multi-person wide shots using diarization.
         self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
+        # Preview renders (feature flag ``preview_renders``): generation encodes
+        # a cheap preview and keeps its render inputs; the full-quality clip is
+        # encoded on demand (download, export, publish, studio) on its own queue.
+        self.preview_render_short_side = min(
+            1080, max(240, self._get_int_env("PREVIEW_RENDER_SHORT_SIDE", 540))
+        )
+        self.preview_render_crf = min(40, max(18, self._get_int_env("PREVIEW_RENDER_CRF", 28)))
+        self.preview_render_preset = os.getenv("PREVIEW_RENDER_PRESET", "veryfast").strip() or "veryfast"
+        # Full renders a worker process runs at once (supoclip_finals queue).
+        self.full_render_max_jobs = max(1, self._get_int_env("FULL_RENDER_MAX_JOBS", 2))
+        # How long a download from a client that cannot poll (old iOS builds,
+        # API keys, MCP) waits for the full render before answering 503.
+        self.full_render_download_wait_seconds = min(
+            900, max(0, self._get_int_env("FULL_RENDER_DOWNLOAD_WAIT_SECONDS", 300))
+        )
+
     def max_youtube_video_duration_for_plan(
         self,
         plan: str | None,

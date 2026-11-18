@@ -293,6 +293,13 @@ the cached plan. Resume needs no extra fields for any workflow: the worker reads
 - `GET /{task_id}/clips/{clip_id}/exports/{export_id}/file`
   - Download a finished export. Redirects to a presigned S3 URL when object storage is on.
 
+- `POST /{task_id}/clips/{clip_id}/full-render`, `GET /{task_id}/clips/{clip_id}/full-render`
+  - Preview renders: start or poll the clip's full-quality render. Returns `{clip_id, render_quality, full_render: {status, progress, error}}`; `status` is `ready`, `none`, `queued`, `running` or `failed`. Optional body `{"trigger": "download"}` (analytics).
+- `POST /{task_id}/full-render`, `GET /{task_id}/full-render`
+  - The same for every clip of the task, plus `{total, ready, failed, progress, status}`.
+
+Clips carry `render_quality` (`preview` or `full`) and `full_render`. A preview is rendered at full quality before a download (`/file?download=true`, and every `/file` request from iOS or an API key unless it sends `x-supoclip-accept-preview: 1`), a ZIP, an export, a social post or an edit; those requests wait for it and answer `503` with `code: FULL_QUALITY_PREPARING` and `Retry-After` past `FULL_RENDER_DOWNLOAD_WAIT_SECONDS`. See `docs/preview-renders.md`.
+
 The queued export routes need the `clip_exports` table (created when the API process runs its startup migrations) and a worker restarted afterwards so it registers `export_clip_preset`. Ship the worker with the API, then the frontend. The synchronous GET route does not need the new table.
 
 ### Sharing
