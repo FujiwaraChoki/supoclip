@@ -7,18 +7,42 @@ import { backendTraceHeaders } from "@/server/backend-api";
 
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
-type TransportError = { name: string; message: string; cause?: { code?: unknown } };
+type TransportError = { name: string; message: string; code?: unknown; cause?: { code?: unknown } };
+
+// undici's codes for a connection that was refused, reset, closed or timed out, before or during the body.
+const TRANSIENT_TRANSPORT_CODES = new Set([
+  "UND_ERR_SOCKET",
+  "UND_ERR_CLOSED",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ECONNABORTED",
+  "EPIPE",
+  "ETIMEDOUT",
+]);
+
+function transportErrorCode(error: TransportError): string | undefined {
+  const code = error.cause?.code ?? error.code;
+  return typeof code === "string" ? code : undefined;
+}
 
 function isTransientTransportError(error: unknown): error is TransportError {
   if (typeof error !== "object" || error === null) return false;
   const { name, message } = error as Partial<TransportError>;
-  // undici reports a dropped or refused connection as TypeError("fetch failed"); AbortSignal.timeout as TimeoutError.
-  return name === "TimeoutError" || name === "AbortError" || (error instanceof TypeError && message === "fetch failed");
+  // AbortSignal.timeout rejects with TimeoutError.
+  if (name === "TimeoutError" || name === "AbortError") return true;
+  // undici rejects a dropped or refused connection with TypeError("fetch failed"), and a body cut off
+  // mid-read with TypeError("terminated") (cause UND_ERR_SOCKET).
+  if (error instanceof TypeError && (message === "fetch failed" || message === "terminated")) return true;
+  const code = transportErrorCode(error as TransportError);
+  return code !== undefined && TRANSIENT_TRANSPORT_CODES.has(code);
 }
 
 function transportErrorReason(error: TransportError) {
-  const code = error.cause?.code;
-  return typeof code === "string" ? `${error.name}: ${error.message} (${code})` : `${error.name}: ${error.message}`;
+  const code = transportErrorCode(error);
+  return code ? `${error.name}: ${error.message} (${code})` : `${error.name}: ${error.message}`;
 }
 
 // The font list is an idempotent GET, so a reset or timed-out connection gets one more try.
