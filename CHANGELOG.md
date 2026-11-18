@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-19
 
-- **Fixed:** When a YouTube video is trimmed or replaced after SupoClip has already processed it, new generations use the current version. Before, the old version's saved audio, transcript and sections could be reused: clips past the new end failed to render, or clips came from footage that is no longer in the video. ([#PR_NUMBER](https://github.com/FujiwaraChoki/supoclip/pull/PR_NUMBER))
+- **Fixed:** When a YouTube video is trimmed or replaced after SupoClip has already processed it, new generations use the current version. Before, the old version's saved audio, transcript and sections could be reused: clips past the new end failed to render, or clips came from footage that is no longer in the video. ([#453](https://github.com/FujiwaraChoki/supoclip/pull/453))
 
 ## 2026-11-18
 
