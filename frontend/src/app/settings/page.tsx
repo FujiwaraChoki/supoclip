@@ -31,6 +31,7 @@ import { BillingIntervalToggle, ComingSoonTag, UpgradeNudge, getUpgradeState, us
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
+import { UpgradeThankYou } from "@/components/billing/upgrade-thank-you";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
@@ -60,6 +61,8 @@ export default function SettingsPage() {
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const [canCancelTransfer, setCanCancelTransfer] = useState(false);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
+  // Back from checkout: wait for the paid plan, then thank them on the plan card.
+  const [celebration, setCelebration] = useState<"waiting" | "show" | null>(null);
   const { data: session, isPending } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
   const t = useTranslations("settings");
@@ -76,15 +79,47 @@ export default function SettingsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("billing");
-    if (outcome === "success" || outcome === "upgraded") {
-      toast.success(outcome === "upgraded" ? t("toasts.upgraded") : t("toasts.ready"));
-    }
+    if (outcome === "success" || outcome === "upgraded") setCelebration("waiting");
     if (outcome) {
       params.delete("billing");
       const query = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     }
-  }, [t]);
+  }, []);
+
+  // Stripe's webhook can land a moment after the redirect, so look again for a
+  // few seconds. If the plan still isn't paid, fall back to a plain toast.
+  useEffect(() => {
+    if (celebration !== "waiting" || !billingSummary) return;
+    if (billingSummary.monetization_enabled && isPaidBillingPlan(billingSummary.plan)) {
+      setCelebration("show");
+      document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    let attempts = 0;
+    const timer = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const response = await fetch("/api/tasks/billing-summary", { cache: "no-store" });
+        if (response.ok) {
+          const data: BillingSummary = await response.json();
+          if (isPaidBillingPlan(data.plan)) {
+            window.clearInterval(timer);
+            setBillingSummary(data);
+            return;
+          }
+        }
+      } catch {
+        // Try again on the next tick.
+      }
+      if (attempts >= 8) {
+        window.clearInterval(timer);
+        setCelebration(null);
+        toast.success(t("toasts.ready"));
+      }
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [celebration, billingSummary, t]);
 
   const handlePlanChange = async (plan: BillingPlanId, interval: BillingInterval) => {
     setIsBillingActionLoading(true);
@@ -417,43 +452,51 @@ export default function SettingsPage() {
         {billingSummary?.monetization_enabled && (
           <Section id="plan" tour="settings-plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={paymentNeedsUpdate || isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
             <div className="space-y-4">
-              <div className="rounded-xl bg-muted/50 p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-semibold">
-                    {plans.planName(billingSummary.plan)}
-                    <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
+              <UpgradeThankYou
+                active={celebration === "show"}
+                planName={plans.planName(billingSummary.plan)}
+                minutes={minuteLimit === null ? null : plans.formatMinutes(minuteLimit)}
+                resolution={billingSummary.output_short_side ? `${billingSummary.output_short_side}p` : null}
+                onClose={() => setCelebration(null)}
+              >
+                <div className="h-full rounded-xl bg-muted/50 p-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-semibold">
+                      {plans.planName(billingSummary.plan)}
+                      <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
+                    </p>
+                    <p className="text-sm tabular-nums text-muted-foreground">
+                      {minuteLimit === null ? t("plan.usageMinutes", { used: usageMinutes }) : t("plan.usageMinutesOf", { used: usageMinutes, limit: minuteLimit })}
+                    </p>
+                  </div>
+                  {minuteLimit !== null && (
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {paymentNeedsUpdate && !upgradeState?.isPaid
+                      ? t("paymentFailed.paused")
+                      : !upgradeState?.isPaid
+                      ? t("plan.noneYet")
+                      : minuteLimit === null
+                      ? t("plan.minutesThisMonth", { used: usageMinutes })
+                      : upgradeState.atLimit
+                      ? (upgradeState.resetsOn
+                        ? t("plan.allUsedRefresh", { limit: plans.formatMinutes(minuteLimit), date: upgradeState.resetsOn })
+                        : t("plan.allUsedPeriod", { limit: plans.formatMinutes(minuteLimit) }))
+                      : (upgradeState.resetsOn
+                        ? t("plan.leftRefresh", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)), date: upgradeState.resetsOn })
+                        : t("plan.leftPeriod", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)) }))}
                   </p>
-                  <p className="text-sm tabular-nums text-muted-foreground">
-                    {minuteLimit === null ? t("plan.usageMinutes", { used: usageMinutes }) : t("plan.usageMinutesOf", { used: usageMinutes, limit: minuteLimit })}
-                  </p>
+                  {upgradeState?.isPaid && billingSummary.output_short_side && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {billingSummary.legacy_hd
+                        ? t("plan.clipsResolutionLegacy", { resolution: `${billingSummary.output_short_side}p` })
+                        : t("plan.clipsResolution", { resolution: `${billingSummary.output_short_side}p` })}
+                      {billingSummary.billing_interval === "year" ? ` · ${t("plan.billedYearly")}` : ""}
+                    </p>
+                  )}
                 </div>
-                {minuteLimit !== null && (
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
-                )}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {paymentNeedsUpdate && !upgradeState?.isPaid
-                    ? t("paymentFailed.paused")
-                    : !upgradeState?.isPaid
-                    ? t("plan.noneYet")
-                    : minuteLimit === null
-                    ? t("plan.minutesThisMonth", { used: usageMinutes })
-                    : upgradeState.atLimit
-                    ? (upgradeState.resetsOn
-                      ? t("plan.allUsedRefresh", { limit: plans.formatMinutes(minuteLimit), date: upgradeState.resetsOn })
-                      : t("plan.allUsedPeriod", { limit: plans.formatMinutes(minuteLimit) }))
-                    : (upgradeState.resetsOn
-                      ? t("plan.leftRefresh", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)), date: upgradeState.resetsOn })
-                      : t("plan.leftPeriod", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)) }))}
-                </p>
-                {upgradeState?.isPaid && billingSummary.output_short_side && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {billingSummary.legacy_hd
-                      ? t("plan.clipsResolutionLegacy", { resolution: `${billingSummary.output_short_side}p` })
-                      : t("plan.clipsResolution", { resolution: `${billingSummary.output_short_side}p` })}
-                    {billingSummary.billing_interval === "year" ? ` · ${t("plan.billedYearly")}` : ""}
-                  </p>
-                )}
-              </div>
+              </UpgradeThankYou>
 
               {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
                 <SubscriptionCancelBanner

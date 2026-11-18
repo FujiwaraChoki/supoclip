@@ -83,8 +83,14 @@
     "failed": "无法保存偏好"
   },
   "toasts": {
-    "upgraded": "方案已升级。去用多出来的额度吧！",
     "ready": "都准备好了。开始做短片吧！"
+  },
+  "thanks": {
+    "title": "谢谢！",
+    "body": "你现在使用的是 {plan}：每月 {minutes} 视频，剪辑为 {resolution}。",
+    "bodyShort": "你现在使用的是 {plan}。开始制作剪辑吧。",
+    "makeClip": "制作剪辑",
+    "done": "完成"
   },
   "apiKeys": {
     "title": "智能体与 API",
