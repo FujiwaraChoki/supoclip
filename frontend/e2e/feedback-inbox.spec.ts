@@ -88,6 +88,9 @@ async function signIn(page: Page) {
   await page.waitForURL("**/");
 }
 
+// The dev server compiles each admin route on its first visit, which took over 15 s in CI.
+const firstVisit = { timeout: 60_000 };
+
 test("admins triage feedback and manage its webhooks", async ({ page }) => {
   test.setTimeout(240_000);
   const prisma = new PrismaClient();
@@ -96,7 +99,7 @@ test("admins triage feedback and manage its webhooks", async ({ page }) => {
 
   await page.goto("/admin");
   await page.getByRole("link", { name: "Feedback inbox" }).click();
-  await expect(page.getByRole("heading", { name: "Feedback inbox" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Feedback inbox" })).toBeVisible(firstVisit);
   await expect(page.getByText(/Captions drift/)).toBeVisible();
   await page.screenshot({ path: `${shots}/inbox.png`, fullPage: true });
 
@@ -113,7 +116,7 @@ test("admins triage feedback and manage its webhooks", async ({ page }) => {
   await page.screenshot({ path: `${shots}/inbox-filtered.png`, fullPage: true });
 
   await page.getByRole("link", { name: /Captions drift/ }).click();
-  await expect(page.getByRole("heading", { name: "Bug report" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bug report" })).toBeVisible(firstVisit);
   await page.getByRole("button", { name: "In progress" }).click();
   await expect(page.getByText("Marked as In progress.")).toBeVisible();
   await page.getByLabel("Add a note").fill("Reproduced on a 45-minute upload. Fix is in review.");
@@ -122,7 +125,7 @@ test("admins triage feedback and manage its webhooks", async ({ page }) => {
   await page.screenshot({ path: `${shots}/detail.png`, fullPage: true });
 
   await page.goto("/admin/feedback/webhooks");
-  await expect(page.getByRole("heading", { name: "Feedback webhooks" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Feedback webhooks" })).toBeVisible(firstVisit);
   await page.getByRole("button", { name: "Add webhook" }).click();
   await page.getByLabel("Name").fill("Internal tools");
   await page.getByLabel(/JSON \(signed\)/).check();
