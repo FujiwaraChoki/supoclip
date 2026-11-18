@@ -132,7 +132,8 @@ async def require_full_clips(
     request: Request, db: AsyncSession, task: dict, clips: list[dict], *, trigger: str
 ) -> list[dict]:
     """Every clip at full quality (the ZIP). Starts all renders before waiting on any."""
-    previews = [clip for clip in clips if is_preview(clip)]
+    # Task listings leave out the clip's task id.
+    previews = [{**clip, "task_id": task.get("id")} for clip in clips if is_preview(clip)]
     if not previews:
         return clips
     queue = render_queue(request)
