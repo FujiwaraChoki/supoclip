@@ -12,6 +12,7 @@
   },
   "postStatus": {
     "starting": "开始上传…",
+    "waiting": "等待重试",
     "uploading": "正在上传…",
     "scheduled": "已排期",
     "published": "已发布",

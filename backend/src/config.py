@@ -292,6 +292,11 @@ class Config:
         self.social_publish_max_attempts = int(
             os.getenv("SOCIAL_PUBLISH_MAX_ATTEMPTS", "3")
         )
+        # How long a post may wait for a platform's daily quota to reset
+        # (those waits spend no attempt) before it fails.
+        self.social_quota_max_wait_days = int(
+            os.getenv("SOCIAL_QUOTA_MAX_WAIT_DAYS", "7")
+        )
         # Who may use social publishing: "off" (default; nav and pages stay
         # hidden), "admins" (admins plus the allowlist, for a gated rollout)
         # or "all".

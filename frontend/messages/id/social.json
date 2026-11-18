@@ -12,6 +12,7 @@
   },
   "postStatus": {
     "starting": "Memulai unggahan…",
+    "waiting": "Menunggu percobaan ulang",
     "uploading": "Mengunggah…",
     "scheduled": "Terjadwal",
     "published": "Dipublikasikan",

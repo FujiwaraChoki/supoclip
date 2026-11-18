@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-18
 
+- **Fixed:** When YouTube's daily upload limit for SupoClip runs out, queued and scheduled YouTube posts now wait and publish automatically after the limit resets at midnight Pacific time, instead of retrying every few minutes and failing. While a post waits, it shows when it will be retried. If your own channel has hit YouTube's upload limit, the post says so right away so you can retry it later. ([#438](https://github.com/FujiwaraChoki/supoclip/pull/438))
 - **New:** Join the SupoClip Discord community from the homepage, changelog, or site footer to share clips, get editing tips, and vote on feature ideas. ([#437](https://github.com/FujiwaraChoki/supoclip/pull/437))
 - **Under the hood:** Every feedback message, bug report, sales question and cancellation reason now also reaches the team's assistant chat, alongside Discord, with the same retries. Admins see it in the webhook list and can switch it off or test it. ([#435](https://github.com/FujiwaraChoki/supoclip/pull/435))
 - **Fixed:** Feedback delivery no longer ties up the app during slow webhooks, retries stop reliably, and deleting an account clears saved feedback email addresses atomically. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))

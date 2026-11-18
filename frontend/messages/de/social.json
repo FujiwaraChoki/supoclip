@@ -12,6 +12,7 @@
   },
   "postStatus": {
     "starting": "Upload startet…",
+    "waiting": "Wartet auf neuen Versuch",
     "uploading": "Wird hochgeladen…",
     "scheduled": "Geplant",
     "published": "Veröffentlicht",

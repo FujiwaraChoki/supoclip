@@ -11,8 +11,9 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..config import Config, get_config
 from .base import (
@@ -35,6 +36,26 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API_BASE = "https://www.googleapis.com/youtube/v3"
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
+
+# Error reasons (``error.errors[].reason`` or ErrorInfo ``error.details[].reason``).
+# The project's daily quota resets at midnight Pacific time; retrying before
+# then only fails again.
+DAILY_QUOTA_REASONS = frozenset({"quotaExceeded", "dailyLimitExceeded"})
+# Short-lived throttling: a backoff of minutes is enough.
+RATE_LIMIT_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded", "RATE_LIMIT_EXCEEDED"})
+# The channel itself may not upload more for now (a per-channel cap).
+CHANNEL_UPLOAD_LIMIT_REASONS = frozenset({"uploadLimitExceeded"})
+QUOTA_TIMEZONE = "America/Los_Angeles"
+# Retry a little after midnight so clock skew never lands us just before it.
+QUOTA_RESET_GRACE = timedelta(minutes=5)
+DAILY_QUOTA_MESSAGE = (
+    "YouTube's daily upload quota for SupoClip is used up. It resets at "
+    "midnight Pacific time"
+)
+CHANNEL_UPLOAD_LIMIT_MESSAGE = (
+    "This YouTube channel has reached YouTube's upload limit for now. "
+    "YouTube usually lifts it within 24 hours; retry the post then."
+)
 
 SCOPES = (
     "https://www.googleapis.com/auth/youtube.upload",
@@ -287,14 +308,89 @@ class YouTubeProvider(SocialProvider):
                 f"YouTube rejected the credentials while trying to {action}: {message}",
                 reauth=True,
             )
+        reasons, quota_limits = _error_details(response)
+        # videos.insert documents this as a 400; accept it on 403/429 too.
+        if response.status_code in (400, 403, 429) and reasons & CHANNEL_UPLOAD_LIMIT_REASONS:
+            raise SocialProviderError(CHANNEL_UPLOAD_LIMIT_MESSAGE)
+        if response.status_code in (403, 429) and _is_daily_quota(reasons, quota_limits):
+            raise SocialProviderError(
+                f"{DAILY_QUOTA_MESSAGE} (while trying to {action}).",
+                retryable=True,
+                quota_reset_at=next_quota_reset(),
+            )
+        # Anything else that mentions quota or rate (per-minute quotas,
+        # throttling) clears within minutes: the short backoff.
         retryable = response.status_code in (403, 429, 500, 502, 503, 504) and (
-            "quota" in message.lower()
+            bool(reasons & RATE_LIMIT_REASONS)
             or "rate" in message.lower()
+            or "quota" in message.lower()
+            or response.status_code == 429
             or response.status_code >= 500
         )
         raise SocialProviderError(
             f"Failed to {action}: {message}", retryable=retryable
         )
+
+
+def _error_details(response) -> Tuple[Set[str], List[str]]:
+    """The ``reason`` codes and quota limit names of a Google API error body.
+
+    Legacy YouTube errors list ``error.errors[].reason``; Google's ErrorInfo
+    (``error.details[]``) adds ``metadata.quota_limit`` such as
+    ``DefaultPerDayPerProject`` or ``QueriesPerMinutePerProject``.
+    """
+    try:
+        payload = response.json()
+    except ValueError:
+        return set(), []
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return set(), []
+    entries = [
+        entry
+        for key in ("errors", "details")
+        if isinstance(error.get(key), list)
+        for entry in error[key]
+        if isinstance(entry, dict)
+    ]
+    reasons = {str(entry["reason"]) for entry in entries if entry.get("reason")}
+    quota_limits = [
+        str(entry["metadata"]["quota_limit"])
+        for entry in entries
+        if isinstance(entry.get("metadata"), dict) and entry["metadata"].get("quota_limit")
+    ]
+    return reasons, quota_limits
+
+
+def _is_daily_quota(reasons: Set[str], quota_limits: List[str]) -> bool:
+    """Whether the project's *daily* quota refused the request.
+
+    Only an explicit daily reason or a per-day quota limit counts: a
+    per-minute quota (``RATE_LIMIT_EXCEEDED`` with ``...PerMinute...``) clears
+    in moments and must not park every channel until midnight.
+    """
+    windows = ["".join(ch for ch in limit.lower() if ch.isalnum()) for limit in quota_limits]
+    if any("perday" in window for window in windows):
+        return True
+    if windows:
+        # Quota metadata naming a shorter window wins over the reason.
+        return False
+    return bool(reasons & DAILY_QUOTA_REASONS)
+
+
+def next_quota_reset(now: Optional[datetime] = None) -> datetime:
+    """The next midnight Pacific time (plus a small grace), in UTC."""
+    now = now or datetime.now(timezone.utc)
+    try:
+        zone = ZoneInfo(QUOTA_TIMEZONE)
+    except ZoneInfoNotFoundError:
+        # Without tz data assume PST: never earlier than the real reset.
+        zone = timezone(timedelta(hours=-8))
+    local = now.astimezone(zone)
+    midnight = datetime(local.year, local.month, local.day, tzinfo=zone) + timedelta(days=1)
+    # Re-anchor after adding a day so a DST change lands on local midnight.
+    midnight = datetime(midnight.year, midnight.month, midnight.day, tzinfo=zone)
+    return midnight.astimezone(timezone.utc) + QUOTA_RESET_GRACE
 
 
 def _to_int(value: Any) -> Optional[int]:
