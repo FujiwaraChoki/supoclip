@@ -251,7 +251,8 @@
       "type": "Jenis",
       "kind": {
         "discord": "Discord",
-        "json": "JSON (ditandatangani)"
+        "json": "JSON (ditandatangani)",
+        "hermes": "Hermes"
       },
       "kindHint": {
         "discord": "Memposting embed ke webhook kanal Discord.",
@@ -317,8 +318,10 @@
         "url_unresolvable": "Nama host tidak bisa di-resolve.",
         "url_not_discord": "URL webhook Discord berbentuk https://discord.com/api/webhooks/…",
         "categories_required": "Pilih minimal satu kategori.",
-        "invalid_name": "Masukkan nama (maksimal 80 karakter)."
-      }
+        "invalid_name": "Masukkan nama (maksimal 80 karakter).",
+        "webhook_managed": "Webhook ini dikonfigurasi di server. Kamu hanya bisa menyalakan atau mematikannya, mengujinya, dan membaca log-nya."
+      },
+      "serverConfigured": "Dikonfigurasi di server. Menerima semua kategori."
     }
   }
 }

@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-18
 
+- **Under the hood:** Every feedback message, bug report, sales question and cancellation reason now also reaches the team's assistant chat, alongside Discord, with the same retries. Admins see it in the webhook list and can switch it off or test it. ([#435](https://github.com/FujiwaraChoki/supoclip/pull/435))
 - **Fixed:** Feedback delivery no longer ties up the app during slow webhooks, retries stop reliably, and deleting an account clears saved feedback email addresses atomically. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
 
 ## 2026-11-17

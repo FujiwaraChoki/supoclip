@@ -6,7 +6,8 @@ export const WEBHOOK_KINDS = ["discord", "json"] as const;
 
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
-export type WebhookKind = (typeof WEBHOOK_KINDS)[number];
+/** Admins create "discord" and "json"; "hermes" is configured on the server and read-only here. */
+export type WebhookKind = (typeof WEBHOOK_KINDS)[number] | "hermes";
 export type DeliveryStatus = "pending" | "delivered" | "failed" | "cancelled";
 
 export type FeedbackListItem = {

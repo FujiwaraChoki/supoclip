@@ -2,7 +2,10 @@
 
 CATEGORIES = ("bug", "feature", "general", "sales", "cancellation")
 STATUSES = ("open", "in_progress", "resolved")
+# Kinds an admin can create. "hermes" is configured on the server only (webhooks.sync_hermes_webhook).
 WEBHOOK_KINDS = ("discord", "json")
+HERMES_KIND = "hermes"
+HERMES_NAME = "Hermes assistant"
 
 CATEGORY_LABELS = {
     "bug": "Bug Report",

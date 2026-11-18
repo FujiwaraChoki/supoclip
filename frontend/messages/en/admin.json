@@ -251,7 +251,8 @@
       "type": "Type",
       "kind": {
         "discord": "Discord",
-        "json": "JSON (signed)"
+        "json": "JSON (signed)",
+        "hermes": "Hermes"
       },
       "kindHint": {
         "discord": "Posts an embed to a Discord channel webhook.",
@@ -317,8 +318,10 @@
         "url_unresolvable": "The host name couldn't be resolved.",
         "url_not_discord": "Discord webhook URLs look like https://discord.com/api/webhooks/…",
         "categories_required": "Choose at least one category.",
-        "invalid_name": "Enter a name (up to 80 characters)."
-      }
+        "invalid_name": "Enter a name (up to 80 characters).",
+        "webhook_managed": "This webhook is configured on the server. You can only turn it on or off, test it and read its log."
+      },
+      "serverConfigured": "Configured on the server. Receives every category."
     }
   }
 }

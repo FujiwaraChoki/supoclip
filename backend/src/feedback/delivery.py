@@ -9,7 +9,9 @@ request and should deduplicate on it: a send that times out after the receiver g
 is sent again.
 
 Discord webhooks get an embed like the one before the inbox. Generic JSON webhooks
-get the payload documented in docs/feedback.md, signed with HMAC-SHA256.
+get the payload documented in docs/feedback.md, signed with HMAC-SHA256. The Hermes
+webhook (server-configured) gets ``supoclip.feedback`` signed with Hermes' V2 scheme,
+and only counts as delivered when the gateway says it filed it.
 """
 
 from __future__ import annotations
@@ -31,7 +33,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_config
-from . import CATEGORY_COLORS, CATEGORY_LABELS
+from ..hermes_webhook import signed_headers as hermes_signed_headers
+from . import CATEGORY_COLORS, CATEGORY_LABELS, HERMES_KIND
 from .url_safety import UnsafeWebhookUrl, resolve_public_address, validate_webhook_url
 from .webhooks import load_destination
 
@@ -51,6 +54,10 @@ MAX_RETRY_AFTER = 3600
 BATCH_SIZE = 25
 # 4xx answers that may succeed later; any other 4xx is a configuration error and is not retried.
 RETRYABLE_4XX = {408, 409, 425, 429}
+HERMES_PAYLOAD_TYPE = "supoclip.feedback"
+HERMES_FIELDS = ("id", "category", "message", "user_id", "email", "page_url", "platform", "app_version", "created_at")
+# Enough for the gateway's {"status": ...} answer; anything longer is not read.
+MAX_RESPONSE_BYTES = 4096
 
 _background: set[asyncio.Task] = set()
 
@@ -136,6 +143,31 @@ def discord_body(event: str, submission: dict[str, Any]) -> bytes:
     return json.dumps({"embeds": [embed], "allowed_mentions": {"parse": []}}, ensure_ascii=False).encode()
 
 
+def hermes_body(delivery_id: str, submission: dict[str, Any]) -> bytes:
+    """Exactly the fields the Hermes route accepts: strings or null, created_at in ISO 8601."""
+    fields = {key: submission.get(key) for key in HERMES_FIELDS}
+    fields["created_at"] = _iso(submission.get("created_at"))
+    fields["platform"] = fields["platform"] or "web"
+    payload = {"type": HERMES_PAYLOAD_TYPE, "version": 1, "delivery_id": delivery_id, "submission": fields}
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def hermes_outcome(status_code: int, raw: bytes) -> tuple[bool, str | None]:
+    """A 2xx counts only when its ``status`` shows the route filed the submission.
+
+    ``ignored`` (the route's script refused it) and ``error`` are failures to retry;
+    the script runs again on a resend and Hermes deduplicates on the delivery id.
+    """
+    try:
+        payload = json.loads(raw.decode() or "null")
+    except (ValueError, UnicodeDecodeError):
+        payload = None
+    state = payload.get("status") if isinstance(payload, dict) else None
+    if isinstance(state, str) and state and state not in ("ignored", "error"):
+        return True, None
+    return False, f"HTTP {status_code} {state if isinstance(state, str) else 'without a status'}"[:200]
+
+
 def sign(secret: str, body: bytes, timestamp: int) -> str:
     digest = hmac.new(secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256).hexdigest()
     return f"t={timestamp},v1={digest}"
@@ -147,6 +179,9 @@ def build_request(
     headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
     if destination["kind"] == "discord":
         return discord_body(event, submission), headers
+    if destination["kind"] == HERMES_KIND:
+        body = hermes_body(delivery_id, submission)
+        return body, {**headers, **hermes_signed_headers(destination["secret"] or "", body, delivery_id, now=now)}
     body = json_body(event, delivery_id, submission)
     timestamp = now if now is not None else int(time.time())
     headers.update({
@@ -184,6 +219,19 @@ async def post_pinned(url: str, kind: str, body: bytes, headers: dict[str, str])
             return response
 
 
+async def post_configured(url: str, body: bytes, headers: dict[str, str]) -> tuple[httpx.Response, bytes]:
+    """POST to the server-configured Hermes route. No public-address rule (the operator set
+    the URL and it may be the gateway's internal address), no redirects, no proxy env."""
+    async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, follow_redirects=False, trust_env=False) as client:
+        async with client.stream("POST", url, content=body, headers=headers) as response:
+            raw = b""
+            async for chunk in response.aiter_bytes():
+                raw += chunk
+                if len(raw) >= MAX_RESPONSE_BYTES:
+                    break
+            return response, raw[:MAX_RESPONSE_BYTES]
+
+
 def _retry_after(response: httpx.Response) -> int | None:
     value = response.headers.get("retry-after")
     try:
@@ -194,12 +242,19 @@ def _retry_after(response: httpx.Response) -> int | None:
 
 async def send(destination: dict[str, Any], event: str, delivery_id: str, submission: dict[str, Any]) -> SendResult:
     """One attempt. Errors name the failure, never the URL (it holds Discord's token)."""
+    if destination["kind"] == HERMES_KIND and not (destination.get("url") and destination.get("secret")):
+        # This process lacks HERMES_FEEDBACK_WEBHOOK_*; one that has them may pick it up on a retry.
+        return SendResult(False, None, "not configured on this server", True)
     body, headers = build_request(destination, event, delivery_id, submission)
     started = time.monotonic()
     elapsed = lambda: int((time.monotonic() - started) * 1000)  # noqa: E731
+    raw = None
     try:
         async with asyncio.timeout(SEND_DEADLINE_SECONDS):
-            response = await post_pinned(destination["url"], destination["kind"], body, headers)
+            if destination["kind"] == HERMES_KIND:
+                response, raw = await post_configured(destination["url"], body, headers)
+            else:
+                response = await post_pinned(destination["url"], destination["kind"], body, headers)
     except UnsafeWebhookUrl as exc:
         return SendResult(False, None, f"blocked: {exc.code}", exc.code == "url_unresolvable", None, elapsed())
     except (httpx.TimeoutException, TimeoutError):
@@ -207,6 +262,9 @@ async def send(destination: dict[str, Any], event: str, delivery_id: str, submis
     except httpx.HTTPError as exc:
         return SendResult(False, None, f"network error ({type(exc).__name__})", True, None, elapsed())
     code = response.status_code
+    if 200 <= code < 300 and raw is not None:
+        filed, error = hermes_outcome(code, raw)
+        return SendResult(filed, code, error, not filed, None, elapsed())
     if 200 <= code < 300:
         return SendResult(True, code, None, False, None, elapsed())
     if 300 <= code < 400:
@@ -399,6 +457,8 @@ async def retry_delivery(db: AsyncSession, delivery_id: str) -> bool:
 
 
 TEST_MESSAGE = "This is a test message from the SupoClip feedback inbox. Your webhook works."
+HERMES_TEST_CATEGORY = "test"
+HERMES_TEST_MESSAGE = "Test from SupoClip admin"
 
 
 async def send_test(db: AsyncSession, webhook_id: str, admin: dict[str, Any]) -> dict[str, Any] | None:
@@ -427,6 +487,8 @@ async def send_test(db: AsyncSession, webhook_id: str, admin: dict[str, Any]) ->
         "page_url": "/admin/feedback/webhooks",
         "created_at": datetime.now(timezone.utc),
     }
+    if destination["kind"] == HERMES_KIND:
+        sample.update(category=HERMES_TEST_CATEGORY, message=HERMES_TEST_MESSAGE)
     result = await send(destination, EVENT_TEST, delivery_id, sample)
     # A test is one attempt: never retried.
     status = await record_attempt(db, {"id": delivery_id, "attempts": 1, "lease_token": token},

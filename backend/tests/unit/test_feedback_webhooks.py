@@ -258,3 +258,113 @@ async def test_immediate_delivery_overflow_is_left_for_cron(monkeypatch):
     monkeypatch.setattr(delivery, "_background", {object() for _ in range(4)})
     delivery.schedule_immediate_delivery("durably-stored-submission")
     assert len(delivery._background) == 4
+
+
+# --- Hermes assistant (server-configured) -------------------------------------------
+
+HERMES = {"kind": "hermes", "url": "http://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip", "secret": "route-secret"}
+DELIVERY_ID = "0f2d8a52-3c1e-4c3b-9d7e-5b2f1a6c9e10"
+
+
+def test_hermes_request_uses_the_gateway_v2_signature():
+    body, headers = delivery.build_request(HERMES, delivery.EVENT_CREATED, DELIVERY_ID, SUBMISSION, now=1700000000)
+    assert headers["X-Webhook-Timestamp"] == "1700000000"
+    expected = hmac.new(b"route-secret", b"1700000000." + body, hashlib.sha256).hexdigest()
+    assert headers["X-Webhook-Signature-V2"] == expected
+    assert headers["X-Request-ID"] == DELIVERY_ID and headers["Content-Type"] == "application/json"
+    assert not any(name.startswith("X-SupoClip") for name in headers)
+
+
+def test_hermes_payload_is_exactly_what_the_route_accepts():
+    body, _ = delivery.build_request(HERMES, delivery.EVENT_CREATED, DELIVERY_ID, SUBMISSION, now=1700000000)
+    assert json.loads(body) == {
+        "type": "supoclip.feedback",
+        "version": 1,
+        "delivery_id": DELIVERY_ID,
+        "submission": {
+            "id": "sub-1", "category": "bug", "message": "Captions drift @everyone", "user_id": "user-1",
+            "email": "ana@example.com", "page_url": "/tasks/abc", "platform": "ios", "app_version": "2.4.0",
+            "created_at": "2026-11-17T09:30:00Z",
+        },
+    }
+    anonymous = {**SUBMISSION, "user_id": None, "email": None, "page_url": None, "app_version": None, "platform": None}
+    fields = json.loads(delivery.hermes_body(DELIVERY_ID, anonymous))["submission"]
+    assert fields["user_id"] is None and fields["email"] is None and fields["platform"] == "web"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "answer", "ok", "retryable"),
+    [
+        (202, b'{"status":"accepted","route":"feedback-supoclip"}', True, False),
+        (200, b'{"status":"duplicate","delivery_id":"x"}', True, False),
+        (200, b'{"status":"delivered"}', True, False),
+        (200, b'{"status":"ignored","reason":"script"}', False, True),
+        (202, b'{"status":"error"}', False, True),
+        (200, b"not json", False, True),
+        (200, b"", False, True),
+        (502, b'{"status":"error"}', False, True),
+        (401, b'{"error":"Invalid signature"}', False, False),
+    ],
+)
+async def test_hermes_counts_as_delivered_only_when_filed(monkeypatch, status, answer, ok, retryable):
+    sent = []
+
+    async def post_configured(url, body, headers):
+        sent.append(url)
+        return httpx.Response(status), answer
+
+    async def post_pinned(*_args, **_kwargs):
+        raise AssertionError("The server-configured route skips the public-address check")
+
+    monkeypatch.setattr(delivery, "post_configured", post_configured)
+    monkeypatch.setattr(delivery, "post_pinned", post_pinned)
+    result = await delivery.send(HERMES, delivery.EVENT_CREATED, DELIVERY_ID, SUBMISSION)
+    assert sent == [HERMES["url"]]
+    assert (result.ok, result.retryable, result.status_code) == (ok, retryable, status)
+    if status < 300 and not ok:
+        assert result.error.startswith(f"HTTP {status}")
+
+
+@pytest.mark.asyncio
+async def test_hermes_answer_is_read_up_to_a_limit(monkeypatch):
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(202, content=b'{"status":"accepted"}' + b" " * 100_000)
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(delivery.httpx, "AsyncClient",
+                        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs))
+    response, raw = await delivery.post_configured(HERMES["url"], b"{}", {})
+    assert response.status_code == 202 and len(raw) <= delivery.MAX_RESPONSE_BYTES
+    assert seen["url"] == HERMES["url"]
+
+
+@pytest.mark.asyncio
+async def test_hermes_without_its_environment_is_retried_unsent(monkeypatch):
+    async def post_configured(*_args):
+        raise AssertionError("Nothing to send to")
+
+    monkeypatch.setattr(delivery, "post_configured", post_configured)
+    for missing in ({"url": None}, {"secret": None}):
+        result = await delivery.send({**HERMES, **missing}, delivery.EVENT_CREATED, DELIVERY_ID, SUBMISSION)
+        assert (result.ok, result.retryable, result.error) == (False, True, "not configured on this server")
+
+
+@pytest.mark.parametrize("kind", ["json", "discord"])
+def test_admin_entered_urls_still_cannot_reach_the_gateway(kind):
+    for url in (HERMES["url"], "https://127.0.0.1:8644/p/supoclip/webhooks/feedback-supoclip",
+                "https://host.docker.internal/p/supoclip/webhooks/feedback-supoclip"):
+        with pytest.raises(UnsafeWebhookUrl):
+            validate_webhook_url(url, kind)
+
+
+def test_cancellation_reports_keep_the_same_signature():
+    from src.cancellation_reviews.delivery import signed_request
+    from src.hermes_webhook import signed_headers
+
+    body, headers = signed_request("route-secret", "d1", "hello", "report", now=1700000000)
+    assert headers == signed_headers("route-secret", body, "d1", now=1700000000)
+    assert headers["X-Webhook-Signature-V2"] == hmac.new(b"route-secret", b"1700000000." + body, hashlib.sha256).hexdigest()

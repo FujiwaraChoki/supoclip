@@ -232,6 +232,10 @@ class Config:
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
+        # Hermes assistant (operator chat) route for every new submission, signed with Hermes' V2
+        # scheme. Server-configured: both set adds a read-only "hermes" webhook (docs/feedback.md).
+        self.hermes_feedback_webhook_url = self._get_optional_env("HERMES_FEEDBACK_WEBHOOK_URL")
+        self.hermes_feedback_webhook_secret = self._get_optional_env("HERMES_FEEDBACK_WEBHOOK_SECRET")
 
         # Cancellation reviews (docs/cancellation-reviews.md). Stripe signs each account's
         # endpoint with its own secret: "acct_A:whsec_...,acct_B:whsec_...". The legacy account

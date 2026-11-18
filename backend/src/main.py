@@ -75,6 +75,16 @@ def create_app(
                     await import_env_webhooks(db, runtime_config)
             except Exception:
                 logger.exception("Could not import the environment feedback webhooks")
+            try:
+                # Server-configured Hermes assistant webhook (docs/feedback.md).
+                from .feedback.webhooks import sync_hermes_webhook
+
+                async with AsyncSessionLocal() as db:
+                    outcome = await sync_hermes_webhook(db, runtime_config)
+                logger.info("Hermes feedback webhook: %s", outcome)
+            except Exception as exc:
+                # The message may quote configuration; log only the class name.
+                logger.error("Could not set up the Hermes feedback webhook (%s)", type(exc).__name__)
 
             pool = await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")

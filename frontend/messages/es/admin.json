@@ -251,7 +251,8 @@
       "type": "Tipo",
       "kind": {
         "discord": "Discord",
-        "json": "JSON (firmado)"
+        "json": "JSON (firmado)",
+        "hermes": "Hermes"
       },
       "kindHint": {
         "discord": "Publica un embed en el webhook de un canal de Discord.",
@@ -317,8 +318,10 @@
         "url_unresolvable": "No se pudo resolver el nombre del host.",
         "url_not_discord": "Las URL de webhook de Discord tienen este formato: https://discord.com/api/webhooks/…",
         "categories_required": "Elige al menos una categoría.",
-        "invalid_name": "Escribe un nombre (hasta 80 caracteres)."
-      }
+        "invalid_name": "Escribe un nombre (hasta 80 caracteres).",
+        "webhook_managed": "Este webhook está configurado en el servidor. Solo puedes activarlo o desactivarlo, probarlo y ver su registro."
+      },
+      "serverConfigured": "Configurado en el servidor. Recibe todas las categorías."
     }
   }
 }

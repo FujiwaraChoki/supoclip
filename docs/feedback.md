@@ -162,6 +162,51 @@ may still use the old signing secret; receivers should allow both secrets during
 Verify the signed timestamp with a bounded tolerance and durably deduplicate delivery ids before
 applying side effects. Each retry is newly timestamped/signed; its submission reflects current data.
 
+### Hermes assistant
+
+The operator chat's Hermes gateway route, configured on the server rather than by an admin. When
+both `HERMES_FEEDBACK_WEBHOOK_URL` and `HERMES_FEEDBACK_WEBHOOK_SECRET` are set, each API start
+keeps one `hermes` row ("Hermes assistant") that every submission is queued for. If either is
+unset, the API removes the row and its delivery log at start, so nothing is queued for it.
+Admins see it in `/admin/feedback/webhooks` as "Configured on the server", with no URL: they can
+switch it off (kept across restarts), send a test and read its log, but not edit or delete it.
+
+The row stores neither value. Every sender (the API and the cron worker) reads them from its own
+environment, so the cron worker needs both variables too; a sender without them leaves the
+delivery for a retry ("not configured on this server"). The row also stores no categories:
+submissions are queued for it by kind. Both keep an older release that runs alongside during a
+release switch from queueing for it, sending to it, or redirecting it with an admin edit.
+
+The URL is the operator's, so it skips the public-https rule above (it may name the gateway on an
+internal address); it must be `http` or `https`, and redirects and proxy variables are still ignored.
+Admin-entered URLs are checked exactly as before.
+
+Each request is signed with Hermes' generic V2 scheme (shared with
+[cancellation reviews](cancellation-reviews.md), `backend/src/hermes_webhook.py`):
+
+| Header | Value |
+|---|---|
+| `X-Webhook-Timestamp` | Unix seconds when this attempt was signed |
+| `X-Webhook-Signature-V2` | hex HMAC-SHA256 of `"<timestamp>." + raw body` with the route secret |
+| `X-Request-ID` | delivery id, the same on every retry (the gateway deduplicates on it) |
+
+```json
+{
+  "type": "supoclip.feedback",
+  "version": 1,
+  "delivery_id": "6f0c…",
+  "submission": {
+    "id": "0b1e…", "category": "bug", "message": "Captions drift after 10 minutes",
+    "user_id": "user-id", "email": "user@example.com", "page_url": "/tasks/abc",
+    "platform": "web", "app_version": null, "created_at": "2026-11-17T09:30:00Z"
+  }
+}
+```
+
+A 2xx counts as delivered only when its JSON `status` shows the route filed it (`accepted`,
+`duplicate`, …). `ignored` (the route's script refused it), `error` or no status is retried like a
+5xx. The test button sends category `test` with the message "Test from SupoClip admin".
+
 ## Admin API
 
 All routes require an admin (`require_admin_user`); the web proxies at `/api/admin/feedback/*` and
@@ -176,11 +221,11 @@ All routes require an admin (`require_admin_user`); the web proxies at `/api/adm
 | `POST /admin/feedback/deliveries/{id}/retry` | retry a failed or cancelled delivery |
 | `GET /admin/feedback-webhooks` | webhooks (hints only) and the environment import status |
 | `POST /admin/feedback-webhooks` | `{name, kind: "discord" \| "json", url, categories, enabled}`; returns the secret once for `json` |
-| `PATCH /admin/feedback-webhooks/{id}` | any of `name`, `url` (empty keeps it), `categories`, `enabled` |
+| `PATCH /admin/feedback-webhooks/{id}` | any of `name`, `url` (empty keeps it), `categories`, `enabled`; only `enabled` for `hermes` (else 422 `webhook_managed`) |
 | `POST /admin/feedback-webhooks/{id}/test` | send a sample now |
 | `POST /admin/feedback-webhooks/{id}/rotate-secret` | new signing secret (`json` only) |
 | `GET /admin/feedback-webhooks/{id}/deliveries` | last 50 deliveries with their attempts |
-| `DELETE /admin/feedback-webhooks/{id}` | delete it and its delivery log |
+| `DELETE /admin/feedback-webhooks/{id}` | delete it and its delivery log (409 for `hermes`) |
 
 ## Rollout from the Discord environment variables
 

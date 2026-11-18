@@ -308,6 +308,7 @@ SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=a
 STRIPE_CANCELLATION_WEBHOOK_SECRETS= # Cancellation reviews: acct_X:whsec_... per Stripe endpoint (API)
 CANCELLATION_REVIEWS_ENABLED=false   # Cron worker investigates cancellations and posts reports (docs/cancellation-reviews.md)
 CANCELLATION_REPORT_WEBHOOK_URL=     # Signed operator-chat webhook (+ CANCELLATION_REPORT_WEBHOOK_SECRET)
+HERMES_FEEDBACK_WEBHOOK_URL=         # Hermes assistant route for every feedback submission (+ HERMES_FEEDBACK_WEBHOOK_SECRET; API + cron worker)
 WORKFLOWS_ACCESS=admins              # Series/topic/recap/trailer + instructions: off | admins | all (self-host: all)
 WORKFLOWS_ALLOWED_EMAILS=            # Comma-separated beta emails when access=admins
 WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=admins, e.g. trailer,topic
