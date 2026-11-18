@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-18
 
-- **Fixed:** A YouTube clip download that the connection cut off partway now retries on a fresh connection instead of failing the generation with "Failed to download selected segments". ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** A YouTube clip download that the connection cut off partway now retries on a fresh connection instead of failing the generation with "Failed to download selected segments". ([#444](https://github.com/FujiwaraChoki/supoclip/pull/444))
 - **New:** After you subscribe or change plans, your plan card on Settings turns into a thank-you note with a colourful wave, and back into your upgraded plan when you click Done. ([#440](https://github.com/FujiwaraChoki/supoclip/pull/440))
 - **Fixed:** The MCP tool for waiting on a generation returns by the requested timeout, even when the next status check is delayed or the API stalls. ([#442](https://github.com/FujiwaraChoki/supoclip/pull/442))
 - **Improved:** SupoClip's new source license allows noncommercial self-hosting and forks. Internal business use, paid hosting, and other commercial use require written permission. The website footer links to the license, and Settings → About links to the original project and website. ([#441](https://github.com/FujiwaraChoki/supoclip/pull/441))
