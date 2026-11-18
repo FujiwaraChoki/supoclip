@@ -64,8 +64,18 @@ async def queue_delete(db, file_path: str, *, prefix=False):
     """), {"path": file_path, "prefix": prefix, "hold": db.info.get("media_deletion_hold"), "volume": volume})
 
 
+def render_inputs_prefix(reference: str) -> str:
+    """The directory (or bucket prefix) that holds a preview's render inputs."""
+    if reference.startswith("s3://"):
+        return reference.rsplit("/", 1)[0]
+    return str(Path(reference).parent)
+
+
 async def queue_clip_delete(db, clip):
     await queue_delete(db, clip["file_path"])
+    inputs = clip.get("render_inputs_path") if hasattr(clip, "get") else None
+    if inputs:
+        await queue_delete(db, render_inputs_prefix(inputs), prefix=True)
     storage = MediaStorage()
     directory = editor_dir(storage.config.temp_dir, clip["task_id"], clip["id"], clip["filename"])
     await queue_delete(db, str(directory), prefix=True)

@@ -13,7 +13,9 @@
     "share": "No se pudo crear el enlace para compartir",
     "disableShare": "No se pudo desactivar el enlace para compartir",
     "downloadAll": "No se pudieron descargar los clips. Inténtalo de nuevo.",
-    "createTask": "No se pudo iniciar la nueva generación"
+    "createTask": "No se pudo iniciar la nueva generación",
+    "fullQuality": "No se pudo preparar el clip en calidad completa. Inténtalo de nuevo.",
+    "fullQualityTimeout": "El clip en calidad completa está tardando más de lo normal. Vuelve a intentarlo en un minuto."
   },
   "alreadyProcessing": "Este video ya se está procesando.",
   "toasts": {
@@ -285,5 +287,10 @@
       "bumps": "Hay algunos baches en el camino. Los estamos superando—solo necesitamos un poco más de tiempo.",
       "slower": "Las cosas van un poco más despacio de lo habitual. Seguimos en ello."
     }
+  },
+  "previewQuality": {
+    "badge": "Vista previa",
+    "notice": "Calidad de vista previa: recibes el clip en calidad completa cuando lo exportas o publicas.",
+    "preparing": "Preparando calidad completa… {progress} %"
   }
 }

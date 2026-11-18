@@ -25,7 +25,7 @@ By default it talks to the **official hosted SupoClip API** at
 | `supoclip_get_task` | ✓ | Task status, progress and clips |
 | `supoclip_wait_for_task` | ✓ | Poll until a task finishes |
 | `supoclip_list_clips` | ✓ | List a task's generated clips |
-| `supoclip_download_clip` | ✓ | Save a clip's MP4 to disk |
+| `supoclip_download_clip` | ✓ | Save a clip's MP4 to disk (a preview clip is rendered at full quality first; the tool waits) |
 | `supoclip_export_clip` | ✓ | Re-encode + save with a platform preset (tiktok/reels/shorts) |
 | `supoclip_cancel_task` / `supoclip_resume_task` / `supoclip_delete_task` | ✓ | Manage tasks |
 

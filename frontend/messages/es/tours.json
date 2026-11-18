@@ -97,5 +97,15 @@
       "body": "Duración, subtítulos, encuadre, limpieza y B-roll ahora están en un solo menú. Recordamos tus elecciones, así que solo las configuras una vez."
     }
   },
+  "preview-renders": {
+    "notice": {
+      "title": "Tus clips llegan antes",
+      "body": "Estos clips son vistas previas rápidas, así puedes verlos y elegir en cuanto termina la generación."
+    },
+    "download": {
+      "title": "Calidad completa cuando la necesitas",
+      "body": "Al descargar, exportar o publicar un clip, SupoClip lo genera primero en calidad completa. Tarda alrededor de un minuto; después el clip se descarga al instante."
+    }
+  },
   "skip": "Omitir"
 }

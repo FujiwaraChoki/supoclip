@@ -765,6 +765,9 @@ async def supoclip_download_clip(
 
     The file is saved under ``SUPOCLIP_DOWNLOAD_DIR`` (default
     ``./supoclip-downloads``). Requires authentication and task ownership.
+    A clip listed with ``render_quality: "preview"`` is rendered at full
+    quality first; this waits for it (usually a minute or two), so the saved
+    file is always full quality.
 
     Args:
         task_id: The owning task id.

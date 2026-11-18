@@ -13,7 +13,9 @@
     "share": "Freigabelink konnte nicht erstellt werden",
     "disableShare": "Freigabelink konnte nicht deaktiviert werden",
     "downloadAll": "Die Clips konnten nicht heruntergeladen werden. Bitte versuche es erneut.",
-    "createTask": "Die neue Generierung konnte nicht gestartet werden"
+    "createTask": "Die neue Generierung konnte nicht gestartet werden",
+    "fullQuality": "Der Clip in voller Qualität konnte nicht erstellt werden. Bitte versuche es erneut.",
+    "fullQualityTimeout": "Der Clip in voller Qualität braucht länger als üblich. Versuche es in einer Minute erneut."
   },
   "alreadyProcessing": "Dieses Video wird bereits verarbeitet.",
   "toasts": {
@@ -285,5 +287,10 @@
       "bumps": "Der Weg ist gerade etwas holprig. Wir arbeiten uns durch—noch ein wenig Geduld.",
       "slower": "Heute läuft es etwas langsamer als sonst. Wir bleiben dran."
     }
+  },
+  "previewQuality": {
+    "badge": "Vorschau",
+    "notice": "Vorschauqualität: Den Clip in voller Qualität bekommst du, wenn du ihn exportierst oder veröffentlichst.",
+    "preparing": "Volle Qualität wird erstellt… {progress} %"
   }
 }

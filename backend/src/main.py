@@ -213,7 +213,9 @@ def create_app(
     app.include_router(tasks.router)
     from .api.routes.clip_exports import router as clip_export_router
     from .api.routes.editor import router as editor_router
+    from .api.routes.full_renders import router as full_render_router
     app.include_router(clip_export_router)
+    app.include_router(full_render_router)
     app.include_router(editor_router)
     app.include_router(admin_router)
 

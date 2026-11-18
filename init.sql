@@ -90,6 +90,7 @@ CREATE TABLE tasks (
     -- Caption template and B-roll options
     caption_template VARCHAR(50) DEFAULT 'default',
     include_broll BOOLEAN DEFAULT false,
+    preview_renders BOOLEAN NOT NULL DEFAULT false, -- clips render as previews; full quality on demand
     processing_mode VARCHAR(20) NOT NULL DEFAULT 'fast',
     started_at TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,
@@ -138,9 +139,19 @@ CREATE TABLE generated_clips (
     part_number INTEGER,
     workflow_meta JSONB NOT NULL DEFAULT '{}'::jsonb,
 
+    -- Preview renders: 'preview' until the full-quality clip replaces file_path.
+    render_quality VARCHAR(10) NOT NULL DEFAULT 'full',
+    render_inputs_path TEXT,                -- render.json of the final pass (bucket or TEMP_DIR)
+    full_render_status VARCHAR(16),         -- NULL | queued | running | failed
+    full_render_progress INTEGER NOT NULL DEFAULT 0,
+    full_render_error TEXT,
+    full_render_updated_at TIMESTAMP WITH TIME ZONE,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_generated_clips_full_render_status
+    ON generated_clips (full_render_status) WHERE full_render_status IS NOT NULL;
 
 CREATE TABLE processing_cache (
     cache_key VARCHAR(255) PRIMARY KEY,
@@ -367,6 +378,14 @@ VALUES (
     false,
     false,
     false
+);
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'preview_renders',
+    'Generation renders cheap preview clips; the full-quality clip is rendered when the user downloads, exports, publishes or opens the studio.',
+    false,
+    false,
+    true
 );
 
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);

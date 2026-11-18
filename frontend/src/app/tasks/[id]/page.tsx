@@ -68,6 +68,15 @@ import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clip
 import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/components/app/series-view";
 import { HeroClipView } from "@/components/app/hero-clip-view";
 import { DownloadAllButton } from "@/components/app/download-all-button";
+import { PreviewQualityNotice } from "@/components/app/preview-quality";
+import {
+  ensureFullQuality,
+  ensureTaskFullQuality,
+  hasPreviewClips,
+  isPreviewClip,
+  type FullRenderTrigger,
+  type RenderQualityFields,
+} from "@/lib/full-quality";
 import { buildRecreateBody, createActionId, isWorkflowErrorCode, WorkflowFailure } from "@/components/app/workflow-failure";
 import { availableWorkflows, useWorkflowsInfo } from "@/components/workflow-picker";
 import { intlLocale } from "@/i18n/config";
@@ -95,7 +104,7 @@ import {
   type WorkflowTaskFields,
 } from "@/lib/workflows";
 
-interface Clip extends WorkflowClipFields {
+interface Clip extends WorkflowClipFields, RenderQualityFields {
   id: string;
   filename: string;
   file_path: string;
@@ -246,6 +255,9 @@ export default function TaskPage() {
   >([]);
   const [fontToDelete, setFontToDelete] = useState<FontOption | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  // Full-quality render progress by clip id while a download waits for it, and for "Download all".
+  const [preparing, setPreparing] = useState<Record<string, number>>({});
+  const [preparingAll, setPreparingAll] = useState<number | null>(null);
   const [billingSummary] = useBillingSummary(Boolean(session?.user?.id));
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
   const [sortBy, setSortBy] = useState<"score" | "timeline">("score");
@@ -619,6 +631,36 @@ export default function TaskPage() {
     }
   };
 
+  const markFullQuality = (ids: ReadonlySet<string> | null) => setClips((current) => current.map((clip) =>
+    (ids === null || ids.has(clip.id)) && isPreviewClip(clip)
+      ? { ...clip, render_quality: "full", full_render: { status: "ready", progress: 100, error: null } }
+      : clip));
+
+  /** Previews are rendered at full quality before anything leaves the page. */
+  const prepareFullQuality = async (clip: Clip, trigger: FullRenderTrigger) => {
+    if (!task?.id || !isPreviewClip(clip)) return;
+    setPreparing((current) => ({ ...current, [clip.id]: 0 }));
+    try {
+      await ensureFullQuality({
+        taskApiUrl,
+        taskId: task.id,
+        clipId: clip.id,
+        trigger,
+        onProgress: (progress) => setPreparing((current) => ({ ...current, [clip.id]: progress })),
+        readError: (response) => buildSupportError(response, t("errors.fullQuality")),
+        failedMessage: t("errors.fullQuality"),
+        timeoutMessage: t("errors.fullQualityTimeout"),
+      });
+      markFullQuality(new Set([clip.id]));
+    } finally {
+      setPreparing((current) => {
+        const next = { ...current };
+        delete next[clip.id];
+        return next;
+      });
+    }
+  };
+
   const handleExportClip = async (clipId: string, fallbackFilename: string) => {
     if (!session?.user?.id || !task?.id) return;
 
@@ -657,10 +699,20 @@ export default function TaskPage() {
 
   const handleDownloadClip = (clip: Clip) => {
     if (exportPreset === "original") {
-      downloadOriginal(clip);
+      if (!isPreviewClip(clip)) {
+        downloadOriginal(clip);
+        return;
+      }
+      void runAction(clip.id, async () => {
+        await prepareFullQuality(clip, "download");
+        downloadOriginal(clip);
+      });
       return;
     }
-    void runAction(clip.id, () => handleExportClip(clip.id, clip.filename));
+    void runAction(clip.id, async () => {
+      await prepareFullQuality(clip, "export");
+      await handleExportClip(clip.id, clip.filename);
+    });
   };
 
   const handleDownloadAll = async () => {
@@ -668,6 +720,18 @@ export default function TaskPage() {
 
     setIsDownloadingAll(true);
     try {
+      if (hasPreviewClips(clips)) {
+        setPreparingAll(0);
+        await ensureTaskFullQuality({
+          taskApiUrl,
+          taskId: task.id,
+          onProgress: setPreparingAll,
+          readError: (response) => buildSupportError(response, t("errors.fullQuality")),
+          failedMessage: t("errors.fullQuality"),
+          timeoutMessage: t("errors.fullQualityTimeout"),
+        });
+        markFullQuality(null);
+      }
       await downloadAllClips({
         taskApiUrl,
         taskId: task.id,
@@ -679,6 +743,7 @@ export default function TaskPage() {
       toast.error(downloadError instanceof Error ? downloadError.message : t("errors.downloadAll"));
     } finally {
       setIsDownloadingAll(false);
+      setPreparingAll(null);
     }
   };
 
@@ -839,12 +904,15 @@ export default function TaskPage() {
     />
   ) : null;
 
+  const downloadAllLabel = preparingAll === null ? undefined : t("previewQuality.preparing", { progress: preparingAll });
+
   const renderTile = (clip: Clip, index: number) => (
     <ClipTile
       key={clip.id}
       clip={clip}
       taskId={task?.id ?? String(params.id)}
       busy={pendingAction === clip.id}
+      preparing={preparing[clip.id]}
       best={bestScore > 0 && clip.virality_score === bestScore}
       partTotal={partTotal}
       onOpen={() => setFocusIndex(index)}
@@ -1041,6 +1109,8 @@ export default function TaskPage() {
             <Button asChild><Link href="/"><ArrowLeft className="size-4" />{t("tryAnother")}</Link></Button>
           </EmptyState>
         ) : isSeries ? (
+          <>
+          {hasPreviewClips(clips) && <PreviewQualityNotice className="mb-5" />}
           <SeriesView
             clips={sortedClips}
             plan={plan}
@@ -1048,7 +1118,9 @@ export default function TaskPage() {
             status={task.status}
             editable={task.status === "completed" && !readOnly}
             busyId={pendingAction}
+            preparing={preparing}
             downloadingAll={isDownloadingAll}
+            downloadAllLabel={downloadAllLabel}
             toolbar={formatSelect}
             onOpen={(clip) => setFocusIndex(sortedClips.findIndex((item) => item.id === clip.id))}
             onDownload={handleDownloadClip}
@@ -1057,6 +1129,7 @@ export default function TaskPage() {
             resumeDisabled={pendingAction !== null}
             renderActions={publishButton}
           />
+          </>
         ) : heroClip && SINGLE_OUTPUT.has(workflow) ? (
           <>
             <div className="mb-5 flex justify-end">{formatSelect}</div>
@@ -1067,6 +1140,7 @@ export default function TaskPage() {
               taskId={task.id}
               editable={task.status === "completed" && !readOnly}
               busy={pendingAction === heroClip.id}
+              preparing={preparing[heroClip.id]}
               onDownload={() => handleDownloadClip(heroClip)}
               actions={publishButton(heroClip)}
             />
@@ -1099,10 +1173,11 @@ export default function TaskPage() {
                 </div>
               ) : <span />}
               <div className="flex items-center gap-2">
-                <DownloadAllButton label={t("downloadAll")} hint={t("downloadAllHint")} busy={isDownloadingAll} onClick={() => void handleDownloadAll()} />
+                <DownloadAllButton label={t("downloadAll")} hint={t("downloadAllHint")} busy={isDownloadingAll} busyLabel={downloadAllLabel} onClick={() => void handleDownloadAll()} />
                 {formatSelect}
               </div>
             </div>
+            {hasPreviewClips(clips) && <PreviewQualityNotice className="mb-5" />}
             <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {sortedClips.map(renderTile)}
             </div>
@@ -1116,6 +1191,7 @@ export default function TaskPage() {
         index={focusIndex ?? 0}
         total={sortedClips.length}
         busy={focusedClip ? pendingAction === focusedClip.id : false}
+        preparing={focusedClip ? preparing[focusedClip.id] : undefined}
         editable={task?.status === "completed" && !readOnly}
         onNavigate={(delta) => setFocusIndex((i) => (i === null ? i : (i + delta + sortedClips.length) % sortedClips.length))}
         onClose={() => setFocusIndex(null)}

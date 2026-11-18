@@ -10,7 +10,7 @@ Short cards on the real page. Two kinds:
 1. Add an entry to `FEATURE_TOURS` in `frontend/src/lib/feature-tours.ts`. Order matters: the first due tour wins.
 2. Put `data-tour="<target>"` on what each step points at. The first visible match wins, so one target can sit on both the sidebar link and the mobile tab (`nav-<labelKey>`, already on every nav item). Steps beside the sidebar use `side: "right"`; on phones they open above the tab bar instead.
 3. Add the title and body to `frontend/messages/<locale>/tours.json` in every language.
-4. The app shell mounts `<FeatureTourHost>` on every signed-in page. A tour only starts on the create screen; a step with `path` is on that page, and the host goes there first (see "Across pages").
+4. The app shell mounts `<FeatureTourHost>` on every signed-in page. A tour starts on the create screen or on a generation's results (`tourCanStartOn` in `app-shell.tsx`; the `preview-renders` tour points at clips there); a step with `path` is on that page, and the host goes there first (see "Across pages").
 5. For a big feature, give the opening announcement `media`: a seamless loop rendered in code with Blender (scripts and spare renders in `assets/blender/announcement/`, see its README), encoded to WebM, MP4 and a WebP poster at 1600×800 in `frontend/public/tours/`. To compare candidates, set `media.variants` to a `variants.json` beside them: previews then show a picker. Remove it once one is chosen.
 6. Check it with `?tour=<id>`, which replays it for anyone.
 

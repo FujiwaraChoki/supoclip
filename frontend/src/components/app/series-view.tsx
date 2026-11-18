@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Copy, Download, Loader2, Play, RotateCcw, Scissors } from "lucide-react";
 import { ClipCover } from "@/components/app/clip-cover";
 import { DownloadAllButton } from "@/components/app/download-all-button";
+import { PreviewQualityBadge, useDownloadLabel } from "@/components/app/preview-quality";
+import { isPreviewClip } from "@/lib/full-quality";
 import { isPart, partTitle, type WallClip } from "@/components/app/clip-wall";
 import { Button } from "@/components/ui/button";
 import { getClipUrl } from "@/lib/clip-actions";
@@ -48,7 +50,7 @@ export function unfinishedSeries(
 }
 
 export function SeriesView<C extends WallClip>({
-  clips, plan, taskId, status, editable, busyId, downloadingAll, toolbar,
+  clips, plan, taskId, status, editable, busyId, preparing, downloadingAll, downloadAllLabel, toolbar,
   onOpen, onDownload, onDownloadAll, onResume, resumeDisabled, renderActions,
 }: {
   clips: C[];
@@ -58,7 +60,11 @@ export function SeriesView<C extends WallClip>({
   editable: boolean;
   /** The clip whose download or export is running. */
   busyId: string | null;
+  /** Full-quality render progress by clip id, while a download waits for it. */
+  preparing?: Readonly<Record<string, number>>;
   downloadingAll: boolean;
+  /** Replaces the busy label of "Download all parts" (full-quality progress). */
+  downloadAllLabel?: string;
   /** Controls placed next to "Download all parts" (e.g. the download format). */
   toolbar?: React.ReactNode;
   onOpen: (clip: C) => void;
@@ -78,7 +84,7 @@ export function SeriesView<C extends WallClip>({
     <section aria-label={t("workflowBadge.series", { count: total })}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         {onDownloadAll && parts.length > 1 ? (
-          <DownloadAllButton label={t("downloadAllParts")} hint={t("downloadAllPartsHint")} busy={downloadingAll} onClick={onDownloadAll} />
+          <DownloadAllButton label={t("downloadAllParts")} hint={t("downloadAllPartsHint")} busy={downloadingAll} busyLabel={downloadAllLabel} onClick={onDownloadAll} />
         ) : <span />}
         {toolbar}
       </div>
@@ -103,6 +109,7 @@ export function SeriesView<C extends WallClip>({
             taskId={taskId}
             editable={editable}
             busy={busyId === clip.id}
+            preparing={preparing?.[clip.id]}
             onOpen={() => onOpen(clip)}
             onDownload={() => onDownload(clip)}
             actions={renderActions?.(clip)}
@@ -113,17 +120,19 @@ export function SeriesView<C extends WallClip>({
   );
 }
 
-function SeriesPart({ clip, total, taskId, editable, busy, onOpen, onDownload, actions }: {
+function SeriesPart({ clip, total, taskId, editable, busy, preparing, onOpen, onDownload, actions }: {
   clip: WallClip;
   total: number;
   taskId: string;
   editable: boolean;
   busy: boolean;
+  preparing?: number;
   onOpen: () => void;
   onDownload: () => void;
   actions?: React.ReactNode;
 }) {
   const t = useTranslations("task");
+  const downloadLabel = useDownloadLabel();
   const copyText = useCopyText();
   const captionRef = useRef<HTMLParagraphElement | null>(null);
   const number = isPart(clip) ? clip.part_number : clip.clip_order;
@@ -149,6 +158,7 @@ function SeriesPart({ clip, total, taskId, editable, busy, onOpen, onDownload, a
           <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/25">
             <span className="flex size-10 items-center justify-center rounded-full bg-white/90 text-black opacity-0 shadow-lg transition-opacity group-hover:opacity-100"><Play className="ml-0.5 size-4 fill-current" /></span>
           </span>
+          {isPreviewClip(clip) && <PreviewQualityBadge className="absolute bottom-1.5 left-1.5" />}
           <span className="absolute bottom-1.5 right-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">{formatClipDuration(clip.duration)}</span>
         </ClipCover>
       </button>
@@ -171,8 +181,10 @@ function SeriesPart({ clip, total, taskId, editable, busy, onOpen, onDownload, a
         )}
 
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
-          <Button size="sm" variant="outline" onClick={onDownload} disabled={busy} aria-label={t("downloadNamed", { title: label })}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t("download")}
+          <Button size="sm" variant="outline" onClick={onDownload} disabled={busy}
+            aria-label={typeof preparing === "number" ? downloadLabel(preparing) : t("downloadNamed", { title: label })}
+            data-tour={isPreviewClip(clip) ? "clip-download" : undefined}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{downloadLabel(preparing)}
           </Button>
           {editable && (
             <Button size="sm" variant="outline" asChild>

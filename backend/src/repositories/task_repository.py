@@ -40,8 +40,12 @@ class TaskRepository:
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
         idempotency: Optional[tuple[str, str]] = None,
+        preview_renders: bool = False,
     ) -> str:
         """Create a new task and return its ID.
+
+        ``preview_renders`` makes the worker render preview clips and keep
+        their render inputs; full quality is rendered on demand.
 
         ``idempotency`` is ``(key, request_hash)``. The key is bound in the same
         transaction as the task and its charge; if another request already
@@ -103,6 +107,12 @@ class TaskRepository:
             returned_id = result.scalar()
             if not returned_id:
                 raise RuntimeError("Failed to create task: no ID returned")
+            if preview_renders:
+                # Before the commit, so the queued job always sees it.
+                await db.execute(
+                    text("UPDATE tasks SET preview_renders = true WHERE id = :task_id"),
+                    {"task_id": task_id},
+                )
             if charge_minutes:
                 await record_minute_usage(db, user_id, task_id, source_duration_seconds)
             if idempotency and not await claim_key(db, user_id, idempotency[0], idempotency[1], task_id):
@@ -289,6 +299,7 @@ class TaskRepository:
             "font_color": row.font_color,
             "caption_template": getattr(row, "caption_template", "default"),
             "include_broll": getattr(row, "include_broll", False),
+            "preview_renders": bool(getattr(row, "preview_renders", False)),
             "processing_mode": getattr(row, "processing_mode", "fast"),
             "cache_hit": getattr(row, "cache_hit", False),
             "error_code": getattr(row, "error_code", None),

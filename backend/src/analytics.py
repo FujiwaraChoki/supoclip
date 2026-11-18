@@ -25,6 +25,7 @@ EventName = Literal[
     "task_failed",
     "clip_exported",
     "social_post_published",
+    "clip_full_quality_requested",
 ]
 
 Client = Literal["web", "ios", "api_key", "mcp"]

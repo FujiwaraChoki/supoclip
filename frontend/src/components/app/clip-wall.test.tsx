@@ -267,3 +267,31 @@ describe("download recovery progress", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
+
+describe("preview clips", () => {
+  it("labels a preview and shows the full-quality render's progress on its download button", () => {
+    const preview = clip({ render_quality: "preview", full_render: { status: "none", progress: 0, error: null } });
+    const { rerender } = render(<TooltipProvider><ClipTile {...tileProps} clip={preview} /></TooltipProvider>);
+    expect(screen.getByText("Preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Download/ })).toHaveAttribute("data-tour", "clip-download");
+
+    rerender(<TooltipProvider><ClipTile {...tileProps} busy clip={preview} preparing={40} /></TooltipProvider>);
+    expect(screen.getByRole("button", { name: "Preparing full quality… 40%" })).toBeDisabled();
+  });
+
+  it("shows nothing extra for a full-quality clip", () => {
+    render(<TooltipProvider><ClipTile {...tileProps} clip={clip({ render_quality: "full" })} /></TooltipProvider>);
+    expect(screen.queryByText("Preview")).toBeNull();
+    expect(screen.getByRole("button", { name: /Download/ })).not.toHaveAttribute("data-tour");
+  });
+
+  it("explains preview quality in the clip's details", () => {
+    render(
+      <TooltipProvider>
+        <ClipFocus clip={clip({ render_quality: "preview" })} taskId="t" index={0} total={1} busy={false} editable={false}
+          onNavigate={vi.fn()} onClose={vi.fn()} onDownload={vi.fn()} hookTypeLabel={() => ""} />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText(messages.previewQuality.notice)).toBeInTheDocument();
+  });
+});

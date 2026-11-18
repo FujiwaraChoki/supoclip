@@ -98,6 +98,7 @@ async def get_editor(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     task, clip, session = await owned_context(request, db, task_id, clip_id)
+    await _start_full_render_for_studio(request, db, task, clip)
     state = await session.state()
     if state.get("status") == "ready":
         draft = state["draft"]
@@ -122,6 +123,31 @@ async def get_editor(
     await reap_jobs(session.key)
     state["jobs"] = await get_store().jobs(session.key)
     return state
+
+
+async def _start_full_render_for_studio(request: Request, db: AsyncSession, task: dict, clip: dict) -> None:
+    """Someone editing a preview clip is likely to keep it: start its full render.
+
+    The studio itself works from the source and the clip's metadata, so it
+    never waits for this.
+    """
+    from ...repositories.clip_repository import full_render_state
+    from ...services.full_render_service import is_preview, request_full_render
+    from .full_renders import render_queue
+
+    if not is_preview(clip) or full_render_state(clip)["status"] not in ("none", "failed"):
+        return
+    try:
+        await request_full_render(
+            db, clip, queue=render_queue(request), trigger="studio", user_id=task.get("user_id")
+        )
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Could not start the full render of clip %s", clip.get("id"), exc_info=True
+        )
+    finally:
+        # Like owned_context: no connection is held while the studio loads.
+        await db.close()
 
 
 def _incomplete_source(clip: dict, state: dict) -> dict | None:

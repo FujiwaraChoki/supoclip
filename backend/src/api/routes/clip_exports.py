@@ -84,9 +84,13 @@ async def start_clip_export(
 ):
     """Queue a preset export. The same clip and options reuse a live or finished job."""
     task, clip = await _owned_clip(request, db, task_id, clip_id)
+    preset_name = await _preset_from_request(request, preset)
+    from .full_renders import require_full_clip
+
+    # A preset export starts from the full-quality clip.
+    clip = await require_full_clip(request, db, task, clip, trigger="export")
     # Don't hold a connection while the body uploads or storage answers.
     await db.close()
-    preset_name = await _preset_from_request(request, preset)
     artifacts = await check_finished_export(db, clip=clip, preset=preset_name)
     # An edit (a regeneration) may replace this clip. Hold edits off until the
     # export row is committed, and read the clip again under that lock.

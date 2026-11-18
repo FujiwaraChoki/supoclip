@@ -8,7 +8,14 @@ from arq.connections import RedisSettings
 from arq.constants import job_key_prefix
 
 from src.workers.cron_worker import CRON_QUEUE_NAME, CronWorkerSettings
-from src.workers.run_workers import CRON_WORKER, VIDEO_WORKER, embed_cron_worker, worker_settings
+from src.workers.run_workers import (
+    CRON_WORKER,
+    FINAL_RENDER_WORKER,
+    VIDEO_WORKER,
+    embed_cron_worker,
+    embed_final_render_worker,
+    worker_settings,
+)
 from src.workers.tasks import WorkerSettings
 
 
@@ -40,8 +47,25 @@ def test_the_worker_process_embeds_cron_unless_asked_not_to():
     assert embed_cron_worker("0") is False
     assert embed_cron_worker("false") is False
     assert embed_cron_worker("1") is True
-    assert worker_settings(False) == [VIDEO_WORKER]
-    assert worker_settings(True) == [VIDEO_WORKER, CRON_WORKER]
+    assert worker_settings(False, False) == [VIDEO_WORKER]
+    assert worker_settings(True, False) == [VIDEO_WORKER, CRON_WORKER]
+
+
+def test_the_worker_process_embeds_the_full_render_worker_unless_asked_not_to():
+    assert embed_final_render_worker("off") is False
+    assert embed_final_render_worker("1") is True
+    assert worker_settings(False, True) == [VIDEO_WORKER, FINAL_RENDER_WORKER]
+    assert worker_settings(True, True) == [VIDEO_WORKER, CRON_WORKER, FINAL_RENDER_WORKER]
+
+
+def test_the_full_render_worker_drains_its_own_queue():
+    from src.services.full_render_service import FULL_RENDER_QUEUE, render_full_clip
+    from src.workers.final_render_worker import FinalRenderWorkerSettings
+    from src.workers.job_queue import DEFAULT_QUEUE_NAME
+
+    assert FinalRenderWorkerSettings.queue_name == FULL_RENDER_QUEUE != DEFAULT_QUEUE_NAME
+    assert [job.coroutine for job in FinalRenderWorkerSettings.functions] == [render_full_clip]
+    assert FinalRenderWorkerSettings.max_jobs >= 1
 
 
 @pytest.mark.asyncio

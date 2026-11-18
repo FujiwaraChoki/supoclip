@@ -80,6 +80,7 @@ from ..media.upload_ingest import (
 )
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import (
+    EncodeProfile,
     cap_video_short_side,
     ffprobe_duration,
     ffprobe_video_size,
@@ -985,12 +986,18 @@ class VideoService:
         max_clip_seconds: float = 60.0,
         include_broll: bool = False,
         broll_session: Optional[BRollSession] = None,
+        preview: Optional[EncodeProfile] = None,
+        render_inputs_dir: Optional[Path] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure.
 
         ``max_short_side`` downscales the finished clip for plans below 1080p.
         ``include_broll`` adds stock cutaways; ``broll_session`` keeps one
         task's clips from reusing the same footage.
+
+        ``preview`` renders a cheap preview and keeps the final pass's inputs
+        in ``render_inputs_dir``; ``clip_info["render_quality"]`` is
+        ``preview`` then, and ``max_short_side`` applies to the full render.
         """
         try:
             start_seconds, end_seconds = segment_bounds(segment)
@@ -1047,6 +1054,11 @@ class VideoService:
                 broll_overlays=broll_overlays,
                 **({"output_offsets": output_offsets} if output_offsets is not None else {}),
                 **({"point_labels": point_labels} if point_labels else {}),
+                **(
+                    {"preview": preview, "render_inputs_dir": render_inputs_dir}
+                    if preview is not None
+                    else {}
+                ),
             )
 
             if not success:
@@ -1054,8 +1066,17 @@ class VideoService:
                 return None
             if not render_report.get("broll_applied"):
                 broll_placements = []
+            render_quality = render_report.get("render_quality") or "full"
+            if render_quality == "preview" and render_inputs_dir is not None:
+                # The full render downscales to the plan's resolution, like the
+                # cap below does for a full render made now.
+                from .full_render_service import update_render_recipe
 
-            if max_short_side:
+                await run_in_thread(
+                    update_render_recipe, render_inputs_dir, max_short_side=max_short_side
+                )
+
+            if max_short_side and render_quality != "preview":
                 try:
                     await run_in_thread(cap_video_short_side, clip_path, max_short_side)
                 except Exception as e:
@@ -1098,6 +1119,8 @@ class VideoService:
                 "keep_ranges": keep_ranges,
                 "output_offsets": output_offsets,
                 "group_output_starts": resolved.group_output_starts,
+                "render_quality": render_quality,
+                "broll": broll_placements,
             }
         except Exception as e:
             logger.error(f"Error creating clip {clip_index + 1}: {e}")
