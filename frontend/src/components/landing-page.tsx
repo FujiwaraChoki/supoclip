@@ -8,14 +8,11 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
-  Clapperboard,
   Clock,
   ExternalLink,
   Github,
   Info,
-  Lightbulb,
   Menu,
-  MessagesSquare,
   Upload,
   X,
 } from "lucide-react";
@@ -540,50 +537,53 @@ export default function LandingPage() {
 
       <FaqSection />
 
-      <section id="community" aria-labelledby="community-title" className="scroll-mt-24 px-6 pb-20 md:pb-28">
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[32px] border bg-background">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_#5865f224,_transparent_65%)]"
-          />
-          <div className="relative grid gap-9 px-6 py-9 sm:p-10 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-16 lg:p-14">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-semibold">
-                <Image src="/discord-mark.svg" alt="" width={19} height={14} className="h-auto shrink-0" />
-                {t("community.eyebrow")}
+      {/* ─── COMMUNITY ─── */}
+      <section id="community" aria-labelledby="community-title" className="relative scroll-mt-24 overflow-hidden border-t py-24 md:py-32">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(currentColor_1px,transparent_1.5px)] bg-[size:22px_22px] text-foreground/[0.13] [mask-image:radial-gradient(ellipse_55%_60%_at_50%_28%,black,transparent)]"
+        />
+        <div className="relative mx-auto max-w-6xl px-6">
+          <Reveal className="flex flex-col items-center text-center">
+            <div className="relative">
+              <div aria-hidden="true" className="absolute inset-0 -z-10 scale-150 rounded-full bg-[#5865f2]/20 blur-2xl" />
+              <div className="flex size-20 items-center justify-center rounded-[22px] border bg-background shadow-[0_18px_40px_-18px_rgba(88,101,242,0.6)]">
+                <Image src="/discord-mark.svg" alt="" width={42} height={31} className="h-auto" />
               </div>
-              <h2 id="community-title" className="mt-5 max-w-lg text-balance font-display text-4xl font-bold leading-[1.04] tracking-tight sm:text-5xl">
-                {t("community.title")}
-              </h2>
-              <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground">
-                {t("community.body")}
-              </p>
-              <Button asChild size="lg" className="mt-7 rounded-full bg-[#5865f2] px-6 text-white hover:bg-[#4752c4]">
-                <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
-                  {t("community.join")}
-                  <ArrowUpRight aria-hidden="true" className="size-4" />
-                </a>
-              </Button>
             </div>
+            <p className="mt-8 text-sm font-medium text-muted-foreground">{t("community.eyebrow")}</p>
+            <h2
+              id="community-title"
+              className="mt-3 max-w-3xl font-display text-[2.6rem] font-bold leading-[0.98] tracking-[-0.035em] text-balance sm:text-6xl lg:text-7xl"
+            >
+              {t("community.title")}
+            </h2>
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">{t("community.body")}</p>
+            <Button asChild size="lg" className="mt-9 h-12 rounded-full bg-[#5865f2] px-7 text-[15px] text-white shadow-[0_10px_30px_-10px_rgba(88,101,242,0.8)] hover:bg-[#4752c4]">
+              <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
+                {t("community.join")}
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </a>
+            </Button>
+          </Reveal>
 
-            <ul className="divide-y rounded-2xl border bg-background/85 px-4 shadow-sm sm:px-6">
+          <Reveal delay={0.08}>
+            <ol className="mx-auto mt-20 grid max-w-5xl border-t sm:grid-cols-3">
               {[
-                { key: "showcase", channel: "#showcase", Icon: Clapperboard },
-                { key: "tips", channel: "#creator-tips", Icon: MessagesSquare },
-                { key: "ideas", channel: "#feature-requests", Icon: Lightbulb },
-              ].map(({ key, channel, Icon }) => (
-                <li key={key} className="flex items-start gap-3 py-4 sm:items-center sm:py-5">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#5865f2]/10 text-[#4752c4] dark:text-[#b8bfff]">
-                    <Icon aria-hidden="true" className="size-4" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold">{t(`community.activities.${key}`)}</p>
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">{channel}</p>
+                { key: "showcase", channel: "showcase" },
+                { key: "tips", channel: "creator-tips" },
+                { key: "ideas", channel: "feature-requests" },
+              ].map(({ key, channel }, index) => (
+                <li key={key} className="border-b py-6 sm:border-b-0 sm:px-8 sm:py-8 sm:first:pl-0 sm:[&:not(:first-child)]:border-l">
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <span className="text-[#4752c4] dark:text-[#a5adff]">#{channel}</span>
+                    <span aria-hidden="true" className="text-muted-foreground/70">0{index + 1}</span>
                   </div>
+                  <p className="mt-4 font-display text-xl font-bold leading-snug tracking-tight">{t(`community.activities.${key}`)}</p>
                 </li>
               ))}
-            </ul>
-          </div>
+            </ol>
+          </Reveal>
         </div>
       </section>
 
