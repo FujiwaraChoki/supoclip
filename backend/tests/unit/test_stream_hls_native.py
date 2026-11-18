@@ -15,6 +15,7 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import pytest
 from Cryptodome.Cipher import AES
@@ -53,6 +54,12 @@ def vod(tmp_path_factory):
     (root / "sample-aes.m3u8").write_text(
         playlist.replace(
             "#EXT-X-TARGETDURATION", '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin"\n#EXT-X-TARGETDURATION', 1,
+        )
+    )
+    # The same key with URI before METHOD: attribute order is free (RFC 8216).
+    (root / "sample-aes-uri-first.m3u8").write_text(
+        playlist.replace(
+            "#EXT-X-TARGETDURATION", '#EXT-X-KEY:URI="key.bin",METHOD=SAMPLE-AES\n#EXT-X-TARGETDURATION', 1,
         )
     )
     # A finished recording: VOD playlists never change (RFC 8216), end tag or not.
@@ -294,3 +301,71 @@ def test_kick_spends_no_actor_once_every_native_route_refused(env):
     assert str(raised.value) == subject.UNSUPPORTED_HLS_MESSAGE
     assert env.ffmpeg_calls == [] and env.actors == []
     assert _segments_requested(env.vod) == []
+
+
+def test_sample_aes_is_refused_whatever_the_key_attribute_order(env):
+    env.state.playlist = "sample-aes-uri-first.m3u8"
+    with pytest.raises(subject.StreamSourceError) as raised:
+        subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert str(raised.value) == subject.UNSUPPORTED_HLS_MESSAGE
+    assert env.ffmpeg_calls == [] and env.actors == []
+    assert _segments_requested(env.vod) == []
+
+
+def _precheck_fails_once(monkeypatch, failure):
+    """The pre-check's playlist read fails; the real download's reads don't."""
+    original = subject._read_url
+    calls: list[str] = []
+
+    def read(ydl, url, headers, destination=None):
+        calls.append(url)
+        if len(calls) == 1:
+            return failure(url)
+        return original(ydl, url, headers, destination)
+
+    monkeypatch.setattr(subject, "_read_url", read)
+    return calls
+
+
+def _count_extractions(monkeypatch):
+    original = subject._extract
+    providers: list[str] = []
+
+    def extract(url, provider, **kwargs):
+        providers.append(provider)
+        return original(url, provider, **kwargs)
+
+    monkeypatch.setattr(subject, "_extract", extract)
+    return providers
+
+
+@pytest.mark.parametrize("status", [403, 503])
+def test_a_failed_precheck_fetch_is_unknown_and_downloads_natively(env, monkeypatch, status):
+    def fail(url):
+        raise HTTPError(url, status, "playlist fetch failed", {}, None)
+
+    calls = _precheck_fails_once(monkeypatch, fail)
+    providers = _count_extractions(monkeypatch)
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert len(calls) == 1 and providers == ["direct"]
+    assert len(_segments_requested(env.vod)) == DURATION / SEGMENT
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_blocked_precheck_fetch_is_unknown_and_downloads_natively(env, monkeypatch):
+    calls = _precheck_fails_once(monkeypatch, lambda url: (b"<html>Access denied</html>", url))
+    providers = _count_extractions(monkeypatch)
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert len(calls) == 1 and providers == ["direct"]
+    assert env.ffmpeg_calls == [] and env.actors == []
+
+
+def test_a_blocked_precheck_never_hands_a_live_marked_rendition_to_ffmpeg(env, monkeypatch):
+    env.state.live = True
+    calls = _precheck_fails_once(monkeypatch, lambda url: (b"<html>Access denied</html>", url))
+    path = subject.download_stream_video(TWITCH_VOD, DURATION, "task1", operation="job")
+    assert subject._probe(path) == pytest.approx(DURATION, abs=0.5)
+    assert len(calls) == 1
+    assert env.ffmpeg_calls == [] and env.actors == []

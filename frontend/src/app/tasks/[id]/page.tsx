@@ -147,6 +147,8 @@ interface TaskDetails extends WorkflowTaskFields {
   clip_length?: string | null;
   add_subtitles?: boolean | null;
   error_code?: string | null;
+  // Why it failed, worded for the owner; null when only the generic text fits.
+  error_message?: string | null;
 }
 
 // Params each note needs; a note missing one is not shown rather than shown half-filled.
@@ -195,12 +197,13 @@ export default function TaskPage() {
   const { data: session } = useSession();
   const [task, setTask] = useState<TaskDetails | null>(null);
   const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
-  // Source failures a retry can't fix get their own explanation.
+  // Source failures a retry can't fix get their own explanation; otherwise the
+  // reason the server stored (e.g. a Twitch video still listed as live).
   const failedBody = task?.error_code === "youtube_age_restricted"
     ? t("failedBodyAgeRestricted")
     : task?.error_code === "youtube_geo_restricted"
       ? t("failedBodyGeoRestricted")
-      : t("failedBody");
+      : task?.error_message?.trim() || t("failedBody");
   // Next steps on the failure screen stay inside what this user may make.
   const workflowsInfo = useWorkflowsInfo(Boolean(failureCode));
   const [clips, setClips] = useState<Clip[]>([]);

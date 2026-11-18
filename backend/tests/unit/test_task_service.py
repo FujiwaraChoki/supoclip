@@ -1000,3 +1000,48 @@ def test_download_errors_keep_their_wording():
 
     assert user_facing_error(StreamSourceError("This VOD is private")) == "This VOD is private"
     assert user_facing_error(YouTubeGeoRestrictedError()) == str(YouTubeGeoRestrictedError())
+
+
+@pytest.mark.parametrize(
+    ("task", "shown"),
+    [
+        ({"status": "error", "progress_message": "This video uses a streaming format we can't download. Upload the video file instead.",
+          "completed_at": datetime(2026, 11, 18, tzinfo=timezone.utc)},
+         "This video uses a streaming format we can't download. Upload the video file instead."),
+        # Stored as a naive UTC timestamp by older writers.
+        ({"status": "error", "progress_message": "This VOD is private", "completed_at": datetime(2026, 11, 18)},
+         "This VOD is private"),
+        # Before the cutoff the stored text could be a raw exception.
+        ({"status": "error", "progress_message": "[Errno 2] No such file: /app/temp/x.mp4",
+          "completed_at": datetime(2026, 11, 1, tzinfo=timezone.utc)}, None),
+        ({"status": "error", "progress_message": "Something", "completed_at": None}, None),
+        ({"status": "error", "progress_message": "   ", "completed_at": datetime(2026, 11, 18, tzinfo=timezone.utc)}, None),
+        ({"status": "processing", "progress_message": "Downloading video...",
+          "completed_at": datetime(2026, 11, 18, tzinfo=timezone.utc)}, None),
+    ],
+)
+def test_failure_message_is_shown_only_when_it_was_written_for_people(task, shown):
+    from src.services.task_service import failure_message
+
+    assert failure_message(task) == shown
+
+
+def test_the_generic_failure_is_left_to_the_client_wording():
+    from src.services.task_service import _GENERIC_ERROR, failure_message
+
+    task = {"status": "error", "progress_message": _GENERIC_ERROR, "completed_at": datetime(2026, 11, 18, tzinfo=timezone.utc)}
+    assert failure_message(task) is None
+
+
+@pytest.mark.asyncio
+async def test_a_failed_task_carries_its_stored_message():
+    from src.stream_source import UNSUPPORTED_HLS_MESSAGE
+
+    service = TaskService(db=AsyncMock())
+    task = {"id": "failed", "status": "error", "progress_message": UNSUPPORTED_HLS_MESSAGE,
+            "completed_at": datetime.now(timezone.utc), "created_at": datetime.now(timezone.utc)}
+    service.task_repo.get_task_by_id = AsyncMock(return_value=task)
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[])
+    service._load_task_source_settings = AsyncMock(return_value={})
+    result = await service.get_task_with_clips("failed")
+    assert result["error_message"] == UNSUPPORTED_HLS_MESSAGE

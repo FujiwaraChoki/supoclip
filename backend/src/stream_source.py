@@ -582,21 +582,32 @@ class _NativeHlsUnavailable(RuntimeError):
         self.public = public
 
 
-def _media_playlist(ydl, url: str, headers: dict) -> str:
+def _media_playlist(ydl, url: str, headers: dict) -> Optional[str]:
     """The media playlist behind ``url``, resolving one master level.
 
-    Raises a plain provider failure when the body is not an HLS playlist (an
-    HTTP 200 challenge or error page has no end tag either, which proves nothing).
+    ``None`` when it can't be read: a failed fetch, or a body that is not an
+    HLS playlist (an HTTP 200 challenge or error page has no end tag either).
+    That proves nothing about the source, so the caller downloads as usual.
     """
     for _level in range(2):
-        body, final_url = _read_url(ydl, url, headers)
+        try:
+            body, final_url = _read_url(ydl, url, headers)
+        except TransferStopped:
+            raise
+        except Exception as exc:
+            check_transfer()
+            _log_stream(
+                logging.INFO, "precheck_unknown", provider="-", source="-",
+                host=_url_host(url), status=_http_status(exc), exc=exc,
+            )
+            return None
         text = body.decode("utf-8", "replace").lstrip("\ufeff \t\r\n")
         if not text.startswith("#EXTM3U"):
-            raise RuntimeError("stream playlist response is not an HLS playlist")
+            return None
         if "#EXTINF" in text:
             return text
         if "#EXT-X-STREAM-INF" not in text:
-            break
+            return None
         # Every rendition of one broadcast shares its live state and encryption;
         # check the one with the highest bandwidth.
         variants: list[tuple[int, str]] = []
@@ -609,21 +620,45 @@ def _media_playlist(ydl, url: str, headers: dict) -> str:
             if uri:
                 variants.append((int(bandwidth.group(1)) if bandwidth else 0, uri))
         if not variants:
-            break
+            return None
         url = urljoin(final_url, max(variants)[1])
-    raise RuntimeError("stream playlist has no media segments")
+    return None
+
+
+def _needs_decryption_we_lack(manifest: str) -> bool:
+    """A key method other than NONE or AES-128, whatever the attribute order.
+
+    yt-dlp's own check only matches ``#EXT-X-KEY:METHOD=...`` with METHOD
+    first, so ``URI="...",METHOD=SAMPLE-AES`` would slip past it.
+    """
+    from yt_dlp.utils import parse_m3u8_attributes
+
+    for line in manifest.splitlines():
+        line = line.strip()
+        if not line.startswith(("#EXT-X-KEY:", "#EXT-X-SESSION-KEY:")):
+            continue
+        method = str(parse_m3u8_attributes(line.split(":", 1)[1]).get("METHOD") or "").upper()
+        if method not in {"NONE", "AES-128"}:
+            return True
+    return False
 
 
 def _native_hls_problem(ydl, selected: dict) -> tuple[Optional[str], bool]:
-    """(refusal message or None, whether the playlist is complete) for one rendition."""
+    """(refusal message or None, whether to download it as finished) for one rendition.
+
+    A playlist that can't be read is unknown: nothing is refused and it stays on
+    the native downloader, where it fails or succeeds like any other download.
+    """
     from yt_dlp.downloader.hls import HlsFD
 
     manifest = _media_playlist(ydl, selected["url"], dict(selected.get("http_headers") or {}))
+    if manifest is None:
+        return None, True
     # RFC 8216 4.3.3.5: a VOD-type playlist never changes, with or without an end tag.
     complete = "#EXT-X-ENDLIST" in manifest or bool(re.search(r"^#EXT-X-PLAYLIST-TYPE:\s*VOD\s*$", manifest, re.M))
     if selected.get("is_live") and not complete:
         return LIVE_VOD_MESSAGE, complete
-    if not HlsFD.can_download(manifest, {**selected, "is_live": False}):
+    if _needs_decryption_we_lack(manifest) or not HlsFD.can_download(manifest, {**selected, "is_live": False}):
         return UNSUPPORTED_HLS_MESSAGE, complete
     return None, complete
 
@@ -636,8 +671,9 @@ def _native_hls_info(ydl, info: dict) -> dict:
     unreadable rendition is dropped and the format selection runs again, so a
     readable one (or a non-HLS format) is used instead. A rendition marked live
     whose playlist is complete (``#EXT-X-ENDLIST`` or a VOD playlist type) is a
-    finished recording and downloads natively. When nothing readable is left
-    this provider fails with ``_NativeHlsUnavailable``.
+    finished recording and downloads natively. A playlist that can't be
+    fetched or isn't HLS is unknown: the download goes ahead natively. When
+    nothing readable is left this provider fails with ``_NativeHlsUnavailable``.
     """
     candidate = info
     refused: Optional[_NativeHlsUnavailable] = None
@@ -654,9 +690,9 @@ def _native_hls_info(ydl, info: dict) -> dict:
         url = selected.get("url")
         if selected.get("requested_formats") or not url or selected.get("protocol") not in {"m3u8", "m3u8_native"}:
             return candidate
-        public, complete = _native_hls_problem(ydl, selected)
+        public, finished = _native_hls_problem(ydl, selected)
         if public is None:
-            if selected.get("is_live") and complete:
+            if selected.get("is_live") and finished:
                 return {**candidate, "is_live": False, "live_status": "was_live"}
             return candidate
         refused = _NativeHlsUnavailable(public)
