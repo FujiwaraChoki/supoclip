@@ -184,3 +184,41 @@ def test_retry_has_no_socket_budget_after_overall_deadline(monkeypatch):
         proxy._with_proxy_retry(fail, task_id="task", video_id=VIDEO_ID,
                                budget=proxy.ByteBudget(100), cleanup=lambda: None)
     assert len(attempts) == 1
+
+
+INCOMPLETE_READS = [
+    "35152 bytes read",
+    "0 bytes read",
+    "IncompleteRead(0 bytes read)",
+    "ERROR: [download] Got error: 35152 bytes read. Giving up after 10 retries",
+    "3 bytes read, 7 more expected",
+    "IncompleteRead(5 bytes read, 7 more expected)",
+]
+
+
+@pytest.mark.parametrize("message", INCOMPLETE_READS)
+def test_incomplete_read_with_or_without_expected_count_is_transient(message):
+    assert proxy.is_transient_proxy_error(RuntimeError(message))
+    try:
+        raise RuntimeError("Failed to download selected segments") from RuntimeError(message)
+    except RuntimeError as wrapped:
+        assert proxy.is_transient_proxy_error(wrapped)
+
+
+@pytest.mark.parametrize("message", [
+    "0 bytes read from the cache file",
+    "Read 35152 bytes readily",
+    "HTTP Error 403: Forbidden",
+])
+def test_unrelated_bytes_read_messages_are_not_transient(message):
+    assert not proxy.is_transient_proxy_error(RuntimeError(message))
+
+
+@pytest.mark.parametrize("message", ["35152 bytes read", "IncompleteRead(0 bytes read)"])
+def test_section_incomplete_read_without_expected_count_retries_on_new_session(downloads, message):
+    state, run = downloads
+    state["error"] = RuntimeError(f"ERROR: {message}")
+    assert run("section").exists()
+    first, retry = state["metadata"]
+    assert first["proxy"] != retry["proxy"]
+    assert retry["_youtube_deadline"] == 160
