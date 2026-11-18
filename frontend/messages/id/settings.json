@@ -88,8 +88,14 @@
     "failed": "Gagal menyimpan preferensi"
   },
   "toasts": {
-    "upgraded": "Paketmu sudah di-upgrade. Nikmati ruang tambahannya!",
     "ready": "Semua siap. Saatnya buat clip!"
+  },
+  "thanks": {
+    "title": "Terima kasih!",
+    "body": "Kamu sekarang di {plan}: {minutes} video per bulan, klip dalam {resolution}.",
+    "bodyShort": "Kamu sekarang di {plan}. Saatnya membuat klip.",
+    "makeClip": "Buat klip",
+    "done": "Selesai"
   },
   "apiKeys": {
     "title": "Agen & API",

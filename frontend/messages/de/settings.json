@@ -88,8 +88,14 @@
     "failed": "Einstellungen konnten nicht gespeichert werden"
   },
   "toasts": {
-    "upgraded": "Dein Plan wurde erweitert. Viel Spaß mit dem Extra-Platz!",
     "ready": "Alles bereit. Zeit für Clips!"
+  },
+  "thanks": {
+    "title": "Danke!",
+    "body": "Du hast jetzt {plan}: {minutes} Video pro Monat, Clips in {resolution}.",
+    "bodyShort": "Du hast jetzt {plan}. Zeit für ein paar Clips.",
+    "makeClip": "Clip erstellen",
+    "done": "Fertig"
   },
   "apiKeys": {
     "title": "Agenten & API",

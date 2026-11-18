@@ -88,8 +88,14 @@
     "failed": "No se pudieron guardar las preferencias"
   },
   "toasts": {
-    "upgraded": "Tu plan se actualizó. ¡Aprovecha el espacio extra!",
     "ready": "Listo. ¡Hora de hacer clips!"
+  },
+  "thanks": {
+    "title": "¡Gracias!",
+    "body": "Ya tienes {plan}: {minutes} de vídeo al mes, clips en {resolution}.",
+    "bodyShort": "Ya tienes {plan}. Es hora de crear clips.",
+    "makeClip": "Crear un clip",
+    "done": "Listo"
   },
   "apiKeys": {
     "title": "Agentes y API",

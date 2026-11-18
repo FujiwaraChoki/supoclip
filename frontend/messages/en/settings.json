@@ -88,8 +88,14 @@
     "failed": "Failed to save preferences"
   },
   "toasts": {
-    "upgraded": "Your plan has been upgraded. Enjoy the extra room!",
     "ready": "You're all set. Time to make some clips!"
+  },
+  "thanks": {
+    "title": "Thank you!",
+    "body": "You're on {plan} now: {minutes} of video a month, clips in {resolution}.",
+    "bodyShort": "You're on {plan} now. Time to make some clips.",
+    "makeClip": "Make a clip",
+    "done": "Done"
   },
   "apiKeys": {
     "title": "Agents & API",
