@@ -3,11 +3,13 @@ Worker tasks - background jobs processed by arq workers.
 """
 
 import logging
+import random
 from typing import Dict, Any, Optional
 import json
 from arq import Retry
 from arq.worker import func
-from ..repositories.task_run_guard import TaskRunBusy
+from sqlalchemy.exc import TimeoutError as PoolTimeout
+from ..repositories.task_run_guard import TaskRunBusy, TaskRunUnavailable
 from ..youtube_proxy_trial import run_trial_job
 
 from ..observability import configure_logging, set_trace_id, set_user_id
@@ -15,6 +17,89 @@ from ..observability import configure_logging, set_trace_id, set_user_id
 configure_logging()
 
 logger = logging.getLogger(__name__)
+
+UNSTARTED_TASK_MESSAGE = "The server was too busy to start this video. Please try again."
+
+
+def _job_try(ctx: Dict[str, Any]) -> int:
+    return int(ctx.get("job_try", 1))
+
+
+def _is_last_try(ctx: Dict[str, Any]) -> bool:
+    return _job_try(ctx) >= int(getattr(WorkerSettings, "max_tries", 3))
+
+
+def _pool_retry_delay(ctx: Dict[str, Any]) -> float:
+    # Jobs that started together (a worker restart) come back spread out.
+    return min(60, 5 * 2 ** (_job_try(ctx) - 1)) + random.uniform(0, 5)
+
+
+async def _record_dead_letter(ctx: Dict[str, Any], task_id: str, progress, error: Exception) -> None:
+    try:
+        if _is_last_try(ctx):
+            payload = {
+                "task_id": task_id,
+                "error": str(error),
+                "tries": _job_try(ctx),
+            }
+            await ctx["redis"].set(
+                f"dead_letter:{task_id}", json.dumps(payload)
+            )
+            await ctx["redis"].sadd("tasks:dead_letter", task_id)
+            await progress.error("Task failed permanently after retries")
+    except Exception:
+        logger.exception("Failed to persist dead-letter payload")
+
+
+async def _fail_unstarted_task(ctx: Dict[str, Any], task_id: str) -> None:
+    """Fail and refund a task whose last try could not start.
+
+    Holds the run guard so a live render or a resume is left alone, and leaves a
+    task that has since moved to another job (resume, deferral) to that job.
+    """
+    from ..database import AsyncSessionLocal
+    from ..repositories.task_repository import TaskRepository
+    from ..repositories.task_run_guard import task_run_guard
+
+    try:
+        async with AsyncSessionLocal() as db:
+            async with task_run_guard(db, task_id):
+                metadata = await TaskRepository.load_source_metadata(db, task_id) or {}
+                current_job = metadata.get("processing_job_id")
+                if current_job and ctx.get("job_id") and current_job != ctx["job_id"]:
+                    return
+                await TaskRepository.update_task_status(
+                    db,
+                    task_id,
+                    "error",
+                    progress=0,
+                    progress_message=UNSTARTED_TASK_MESSAGE,
+                    expected_statuses=["queued", "processing"],
+                )
+    except TaskRunBusy:
+        logger.info("Task %s is owned by another run; leaving it alone", task_id)
+    except Exception:
+        # The stale-task sweep is the backstop.
+        logger.exception("Could not fail unstarted task %s", task_id)
+
+
+async def _retry_unstarted_job(ctx: Dict[str, Any], task_id: str, progress, error: Exception) -> None:
+    """No database connection came free before the job did anything.
+
+    Retry while tries remain. On the last one, fail and refund the task so it
+    does not stay queued and charged, then let the error fail the job.
+    """
+    if not _is_last_try(ctx):
+        delay = _pool_retry_delay(ctx)
+        logger.warning(
+            "Task %s could not get a database connection (try %s); retrying in %.0fs: %s",
+            task_id, _job_try(ctx), delay, error,
+        )
+        raise Retry(defer=delay)
+    logger.error(f"Task {task_id} failed: {error}", exc_info=error)
+    await _fail_unstarted_task(ctx, task_id)
+    await _record_dead_letter(ctx, task_id, progress, error)
+    raise error
 
 
 async def process_video_task(
@@ -89,10 +174,13 @@ async def process_video_task(
     progress = ProgressTracker(ctx["redis"], task_id)
 
     async with AsyncSessionLocal() as db:
-        await load_runtime_settings_cache(db)
-        decision = await admit_video_job(
-            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args, url=url
-        )
+        try:
+            await load_runtime_settings_cache(db)
+            decision = await admit_video_job(
+                ctx, db, task_id=task_id, user_id=user_id, job_args=job_args, url=url
+            )
+        except PoolTimeout as e:
+            await _retry_unstarted_job(ctx, task_id, progress, e)
         if decision != "run":
             logger.info("Video task %s admission=%s", task_id, decision)
             return {"task_id": task_id, "admission": decision}
@@ -163,24 +251,12 @@ async def process_video_task(
             # A resume request may still own the guard while publishing this job.
             # Retry without rewriting task state or creating a dead-letter entry.
             raise Retry(defer=2)
+        except TaskRunUnavailable as e:
+            # The run guard's first read found the pool exhausted, before any work.
+            await _retry_unstarted_job(ctx, task_id, progress, e)
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
-            try:
-                job_try = int(ctx.get("job_try", 1))
-                max_tries = int(getattr(WorkerSettings, "max_tries", 3))
-                if job_try >= max_tries:
-                    payload = {
-                        "task_id": task_id,
-                        "error": str(e),
-                        "tries": job_try,
-                    }
-                    await ctx["redis"].set(
-                        f"dead_letter:{task_id}", json.dumps(payload)
-                    )
-                    await ctx["redis"].sadd("tasks:dead_letter", task_id)
-                    await progress.error("Task failed permanently after retries")
-            except Exception:
-                logger.exception("Failed to persist dead-letter payload")
+            await _record_dead_letter(ctx, task_id, progress, e)
             # Error will be caught by arq and task status will be updated
             raise
         finally:

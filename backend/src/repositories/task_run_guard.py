@@ -8,12 +8,20 @@ from contextlib import asynccontextmanager
 from functools import wraps
 
 from sqlalchemy import text
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 
 from .session_lock_connection import session_lock_connection
 
 
 class TaskRunBusy(Exception):
     pass
+
+
+class TaskRunUnavailable(Exception):
+    """No pooled database connection came free before the run started.
+
+    Nothing has been done yet, so the job can simply be tried again.
+    """
 
 
 @asynccontextmanager
@@ -34,7 +42,10 @@ def exclusive_task_run(method):
     @wraps(method)
     async def wrapped(self, task_id, *args, **kwargs):
         async with self._task_run_guard(task_id):
-            current = await self.task_repo.get_task_by_id(self.db, task_id)
+            try:
+                current = await self.task_repo.get_task_by_id(self.db, task_id)
+            except PoolTimeout as exc:
+                raise TaskRunUnavailable(str(exc)) from exc
             if not current:
                 raise ValueError("Task not found")
             if current["status"] in {"completed", "cancelled", "error"}:
