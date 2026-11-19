@@ -91,3 +91,22 @@ it("revokes existing sessions after a password reset and accepts only the new pa
   await expect(auth.api.signInEmail({ body: { email, password } })).rejects.toThrow();
   expect((await auth.api.signInEmail({ body: { email, password: newPassword } })).token).toBeTruthy();
 });
+
+it("keeps password checks and email changes off the public auth routes, but not the server API", async () => {
+  const signup = await auth.api.signUpEmail({ body: {
+    name: "Grace", email: "password-check@example.com", password: "test-password-123",
+  }, returnHeaders: true });
+  const cookie = signup.headers.get("set-cookie")!.split(";")[0];
+  const headers = { "content-type": "application/json", cookie, origin: "http://localhost:3107" };
+  for (const [path, body] of [
+    ["verify-password", { password: "test-password-123" }],
+    ["change-email", { newEmail: "elsewhere@example.com" }],
+  ] as const) {
+    const response = await auth.handler(new Request(`http://localhost:3107/api/auth/${path}`, {
+      method: "POST", headers, body: JSON.stringify(body),
+    }));
+    expect(response.status).toBe(404);
+  }
+  await expect(auth.api.verifyPassword({ body: { password: "test-password-123" }, headers: new Headers({ cookie }) }))
+    .resolves.toEqual({ status: true });
+});
