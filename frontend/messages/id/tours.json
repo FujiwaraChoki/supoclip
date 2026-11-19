@@ -1,11 +1,62 @@
 {
   "new": "Baru",
+  "welcomeBadge": "Selamat datang",
   "next": "Berikutnya",
   "back": "Kembali",
   "done": "Selesai",
   "start": "Tunjukkan 👀",
   "notNow": "Nanti saja",
   "progress": "{current} dari {total}",
+  "welcome": {
+    "intro": {
+      "title": "Selamat datang di SupoClip",
+      "body": "Berikan video panjang dan kami ubah momen terbaiknya menjadi klip vertikal pendek, lengkap dengan teks dan siap diunggah. Tur dua menit: cara membuat klip pertamamu, lalu setiap halaman yang akan kamu pakai."
+    },
+    "source": {
+      "title": "Mulai dengan video",
+      "body": "Tempel tautan YouTube, Twitch, atau Kick di sini, atau unggah file dengan ikon penjepit kertas, lalu tekan panah. Podcast, wawancara, dan presentasi 10 menit atau lebih hasilnya paling bagus."
+    },
+    "workflows": {
+      "title": "Pilih yang ingin dibuat",
+      "body": "Highlights memberi momen terbaik yang berdiri sendiri, pilihan tepat untuk percobaan pertama. Pilihan lain mengubah satu video menjadi seri, rangkuman, trailer, atau semua klip tentang satu topik."
+    },
+    "settings": {
+      "title": "Atur tampilan sekali saja",
+      "body": "Durasi klip, gaya teks, pembingkaian, dan B-roll ada di menu ini. Pengaturan bawaannya sudah bagus, dan perubahanmu kami ingat."
+    },
+    "library": {
+      "title": "Pustaka",
+      "body": "Setiap video yang kamu klip muncul di sini, yang terbaru di atas, dan bisa kamu cari. Kamu boleh pergi saat video diproses; prosesnya tetap berjalan dan hasilnya muncul di sini."
+    },
+    "libraryClips": {
+      "title": "Klipmu, diurutkan skor",
+      "body": "Buka video untuk melihat klipnya, skor terbaik di atas. Unduh satu atau semuanya, atau buka klip di studio untuk memotong, memperbaiki teks, atau membingkai ulang."
+    },
+    "social": {
+      "title": "Hubungkan akunmu",
+      "body": "Tautkan akun media sosialmu di sini untuk mengunggah klip langsung dari SupoClip, tanpa mengunduhnya dulu."
+    },
+    "analytics": {
+      "title": "Lihat yang berhasil",
+      "body": "Tayangan, suka, dan komentar dari unggahanmu kembali ke sini, per platform, hook, dan durasi. Setelah beberapa unggahan, SupoClip memakainya untuk memilih klip yang mirip dengan yang terbaik."
+    },
+    "agents": {
+      "title": "Klip dari asisten AI-mu",
+      "body": "Hubungkan Claude, ChatGPT, atau Grok dan minta klip lewat chat: tempel URL server lalu masuk, tanpa kunci yang perlu disalin. Sedang membangun sesuatu? Buat kunci API di bawah."
+    },
+    "captions": {
+      "title": "Gaya teksmu",
+      "body": "Atur font, ukuran, dan warna awal untuk setiap video baru, lengkap dengan pratinjau. Kamu tetap bisa mengubahnya per video."
+    },
+    "plan": {
+      "title": "Paketmu",
+      "body": "Paket dihitung dari menit video yang kamu bawa, bukan jumlah klip. Lihat pemakaian bulan ini dan ubah paketmu di sini."
+    },
+    "finish": {
+      "title": "Siap mulai",
+      "body": "Itu saja. Tempel tautan pertamamu di sini dan sisanya serahkan pada kami."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Memperkenalkan alur kerja",

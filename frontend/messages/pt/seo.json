@@ -123,8 +123,8 @@
         "answer": "Sim. O SupoClip aceita URLs do YouTube, identifica momentos candidatos e pode renderizar clipes verticais com legendas adequados ao YouTube Shorts."
       },
       "2": {
-        "question": "O SupoClip é de código aberto?",
-        "answer": "Sim. O código do SupoClip está disponível sob a licença AGPL-3.0 e pode ser auto-hospedado ou modificado."
+        "question": "Posso auto-hospedar o SupoClip?",
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC."
       },
       "3": {
         "question": "Quais fontes de vídeo o SupoClip aceita?",
@@ -147,8 +147,8 @@
     "tableRows": {
       "0": {
         "0": "Acesso ao código",
-        "1": "Repositório completo AGPL-3.0",
-        "2": "Repositório completo AGPL-3.0"
+        "1": "Licença de Código-Fonte Não Comercial do SupoClip",
+        "2": "Licença de Código-Fonte Não Comercial do SupoClip"
       },
       "1": {
         "0": "Infraestrutura",
@@ -175,7 +175,7 @@
       "1": {
         "heading": "O que continua sendo sua responsabilidade",
         "p1": "Código aberto não significa que cada dependência seja grátis. Quem auto-hospeda fornece a própria computação, o armazenamento, o serviço de transcrição e a configuração do modelo de linguagem. A troca é responsabilidade operacional em troca de controle sobre o código.",
-        "p2": "As equipes também devem revisar a licença AGPL-3.0, proteger as variáveis de ambiente, manter as dependências atualizadas e monitorar o worker e as camadas de armazenamento em produção.",
+        "p2": "As equipes também devem revisar a licença Licença de Código-Fonte Não Comercial do SupoClip, proteger as variáveis de ambiente, manter as dependências atualizadas e monitorar o worker e as camadas de armazenamento em produção.",
         "bullet1": "Provisione computação e armazenamento persistente",
         "bullet2": "Configure a transcrição e os provedores de modelo",
         "bullet3": "Proteja segredos e rotas autenticadas",
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "Auto-hospedar o SupoClip é grátis?",
-        "answer": "O código-fonte é gratuito sob a licença AGPL-3.0. Você continua responsável pela infraestrutura e por qualquer uso pago de transcrição ou de provedores de IA."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC. Você continua responsável pela infraestrutura e por qualquer uso pago de transcrição ou de provedores de IA."
       },
       "1": {
         "question": "O SupoClip pode usar um modelo de linguagem local?",
@@ -292,7 +292,7 @@
     "hostedBody": "O Pro começa em US${price}/mês com {hours} horas de vídeo de origem por mês e clipes em {resolution}. O processamento é gerenciado para você. O app hospedado exige um plano pago.",
     "plans": "Ver planos atuais",
     "selfHostTitle": "Hospedar por conta própria",
-    "selfHostBody": "O código é gratuito sob AGPL-3.0. Você fornece hardware, armazenamento, manutenção e os serviços pagos de transcrição ou IA que escolher.",
+    "selfHostBody": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC. Você fornece hardware, armazenamento, manutenção e os serviços pagos de transcrição ou IA que escolher.",
     "selfHostButton": "Ler o guia de auto-hospedagem",
     "ai-video-clipper": {
       "title": "Transforme sua gravação em clipes prontos para publicar",

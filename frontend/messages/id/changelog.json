@@ -10,6 +10,8 @@
   "startClipping": "Mulai buat clip",
   "relatedChange": "Perubahan terkait {label}",
   "viewOnGitHub": "Lihat catatan perubahan di GitHub",
+  "discordUpdates": "Dapatkan kabar terbaru di Discord",
+  "discordDescription": "Aktifkan notifikasi saat catatan rilis baru terbit.",
   "categories": {
     "new": "Baru",
     "improved": "Ditingkatkan",

@@ -5,6 +5,8 @@ export const COMPANY_REGISTERED_ADDRESS = "8 The Green, Suite B, Dover, DE 19901
 export const DEFAULT_SITE_URL = "https://www.supoclip.com";
 export const HOSTED_APP_URL = DEFAULT_SITE_URL;
 export const GITHUB_URL = "https://github.com/FujiwaraChoki/supoclip";
+export const SOURCE_LICENSE_URL = `${GITHUB_URL}/blob/main/LICENSE`;
+export const DISCORD_COMMUNITY_URL = "https://discord.gg/Sz9ZD5REXg";
 /** The hosted MCP server's Streamable HTTP endpoint (legacy SSE clients use `/sse`). */
 export const HOSTED_MCP_URL = "https://mcp.supoclip.com/mcp";
 

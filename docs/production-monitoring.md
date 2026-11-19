@@ -1,7 +1,8 @@
 # Production monitoring
 
-Run `python3 scripts/monitor-production.py` from an operator checkout with the
-`hetzner` SSH alias configured. It reads production health, containers, recent
+Run `python3 scripts/monitor-production.py` from an operator checkout with
+`SUPOCLIP_PROD_SSH_HOST` set to the production server's SSH alias (a `Host`
+entry in your own `~/.ssh/config`; the name is not recorded in this repository). It reads production health, containers, recent
 job states, effective provider settings and OpenRouter balances. Credentials are
 read only inside the production backend container and are never returned.
 It does not submit jobs, change services, send email or purchase credits.

@@ -2,9 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Public repository: no private data
+
+**This repository is public.** Everything written to it or about it is world-readable and cached forever: PR titles and bodies, commit messages, branch names, code comments, tests and fixtures, `CHANGELOG.md` entries, issues, and review comments. None of it may contain:
+
+- Monitoring issue IDs or URLs (PostHog, Axiom, Sentry, or any other tool), or links into any internal dashboard.
+- Task, job, user, account, Stripe, customer, subscription, invoice, or charge IDs (including `cus_`, `sub_`, `in_`, `ch_`, `pi_`, `re_` ids and UUIDs that belong to real records).
+- Emails, names, usernames, IP addresses, hostnames, or server names (render workers, cloud machines, and the like).
+- Internal URLs or filesystem paths that reveal private data.
+- Secrets of any kind.
+- Raw log excerpts, stack traces, or screenshots that contain any of the above.
+
+How to write instead:
+- Describe incidents generically: "one YouTube task failed three times", "about 20 users were affected on 17 Nov", "a render worker lost its database connection".
+- Tests and fixtures use synthetic IDs and `example.com` addresses, never values copied from production.
+- Before opening or updating a PR, re-read the title, body, and every commit message for the items above. Fix the commit before pushing: history on a public repo cannot be taken back.
+- Investigation notes that need real IDs stay outside the repo (private chat, the operator's notes).
+
 ## Project Overview
 
-SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. AGPL-3.0 licensed.
+SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. Licensed under the SupoClip Noncommercial Source License (v1.1: noncommercial use plus monetized use by individual creators; companies, agencies, client work and paid hosting need written permission). Keep the copies in `backend/` and `mcp/` in sync with the root `LICENSE` for packaging.
 
 ## Development Commands
 
@@ -138,6 +155,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
 | `src/workers/video_admission.py` | Per-account render slots; holds a job until its upload is in the bucket |
+| `src/workers/host_jobs.py` | Which video jobs run on which machine (Redis); read by the render autoscaler (`deploy/autoscaler/`, `docs/autoscaling.md`) |
 | `src/workers/media_cleanup.py` | Deletion outbox, orphan sweeps, per-machine scratch cleanup |
 | `src/editor_state.py` | Clip studio sessions, drafts and export/combine jobs in PostgreSQL |
 | `src/local_volume.py` | Id of the disk behind `TEMP_DIR`; tags rows that name a local path |
@@ -156,6 +174,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/services/social_service.py` | Account connections, publish/schedule, metrics refresh, AI performance context |
 | `src/repositories/social_repository.py` | `social_accounts`, `social_posts`, `social_post_metrics` SQL |
 | `src/api/routes/social.py` | `/social/*` routes |
+| `src/feedback/` | Feedback inbox: stored submissions, admin triage, webhook outbox with SSRF-safe delivery (`docs/feedback.md`) |
 | `src/cancellation_reviews/` | Investigates every Stripe cancellation and reports it to the operator chat (`docs/cancellation-reviews.md`) |
 
 ## API Endpoints (routes in `api/routes/`)
@@ -184,6 +203,10 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /upload` — Upload video file
 - `GET /clips/{filename}` — Serve generated clips
 
+**Feedback:**
+- `POST /feedback` — Store a bug/feature/general/sales/cancellation message (the only way one is created); webhooks are fanned out from an outbox
+- `/admin/feedback*`, `/admin/feedback-webhooks*` — Admin inbox (filters, status, notes) and webhook destinations (Discord or HMAC-signed JSON). URLs and secrets are encrypted and never returned. UI at `/admin/feedback`
+
 **Social publishing:**
 - `GET /social/providers`, `GET /social/connections` — configured platforms and connected accounts
 - `POST /social/connections/{provider}/authorize` + `/callback` — OAuth handshake (session auth only)
@@ -194,6 +217,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `GET /social/media/{token}` — public token-gated clip stream for Instagram
 
 Worker crons (`workers/tasks.py`): every minute `dispatch_scheduled_social_posts`, hourly `refresh_social_metrics`.
+Feedback webhook retries: every minute `deliver_feedback_webhooks` (`feedback/delivery.py`).
 Post status flow: `scheduled → queued → publishing → published/failed/cancelled`.
 
 **API keys (programmatic access):**
@@ -302,6 +326,7 @@ SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=a
 STRIPE_CANCELLATION_WEBHOOK_SECRETS= # Cancellation reviews: acct_X:whsec_... per Stripe endpoint (API)
 CANCELLATION_REVIEWS_ENABLED=false   # Cron worker investigates cancellations and posts reports (docs/cancellation-reviews.md)
 CANCELLATION_REPORT_WEBHOOK_URL=     # Signed operator-chat webhook (+ CANCELLATION_REPORT_WEBHOOK_SECRET)
+HERMES_FEEDBACK_WEBHOOK_URL=         # Hermes assistant route for every feedback submission (+ HERMES_FEEDBACK_WEBHOOK_SECRET; API + cron worker)
 WORKFLOWS_ACCESS=admins              # Series/topic/recap/trailer + instructions: off | admins | all (self-host: all)
 WORKFLOWS_ALLOWED_EMAILS=            # Comma-separated beta emails when access=admins
 WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=admins, e.g. trailer,topic
@@ -367,6 +392,14 @@ Personalized analyses skip the shared `processing_cache` analysis entry.
 - **Platform approvals gate real users:** TikTok only allows sandbox target users until its audit,
   Instagram only app testers until Meta review, and YouTube uploads from an unaudited project stay
   private. Provider app IDs and setup notes are in `docs/configuration.md`.
+
+### Account email change
+
+Settings → Account changes the sign-in email after two codes (current address, then new address):
+`frontend/src/server/email-change.ts` (codes, limits per user/IP/target address, atomic switch + other-session
+sign-out + `email_change_log`),
+`email-change-billing.ts` (every Stripe customer, rolled back on failure), route `/api/account/email-change`,
+emails via backend `POST /account/email-change-email`. Design and limits: `docs/email-change.md`.
 
 ### Clip studio (editor)
 

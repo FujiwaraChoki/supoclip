@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Acesso ao código",
-          "supoclip": "Repositório público AGPL-3.0",
+          "supoclip": "Licença de Código-Fonte Não Comercial do SupoClip",
           "supolive": "Não anuncia na página inicial uma opção de código aberto nem de auto-hospedagem"
         },
         "usecase": {
@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "Auto-hospedar o SupoClip é grátis?",
-        "answer": "O SupoClip oferece código-fonte grátis sob AGPL-3.0. Rodá-lo ainda envolve hardware ou hospedagem, armazenamento, transcrição e qualquer uso pago de LLM. O SupoClip hospedado tem termos de serviço e preços próprios."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC. Rodá-lo ainda envolve hardware ou hospedagem, armazenamento, transcrição e qualquer uso pago de LLM. O SupoClip hospedado tem termos de serviço e preços próprios."
       },
       "2": {
         "question": "O SupoClip substitui o corte de transmissões ao vivo e a publicação automática?",
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Código-fonte",
-        "supoclip": "Público, <license>AGPL-3.0</license>"
+        "supoclip": "Público, <license>Licença de Código-Fonte Não Comercial do SupoClip</license>"
       },
       "pricing": {
         "label": "Modelo de preço",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "O SupoClip auto-hospedado é grátis?",
-        "answer": "O código é grátis sob AGPL-3.0 e o modo auto-hospedado não tem limites de geração nem paywall. Você ainda paga o próprio hardware ou servidor, e qualquer transcrição na nuvem ou uso de LLM que configurar. Uma instalação com Whisper e Ollama evita taxas de IA por pedido, mas precisa de computação local suficiente."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC. Você ainda paga o próprio hardware ou servidor, e qualquer transcrição na nuvem ou uso de LLM que configurar. Uma instalação com Whisper e Ollama evita taxas de IA por pedido, mas precisa de computação local suficiente."
       },
       "1": {
         "question": "O SupoClip roda sem nenhum serviço de IA na nuvem?",

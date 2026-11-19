@@ -20,6 +20,12 @@ from src.services.video_service import VideoService
 
 
 @pytest.fixture(autouse=True)
+def no_fragment_reads(monkeypatch):
+    """Signed URLs in these tests are fake; the fragmented MP4 reader must not fetch them."""
+    monkeypatch.setattr("src.services.video_service.fragmented_mp4_duration", lambda _source: None)
+
+
+@pytest.fixture(autouse=True)
 def runtime_config(tmp_path):
     config = Config()
     config.temp_dir = str(tmp_path)
@@ -143,7 +149,7 @@ def test_probe_uses_storage_reference_when_the_local_file_is_gone(runtime_config
     monkeypatch.setattr(MediaStorage, "signed_url", signed_url)
     monkeypatch.setattr(
         "src.services.video_service.ffprobe_duration",
-        lambda target: 21.0 if target == "https://signed.example/video" else (_ for _ in ()).throw(AssertionError(target)),
+        lambda target, timeout=60: 21.0 if target == "https://signed.example/video" and timeout < 60 else (_ for _ in ()).throw(AssertionError(target)),
     )
 
     duration = VideoService.probe_upload_duration(
@@ -152,6 +158,78 @@ def test_probe_uses_storage_reference_when_the_local_file_is_gone(runtime_config
 
     assert duration == 21.0
     assert seen == {"reference": "s3://bucket/sources/gone.mp4", "filename": "source.mp4"}
+
+
+def test_probe_of_a_storage_upload_gives_up_before_the_proxy_timeout(runtime_config, monkeypatch):
+    runtime_config.media_storage = "s3"
+    runtime_config.media_s3_bucket = "bucket"
+    seen = {}
+    monkeypatch.setattr(MediaStorage, "validate_source", lambda self, url, user_id: "s3://bucket/sources/big.mp4")
+    monkeypatch.setattr(MediaStorage, "signed_url", lambda self, reference, filename, **_kwargs: "https://signed.example/big")
+
+    def probe(target, timeout=60):
+        seen["call"] = (target, timeout)
+        return 30.0
+
+    monkeypatch.setattr("src.services.video_service.ffprobe_duration", probe)
+
+    assert VideoService.probe_upload_duration("upload://s3/user-1/big.mp4", "user-1") == 30.0
+    assert seen["call"][0] == "https://signed.example/big"
+    # The create-task request sits behind a proxy that gives up after 60 s.
+    assert seen["call"][1] < 60
+
+
+def test_fragmented_upload_in_storage_is_measured_without_ffprobe(runtime_config, monkeypatch):
+    runtime_config.media_storage = "s3"
+    runtime_config.media_s3_bucket = "bucket"
+    monkeypatch.setattr(MediaStorage, "validate_source", lambda self, url, user_id: "s3://bucket/sources/rec.mp4")
+    monkeypatch.setattr(MediaStorage, "signed_url", lambda self, reference, filename, **_kwargs: "https://signed.example/rec")
+    monkeypatch.setattr(
+        "src.services.video_service.fragmented_mp4_duration",
+        lambda source: 3600.5 if source == "https://signed.example/rec" else None,
+    )
+    monkeypatch.setattr(
+        "src.services.video_service.ffprobe_duration",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("ffprobe walks every fragment")),
+    )
+
+    assert VideoService.probe_upload_duration("upload://s3/user-1/rec.mp4", "user-1") == 3600.5
+
+
+def test_ffprobe_gets_what_is_left_of_the_probe_budget(runtime_config, monkeypatch):
+    runtime_config.media_storage = "s3"
+    runtime_config.media_s3_bucket = "bucket"
+    monkeypatch.setattr(MediaStorage, "validate_source", lambda self, url, user_id: "s3://bucket/sources/big.mp4")
+    monkeypatch.setattr(MediaStorage, "signed_url", lambda self, reference, filename, **_kwargs: "https://signed.example/big")
+    clock = iter([100.0, 112.0])
+    monkeypatch.setattr("src.services.video_service.time", SimpleNamespace(monotonic=lambda: next(clock)))
+    seen = {}
+
+    def probe(target, timeout=60):
+        seen["timeout"] = timeout
+        return 30.0
+
+    monkeypatch.setattr("src.services.video_service.ffprobe_duration", probe)
+
+    assert VideoService.probe_upload_duration("upload://s3/user-1/big.mp4", "user-1") == 30.0
+    # The fragment reader used 12 s of the 40 s budget.
+    assert seen["timeout"] == pytest.approx(28.0)
+
+
+def test_fragmented_local_upload_is_measured_without_ffprobe(tmp_path, runtime_config, monkeypatch):
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    (uploads / "rec.mp4").write_bytes(b"video")
+    monkeypatch.setattr(
+        "src.services.video_service.fragmented_mp4_duration",
+        lambda source: 7.5 if Path(source).name == "rec.mp4" else None,
+    )
+    monkeypatch.setattr(
+        "src.services.video_service.ffprobe_duration",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("ffprobe")),
+    )
+
+    assert VideoService.probe_upload_duration("upload://rec.mp4", "user-1") == 7.5
 
 
 def test_probe_reads_a_local_file_before_the_storage_reference(tmp_path, runtime_config, monkeypatch):

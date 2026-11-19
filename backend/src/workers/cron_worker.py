@@ -28,6 +28,7 @@ from arq.connections import RedisSettings  # noqa: E402
 from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
 from ..cancellation_reviews.runner import process_cancellation_reviews  # noqa: E402
+from ..feedback.delivery import deliver_feedback_webhooks  # noqa: E402
 from .media_cleanup import cleanup_media, copy_pending_uploads, sweep_orphaned_media  # noqa: E402
 from .media_replication import check_media_storage, replicate_pending_media  # noqa: E402
 from .tasks import (  # noqa: E402
@@ -74,4 +75,6 @@ class CronWorkerSettings:
         scheduled(refresh_social_metrics, minute=7, second=0, timeout=1800),
         # Off unless CANCELLATION_REVIEWS_ENABLED; a run handles at most three reviews.
         scheduled(process_cancellation_reviews, second=30, timeout=1800),
+        # Retries feedback webhook deliveries the API's first attempt didn't send.
+        scheduled(deliver_feedback_webhooks, second=50, timeout=600),
     ]

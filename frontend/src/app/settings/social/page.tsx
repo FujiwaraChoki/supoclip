@@ -193,7 +193,7 @@ function SocialSettingsContent() {
       )}
 
       {/* Connect */}
-      <section className="mb-10">
+      <section data-tour="social-connect" className="mb-10">
         <h2 className={SECTION_HEADING}>{t("page.connectHeading")}</h2>
         {!isFetching && providers.some((provider) => provider.paused) && (
           <Alert className="mb-3">

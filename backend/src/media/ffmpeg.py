@@ -263,7 +263,7 @@ def ffprobe_video_size(video_path: Path) -> Tuple[int, int]:
         raise RuntimeError(f"Unable to read video size for {video_path}: {exc}") from exc
 
 
-def ffprobe_duration(video_path: Path) -> float:
+def ffprobe_duration(video_path: Path, timeout: int = 60) -> float:
     result = run_ffmpeg_command(
         [
             "ffprobe",
@@ -275,7 +275,7 @@ def ffprobe_duration(video_path: Path) -> float:
             "default=noprint_wrappers=1:nokey=1",
             str(video_path),
         ],
-        timeout=60,
+        timeout=timeout,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Unable to read duration for {video_path}")

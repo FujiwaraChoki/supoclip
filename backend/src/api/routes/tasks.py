@@ -18,6 +18,7 @@ from typing import Dict, Any, Optional
 import inspect
 import re
 import secrets
+import subprocess
 import math
 import asyncio
 from datetime import datetime, timezone
@@ -237,6 +238,18 @@ async def _preflight_upload_source(url: str, user_id: str, duration_limit: int, 
             duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id)
         if not math.isfinite(duration) or duration <= 0:
             raise ValueError("Invalid video duration")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "VIDEO_PROBE_TIMEOUT",
+                "message": (
+                    "This video took too long to read. Re-export it with fast start "
+                    "(\"optimize for web\") turned on, or upload a shorter or smaller "
+                    "file. No minutes were used."
+                ),
+            },
+        ) from None
     except Exception:
         raise HTTPException(
             status_code=422,

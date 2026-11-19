@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { ComposerSettings } from "@/components/composer-settings";
-import { FeatureTourHost } from "@/components/feature-tour";
 import { OUTPUT_FORMATS, parseCreateSettings, type CreateSettings, type LengthWorkflow, type OutputFormat } from "@/lib/create-settings";
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
@@ -863,7 +862,7 @@ export default function HomeApp() {
     : null;
 
   return (
-    <AppShell>
+    <AppShell tour={{ busy: hasSource || isLoading || upgradeReason !== null, onWorkflow: previewWorkflow, onEnd: endWorkflowPreview }}>
       <main className="mx-auto w-full max-w-5xl px-4 pb-20 pt-10 sm:px-8 md:pt-[12vh]">
         {billingSummary?.cancel_at && billingSummary.subscription_provider === "stripe" && (
           <SubscriptionCancelBanner
@@ -903,6 +902,7 @@ export default function HomeApp() {
           )}
 
           <form
+            data-tour="composer"
             noValidate
             onSubmit={handleSubmit}
             onDragOver={(event) => { event.preventDefault(); if (!controlsDisabled) setIsDragging(true); }}
@@ -935,7 +935,7 @@ export default function HomeApp() {
               </div>
             )}
 
-            <div className="flex items-start gap-3 p-3 pb-2 sm:p-4 sm:pb-2">
+            <div data-tour="composer-source" className="flex items-start gap-3 p-3 pb-2 sm:p-4 sm:pb-2">
               {file ? (
                 <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl bg-muted/60 p-2 pr-3">
                   <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-background"><FileVideo className="size-5" /></span>
@@ -1378,8 +1378,6 @@ export default function HomeApp() {
             </Alert>
           )}
 
-          <FeatureTourHost enabled={Boolean(session?.user?.id)} busy={hasSource || isLoading || upgradeReason !== null} onWorkflow={previewWorkflow} onEnd={endWorkflowPreview} />
-
           <p id="source-limits" className="sr-only">
             {t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}{limitNote ? ` ${limitNote}` : ""}
           </p>
@@ -1509,12 +1507,9 @@ function PlanStatusNudge({
   if (!state.isPaid) {
     const entry = getPublicBillingPlans()[0];
     return (
-      <UpgradeNudge
-        className="mt-6"
-        title={t("nudge.startTitle")}
+      <StartPlanCard
         description={entry ? t("nudge.startDescription", { price: `$${entry.priceMonthly}`, length: formatMinutes(entry.minuteLimit) }) : undefined}
-        action={t("nudge.seePlans")}
-        onAction={() => onUpgrade({ kind: "start" })}
+        onStart={() => onUpgrade({ kind: "start" })}
       />
     );
   }
@@ -1544,4 +1539,67 @@ function PlanStatusNudge({
   }
 
   return null;
+}
+
+const START_PERKS = ["ai", "captions", "formats"] as const;
+const START_MEDIA = { poster: "/billing/start-plan.webp", webm: "/billing/start-plan.webm", mp4: "/billing/start-plan.mp4" };
+
+/** The rendered loop; reduced motion keeps the poster still. */
+function StartPlanVideo({ className }: { className?: string }) {
+  return (
+    <video
+      className={className}
+      poster={START_MEDIA.poster}
+      autoPlay
+      loop
+      muted
+      playsInline
+      preload="auto"
+      aria-hidden
+      ref={(node) => { if (node && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) node.pause(); }}
+    >
+      <source src={START_MEDIA.webm} type="video/webm" />
+      <source src={START_MEDIA.mp4} type="video/mp4" />
+    </video>
+  );
+}
+
+/** What a free account sees above the composer: what a plan gets them, and the way in. */
+function StartPlanCard({ description, onStart }: { description?: string; onStart: () => void }) {
+  const t = useTranslations("home");
+  return (
+    <div className="relative isolate mt-6">
+      {/* The render's colours glow out around the card's edge and drift. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-0.5 -z-10 rounded-[1.1rem] bg-[linear-gradient(100deg,#ff5200,#ff0552,#7305ff,#0052ff,#00d98c,#7305ff,#ff5200)] bg-[length:300%_100%] opacity-60 blur-xl animate-[start-plan-glow_9s_ease-in-out_infinite_alternate] motion-reduce:animate-none dark:opacity-45"
+      />
+      <section data-testid="start-plan-card" className="relative overflow-hidden rounded-2xl bg-[#08060c] text-white ring-1 ring-white/10">
+        {/* The render fades into the card: no edge between picture and text. */}
+        <div className="relative h-44 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] sm:absolute sm:inset-y-0 sm:left-0 sm:h-auto sm:w-[19rem] sm:[mask-image:linear-gradient(to_right,black_50%,transparent)]">
+          <StartPlanVideo className="absolute inset-0 size-full object-cover" />
+        </div>
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(115,5,255,0.22),transparent_55%)]" />
+        <div className="relative min-w-0 p-5 pt-1 sm:py-6 sm:pl-[16.5rem] sm:pr-6">
+          <h2 className="font-display text-xl font-bold tracking-tight">{t("nudge.startTitle")}</h2>
+          {description && <p className="mt-1 text-sm text-white/65">{description}</p>}
+          <ul className="mt-4 space-y-1.5">
+            {START_PERKS.map((perk) => (
+              <li key={perk} className="flex items-start gap-2 text-sm text-white/90">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-brand" strokeWidth={2.5} />
+                {t(`nudge.startPerks.${perk}`)}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button type="button" onClick={onStart} className="rounded-full bg-white px-5 text-black hover:bg-white/90">
+              {t("nudge.startAction")}
+              <ArrowRight className="size-4" />
+            </Button>
+            <span className="text-xs text-white/50">{t("nudge.startFootnote")}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }

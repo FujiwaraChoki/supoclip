@@ -10,6 +10,8 @@
   "startClipping": "Empieza a recortar",
   "relatedChange": "Cambio relacionado {label}",
   "viewOnGitHub": "Ver el changelog en GitHub",
+  "discordUpdates": "Recibe novedades en Discord",
+  "discordDescription": "Activa las notificaciones cuando publiquemos notas de versión.",
   "categories": {
     "new": "Nuevo",
     "improved": "Mejorado",

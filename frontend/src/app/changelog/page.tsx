@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ExternalLink } from "lucide-react";
+import { ArrowUpRight, ExternalLink } from "lucide-react";
 
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { intlLocale } from "@/i18n/config";
 import { readChangelog, type ChangelogCategory } from "@/lib/changelog";
-import { GITHUB_URL, HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
+import { DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
 
 const GITHUB_CHANGELOG_URL = `${GITHUB_URL}/blob/main/CHANGELOG.md`;
 
@@ -85,6 +85,21 @@ export default async function ChangelogPage() {
           <Badge variant="secondary">{t("eyebrow")}</Badge>
           <h1 className="font-display mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl">{t("title")}</h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">{t("intro")}</p>
+          <a
+            href={DISCORD_COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group mt-10 flex items-center gap-4 border-t pt-6"
+          >
+            <Image src="/discord-mark.svg" alt="" width={28} height={21} className="h-auto shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold underline-offset-4 group-hover:underline">{t("discordUpdates")}</span>
+              <span className="mt-0.5 block text-sm text-muted-foreground">{t("discordDescription")}</span>
+            </span>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#5865f2] text-white transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </span>
+          </a>
         </div>
       </section>
 

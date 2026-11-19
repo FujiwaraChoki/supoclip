@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "源码访问",
-          "supoclip": "公开的 AGPL-3.0 仓库",
+          "supoclip": "SupoClip 非商业源代码许可",
           "supolive": "首页没有宣传开源或自托管选项"
         },
         "usecase": {
@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "自托管 SupoClip 免费吗？",
-        "answer": "SupoClip 以 AGPL-3.0 提供免费源代码。运行它仍然涉及硬件或托管、存储、转写，以及任何付费的 LLM 用量。托管的 SupoClip 有自己的服务条款和价格。"
+        "answer": "SupoClip 允许非商业用途的自托管和分支；个人创作者也可以自托管，为自己的变现频道制作短片。公司、代理机构、客户委托工作和付费托管须事先获得 Shiori LLC 的书面许可。运行它仍然涉及硬件或托管、存储、转写，以及任何付费的 LLM 用量。托管的 SupoClip 有自己的服务条款和价格。"
       },
       "2": {
         "question": "SupoClip 能替代直播剪辑和自动发布吗？",
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "源代码",
-        "supoclip": "公开，<license>AGPL-3.0</license>"
+        "supoclip": "公开，<license>SupoClip 非商业源代码许可</license>"
       },
       "pricing": {
         "label": "定价模式",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "自托管的 SupoClip 免费吗？",
-        "answer": "代码在 AGPL-3.0 下免费，自托管模式没有生成上限，也没有付费墙。你仍然要为自己的硬件或服务器，以及所配置的云端转写或 LLM 用量付费。Whisper + Ollama 可以避免按次 AI 费用，但需要足够的本地算力。"
+        "answer": "SupoClip 允许非商业用途的自托管和分支；个人创作者也可以自托管，为自己的变现频道制作短片。公司、代理机构、客户委托工作和付费托管须事先获得 Shiori LLC 的书面许可。你仍然要为自己的硬件或服务器，以及所配置的云端转写或 LLM 用量付费。Whisper + Ollama 可以避免按次 AI 费用，但需要足够的本地算力。"
       },
       "1": {
         "question": "SupoClip 能完全不用云端 AI 服务吗？",

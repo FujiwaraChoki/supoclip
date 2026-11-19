@@ -17,16 +17,29 @@
       "featureCrop": "Recorte vertical 9:16 centrado en el rostro",
       "featureCaptions": "Subtítulos animados sincronizados por palabra",
       "featureExports": "Exportaciones para YouTube Shorts, TikTok e Instagram Reels",
-      "featureSelfHost": "Autoalojamiento de código abierto",
-      "offerCategory": "Edición de código abierto autoalojada",
+      "featureSelfHost": "Autoalojamiento gratis para fines no comerciales y creadores individuales",
+      "offerCategory": "Código fuente para autoalojamiento no comercial y de creadores individuales",
       "ios": "La app de SupoClip para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
       "website": "Recorte de video con IA de código abierto para contenido de formato corto."
     }
   },
+  "community": {
+    "eyebrow": "SupoClip en Discord",
+    "title": "Creemos mejores clips en comunidad.",
+    "body": "Pide una segunda opinión sobre un corte, intercambia consejos de edición y cuéntanos cómo mejorar SupoClip.",
+    "join": "Únete en Discord",
+    "activities": {
+      "showcase": "Comparte un clip y recibe comentarios",
+      "tips": "Intercambia consejos de edición",
+      "ideas": "Vota por nuevas funciones"
+    }
+  },
   "footer": {
     "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
+    "licenseNotice": "Los creadores individuales pueden autoalojar y monetizar gratis. Las empresas, las agencias y el alojamiento de pago requieren <license>autorización por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
+    "discord": "Comunidad de Discord",
     "columns": {
       "guides": "Guías",
       "compare": "Comparar",
@@ -143,6 +156,12 @@
       "title": "Turn Twitch VODs into TikTok clips and Shorts",
       "label": "Twitch VOD to Shorts",
       "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+    },
+    "blog_how_to_clip_gta_6": {
+      "eyebrow": "Clips de GTA 6",
+      "title": "Cómo hacer clips de GTA 6",
+      "label": "Clips de GTA 6",
+      "description": "Lo que pagan las campañas de clipping, las reglas de Rockstar y el flujo del VOD al clip vertical."
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -454,7 +473,7 @@
       },
       "selfHost": {
         "question": "¿De verdad es gratis autoalojarlo?",
-        "answer": "Sí. SupoClip es de código abierto bajo AGPL-3.0 y funciona con Docker Compose en tu propia máquina. Solo pagas los proveedores de transcripción e IA que elijas, si usas alguno."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC."
       },
       "cancel": {
         "question": "¿Puedo cancelar cuando quiera?",
@@ -463,13 +482,13 @@
     }
   },
   "openSource": {
-    "badge": "Licencia AGPL-3.0",
+    "badge": "Licencia de código fuente no comercial de SupoClip",
     "title": "Hecho en público",
-    "body": "Totalmente de código abierto. Autoalója en tu infraestructura, aporta funciones o haz un fork y adáptalo.",
+    "body": "Código fuente para autoalojamiento no comercial y de creadores individuales",
     "commandLabel": "autoalojar",
     "comment": "# agrega un proveedor de transcripción y de LLM en .env",
     "facts": {
-      "license": "AGPL-3.0, con cada línea en GitHub",
+      "license": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC.",
       "docker": "Un solo comando de Docker Compose para ejecutarlo tú mismo",
       "models": "Usa tus propios modelos: Gemini, OpenAI, Anthropic u Ollama"
     },

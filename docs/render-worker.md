@@ -157,9 +157,9 @@ each machine's worker log to see what it processed.
 `GET /health/worker` reports that at least one video worker is alive; it does
 not say which.
 
-## Per-account capacity on Sora
+## Per-account capacity on the hosted render server
 
-Sora runs eight video-worker slots. Its production environment sets
+The hosted render server runs eight video-worker slots. Its production environment sets
 `VIDEO_JOB_USER_CONCURRENCY=2`: one account can process two videos at once,
 leaving six slots available for other accounts when both are busy. The global
 worker limit remains eight. This is an initial capacity setting, not a measured
@@ -178,9 +178,21 @@ jobs; let active work finish. Keep the existing backend release image, scratch
 mounts and worker hooks when applying the configuration. Roll back by restoring
 `VIDEO_JOB_USER_CONCURRENCY=1` and recreating the worker at another idle window.
 
+## Adding workers automatically
+
+The render autoscaler adds cloud workers when the queue backs up and removes
+them once they are idle, using the same layout as this page. See
+[autoscaling.md](./autoscaling.md). Every video worker records the jobs it runs
+under its host name in Redis (`src/workers/host_jobs.py`), which is how the
+autoscaler knows a machine is idle; set `RENDER_HOST_NAME` if the container's
+hostname is not the machine's.
+
 ## Stopping a worker
 
-Stop the container. Running jobs get up to `stop_grace_period` to finish. A job
+Stop the container. Running jobs get up to `stop_grace_period` to finish.
+To drain without a deadline, run `docker update --restart=no` and then
+`docker kill -s TERM` on the container: the worker takes no new jobs, finishes
+the running ones (up to `job_completion_wait`) and exits. A job
 that is cut off is retried by the queue on whichever worker is free. Queued
 deletions for that machine's disk stay in the database for a month in case the
 machine returns, then are dropped; the scratch directory can simply be removed.

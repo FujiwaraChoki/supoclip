@@ -13,7 +13,7 @@
     "agreement": {
       "title": "Vereinbarung",
       "p1": "Diese Nutzungsbedingungen („Bedingungen“) gelten zwischen dir und {company} („wir“, „uns“), dem Betreiber der SupoClip-Apps und des gehosteten Dienstes (der „Dienst“), die lange Videos in kurze Clips mit Untertiteln umwandeln. Mit der Erstellung eines Kontos oder der Nutzung des Dienstes stimmst du diesen Bedingungen zu. Wenn du nicht zustimmst, nutze den Dienst nicht.",
-      "p2": "SupoClip gibt es auch als Open-Source-Software, die du selbst hosten kannst. Diese Bedingungen gelten für den von SupoClip betriebenen gehosteten Dienst; selbst gehostete Instanzen unterliegen der jeweiligen Open-Source-Lizenz und den eigenen Bedingungen der betreibenden Person."
+      "p2": "SupoClip gibt es auch als Open-Source-Software, die du selbst hosten kannst. Diese Bedingungen gelten für den von SupoClip betriebenen gehosteten Dienst; selbst gehostete Instanzen unterliegen der jeweiligen Softwarelizenz und den eigenen Bedingungen der betreibenden Person."
     },
     "account": {
       "title": "Dein Konto",

@@ -13,7 +13,7 @@
     "agreement": {
       "title": "Acuerdo",
       "p1": "Estos Términos de Servicio (“Términos”) se celebran entre tú y {company} (“nosotros”), que opera las aplicaciones y el servicio alojado de SupoClip (el “Servicio”), que convierten vídeos largos en clips cortos con subtítulos. Al crear una cuenta o utilizar el Servicio, aceptas estos Términos. Si no estás de acuerdo, no utilices el Servicio.",
-      "p2": "SupoClip también está disponible como software de código abierto que puedes alojar tú mismo. Estas Condiciones se aplican al servicio alojado operado por SupoClip; las instancias autoalojadas se rigen por la licencia de código abierto aplicable y por las condiciones propias de quien las opera."
+      "p2": "SupoClip también está disponible como software de código abierto que puedes alojar tú mismo. Estas Condiciones se aplican al servicio alojado operado por SupoClip; las instancias autoalojadas se rigen por la licencia de software aplicable y por las condiciones propias de quien las opera."
     },
     "account": {
       "title": "Tu cuenta",

@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "关于",
+    "credit": "基于 SupoClip。",
+    "repository": "原始代码仓库"
+  },
   "title": "设置",
   "intro": "新生成内容的默认值、通知和你的方案。",
   "languageDescription": "SupoClip 使用的语言。",
@@ -83,8 +88,14 @@
     "failed": "无法保存偏好"
   },
   "toasts": {
-    "upgraded": "方案已升级。去用多出来的额度吧！",
     "ready": "都准备好了。开始做短片吧！"
+  },
+  "thanks": {
+    "title": "谢谢！",
+    "body": "你现在使用的是 {plan}：每月 {minutes} 视频，剪辑为 {resolution}。",
+    "bodyShort": "你现在使用的是 {plan}。开始制作剪辑吧。",
+    "makeClip": "制作剪辑",
+    "done": "完成"
   },
   "apiKeys": {
     "title": "智能体与 API",
@@ -283,5 +294,57 @@
     "unsupported": "未完全支持（常见语言）：",
     "all": "全部支持的语言（{count}）",
     "fallback": "缺少的字符会用后备字体，看起来可能不一样。覆盖范围根据这个字体文件检查；少见字符请预览字幕。"
+  },
+  "emailChange": {
+    "title": "账户",
+    "description": "你用于登录的邮箱地址。",
+    "label": "邮箱地址",
+    "verified": "已验证",
+    "unverified": "未验证",
+    "action": "更改邮箱",
+    "dialogTitle": "更改邮箱",
+    "stepOf": "第 {step} 步，共 2 步",
+    "intro": "我们会先向 <strong>{email}</strong> 发送验证码，确认是你本人。",
+    "unverifiedNote": "该地址尚未验证。输入验证码后也会一并完成验证。",
+    "password": "当前密码",
+    "noPassword": "你的账户没有设置密码，因此需要通过验证码确认是你本人。",
+    "sendCurrent": "发送验证码",
+    "codeSent": "请输入我们发送到 <strong>{email}</strong> 的 6 位验证码。",
+    "codeLabel": "验证码",
+    "codeHint": "验证码 10 分钟内有效。如果没有收到，请检查垃圾邮件文件夹。",
+    "resend": "重新发送验证码",
+    "resendIn": "{seconds} 秒后可重新发送",
+    "useDifferent": "使用其他地址",
+    "verify": "验证",
+    "confirm": "更改邮箱",
+    "currentConfirmed": "当前地址已确认。",
+    "newLabel": "新邮箱地址",
+    "newHint": "我们会向该地址发送验证码。输入验证码后邮箱才会更改。",
+    "sendNew": "发送验证码",
+    "finishing": "两个地址都已确认，但我们无法更新你账单账户中的邮箱。你的邮箱尚未更改。",
+    "retry": "重试",
+    "doneTitle": "邮箱已更改",
+    "done": "你现在使用 <strong>{email}</strong> 登录。收据和通知也会发送到该地址。",
+    "doneDetails": "我们已让你在其他设备上退出登录，并向 {previous} 发送了通知。",
+    "close": "完成",
+    "errors": {
+      "generic": "出了点问题，请重试。",
+      "passwordRequired": "请输入当前密码。",
+      "invalidPassword": "密码不正确。",
+      "reauthRequired": "为了安全，请先退出并重新登录，然后再更改邮箱。",
+      "rateLimited": "尝试次数过多，请在 {minutes} 分钟后重试。",
+      "cooldown": "验证码刚刚已发送，{seconds} 秒后可再次获取。",
+      "noRequest": "此请求已过期或已被替换，请重新开始。",
+      "wrongCode": "验证码不正确。",
+      "wrongCodeLeft": "验证码不正确。{count, plural, =0 {请获取新的验证码。} other {还可尝试 # 次。}}",
+      "codeExpired": "验证码已过期，请获取新的验证码。",
+      "tooManyAttempts": "错误次数过多，请获取新的验证码。",
+      "invalidEmail": "请输入有效的邮箱地址。",
+      "sameEmail": "这已经是你的邮箱地址。",
+      "emailTaken": "该邮箱地址已被其他账户使用。",
+      "sendFailed": "无法发送邮件，请重试。",
+      "billingUpdateFailed": "无法更新你的账单邮箱，因此没有任何更改。请重试。",
+      "inProgress": "正在保存你的邮箱更改。请稍等片刻后再查看。"
+    }
   }
 }

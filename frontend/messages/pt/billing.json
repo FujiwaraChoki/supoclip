@@ -36,11 +36,7 @@
   "prorated": "Você confirma a mudança no Stripe e paga só a diferença proporcional.",
   "cancelAnytime": "Cancele quando quiser · Checkout seguro com Stripe",
   "appStore": "Sua assinatura é gerenciada pela App Store. Você pode mudar de plano no app SupoClip para iOS.",
-  "selfHosted": {
-    "title": "Auto-hospedado",
-    "body": "Rode o SupoClip no seu computador, sem assinatura nem limite mensal de vídeos. É preciso configurar; você fornece o hardware e os serviços de IA pagos que escolher.",
-    "guide": "Guia de auto-hospedagem"
-  },
+  "selfHostLink": "Ou auto-hospede",
   "upgrade": {
     "start": {
       "eyebrow": "Quando você quiser",

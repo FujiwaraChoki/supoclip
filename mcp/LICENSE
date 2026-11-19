@@ -1,0 +1,95 @@
+# SupoClip Noncommercial Source License
+
+Version 1.1 (November 19, 2026)
+
+- **Licensor** Shiori LLC
+- **Commercial permissions** support@supoclip.com
+
+## 1. Software covered
+
+This license applies to SupoClip releases the Licensor expressly makes available under these terms. The **Software** means the covered SupoClip code and accompanying materials, including copies and modified versions, to the extent the Licensor has the right to license them. Separately licensed third-party components are governed by their own terms. This license leaves intact rights already granted under earlier licenses, including AGPL-3.0.
+
+If you received a SupoClip release under Version 1.0 of this license, you may use that release under this Version 1.1 instead.
+
+This license covers the Software only. The hosted SupoClip service at supoclip.com and the SupoClip mobile apps are governed by their own terms of service and subscription terms, not by this license.
+
+## 2. Noncommercial permissions
+
+Subject to these terms, the Licensor grants you a worldwide, royalty-free, nonexclusive license to use, run, self-host, copy, modify, and share the Software for noncommercial purposes. You may publish and maintain a noncommercial fork and share its source code or builds under Section 6. You may pay for ordinary computing, storage, or network infrastructure to run your own noncommercial instance.
+
+## 3. Individual Creators may monetize without asking
+
+### 3.1 Definitions
+
+An **Individual Creator** is a single natural person who uses the Software on their own behalf and for their own account. A person is not acting as an Individual Creator while they act as an employee, contractor, agent, or representative of a company, agency, or other organization, or otherwise on behalf of or for the benefit of another person or organization. The only exception is participation in an Authorized Clipping Campaign as described below. A person who receives their creator income through a business entity that they alone own and control, and that no one else uses the Software for, is still an Individual Creator.
+
+The Individual Creator's **Own Channels** are accounts, channels, pages, and profiles on video and social platforms that the Individual Creator personally owns and controls and publishes under their own name or persona. A channel that a company, agency, or another person owns or controls, or that the Individual Creator manages for someone else, is not an Own Channel.
+
+An **Authorized Clipping Campaign** is a program in which a rights holder, or a campaign operator acting with the rights holder's authorization, invites independent participants to make clips of specified content and post them, and pays participants by results, such as views, engagement, or accepted clips. A person participates in an Authorized Clipping Campaign as an Individual Creator only when (a) the campaign's terms authorize them to clip and post the content, (b) they post the clips to their Own Channels, and (c) they take part under the campaign's general participation terms as an independent participant, not as an employee of the operator or rights holder, and not under a separate engagement to supply editing or clipping services.
+
+**Permitted Monetized Use** means use of the Software by an Individual Creator on an instance that the Individual Creator self-hosts and that only that Individual Creator uses, to make clips and other output and to earn money from that output by:
+
+- publishing it on their Own Channels, for example on YouTube, YouTube Shorts, TikTok, Instagram Reels, Facebook, X, Twitch, or Kick, and earning from it through platform revenue programs, advertising, sponsorships and brand integrations within their own content, affiliate links, memberships, subscriptions, donations, and tips; or
+- participating in Authorized Clipping Campaigns.
+
+An instance is **self-hosted** when it runs on hardware or cloud infrastructure that the Individual Creator controls, including rented servers.
+
+### 3.2 Grant
+
+Subject to these terms, the Licensor grants each Individual Creator a worldwide, royalty-free, nonexclusive license to use, run, self-host, copy, and modify the Software for Permitted Monetized Use, in addition to the permissions in Section 2. No request or written permission is needed. This grant does not permit sharing or distributing the Software or a modified version for a commercial purpose; Section 2 and Section 6 continue to govern sharing.
+
+### 3.3 Not Permitted Monetized Use
+
+The following uses are not Permitted Monetized Use, even when a single person carries them out:
+
+- Use by, for, or on behalf of a company, agency, or other organization, including internal business use, use for an organization's channels or brands, and use by employees or contractors in that capacity.
+- Making clips, edits, or other output for another person or organization in exchange for compensation, including freelance editing, clipping services, and managing or posting to channels that are not the Individual Creator's Own Channels. Participation in an Authorized Clipping Campaign under Section 3.1 is the only exception.
+- Use of one instance, installation, account, or copy of the Software by more than one person for commercial purposes, including teams, studios, and shared access.
+- Selling, licensing, or otherwise providing the output to third parties as a product or service, other than through the activities listed in Section 3.1.
+- Any activity described in Section 4 or Section 5.
+
+A company, agency, or other organization may not obtain Permitted Monetized Use by having an individual run the Software for it, for its channels, or for its benefit, whatever the payment or employment arrangement. Use for an organization's benefit through an individual is that organization's commercial use.
+
+## 4. Other commercial use requires prior written permission
+
+Except for Permitted Monetized Use under Section 3, you must obtain the Licensor's express written permission before making any commercial use of the Software. **Commercial use** means using, copying, modifying, distributing, hosting, or otherwise making the Software available in connection with a business activity or for direct or indirect commercial advantage or compensation. This includes the following uses.
+
+- Internal use for a business, including evaluation for business adoption, development, testing, and production, even when only staff have access.
+- Use in compensated client work or a revenue-generating workflow of a company, agency, or other organization, including producing clips for its monetized channels or paid campaigns.
+- Use by more than one person, or by a team, for commercial purposes.
+- Selling copies or charging for access, integration, operation, or support that involves exercising rights under this license.
+- Distributing the Software or a modified version for a commercial purpose.
+
+This requirement applies to individuals and organizations of any legal or tax status. Written permission must identify who may use the Software and what use is authorized. Any other use remains subject to these terms. Permission the Licensor has granted in writing remains in effect on its own terms; this version of the license does not narrow it.
+
+## 5. Commercial hosting requires specific written permission
+
+You must obtain the Licensor's express prior written permission covering hosted or managed services before offering or operating the Software for others as part of a commercial offering. This applies to the original Software and to modified, renamed, and rebranded versions, whether offered through a web interface, API, or intermediary acting on your behalf. Section 3 never authorizes offering the Software to others.
+
+This includes selling access, charging to operate an instance, bundling the Software into a paid offering, running an ad-supported service, and offering a free tier of a commercial service. Permission to use the Software internally does not authorize offering it as a hosted or managed service.
+
+## 6. Attribution and forks
+
+Preserve existing copyright, license, and SupoClip attribution notices. When you share the Software or a modified version, supply a copy of this license and include the attribution below in a clearly visible place in the repository README or equivalent distribution documentation. Include the attribution in the accompanying notices for any packaged builds and container images you distribute.
+
+Display the same attribution in a readily accessible About, Credits, or equivalent screen of every deployed or distributed version with a graphical interface. For an interface without a graphical screen, include it in the user-facing documentation supplied with that interface. You may adapt the wording and layout if the credit to SupoClip stays clear and both URLs remain present and clickable where the format supports links.
+
+> Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
+
+This license does not require attribution in the clips or other output you make with the Software.
+
+Identify distributed forks as modified versions of SupoClip. You may give your fork a distinct name if you retain the required credit and avoid implying that the fork is official or endorsed by the Licensor. This license permits use of the SupoClip name for truthful attribution and identification. Other uses of the SupoClip name or logo that require authorization must be separately approved.
+
+Recipients receive their rights in the covered SupoClip material directly from the Licensor under these terms. You may license your own original contributions separately. Any terms you apply to those contributions must preserve the conditions on use of the covered SupoClip material. Only the Licensor can grant commercial permission under this license.
+
+## 7. Your content
+
+This license grants no rights in the videos, audio, or other material you process with the Software. You are responsible for having the rights needed to use, clip, and publish that material, including under the terms of any clipping campaign and of the platforms you post to.
+
+## 8. Termination and rights under law
+
+Your rights under this license end automatically if you breach its terms. After termination, you must stop exercising those rights unless the Licensor reinstates them in writing. Termination leaves compliant recipients' rights in place. Rights and remedies that cannot be waived under applicable law remain available.
+
+## 9. Warranty and liability
+
+To the extent permitted by applicable law, the Software is provided as is, without any express or implied warranty, including warranties of merchantability, fitness for a particular purpose, title, and noninfringement. To the extent permitted by applicable law, the Licensor and contributors are not liable for losses or damages arising out of this license or the use of, or inability to use, the Software, including lost revenue, demonetization, account strikes, or takedowns. If a provision is unenforceable, the remaining provisions continue to apply to the extent permitted by law.

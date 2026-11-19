@@ -138,6 +138,17 @@ export function isBillingRiskEvent(event: Stripe.Event): boolean {
   ].includes(event.type);
 }
 
+/** Why a risk event cancels: a refund is the owner's call, disputes and fraud warnings are risk. */
+export function billingRiskCancellationComment(event: Stripe.Event): string {
+  const label =
+    event.type === "charge.refunded"
+      ? "refunded"
+      : event.type === "charge.dispute.created"
+        ? "dispute"
+        : "fraud_warning";
+  return `${label}:${event.id}`;
+}
+
 export type BillingRisk = {
   charge: Stripe.Charge;
   customerId: string;

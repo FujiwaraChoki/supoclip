@@ -1,8 +1,14 @@
 import posthog from "posthog-js";
 
+import { installDomTranslationGuard, reportSkippedDomOperations } from "@/lib/dom-translation-guard";
 import { POSTHOG_KEY, isPostHogEnabled, posthogUiHost } from "@/lib/posthog-config";
 import { installTraceFetch } from "@/lib/trace-fetch";
 
+installDomTranslationGuard(
+  isPostHogEnabled
+    ? reportSkippedDomOperations((error, properties) => posthog.captureException(error, properties))
+    : undefined,
+);
 installTraceFetch();
 
 if (isPostHogEnabled) {

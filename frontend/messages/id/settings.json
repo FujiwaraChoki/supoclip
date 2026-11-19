@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "Tentang",
+    "credit": "Berdasarkan SupoClip.",
+    "repository": "Repositori asli"
+  },
   "title": "Pengaturan",
   "intro": "Bawaan untuk generasi baru, notifikasi, dan paketmu.",
   "languageDescription": "Bahasa yang dipakai di seluruh SupoClip.",
@@ -83,8 +88,14 @@
     "failed": "Gagal menyimpan preferensi"
   },
   "toasts": {
-    "upgraded": "Paketmu sudah di-upgrade. Nikmati ruang tambahannya!",
     "ready": "Semua siap. Saatnya buat clip!"
+  },
+  "thanks": {
+    "title": "Terima kasih!",
+    "body": "Kamu sekarang di {plan}: {minutes} video per bulan, klip dalam {resolution}.",
+    "bodyShort": "Kamu sekarang di {plan}. Saatnya membuat klip.",
+    "makeClip": "Buat klip",
+    "done": "Selesai"
   },
   "apiKeys": {
     "title": "Agen & API",
@@ -283,5 +294,57 @@
     "unsupported": "Belum didukung penuh (bahasa umum): ",
     "all": "Semua bahasa yang didukung ({count})",
     "fallback": "Karakter yang tidak ada memakai font cadangan dan bisa terlihat berbeda. Cakupan dicek dari file font ini; pratinjau caption untuk karakter yang jarang."
+  },
+  "emailChange": {
+    "title": "Akun",
+    "description": "Alamat email yang kamu gunakan untuk masuk.",
+    "label": "Alamat email",
+    "verified": "Terverifikasi",
+    "unverified": "Belum diverifikasi",
+    "action": "Ubah email",
+    "dialogTitle": "Ubah email kamu",
+    "stepOf": "Langkah {step} dari 2",
+    "intro": "Pertama, kami akan mengirim kode ke <strong>{email}</strong> untuk memastikan ini kamu.",
+    "unverifiedNote": "Alamat ini belum diverifikasi. Memasukkan kode juga akan memverifikasinya.",
+    "password": "Kata sandi saat ini",
+    "noPassword": "Akunmu tidak memiliki kata sandi, jadi kode inilah cara kamu membuktikan bahwa ini kamu.",
+    "sendCurrent": "Kirim kode",
+    "codeSent": "Masukkan kode 6 digit yang kami kirim ke <strong>{email}</strong>.",
+    "codeLabel": "Kode",
+    "codeHint": "Kode berlaku selama 10 menit. Periksa folder spam jika tidak masuk.",
+    "resend": "Kirim kode baru",
+    "resendIn": "Kode baru dalam {seconds} dtk",
+    "useDifferent": "Gunakan alamat lain",
+    "verify": "Verifikasi",
+    "confirm": "Ubah email",
+    "currentConfirmed": "Alamat kamu saat ini sudah dikonfirmasi.",
+    "newLabel": "Alamat email baru",
+    "newHint": "Kami akan mengirim kode ke sana. Email kamu baru berubah setelah kamu memasukkannya.",
+    "sendNew": "Kirim kode",
+    "finishing": "Kedua alamat sudah dikonfirmasi, tetapi kami tidak dapat memperbarui email di akun penagihanmu. Email kamu belum berubah.",
+    "retry": "Coba lagi",
+    "doneTitle": "Email diubah",
+    "done": "Sekarang kamu masuk dengan <strong>{email}</strong>. Tanda terima dan notifikasi juga dikirim ke sana.",
+    "doneDetails": "Kami mengeluarkanmu dari perangkat lain dan mengirim pemberitahuan ke {previous}.",
+    "close": "Selesai",
+    "errors": {
+      "generic": "Terjadi kesalahan. Silakan coba lagi.",
+      "passwordRequired": "Masukkan kata sandi kamu saat ini.",
+      "invalidPassword": "Kata sandi itu salah.",
+      "reauthRequired": "Demi keamanan, keluar lalu masuk lagi, kemudian ubah email kamu.",
+      "rateLimited": "Terlalu banyak percobaan. Coba lagi dalam {minutes} mnt.",
+      "cooldown": "Kode baru saja dikirim. Kamu bisa meminta kode lain dalam {seconds} detik.",
+      "noRequest": "Permintaan ini sudah kedaluwarsa atau diganti. Mulai lagi.",
+      "wrongCode": "Kode itu salah.",
+      "wrongCodeLeft": "Kode itu salah. {count, plural, =0 {Minta kode baru.} other {Sisa # percobaan.}}",
+      "codeExpired": "Kode itu sudah kedaluwarsa. Minta kode baru.",
+      "tooManyAttempts": "Terlalu banyak kode yang salah. Minta kode baru.",
+      "invalidEmail": "Masukkan alamat email yang valid.",
+      "sameEmail": "Itu sudah alamat email kamu.",
+      "emailTaken": "Alamat email itu sudah digunakan oleh akun lain.",
+      "sendFailed": "Kami tidak dapat mengirim email. Silakan coba lagi.",
+      "billingUpdateFailed": "Kami tidak dapat memperbarui email penagihanmu, jadi tidak ada yang berubah. Silakan coba lagi.",
+      "inProgress": "Perubahan emailmu sedang disimpan. Tunggu sebentar, lalu periksa lagi."
+    }
   }
 }

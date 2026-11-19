@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
 import json
 import subprocess
+import time
 import uuid
 
 from ..stream_transfer import run_stream_download
@@ -79,6 +80,7 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
+from ..media.mp4_fragments import fragmented_mp4_duration
 from ..media.ffmpeg import (
     cap_video_short_side,
     ffprobe_duration,
@@ -114,6 +116,24 @@ from ..stream_source import (
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
+# Probing an upload in storage happens inside the create-task request. Give up
+# well before the proxy in front of the API (60 s) so the caller gets an answer.
+UPLOAD_PROBE_TIMEOUT_SECONDS = 40
+
+
+def _probe_stored_duration(signed_url: str) -> float:
+    """Length of an upload in storage, within ``UPLOAD_PROBE_TIMEOUT_SECONDS``.
+
+    ffprobe reads only the container headers through ranged requests, except
+    for a fragmented MP4, where it reads every fragment. Its length comes from
+    the last fragments instead.
+    """
+    started = time.monotonic()
+    duration = fragmented_mp4_duration(signed_url)
+    if duration is not None:
+        return duration
+    remaining = UPLOAD_PROBE_TIMEOUT_SECONDS - (time.monotonic() - started)
+    return ffprobe_duration(signed_url, timeout=max(1, remaining))
 
 
 async def resolve_upload_for_edit(video_service, url: str) -> Path:
@@ -648,17 +668,16 @@ class VideoService:
         if url.startswith("upload://s3/"):
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
-            # ffprobe reads only the container headers through ranged requests.
-            return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+            return _probe_stored_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
         path = VideoService.resolve_local_video_path(url)
         if path.is_file():
-            return ffprobe_duration(path)
+            return fragmented_mp4_duration(path) or ffprobe_duration(path)
         # Local file and sidecar are both gone. The upload session still names
         # the durable object; ffprobe reads its headers through a signed URL.
         if storage_reference:
             storage = MediaStorage()
             if storage.enabled:
-                return ffprobe_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
+                return _probe_stored_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
         return ffprobe_duration(path)
 
     @staticmethod

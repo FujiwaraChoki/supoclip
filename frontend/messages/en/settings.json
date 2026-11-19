@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "About",
+    "credit": "Based on SupoClip.",
+    "repository": "Original repository"
+  },
   "title": "Settings",
   "intro": "Defaults for new generations, notifications and your plan.",
   "languageDescription": "The language used across SupoClip.",
@@ -83,8 +88,14 @@
     "failed": "Failed to save preferences"
   },
   "toasts": {
-    "upgraded": "Your plan has been upgraded. Enjoy the extra room!",
     "ready": "You're all set. Time to make some clips!"
+  },
+  "thanks": {
+    "title": "Thank you!",
+    "body": "You're on {plan} now: {minutes} of video a month, clips in {resolution}.",
+    "bodyShort": "You're on {plan} now. Time to make some clips.",
+    "makeClip": "Make a clip",
+    "done": "Done"
   },
   "apiKeys": {
     "title": "Agents & API",
@@ -283,5 +294,57 @@
     "unsupported": "Not fully supported (common languages): ",
     "all": "All supported languages ({count})",
     "fallback": "Missing characters use a fallback font and may look different. Coverage is checked from this font file; preview captions for uncommon characters."
+  },
+  "emailChange": {
+    "title": "Account",
+    "description": "The email address you sign in with.",
+    "label": "Email address",
+    "verified": "Verified",
+    "unverified": "Not verified",
+    "action": "Change email",
+    "dialogTitle": "Change your email",
+    "stepOf": "Step {step} of 2",
+    "intro": "First we'll send a code to <strong>{email}</strong> to make sure it's you.",
+    "unverifiedNote": "This address isn't verified yet. Entering the code verifies it too.",
+    "password": "Current password",
+    "noPassword": "Your account has no password, so the code is how you confirm it's you.",
+    "sendCurrent": "Send code",
+    "codeSent": "Enter the 6-digit code we sent to <strong>{email}</strong>.",
+    "codeLabel": "Code",
+    "codeHint": "The code expires in 10 minutes. Check your spam folder if it doesn't arrive.",
+    "resend": "Send a new code",
+    "resendIn": "Send a new code in {seconds}s",
+    "useDifferent": "Use a different address",
+    "verify": "Verify",
+    "confirm": "Change email",
+    "currentConfirmed": "Your current address is confirmed.",
+    "newLabel": "New email address",
+    "newHint": "We'll send a code there. Your email changes only after you enter it.",
+    "sendNew": "Send code",
+    "finishing": "Both addresses are confirmed, but we couldn't update the email on your billing account. Your email hasn't changed yet.",
+    "retry": "Try again",
+    "doneTitle": "Email changed",
+    "done": "You now sign in with <strong>{email}</strong>. Receipts and notifications go there too.",
+    "doneDetails": "We signed you out on your other devices and sent a notice to {previous}.",
+    "close": "Done",
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "passwordRequired": "Enter your current password.",
+      "invalidPassword": "That password isn't right.",
+      "reauthRequired": "For your security, sign out and sign in again, then change your email.",
+      "rateLimited": "Too many attempts. Try again in {minutes} min.",
+      "cooldown": "A code was just sent. You can ask for another in {seconds} seconds.",
+      "noRequest": "This request expired or was replaced. Start again.",
+      "wrongCode": "That code isn't right.",
+      "wrongCodeLeft": "That code isn't right. {count, plural, =0 {Ask for a new code.} one {# try left.} other {# tries left.}}",
+      "codeExpired": "That code has expired. Ask for a new one.",
+      "tooManyAttempts": "Too many wrong codes. Ask for a new one.",
+      "invalidEmail": "Enter a valid email address.",
+      "sameEmail": "That's already your email address.",
+      "emailTaken": "Another account already uses that email address.",
+      "sendFailed": "We couldn't send the email. Please try again.",
+      "billingUpdateFailed": "We couldn't update your billing email, so nothing changed. Please try again.",
+      "inProgress": "Your email change is already being saved. Wait a moment, then check again."
+    }
   }
 }

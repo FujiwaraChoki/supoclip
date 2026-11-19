@@ -311,6 +311,10 @@ async def on_worker_startup(ctx: Dict[str, Any]) -> None:
     import asyncio
 
     await check_media_volume(ctx["redis"])
+    hold = overflow.overflow_after_seconds()
+    if hold:
+        overflow.take_only_overflow(ctx["redis"], DEFAULT_QUEUE_NAME, hold)
+        logger.info("Overflow worker: takes video jobs once they have waited %s s", hold)
     ctx["scratch_maintenance"] = asyncio.create_task(_maintain_scratch_forever())
 
 
@@ -332,6 +336,16 @@ from ..services.clip_export_service import (
     export_clip_preset,
 )
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
+from . import host_jobs, overflow
+from .job_queue import DEFAULT_QUEUE_NAME
+from .queue_delay import on_video_job_start
+
+
+async def on_video_job_begin(ctx) -> None:
+    await on_video_job_start(ctx)
+    # Lets the render autoscaler see that this machine is busy (host_jobs.py).
+    await host_jobs.record_job_start(ctx)
+
 
 # Worker configuration for arq
 class WorkerSettings:
@@ -376,7 +390,8 @@ class WorkerSettings:
     max_jobs = 4  # Process up to 4 jobs simultaneously
     cron_jobs = []
 
-    from .queue_delay import on_video_job_start as on_job_start
+    on_job_start = on_video_job_begin
+    on_job_end = host_jobs.record_job_end
 
     on_startup = on_worker_startup
     on_shutdown = on_worker_shutdown

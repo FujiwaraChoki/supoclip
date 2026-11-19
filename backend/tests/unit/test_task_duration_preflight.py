@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -216,6 +217,27 @@ async def test_unreadable_or_long_upload_uses_no_minutes(monkeypatch, creation, 
     assert error.value.status_code == 422
     assert error.value.detail["code"] == code
     assert "No minutes were used" in error.value.detail["message"]
+    service.create_task_with_source.assert_not_awaited()
+    queue.enqueue_processing_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_upload_that_is_too_slow_to_read_is_not_called_unplayable(monkeypatch, creation):
+    request, service, queue, _billing = creation
+    request.json.return_value = {"source": {"url": "upload://video.mp4"}}
+
+    def probe(*_args):
+        raise subprocess.TimeoutExpired(["ffprobe"], 40)
+
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_duration", staticmethod(probe))
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(request, db=None)
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "VIDEO_PROBE_TIMEOUT"
+    message = error.value.detail["message"]
+    assert "took too long" in message
+    assert "playable" not in message
+    assert "No minutes were used" in message
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
 
