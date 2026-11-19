@@ -311,6 +311,10 @@ async def on_worker_startup(ctx: Dict[str, Any]) -> None:
     import asyncio
 
     await check_media_volume(ctx["redis"])
+    hold = overflow.overflow_after_seconds()
+    if hold:
+        overflow.take_only_overflow(ctx["redis"], DEFAULT_QUEUE_NAME, hold)
+        logger.info("Overflow worker: takes video jobs once they have waited %s s", hold)
     ctx["scratch_maintenance"] = asyncio.create_task(_maintain_scratch_forever())
 
 
@@ -332,7 +336,8 @@ from ..services.clip_export_service import (
     export_clip_preset,
 )
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
-from . import host_jobs
+from . import host_jobs, overflow
+from .job_queue import DEFAULT_QUEUE_NAME
 from .queue_delay import on_video_job_start
 
 

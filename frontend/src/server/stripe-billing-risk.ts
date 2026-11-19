@@ -5,6 +5,7 @@ import {
   sourceStripeAccountId,
 } from "@/lib/stripe-accounts";
 import {
+  billingRiskCancellationComment,
   resolveBillingRisk,
   isBillingRiskEvent,
 } from "@/lib/stripe-billing-safety";
@@ -43,7 +44,7 @@ export async function handleOwnedBillingRisk(
       ? subscription
       : await client.subscriptions.cancel(
           subscription.id,
-          { cancellation_details: { comment: `billing_risk:${event.id}` } },
+          { cancellation_details: { comment: billingRiskCancellationComment(event) } },
           { idempotencyKey: `risk:${event.id}` },
         );
   await upsertSubscriptionState(cancelled);
