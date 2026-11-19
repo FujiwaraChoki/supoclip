@@ -157,9 +157,9 @@ each machine's worker log to see what it processed.
 `GET /health/worker` reports that at least one video worker is alive; it does
 not say which.
 
-## Per-account capacity on Sora
+## Per-account capacity on the hosted render server
 
-Sora runs eight video-worker slots. Its production environment sets
+The hosted render server runs eight video-worker slots. Its production environment sets
 `VIDEO_JOB_USER_CONCURRENCY=2`: one account can process two videos at once,
 leaving six slots available for other accounts when both are busy. The global
 worker limit remains eight. This is an initial capacity setting, not a measured
