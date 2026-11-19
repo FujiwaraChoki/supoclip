@@ -27,9 +27,12 @@ LABEL = decide.image_label(IMAGE)
 ON = Config(enabled=True)
 
 
-def metrics(queued=0, oldest=0.0, db=40, db_max=200, running=None):
+def metrics(queued=0, oldest=0.0, db=40, db_max=200, running=None, startable=None):
+    # By default every queued task's account has a free slot.
+    startable = queued if startable is None else startable
     return Metrics(queued_tasks=queued, oldest_queued_seconds=oldest, queue_depth=queued,
-                   db_connections=db, db_max_connections=db_max, running_by_host=running or {})
+                   db_connections=db, db_max_connections=db_max, running_by_host=running or {},
+                   startable_tasks=startable, oldest_startable_seconds=oldest if startable else 0.0)
 
 
 def worker(name="supoclip-render-auto-1", state=ACTIVE, image=LABEL, running=0, **kw):
@@ -56,6 +59,10 @@ class ScaleUp(unittest.TestCase):
 
     def test_a_deep_queue_adds_a_worker_even_if_nothing_waited_long(self):
         self.assertEqual(run(m=metrics(queued=20, oldest=60)).kinds(), ["scale_up"])
+
+    def test_tasks_held_by_the_per_account_limit_do_not_add_workers(self):
+        # One account has 30 tasks queued but already uses all of its slots.
+        self.assertEqual(run(m=metrics(queued=30, oldest=3600, startable=0)).actions, [])
 
     def test_the_next_free_name_is_used(self):
         plan = run(m=metrics(queued=30, oldest=900), workers=[worker(running=3)])
@@ -114,6 +121,10 @@ class ScaleDown(unittest.TestCase):
         plan = run(m=metrics(queued=1, oldest=30), workers=[worker(running=0, idle_since=NOW - 9999)])
         self.assertEqual(plan.idle_since, {"supoclip-render-auto-1": None})
         self.assertEqual(plan.actions, [])
+
+    def test_a_queue_no_worker_could_start_does_not_keep_a_worker_busy(self):
+        plan = run(m=metrics(queued=5, oldest=3600, startable=0), workers=[worker(running=0, idle_since=NOW - 1800)])
+        self.assertEqual(plan.kinds(), ["drain"])
 
     def test_unknown_running_jobs_never_count_as_idle(self):
         plan = run(workers=[worker(running=None, idle_since=NOW - 9999)])
@@ -328,6 +339,7 @@ class Scaler(unittest.TestCase):
 
     def busy(self, **running):
         return {"queued_tasks": 30, "oldest_queued_seconds": 1500, "queue_depth": 42,
+                "startable_tasks": 30, "oldest_startable_seconds": 1500,
                 "db_connections": 50, "db_max_connections": 200, "running_by_host": running}
 
     def test_scale_up_creates_provisions_and_activates_without_secrets_on_any_command_line(self):
@@ -397,6 +409,7 @@ class Scaler(unittest.TestCase):
         srv = server("supoclip-render-auto-1")
         cloud = FakeCloud([srv])
         idle = {"queued_tasks": 0, "oldest_queued_seconds": 0, "queue_depth": 0,
+                "startable_tasks": 0, "oldest_startable_seconds": 0,
                 "db_connections": 50, "db_max_connections": 200, "running_by_host": {srv["name"]: 0}}
         host = FakeHost(idle)
         state = autoscaler.State(self.dir / "state" / "state.json")
@@ -434,7 +447,7 @@ class Scaler(unittest.TestCase):
     def test_unmanaged_servers_are_invisible_and_cannot_be_deleted(self):
         other = server("hand-built-worker", managed=False)
         cloud = FakeCloud([other])
-        host = FakeHost({**self.busy(), "queued_tasks": 0, "oldest_queued_seconds": 0})
+        host = FakeHost({**self.busy(), "startable_tasks": 0, "oldest_startable_seconds": 0})
         self.scaler(cloud, host).run()
         self.assertEqual(cloud.calls, [])
         with self.assertRaises(autoscaler.AutoscalerError):
@@ -468,7 +481,7 @@ class Scaler(unittest.TestCase):
 
 def replace_metrics(host, **changes):
     host.metrics_out = {**host.metrics_out, "queued_tasks": changes.get("queued", 0),
-                                               "oldest_queued_seconds": 0}
+                        "startable_tasks": changes.get("queued", 0), "oldest_startable_seconds": 0}
     return host
 
 

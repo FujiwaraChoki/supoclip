@@ -578,7 +578,9 @@ class Autoscaler:
         )
         summary = {
             "queued": metrics and metrics.queued_tasks,
+            "startable": metrics and metrics.startable_tasks,
             "oldest_wait_min": metrics and round(metrics.oldest_queued_seconds / 60, 1),
+            "oldest_startable_wait_min": metrics and round(metrics.oldest_startable_seconds / 60, 1),
             "queue_depth": metrics and metrics.queue_depth,
             "db": metrics and f"{metrics.db_connections}/{metrics.db_max_connections}",
             "workers": {w.name: f"{w.state} running={w.running_jobs}" for w in workers},
@@ -637,12 +639,14 @@ class Autoscaler:
         if self.remote.container_running(public_ip(server)) is not False:
             raise AutoscalerError(f"{server['name']} still has a running worker (or is unreachable); not deleting")
         self.cloud.delete_server(server)
+        forget_host_key(self.s, public_ip(server))
+        self.state.close_spend(server["name"], now)
+        self.state.data["workers"].pop(server["name"], None)
         try:
             tunnel(self.s, server["name"], None, start=False, runner=self.runner)
-        finally:
-            forget_host_key(self.s, public_ip(server))
-            self.state.close_spend(server["name"], now)
-            self.state.data["workers"].pop(server["name"], None)
+        except AutoscalerError as error:
+            # The server is gone; a tunnel left retrying is untidy, not unsafe.
+            log.error("%s", error)
         self.alerts.send("scale_down", f"deleted {server['name']}: {reason}; spend today EUR "
                          f"{self.spend(now):.2f}", worker=server["name"])
 
@@ -688,7 +692,7 @@ class Autoscaler:
         except BaseException as error:
             # The worker was never started, so nothing can be running there.
             self.abandon(server, name, ip)
-            raise AutoscalerError(f"provisioning {name} failed and the server was deleted: {error}") from error
+            raise AutoscalerError(f"provisioning {name} failed; deleting the server: {error}") from error
         try:
             self.start_worker(ip)
             self.cloud.set_labels(server, state=ACTIVE)

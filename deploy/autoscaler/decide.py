@@ -41,6 +41,9 @@ class Metrics:
     queue_depth: int
     db_connections: int
     db_max_connections: int
+    # Queued tasks whose account has a free render slot: the ones a new worker could start.
+    startable_tasks: int = 0
+    oldest_startable_seconds: float = 0.0
     running_by_host: dict[str, int] = field(default_factory=dict)
 
 
@@ -132,12 +135,12 @@ def decide(
     draining = [w for w in workers if w.state == DRAINING]
     current_label = image_label(current_image) if current_image else None
 
-    # Idle timers: a worker is idle when nothing runs on it and nothing waits.
+    # Idle timers: a worker is idle when nothing runs on it and nothing it could start waits.
     for worker in active:
         idle = (
             metrics is not None
             and worker.running_jobs == 0
-            and metrics.queued_tasks == 0
+            and metrics.startable_tasks == 0
         )
         plan.idle_since[worker.name] = (worker.idle_since or now) if idle else None
 
@@ -204,13 +207,15 @@ def decide(
     if metrics is None:
         plan.notes.append("no queue metrics; not scaling up")
         return plan
-    wait_hit = metrics.queued_tasks > 0 and metrics.oldest_queued_seconds >= config.scale_up_wait_seconds
-    depth_hit = metrics.queued_tasks >= config.scale_up_queue_depth
+    # Only tasks that could start if there were a free slot: more machines do not help
+    # an account that already uses all of its per-account render slots.
+    wait_hit = metrics.startable_tasks > 0 and metrics.oldest_startable_seconds >= config.scale_up_wait_seconds
+    depth_hit = metrics.startable_tasks >= config.scale_up_queue_depth
     if not (wait_hit or depth_hit):
         return plan
     trigger = (
-        f"oldest queued task waited {int(metrics.oldest_queued_seconds // 60)} min"
-        if wait_hit else f"{metrics.queued_tasks} tasks queued"
+        f"oldest startable queued task waited {int(metrics.oldest_startable_seconds // 60)} min"
+        if wait_hit else f"{metrics.startable_tasks} startable tasks queued"
     )
 
     def blocked(key: str, why: str, alert: bool = True) -> Plan:
