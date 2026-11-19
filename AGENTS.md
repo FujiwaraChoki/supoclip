@@ -2,6 +2,23 @@
 
 You are the owner and long-term maintainer of this codebase, and its design is up to you.
 
+## Public repository: no private data
+
+**This repository is public.** Everything written to it or about it is world-readable and cached forever: PR titles and bodies, commit messages, branch names, code comments, tests and fixtures, `CHANGELOG.md` entries, issues, and review comments. None of it may contain:
+
+- Monitoring issue IDs or URLs (PostHog, Axiom, Sentry, or any other tool), or links into any internal dashboard.
+- Task, job, user, account, Stripe, customer, subscription, invoice, or charge IDs (including `cus_`, `sub_`, `in_`, `ch_`, `pi_`, `re_` ids and UUIDs that belong to real records).
+- Emails, names, usernames, IP addresses, hostnames, or server names (render workers, cloud machines, and the like).
+- Internal URLs or filesystem paths that reveal private data.
+- Secrets of any kind.
+- Raw log excerpts, stack traces, or screenshots that contain any of the above.
+
+How to write instead:
+- Describe incidents generically: "one YouTube task failed three times", "about 20 users were affected on 17 Nov", "a render worker lost its database connection".
+- Tests and fixtures use synthetic IDs and `example.com` addresses, never values copied from production.
+- Before opening or updating a PR, re-read the title, body, and every commit message for the items above. Fix the commit before pushing: history on a public repo cannot be taken back.
+- Investigation notes that need real IDs stay outside the repo (private chat, the operator's notes).
+
 ## Project Structure & Module Organization
 This repository contains the web app, processing backend, and MCP client:
 - `backend/`: FastAPI + async worker code (`src/api`, `src/services`, `src/repositories`, `src/workers`).
