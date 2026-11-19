@@ -134,7 +134,7 @@ export const creatorGuides: CreatorGuide[] = [
           ["Silent gameplay", "The actual play in the source footage", "Select manually; speech analysis may miss it"],
           ["Chat response", "The question plus a clear answer", "Preserve context without exposing private information"],
         ] },
-        links: [{ href: "/blog/find-best-moments-in-video", label: "Check whether a highlight stands on its own" }],
+        links: [{ href: "/blog/find-best-moments-in-video", label: "Check whether a highlight stands on its own" }, { href: "/blog/how-to-clip-gta-6", label: "Clipping GTA 6 streams? Follow the full workflow" }],
       },
       {
         id: "frame", heading: "3. Keep the important action inside the vertical frame",
@@ -311,7 +311,7 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "supoclip", heading: "SupoClip: a clipping workflow with an interface",
-        paragraphs: ["SupoClip accepts supported source links and uploaded video, proposes segments from speech, and gives you an editor for cuts, captions, framing, and exports. You can use the paid hosted service or run the application yourself under AGPL-3.0. The public demo shows actual generated clips with linked source moments.", "Self-hosting means operating the application, worker, database, media storage, and your chosen transcription and model providers. A local Whisper and Ollama configuration is available; using external providers changes where data is processed and what usage costs you incur. Choose the hosted service if your main goal is publishing rather than maintaining that stack."],
+        paragraphs: ["SupoClip accepts supported source links and uploaded video, proposes segments from speech, and gives you an editor for cuts, captions, framing, and exports. You can use the paid hosted service, or self-host for noncommercial use or as an individual creator posting to your own monetized channels. Other commercial use of the self-hosted software, such as by companies, agencies, or for client work, requires prior written permission from Shiori LLC. The public demo shows actual generated clips with linked source moments.", "Self-hosting means operating the application, worker, database, media storage, and your chosen transcription and model providers. A local Whisper and Ollama configuration is available; using external providers changes where data is processed and what usage costs you incur. Choose the hosted service if your main goal is publishing rather than maintaining that stack."],
         links: [{ href: "/demo", label: "Inspect real SupoClip output" }, { href: "/blog/self-host-supoclip-docker", label: "Read the setup requirements" }],
       },
       {

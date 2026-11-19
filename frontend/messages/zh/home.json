@@ -113,9 +113,15 @@
   "nudge": {
     "refreshesOn": "将于 {date} 重置。",
     "refreshesNext": "下个月重置。",
-    "startTitle": "选一个方案，开始剪辑",
-    "startDescription": "每月 {price} 起，每月 {length} 视频。你可以先完成所有设置。",
-    "seePlans": "查看方案",
+    "startTitle": "一条长视频，一周的短视频。",
+    "startDescription": "方案每月 {price} 起，每月 {length} 视频。你可以先完成所有设置，准备好了再选方案。",
+    "startPerks": {
+      "ai": "AI 挑选最精彩的片段并排名",
+      "captions": "逐词同步字幕，9:16 画幅",
+      "formats": "适配 TikTok、Reels 和 Shorts"
+    },
+    "startAction": "开始剪辑",
+    "startFootnote": "可随时取消",
     "limitTitle": "你本月已用完 {length} 视频",
     "limitWithPlan": "{refreshes} 或者继续使用 {plan}：每月 {limit} 视频。",
     "limitAppStore": "{refreshes}你可以在 SupoClip iOS 应用里更改方案。",

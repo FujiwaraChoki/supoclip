@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
@@ -9,17 +9,88 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { celebrate } from "@/lib/confetti";
 import { track } from "@/lib/datafast";
-import { dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourFlag, type TourStep } from "@/lib/feature-tours";
+import { crossesPages, dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourFlag, type TourStep } from "@/lib/feature-tours";
 import type { Workflow } from "@/lib/workflows";
 import { WorkflowGlyph } from "@/components/workflow-picker";
 
 const LAST_SHOWN_KEY = "supoclip.featureTour.lastShown";
 const SEEN_KEY = "supoclip.featureTour.seen";
+const HANDOFF_KEY = "supoclip.featureTour.handoff";
 const START_DELAY_MS = 900;
-/** How long a step waits for its target after asking the page to open the section or tab it lives in. */
-const REVEAL_TIMEOUT_MS = 1500;
-/** How often a step asks the page again to open where its target lives, while the target is missing. */
-const REOPEN_INTERVAL_MS = 250;
+/** How long a page gets to show what a step points at before the step is passed over. */
+const TARGET_WAIT_MS = 4000;
+/** A handoff older than this is from an abandoned tab, not a page change. */
+const HANDOFF_TTL_MS = 30_000;
+
+type Running = { tour: FeatureTour; steps: TourStep[]; preview: boolean };
+/** `steps` are indexes into the tour's steps: the ones it kept when it started. */
+type Handoff = { id: string; steps: number[]; index: number; preview: boolean; path: string; direction: 1 | -1; counted: number; at: number };
+
+function writeHandoff(handoff: Handoff) {
+  try { window.sessionStorage.setItem(HANDOFF_KEY, JSON.stringify(handoff)); } catch { /* storage blocked: the tour ends at the page change */ }
+}
+
+function clearHandoff() {
+  try { window.sessionStorage.removeItem(HANDOFF_KEY); } catch { /* nothing to clear */ }
+}
+
+/** The tour the page before sent here, read once. */
+function takeHandoff(): Handoff | null {
+  try {
+    const raw = window.sessionStorage.getItem(HANDOFF_KEY);
+    window.sessionStorage.removeItem(HANDOFF_KEY);
+    const handoff = raw ? JSON.parse(raw) as Handoff : null;
+    return handoff && typeof handoff.id === "string" && Number.isInteger(handoff.index) && Array.isArray(handoff.steps) && Date.now() - handoff.at < HANDOFF_TTL_MS ? handoff : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Room the phone's sticky header and tab bar take (desktop just gets a margin). */
+const CLEAR_TOP = 72;
+const CLEAR_BOTTOM = 88;
+
+/** Scroll the target clear of the header and tab bar; one taller than the room is shown from its top. */
+function bringIntoView(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  // Sideways first: the workflow cards scroll horizontally on a phone.
+  if (rect.left < 0 || rect.right > window.innerWidth) {
+    element.scrollIntoView?.({ block: "nearest", inline: "center", behavior: "smooth" });
+    return;
+  }
+  const bottom = window.innerHeight - CLEAR_BOTTOM;
+  const delta = rect.height > bottom - CLEAR_TOP || rect.top < CLEAR_TOP ? rect.top - CLEAR_TOP : rect.bottom > bottom ? rect.bottom - bottom : 0;
+  if (delta !== 0) window.scrollBy?.({ top: delta, behavior: "smooth" });
+}
+
+/**
+ * Where the card is placed: the target's box cut to the screen, and at most the top part of a tall
+ * one, so the card fits below it instead of covering it or the tab bar.
+ */
+function visiblePart(element: HTMLElement): DOMRect {
+  const rect = element.getBoundingClientRect();
+  const top = Math.max(rect.top, 0);
+  const bottom = Math.min(rect.bottom, window.innerHeight, top + window.innerHeight * 0.4);
+  return bottom > top ? new DOMRect(rect.left, top, rect.width, bottom - top) : rect;
+}
+
+/** Whether this step is on the page being shown. */
+function onPage(step: TourStep, pathname: string): boolean {
+  return step.path === undefined || step.path === pathname;
+}
+
+/** The steps that count towards "3 of 9": not the opening question. */
+function countedSteps(steps: readonly TourStep[]): TourStep[] {
+  return steps.filter((step) => !step.intro);
+}
+
+/**
+ * Whether what a step requires is in the document. Checked on a page that has settled (where the tour
+ * starts, and before leaving for the step's page), never on arrival: a fresh page's sidebar is still loading.
+ */
+function requirementMet(step: TourStep): boolean {
+  return !step.requires || document.querySelector(`[data-tour="${step.requires}"]`) !== null;
+}
 
 function readLocal(key: string): string | null {
   try { return window.localStorage.getItem(key); } catch { return null; }
@@ -44,11 +115,6 @@ function record(id: string, event: "shown" | "completed" | "dismissed", step?: n
 
 const richText = { b: (chunks: ReactNode) => <strong className="font-semibold text-foreground">{chunks}</strong> };
 
-function targetOf(step: TourStep): HTMLElement | null {
-  const element = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
-  return element && element.getClientRects().length > 0 && !element.matches(":disabled") ? element : null;
-}
-
 /** Ways the page can bring a hidden target on screen (a closed settings menu, another inspector tab). */
 type Openers = {
   onSettingsSection?: (id: string) => void;
@@ -59,6 +125,19 @@ type Openers = {
 function reachable(step: TourStep, openers: Openers): boolean {
   if (targetOf(step)) return true;
   return Boolean((step.settingsSection && openers.onSettingsSection) || (step.inspectorTab && openers.onInspectorTab));
+}
+
+/** The first visible, enabled element for this step: the sidebar and the mobile tab bar can carry the same target. */
+function targetOf(step: TourStep): HTMLElement | null {
+  const elements = document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`);
+  return Array.from(elements).find((element) => element.getClientRects().length > 0 && !element.matches(":disabled")) ?? null;
+}
+
+/** Beside a sidebar link on desktop; above it in the mobile tab bar, where there's no room beside it. */
+function sideOf(step: TourStep): NonNullable<TourStep["side"]> {
+  const side = step.side ?? "bottom";
+  const narrow = window.matchMedia?.("(max-width: 767px)").matches ?? false;
+  return narrow && (side === "left" || side === "right") ? "top" : side;
 }
 
 /** `?tour=<id>` replays a tour for checking it, ignoring who has seen what. */
@@ -147,13 +226,23 @@ function AnnouncementMedia({ media, variantsUrl }: { media: Media; /** Previews 
 }
 
 /**
- * Walks through what's new on the real page. It opens by asking, can be left at any
- * step, shows once per account, and steps aside as soon as the user gets to work.
+ * Walks through the real page, or several: a welcome for new accounts, or what's new for everyone
+ * else. It opens by asking, can be left at any step, shows once per account, and steps aside as
+ * soon as the user gets to work or goes somewhere else.
+ *
+ * Mounted by the app shell on every signed-in page. A tour only starts on the create screen; a tour
+ * that crosses pages hands itself to the next page's host through session storage.
  */
-export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSection, onInspectorTab }: {
+export function FeatureTourHost({ enabled, pathname, navigate, canStart = false, busy = false, onWorkflow, onEnd, onSettingsSection, onInspectorTab }: {
   enabled: boolean;
+  /** The page this host is on. */
+  pathname: string;
+  /** Go to another page for the next step. */
+  navigate: (path: string) => void;
+  /** New tours start here (the create screen). Elsewhere a host only carries on a tour in progress. */
+  canStart?: boolean;
   /** The user is doing something: don't start, and leave if already showing. */
-  busy: boolean;
+  busy?: boolean;
   /** Show this workflow while a step talks about it. */
   onWorkflow?: (workflow: Workflow) => void;
   /** The tour is over: put back what it changed. */
@@ -169,10 +258,19 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
   const [flags, setFlags] = useState<Partial<Record<TourFlag, boolean>> | null>(null);
   const openers = useRef<Openers>({ onSettingsSection, onInspectorTab });
   useEffect(() => { openers.current = { onSettingsSection, onInspectorTab }; }, [onSettingsSection, onInspectorTab]);
-  const [running, setRunning] = useState<{ tour: FeatureTour; steps: TourStep[]; preview: boolean } | null>(null);
+  const [running, setRunning] = useState<Running | null>(null);
   const [index, setIndex] = useState(0);
+  const [target, setTarget] = useState<HTMLElement | null>(null);
   const started = useRef(false);
   const showMe = useRef<HTMLButtonElement>(null);
+  /** Which way the user is going, so a step with nothing to show is passed in that direction. */
+  const direction = useRef<1 | -1>(1);
+  /** The page this host sent the tour to, so arriving there isn't mistaken for leaving. */
+  const travelling = useRef<string | null>(null);
+  /** The step last found on its own page: if the page then changes, the user left, and the tour doesn't follow them back. */
+  const placed = useRef<TourStep | null>(null);
+  /** When the tour arrived on this page: it gets a moment to load what a step points at. The page a tour starts on is loaded already. */
+  const arrivedAt = useRef(0);
 
   const runningRef = useRef(running);
   const indexRef = useRef(index);
@@ -188,16 +286,52 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
   const end = useCallback((how: "completed" | "dismissed", restore = true) => {
     const current = runningRef.current;
     if (current && !current.preview) {
-      const step = current.steps.filter((entry) => !entry.intro).indexOf(current.steps[indexRef.current]) + 1;
+      const step = countedSteps(current.steps).indexOf(current.steps[indexRef.current]) + 1;
       record(current.tour.id, how, step);
       track(how === "completed" ? "feature_tour_finished" : "feature_tour_dismissed", { tour: current.tour.id, step });
     }
+    clearHandoff();
+    travelling.current = null;
     setRunning(null);
+    setTarget(null);
     if (restore) onEnd?.();
   }, [onEnd]);
 
+  // A tour carried over from the page before.
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || started.current) return;
+    const handoff = takeHandoff();
+    if (!handoff) return;
+    const tour = FEATURE_TOURS.find((entry) => entry.id === handoff.id);
+    if (!tour) return;
+    started.current = true;
+    if (handoff.path !== pathname) {
+      // They went somewhere else while the tour was on its way: that's leaving it.
+      if (!handoff.preview) {
+        record(tour.id, "dismissed", handoff.counted);
+        track("feature_tour_dismissed", { tour: tour.id, step: handoff.counted });
+      }
+      return;
+    }
+    direction.current = handoff.direction;
+    arrivedAt.current = Date.now();
+    const steps = handoff.steps.map((position) => tour.steps[position]).filter(Boolean);
+    if (!steps[handoff.index]) return;
+    setRunning({ tour, steps, preview: handoff.preview });
+    setIndex(handoff.index);
+  }, [enabled, pathname]);
+
+  // The page is left (another layout takes over) while a step is showing and not on its way to the next page.
+  useEffect(() => () => {
+    const current = runningRef.current;
+    if (!current || current.preview || travelling.current !== null) return;
+    const step = countedSteps(current.steps).indexOf(current.steps[indexRef.current]) + 1;
+    record(current.tour.id, "dismissed", step);
+    track("feature_tour_dismissed", { tour: current.tour.id, step });
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !canStart) return;
     let cancelled = false;
     void fetch("/api/feature-tours", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
@@ -215,11 +349,12 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
       })
       .catch(() => { if (!cancelled) setFlags({}); });
     return () => { cancelled = true; };
-  }, [enabled]);
+  }, [enabled, canStart]);
 
   useEffect(() => {
-    if (!account || !flags || busy || started.current) return;
+    if (!account || !flags || !canStart || busy || started.current) return;
     const timer = setTimeout(() => {
+      if (started.current) return;
       const preview = requestedTour();
       const recent = Date.now() - Number(readLocal(LAST_SHOWN_KEY) ?? 0) < TOUR_COOLDOWN_MS;
       if (!preview && recent) return;
@@ -229,11 +364,13 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
         : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]).filter((tour) => !tour.requiresFlag || flags[tour.requiresFlag] === true);
       // A tour with nothing to show waits: its feature may not be open to this account yet.
       for (const tour of candidates) {
-        const steps = tour.steps.filter((step) => reachable(step, openers.current));
-        if (!steps.some((step) => !step.intro)) continue;
+        const here = tour.steps.filter((step) => onPage(step, pathname) && reachable(step, openers.current));
+        if (!here.some((step) => !step.intro)) continue;
         // Without its opening there's no feature to introduce yet: save it, don't spend it on the leftovers.
-        if (tour.steps.some((step) => step.intro) && !steps.some((step) => step.intro)) continue;
+        if (tour.steps.some((step) => step.intro) && !here.some((step) => step.intro)) continue;
         started.current = true;
+        // A tour across pages keeps the steps for other pages: those are looked for when it gets there.
+        const steps = crossesPages(tour) ? tour.steps.filter((step) => (!onPage(step, pathname) || here.includes(step)) && requirementMet(step)) : here;
         setRunning({ tour, steps, preview: Boolean(preview) });
         setIndex(0);
         if (!preview) {
@@ -246,65 +383,94 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
       }
     }, START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [account, flags, busy]);
+  }, [account, flags, busy, canStart, pathname]);
 
   useEffect(() => {
     // They started working: keep what they have selected.
     if (busy && runningRef.current) end("dismissed", false);
   }, [busy, end]);
 
+  // Arriving where the tour sent us is fine; any other page change means they left the tour.
+  useEffect(() => {
+    const current = runningRef.current;
+    if (!current) return;
+    if (travelling.current === pathname) {
+      travelling.current = null;
+      arrivedAt.current = Date.now();
+      clearHandoff();
+      return;
+    }
+    if (travelling.current === null && !onPage(current.steps[indexRef.current], pathname)) end("dismissed", false);
+  }, [pathname, end]);
+
   const step = running?.steps[index];
   useEffect(() => {
     if (step?.workflow) onWorkflow?.(step.workflow);
   }, [step, onWorkflow]);
-  // A target in a closed menu or another tab: ask the page to open it, then wait for it to appear. The target is looked
-  // up again every frame: a menu can close under the tour (focus returning from the opening dialog, a click elsewhere),
-  // and a removed element measures as 0,0, which would put the card in the corner. While it's gone the card hides and
-  // the menu is asked to open again.
-  // `found` only makes the host render again when the target comes, goes or is replaced; each render looks it up fresh.
-  const [, setFound] = useState<{ step: TourStep; element: HTMLElement } | null>(null);
-  const target = step ? targetOf(step) : null;
+
+  /** Pass a step there's nothing for, the way the user was going. */
+  const pass = useCallback(() => {
+    const current = runningRef.current;
+    if (!current) return;
+    const nextIndex = indexRef.current + direction.current;
+    if (nextIndex < 0) { direction.current = 1; setIndex(indexRef.current + 1); return; }
+    if (nextIndex >= current.steps.length) { end("completed"); return; }
+    setIndex(nextIndex);
+  }, [end]);
+
+  // Find what this step points at: on this page, after going to its page, or not at all.
   useEffect(() => {
-    if (!step || step.intro) return;
+    setTarget(null);
+    if (!running || !step) return;
+    if (!onPage(step, pathname)) {
+      if (placed.current === step) return;
+      if (!requirementMet(step)) { pass(); return; }
+      const path = step.path!;
+      const counted = countedSteps(running.steps).indexOf(step) + 1;
+      writeHandoff({ id: running.tour.id, steps: running.steps.map((entry) => running.tour.steps.indexOf(entry)), index, preview: running.preview, path, direction: direction.current, counted, at: Date.now() });
+      travelling.current = path;
+      navigate(path);
+      return;
+    }
+    placed.current = step;
+    // Pages load their content after they appear: give the target a moment.
+    const waitUntil = arrivedAt.current + TARGET_WAIT_MS;
+    let timer: ReturnType<typeof setTimeout>;
+    // A target in a closed settings menu or another inspector tab: ask the page to open it (idempotent), and again
+    // while it is missing. A menu can close under the tour; then the card hides and the target is looked for anew.
     const open = () => {
       if (step.settingsSection) openers.current.onSettingsSection?.(step.settingsSection);
       if (step.inspectorTab) openers.current.onInspectorTab?.(step.inspectorTab);
     };
-    open();
-    let missingSince: number | null = performance.now();
-    let openedAt = performance.now();
-    let frame = 0;
+    const opens = Boolean(step.settingsSection || step.inspectorTab);
+    let lostAt: number | null = null;
     const look = () => {
-      const now = performance.now();
-      const element = targetOf(step);
-      if (element) {
-        missingSince = null;
-        setFound((current) => (current?.step === step && current.element === element ? current : { step, element }));
-      } else {
-        setFound((current) => (current?.step === step ? null : current));
-        missingSince ??= now;
-        if (now - openedAt > REOPEN_INTERVAL_MS) {
-          open();
-          openedAt = now;
-        }
-        if (now - missingSince > REVEAL_TIMEOUT_MS) {
-          // Still not there (the section isn't offered after all): move on rather than hang.
-          const current = runningRef.current;
-          if (current && indexRef.current < current.steps.length - 1) setIndex(indexRef.current + 1);
-          else end("dismissed");
-          return;
-        }
+      const found = targetOf(step);
+      if (found) {
+        lostAt = null;
+        setTarget((current) => (current === found ? current : found));
+        if (opens) timer = setTimeout(look, 250);
+        return;
       }
-      frame = requestAnimationFrame(look);
+      setTarget(null);
+      if (opens) open();
+      lostAt ??= Date.now();
+      if (Date.now() >= Math.max(waitUntil, lostAt + TARGET_WAIT_MS)) { pass(); return; }
+      timer = setTimeout(look, 120);
     };
-    frame = requestAnimationFrame(look);
-    return () => cancelAnimationFrame(frame);
-  }, [step, end]);
+    if (opens && !step.intro) open();
+    look();
+    return () => clearTimeout(timer);
+  }, [running, step, index, pathname, navigate, pass]);
+
   useEffect(() => {
-    target?.scrollIntoView?.({ block: "nearest", inline: "center", behavior: "smooth" });
+    if (target) bringIntoView(target);
   }, [target]);
+  // The card sits beside the part of the target that's on screen, so a tall one can't push it off.
+  const anchor = useMemo(() => (target ? { getBoundingClientRect: () => visiblePart(target) } : null), [target]);
 
   const next = (event?: { currentTarget: HTMLElement }) => {
+    direction.current = 1;
     if (running && index < running.steps.length - 1) {
       setIndex(index + 1);
       return;
@@ -313,10 +479,14 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
     celebrate(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : undefined);
     end("completed");
   };
+  const back = () => {
+    direction.current = -1;
+    setIndex(index - 1);
+  };
 
   if (!running || !step || !target) return null;
   // The opening question isn't one of the steps being counted.
-  const counted = running.steps.filter((entry) => !entry.intro);
+  const counted = countedSteps(running.steps);
   const position = counted.indexOf(step) + 1;
   const keys = `${running.tour.id}.${step.message}`;
 
@@ -331,7 +501,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
         >
           {running.tour.media && <AnnouncementMedia media={running.tour.media} variantsUrl={running.preview ? running.tour.media.variants : undefined} />}
           <div className="px-6 pb-6 pt-5">
-            <span className="inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">{t("new")}</span>
+            <span className="inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">{running.tour.audience === "new" ? t("welcomeBadge") : t("new")}</span>
             <DialogTitle className="mt-2 font-display text-xl tracking-tight">{t(`${keys}.title`)}</DialogTitle>
             <DialogDescription className="mt-1.5 text-sm">{t(`${keys}.body`)}</DialogDescription>
             <div className="mt-5 flex items-center justify-end gap-2">
@@ -348,11 +518,12 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
     <>
       <Spotlight target={target} />
       <Popover open onOpenChange={(open) => { if (!open) end("dismissed"); }} modal={false}>
-        <PopoverAnchor virtualRef={{ current: target }} />
+        <PopoverAnchor virtualRef={{ current: anchor! }} />
         <PopoverContent
-          side={step.side ?? "bottom"}
+          side={sideOf(step)}
           sideOffset={14}
           collisionPadding={12}
+          sticky="always"
           role="status"
           className="w-[min(90vw,340px)] rounded-2xl p-4 shadow-xl"
           onOpenAutoFocus={(event) => event.preventDefault()}
@@ -368,7 +539,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
               <button type="button" onClick={() => end("dismissed")} className="-ml-1 rounded-md px-1 py-1 text-xs text-muted-foreground/70 transition-colors hover:text-foreground">{t("skip")}</button>
               <span className="flex items-center gap-1">
                 {counted.length > 1 && <span className="mr-1 text-xs tabular-nums text-muted-foreground">{t("progress", { current: position, total: counted.length })}</span>}
-                {position > 1 && <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-3 text-xs" onClick={() => setIndex(index - 1)}>{t("back")}</Button>}
+                {position > 1 && <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-3 text-xs" onClick={back}>{t("back")}</Button>}
                 <Button type="button" size="sm" className="h-8 rounded-full px-4 text-xs" onClick={next}>{index < running.steps.length - 1 ? t("next") : t("done")}</Button>
               </span>
           </div>

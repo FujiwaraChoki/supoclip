@@ -113,9 +113,15 @@
   "nudge": {
     "refreshesOn": "Renova em {date}.",
     "refreshesNext": "Renova no próximo mês.",
-    "startTitle": "Escolha um plano para começar a recortar",
-    "startDescription": "A partir de {price}/mês por {length} de vídeo por mês. Fique à vontade para configurar tudo antes.",
-    "seePlans": "Ver planos",
+    "startTitle": "Um vídeo longo. Uma semana de shorts.",
+    "startDescription": "Planos a partir de {price}/mês por {length} de vídeo por mês. Configure tudo antes e escolha um plano quando estiver pronto.",
+    "startPerks": {
+      "ai": "Os melhores momentos, escolhidos e ranqueados por IA",
+      "captions": "Legendas sincronizadas palavra por palavra, em 9:16",
+      "formats": "Prontos para TikTok, Reels e Shorts"
+    },
+    "startAction": "Comece a cortar",
+    "startFootnote": "Cancele quando quiser",
     "limitTitle": "Você usou todos os {length} de vídeo deste mês",
     "limitWithPlan": "{refreshes} Ou continue com o {plan}: {limit} de vídeo por mês.",
     "limitAppStore": "{refreshes} Você pode mudar de plano no app iOS do SupoClip.",

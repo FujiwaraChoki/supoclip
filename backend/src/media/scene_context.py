@@ -43,11 +43,6 @@ LAYOUT_MAX_RUNS = 5
 # a neighbouring face crop; an empty or crowded shot never does.
 SOFT_SINGLE_FACE_RATE = 0.6
 
-# One face away from the frame edge and at least this share of the frame (head
-# and shoulders, or closer) is the subject: motion around it is the person's
-# own gestures, or a chat overlay beside them, not action across the frame.
-PRESENTER_FACE_AREA = 0.03
-
 # Cover: a fitted shot of live footage (b-roll, a POV or handheld vlog, a wide
 # scene) fills the 9:16 frame with a full-height crop instead of a letterboxed
 # strip, the way short-form editors cut it. Only shots whose risk is that no
@@ -67,6 +62,10 @@ COVER_MAX_TEXT_BLOCK_RATE = 0.35
 COVER_MAX_GROUP_RATE = 0.3
 # A crop centre this close to the last one continues the same composition.
 COVER_SAME_X = 0.05
+# One face away from the frame edge and at least this share of the frame (head
+# and shoulders, or closer) is the subject: motion around it is the person's
+# own gestures, or a chat overlay beside them, not action across the frame.
+PRESENTER_FACE_AREA = 0.03
 # How much less a column at the frame edge counts than one in the middle when looking for the subject of a shot
 # without faces (see ContextAnalyzer._focus_center). Read by the interview layout's covers; the scene plan's
 # covers (_cover_x) keep the detail centre, which suits the handheld POV footage they were tuned on.

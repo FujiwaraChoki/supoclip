@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the SupoClip render worker autoscaler every two minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=2min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

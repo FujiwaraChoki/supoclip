@@ -13,7 +13,7 @@
     "agreement": {
       "title": "Agreement",
       "p1": "These Terms of Service (“Terms”) are between you and {company} (“we,” “us,” “our”), the operator of the SupoClip apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips. By creating an account or using the Service you agree to these Terms. If you do not agree, do not use the Service.",
-      "p2": "SupoClip is also available as open-source software you can self-host. These Terms apply to the SupoClip-operated hosted service; self-hosted instances are governed by the applicable open-source license and the operator’s own terms."
+      "p2": "SupoClip is also available as open-source software you can self-host. These Terms apply to the SupoClip-operated hosted service; self-hosted instances are governed by the applicable software license and the operator’s own terms."
     },
     "account": {
       "title": "Your Account",

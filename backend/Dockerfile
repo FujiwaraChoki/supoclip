@@ -51,6 +51,7 @@ RUN cd src/fx_runtime && deno install --frozen
 
 # Copy source code
 COPY src/ ./src/
+COPY LICENSE ./
 
 # Copy fonts and transitions directories
 COPY fonts/ ./fonts/

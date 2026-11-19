@@ -22,6 +22,7 @@ If you are new to the project, start here:
   - Intensity budgets, settings, the FX render chain, assets and drop-ins
   - Rollout, fallbacks and troubleshooting
 - [Video workers on other machines](./render-worker.md)
+- [Autoscaling render workers](./autoscaling.md)
   - What is shared (PostgreSQL, Redis, the bucket) and what is local scratch
   - Worker-only Compose file and checks
 - [Configuration](./configuration.md)
@@ -32,6 +33,10 @@ If you are new to the project, start here:
   - YouTube auth rotation settings
   - Twitch and Kick import providers
   - Feedback and email configuration
+- [Feedback inbox](./feedback.md)
+  - Stored submissions and admin triage
+  - Webhook outbox, retries, SSRF rules, signed JSON payload
+  - Rollout from the Discord environment variables
 - [App Guide](./app-guide.md)
   - Main screens and routes
   - Core user workflows

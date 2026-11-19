@@ -28,7 +28,7 @@ async def test_feedback_rejects_invalid_category(client, auth_headers):
         json={"category": "unknown", "message": "hi"},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

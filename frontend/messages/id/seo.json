@@ -123,8 +123,8 @@
         "answer": "Ya. SupoClip menerima URL YouTube, mengidentifikasi momen kandidat, dan bisa merender clip vertikal ber-caption yang cocok untuk YouTube Shorts."
       },
       "2": {
-        "question": "Apakah SupoClip open source?",
-        "answer": "Ya. Basis kode SupoClip tersedia di bawah lisensi AGPL-3.0 dan bisa di-host sendiri atau diubah."
+        "question": "Bisakah saya meng-host SupoClip sendiri?",
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
       },
       "3": {
         "question": "Sumber video apa yang diterima SupoClip?",
@@ -147,8 +147,8 @@
     "tableRows": {
       "0": {
         "0": "Akses sumber",
-        "1": "Repositori AGPL-3.0 lengkap",
-        "2": "Repositori AGPL-3.0 penuh"
+        "1": "Lisensi Kode Sumber Nonkomersial SupoClip",
+        "2": "Lisensi Kode Sumber Nonkomersial SupoClip"
       },
       "1": {
         "0": "Infrastruktur",
@@ -162,7 +162,7 @@
       },
       "3": {
         "0": "Kustomisasi",
-        "1": "Pengaturan aplikasi; kode sumber tersedia terpisah",
+        "1": "Pengaturan aplikasi; dengan kode sumber publik terpisah",
         "2": "Kode sumber aplikasi dan pipeline"
       }
     },
@@ -175,7 +175,7 @@
       "1": {
         "heading": "Apa yang tetap menjadi tanggung jawabmu",
         "p1": "Open source tidak berarti setiap dependensi gratis. Yang host sendiri menyediakan komputasi, penyimpanan, layanan transkripsi, dan konfigurasi model bahasa mereka sendiri. Imbangannya adalah tanggung jawab operasional sebagai ganti kendali di tingkat sumber.",
-        "p2": "Tim juga sebaiknya meninjau lisensi AGPL-3.0, mengamankan variabel environment, menjaga dependensi tetap mutakhir, dan memantau lapisan worker serta penyimpanan di produksi.",
+        "p2": "Tim juga sebaiknya meninjau lisensi Lisensi Kode Sumber Nonkomersial SupoClip, mengamankan variabel environment, menjaga dependensi tetap mutakhir, dan memantau lapisan worker serta penyimpanan di produksi.",
         "bullet1": "Sediakan komputasi dan penyimpanan persisten",
         "bullet2": "Konfigurasi penyedia transkripsi dan model",
         "bullet3": "Lindungi rahasia dan rute yang diautentikasi",
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "Apakah SupoClip gratis untuk di-host sendiri?",
-        "answer": "Kode sumbernya gratis di bawah lisensi AGPL-3.0. Kamu tetap bertanggung jawab atas infrastruktur dan pemakaian transkripsi atau penyedia AI yang berbayar."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Kamu tetap bertanggung jawab atas infrastruktur dan pemakaian transkripsi atau penyedia AI yang berbayar."
       },
       "1": {
         "question": "Bisakah SupoClip memakai model bahasa lokal?",
@@ -292,7 +292,7 @@
     "hostedBody": "Pro mulai US${price}/bulan dengan {hours} jam video sumber per bulan dan klip {resolution}. Pemrosesan dikelola untuk Anda. Aplikasi terkelola memerlukan paket berbayar.",
     "plans": "Lihat paket saat ini",
     "selfHostTitle": "Jalankan sendiri",
-    "selfHostBody": "Kode sumber gratis dengan lisensi AGPL-3.0. Anda menyediakan perangkat keras, penyimpanan, pemeliharaan, serta layanan transkripsi atau AI berbayar yang Anda pilih.",
+    "selfHostBody": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Anda menyediakan perangkat keras, penyimpanan, pemeliharaan, serta layanan transkripsi atau AI berbayar yang Anda pilih.",
     "selfHostButton": "Baca panduan hosting mandiri",
     "ai-video-clipper": {
       "title": "Ubah rekaman Anda menjadi klip siap terbit",

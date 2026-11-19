@@ -27,7 +27,7 @@ export function AssistantConnect() {
       aria-labelledby="assistant-connect-title"
     >
       <TabsPrimitive.Root defaultValue={ASSISTANT_CONNECTORS[0].id}>
-        <div className="space-y-4 p-5">
+        <div data-tour="assistant-connect" className="space-y-4 p-5">
           <div>
             <h2 id="assistant-connect-title" className="text-sm font-semibold">{t("title")}</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("intro")}</p>

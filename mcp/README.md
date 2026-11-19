@@ -331,7 +331,9 @@ Pass the `job_id` to `supoclip_wait_for_task` as `clip_job_id` to wait for it.
 
 ## License
 
-AGPL-3.0-or-later, matching the SupoClip project.
+[SupoClip Noncommercial Source License](LICENSE), issued by Shiori LLC. Individual creators may self-host for their own monetized channels; other commercial use, including by companies and agencies, requires prior written permission.
+
+Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
 
 ### Clip length
 

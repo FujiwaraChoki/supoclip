@@ -113,9 +113,15 @@
   "nudge": {
     "refreshesOn": "Diperbarui pada {date}.",
     "refreshesNext": "Diperbarui bulan depan.",
-    "startTitle": "Pilih paket untuk mulai buat clip",
-    "startDescription": "Mulai {price}/bln untuk {length} video sebulan. Silakan atur semuanya dulu.",
-    "seePlans": "Lihat paket",
+    "startTitle": "Satu video panjang. Seminggu konten shorts.",
+    "startDescription": "Paket mulai {price}/bln untuk {length} video sebulan. Atur semuanya dulu, lalu pilih paket saat kamu siap.",
+    "startPerks": {
+      "ai": "Momen terbaik, dipilih dan diberi skor oleh AI",
+      "captions": "Subtitle sinkron per kata, dalam format 9:16",
+      "formats": "Siap untuk TikTok, Reels, dan Shorts"
+    },
+    "startAction": "Mulai memotong",
+    "startFootnote": "Batalkan kapan saja",
     "limitTitle": "Kamu sudah memakai semua {length} video bulan ini",
     "limitWithPlan": "{refreshes} Atau lanjut dengan {plan}: {limit} video sebulan.",
     "limitAppStore": "{refreshes} Kamu bisa ganti paket di aplikasi iOS SupoClip.",

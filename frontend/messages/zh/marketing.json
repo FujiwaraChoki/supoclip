@@ -17,16 +17,29 @@
       "featureCrop": "人脸感知的 9:16 竖屏裁切",
       "featureCaptions": "逐词同步的动画字幕",
       "featureExports": "导出到 YouTube Shorts、TikTok 和 Instagram Reels",
-      "featureSelfHost": "开源自托管",
-      "offerCategory": "自托管开源版本",
+      "featureSelfHost": "非商业用途和个人创作者可免费自托管",
+      "offerCategory": "提供供非商业用途和个人创作者自托管的源代码",
       "ios": "SupoClip iOS 应用：在 iPhone 上把长视频剪成带字幕的竖屏短片。",
       "website": "面向短视频内容的开源 AI 视频剪辑。"
     }
   },
+  "community": {
+    "eyebrow": "Discord 上的 SupoClip",
+    "title": "和大家一起剪出更好的短片。",
+    "body": "请大家看看你的剪辑，交流编辑技巧，也欢迎告诉我们如何改进 SupoClip。",
+    "join": "在 Discord 上加入",
+    "activities": {
+      "showcase": "分享短片并获取反馈",
+      "tips": "交流剪辑技巧",
+      "ideas": "为功能创意投票"
+    }
+  },
   "footer": {
     "tagline": "开源 AI 视频剪辑工具。使用托管应用，或在你自己的基础设施上运行。",
+    "licenseNotice": "个人创作者可以免费自托管并变现。公司、代理机构和付费托管须获得<license>书面许可</license>。",
     "github": "GitHub",
     "ios": "iOS 应用",
+    "discord": "Discord 社区",
     "columns": {
       "guides": "指南",
       "compare": "对比",
@@ -143,6 +156,12 @@
       "title": "Turn Twitch VODs into TikTok clips and Shorts",
       "label": "Twitch VOD to Shorts",
       "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+    },
+    "blog_how_to_clip_gta_6": {
+      "eyebrow": "GTA 6 剪辑",
+      "title": "如何剪辑 GTA 6",
+      "label": "剪辑 GTA 6",
+      "description": "剪辑活动的实际收益、Rockstar 的规则，以及从直播回放到竖屏短片的完整流程。"
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -509,7 +528,7 @@
       },
       "selfHost": {
         "question": "自托管真的免费吗？",
-        "answer": "是的。SupoClip 以 AGPL-3.0 协议开源，用 Docker Compose 就能在你自己的机器上运行。你只需为自己选择的转写和 AI 服务付费（如果有的话）。"
+        "answer": "SupoClip 允许非商业用途的自托管和分支；个人创作者也可以自托管，为自己的变现频道制作短片。公司、代理机构、客户委托工作和付费托管须事先获得 Shiori LLC 的书面许可。"
       },
       "cancel": {
         "question": "可以随时取消吗？",
@@ -518,13 +537,13 @@
     }
   },
   "openSource": {
-    "badge": "AGPL-3.0 许可",
+    "badge": "SupoClip 非商业源代码许可",
     "title": "公开构建",
-    "body": "完全开源。在你的基础设施上自托管，贡献功能，或者 fork 之后改成你自己的。",
+    "body": "提供供非商业用途和个人创作者自托管的源代码",
     "commandLabel": "自托管",
     "comment": "# 在 .env 中添加转录和 LLM 服务商",
     "facts": {
-      "license": "AGPL-3.0 许可，所有代码都在 GitHub 上",
+      "license": "SupoClip 允许非商业用途的自托管和分支；个人创作者也可以自托管，为自己的变现频道制作短片。公司、代理机构、客户委托工作和付费托管须事先获得 Shiori LLC 的书面许可。",
       "docker": "一条 Docker Compose 命令即可自行部署",
       "models": "自选模型：Gemini、OpenAI、Anthropic 或 Ollama"
     },
@@ -538,7 +557,7 @@
   },
   "cta": {
     "title": "你的下一条视频，已经是一周的内容。",
-    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或免费自托管开源版本。"
+    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或以非商业用途或个人创作者身份免费自托管。"
   },
   "faqPage": {
     "title": "语言、字幕与剪辑",

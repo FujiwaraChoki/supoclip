@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { dueTours, FEATURE_TOURS, MAX_TOUR_STEPS } from "./feature-tours";
+import { dueTours, FEATURE_TOURS, MAX_ONBOARDING_STEPS, MAX_TOUR_STEPS, maxSteps } from "./feature-tours";
 
 const BEFORE = "2026-01-01T00:00:00Z";
 const AFTER = "2030-01-01T00:00:00Z";
@@ -11,7 +11,8 @@ describe("feature tours", () => {
   it("stays small enough not to overwhelm anyone", () => {
     for (const tour of FEATURE_TOURS) {
       expect(tour.steps.length).toBeGreaterThan(0);
-      expect(tour.steps.length).toBeLessThanOrEqual(MAX_TOUR_STEPS);
+      expect(tour.steps.length).toBeLessThanOrEqual(maxSteps(tour));
+      expect(maxSteps(tour)).toBe(tour.audience === "new" ? MAX_ONBOARDING_STEPS : MAX_TOUR_STEPS);
       expect(Number.isNaN(Date.parse(tour.releasedAt))).toBe(false);
     }
     expect(new Set(FEATURE_TOURS.map((tour) => tour.id)).size).toBe(FEATURE_TOURS.length);
@@ -42,13 +43,35 @@ describe("feature tours", () => {
     }
   });
 
+  it("welcomes accounts created since onboarding shipped, first and once", () => {
+    const welcome = FEATURE_TOURS.find((tour) => tour.id === "welcome")!;
+    expect(FEATURE_TOURS[0]).toBe(welcome);
+    // Welcome comes first; the only other tours such an account is due are for features released after it signed up.
+    const due = dueTours(welcome.releasedAt, []);
+    expect(due[0]).toBe(welcome);
+    expect(due.slice(1).every((tour) => tour.releasedAt > welcome.releasedAt)).toBe(true);
+    expect(dueTours(BEFORE, []).map((tour) => tour.id)).not.toContain("welcome");
+    expect(dueTours(AFTER, ["welcome"])).toEqual([]);
+  });
+
+  it("walks through every page and ends back on the create screen", () => {
+    const welcome = FEATURE_TOURS.find((tour) => tour.id === "welcome")!;
+    expect(welcome.steps.every((step) => step.path?.startsWith("/"))).toBe(true);
+    expect(new Set(welcome.steps.map((step) => step.path))).toEqual(new Set(["/", "/list", "/settings/social", "/analytics", "/settings/api-keys", "/settings"]));
+    expect(welcome.steps.at(-1)!.path).toBe("/");
+    // A feature tour stays on its page.
+    for (const tour of FEATURE_TOURS.filter((entry) => entry.audience !== "new")) expect(tour.steps.every((step) => step.path === undefined)).toBe(true);
+  });
+
   it("doesn't repeat what an earlier tour already explained", () => {
     expect(dueTours(BEFORE, ["workflows"]).map((tour) => tour.id)).not.toContain("composer-settings");
     expect(dueTours(BEFORE, ["dynamic-edits"]).map((tour) => tour.id)).not.toContain("composer-settings");
     for (const tour of FEATURE_TOURS) {
       const messages = tour.steps.map((step) => step.message);
       expect(new Set(messages).size, tour.id).toBe(messages.length);
-      // Only the opening question may share its target with the step after it.
+      // Only the opening question may share its target with the step after it. The welcome tour walks the pages
+      // and ends back where it started, so it points at the composer twice.
+      if (tour.audience === "new") continue;
       const targets = tour.steps.filter((step) => !step.intro).map((step) => step.target);
       expect(new Set(targets).size, tour.id).toBe(targets.length);
     }
@@ -71,9 +94,11 @@ describe("feature tours", () => {
 
   it("points only at targets the page puts on screen or can open", () => {
     const components = join(process.cwd(), "src", "components");
-    const files = (readdirSync(components, { recursive: true }) as string[])
-      .filter((file) => file.endsWith(".tsx") && !file.includes(".test."))
-      .map((file) => readFileSync(join(components, file), "utf8"));
+    // Components and the pages themselves: the welcome tour points at page headers.
+    const files = [components, join(components, "..", "app")].flatMap((dir) =>
+      (readdirSync(dir, { recursive: true }) as string[])
+        .filter((file) => file.endsWith(".tsx") && !file.includes(".test."))
+        .map((file) => readFileSync(join(dir, file), "utf8")));
     const rendered = (target: string) =>
       files.some((text) => text.includes(`data-tour="${target}"`)) ||
       (target.startsWith("workflow-") && files.some((text) => text.includes("data-tour={`workflow-${id}`}")));
@@ -85,10 +110,12 @@ describe("feature tours", () => {
       "studio-edits-tab": { opener: "inspectorTab", value: "edits" },
     };
     const hosts = {
-      settingsSection: ["home-app.tsx", "onSettingsSection="],
+      // The create screen hands its opener to the app shell, which hosts the tours.
+      settingsSection: ["home-app.tsx", "onSettingsSection:"],
       inspectorTab: [join("editor", "editor-workspace.tsx"), "onInspectorTab="],
     } as const;
-    for (const tour of FEATURE_TOURS) for (const step of tour.steps) {
+    // The welcome tour's targets are set through props on page sections; its own tests walk the pages.
+    for (const tour of FEATURE_TOURS.filter((entry) => entry.audience !== "new")) for (const step of tour.steps) {
       expect(rendered(step.target), `${tour.id}: nothing renders data-tour="${step.target}"`).toBe(true);
       const where = hidden[step.target];
       if (!where) continue;
@@ -99,8 +126,9 @@ describe("feature tours", () => {
   });
 
   it("is for accounts older than the feature, once each", () => {
-    expect(dueTours(BEFORE, []).map((tour) => tour.id)).toEqual(FEATURE_TOURS.map((tour) => tour.id));
-    expect(dueTours(AFTER, [])).toEqual([]);
+    const features = FEATURE_TOURS.filter((tour) => tour.audience !== "new").map((tour) => tour.id);
+    expect(dueTours(BEFORE, []).map((tour) => tour.id)).toEqual(features);
+    expect(dueTours(AFTER, []).map((tour) => tour.id)).toEqual(["welcome"]);
     expect(dueTours(BEFORE, FEATURE_TOURS.map((tour) => tour.id))).toEqual([]);
     expect(dueTours(null, [])).toEqual([]);
     expect(dueTours("nonsense", [])).toEqual([]);

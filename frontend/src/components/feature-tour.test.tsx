@@ -17,7 +17,7 @@ function Page({ busy = false, picker = true, closed = [], onWorkflow, onEnd }: {
       {picker && ["highlights", "series", "topic", "recap", "trailer"].map((id) => <button key={id} data-tour={`workflow-${id}`} disabled={closed.includes(id)}>{id}</button>)}
       <button data-tour="instructions">instructions</button>
       <button data-tour="composer-settings">settings</button>
-      <FeatureTourHost enabled busy={busy} onWorkflow={onWorkflow} onEnd={onEnd} />
+      <FeatureTourHost enabled canStart pathname="/" navigate={() => {}} busy={busy} onWorkflow={onWorkflow} onEnd={onEnd} />
     </>
   );
 }
@@ -28,6 +28,7 @@ beforeEach(() => {
     getItem: (key: string) => storage.get(key) ?? null,
     setItem: (key: string, value: string) => { storage.set(key, value); },
   });
+  window.sessionStorage.clear();
   posted = [];
   endings = [];
   account = { createdAt: "2026-01-01T00:00:00Z", seen: [] };
@@ -52,6 +53,63 @@ const firstTitle = "Introducing workflows";
 const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
 
 describe("FeatureTourHost", () => {
+  it("welcomes a new account, then walks to each page and back to the create screen", async () => {
+    account = { createdAt: "2030-01-01T00:00:00Z", seen: [] };
+    const session = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => session.get(key) ?? null,
+      setItem: (key: string, value: string) => { session.set(key, value); },
+      removeItem: (key: string) => { session.delete(key); },
+    });
+    const visited: string[] = [];
+    // Each page has its own host, like the app shell; the sidebar is always there (no Social link, no plan card).
+    const pages: Record<string, React.ReactNode> = {
+      "/": <form data-tour="composer"><div data-tour="composer-source">source</div><button data-tour="composer-settings">settings</button></form>,
+      "/list": <><div data-tour="library-header">library</div><div data-tour="library-content">clips</div></>,
+      "/settings/api-keys": <section data-tour="assistant-connect">assistants</section>,
+      "/settings": <section data-tour="settings-captions">captions</section>,
+    };
+    const ui = (path: string) => (
+      <div key={path}>
+        <nav><a data-tour="nav-library">Library</a></nav>
+        {pages[path]}
+        <FeatureTourHost enabled canStart={path === "/"} pathname={path} navigate={(next) => { visited.push(next); view.rerender(ui(next)); }} />
+      </div>
+    );
+    const view = render(ui("/"));
+    await screen.findByText("Welcome to SupoClip", undefined, { timeout: 2500 });
+    expect(screen.getByText("Welcome")).toBeTruthy();
+    expect(document.querySelector("video")).toBeTruthy();
+    expect(posted).toEqual(["welcome"]);
+    fireEvent.click(screen.getByText("Show me 👀"));
+    // No workflow picker, Social, Analytics or plan here: those are passed over, the last three without a visit.
+    for (const title of ["Start with a video", "Set the look once", "Library", "Your clips, ranked", "Clip from your AI assistant", "Your caption style"]) {
+      expect(await screen.findByText(title, undefined, { timeout: 2500 })).toBeTruthy();
+      fireEvent.click(screen.getByText("Next"));
+    }
+    expect(await screen.findByText("You’re ready", undefined, { timeout: 2500 })).toBeTruthy();
+    expect(visited).toEqual(["/list", "/settings/api-keys", "/settings", "/"]);
+    // Back goes to the page before.
+    fireEvent.click(screen.getByText("Back"));
+    expect(await screen.findByText("Your caption style", undefined, { timeout: 2500 })).toBeTruthy();
+    expect(visited.at(-1)).toBe("/settings");
+    fireEvent.click(screen.getByText("Next"));
+    await screen.findByText("You’re ready", undefined, { timeout: 2500 });
+    fireEvent.click(screen.getByText("Done"));
+    await waitFor(() => expect(endings).toEqual(["welcome:completed:7"]));
+  }, 20000);
+
+  it("ends the tour when the user goes to another page themselves", async () => {
+    account = { createdAt: "2030-01-01T00:00:00Z", seen: [] };
+    const view = render(<><div data-tour="composer"><div data-tour="composer-source">source</div></div><FeatureTourHost enabled canStart pathname="/" navigate={() => {}} /></>);
+    await screen.findByText("Welcome to SupoClip", undefined, { timeout: 2500 });
+    fireEvent.click(screen.getByText("Show me 👀"));
+    await screen.findByText("Start with a video");
+    view.rerender(<><div data-tour="composer"><div data-tour="composer-source">source</div></div><FeatureTourHost enabled canStart pathname="/list" navigate={() => {}} /></>);
+    await waitFor(() => expect(endings).toEqual(["welcome:dismissed:1"]));
+    expect(screen.queryByText("Start with a video")).toBeNull();
+  });
+
   it("asks first, then explains every workflow on the real page and puts the selection back", async () => {
     const onWorkflow = vi.fn();
     const onEnd = vi.fn();

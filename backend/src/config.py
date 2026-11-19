@@ -164,6 +164,19 @@ class Config:
         self.redis_host = os.getenv("REDIS_HOST", "localhost")
         self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
         self.redis_password = self._get_optional_env("REDIS_PASSWORD")
+        # arq's own defaults (1s, no retry while running) crash a worker when a
+        # loaded host is slow to open a connection; see workers/redis_settings.py.
+        self.redis_connect_timeout_seconds = max(
+            1, self._get_int_env("REDIS_CONNECT_TIMEOUT_SECONDS", 10)
+        )
+        self.redis_connect_retries = max(
+            0, self._get_int_env("REDIS_CONNECT_RETRIES", 5)
+        )
+        # A reply slower than this means the connection is dead (e.g. Redis
+        # restarted behind a proxy); arq connections then reconnect and retry.
+        self.redis_socket_timeout_seconds = max(
+            1, self._get_int_env("REDIS_SOCKET_TIMEOUT_SECONDS", 30)
+        )
 
         # Fail-safe: queued tasks should not stay queued forever
         self.queued_task_timeout_seconds = int(
@@ -232,6 +245,10 @@ class Config:
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
+        # Hermes assistant (operator chat) route for every new submission, signed with Hermes' V2
+        # scheme. Server-configured: both set adds a read-only "hermes" webhook (docs/feedback.md).
+        self.hermes_feedback_webhook_url = self._get_optional_env("HERMES_FEEDBACK_WEBHOOK_URL")
+        self.hermes_feedback_webhook_secret = self._get_optional_env("HERMES_FEEDBACK_WEBHOOK_SECRET")
 
         # Cancellation reviews (docs/cancellation-reviews.md). Stripe signs each account's
         # endpoint with its own secret: "acct_A:whsec_...,acct_B:whsec_...". The legacy account

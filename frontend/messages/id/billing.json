@@ -36,11 +36,7 @@
   "prorated": "Kamu mengonfirmasi perubahan di Stripe dan hanya membayar selisih prorata.",
   "cancelAnytime": "Batalkan kapan saja · Checkout aman dengan Stripe",
   "appStore": "Langgananmu dikelola lewat App Store. Kamu bisa ganti paket di aplikasi iOS SupoClip.",
-  "selfHosted": {
-    "title": "Host sendiri",
-    "body": "Jalankan SupoClip di komputermu sendiri, tanpa langganan atau batas video bulanan. Perlu penyiapan; kamu menyediakan perangkat dan layanan AI berbayar yang kamu pilih.",
-    "guide": "Panduan host sendiri"
-  },
+  "selfHostLink": "Atau host sendiri",
   "upgrade": {
     "start": {
       "eyebrow": "Siap kapan kamu siap",

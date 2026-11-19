@@ -108,7 +108,7 @@
       "2": {
         "heading": "Choose managed hosting or an open-source setup",
         "p1": "Use hosted SupoClip when you want processing managed for you. The paid plans include a monthly allowance measured in source-video minutes; producing more clips from the same recording does not multiply that recording’s duration. Check current plans for output resolution, source limits, and publishing access before choosing. A creator can start with one recording and review its finished clips before making the workflow part of a weekly schedule.",
-        "p2": "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. The source is free under AGPL-3.0; managed hosting is paid. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
+        "p2": "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. Self-hosting has no license fee for noncommercial use or for individual creators, including on monetized channels. Companies, agencies, client work, and paid hosting require prior written permission from Shiori LLC. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
         "link1": "How SupoClip compares with OpusClip",
         "link2": "Why teams choose an open-source clipper"
       }
@@ -123,8 +123,8 @@
         "answer": "Yes. SupoClip accepts YouTube URLs, identifies candidate moments, and can render vertical, captioned clips suitable for YouTube Shorts."
       },
       "2": {
-        "question": "Is SupoClip open source?",
-        "answer": "Yes. The SupoClip codebase is available under the AGPL-3.0 license and can be self-hosted or modified."
+        "question": "Can I self-host SupoClip?",
+        "answer": "SupoClip allows noncommercial self-hosting and forks, and individual creators can self-host it to make clips for their own monetized channels. Companies, agencies, client work, and paid hosting require prior written permission from Shiori LLC."
       },
       "3": {
         "question": "Which video sources does SupoClip accept?",
@@ -147,8 +147,8 @@
     "tableRows": {
       "0": {
         "0": "Source access",
-        "1": "Full AGPL-3.0 repository",
-        "2": "Full AGPL-3.0 repository"
+        "1": "SupoClip Noncommercial Source License",
+        "2": "SupoClip Noncommercial Source License"
       },
       "1": {
         "0": "Infrastructure",
@@ -169,7 +169,7 @@
     "sections": {
       "0": {
         "heading": "An open-source clipping app you can inspect and change",
-        "p1": "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The application is available under AGPL-3.0. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
+        "p1": "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The application is available under the SupoClip Noncommercial Source License. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
         "p2": "The documented Docker Compose stack includes the frontend, backend, worker, PostgreSQL, and Redis. Begin with the self-hosting guide and a short video you know well. Verify that a task moves through processing, that a finished clip plays, and that captions and framing match the source. The examples above show the kind of output to inspect; they are not a benchmark for your hardware, models, or footage. Do a small first run before processing a backlog."
       },
       "1": {
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "Is SupoClip free to self-host?",
-        "answer": "The source code is free under the AGPL-3.0 license. You remain responsible for infrastructure and any paid transcription or AI-provider usage."
+        "answer": "SupoClip allows noncommercial self-hosting and forks, and individual creators can self-host it to make clips for their own monetized channels. Companies, agencies, client work, and paid hosting require prior written permission from Shiori LLC. You remain responsible for infrastructure and any paid transcription or AI-provider usage."
       },
       "1": {
         "question": "Can SupoClip use a local language model?",
@@ -292,7 +292,7 @@
     "hostedBody": "Pro starts at US${price}/month with {hours} hours of source video per month and {resolution} clips. Processing is managed for you. The hosted app requires a paid plan.",
     "plans": "See current plans",
     "selfHostTitle": "Run it yourself",
-    "selfHostBody": "The source is free under AGPL-3.0. You provide the hardware, storage, maintenance, and any paid transcription or AI services you choose.",
+    "selfHostBody": "SupoClip allows noncommercial self-hosting and forks, and individual creators can self-host it to make clips for their own monetized channels. Companies, agencies, client work, and paid hosting require prior written permission from Shiori LLC. You provide the hardware, storage, maintenance, and any paid transcription or AI services you choose.",
     "selfHostButton": "Read the self-hosting guide",
     "ai-video-clipper": {
       "title": "Turn your recording into publishable clips",

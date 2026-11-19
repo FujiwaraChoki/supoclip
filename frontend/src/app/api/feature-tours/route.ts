@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { isFeatureTourId, MAX_TOUR_STEPS } from "@/lib/feature-tours";
+import { isFeatureTourId, MAX_ONBOARDING_STEPS } from "@/lib/feature-tours";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   if (!isFeatureTourId(body?.id) || !EVENTS.includes(event)) {
     return NextResponse.json({ error: "Unknown tour or event" }, { status: 400 });
   }
-  const step = Number.isInteger(body?.step) && body.step >= 0 && body.step <= MAX_TOUR_STEPS ? body.step as number : undefined;
+  const step = Number.isInteger(body?.step) && body.step >= 0 && body.step <= MAX_ONBOARDING_STEPS ? body.step as number : undefined;
   const now = new Date();
   // Only the first ending counts: a later close doesn't turn a finished tour into a dismissed one.
   const ending = event === "completed" ? { completed_at: now } : event === "dismissed" ? { dismissed_at: now } : {};

@@ -1,11 +1,62 @@
 {
   "new": "New",
+  "welcomeBadge": "Welcome",
   "next": "Next",
   "back": "Back",
   "done": "Done",
   "start": "Show me 👀",
   "notNow": "Not now",
   "progress": "{current} of {total}",
+  "welcome": {
+    "intro": {
+      "title": "Welcome to SupoClip",
+      "body": "Give us a long video and we turn its best moments into short vertical clips, captioned and ready to post. Take a two-minute tour: how to make your first clips, then every page you’ll use."
+    },
+    "source": {
+      "title": "Start with a video",
+      "body": "Paste a YouTube, Twitch, or Kick link here, or upload a file with the paperclip, then press the arrow. Podcasts, interviews, and talks of 10 minutes or more work best."
+    },
+    "workflows": {
+      "title": "Choose what to make",
+      "body": "Highlights gives you the best standalone moments, and it’s the right pick for a first try. The others turn one video into a series, a recap, a trailer, or every clip about a topic."
+    },
+    "settings": {
+      "title": "Set the look once",
+      "body": "Clip length, caption style, framing, and B-roll live in this menu. The defaults are good, and whatever you change is remembered for next time."
+    },
+    "library": {
+      "title": "Library",
+      "body": "Every video you clip lands here, newest first, and you can search them. You can leave while one is processing; it keeps going and shows up here when it’s done."
+    },
+    "libraryClips": {
+      "title": "Your clips, ranked",
+      "body": "Open a video to see its clips, best score first. Download one or all of them, or open a clip in the studio to trim it, fix a caption, or reframe it."
+    },
+    "social": {
+      "title": "Connect your accounts",
+      "body": "Link your social accounts here to post clips straight from SupoClip, without downloading them first."
+    },
+    "analytics": {
+      "title": "See what works",
+      "body": "Views, likes, and comments from your posts come back here, by platform, hook, and length. After a few posts, SupoClip uses them to pick clips more like your best ones."
+    },
+    "agents": {
+      "title": "Clip from your AI assistant",
+      "body": "Connect Claude, ChatGPT, or Grok and ask for clips in a chat: paste the server URL and sign in, no key to copy. Building something? Create an API key below."
+    },
+    "captions": {
+      "title": "Your caption style",
+      "body": "Set the font, size, and color every new video starts with, and see a preview. You can still change them for a single video."
+    },
+    "plan": {
+      "title": "Your plan",
+      "body": "Plans count minutes of the videos you bring, not clips. See what you’ve used this month, and change your plan here."
+    },
+    "finish": {
+      "title": "You’re ready",
+      "body": "That’s everything. Paste your first link here and we’ll take it from there."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Introducing workflows",

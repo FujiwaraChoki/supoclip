@@ -53,6 +53,11 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins,
+  // Over HTTP only; server code can still call auth.api.verifyPassword. A public
+  // verify-password would let a stolen session guess the password at the generic
+  // rate limit, around the limits of the email change flow, and change-email
+  // would skip that flow's codes if it were ever switched on.
+  disabledPaths: ["/verify-password", "/change-email"],
   emailVerification: {
     sendOnSignUp: false,
     sendOnSignIn: false,

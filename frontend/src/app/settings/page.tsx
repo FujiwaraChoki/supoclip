@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { DeleteAccountSection } from "@/components/delete-account-section";
+import { EmailChangeSection } from "@/components/email-change-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
@@ -31,11 +32,13 @@ import { BillingIntervalToggle, ComingSoonTag, UpgradeNudge, getUpgradeState, us
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
+import { UpgradeThankYou } from "@/components/billing/upgrade-thank-you";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Info, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEFAULT_SITE_URL, GITHUB_URL } from "@/lib/site";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
 interface UserPreferences {
@@ -60,7 +63,9 @@ export default function SettingsPage() {
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const [canCancelTransfer, setCanCancelTransfer] = useState(false);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
-  const { data: session, isPending } = useSession();
+  // Back from checkout: wait for the paid plan, then thank them on the plan card.
+  const [celebration, setCelebration] = useState<"waiting" | "show" | null>(null);
+  const { data: session, isPending, refetch: refetchSession } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
   const t = useTranslations("settings");
   const common = useTranslations("common");
@@ -76,15 +81,47 @@ export default function SettingsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("billing");
-    if (outcome === "success" || outcome === "upgraded") {
-      toast.success(outcome === "upgraded" ? t("toasts.upgraded") : t("toasts.ready"));
-    }
+    if (outcome === "success" || outcome === "upgraded") setCelebration("waiting");
     if (outcome) {
       params.delete("billing");
       const query = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     }
-  }, [t]);
+  }, []);
+
+  // Stripe's webhook can land a moment after the redirect, so look again for a
+  // few seconds. If the plan still isn't paid, fall back to a plain toast.
+  useEffect(() => {
+    if (celebration !== "waiting" || !billingSummary) return;
+    if (billingSummary.monetization_enabled && isPaidBillingPlan(billingSummary.plan)) {
+      setCelebration("show");
+      document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    let attempts = 0;
+    const timer = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const response = await fetch("/api/tasks/billing-summary", { cache: "no-store" });
+        if (response.ok) {
+          const data: BillingSummary = await response.json();
+          if (isPaidBillingPlan(data.plan)) {
+            window.clearInterval(timer);
+            setBillingSummary(data);
+            return;
+          }
+        }
+      } catch {
+        // Try again on the next tick.
+      }
+      if (attempts >= 8) {
+        window.clearInterval(timer);
+        setCelebration(null);
+        toast.success(t("toasts.ready"));
+      }
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [celebration, billingSummary, t]);
 
   const handlePlanChange = async (plan: BillingPlanId, interval: BillingInterval) => {
     setIsBillingActionLoading(true);
@@ -331,7 +368,13 @@ export default function SettingsPage() {
           <LanguageSwitcher />
         </Section>
 
-        <Section icon={<Type className="size-4" />} title={t("captions.title")} description={t("captions.description")}>
+        <EmailChangeSection
+          email={session.user.email}
+          emailVerified={session.user.emailVerified}
+          onChanged={() => void refetchSession()}
+        />
+
+        <Section tour="settings-captions" icon={<Type className="size-4" />} title={t("captions.title")} description={t("captions.description")}>
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_150px]">
             <div className="space-y-5">
               <div className="space-y-2">
@@ -415,45 +458,53 @@ export default function SettingsPage() {
         </Section>
 
         {billingSummary?.monetization_enabled && (
-          <Section id="plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={paymentNeedsUpdate || isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
+          <Section id="plan" tour="settings-plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={paymentNeedsUpdate || isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
             <div className="space-y-4">
-              <div className="rounded-xl bg-muted/50 p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-semibold">
-                    {plans.planName(billingSummary.plan)}
-                    <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
+              <UpgradeThankYou
+                active={celebration === "show"}
+                planName={plans.planName(billingSummary.plan)}
+                minutes={minuteLimit === null ? null : plans.formatMinutes(minuteLimit)}
+                resolution={billingSummary.output_short_side ? `${billingSummary.output_short_side}p` : null}
+                onClose={() => setCelebration(null)}
+              >
+                <div className="h-full rounded-xl bg-muted/50 p-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-semibold">
+                      {plans.planName(billingSummary.plan)}
+                      <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
+                    </p>
+                    <p className="text-sm tabular-nums text-muted-foreground">
+                      {minuteLimit === null ? t("plan.usageMinutes", { used: usageMinutes }) : t("plan.usageMinutesOf", { used: usageMinutes, limit: minuteLimit })}
+                    </p>
+                  </div>
+                  {minuteLimit !== null && (
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {paymentNeedsUpdate && !upgradeState?.isPaid
+                      ? t("paymentFailed.paused")
+                      : !upgradeState?.isPaid
+                      ? t("plan.noneYet")
+                      : minuteLimit === null
+                      ? t("plan.minutesThisMonth", { used: usageMinutes })
+                      : upgradeState.atLimit
+                      ? (upgradeState.resetsOn
+                        ? t("plan.allUsedRefresh", { limit: plans.formatMinutes(minuteLimit), date: upgradeState.resetsOn })
+                        : t("plan.allUsedPeriod", { limit: plans.formatMinutes(minuteLimit) }))
+                      : (upgradeState.resetsOn
+                        ? t("plan.leftRefresh", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)), date: upgradeState.resetsOn })
+                        : t("plan.leftPeriod", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)) }))}
                   </p>
-                  <p className="text-sm tabular-nums text-muted-foreground">
-                    {minuteLimit === null ? t("plan.usageMinutes", { used: usageMinutes }) : t("plan.usageMinutesOf", { used: usageMinutes, limit: minuteLimit })}
-                  </p>
+                  {upgradeState?.isPaid && billingSummary.output_short_side && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {billingSummary.legacy_hd
+                        ? t("plan.clipsResolutionLegacy", { resolution: `${billingSummary.output_short_side}p` })
+                        : t("plan.clipsResolution", { resolution: `${billingSummary.output_short_side}p` })}
+                      {billingSummary.billing_interval === "year" ? ` · ${t("plan.billedYearly")}` : ""}
+                    </p>
+                  )}
                 </div>
-                {minuteLimit !== null && (
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
-                )}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {paymentNeedsUpdate && !upgradeState?.isPaid
-                    ? t("paymentFailed.paused")
-                    : !upgradeState?.isPaid
-                    ? t("plan.noneYet")
-                    : minuteLimit === null
-                    ? t("plan.minutesThisMonth", { used: usageMinutes })
-                    : upgradeState.atLimit
-                    ? (upgradeState.resetsOn
-                      ? t("plan.allUsedRefresh", { limit: plans.formatMinutes(minuteLimit), date: upgradeState.resetsOn })
-                      : t("plan.allUsedPeriod", { limit: plans.formatMinutes(minuteLimit) }))
-                    : (upgradeState.resetsOn
-                      ? t("plan.leftRefresh", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)), date: upgradeState.resetsOn })
-                      : t("plan.leftPeriod", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)) }))}
-                </p>
-                {upgradeState?.isPaid && billingSummary.output_short_side && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {billingSummary.legacy_hd
-                      ? t("plan.clipsResolutionLegacy", { resolution: `${billingSummary.output_short_side}p` })
-                      : t("plan.clipsResolution", { resolution: `${billingSummary.output_short_side}p` })}
-                    {billingSummary.billing_interval === "year" ? ` · ${t("plan.billedYearly")}` : ""}
-                  </p>
-                )}
-              </div>
+              </UpgradeThankYou>
 
               {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
                 <SubscriptionCancelBanner
@@ -608,6 +659,13 @@ export default function SettingsPage() {
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
 
+        <Section icon={<Info className="size-4" />} title={t("about.title")} description={t("about.credit")}>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <a className="underline underline-offset-4" href={GITHUB_URL}>{t("about.repository")}</a>
+            <a className="underline underline-offset-4" href={DEFAULT_SITE_URL}>supoclip.com</a>
+          </div>
+        </Section>
+
         <DeleteAccountSection
           email={session.user.email}
           hasAppStoreSubscription={
@@ -644,9 +702,9 @@ export default function SettingsPage() {
   );
 }
 
-function Section({ id, icon, title, description, children }: { id?: string; icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
+function Section({ id, tour, icon, title, description, children }: { id?: string; /** `data-tour` target for the welcome tour. */ tour?: string; icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="scroll-mt-6 rounded-2xl border bg-background">
+    <section id={id} data-tour={tour} className="scroll-mt-6 rounded-2xl border bg-background">
       <div className="flex items-start gap-3 border-b px-5 py-4">
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">{icon}</span>
         <div>

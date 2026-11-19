@@ -59,7 +59,7 @@ instead (layout kind `interview`, logged as `Interview layout`):
      so both windows find the same head), that stretch is a single crop. This is never overridden.
   2. *Both sides in the picture.* A panel whose people are not found is kept only if its part of the picture is
      still the same place (compared on the cut probe's thumbnails): a person who turned away in a tripod shot is
-     still sitting there. If the picture there changed, the camera left them and the stretch is a single crop on
+     still sitting there, however long the detector loses them. If the picture there changed, the camera left them and the stretch is a single crop on
      whoever is on screen.
   3. *No flicker.* A person lost for at most 0.7 s in the middle of a two-shot, or 0.34 s at a cut, is a missed
      detection and the panels hold. Stacked panels shorter than 1 s between single crops stay single.
@@ -99,7 +99,10 @@ for hair and caps. Every return to the same camera setup gets the same zoom.
 Layouts switch only at edits. A full-rate 64×36 decode finds each cut on its
 exact frame (straight cuts and one-to-three-frame whips, not pans or flashes),
 including cuts the 3 fps analysis missed; a lasting change in how many people
-are on screen also divides a shot. The graph decodes the source once: each
+are on screen also divides a shot, unless the one face left sits where one of
+the pair sat: that is the same two-shot with someone turned away in profile, so
+it stays stacked instead of swinging a tight crop to that edge of the room and
+back. The graph decodes the source once: each
 composition `trim`s its own time range and the pieces are joined with
 `concat`, so the stored plan replays in the studio like any other.
 

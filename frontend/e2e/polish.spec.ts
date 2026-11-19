@@ -145,6 +145,21 @@ test("signed-in settings waits for preferences before showing the form", async (
   await expect(page.getByRole("button", { name: /save preferences/i })).toBeVisible();
 });
 
+test("self-hosted settings credits the original SupoClip project", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+  await page.route("**/api/preferences", route => route.fulfill({
+    json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true },
+  }));
+
+  await page.goto("/settings");
+  const about = page.locator("section").filter({ has: page.getByRole("heading", { name: "About", exact: true }) });
+  await expect(about.getByText("Based on SupoClip.")).toBeVisible();
+  await expect(about.getByRole("link", { name: "Original repository" })).toHaveAttribute("href", "https://github.com/FujiwaraChoki/supoclip");
+  await expect(about.getByRole("link", { name: "supoclip.com" })).toHaveAttribute("href", "https://www.supoclip.com");
+  await about.screenshot({ path: testInfo.outputPath("settings-about.png") });
+});
+
 test("font info stays open in a real selector and preserves the selected font", async ({ page }) => {
   await page.route("**/api/fonts", route => route.fulfill({ json: { fonts: [
     { name: "TikTokSans-Regular", display_name: "TikTok Sans Regular", scope: "system", supported_languages: ["en", "pt", "es", "fr", "de", "it", "pl", "tr", "vi", "el", "ru", "uk", "af"] },

@@ -310,7 +310,14 @@ async def _maintain_scratch_forever() -> None:
 async def on_worker_startup(ctx: Dict[str, Any]) -> None:
     import asyncio
 
+    from .redis_settings import use_socket_options
+
+    await use_socket_options(ctx["redis"])
     await check_media_volume(ctx["redis"])
+    hold = overflow.overflow_after_seconds()
+    if hold:
+        overflow.take_only_overflow(ctx["redis"], DEFAULT_QUEUE_NAME, hold)
+        logger.info("Overflow worker: takes video jobs once they have waited %s s", hold)
     ctx["scratch_maintenance"] = asyncio.create_task(_maintain_scratch_forever())
 
 
@@ -334,13 +341,23 @@ from ..services.clip_export_service import (
     export_clip_preset,
 )
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
+from . import host_jobs, overflow
+from .job_queue import DEFAULT_QUEUE_NAME
+from .queue_delay import on_video_job_start
+
+
+async def on_video_job_begin(ctx) -> None:
+    await on_video_job_start(ctx)
+    # Lets the render autoscaler see that this machine is busy (host_jobs.py).
+    await host_jobs.record_job_start(ctx)
+
 
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
 
     from ..config import Config
-    from arq.connections import RedisSettings
+    from .redis_settings import arq_redis_settings
 
     config = Config()
 
@@ -370,9 +387,7 @@ class WorkerSettings:
     health_check_interval = 30
 
     # Redis settings from environment
-    redis_settings = RedisSettings(
-        host=config.redis_host, port=config.redis_port, password=config.redis_password, database=0
-    )
+    redis_settings = arq_redis_settings(config)
 
     # Retry settings
     max_tries = 3  # Retry failed jobs up to 3 times
@@ -383,7 +398,8 @@ class WorkerSettings:
     max_jobs = 4  # Process up to 4 jobs simultaneously
     cron_jobs = []
 
-    from .queue_delay import on_video_job_start as on_job_start
+    on_job_start = on_video_job_begin
+    on_job_end = host_jobs.record_job_end
 
     on_startup = on_worker_startup
     on_shutdown = on_worker_shutdown

@@ -55,6 +55,9 @@ function Page({ onSection, onTab, closeRef }: { onSection?: (id: string) => void
       {tab === "edits" && <div data-tour="studio-edits-tab">edits tab</div>}
       <FeatureTourHost
         enabled
+        pathname="/"
+        navigate={stay}
+        canStart
         busy={false}
         onSettingsSection={onSection ? (id) => { onSection(id); setSection(id); } : undefined}
         onInspectorTab={onTab ? (id) => { onTab(id); setTab(id); } : undefined}
@@ -64,6 +67,9 @@ function Page({ onSection, onTab, closeRef }: { onSection?: (id: string) => void
 }
 
 const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
+
+/** The page never changes in these tests; one function, as a router's `push` is. */
+const stay = () => {};
 
 describe("FeatureTourHost: flags and hidden targets", () => {
   it("keeps a flagged tour hidden while /api/feature-flags says false", async () => {

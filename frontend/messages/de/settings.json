@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "Über",
+    "credit": "Basiert auf SupoClip.",
+    "repository": "Original-Repository"
+  },
   "title": "Einstellungen",
   "intro": "Standards für neue Generierungen, Benachrichtigungen und deinen Plan.",
   "languageDescription": "Die Sprache in SupoClip.",
@@ -83,8 +88,14 @@
     "failed": "Einstellungen konnten nicht gespeichert werden"
   },
   "toasts": {
-    "upgraded": "Dein Plan wurde erweitert. Viel Spaß mit dem Extra-Platz!",
     "ready": "Alles bereit. Zeit für Clips!"
+  },
+  "thanks": {
+    "title": "Danke!",
+    "body": "Du hast jetzt {plan}: {minutes} Video pro Monat, Clips in {resolution}.",
+    "bodyShort": "Du hast jetzt {plan}. Zeit für ein paar Clips.",
+    "makeClip": "Clip erstellen",
+    "done": "Fertig"
   },
   "apiKeys": {
     "title": "Agenten & API",
@@ -283,5 +294,57 @@
     "unsupported": "Nicht vollständig unterstützt (häufige Sprachen): ",
     "all": "Alle unterstützten Sprachen ({count})",
     "fallback": "Fehlende Zeichen nutzen eine Ersatzschrift und können anders aussehen. Die Abdeckung wird an dieser Schriftdatei geprüft; sieh dir ungewöhnliche Zeichen in der Vorschau an."
+  },
+  "emailChange": {
+    "title": "Konto",
+    "description": "Die E-Mail-Adresse, mit der du dich anmeldest.",
+    "label": "E-Mail-Adresse",
+    "verified": "Bestätigt",
+    "unverified": "Nicht bestätigt",
+    "action": "E-Mail ändern",
+    "dialogTitle": "E-Mail-Adresse ändern",
+    "stepOf": "Schritt {step} von 2",
+    "intro": "Zuerst schicken wir einen Code an <strong>{email}</strong>, um sicherzugehen, dass du es bist.",
+    "unverifiedNote": "Diese Adresse ist noch nicht bestätigt. Mit dem Code bestätigst du sie gleich mit.",
+    "password": "Aktuelles Passwort",
+    "noPassword": "Dein Konto hat kein Passwort, deshalb bestätigst du mit dem Code, dass du es bist.",
+    "sendCurrent": "Code senden",
+    "codeSent": "Gib den 6-stelligen Code ein, den wir an <strong>{email}</strong> geschickt haben.",
+    "codeLabel": "Code",
+    "codeHint": "Der Code ist 10 Minuten gültig. Schau im Spam-Ordner nach, falls er nicht ankommt.",
+    "resend": "Neuen Code senden",
+    "resendIn": "Neuer Code in {seconds} s",
+    "useDifferent": "Andere Adresse verwenden",
+    "verify": "Bestätigen",
+    "confirm": "E-Mail ändern",
+    "currentConfirmed": "Deine aktuelle Adresse ist bestätigt.",
+    "newLabel": "Neue E-Mail-Adresse",
+    "newHint": "Wir schicken einen Code dorthin. Deine E-Mail ändert sich erst, wenn du ihn eingibst.",
+    "sendNew": "Code senden",
+    "finishing": "Beide Adressen sind bestätigt, aber wir konnten die E-Mail in deinem Abrechnungskonto nicht ändern. Deine E-Mail ist noch unverändert.",
+    "retry": "Erneut versuchen",
+    "doneTitle": "E-Mail geändert",
+    "done": "Du meldest dich jetzt mit <strong>{email}</strong> an. Belege und Benachrichtigungen gehen ebenfalls dorthin.",
+    "doneDetails": "Wir haben dich auf deinen anderen Geräten abgemeldet und einen Hinweis an {previous} geschickt.",
+    "close": "Fertig",
+    "errors": {
+      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+      "passwordRequired": "Gib dein aktuelles Passwort ein.",
+      "invalidPassword": "Das Passwort stimmt nicht.",
+      "reauthRequired": "Melde dich zu deiner Sicherheit ab und wieder an und ändere dann deine E-Mail.",
+      "rateLimited": "Zu viele Versuche. Versuche es in {minutes} Min. erneut.",
+      "cooldown": "Gerade wurde ein Code gesendet. Einen neuen kannst du in {seconds} Sekunden anfordern.",
+      "noRequest": "Diese Anfrage ist abgelaufen oder wurde ersetzt. Fang neu an.",
+      "wrongCode": "Der Code stimmt nicht.",
+      "wrongCodeLeft": "Der Code stimmt nicht. {count, plural, =0 {Fordere einen neuen Code an.} one {Noch # Versuch.} other {Noch # Versuche.}}",
+      "codeExpired": "Der Code ist abgelaufen. Fordere einen neuen an.",
+      "tooManyAttempts": "Zu viele falsche Codes. Fordere einen neuen an.",
+      "invalidEmail": "Gib eine gültige E-Mail-Adresse ein.",
+      "sameEmail": "Das ist bereits deine E-Mail-Adresse.",
+      "emailTaken": "Diese E-Mail-Adresse wird bereits von einem anderen Konto verwendet.",
+      "sendFailed": "Wir konnten die E-Mail nicht senden. Bitte versuche es erneut.",
+      "billingUpdateFailed": "Wir konnten deine Abrechnungs-E-Mail nicht ändern, deshalb hat sich nichts geändert. Bitte versuche es erneut.",
+      "inProgress": "Deine E-Mail-Änderung wird bereits gespeichert. Warte einen Moment und prüfe es dann erneut."
+    }
   }
 }

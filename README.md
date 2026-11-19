@@ -11,9 +11,10 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-SupoClip_Noncommercial-blue.svg" alt="SupoClip Noncommercial Source License" /></a>
   <a href="https://www.supoclip.com"><img src="https://img.shields.io/badge/hosted-supoclip.com-black.svg" alt="Hosted at supoclip.com" /></a>
   <a href="docs/README.md"><img src="https://img.shields.io/badge/docs-docs%2F-green.svg" alt="Documentation" /></a>
+  <a href="https://discord.gg/Sz9ZD5REXg"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&amp;logoColor=white" alt="Join the SupoClip Discord community" /></a>
 </p>
 
 <p align="center">
@@ -28,7 +29,9 @@
 
 ---
 
-SupoClip is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Run it yourself, customize it, inspect it — or use the hosted version and skip the setup.
+SupoClip is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Inspect the code, self-host it, or use the hosted version. Self-hosting is free for noncommercial use and for individual creators, including on monetized channels.
+
+<sub>Companies, agencies, team use, and paid hosting require <a href="LICENSE">written permission from Shiori LLC</a>.</sub>
 
 **See it first:** [watch real clips SupoClip generated](https://www.supoclip.com/demo) from a long-form interview, or follow the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) to run it on your own machine.
 
@@ -38,7 +41,7 @@ SupoClip is an open-source, AI-powered video clipping tool. Give it a long video
 |---|---|
 | **Hosted web app** | [www.supoclip.com](https://www.supoclip.com) — no infrastructure to run |
 | **iOS app** | [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040) — the same hosted pipeline, from your iPhone |
-| **Self-host** | Docker Compose setup below, or the step-by-step [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) — AGPL-3.0, unlimited usage on your own hardware |
+| **Self-host** | Docker Compose setup below, or the step-by-step [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) — free for noncommercial use and for individual creators on their own hardware |
 | **MCP server** | [`mcp/`](mcp/) — use SupoClip from Claude, Cursor, and other MCP clients |
 | **REST API** | API keys from `/settings/api-keys` authenticate the backend directly — see the [API reference](docs/api-reference.md) |
 
@@ -50,7 +53,7 @@ SupoClip gives you the same core pipeline without the leash:
 
 - **Self-hostable** — run it on your own hardware, process as much as it can handle
 - **No watermarks** — your content stays yours
-- **Open source** — AGPL-3.0, full transparency, fork and extend it however you like
+- **Open source** — inspect the code, self-host as an individual creator, and share noncommercial forks under the [license](LICENSE)
 - **Hosted option** — when you'd rather not manage servers, the cloud version is there
 
 ## Features
@@ -111,6 +114,10 @@ Everything beyond this page lives in [`docs/`](docs/README.md):
 | [Development](docs/development.md) | Running locally without Docker, testing, contributing workflow |
 | [Troubleshooting](docs/troubleshooting.md) | Fixes for the common ways things go wrong |
 
+## Community
+
+Join the [SupoClip Discord](https://discord.gg/Sz9ZD5REXg) to share your clips, swap editing tips, ask for help with self-hosting, or suggest a feature.
+
 ## Development & Testing
 
 The stack runs locally without Docker too — see [development](docs/development.md) for the backend (`uv` + FastAPI + ARQ worker) and frontend (Next.js + pnpm) commands. The test suite spans pytest, Vitest, and Playwright, all reachable from the repo root:
@@ -121,6 +128,24 @@ make test
 
 ## License
 
-SupoClip is released under the [AGPL-3.0 License](LICENSE).
+Shiori LLC makes this release available under the [SupoClip Noncommercial Source License](LICENSE), version 1.1. It permits noncommercial self-hosting and forks with attribution. Individual creators may also self-host SupoClip for their own monetized use without asking. Other commercial use, including use by companies and agencies, internal business use, client work, team use, paid hosting, and commercial redistribution, requires prior written permission from Shiori LLC. Send permission requests to support@supoclip.com. Earlier releases retain the rights they were released under.
+
+### License FAQ
+
+This summary is for convenience. The [LICENSE](LICENSE) file is what applies.
+
+**Can I monetize clips I make with SupoClip?**
+Yes, if you are an individual creator: one person, running your own self-hosted copy for yourself. You can post the clips to your own YouTube, TikTok, Instagram Reels, Shorts, and other channels and earn from them through platform payouts, ads, sponsorships, affiliate links, memberships, and tips. You can also take part in clipping campaigns that allow you to clip the content and pay you for clips you post on your own channels. You don't need to ask first.
+
+**Who still needs a license?**
+Companies, agencies, and other organizations, including for internal use. Anyone using SupoClip for someone else's channels or brand, including freelancers paid to edit or clip for clients. Teams, or several people sharing one installation, for commercial work. Anyone offering SupoClip to others as a hosted or managed service, selling it, or redistributing it commercially. Using one person's account on behalf of a company does not make it individual use.
+
+**How do I ask for permission?**
+Email support@supoclip.com with who you are, who would use SupoClip, and what you want to do with it. Permission is given in writing.
+
+**What about the hosted plans at supoclip.com?**
+The hosted web app and iOS app are separate from this license. Your subscription and the [terms of service](https://www.supoclip.com/terms) cover how you can use clips you make there.
+
+Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
 
 Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md), including a license grant that allows the project owner to sublicense and relicense contributed code.

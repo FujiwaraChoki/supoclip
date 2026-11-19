@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Acceso al código",
-          "supoclip": "Repositorio público AGPL-3.0",
+          "supoclip": "Licencia de código fuente no comercial de SupoClip",
           "supolive": "No anuncia en su página de inicio una opción de código abierto ni de autoalojamiento"
         },
         "usecase": {
@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "¿Autoalojar SupoClip es gratis?",
-        "answer": "SupoClip ofrece código fuente gratis bajo AGPL-3.0. Ejecutarlo igual implica hardware o alojamiento, almacenamiento, transcripción y cualquier uso de pago de un LLM. SupoClip alojado tiene sus propias condiciones de servicio y precios."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC. Ejecutarlo igual implica hardware o alojamiento, almacenamiento, transcripción y cualquier uso de pago de un LLM. SupoClip alojado tiene sus propias condiciones de servicio y precios."
       },
       "2": {
         "question": "¿SupoClip puede reemplazar el recorte de transmisiones en vivo y la publicación automática?",
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Código fuente",
-        "supoclip": "Público, <license>AGPL-3.0</license>"
+        "supoclip": "Público, <license>Licencia de código fuente no comercial de SupoClip</license>"
       },
       "pricing": {
         "label": "Modelo de precios",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "¿SupoClip autoalojado es gratis?",
-        "answer": "El código es gratis bajo AGPL-3.0 y el modo autoalojado no tiene límites de generación ni muro de pago. Igual pagas tu propio hardware o servidor, y cualquier transcripción en la nube o uso de LLM que configures. Una instalación con Whisper y Ollama evita tarifas de IA por solicitud, pero necesita suficiente cómputo local."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC. Igual pagas tu propio hardware o servidor, y cualquier transcripción en la nube o uso de LLM que configures. Una instalación con Whisper y Ollama evita tarifas de IA por solicitud, pero necesita suficiente cómputo local."
       },
       "1": {
         "question": "¿SupoClip puede correr sin servicios de IA en la nube?",

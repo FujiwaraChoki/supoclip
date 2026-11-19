@@ -1,11 +1,62 @@
 {
   "new": "Nuevo",
+  "welcomeBadge": "Bienvenida",
   "next": "Siguiente",
   "back": "Atrás",
   "done": "Listo",
   "start": "Muéstrame 👀",
   "notNow": "Ahora no",
   "progress": "{current} de {total}",
+  "welcome": {
+    "intro": {
+      "title": "Te damos la bienvenida a SupoClip",
+      "body": "Danos un video largo y convertimos sus mejores momentos en clips verticales cortos, con subtítulos y listos para publicar. Un recorrido de dos minutos: cómo crear tus primeros clips y luego cada página que usarás."
+    },
+    "source": {
+      "title": "Empieza con un video",
+      "body": "Pega aquí un enlace de YouTube, Twitch o Kick, o sube un archivo con el clip, y luego pulsa la flecha. Los pódcasts, entrevistas y charlas de 10 minutos o más funcionan mejor."
+    },
+    "workflows": {
+      "title": "Elige qué crear",
+      "body": "Destacados te da los mejores momentos, cada uno funciona solo, y es la mejor opción para empezar. Los demás convierten un video en una serie, un resumen, un tráiler o todos los clips sobre un tema."
+    },
+    "settings": {
+      "title": "Define el estilo una vez",
+      "body": "La duración, los subtítulos, el encuadre y el B-roll están en este menú. Los valores por defecto son buenos y recordamos lo que cambies."
+    },
+    "library": {
+      "title": "Biblioteca",
+      "body": "Cada video que recortas llega aquí, el más reciente primero, y puedes buscarlos. Puedes salir mientras uno se procesa; sigue adelante y aparece aquí cuando termina."
+    },
+    "libraryClips": {
+      "title": "Tus clips, por puntuación",
+      "body": "Abre un video para ver sus clips, la mejor puntuación primero. Descarga uno o todos, o abre un clip en el estudio para recortarlo, corregir un subtítulo o reencuadrarlo."
+    },
+    "social": {
+      "title": "Conecta tus cuentas",
+      "body": "Vincula aquí tus redes sociales para publicar clips directamente desde SupoClip, sin descargarlos antes."
+    },
+    "analytics": {
+      "title": "Mira qué funciona",
+      "body": "Las vistas, los me gusta y los comentarios de tus publicaciones vuelven aquí, por plataforma, gancho y duración. Tras unas cuantas publicaciones, SupoClip los usa para elegir clips más parecidos a los mejores."
+    },
+    "agents": {
+      "title": "Clips desde tu asistente de IA",
+      "body": "Conecta Claude, ChatGPT o Grok y pide clips en un chat: pega la URL del servidor e inicia sesión, sin claves que copiar. ¿Estás construyendo algo? Crea una clave de API abajo."
+    },
+    "captions": {
+      "title": "Tu estilo de subtítulos",
+      "body": "Define la fuente, el tamaño y el color con los que empieza cada video nuevo, con vista previa. Puedes cambiarlos en un video concreto."
+    },
+    "plan": {
+      "title": "Tu plan",
+      "body": "Los planes cuentan minutos de los videos que traes, no clips. Mira lo que has usado este mes y cambia tu plan aquí."
+    },
+    "finish": {
+      "title": "Todo listo",
+      "body": "Eso es todo. Pega aquí tu primer enlace y nosotros nos encargamos del resto."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Presentamos los flujos",

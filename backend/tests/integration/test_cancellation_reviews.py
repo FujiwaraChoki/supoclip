@@ -318,24 +318,6 @@ def _session_headers(user_id):
 async def test_cancellation_note_is_stored(client, db_session, app, clean_tables, monkeypatch):
     user_id = str(uuid4())
     await create_user(db_session, user_id=user_id)
-    app.state.config.discord_feedback_webhook_url = "https://discord.invalid/webhook"
-
-    class Response:
-        def raise_for_status(self):
-            return None
-
-    class Client:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return None
-
-        async def post(self, *args, **kwargs):
-            return Response()
-
-    monkeypatch.setattr("src.api.routes.feedback.httpx.AsyncClient", lambda: Client())
-    monkeypatch.setattr("src.api.routes.feedback.get_config", lambda: app.state.config)
     response = await client.post("/feedback", headers={**_session_headers(user_id), "content-type": "application/json"},
                                  content=json.dumps({"category": "cancellation", "message": "Too slow"}))
     assert response.status_code == 200

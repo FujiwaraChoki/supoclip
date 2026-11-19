@@ -55,6 +55,7 @@ import {
   type EditorMediaFrame,
   type TextDraft,
 } from "@/lib/editor/render";
+import { playPreview } from "@/lib/editor/playback";
 import { FRAME, type ReactionCue } from "@/lib/fx/core/types";
 import { isNontrivial, pieceLength, toEdit, toOutput, type Warp } from "@/lib/fx/core/warp";
 import { storedCueId } from "@/lib/fx/studio-scene";
@@ -300,7 +301,7 @@ export function Preview({
     }
     if (video.currentTime < s.start || video.currentTime >= s.end - 0.01)
       video.currentTime = s.start;
-    await video.play().catch(() => setMediaError(true));
+    await playPreview(video, () => setMediaError(true));
   }, [asset.hasAudio, doc, fxAudio, segmentIndex, select, videoRef]);
   useEffect(() => {
     if (!needsFx) return;
@@ -601,7 +602,7 @@ export function Preview({
               if (loop && videoRef.current) {
                 select(0);
                 videoRef.current.currentTime = doc.segments[0].start;
-                void videoRef.current.play();
+                void playPreview(videoRef.current, () => setMediaError(true));
               } else setPlaying(false);
             }}
             onError={() => setMediaError(true)}

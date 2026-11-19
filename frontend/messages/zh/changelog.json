@@ -10,6 +10,8 @@
   "startClipping": "开始剪辑",
   "relatedChange": "相关改动 {label}",
   "viewOnGitHub": "在 GitHub 上查看更新日志",
+  "discordUpdates": "在 Discord 上接收更新",
+  "discordDescription": "可选择在发布新版本说明时接收提醒。",
   "categories": {
     "new": "新功能",
     "improved": "改进",

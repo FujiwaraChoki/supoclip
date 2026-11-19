@@ -1,4 +1,9 @@
 {
+  "about": {
+    "title": "Sobre",
+    "credit": "Baseado no SupoClip.",
+    "repository": "Repositório original"
+  },
   "title": "Configurações",
   "intro": "Padrões para novas gerações, notificações e seu plano.",
   "languageDescription": "O idioma usado no SupoClip.",
@@ -83,8 +88,14 @@
     "failed": "Não foi possível salvar as preferências"
   },
   "toasts": {
-    "upgraded": "Seu plano foi atualizado. Aproveite o espaço extra!",
     "ready": "Tudo certo. Hora de fazer clipes!"
+  },
+  "thanks": {
+    "title": "Obrigado!",
+    "body": "Agora você está no {plan}: {minutes} de vídeo por mês, clipes em {resolution}.",
+    "bodyShort": "Agora você está no {plan}. Hora de criar clipes.",
+    "makeClip": "Criar um clipe",
+    "done": "Pronto"
   },
   "apiKeys": {
     "title": "Agentes e API",
@@ -283,5 +294,57 @@
     "unsupported": "Sem suporte completo (idiomas comuns): ",
     "all": "Todos os idiomas compatíveis ({count})",
     "fallback": "Caracteres ausentes usam uma fonte reserva e podem ficar diferentes. A cobertura é verificada neste arquivo de fonte; pré-visualize as legendas para caracteres incomuns."
+  },
+  "emailChange": {
+    "title": "Conta",
+    "description": "O e-mail que você usa para entrar.",
+    "label": "Endereço de e-mail",
+    "verified": "Verificado",
+    "unverified": "Não verificado",
+    "action": "Alterar e-mail",
+    "dialogTitle": "Alterar seu e-mail",
+    "stepOf": "Etapa {step} de 2",
+    "intro": "Primeiro vamos enviar um código para <strong>{email}</strong> para confirmar que é você.",
+    "unverifiedNote": "Este endereço ainda não foi verificado. Digitar o código também o verifica.",
+    "password": "Senha atual",
+    "noPassword": "Sua conta não tem senha, então o código é como você confirma que é você.",
+    "sendCurrent": "Enviar código",
+    "codeSent": "Digite o código de 6 dígitos que enviamos para <strong>{email}</strong>.",
+    "codeLabel": "Código",
+    "codeHint": "O código expira em 10 minutos. Confira a pasta de spam se ele não chegar.",
+    "resend": "Enviar um novo código",
+    "resendIn": "Novo código em {seconds} s",
+    "useDifferent": "Usar outro endereço",
+    "verify": "Verificar",
+    "confirm": "Alterar e-mail",
+    "currentConfirmed": "Seu endereço atual foi confirmado.",
+    "newLabel": "Novo endereço de e-mail",
+    "newHint": "Vamos enviar um código para lá. Seu e-mail só muda depois que você digitá-lo.",
+    "sendNew": "Enviar código",
+    "finishing": "Os dois endereços foram confirmados, mas não conseguimos atualizar o e-mail da sua conta de cobrança. Seu e-mail ainda não mudou.",
+    "retry": "Tentar novamente",
+    "doneTitle": "E-mail alterado",
+    "done": "Agora você entra com <strong>{email}</strong>. Recibos e notificações também vão para lá.",
+    "doneDetails": "Encerramos sua sessão nos outros dispositivos e enviamos um aviso para {previous}.",
+    "close": "Concluir",
+    "errors": {
+      "generic": "Algo deu errado. Tente novamente.",
+      "passwordRequired": "Digite sua senha atual.",
+      "invalidPassword": "Essa senha não está correta.",
+      "reauthRequired": "Por segurança, saia e entre novamente; depois altere seu e-mail.",
+      "rateLimited": "Muitas tentativas. Tente novamente em {minutes} min.",
+      "cooldown": "Um código acabou de ser enviado. Você pode pedir outro em {seconds} segundos.",
+      "noRequest": "Esta solicitação expirou ou foi substituída. Comece de novo.",
+      "wrongCode": "Esse código não está correto.",
+      "wrongCodeLeft": "Esse código não está correto. {count, plural, =0 {Peça um novo código.} one {Resta # tentativa.} other {Restam # tentativas.}}",
+      "codeExpired": "Esse código expirou. Peça um novo.",
+      "tooManyAttempts": "Muitos códigos errados. Peça um novo.",
+      "invalidEmail": "Digite um endereço de e-mail válido.",
+      "sameEmail": "Esse já é o seu endereço de e-mail.",
+      "emailTaken": "Outra conta já usa esse endereço de e-mail.",
+      "sendFailed": "Não conseguimos enviar o e-mail. Tente novamente.",
+      "billingUpdateFailed": "Não conseguimos atualizar seu e-mail de cobrança, então nada mudou. Tente novamente.",
+      "inProgress": "A alteração do seu e-mail já está sendo salva. Aguarde um momento e confira de novo."
+    }
   }
 }

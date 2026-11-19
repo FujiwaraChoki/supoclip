@@ -123,8 +123,8 @@
         "answer": "Sí. SupoClip acepta URL de YouTube, identifica momentos candidatos y puede renderizar clips verticales con subtítulos aptos para YouTube Shorts."
       },
       "2": {
-        "question": "¿SupoClip es de código abierto?",
-        "answer": "Sí. El código de SupoClip está disponible bajo la licencia AGPL-3.0 y se puede autoalojar o modificar."
+        "question": "¿Puedo autoalojar SupoClip?",
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC."
       },
       "3": {
         "question": "¿Qué fuentes de video acepta SupoClip?",
@@ -147,8 +147,8 @@
     "tableRows": {
       "0": {
         "0": "Acceso al código",
-        "1": "Repositorio completo AGPL-3.0",
-        "2": "Repositorio completo AGPL-3.0"
+        "1": "Licencia de código fuente no comercial de SupoClip",
+        "2": "Licencia de código fuente no comercial de SupoClip"
       },
       "1": {
         "0": "Infraestructura",
@@ -175,7 +175,7 @@
       "1": {
         "heading": "Qué sigue siendo tu responsabilidad",
         "p1": "Código abierto no significa que cada dependencia sea gratis. Quien autoaloja pone su propio cómputo, almacenamiento, servicio de transcripción y configuración del modelo de lenguaje. El intercambio es responsabilidad operativa a cambio de control sobre el código.",
-        "p2": "Los equipos también deben revisar la licencia AGPL-3.0, proteger sus variables de entorno, mantener las dependencias actualizadas y vigilar el worker y las capas de almacenamiento en producción.",
+        "p2": "Los equipos también deben revisar la licencia Licencia de código fuente no comercial de SupoClip, proteger sus variables de entorno, mantener las dependencias actualizadas y vigilar el worker y las capas de almacenamiento en producción.",
         "bullet1": "Provisiona cómputo y almacenamiento persistente",
         "bullet2": "Configura la transcripción y los proveedores de modelo",
         "bullet3": "Protege secretos y rutas autenticadas",
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "¿Autoalojar SupoClip es gratis?",
-        "answer": "El código fuente es gratuito bajo la licencia AGPL-3.0. Sigues siendo responsable de la infraestructura y de cualquier uso de pago de transcripción o de proveedores de IA."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC. Sigues siendo responsable de la infraestructura y de cualquier uso de pago de transcripción o de proveedores de IA."
       },
       "1": {
         "question": "¿SupoClip puede usar un modelo de lenguaje local?",
@@ -292,7 +292,7 @@
     "hostedBody": "Pro parte de US${price}/mes con {hours} horas de vídeo fuente al mes y clips en {resolution}. Gestionamos el procesamiento. La app alojada requiere un plan de pago.",
     "plans": "Ver planes actuales",
     "selfHostTitle": "Alojarlo por tu cuenta",
-    "selfHostBody": "El código es gratuito bajo AGPL-3.0. Tú proporcionas el equipo, almacenamiento, mantenimiento y los servicios de transcripción o IA de pago que elijas.",
+    "selfHostBody": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC. Tú proporcionas el equipo, almacenamiento, mantenimiento y los servicios de transcripción o IA de pago que elijas.",
     "selfHostButton": "Leer la guía de autoalojamiento",
     "ai-video-clipper": {
       "title": "Convierte tu grabación en clips listos para publicar",

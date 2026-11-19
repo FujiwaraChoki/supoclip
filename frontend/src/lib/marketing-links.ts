@@ -23,6 +23,12 @@ export const OPUSCLIP_COMPARISON_HREF = "/blog/supoclip-vs-opusclip";
 
 export const marketingLinks: MarketingLink[] = [
   {
+    href: "/blog/how-to-clip-gta-6", language: "en", group: "guide", eyebrow: "GTA 6 clipping",
+    title: "How to clip GTA 6", label: "How to clip GTA 6",
+    description: "What clipping campaigns pay, Rockstar's rules, and the workflow from VOD to vertical clips.",
+    related: ["/blog/twitch-vod-to-shorts", "/blog/find-best-moments-in-video", "/blog/tiktok-publishing-is-live"],
+  },
+  {
     href: "/blog/tiktok-publishing-is-live", language: "en", group: "guide", eyebrow: "Product update",
     title: "TikTok publishing is now live in SupoClip", label: "TikTok publishing",
     description: "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator.",
@@ -116,7 +122,7 @@ export const marketingLinks: MarketingLink[] = [
     href: "/blog/twitch-vod-to-shorts", language: "en", group: "guide", eyebrow: "Stream clips",
     title: "Turn Twitch VODs into TikTok clips and Shorts", label: "Twitch VOD to Shorts",
     description: "Review spoken highlights, preserve gameplay context, and export vertical clips.",
-    related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
+    related: ["/blog/how-to-clip-gta-6", "/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions"],
   },
   {
     href: "/blog/repurpose-webinar-clips", language: "en", group: "guide", eyebrow: "Webinar repurposing",

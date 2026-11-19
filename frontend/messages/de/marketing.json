@@ -17,16 +17,29 @@
       "featureCrop": "Gesichtsbewusster 9:16-Hochformatschnitt",
       "featureCaptions": "Wortgenaue animierte Untertitel",
       "featureExports": "Exporte für YouTube Shorts, TikTok und Instagram Reels",
-      "featureSelfHost": "Open-Source-Self-Hosting",
-      "offerCategory": "Selbst gehostete Open-Source-Edition",
+      "featureSelfHost": "Kostenlos selbst hosten für nichtkommerzielle Zwecke und einzelne Creator",
+      "offerCategory": "Quellcode für Self-Hosting: nichtkommerziell und für einzelne Creator",
       "ios": "Die SupoClip-App für iOS: Mach aus langen Videos untertitelte Hochformat-Shorts auf deinem iPhone.",
       "website": "Open-Source-KI-Videoclipping für Kurzform-Content."
     }
   },
+  "community": {
+    "eyebrow": "SupoClip auf Discord",
+    "title": "Gemeinsam bessere Clips machen.",
+    "body": "Hol dir eine zweite Meinung zu deinem Schnitt, tausche Schnitttipps aus und sag uns, wie wir SupoClip verbessern können.",
+    "join": "Auf Discord beitreten",
+    "activities": {
+      "showcase": "Teile einen Clip und hol dir Feedback",
+      "tips": "Tausche Schnitttipps aus",
+      "ideas": "Stimme über Funktionsideen ab"
+    }
+  },
   "footer": {
     "tagline": "Open-Source-KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",
+    "licenseNotice": "Einzelne Creator dürfen kostenlos selbst hosten und monetarisieren. Unternehmen, Agenturen und bezahltes Hosting erfordern eine <license>schriftliche Genehmigung</license>.",
     "github": "GitHub",
     "ios": "iOS-App",
+    "discord": "Discord-Community",
     "columns": {
       "guides": "Guides",
       "compare": "Vergleich",
@@ -143,6 +156,12 @@
       "title": "Turn Twitch VODs into TikTok clips and Shorts",
       "label": "Twitch VOD to Shorts",
       "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+    },
+    "blog_how_to_clip_gta_6": {
+      "eyebrow": "GTA-6-Clipping",
+      "title": "GTA 6 clippen: so geht's",
+      "label": "GTA 6 clippen",
+      "description": "Was Clipping-Kampagnen zahlen, Rockstars Regeln und der Workflow vom VOD zum Hochformat-Clip."
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -509,7 +528,7 @@
       },
       "selfHost": {
         "question": "Ist Selbsthosten wirklich kostenlos?",
-        "answer": "Ja. SupoClip ist Open Source unter AGPL-3.0 und läuft mit Docker Compose auf deinem eigenen Rechner. Du zahlst nur für die Transkriptions- und KI-Anbieter, die du wählst, falls überhaupt."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC."
       },
       "cancel": {
         "question": "Kann ich jederzeit kündigen?",
@@ -518,13 +537,13 @@
     }
   },
   "openSource": {
-    "badge": "AGPL-3.0-lizenziert",
+    "badge": "Nichtkommerzielle SupoClip-Quellcodelizenz",
     "title": "Offen entwickelt",
-    "body": "Komplett Open Source. Hoste es auf deiner Infrastruktur, steuere Funktionen bei oder fork es und mach es zu deinem.",
+    "body": "Quellcode für Self-Hosting: nichtkommerziell und für einzelne Creator",
     "commandLabel": "selbst hosten",
     "comment": "# Trag einen Transkriptions- und LLM-Anbieter in .env ein",
     "facts": {
-      "license": "AGPL-3.0, jede Zeile auf GitHub",
+      "license": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC.",
       "docker": "Ein Docker-Compose-Befehl, um es selbst zu betreiben",
       "models": "Eigene Modelle nutzen: Gemini, OpenAI, Anthropic oder Ollama"
     },
@@ -538,7 +557,7 @@
   },
   "cta": {
     "title": "Dein nächstes Video ist schon eine Woche Content.",
-    "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste die Open-Source-Version kostenlos selbst."
+    "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste SupoClip selbst, für nichtkommerzielle Zwecke oder als einzelner Creator."
   },
   "faqPage": {
     "title": "Sprachen, Untertitel und Clips",

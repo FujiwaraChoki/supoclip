@@ -66,6 +66,7 @@ import {
 } from "./editor-recovery";
 import { draftCacheKey, pruneDrafts } from "@/lib/editor/draft-cache";
 import { createPreviewFxAudio } from "@/lib/fx/audio-preview";
+import { usePathname } from "next/navigation";
 import { FeatureTourHost } from "@/components/feature-tour";
 import { FX_LANE_HEIGHT, removeFxCue } from "./fx-track";
 import { MUSIC_LANE_HEIGHT } from "./music-track";
@@ -119,6 +120,9 @@ export function EditorWorkspace({
   onSelect,
   refreshClips,
 }: Props) {
+  // The studio hosts its own tour: it never leaves this page, so there is nowhere to navigate to.
+  const tourPathname = usePathname() ?? "";
+  const tourNavigate = useCallback(() => {}, []);
   const t = useTranslations("editor");
   const endpoint = `/api/tasks/${taskId}/clips/${clip.id}/editor`;
   const editor = useEditor(endpoint),
@@ -805,6 +809,9 @@ export function EditorWorkspace({
       <BrowserBackupsDialog open={backupsOpen} onOpenChange={setBackupsOpen} />
       <FeatureTourHost
         enabled={Boolean(doc && asset?.status === "ready")}
+        pathname={tourPathname}
+        navigate={tourNavigate}
+        canStart
         busy={
           !doc ||
           asset?.status !== "ready" ||
