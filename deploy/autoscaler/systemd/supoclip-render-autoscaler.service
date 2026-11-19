@@ -1,0 +1,14 @@
+[Unit]
+Description=SupoClip render worker autoscaler (one run)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=supoclip-autoscaler
+EnvironmentFile=/etc/supoclip-autoscaler/autoscaler.env
+ExecStart=/usr/bin/python3 /opt/supoclip-autoscaler/autoscaler.py
+# A scale-up (boot, image copy, checks) takes a few minutes; never more than this.
+TimeoutStartSec=45min
+# Left off on purpose: the run uses `sudo -n systemctl` for the tunnel units only.
+NoNewPrivileges=false

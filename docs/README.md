@@ -18,6 +18,7 @@ If you are new to the project, start here:
   - First-run checklist
   - Production-minded setup notes
 - [Video workers on other machines](./render-worker.md)
+- [Autoscaling render workers](./autoscaling.md)
   - What is shared (PostgreSQL, Redis, the bucket) and what is local scratch
   - Worker-only Compose file and checks
 - [Configuration](./configuration.md)

@@ -155,6 +155,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
 | `src/workers/video_admission.py` | Per-account render slots; holds a job until its upload is in the bucket |
+| `src/workers/host_jobs.py` | Which video jobs run on which machine (Redis); read by the render autoscaler (`deploy/autoscaler/`, `docs/autoscaling.md`) |
 | `src/workers/media_cleanup.py` | Deletion outbox, orphan sweeps, per-machine scratch cleanup |
 | `src/editor_state.py` | Clip studio sessions, drafts and export/combine jobs in PostgreSQL |
 | `src/local_volume.py` | Id of the disk behind `TEMP_DIR`; tags rows that name a local path |
