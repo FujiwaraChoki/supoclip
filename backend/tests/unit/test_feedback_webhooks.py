@@ -155,9 +155,9 @@ def test_json_payload_is_signed_over_timestamp_and_body():
     assert payload["type"] == "feedback.created" and payload["version"] == 1 and payload["delivery_id"] == "del-1"
     assert payload["submission"]["user"] == {"id": "user-1", "email": "ana@example.com"}
     assert payload["submission"]["created_at"] == "2026-11-17T09:30:00Z"
-    assert headers["X-SupoClip-Delivery"] == "del-1" and headers["X-SupoClip-Event"] == "feedback.created"
+    assert headers["X-TokoClippers-Delivery"] == "del-1" and headers["X-TokoClippers-Event"] == "feedback.created"
     expected = hmac.new(b"whsec_test", b"1700000000." + body, hashlib.sha256).hexdigest()
-    assert headers["X-SupoClip-Signature"] == f"t=1700000000,v1={expected}"
+    assert headers["X-TokoClippers-Signature"] == f"t=1700000000,v1={expected}"
 
 
 @pytest.mark.asyncio
@@ -272,7 +272,7 @@ def test_hermes_request_uses_the_gateway_v2_signature():
     expected = hmac.new(b"route-secret", b"1700000000." + body, hashlib.sha256).hexdigest()
     assert headers["X-Webhook-Signature-V2"] == expected
     assert headers["X-Request-ID"] == DELIVERY_ID and headers["Content-Type"] == "application/json"
-    assert not any(name.startswith("X-SupoClip") for name in headers)
+    assert not any(name.startswith("X-TokoClippers") for name in headers)
 
 
 def test_hermes_payload_is_exactly_what_the_route_accepts():

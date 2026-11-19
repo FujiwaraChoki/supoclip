@@ -89,7 +89,7 @@
     "signIn": "Entrar",
     "title": "Contas sociais",
     "unavailable": "Publicar no YouTube, TikTok e Instagram ainda não está disponível na sua conta.",
-    "intro": "Conecte as contas em que você publica. Publique clipes direto da página da tarefa, agende e deixe o SupoClip aprender com o desempenho deles.",
+    "intro": "Conecte as contas em que você publica. Publique clipes direto da página da tarefa, agende e deixe o TokoClippers aprender com o desempenho deles.",
     "loadError": "Falha ao carregar as contas sociais",
     "connectedNotice": "{label} conectado.",
     "connectedAs": "{label} conectado como {account}.",
@@ -98,7 +98,7 @@
     "connectHeading": "Conectar uma conta",
     "connect": "Conectar",
     "comingSoon": "Em breve",
-    "verificationNote": "Estamos no processo de verificar o SupoClip com esta plataforma.",
+    "verificationNote": "Estamos no processo de verificar o TokoClippers com esta plataforma.",
     "instagramNote": "O Instagram precisa de uma conta profissional (Business ou Creator).",
     "tiktokNote": "O TikTok verifica quais opções de visibilidade sua conta conectada permite.",
     "youtubeNote": "Os envios do YouTube de um app não verificado ficam privados até a análise do Google terminar.",
@@ -128,6 +128,6 @@
   "loadingPrivacy": "Verificando as opções do TikTok…",
   "privacyLoadFailed": "Não foi possível carregar as opções. Atualize e tente novamente.",
   "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções.",
-  "tiktokPrivateAccountRequired": "O TikTok ainda não aprovou o app do SupoClip, então só aceita publicações privadas de contas privadas. Antes de publicar, ative no TikTok Configurações e privacidade → Privacidade → Conta privada.",
+  "tiktokPrivateAccountRequired": "O TikTok ainda não aprovou o app do TokoClippers, então só aceita publicações privadas de contas privadas. Antes de publicar, ative no TikTok Configurações e privacidade → Privacidade → Conta privada.",
   "tiktokPaused": "A publicação no TikTok está pausada enquanto corrigimos um problema com o TikTok. As suas outras plataformas funcionam normalmente."
 }

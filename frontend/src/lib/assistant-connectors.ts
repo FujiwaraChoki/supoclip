@@ -1,5 +1,5 @@
 /**
- * Chat assistants that can add the hosted SupoClip MCP server as a connector.
+ * Chat assistants that can add the hosted TokoClippers MCP server as a connector.
  *
  * Every link here comes from the provider's own documentation (checked 2026-11-15) and opens
  * the provider's own connector page. None of them can prefill a server URL, so nothing about

@@ -13,7 +13,7 @@ must receive the configuration. Existing deployments retain their explicit LLM
 setting until an approved switch.
 
 OpenRouter receives Sonnet as the primary `model` and Luna in the `models`
-fallback list. It handles provider and model failover. SupoClip requests strict
+fallback list. It handles provider and model failover. TokoClippers requests strict
 native JSON schema output, requires compatible endpoints, excludes providers
 that collect data, uses low reasoning effort, and caps each response at 8,192
 tokens. Existing schema repair retries and the overall 600-second analysis

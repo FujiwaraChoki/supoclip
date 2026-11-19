@@ -83,7 +83,7 @@ def test_capture_never_raises(monkeypatch):
     [
         ({}, "web"),
         ({"x-supoclip-client": "ios"}, "ios"),
-        ({"user-agent": "SupoClip supoclip-ios/12"}, "ios"),
+        ({"user-agent": "TokoClippers supoclip-ios/12"}, "ios"),
         ({"authorization": "Bearer sk_test"}, "api_key"),
         ({"x-api-key": "sk_test", "user-agent": "python-httpx/0.28"}, "api_key"),
         ({"authorization": "Bearer sk_test", "user-agent": "supoclip-mcp/0.1.0"}, "mcp"),

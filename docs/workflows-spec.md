@@ -1,4 +1,4 @@
-# SupoClip Workflows: final implementation spec
+# TokoClippers Workflows: final implementation spec
 
 Codebase: `/home/loki/Work/supoclip-workflows` at `08ec76db`. Paths below are relative to the repo root unless stated otherwise. Line numbers are from that commit; re-anchor on function names if they drift.
 

@@ -42,10 +42,10 @@ export async function generateMetadata({ params }: SeoLandingPageProps): Promise
     keywords: page.keywords,
     alternates: { canonical: url },
     openGraph: {
-      title: `${title} | SupoClip`,
+      title: `${title} | TokoClippers`,
       description,
       url,
-      siteName: "SupoClip",
+      siteName: "TokoClippers",
       type: "article",
       publishedTime: page.publishedAt,
       modifiedTime: page.updatedAt,
@@ -88,14 +88,14 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
       datePublished: page.publishedAt,
       dateModified: page.updatedAt,
       author: { "@type": "Organization", name: t("chrome.team"), url: siteUrl },
-      publisher: { "@type": "Organization", name: "SupoClip", url: siteUrl },
-      about: { "@type": "SoftwareApplication", name: "SupoClip", url: siteUrl },
+      publisher: { "@type": "Organization", name: "TokoClippers", url: siteUrl },
+      about: { "@type": "SoftwareApplication", name: "TokoClippers", url: siteUrl },
     },
     {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [
-        { "@type": "ListItem", position: 1, name: "SupoClip", item: siteUrl },
+        { "@type": "ListItem", position: 1, name: "TokoClippers", item: siteUrl },
         { "@type": "ListItem", position: 2, name: heading, item: url },
       ],
     },
@@ -123,8 +123,8 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
       <header className="border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg dark:invert" />
-            <span className="text-lg font-bold tracking-tight">SupoClip</span>
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg dark:invert" />
+            <span className="text-lg font-bold tracking-tight">TokoClippers</span>
           </Link>
           <nav className="flex items-center gap-2" aria-label={t("chrome.primaryNav")}>
             <Link href="/blog"><Button variant="ghost" size="sm">{t("chrome.blog")}</Button></Link>
@@ -138,7 +138,7 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
         <section className="border-b bg-muted/35">
           <div className="mx-auto max-w-5xl px-6 py-14 md:py-20">
             <nav aria-label={t("chrome.breadcrumbNav")} className="mb-6 text-sm text-muted-foreground">
-              <Link href="/" className="hover:text-foreground">SupoClip</Link>
+              <Link href="/" className="hover:text-foreground">TokoClippers</Link>
               <span aria-hidden="true" className="mx-2">/</span>
               <span>{t(`${slug}.eyebrow`)}</span>
             </nav>

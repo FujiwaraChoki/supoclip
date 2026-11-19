@@ -1,5 +1,5 @@
 """
-Configuration for the SupoClip MCP server.
+Configuration for the TokoClippers MCP server.
 
 All settings come from environment variables so the same server binary works
 against the official hosted instance (the default) or any self-hosted backend.
@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-# The official hosted SupoClip API. Override with SUPOCLIP_API_URL to point at
+# The official hosted TokoClippers API. Override with SUPOCLIP_API_URL to point at
 # a self-hosted backend (e.g. http://localhost:8000).
 DEFAULT_API_URL = "https://api.supoclip.com"
 # The web app: where users create API keys and pick a plan.

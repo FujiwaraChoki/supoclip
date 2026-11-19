@@ -1,10 +1,10 @@
 {
   "metadata": {
     "title": "Status layanan",
-    "description": "Status layanan terkini dan pembaruan insiden SupoClip."
+    "description": "Status layanan terkini dan pembaruan insiden TokoClippers."
   },
   "title": "Status layanan",
-  "intro": "Pembaruan untuk layanan SupoClip yang di-host.",
+  "intro": "Pembaruan untuk layanan TokoClippers yang di-host.",
   "unavailable": "Status layanan sedang tidak tersedia. Coba lagi nanti, ya.",
   "states": {
     "operational": "Normal",
@@ -15,5 +15,5 @@
   },
   "lastUpdated": "Terakhir diperbarui:",
   "timezone": "(Zurich)",
-  "back": "Kembali ke SupoClip"
+  "back": "Kembali ke TokoClippers"
 }

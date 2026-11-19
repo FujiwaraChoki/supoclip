@@ -49,7 +49,7 @@
   "announcements": {
     "whatsNew": "新动态",
     "whatsNewUnread": "新动态，{count, plural, other {# 条未读公告}}",
-    "title": "SupoClip 的新动态",
+    "title": "TokoClippers 的新动态",
     "close": "关闭公告",
     "popover": "公告",
     "new": "新"

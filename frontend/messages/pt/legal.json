@@ -2,18 +2,18 @@
   "bindingNotice": "A versão em inglês deste documento é a legalmente vinculante. Esta tradução é fornecida apenas por conveniência.",
   "hostedApp": "App hospedado",
   "lastUpdated": "Última atualização: {date}",
-  "back": "Voltar ao SupoClip",
+  "back": "Voltar ao TokoClippers",
   "terms": {
-    "metaTitle": "Termos de Serviço | SupoClip",
-    "metaDescription": "Os termos que regem o seu uso dos apps do SupoClip e do serviço hospedado de cortes de vídeo, incluindo assinaturas compradas na web ou pela App Store.",
-    "ogTitle": "Termos de Serviço do SupoClip",
-    "ogDescription": "Os termos que regem o seu uso do SupoClip.",
+    "metaTitle": "Termos de Serviço | TokoClippers",
+    "metaDescription": "Os termos que regem o seu uso dos apps do TokoClippers e do serviço hospedado de cortes de vídeo, incluindo assinaturas compradas na web ou pela App Store.",
+    "ogTitle": "Termos de Serviço do TokoClippers",
+    "ogDescription": "Os termos que regem o seu uso do TokoClippers.",
     "title": "Termos de Serviço",
     "privacyLink": "Política de Privacidade",
     "agreement": {
       "title": "Acordo",
-      "p1": "Estes Termos de Serviço (“Termos”) são celebrados entre você e a {company} (“nós”), operadora dos aplicativos e do serviço hospedado do SupoClip (o “Serviço”), que transformam vídeos longos em clipes curtos com legendas. Ao criar uma conta ou usar o Serviço, você concorda com estes Termos. Se não concordar, não use o Serviço.",
-      "p2": "O SupoClip também está disponível como software de código aberto que você pode hospedar por conta própria. Estes Termos se aplicam ao serviço hospedado operado pelo SupoClip; instâncias auto-hospedadas são regidas pela licença de software aplicável e pelos termos de quem as opera."
+      "p1": "Estes Termos de Serviço (“Termos”) são celebrados entre você e a {company} (“nós”), operadora dos aplicativos e do serviço hospedado do TokoClippers (o “Serviço”), que transformam vídeos longos em clipes curtos com legendas. Ao criar uma conta ou usar o Serviço, você concorda com estes Termos. Se não concordar, não use o Serviço.",
+      "p2": "O TokoClippers também está disponível como software de código aberto que você pode hospedar por conta própria. Estes Termos se aplicam ao serviço hospedado operado pelo TokoClippers; instâncias auto-hospedadas são regidas pela licença de software aplicável e pelos termos de quem as opera."
     },
     "account": {
       "title": "Sua conta",
@@ -67,15 +67,15 @@
     }
   },
   "privacy": {
-    "metaTitle": "Política de Privacidade | SupoClip",
-    "metaDescription": "Como o SupoClip coleta, usa, compartilha e protege seus dados quando você usa o serviço de cortes de vídeo do SupoClip.",
-    "ogTitle": "Política de Privacidade do SupoClip",
-    "ogDescription": "Como o SupoClip trata os seus dados.",
+    "metaTitle": "Política de Privacidade | TokoClippers",
+    "metaDescription": "Como o TokoClippers coleta, usa, compartilha e protege seus dados quando você usa o serviço de cortes de vídeo do TokoClippers.",
+    "ogTitle": "Política de Privacidade do TokoClippers",
+    "ogDescription": "Como o TokoClippers trata os seus dados.",
     "title": "Política de Privacidade",
     "overview": {
       "title": "Visão geral",
-      "p1": "A {company} (“nós”) opera os aplicativos e o serviço hospedado do SupoClip (o “Serviço”) e é a controladora responsável pelos dados pessoais tratados para fornecê-los. Esta Política de Privacidade explica como coletamos, usamos, compartilhamos e protegemos informações quando você usa o Serviço, que transforma vídeos longos em clipes curtos com legendas.",
-      "p2": "O SupoClip também está disponível como software de código aberto que você pode hospedar por conta própria. Se você usa uma instância auto-hospedada operada por você ou por terceiros, quem opera—não o SupoClip—é responsável pelos dados processados por essa instância. Esta política descreve o serviço hospedado operado pelo SupoClip."
+      "p1": "A {company} (“nós”) opera os aplicativos e o serviço hospedado do TokoClippers (o “Serviço”) e é a controladora responsável pelos dados pessoais tratados para fornecê-los. Esta Política de Privacidade explica como coletamos, usamos, compartilhamos e protegemos informações quando você usa o Serviço, que transforma vídeos longos em clipes curtos com legendas.",
+      "p2": "O TokoClippers também está disponível como software de código aberto que você pode hospedar por conta própria. Se você usa uma instância auto-hospedada operada por você ou por terceiros, quem opera—não o TokoClippers—é responsável pelos dados processados por essa instância. Esta política descreve o serviço hospedado operado pelo TokoClippers."
     },
     "collect": {
       "title": "Informações que coletamos",
@@ -89,7 +89,7 @@
       "usage": "Coletamos identificadores de sessão, endereço IP e registros técnicos básicos para operar, proteger e depurar o Serviço. Se a análise estiver ativada no site hospedado, usamos um provedor de análise que respeita a privacidade e não cria perfis de publicidade entre sites. No site hospedado também usamos o PostHog para entender como o produto é usado, reproduzir sessões (com tudo o que você digita nos campos de formulário mascarado) e receber relatórios de erros para corrigir problemas.",
       "campaignLabel": "Informações de campanha e indicação.",
       "campaign1": "Quando você visita nosso site desconectado, o navegador guarda um registro de como você chegou pela primeira vez, por até 90 dias. Isso fica no armazenamento local do navegador, não em um cookie. O registro inclui tags de campanha do link que você seguiu (como <utmSource>utm_source</utmSource>, <utmCampaign>utm_campaign</utmCampaign> ou um código <ref>ref</ref>), o domínio do site de origem (não o endereço completo), a página em que você chegou e o horário dessa visita. Os endereços de página são reduzidos à rota, então links de compartilhamento e IDs de projeto nunca são registrados. Nada é registrado enquanto você está conectado.",
-      "campaign2": "A primeira conta a entrar nesse navegador fica com o registro, que depois é apagado do navegador para que nenhuma outra conta possa usá-lo. Se essa conta for nova, salvamos o registro nela uma única vez, logo depois do cadastro. Também anotamos quando você baixa ou exporta um clipe pela primeira vez. Usamos isso para saber quais canais trazem pessoas que acham o SupoClip útil. Se a análise estiver ativada, os eventos de cadastro e de exportação de clipe que enviamos ao nosso provedor de análise incluem os mesmos campos de campanha. Não usamos essas informações para publicidade nem as vendemos. Você pode remover o registro do navegador limpando os dados do site supoclip.com."
+      "campaign2": "A primeira conta a entrar nesse navegador fica com o registro, que depois é apagado do navegador para que nenhuma outra conta possa usá-lo. Se essa conta for nova, salvamos o registro nela uma única vez, logo depois do cadastro. Também anotamos quando você baixa ou exporta um clipe pela primeira vez. Usamos isso para saber quais canais trazem pessoas que acham o TokoClippers útil. Se a análise estiver ativada, os eventos de cadastro e de exportação de clipe que enviamos ao nosso provedor de análise incluem os mesmos campos de campanha. Não usamos essas informações para publicidade nem as vendemos. Você pode remover o registro do navegador limpando os dados do site supoclip.com."
     },
     "use": {
       "title": "Como usamos suas informações",
@@ -104,16 +104,16 @@
     },
     "social": {
       "title": "Contas sociais conectadas",
-      "p1": "Você pode conectar uma conta do YouTube, TikTok ou Instagram para o SupoClip publicar clipes por você. Conectar é opcional, acontece na página de login da própria plataforma, e nós nunca vemos sua senha dessa plataforma.",
+      "p1": "Você pode conectar uma conta do YouTube, TikTok ou Instagram para o TokoClippers publicar clipes por você. Conectar é opcional, acontece na página de login da própria plataforma, e nós nunca vemos sua senha dessa plataforma.",
       "accessLabel": "O que acessamos e por quê.",
       "li1": "<label>Perfil básico</label> (ID da conta, nome de exibição, nome de usuário, foto de perfil): para mostrar qual conta está conectada.",
       "li2": "<label>Permissão para enviar ou publicar</label>: para publicar os clipes que você escolher, com o título, a legenda, a visibilidade e o horário que você definir. Nunca publicamos nada que você não tenha pedido.",
-      "li3": "<label>Estatísticas das publicações feitas pelo SupoClip</label> (visualizações, curtidas, comentários, compartilhamentos): para mostrar o desempenho dos seus clipes e, quando houver resultados suficientes, adaptar a seleção de clipes para os seus próximos vídeos.",
+      "li3": "<label>Estatísticas das publicações feitas pelo TokoClippers</label> (visualizações, curtidas, comentários, compartilhamentos): para mostrar o desempenho dos seus clipes e, quando houver resultados suficientes, adaptar a seleção de clipes para os seus próximos vídeos.",
       "tokens": "Armazenamos de forma criptografada os tokens de acesso que a plataforma emite e os usamos apenas para os fins acima. Não vendemos esses dados, não os usamos para publicidade, não os compartilhamos com outros usuários nem os usamos para treinar modelos de IA de uso geral.",
       "disconnectLabel": "Desconectar e excluir.",
-      "disconnect": "Você pode desconectar uma conta a qualquer momento na página Social. Desconectar apaga na hora os tokens armazenados, cancela publicações ainda agendadas para essa conta e pede à plataforma que revogue o acesso do SupoClip quando ela permitir isso. Você também pode remover do app os registros de publicações, inclusive as estatísticas. Excluir sua conta do SupoClip remove todos esses dados. Você também pode revogar o acesso na própria plataforma; no Google, em <google>configurações de segurança do Google</google>. Para pedir que excluamos esses dados, escreva para <email>privacy@supoclip.com</email>.",
+      "disconnect": "Você pode desconectar uma conta a qualquer momento na página Social. Desconectar apaga na hora os tokens armazenados, cancela publicações ainda agendadas para essa conta e pede à plataforma que revogue o acesso do TokoClippers quando ela permitir isso. Você também pode remover do app os registros de publicações, inclusive as estatísticas. Excluir sua conta do TokoClippers remove todos esses dados. Você também pode revogar o acesso na própria plataforma; no Google, em <google>configurações de segurança do Google</google>. Para pedir que excluamos esses dados, escreva para <email>privacy@supoclip.com</email>.",
       "youtubeLabel": "YouTube e Google.",
-      "youtube": "O SupoClip usa o YouTube API Services. Ao conectar uma conta do YouTube, você concorda com os <youtubeTerms>Termos de Serviço do YouTube</youtubeTerms>, e o tratamento dos seus dados pelo Google está descrito na <googlePrivacy>Política de Privacidade do Google</googlePrivacy>. O uso pelo SupoClip e a transferência a qualquer outro app de informações recebidas das APIs do Google seguirão a <googleApi>Política de Dados do Usuário dos Serviços de API do Google</googleApi>, inclusive os requisitos de Uso Limitado."
+      "youtube": "O TokoClippers usa o YouTube API Services. Ao conectar uma conta do YouTube, você concorda com os <youtubeTerms>Termos de Serviço do YouTube</youtubeTerms>, e o tratamento dos seus dados pelo Google está descrito na <googlePrivacy>Política de Privacidade do Google</googlePrivacy>. O uso pelo TokoClippers e a transferência a qualquer outro app de informações recebidas das APIs do Google seguirão a <googleApi>Política de Dados do Usuário dos Serviços de API do Google</googleApi>, inclusive os requisitos de Uso Limitado."
     },
     "processors": {
       "title": "Provedores e subprocessadores",

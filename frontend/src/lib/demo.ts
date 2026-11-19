@@ -1,5 +1,5 @@
 /**
- * Real SupoClip output used on the landing page and /demo. Both clips were
+ * Real TokoClippers output used on the landing page and /demo. Both clips were
  * generated from DEMO_SOURCE, then shortened and downscaled to 540×960 web
  * previews (see public/clips/). Keep these facts in sync with the files.
  */

@@ -17,9 +17,9 @@ export const GTA6_SOURCES = {
 const FAQS: ArticleFaq[] = [
   { question: "Can you really make money clipping GTA 6?", answer: "Some clippers do, mostly through campaigns that pay per 1,000 approved views, often around $1. Most clips earn very little and a few carry the month, campaign budgets run out, and many campaigns cap what a single clip can earn. Treat it as paid practice at editing, not a guaranteed income." },
   { question: "Is it legal to post GTA 6 clips?", answer: "Rockstar's video policy allows fan videos of its games for non-commercial use and lets Take-Two remove footage at any time. It specifically targets the ending, big story reveals, isolated cutscenes and pre-release footage. Monetizing is not explicitly granted, so read the policy and your campaign's rules before you count on the money." },
-  { question: "Can SupoClip clip a GTA 6 stream while it's live?", answer: "No. SupoClip works on recorded video: a Twitch or Kick VOD or clip, a YouTube video, or a file you upload. Clip the VOD once the stream ends." },
-  { question: "Will the AI find every good GTA 6 moment?", answer: "No. SupoClip picks moments from what is said, so narrated chases, reactions and opinions land on its shortlist. A silent near-miss or physics glitch may not. Note those timestamps while you watch and cut them by hand." },
-  { question: "How many GTA 6 clips do I get from one stream?", answer: "SupoClip's shortlist grows with the length of the video, roughly one candidate per five minutes up to a cap. Keep only the ones that work on their own; a few finished clips beat twenty rough ones." },
+  { question: "Can TokoClippers clip a GTA 6 stream while it's live?", answer: "No. TokoClippers works on recorded video: a Twitch or Kick VOD or clip, a YouTube video, or a file you upload. Clip the VOD once the stream ends." },
+  { question: "Will the AI find every good GTA 6 moment?", answer: "No. TokoClippers picks moments from what is said, so narrated chases, reactions and opinions land on its shortlist. A silent near-miss or physics glitch may not. Note those timestamps while you watch and cut them by hand." },
+  { question: "How many GTA 6 clips do I get from one stream?", answer: "TokoClippers' shortlist grows with the length of the video, roughly one candidate per five minutes up to a cap. Keep only the ones that work on their own; a few finished clips beat twenty rough ones." },
   { question: "What about the in-game radio music?", answer: "GTA radio stations play licensed songs. They can get a clip muted or claimed on TikTok and YouTube, separate from Rockstar's own policy. Cut around songs or lower the music where you can." },
 ];
 
@@ -34,7 +34,7 @@ export function Gta6ClippingArticle({ post }: { post: BlogPost }) {
     >
       <figure className="not-prose space-y-3">
         <Image src="/blog/how-to-clip-gta-6.webp" alt={post.image?.alt ?? ""} width={1672} height={941} priority sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
-        <figcaption className="text-sm text-muted-foreground">Original illustration. SupoClip is not affiliated with Rockstar Games or Take-Two Interactive.</figcaption>
+        <figcaption className="text-sm text-muted-foreground">Original illustration. TokoClippers is not affiliated with Rockstar Games or Take-Two Interactive.</figcaption>
       </figure>
 
       <p>
@@ -44,7 +44,7 @@ export function Gta6ClippingArticle({ post }: { post: BlogPost }) {
       </p>
       <p>
         This guide is the full workflow: where clips come from, what campaigns actually pay, which rules get videos taken
-        down, and how to go from a four-hour VOD to a handful of vertical clips with SupoClip. The visual tools along the
+        down, and how to go from a four-hour VOD to a handful of vertical clips with TokoClippers. The visual tools along the
         way are interactive; change their numbers to your own.
       </p>
 
@@ -83,7 +83,7 @@ export function Gta6ClippingArticle({ post }: { post: BlogPost }) {
         </ol>
         <p>
           The math for campaigns is simple and humbling. At $1 per 1,000 views, 100,000 approved views is $100. Try your own
-          numbers below, including what the SupoClip plan you would need costs:
+          numbers below, including what the TokoClippers plan you would need costs:
         </p>
         <EarningsCalculator />
       </section>
@@ -108,21 +108,21 @@ export function Gta6ClippingArticle({ post }: { post: BlogPost }) {
       <section aria-labelledby="workflow" className="space-y-5">
         <h2 id="workflow">The workflow: from a GTA 6 VOD to finished clips</h2>
         <p>
-          Here is the whole process at a glance. The split matters: SupoClip does the repetitive work (transcribing,
+          Here is the whole process at a glance. The split matters: TokoClippers does the repetitive work (transcribing,
           shortlisting, cropping, timing captions) so your attention goes to the decisions only you can make.
         </p>
         <WorkflowDiagram />
 
         <h3>1. Pick a VOD you&apos;re allowed to clip</h3>
         <p>
-          Use your own stream, or the VODs a campaign names. Wait until the broadcast ends: SupoClip works on recordings, not
+          Use your own stream, or the VODs a campaign names. Wait until the broadcast ends: TokoClippers works on recordings, not
           live streams. Paste a Twitch or Kick VOD or clip link, a YouTube link, or upload the file. Hosted plans are metered
           in minutes of source video, so a four-hour VOD uses 240 minutes, whether you keep three clips or ten.
         </p>
 
-        <h3>2. Let SupoClip shortlist, then look for what it can&apos;t hear</h3>
+        <h3>2. Let TokoClippers shortlist, then look for what it can&apos;t hear</h3>
         <p>
-          SupoClip transcribes the stream and proposes moments, each with hook, engagement, value and shareability scores.
+          TokoClippers transcribes the stream and proposes moments, each with hook, engagement, value and shareability scores.
           Use the scores to decide what to watch first, not as a view forecast. Because the shortlist comes from speech, it
           is strong on narrated chases, reactions, opinions and answers to chat, and blind to a silent near-miss.
         </p>
@@ -131,7 +131,7 @@ export function Gta6ClippingArticle({ post }: { post: BlogPost }) {
         <h3>3. Frame the streamer and the gameplay</h3>
         <p>
           Most GTA streams put the webcam in a corner. Cropped naively to 9:16, you get either a giant face or a sliver of the
-          game. SupoClip detects a steady corner webcam and stacks it above the gameplay:
+          game. TokoClippers detects a steady corner webcam and stacks it above the gameplay:
         </p>
         <ReactionLayoutFigure />
         <p>
@@ -155,13 +155,13 @@ export function Gta6ClippingArticle({ post }: { post: BlogPost }) {
           viewers and campaign approvals.
         </p>
         <figure className="not-prose space-y-3">
-          <Image src="/blog/supoclip-editor.webp" alt="SupoClip caption editor with style controls, a word-level transcript and a safe-area preview" width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
-          <figcaption className="text-sm leading-6 text-muted-foreground">The SupoClip editor, shown with a sample video: transcript, caption style and preview side by side.</figcaption>
+          <Image src="/blog/supoclip-editor.webp" alt="TokoClippers caption editor with style controls, a word-level transcript and a safe-area preview" width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
+          <figcaption className="text-sm leading-6 text-muted-foreground">The TokoClippers editor, shown with a sample video: transcript, caption style and preview side by side.</figcaption>
         </figure>
 
         <h3>6. Export, publish and submit</h3>
         <p>
-          Export in 9:16 for TikTok, Shorts or Reels, or publish to connected TikTok and YouTube accounts straight from SupoClip.
+          Export in 9:16 for TikTok, Shorts or Reels, or publish to connected TikTok and YouTube accounts straight from TokoClippers.
           On Creator you can schedule posts ahead, which helps you keep a steady pace through launch week. For campaigns, submit
           each link as soon as it is live, and keep a simple log: source VOD, timestamp, kind of moment, views.
         </p>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
-import { Geist, Geist_Mono, Syne } from "next/font/google";
+import { Geist_Mono, Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
 import { AttributionTracker } from "@/components/attribution-tracker";
@@ -14,9 +15,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { intlLocale } from "@/i18n/config";
 import { APP_STORE_ID, COMPANY_NAME, getSiteUrl } from "@/lib/site";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -24,10 +26,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const syne = Syne({
-  variable: "--font-syne",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+const paperlogy = localFont({
+  variable: "--font-paperlogy",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/Paperlogy-400.woff2", weight: "400", style: "normal" },
+    { path: "../../public/fonts/Paperlogy-500.woff2", weight: "500", style: "normal" },
+    { path: "../../public/fonts/Paperlogy-600.woff2", weight: "600", style: "normal" },
+    { path: "../../public/fonts/Paperlogy-700.woff2", weight: "700", style: "normal" },
+    { path: "../../public/fonts/Paperlogy-800.woff2", weight: "800", style: "normal" },
+  ],
 });
 
 const dataFastWebsiteId = process.env.NEXT_PUBLIC_DATAFAST_WEBSITE_ID;
@@ -47,9 +55,9 @@ export async function generateMetadata(): Promise<Metadata> {
   },
   description: t("description"),
   metadataBase: new URL(getSiteUrl()),
-  applicationName: "SupoClip",
-  authors: [{ name: "SupoClip Team", url: getSiteUrl() }],
-  creator: "SupoClip Team",
+  applicationName: "TokoClippers",
+  authors: [{ name: "TokoClippers Team", url: getSiteUrl() }],
+  creator: "TokoClippers Team",
   publisher: COMPANY_NAME,
   category: t("category"),
   icons: {
@@ -61,7 +69,7 @@ export async function generateMetadata(): Promise<Metadata> {
   openGraph: {
     title: t("title"),
     description: t("openGraphDescription"),
-    siteName: "SupoClip",
+    siteName: "TokoClippers",
     type: "website",
   },
   twitter: {
@@ -131,7 +139,7 @@ export default async function RootLayout({
           </>
         ) : null}
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
+      <body className={`${montserrat.variable} ${geistMono.variable} ${paperlogy.variable} antialiased`}>
         <ThemeProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <TooltipProvider>

@@ -32,8 +32,8 @@ export function CreatorGuideArticle({ guide }: { guide: CreatorGuide }) {
           {gallery?.afterSection === section.id ? <ArticleClipExamples gallery={gallery} /> : null}
           {section.example === "editor" ? (
             <figure className="not-prose space-y-3">
-              <a href="/blog/supoclip-editor.webp" aria-label="Open the full-size SupoClip editor screenshot">
-                <Image src="/blog/supoclip-editor.webp" alt="SupoClip caption editor showing style controls, a word-level transcript, and safe-area preview" width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
+              <a href="/blog/supoclip-editor.webp" aria-label="Open the full-size TokoClippers editor screenshot">
+                <Image src="/blog/supoclip-editor.webp" alt="TokoClippers caption editor showing style controls, a word-level transcript, and safe-area preview" width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
               </a>
               <figcaption className="text-sm leading-6 text-muted-foreground">Editor screenshot using a sample video. The caption controls and transcript sit beside the preview; open the image to inspect them at full size.</figcaption>
             </figure>

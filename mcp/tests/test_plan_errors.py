@@ -91,5 +91,5 @@ def test_create_task_tool_returns_the_plain_message(monkeypatch):
     ))
     monkeypatch.setattr(server, "_client", lambda: client)
     result = asyncio.run(server.supoclip_create_clip_task(url="https://youtu.be/abcdefghijk"))
-    assert result.startswith("Error: This SupoClip account has no paid plan")
+    assert result.startswith("Error: This TokoClippers account has no paid plan")
     assert f"{APP}/settings#plan" in result

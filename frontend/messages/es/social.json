@@ -89,7 +89,7 @@
     "signIn": "Iniciar sesión",
     "title": "Cuentas sociales",
     "unavailable": "Publicar en YouTube, TikTok e Instagram todavía no está disponible en tu cuenta.",
-    "intro": "Conecta las cuentas donde publicas. Publica clips directo desde la página de una tarea, prográmalos y deja que SupoClip aprenda de cómo rinden.",
+    "intro": "Conecta las cuentas donde publicas. Publica clips directo desde la página de una tarea, prográmalos y deja que TokoClippers aprenda de cómo rinden.",
     "loadError": "No se pudieron cargar las cuentas sociales",
     "connectedNotice": "{label} conectado.",
     "connectedAs": "{label} conectado como {account}.",
@@ -98,7 +98,7 @@
     "connectHeading": "Conectar una cuenta",
     "connect": "Conectar",
     "comingSoon": "Próximamente",
-    "verificationNote": "Estamos en proceso de verificar SupoClip con esta plataforma.",
+    "verificationNote": "Estamos en proceso de verificar TokoClippers con esta plataforma.",
     "instagramNote": "Instagram necesita una cuenta profesional (Business o Creator).",
     "tiktokNote": "TikTok comprueba qué opciones de visibilidad permite tu cuenta conectada.",
     "youtubeNote": "Las subidas de YouTube desde una app no verificada son privadas hasta que termine la revisión de Google.",
@@ -128,6 +128,6 @@
   "loadingPrivacy": "Comprobando las opciones de TikTok…",
   "privacyLoadFailed": "No se pudieron cargar las opciones. Actualiza e inténtalo de nuevo.",
   "tiktokPublicUnavailable": "La visibilidad pública no está disponible para esta cuenta de TikTok. Revisa su privacidad en TikTok y actualiza las opciones.",
-  "tiktokPrivateAccountRequired": "TikTok aún no ha aprobado la app de SupoClip, así que solo acepta publicaciones privadas de cuentas privadas. Antes de publicar, activa en TikTok Ajustes y privacidad → Privacidad → Cuenta privada.",
+  "tiktokPrivateAccountRequired": "TikTok aún no ha aprobado la app de TokoClippers, así que solo acepta publicaciones privadas de cuentas privadas. Antes de publicar, activa en TikTok Ajustes y privacidad → Privacidad → Cuenta privada.",
   "tiktokPaused": "La publicación en TikTok está en pausa mientras solucionamos un problema con TikTok. Tus otras plataformas funcionan con normalidad."
 }

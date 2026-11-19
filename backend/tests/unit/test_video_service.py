@@ -84,7 +84,7 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
             "relevance_score": 0.25,
             "reasoning": (
                 "AI analysis did not identify a strong standalone segment, "
-                "so SupoClip generated the first available portion of the video."
+                "so TokoClippers generated the first available portion of the video."
             ),
             "virality_score": 0,
             "hook_score": 0,

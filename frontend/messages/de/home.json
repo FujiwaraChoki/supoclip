@@ -124,7 +124,7 @@
     "startFootnote": "Jederzeit kündbar",
     "limitTitle": "Du hast diesen Monat alle {length} Video genutzt",
     "limitWithPlan": "{refreshes} Oder mach weiter mit {plan}: {limit} Video pro Monat.",
-    "limitAppStore": "{refreshes} Pläne änderst du in der SupoClip-iOS-App.",
+    "limitAppStore": "{refreshes} Pläne änderst du in der TokoClippers-iOS-App.",
     "getPlan": "{plan} holen",
     "remaining": "{count, plural, one {Noch # Minute Video diesen Monat} other {Noch # Minuten Video diesen Monat}}",
     "nearWithPlan": "{refreshes} Brauchst du mehr Spielraum? {plan} gibt dir {limit} Video pro Monat.",

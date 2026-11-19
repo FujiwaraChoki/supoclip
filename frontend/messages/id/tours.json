@@ -9,7 +9,7 @@
   "progress": "{current} dari {total}",
   "welcome": {
     "intro": {
-      "title": "Selamat datang di SupoClip",
+      "title": "Selamat datang di TokoClippers",
       "body": "Berikan video panjang dan kami ubah momen terbaiknya menjadi klip vertikal pendek, lengkap dengan teks dan siap diunggah. Tur dua menit: cara membuat klip pertamamu, lalu setiap halaman yang akan kamu pakai."
     },
     "source": {
@@ -34,11 +34,11 @@
     },
     "social": {
       "title": "Hubungkan akunmu",
-      "body": "Tautkan akun media sosialmu di sini untuk mengunggah klip langsung dari SupoClip, tanpa mengunduhnya dulu."
+      "body": "Tautkan akun media sosialmu di sini untuk mengunggah klip langsung dari TokoClippers, tanpa mengunduhnya dulu."
     },
     "analytics": {
       "title": "Lihat yang berhasil",
-      "body": "Tayangan, suka, dan komentar dari unggahanmu kembali ke sini, per platform, hook, dan durasi. Setelah beberapa unggahan, SupoClip memakainya untuk memilih klip yang mirip dengan yang terbaik."
+      "body": "Tayangan, suka, dan komentar dari unggahanmu kembali ke sini, per platform, hook, dan durasi. Setelah beberapa unggahan, TokoClippers memakainya untuk memilih klip yang mirip dengan yang terbaik."
     },
     "agents": {
       "title": "Klip dari asisten AI-mu",

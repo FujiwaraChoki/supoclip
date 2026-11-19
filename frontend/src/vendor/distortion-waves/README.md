@@ -11,4 +11,4 @@ point the imports at it and delete this folder.
 
 `capture.ts` writes `border-*-width: 0px` when the side has a border style. Without it,
 Tailwind's reset (`border: 0 solid`) made every element draw a thin box in the wave's
-picture. Search for "SupoClip patch".
+picture. Search for "TokoClippers patch".

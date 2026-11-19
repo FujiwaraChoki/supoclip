@@ -54,7 +54,7 @@ async def insert_event(db: AsyncSession, account_id: str, event: CancellationEve
 
 
 async def is_supoclip_customer(db: AsyncSession, account_id: str, customer_id: str) -> bool:
-    """For an account shared with other products: only SupoClip customers are kept."""
+    """For an account shared with other products: only TokoClippers customers are kept."""
     params = {"customer": customer_id, "account": account_id}
     if await has_column(db, "users", "stripe_account_id"):
         query = "SELECT 1 FROM users WHERE stripe_customer_id = :customer AND stripe_account_id = :account"

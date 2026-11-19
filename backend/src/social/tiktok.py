@@ -72,12 +72,12 @@ TERMINAL_FAILURE_STATUSES = {"FAILED"}
 UNAUDITED_PRIVATE_ACCOUNT_ERROR = "unaudited_client_can_only_post_to_private_accounts"
 UNAUDITED_PRIVATE_ACCOUNT_MESSAGE = (
     "TikTok only accepts posts from private TikTok accounts until it approves "
-    "SupoClip's app. In TikTok, open Settings and privacy → Privacy and turn on "
+    "TokoClippers' app. In TikTok, open Settings and privacy → Privacy and turn on "
     "Private account, then retry this post. It will be visible only to you; "
     "switch the account and the video back to public in TikTok afterwards if you want."
 )
 ACTIVE_USER_CAP_MESSAGE = (
-    "TikTok's daily limit of accounts posting through SupoClip has been reached. "
+    "TikTok's daily limit of accounts posting through TokoClippers has been reached. "
     "Retry this post tomorrow."
 )
 
@@ -268,8 +268,8 @@ class TikTokProvider(SocialProvider):
             )
         if not self.audited and privacy != "SELF_ONLY":
             raise SocialProviderError(
-                "TikTok only allows private posts from SupoClip until it approves "
-                "SupoClip's app. Choose Private and try again."
+                "TikTok only allows private posts from TokoClippers until it approves "
+                "TokoClippers' app. Choose Private and try again."
             )
         max_duration = creator_info.get("max_video_post_duration_sec")
 

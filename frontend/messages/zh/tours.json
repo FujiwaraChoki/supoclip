@@ -9,7 +9,7 @@
   "progress": "{current} / {total}",
   "welcome": {
     "intro": {
-      "title": "欢迎使用 SupoClip",
+      "title": "欢迎使用 TokoClippers",
       "body": "给我们一段长视频，我们会把其中最精彩的片段做成带字幕的竖屏短视频，可以直接发布。花两分钟看看：先学会做第一批短片，再认识你会用到的每个页面。"
     },
     "source": {
@@ -34,11 +34,11 @@
     },
     "social": {
       "title": "连接你的账号",
-      "body": "在这里关联社交账号，直接从 SupoClip 发布片段，无需先下载。"
+      "body": "在这里关联社交账号，直接从 TokoClippers 发布片段，无需先下载。"
     },
     "analytics": {
       "title": "看看什么有效",
-      "body": "你发布内容的播放、点赞和评论会回到这里，按平台、开头和时长分类。发布几次之后，SupoClip 会据此挑选更像你最佳表现的片段。"
+      "body": "你发布内容的播放、点赞和评论会回到这里，按平台、开头和时长分类。发布几次之后，TokoClippers 会据此挑选更像你最佳表现的片段。"
     },
     "agents": {
       "title": "让 AI 助手帮你剪",

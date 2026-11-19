@@ -3,7 +3,7 @@
 claude.ai, ChatGPT and other apps with custom connectors can't send an
 `Authorization` header someone pastes in, so they sign in with OAuth 2.1. The
 hosted MCP server (`mcp.supoclip.com`) is the authorization server; users
-approve on www.supoclip.com; the access token is an ordinary SupoClip API key.
+approve on www.supoclip.com; the access token is an ordinary TokoClippers API key.
 Plain API key Bearer auth keeps working unchanged.
 
 OAuth is on when `MCP_OAUTH_SECRET` is set on both the backend and the MCP

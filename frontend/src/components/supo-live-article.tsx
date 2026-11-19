@@ -40,7 +40,7 @@ export async function SupoLiveArticle({ post }: { post: BlogPost }) {
         datePublished: post.publishedAt,
         dateModified: post.updatedAt,
         author: { "@type": "Organization", name: post.author },
-        publisher: { "@type": "Organization", name: "SupoClip", url: siteUrl, logo: { "@type": "ImageObject", url: `${siteUrl}/logo.png` } },
+        publisher: { "@type": "Organization", name: "TokoClippers", url: siteUrl, logo: { "@type": "ImageObject", url: `${siteUrl}/logo.png` } },
         image: post.image ? [`${siteUrl}${post.image.src}`, `${siteUrl}/blog/supoclip-editor.webp`] : undefined,
         articleSection: post.category,
         inLanguage: intlLocale(locale),
@@ -62,7 +62,7 @@ export async function SupoLiveArticle({ post }: { post: BlogPost }) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
       <header className="border-b">
         <nav aria-label={t("shell.blogNav")} className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-5">
-          <Link href="/" className="flex items-center gap-2.5 text-xl font-bold"><Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg dark:invert" />SupoClip</Link>
+          <Link href="/" className="flex items-center gap-2.5 text-xl font-bold"><Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg dark:invert" />TokoClippers</Link>
           <Link href="/blog" className="text-sm underline underline-offset-4">{t("shell.allArticles")}</Link>
         </nav>
       </header>
@@ -72,7 +72,7 @@ export async function SupoLiveArticle({ post }: { post: BlogPost }) {
         </nav>
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest"><Code2 className="h-4 w-4" />{post.eyebrow}</p>
-          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), sans-serif" }}>{post.title}</h1>
+          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl" style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), sans-serif" }}>{post.title}</h1>
           <p className="text-xl leading-8 text-muted-foreground">{post.summary}</p>
           <p className="text-sm text-muted-foreground">
             {t.rich("shell.byline", {
@@ -122,7 +122,7 @@ export async function SupoLiveArticle({ post }: { post: BlogPost }) {
               <thead className="bg-muted">
                 <tr>
                   <th scope="col" className="p-4">{t(`${slug}.comparison.priority`)}</th>
-                  <th scope="col" className="p-4">SupoClip</th>
+                  <th scope="col" className="p-4">TokoClippers</th>
                   <th scope="col" className="p-4">supo.live</th>
                 </tr>
               </thead>

@@ -1,20 +1,24 @@
 # Changelog
 
-What changed in SupoClip for people using the product. Newest dates are first.
+What changed in TokoClippers for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
+
+## 2026-11-20
+
+- **Improved:** TokoClippers now uses its own brand: the product name, colours, and typeface across the app, marketing pages, articles, and emails. The top menu also drops the Pricing, Open Source, Blog, and Affiliate links; those pages stay reachable from the footer and their own addresses.
 
 ## 2026-11-19
 
 - **Fixed:** Creating an account no longer fails with "Failed to create account". The database was missing a column the sign-up and session lookups read, so every attempt returned a server error. ([#469](https://github.com/FujiwaraChoki/supoclip/pull/469))
-- **Under the hood:** Hosted SupoClip can add extra video workers when the queue backs up and remove them once they are idle, without stopping any video that is being made. It is off until switched on. ([#455](https://github.com/FujiwaraChoki/supoclip/pull/455))
+- **Under the hood:** Hosted TokoClippers can add extra video workers when the queue backs up and remove them once they are idle, without stopping any video that is being made. It is off until switched on. ([#455](https://github.com/FujiwaraChoki/supoclip/pull/455))
 
 ## 2026-11-18
 
 - **New:** After you subscribe or change plans, your plan card on Settings turns into a thank-you note with a colourful wave, and back into your upgraded plan when you click Done. ([#440](https://github.com/FujiwaraChoki/supoclip/pull/440))
 - **Fixed:** The MCP tool for waiting on a generation returns by the requested timeout, even when the next status check is delayed or the API stalls. ([#442](https://github.com/FujiwaraChoki/supoclip/pull/442))
-- **Improved:** SupoClip's new source license allows noncommercial self-hosting and forks. Internal business use, paid hosting, and other commercial use require written permission. The website footer links to the license, and Settings → About links to the original project and website. ([#441](https://github.com/FujiwaraChoki/supoclip/pull/441))
-- **New:** Join the SupoClip Discord community from the homepage, changelog, or site footer to share clips, get editing tips, and vote on feature ideas. ([#437](https://github.com/FujiwaraChoki/supoclip/pull/437))
+- **Improved:** TokoClippers' new source license allows noncommercial self-hosting and forks. Internal business use, paid hosting, and other commercial use require written permission. The website footer links to the license, and Settings → About links to the original project and website. ([#441](https://github.com/FujiwaraChoki/supoclip/pull/441))
+- **New:** Join the TokoClippers Discord community from the homepage, changelog, or site footer to share clips, get editing tips, and vote on feature ideas. ([#437](https://github.com/FujiwaraChoki/supoclip/pull/437))
 - **Under the hood:** Every feedback message, bug report, sales question and cancellation reason now also reaches the team's assistant chat, alongside Discord, with the same retries. Admins see it in the webhook list and can switch it off or test it. ([#435](https://github.com/FujiwaraChoki/supoclip/pull/435))
 - **Fixed:** Feedback delivery no longer ties up the app during slow webhooks, retries stop reliably, and deleting an account clears saved feedback email addresses atomically. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
 
@@ -43,7 +47,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 - **Fixed:** Long videos processed with Claude Haiku have more room for their outlines, reducing incomplete outlines in series, topic, recap and trailer runs. ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
 
-- **New:** Settings → Agents & API shows how to connect Claude, ChatGPT or Grok: open the assistant's connector page, paste the SupoClip server URL and sign in. No key to copy. Each assistant lists which of its plans support this. Claude Code can sign in the same way. API keys moved into one tidy list with a Create key button; a new key opens with its Cursor and local config filled in. ([#403](https://github.com/FujiwaraChoki/supoclip/pull/403))
+- **New:** Settings → Agents & API shows how to connect Claude, ChatGPT or Grok: open the assistant's connector page, paste the TokoClippers server URL and sign in. No key to copy. Each assistant lists which of its plans support this. Claude Code can sign in the same way. API keys moved into one tidy list with a Create key button; a new key opens with its Cursor and local config filled in. ([#403](https://github.com/FujiwaraChoki/supoclip/pull/403))
 
 ## 2026-11-14
 
@@ -62,9 +66,9 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 - **Improved:** When you connect claude.ai, ChatGPT or another app and your email isn't verified yet, the approval page sends the verification email itself, and the link brings you straight back to approve. Connection requests now stay open for 30 minutes. ([#375](https://github.com/FujiwaraChoki/supoclip/pull/375))
 - **Under the hood:** We now measure the main steps from sign-up to a first video, a subscription and later renewals. Only the kind of step is recorded, never your links, files, instructions or captions. ([#370](https://github.com/FujiwaraChoki/supoclip/pull/370))
-- **New:** Connect SupoClip to claude.ai, ChatGPT and other apps with custom connectors: add `https://mcp.supoclip.com/mcp`, sign in, and allow access. No key to copy. Each connection gets its own API key, listed in Settings → Agents & API, where you can revoke it to disconnect. ([#372](https://github.com/FujiwaraChoki/supoclip/pull/372))
+- **New:** Connect TokoClippers to claude.ai, ChatGPT and other apps with custom connectors: add `https://mcp.supoclip.com/mcp`, sign in, and allow access. No key to copy. Each connection gets its own API key, listed in Settings → Agents & API, where you can revoke it to disconnect. ([#372](https://github.com/FujiwaraChoki/supoclip/pull/372))
 - **Fixed:** The time left on a generation now includes downloading the chosen moments and rendering each clip, so it no longer says "less than a minute" while several minutes remain. ([#371](https://github.com/FujiwaraChoki/supoclip/pull/371))
-- **Fixed:** The SupoClip MCP server at `mcp.supoclip.com` now works with clients that use the current MCP connection type, as well as older SSE clients, including ones already set up with the old address. When a connection fails, the error says what is missing, such as an API key or a placeholder that wasn't replaced. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Fixed:** The TokoClippers MCP server at `mcp.supoclip.com` now works with clients that use the current MCP connection type, as well as older SSE clients, including ones already set up with the old address. When a connection fails, the error says what is missing, such as an API key or a placeholder that wasn't replaced. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
 - **Improved:** Settings → Agents & API shows ready-to-copy setup for Claude Code, Cursor, Claude Desktop and a local server, with your new key filled in. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
 - **Improved:** When an agent tries to make clips on an account without a paid plan or without minutes left, it gets a plain explanation and a link to choose a plan instead of a raw error. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
 - **Under the hood:** Billing can keep existing subscriptions with their current payment account while preparing a new account, with separate payment recovery and refund handling. ([#367](https://github.com/FujiwaraChoki/supoclip/pull/367))
@@ -119,7 +123,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-10-31
 
 - **New:** Download all of a generation's clips at once as a ZIP from the task page. The download starts right away and streams the original files. ([#321](https://github.com/FujiwaraChoki/supoclip/pull/321))
-- **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
+- **Improved:** The footer, terms, and privacy policy now identify the company operating TokoClippers. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
 - **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). The app starts light and remembers your choice; the website and sign-in pages stay light. ([#312](https://github.com/FujiwaraChoki/supoclip/pull/312))
 
 ## 2026-10-29
@@ -183,7 +187,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **New:** Connect YouTube, TikTok, or Instagram to publish a clip and see how those posts perform. ([#98](https://github.com/FujiwaraChoki/supoclip/pull/98))
 - **Improved:** The library groups each generation with its original video, and an uploaded file keeps its filename. ([#197](https://github.com/FujiwaraChoki/supoclip/pull/197))
 - **New:** A self-hosted install can use its own YouTube download service. ([#196](https://github.com/FujiwaraChoki/supoclip/pull/196))
-- **Under the hood:** If the first YouTube download does not check out, SupoClip can try another one within the same limit. ([#195](https://github.com/FujiwaraChoki/supoclip/pull/195))
+- **Under the hood:** If the first YouTube download does not check out, TokoClippers can try another one within the same limit. ([#195](https://github.com/FujiwaraChoki/supoclip/pull/195))
 
 ## 2026-10-15
 
@@ -195,7 +199,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-13
 
-- **New:** A public status page shows whether SupoClip is up. ([0aab079](https://github.com/FujiwaraChoki/supoclip/commit/0aab079))
+- **New:** A public status page shows whether TokoClippers is up. ([0aab079](https://github.com/FujiwaraChoki/supoclip/commit/0aab079))
 - **Fixed:** Closing a video stops the transfer instead of leaving it running. ([#187](https://github.com/FujiwaraChoki/supoclip/pull/187))
 
 ## 2026-10-12
@@ -213,7 +217,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **Improved:** Each video produces at most 10 clips. ([#181](https://github.com/FujiwaraChoki/supoclip/pull/181))
 - **New:** The home page and the demo play a new set of podcast clips. ([#182](https://github.com/FujiwaraChoki/supoclip/pull/182))
 - **New:** Checkout accepts a creator promo code. ([#183](https://github.com/FujiwaraChoki/supoclip/pull/183))
-- **New:** The app can show an announcement from the SupoClip team. ([#179](https://github.com/FujiwaraChoki/supoclip/pull/179))
+- **New:** The app can show an announcement from the TokoClippers team. ([#179](https://github.com/FujiwaraChoki/supoclip/pull/179))
 - **Improved:** The home page includes the Product Hunt badge. ([#184](https://github.com/FujiwaraChoki/supoclip/pull/184))
 - **Fixed:** If every clip fails to render, the job is marked failed instead of looking finished. A job that never starts does not use your monthly video allowance. ([#169](https://github.com/FujiwaraChoki/supoclip/pull/169), [#170](https://github.com/FujiwaraChoki/supoclip/pull/170), [#171](https://github.com/FujiwaraChoki/supoclip/pull/171))
 
@@ -229,7 +233,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-05
 
-- **New:** A demo page and practical guides cover clipping, self-hosting, and how SupoClip compares with other tools. ([#160](https://github.com/FujiwaraChoki/supoclip/pull/160))
+- **New:** A demo page and practical guides cover clipping, self-hosting, and how TokoClippers compares with other tools. ([#160](https://github.com/FujiwaraChoki/supoclip/pull/160))
 
 ## 2026-10-04
 

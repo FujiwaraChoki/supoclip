@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create SupoClip's private media bucket and a bucket-scoped runtime identity.
+"""Create TokoClippers' private media bucket and a bucket-scoped runtime identity.
 
 Run with backend/.venv/bin/python. Administrative access comes from aws login;
 runtime keys are written only to the requested private file, never stdout.
@@ -66,7 +66,7 @@ def main():
         "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 1}}]})
     iam = session.client("iam")
     try:
-        iam.create_user(UserName=args.iam_user, Tags=[{"Key": "Application", "Value": "SupoClip"}])
+        iam.create_user(UserName=args.iam_user, Tags=[{"Key": "Application", "Value": "TokoClippers"}])
     except ClientError as exc:
         if exc.response["Error"]["Code"] != "EntityAlreadyExists":
             raise

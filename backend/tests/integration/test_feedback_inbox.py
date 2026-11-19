@@ -91,7 +91,7 @@ async def submit(client, user_id, **body):
     payload = {"category": "bug", "message": "Captions drift", **body}
     return await client.post(
         "/feedback",
-        headers={**headers_for(user_id, **{"x-supoclip-client": "ios", "user-agent": "SupoClip/2.4 iOS"}),
+        headers={**headers_for(user_id, **{"x-supoclip-client": "ios", "user-agent": "TokoClippers/2.4 iOS"}),
                  "content-type": "application/json"},
         content=json.dumps(payload),
     )
@@ -124,7 +124,7 @@ async def test_submission_is_stored_and_queued_for_matching_enabled_webhooks(cli
     row = (await db_session.execute(text("SELECT * FROM feedback_submissions WHERE id = :id"), {"id": submission_id})).mappings().one()
     assert (row["user_id"], row["email"], row["category"], row["message"]) == (user["id"], "ana@example.com", "bug", "Captions drift")
     assert (row["platform"], row["page_url"], row["locale"], row["app_version"]) == ("ios", "/tasks/abc", "de", "2.4.0")
-    assert row["user_agent"] == "SupoClip/2.4 iOS" and row["status"] == "open"
+    assert row["user_agent"] == "TokoClippers/2.4 iOS" and row["status"] == "open"
     queued = await deliveries(db_session, submission_id=submission_id)
     assert [d["webhook_id"] for d in queued] == [bug_hook["id"]]
     assert no_immediate == [submission_id]
@@ -270,7 +270,7 @@ async def test_json_webhooks_get_a_signed_payload(client, db_session, clean, rec
     [call] = receiver.calls
     assert call["url"] == JSON_URL and call["kind"] == "json"
     assert call["body"]["type"] == "feedback.created" and call["body"]["submission"]["id"] == submission_id
-    timestamp, signature = (part.split("=", 1)[1] for part in call["headers"]["X-SupoClip-Signature"].split(","))
+    timestamp, signature = (part.split("=", 1)[1] for part in call["headers"]["X-TokoClippers-Signature"].split(","))
     body = json.dumps(call["body"], separators=(",", ":"), ensure_ascii=False).encode()
     assert signature == hmac.new(secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256).hexdigest()
 
@@ -872,7 +872,7 @@ async def test_admins_can_only_switch_test_and_read_the_hermes_webhook(
     tested = await client.post(f"{hook}/test", headers=auth_headers)
     assert tested.status_code == 200 and tested.json()["delivery"]["status"] == "delivered"
     sample = hermes.calls[-1]["body"]
-    assert sample["submission"]["category"] == "test" and sample["submission"]["message"] == "Test from SupoClip admin"
+    assert sample["submission"]["category"] == "test" and sample["submission"]["message"] == "Test from TokoClippers admin"
     assert sample["delivery_id"] == tested.json()["delivery"]["id"]
     log = (await client.get(f"{hook}/deliveries", headers=auth_headers)).json()["deliveries"]
     assert log[0]["is_test"] and log[0]["status"] == "delivered"

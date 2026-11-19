@@ -1,4 +1,4 @@
-# SupoClip release verification — 2026-09-18
+# TokoClippers release verification — 2026-09-18
 
 This release consolidates existing behavior and fixes reliability and editing bugs. It adds no new product features. Changes are split across PRs #103–#140; each code PR received an independent agent review, with exact reviewed commits recorded in GitHub review comments. Review findings were fixed before merge.
 

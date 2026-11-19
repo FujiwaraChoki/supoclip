@@ -28,7 +28,7 @@ def test_client_label_recognizes_ios_and_treats_everything_else_as_web():
     assert client_label(None) == "web"
     assert client_label("Mozilla/5.0") == "web"
     assert client_label("supoclip-ios/not-a-version") == "web"
-    assert client_label("SupoClip-iOS/3.1.4 (iPhone; iOS 18.0)") == "supoclip-ios/3.1.4"
+    assert client_label("TokoClippers-iOS/3.1.4 (iPhone; iOS 18.0)") == "supoclip-ios/3.1.4"
     assert client_label("supoclip-ios/42") == "supoclip-ios/42"
 
 

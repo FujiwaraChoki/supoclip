@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { ManagedAnnouncement } from "../src/lib/announcements";
 
 const creatorAnnouncement: ManagedAnnouncement = {
-  id: "creator-program-2026-10", title: "The creator program is open", description: "Make content about SupoClip and get hosted Pro for free while participating as an approved creator. Your audience gets 20% off their first three months. No cash payments or referral commissions.",
+  id: "creator-program-2026-10", title: "The creator program is open", description: "Make content about TokoClippers and get hosted Pro for free while participating as an approved creator. Your audience gets 20% off their first three months. No cash payments or referral commissions.",
   publishedAt: "2026-10-09T00:00:00Z", href: "/affiliate", action: "Explore the creator program", isPublished: true,
 };
 

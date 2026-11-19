@@ -1,12 +1,12 @@
 {
   "about": {
     "title": "Über",
-    "credit": "Basiert auf SupoClip.",
+    "credit": "Basiert auf TokoClippers.",
     "repository": "Original-Repository"
   },
   "title": "Einstellungen",
   "intro": "Standards für neue Generierungen, Benachrichtigungen und deinen Plan.",
-  "languageDescription": "Die Sprache in SupoClip.",
+  "languageDescription": "Die Sprache in TokoClippers.",
   "signInRequired": {
     "title": "Anmeldung nötig",
     "body": "Melde dich an, um deine Einstellungen zu sehen",
@@ -78,7 +78,7 @@
     "socialTitle": "Social-Konten",
     "socialDescription": "Verbinde YouTube, TikTok und Instagram, um Clips zu veröffentlichen und die Performance zu sehen",
     "creatorTitle": "Creator-Programm",
-    "creatorDescription": "Mach Videos über SupoClip, bekomm Pro kostenlos und einen Code für dein Publikum"
+    "creatorDescription": "Mach Videos über TokoClippers, bekomm Pro kostenlos und einen Code für dein Publikum"
   },
   "save": {
     "saved": "Einstellungen gespeichert!",
@@ -99,7 +99,7 @@
   },
   "apiKeys": {
     "title": "Agenten & API",
-    "intro": "Lass Claude, Cursor und andere KI-Agenten Videos für dich schneiden, über den <brand>SupoClip-MCP-Server</brand>, oder ruf die REST-API aus deinem Code auf. Behandle Schlüssel wie Passwörter: Sie geben vollen Zugriff auf dein Konto.",
+    "intro": "Lass Claude, Cursor und andere KI-Agenten Videos für dich schneiden, über den <brand>TokoClippers-MCP-Server</brand>, oder ruf die REST-API aus deinem Code auf. Behandle Schlüssel wie Passwörter: Sie geben vollen Zugriff auf dein Konto.",
     "docsMcp": "MCP-Doku",
     "docsRest": "REST-API-Doku",
     "keysTitle": "API-Schlüssel",
@@ -149,7 +149,7 @@
     },
     "assistants": {
       "title": "Claude, ChatGPT oder Grok verbinden",
-      "intro": "Kein API-Schlüssel zum Kopieren: Füge SupoClip im Assistenten als benutzerdefinierten Connector hinzu, melde dich dann bei SupoClip an und erlaube den Zugriff. Der Assistent erhält einen eigenen Schlüssel, der unter API-Schlüssel steht.",
+      "intro": "Kein API-Schlüssel zum Kopieren: Füge TokoClippers im Assistenten als benutzerdefinierten Connector hinzu, melde dich dann bei TokoClippers an und erlaube den Zugriff. Der Assistent erhält einen eigenen Schlüssel, der unter API-Schlüssel steht.",
       "urlLabel": "Server-URL",
       "pick": "Assistenten wählen",
       "open": "{name} öffnen",
@@ -159,9 +159,9 @@
       "claude": {
         "steps": {
           "1": "Öffne in Claude <b>Customize › Connectors</b>, wähle <b>Add</b> und dann <b>Add custom connector</b>.",
-          "2": "Nenne ihn SupoClip, füge die Server-URL ein und klicke auf <b>Continue</b>.",
+          "2": "Nenne ihn TokoClippers, füge die Server-URL ein und klicke auf <b>Continue</b>.",
           "3": "Behalte die Anmeldeeinstellungen, die Claude als <b>Detected</b> markiert. Fragt Claude, wie es sich ausweisen soll, wähle <b>Register automatically</b>. Klicke auf <b>Add</b>.",
-          "4": "Klicke auf <b>Connect</b>, melde dich bei SupoClip an und wähle <b>Allow</b>."
+          "4": "Klicke auf <b>Connect</b>, melde dich bei TokoClippers an und wähle <b>Allow</b>."
         },
         "availability": "Anthropic unterstützt benutzerdefinierte Connectors in Free (ein Connector), Pro, Max, Ultra, Team und Enterprise. In Team und Enterprise fügt ein Owner ihn unter Organization settings › Connectors hinzu, danach klickt jedes Mitglied auf Connect.",
         "code": "Claude Code: Führe diese Befehle im Terminal aus und melde dich an, wenn sich der Browser öffnet.",
@@ -170,9 +170,9 @@
       "chatgpt": {
         "steps": {
           "1": "Öffne ChatGPT im Web, dann <b>Plugins</b>, wähle <b>+</b> und dann <b>Add custom MCP server</b>.",
-          "2": "Nenne ihn SupoClip und füge die Server-URL unter <b>Connection</b> ein.",
+          "2": "Nenne ihn TokoClippers und füge die Server-URL unter <b>Connection</b> ein.",
           "3": "Stelle die Authentifizierung auf <b>OAuth</b>, bestätige die Risikowarnung und wähle <b>Create as a plugin</b>.",
-          "4": "Installiere das Plugin, melde dich bei SupoClip an und wähle <b>Allow</b>. ChatGPT fragt vor jeder Aktion nach, die Clips erstellt oder ändert."
+          "4": "Installiere das Plugin, melde dich bei TokoClippers an und wähle <b>Allow</b>. ChatGPT fragt vor jeder Aktion nach, die Clips erstellt oder ändert."
         },
         "availability": "OpenAI bietet benutzerdefinierte MCP-Server in ChatGPT im Web für Business, Enterprise und Edu an; in Business fügen Admins und Owner sie hinzu. Pro-Konten erhalten nur lesende Tools: ChatGPT kann deine Clips auflisten, aber keine neuen erstellen. Für andere Pläne dokumentiert OpenAI es nicht."
       },
@@ -180,7 +180,7 @@
         "steps": {
           "1": "Öffne auf grok.com <b>Connectors</b>, wähle <b>New Connector</b> und dann <b>Custom</b>.",
           "2": "Füge die Server-URL ein.",
-          "3": "Schließe die Anmeldung ab: Melde dich bei SupoClip an und wähle <b>Allow</b>."
+          "3": "Schließe die Anmeldung ab: Melde dich bei TokoClippers an und wähle <b>Allow</b>."
         },
         "availability": "Laut xAI stehen Connectors allen Grok-Nutzern zur Verfügung; in Business und Enterprise fügt zuerst ein Admin den Connector in der xAI-Konsole hinzu. xAI dokumentiert nicht, welche Anmeldeverfahren benutzerdefinierte Connectors unterstützen, daher ist dieser Ablauf für Grok nicht bestätigt. Klappt es nicht, verbinde einen anderen Assistenten oder nutze unten einen API-Schlüssel."
       }
@@ -188,7 +188,7 @@
   },
   "creator": {
     "title": "Creator-Programm",
-    "intro": "Du machst Videos über SupoClip? Hol dir deinen Code: Dein Publikum bekommt <em>20 % Rabatt auf die ersten 3 Monate</em>, und du bekommst SupoClip Pro kostenlos.",
+    "intro": "Du machst Videos über TokoClippers? Hol dir deinen Code: Dein Publikum bekommt <em>20 % Rabatt auf die ersten 3 Monate</em>, und du bekommst TokoClippers Pro kostenlos.",
     "howItWorks": "So funktioniert's",
     "signIn": "Erstelle ein kostenloses Konto oder melde dich an, um dich für das Creator-Programm zu bewerben.",
     "createAccount": "Konto erstellen",
@@ -235,13 +235,13 @@
     },
     "profileLabel": "Profil-Link",
     "profilePlaceholder": "https://www.tiktok.com/@you",
-    "videoLabel": "Ein Video, das du über SupoClip gemacht hast",
+    "videoLabel": "Ein Video, das du über TokoClippers gemacht hast",
     "optional": "(optional)",
     "videoPlaceholder": "https://",
-    "planLabel": "Wie willst du SupoClip bewerben?",
+    "planLabel": "Wie willst du TokoClippers bewerben?",
     "termsTitle": "Programmbedingungen",
     "termSponsored": "Kennzeichne gesponserte Posts (zum Beispiel #ad).",
-    "termAds": "Schalt keine Anzeigen auf den Namen SupoClip und stell deinen Code nicht auf Gutschein- oder Deal-Seiten.",
+    "termAds": "Schalt keine Anzeigen auf den Namen TokoClippers und stell deinen Code nicht auf Gutschein- oder Deal-Seiten.",
     "termOwn": "Nutze nicht deinen eigenen Code.",
     "termEnd": "Wir können das Programm beenden oder einen Creator jederzeit entfernen.",
     "agree": "Ich stimme den Programmbedingungen zu",

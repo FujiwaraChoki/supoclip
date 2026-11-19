@@ -78,7 +78,7 @@ def workflows_for_all():
     [
         ({}, "web"),
         ({"x-supoclip-client": "ios"}, "ios"),
-        ({"X-SupoClip-Client": " iOS "}, "ios"),
+        ({"X-TokoClippers-Client": " iOS "}, "ios"),
         ({"x-supoclip-client": "web"}, "web"),
         ({"x-supoclip-client": "android"}, "web"),
         ({"authorization": "Bearer sk_test"}, "web"),

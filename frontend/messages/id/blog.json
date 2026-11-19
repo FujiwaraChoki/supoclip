@@ -6,26 +6,26 @@
     "allArticles": "Semua artikel",
     "startClipping": "Mulai buat clip",
     "breadcrumbNav": "Jejak",
-    "byline": "Oleh SupoClip · Diperbarui <date>{when}</date> · {readingTime}",
+    "byline": "Oleh TokoClippers · Diperbarui <date>{when}</date> · {readingTime}",
     "updated": "Diperbarui <date>{when}</date>",
     "inThisArticle": "Di artikel ini",
     "faqHeading": "Pertanyaan yang sering diajukan",
     "faq": "FAQ",
-    "startAria": "Mulai dengan SupoClip",
+    "startAria": "Mulai dengan TokoClippers",
     "ctaTitle": "Coba di satu rekaman yang kamu kenal baik.",
     "ctaBody": "Pakai aplikasi yang di-host, atau jalankan kode open source yang sama di mesinmu sendiri.",
     "getSource": "Ambil sumbernya",
     "keepReading": "Lanjut baca"
   },
   "index": {
-    "metaTitle": "Blog SupoClip | Panduan AI Video Clipping",
-    "metaDescription": "Panduan praktis, perbandingan produk, dan alur kerja kreator untuk mengubah video bentuk panjang jadi short yang siap untuk sosial dengan SupoClip.",
-    "ogTitle": "Blog SupoClip",
+    "metaTitle": "Blog TokoClippers | Panduan AI Video Clipping",
+    "metaDescription": "Panduan praktis, perbandingan produk, dan alur kerja kreator untuk mengubah video bentuk panjang jadi short yang siap untuk sosial dengan TokoClippers.",
+    "ogTitle": "Blog TokoClippers",
     "ogDescription": "Panduan dan perbandingan untuk AI video clipping, caption otomatis, reframing vertikal, dan alur kerja video pendek.",
     "hostedApp": "Aplikasi yang di-host",
     "startClipping": "Mulai buat clip",
     "creatorGuides": "Panduan kreator",
-    "tryHosted": "Coba SupoClip yang di-host",
+    "tryHosted": "Coba TokoClippers yang di-host",
     "heading": "Panduan praktis untuk mengubah video panjang jadi short yang lebih baik.",
     "intro": "Perbandingan, alur kerja, dan saran edit untuk kreator yang ingin alur clipping yang bisa diulang, caption yang lebih bersih, dan kendali lebih atas pipeline video mereka.",
     "readArticle": "Baca artikel",
@@ -35,18 +35,18 @@
     "productGuides": "Panduan produk"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip vs supo.live: Kenapa Open Source Menang",
-    "description": "Bandingkan SupoClip dan supo.live untuk AI video clipping. Lihat kenapa SupoClip unggul untuk kendali open source, host sendiri, dan alur video yang bisa disesuaikan.",
+    "title": "TokoClippers vs supo.live: Kenapa Open Source Menang",
+    "description": "Bandingkan TokoClippers dan supo.live untuk AI video clipping. Lihat kenapa TokoClippers unggul untuk kendali open source, host sendiri, dan alur video yang bisa disesuaikan.",
     "eyebrow": "Alternatif Supo.live",
     "category": "Perbandingan",
     "readingTime": "5 mnt baca",
-    "summary": "Untuk kreator dan tim yang ingin kendali atas alur clipping mereka, SupoClip adalah alternatif open source yang lebih baik daripada supo.live.",
+    "summary": "Untuk kreator dan tim yang ingin kendali atas alur clipping mereka, TokoClippers adalah alternatif open source yang lebih baik daripada supo.live.",
     "imageAlt": "Ilustrasi editorial rekaman podcast yang menjadi tiga clip video vertikal",
-    "breadcrumb": "SupoClip vs supo.live",
+    "breadcrumb": "TokoClippers vs supo.live",
     "heroCaption": "Satu rekaman, lebih banyak kemungkinan. Ilustrasi editorial yang dihasilkan AI dari alur video-panjang-jadi-short.",
     "verdict": {
       "kicker": "Putusan singkat",
-      "heading": "Pilih SupoClip saat kendali penting.",
+      "heading": "Pilih TokoClippers saat kendali penting.",
       "body": "Open source. Deployment-mu. Alur kerjamu. Fondasi yang kuat untuk mengubah konten rekaman jadi short ber-caption.",
       "points": {
         "0": "Periksa dan kembangkan kodenya",
@@ -62,16 +62,16 @@
       "faq": "FAQ"
     },
     "body": {
-      "p1": "Memilih AI video clipper juga berarti memilih seberapa banyak kendali yang kamu simpan atas proses produksimu. Kalau kamu ingin mengubah podcast, wawancara, talk, dan rekaman siaran jadi video pendek, SupoClip punya alasan yang kuat: edit berbantuan AI dengan kode sumber yang bisa kamu periksa dan alur kerja yang bisa kamu jalankan sendiri.",
-      "p2": "Putusan kami: SupoClip adalah alternatif yang lebih baik untuk kreator, agensi, dan developer yang mengutamakan open source, host sendiri, dan kustomisasi. Ini perbandingan dari tim SupoClip, berdasarkan kemampuan yang terdokumentasi, bukan tolok ukur kualitas clip atau kecepatan pemrosesan.",
-      "whatSupoclip": "Apa itu SupoClip?",
-      "whatSupoclipBody": "SupoClip adalah alat AI video clipping open source yang tersedia lewat supoclip.com atau sebagai aplikasi yang di-host sendiri. SupoClip menganalisis video panjang, memilih momen yang menjanjikan, dan menghasilkan clip vertikal dengan crop yang berpusat pada wajah serta subtitle yang sinkron per kata. Judul hook, penilaian clip, dan B-roll opsional membantu mengubah rekaman mentah jadi materi yang siap untuk tinjauan akhirmu. <repo>Repositori SupoClip</repo> mendokumentasikan fitur dan penyiapannya.",
+      "p1": "Memilih AI video clipper juga berarti memilih seberapa banyak kendali yang kamu simpan atas proses produksimu. Kalau kamu ingin mengubah podcast, wawancara, talk, dan rekaman siaran jadi video pendek, TokoClippers punya alasan yang kuat: edit berbantuan AI dengan kode sumber yang bisa kamu periksa dan alur kerja yang bisa kamu jalankan sendiri.",
+      "p2": "Putusan kami: TokoClippers adalah alternatif yang lebih baik untuk kreator, agensi, dan developer yang mengutamakan open source, host sendiri, dan kustomisasi. Ini perbandingan dari tim TokoClippers, berdasarkan kemampuan yang terdokumentasi, bukan tolok ukur kualitas clip atau kecepatan pemrosesan.",
+      "whatSupoclip": "Apa itu TokoClippers?",
+      "whatSupoclipBody": "TokoClippers adalah alat AI video clipping open source yang tersedia lewat supoclip.com atau sebagai aplikasi yang di-host sendiri. TokoClippers menganalisis video panjang, memilih momen yang menjanjikan, dan menghasilkan clip vertikal dengan crop yang berpusat pada wajah serta subtitle yang sinkron per kata. Judul hook, penilaian clip, dan B-roll opsional membantu mengubah rekaman mentah jadi materi yang siap untuk tinjauan akhirmu. <repo>Repositori TokoClippers</repo> mendokumentasikan fitur dan penyiapannya.",
       "whatSupo": "Apa itu supo.live?",
       "whatSupoBody": "Supo.live memasarkan layanan clipping yang di-host untuk rekaman maupun siaran yang sedang berlangsung. Halaman utamanya mengiklankan clipping langsung, caption bergaya, pelacakan wajah, editor browser, dan posting terjadwal ke TikTok, YouTube Shorts, dan X. Itu membuat publikasi langsung menjadi pembeda yang paling jelas. Lihat <site>ringkasan fitur resmi supo.live</site>."
     },
     "comparison": {
-      "heading": "SupoClip vs supo.live sekilas",
-      "caption": "Perbandingan alur kerja SupoClip dan supo.live",
+      "heading": "TokoClippers vs supo.live sekilas",
+      "caption": "Perbandingan alur kerja TokoClippers dan supo.live",
       "priority": "Prioritas",
       "note": "Detail supo.live mencerminkan <site>halaman utamanya</site> yang dicek 21 September 2026. Fitur dan paket bisa berubah.",
       "rows": {
@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Akses sumber",
-          "supoclip": "Lisensi Kode Sumber Nonkomersial SupoClip",
+          "supoclip": "Lisensi Kode Sumber Nonkomersial TokoClippers",
           "supolive": "Tidak ada opsi open source atau host sendiri yang diiklankan di halaman utamanya"
         },
         "usecase": {
@@ -105,7 +105,7 @@
     "workflow": {
       "heading": "Dari satu rekaman ke alur kerja yang bisa diulang",
       "intro": "Biarkan AI mengerjakan pass pertama, lalu pakai penilaian editorialmu. Setiap clip harus masuk akal sendiri, mempertahankan konteks pembicara, dan pantas ada di feed-mu.",
-      "caption": "Alur video rekaman SupoClip. AI mengusulkan; kamu yang membuat keputusan editorial akhir.",
+      "caption": "Alur video rekaman TokoClippers. AI mengusulkan; kamu yang membuat keputusan editorial akhir.",
       "steps": {
         "0": {
           "title": "Bawa rekaman",
@@ -126,20 +126,20 @@
       }
     },
     "editor": {
-      "aria": "Lihat tangkapan layar editor SupoClip ukuran penuh",
-      "alt": "Editor SupoClip dengan daftar clip, pratinjau vertikal, kontrol gaya caption, dan timeline",
-      "caption": "Di dalam editor SupoClip: sesuaikan caption, framing, dan waktu sebelum ekspor. Tangkapan layar produk sungguhan memakai footage uji sampel; klik untuk memperbesar."
+      "aria": "Lihat tangkapan layar editor TokoClippers ukuran penuh",
+      "alt": "Editor TokoClippers dengan daftar clip, pratinjau vertikal, kontrol gaya caption, dan timeline",
+      "caption": "Di dalam editor TokoClippers: sesuaikan caption, framing, dan waktu sebelum ekspor. Tangkapan layar produk sungguhan memakai footage uji sampel; klik untuk memperbesar."
     },
     "control": {
-      "heading": "Kenapa SupoClip alternatif open source yang lebih baik",
+      "heading": "Kenapa TokoClippers alternatif open source yang lebih baik",
       "h1": "1. Kamu bisa membentuk alur kerja di sekitar kontenmu",
-      "p1": "Studio podcast dan kanal edukasi mungkin ingin clip yang sangat berbeda. Dengan SupoClip, akses sumber memungkinkan tim teknis menyesuaikan logika pemilihan, perilaku caption, dan langkah pemrosesan dengan kebutuhan editorialnya. Kamu bisa memeriksa cara sistem bekerja dan mengembangkan perubahan di deployment-mu sendiri. Fleksibilitas itu adalah keunggulan terkuat SupoClip dibanding bergantung sepenuhnya pada pengaturan produk yang di-host.",
+      "p1": "Studio podcast dan kanal edukasi mungkin ingin clip yang sangat berbeda. Dengan TokoClippers, akses sumber memungkinkan tim teknis menyesuaikan logika pemilihan, perilaku caption, dan langkah pemrosesan dengan kebutuhan editorialnya. Kamu bisa memeriksa cara sistem bekerja dan mengembangkan perubahan di deployment-mu sendiri. Fleksibilitas itu adalah keunggulan terkuat TokoClippers dibanding bergantung sepenuhnya pada pengaturan produk yang di-host.",
       "h2": "2. Kamu memilih tempat aplikasi berjalan",
       "p2": "Host sendiri memberimu kendali atas infrastruktur aplikasi, konfigurasi penyimpanan, dan jadwal pemeliharaan. Kamu bisa memasukkan clipping ke lingkungan produksi yang sudah ada dan mempertahankan deployment yang kamu kelola. Jika kamu memakai transkripsi cloud atau LLM yang di-host, penyedia itu tetap menerima data yang mereka butuhkan. Beralih ke Whisper dan Ollama lokal membuat analisis itu juga tetap di perangkatmu.",
       "h3": "3. Kamu punya pilihan praktis untuk penyedia AI",
-      "p3": "SupoClip mendukung konfigurasi LLM untuk Google, OpenAI, Anthropic, dan model Ollama lokal. Itu memungkinkan kamu menilai penyedia terhadap konten dan anggaranmu sendiri. Transkripsi secara default memakai AssemblyAI, dan bisa beralih ke Whisper lokal atau, untuk tautan YouTube, caption yang sudah ada. <guide>Panduan host sendiri</guide> memandu penyiapan yang sepenuhnya lokal.",
+      "p3": "TokoClippers mendukung konfigurasi LLM untuk Google, OpenAI, Anthropic, dan model Ollama lokal. Itu memungkinkan kamu menilai penyedia terhadap konten dan anggaranmu sendiri. Transkripsi secara default memakai AssemblyAI, dan bisa beralih ke Whisper lokal atau, untuk tautan YouTube, caption yang sudah ada. <guide>Panduan host sendiri</guide> memandu penyiapan yang sepenuhnya lokal.",
       "h4": "4. Alur clipping-mu bisa tumbuh jadi alatmu sendiri",
-      "p4": "SupoClip menyertakan REST API dan server MCP. Developer bisa menghubungkan clipping ke aplikasi lain atau klien AI yang kompatibel, alih-alih memperlakukan browser sebagai satu-satunya pintu masuk. Untuk agensi yang memproses rekaman klien secara berulang, itu memberi ruang untuk membangun alur kerja yang bisa diulang di sekitar proses tinjauan mereka sendiri. <api>Referensi API</api> menjelaskan endpoint yang tersedia.",
+      "p4": "TokoClippers menyertakan REST API dan server MCP. Developer bisa menghubungkan clipping ke aplikasi lain atau klien AI yang kompatibel, alih-alih memperlakukan browser sebagai satu-satunya pintu masuk. Untuk agensi yang memproses rekaman klien secara berulang, itu memberi ruang untuk membangun alur kerja yang bisa diulang di sekitar proses tinjauan mereka sendiri. <api>Referensi API</api> menjelaskan endpoint yang tersedia.",
       "figureCaption": "Yang kamu kendalikan saat host sendiri",
       "figureNote": "Penyedia cloud bersifat opsional: Whisper dan Ollama menjaga transkripsi dan pemilihan clip tetap lokal.",
       "yours": {
@@ -157,56 +157,56 @@
     },
     "cost": {
       "heading": "Biaya: kode sumber gratis, biaya operasi yang nyata",
-      "p1": "Kode open source SupoClip gratis untuk di-host sendiri. Biaya aktualmu bergantung pada komputasi, penyimpanan, transkripsi, pemakaian model berbayar, dan waktu yang diperlukan untuk merawat instalasi. Kapasitas mengikuti sumber daya yang kamu sediakan dan batas penyedia. Ini bisa menarik untuk tim yang sudah menjalankan infrastruktur, tapi bukan janji bahwa setiap beban kerja lebih murah.",
-      "p2": "Layanan SupoClip yang di-host adalah opsi terpisah dengan harga dan ketentuannya sendiri. Pilih itu kalau kamu ingin mulai dengan penyiapan yang lebih sedikit; pilih host sendiri kalau kendali atas deployment adalah prioritas."
+      "p1": "Kode open source TokoClippers gratis untuk di-host sendiri. Biaya aktualmu bergantung pada komputasi, penyimpanan, transkripsi, pemakaian model berbayar, dan waktu yang diperlukan untuk merawat instalasi. Kapasitas mengikuti sumber daya yang kamu sediakan dan batas penyedia. Ini bisa menarik untuk tim yang sudah menjalankan infrastruktur, tapi bukan janji bahwa setiap beban kerja lebih murah.",
+      "p2": "Layanan TokoClippers yang di-host adalah opsi terpisah dengan harga dan ketentuannya sendiri. Pilih itu kalau kamu ingin mulai dengan penyiapan yang lebih sedikit; pilih host sendiri kalau kendali atas deployment adalah prioritas."
     },
     "choose": {
       "heading": "Yang mana yang sebaiknya kamu pilih?",
-      "p1": "Pilih SupoClip untuk pustaka podcast, wawancara, webinar, atau VOD siaran yang ingin kamu manfaatkan ulang lewat pipeline yang bisa disesuaikan. SupoClip menyatukan penemuan clip, penilaian, caption, dan framing vertikal sambil memberimu kebebasan untuk memeriksa dan mengembangkan aplikasi.",
-      "p2": "Kalau kebutuhan utamamu adalah meng-clip siaran saat masih berjalan dan memposting hasilnya secara otomatis, evaluasi alur langsung yang diiklankan supo.live. Alur video rekaman SupoClip tidak boleh diperlakukan sebagai pengganti terverifikasi untuk fitur-fitur itu."
+      "p1": "Pilih TokoClippers untuk pustaka podcast, wawancara, webinar, atau VOD siaran yang ingin kamu manfaatkan ulang lewat pipeline yang bisa disesuaikan. TokoClippers menyatukan penemuan clip, penilaian, caption, dan framing vertikal sambil memberimu kebebasan untuk memeriksa dan mengembangkan aplikasi.",
+      "p2": "Kalau kebutuhan utamamu adalah meng-clip siaran saat masih berjalan dan memposting hasilnya secara otomatis, evaluasi alur langsung yang diiklankan supo.live. Alur video rekaman TokoClippers tidak boleh diperlakukan sebagai pengganti terverifikasi untuk fitur-fitur itu."
     },
     "start": {
       "heading": "Mulai bangun alur clipping yang kamu kendalikan",
-      "p1": "SupoClip adalah pilihan kami untuk tim yang ingin AI clipping yang berguna hari ini dan ruang untuk menyesuaikannya besok. Mulai dengan satu rekaman yang mewakili, tinjau clip yang disarankan, sempurnakan caption dan framing, lalu ekspor hasilnya. Kemudian putuskan apakah kenyamanan yang di-host atau deployment-mu sendiri yang cocok dengan alur kerjamu.",
-      "logoAlt": "Logo SupoClip",
+      "p1": "TokoClippers adalah pilihan kami untuk tim yang ingin AI clipping yang berguna hari ini dan ruang untuk menyesuaikannya besok. Mulai dengan satu rekaman yang mewakili, tinjau clip yang disarankan, sempurnakan caption dan framing, lalu ekspor hasilnya. Kemudian putuskan apakah kenyamanan yang di-host atau deployment-mu sendiri yang cocok dengan alur kerjamu.",
+      "logoAlt": "Logo TokoClippers",
       "cardTitle": "Rekaman berikutnya layak mendapat kehidupan kedua.",
       "points": {
         "0": "Mulai dengan rekaman yang kamu kenal baik",
         "1": "Tinjau momen yang disarankan dan paling kuat",
         "2": "Sempurnakan caption dan ekspor"
       },
-      "try": "Coba SupoClip"
+      "try": "Coba TokoClippers"
     },
     "faqs": {
       "0": {
         "question": "Apa alternatif open source terbaik untuk supo.live?",
-        "answer": "SupoClip adalah pilihan yang kuat untuk kreator dan tim yang ingin mengubah video rekaman jadi short sambil mempertahankan akses sumber, host sendiri, dan kendali atas alur AI clipping mereka."
+        "answer": "TokoClippers adalah pilihan yang kuat untuk kreator dan tim yang ingin mengubah video rekaman jadi short sambil mempertahankan akses sumber, host sendiri, dan kendali atas alur AI clipping mereka."
       },
       "1": {
-        "question": "Apakah SupoClip gratis untuk di-host sendiri?",
-        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Menjalankannya tetap melibatkan perangkat atau hosting, penyimpanan, transkripsi, dan pemakaian LLM berbayar apa pun. SupoClip yang di-host punya ketentuan layanan dan harganya sendiri."
+        "question": "Apakah TokoClippers gratis untuk di-host sendiri?",
+        "answer": "TokoClippers mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Menjalankannya tetap melibatkan perangkat atau hosting, penyimpanan, transkripsi, dan pemakaian LLM berbayar apa pun. TokoClippers yang di-host punya ketentuan layanan dan harganya sendiri."
       },
       "2": {
-        "question": "Bisakah SupoClip menggantikan clipping siaran langsung dan posting otomatis?",
-        "answer": "Perbandingan ini merekomendasikan SupoClip untuk video rekaman dan VOD siaran. Supo.live mengiklankan clipping selama siaran langsung dan posting sosial terjadwal; kemampuan itu tidak diklaim sebagai padanan SupoClip di sini."
+        "question": "Bisakah TokoClippers menggantikan clipping siaran langsung dan posting otomatis?",
+        "answer": "Perbandingan ini merekomendasikan TokoClippers untuk video rekaman dan VOD siaran. Supo.live mengiklankan clipping selama siaran langsung dan posting sosial terjadwal; kemampuan itu tidak diklaim sebagai padanan TokoClippers di sini."
       }
     },
-    "closing": "Jelajahi <openSource>panduan video clipper open source</openSource> kami atau baca <comparison>perbandingan SupoClip vs OpusClip</comparison>."
+    "closing": "Jelajahi <openSource>panduan video clipper open source</openSource> kami atau baca <comparison>perbandingan TokoClippers vs OpusClip</comparison>."
   },
   "supoclip-vs-opusclip": {
-    "title": "SupoClip vs OpusClip: Perbandingan Bersumber",
-    "description": "SupoClip vs OpusClip dibandingkan pada deployment, model harga, watermark, pilihan model, dan alur kerja, dengan sumber yang tertaut untuk setiap klaim.",
+    "title": "TokoClippers vs OpusClip: Perbandingan Bersumber",
+    "description": "TokoClippers vs OpusClip dibandingkan pada deployment, model harga, watermark, pilihan model, dan alur kerja, dengan sumber yang tertaut untuk setiap klaim.",
     "eyebrow": "Perbandingan OpusClip",
     "category": "Perbandingan",
     "readingTime": "7 mnt baca",
     "summary": "Perbandingan berdampingan tentang apa yang didokumentasikan tiap produk, di mana keduanya berbeda, dan mana yang cocok dengan alur kerjamu.",
-    "breadcrumb": "SupoClip vs OpusClip",
+    "breadcrumb": "TokoClippers vs OpusClip",
     "notCovered": "Tidak dibahas oleh sumber di bawah",
     "toc": {
       "verdict": "Jawaban singkat",
       "comparison": "Berdampingan",
       "pricing": "Model harga",
-      "choose-supoclip": "Kapan SupoClip cocok",
+      "choose-supoclip": "Kapan TokoClippers cocok",
       "choose-opusclip": "Kapan OpusClip cocok",
       "test": "Jalankan tesmu sendiri",
       "sources": "Sumber",
@@ -214,15 +214,15 @@
     },
     "faqs": {
       "0": {
-        "question": "Apakah SupoClip lebih baik daripada OpusClip?",
-        "answer": "Tergantung apa yang kamu butuhkan. SupoClip lebih cocok kalau kamu ingin akses sumber, host sendiri, atau pilihan model AI-mu sendiri. OpusClip lebih cocok kalau kamu ingin produk yang dikelola dengan paket gratis untuk dicoba. Kami tidak mengklaim salah satunya menghasilkan clip yang lebih baik, karena kami belum menjalankan tes terkontrol yang mendukung itu."
+        "question": "Apakah TokoClippers lebih baik daripada OpusClip?",
+        "answer": "Tergantung apa yang kamu butuhkan. TokoClippers lebih cocok kalau kamu ingin akses sumber, host sendiri, atau pilihan model AI-mu sendiri. OpusClip lebih cocok kalau kamu ingin produk yang dikelola dengan paket gratis untuk dicoba. Kami tidak mengklaim salah satunya menghasilkan clip yang lebih baik, karena kami belum menjalankan tes terkontrol yang mendukung itu."
       },
       "1": {
-        "question": "Apakah SupoClip menambahkan watermark?",
-        "answer": "Tidak. Pipeline render SupoClip tidak punya langkah watermark, baik di aplikasi yang di-host maupun instalasi yang di-host sendiri. Pusat bantuan OpusClip mengatakan ekspor paket gratis bisa menyertakan watermark OpusClip."
+        "question": "Apakah TokoClippers menambahkan watermark?",
+        "answer": "Tidak. Pipeline render TokoClippers tidak punya langkah watermark, baik di aplikasi yang di-host maupun instalasi yang di-host sendiri. Pusat bantuan OpusClip mengatakan ekspor paket gratis bisa menyertakan watermark OpusClip."
       },
       "2": {
-        "question": "Apakah SupoClip yang di-host punya paket gratis?",
+        "question": "Apakah TokoClippers yang di-host punya paket gratis?",
         "answer": "Tidak. Aplikasi yang di-host membutuhkan langganan Pro atau Creator untuk memproses video. Jalur gratisnya adalah host sendiri kode open source, yang tidak punya batas paket; kamu hanya membayar infrastruktur sendiri dan penyedia AI yang kamu konfigurasi."
       },
       "3": {
@@ -230,16 +230,16 @@
         "answer": "Kami belum memublikasikan tes terkontrol untuk kecepatan atau kualitas clip, jadi kami tidak membuat klaim itu. Hasil bergantung pada videomu dan pengaturan; langkah tes yang adil di halaman ini menunjukkan cara membandingkannya pada kontenmu sendiri."
       }
     },
-    "intro": "OpusClip membantu mendefinisikan AI clipping: unggah video panjang, dapatkan clip vertikal pendek kembali. SupoClip mengerjakan pekerjaan yang sama sebagai proyek open source yang bisa kamu pakai dalam versi yang di-host atau jalankan sendiri. Perbandingan ini berpegang pada apa yang didokumentasikan tiap produk. Klaim SupoClip tertaut ke kode sumber kami. Klaim OpusClip tertaut ke pusat bantuan OpusClip sendiri. Kalau sebuah sumber tidak membahas sesuatu, tabel mengatakannya, bukan menebak.",
+    "intro": "OpusClip membantu mendefinisikan AI clipping: unggah video panjang, dapatkan clip vertikal pendek kembali. TokoClippers mengerjakan pekerjaan yang sama sebagai proyek open source yang bisa kamu pakai dalam versi yang di-host atau jalankan sendiri. Perbandingan ini berpegang pada apa yang didokumentasikan tiap produk. Klaim TokoClippers tertaut ke kode sumber kami. Klaim OpusClip tertaut ke pusat bantuan OpusClip sendiri. Kalau sebuah sumber tidak membahas sesuatu, tabel mengatakannya, bukan menebak.",
     "introNote": "Halaman ini tidak menilai kualitas clip, akurasi caption, atau kecepatan pemrosesan. Untuk membandingkan itu, lihat <test>cara menjalankan tesmu sendiri</test>.",
     "verdict": {
       "heading": "Jawaban singkatnya",
-      "supoclip": "<strong>Pilih SupoClip</strong> kalau kamu ingin host sendiri, memeriksa atau mengubah kode, memilih model AI-mu sendiri (termasuk yang sepenuhnya lokal), atau mengekspor tanpa watermark.",
+      "supoclip": "<strong>Pilih TokoClippers</strong> kalau kamu ingin host sendiri, memeriksa atau mengubah kode, memilih model AI-mu sendiri (termasuk yang sepenuhnya lokal), atau mengekspor tanpa watermark.",
       "opusclip": "<strong>Pilih OpusClip</strong> kalau kamu ingin produk yang dikelola dan tidak perlu di-deploy, dan ingin mulai di paket gratis."
     },
     "comparison": {
       "heading": "Berdampingan",
-      "caption": "Perbandingan SupoClip dan OpusClip beserta sumber",
+      "caption": "Perbandingan TokoClippers dan OpusClip beserta sumber",
       "area": "Area",
       "footnote": "“Tidak dibahas oleh sumber di bawah” berarti artikel pusat bantuan OpusClip yang dikutip tidak membahasnya. Itu tidak berarti OpusClip tidak punya fiturnya. Cek <site>opus.pro</site> untuk apa pun yang tidak tercantum di sini."
     },
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Kode sumber",
-        "supoclip": "Publik, <license>Lisensi Kode Sumber Nonkomersial SupoClip</license>"
+        "supoclip": "Publik, <license>Lisensi Kode Sumber Nonkomersial TokoClippers</license>"
       },
       "pricing": {
         "label": "Model harga",
@@ -279,10 +279,10 @@
     "pricing": {
       "heading": "Model harga: kredit vs. paket vs. infrastrukturmu sendiri",
       "p1": "Artikel <plans>paket dan kredit</plans> OpusClip menjelaskan paket berbayar yang memakai kredit untuk menit pemrosesan, plus paket gratis. Artikel <watermark>watermark</watermark>-nya mengatakan ekspor paket gratis bisa membawa watermark OpusClip. Harga paket dan jumlah kredit berubah, jadi cek halaman harga OpusClip yang terkini alih-alih mengandalkan angka yang disalin ke postingan blog.",
-      "p2": "SupoClip menawarkan dua jalur. Aplikasi yang di-host punya <pro>{proName}</pro> seharga ${proPrice}/bulan untuk {proLimit} jam video dalam 720p dan <scale>{scaleName}</scale> seharga ${scalePrice}/bulan untuk {scaleLimit} jam dalam 1080p, dengan tagihan tahunan setara dua bulan gratis. Tidak ada paket yang di-host secara gratis; pemrosesan membutuhkan langganan. Jalur host sendiri adalah perangkat lunak gratis tanpa batas paket. Kamu membayar server dan API AI apa pun yang kamu konfigurasi, dan <guide>panduan host sendiri</guide> menunjukkan penyiapan yang sepenuhnya lokal tanpa biaya AI per permintaan."
+      "p2": "TokoClippers menawarkan dua jalur. Aplikasi yang di-host punya <pro>{proName}</pro> seharga ${proPrice}/bulan untuk {proLimit} jam video dalam 720p dan <scale>{scaleName}</scale> seharga ${scalePrice}/bulan untuk {scaleLimit} jam dalam 1080p, dengan tagihan tahunan setara dua bulan gratis. Tidak ada paket yang di-host secara gratis; pemrosesan membutuhkan langganan. Jalur host sendiri adalah perangkat lunak gratis tanpa batas paket. Kamu membayar server dan API AI apa pun yang kamu konfigurasi, dan <guide>panduan host sendiri</guide> menunjukkan penyiapan yang sepenuhnya lokal tanpa biaya AI per permintaan."
     },
     "chooseSupoclip": {
-      "heading": "Kapan SupoClip lebih cocok",
+      "heading": "Kapan TokoClippers lebih cocok",
       "li1": "<strong>Kamu butuh kendali atas ke mana video pergi.</strong> Host sendiri menjaga aplikasi, basis data, dan clip yang dirender di infrastrukturmu. Dengan Whisper dan Ollama, transkripsi dan pemilihan clip juga berjalan secara lokal.",
       "li2": "<strong>Kamu punya katalog lama yang besar.</strong> Instalasi yang di-host sendiri tidak punya batas video bulanan. Throughput bergantung pada perangkat dan batas penyedia.",
       "li3": "<strong>Kamu ingin mengubah cara clip dipilih.</strong> Prompt pemilihan, penilaian, template caption, dan rendering semuanya ada di repositori.",
@@ -291,8 +291,8 @@
     "chooseOpusclip": {
       "heading": "Kapan OpusClip lebih cocok",
       "li1": "<strong>Kamu tidak ingin mengoperasikan apa pun.</strong> Host sendiri berarti mengelola Docker, kunci penyedia, pembaruan, dan cadangan.",
-      "li2": "<strong>Kamu ingin mencoba sebelum membayar.</strong> OpusClip mendokumentasikan paket gratis (dengan kemungkinan watermark). SupoClip yang di-host tidak punya paket gratis.",
-      "li3": "<strong>Kamu mengandalkan fitur yang tidak dibahas di sini.</strong> Kalau alur kerja OpusClip tertentu penting bagimu, konfirmasikan di opus.pro dan uji apakah SupoClip mencakupnya sebelum beralih."
+      "li2": "<strong>Kamu ingin mencoba sebelum membayar.</strong> OpusClip mendokumentasikan paket gratis (dengan kemungkinan watermark). TokoClippers yang di-host tidak punya paket gratis.",
+      "li3": "<strong>Kamu mengandalkan fitur yang tidak dibahas di sini.</strong> Kalau alur kerja OpusClip tertentu penting bagimu, konfirmasikan di opus.pro dan uji apakah TokoClippers mencakupnya sebelum beralih."
     },
     "test": {
       "heading": "Cara menjalankan tes yang adil sendiri",
@@ -301,22 +301,22 @@
       "li2": "Jalankan masing-masing di kedua alat dengan pengaturan default, dan catat waktu dari pengiriman sampai clip selesai.",
       "li3": "Acak clip-nya dan tinjau tanpa tahu alat mana yang membuat masing-masing. Nilai apakah tiap clip masuk akal tanpa konteks, punya hook yang jelas, membingkai pembicara dengan benar, dan punya caption yang akurat.",
       "li4": "Hitung edit yang dibutuhkan tiap clip sebelum kamu mau mempostingnya. Waktu mengedit adalah biaya yang tidak terlihat di harga langganan.",
-      "demo": "Ingin melihat keluaran SupoClip dulu? <demo>Halaman demo</demo> menampilkan clip sungguhan di samping tautan ke stempel waktu asli."
+      "demo": "Ingin melihat keluaran TokoClippers dulu? <demo>Halaman demo</demo> menampilkan clip sungguhan di samping tautan ke stempel waktu asli."
     },
     "sources": {
       "heading": "Sumber",
       "opus": "Pusat bantuan OpusClip: <plans>Paket dan kredit</plans> serta <watermark>Watermark</watermark>. Paket bisa berubah; konfirmasi detail terkini di <site>opus.pro</site>.",
-      "supoclip": "SupoClip: <repo>repositori publik</repo>, termasuk <compose>docker-compose.yml</compose>, <config>dokumen konfigurasi</config>, dan <billing>aturan tagihan</billing>. Harga yang di-host berasal dari bagian harga di supoclip.com."
+      "supoclip": "TokoClippers: <repo>repositori publik</repo>, termasuk <compose>docker-compose.yml</compose>, <config>dokumen konfigurasi</config>, dan <billing>aturan tagihan</billing>. Harga yang di-host berasal dari bagian harga di supoclip.com."
     }
   },
   "self-host-supoclip-docker": {
-    "title": "Cara Host Sendiri SupoClip dengan Docker Compose",
-    "description": "Host sendiri SupoClip, AI video clipper open source: kebutuhan, penyiapan .env, opsi Whisper + Ollama yang sepenuhnya lokal, pemeriksaan pertama, dan daftar periksa produksi.",
+    "title": "Cara Host Sendiri TokoClippers dengan Docker Compose",
+    "description": "Host sendiri TokoClippers, AI video clipper open source: kebutuhan, penyiapan .env, opsi Whisper + Ollama yang sepenuhnya lokal, pemeriksaan pertama, dan daftar periksa produksi.",
     "eyebrow": "Panduan Host Sendiri",
     "category": "Panduan",
     "readingTime": "9 mnt baca",
     "summary": "Panduan praktis stack Docker Compose repositori: apa yang dilakukan tiap layanan, kunci apa yang kamu butuhkan, cara berjalan tanpa AI cloud, dan apa yang perlu diperkuat sebelum produksi.",
-    "breadcrumb": "Host sendiri SupoClip",
+    "breadcrumb": "Host sendiri TokoClippers",
     "toc": {
       "stack": "Yang kamu jalankan",
       "requirements": "Kebutuhan",
@@ -329,11 +329,11 @@
     },
     "faqs": {
       "0": {
-        "question": "Apakah SupoClip yang di-host sendiri gratis?",
-        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Kamu tetap membayar perangkat atau server sendiri, serta pemakaian transkripsi cloud atau LLM apa pun yang kamu konfigurasi. Penyiapan Whisper + Ollama menghindari biaya AI per permintaan, tapi butuh komputasi lokal yang cukup."
+        "question": "Apakah TokoClippers yang di-host sendiri gratis?",
+        "answer": "TokoClippers mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Kamu tetap membayar perangkat atau server sendiri, serta pemakaian transkripsi cloud atau LLM apa pun yang kamu konfigurasi. Penyiapan Whisper + Ollama menghindari biaya AI per permintaan, tapi butuh komputasi lokal yang cukup."
       },
       "1": {
-        "question": "Bisakah SupoClip berjalan tanpa layanan AI cloud sama sekali?",
+        "question": "Bisakah TokoClippers berjalan tanpa layanan AI cloud sama sekali?",
         "answer": "Ya, untuk analisis clip. Atur TRANSCRIPTION_PROVIDER=whisper untuk mentranskripsi secara lokal dan LLM=ollama:<model> untuk memilih clip dengan model lokal. Mengunduh tautan YouTube tetap butuh akses internet; file yang diunggah tidak. B-roll opsional memakai API Pexels."
       },
       "2": {
@@ -349,12 +349,12 @@
         "answer": "Buat akunmu, lalu atur DISABLE_SIGN_UP=true dan buat ulang kontainer frontend. Compose mengikat setiap port ke 127.0.0.1, jadi tidak ada yang publik sampai kamu menambahkan reverse proxy."
       }
     },
-    "intro": "SupoClip adalah AI video clipper open source di balik aplikasi yang di-host di supoclip.com. Repositori yang sama menyertakan stack Docker Compose yang bisa kamu jalankan di laptop, server rumah, atau VPS. Panduan ini mengikuti stack itu persis seperti yang ada di <repo>repositori</repo>. Kalau sebuah langkah bergantung pada penyedia atau perangkatmu, kami mengatakannya alih-alih menebak.",
-    "introChoice": "Lebih suka tidak menjalankan infrastruktur? <hosted>Aplikasi yang di-host</hosted> menjalankan pipeline yang sama. Masih memilih alat? Baca <comparison>perbandingan SupoClip vs OpusClip</comparison> kami dulu.",
+    "intro": "TokoClippers adalah AI video clipper open source di balik aplikasi yang di-host di supoclip.com. Repositori yang sama menyertakan stack Docker Compose yang bisa kamu jalankan di laptop, server rumah, atau VPS. Panduan ini mengikuti stack itu persis seperti yang ada di <repo>repositori</repo>. Kalau sebuah langkah bergantung pada penyedia atau perangkatmu, kami mengatakannya alih-alih menebak.",
+    "introChoice": "Lebih suka tidak menjalankan infrastruktur? <hosted>Aplikasi yang di-host</hosted> menjalankan pipeline yang sama. Masih memilih alat? Baca <comparison>perbandingan TokoClippers vs OpusClip</comparison> kami dulu.",
     "stack": {
       "heading": "Yang sedang kamu jalankan",
       "lead": "<code>docker compose up</code> memulai kontainer ini, semuanya didefinisikan di <compose>docker-compose.yml</compose>:",
-      "caption": "Layanan dalam stack Docker Compose SupoClip",
+      "caption": "Layanan dalam stack Docker Compose TokoClippers",
       "service": "Layanan",
       "role": "Peran",
       "port": "Port host",
@@ -415,7 +415,7 @@
       "linux": "Compose memetakan <code>host.docker.internal</code> ke gateway bridge Docker, tapi Ollama secara default hanya mendengarkan di <code>127.0.0.1</code>, jadi koneksi worker ditolak. Buat Ollama mendengarkan di semua antarmuka:",
       "expose": "Itu juga membuka port 11434 di antarmuka jaringanmu. Ollama tidak punya autentikasi, jadi blokir port itu dari luar mesin dengan firewall-mu. Kalau firewall-mu menyaring lalu lintas dari jaringan Docker, izinkan juga kontainer untuk mencapainya.",
       "containerHeading": "Ollama di kontainernya sendiri",
-      "container": "Tambahkan ke stack dengan file override, lalu arahkan SupoClip ke nama layanan, bukan ke host:",
+      "container": "Tambahkan ke stack dengan file override, lalu arahkan TokoClippers ke nama layanan, bukan ke host:",
       "labelOverride": "docker-compose.override.yml (gabungkan ke override yang sudah kamu punya)",
       "labelEnvTerminal": ".env dan terminal",
       "whichever": "Penyiapan mana pun yang kamu pilih, uji dari dalam worker sebelum mengirim video. Pemeriksaan mencari <code>gpt-oss:20b</code> karena itu model dalam nilai <code>LLM</code> contoh. Kalau kamu memilih model lain, ganti dengan nama persis setelah <code>ollama:</code> di pengaturan <code>LLM</code>-mu. Ollama mencantumkan model yang ditarik tanpa tag sebagai <code>name:latest</code>, jadi pakai bentuk itu dalam pemeriksaan.",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "Alternatif OpusClip Gratis Terbaik yang Di-host Sendiri",
-    "description": "Mencari alternatif OpusClip yang gratis? SupoClip adalah pembuat clip AI open source yang bisa kamu host sendiri secara gratis. SupoClip mengubah video panjang jadi short vertikal ber-caption.",
+    "description": "Mencari alternatif OpusClip yang gratis? TokoClippers adalah pembuat clip AI open source yang bisa kamu host sendiri secara gratis. TokoClippers mengubah video panjang jadi short vertikal ber-caption.",
     "eyebrow": "Alternatif OpusClip",
     "category": "Perbandingan",
     "readingTime": "6 mnt baca",
-    "summary": "SupoClip dibuat untuk kreator yang ingin AI clipping gaya OpusClip di infrastruktur mereka sendiri, tanpa langganan berbasis kredit yang lain.",
-    "lead": "Kalau kamu suka ide OpusClip tapi ingin jalur yang gratis dan open source, SupoClip memberimu alur inti: temukan momen kuat di video panjang, bingkai ulang secara vertikal, tambahkan caption, dan ekspor clip untuk Shorts, Reels, dan TikTok.",
+    "summary": "TokoClippers dibuat untuk kreator yang ingin AI clipping gaya OpusClip di infrastruktur mereka sendiri, tanpa langganan berbasis kredit yang lain.",
+    "lead": "Kalau kamu suka ide OpusClip tapi ingin jalur yang gratis dan open source, TokoClippers memberimu alur inti: temukan momen kuat di video panjang, bingkai ulang secara vertikal, tambahkan caption, dan ekspor clip untuk Shorts, Reels, dan TikTok.",
     "bestFor": "Paling cocok untuk",
     "audience": {
       "0": "Kreator yang meng-clip video YouTube jadi short",
@@ -472,10 +472,10 @@
     },
     "openHosted": "Buka versi yang di-host",
     "p1": "OpusClip membantu mendefinisikan kategori AI clipping modern: unggah video panjang, biarkan AI mengidentifikasi momen, dan publikasikan clip pendek lebih cepat. Alur itu berguna. Gesekannya mulai saat kamu ingin jalur gratis, kendali lebih, atau pipeline yang bisa kamu jalankan sendiri.",
-    "p2": "SupoClip adalah alternatif OpusClip gratis terbaik untuk kreator yang spesifik itu: seseorang yang ingin penemuan clip berbantuan AI, ekspor vertikal, caption, dan kendali atas sistem di baliknya. Kamu juga bisa <hosted>memakai SupoClip yang di-host</hosted> dengan paket berbayar kalau kamu ingin melewati penyiapan sama sekali.",
+    "p2": "TokoClippers adalah alternatif OpusClip gratis terbaik untuk kreator yang spesifik itu: seseorang yang ingin penemuan clip berbantuan AI, ekspor vertikal, caption, dan kendali atas sistem di baliknya. Kamu juga bisa <hosted>memakai TokoClippers yang di-host</hosted> dengan paket berbayar kalau kamu ingin melewati penyiapan sama sekali.",
     "verdict": {
       "heading": "Putusan singkat",
-      "body": "Pilih SupoClip kalau kamu ingin AI video clipper open source yang bisa kamu host sendiri. Pilih OpusClip kalau kamu ingin produk yang di-host dan dikelola, dan nyaman dengan batas paket, aturan watermark, serta model kreditnya."
+      "body": "Pilih TokoClippers kalau kamu ingin AI video clipper open source yang bisa kamu host sendiri. Pilih OpusClip kalau kamu ingin produk yang di-host dan dikelola, dan nyaman dengan batas paket, aturan watermark, serta model kreditnya."
     },
     "stats": {
       "0": {
@@ -497,13 +497,13 @@
       "p2": "Pusat bantuan OpusClip sendiri mengatakan ekspor paket gratis bisa menampilkan watermark OpusClip, dan paketnya memakai kredit untuk menit pemrosesan. Untuk uji coba santai, itu bisa baik-baik saja. Untuk clipping yang berulang, itu bisa mendorong kreator ke alur yang di-host dan berbayar."
     },
     "different": {
-      "heading": "Yang membuat SupoClip berbeda",
-      "p1": "SupoClip bukan sekadar pembungkus tipis di atas editor yang di-host. Ini aplikasi clipping open source yang lengkap, dengan backend FastAPI, frontend Next.js, worker latar belakang, transkripsi, penilaian AI, reframing vertikal yang mengikuti wajah, gaya caption, dan preset ekspor.",
+      "heading": "Yang membuat TokoClippers berbeda",
+      "p1": "TokoClippers bukan sekadar pembungkus tipis di atas editor yang di-host. Ini aplikasi clipping open source yang lengkap, dengan backend FastAPI, frontend Next.js, worker latar belakang, transkripsi, penilaian AI, reframing vertikal yang mengikuti wajah, gaya caption, dan preset ekspor.",
       "p2": "Itu membuat imbangannya jelas. Kamu menanggung penyiapan, tapi mendapat kepemilikan. Kamu bisa memeriksa kode, menyesuaikannya dengan alur kerjamu, dan memutuskan penyedia AI yang di-host atau model lokal mana yang dipakai. <guide>Panduan host sendiri</guide> memandu penyiapannya, termasuk opsi Whisper + Ollama yang sepenuhnya lokal."
     },
     "compare": {
-      "heading": "SupoClip vs OpusClip",
-      "body": "Ringkasan di bawah mencakup yang penting. Untuk perbandingan baris demi baris dengan sumber untuk setiap klaim, baca <comparison>SupoClip vs OpusClip: perbandingan bersumber</comparison>."
+      "heading": "TokoClippers vs OpusClip",
+      "body": "Ringkasan di bawah mencakup yang penting. Untuk perbandingan baris demi baris dengan sumber untuk setiap klaim, baca <comparison>TokoClippers vs OpusClip: perbandingan bersumber</comparison>."
     },
     "table": {
       "feature": "Fitur",
@@ -531,18 +531,18 @@
       }
     },
     "how": {
-      "heading": "Bagaimana SupoClip bekerja",
+      "heading": "Bagaimana TokoClippers bekerja",
       "steps": {
         "0": "Tempel URL YouTube, Twitch, atau Kick, atau unggah video.",
-        "1": "SupoClip mentranskripsi sumber dan menemukan momen kandidat.",
+        "1": "TokoClippers mentranskripsi sumber dan menemukan momen kandidat.",
         "2": "AI menilai clip untuk kekuatan hook, engagement, nilai, dan kelayakan dibagikan.",
         "3": "Editor membuat clip vertikal ber-caption dengan framing yang mengikuti wajah.",
         "4": "Kamu mengekspor short untuk YouTube Shorts, TikTok, Instagram Reels, atau feed lain."
       }
     },
     "better": {
-      "heading": "Kapan SupoClip pilihan yang lebih baik",
-      "body": "SupoClip paling baik saat kamu ingin alternatif OpusClip gratis dengan kendali developer. Ini sangat berguna untuk kreator dengan backlog video panjang, agensi yang ingin menyesuaikan alur clipping, atau tim teknis yang ingin AI video clipping di dalam stack mereka sendiri."
+      "heading": "Kapan TokoClippers pilihan yang lebih baik",
+      "body": "TokoClippers paling baik saat kamu ingin alternatif OpusClip gratis dengan kendali developer. Ini sangat berguna untuk kreator dengan backlog video panjang, agensi yang ingin menyesuaikan alur clipping, atau tim teknis yang ingin AI video clipping di dalam stack mereka sendiri."
     },
     "opus": {
       "heading": "Kapan OpusClip mungkin masih lebih baik",
@@ -550,25 +550,25 @@
     },
     "cta": {
       "kicker": "Gratis kalau kamu host sendiri, paket berbayar kalau tidak",
-      "title": "Mulai buat clip dengan SupoClip.",
+      "title": "Mulai buat clip dengan TokoClippers.",
       "selfHost": "Panduan host sendiri",
       "openApp": "Buka aplikasi"
     },
     "faqs": {
       "0": {
         "question": "Apa alternatif OpusClip gratis yang terbaik?",
-        "answer": "SupoClip adalah alternatif OpusClip gratis yang kuat kalau kamu ingin pembuat clip AI open source yang bisa kamu host sendiri, sesuaikan, dan jalankan dengan alur video milikmu."
+        "answer": "TokoClippers adalah alternatif OpusClip gratis yang kuat kalau kamu ingin pembuat clip AI open source yang bisa kamu host sendiri, sesuaikan, dan jalankan dengan alur video milikmu."
       },
       "1": {
-        "question": "Apakah SupoClip sepenuhnya gratis?",
-        "answer": "Basis kode SupoClip gratis dan open source, dan instalasi yang di-host sendiri tidak punya batas paket. Kamu tetap membayar infrastruktur sendiri serta penyedia transkripsi atau LLM apa pun yang kamu konfigurasi. Aplikasi yang di-host membutuhkan paket berbayar."
+        "question": "Apakah TokoClippers sepenuhnya gratis?",
+        "answer": "Basis kode TokoClippers gratis dan open source, dan instalasi yang di-host sendiri tidak punya batas paket. Kamu tetap membayar infrastruktur sendiri serta penyedia transkripsi atau LLM apa pun yang kamu konfigurasi. Aplikasi yang di-host membutuhkan paket berbayar."
       },
       "2": {
-        "question": "Apakah SupoClip menambahkan watermark?",
-        "answer": "Tidak. Pipeline render SupoClip tidak punya langkah watermark, baik kamu memakai aplikasi yang di-host maupun instalasi yang di-host sendiri."
+        "question": "Apakah TokoClippers menambahkan watermark?",
+        "answer": "Tidak. Pipeline render TokoClippers tidak punya langkah watermark, baik kamu memakai aplikasi yang di-host maupun instalasi yang di-host sendiri."
       }
     },
-    "relatedHeading": "Panduan SupoClip terkait",
+    "relatedHeading": "Panduan TokoClippers terkait",
     "sources": {
       "heading": "Sumber",
       "body": "Catatan paket dan watermark OpusClip didasarkan pada pusat bantuan resmi OpusClip: <plans>paket dan kredit</plans> serta <watermark>panduan watermark</watermark>."
@@ -581,7 +581,7 @@
     },
     "aside": {
       "title": "Kendali open source",
-      "body": "Pakai SupoClip saat kamu ingin alur clipping tanpa menyerahkan setiap keputusan ke platform yang di-host."
+      "body": "Pakai TokoClippers saat kamu ingin alur clipping tanpa menyerahkan setiap keputusan ke platform yang di-host."
     }
   }
 }

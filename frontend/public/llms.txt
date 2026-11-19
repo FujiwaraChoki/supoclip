@@ -1,31 +1,31 @@
-# SupoClip
+# TokoClippers
 
-> SupoClip is an open-source AI video clipper that turns long videos into captioned, vertical short-form clips for YouTube Shorts, TikTok, Instagram Reels, and similar platforms.
+> TokoClippers is an open-source AI video clipper that turns long videos into captioned, vertical short-form clips for YouTube Shorts, TikTok, Instagram Reels, and similar platforms.
 
-SupoClip can be used as a hosted web application, as a native iOS app, or self-hosted for noncommercial use. Commercial use of the source requires prior written permission from Shiori LLC. The workflow accepts YouTube URLs and uploaded video files, transcribes the source, proposes promising segments, scores candidate clips, creates face-aware vertical crops, adds word-synced captions, and exports platform-ready videos.
+TokoClippers can be used as a hosted web application, as a native iOS app, or self-hosted for noncommercial use. Commercial use of the source requires prior written permission from Shiori LLC. The workflow accepts YouTube URLs and uploaded video files, transcribes the source, proposes promising segments, scores candidate clips, creates face-aware vertical crops, adds word-synced captions, and exports platform-ready videos.
 
 ## Canonical website
 
-- [SupoClip](https://www.supoclip.com/): Product overview, features, pricing, and hosted application access.
+- [TokoClippers](https://www.supoclip.com/): Product overview, features, pricing, and hosted application access.
 - [GitHub repository](https://github.com/FujiwaraChoki/supoclip): Source code, setup instructions, architecture, license, and contribution history.
-- [SupoClip for iOS](https://apps.apple.com/us/app/supoclip/id6784760040): Native iPhone app on the App Store, backed by the hosted service.
+- [TokoClippers for iOS](https://apps.apple.com/us/app/supoclip/id6784760040): Native iPhone app on the App Store, backed by the hosted service.
 
 ## Product pages
 
 - [AI video clipper](https://www.supoclip.com/ai-video-clipper): AI-assisted highlight detection, virality scoring, captions, and exports.
 - [Self-hosted video clipper](https://www.supoclip.com/open-source-video-clipper): Self-hosting, source access, provider choice, and deployment tradeoffs.
-- [SupoClip Noncommercial Source License](https://github.com/FujiwaraChoki/supoclip/blob/main/LICENSE): Terms for self-hosting, forks, attribution, and written commercial permission.
+- [TokoClippers Noncommercial Source License](https://github.com/FujiwaraChoki/supoclip/blob/main/LICENSE): Terms for self-hosting, forks, attribution, and written commercial permission.
 - [YouTube Shorts clipper](https://www.supoclip.com/youtube-shorts-clipper): Workflow for repurposing long YouTube videos into vertical Shorts.
 - [Demo](https://www.supoclip.com/demo): Real clips generated from a long-form interview, with source timestamps and pipeline steps.
 
 ## Guides and comparisons
 
-- [SupoClip Blog](https://www.supoclip.com/blog): Product comparisons and practical video-clipping workflows.
-- [Self-host SupoClip with Docker Compose](https://www.supoclip.com/blog/self-host-supoclip-docker): Requirements, environment setup, fully local Whisper + Ollama option, and production checklist.
-- [SupoClip vs OpusClip](https://www.supoclip.com/blog/supoclip-vs-opusclip): Sourced comparison of deployment, pricing model, watermarks, and workflow.
+- [TokoClippers Blog](https://www.supoclip.com/blog): Product comparisons and practical video-clipping workflows.
+- [Self-host TokoClippers with Docker Compose](https://www.supoclip.com/blog/self-host-supoclip-docker): Requirements, environment setup, fully local Whisper + Ollama option, and production checklist.
+- [TokoClippers vs OpusClip](https://www.supoclip.com/blog/supoclip-vs-opusclip): Sourced comparison of deployment, pricing model, watermarks, and workflow.
 - [Best free, self-hosted OpusClip alternative](https://www.supoclip.com/blog/best-free-opusclip-alternative): When self-hosting the open-source app beats a credit-based tool.
 - [How to clip GTA 6](https://www.supoclip.com/blog/how-to-clip-gta-6): What clipping campaigns pay, Rockstar's video rules, and the workflow from a stream VOD to captioned vertical clips.
-- [SupoClip vs supo.live](https://www.supoclip.com/blog/supoclip-vs-supo-live): Open-source control compared with a hosted live-clipping service.
+- [TokoClippers vs supo.live](https://www.supoclip.com/blog/supoclip-vs-supo-live): Open-source control compared with a hosted live-clipping service.
 
 ## Key capabilities
 
@@ -50,7 +50,7 @@ SupoClip can be used as a hosted web application, as a native iOS app, or self-h
 
 ## Publisher
 
-- Name: SupoClip Team
+- Name: TokoClippers Team
 - Website: https://www.supoclip.com/
 - Source: https://github.com/FujiwaraChoki/supoclip
 - Contact: support@supoclip.com

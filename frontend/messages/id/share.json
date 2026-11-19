@@ -1,5 +1,5 @@
 {
-  "brand": "SupoClip",
+  "brand": "TokoClippers",
   "makeYourOwn": "Buat versimu",
   "unavailableTitle": "Tautan ini tidak tersedia",
   "unavailable": "Tautan berbagi ini tidak tersedia",
@@ -8,8 +8,8 @@
   "summary": "{count, plural, one {# clip} other {# clip}} · {duration} highlight",
   "topVirality": "skor viral tertinggi",
   "ctaTitle": "Ubah video panjangmu jadi clip seperti ini.",
-  "ctaBody": "SupoClip menemukan momen terbaik, membingkai pembicara, dan menulis caption. Open source dan gratis kalau di-host sendiri.",
-  "try": "Coba SupoClip",
+  "ctaBody": "TokoClippers menemukan momen terbaik, membingkai pembicara, dan menulis caption. Open source dan gratis kalau di-host sendiri.",
+  "try": "Coba TokoClippers",
   "workflowBadge": {
     "series": "Seri · {count, plural, one {# bagian} other {# bagian}}",
     "topic": "Topik: {topic}",

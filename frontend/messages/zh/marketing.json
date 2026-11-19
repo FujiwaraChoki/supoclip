@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "title": "SupoClip – 面向 Shorts 的开源 AI 视频剪辑工具",
+    "title": "TokoClippers – 面向 Shorts 的开源 AI 视频剪辑工具",
     "description": "用开源 AI 剪辑、传播潜力评分和人脸感知的 9:16 裁切，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
     "openGraphDescription": "用开源 AI 剪辑，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
     "twitterDescription": "开源 AI 剪辑、传播潜力评分、字幕，以及人脸感知的竖屏裁切。",
@@ -19,14 +19,14 @@
       "featureExports": "导出到 YouTube Shorts、TikTok 和 Instagram Reels",
       "featureSelfHost": "非商业用途自托管",
       "offerCategory": "提供非商业自托管源代码",
-      "ios": "SupoClip iOS 应用：在 iPhone 上把长视频剪成带字幕的竖屏短片。",
+      "ios": "TokoClippers iOS 应用：在 iPhone 上把长视频剪成带字幕的竖屏短片。",
       "website": "面向短视频内容的开源 AI 视频剪辑。"
     }
   },
   "community": {
-    "eyebrow": "Discord 上的 SupoClip",
+    "eyebrow": "Discord 上的 TokoClippers",
     "title": "和大家一起剪出更好的短片。",
-    "body": "请大家看看你的剪辑，交流编辑技巧，也欢迎告诉我们如何改进 SupoClip。",
+    "body": "请大家看看你的剪辑，交流编辑技巧，也欢迎告诉我们如何改进 TokoClippers。",
     "join": "在 Discord 上加入",
     "activities": {
       "showcase": "分享短片并获取反馈",
@@ -57,27 +57,27 @@
   "related": {
     "continueExploring": "继续探索",
     "keepReading": "继续阅读",
-    "relatedGuides": "相关 SupoClip 指南",
+    "relatedGuides": "相关 TokoClippers 指南",
     "read": "阅读"
   },
   "links": {
     "blog_tiktok_publishing_is_live": {
       "eyebrow": "Product update",
-      "title": "TikTok publishing is now live in SupoClip",
+      "title": "TikTok publishing is now live in TokoClippers",
       "label": "TikTok publishing",
       "description": "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator."
     },
     "demo": {
       "label": "演示",
       "eyebrow": "演示",
-      "title": "看看 SupoClip 从一条长视频里剪出的真实短片",
+      "title": "看看 TokoClippers 从一条长视频里剪出的真实短片",
       "description": "先看成品，再跳回原视频里的每一个瞬间。"
     },
     "ai_video_clipper": {
       "label": "AI 视频剪辑",
       "eyebrow": "AI 视频剪辑",
       "title": "面向 Shorts、Reels 和 TikTok 的 AI 视频剪辑工具",
-      "description": "SupoClip 如何找出片段、给候选打分、重新构图人脸并加上字幕。"
+      "description": "TokoClippers 如何找出片段、给候选打分、重新构图人脸并加上字幕。"
     },
     "youtube_shorts_clipper": {
       "label": "YouTube Shorts 剪辑",
@@ -94,13 +94,13 @@
     "blog_self_host_supoclip_docker": {
       "label": "自托管指南",
       "eyebrow": "自托管指南",
-      "title": "用 Docker Compose 自托管 SupoClip",
+      "title": "用 Docker Compose 自托管 TokoClippers",
       "description": "环境要求、环境变量、首次启动、完全本地的安装方式，以及上线前检查。"
     },
     "blog_supoclip_vs_opusclip": {
-      "label": "SupoClip vs OpusClip",
+      "label": "TokoClippers vs OpusClip",
       "eyebrow": "对比",
-      "title": "SupoClip vs OpusClip：有出处的对比",
+      "title": "TokoClippers vs OpusClip：有出处的对比",
       "description": "定价方式、部署、水印和工作流，每条说法都链到出处。"
     },
     "blog_best_free_opusclip_alternative": {
@@ -110,9 +110,9 @@
       "description": "什么时候自托管的开源剪辑工具比按额度计费的工具更合适。"
     },
     "blog_supoclip_vs_supo_live": {
-      "label": "SupoClip vs supo.live",
+      "label": "TokoClippers vs supo.live",
       "eyebrow": "对比",
-      "title": "SupoClip vs supo.live：开源掌控",
+      "title": "TokoClippers vs supo.live：开源掌控",
       "description": "在选定视频工具之前，比较自托管、AI 剪辑和编辑流程。"
     },
     "sign_up": {
@@ -183,7 +183,7 @@
     },
     "blog_open_source_video_clippers": {
       "eyebrow": "Open-source comparison",
-      "title": "Compare SupoClip, Clips AI, and Auto-Editor",
+      "title": "Compare TokoClippers, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
@@ -211,13 +211,13 @@
     "badge": "开源，可自托管。也有 iPhone 版。",
     "titleLine1": "一条长视频。",
     "titleLine2": "一周的短视频。",
-    "body": "SupoClip 从你的视频、直播回放和上传文件中找出值得发布的片段，配上逐字同步的字幕裁成 9:16 竖屏，并排期发布到 YouTube Shorts。",
+    "body": "TokoClippers 从你的视频、直播回放和上传文件中找出值得发布的片段，配上逐字同步的字幕裁成 9:16 竖屏，并排期发布到 YouTube Shorts。",
     "startClipping": "开始剪辑",
     "useHosted": "使用托管应用",
     "viewSource": "查看源码",
-    "appStoreAria": "在 App Store 下载 SupoClip",
+    "appStoreAria": "在 App Store 下载 TokoClippers",
     "appStoreAlt": "在 App Store 下载",
-    "productHuntAlt": "SupoClip - 开源 AI 剪辑工具：把长视频变成会传播的短片 | Product Hunt",
+    "productHuntAlt": "TokoClippers - 开源 AI 剪辑工具：把长视频变成会传播的短片 | Product Hunt",
     "sources": {
       "upload": "你自己的文件",
       "label": "素材来源"
@@ -233,7 +233,7 @@
       "scheduled": "已排期",
       "steps": {
         "source": "你的长视频",
-        "clip": "SupoClip 找到的片段",
+        "clip": "TokoClippers 找到的片段",
         "post": "已排期到 YouTube"
       },
       "longForm": "长视频",
@@ -320,7 +320,7 @@
   "editor": {
     "eyebrow": "编辑器",
     "title": "内置完整的编辑器",
-    "body": "每个片段都会在专为短视频打造的工作室中打开。剪辑、改字、调整字幕样式、重新构图、导出，全都不用离开 SupoClip。",
+    "body": "每个片段都会在专为短视频打造的工作室中打开。剪辑、改字、调整字幕样式、重新构图、导出，全都不用离开 TokoClippers。",
     "tryIt": "这个预览可以直接操作：点击标签页、切换画幅、拖动滑块试试。",
     "points": {
       "timeline": {
@@ -360,7 +360,7 @@
   "publish": {
     "eyebrow": "新功能：发布",
     "title": "剪一次，发一周。",
-    "body": "连接你的 YouTube 频道或 TikTok 账号，为每个片段安排发布时间。选择时间，检查 AI 起草的标题和描述，SupoClip 就会替你发布。",
+    "body": "连接你的 YouTube 频道或 TikTok 账号，为每个片段安排发布时间。选择时间，检查 AI 起草的标题和描述，TokoClippers 就会替你发布。",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -381,7 +381,7 @@
       },
       "learn": {
         "title": "了解你的观众爱看什么",
-        "description": "播放数据会回流到 SupoClip，之后的选段会更偏向在你频道表现好的内容。"
+        "description": "播放数据会回流到 TokoClippers，之后的选段会更偏向在你频道表现好的内容。"
       }
     },
     "plan": "排期发布包含在 Creator 方案中。Pro 方案也可以立即发布。",
@@ -449,10 +449,10 @@
     "items": {
       "sources": {
         "question": "可以剪辑哪些视频？",
-        "answer": "YouTube 视频、Twitch 和 Kick 的直播回放或片段，以及你自己上传的文件。粘贴链接或拖入录像，剩下的交给 SupoClip。"
+        "answer": "YouTube 视频、Twitch 和 Kick 的直播回放或片段，以及你自己上传的文件。粘贴链接或拖入录像，剩下的交给 TokoClippers。"
       },
       "selection": {
-        "question": "SupoClip 如何挑选片段？",
+        "question": "TokoClippers 如何挑选片段？",
         "answer": "它会逐字转写视频，再由 AI 模型通读完整文字稿，挑出能独立成片的段落。每个片段都会按开场吸引力、互动性、价值和分享性打分，之后你还可以裁剪、拆分或合并任意片段。"
       },
       "minutes": {
@@ -460,20 +460,20 @@
         "answer": "方案按处理的原视频分钟数计量，而不是按片段数。Pro 每月包含 {proHours} 小时，Creator 包含 {creatorHours} 小时。一个 30 分钟的视频消耗 30 分钟，无论剪出多少片段。额度每月重置，年付方案也一样。"
       },
       "publishing": {
-        "question": "SupoClip 能发布到 TikTok 和 Instagram 吗？",
+        "question": "TokoClippers 能发布到 TikTok 和 Instagram 吗？",
         "answer": "可以，你可以直接发布到 TikTok 和 YouTube Shorts，也可以使用 Creator 定时发布。Instagram 发布功能即将推出。在此之前，可以用 Reels 导出预设下载片段，再自行上传到 Instagram。"
       },
       "watermark": {
         "question": "片段会带水印吗？",
-        "answer": "不会。无论是托管方案还是自托管，SupoClip 都不会添加水印。"
+        "answer": "不会。无论是托管方案还是自托管，TokoClippers 都不会添加水印。"
       },
       "languages": {
-        "question": "SupoClip 支持哪些语言？",
-        "answer": "SupoClip 通过 Universal-2 支持 99 种以上口语语言，包括英语、西班牙语、葡萄牙语、德语、法语、中文、日语、印地语、阿拉伯语和印尼语。系统自动检测视频语言，片段和字幕保持原语言。完整列表和相关限制请查看常见问题。"
+        "question": "TokoClippers 支持哪些语言？",
+        "answer": "TokoClippers 通过 Universal-2 支持 99 种以上口语语言，包括英语、西班牙语、葡萄牙语、德语、法语、中文、日语、印地语、阿拉伯语和印尼语。系统自动检测视频语言，片段和字幕保持原语言。完整列表和相关限制请查看常见问题。"
       },
       "selfHost": {
         "question": "自托管真的免费吗？",
-        "answer": "SupoClip 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。"
+        "answer": "TokoClippers 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。"
       },
       "cancel": {
         "question": "可以随时取消吗？",
@@ -482,32 +482,32 @@
     }
   },
   "openSource": {
-    "badge": "SupoClip 非商业源代码许可",
+    "badge": "TokoClippers 非商业源代码许可",
     "title": "公开构建",
     "body": "提供非商业自托管源代码",
     "commandLabel": "自托管",
     "comment": "# 在 .env 中添加转录和 LLM 服务商",
     "facts": {
-      "license": "SupoClip 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。",
+      "license": "TokoClippers 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。",
       "docker": "一条 Docker Compose 命令即可自行部署",
       "models": "自选模型：Gemini、OpenAI、Anthropic 或 Ollama"
     },
-    "ready": "SupoClip 已在 localhost:3107 运行"
+    "ready": "TokoClippers 已在 localhost:3107 运行"
   },
   "guides": {
     "eyebrow": "指南与对比",
     "title": "学会完整的剪辑流程",
-    "body": "这些页面有出处、能照着做：怎么选视频剪辑工具、怎么自托管 SupoClip，以及怎么把长录制变成短视频。",
+    "body": "这些页面有出处、能照着做：怎么选视频剪辑工具、怎么自托管 TokoClippers，以及怎么把长录制变成短视频。",
     "read": "阅读指南"
   },
   "cta": {
     "title": "你的下一条视频，已经是一周的内容。",
-    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或为非商业用途免费自托管。"
+    "body": "粘贴一个链接，看看 TokoClippers 能找到什么。使用托管版应用，或为非商业用途免费自托管。"
   },
   "faqPage": {
     "title": "语言、字幕与剪辑",
     "metaTitle": "常见问题：支持的语言与视频处理",
-    "intro": "查找视频使用的语言，了解转录、字幕以及 SupoClip 如何处理视频。",
+    "intro": "查找视频使用的语言，了解转录、字幕以及 TokoClippers 如何处理视频。",
     "topics": "常见问题主题",
     "sections": {
       "languages": "支持的语言",
@@ -515,7 +515,7 @@
       "general": "入门与套餐"
     },
     "languageBadge": "支持 99 种以上口语语言",
-    "languageIntro": "托管应用使用 AssemblyAI Universal-2 转录，支持下方列出的语言及地区变体。SupoClip 根据转录内容寻找精彩片段，并生成原语言字幕。",
+    "languageIntro": "托管应用使用 AssemblyAI Universal-2 转录，支持下方列出的语言及地区变体。TokoClippers 根据转录内容寻找精彩片段，并生成原语言字幕。",
     "searchLabel": "查找你的语言",
     "searchPlaceholder": "使用你的语言或英语搜索…",
     "resultCount": "显示 {count} / {total} 种语言及变体",
@@ -532,8 +532,8 @@
         "answer": "不需要。托管应用会自动检测每个视频的口语语言。更改界面语言不会改变转录语言。清晰的人声和较少的背景噪音有助于准确检测。"
       },
       "translation": {
-        "question": "SupoClip 可以翻译或配音吗？",
-        "answer": "SupoClip 使用视频中说话的语言生成转录和字幕。自动字幕翻译和配音目前不属于剪辑流程。导出前，你可以在编辑器中修正字幕文字。"
+        "question": "TokoClippers 可以翻译或配音吗？",
+        "answer": "TokoClippers 使用视频中说话的语言生成转录和字幕。自动字幕翻译和配音目前不属于剪辑流程。导出前，你可以在编辑器中修正字幕文字。"
       },
       "mixed": {
         "question": "如果视频在多种语言之间切换怎么办？",

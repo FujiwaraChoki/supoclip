@@ -72,8 +72,8 @@ export default async function FaqPage() {
       <header className="border-b">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg" />
-            <span className="font-display text-lg font-bold tracking-tight">SupoClip</span>
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg" />
+            <span className="font-display text-lg font-bold tracking-tight">TokoClippers</span>
           </Link>
           <Link href="/sign-up" className={buttonVariants({ size: "sm" })}>{t("creator.start")}</Link>
         </div>

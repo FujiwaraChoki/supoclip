@@ -28,7 +28,7 @@ const post = (slug: string, title: string, description: string, keywords: string
   category: "Guide",
   publishedAt,
   updatedAt: publishedAt,
-  author: "SupoClip Team",
+  author: "TokoClippers Team",
   language: "en",
 });
 
@@ -36,8 +36,8 @@ const post = (slug: string, title: string, description: string, keywords: string
 export const creatorGuides: CreatorGuide[] = [
   {
     post: {
-      ...post("podcast-to-shorts", "How to Turn a Video Podcast into Shorts and Reels", "Turn a video podcast into captioned Shorts and Reels: choose standalone moments, fix speaker framing, review subtitles, and export clips with SupoClip.", ["podcast to shorts", "podcast clips", "podcast to reels", "video podcast clipper"], "7 min read"),
-      image: { src: "/clips/articles/ton-source.jpg", alt: "Ton Roosendaal in the source interview used for the SupoClip conversation clipping example", width: 960, height: 540 },
+      ...post("podcast-to-shorts", "How to Turn a Video Podcast into Shorts and Reels", "Turn a video podcast into captioned Shorts and Reels: choose standalone moments, fix speaker framing, review subtitles, and export clips with TokoClippers.", ["podcast to shorts", "podcast clips", "podcast to reels", "video podcast clipper"], "7 min read"),
+      image: { src: "/clips/articles/ton-source.jpg", alt: "Ton Roosendaal in the source interview used for the TokoClippers conversation clipping example", width: 960, height: 540 },
     },
     intro: "A useful podcast clip gives a new viewer a complete idea without asking them to watch the episode first. Start with a question, surprising observation, or specific lesson; keep the explanation that earns the payoff. Here is a repeatable way to do that with a video podcast, from the original recording to the final vertical export.",
     sections: [
@@ -48,12 +48,12 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "select", heading: "2. Generate candidates, then choose complete ideas",
-        paragraphs: ["Paste the episode link into SupoClip or upload the file. The app transcribes speech and proposes short segments. Treat the scores as a review order: a high score tells you which candidate to inspect first, not how many views it will receive.", "Play each candidate without the rest of the conversation. Can you identify the subject in the opening sentence? Does the answer deliver something specific? A clip that starts with ‘that was the problem’ needs an earlier sentence or a different starting point. Trim greetings and repeated setup, but keep any qualification that changes the speaker's meaning."],
+        paragraphs: ["Paste the episode link into TokoClippers or upload the file. The app transcribes speech and proposes short segments. Treat the scores as a review order: a high score tells you which candidate to inspect first, not how many views it will receive.", "Play each candidate without the rest of the conversation. Can you identify the subject in the opening sentence? Does the answer deliver something specific? A clip that starts with ‘that was the problem’ needs an earlier sentence or a different starting point. Trim greetings and repeated setup, but keep any qualification that changes the speaker's meaning."],
         links: [{ href: "/blog/find-best-moments-in-video", label: "Use the highlight-selection checklist" }],
       },
       {
         id: "example", heading: "A worked example: cutting a recorded interview",
-        paragraphs: ["A recorded interview has the same context problem as a video podcast: an answer can depend on a question or an earlier discussion. For the examples below, we ran a Creative Commons interview with Blender founder Ton Roosendaal through SupoClip and rendered complete captioned excerpts.", "Use the source links to compare each cut with the original. Listen for the subject, follow the explanation, and check what was left outside the excerpt. These are examples of the clipping workflow, not a claim that the speaker uses or endorses SupoClip."],
+        paragraphs: ["A recorded interview has the same context problem as a video podcast: an answer can depend on a question or an earlier discussion. For the examples below, we ran a Creative Commons interview with Blender founder Ton Roosendaal through TokoClippers and rendered complete captioned excerpts.", "Use the source links to compare each cut with the original. Listen for the subject, follow the explanation, and check what was left outside the excerpt. These are examples of the clipping workflow, not a claim that the speaker uses or endorses TokoClippers."],
       },
       {
         id: "edit", heading: "3. Review speaker framing and captions together",
@@ -62,7 +62,7 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "publish", heading: "4. Export each clip with a clear reason to watch",
-        paragraphs: ["Export using the preset for your destination. Give each clip a title that describes the actual takeaway. Avoid a dramatic hook that the guest never supports: people should find the promised answer inside the clip.", "Publish the exported file to Reels, or post to YouTube through SupoClip where publishing is enabled for your account. Scheduling depends on your plan and the deployment's publishing access. Keep the episode link in the appropriate description or profile destination so interested viewers can continue watching."],
+        paragraphs: ["Export using the preset for your destination. Give each clip a title that describes the actual takeaway. Avoid a dramatic hook that the guest never supports: people should find the promised answer inside the clip.", "Publish the exported file to Reels, or post to YouTube through TokoClippers where publishing is enabled for your account. Scheduling depends on your plan and the deployment's publishing access. Keep the episode link in the appropriate description or profile destination so interested viewers can continue watching."],
         bullets: ["Watch the exported file, including the first and last seconds.", "Check that important text survives the destination app's overlays.", "Record which episode and source moment each clip came from.", "Review actual viewing and response data before deciding which topics to clip next."],
         links: [{ href: "/blog/schedule-week-of-youtube-shorts", label: "Build a week of Shorts from one recording" }],
       },
@@ -72,7 +72,7 @@ export const creatorGuides: CreatorGuide[] = [
       { question: "How many clips should I make from an episode?", answer: "Keep as many as contain distinct, complete ideas worth publishing. There is no fixed number per episode, and repeating the same answer with a different hook does not create a new takeaway." },
       { question: "Can a short clip omit the interviewer's question?", answer: "Yes, when the answer names its subject and makes sense on its own. Otherwise keep a short version of the question or choose an earlier starting point that preserves the context." },
     ],
-    cta: { title: "Turn your next podcast episode into clips", body: "Bring one video episode. Review the suggested moments, correct the captions, and export the clips you would actually publish. Hosted SupoClip is paid; self-hosting is another option.", label: "Clip my podcast" },
+    cta: { title: "Turn your next podcast episode into clips", body: "Bring one video episode. Review the suggested moments, correct the captions, and export the clips you would actually publish. Hosted TokoClippers is paid; self-hosting is another option.", label: "Clip my podcast" },
     related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
   },
   {
@@ -100,7 +100,7 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "ai", heading: "Let AI reduce the search, then make the decision",
-        paragraphs: ["An AI video clipper can transcribe the recording, propose candidate segments, and rank them for review. In SupoClip, hook, engagement, value, and shareability scores help organize that shortlist. They are editorial signals, not predicted view counts.", "Transcript-based analysis works best when the interesting moment is expressed in speech. A silent product demonstration, a visual reveal, or a game-winning play may matter without being described aloud. Review those moments yourself instead of assuming a transcript search has found everything."],
+        paragraphs: ["An AI video clipper can transcribe the recording, propose candidate segments, and rank them for review. In TokoClippers, hook, engagement, value, and shareability scores help organize that shortlist. They are editorial signals, not predicted view counts.", "Transcript-based analysis works best when the interesting moment is expressed in speech. A silent product demonstration, a visual reveal, or a game-winning play may matter without being described aloud. Review those moments yourself instead of assuming a transcript search has found everything."],
         links: [{ href: "/ai-video-clipper", label: "See what the AI video clipper automates" }],
       },
       {
@@ -114,7 +114,7 @@ export const creatorGuides: CreatorGuide[] = [
       { question: "Should every highlight be the same length?", answer: "No. Keep the shortest cut that delivers a complete, accurate idea. Check the destination platform's current format requirements separately." },
       { question: "What if the best moment is mostly visual?", answer: "Inspect it manually. Transcript-led discovery may miss events that are not described in speech. Choose framing that preserves the visual action instead of assuming a face crop is appropriate." },
     ],
-    cta: { title: "Find a shortlist in your own recording", body: "Use SupoClip to propose moments, then apply the hook, context, payoff, and boundary checks before exporting.", label: "Find my video highlights" },
+    cta: { title: "Find a shortlist in your own recording", body: "Use TokoClippers to propose moments, then apply the hook, context, payoff, and boundary checks before exporting.", label: "Find my video highlights" },
     related: ["/blog/podcast-to-shorts", "/blog/repurpose-webinar-clips", "/ai-video-clipper"],
   },
   {
@@ -123,7 +123,7 @@ export const creatorGuides: CreatorGuide[] = [
     sections: [
       {
         id: "import", heading: "1. Import a finished broadcast",
-        paragraphs: ["Wait for the stream to finish and use a Twitch VOD or clip link, or upload your own recording. SupoClip accepts those sources; it does not clip an ongoing live stream. Retain an original copy of recordings you plan to reuse.", "If a VOD is unavailable, restricted, or cannot be downloaded, use a local recording you have permission to edit. Start with a manageable recording rather than sending your entire archive in one attempt. Check the upload and duration limits shown by the app for your deployment."],
+        paragraphs: ["Wait for the stream to finish and use a Twitch VOD or clip link, or upload your own recording. TokoClippers accepts those sources; it does not clip an ongoing live stream. Retain an original copy of recordings you plan to reuse.", "If a VOD is unavailable, restricted, or cannot be downloaded, use a local recording you have permission to edit. Start with a manageable recording rather than sending your entire archive in one attempt. Check the upload and duration limits shown by the app for your deployment."],
       },
       {
         id: "moments", heading: "2. Separate spoken highlights from silent action",
@@ -148,12 +148,12 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "export", heading: "5. Export for TikTok or YouTube Shorts",
-        paragraphs: ["Choose the platform export preset and download the rendered video. Upload the TikTok version yourself. For YouTube, you can also use SupoClip publishing where enabled for your account; scheduled posting requires the appropriate plan and access.", "Keep a simple record of the source VOD, timestamp, topic, and published destination. Compare results for stories, reactions, and explanations separately. That tells you which kind of stream moment your audience values instead of treating every clip as the same experiment."],
+        paragraphs: ["Choose the platform export preset and download the rendered video. Upload the TikTok version yourself. For YouTube, you can also use TokoClippers publishing where enabled for your account; scheduled posting requires the appropriate plan and access.", "Keep a simple record of the source VOD, timestamp, topic, and published destination. Compare results for stories, reactions, and explanations separately. That tells you which kind of stream moment your audience values instead of treating every clip as the same experiment."],
       },
     ],
     faqs: [
-      { question: "Can SupoClip clip my Twitch stream while I am live?", answer: "No. Use a VOD or clip after the broadcast ends, or upload your recording. The workflow described here is for recorded video." },
-      { question: "Will AI detect every gaming highlight?", answer: "No. SupoClip uses the transcript to select moments, so important silent gameplay can be missed. Review visual events manually and inspect the final crop." },
+      { question: "Can TokoClippers clip my Twitch stream while I am live?", answer: "No. Use a VOD or clip after the broadcast ends, or upload your recording. The workflow described here is for recorded video." },
+      { question: "Will AI detect every gaming highlight?", answer: "No. TokoClippers uses the transcript to select moments, so important silent gameplay can be missed. Review visual events manually and inspect the final crop." },
       { question: "Does this post clips directly to TikTok?", answer: "This guide uses downloaded TikTok exports. Do not assume direct TikTok publishing is available; check the connected platforms and access shown in your account." },
     ],
     cta: { title: "Give your next VOD a second life", body: "Import a completed stream, review the spoken highlights, and export the moments that work outside the live broadcast.", label: "Clip my Twitch VOD" },
@@ -169,7 +169,7 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "generate", heading: "Generate candidates from the video file or source link",
-        paragraphs: ["Upload your webinar video to SupoClip, or paste a supported YouTube link. Review the transcript-led candidates against your question list. A useful answer may start in Q&A rather than in the section with the most polished slides.", "Trim a candidate until it contains one problem, one explanation, and a conclusion. Keep necessary conditions: an answer about a specific integration or pricing tier can become misleading if you remove the qualification. When an audience question is not audible, make the subject clear in the spoken answer or choose a more complete passage."],
+        paragraphs: ["Upload your webinar video to TokoClippers, or paste a supported YouTube link. Review the transcript-led candidates against your question list. A useful answer may start in Q&A rather than in the section with the most polished slides.", "Trim a candidate until it contains one problem, one explanation, and a conclusion. Keep necessary conditions: an answer about a specific integration or pricing tier can become misleading if you remove the qualification. When an audience question is not audible, make the subject clear in the spoken answer or choose a more complete passage."],
         links: [{ href: "/blog/find-best-moments-in-video", label: "Evaluate hook, context, payoff, and boundaries" }],
       },
       {
@@ -203,14 +203,14 @@ export const creatorGuides: CreatorGuide[] = [
   },
   {
     post: {
-      ...post("word-by-word-video-captions", "How to Add Word-by-Word Captions to Short Videos", "Create readable word-by-word captions for Shorts, Reels, and TikTok. Correct the transcript, choose a style, check safe areas, and export with SupoClip.", ["word by word captions", "animated video captions", "add captions to shorts", "automatic video subtitles"], "6 min read"),
-      image: { src: "/blog/supoclip-editor.webp", alt: "SupoClip editor with caption styles, word timing, and a vertical video preview", width: 1800, height: 1109 },
+      ...post("word-by-word-video-captions", "How to Add Word-by-Word Captions to Short Videos", "Create readable word-by-word captions for Shorts, Reels, and TikTok. Correct the transcript, choose a style, check safe areas, and export with TokoClippers.", ["word by word captions", "animated video captions", "add captions to shorts", "automatic video subtitles"], "6 min read"),
+      image: { src: "/blog/supoclip-editor.webp", alt: "TokoClippers editor with caption styles, word timing, and a vertical video preview", width: 1800, height: 1109 },
     },
     intro: "Word-by-word captions highlight speech as it happens. They help only when the words are accurate, easy to read, and placed where the viewer can see them. Build the style around the recording rather than choosing the busiest animation first.",
     sections: [
       {
         id: "transcribe", heading: "1. Generate a clip and inspect its transcript",
-        paragraphs: ["Import a supported video link or upload a video to SupoClip. Once a clip has been generated, open it in the editor and inspect the transcript alongside playback. Word-level timestamps connect the text to the spoken audio.", "Start with accuracy. Check names, numbers, product terms, and words spoken over music or another voice. Listen to an uncertain phrase in its surrounding sentence before changing it. Captions should reflect what was actually said; they should not silently rewrite an ambiguous statement into a more confident claim."],
+        paragraphs: ["Import a supported video link or upload a video to TokoClippers. Once a clip has been generated, open it in the editor and inspect the transcript alongside playback. Word-level timestamps connect the text to the spoken audio.", "Start with accuracy. Check names, numbers, product terms, and words spoken over music or another voice. Listen to an uncertain phrase in its surrounding sentence before changing it. Captions should reflect what was actually said; they should not silently rewrite an ambiguous statement into a more confident claim."],
       },
       {
         id: "correct", heading: "2. Correct the words before styling them",
@@ -234,7 +234,7 @@ export const creatorGuides: CreatorGuide[] = [
       },
       {
         id: "export", heading: "5. Export and watch without sound",
-        paragraphs: ["Choose the destination preset and render the clip. SupoClip's rendered captions are part of the video image, so they remain visible when you upload the file. Watch the exported version with sound to check synchronization, then without sound to check whether the topic and argument remain understandable.", "Burned-in captions cannot be turned off by a viewer like a separate subtitle track. They also do not replace every accessibility feature a platform may offer. Where you provide additional platform captions, check that the two presentations do not create confusing duplicated text."],
+        paragraphs: ["Choose the destination preset and render the clip. TokoClippers' rendered captions are part of the video image, so they remain visible when you upload the file. Watch the exported version with sound to check synchronization, then without sound to check whether the topic and argument remain understandable.", "Burned-in captions cannot be turned off by a viewer like a separate subtitle track. They also do not replace every accessibility feature a platform may offer. Where you provide additional platform captions, check that the two presentations do not create confusing duplicated text."],
         links: [{ href: "/youtube-shorts-clipper", label: "Finish and export a YouTube Short" }, { href: "/blog/podcast-to-shorts", label: "Use captions in a podcast clipping workflow" }],
       },
     ],
@@ -252,7 +252,7 @@ export const creatorGuides: CreatorGuide[] = [
     sections: [
       {
         id: "shortlist", heading: "Choose distinct ideas from one recording",
-        paragraphs: ["Import a podcast, interview, tutorial, or webinar into SupoClip. Review the suggested candidates and give each useful moment a one-sentence takeaway. If two candidates teach the same lesson, keep the clearer one before looking for another angle.", "Do not set a quota that forces weak clips into the week. A consistent workflow can include days without a post. Keep a small reserve of approved clips so an unavailable source or a last-minute correction does not force you to publish something unfinished."],
+        paragraphs: ["Import a podcast, interview, tutorial, or webinar into TokoClippers. Review the suggested candidates and give each useful moment a one-sentence takeaway. If two candidates teach the same lesson, keep the clearer one before looking for another angle.", "Do not set a quota that forces weak clips into the week. A consistent workflow can include days without a post. Keep a small reserve of approved clips so an unavailable source or a last-minute correction does not force you to publish something unfinished."],
         links: [{ href: "/blog/find-best-moments-in-video", label: "Select complete, useful moments" }],
       },
       {
@@ -285,34 +285,34 @@ export const creatorGuides: CreatorGuide[] = [
       },
     ],
     faqs: [
-      { question: "Can I schedule Shorts with SupoClip?", answer: "Where YouTube publishing is enabled for your account, eligible users can schedule finished clips. On the hosted service, scheduling is a Creator feature. Availability also depends on the deployment's publishing configuration." },
+      { question: "Can I schedule Shorts with TokoClippers?", answer: "Where YouTube publishing is enabled for your account, eligible users can schedule finished clips. On the hosted service, scheduling is a Creator feature. Availability also depends on the deployment's publishing configuration." },
       { question: "Do I need seven clips for a weekly workflow?", answer: "No. Schedule only distinct clips that are complete and useful. A smaller batch can be more appropriate than filling every day with repetitive material." },
-      { question: "What if scheduling is unavailable in my account?", answer: "Export the finished videos and use the publishing controls available in YouTube Studio. Check your plan, connection, and deployment access before expecting SupoClip's scheduling controls to appear." },
+      { question: "What if scheduling is unavailable in my account?", answer: "Export the finished videos and use the publishing controls available in YouTube Studio. Check your plan, connection, and deployment access before expecting TokoClippers' scheduling controls to appear." },
     ],
     cta: { title: "Build your next batch of Shorts", body: "Start with one recording and finish a shortlist of clips. Then publish or schedule through the options available to your account.", label: "Create my Shorts batch" },
     related: ["/blog/podcast-to-shorts", "/youtube-shorts-clipper", "/blog/repurpose-webinar-clips"],
   },
   {
-    post: { ...post("open-source-video-clippers", "Open-Source Video Clippers: SupoClip, Clips AI, and Auto-Editor", "Compare an open-source clipping app, a Python clipping library, and a command-line editor. Understand their workflows, setup tradeoffs, and how to test your own footage.", ["open source video clippers", "open source clipping tool", "Clips AI vs SupoClip", "self hosted video clipper"], "6 min read"), eyebrow: "Open-source comparison", category: "Comparison" },
+    post: { ...post("open-source-video-clippers", "Open-Source Video Clippers: TokoClippers, Clips AI, and Auto-Editor", "Compare an open-source clipping app, a Python clipping library, and a command-line editor. Understand their workflows, setup tradeoffs, and how to test your own footage.", ["open source video clippers", "open source clipping tool", "Clips AI vs TokoClippers", "self hosted video clipper"], "6 min read"), eyebrow: "Open-source comparison", category: "Comparison" },
     intro: "Open-source video tools solve different parts of the editing job. A complete clipping app, a Python library, and an editor that removes quiet sections are not interchangeable. Choose based on the workflow you need to finish, then test the same recording before committing your archive to it.",
     sections: [
       {
         id: "scope", heading: "What this comparison establishes",
-        paragraphs: ["This is a documentation-based comparison reviewed on October 26, 2026. We build SupoClip, so our product is included with that relationship disclosed. We inspected the projects' official documentation; we did not run Clips AI or Auto-Editor on a shared test recording and make no speed, quality, or engagement ranking.", "The practical distinction is the starting point. SupoClip is an application with a browser workflow. Clips AI provides Python building blocks. Auto-Editor automates editing decisions such as which sections to retain based on signals like audio loudness. Those are useful choices for different jobs."],
+        paragraphs: ["This is a documentation-based comparison reviewed on October 26, 2026. We build TokoClippers, so our product is included with that relationship disclosed. We inspected the projects' official documentation; we did not run Clips AI or Auto-Editor on a shared test recording and make no speed, quality, or engagement ranking.", "The practical distinction is the starting point. TokoClippers is an application with a browser workflow. Clips AI provides Python building blocks. Auto-Editor automates editing decisions such as which sections to retain based on signals like audio loudness. Those are useful choices for different jobs."],
       },
       {
         id: "compare", heading: "Compare the kind of tool before comparing features",
         paragraphs: ["Use the table to choose what to evaluate, not as a benchmark. A library may be the right choice inside your own application even when a creator would prefer an interface. An automatic cleanup tool may solve your problem without selecting social highlights at all."],
         table: { caption: "Documented workflow differences; no comparative runtime testing", headers: ["Project", "Documented starting point", "Who should evaluate it"], rows: [
-          ["SupoClip", "Browser app with clip discovery, captions, framing, editing, and export", "Creators wanting a complete workflow; teams wanting to self-host an app"],
+          ["TokoClippers", "Browser app with clip discovery, captions, framing, editing, and export", "Creators wanting a complete workflow; teams wanting to self-host an app"],
           ["Clips AI", "Python library for transcript-based clip discovery and aspect-ratio resizing", "Developers assembling a video-processing pipeline"],
           ["Auto-Editor", "Command-line editing based on signals including audio loudness", "Editors automating cleanup or rule-based timeline work"],
         ] },
       },
       {
-        id: "supoclip", heading: "SupoClip: a clipping workflow with an interface",
-        paragraphs: ["SupoClip accepts supported source links and uploaded video, proposes segments from speech, and gives you an editor for cuts, captions, framing, and exports. You can use the paid hosted service or self-host for noncommercial use. Commercial use of the self-hosted software requires prior written permission from Shiori LLC. The public demo shows actual generated clips with linked source moments.", "Self-hosting means operating the application, worker, database, media storage, and your chosen transcription and model providers. A local Whisper and Ollama configuration is available; using external providers changes where data is processed and what usage costs you incur. Choose the hosted service if your main goal is publishing rather than maintaining that stack."],
-        links: [{ href: "/demo", label: "Inspect real SupoClip output" }, { href: "/blog/self-host-supoclip-docker", label: "Read the setup requirements" }],
+        id: "supoclip", heading: "TokoClippers: a clipping workflow with an interface",
+        paragraphs: ["TokoClippers accepts supported source links and uploaded video, proposes segments from speech, and gives you an editor for cuts, captions, framing, and exports. You can use the paid hosted service or self-host for noncommercial use. Commercial use of the self-hosted software requires prior written permission from Shiori LLC. The public demo shows actual generated clips with linked source moments.", "Self-hosting means operating the application, worker, database, media storage, and your chosen transcription and model providers. A local Whisper and Ollama configuration is available; using external providers changes where data is processed and what usage costs you incur. Choose the hosted service if your main goal is publishing rather than maintaining that stack."],
+        links: [{ href: "/demo", label: "Inspect real TokoClippers output" }, { href: "/blog/self-host-supoclip-docker", label: "Read the setup requirements" }],
       },
       {
         id: "alternatives", heading: "Clips AI and Auto-Editor: building blocks for different jobs",
@@ -323,15 +323,15 @@ export const creatorGuides: CreatorGuide[] = [
         id: "test", heading: "Run a fair test on your own footage",
         paragraphs: ["Use one recording you know well and have permission to process. Mark a few moments you consider useful before running any tool. Include a speaker change, a difficult proper noun, and a visual event that the transcript does not explain. Those expose different strengths and limitations.", "Keep setup time separate from processing time. Record hardware, model choices, source duration, paid API usage, and how much manual editing was required. Compare only the tasks each tool is designed to perform; do not count missing social-highlight selection as a failed cleanup test."],
         steps: ["Define the job: highlight discovery, captioned social exports, or recording cleanup.", "Record installation steps and the dependencies you actually need.", "Process the same source with documented settings and save the outputs.", "Check complete thoughts, crop stability, subtitle accuracy where applicable, and export usability.", "Add human review time and operating costs before choosing a workflow."],
-        links: [{ href: "/open-source-video-clipper", label: "Choose between hosted and self-hosted SupoClip" }],
+        links: [{ href: "/open-source-video-clipper", label: "Choose between hosted and self-hosted TokoClippers" }],
       },
     ],
     faqs: [
-      { question: "Which open-source video clipper is best?", answer: "The answer depends on the job. Evaluate SupoClip for a complete clipping interface, Clips AI for Python integration, and Auto-Editor for automated editing rules. This article does not establish a comparative quality or speed winner." },
+      { question: "Which open-source video clipper is best?", answer: "The answer depends on the job. Evaluate TokoClippers for a complete clipping interface, Clips AI for Python integration, and Auto-Editor for automated editing rules. This article does not establish a comparative quality or speed winner." },
       { question: "Does open source mean processing has no cost?", answer: "No. You still provide hardware, storage, operating time, and any external services you choose. Check the project's license and the dependencies required for your particular workflow." },
-      { question: "Were all three tools tested on the same video?", answer: "No. This comparison uses official documentation and SupoClip's own implementation and demo. Use the test checklist to evaluate output on your recording; no cross-tool benchmark results are claimed here." },
+      { question: "Were all three tools tested on the same video?", answer: "No. This comparison uses official documentation and TokoClippers' own implementation and demo. Use the test checklist to evaluate output on your recording; no cross-tool benchmark results are claimed here." },
     ],
-    cta: { title: "Try the complete SupoClip workflow", body: "Use the paid hosted app to start with a recording, or follow the self-hosting guide if you want to operate the application yourself.", label: "Start with SupoClip" },
+    cta: { title: "Try the complete TokoClippers workflow", body: "Use the paid hosted app to start with a recording, or follow the self-hosting guide if you want to operate the application yourself.", label: "Start with TokoClippers" },
     related: ["/open-source-video-clipper", "/blog/self-host-supoclip-docker", "/blog/supoclip-vs-opusclip"],
   },
 ];

@@ -739,7 +739,7 @@ function element(el: Element, parent: string[] | null, parentNS: string | null, 
       // A scrolled parent: its children are moved by hand.
       v = v === "none" ? shift : `${shift} ${v}`;
     } else if (plain) {
-      // SupoClip patch: a 0px width matches a bare element's, but a bare one
+      // TokoClippers patch: a 0px width matches a bare element's, but a bare one
       // has no border style. With a style (Tailwind's `border: 0 solid`) the
       // copy needs the 0, or it falls back to `medium` and draws a box.
       if (v === d && !(BORDER_WIDTH[i] && cs.getPropertyValue(NON[i].replace("-width", "-style")) !== "none")) continue;

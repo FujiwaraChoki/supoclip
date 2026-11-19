@@ -97,7 +97,7 @@ export function EarningsCalculator() {
         <Control label="Cap per clip" value={capPerClip} display={capPerClip === 0 ? "No cap" : usd.format(capPerClip)} min={0} max={500} step={10} onChange={setCap}
           hint="Many campaigns stop paying a clip past a set amount. 0 means no cap." />
         <Control label="Stream hours you clip per month" value={vodHours} display={`${vodHours} h`} min={1} max={30} step={1} onChange={setVodHours}
-          hint="Hosted SupoClip meters minutes of source video, not clips." />
+          hint="Hosted TokoClippers meters minutes of source video, not clips." />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3" aria-live="polite">
@@ -105,7 +105,7 @@ export function EarningsCalculator() {
           detail={`${result.clipsPerMonth} clips · ${count.format(result.views)} views a month`} />
         <Tile label="Per clip" value={usdCents.format(result.perClip)}
           detail={result.capped ? "Every clip hits the cap at this view count." : "Below the per-clip cap."} />
-        <Tile label="After SupoClip plan" value={result.net === null ? "—" : usd.format(result.net)}
+        <Tile label="After TokoClippers plan" value={result.net === null ? "—" : usd.format(result.net)}
           detail={result.plan
             ? `${result.minutes} source minutes fits ${result.plan.name} (${usdCents.format(result.plan.price)}/mo, ${result.plan.minutes} min).`
             : `${result.minutes} minutes is more than Creator's 1,500. Clip fewer hours, or self-host.`} />

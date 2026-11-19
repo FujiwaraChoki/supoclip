@@ -115,7 +115,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     },
     publisher: {
       "@type": "Organization",
-      name: "SupoClip",
+      name: "TokoClippers",
       logo: {
         "@type": "ImageObject",
         url: `${siteUrl}/logo.png`,
@@ -151,12 +151,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       <header className="border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg dark:invert" />
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg dark:invert" />
             <span
               className="text-lg font-bold tracking-tight"
-              style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
+              style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}
             >
-              SupoClip
+              TokoClippers
             </span>
           </Link>
           <div className="flex items-center gap-2">
@@ -196,7 +196,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               </div>
               <h1
                 className="max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl"
-                style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
+                style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}
               >
                 {post.title}
               </h1>
@@ -288,7 +288,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <div className="my-8 overflow-hidden rounded-lg border">
               <div className="grid grid-cols-[0.85fr_1fr_1fr] bg-muted/50 text-sm font-semibold">
                 <div className="p-4">{t(`${key}.table.feature`)}</div>
-                <div className="border-l p-4">SupoClip</div>
+                <div className="border-l p-4">TokoClippers</div>
                 <div className="border-l p-4">OpusClip</div>
               </div>
               {comparisonIcons.map((Icon, index) => (
@@ -327,7 +327,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   </p>
                   <h2
                     className="mt-2 text-2xl font-bold tracking-tight"
-                    style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
+                    style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}
                   >
                     {t(`${key}.cta.title`)}
                   </h2>

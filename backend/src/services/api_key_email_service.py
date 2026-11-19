@@ -33,25 +33,25 @@ class ApiKeyEmailService:
         key_prefix = str(api_key.get("key_prefix") or "unknown")
 
         return EmailContent(
-            subject="A new SupoClip API key was created",
+            subject="A new TokoClippers API key was created",
             html=(
                 f"<p>Hi {escape(first_name)},</p>"
-                "<p>A new API key was created for your SupoClip account.</p>"
+                "<p>A new API key was created for your TokoClippers account.</p>"
                 f"<p><strong>Name:</strong> {escape(key_name)}<br>"
                 f"<strong>Prefix:</strong> {escape(key_prefix)}</p>"
                 "<p>If you created this key, no action is needed. If you did not, "
-                "revoke it immediately from your SupoClip API key settings and secure your account.</p>"
+                "revoke it immediately from your TokoClippers API key settings and secure your account.</p>"
                 "<p>For your security, the API key secret is not included in this email.</p>"
-                "<p>Team SupoClip</p>"
+                "<p>Team TokoClippers</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
-                "A new API key was created for your SupoClip account.\n\n"
+                "A new API key was created for your TokoClippers account.\n\n"
                 f"Name: {key_name}\n"
                 f"Prefix: {key_prefix}\n\n"
                 "If you created this key, no action is needed. If you did not, revoke it "
-                "immediately from your SupoClip API key settings and secure your account.\n\n"
+                "immediately from your TokoClippers API key settings and secure your account.\n\n"
                 "For your security, the API key secret is not included in this email.\n\n"
-                "Team SupoClip"
+                "Team TokoClippers"
             ),
         )

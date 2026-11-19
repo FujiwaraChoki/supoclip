@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "title": "SupoClip – AI Video Clipper Open Source untuk Shorts",
+    "title": "TokoClippers – AI Video Clipper Open Source untuk Shorts",
     "description": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping open source, skor viral, dan crop 9:16 yang mengikuti wajah.",
     "openGraphDescription": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping open source.",
     "twitterDescription": "AI clipping open source, skor viral, caption, dan crop vertikal yang mengikuti wajah.",
@@ -19,14 +19,14 @@
       "featureExports": "Ekspor YouTube Shorts, TikTok, dan Instagram Reels",
       "featureSelfHost": "Hosting mandiri untuk penggunaan nonkomersial",
       "offerCategory": "Kode sumber untuk hosting mandiri nonkomersial",
-      "ios": "Aplikasi iOS SupoClip: ubah video panjang jadi short vertikal ber-caption dari iPhone.",
+      "ios": "Aplikasi iOS TokoClippers: ubah video panjang jadi short vertikal ber-caption dari iPhone.",
       "website": "AI video clipping open source untuk konten pendek."
     }
   },
   "community": {
-    "eyebrow": "SupoClip di Discord",
+    "eyebrow": "TokoClippers di Discord",
     "title": "Bikin klip lebih bagus bersama.",
-    "body": "Minta pendapat tentang hasil editmu, bertukar tips, dan beri tahu kami cara membuat SupoClip lebih baik.",
+    "body": "Minta pendapat tentang hasil editmu, bertukar tips, dan beri tahu kami cara membuat TokoClippers lebih baik.",
     "join": "Gabung di Discord",
     "activities": {
       "showcase": "Bagikan klip dan dapatkan masukan",
@@ -57,27 +57,27 @@
   "related": {
     "continueExploring": "Lanjut jelajahi",
     "keepReading": "Lanjut baca",
-    "relatedGuides": "Panduan SupoClip terkait",
+    "relatedGuides": "Panduan TokoClippers terkait",
     "read": "Baca"
   },
   "links": {
     "blog_tiktok_publishing_is_live": {
       "eyebrow": "Product update",
-      "title": "TikTok publishing is now live in SupoClip",
+      "title": "TikTok publishing is now live in TokoClippers",
       "label": "TikTok publishing",
       "description": "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator."
     },
     "demo": {
       "label": "Demo",
       "eyebrow": "Demo",
-      "title": "Lihat clip sungguhan yang dibuat SupoClip dari video panjang",
+      "title": "Lihat clip sungguhan yang dibuat TokoClippers dari video panjang",
       "description": "Tonton hasilnya, lalu lompat ke tiap momen di video sumber asli."
     },
     "ai_video_clipper": {
       "label": "Alat clip video AI",
       "eyebrow": "Clipping video dengan AI",
       "title": "AI video clipper untuk Shorts, Reels, dan TikTok",
-      "description": "Bagaimana SupoClip menemukan momen, menilai kandidat, membingkai wajah, dan menambahkan caption."
+      "description": "Bagaimana TokoClippers menemukan momen, menilai kandidat, membingkai wajah, dan menambahkan caption."
     },
     "youtube_shorts_clipper": {
       "label": "Clipper YouTube Shorts",
@@ -94,13 +94,13 @@
     "blog_self_host_supoclip_docker": {
       "label": "Panduan host sendiri",
       "eyebrow": "Panduan Host Sendiri",
-      "title": "Host sendiri SupoClip dengan Docker Compose",
+      "title": "Host sendiri TokoClippers dengan Docker Compose",
       "description": "Kebutuhan, variabel environment, boot pertama, penyiapan yang sepenuhnya lokal, dan pemeriksaan produksi."
     },
     "blog_supoclip_vs_opusclip": {
-      "label": "SupoClip vs OpusClip",
+      "label": "TokoClippers vs OpusClip",
       "eyebrow": "Perbandingan",
-      "title": "SupoClip vs OpusClip: perbandingan bersumber",
+      "title": "TokoClippers vs OpusClip: perbandingan bersumber",
       "description": "Model harga, deployment, watermark, dan alur kerja, dengan setiap klaim tertaut ke sumber."
     },
     "blog_best_free_opusclip_alternative": {
@@ -110,9 +110,9 @@
       "description": "Kapan clipper open source yang di-host sendiri lebih tepat daripada alat berbasis kredit."
     },
     "blog_supoclip_vs_supo_live": {
-      "label": "SupoClip vs supo.live",
+      "label": "TokoClippers vs supo.live",
       "eyebrow": "Perbandingan",
-      "title": "SupoClip vs supo.live: kendali open source",
+      "title": "TokoClippers vs supo.live: kendali open source",
       "description": "Bandingkan host sendiri, AI clipping, dan alur edit sebelum memilih alat video."
     },
     "sign_up": {
@@ -183,7 +183,7 @@
     },
     "blog_open_source_video_clippers": {
       "eyebrow": "Open-source comparison",
-      "title": "Compare SupoClip, Clips AI, and Auto-Editor",
+      "title": "Compare TokoClippers, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
@@ -211,13 +211,13 @@
     "badge": "Open source dan bisa di-host sendiri. Juga tersedia di iPhone.",
     "titleLine1": "Satu video panjang.",
     "titleLine2": "Seminggu konten shorts.",
-    "body": "SupoClip menemukan momen yang layak diposting dari video, VOD, dan unggahanmu, membingkai ulang ke 9:16 dengan subtitle yang sinkron per kata, lalu menjadwalkannya ke YouTube Shorts.",
+    "body": "TokoClippers menemukan momen yang layak diposting dari video, VOD, dan unggahanmu, membingkai ulang ke 9:16 dengan subtitle yang sinkron per kata, lalu menjadwalkannya ke YouTube Shorts.",
     "startClipping": "Mulai memotong",
     "useHosted": "Pakai aplikasi yang di-host",
     "viewSource": "Lihat sumber",
-    "appStoreAria": "Unduh SupoClip di App Store",
+    "appStoreAria": "Unduh TokoClippers di App Store",
     "appStoreAlt": "Unduh di App Store",
-    "productHuntAlt": "SupoClip - AI clipper open source: video panjang jadi short viral | Product Hunt",
+    "productHuntAlt": "TokoClippers - AI clipper open source: video panjang jadi short viral | Product Hunt",
     "sources": {
       "upload": "File milikmu",
       "label": "Potong dari"
@@ -233,7 +233,7 @@
       "scheduled": "Terjadwal",
       "steps": {
         "source": "Video panjangmu",
-        "clip": "Klip yang ditemukan SupoClip",
+        "clip": "Klip yang ditemukan TokoClippers",
         "post": "Terjadwal ke YouTube"
       },
       "longForm": "Video panjang",
@@ -320,7 +320,7 @@
   "editor": {
     "eyebrow": "Editor",
     "title": "Editor lengkap, sudah termasuk",
-    "body": "Setiap klip terbuka di studio yang dibuat untuk video pendek. Potong, perbaiki kata, ubah gaya subtitle, atur bingkai, dan ekspor tanpa keluar dari SupoClip.",
+    "body": "Setiap klip terbuka di studio yang dibuat untuk video pendek. Potong, perbaiki kata, ubah gaya subtitle, atur bingkai, dan ekspor tanpa keluar dari TokoClippers.",
     "tryIt": "Pratinjau ini berfungsi. Klik tab, ganti bingkai, dan geser slider-nya.",
     "points": {
       "timeline": {
@@ -360,7 +360,7 @@
   "publish": {
     "eyebrow": "Baru: publikasi",
     "title": "Potong sekali. Posting sepanjang minggu.",
-    "body": "Hubungkan channel YouTube atau akun TikTok kamu dan atur jadwal untuk setiap klip. Pilih waktu, periksa judul dan deskripsi yang dibuat AI, lalu SupoClip mempostingnya untukmu.",
+    "body": "Hubungkan channel YouTube atau akun TikTok kamu dan atur jadwal untuk setiap klip. Pilih waktu, periksa judul dan deskripsi yang dibuat AI, lalu TokoClippers mempostingnya untukmu.",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -381,7 +381,7 @@
       },
       "learn": {
         "title": "Belajar dari apa yang ditonton audiensmu",
-        "description": "Jumlah tayangan kembali ke SupoClip, jadi pilihan berikutnya condong ke yang berhasil di channel-mu."
+        "description": "Jumlah tayangan kembali ke TokoClippers, jadi pilihan berikutnya condong ke yang berhasil di channel-mu."
       }
     },
     "plan": "Penjadwalan termasuk dalam paket Creator. Publikasi langsung bisa dengan Pro.",
@@ -449,10 +449,10 @@
     "items": {
       "sources": {
         "question": "Video apa saja yang bisa dipotong?",
-        "answer": "Video YouTube, VOD atau klip Twitch dan Kick, serta file yang kamu unggah sendiri. Tempel tautan atau seret rekaman, lalu SupoClip mengerjakan sisanya."
+        "answer": "Video YouTube, VOD atau klip Twitch dan Kick, serta file yang kamu unggah sendiri. Tempel tautan atau seret rekaman, lalu TokoClippers mengerjakan sisanya."
       },
       "selection": {
-        "question": "Bagaimana SupoClip memilih klip?",
+        "question": "Bagaimana TokoClippers memilih klip?",
         "answer": "Video ditranskripsi kata demi kata, lalu model AI membaca seluruh transkrip dan memilih momen yang bisa berdiri sendiri. Setiap momen dinilai dari hook, keterlibatan, nilai, dan daya bagi, dan kamu bisa memangkas, memisah, atau menggabungkan klip mana pun setelahnya."
       },
       "minutes": {
@@ -460,20 +460,20 @@
         "answer": "Paket dihitung dalam menit video sumber, bukan jumlah klip. Pro mencakup {proHours} jam per bulan dan Creator {creatorHours} jam. Video 30 menit memakai 30 menit, berapa pun klip yang dihasilkan. Kuota diatur ulang setiap bulan, termasuk pada paket tahunan."
       },
       "publishing": {
-        "question": "Bisakah SupoClip memposting ke TikTok dan Instagram?",
+        "question": "Bisakah TokoClippers memposting ke TikTok dan Instagram?",
         "answer": "Ya, kamu bisa memublikasikan langsung ke TikTok dan YouTube Shorts, atau menjadwalkan postingan dengan Creator. Publikasi ke Instagram segera hadir. Sementara itu, unduh klip dengan preset ekspor Reels lalu unggah sendiri ke Instagram."
       },
       "watermark": {
         "question": "Apakah klip diberi watermark?",
-        "answer": "Tidak. SupoClip tidak pernah menambahkan watermark, baik di paket hosted maupun saat di-host sendiri."
+        "answer": "Tidak. TokoClippers tidak pernah menambahkan watermark, baik di paket hosted maupun saat di-host sendiri."
       },
       "languages": {
-        "question": "Bahasa apa saja yang didukung SupoClip?",
-        "answer": "SupoClip mendukung lebih dari 99 bahasa lisan melalui Universal-2, termasuk bahasa Inggris, Spanyol, Portugis, Jerman, Prancis, Mandarin, Jepang, Hindi, Arab, dan Indonesia. Bahasa dideteksi otomatis, dan klip serta subtitle mengikuti bahasa asli. Lihat FAQ untuk daftar lengkap dan batasannya."
+        "question": "Bahasa apa saja yang didukung TokoClippers?",
+        "answer": "TokoClippers mendukung lebih dari 99 bahasa lisan melalui Universal-2, termasuk bahasa Inggris, Spanyol, Portugis, Jerman, Prancis, Mandarin, Jepang, Hindi, Arab, dan Indonesia. Bahasa dideteksi otomatis, dan klip serta subtitle mengikuti bahasa asli. Lihat FAQ untuk daftar lengkap dan batasannya."
       },
       "selfHost": {
         "question": "Benarkah host sendiri itu gratis?",
-        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
+        "answer": "TokoClippers mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
       },
       "cancel": {
         "question": "Bisakah saya berhenti berlangganan kapan saja?",
@@ -482,32 +482,32 @@
     }
   },
   "openSource": {
-    "badge": "Lisensi Kode Sumber Nonkomersial SupoClip",
+    "badge": "Lisensi Kode Sumber Nonkomersial TokoClippers",
     "title": "Dibangun secara terbuka",
     "body": "Kode sumber untuk hosting mandiri nonkomersial",
     "commandLabel": "host sendiri",
     "comment": "# tambahkan penyedia transkripsi + LLM ke .env",
     "facts": {
-      "license": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC.",
+      "license": "TokoClippers mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC.",
       "docker": "Satu perintah Docker Compose untuk menjalankannya sendiri",
       "models": "Pakai model pilihanmu: Gemini, OpenAI, Anthropic, atau Ollama"
     },
-    "ready": "SupoClip berjalan di localhost:3107"
+    "ready": "TokoClippers berjalan di localhost:3107"
   },
   "guides": {
     "eyebrow": "Panduan & perbandingan",
     "title": "Pelajari alur clipping yang lengkap",
-    "body": "Halaman praktis dan bersumber untuk memilih video clipper, host sendiri SupoClip, dan mengubah rekaman panjang jadi konten pendek.",
+    "body": "Halaman praktis dan bersumber untuk memilih video clipper, host sendiri TokoClippers, dan mengubah rekaman panjang jadi konten pendek.",
     "read": "Baca panduan"
   },
   "cta": {
     "title": "Video berikutnya sudah jadi konten seminggu.",
-    "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
+    "body": "Tempel tautan dan lihat apa yang ditemukan TokoClippers. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
   },
   "faqPage": {
     "title": "Bahasa, subtitle, dan klip",
     "metaTitle": "FAQ: Bahasa yang didukung dan pemrosesan video",
-    "intro": "Temukan bahasa video Anda dan jawaban tentang transkrip, subtitle, serta cara SupoClip memproses video.",
+    "intro": "Temukan bahasa video Anda dan jawaban tentang transkrip, subtitle, serta cara TokoClippers memproses video.",
     "topics": "Topik FAQ",
     "sections": {
       "languages": "Bahasa yang didukung",
@@ -515,7 +515,7 @@
       "general": "Memulai dan paket"
     },
     "languageBadge": "Lebih dari 99 bahasa lisan",
-    "languageIntro": "Aplikasi yang dihosting menggunakan AssemblyAI Universal-2 untuk transkripsi bahasa dan varian regional di bawah ini. SupoClip menggunakan transkrip untuk menemukan klip dan membuat subtitle dalam bahasa asli.",
+    "languageIntro": "Aplikasi yang dihosting menggunakan AssemblyAI Universal-2 untuk transkripsi bahasa dan varian regional di bawah ini. TokoClippers menggunakan transkrip untuk menemukan klip dan membuat subtitle dalam bahasa asli.",
     "searchLabel": "Temukan bahasa Anda",
     "searchPlaceholder": "Cari dalam bahasa Anda atau bahasa Inggris…",
     "resultCount": "{count} dari {total} bahasa dan varian",
@@ -532,8 +532,8 @@
         "answer": "Tidak. Aplikasi yang dihosting mendeteksi bahasa lisan setiap video secara otomatis. Mengubah bahasa antarmuka tidak mengubah transkripsi. Ucapan yang jelas dengan sedikit kebisingan latar membantu deteksi yang tepat."
       },
       "translation": {
-        "question": "Bisakah SupoClip menerjemahkan atau mengisi suara video saya?",
-        "answer": "SupoClip membuat transkrip dan subtitle dalam bahasa yang diucapkan dalam video. Terjemahan subtitle otomatis dan sulih suara belum menjadi bagian dari alur pembuatan klip saat ini. Anda dapat memperbaiki teks subtitle di editor sebelum mengekspor."
+        "question": "Bisakah TokoClippers menerjemahkan atau mengisi suara video saya?",
+        "answer": "TokoClippers membuat transkrip dan subtitle dalam bahasa yang diucapkan dalam video. Terjemahan subtitle otomatis dan sulih suara belum menjadi bagian dari alur pembuatan klip saat ini. Anda dapat memperbaiki teks subtitle di editor sebelum mengekspor."
       },
       "mixed": {
         "question": "Bagaimana jika video berganti-ganti bahasa?",

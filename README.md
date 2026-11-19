@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://www.supoclip.com">
-    <img src="assets/banner.jpg" alt="SupoClip dashboard with video input, caption controls, and recent clips" width="100%" />
+    <img src="assets/banner.jpg" alt="TokoClippers dashboard with video input, caption controls, and recent clips" width="100%" />
   </a>
 </p>
 
@@ -11,45 +11,45 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-SupoClip_Noncommercial-blue.svg" alt="SupoClip Noncommercial Source License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-SupoClip_Noncommercial-blue.svg" alt="TokoClippers Noncommercial Source License" /></a>
   <a href="https://www.supoclip.com"><img src="https://img.shields.io/badge/hosted-supoclip.com-black.svg" alt="Hosted at supoclip.com" /></a>
   <a href="docs/README.md"><img src="https://img.shields.io/badge/docs-docs%2F-green.svg" alt="Documentation" /></a>
-  <a href="https://discord.gg/Sz9ZD5REXg"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&amp;logoColor=white" alt="Join the SupoClip Discord community" /></a>
+  <a href="https://discord.gg/Sz9ZD5REXg"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&amp;logoColor=white" alt="Join the TokoClippers Discord community" /></a>
 </p>
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/supoclip/id6784760040">
-    <img src="frontend/public/app-store-badge.svg" alt="Download SupoClip on the App Store" height="40" />
+    <img src="frontend/public/app-store-badge.svg" alt="Download TokoClippers on the App Store" height="40" />
   </a>
   &nbsp;
   <a href="https://www.producthunt.com/products/supoclip?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-supoclip" target="_blank" rel="noopener noreferrer">
-    <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276786&theme=dark" alt="SupoClip on Product Hunt" height="40" />
+    <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276786&theme=dark" alt="TokoClippers on Product Hunt" height="40" />
   </a>
 </p>
 
 ---
 
-SupoClip is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Inspect the code, self-host for noncommercial use, or use the hosted version.
+TokoClippers is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Inspect the code, self-host for noncommercial use, or use the hosted version.
 
 <sub>Commercial use, including internal business use, requires <a href="LICENSE">written permission from Shiori LLC</a>.</sub>
 
-**See it first:** [watch real clips SupoClip generated](https://www.supoclip.com/demo) from a long-form interview, or follow the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) to run it on your own machine.
+**See it first:** [watch real clips TokoClippers generated](https://www.supoclip.com/demo) from a long-form interview, or follow the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) to run it on your own machine.
 
-## Ways to Use SupoClip
+## Ways to Use TokoClippers
 
 | Option | Details |
 |---|---|
 | **Hosted web app** | [www.supoclip.com](https://www.supoclip.com) — no infrastructure to run |
-| **iOS app** | [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040) — the same hosted pipeline, from your iPhone |
+| **iOS app** | [TokoClippers on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040) — the same hosted pipeline, from your iPhone |
 | **Self-host** | Docker Compose setup below, or the step-by-step [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) — noncommercial use on your own hardware |
-| **MCP server** | [`mcp/`](mcp/) — use SupoClip from Claude, Cursor, and other MCP clients |
+| **MCP server** | [`mcp/`](mcp/) — use TokoClippers from Claude, Cursor, and other MCP clients |
 | **REST API** | API keys from `/settings/api-keys` authenticate the backend directly — see the [API reference](docs/api-reference.md) |
 
-## Why SupoClip Exists
+## Why TokoClippers Exists
 
 OpusClip is genuinely good at what it does — AI clip selection, accurate captions, virality scoring. But your usage is metered by plan, some exports carry platform branding, and your content and workflows live on their servers under their terms.
 
-SupoClip gives you the same core pipeline without the leash:
+TokoClippers gives you the same core pipeline without the leash:
 
 - **Self-hostable** — run it on your own hardware, process as much as it can handle
 - **No watermarks** — your content stays yours
@@ -116,7 +116,7 @@ Everything beyond this page lives in [`docs/`](docs/README.md):
 
 ## Community
 
-Join the [SupoClip Discord](https://discord.gg/Sz9ZD5REXg) to share your clips, swap editing tips, ask for help with self-hosting, or suggest a feature.
+Join the [TokoClippers Discord](https://discord.gg/Sz9ZD5REXg) to share your clips, swap editing tips, ask for help with self-hosting, or suggest a feature.
 
 ## Development & Testing
 
@@ -128,8 +128,8 @@ make test
 
 ## License
 
-Shiori LLC makes this release available under the [SupoClip Noncommercial Source License](LICENSE). It permits noncommercial self-hosting and forks with attribution. Commercial use, including internal business use and paid hosting, requires prior written permission from Shiori LLC. Send permission requests to support@supoclip.com. Earlier releases retain the rights they were released under.
+Shiori LLC makes this release available under the [TokoClippers Noncommercial Source License](LICENSE). It permits noncommercial self-hosting and forks with attribution. Commercial use, including internal business use and paid hosting, requires prior written permission from Shiori LLC. Send permission requests to support@supoclip.com. Earlier releases retain the rights they were released under.
 
-Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
+Based on TokoClippers. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
 
 Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md), including a license grant that allows the project owner to sublicense and relicense contributed code.

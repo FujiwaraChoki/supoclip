@@ -1,8 +1,8 @@
 # Cancellation reviews
 
-Every Stripe subscription cancellation is investigated and reported to the SupoClip operator chat
+Every Stripe subscription cancellation is investigated and reported to the TokoClippers operator chat
 (the Hermes `supoclip` Bot Chat). A report says who left and how (end-of-period request, immediate, or
-involuntary), what they said (Stripe survey answer, comment, in-app note), how they used SupoClip, and how
+involuntary), what they said (Stripe survey answer, comment, in-app note), how they used TokoClippers, and how
 good the clips they got were. The clip review is based on still frames, the transcript and measured audio. Each fact
 is labelled as measured, judged or unavailable. A clip that can't be read is reported as not reviewed. It is never judged.
 
@@ -68,7 +68,7 @@ cancellation, with what failed.
 Reports carry ids and a masked email. They never contain full emails, names, links or storage references. Customer-written text
 is redacted (links, emails, phone numbers, long tokens), capped at 600 characters and quoted as evidence. The
 report says it is not an instruction. The model gets frames, transcripts and aggregate usage: no email, no
-name. Events from customers who are not SupoClip's are dropped before they are stored. This matters for an
+name. Events from customers who are not TokoClippers' are dropped before they are stored. This matters for an
 account shared with another product.
 
 ## Configuration
@@ -103,11 +103,11 @@ Scripts: `deploy/hermes/`. As the `hermes` user:
 
 ```bash
 install -m 700 deploy/hermes/cancellation-report-*.py ~/.hermes/profiles/supoclip/scripts/
-hermes -p supoclip cron create "every 15m" --name "SupoClip cancellation reports" --no-agent \
+hermes -p supoclip cron create "every 15m" --name "TokoClippers cancellation reports" --no-agent \
   --script cancellation-report-outbox.py --deliver bot-chat:supoclip
 hermes webhook subscribe cancellation-reports-supoclip --route-profile supoclip --cron-job <job id> \
   --script ~/.hermes/profiles/supoclip/scripts/cancellation-report-inbox.py \
-  --description "SupoClip cancellation review reports"
+  --description "TokoClippers cancellation review reports"
 ```
 
 nginx exposes only `location = /p/supoclip/webhooks/cancellation-reports-supoclip` to the gateway's

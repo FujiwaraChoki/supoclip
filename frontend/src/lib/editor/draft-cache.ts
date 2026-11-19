@@ -5,7 +5,7 @@
  * has not confirmed yet (a closed tab, a lost connection) and keeps a short
  * undo history across reloads. Earlier releases kept every opened clip's
  * full 50-step history forever, which filled the browser's storage for
- * SupoClip. Now each copy is bounded, and copies the server already has are
+ * TokoClippers. Now each copy is bounded, and copies the server already has are
  * kept only for the few most recently edited clips. A copy with unsaved
  * changes is never removed to make room.
  */

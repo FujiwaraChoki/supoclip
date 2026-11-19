@@ -149,7 +149,7 @@ export function LengthIllustration({
 
 const TYPEFACES = [
   { id: "serif", family: "Georgia, 'Times New Roman', serif", style: "italic" as const, weight: 400 },
-  { id: "display", family: "var(--font-syne), system-ui, sans-serif", style: "normal" as const, weight: 700 },
+  { id: "display", family: "var(--font-paperlogy), system-ui, sans-serif", style: "normal" as const, weight: 700 },
   { id: "mono", family: "ui-monospace, SFMono-Regular, Menlo, monospace", style: "normal" as const, weight: 700 },
 ] as const;
 

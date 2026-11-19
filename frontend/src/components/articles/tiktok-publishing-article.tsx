@@ -12,14 +12,14 @@ export function TikTokPublishingArticle({ post }: { post: BlogPost }) {
       toc={[["whats-live", "What’s live"], ["first-post", "Your first post"], ["both-platforms", "TikTok + YouTube"], ["scheduling", "Scheduling"], ["faq", "FAQ"]]}
       faqs={[
         { question: "I already connected YouTube. Do I need to change anything?", answer: "Keep your existing YouTube connection. Add TikTok in Social settings, then choose either account or both in the web publisher." },
-        { question: "Do I need Creator to publish to TikTok?", answer: "Creator is required for scheduling posts for later. Publishing a finished clip now is available without Creator on hosted SupoClip." },
+        { question: "Do I need Creator to publish to TikTok?", answer: "Creator is required for scheduling posts for later. Publishing a finished clip now is available without Creator on hosted TokoClippers." },
         { question: "What about Instagram publishing?", answer: "Direct Instagram publishing isn’t available yet. You can still download a finished clip and upload it to Instagram yourself." },
       ]}
       cta={{ title: "Connect TikTok and publish your next clip", body: "Already have a finished clip? Connect your account, open the clip, and choose Publish.", label: "Connect TikTok", href: "/settings/social" }}
     >
       <p>
-        TikTok publishing is live on hosted SupoClip. If you’ve been downloading finished clips just
-        to upload them to TikTok, you can now keep that step inside SupoClip too.
+        TikTok publishing is live on hosted TokoClippers. If you’ve been downloading finished clips just
+        to upload them to TikTok, you can now keep that step inside TokoClippers too.
       </p>
       <p>
         YouTube publishing is already available, and the web publisher now lets you select more than
@@ -34,7 +34,7 @@ export function TikTokPublishingArticle({ post }: { post: BlogPost }) {
           <span className="inline-flex items-center gap-2 font-semibold"><SocialProviderIcon provider="youtube" className="size-6" />YouTube</span>
         </div>
         <p>
-          Keep using SupoClip to find moments, edit captions, and review your clips. When a clip is
+          Keep using TokoClippers to find moments, edit captions, and review your clips. When a clip is
           ready, send it to a connected account from its Publish menu. You choose the caption and
           the privacy settings available for each account before submitting.
         </p>
@@ -83,7 +83,7 @@ export function TikTokPublishingArticle({ post }: { post: BlogPost }) {
 
       <p>
         This launch is for the hosted app. Self-hosted installations need their own social-provider
-        configuration. If you’re using hosted SupoClip, head to Social settings to connect TikTok.
+        configuration. If you’re using hosted TokoClippers, head to Social settings to connect TikTok.
       </p>
     </ArticleShell>
   );

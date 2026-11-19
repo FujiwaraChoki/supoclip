@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: t("index.ogDescription"),
       type: "website",
       url,
-      siteName: "SupoClip",
+      siteName: "TokoClippers",
     },
   };
 }
@@ -38,12 +38,12 @@ export default async function BlogIndexPage() {
       <header className="border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg dark:invert" />
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg dark:invert" />
             <span
               className="text-lg font-bold tracking-tight"
-              style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
+              style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}
             >
-              SupoClip
+              TokoClippers
             </span>
           </Link>
           <div className="flex items-center gap-2">
@@ -77,7 +77,7 @@ export default async function BlogIndexPage() {
           <div className="max-w-3xl">
             <h1
               className="text-4xl font-extrabold tracking-tight sm:text-5xl"
-              style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
+              style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}
             >
               {t("index.heading")}
             </h1>
@@ -103,7 +103,7 @@ export default async function BlogIndexPage() {
             </div>
             <h2
               className="text-3xl font-bold tracking-tight sm:text-4xl"
-              style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
+              style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}
             >
               {featuredPost.title}
             </h2>

@@ -1,4 +1,4 @@
-export const SITE_NAME = "SupoClip";
+export const SITE_NAME = "TokoClippers";
 export const COMPANY_NAME = "Shiori LLC";
 export const COMPANY_REGISTRATION_NUMBER = "10603065";
 export const COMPANY_REGISTERED_ADDRESS = "8 The Green, Suite B, Dover, DE 19901, United States";

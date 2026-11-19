@@ -11,7 +11,7 @@ def configured_service() -> ApiKeyEmailService:
         aws_region="eu-central-1",
         aws_access_key_id="access-key",
         aws_secret_access_key="secret-key",
-        ses_from_email="SupoClip <noreply@example.com>",
+        ses_from_email="TokoClippers <noreply@example.com>",
     )
     return ApiKeyEmailService(config)
 
@@ -29,7 +29,7 @@ def test_created_email_contains_metadata_but_not_secret():
 
     content = service._build_created_email(user, api_key)
 
-    assert content.subject == "A new SupoClip API key was created"
+    assert content.subject == "A new TokoClippers API key was created"
     assert "Automation" in content.html
     assert "sk_abc12345" in content.text
     assert api_key["key"] not in content.html

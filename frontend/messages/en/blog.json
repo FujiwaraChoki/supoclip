@@ -6,26 +6,26 @@
     "allArticles": "All articles",
     "startClipping": "Start clipping",
     "breadcrumbNav": "Breadcrumb",
-    "byline": "By SupoClip · Updated <date>{when}</date> · {readingTime}",
+    "byline": "By TokoClippers · Updated <date>{when}</date> · {readingTime}",
     "updated": "Updated <date>{when}</date>",
     "inThisArticle": "In this article",
     "faqHeading": "Frequently asked questions",
     "faq": "FAQ",
-    "startAria": "Start with SupoClip",
+    "startAria": "Start with TokoClippers",
     "ctaTitle": "Try it on one recording you know well.",
     "ctaBody": "Use the hosted app, or run the same open-source code on your own machine.",
     "getSource": "Get the source",
     "keepReading": "Keep reading"
   },
   "index": {
-    "metaTitle": "SupoClip Blog | AI Video Clipping Guides",
-    "metaDescription": "Practical guides, product comparisons, and creator workflows for turning long-form video into social-ready shorts with SupoClip.",
-    "ogTitle": "SupoClip Blog",
+    "metaTitle": "TokoClippers Blog | AI Video Clipping Guides",
+    "metaDescription": "Practical guides, product comparisons, and creator workflows for turning long-form video into social-ready shorts with TokoClippers.",
+    "ogTitle": "TokoClippers Blog",
     "ogDescription": "Guides and comparisons for AI video clipping, auto captions, vertical reframing, and short-form video workflows.",
     "hostedApp": "Hosted App",
     "startClipping": "Start Clipping",
     "creatorGuides": "Creator Guides",
-    "tryHosted": "Try hosted SupoClip",
+    "tryHosted": "Try hosted TokoClippers",
     "heading": "Practical guides for turning long videos into better shorts.",
     "intro": "Comparisons, workflows, and editing advice for creators who want a repeatable clipping workflow, cleaner captions, and more control over their video pipeline.",
     "readArticle": "Read article",
@@ -35,18 +35,18 @@
     "productGuides": "Product guides"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip vs supo.live: Why Open Source Wins",
-    "description": "Compare SupoClip and supo.live for AI video clipping. See why SupoClip wins for open-source control, self-hosting, and customizable video workflows.",
+    "title": "TokoClippers vs supo.live: Why Open Source Wins",
+    "description": "Compare TokoClippers and supo.live for AI video clipping. See why TokoClippers wins for open-source control, self-hosting, and customizable video workflows.",
     "eyebrow": "Supo.live Alternative",
     "category": "Comparison",
     "readingTime": "5 min read",
-    "summary": "For creators and teams who want control over their clipping workflow, SupoClip is the better open-source alternative to supo.live.",
+    "summary": "For creators and teams who want control over their clipping workflow, TokoClippers is the better open-source alternative to supo.live.",
     "imageAlt": "Editorial illustration of a podcast recording becoming three vertical video clips",
-    "breadcrumb": "SupoClip vs supo.live",
+    "breadcrumb": "TokoClippers vs supo.live",
     "heroCaption": "One recording, more possibilities. AI-generated editorial illustration of the long-video-to-shorts workflow.",
     "verdict": {
       "kicker": "The quick verdict",
-      "heading": "Choose SupoClip when control matters.",
+      "heading": "Choose TokoClippers when control matters.",
       "body": "Open source. Your deployment. Your workflow. A strong foundation for turning recorded content into captioned shorts.",
       "points": {
         "0": "Inspect and extend the code",
@@ -62,16 +62,16 @@
       "faq": "FAQ"
     },
     "body": {
-      "p1": "Choosing an AI video clipper is also choosing how much control you keep over your production process. If you want to turn podcasts, interviews, talks, and stream recordings into short videos, SupoClip makes a compelling case: AI-assisted editing with source code you can inspect and a workflow you can run yourself.",
-      "p2": "Our verdict: SupoClip is the better alternative for creators, agencies, and developers who prioritize open source, self-hosting, and customization. This is a comparison by the SupoClip team, based on documented capabilities, rather than a benchmark of clip quality or processing speed.",
-      "whatSupoclip": "What is SupoClip?",
-      "whatSupoclipBody": "SupoClip is an open-source AI video clipping tool available through supoclip.com or as a self-hosted application. It analyzes long videos, selects promising moments, and produces vertical clips with face-centered cropping and word-synced subtitles. Hook titles, clip scoring, and optional B-roll help turn a raw recording into material ready for your final review. The <repo>SupoClip repository</repo> documents the features and setup.",
+      "p1": "Choosing an AI video clipper is also choosing how much control you keep over your production process. If you want to turn podcasts, interviews, talks, and stream recordings into short videos, TokoClippers makes a compelling case: AI-assisted editing with source code you can inspect and a workflow you can run yourself.",
+      "p2": "Our verdict: TokoClippers is the better alternative for creators, agencies, and developers who prioritize open source, self-hosting, and customization. This is a comparison by the TokoClippers team, based on documented capabilities, rather than a benchmark of clip quality or processing speed.",
+      "whatSupoclip": "What is TokoClippers?",
+      "whatSupoclipBody": "TokoClippers is an open-source AI video clipping tool available through supoclip.com or as a self-hosted application. It analyzes long videos, selects promising moments, and produces vertical clips with face-centered cropping and word-synced subtitles. Hook titles, clip scoring, and optional B-roll help turn a raw recording into material ready for your final review. The <repo>TokoClippers repository</repo> documents the features and setup.",
       "whatSupo": "What is supo.live?",
       "whatSupoBody": "Supo.live markets a hosted clipping service for both recordings and ongoing broadcasts. Its homepage advertises live clipping, styled captions, face tracking, a browser editor, and scheduled posting to TikTok, YouTube Shorts, and X. That makes live publishing its clearest point of distinction. See the <site>official supo.live feature overview</site>."
     },
     "comparison": {
-      "heading": "SupoClip vs supo.live at a glance",
-      "caption": "SupoClip and supo.live workflow comparison",
+      "heading": "TokoClippers vs supo.live at a glance",
+      "caption": "TokoClippers and supo.live workflow comparison",
       "priority": "Priority",
       "note": "Supo.live details reflect its <site>homepage</site> checked September 21, 2026. Features and plans can change.",
       "rows": {
@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Source access",
-          "supoclip": "SupoClip Noncommercial Source License",
+          "supoclip": "TokoClippers Noncommercial Source License",
           "supolive": "No open-source or self-hosting option advertised on its homepage"
         },
         "usecase": {
@@ -105,7 +105,7 @@
     "workflow": {
       "heading": "From one recording to a repeatable workflow",
       "intro": "Let AI handle the first pass, then use your editorial judgment. Every clip should make sense on its own, retain the speaker’s context, and earn its place in your feed.",
-      "caption": "SupoClip’s recorded-video workflow. AI suggests; you make the final editorial decision.",
+      "caption": "TokoClippers’s recorded-video workflow. AI suggests; you make the final editorial decision.",
       "steps": {
         "0": {
           "title": "Bring a recording",
@@ -126,20 +126,20 @@
       }
     },
     "editor": {
-      "aria": "View full-size SupoClip editor screenshot",
-      "alt": "SupoClip editor with clip list, vertical preview, caption styling controls, and a timeline",
-      "caption": "Inside the SupoClip editor: adjust captions, framing, and timing before export. Actual product screenshot using sample test footage; click to enlarge."
+      "aria": "View full-size TokoClippers editor screenshot",
+      "alt": "TokoClippers editor with clip list, vertical preview, caption styling controls, and a timeline",
+      "caption": "Inside the TokoClippers editor: adjust captions, framing, and timing before export. Actual product screenshot using sample test footage; click to enlarge."
     },
     "control": {
-      "heading": "Why SupoClip is the better open-source alternative",
+      "heading": "Why TokoClippers is the better open-source alternative",
       "h1": "1. You can shape the workflow around your content",
-      "p1": "A podcast studio and an educational channel may want very different clips. With SupoClip, source access lets a technical team adapt selection logic, caption behavior, and processing steps to its editorial needs. You can inspect how the system works and develop changes in your own deployment. That flexibility is SupoClip’s strongest advantage over relying entirely on a hosted product’s settings.",
+      "p1": "A podcast studio and an educational channel may want very different clips. With TokoClippers, source access lets a technical team adapt selection logic, caption behavior, and processing steps to its editorial needs. You can inspect how the system works and develop changes in your own deployment. That flexibility is TokoClippers’s strongest advantage over relying entirely on a hosted product’s settings.",
       "h2": "2. You choose where the application runs",
       "p2": "Self-hosting gives you control over the application’s infrastructure, storage configuration, and maintenance schedule. You can build clipping into an existing production environment and keep a deployment you manage. If you use cloud transcription or a hosted LLM, those providers still receive the data they need. Switching to local Whisper and Ollama keeps that analysis on your own hardware too.",
       "h3": "3. You have a practical choice of AI providers",
-      "p3": "SupoClip supports LLM configurations for Google, OpenAI, Anthropic, and local Ollama models. That lets you evaluate providers against your own content and budget. Transcription defaults to AssemblyAI, and can switch to local Whisper or, for YouTube links, existing captions. The <guide>self-hosting guide</guide> walks through a fully local setup.",
+      "p3": "TokoClippers supports LLM configurations for Google, OpenAI, Anthropic, and local Ollama models. That lets you evaluate providers against your own content and budget. Transcription defaults to AssemblyAI, and can switch to local Whisper or, for YouTube links, existing captions. The <guide>self-hosting guide</guide> walks through a fully local setup.",
       "h4": "4. Your clipping workflow can grow into your own tools",
-      "p4": "SupoClip includes a REST API and an MCP server. Developers can connect clipping to other applications or compatible AI clients instead of treating the browser as the only entry point. For an agency processing recurring client recordings, that creates room to build a repeatable workflow around its own review process. The <api>API reference</api> explains the available endpoints.",
+      "p4": "TokoClippers includes a REST API and an MCP server. Developers can connect clipping to other applications or compatible AI clients instead of treating the browser as the only entry point. For an agency processing recurring client recordings, that creates room to build a repeatable workflow around its own review process. The <api>API reference</api> explains the available endpoints.",
       "figureCaption": "What you control when you self-host",
       "figureNote": "Cloud providers are optional: Whisper and Ollama keep transcription and clip selection local.",
       "yours": {
@@ -157,56 +157,56 @@
     },
     "cost": {
       "heading": "Cost: free source code, real operating costs",
-      "p1": "SupoClip is free to self-host for noncommercial use. Your actual costs depend on compute, storage, transcription, paid model usage, and the time needed to maintain the installation. Capacity follows the resources you provision and provider limits. This can be attractive for teams that already run infrastructure, but it is not a promise that every workload costs less.",
-      "p2": "The hosted SupoClip service is a separate option with its own pricing and terms. Choose it when you want to start with less setup; choose self-hosting when control over the deployment is the priority."
+      "p1": "TokoClippers is free to self-host for noncommercial use. Your actual costs depend on compute, storage, transcription, paid model usage, and the time needed to maintain the installation. Capacity follows the resources you provision and provider limits. This can be attractive for teams that already run infrastructure, but it is not a promise that every workload costs less.",
+      "p2": "The hosted TokoClippers service is a separate option with its own pricing and terms. Choose it when you want to start with less setup; choose self-hosting when control over the deployment is the priority."
     },
     "choose": {
       "heading": "Which should you choose?",
-      "p1": "Choose SupoClip for a library of podcasts, interviews, webinars, or stream VODs that you want to repurpose through a customizable pipeline. It brings together clip discovery, scoring, captions, and vertical framing while giving you the freedom to inspect and extend the application.",
-      "p2": "If your essential requirement is clipping a broadcast while it is still running and automatically posting the results, evaluate supo.live’s advertised live workflow. SupoClip’s recorded-video workflow should not be treated as a verified replacement for those features."
+      "p1": "Choose TokoClippers for a library of podcasts, interviews, webinars, or stream VODs that you want to repurpose through a customizable pipeline. It brings together clip discovery, scoring, captions, and vertical framing while giving you the freedom to inspect and extend the application.",
+      "p2": "If your essential requirement is clipping a broadcast while it is still running and automatically posting the results, evaluate supo.live’s advertised live workflow. TokoClippers’s recorded-video workflow should not be treated as a verified replacement for those features."
     },
     "start": {
       "heading": "Start building a clipping workflow you control",
-      "p1": "SupoClip is our pick for teams that want useful AI clipping today and room to adapt it tomorrow. Start with one representative recording, review the suggested clips, refine the captions and framing, and export the results. Then decide whether hosted convenience or your own deployment fits your workflow.",
-      "logoAlt": "SupoClip logo",
+      "p1": "TokoClippers is our pick for teams that want useful AI clipping today and room to adapt it tomorrow. Start with one representative recording, review the suggested clips, refine the captions and framing, and export the results. Then decide whether hosted convenience or your own deployment fits your workflow.",
+      "logoAlt": "TokoClippers logo",
       "cardTitle": "Your next recording deserves a second life.",
       "points": {
         "0": "Start with a recording you know well",
         "1": "Review the strongest suggested moments",
         "2": "Refine the captions and export"
       },
-      "try": "Try SupoClip"
+      "try": "Try TokoClippers"
     },
     "faqs": {
       "0": {
         "question": "What is the best open-source alternative to supo.live?",
-        "answer": "SupoClip is a strong choice for creators and teams who want to turn recorded videos into shorts while retaining source access, self-hosting, and control over their AI clipping workflow."
+        "answer": "TokoClippers is a strong choice for creators and teams who want to turn recorded videos into shorts while retaining source access, self-hosting, and control over their AI clipping workflow."
       },
       "1": {
-        "question": "Is SupoClip free to self-host?",
-        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. Running it still involves hardware or hosting, storage, transcription, and any paid LLM usage. Hosted SupoClip has its own service terms and pricing."
+        "question": "Is TokoClippers free to self-host?",
+        "answer": "TokoClippers allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. Running it still involves hardware or hosting, storage, transcription, and any paid LLM usage. Hosted TokoClippers has its own service terms and pricing."
       },
       "2": {
-        "question": "Can SupoClip replace live-stream clipping and automatic posting?",
-        "answer": "This comparison recommends SupoClip for recorded videos and stream VODs. Supo.live advertises clipping during live broadcasts and scheduled social posting; those capabilities are not claimed as SupoClip equivalents here."
+        "question": "Can TokoClippers replace live-stream clipping and automatic posting?",
+        "answer": "This comparison recommends TokoClippers for recorded videos and stream VODs. Supo.live advertises clipping during live broadcasts and scheduled social posting; those capabilities are not claimed as TokoClippers equivalents here."
       }
     },
-    "closing": "Explore our <openSource>open-source video clipper guide</openSource> or read the <comparison>SupoClip vs OpusClip comparison</comparison>."
+    "closing": "Explore our <openSource>open-source video clipper guide</openSource> or read the <comparison>TokoClippers vs OpusClip comparison</comparison>."
   },
   "supoclip-vs-opusclip": {
-    "title": "SupoClip vs OpusClip: A Sourced Comparison",
-    "description": "SupoClip vs OpusClip compared on deployment, pricing model, watermarks, model choice, and workflow, with a source linked for every claim.",
+    "title": "TokoClippers vs OpusClip: A Sourced Comparison",
+    "description": "TokoClippers vs OpusClip compared on deployment, pricing model, watermarks, model choice, and workflow, with a source linked for every claim.",
     "eyebrow": "OpusClip Comparison",
     "category": "Comparison",
     "readingTime": "7 min read",
     "summary": "A side-by-side of what each product documents, where the two differ, and which one fits your workflow.",
-    "breadcrumb": "SupoClip vs OpusClip",
+    "breadcrumb": "TokoClippers vs OpusClip",
     "notCovered": "Not covered by the sources below",
     "toc": {
       "verdict": "Short answer",
       "comparison": "Side by side",
       "pricing": "Pricing model",
-      "choose-supoclip": "When SupoClip fits",
+      "choose-supoclip": "When TokoClippers fits",
       "choose-opusclip": "When OpusClip fits",
       "test": "Run your own test",
       "sources": "Sources",
@@ -214,15 +214,15 @@
     },
     "faqs": {
       "0": {
-        "question": "Is SupoClip better than OpusClip?",
-        "answer": "It depends on what you need. SupoClip is the stronger fit if you want source access, self-hosting, or your own choice of AI models. OpusClip is the stronger fit if you want a managed product with a free tier to try. We don't claim either produces better clips, because we haven't run a controlled test that would support that."
+        "question": "Is TokoClippers better than OpusClip?",
+        "answer": "It depends on what you need. TokoClippers is the stronger fit if you want source access, self-hosting, or your own choice of AI models. OpusClip is the stronger fit if you want a managed product with a free tier to try. We don't claim either produces better clips, because we haven't run a controlled test that would support that."
       },
       "1": {
-        "question": "Does SupoClip add a watermark?",
-        "answer": "No. SupoClip's rendering pipeline has no watermark step, in the hosted app or a self-hosted install. OpusClip's help center says free-plan exports can include an OpusClip watermark."
+        "question": "Does TokoClippers add a watermark?",
+        "answer": "No. TokoClippers' rendering pipeline has no watermark step, in the hosted app or a self-hosted install. OpusClip's help center says free-plan exports can include an OpusClip watermark."
       },
       "2": {
-        "question": "Does hosted SupoClip have a free plan?",
+        "question": "Does hosted TokoClippers have a free plan?",
         "answer": "No. The hosted app requires a Pro or Creator subscription to process videos. For noncommercial use, the free route is self-hosting, where there are no plan limits; you pay only for your own infrastructure and any AI providers you configure."
       },
       "3": {
@@ -230,16 +230,16 @@
         "answer": "We haven't published a controlled test of speed or clip quality, so we don't make that claim. Results depend on your videos and settings; the fair-test steps on this page show how to compare them on your own content."
       }
     },
-    "intro": "OpusClip helped define AI clipping: upload a long video, get short vertical clips back. SupoClip does the same job as an open-source project you can use hosted or run yourself. This comparison sticks to what each product documents. SupoClip claims link to our source code. OpusClip claims link to OpusClip's own help center. Where a source doesn't cover something, the table says so rather than guessing.",
+    "intro": "OpusClip helped define AI clipping: upload a long video, get short vertical clips back. TokoClippers does the same job as an open-source project you can use hosted or run yourself. This comparison sticks to what each product documents. TokoClippers claims link to our source code. OpusClip claims link to OpusClip's own help center. Where a source doesn't cover something, the table says so rather than guessing.",
     "introNote": "This page doesn't rate clip quality, caption accuracy, or processing speed. To compare those, see <test>how to run your own test</test>.",
     "verdict": {
       "heading": "The short answer",
-      "supoclip": "<strong>Choose SupoClip</strong> if you want to self-host, inspect or modify the code, pick your own AI models (including fully local ones), or export without a watermark.",
+      "supoclip": "<strong>Choose TokoClippers</strong> if you want to self-host, inspect or modify the code, pick your own AI models (including fully local ones), or export without a watermark.",
       "opusclip": "<strong>Choose OpusClip</strong> if you want a managed product you never have to deploy, and want to start on a free plan."
     },
     "comparison": {
       "heading": "Side by side",
-      "caption": "SupoClip and OpusClip comparison with sources",
+      "caption": "TokoClippers and OpusClip comparison with sources",
       "area": "Area",
       "footnote": "“Not covered by the sources below” means the cited OpusClip help-center articles don't address it. It doesn't mean OpusClip lacks the feature. Check <site>opus.pro</site> for anything not listed here."
     },
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Source code",
-        "supoclip": "Public, <license>SupoClip Noncommercial Source License</license>"
+        "supoclip": "Public, <license>TokoClippers Noncommercial Source License</license>"
       },
       "pricing": {
         "label": "Pricing model",
@@ -279,10 +279,10 @@
     "pricing": {
       "heading": "Pricing model: credits vs. plans vs. your own infrastructure",
       "p1": "OpusClip's <plans>plans and credits article</plans> describes paid plans that use credits for processing minutes, plus a free plan. Its <watermark>watermark article</watermark> says free-plan exports can carry an OpusClip watermark. Plan prices and credit amounts change, so check OpusClip's current pricing page instead of relying on numbers copied into a blog post.",
-      "p2": "SupoClip offers two routes. The hosted app has <pro>{proName}</pro> at ${proPrice}/month for {proLimit} hours of video in 720p and <scale>{scaleName}</scale> at ${scalePrice}/month for {scaleLimit} hours in 1080p, with yearly billing at two months free. There is no free hosted plan; processing requires a subscription. The self-hosted route is free software with no plan limits. You pay for the server and any AI APIs you configure, and the <guide>self-hosting guide</guide> shows a fully local setup with no per-request AI fees."
+      "p2": "TokoClippers offers two routes. The hosted app has <pro>{proName}</pro> at ${proPrice}/month for {proLimit} hours of video in 720p and <scale>{scaleName}</scale> at ${scalePrice}/month for {scaleLimit} hours in 1080p, with yearly billing at two months free. There is no free hosted plan; processing requires a subscription. The self-hosted route is free software with no plan limits. You pay for the server and any AI APIs you configure, and the <guide>self-hosting guide</guide> shows a fully local setup with no per-request AI fees."
     },
     "chooseSupoclip": {
-      "heading": "When SupoClip is the better fit",
+      "heading": "When TokoClippers is the better fit",
       "li1": "<strong>You need control over where video goes.</strong> Self-hosting keeps the app, database, and rendered clips on your infrastructure. With Whisper and Ollama, transcription and clip selection run locally too.",
       "li2": "<strong>You have a large back catalog.</strong> Self-hosted installs have no monthly video cap. Throughput depends on your hardware and provider limits.",
       "li3": "<strong>You want to change how clips are chosen.</strong> The selection prompt, scoring, caption templates, and rendering are all in the repository.",
@@ -291,8 +291,8 @@
     "chooseOpusclip": {
       "heading": "When OpusClip is the better fit",
       "li1": "<strong>You don't want to operate anything.</strong> Self-hosting means managing Docker, provider keys, updates, and backups.",
-      "li2": "<strong>You want to try before paying.</strong> OpusClip documents a free plan (with a possible watermark). Hosted SupoClip has no free tier.",
-      "li3": "<strong>You rely on features not covered here.</strong> If a specific OpusClip workflow matters to you, confirm it on opus.pro and test whether SupoClip covers it before switching."
+      "li2": "<strong>You want to try before paying.</strong> OpusClip documents a free plan (with a possible watermark). Hosted TokoClippers has no free tier.",
+      "li3": "<strong>You rely on features not covered here.</strong> If a specific OpusClip workflow matters to you, confirm it on opus.pro and test whether TokoClippers covers it before switching."
     },
     "test": {
       "heading": "How to run your own fair test",
@@ -301,22 +301,22 @@
       "li2": "Run each through both tools with default settings, and note the time from submission to finished clips.",
       "li3": "Shuffle the clips and review them without knowing which tool made each. Score whether each clip makes sense without context, has a clear hook, frames the speaker correctly, and has accurate captions.",
       "li4": "Count the edits each clip needs before you'd post it. Editing time is a cost the subscription price doesn't show.",
-      "demo": "Want to see SupoClip output first? The <demo>demo page</demo> shows real clips next to links to the original timestamps."
+      "demo": "Want to see TokoClippers output first? The <demo>demo page</demo> shows real clips next to links to the original timestamps."
     },
     "sources": {
       "heading": "Sources",
       "opus": "OpusClip help center: <plans>Plans and credits</plans> and <watermark>Watermark</watermark>. Plans can change; confirm current details on <site>opus.pro</site>.",
-      "supoclip": "SupoClip: <repo>public repository</repo>, including <compose>docker-compose.yml</compose>, <config>configuration docs</config>, and <billing>billing rules</billing>. Hosted prices are from the pricing section of supoclip.com."
+      "supoclip": "TokoClippers: <repo>public repository</repo>, including <compose>docker-compose.yml</compose>, <config>configuration docs</config>, and <billing>billing rules</billing>. Hosted prices are from the pricing section of supoclip.com."
     }
   },
   "self-host-supoclip-docker": {
-    "title": "How to Self-Host SupoClip with Docker Compose",
-    "description": "Self-host SupoClip, the open-source AI video clipper: requirements, .env setup, a fully local Whisper + Ollama option, first-run checks, and a production checklist.",
+    "title": "How to Self-Host TokoClippers with Docker Compose",
+    "description": "Self-host TokoClippers, the open-source AI video clipper: requirements, .env setup, a fully local Whisper + Ollama option, first-run checks, and a production checklist.",
     "eyebrow": "Self-Hosting Guide",
     "category": "Guide",
     "readingTime": "9 min read",
     "summary": "A practical walkthrough of the repository's Docker Compose stack: what each service does, which keys you need, how to run without cloud AI, and what to harden before production.",
-    "breadcrumb": "Self-host SupoClip",
+    "breadcrumb": "Self-host TokoClippers",
     "toc": {
       "stack": "What you run",
       "requirements": "Requirements",
@@ -329,11 +329,11 @@
     },
     "faqs": {
       "0": {
-        "question": "Is self-hosted SupoClip free?",
-        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. You still pay for your own hardware or server, and for any cloud transcription or LLM usage you configure. A Whisper + Ollama setup avoids per-request AI fees but needs enough local compute."
+        "question": "Is self-hosted TokoClippers free?",
+        "answer": "TokoClippers allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. You still pay for your own hardware or server, and for any cloud transcription or LLM usage you configure. A Whisper + Ollama setup avoids per-request AI fees but needs enough local compute."
       },
       "1": {
-        "question": "Can SupoClip run without any cloud AI services?",
+        "question": "Can TokoClippers run without any cloud AI services?",
         "answer": "Yes, for clip analysis. Set TRANSCRIPTION_PROVIDER=whisper to transcribe locally and LLM=ollama:<model> to select clips with a local model. Downloading YouTube links still needs internet access; uploaded files do not. Optional B-roll uses the Pexels API."
       },
       "2": {
@@ -349,12 +349,12 @@
         "answer": "Create your account, then set DISABLE_SIGN_UP=true and recreate the frontend container. Compose binds every port to 127.0.0.1, so nothing is public until you add a reverse proxy."
       }
     },
-    "intro": "SupoClip is the open-source AI video clipper behind the hosted app at supoclip.com. The same repository ships a Docker Compose stack you can run on a laptop, a home server, or a VPS. This guide follows that stack exactly as it exists in the <repo>repository</repo>. Where a step depends on your provider or hardware, we say so instead of guessing.",
-    "introChoice": "Prefer not to run infrastructure? The <hosted>hosted app</hosted> runs the same pipeline. Still deciding between tools? Read our <comparison>SupoClip vs OpusClip comparison</comparison> first.",
+    "intro": "TokoClippers is the open-source AI video clipper behind the hosted app at supoclip.com. The same repository ships a Docker Compose stack you can run on a laptop, a home server, or a VPS. This guide follows that stack exactly as it exists in the <repo>repository</repo>. Where a step depends on your provider or hardware, we say so instead of guessing.",
+    "introChoice": "Prefer not to run infrastructure? The <hosted>hosted app</hosted> runs the same pipeline. Still deciding between tools? Read our <comparison>TokoClippers vs OpusClip comparison</comparison> first.",
     "stack": {
       "heading": "What you are running",
       "lead": "<code>docker compose up</code> starts these containers, all defined in <compose>docker-compose.yml</compose>:",
-      "caption": "Services in the SupoClip Docker Compose stack",
+      "caption": "Services in the TokoClippers Docker Compose stack",
       "service": "Service",
       "role": "Role",
       "port": "Host port",
@@ -415,7 +415,7 @@
       "linux": "Compose maps <code>host.docker.internal</code> to the Docker bridge gateway, but Ollama listens only on <code>127.0.0.1</code> by default, so the worker's connection is refused. Make Ollama listen on all interfaces:",
       "expose": "That also exposes port 11434 on your network interfaces. Ollama has no authentication, so block that port from outside the machine with your firewall. If your firewall filters traffic from Docker networks, also allow the containers to reach it.",
       "containerHeading": "Ollama in its own container",
-      "container": "Add it to the stack with an override file, then point SupoClip at the service name instead of the host:",
+      "container": "Add it to the stack with an override file, then point TokoClippers at the service name instead of the host:",
       "labelOverride": "docker-compose.override.yml (merge into any override you already have)",
       "labelEnvTerminal": ".env and terminal",
       "whichever": "Whichever setup you choose, test from inside the worker before submitting a video. The check looks for <code>gpt-oss:20b</code> because that is the model in the example <code>LLM</code> value. If you chose another model, replace it with the exact name after <code>ollama:</code> in your <code>LLM</code> setting. Ollama lists a model pulled without a tag as <code>name:latest</code>, so use that form in the check.",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "Free OpusClip Alternative: Self-Hosting Costs and Tradeoffs",
-    "description": "Looking for a free OpusClip alternative? Understand what self-hosting SupoClip costs, what you maintain, and when a paid hosted workflow is a better fit.",
+    "description": "Looking for a free OpusClip alternative? Understand what self-hosting TokoClippers costs, what you maintain, and when a paid hosted workflow is a better fit.",
     "eyebrow": "OpusClip Alternative",
     "category": "Comparison",
     "readingTime": "6 min read",
-    "summary": "The SupoClip source is free. This guide explains the hardware, provider costs, and maintenance behind a self-hosted clipping workflow so you can decide whether it fits.",
-    "lead": "A free OpusClip alternative can remove a subscription fee without removing the work of running the tool. SupoClip gives you an open-source clipping application you can self-host. The practical question is whether operating it is a better use of your time than using a paid hosted service.",
+    "summary": "The TokoClippers source is free. This guide explains the hardware, provider costs, and maintenance behind a self-hosted clipping workflow so you can decide whether it fits.",
+    "lead": "A free OpusClip alternative can remove a subscription fee without removing the work of running the tool. TokoClippers gives you an open-source clipping application you can self-host. The practical question is whether operating it is a better use of your time than using a paid hosted service.",
     "bestFor": "Best for",
     "audience": {
       "0": "Creators clipping YouTube videos into shorts",
@@ -472,10 +472,10 @@
     },
     "openHosted": "Open hosted version",
     "p1": "Separate three decisions before choosing a free clipping workflow: which editing capabilities you need, who runs the processing, and which services your configuration calls. A free source-code license answers only part of that question.",
-    "p2": "SupoClip is a self-hosted option for creators and technical teams who want the application source, editable captions and framing, and control over their processing setup. Your costs can include hardware, storage, maintenance, and external transcription or AI usage. You can also <hosted>use hosted SupoClip</hosted> on a paid plan if you prefer managed processing.",
+    "p2": "TokoClippers is a self-hosted option for creators and technical teams who want the application source, editable captions and framing, and control over their processing setup. Your costs can include hardware, storage, maintenance, and external transcription or AI usage. You can also <hosted>use hosted TokoClippers</hosted> on a paid plan if you prefer managed processing.",
     "verdict": {
       "heading": "Quick Verdict",
-      "body": "Self-host SupoClip when control and customization justify maintaining the stack. Choose managed hosting when your priority is producing clips without operating infrastructure. Compare complete monthly costs, including your review and maintenance time."
+      "body": "Self-host TokoClippers when control and customization justify maintaining the stack. Choose managed hosting when your priority is producing clips without operating infrastructure. Compare complete monthly costs, including your review and maintenance time."
     },
     "stats": {
       "0": {
@@ -497,13 +497,13 @@
       "p2": "Include setup and recurring maintenance in that estimate. A local model can reduce external API usage while increasing demands on your machine. OpusClip documents its own plan, credit, and watermark rules; use those current sources when comparing the hosted option instead of assuming every free plan has the same limits."
     },
     "different": {
-      "heading": "What Makes SupoClip Different",
-      "p1": "SupoClip is not just a thin wrapper around a hosted editor. It is a complete open-source clipping app with a FastAPI backend, a Next.js frontend, background workers, transcription, AI scoring, face-aware vertical reframing, caption styling, and export presets.",
+      "heading": "What Makes TokoClippers Different",
+      "p1": "TokoClippers is not just a thin wrapper around a hosted editor. It is a complete open-source clipping app with a FastAPI backend, a Next.js frontend, background workers, transcription, AI scoring, face-aware vertical reframing, caption styling, and export presets.",
       "p2": "That makes the tradeoff clear. You take on setup, but you gain ownership. You can inspect the code, adapt it to your workflow, and decide which hosted AI providers or local models to use. The <guide>self-hosting guide</guide> walks through the setup, including a fully local Whisper + Ollama option."
     },
     "compare": {
-      "heading": "SupoClip vs OpusClip",
-      "body": "The summary below covers the essentials. For a row-by-row comparison with a source for every claim, read <comparison>SupoClip vs OpusClip: a sourced comparison</comparison>."
+      "heading": "TokoClippers vs OpusClip",
+      "body": "The summary below covers the essentials. For a row-by-row comparison with a source for every claim, read <comparison>TokoClippers vs OpusClip: a sourced comparison</comparison>."
     },
     "table": {
       "feature": "Feature",
@@ -531,18 +531,18 @@
       }
     },
     "how": {
-      "heading": "How SupoClip Works",
+      "heading": "How TokoClippers Works",
       "steps": {
         "0": "Paste a YouTube, Twitch, or Kick URL or upload a video.",
-        "1": "SupoClip transcribes the source and finds candidate moments.",
+        "1": "TokoClippers transcribes the source and finds candidate moments.",
         "2": "AI scores clips for hook strength, engagement, value, and shareability.",
         "3": "The editor creates vertical, captioned clips with face-aware framing.",
         "4": "You export shorts for YouTube Shorts, TikTok, Instagram Reels, or other feeds."
       }
     },
     "better": {
-      "heading": "When SupoClip Is the Better Choice",
-      "body": "Self-hosted SupoClip fits a team that can operate Docker services and wants to change the pipeline, select its providers, or integrate clipping with its own systems. Start with one familiar recording, verify the output, and measure the effort before committing a backlog."
+      "heading": "When TokoClippers Is the Better Choice",
+      "body": "Self-hosted TokoClippers fits a team that can operate Docker services and wants to change the pipeline, select its providers, or integrate clipping with its own systems. Start with one familiar recording, verify the output, and measure the effort before committing a backlog."
     },
     "opus": {
       "heading": "When OpusClip May Still Be Better",
@@ -550,25 +550,25 @@
     },
     "cta": {
       "kicker": "Free if you self-host, paid plans if you don't",
-      "title": "Start clipping with SupoClip.",
+      "title": "Start clipping with TokoClippers.",
       "selfHost": "Self-hosting guide",
       "openApp": "Open app"
     },
     "faqs": {
       "0": {
         "question": "Is a self-hosted OpusClip alternative really free?",
-        "answer": "SupoClip allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. You still provide compute, storage, maintenance, and any paid transcription or AI usage. Compare those costs with a hosted plan before deciding."
+        "answer": "TokoClippers allows noncommercial self-hosting and forks. Commercial use requires prior written permission from Shiori LLC. You still provide compute, storage, maintenance, and any paid transcription or AI usage. Compare those costs with a hosted plan before deciding."
       },
       "1": {
-        "question": "Is SupoClip completely free?",
+        "question": "Is TokoClippers completely free?",
         "answer": "Noncommercial self-hosting has no license fee or plan limits. Commercial use requires prior written permission from Shiori LLC. You still pay for your own infrastructure and any transcription or LLM provider you configure. The hosted app requires a paid plan."
       },
       "2": {
-        "question": "Does SupoClip add a watermark?",
-        "answer": "No. SupoClip's rendering pipeline has no watermark step, whether you use the hosted app or a self-hosted install."
+        "question": "Does TokoClippers add a watermark?",
+        "answer": "No. TokoClippers' rendering pipeline has no watermark step, whether you use the hosted app or a self-hosted install."
       }
     },
-    "relatedHeading": "Related SupoClip guides",
+    "relatedHeading": "Related TokoClippers guides",
     "sources": {
       "heading": "Sources",
       "body": "OpusClip plan and watermark notes are based on the official OpusClip help center: <plans>plans and credits</plans> and <watermark>watermark guidance</watermark>."
@@ -581,7 +581,7 @@
     },
     "aside": {
       "title": "Open-source control",
-      "body": "Use SupoClip when you want the clipping workflow without handing every decision to a hosted platform."
+      "body": "Use TokoClippers when you want the clipping workflow without handing every decision to a hosted platform."
     }
   }
 }

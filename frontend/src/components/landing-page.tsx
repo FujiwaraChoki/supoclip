@@ -60,11 +60,7 @@ const NAV_LINKS = [
   { href: "#features", key: "features" },
   { href: "#editor", key: "editor" },
   { href: "#publish", key: "publishing" },
-  { href: "#pricing", key: "pricing" },
-  { href: "#open-source", key: "openSource" },
   { href: "/faq", key: "faq" },
-  { href: "/blog", key: "blog" },
-  { href: "/affiliate", key: "affiliate" },
 ] as const;
 
 // Featured on the landing page; the footer links every marketing page.
@@ -195,8 +191,8 @@ export default function LandingPage() {
           )}
         >
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-md dark:invert" />
-            <span className="font-display text-[17px] font-bold tracking-tight">SupoClip</span>
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-md dark:invert" />
+            <span className="font-display text-[17px] font-bold tracking-tight">TokoClippers</span>
           </Link>
 
           <div className="hidden items-center gap-1 xl:flex">

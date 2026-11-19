@@ -6,26 +6,26 @@
     "allArticles": "全部文章",
     "startClipping": "开始剪辑",
     "breadcrumbNav": "面包屑",
-    "byline": "由 SupoClip · 更新于 <date>{when}</date> · {readingTime}",
+    "byline": "由 TokoClippers · 更新于 <date>{when}</date> · {readingTime}",
     "updated": "更新于 <date>{when}</date>",
     "inThisArticle": "本文目录",
     "faqHeading": "常见问题",
     "faq": "常见问题",
-    "startAria": "从 SupoClip 开始",
+    "startAria": "从 TokoClippers 开始",
     "ctaTitle": "拿一条你很熟悉的录像试一次。",
     "ctaBody": "用托管应用，或者在你自己的机器上运行同一套开源代码。",
     "getSource": "获取源码",
     "keepReading": "继续阅读"
   },
   "index": {
-    "metaTitle": "SupoClip 博客 | AI 视频剪辑指南",
-    "metaDescription": "实用指南、产品对比和创作者流程，用 SupoClip 把长视频做成适合社交平台的短片。",
-    "ogTitle": "SupoClip 博客",
+    "metaTitle": "TokoClippers 博客 | AI 视频剪辑指南",
+    "metaDescription": "实用指南、产品对比和创作者流程，用 TokoClippers 把长视频做成适合社交平台的短片。",
+    "ogTitle": "TokoClippers 博客",
     "ogDescription": "关于 AI 视频剪辑、自动字幕、竖屏重构图和短视频流程的指南与对比。",
     "hostedApp": "托管应用",
     "startClipping": "开始剪辑",
     "creatorGuides": "创作者指南",
-    "tryHosted": "试用托管的 SupoClip",
+    "tryHosted": "试用托管的 TokoClippers",
     "heading": "把长视频做成更好短片的实用指南。",
     "intro": "对比、工作流和剪辑建议，适合想要可重复的剪辑流程、更干净的字幕，以及对视频流水线有更多控制的创作者。",
     "readArticle": "阅读文章",
@@ -35,18 +35,18 @@
     "productGuides": "产品指南"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip 与 supo.live：为什么开源更合适",
-    "description": "比较 SupoClip 和 supo.live 的 AI 视频剪辑。看看为什么 SupoClip 在开源控制、自托管和可定制视频流程上更合适。",
+    "title": "TokoClippers 与 supo.live：为什么开源更合适",
+    "description": "比较 TokoClippers 和 supo.live 的 AI 视频剪辑。看看为什么 TokoClippers 在开源控制、自托管和可定制视频流程上更合适。",
     "eyebrow": "supo.live 的替代",
     "category": "对比",
     "readingTime": "5 分钟阅读",
-    "summary": "对想掌控剪辑流程的创作者和团队来说，SupoClip 是比 supo.live 更好的开源选择。",
+    "summary": "对想掌控剪辑流程的创作者和团队来说，TokoClippers 是比 supo.live 更好的开源选择。",
     "imageAlt": "一幅编辑插图：一段播客录音变成三条竖屏视频短片",
-    "breadcrumb": "SupoClip 与 supo.live",
+    "breadcrumb": "TokoClippers 与 supo.live",
     "heroCaption": "一次录像，更多可能。AI 生成的编辑插图，表现从长视频到短片的流程。",
     "verdict": {
       "kicker": "简短结论",
-      "heading": "当控制权重要时，选 SupoClip。",
+      "heading": "当控制权重要时，选 TokoClippers。",
       "body": "开源。你的部署。你的流程。把录制内容做成带字幕短片的坚实基础。",
       "points": {
         "0": "查看并扩展代码",
@@ -62,16 +62,16 @@
       "faq": "常见问题"
     },
     "body": {
-      "p1": "选择 AI 视频剪辑工具，也是在选择你对制作过程保留多少控制。如果你想把播客、访谈、演讲和直播录像做成短视频，SupoClip 的理由很直接：AI 辅助剪辑，源码可以查看，流程可以自己跑。",
-      "p2": "我们的结论：对把开源、自托管和定制放在前面的创作者、机构和开发者来说，SupoClip 是更好的选择。这是 SupoClip 团队基于已写明能力做的对比，不是短片质量或处理速度的基准测试。",
-      "whatSupoclip": "什么是 SupoClip？",
-      "whatSupoclipBody": "SupoClip 是开源的 AI 视频剪辑工具，可通过 supoclip.com 使用，也可以作为自托管应用。它分析长视频，选出有潜力的时刻，并做出以人脸为中心裁切、逐词同步字幕的竖屏短片。钩子标题、短片评分和可选的 B-roll 帮助把原始录像变成可供你最终审看的素材。<repo>SupoClip 仓库</repo>写明了功能和安装。",
+      "p1": "选择 AI 视频剪辑工具，也是在选择你对制作过程保留多少控制。如果你想把播客、访谈、演讲和直播录像做成短视频，TokoClippers 的理由很直接：AI 辅助剪辑，源码可以查看，流程可以自己跑。",
+      "p2": "我们的结论：对把开源、自托管和定制放在前面的创作者、机构和开发者来说，TokoClippers 是更好的选择。这是 TokoClippers 团队基于已写明能力做的对比，不是短片质量或处理速度的基准测试。",
+      "whatSupoclip": "什么是 TokoClippers？",
+      "whatSupoclipBody": "TokoClippers 是开源的 AI 视频剪辑工具，可通过 supoclip.com 使用，也可以作为自托管应用。它分析长视频，选出有潜力的时刻，并做出以人脸为中心裁切、逐词同步字幕的竖屏短片。钩子标题、短片评分和可选的 B-roll 帮助把原始录像变成可供你最终审看的素材。<repo>TokoClippers 仓库</repo>写明了功能和安装。",
       "whatSupo": "什么是 supo.live？",
       "whatSupoBody": "supo.live 推广的是面向录像和正在进行的直播的托管剪辑服务。它的首页宣传直播剪辑、样式字幕、人脸跟踪、浏览器编辑器，以及定时发布到 TikTok、YouTube Shorts 和 X。因此直播发布是它最清楚的区别。请看 <site>supo.live 官方功能概览</site>。"
     },
     "comparison": {
-      "heading": "SupoClip 与 supo.live 一览",
-      "caption": "SupoClip 与 supo.live 的流程对比",
+      "heading": "TokoClippers 与 supo.live 一览",
+      "caption": "TokoClippers 与 supo.live 的流程对比",
       "priority": "优先事项",
       "note": "supo.live 的细节反映其 <site>首页</site>，核对日期为 2026 年 9 月 21 日。功能和方案可能变化。",
       "rows": {
@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "源码访问",
-          "supoclip": "SupoClip 非商业源代码许可",
+          "supoclip": "TokoClippers 非商业源代码许可",
           "supolive": "首页没有宣传开源或自托管选项"
         },
         "usecase": {
@@ -105,7 +105,7 @@
     "workflow": {
       "heading": "从一次录像到可重复的流程",
       "intro": "让 AI 做第一遍，再用你的编辑判断。每条短片都应能独立看懂，保留说话人的语境，并配得上出现在你的信息流里。",
-      "caption": "SupoClip 的录像流程。AI 提议；最终的编辑决定由你来做。",
+      "caption": "TokoClippers 的录像流程。AI 提议；最终的编辑决定由你来做。",
       "steps": {
         "0": {
           "title": "带上一段录像",
@@ -126,20 +126,20 @@
       }
     },
     "editor": {
-      "aria": "查看 SupoClip 编辑器截图的完整尺寸",
-      "alt": "SupoClip 编辑器，含短片列表、竖屏预览、字幕样式控件和时间线",
-      "caption": "在 SupoClip 编辑器里：导出前调整字幕、构图和时间。这是使用测试样片的真实产品截图；点击可放大。"
+      "aria": "查看 TokoClippers 编辑器截图的完整尺寸",
+      "alt": "TokoClippers 编辑器，含短片列表、竖屏预览、字幕样式控件和时间线",
+      "caption": "在 TokoClippers 编辑器里：导出前调整字幕、构图和时间。这是使用测试样片的真实产品截图；点击可放大。"
     },
     "control": {
-      "heading": "为什么 SupoClip 是更好的开源替代",
+      "heading": "为什么 TokoClippers 是更好的开源替代",
       "h1": "1. 你可以按内容来塑造流程",
-      "p1": "播客工作室和教育频道可能想要很不一样的短片。有了 SupoClip，源码访问让技术团队按编辑需要调整选择逻辑、字幕行为和处理步骤。你可以查看系统如何工作，并在自己的部署里开发改动。这种灵活性是 SupoClip 相对于完全依赖托管产品设置的最大优势。",
+      "p1": "播客工作室和教育频道可能想要很不一样的短片。有了 TokoClippers，源码访问让技术团队按编辑需要调整选择逻辑、字幕行为和处理步骤。你可以查看系统如何工作，并在自己的部署里开发改动。这种灵活性是 TokoClippers 相对于完全依赖托管产品设置的最大优势。",
       "h2": "2. 你选择应用跑在哪里",
       "p2": "自托管让你控制应用的基础设施、存储配置和维护节奏。你可以把剪辑放进已有的生产环境，并保留由你管理的部署。如果使用云端转写或托管 LLM，这些提供方仍会收到它们需要的数据。改用本地 Whisper 和 Ollama，分析也会留在你自己的硬件上。",
       "h3": "3. 你可以实际选择 AI 提供方",
-      "p3": "SupoClip 支持 Google、OpenAI、Anthropic 和本地 Ollama 模型的 LLM 配置。你可以按自己的内容和预算评估提供方。转写默认使用 AssemblyAI，也可以换成本地 Whisper；对 YouTube 链接，还可以用已有字幕。<guide>自托管指南</guide>会带你完成完全本地的安装。",
+      "p3": "TokoClippers 支持 Google、OpenAI、Anthropic 和本地 Ollama 模型的 LLM 配置。你可以按自己的内容和预算评估提供方。转写默认使用 AssemblyAI，也可以换成本地 Whisper；对 YouTube 链接，还可以用已有字幕。<guide>自托管指南</guide>会带你完成完全本地的安装。",
       "h4": "4. 剪辑流程可以长进你自己的工具",
-      "p4": "SupoClip 包含 REST API 和 MCP 服务器。开发者可以把剪辑接到其他应用或兼容的 AI 客户端，而不必把浏览器当作唯一入口。对处理客户反复录像的机构来说，这留出空间，围绕自己的审看过程搭建可重复的流程。<api>API 参考</api>说明了可用的端点。",
+      "p4": "TokoClippers 包含 REST API 和 MCP 服务器。开发者可以把剪辑接到其他应用或兼容的 AI 客户端，而不必把浏览器当作唯一入口。对处理客户反复录像的机构来说，这留出空间，围绕自己的审看过程搭建可重复的流程。<api>API 参考</api>说明了可用的端点。",
       "figureCaption": "自托管时你控制什么",
       "figureNote": "云端提供方是可选的：Whisper 和 Ollama 把转写和短片选择留在本地。",
       "yours": {
@@ -157,56 +157,56 @@
     },
     "cost": {
       "heading": "成本：免费源码，真实的运营费用",
-      "p1": "SupoClip 的开源代码可以免费自托管。实际费用取决于算力、存储、转写、付费模型用量，以及维护安装所需的时间。容量跟着你准备的资源和提供方限制走。对已经在跑基础设施的团队，这可能有吸引力，但这并不保证每种工作量都更便宜。",
-      "p2": "托管的 SupoClip 服务是另一条路，有自己的价格和条款。想少做安装时选它；当部署控制是优先事项时，选自托管。"
+      "p1": "TokoClippers 的开源代码可以免费自托管。实际费用取决于算力、存储、转写、付费模型用量，以及维护安装所需的时间。容量跟着你准备的资源和提供方限制走。对已经在跑基础设施的团队，这可能有吸引力，但这并不保证每种工作量都更便宜。",
+      "p2": "托管的 TokoClippers 服务是另一条路，有自己的价格和条款。想少做安装时选它；当部署控制是优先事项时，选自托管。"
     },
     "choose": {
       "heading": "你该选哪一个？",
-      "p1": "如果你有一批播客、访谈、网络研讨会或直播回放，想用可定制的流水线再利用，选 SupoClip。它把短片发现、评分、字幕和竖屏构图放在一起，并让你查看和扩展应用。",
-      "p2": "如果你的核心需求是在直播进行中剪辑并自动发布结果，请评估 supo.live 所宣传的直播流程。SupoClip 的录像流程不应被当成这些功能已经核实过的替代。"
+      "p1": "如果你有一批播客、访谈、网络研讨会或直播回放，想用可定制的流水线再利用，选 TokoClippers。它把短片发现、评分、字幕和竖屏构图放在一起，并让你查看和扩展应用。",
+      "p2": "如果你的核心需求是在直播进行中剪辑并自动发布结果，请评估 supo.live 所宣传的直播流程。TokoClippers 的录像流程不应被当成这些功能已经核实过的替代。"
     },
     "start": {
       "heading": "开始搭建你能控制的剪辑流程",
-      "p1": "对想今天就用上有用的 AI 剪辑、明天还能改它的团队，我们选 SupoClip。从一条有代表性的录像开始，审看建议的短片，打磨字幕和构图，再导出结果。然后决定托管的便利还是你自己的部署更适合你的流程。",
-      "logoAlt": "SupoClip 标志",
+      "p1": "对想今天就用上有用的 AI 剪辑、明天还能改它的团队，我们选 TokoClippers。从一条有代表性的录像开始，审看建议的短片，打磨字幕和构图，再导出结果。然后决定托管的便利还是你自己的部署更适合你的流程。",
+      "logoAlt": "TokoClippers 标志",
       "cardTitle": "你的下一段录像值得第二次生命。",
       "points": {
         "0": "从一条你很熟悉的录像开始",
         "1": "审看最强的建议时刻",
         "2": "打磨字幕并导出"
       },
-      "try": "试用 SupoClip"
+      "try": "试用 TokoClippers"
     },
     "faqs": {
       "0": {
         "question": "supo.live 最好的开源替代是什么？",
-        "answer": "对想把录好的视频做成短片，同时保留源码访问、自托管和对 AI 剪辑流程的控制的创作者和团队，SupoClip 是很强的选择。"
+        "answer": "对想把录好的视频做成短片，同时保留源码访问、自托管和对 AI 剪辑流程的控制的创作者和团队，TokoClippers 是很强的选择。"
       },
       "1": {
-        "question": "自托管 SupoClip 免费吗？",
-        "answer": "SupoClip 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。运行它仍然涉及硬件或托管、存储、转写，以及任何付费的 LLM 用量。托管的 SupoClip 有自己的服务条款和价格。"
+        "question": "自托管 TokoClippers 免费吗？",
+        "answer": "TokoClippers 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。运行它仍然涉及硬件或托管、存储、转写，以及任何付费的 LLM 用量。托管的 TokoClippers 有自己的服务条款和价格。"
       },
       "2": {
-        "question": "SupoClip 能替代直播剪辑和自动发布吗？",
-        "answer": "这篇对比建议把 SupoClip 用于录好的视频和直播回放。supo.live 宣传在直播进行中剪辑以及定时社交发布；这里不把这些能力说成 SupoClip 的对等功能。"
+        "question": "TokoClippers 能替代直播剪辑和自动发布吗？",
+        "answer": "这篇对比建议把 TokoClippers 用于录好的视频和直播回放。supo.live 宣传在直播进行中剪辑以及定时社交发布；这里不把这些能力说成 TokoClippers 的对等功能。"
       }
     },
-    "closing": "看看我们的<openSource>开源视频剪辑指南</openSource>，或阅读<comparison>SupoClip 与 OpusClip 的对比</comparison>。"
+    "closing": "看看我们的<openSource>开源视频剪辑指南</openSource>，或阅读<comparison>TokoClippers 与 OpusClip 的对比</comparison>。"
   },
   "supoclip-vs-opusclip": {
-    "title": "SupoClip 与 OpusClip：附来源的对比",
-    "description": "从部署、定价模式、水印、模型选择和工作流对比 SupoClip 与 OpusClip，每条说法都链到来源。",
+    "title": "TokoClippers 与 OpusClip：附来源的对比",
+    "description": "从部署、定价模式、水印、模型选择和工作流对比 TokoClippers 与 OpusClip，每条说法都链到来源。",
     "eyebrow": "OpusClip 对比",
     "category": "对比",
     "readingTime": "7 分钟阅读",
     "summary": "并排看每个产品写了什么、两者差在哪里，以及哪一个适合你的流程。",
-    "breadcrumb": "SupoClip 与 OpusClip",
+    "breadcrumb": "TokoClippers 与 OpusClip",
     "notCovered": "下面的来源没有写到",
     "toc": {
       "verdict": "简短回答",
       "comparison": "并排对比",
       "pricing": "定价模式",
-      "choose-supoclip": "什么时候适合 SupoClip",
+      "choose-supoclip": "什么时候适合 TokoClippers",
       "choose-opusclip": "什么时候适合 OpusClip",
       "test": "自己做测试",
       "sources": "来源",
@@ -214,15 +214,15 @@
     },
     "faqs": {
       "0": {
-        "question": "SupoClip 比 OpusClip 更好吗？",
-        "answer": "取决于你需要什么。如果你想要源码访问、自托管或自己选择 AI 模型，SupoClip 更合适。如果你想要带免费档可以试用的托管产品，OpusClip 更合适。我们不声称哪一个做出的短片更好，因为我们没有做过能支持这种说法的对照测试。"
+        "question": "TokoClippers 比 OpusClip 更好吗？",
+        "answer": "取决于你需要什么。如果你想要源码访问、自托管或自己选择 AI 模型，TokoClippers 更合适。如果你想要带免费档可以试用的托管产品，OpusClip 更合适。我们不声称哪一个做出的短片更好，因为我们没有做过能支持这种说法的对照测试。"
       },
       "1": {
-        "question": "SupoClip 会加水印吗？",
-        "answer": "不会。无论托管应用还是自托管安装，SupoClip 的渲染流程都没有水印步骤。OpusClip 的帮助中心写明，免费方案的导出可能带有 OpusClip 水印。"
+        "question": "TokoClippers 会加水印吗？",
+        "answer": "不会。无论托管应用还是自托管安装，TokoClippers 的渲染流程都没有水印步骤。OpusClip 的帮助中心写明，免费方案的导出可能带有 OpusClip 水印。"
       },
       "2": {
-        "question": "托管的 SupoClip 有免费方案吗？",
+        "question": "托管的 TokoClippers 有免费方案吗？",
         "answer": "没有。托管应用处理视频需要 Pro 或 Creator 订阅。免费路径是自托管开源代码，没有方案上限；你只为自己的基础设施和所配置的 AI 提供方付费。"
       },
       "3": {
@@ -230,16 +230,16 @@
         "answer": "我们没有公布过关于速度或短片质量的对照测试，所以不做这种声称。结果取决于你的视频和设置；本页的公平测试步骤说明如何用你自己的内容来比较。"
       }
     },
-    "intro": "OpusClip 帮助定义了 AI 剪辑：上传长视频，拿回竖屏短片。SupoClip 以开源项目做同样的事，你可以托管使用，也可以自己运行。这篇对比只谈每个产品写明的内容。关于 SupoClip 的说法链到我们的源码。关于 OpusClip 的说法链到 OpusClip 自己的帮助中心。来源没写到的地方，表格会标明，而不是猜测。",
+    "intro": "OpusClip 帮助定义了 AI 剪辑：上传长视频，拿回竖屏短片。TokoClippers 以开源项目做同样的事，你可以托管使用，也可以自己运行。这篇对比只谈每个产品写明的内容。关于 TokoClippers 的说法链到我们的源码。关于 OpusClip 的说法链到 OpusClip 自己的帮助中心。来源没写到的地方，表格会标明，而不是猜测。",
     "introNote": "本页不评价短片质量、字幕准确性或处理速度。要比较这些，请看<test>如何自己做测试</test>。",
     "verdict": {
       "heading": "简短回答",
-      "supoclip": "<strong>选 SupoClip</strong>，如果你想自托管、查看或修改代码、自己选择 AI 模型（包括完全本地的），或导出时不要水印。",
+      "supoclip": "<strong>选 TokoClippers</strong>，如果你想自托管、查看或修改代码、自己选择 AI 模型（包括完全本地的），或导出时不要水印。",
       "opusclip": "<strong>选 OpusClip</strong>，如果你想要一个不用自己部署的托管产品，并且想从免费方案开始。"
     },
     "comparison": {
       "heading": "并排对比",
-      "caption": "附来源的 SupoClip 与 OpusClip 对比",
+      "caption": "附来源的 TokoClippers 与 OpusClip 对比",
       "area": "方面",
       "footnote": "“下面的来源没有写到”是指所引的 OpusClip 帮助中心文章没有谈到它。这并不表示 OpusClip 没有该功能。这里没列出的内容请查看 <site>opus.pro</site>。"
     },
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "源代码",
-        "supoclip": "公开，<license>SupoClip 非商业源代码许可</license>"
+        "supoclip": "公开，<license>TokoClippers 非商业源代码许可</license>"
       },
       "pricing": {
         "label": "定价模式",
@@ -279,10 +279,10 @@
     "pricing": {
       "heading": "定价模式：额度、方案，还是你自己的基础设施",
       "p1": "OpusClip 的<plans>方案与额度文章</plans>描述了用额度计算处理分钟的付费方案，以及一个免费方案。它的<watermark>水印文章</watermark>写明免费方案的导出可能带有 OpusClip 水印。方案价格和额度数量会变，所以请查看 OpusClip 当前的定价页，不要依赖抄进博客的数字。",
-      "p2": "SupoClip 有两条路。托管应用有 <pro>{proName}</pro>，每月 ${proPrice}，每月 {proLimit} 小时 720p 视频；以及 <scale>{scaleName}</scale>，每月 ${scalePrice}，每月 {scaleLimit} 小时 1080p 视频，按年付费可免费两个月。没有免费的托管方案；处理视频需要订阅。自托管这条路是没有方案上限的免费软件。你为服务器和所配置的 AI API 付费，<guide>自托管指南</guide>展示了一种完全本地、没有按次 AI 费用的安装。"
+      "p2": "TokoClippers 有两条路。托管应用有 <pro>{proName}</pro>，每月 ${proPrice}，每月 {proLimit} 小时 720p 视频；以及 <scale>{scaleName}</scale>，每月 ${scalePrice}，每月 {scaleLimit} 小时 1080p 视频，按年付费可免费两个月。没有免费的托管方案；处理视频需要订阅。自托管这条路是没有方案上限的免费软件。你为服务器和所配置的 AI API 付费，<guide>自托管指南</guide>展示了一种完全本地、没有按次 AI 费用的安装。"
     },
     "chooseSupoclip": {
-      "heading": "什么时候 SupoClip 更合适",
+      "heading": "什么时候 TokoClippers 更合适",
       "li1": "<strong>你需要控制视频去向。</strong>自托管把应用、数据库和渲染出的短片留在你的基础设施上。用 Whisper 和 Ollama 时，转写和短片选择也在本地运行。",
       "li2": "<strong>你有大量旧内容。</strong>自托管安装没有每月视频上限。吞吐量取决于你的硬件和提供方限制。",
       "li3": "<strong>你想改变短片的挑选方式。</strong>选择提示词、评分、字幕模板和渲染都在仓库里。",
@@ -291,8 +291,8 @@
     "chooseOpusclip": {
       "heading": "什么时候 OpusClip 更合适",
       "li1": "<strong>你不想自己运维。</strong>自托管意味着管理 Docker、提供方密钥、更新和备份。",
-      "li2": "<strong>你想先试用再付费。</strong>OpusClip 写明有免费方案（可能带水印）。托管的 SupoClip 没有免费档。",
-      "li3": "<strong>你依赖这里没写到的功能。</strong>如果某个具体的 OpusClip 流程对你很重要，先在 opus.pro 上确认，并在切换前测试 SupoClip 是否覆盖它。"
+      "li2": "<strong>你想先试用再付费。</strong>OpusClip 写明有免费方案（可能带水印）。托管的 TokoClippers 没有免费档。",
+      "li3": "<strong>你依赖这里没写到的功能。</strong>如果某个具体的 OpusClip 流程对你很重要，先在 opus.pro 上确认，并在切换前测试 TokoClippers 是否覆盖它。"
     },
     "test": {
       "heading": "如何自己做一次公平测试",
@@ -301,22 +301,22 @@
       "li2": "用默认设置把每条都跑过两个工具，记下从提交到短片完成的时间。",
       "li3": "把短片打乱，在不知道哪条出自哪个工具的情况下审看。评价每条短片是否脱离上下文也能看懂、钩子是否清楚、说话人构图是否正确、字幕是否准确。",
       "li4": "数一数每条短片在你愿意发布之前还要改多少。编辑时间是订阅价格里看不到的成本。",
-      "demo": "想先看 SupoClip 的成品？<demo>演示页</demo>把真实短片和原片时间戳链接放在一起。"
+      "demo": "想先看 TokoClippers 的成品？<demo>演示页</demo>把真实短片和原片时间戳链接放在一起。"
     },
     "sources": {
       "heading": "来源",
       "opus": "OpusClip 帮助中心：<plans>方案与额度</plans>和<watermark>水印</watermark>。方案可能变化；请在 <site>opus.pro</site> 确认当前细节。",
-      "supoclip": "SupoClip：<repo>公开仓库</repo>，包括 <compose>docker-compose.yml</compose>、<config>配置文档</config>和<billing>计费规则</billing>。托管价格来自 supoclip.com 的定价部分。"
+      "supoclip": "TokoClippers：<repo>公开仓库</repo>，包括 <compose>docker-compose.yml</compose>、<config>配置文档</config>和<billing>计费规则</billing>。托管价格来自 supoclip.com 的定价部分。"
     }
   },
   "self-host-supoclip-docker": {
-    "title": "如何用 Docker Compose 自托管 SupoClip",
-    "description": "自托管开源 AI 视频剪辑工具 SupoClip：环境要求、.env 配置、完全本地的 Whisper + Ollama 方案、首次运行检查，以及生产检查清单。",
+    "title": "如何用 Docker Compose 自托管 TokoClippers",
+    "description": "自托管开源 AI 视频剪辑工具 TokoClippers：环境要求、.env 配置、完全本地的 Whisper + Ollama 方案、首次运行检查，以及生产检查清单。",
     "eyebrow": "自托管指南",
     "category": "指南",
     "readingTime": "9 分钟阅读",
     "summary": "仓库 Docker Compose 栈的实用讲解：每个服务做什么、你需要哪些密钥、如何不靠云端 AI 运行，以及上生产前要加固什么。",
-    "breadcrumb": "自托管 SupoClip",
+    "breadcrumb": "自托管 TokoClippers",
     "toc": {
       "stack": "你运行什么",
       "requirements": "要求",
@@ -329,11 +329,11 @@
     },
     "faqs": {
       "0": {
-        "question": "自托管的 SupoClip 免费吗？",
-        "answer": "SupoClip 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。你仍然要为自己的硬件或服务器，以及所配置的云端转写或 LLM 用量付费。Whisper + Ollama 可以避免按次 AI 费用，但需要足够的本地算力。"
+        "question": "自托管的 TokoClippers 免费吗？",
+        "answer": "TokoClippers 允许非商业用途的自托管和分支。商业使用须事先获得 Shiori LLC 的书面许可。你仍然要为自己的硬件或服务器，以及所配置的云端转写或 LLM 用量付费。Whisper + Ollama 可以避免按次 AI 费用，但需要足够的本地算力。"
       },
       "1": {
-        "question": "SupoClip 能完全不用云端 AI 服务吗？",
+        "question": "TokoClippers 能完全不用云端 AI 服务吗？",
         "answer": "可以，就短片分析而言。设置 TRANSCRIPTION_PROVIDER=whisper 以本地转写，并用 LLM=ollama:<model> 用本地模型选择短片。下载 YouTube 链接仍然需要联网；上传的文件不需要。可选的 B-roll 使用 Pexels API。"
       },
       "2": {
@@ -349,12 +349,12 @@
         "answer": "先创建账号，再设置 DISABLE_SIGN_UP=true 并重建 frontend 容器。Compose 把每个端口绑在 127.0.0.1 上，所以在你加上反向代理之前，外面都访问不到。"
       }
     },
-    "intro": "SupoClip 是 supoclip.com 托管应用背后的开源 AI 视频剪辑工具。同一个仓库带有一套 Docker Compose 栈，可以跑在笔记本、家用服务器或 VPS 上。本指南严格按照它在<repo>仓库</repo>里的样子来写。某一步取决于你的提供方或硬件时，我们会说出来，而不是猜测。",
-    "introChoice": "不想自己跑基础设施？<hosted>托管应用</hosted>跑的是同一套流程。还在工具之间犹豫？先读我们的<comparison>SupoClip 与 OpusClip 对比</comparison>。",
+    "intro": "TokoClippers 是 supoclip.com 托管应用背后的开源 AI 视频剪辑工具。同一个仓库带有一套 Docker Compose 栈，可以跑在笔记本、家用服务器或 VPS 上。本指南严格按照它在<repo>仓库</repo>里的样子来写。某一步取决于你的提供方或硬件时，我们会说出来，而不是猜测。",
+    "introChoice": "不想自己跑基础设施？<hosted>托管应用</hosted>跑的是同一套流程。还在工具之间犹豫？先读我们的<comparison>TokoClippers 与 OpusClip 对比</comparison>。",
     "stack": {
       "heading": "你正在运行什么",
       "lead": "<code>docker compose up</code> 会启动这些容器，它们都定义在 <compose>docker-compose.yml</compose> 里：",
-      "caption": "SupoClip Docker Compose 栈中的服务",
+      "caption": "TokoClippers Docker Compose 栈中的服务",
       "service": "服务",
       "role": "角色",
       "port": "主机端口",
@@ -415,7 +415,7 @@
       "linux": "Compose 把 <code>host.docker.internal</code> 映射到 Docker 网桥网关，但 Ollama 默认只监听 <code>127.0.0.1</code>，所以 worker 的连接会被拒绝。让 Ollama 监听所有接口：",
       "expose": "这也会把 11434 端口暴露在你的网络接口上。Ollama 没有身份验证，所以用防火墙挡住机器外部对这个端口的访问。如果防火墙会过滤来自 Docker 网络的流量，还要允许容器访问它。",
       "containerHeading": "Ollama 放在自己的容器里",
-      "container": "用一份 override 文件把它加进栈里，然后让 SupoClip 指向服务名，而不是主机：",
+      "container": "用一份 override 文件把它加进栈里，然后让 TokoClippers 指向服务名，而不是主机：",
       "labelOverride": "docker-compose.override.yml（合并进你已有的 override）",
       "labelEnvTerminal": ".env 和终端",
       "whichever": "无论哪种设置，提交视频前都先从 worker 里面测一次。检查寻找的是 <code>gpt-oss:20b</code>，因为那是示例 <code>LLM</code> 值里的模型。如果你选了别的模型，就换成 <code>LLM</code> 设置里 <code>ollama:</code> 后面的准确名称。Ollama 会把没有标签拉取的模型列成 <code>name:latest</code>，检查时也要用这个形式。",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "最好的免费、可自托管的 OpusClip 替代",
-    "description": "在找免费的 OpusClip 替代？SupoClip 是可以免费自托管的开源 AI 短片工具。它把长视频做成带字幕的竖屏短片。",
+    "description": "在找免费的 OpusClip 替代？TokoClippers 是可以免费自托管的开源 AI 短片工具。它把长视频做成带字幕的竖屏短片。",
     "eyebrow": "OpusClip 的替代",
     "category": "对比",
     "readingTime": "6 分钟阅读",
-    "summary": "SupoClip 面向想在自己的基础设施上做 OpusClip 式 AI 剪辑、而不想再买一套按额度计费订阅的创作者。",
-    "lead": "如果你喜欢 OpusClip 的思路，但想要一条免费、开源的路，SupoClip 提供核心流程：在长视频里找出有力的时刻，做成竖屏，加上字幕，再导出到 Shorts、Reels 和 TikTok。",
+    "summary": "TokoClippers 面向想在自己的基础设施上做 OpusClip 式 AI 剪辑、而不想再买一套按额度计费订阅的创作者。",
+    "lead": "如果你喜欢 OpusClip 的思路，但想要一条免费、开源的路，TokoClippers 提供核心流程：在长视频里找出有力的时刻，做成竖屏，加上字幕，再导出到 Shorts、Reels 和 TikTok。",
     "bestFor": "适合",
     "audience": {
       "0": "把 YouTube 视频剪成短片的创作者",
@@ -472,10 +472,10 @@
     },
     "openHosted": "打开托管版本",
     "p1": "OpusClip 帮助定义了现代 AI 剪辑这一类：上传长视频，让 AI 找出时刻，更快地发布短片。这个流程有用。当你想要免费路径、更多控制，或一条能自己跑的流水线时，摩擦才开始。",
-    "p2": "对这类创作者，SupoClip 是最好的免费 OpusClip 替代：想要 AI 辅助找短片、竖屏导出、字幕，以及控制底层系统。如果想完全跳过安装，也可以在付费方案上<hosted>使用托管的 SupoClip</hosted>。",
+    "p2": "对这类创作者，TokoClippers 是最好的免费 OpusClip 替代：想要 AI 辅助找短片、竖屏导出、字幕，以及控制底层系统。如果想完全跳过安装，也可以在付费方案上<hosted>使用托管的 TokoClippers</hosted>。",
     "verdict": {
       "heading": "简短结论",
-      "body": "如果你想要可以自托管的开源 AI 视频剪辑工具，选 SupoClip。如果你想要托管好的产品，并且接受它的方案上限、水印规则和额度模式，选 OpusClip。"
+      "body": "如果你想要可以自托管的开源 AI 视频剪辑工具，选 TokoClippers。如果你想要托管好的产品，并且接受它的方案上限、水印规则和额度模式，选 OpusClip。"
     },
     "stats": {
       "0": {
@@ -497,13 +497,13 @@
       "p2": "OpusClip 自己的帮助中心写明，免费方案的导出可能带有 OpusClip 水印，其方案用额度来计算处理分钟。随便试试也许没问题。如果反复剪辑，就可能把创作者推向付费的托管流程。"
     },
     "different": {
-      "heading": "SupoClip 的不同之处",
-      "p1": "SupoClip 不只是托管编辑器外面的薄包装。它是一套完整的开源剪辑应用，有 FastAPI 后端、Next.js 前端、后台 worker、转写、AI 评分、跟随人脸的竖屏重构图、字幕样式和导出预设。",
+      "heading": "TokoClippers 的不同之处",
+      "p1": "TokoClippers 不只是托管编辑器外面的薄包装。它是一套完整的开源剪辑应用，有 FastAPI 后端、Next.js 前端、后台 worker、转写、AI 评分、跟随人脸的竖屏重构图、字幕样式和导出预设。",
       "p2": "取舍因此很清楚。你承担安装，但获得所有权。你可以查看代码、按自己的流程改它，并决定用哪些托管 AI 提供方或本地模型。<guide>自托管指南</guide>会带你完成安装，包括完全本地的 Whisper + Ollama 方案。"
     },
     "compare": {
-      "heading": "SupoClip 与 OpusClip",
-      "body": "下面的摘要覆盖要点。若要逐行对比、并且每条说法都有来源，请读<comparison>SupoClip 与 OpusClip：附来源的对比</comparison>。"
+      "heading": "TokoClippers 与 OpusClip",
+      "body": "下面的摘要覆盖要点。若要逐行对比、并且每条说法都有来源，请读<comparison>TokoClippers 与 OpusClip：附来源的对比</comparison>。"
     },
     "table": {
       "feature": "功能",
@@ -531,18 +531,18 @@
       }
     },
     "how": {
-      "heading": "SupoClip 如何工作",
+      "heading": "TokoClippers 如何工作",
       "steps": {
         "0": "粘贴 YouTube、Twitch 或 Kick 链接或上传视频。",
-        "1": "SupoClip 转写源内容并找出候选时刻。",
+        "1": "TokoClippers 转写源内容并找出候选时刻。",
         "2": "AI 按钩子强度、互动、价值和可分享性给短片打分。",
         "3": "编辑器做出带字幕、跟随人脸构图的竖屏短片。",
         "4": "你把短片导出到 YouTube Shorts、TikTok、Instagram Reels 或其他信息流。"
       }
     },
     "better": {
-      "heading": "什么时候 SupoClip 更合适",
-      "body": "当你想要带开发者控制的免费 OpusClip 替代时，SupoClip 最合适。它对有大量长视频积压的创作者、想定制剪辑流程的机构，或想把 AI 剪辑放进自己技术栈的技术团队尤其有用。"
+      "heading": "什么时候 TokoClippers 更合适",
+      "body": "当你想要带开发者控制的免费 OpusClip 替代时，TokoClippers 最合适。它对有大量长视频积压的创作者、想定制剪辑流程的机构，或想把 AI 剪辑放进自己技术栈的技术团队尤其有用。"
     },
     "opus": {
       "heading": "什么时候 OpusClip 可能仍然更好",
@@ -550,25 +550,25 @@
     },
     "cta": {
       "kicker": "自托管免费，不自托管则用付费方案",
-      "title": "用 SupoClip 开始剪辑。",
+      "title": "用 TokoClippers 开始剪辑。",
       "selfHost": "自托管指南",
       "openApp": "打开应用"
     },
     "faqs": {
       "0": {
         "question": "最好的免费 OpusClip 替代是什么？",
-        "answer": "如果你想要可以自托管、定制，并用自己的视频流程运行的开源 AI 短片工具，SupoClip 是很强的免费 OpusClip 替代。"
+        "answer": "如果你想要可以自托管、定制，并用自己的视频流程运行的开源 AI 短片工具，TokoClippers 是很强的免费 OpusClip 替代。"
       },
       "1": {
-        "question": "SupoClip 完全免费吗？",
-        "answer": "SupoClip 的代码免费且开源，自托管安装没有方案上限。你仍然要为自己的基础设施以及所配置的转写或 LLM 提供方付费。托管应用需要付费方案。"
+        "question": "TokoClippers 完全免费吗？",
+        "answer": "TokoClippers 的代码免费且开源，自托管安装没有方案上限。你仍然要为自己的基础设施以及所配置的转写或 LLM 提供方付费。托管应用需要付费方案。"
       },
       "2": {
-        "question": "SupoClip 会加水印吗？",
-        "answer": "不会。无论你用托管应用还是自托管安装，SupoClip 的渲染流程都没有水印步骤。"
+        "question": "TokoClippers 会加水印吗？",
+        "answer": "不会。无论你用托管应用还是自托管安装，TokoClippers 的渲染流程都没有水印步骤。"
       }
     },
-    "relatedHeading": "相关的 SupoClip 指南",
+    "relatedHeading": "相关的 TokoClippers 指南",
     "sources": {
       "heading": "来源",
       "body": "关于 OpusClip 方案和水印的说明基于 OpusClip 官方帮助中心：<plans>方案与额度</plans>以及<watermark>水印说明</watermark>。"
@@ -581,7 +581,7 @@
     },
     "aside": {
       "title": "开源控制",
-      "body": "当你想要剪辑流程、又不想把每个决定都交给托管平台时，用 SupoClip。"
+      "body": "当你想要剪辑流程、又不想把每个决定都交给托管平台时，用 TokoClippers。"
     }
   }
 }

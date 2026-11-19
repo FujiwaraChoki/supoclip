@@ -51,7 +51,7 @@ export function MomentMap() {
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Moment map · example stream</p>
         <h3 id="moment-map-title" className="text-xl font-bold tracking-tight text-foreground">One four-hour GTA 6 stream, three kinds of moment</h3>
-        <p className="text-sm leading-6 text-muted-foreground">Select a marker. SupoClip reads the transcript, so spoken moments land on its shortlist; silent plays need your eyes, and spoilers stay out.</p>
+        <p className="text-sm leading-6 text-muted-foreground">Select a marker. TokoClippers reads the transcript, so spoken moments land on its shortlist; silent plays need your eyes, and spoilers stay out.</p>
       </div>
 
       <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground" style={{ listStyle: "none", marginLeft: 0 }} aria-label="Legend">

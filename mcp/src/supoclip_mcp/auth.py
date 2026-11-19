@@ -45,7 +45,7 @@ _CACHE_LIMIT = 10_000
 
 
 class BackendUnavailable(AuthenticationError):
-    """The SupoClip API could not be asked whether a key is valid."""
+    """The TokoClippers API could not be asked whether a key is valid."""
 
 
 def is_placeholder_key(token: str) -> bool:
@@ -75,7 +75,7 @@ def extract_token(headers: Headers) -> Optional[str]:
 
 
 class SupoClipApiKeyVerifier:
-    """Validate MCP Bearer tokens against the configured SupoClip backend."""
+    """Validate MCP Bearer tokens against the configured TokoClippers backend."""
 
     def __init__(self, api_url: str, timeout: float) -> None:
         self.api_url = api_url.rstrip("/")
@@ -110,10 +110,10 @@ class SupoClipApiKeyVerifier:
                     headers={"Authorization": f"Bearer {token}"},
                 )
         except httpx.HTTPError as exc:
-            raise BackendUnavailable("SupoClip API unreachable") from exc
+            raise BackendUnavailable("TokoClippers API unreachable") from exc
 
         if response.status_code >= 500:
-            raise BackendUnavailable(f"SupoClip API answered {response.status_code}")
+            raise BackendUnavailable(f"TokoClippers API answered {response.status_code}")
         return response.status_code < 400
 
     @staticmethod
@@ -200,7 +200,7 @@ class AuthHelp:
         if self.oauth:
             setup["connectors"] = (
                 f"In claude.ai, ChatGPT or another app with custom connectors, add {self.endpoint} "
-                "and sign in with your SupoClip account. No key needed."
+                "and sign in with your TokoClippers account. No key needed."
             )
         return setup
 
@@ -213,12 +213,12 @@ def auth_failure(headers: Headers, help: AuthHelp) -> tuple[str, str]:
         if raw:
             return (
                 "invalid_request",
-                "The Authorization header must be 'Bearer ' followed by your SupoClip "
+                "The Authorization header must be 'Bearer ' followed by your TokoClippers "
                 f"API key, e.g. 'Authorization: Bearer sk_...'. Create a key at {help.keys_url}.",
             )
         return (
             "invalid_token",
-            "Missing SupoClip API key. Create one at "
+            "Missing TokoClippers API key. Create one at "
             f"{help.keys_url} and send it as 'Authorization: Bearer sk_...'.",
         )
     if is_placeholder_key(token):
@@ -230,12 +230,12 @@ def auth_failure(headers: Headers, help: AuthHelp) -> tuple[str, str]:
     if not token.startswith("sk_"):
         return (
             "invalid_token",
-            "That is not a SupoClip API key (keys start with 'sk_'). Create one at "
+            "That is not a TokoClippers API key (keys start with 'sk_'). Create one at "
             f"{help.keys_url}.",
         )
     return (
         "invalid_token",
-        "This SupoClip API key is invalid or was revoked. Create a new one at "
+        "This TokoClippers API key is invalid or was revoked. Create a new one at "
         f"{help.keys_url}.",
     )
 
@@ -245,7 +245,7 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
 
 
 class require_auth:
-    """Wrap an ASGI app so it only runs for an authenticated SupoClip user.
+    """Wrap an ASGI app so it only runs for an authenticated TokoClippers user.
 
     A class rather than a closure so Starlette's ``Route`` treats it as an
     ASGI app instead of a request handler.
@@ -297,7 +297,7 @@ def backend_unavailable_response(conn: HTTPConnection, exc: Exception) -> JSONRe
         return JSONResponse(
             {
                 "error": "temporarily_unavailable",
-                "error_description": "Could not check your API key with SupoClip right now. Try again in a minute.",
+                "error_description": "Could not check your API key with TokoClippers right now. Try again in a minute.",
             },
             status_code=503,
             headers={"Retry-After": "30"},

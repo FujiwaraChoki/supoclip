@@ -1,10 +1,10 @@
 {
   "metadata": {
     "title": "Servicestatus",
-    "description": "Aktueller Servicestatus und Störungsmeldungen für SupoClip."
+    "description": "Aktueller Servicestatus und Störungsmeldungen für TokoClippers."
   },
   "title": "Servicestatus",
-  "intro": "Updates zum gehosteten SupoClip-Dienst.",
+  "intro": "Updates zum gehosteten TokoClippers-Dienst.",
   "unavailable": "Der Servicestatus ist gerade nicht verfügbar. Schau später noch einmal vorbei.",
   "states": {
     "operational": "Betriebsbereit",
@@ -15,5 +15,5 @@
   },
   "lastUpdated": "Zuletzt aktualisiert:",
   "timezone": "(Zürich)",
-  "back": "Zurück zu SupoClip"
+  "back": "Zurück zu TokoClippers"
 }

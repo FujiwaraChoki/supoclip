@@ -122,14 +122,14 @@ def build_http_app(
 
     def help_payload() -> dict:
         return {
-            "name": "SupoClip MCP server",
+            "name": "TokoClippers MCP server",
             "description": "Turn long videos into short vertical clips from any MCP client.",
             "endpoints": {
                 "streamable_http": help.endpoint,
                 "sse": help.sse_endpoint,
             },
             "auth": (
-                "Send your SupoClip API key as 'Authorization: Bearer sk_...'. "
+                "Send your TokoClippers API key as 'Authorization: Bearer sk_...'. "
                 f"Create a key at {help.keys_url}."
                 + (" Apps with custom connectors can sign in with OAuth instead." if oauth else "")
             ),
@@ -183,7 +183,7 @@ def build_http_app(
             {
                 "error": "oauth_not_supported",
                 "error_description": (
-                    "This server does not support OAuth sign-in yet. Connect with a SupoClip "
+                    "This server does not support OAuth sign-in yet. Connect with a TokoClippers "
                     f"API key instead: create one at {help.keys_url} and send it as "
                     "'Authorization: Bearer sk_...'."
                 ),

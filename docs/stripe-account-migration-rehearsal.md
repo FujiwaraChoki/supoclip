@@ -15,7 +15,7 @@ Source root webhook and explicit account endpoints use separate signing secrets,
 
 Keep `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` for the Swiss source. Configure `STRIPE_SOURCE_ACCOUNT_ID`, `STRIPE_DESTINATION_ACCOUNT_ID`, `STRIPE_DESTINATION_SECRET_KEY` and `STRIPE_DESTINATION_WEBHOOK_SECRET` through the secrets system. The approved destination is `acct_1TcXIA6djMaoJqpX`. Customers, catalog aliases, signing secrets and portal configurations remain app-specific even though the US account is shared. Do not globally replace the source key.
 
-SupoClip source: `acct_1T70qFPB539K703a`. The SDK API version is `2026-02-25.clover`; future webhook delivery must explicitly use the reviewed version.
+TokoClippers source: `acct_1T70qFPB539K703a`. The SDK API version is `2026-02-25.clover`; future webhook delivery must explicitly use the reviewed version.
 
 The source price variables keep their names; destination equivalents use `STRIPE_DESTINATION_` with `PRO_PRICE_ID`, `PRO_ANNUAL_PRICE_ID`, `SCALE_PRICE_ID`, `SCALE_ANNUAL_PRICE_ID`, `PRO_LEGACY_PRICE_IDS` and `SCALE_LEGACY_PRICE_IDS`. Preserve the destination counterpart of legacy HD price `price_1T70xUPB539K703aa7eVBiuG`; do not collapse the two $9.99 contracts. Aliases must come from verified Stripe prices.
 
@@ -25,7 +25,7 @@ Root source webhook is `/api/billing/webhook`; the explicit endpoint is `/api/bi
 
 ## Verification
 
-Signed SDK webhooks run against a disposable application database: real Postgres transactions for SupoClip and real in-memory Convex transactions for Shiori. Stripe transport resources are synthetic and unexpected network requests fail. Tests cover activation, unsafe source renewal, failed payment/SCA, old events, wrong account/signature, duplicate delivery, stale revisions/leases, cancellation failure and retry, refund holds, and alternate grants. SDK tests cover credential identity and concurrent request isolation. Existing billing and account-deletion regressions also run. Production TypeScript and scoped ESLint pass. Evidence is in the private local migration review pack outside the repositories.
+Signed SDK webhooks run against a disposable application database: real Postgres transactions for TokoClippers and real in-memory Convex transactions for Shiori. Stripe transport resources are synthetic and unexpected network requests fail. Tests cover activation, unsafe source renewal, failed payment/SCA, old events, wrong account/signature, duplicate delivery, stale revisions/leases, cancellation failure and retry, refund holds, and alternate grants. SDK tests cover credential identity and concurrent request isolation. Existing billing and account-deletion regressions also run. Production TypeScript and scoped ESLint pass. Evidence is in the private local migration review pack outside the repositories.
 
 Use pnpm in `frontend`. `vitest.billing-migration.config.ts` requires the dedicated localhost test database. The SQL upgrade was applied over the previous schema and `prisma migrate diff --exit-code` reports no difference. Existing checkout/portal/resume/webhook/subscription-sync, cancellation/settings, deletion and translation tests pass.
 

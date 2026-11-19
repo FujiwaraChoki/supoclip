@@ -104,7 +104,7 @@ def test_placeholder_key_is_called_out(client, settings, path):
 
 @pytest.mark.parametrize(
     ("token", "expected"),
-    [("invalid-format", "not a SupoClip API key"), ("sk_rejected_key", "invalid or was revoked")],
+    [("invalid-format", "not a TokoClippers API key"), ("sk_rejected_key", "invalid or was revoked")],
 )
 def test_bad_keys_are_explained(client, token, expected):
     response = client.post("/mcp", json=INIT, headers=bearer(token))

@@ -77,7 +77,7 @@ describe("FeatureTourHost", () => {
       </div>
     );
     const view = render(ui("/"));
-    await screen.findByText("Welcome to SupoClip", undefined, { timeout: 2500 });
+    await screen.findByText("Welcome to TokoClippers", undefined, { timeout: 2500 });
     expect(screen.getByText("Welcome")).toBeTruthy();
     expect(document.querySelector("video")).toBeTruthy();
     expect(posted).toEqual(["welcome"]);
@@ -102,7 +102,7 @@ describe("FeatureTourHost", () => {
   it("ends the tour when the user goes to another page themselves", async () => {
     account = { createdAt: "2030-01-01T00:00:00Z", seen: [] };
     const view = render(<><div data-tour="composer"><div data-tour="composer-source">source</div></div><FeatureTourHost enabled canStart pathname="/" navigate={() => {}} /></>);
-    await screen.findByText("Welcome to SupoClip", undefined, { timeout: 2500 });
+    await screen.findByText("Welcome to TokoClippers", undefined, { timeout: 2500 });
     fireEvent.click(screen.getByText("Show me 👀"));
     await screen.findByText("Start with a video");
     view.rerender(<><div data-tour="composer"><div data-tour="composer-source">source</div></div><FeatureTourHost enabled canStart pathname="/list" navigate={() => {}} /></>);

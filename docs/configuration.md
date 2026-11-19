@@ -48,7 +48,7 @@ Scratch stays on that machine's `TEMP_DIR`. The YouTube proxy trial, when
 one counter. `YOUTUBE_PROXY_TRIAL_SECRET_FILE` points at the mounted proxy template; the
 file is not in the image.
 
-This guide explains the important environment variables used by SupoClip and how they affect behavior.
+This guide explains the important environment variables used by TokoClippers and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
 
@@ -104,7 +104,7 @@ The backend can infer a default LLM from whichever API key is present, but setti
 
 ## Analytics Settings
 
-SupoClip can send pageviews and custom product events to DataFast from the `frontend` app.
+TokoClippers can send pageviews and custom product events to DataFast from the `frontend` app.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -331,7 +331,7 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `AWS_REGION` | AWS region for Amazon SES, default `us-east-1` |
 | `AWS_ACCESS_KEY_ID` | AWS access key ID used to send hosted billing lifecycle emails |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret access key used to send hosted billing lifecycle emails |
-| `SES_FROM_EMAIL` | Verified sender address for subscription emails, default `SupoClip <onboarding@example.com>` |
+| `SES_FROM_EMAIL` | Verified sender address for subscription emails, default `TokoClippers <onboarding@example.com>` |
 
 #### Scheduled cancellation emails
 
@@ -342,7 +342,7 @@ authenticated backend `/billing/subscription-email` endpoint with
 `{"event":"cancellation_scheduled"}`. The backend sends the customer an immediate
 email with their access end date, a request for feedback, and an invitation to
 reply to `support@supoclip.com` for 30% off for three months. The sender uses
-`SES_FROM_EMAIL`; the signature is Team SupoClip.
+`SES_FROM_EMAIL`; the signature is Team TokoClippers.
 
 The discount message uses the existing [product-email preferences and unsubscribe
 links](product-update-emails.md). Opted-out customers receive a cancellation
@@ -389,7 +389,7 @@ it. See [feedback.md](feedback.md#hermes-assistant).
 Social publishing is optional. When no provider is configured the Publish
 button and the Social Accounts page explain what is missing instead of failing.
 
-SupoClip uses one OAuth app per platform, registered by whoever operates the
+TokoClippers uses one OAuth app per platform, registered by whoever operates the
 server. Users connect their own YouTube, TikTok and Instagram accounts through
 that app from **Settings → Social Accounts**; tokens are stored encrypted with
 `APP_SETTINGS_ENCRYPTION_KEY` (falling back to `BACKEND_AUTH_SECRET`).
@@ -445,7 +445,7 @@ Platform review notes (the APIs themselves are free):
   gets `unaudited_client_can_only_post_to_private_accounts` even for a private
   post; no API parameter avoids this. Public posting from public accounts
   requires TikTok's app audit. Leave `TIKTOK_APP_AUDITED` unset (false) until
-  the audit passes: SupoClip then offers only Private and tells users to switch
+  the audit passes: TokoClippers then offers only Private and tells users to switch
   their account to Private. Set it to `true` after approval.
 - **Instagram**: requires a professional (Business or Creator) account. Meta App
   Review is needed before accounts outside the app's testers can connect.
@@ -470,7 +470,7 @@ Before enabling each provider for users:
 - Connect a test account, disconnect it, and reconnect it. Confirm token refresh
   works and revoked credentials prompt a reconnect.
 - Publish one clip using a visibility level allowed for the test account. Check
-  the result on the platform as well as in SupoClip.
+  the result on the platform as well as in TokoClippers.
 - Schedule a clip, confirm it publishes once, and cancel another scheduled clip.
 - For TikTok, verify asynchronous processing and private completion with no
   public post ID. Status-check failures should keep checking the existing upload;
@@ -504,13 +504,13 @@ With a proxy set, a job downloads modest audio first, picks clips, then fetches 
 
 ## Apify YouTube Downloader
 
-SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection. When `YOUTUBE_PROXY_URL` is set, the proxy attempt runs before Apify.
+TokoClippers uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection. When `YOUTUBE_PROXY_URL` is set, the proxy attempt runs before Apify.
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `APIFY_API_TOKEN` | empty | Enables the primary Apify download flow |
 | `APIFY_YOUTUBE_DEFAULT_QUALITY` | `1080` | Requested Apify download resolution (`360`, `480`, `720`, or `1080`) |
-| `APIFY_RUN_TIMEOUT_SECONDS` | `900` | Maximum Apify actor run time before SupoClip gives up and falls back |
+| `APIFY_RUN_TIMEOUT_SECONDS` | `900` | Maximum Apify actor run time before TokoClippers gives up and falls back |
 
 ## RapidAPI YouTube Downloader
 
@@ -627,7 +627,7 @@ NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT=1500
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
-SES_FROM_EMAIL="SupoClip <onboarding@example.com>"
+SES_FROM_EMAIL="TokoClippers <onboarding@example.com>"
 ```
 
 ## Related Reading

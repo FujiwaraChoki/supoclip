@@ -601,7 +601,7 @@ class VideoService:
             "relevance_score": 0.25,
             "reasoning": (
                 "AI analysis did not identify a strong standalone segment, "
-                "so SupoClip generated the first available portion of the video."
+                "so TokoClippers generated the first available portion of the video."
             ),
             "virality_score": 0,
             "hook_score": 0,

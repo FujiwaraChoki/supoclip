@@ -28,21 +28,21 @@ class PasswordResetEmailService:
         first_name = first_name_for(first_name=user.first_name, full_name=user.name)
 
         return EmailContent(
-            subject="Reset your SupoClip password",
+            subject="Reset your TokoClippers password",
             html=(
                 f"<p>Hi {escape(first_name)},</p>"
-                "<p>We received a request to reset the password for your SupoClip account.</p>"
+                "<p>We received a request to reset the password for your TokoClippers account.</p>"
                 + email_button(reset_url, "Reset your password")
                 + "<p>This link expires in 1 hour. If you did not request a password reset, "
                 "you can ignore this email; your password will not change.</p>"
-                "<p>Team SupoClip</p>"
+                "<p>Team TokoClippers</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
-                "We received a request to reset the password for your SupoClip account.\n\n"
+                "We received a request to reset the password for your TokoClippers account.\n\n"
                 f"Reset your password: {reset_url}\n\n"
                 "This link expires in 1 hour. If you did not request a password reset, "
                 "you can ignore this email; your password will not change.\n\n"
-                "Team SupoClip"
+                "Team TokoClippers"
             ),
         )

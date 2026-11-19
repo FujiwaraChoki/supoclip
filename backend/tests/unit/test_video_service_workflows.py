@@ -199,7 +199,7 @@ async def test_highlights_fallback_window_matches_the_golden_output(monkeypatch,
             "relevance_score": 0.25,
             "reasoning": (
                 "AI analysis did not identify a strong standalone segment, "
-                "so SupoClip generated the first available portion of the video."
+                "so TokoClippers generated the first available portion of the video."
             ),
             "virality_score": 0, "hook_score": 0, "engagement_score": 0, "value_score": 0,
             "shareability_score": 0, "hook_type": "fallback", "hook_title": None,

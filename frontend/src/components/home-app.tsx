@@ -1572,7 +1572,7 @@ function StartPlanCard({ description, onStart }: { description?: string; onStart
       {/* The render's colours glow out around the card's edge and drift. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -inset-0.5 -z-10 rounded-[1.1rem] bg-[linear-gradient(100deg,#ff5200,#ff0552,#7305ff,#0052ff,#00d98c,#7305ff,#ff5200)] bg-[length:300%_100%] opacity-60 blur-xl animate-[start-plan-glow_9s_ease-in-out_infinite_alternate] motion-reduce:animate-none dark:opacity-45"
+        className="pointer-events-none absolute -inset-0.5 -z-10 rounded-[1.1rem] bg-[linear-gradient(100deg,#f7ab1e,#e0a83f,#f7ab1e,#0e4d13,#367134,#0e4d13,#f7ab1e)] bg-[length:300%_100%] opacity-60 blur-xl animate-[start-plan-glow_9s_ease-in-out_infinite_alternate] motion-reduce:animate-none dark:opacity-45"
       />
       <section data-testid="start-plan-card" className="relative overflow-hidden rounded-2xl bg-[#08060c] text-white ring-1 ring-white/10">
         {/* The render fades into the card: no edge between picture and text. */}

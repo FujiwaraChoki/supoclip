@@ -15,7 +15,7 @@ def configured_service() -> AffiliateEmailService:
         aws_region="eu-central-1",
         aws_access_key_id="access-key",
         aws_secret_access_key="secret-key",
-        ses_from_email="SupoClip <noreply@example.com>",
+        ses_from_email="TokoClippers <noreply@example.com>",
         app_base_url="https://supoclip.com",
     )
     return AffiliateEmailService(config)

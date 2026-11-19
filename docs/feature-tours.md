@@ -2,7 +2,7 @@
 
 Short cards on the real page. Two kinds:
 
-- **Feature tours** introduce a new feature to people who already use SupoClip.
+- **Feature tours** introduce a new feature to people who already use TokoClippers.
 - **Onboarding** (`audience: "new"`) welcomes new accounts. The `welcome` tour opens on a rendered announcement (`frontend/public/tours/welcome.*`), shows how to make a first clip on the create screen, then goes to each page in turn (Library, Social and Analytics when they're on, Agents & API, Settings) and ends back on the create screen at the link field. Its `releasedAt` is the day it shipped, and only accounts created on or after it see it. It comes first in `FEATURE_TOURS` and its intro badge says "Welcome" instead of "New".
 
 ## Adding a tour

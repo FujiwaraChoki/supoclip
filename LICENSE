@@ -1,4 +1,4 @@
-# SupoClip Noncommercial Source License
+# TokoClippers Noncommercial Source License
 
 Version 1.0
 
@@ -7,7 +7,7 @@ Version 1.0
 
 ## 1. Software covered
 
-This license applies to SupoClip releases the Licensor expressly makes available under these terms. The **Software** means the covered SupoClip code and accompanying materials, including copies and modified versions, to the extent the Licensor has the right to license them. Separately licensed third-party components are governed by their own terms. This license leaves intact rights already granted under earlier licenses, including AGPL-3.0.
+This license applies to TokoClippers releases the Licensor expressly makes available under these terms. The **Software** means the covered TokoClippers code and accompanying materials, including copies and modified versions, to the extent the Licensor has the right to license them. Separately licensed third-party components are governed by their own terms. This license leaves intact rights already granted under earlier licenses, including AGPL-3.0.
 
 ## 2. Noncommercial permissions
 
@@ -31,15 +31,15 @@ This includes selling access, charging to operate an instance, bundling the Soft
 
 ## 5. Attribution and forks
 
-Preserve existing copyright, license, and SupoClip attribution notices. When you share the Software or a modified version, supply a copy of this license and include the attribution below in a clearly visible place in the repository README or equivalent distribution documentation. Include the attribution in the accompanying notices for any packaged builds and container images you distribute.
+Preserve existing copyright, license, and TokoClippers attribution notices. When you share the Software or a modified version, supply a copy of this license and include the attribution below in a clearly visible place in the repository README or equivalent distribution documentation. Include the attribution in the accompanying notices for any packaged builds and container images you distribute.
 
-Display the same attribution in a readily accessible About, Credits, or equivalent screen of every deployed or distributed version with a graphical interface. For an interface without a graphical screen, include it in the user-facing documentation supplied with that interface. You may adapt the wording and layout if the credit to SupoClip stays clear and both URLs remain present and clickable where the format supports links.
+Display the same attribution in a readily accessible About, Credits, or equivalent screen of every deployed or distributed version with a graphical interface. For an interface without a graphical screen, include it in the user-facing documentation supplied with that interface. You may adapt the wording and layout if the credit to TokoClippers stays clear and both URLs remain present and clickable where the format supports links.
 
-> Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
+> Based on TokoClippers. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
 
-Identify distributed forks as modified versions of SupoClip. You may give your fork a distinct name if you retain the required credit and avoid implying that the fork is official or endorsed by the Licensor. This license permits use of the SupoClip name for truthful attribution and identification. Other uses of the SupoClip name or logo that require authorization must be separately approved.
+Identify distributed forks as modified versions of TokoClippers. You may give your fork a distinct name if you retain the required credit and avoid implying that the fork is official or endorsed by the Licensor. This license permits use of the TokoClippers name for truthful attribution and identification. Other uses of the TokoClippers name or logo that require authorization must be separately approved.
 
-Recipients receive their rights in the covered SupoClip material directly from the Licensor under these terms. You may license your own original contributions separately. Any terms you apply to those contributions must preserve the conditions on use of the covered SupoClip material. Only the Licensor can grant commercial permission under this license.
+Recipients receive their rights in the covered TokoClippers material directly from the Licensor under these terms. You may license your own original contributions separately. Any terms you apply to those contributions must preserve the conditions on use of the covered TokoClippers material. Only the Licensor can grant commercial permission under this license.
 
 ## 6. Termination and rights under law
 

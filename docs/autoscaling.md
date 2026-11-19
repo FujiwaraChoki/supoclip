@@ -184,7 +184,7 @@ last step.
      `YOUTUBE_PROXY_*` values the primary render host uses;
    - `tunnel.env` from `tunnel.env.example`: the loopback gateways on this host
      that reach PostgreSQL, Redis and bgutil. Double-check the PostgreSQL
-     port reaches the SupoClip database and not another local server: the
+     port reaches the TokoClippers database and not another local server: the
      connectivity check refuses a database without a `tasks` table.
    - `/var/lib/supoclip-autoscaler/` (0700, same owner) for state, known hosts
      and tunnel instances.

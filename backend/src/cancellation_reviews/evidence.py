@@ -39,7 +39,7 @@ def mask_email(email: str | None) -> str | None:
 
 
 async def resolve_user(db: AsyncSession, account_id: str, customer_id: str | None, source_account: str | None) -> str | None:
-    """The SupoClip user behind a Stripe customer, without trusting payload metadata."""
+    """The TokoClippers user behind a Stripe customer, without trusting payload metadata."""
     if not customer_id:
         return None
     account = await account_column(db)

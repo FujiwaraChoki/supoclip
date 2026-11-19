@@ -10,7 +10,7 @@ Redis), reached through ``/internal/mcp-oauth`` with ``MCP_OAUTH_SECRET``.
 * ``/authorize`` stores the request and redirects to the consent page on the
   web app, where the signed-in user allows or denies it.
 * ``/token`` swaps the code for an access token. The token is a regular,
-  non-expiring SupoClip API key named after the client, listed and revocable at
+  non-expiring TokoClippers API key named after the client, listed and revocable at
   /settings/api-keys, so every other part of the system authenticates it as it
   does any key. No refresh tokens are issued.
 """
@@ -108,7 +108,7 @@ class OAuthBackend:
 
 
 class SupoClipOAuthProvider:
-    """``OAuthAuthorizationServerProvider`` backed by the SupoClip backend."""
+    """``OAuthAuthorizationServerProvider`` backed by the TokoClippers backend."""
 
     def __init__(self, backend: OAuthBackend, consent_url: str, verifier: Any) -> None:
         self.backend = backend
@@ -386,7 +386,7 @@ def build_oauth_routes(
                 resource_url=AnyHttpUrl(f"{base}{resource_path}"),
                 authorization_servers=[AnyHttpUrl(base)],
                 scopes_supported=[REQUIRED_SCOPE],
-                resource_name="SupoClip",
+                resource_name="TokoClippers",
                 resource_documentation=AnyHttpUrl(docs_url) if docs_url else None,
             )
         )

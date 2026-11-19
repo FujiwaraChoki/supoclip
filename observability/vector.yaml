@@ -1,4 +1,4 @@
-# Ships SupoClip container logs (and the host nginx's SupoClip access/error
+# Ships TokoClippers container logs (and the host nginx's TokoClippers access/error
 # logs) to Axiom. Started by docker-compose's "axiom" profile; see
 # docs/observability.md.
 

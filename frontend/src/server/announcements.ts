@@ -35,7 +35,7 @@ export function parseAnnouncement(body: unknown) {
     text[field] = value.trim();
   }
   if (!/^\/(?!\/)[^\s\\]*$/.test(text.href)) {
-    return { error: "Destination must be a SupoClip path, such as /affiliate" } as const;
+    return { error: "Destination must be a TokoClippers path, such as /affiliate" } as const;
   }
   if (typeof input.isPublished !== "boolean") return { error: "Choose draft or published" } as const;
   const publishedAt = typeof input.publishedAt === "string" ? new Date(input.publishedAt) : new Date(NaN);

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Webhook route script: file a signed SupoClip cancellation report in a durable inbox.
+"""Webhook route script: file a signed TokoClippers cancellation report in a durable inbox.
 
 Install as ~/.hermes/profiles/supoclip/scripts/cancellation-report-inbox.py and bind it
 to the ``cancellation-reports-supoclip`` webhook route (docs/cancellation-reviews.md).
 The gateway runs it only after the route's HMAC signature checked out, then fires the
-no-agent job that posts the inbox to the SupoClip Bot Chat.
+no-agent job that posts the inbox to the TokoClippers Bot Chat.
 
 One file per delivery id. A delivery that is already filed, or already posted, is a
 success without a second copy, so the sender's retries never post twice. Exit 1 makes

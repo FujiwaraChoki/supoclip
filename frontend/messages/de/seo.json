@@ -5,31 +5,31 @@
     "selfHost": "Selbst hosten",
     "startClipping": "Leg los mit Clips",
     "breadcrumbNav": "Brotkrumen",
-    "team": "SupoClip-Team",
+    "team": "TokoClippers-Team",
     "updated": "Aktualisiert am <date>{when}</date>",
-    "trySupoclip": "SupoClip ausprobieren",
+    "trySupoclip": "TokoClippers ausprobieren",
     "viewSource": "Quellcode ansehen",
     "capabilityOverview": "Überblick der Funktionen",
-    "verified": "Produktdaten aus erster Hand, aus dem SupoClip-Repository und der gehosteten Anwendung, geprüft am {date}.",
+    "verified": "Produktdaten aus erster Hand, aus dem TokoClippers-Repository und der gehosteten Anwendung, geprüft am {date}.",
     "faqHeading": "Häufige Fragen",
     "sourcesTitle": "Quellen und Prüfregeln",
-    "sourcesBody": "Produktfunktionen pflegt das SupoClip-Team und gleicht sie mit dem öffentlichen Repository ab. Die <source>Quelldateien</source> zeigen die Umsetzung. Diese Seite wird aktualisiert, wenn sich der Ablauf oder die unterstützte Konfiguration ändert."
+    "sourcesBody": "Produktfunktionen pflegt das TokoClippers-Team und gleicht sie mit dem öffentlichen Repository ab. Die <source>Quelldateien</source> zeigen die Umsetzung. Diese Seite wird aktualisiert, wenn sich der Ablauf oder die unterstützte Konfiguration ändert."
   },
   "demo": {
-    "metaTitle": "SupoClip-Demo: echte KI-Clips aus einem langen Video",
-    "metaDescription": "Sieh dir vertikale Clips mit Untertiteln an, die SupoClip aus einer langen Podcast-Folge erzeugt hat, mit den Original-Zeitstempeln, Hook-Titeln und einer Erklärung jedes Schritts.",
+    "metaTitle": "TokoClippers-Demo: echte KI-Clips aus einem langen Video",
+    "metaDescription": "Sieh dir vertikale Clips mit Untertiteln an, die TokoClippers aus einer langen Podcast-Folge erzeugt hat, mit den Original-Zeitstempeln, Hook-Titeln und einer Erklärung jedes Schritts.",
     "badge": "Demo",
     "heading": "Eine lange Podcast-Folge rein, fertige vertikale Clips raus",
-    "intro": "Diese Clips hat SupoClip aus einem öffentlichen Langvideo erzeugt. Schau sie dir an und spring dann an die genaue Stelle im Original, um zu sehen, was die KI gewählt und wie sie den Ausschnitt gesetzt hat.",
+    "intro": "Diese Clips hat TokoClippers aus einem öffentlichen Langvideo erzeugt. Schau sie dir an und spring dann an die genaue Stelle im Original, um zu sehen, was die KI gewählt und wie sie den Ausschnitt gesetzt hat.",
     "sourceLabel": "Quellvideo auf YouTube",
     "clipsHeading": "Die Clips",
     "seconds": "{count} s",
-    "videoDescription": "Vertikaler Clip, von SupoClip aus „{title}“ erzeugt ({range}). Web-Vorschau eines Clips von {duration}.",
-    "clipAria": "SupoClip-Clip: {hook}",
+    "videoDescription": "Vertikaler Clip, von TokoClippers aus „{title}“ erzeugt ({range}). Web-Vorschau eines Clips von {duration}.",
+    "clipAria": "TokoClippers-Clip: {hook}",
     "clipMeta": "Quelle {range} · ganzer Clip {duration}",
     "watchOriginal": "Diesen Moment im Original ansehen",
-    "previewNote": "<strong>Zu diesen Vorschauen.</strong> Damit die Seite schnell bleibt, sind die Dateien oben gekürzt ({lengths}) und auf 540×960 verkleinert. SupoClip rendert ganze Clips mit 1080×1920. Viralitätswerte oder Tempo-Zahlen zeigen wir hier nicht, weil eine einzelne Demo solche Aussagen nicht trägt. Der beste Test ist eine Aufnahme von dir.",
-    "pipelineHeading": "Was SupoClip gemacht hat",
+    "previewNote": "<strong>Zu diesen Vorschauen.</strong> Damit die Seite schnell bleibt, sind die Dateien oben gekürzt ({lengths}) und auf 540×960 verkleinert. TokoClippers rendert ganze Clips mit 1080×1920. Viralitätswerte oder Tempo-Zahlen zeigen wir hier nicht, weil eine einzelne Demo solche Aussagen nicht trägt. Der beste Test ist eine Aufnahme von dir.",
+    "pipelineHeading": "Was TokoClippers gemacht hat",
     "pipeline": {
       "0": {
         "title": "Transkribieren",
@@ -56,15 +56,15 @@
   },
   "ai-video-clipper": {
     "metaTitle": "KI-Video-Clipper für Shorts, Reels und TikTok",
-    "metaDescription": "Mit SupoClip findest du Highlights in langen Videos, bewertest vielversprechende Momente, setzt gesichtsbezogene vertikale Ausschnitte, fügst Untertitel hinzu und exportierst Clips für Social Media.",
+    "metaDescription": "Mit TokoClippers findest du Highlights in langen Videos, bewertest vielversprechende Momente, setzt gesichtsbezogene vertikale Ausschnitte, fügst Untertitel hinzu und exportierst Clips für Social Media.",
     "eyebrow": "KI-Video-Clipping",
     "heading": "KI-Video-Clipper, der aus langen Videos bessere Shorts macht",
-    "summary": "SupoClip verbindet Transkription, KI-gestützte Highlight-Erkennung, Viralitätsbewertung, gesichtsbezogenes Umrahmen, wortgenaue Untertitel und Export-Vorlagen in einem Open-Source-Ablauf.",
-    "tableCaption": "Funktionsmatrix für KI-Clipping in SupoClip",
+    "summary": "TokoClippers verbindet Transkription, KI-gestützte Highlight-Erkennung, Viralitätsbewertung, gesichtsbezogenes Umrahmen, wortgenaue Untertitel und Export-Vorlagen in einem Open-Source-Ablauf.",
+    "tableCaption": "Funktionsmatrix für KI-Clipping in TokoClippers",
     "tableHeaders": {
       "0": "Arbeitsschritt",
       "1": "Manuell",
-      "2": "SupoClip"
+      "2": "TokoClippers"
     },
     "tableRows": {
       "0": {
@@ -92,16 +92,16 @@
       "0": {
         "heading": "Was ein KI-Video-Clipper automatisieren sollte",
         "p1": "Zeit frisst bei Kurzvideos nicht der eine Schnitt. Es ist dieselbe Prüfung, derselbe Ausschnitt, dieselben Untertitel und derselbe Export für jedes Quellvideo. Ein nützlicher KI-Clipper nimmt diese Wiederholung raus und lässt dich den finalen Schnitt bestimmen.",
-        "p2": "SupoClip startet beim Quell-Transkript, findet Kandidatenabschnitte und bewertet sie nach Hook, Interaktion, Nutzen und Teilbarkeit. Die Bewertung hilft bei der Prüfung. Sie verspricht nicht, dass ein Clip viral geht.",
+        "p2": "TokoClippers startet beim Quell-Transkript, findet Kandidatenabschnitte und bewertet sie nach Hook, Interaktion, Nutzen und Teilbarkeit. Die Bewertung hilft bei der Prüfung. Sie verspricht nicht, dass ein Clip viral geht.",
         "bullet1": "YouTube-, Twitch- und Kick-Links sowie hochgeladene Videodateien",
         "bullet2": "KI-gestützte Kandidatenauswahl",
         "bullet3": "Gesichtsbezogene vertikale Ausschnitte",
         "bullet4": "Bearbeitbare Untertitel-Stile und Exportformate"
       },
       "1": {
-        "heading": "So läuft der SupoClip-Ablauf",
-        "p1": "Füg einen YouTube-, Twitch- oder Kick-Link ein oder lade eine Quelldatei hoch. SupoClip transkribiert die Aufnahme, schlägt Clip-Grenzen vor und zeigt die stärksten Kandidaten zur Prüfung. Gewählte Momente lassen sich als vertikale Videos mit Untertiteln für Kurzformate rendern.",
-        "p2": "Weil SupoClip Open Source ist, können Teams die Pipeline ansehen, unterstützte gehostete oder lokale Sprachmodelle wählen und die Verarbeitung an die eigene Infrastruktur anpassen. Wer das Deployment nicht selbst betreiben will, kann die gehostete Version nutzen.",
+        "heading": "So läuft der TokoClippers-Ablauf",
+        "p1": "Füg einen YouTube-, Twitch- oder Kick-Link ein oder lade eine Quelldatei hoch. TokoClippers transkribiert die Aufnahme, schlägt Clip-Grenzen vor und zeigt die stärksten Kandidaten zur Prüfung. Gewählte Momente lassen sich als vertikale Videos mit Untertiteln für Kurzformate rendern.",
+        "p2": "Weil TokoClippers Open Source ist, können Teams die Pipeline ansehen, unterstützte gehostete oder lokale Sprachmodelle wählen und die Verarbeitung an die eigene Infrastruktur anpassen. Wer das Deployment nicht selbst betreiben will, kann die gehostete Version nutzen.",
         "link1": "Schritt für Schritt: aus einem YouTube-Video Shorts machen",
         "link2": "Die Pipeline selbst mit Docker starten"
       },
@@ -109,7 +109,7 @@
         "heading": "Für wen das gedacht ist",
         "p1": "Der Ablauf passt zu Podcasts, Lehrenden, Gründerinnen und Gründern, Agenturen und Videoteams, die schon Langaufnahmen produzieren und einen wiederholbaren Weg zu mehr Kurzclips brauchen.",
         "p2": "Besonders nützlich ist es, wenn dir die Kontrolle wichtig ist: Wer selbst hostet, behält die Anwendung und kann den Quellcode ändern, statt ganz von einer geschlossenen Schnittplattform abzuhängen.",
-        "link1": "Wie SupoClip im Vergleich zu OpusClip dasteht",
+        "link1": "Wie TokoClippers im Vergleich zu OpusClip dasteht",
         "link2": "Warum Teams einen Open-Source-Clipper wählen"
       }
     },
@@ -119,36 +119,36 @@
         "answer": "Ein KI-Video-Clipper analysiert eine längere Aufnahme und hilft, kurze Abschnitte zu finden, umzurahmen, zu untertiteln und Exporte für Kurzformate vorzubereiten."
       },
       "1": {
-        "question": "Kann SupoClip aus YouTube-Videos Shorts machen?",
-        "answer": "Ja. SupoClip nimmt YouTube-URLs an, findet Kandidatenmomente und kann vertikale Clips mit Untertiteln für YouTube Shorts rendern."
+        "question": "Kann TokoClippers aus YouTube-Videos Shorts machen?",
+        "answer": "Ja. TokoClippers nimmt YouTube-URLs an, findet Kandidatenmomente und kann vertikale Clips mit Untertiteln für YouTube Shorts rendern."
       },
       "2": {
-        "question": "Kann ich SupoClip selbst hosten?",
-        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC."
+        "question": "Kann ich TokoClippers selbst hosten?",
+        "answer": "TokoClippers erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC."
       },
       "3": {
-        "question": "Welche Videoquellen unterstützt SupoClip?",
+        "question": "Welche Videoquellen unterstützt TokoClippers?",
         "answer": "YouTube-Videos, Twitch-VODs und -Clips, Kick-VODs und -Clips sowie hochgeladene Videodateien. Livestreams werden nicht unterstützt – clippe das VOD, sobald der Stream vorbei ist."
       }
     }
   },
   "open-source-video-clipper": {
     "metaTitle": "Open-Source-Video-Clipper, den du selbst hosten kannst",
-    "metaDescription": "SupoClip ist ein Open-Source-KI-Video-Clipper für selbst gehostete Highlight-Erkennung, gesichtsbezogene vertikale Ausschnitte, Untertitel und Kurzformat-Exporte.",
+    "metaDescription": "TokoClippers ist ein Open-Source-KI-Video-Clipper für selbst gehostete Highlight-Erkennung, gesichtsbezogene vertikale Ausschnitte, Untertitel und Kurzformat-Exporte.",
     "eyebrow": "Open Source und selbst gehostet",
     "heading": "Open-Source-Video-Clipper mit voller Kontrolle über den Ablauf",
     "summary": "Lass KI-gestütztes Video-Clipping auf deiner eigenen Infrastruktur laufen, sieh dir den Quellcode an, wähl den Modellanbieter und bestimm, wie Clips bewertet, untertitelt, gerahmt und exportiert werden.",
-    "tableCaption": "Gehostetes und selbst betriebenes SupoClip im Vergleich",
+    "tableCaption": "Gehostetes und selbst betriebenes TokoClippers im Vergleich",
     "tableHeaders": {
       "0": "Entscheidung",
-      "1": "Verwaltetes SupoClip",
-      "2": "Selbst gehostetes SupoClip"
+      "1": "Verwaltetes TokoClippers",
+      "2": "Selbst gehostetes TokoClippers"
     },
     "tableRows": {
       "0": {
         "0": "Quellcodezugriff",
-        "1": "Nichtkommerzielle SupoClip-Quellcodelizenz",
-        "2": "Nichtkommerzielle SupoClip-Quellcodelizenz"
+        "1": "Nichtkommerzielle TokoClippers-Quellcodelizenz",
+        "2": "Nichtkommerzielle TokoClippers-Quellcodelizenz"
       },
       "1": {
         "0": "Infrastruktur",
@@ -170,12 +170,12 @@
       "0": {
         "heading": "Warum du eine Video-Clipping-Pipeline selbst hosten solltest",
         "p1": "Selbst hosten lohnt sich, wenn ein Team Deployment, Anbieterwahl, Verarbeitungslimits oder Produktanpassungen selbst bestimmen will. Statt jede Ablaufentscheidung durch eine geschlossene Plattform zu schicken, kann die Anwendung neben der übrigen Infrastruktur des Teams laufen.",
-        "p2": "SupoClip enthält ein Next.js-Frontend, ein FastAPI-Backend, Hintergrund-Worker, PostgreSQL und Redis. Im Repository liegt ein Docker-Compose-Setup, mit dem die ganze Anwendung als ein Stack läuft."
+        "p2": "TokoClippers enthält ein Next.js-Frontend, ein FastAPI-Backend, Hintergrund-Worker, PostgreSQL und Redis. Im Repository liegt ein Docker-Compose-Setup, mit dem die ganze Anwendung als ein Stack läuft."
       },
       "1": {
         "heading": "Wofür du weiter verantwortlich bist",
         "p1": "Open Source heißt nicht, dass jede Abhängigkeit kostenlos ist. Wer selbst hostet, stellt Rechenleistung, Speicher, Transkription und die Sprachmodell-Konfiguration selbst. Der Tausch ist Betriebsverantwortung gegen Kontrolle über den Quellcode.",
-        "p2": "Teams sollten außerdem die Nichtkommerzielle SupoClip-Quellcodelizenz lesen, Umgebungsvariablen absichern, Abhängigkeiten aktuell halten und Worker sowie Speicher in Produktion beobachten.",
+        "p2": "Teams sollten außerdem die Nichtkommerzielle TokoClippers-Quellcodelizenz lesen, Umgebungsvariablen absichern, Abhängigkeiten aktuell halten und Worker sowie Speicher in Produktion beobachten.",
         "bullet1": "Rechenleistung und dauerhaften Speicher bereitstellen",
         "bullet2": "Transkription und Modellanbieter einrichten",
         "bullet3": "Geheimnisse und geschützte Routen absichern",
@@ -185,22 +185,22 @@
       "2": {
         "heading": "Mit Docker starten und bei Bedarf anpassen",
         "p1": "Am schnellsten klonst du das Repository, kopierst die Umgebungsvorlage, trägst die nötigen Anbieter-Zugangsdaten ein und startest den Stack mit Docker Compose. Danach kannst du Bewertung, Untertitel-Vorlagen, Oberfläche oder Deployment anpassen, wenn sich der Ablauf ändert.",
-        "p2": "Wer keine Infrastruktur betreiben will, kann die gehostete SupoClip-Anwendung nutzen und das Open-Source-Repository als Migrationsweg behalten.",
-        "link1": "SupoClip mit Docker Compose selbst hosten",
-        "link2": "Selbst gehostetes SupoClip gegenüber gehostetem OpusClip"
+        "p2": "Wer keine Infrastruktur betreiben will, kann die gehostete TokoClippers-Anwendung nutzen und das Open-Source-Repository als Migrationsweg behalten.",
+        "link1": "TokoClippers mit Docker Compose selbst hosten",
+        "link2": "Selbst gehostetes TokoClippers gegenüber gehostetem OpusClip"
       }
     },
     "faqs": {
       "0": {
-        "question": "Ist SupoClip kostenlos selbst zu hosten?",
-        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC. Für Infrastruktur und bezahlte Transkriptions- oder KI-Nutzung bleibst du verantwortlich."
+        "question": "Ist TokoClippers kostenlos selbst zu hosten?",
+        "answer": "TokoClippers erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC. Für Infrastruktur und bezahlte Transkriptions- oder KI-Nutzung bleibst du verantwortlich."
       },
       "1": {
-        "question": "Kann SupoClip ein lokales Sprachmodell nutzen?",
-        "answer": "Ja. SupoClip unterstützt Ollama für die Clip-Auswahl, und TRANSCRIPTION_PROVIDER=whisper transkribiert lokal, statt AssemblyAI aufzurufen."
+        "question": "Kann TokoClippers ein lokales Sprachmodell nutzen?",
+        "answer": "Ja. TokoClippers unterstützt Ollama für die Clip-Auswahl, und TRANSCRIPTION_PROVIDER=whisper transkribiert lokal, statt AssemblyAI aufzurufen."
       },
       "2": {
-        "question": "Braucht SupoClip Docker?",
+        "question": "Braucht TokoClippers Docker?",
         "answer": "Docker Compose ist der dokumentierte Weg für den ganzen Stack. Bei Bedarf lassen sich Next.js-Frontend, FastAPI-API, Worker, PostgreSQL und Redis getrennt betreiben."
       }
     }
@@ -242,7 +242,7 @@
     "sections": {
       "0": {
         "heading": "So machst du aus einem YouTube-Video Shorts",
-        "p1": "Start mit einem Video, das dir gehört oder das du weiterverwenden darfst. Füg die YouTube-URL in SupoClip ein, wähl Ausgabe und Untertitel, und starte die Verarbeitung. Die Anwendung transkribiert die Quelle und schlägt kurze Abschnitte zur Prüfung vor.",
+        "p1": "Start mit einem Video, das dir gehört oder das du weiterverwenden darfst. Füg die YouTube-URL in TokoClippers ein, wähl Ausgabe und Untertitel, und starte die Verarbeitung. Die Anwendung transkribiert die Quelle und schlägt kurze Abschnitte zur Prüfung vor.",
         "p2": "Wähl Momente, die ohne die restliche Folge verständlich sind. Starke Shorts setzen schnell Kontext, bringen eine klare Idee und enden, ohne auf Material angewiesen zu sein, das aus dem Clip rausfiel.",
         "bullet1": "Nutze nah am Anfang einen klaren gesprochenen Hook",
         "bullet2": "Eine Idee pro kurzen Clip",
@@ -251,24 +251,24 @@
       },
       "1": {
         "heading": "Untertitel und vertikales Umrahmen",
-        "p1": "SupoClip nutzt Wort-Timing für synchrone Untertitel und kann Gesichter verfolgen, wenn Querformat zu einem vertikalen Bild wird. Untertitel-Vorlagen sind ein einheitlicher Start, Schrift, Farbe und Ausgabe lassen sich vor dem Rendern anpassen.",
+        "p1": "TokoClippers nutzt Wort-Timing für synchrone Untertitel und kann Gesichter verfolgen, wenn Querformat zu einem vertikalen Bild wird. Untertitel-Vorlagen sind ein einheitlicher Start, Schrift, Farbe und Ausgabe lassen sich vor dem Rendern anpassen.",
         "p2": "Automatische Ausschnitte solltest du trotzdem ansehen, vor allem wenn mehrere Personen zu sehen sind, Bildschirmfreigaben wichtig sind oder sich die sprechende Person schnell durchs Bild bewegt.",
         "link1": "Was der KI-Clipper Stufe für Stufe automatisiert"
       },
       "2": {
         "heading": "Einen wiederholbaren Weiterverwendungs-Ablauf bauen",
         "p1": "Behandel jedes Langvideo als Quellbibliothek, nicht als einmaligen Upload. Verarbeite die Aufnahme, gruppiere Clips nach Thema und verknüpfe jeden Short mit dem längeren Video oder einer passenden Produktseite.",
-        "p2": "Schau, welche Themen Wiedergabezeit und Interaktion bringen, und nutz das für künftige Aufnahmen. Die Bewertungen von SupoClip helfen, Kandidaten zu priorisieren; Veröffentlichungsdaten sollten zeigen, was das Publikum wirklich schätzt.",
-        "link1": "Zwischen SupoClip und OpusClip wählen"
+        "p2": "Schau, welche Themen Wiedergabezeit und Interaktion bringen, und nutz das für künftige Aufnahmen. Die Bewertungen von TokoClippers helfen, Kandidaten zu priorisieren; Veröffentlichungsdaten sollten zeigen, was das Publikum wirklich schätzt.",
+        "link1": "Zwischen TokoClippers und OpusClip wählen"
       }
     },
     "faqs": {
       "0": {
-        "question": "Kann ich eine YouTube-URL in SupoClip einfügen?",
-        "answer": "Ja. SupoClip unterstützt YouTube-URLs als Quelle für Transkription, Kandidatenauswahl und Clip-Erzeugung."
+        "question": "Kann ich eine YouTube-URL in TokoClippers einfügen?",
+        "answer": "Ja. TokoClippers unterstützt YouTube-URLs als Quelle für Transkription, Kandidatenauswahl und Clip-Erzeugung."
       },
       "1": {
-        "question": "Setzt SupoClip Untertitel auf Shorts?",
+        "question": "Setzt TokoClippers Untertitel auf Shorts?",
         "answer": "Ja. Es unterstützt wortgenaue Untertitel und einstellbare Untertitel-Vorlagen für erzeugte Clips."
       },
       "2": {
@@ -279,7 +279,7 @@
   },
   "proof": {
     "heading": "Sieh dir die Clips vor der Anmeldung an",
-    "intro": "Das sind echte SupoClip-Ergebnisse aus einer Aufnahme. Vergleiche jede Vorschau mit der Originalstelle und prüfe Auswahl, Bildausschnitt und Untertitel.",
+    "intro": "Das sind echte TokoClippers-Ergebnisse aus einer Aufnahme. Vergleiche jede Vorschau mit der Originalstelle und prüfe Auswahl, Bildausschnitt und Untertitel.",
     "preview": "Vorschau: {hook}",
     "duration": "{seconds}s Vorschau · ganzer Clip {full}",
     "source": "Originalstelle: {range}",
@@ -288,11 +288,11 @@
     "previewButton": "Echte Clips ansehen"
   },
   "conversion": {
-    "hostedTitle": "Gehostetes SupoClip nutzen",
+    "hostedTitle": "Gehostetes TokoClippers nutzen",
     "hostedBody": "Pro gibt es ab US${price}/Monat mit {hours} Stunden Quellvideo pro Monat und Clips in {resolution}. Wir übernehmen die Verarbeitung. Die gehostete App erfordert ein kostenpflichtiges Abo.",
     "plans": "Aktuelle Abos ansehen",
     "selfHostTitle": "Selbst betreiben",
-    "selfHostBody": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC. Du stellst Hardware, Speicher, Wartung und die von dir gewählten kostenpflichtigen Transkriptions- oder KI-Dienste bereit.",
+    "selfHostBody": "TokoClippers erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC. Du stellst Hardware, Speicher, Wartung und die von dir gewählten kostenpflichtigen Transkriptions- oder KI-Dienste bereit.",
     "selfHostButton": "Self-Hosting-Anleitung lesen",
     "ai-video-clipper": {
       "title": "Mach aus deiner Aufnahme fertige Clips",

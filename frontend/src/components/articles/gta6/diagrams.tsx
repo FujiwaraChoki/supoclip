@@ -9,11 +9,11 @@ const STEPS = [
   { Icon: Download, title: "Publish", you: "Submit links to the campaign, log results", app: "Exports 9:16, posts to TikTok and YouTube" },
 ] as const;
 
-/** The six-step workflow: what you decide versus what SupoClip automates. */
+/** The six-step workflow: what you decide versus what TokoClippers automates. */
 export function WorkflowDiagram() {
   return (
     <figure className="not-prose space-y-4" aria-labelledby="workflow-diagram-title">
-      <figcaption id="workflow-diagram-title" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">The GTA 6 clipping workflow · you decide, SupoClip does the repetitive part</figcaption>
+      <figcaption id="workflow-diagram-title" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">The GTA 6 clipping workflow · you decide, TokoClippers does the repetitive part</figcaption>
       <div role="list" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {STEPS.map(({ Icon, title, you, app }, index) => (
           <div role="listitem" key={title} className="relative rounded-xl border bg-background p-4">
@@ -24,7 +24,7 @@ export function WorkflowDiagram() {
             </div>
             <dl className="mt-3 space-y-2 text-sm leading-5">
               <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">You</dt><dd className="text-foreground">{you}</dd></div>
-              <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">SupoClip</dt><dd className="text-muted-foreground">{app}</dd></div>
+              <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">TokoClippers</dt><dd className="text-muted-foreground">{app}</dd></div>
             </dl>
           </div>
         ))}
@@ -70,7 +70,7 @@ export function ReactionLayoutFigure() {
           <text x="0" y="384" className="fill-foreground" fontSize="15" fontWeight="700">Clip · 9:16 · 1080×1920</text>
         </g>
       </svg>
-      <figcaption className="text-sm leading-6 text-muted-foreground">When SupoClip finds a steady face in an upper corner of the frame, it places the streamer in the top third and the gameplay underneath. No steady webcam, or a webcam that moves? It falls back to its other layouts, so watch the result.</figcaption>
+      <figcaption className="text-sm leading-6 text-muted-foreground">When TokoClippers finds a steady face in an upper corner of the frame, it places the streamer in the top third and the gameplay underneath. No steady webcam, or a webcam that moves? It falls back to its other layouts, so watch the result.</figcaption>
     </figure>
   );
 }

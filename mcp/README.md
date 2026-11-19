@@ -1,11 +1,11 @@
-# SupoClip MCP Server
+# TokoClippers MCP Server
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for
-[SupoClip](https://supoclip.com) — turn long-form videos (YouTube links or
+[TokoClippers](https://supoclip.com) — turn long-form videos (YouTube links or
 direct URLs) into short, vertical, subtitled viral clips from any MCP client
 (Claude Desktop, Claude Code, Cursor, etc.).
 
-By default it talks to the **official hosted SupoClip API** at
+By default it talks to the **official hosted TokoClippers API** at
 `https://api.supoclip.com`. Point it at your own deployment by setting
 `SUPOCLIP_API_URL`.
 
@@ -137,7 +137,7 @@ Use `https://mcp.supoclip.com/sse` as the URL, with the same
 
 ### If it doesn't connect
 
-The server answers errors in plain words. `401` with "Missing SupoClip API
+The server answers errors in plain words. `401` with "Missing TokoClippers API
 key" means the header didn't arrive; "placeholder" means `sk_...` (or
 `sk_your_supoclip_api_key`) was not replaced with a real key; "invalid or was
 revoked" means the key was deleted, so create a new one. Opening
@@ -227,7 +227,7 @@ supoclip-mcp
 ```
 
 With `SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=true` every path except `/`, `/health`
-and the help pages needs a SupoClip API key (`Authorization: Bearer sk_...`,
+and the help pages needs a TokoClippers API key (`Authorization: Bearer sk_...`,
 or `x-api-key`), checked against the backend the same way on both transports.
 Behind a reverse proxy, pass the `Authorization` header through and turn off
 response buffering (`proxy_buffering off` in nginx) so streams flush.
@@ -283,9 +283,9 @@ clip carries `workflow_role` and `workflow_meta`.
 
 ## License
 
-[SupoClip Noncommercial Source License](LICENSE), issued by Shiori LLC. Commercial use requires prior written permission.
+[TokoClippers Noncommercial Source License](LICENSE), issued by Shiori LLC. Commercial use requires prior written permission.
 
-Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
+Based on TokoClippers. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
 
 ### Clip length
 

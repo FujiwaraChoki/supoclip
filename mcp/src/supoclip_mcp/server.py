@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-MCP server for SupoClip — an AI tool that turns long-form videos into short,
+MCP server for TokoClippers — an AI tool that turns long-form videos into short,
 vertical, subtitled viral clips.
 
-The server talks to the SupoClip REST API. By default it targets the official
+The server talks to the TokoClippers REST API. By default it targets the official
 hosted instance at ``https://api.supoclip.com``; set ``SUPOCLIP_API_URL`` to
-use a self-hosted backend. Authenticate by creating an API key in your SupoClip
+use a self-hosted backend. Authenticate by creating an API key in your TokoClippers
 account and exposing it as ``SUPOCLIP_API_KEY``.
 
 Typical workflow:
@@ -224,7 +224,7 @@ def _safe_filename(name: str, default: str) -> str:
 @mcp.tool(
     name="supoclip_health",
     annotations={
-        "title": "SupoClip Health & Config",
+        "title": "TokoClippers Health & Config",
         "readOnlyHint": True,
         "destructiveHint": False,
         "idempotentHint": True,
@@ -233,7 +233,7 @@ def _safe_filename(name: str, default: str) -> str:
 )
 @tool_errors
 async def supoclip_health() -> str:
-    """Report SupoClip API status and how this MCP server is configured.
+    """Report TokoClippers API status and how this MCP server is configured.
 
     Use this first to confirm connectivity and that credentials are set up. It
     requires no authentication and reveals no secrets.
@@ -420,7 +420,7 @@ async def supoclip_create_clip_task(
     part_count: int = 0,
     instructions: str = "",
 ) -> str:
-    """Create a SupoClip task that downloads a video and generates viral short clips.
+    """Create a TokoClippers task that downloads a video and generates viral short clips.
 
     Processing is asynchronous: this returns immediately with a ``task_id``.
     Track progress with ``supoclip_wait_for_task`` or ``supoclip_get_task``, then
@@ -531,7 +531,7 @@ async def supoclip_create_clip_task(
 )
 @tool_errors
 async def supoclip_create_clip(url: str = "") -> str:
-    """Create a SupoClip highlights task from a YouTube or direct video URL.
+    """Create a TokoClippers highlights task from a YouTube or direct video URL.
 
     This is a compatibility alias for clients that fail to pass arguments to
     the richer ``supoclip_create_clip_task`` tool. Pass the video URL in the

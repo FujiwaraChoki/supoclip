@@ -1,10 +1,10 @@
 # Architecture
 
-This guide explains how SupoClip is structured and how a task moves through the system.
+This guide explains how TokoClippers is structured and how a task moves through the system.
 
 ## High-Level System
 
-SupoClip is a multi-service application built around asynchronous video processing.
+TokoClippers is a multi-service application built around asynchronous video processing.
 
 ```text
 Browser
@@ -229,7 +229,7 @@ This separation lets the browser talk to the frontend domain while the frontend 
 
 ### Authentication
 
-SupoClip uses Better Auth with Prisma and PostgreSQL.
+TokoClippers uses Better Auth with Prisma and PostgreSQL.
 
 Important details:
 

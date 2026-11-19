@@ -60,7 +60,7 @@ it("shows the client, what it can do, and allows it", async () => {
   vi.stubGlobal("fetch", fetchMock);
   render(<OAuthConsentPage />);
 
-  expect(await screen.findByText("Allow Claude to use your SupoClip account?")).toBeInTheDocument();
+  expect(await screen.findByText("Allow Claude to use your TokoClippers account?")).toBeInTheDocument();
   expect(screen.getByText("Signed in as owner@example.com.")).toBeInTheDocument();
   expect(screen.getByText("Create and manage clip generations")).toBeInTheDocument();
   expect(screen.getByText("Read your clips and plan usage")).toBeInTheDocument();

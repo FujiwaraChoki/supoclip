@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 /**
- * Line-art loop of what SupoClip does: a long video is scanned, its best
+ * Line-art loop of what TokoClippers does: a long video is scanned, its best
  * moments are marked, scissors cut them out, and they become vertical clips.
  * Everything is drawn in currentColor.
  */

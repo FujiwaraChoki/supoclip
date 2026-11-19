@@ -1,5 +1,5 @@
 {
-  "brand": "SupoClip",
+  "brand": "TokoClippers",
   "makeYourOwn": "Crie os seus",
   "unavailableTitle": "Este link não está disponível",
   "unavailable": "Este link de compartilhamento não está disponível",
@@ -8,8 +8,8 @@
   "summary": "{count, plural, one {# clipe} other {# clipes}} · {duration} de destaques",
   "topVirality": "maior pontuação de viralidade",
   "ctaTitle": "Transforme seus vídeos longos em clipes como estes.",
-  "ctaBody": "O SupoClip encontra os melhores momentos, enquadra quem fala e escreve as legendas. Código aberto e grátis para hospedar você mesmo.",
-  "try": "Experimentar o SupoClip",
+  "ctaBody": "O TokoClippers encontra os melhores momentos, enquadra quem fala e escreve as legendas. Código aberto e grátis para hospedar você mesmo.",
+  "try": "Experimentar o TokoClippers",
   "workflowBadge": {
     "series": "Série · {count, plural, one {# parte} other {# partes}}",
     "topic": "Tema: {topic}",

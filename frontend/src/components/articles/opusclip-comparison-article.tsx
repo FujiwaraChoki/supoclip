@@ -86,7 +86,7 @@ export async function OpusClipComparisonArticle({ post }: { post: BlogPost }) {
           <thead className="bg-muted">
             <tr>
               <th scope="col" className="p-3">{t(`${slug}.comparison.area`)}</th>
-              <th scope="col" className="p-3">SupoClip</th>
+              <th scope="col" className="p-3">TokoClippers</th>
               <th scope="col" className="p-3">OpusClip</th>
             </tr>
           </thead>

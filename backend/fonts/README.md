@@ -1,6 +1,6 @@
 # Fonts
 
-This directory contains subtitle fonts that SupoClip can expose in the UI and use during clip rendering.
+This directory contains subtitle fonts that TokoClippers can expose in the UI and use during clip rendering.
 
 ## How it works
 

@@ -62,30 +62,30 @@ class AffiliateEmailService:
         link = f"{self.app_url}/?ref={slug}"
         code = slug.upper()
         return EmailContent(
-            subject="You're in: welcome to the SupoClip creator program",
+            subject="You're in: welcome to the TokoClippers creator program",
             html=(
                 f"<p>Hi {escape(first_name)},</p>"
-                "<p>Your creator program application was approved. Thanks for spreading the word about SupoClip!</p>"
+                "<p>Your creator program application was approved. Thanks for spreading the word about TokoClippers!</p>"
                 f'<p><strong>Your link:</strong> <a href="{escape(link)}">{escape(link)}</a><br>'
                 f"<strong>Your code:</strong> {escape(code)}</p>"
                 f"<p>Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.</p>"
-                "<p>Your iPhone link (for the SupoClip iOS app) will show up on your creator page once your code is live on the App Store.</p>"
-                "<p>As a thank-you, your account now has SupoClip Pro for free while you're in the program.</p>"
-                "<p>Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
+                "<p>Your iPhone link (for the TokoClippers iOS app) will show up on your creator page once your code is live on the App Store.</p>"
+                "<p>As a thank-you, your account now has TokoClippers Pro for free while you're in the program.</p>"
+                "<p>Please mark sponsored posts as such (for example #ad), and don't run ads on the TokoClippers name "
                 "or post your code on coupon sites.</p>"
-                "<p>Team SupoClip</p>"
+                "<p>Team TokoClippers</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
-                "Your creator program application was approved. Thanks for spreading the word about SupoClip!\n\n"
+                "Your creator program application was approved. Thanks for spreading the word about TokoClippers!\n\n"
                 f"Your link: {link}\n"
                 f"Your code: {code}\n\n"
                 f"Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.\n\n"
-                "Your iPhone link (for the SupoClip iOS app) will show up on your creator page once your code is live on the App Store.\n\n"
-                "As a thank-you, your account now has SupoClip Pro for free while you're in the program.\n\n"
-                "Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
+                "Your iPhone link (for the TokoClippers iOS app) will show up on your creator page once your code is live on the App Store.\n\n"
+                "As a thank-you, your account now has TokoClippers Pro for free while you're in the program.\n\n"
+                "Please mark sponsored posts as such (for example #ad), and don't run ads on the TokoClippers name "
                 "or post your code on coupon sites.\n\n"
-                "Team SupoClip"
+                "Team TokoClippers"
             ),
         )
 
@@ -93,19 +93,19 @@ class AffiliateEmailService:
         first_name = first_name_for(first_name=user.first_name, full_name=user.name)
         reason = (reason or "").strip()
         return EmailContent(
-            subject="Your SupoClip creator program application",
+            subject="Your TokoClippers creator program application",
             html=(
                 f"<p>Hi {escape(first_name)},</p>"
-                "<p>Thanks for applying to the SupoClip creator program. We're not able to approve your application right now.</p>"
+                "<p>Thanks for applying to the TokoClippers creator program. We're not able to approve your application right now.</p>"
                 + (f"<p><strong>Note from the team:</strong> {escape(reason)}</p>" if reason else "")
                 + "<p>You're welcome to apply again in 30 days.</p>"
-                "<p>Team SupoClip</p>"
+                "<p>Team TokoClippers</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
-                "Thanks for applying to the SupoClip creator program. We're not able to approve your application right now.\n\n"
+                "Thanks for applying to the TokoClippers creator program. We're not able to approve your application right now.\n\n"
                 + (f"Note from the team: {reason}\n\n" if reason else "")
                 + "You're welcome to apply again in 30 days.\n\n"
-                "Team SupoClip"
+                "Team TokoClippers"
             ),
         )

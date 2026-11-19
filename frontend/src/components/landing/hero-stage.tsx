@@ -93,7 +93,7 @@ function StepLabel({ n, children }: { n: number; children: React.ReactNode }) {
   );
 }
 
-/** The hero in three steps: a long video, the clip SupoClip cut from it, the scheduled post. */
+/** The hero in three steps: a long video, the clip TokoClippers cut from it, the scheduled post. */
 export function HeroStage() {
   const t = useTranslations("marketing.hero.stage");
   const locale = useLocale();

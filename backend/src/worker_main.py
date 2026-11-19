@@ -17,6 +17,6 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
-    logger.info("Starting SupoClip worker...")
+    logger.info("Starting TokoClippers worker...")
     logger.info(f"Redis: {Config().redis_host}:{Config().redis_port}")
     run_worker(WorkerSettings)

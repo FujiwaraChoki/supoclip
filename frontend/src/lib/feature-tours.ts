@@ -2,7 +2,7 @@ import type { Workflow } from "@/lib/workflows";
 
 /**
  * Short tours on the real page: a welcome for new accounts, and new features for people
- * who already use SupoClip. Adding one: write an entry here and its text in messages/<locale>/tours.json,
+ * who already use TokoClippers. Adding one: write an entry here and its text in messages/<locale>/tours.json,
  * and put `data-tour="<target>"` on what each step points at. See docs/feature-tours.md.
  */
 export type TourStep = {

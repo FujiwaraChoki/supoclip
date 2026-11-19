@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""No-agent job script: print filed SupoClip cancellation reports, oldest first.
+"""No-agent job script: print filed TokoClippers cancellation reports, oldest first.
 
 Install as ~/.hermes/profiles/supoclip/scripts/cancellation-report-outbox.py for the
-"SupoClip cancellation reports" job (``--no-agent``, delivered to ``bot-chat:supoclip``).
+"TokoClippers cancellation reports" job (``--no-agent``, delivered to ``bot-chat:supoclip``).
 The job's stdout is the Bot Chat message, posted verbatim; empty stdout is a silent run.
 
 Printed reports move to ``sent/`` only after stdout is flushed. The gateway's durable
@@ -27,7 +27,7 @@ def pending(inbox: Path) -> list[tuple[str, Path, dict]]:
         try:
             record = json.loads(path.read_text())
         except (OSError, ValueError):
-            print(f"Unreadable SupoClip cancellation report file {path.name}; left in the inbox.", file=sys.stderr)
+            print(f"Unreadable TokoClippers cancellation report file {path.name}; left in the inbox.", file=sys.stderr)
             continue
         records.append((record.get("received_at", ""), path, record))
     return sorted(records, key=lambda item: item[0])

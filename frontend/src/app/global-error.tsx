@@ -17,7 +17,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <body className="antialiased">
         <div role="alert" className="mx-auto max-w-xl space-y-4 px-4 py-12 text-center">
           <h1 className="text-2xl font-semibold">Something went wrong</h1>
-          <p className="text-muted-foreground">We couldn&apos;t load SupoClip. Please try again.</p>
+          <p className="text-muted-foreground">We couldn&apos;t load TokoClippers. Please try again.</p>
           <button
             type="button"
             onClick={reset}

@@ -134,7 +134,7 @@ function HookVisual() {
   const clip = DEMO_CLIPS[1];
   return (
     <div className="relative aspect-[9/16] w-[150px] -rotate-3 overflow-hidden rounded-2xl shadow-xl ring-1 ring-black/10 transition-transform duration-500 group-hover:rotate-0">
-      {/* The real clip, hook title burned in by SupoClip */}
+      {/* The real clip, hook title burned in by TokoClippers */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={clip.poster} alt={clip.hook} className="size-full object-cover" />
       <span className="absolute inset-x-3 top-[7%] h-[10%] rounded-md border border-dashed border-white/80" />

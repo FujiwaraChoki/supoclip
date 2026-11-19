@@ -89,7 +89,7 @@
     "signIn": "Masuk",
     "title": "Akun sosial",
     "unavailable": "Publikasi ke YouTube, TikTok, dan Instagram belum tersedia di akunmu.",
-    "intro": "Hubungkan akun yang kamu pakai untuk posting. Publikasikan clip langsung dari halaman tugas, jadwalkan, dan biarkan SupoClip belajar dari performanya.",
+    "intro": "Hubungkan akun yang kamu pakai untuk posting. Publikasikan clip langsung dari halaman tugas, jadwalkan, dan biarkan TokoClippers belajar dari performanya.",
     "loadError": "Gagal memuat akun sosial",
     "connectedNotice": "{label} terhubung.",
     "connectedAs": "{label} terhubung sebagai {account}.",
@@ -98,7 +98,7 @@
     "connectHeading": "Hubungkan akun",
     "connect": "Hubungkan",
     "comingSoon": "Segera Hadir",
-    "verificationNote": "Kami sedang dalam proses memverifikasi SupoClip dengan platform ini.",
+    "verificationNote": "Kami sedang dalam proses memverifikasi TokoClippers dengan platform ini.",
     "instagramNote": "Instagram membutuhkan akun profesional (Business atau Creator).",
     "tiktokNote": "TikTok memeriksa opsi visibilitas yang diizinkan akun terhubungmu.",
     "youtubeNote": "Unggahan YouTube dari aplikasi yang belum diverifikasi bersifat privat sampai peninjauan Google selesai.",
@@ -128,6 +128,6 @@
   "loadingPrivacy": "Memeriksa opsi publikasi TikTok…",
   "privacyLoadFailed": "Opsi publikasi tidak dapat dimuat. Perbarui dan coba lagi.",
   "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi.",
-  "tiktokPrivateAccountRequired": "TikTok belum menyetujui aplikasi SupoClip, jadi hanya menerima postingan privat dari akun privat. Sebelum memublikasikan, aktifkan Pengaturan dan privasi → Privasi → Akun privat di TikTok.",
+  "tiktokPrivateAccountRequired": "TikTok belum menyetujui aplikasi TokoClippers, jadi hanya menerima postingan privat dari akun privat. Sebelum memublikasikan, aktifkan Pengaturan dan privasi → Privasi → Akun privat di TikTok.",
   "tiktokPaused": "Publikasi ke TikTok dijeda sementara kami memperbaiki masalah dengan TikTok. Platform lainnya tetap berfungsi seperti biasa."
 }

@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "SupoClip-Creator-Programm: Hol dir Pro kostenlos, indem du Videos machst",
-    "description": "Mach Shorts, Reels, TikToks oder Videos über SupoClip und hol dir SupoClip Pro kostenlos. Dein Publikum bekommt mit deinem Code 20% auf die ersten 3 Monate."
+    "title": "TokoClippers-Creator-Programm: Hol dir Pro kostenlos, indem du Videos machst",
+    "description": "Mach Shorts, Reels, TikToks oder Videos über TokoClippers und hol dir TokoClippers Pro kostenlos. Dein Publikum bekommt mit deinem Code 20% auf die ersten 3 Monate."
   },
   "badge": "Creator-Programm",
   "nav": {
@@ -10,19 +10,19 @@
     "apply": "Bewerben"
   },
   "hero": {
-    "title": "Mach Videos über SupoClip. Hol dir Pro kostenlos.",
-    "body": "Postest du Shorts, Reels oder TikToks über Clipping, Podcasts oder Creator-Tools? Hol dir deinen eigenen Code. Dein Publikum spart bei SupoClip, und du hast Pro, solange du im Programm bist.",
+    "title": "Mach Videos über TokoClippers. Hol dir Pro kostenlos.",
+    "body": "Postest du Shorts, Reels oder TikToks über Clipping, Podcasts oder Creator-Tools? Hol dir deinen eigenen Code. Dein Publikum spart bei TokoClippers, und du hast Pro, solange du im Programm bist.",
     "apply": "Jetzt bewerben",
     "noMinimum": "Keine Mindestzahl an Followern."
   },
   "video": {
-    "name": "So funktioniert das SupoClip-Creator-Programm",
-    "description": "Bewirb dich, wähl deinen Code, und dein Publikum bekommt 20% auf die ersten 3 Monate. Freigegebene Creator bekommen SupoClip Pro kostenlos.",
+    "name": "So funktioniert das TokoClippers-Creator-Programm",
+    "description": "Bewirb dich, wähl deinen Code, und dein Publikum bekommt 20% auf die ersten 3 Monate. Freigegebene Creator bekommen TokoClippers Pro kostenlos.",
     "aria": "Erklärung zum Creator-Programm: Bewirb dich, wähl deinen Code, und dein Publikum bekommt 20% auf die ersten 3 Monate"
   },
   "offer": {
     "heading": "Was alle bekommen",
-    "youTitle": "Du bekommst SupoClip Pro, kostenlos",
+    "youTitle": "Du bekommst TokoClippers Pro, kostenlos",
     "youDetail": "Pro kostet normalerweise ${price}/Monat und enthält {limit} Stunden Video pro Monat. Freigeschaltete Creator erhalten es kostenlos, solange sie im Programm sind.",
     "youDetailNoLimit": "Pro kostet normalerweise ${price}/Monat. Freigegebene Creator bekommen es kostenlos, solange sie im Programm sind.",
     "audienceTitle": "Dein Publikum bekommt 20% Rabatt",
@@ -48,7 +48,7 @@
   "rules": {
     "heading": "Die Regeln",
     "sponsored": "Kennzeichne gesponserte Posts, zum Beispiel mit #ad.",
-    "ads": "Schalt keine Anzeigen auf den Namen SupoClip und poste deinen Code nicht auf Coupon- oder Deal-Seiten.",
+    "ads": "Schalt keine Anzeigen auf den Namen TokoClippers und poste deinen Code nicht auf Coupon- oder Deal-Seiten.",
     "ownCode": "Nutze nicht deinen eigenen Code.",
     "end": "Wir können das Programm beenden oder einen Creator jederzeit entfernen."
   },
@@ -56,11 +56,11 @@
     "heading": "Fragen",
     "cash": {
       "question": "Werde ich in bar bezahlt?",
-      "answer": "Gerade nicht. Freigegebene Creator bekommen SupoClip Pro (normalerweise ${price}/Monat) kostenlos, solange sie im Programm sind."
+      "answer": "Gerade nicht. Freigegebene Creator bekommen TokoClippers Pro (normalerweise ${price}/Monat) kostenlos, solange sie im Programm sind."
     },
     "followers": {
       "question": "Gibt es eine Mindestzahl an Followern?",
-      "answer": "Nein. Wir schauen darauf, was du postest, nicht nur darauf, wie viele Leute dir folgen. Kleine Creator, die schon Videos über SupoClip machen, passen sehr gut."
+      "answer": "Nein. Wir schauen darauf, was du postest, nicht nur darauf, wie viele Leute dir folgen. Kleine Creator, die schon Videos über TokoClippers machen, passen sehr gut."
     },
     "audience": {
       "question": "Was bekommt mein Publikum?",
@@ -75,12 +75,12 @@
       "answer": "Du bekommst eine E-Mail, mit einer Notiz von uns, wenn es etwas Konkretes gibt. Du kannst dich nach 30 Tagen erneut bewerben."
     },
     "account": {
-      "question": "Brauche ich ein SupoClip-Konto?",
+      "question": "Brauche ich ein TokoClippers-Konto?",
       "answer": "Ja. Das Programm hängt an deinem Konto, also erstellst du vorher ein kostenloses (oder meldest dich an)."
     }
   },
   "cta": {
-    "title": "Postest du schon über SupoClip?",
-    "body": "Bewirb dich mit einem Link zu deinem Profil und wähl deinen Code. Wenn du schon ein Video über SupoClip gemacht hast, füg es hinzu."
+    "title": "Postest du schon über TokoClippers?",
+    "body": "Bewirb dich mit einem Link zu deinem Profil und wähl deinen Code. Wenn du schon ein Video über TokoClippers gemacht hast, füg es hinzu."
   }
 }

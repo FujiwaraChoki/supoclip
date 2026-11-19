@@ -89,7 +89,7 @@
     "signIn": "登录",
     "title": "社交账号",
     "unavailable": "你的账号还不能发布到 YouTube、TikTok 和 Instagram。",
-    "intro": "连接你用来发布的账号。在任务页直接发布片段、安排时间，并让 SupoClip 从它们的表现中学习。",
+    "intro": "连接你用来发布的账号。在任务页直接发布片段、安排时间，并让 TokoClippers 从它们的表现中学习。",
     "loadError": "无法加载社交账号",
     "connectedNotice": "已连接 {label}。",
     "connectedAs": "已以 {account} 连接 {label}。",
@@ -98,7 +98,7 @@
     "connectHeading": "连接账号",
     "connect": "连接",
     "comingSoon": "即将推出",
-    "verificationNote": "我们正在此平台上完成 SupoClip 的验证。",
+    "verificationNote": "我们正在此平台上完成 TokoClippers 的验证。",
     "instagramNote": "Instagram 需要专业账号（企业或创作者）。",
     "tiktokNote": "TikTok 会检查你的已连接账号允许的可见性选项。",
     "youtubeNote": "未验证应用上传到 YouTube 的视频在 Google 审核完成前是私密的。",
@@ -128,6 +128,6 @@
   "loadingPrivacy": "正在检查 TikTok 发布选项…",
   "privacyLoadFailed": "无法加载发布选项，请刷新后重试。",
   "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。",
-  "tiktokPrivateAccountRequired": "TikTok 尚未批准 SupoClip 的应用，因此只接受来自私密账号的仅自己可见发布。发布前，请在 TikTok 中开启「设置和隐私 → 隐私 → 私密账号」。",
+  "tiktokPrivateAccountRequired": "TikTok 尚未批准 TokoClippers 的应用，因此只接受来自私密账号的仅自己可见发布。发布前，请在 TikTok 中开启「设置和隐私 → 隐私 → 私密账号」。",
   "tiktokPaused": "我们正在修复 TikTok 的一个问题，TikTok 发布暂时暂停。其他平台照常可用。"
 }

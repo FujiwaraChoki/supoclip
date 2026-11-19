@@ -109,11 +109,11 @@ Page fields. `allowed_mentions` is empty, so `@everyone` in a message pings nobo
 
 | Header | Value |
 |---|---|
-| `X-SupoClip-Event` | `feedback.created` (or `feedback.test` from the admin's test button) |
-| `X-SupoClip-Delivery` | delivery id, the same on every retry |
-| `X-SupoClip-Timestamp` | Unix seconds when this attempt was signed |
-| `X-SupoClip-Signature` | `t=<timestamp>,v1=<hex HMAC-SHA256 of "<timestamp>." + raw body>` |
-| `User-Agent` | `SupoClip-Webhooks/1` |
+| `X-TokoClippers-Event` | `feedback.created` (or `feedback.test` from the admin's test button) |
+| `X-TokoClippers-Delivery` | delivery id, the same on every retry |
+| `X-TokoClippers-Timestamp` | Unix seconds when this attempt was signed |
+| `X-TokoClippers-Signature` | `t=<timestamp>,v1=<hex HMAC-SHA256 of "<timestamp>." + raw body>` |
+| `User-Agent` | `TokoClippers-Webhooks/1` |
 
 Payload (version 1):
 
@@ -205,7 +205,7 @@ Each request is signed with Hermes' generic V2 scheme (shared with
 
 A 2xx counts as delivered only when its JSON `status` shows the route filed it (`accepted`,
 `duplicate`, …). `ignored` (the route's script refused it), `error` or no status is retried like a
-5xx. The test button sends category `test` with the message "Test from SupoClip admin".
+5xx. The test button sends category `test` with the message "Test from TokoClippers admin".
 
 ## Admin API
 

@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       url: `${siteUrl}/affiliate`,
-      siteName: "SupoClip",
+      siteName: "TokoClippers",
       type: "website",
       images: [{ url: `${siteUrl}${VIDEO.poster}`, width: 1920, height: 1080 }],
       videos: [{ url: `${siteUrl}${VIDEO.src}`, width: 1920, height: 1080, type: "video/mp4" }],
@@ -65,7 +65,7 @@ export default async function AffiliatePage() {
       {
         "@type": "BreadcrumbList",
         itemListElement: [
-          { "@type": "ListItem", position: 1, name: "SupoClip", item: siteUrl },
+          { "@type": "ListItem", position: 1, name: "TokoClippers", item: siteUrl },
           { "@type": "ListItem", position: 2, name: t("badge"), item: `${siteUrl}/affiliate` },
         ],
       },
@@ -95,8 +95,8 @@ export default async function AffiliatePage() {
       <header className="border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg dark:invert" />
-            <span className="text-lg font-bold tracking-tight">SupoClip</span>
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg dark:invert" />
+            <span className="text-lg font-bold tracking-tight">TokoClippers</span>
           </Link>
           <nav className="flex items-center gap-2" aria-label={t("nav.label")}>
             <Link href="/demo"><Button variant="ghost" size="sm">{t("nav.demo")}</Button></Link>
@@ -108,7 +108,7 @@ export default async function AffiliatePage() {
       <section className="border-b bg-muted/35">
         <div className="mx-auto max-w-5xl px-6 py-14 md:py-20">
           <Badge variant="secondary">{t("badge")}</Badge>
-          <h1 className="mt-5 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}>
+          <h1 className="mt-5 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}>
             {t("hero.title")}
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-muted-foreground">

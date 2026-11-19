@@ -47,7 +47,7 @@ async def test_cancellation_email_respects_preferences_and_shows_access_end_in_u
     send.assert_awaited_once()
     recipient, content = send.call_args.args
     assert recipient == "owner@example.com"
-    assert content.subject == "A quick question about your SupoClip experience"
+    assert content.subject == "A quick question about your TokoClippers experience"
     assert content.reply_to == ("support@supoclip.com",)
     assert "&lt;Ada&gt;" in content.html
     assert "Hey <Ada>" in content.text
@@ -55,7 +55,7 @@ async def test_cancellation_email_respects_preferences_and_shows_access_end_in_u
         assert "Just hit reply" in body
         assert "November 01, 2026 at 04:30 UTC" in body
         assert "Settings" in body
-        assert "Team SupoClip" in body
+        assert "Team TokoClippers" in body
         assert "has been canceled" not in body
         if opted_out:
             assert "30% off" not in body

@@ -9,7 +9,7 @@
   "progress": "{current} of {total}",
   "welcome": {
     "intro": {
-      "title": "Welcome to SupoClip",
+      "title": "Welcome to TokoClippers",
       "body": "Give us a long video and we turn its best moments into short vertical clips, captioned and ready to post. Take a two-minute tour: how to make your first clips, then every page you’ll use."
     },
     "source": {
@@ -34,11 +34,11 @@
     },
     "social": {
       "title": "Connect your accounts",
-      "body": "Link your social accounts here to post clips straight from SupoClip, without downloading them first."
+      "body": "Link your social accounts here to post clips straight from TokoClippers, without downloading them first."
     },
     "analytics": {
       "title": "See what works",
-      "body": "Views, likes, and comments from your posts come back here, by platform, hook, and length. After a few posts, SupoClip uses them to pick clips more like your best ones."
+      "body": "Views, likes, and comments from your posts come back here, by platform, hook, and length. After a few posts, TokoClippers uses them to pick clips more like your best ones."
     },
     "agents": {
       "title": "Clip from your AI assistant",

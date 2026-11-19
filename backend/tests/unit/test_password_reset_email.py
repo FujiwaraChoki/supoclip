@@ -15,7 +15,7 @@ def configured_service() -> PasswordResetEmailService:
         aws_region="eu-central-1",
         aws_access_key_id="access-key",
         aws_secret_access_key="secret-key",
-        ses_from_email="SupoClip <noreply@example.com>",
+        ses_from_email="TokoClippers <noreply@example.com>",
     )
     return PasswordResetEmailService(config)
 
@@ -27,7 +27,7 @@ def test_reset_email_contains_link_and_escapes_html():
 
     content = service._build_reset_email(user, url)
 
-    assert content.subject == "Reset your SupoClip password"
+    assert content.subject == "Reset your TokoClippers password"
     assert url in content.text
     assert "&lt;Ada&gt;" in content.html
     assert '&quot;y&quot;' in content.html

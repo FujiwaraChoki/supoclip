@@ -24,7 +24,7 @@ async def test_native_schema_request_and_both_model_responses(router_config, mon
     """Exercise the real SDK request and parsing without paid network calls.
 
     The gateway performs failover; this verifies its ordered request contract
-    and that SupoClip accepts either model's schema-valid response.
+    and that TokoClippers accepts either model's schema-valid response.
     """
     captured = []
     analysis = ai.TranscriptAnalysis(

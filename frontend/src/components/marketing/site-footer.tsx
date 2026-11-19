@@ -65,9 +65,9 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
         <div>
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-md dark:invert" />
-            <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-syne), system-ui" }}>
-              SupoClip
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-md dark:invert" />
+            <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-paperlogy), system-ui" }}>
+              TokoClippers
             </span>
           </Link>
           <p className="mt-3 max-w-xs text-xs leading-6 text-muted-foreground">

@@ -33,7 +33,7 @@ needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not
 def email_config(**extra):
     return SimpleNamespace(
         aws_region="eu-west-1", aws_access_key_id="k", aws_secret_access_key="s",
-        ses_from_email="SupoClip <f@x.test>", app_base_url="https://app.test", **extra,
+        ses_from_email="TokoClippers <f@x.test>", app_base_url="https://app.test", **extra,
     )
 
 

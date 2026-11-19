@@ -72,7 +72,7 @@ export async function ArticleShell({
         datePublished: post.publishedAt,
         dateModified: post.updatedAt,
         author: { "@type": "Organization", name: post.author },
-        publisher: { "@type": "Organization", name: "SupoClip", url: siteUrl, logo: { "@type": "ImageObject", url: `${siteUrl}/logo.png` } },
+        publisher: { "@type": "Organization", name: "TokoClippers", url: siteUrl, logo: { "@type": "ImageObject", url: `${siteUrl}/logo.png` } },
         articleSection: post.category,
         keywords: post.keywords.join(", "),
         inLanguage: intlLocale(locale),
@@ -96,7 +96,7 @@ export async function ArticleShell({
       <header className="border-b">
         <nav aria-label={t("shell.blogNav")} className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-5">
           <Link href="/" className="flex items-center gap-2.5 text-xl font-bold">
-            <Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg dark:invert" />SupoClip
+            <Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg dark:invert" />TokoClippers
           </Link>
           <div className="flex items-center gap-5 text-sm">
             <Link href="/blog" className="underline underline-offset-4">{t("shell.allArticles")}</Link>
@@ -110,7 +110,7 @@ export async function ArticleShell({
         </nav>
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest">{post.eyebrow}</p>
-          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), sans-serif" }}>{post.title}</h1>
+          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl" style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), sans-serif" }}>{post.title}</h1>
           <p className="text-xl leading-8 text-muted-foreground">{post.summary}</p>
           <p className="text-sm text-muted-foreground">
             {t.rich("shell.byline", {

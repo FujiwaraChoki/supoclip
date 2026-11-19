@@ -1,5 +1,5 @@
 """
-Thin async HTTP client for the SupoClip backend API.
+Thin async HTTP client for the TokoClippers backend API.
 
 Authentication is resolved from :class:`~supoclip_mcp.config.Settings` and
 supports three modes, tried in priority order:
@@ -53,7 +53,7 @@ def _signed_headers(user_id: str, secret: str) -> Dict[str, str]:
 
 
 class SupoClipClient:
-    """Async client wrapping the SupoClip REST API."""
+    """Async client wrapping the TokoClippers REST API."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -73,7 +73,7 @@ class SupoClipClient:
         if not self.settings.is_authenticated:
             raise AuthNotConfiguredError(
                 "No credentials configured. Set SUPOCLIP_API_KEY to a key created "
-                "in your SupoClip account (Settings -> API Keys). For a self-hosted "
+                "in your TokoClippers account (Settings -> API Keys). For a self-hosted "
                 "backend you may instead set SUPOCLIP_USER_ID (+ SUPOCLIP_AUTH_SECRET "
                 "if signing is enforced)."
             )
@@ -107,7 +107,7 @@ class SupoClipClient:
                 f"Request to {path} timed out after {self.settings.timeout:g}s."
             ) from exc
         except httpx.HTTPError as exc:
-            raise SupoClipError(f"Could not reach SupoClip at {url}: {exc}") from exc
+            raise SupoClipError(f"Could not reach TokoClippers at {url}: {exc}") from exc
 
         return self._parse(response, path)
 
@@ -204,7 +204,7 @@ def _plan_message(detail: dict, app_url: str) -> str:
     )
     if no_plan:
         return (
-            "This SupoClip account has no paid plan, and making clips needs one "
+            "This TokoClippers account has no paid plan, and making clips needs one "
             f"(Pro or Creator). Choose a plan at {upgrade_url}, then try again. "
             "Nothing was charged and no task was created."
         )
@@ -238,7 +238,7 @@ def _error_message(status: int, body: str, path: str, app_url: str = DEFAULT_APP
 
     if status == 401:
         return (
-            "Authentication failed (401). Check your SupoClip API key is valid and not "
+            "Authentication failed (401). Check your TokoClippers API key is valid and not "
             f"revoked; create a new one at {app_url.rstrip('/')}/settings/api-keys. "
             f"Backend said: {detail}"
         )
@@ -250,4 +250,4 @@ def _error_message(status: int, body: str, path: str, app_url: str = DEFAULT_APP
         return f"Not found (404) for {path}: {detail}"
     if status == 429:
         return "Rate limited (429). Wait a moment and try again."
-    return f"SupoClip API error ({status}) for {path}: {detail}"
+    return f"TokoClippers API error ({status}) for {path}: {detail}"

@@ -3,7 +3,7 @@
 # (15432/16379/14416) via this host's loopback gateways. Nothing is public.
 # The autoscaler writes WORKER_ADDRESS to the instance's env file and starts it.
 [Unit]
-Description=SupoClip reverse tunnel to autoscaled render worker %i
+Description=TokoClippers reverse tunnel to autoscaled render worker %i
 After=network-online.target
 Wants=network-online.target
 

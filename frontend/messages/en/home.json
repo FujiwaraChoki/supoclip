@@ -124,7 +124,7 @@
     "startFootnote": "Cancel anytime",
     "limitTitle": "You've used all {length} of video this month",
     "limitWithPlan": "{refreshes} Or keep going with {plan}: {limit} of video a month.",
-    "limitAppStore": "{refreshes} You can change plans in the SupoClip iOS app.",
+    "limitAppStore": "{refreshes} You can change plans in the TokoClippers iOS app.",
     "getPlan": "Get {plan}",
     "remaining": "{count, plural, one {# minute of video left this month} other {# minutes of video left this month}}",
     "nearWithPlan": "{refreshes} Need more room? {plan} gives you {limit} of video a month.",

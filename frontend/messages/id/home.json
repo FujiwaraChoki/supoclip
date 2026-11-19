@@ -124,7 +124,7 @@
     "startFootnote": "Batalkan kapan saja",
     "limitTitle": "Kamu sudah memakai semua {length} video bulan ini",
     "limitWithPlan": "{refreshes} Atau lanjut dengan {plan}: {limit} video sebulan.",
-    "limitAppStore": "{refreshes} Kamu bisa ganti paket di aplikasi iOS SupoClip.",
+    "limitAppStore": "{refreshes} Kamu bisa ganti paket di aplikasi iOS TokoClippers.",
     "getPlan": "Ambil {plan}",
     "remaining": "{count, plural, one {# menit video tersisa bulan ini} other {# menit video tersisa bulan ini}}",
     "nearWithPlan": "{refreshes} Butuh ruang lebih? {plan} memberi {limit} video sebulan.",

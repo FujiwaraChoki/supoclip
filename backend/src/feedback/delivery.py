@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 EVENT_CREATED = "feedback.created"
 EVENT_TEST = "feedback.test"
 PAYLOAD_VERSION = 1
-USER_AGENT = "SupoClip-Webhooks/1"
+USER_AGENT = "TokoClippers-Webhooks/1"
 TIMEOUT_SECONDS = 10
 SEND_DEADLINE_SECONDS = 20
 LEASE = timedelta(minutes=2)
@@ -185,12 +185,12 @@ def build_request(
     body = json_body(event, delivery_id, submission)
     timestamp = now if now is not None else int(time.time())
     headers.update({
-        "X-SupoClip-Event": event,
-        "X-SupoClip-Delivery": delivery_id,
-        "X-SupoClip-Timestamp": str(timestamp),
+        "X-TokoClippers-Event": event,
+        "X-TokoClippers-Delivery": delivery_id,
+        "X-TokoClippers-Timestamp": str(timestamp),
     })
     if destination.get("secret"):
-        headers["X-SupoClip-Signature"] = sign(destination["secret"], body, timestamp)
+        headers["X-TokoClippers-Signature"] = sign(destination["secret"], body, timestamp)
     return body, headers
 
 
@@ -456,9 +456,9 @@ async def retry_delivery(db: AsyncSession, delivery_id: str) -> bool:
     return bool(result.rowcount)
 
 
-TEST_MESSAGE = "This is a test message from the SupoClip feedback inbox. Your webhook works."
+TEST_MESSAGE = "This is a test message from the TokoClippers feedback inbox. Your webhook works."
 HERMES_TEST_CATEGORY = "test"
-HERMES_TEST_MESSAGE = "Test from SupoClip admin"
+HERMES_TEST_MESSAGE = "Test from TokoClippers admin"
 
 
 async def send_test(db: AsyncSession, webhook_id: str, admin: dict[str, Any]) -> dict[str, Any] | None:

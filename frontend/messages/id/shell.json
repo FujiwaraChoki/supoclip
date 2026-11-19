@@ -49,7 +49,7 @@
   "announcements": {
     "whatsNew": "Yang baru",
     "whatsNewUnread": "Yang baru, {count, plural, one {# pengumuman belum dibaca} other {# pengumuman belum dibaca}}",
-    "title": "Yang baru di SupoClip",
+    "title": "Yang baru di TokoClippers",
     "close": "Tutup pengumuman",
     "popover": "Pengumuman",
     "new": "Baru"

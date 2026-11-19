@@ -6,26 +6,26 @@
     "allArticles": "Todos os artigos",
     "startClipping": "Comece a cortar",
     "breadcrumbNav": "Trilha",
-    "byline": "Por SupoClip · Atualizado em <date>{when}</date> · {readingTime}",
+    "byline": "Por TokoClippers · Atualizado em <date>{when}</date> · {readingTime}",
     "updated": "Atualizado em <date>{when}</date>",
     "inThisArticle": "Neste artigo",
     "faqHeading": "Perguntas frequentes",
     "faq": "Perguntas frequentes",
-    "startAria": "Comece com o SupoClip",
+    "startAria": "Comece com o TokoClippers",
     "ctaTitle": "Teste com uma gravação que você conhece bem.",
     "ctaBody": "Use o app hospedado ou rode o mesmo código aberto na sua máquina.",
     "getSource": "Pegue o código",
     "keepReading": "Continue lendo"
   },
   "index": {
-    "metaTitle": "Blog do SupoClip | Guias de corte de vídeo com IA",
-    "metaDescription": "Guias práticos, comparações de produtos e fluxos de trabalho para transformar vídeos longos em shorts prontos para as redes com o SupoClip.",
-    "ogTitle": "Blog do SupoClip",
+    "metaTitle": "Blog do TokoClippers | Guias de corte de vídeo com IA",
+    "metaDescription": "Guias práticos, comparações de produtos e fluxos de trabalho para transformar vídeos longos em shorts prontos para as redes com o TokoClippers.",
+    "ogTitle": "Blog do TokoClippers",
     "ogDescription": "Guias e comparações sobre corte de vídeo com IA, legendas automáticas, reenquadramento vertical e fluxos de vídeo curto.",
     "hostedApp": "App hospedado",
     "startClipping": "Comece a cortar",
     "creatorGuides": "Guias para criadores",
-    "tryHosted": "Experimente o SupoClip hospedado",
+    "tryHosted": "Experimente o TokoClippers hospedado",
     "heading": "Guias práticos para transformar vídeos longos em shorts melhores.",
     "intro": "Comparações, fluxos de trabalho e conselhos de edição para quem quer um processo de corte repetível, legendas mais limpas e mais controle sobre o pipeline de vídeo.",
     "readArticle": "Ler artigo",
@@ -35,18 +35,18 @@
     "productGuides": "Guias do produto"
   },
   "supoclip-vs-supo-live": {
-    "title": "SupoClip versus supo.live: por que o código aberto ganha",
-    "description": "Compare o SupoClip e o supo.live para corte de vídeo com IA. Veja por que o SupoClip ganha em controle de código aberto, auto-hospedagem e fluxos de vídeo personalizáveis.",
+    "title": "TokoClippers versus supo.live: por que o código aberto ganha",
+    "description": "Compare o TokoClippers e o supo.live para corte de vídeo com IA. Veja por que o TokoClippers ganha em controle de código aberto, auto-hospedagem e fluxos de vídeo personalizáveis.",
     "eyebrow": "Alternativa ao supo.live",
     "category": "Comparação",
     "readingTime": "Leitura de 5 min",
-    "summary": "Para criadores e equipes que querem controle sobre o fluxo de corte, o SupoClip é a melhor alternativa de código aberto ao supo.live.",
+    "summary": "Para criadores e equipes que querem controle sobre o fluxo de corte, o TokoClippers é a melhor alternativa de código aberto ao supo.live.",
     "imageAlt": "Ilustração editorial de uma gravação de podcast virando três clipes de vídeo verticais",
-    "breadcrumb": "SupoClip versus supo.live",
+    "breadcrumb": "TokoClippers versus supo.live",
     "heroCaption": "Uma gravação, mais possibilidades. Ilustração editorial gerada por IA do fluxo de vídeo longo para shorts.",
     "verdict": {
       "kicker": "O veredito rápido",
-      "heading": "Escolha o SupoClip quando o controle importa.",
+      "heading": "Escolha o TokoClippers quando o controle importa.",
       "body": "Código aberto. Sua implantação. Seu fluxo. Uma base sólida para transformar conteúdo gravado em shorts com legendas.",
       "points": {
         "0": "Inspecione e estenda o código",
@@ -62,16 +62,16 @@
       "faq": "Perguntas frequentes"
     },
     "body": {
-      "p1": "Escolher um cortador de vídeo com IA também é escolher quanto controle você mantém sobre o processo de produção. Se você quer transformar podcasts, entrevistas, palestras e gravações de transmissões em vídeos curtos, o SupoClip faz um caso claro: edição com IA, código que você pode inspecionar e um fluxo que você mesmo roda.",
-      "p2": "Nosso veredito: o SupoClip é a melhor alternativa para criadores, agências e desenvolvedores que priorizam código aberto, auto-hospedagem e personalização. Esta comparação é da equipe do SupoClip, com base em capacidades documentadas, e não um teste de qualidade de clipes nem de velocidade de processamento.",
-      "whatSupoclip": "O que é o SupoClip?",
-      "whatSupoclipBody": "O SupoClip é uma ferramenta de corte de vídeo com IA de código aberto, disponível em supoclip.com ou como aplicativo auto-hospedado. Ele analisa vídeos longos, escolhe momentos promissores e produz clipes verticais com corte centrado no rosto e legendas sincronizadas por palavra. Títulos de gancho, pontuação de clipes e B-roll opcional ajudam a transformar uma gravação bruta em material pronto para a sua revisão final. O <repo>repositório do SupoClip</repo> documenta os recursos e a instalação.",
+      "p1": "Escolher um cortador de vídeo com IA também é escolher quanto controle você mantém sobre o processo de produção. Se você quer transformar podcasts, entrevistas, palestras e gravações de transmissões em vídeos curtos, o TokoClippers faz um caso claro: edição com IA, código que você pode inspecionar e um fluxo que você mesmo roda.",
+      "p2": "Nosso veredito: o TokoClippers é a melhor alternativa para criadores, agências e desenvolvedores que priorizam código aberto, auto-hospedagem e personalização. Esta comparação é da equipe do TokoClippers, com base em capacidades documentadas, e não um teste de qualidade de clipes nem de velocidade de processamento.",
+      "whatSupoclip": "O que é o TokoClippers?",
+      "whatSupoclipBody": "O TokoClippers é uma ferramenta de corte de vídeo com IA de código aberto, disponível em supoclip.com ou como aplicativo auto-hospedado. Ele analisa vídeos longos, escolhe momentos promissores e produz clipes verticais com corte centrado no rosto e legendas sincronizadas por palavra. Títulos de gancho, pontuação de clipes e B-roll opcional ajudam a transformar uma gravação bruta em material pronto para a sua revisão final. O <repo>repositório do TokoClippers</repo> documenta os recursos e a instalação.",
       "whatSupo": "O que é o supo.live?",
       "whatSupoBody": "O supo.live divulga um serviço de corte hospedado tanto para gravações quanto para transmissões em andamento. A página inicial anuncia corte ao vivo, legendas estilizadas, rastreamento de rosto, um editor no navegador e publicações agendadas no TikTok, YouTube Shorts e X. Isso torna a publicação ao vivo o ponto de diferença mais claro. Veja o <site>resumo oficial de recursos do supo.live</site>."
     },
     "comparison": {
-      "heading": "SupoClip versus supo.live em um relance",
-      "caption": "Comparação de fluxos do SupoClip e do supo.live",
+      "heading": "TokoClippers versus supo.live em um relance",
+      "caption": "Comparação de fluxos do TokoClippers e do supo.live",
       "priority": "Prioridade",
       "note": "Os detalhes do supo.live refletem a <site>página inicial</site> conferida em 21 de setembro de 2026. Recursos e planos podem mudar.",
       "rows": {
@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Acesso ao código",
-          "supoclip": "Licença de Código-Fonte Não Comercial do SupoClip",
+          "supoclip": "Licença de Código-Fonte Não Comercial do TokoClippers",
           "supolive": "Não anuncia na página inicial uma opção de código aberto nem de auto-hospedagem"
         },
         "usecase": {
@@ -105,7 +105,7 @@
     "workflow": {
       "heading": "De uma gravação a um fluxo repetível",
       "intro": "Deixe a IA fazer a primeira passagem e depois use o seu julgamento editorial. Cada clipe deve fazer sentido sozinho, manter o contexto de quem fala e merecer um lugar no seu feed.",
-      "caption": "O fluxo do SupoClip para vídeo gravado. A IA sugere; você toma a decisão editorial final.",
+      "caption": "O fluxo do TokoClippers para vídeo gravado. A IA sugere; você toma a decisão editorial final.",
       "steps": {
         "0": {
           "title": "Traga uma gravação",
@@ -126,20 +126,20 @@
       }
     },
     "editor": {
-      "aria": "Ver a captura do editor do SupoClip em tamanho completo",
-      "alt": "Editor do SupoClip com lista de clipes, prévia vertical, controles de estilo de legenda e uma linha do tempo",
-      "caption": "Dentro do editor do SupoClip: ajuste legendas, enquadramento e tempo antes de exportar. Captura real do produto com material de teste; clique para ampliar."
+      "aria": "Ver a captura do editor do TokoClippers em tamanho completo",
+      "alt": "Editor do TokoClippers com lista de clipes, prévia vertical, controles de estilo de legenda e uma linha do tempo",
+      "caption": "Dentro do editor do TokoClippers: ajuste legendas, enquadramento e tempo antes de exportar. Captura real do produto com material de teste; clique para ampliar."
     },
     "control": {
-      "heading": "Por que o SupoClip é a melhor alternativa de código aberto",
+      "heading": "Por que o TokoClippers é a melhor alternativa de código aberto",
       "h1": "1. Você pode moldar o fluxo em torno do seu conteúdo",
-      "p1": "Um estúdio de podcast e um canal educativo podem querer clipes bem diferentes. Com o SupoClip, o acesso ao código deixa uma equipe técnica adaptar a lógica de seleção, o comportamento das legendas e as etapas de processamento às necessidades editoriais. Você pode ver como o sistema funciona e desenvolver mudanças na própria implantação. Essa flexibilidade é a maior vantagem do SupoClip em relação a depender só dos ajustes de um produto hospedado.",
+      "p1": "Um estúdio de podcast e um canal educativo podem querer clipes bem diferentes. Com o TokoClippers, o acesso ao código deixa uma equipe técnica adaptar a lógica de seleção, o comportamento das legendas e as etapas de processamento às necessidades editoriais. Você pode ver como o sistema funciona e desenvolver mudanças na própria implantação. Essa flexibilidade é a maior vantagem do TokoClippers em relação a depender só dos ajustes de um produto hospedado.",
       "h2": "2. Você escolhe onde o aplicativo roda",
       "p2": "Auto-hospedar dá controle sobre a infraestrutura do aplicativo, a configuração de armazenamento e o calendário de manutenção. Você pode levar o corte para um ambiente de produção que já existe e manter uma implantação que você administra. Se você usa transcrição na nuvem ou um LLM hospedado, esses provedores ainda recebem os dados de que precisam. Mudar para Whisper e Ollama locais mantém essa análise também no seu próprio hardware.",
       "h3": "3. Você tem uma escolha prática de provedores de IA",
-      "p3": "O SupoClip aceita configurações de LLM para modelos do Google, OpenAI, Anthropic e Ollama local. Isso permite avaliar provedores com o seu conteúdo e o seu orçamento. A transcrição usa AssemblyAI por padrão e pode mudar para Whisper local ou, em links do YouTube, para legendas que já existem. O <guide>guia de auto-hospedagem</guide> percorre uma instalação totalmente local.",
+      "p3": "O TokoClippers aceita configurações de LLM para modelos do Google, OpenAI, Anthropic e Ollama local. Isso permite avaliar provedores com o seu conteúdo e o seu orçamento. A transcrição usa AssemblyAI por padrão e pode mudar para Whisper local ou, em links do YouTube, para legendas que já existem. O <guide>guia de auto-hospedagem</guide> percorre uma instalação totalmente local.",
       "h4": "4. O seu fluxo de corte pode crescer para as suas próprias ferramentas",
-      "p4": "O SupoClip inclui uma API REST e um servidor MCP. Quem desenvolve pode ligar o corte a outros aplicativos ou a clientes de IA compatíveis em vez de tratar o navegador como a única entrada. Para uma agência que processa gravações recorrentes de clientes, isso abre espaço para um fluxo repetível em torno da própria revisão. A <api>referência da API</api> explica os endpoints disponíveis.",
+      "p4": "O TokoClippers inclui uma API REST e um servidor MCP. Quem desenvolve pode ligar o corte a outros aplicativos ou a clientes de IA compatíveis em vez de tratar o navegador como a única entrada. Para uma agência que processa gravações recorrentes de clientes, isso abre espaço para um fluxo repetível em torno da própria revisão. A <api>referência da API</api> explica os endpoints disponíveis.",
       "figureCaption": "O que você controla ao auto-hospedar",
       "figureNote": "Provedores na nuvem são opcionais: Whisper e Ollama mantêm a transcrição e a seleção de clipes locais.",
       "yours": {
@@ -157,56 +157,56 @@
     },
     "cost": {
       "heading": "Custo: código grátis, custos reais de operação",
-      "p1": "O código aberto do SupoClip é grátis para auto-hospedar. Seus custos reais dependem de computação, armazenamento, transcrição, uso de modelos pagos e do tempo para manter a instalação. A capacidade segue os recursos que você provisiona e os limites do provedor. Pode atrair equipes que já operam infraestrutura, mas não promete que toda carga de trabalho saia mais barata.",
-      "p2": "O serviço hospedado do SupoClip é uma opção separada, com preços e termos próprios. Escolha-o quando quiser começar com menos instalação; escolha auto-hospedar quando o controle da implantação for a prioridade."
+      "p1": "O código aberto do TokoClippers é grátis para auto-hospedar. Seus custos reais dependem de computação, armazenamento, transcrição, uso de modelos pagos e do tempo para manter a instalação. A capacidade segue os recursos que você provisiona e os limites do provedor. Pode atrair equipes que já operam infraestrutura, mas não promete que toda carga de trabalho saia mais barata.",
+      "p2": "O serviço hospedado do TokoClippers é uma opção separada, com preços e termos próprios. Escolha-o quando quiser começar com menos instalação; escolha auto-hospedar quando o controle da implantação for a prioridade."
     },
     "choose": {
       "heading": "Qual você deve escolher?",
-      "p1": "Escolha o SupoClip para uma biblioteca de podcasts, entrevistas, webinars ou VODs de transmissão que você queira reaproveitar com um pipeline personalizável. Ele junta descoberta de clipes, pontuação, legendas e enquadramento vertical, e deixa você inspecionar e ampliar o aplicativo.",
-      "p2": "Se o requisito essencial é cortar uma transmissão enquanto ela ainda está no ar e publicar os resultados automaticamente, avalie o fluxo ao vivo anunciado pelo supo.live. O fluxo do SupoClip para vídeo gravado não deve ser tratado como um substituto verificado dessas funções."
+      "p1": "Escolha o TokoClippers para uma biblioteca de podcasts, entrevistas, webinars ou VODs de transmissão que você queira reaproveitar com um pipeline personalizável. Ele junta descoberta de clipes, pontuação, legendas e enquadramento vertical, e deixa você inspecionar e ampliar o aplicativo.",
+      "p2": "Se o requisito essencial é cortar uma transmissão enquanto ela ainda está no ar e publicar os resultados automaticamente, avalie o fluxo ao vivo anunciado pelo supo.live. O fluxo do TokoClippers para vídeo gravado não deve ser tratado como um substituto verificado dessas funções."
     },
     "start": {
       "heading": "Comece a montar um fluxo de corte que você controla",
-      "p1": "O SupoClip é a nossa escolha para equipes que querem um corte com IA útil hoje e espaço para adaptá-lo amanhã. Comece com uma gravação representativa, revise os clipes sugeridos, refine legendas e enquadramento e exporte os resultados. Depois decida se a conveniência hospedada ou a própria implantação combina com o seu fluxo.",
-      "logoAlt": "Logotipo do SupoClip",
+      "p1": "O TokoClippers é a nossa escolha para equipes que querem um corte com IA útil hoje e espaço para adaptá-lo amanhã. Comece com uma gravação representativa, revise os clipes sugeridos, refine legendas e enquadramento e exporte os resultados. Depois decida se a conveniência hospedada ou a própria implantação combina com o seu fluxo.",
+      "logoAlt": "Logotipo do TokoClippers",
       "cardTitle": "Sua próxima gravação merece uma segunda vida.",
       "points": {
         "0": "Comece com uma gravação que você conhece bem",
         "1": "Revise os momentos sugeridos mais fortes",
         "2": "Refine as legendas e exporte"
       },
-      "try": "Experimente o SupoClip"
+      "try": "Experimente o TokoClippers"
     },
     "faqs": {
       "0": {
         "question": "Qual é a melhor alternativa de código aberto ao supo.live?",
-        "answer": "O SupoClip é uma escolha forte para criadores e equipes que querem transformar vídeos gravados em shorts e manter acesso ao código, auto-hospedagem e controle do fluxo de corte com IA."
+        "answer": "O TokoClippers é uma escolha forte para criadores e equipes que querem transformar vídeos gravados em shorts e manter acesso ao código, auto-hospedagem e controle do fluxo de corte com IA."
       },
       "1": {
-        "question": "Auto-hospedar o SupoClip é grátis?",
-        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC. Rodá-lo ainda envolve hardware ou hospedagem, armazenamento, transcrição e qualquer uso pago de LLM. O SupoClip hospedado tem termos de serviço e preços próprios."
+        "question": "Auto-hospedar o TokoClippers é grátis?",
+        "answer": "O TokoClippers permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC. Rodá-lo ainda envolve hardware ou hospedagem, armazenamento, transcrição e qualquer uso pago de LLM. O TokoClippers hospedado tem termos de serviço e preços próprios."
       },
       "2": {
-        "question": "O SupoClip substitui o corte de transmissões ao vivo e a publicação automática?",
-        "answer": "Esta comparação recomenda o SupoClip para vídeos gravados e VODs de transmissão. O supo.live anuncia corte durante transmissões ao vivo e publicações sociais agendadas; essas capacidades não são apresentadas aqui como equivalentes do SupoClip."
+        "question": "O TokoClippers substitui o corte de transmissões ao vivo e a publicação automática?",
+        "answer": "Esta comparação recomenda o TokoClippers para vídeos gravados e VODs de transmissão. O supo.live anuncia corte durante transmissões ao vivo e publicações sociais agendadas; essas capacidades não são apresentadas aqui como equivalentes do TokoClippers."
       }
     },
-    "closing": "Explore o nosso <openSource>guia do cortador de vídeo de código aberto</openSource> ou leia a <comparison>comparação SupoClip versus OpusClip</comparison>."
+    "closing": "Explore o nosso <openSource>guia do cortador de vídeo de código aberto</openSource> ou leia a <comparison>comparação TokoClippers versus OpusClip</comparison>."
   },
   "supoclip-vs-opusclip": {
-    "title": "SupoClip versus OpusClip: uma comparação com fontes",
-    "description": "SupoClip versus OpusClip em implantação, modelo de preço, marcas d'água, escolha de modelo e fluxo de trabalho, com uma fonte linkada para cada afirmação.",
+    "title": "TokoClippers versus OpusClip: uma comparação com fontes",
+    "description": "TokoClippers versus OpusClip em implantação, modelo de preço, marcas d'água, escolha de modelo e fluxo de trabalho, com uma fonte linkada para cada afirmação.",
     "eyebrow": "Comparação com o OpusClip",
     "category": "Comparação",
     "readingTime": "Leitura de 7 min",
     "summary": "Um lado a lado do que cada produto documenta, onde os dois diferem e qual combina com o seu fluxo.",
-    "breadcrumb": "SupoClip versus OpusClip",
+    "breadcrumb": "TokoClippers versus OpusClip",
     "notCovered": "Não coberto pelas fontes abaixo",
     "toc": {
       "verdict": "Resposta curta",
       "comparison": "Lado a lado",
       "pricing": "Modelo de preço",
-      "choose-supoclip": "Quando o SupoClip encaixa",
+      "choose-supoclip": "Quando o TokoClippers encaixa",
       "choose-opusclip": "Quando o OpusClip encaixa",
       "test": "Faça seu próprio teste",
       "sources": "Fontes",
@@ -214,15 +214,15 @@
     },
     "faqs": {
       "0": {
-        "question": "O SupoClip é melhor que o OpusClip?",
-        "answer": "Depende do que você precisa. O SupoClip encaixa melhor se você quer acesso ao código, auto-hospedagem ou escolher os próprios modelos de IA. O OpusClip encaixa melhor se você quer um produto gerenciado com um nível grátis para testar. Não afirmamos que um produza clipes melhores, porque não rodamos um teste controlado que sustente isso."
+        "question": "O TokoClippers é melhor que o OpusClip?",
+        "answer": "Depende do que você precisa. O TokoClippers encaixa melhor se você quer acesso ao código, auto-hospedagem ou escolher os próprios modelos de IA. O OpusClip encaixa melhor se você quer um produto gerenciado com um nível grátis para testar. Não afirmamos que um produza clipes melhores, porque não rodamos um teste controlado que sustente isso."
       },
       "1": {
-        "question": "O SupoClip adiciona marca d'água?",
-        "answer": "Não. O pipeline de renderização do SupoClip não tem uma etapa de marca d'água, nem no app hospedado nem em uma instalação auto-hospedada. O centro de ajuda do OpusClip diz que exportações do plano grátis podem incluir uma marca d'água do OpusClip."
+        "question": "O TokoClippers adiciona marca d'água?",
+        "answer": "Não. O pipeline de renderização do TokoClippers não tem uma etapa de marca d'água, nem no app hospedado nem em uma instalação auto-hospedada. O centro de ajuda do OpusClip diz que exportações do plano grátis podem incluir uma marca d'água do OpusClip."
       },
       "2": {
-        "question": "O SupoClip hospedado tem um plano grátis?",
+        "question": "O TokoClippers hospedado tem um plano grátis?",
         "answer": "Não. O app hospedado exige uma assinatura Pro ou Creator para processar vídeos. O caminho grátis é auto-hospedar o código aberto, onde não há limites de plano; você paga só a própria infraestrutura e os provedores de IA que configurar."
       },
       "3": {
@@ -230,16 +230,16 @@
         "answer": "Não publicamos um teste controlado de velocidade ou qualidade de clipes, então não fazemos essa afirmação. Os resultados dependem dos seus vídeos e ajustes; os passos de teste justo nesta página mostram como compará-los no seu próprio conteúdo."
       }
     },
-    "intro": "O OpusClip ajudou a definir o corte com IA: você envia um vídeo longo e recebe clipes verticais curtos. O SupoClip faz o mesmo trabalho como projeto de código aberto que você pode usar hospedado ou rodar por conta própria. Esta comparação fica no que cada produto documenta. Afirmações sobre o SupoClip apontam para o nosso código. Afirmações sobre o OpusClip apontam para o centro de ajuda do próprio OpusClip. Onde uma fonte não cobre algo, a tabela diz isso em vez de adivinhar.",
+    "intro": "O OpusClip ajudou a definir o corte com IA: você envia um vídeo longo e recebe clipes verticais curtos. O TokoClippers faz o mesmo trabalho como projeto de código aberto que você pode usar hospedado ou rodar por conta própria. Esta comparação fica no que cada produto documenta. Afirmações sobre o TokoClippers apontam para o nosso código. Afirmações sobre o OpusClip apontam para o centro de ajuda do próprio OpusClip. Onde uma fonte não cobre algo, a tabela diz isso em vez de adivinhar.",
     "introNote": "Esta página não avalia a qualidade dos clipes, a exatidão das legendas nem a velocidade de processamento. Para comparar isso, veja <test>como fazer seu próprio teste</test>.",
     "verdict": {
       "heading": "A resposta curta",
-      "supoclip": "<strong>Escolha o SupoClip</strong> se você quer auto-hospedar, inspecionar ou modificar o código, escolher os próprios modelos de IA (inclusive os totalmente locais) ou exportar sem marca d'água.",
+      "supoclip": "<strong>Escolha o TokoClippers</strong> se você quer auto-hospedar, inspecionar ou modificar o código, escolher os próprios modelos de IA (inclusive os totalmente locais) ou exportar sem marca d'água.",
       "opusclip": "<strong>Escolha o OpusClip</strong> se você quer um produto gerenciado que nunca precise implantar e quer começar em um plano grátis."
     },
     "comparison": {
       "heading": "Lado a lado",
-      "caption": "Comparação de SupoClip e OpusClip com fontes",
+      "caption": "Comparação de TokoClippers e OpusClip com fontes",
       "area": "Área",
       "footnote": "“Não coberto pelas fontes abaixo” significa que os artigos citados do centro de ajuda do OpusClip não tratam disso. Não significa que o OpusClip não tenha o recurso. Confira <site>opus.pro</site> para o que não está listado aqui."
     },
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Código-fonte",
-        "supoclip": "Público, <license>Licença de Código-Fonte Não Comercial do SupoClip</license>"
+        "supoclip": "Público, <license>Licença de Código-Fonte Não Comercial do TokoClippers</license>"
       },
       "pricing": {
         "label": "Modelo de preço",
@@ -279,10 +279,10 @@
     "pricing": {
       "heading": "Modelo de preço: créditos versus planos versus a sua própria infraestrutura",
       "p1": "O <plans>artigo de planos e créditos</plans> do OpusClip descreve planos pagos que usam créditos por minutos de processamento, mais um plano grátis. O <watermark>artigo de marca d'água</watermark> diz que exportações do plano grátis podem levar uma marca d'água do OpusClip. Preços e quantidades de crédito mudam, então confira a página de preços atual do OpusClip em vez de confiar em números copiados num post.",
-      "p2": "O SupoClip oferece dois caminhos. O app hospedado tem <pro>{proName}</pro> a ${proPrice}/mês por {proLimit} horas de vídeo em 720p e <scale>{scaleName}</scale> a ${scalePrice}/mês por {scaleLimit} horas em 1080p, com cobrança anual e dois meses grátis. Não há plano hospedado grátis; processar exige uma assinatura. O caminho auto-hospedado é software grátis sem limites de plano. Você paga o servidor e as APIs de IA que configurar, e o <guide>guia de auto-hospedagem</guide> mostra uma instalação totalmente local sem taxas de IA por pedido."
+      "p2": "O TokoClippers oferece dois caminhos. O app hospedado tem <pro>{proName}</pro> a ${proPrice}/mês por {proLimit} horas de vídeo em 720p e <scale>{scaleName}</scale> a ${scalePrice}/mês por {scaleLimit} horas em 1080p, com cobrança anual e dois meses grátis. Não há plano hospedado grátis; processar exige uma assinatura. O caminho auto-hospedado é software grátis sem limites de plano. Você paga o servidor e as APIs de IA que configurar, e o <guide>guia de auto-hospedagem</guide> mostra uma instalação totalmente local sem taxas de IA por pedido."
     },
     "chooseSupoclip": {
-      "heading": "Quando o SupoClip encaixa melhor",
+      "heading": "Quando o TokoClippers encaixa melhor",
       "li1": "<strong>Você precisa controlar para onde o vídeo vai.</strong> Auto-hospedar mantém o app, o banco de dados e os clipes renderizados na sua infraestrutura. Com Whisper e Ollama, a transcrição e a seleção de clipes também rodam localmente.",
       "li2": "<strong>Você tem um acervo grande.</strong> Instalações auto-hospedadas não têm teto mensal de vídeos. A vazão depende do seu hardware e dos limites do provedor.",
       "li3": "<strong>Você quer mudar como os clipes são escolhidos.</strong> O prompt de seleção, a pontuação, os modelos de legenda e a renderização estão no repositório.",
@@ -291,8 +291,8 @@
     "chooseOpusclip": {
       "heading": "Quando o OpusClip encaixa melhor",
       "li1": "<strong>Você não quer operar nada.</strong> Auto-hospedar significa cuidar do Docker, das chaves de provedor, das atualizações e dos backups.",
-      "li2": "<strong>Você quer testar antes de pagar.</strong> O OpusClip documenta um plano grátis (com uma possível marca d'água). O SupoClip hospedado não tem um nível grátis.",
-      "li3": "<strong>Você depende de recursos que não estão aqui.</strong> Se um fluxo específico do OpusClip importa para você, confirme em opus.pro e teste se o SupoClip cobre isso antes de trocar."
+      "li2": "<strong>Você quer testar antes de pagar.</strong> O OpusClip documenta um plano grátis (com uma possível marca d'água). O TokoClippers hospedado não tem um nível grátis.",
+      "li3": "<strong>Você depende de recursos que não estão aqui.</strong> Se um fluxo específico do OpusClip importa para você, confirme em opus.pro e teste se o TokoClippers cobre isso antes de trocar."
     },
     "test": {
       "heading": "Como fazer seu próprio teste justo",
@@ -301,22 +301,22 @@
       "li2": "Passe cada uma pelas duas ferramentas com os ajustes padrão e anote o tempo do envio até os clipes prontos.",
       "li3": "Embaralhe os clipes e revise sem saber qual ferramenta fez cada um. Avalie se cada clipe faz sentido sem contexto, tem um gancho claro, enquadra quem fala corretamente e tem legendas corretas.",
       "li4": "Conte as edições que cada clipe precisa antes de você publicar. O tempo de edição é um custo que o preço da assinatura não mostra.",
-      "demo": "Quer ver primeiro o resultado do SupoClip? A <demo>página de demo</demo> mostra clipes reais ao lado de links para os timestamps originais."
+      "demo": "Quer ver primeiro o resultado do TokoClippers? A <demo>página de demo</demo> mostra clipes reais ao lado de links para os timestamps originais."
     },
     "sources": {
       "heading": "Fontes",
       "opus": "Centro de ajuda do OpusClip: <plans>Planos e créditos</plans> e <watermark>Marca d'água</watermark>. Os planos podem mudar; confirme os detalhes atuais em <site>opus.pro</site>.",
-      "supoclip": "SupoClip: <repo>repositório público</repo>, incluindo <compose>docker-compose.yml</compose>, <config>documentação de configuração</config> e <billing>regras de cobrança</billing>. Os preços hospedados vêm da seção de preços de supoclip.com."
+      "supoclip": "TokoClippers: <repo>repositório público</repo>, incluindo <compose>docker-compose.yml</compose>, <config>documentação de configuração</config> e <billing>regras de cobrança</billing>. Os preços hospedados vêm da seção de preços de supoclip.com."
     }
   },
   "self-host-supoclip-docker": {
-    "title": "Como auto-hospedar o SupoClip com Docker Compose",
-    "description": "Auto-hospede o SupoClip, o cortador de vídeo com IA de código aberto: requisitos, configuração do .env, uma opção totalmente local com Whisper e Ollama, verificações da primeira execução e uma lista para produção.",
+    "title": "Como auto-hospedar o TokoClippers com Docker Compose",
+    "description": "Auto-hospede o TokoClippers, o cortador de vídeo com IA de código aberto: requisitos, configuração do .env, uma opção totalmente local com Whisper e Ollama, verificações da primeira execução e uma lista para produção.",
     "eyebrow": "Guia de auto-hospedagem",
     "category": "Guia",
     "readingTime": "Leitura de 9 min",
     "summary": "Um passo a passo prático da pilha Docker Compose do repositório: o que cada serviço faz, quais chaves você precisa, como rodar sem IA na nuvem e o que reforçar antes da produção.",
-    "breadcrumb": "Auto-hospedar o SupoClip",
+    "breadcrumb": "Auto-hospedar o TokoClippers",
     "toc": {
       "stack": "O que você executa",
       "requirements": "Requisitos",
@@ -329,11 +329,11 @@
     },
     "faqs": {
       "0": {
-        "question": "O SupoClip auto-hospedado é grátis?",
-        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC. Você ainda paga o próprio hardware ou servidor, e qualquer transcrição na nuvem ou uso de LLM que configurar. Uma instalação com Whisper e Ollama evita taxas de IA por pedido, mas precisa de computação local suficiente."
+        "question": "O TokoClippers auto-hospedado é grátis?",
+        "answer": "O TokoClippers permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC. Você ainda paga o próprio hardware ou servidor, e qualquer transcrição na nuvem ou uso de LLM que configurar. Uma instalação com Whisper e Ollama evita taxas de IA por pedido, mas precisa de computação local suficiente."
       },
       "1": {
-        "question": "O SupoClip roda sem nenhum serviço de IA na nuvem?",
+        "question": "O TokoClippers roda sem nenhum serviço de IA na nuvem?",
         "answer": "Sim, para a análise de clipes. Defina TRANSCRIPTION_PROVIDER=whisper para transcrever localmente e LLM=ollama:<model> para escolher clipes com um modelo local. Baixar links do YouTube ainda precisa de internet; arquivos enviados não. O B-roll opcional usa a API do Pexels."
       },
       "2": {
@@ -349,12 +349,12 @@
         "answer": "Crie sua conta, depois defina DISABLE_SIGN_UP=true e recrie o contêiner do frontend. O Compose prende cada porta a 127.0.0.1, então nada fica público até você adicionar um proxy reverso."
       }
     },
-    "intro": "O SupoClip é o cortador de vídeo com IA de código aberto por trás do app hospedado em supoclip.com. O mesmo repositório traz uma pilha Docker Compose que você pode rodar num laptop, num servidor de casa ou num VPS. Este guia segue essa pilha exatamente como ela existe no <repo>repositório</repo>. Quando um passo depende do seu provedor ou do hardware, dizemos isso em vez de adivinhar.",
-    "introChoice": "Prefere não operar infraestrutura? O <hosted>app hospedado</hosted> roda o mesmo processo. Ainda escolhendo entre ferramentas? Leia primeiro a nossa <comparison>comparação SupoClip versus OpusClip</comparison>.",
+    "intro": "O TokoClippers é o cortador de vídeo com IA de código aberto por trás do app hospedado em supoclip.com. O mesmo repositório traz uma pilha Docker Compose que você pode rodar num laptop, num servidor de casa ou num VPS. Este guia segue essa pilha exatamente como ela existe no <repo>repositório</repo>. Quando um passo depende do seu provedor ou do hardware, dizemos isso em vez de adivinhar.",
+    "introChoice": "Prefere não operar infraestrutura? O <hosted>app hospedado</hosted> roda o mesmo processo. Ainda escolhendo entre ferramentas? Leia primeiro a nossa <comparison>comparação TokoClippers versus OpusClip</comparison>.",
     "stack": {
       "heading": "O que você está executando",
       "lead": "<code>docker compose up</code> inicia estes contêineres, todos definidos em <compose>docker-compose.yml</compose>:",
-      "caption": "Serviços da pilha Docker Compose do SupoClip",
+      "caption": "Serviços da pilha Docker Compose do TokoClippers",
       "service": "Serviço",
       "role": "Função",
       "port": "Porta do host",
@@ -415,7 +415,7 @@
       "linux": "O Compose mapeia <code>host.docker.internal</code> para o gateway da bridge do Docker, mas o Ollama escuta só em <code>127.0.0.1</code> por padrão, então a conexão do worker é recusada. Faça o Ollama escutar em todas as interfaces:",
       "expose": "Isso também expõe a porta 11434 nas suas interfaces de rede. O Ollama não tem autenticação, então bloqueie essa porta de fora da máquina com o firewall. Se o firewall filtrar tráfego das redes do Docker, permita também que os contêineres a alcancem.",
       "containerHeading": "Ollama no próprio contêiner",
-      "container": "Adicione-o à pilha com um arquivo de override e depois aponte o SupoClip para o nome do serviço em vez do host:",
+      "container": "Adicione-o à pilha com um arquivo de override e depois aponte o TokoClippers para o nome do serviço em vez do host:",
       "labelOverride": "docker-compose.override.yml (una com qualquer override que você já tenha)",
       "labelEnvTerminal": ".env e terminal",
       "whichever": "Seja qual for a configuração, teste de dentro do worker antes de enviar um vídeo. A verificação procura <code>gpt-oss:20b</code> porque esse é o modelo do valor de exemplo de <code>LLM</code>. Se você escolheu outro modelo, troque pelo nome exato depois de <code>ollama:</code> no seu ajuste de <code>LLM</code>. O Ollama lista um modelo baixado sem tag como <code>name:latest</code>, então use essa forma na verificação.",
@@ -458,12 +458,12 @@
   },
   "best-free-opusclip-alternative": {
     "title": "A melhor alternativa grátis e auto-hospedada ao OpusClip",
-    "description": "Procura uma alternativa grátis ao OpusClip? O SupoClip é um criador de clipes com IA de código aberto que você pode auto-hospedar de graça. Ele transforma vídeos longos em shorts verticais com legendas.",
+    "description": "Procura uma alternativa grátis ao OpusClip? O TokoClippers é um criador de clipes com IA de código aberto que você pode auto-hospedar de graça. Ele transforma vídeos longos em shorts verticais com legendas.",
     "eyebrow": "Alternativa ao OpusClip",
     "category": "Comparação",
     "readingTime": "Leitura de 6 min",
-    "summary": "O SupoClip foi feito para quem quer corte com IA no estilo do OpusClip na própria infraestrutura, sem outra assinatura baseada em créditos.",
-    "lead": "Se você gosta da ideia do OpusClip, mas quer um caminho grátis e de código aberto, o SupoClip entrega o fluxo central: achar momentos fortes em vídeos longos, reenquadrar na vertical, adicionar legendas e exportar clipes para Shorts, Reels e TikTok.",
+    "summary": "O TokoClippers foi feito para quem quer corte com IA no estilo do OpusClip na própria infraestrutura, sem outra assinatura baseada em créditos.",
+    "lead": "Se você gosta da ideia do OpusClip, mas quer um caminho grátis e de código aberto, o TokoClippers entrega o fluxo central: achar momentos fortes em vídeos longos, reenquadrar na vertical, adicionar legendas e exportar clipes para Shorts, Reels e TikTok.",
     "bestFor": "Ideal para",
     "audience": {
       "0": "Quem corta vídeos do YouTube em shorts",
@@ -472,10 +472,10 @@
     },
     "openHosted": "Abrir a versão hospedada",
     "p1": "O OpusClip ajudou a definir a categoria moderna de corte com IA: você envia um vídeo longo, a IA identifica momentos e você publica clipes curtos mais rápido. Esse fluxo é útil. O atrito começa quando você quer um caminho grátis, mais controle ou um pipeline que você mesmo rode.",
-    "p2": "O SupoClip é a melhor alternativa grátis ao OpusClip para esse criador: alguém que quer descoberta de clipes com IA, exportações verticais, legendas e controle do sistema por baixo. Você também pode <hosted>usar o SupoClip hospedado</hosted> em um plano pago se quiser pular a instalação.",
+    "p2": "O TokoClippers é a melhor alternativa grátis ao OpusClip para esse criador: alguém que quer descoberta de clipes com IA, exportações verticais, legendas e controle do sistema por baixo. Você também pode <hosted>usar o TokoClippers hospedado</hosted> em um plano pago se quiser pular a instalação.",
     "verdict": {
       "heading": "Veredito rápido",
-      "body": "Escolha o SupoClip se você quer um cortador de vídeo com IA de código aberto que possa auto-hospedar. Escolha o OpusClip se você quer um produto hospedado gerenciado e aceita os limites de plano, as regras de marca d'água e o modelo de créditos."
+      "body": "Escolha o TokoClippers se você quer um cortador de vídeo com IA de código aberto que possa auto-hospedar. Escolha o OpusClip se você quer um produto hospedado gerenciado e aceita os limites de plano, as regras de marca d'água e o modelo de créditos."
     },
     "stats": {
       "0": {
@@ -497,13 +497,13 @@
       "p2": "O próprio centro de ajuda do OpusClip diz que exportações do plano grátis podem mostrar uma marca d'água do OpusClip, e os planos usam créditos por minutos de processamento. Para um teste casual, pode servir. Para cortar com frequência, pode empurrar para um fluxo hospedado pago."
     },
     "different": {
-      "heading": "O que torna o SupoClip diferente",
-      "p1": "O SupoClip não é só uma camada fina em cima de um editor hospedado. É um app de corte de código aberto completo, com backend em FastAPI, frontend em Next.js, workers em segundo plano, transcrição, nota de IA, reenquadramento vertical que segue o rosto, estilos de legenda e predefinições de exportação.",
+      "heading": "O que torna o TokoClippers diferente",
+      "p1": "O TokoClippers não é só uma camada fina em cima de um editor hospedado. É um app de corte de código aberto completo, com backend em FastAPI, frontend em Next.js, workers em segundo plano, transcrição, nota de IA, reenquadramento vertical que segue o rosto, estilos de legenda e predefinições de exportação.",
       "p2": "Isso deixa a troca clara. Você assume a instalação, mas ganha propriedade. Pode inspecionar o código, adaptá-lo ao seu fluxo e decidir quais provedores de IA hospedados ou modelos locais usar. O <guide>guia de auto-hospedagem</guide> percorre a instalação, inclusive uma opção totalmente local com Whisper e Ollama."
     },
     "compare": {
-      "heading": "SupoClip versus OpusClip",
-      "body": "O resumo abaixo cobre o essencial. Para uma comparação linha a linha com uma fonte para cada afirmação, leia <comparison>SupoClip versus OpusClip: uma comparação com fontes</comparison>."
+      "heading": "TokoClippers versus OpusClip",
+      "body": "O resumo abaixo cobre o essencial. Para uma comparação linha a linha com uma fonte para cada afirmação, leia <comparison>TokoClippers versus OpusClip: uma comparação com fontes</comparison>."
     },
     "table": {
       "feature": "Recurso",
@@ -531,18 +531,18 @@
       }
     },
     "how": {
-      "heading": "Como o SupoClip funciona",
+      "heading": "Como o TokoClippers funciona",
       "steps": {
         "0": "Cole uma URL do YouTube, da Twitch ou da Kick ou envie um vídeo.",
-        "1": "O SupoClip transcreve o original e encontra momentos candidatos.",
+        "1": "O TokoClippers transcreve o original e encontra momentos candidatos.",
         "2": "A IA pontua os clipes por força do gancho, engajamento, valor e potencial de compartilhamento.",
         "3": "O editor cria clipes verticais com legendas e enquadramento que segue o rosto.",
         "4": "Você exporta shorts para YouTube Shorts, TikTok, Instagram Reels ou outros feeds."
       }
     },
     "better": {
-      "heading": "Quando o SupoClip é a melhor escolha",
-      "body": "O SupoClip é melhor quando você quer uma alternativa grátis ao OpusClip com controle de desenvolvimento. É especialmente útil para quem tem um acervo de vídeos longos, agências que querem personalizar o fluxo de corte ou equipes técnicas que querem corte com IA dentro da própria pilha."
+      "heading": "Quando o TokoClippers é a melhor escolha",
+      "body": "O TokoClippers é melhor quando você quer uma alternativa grátis ao OpusClip com controle de desenvolvimento. É especialmente útil para quem tem um acervo de vídeos longos, agências que querem personalizar o fluxo de corte ou equipes técnicas que querem corte com IA dentro da própria pilha."
     },
     "opus": {
       "heading": "Quando o OpusClip ainda pode ser melhor",
@@ -550,25 +550,25 @@
     },
     "cta": {
       "kicker": "Grátis se você auto-hospeda, planos pagos se não",
-      "title": "Comece a cortar com o SupoClip.",
+      "title": "Comece a cortar com o TokoClippers.",
       "selfHost": "Guia de auto-hospedagem",
       "openApp": "Abrir o app"
     },
     "faqs": {
       "0": {
         "question": "Qual é a melhor alternativa grátis ao OpusClip?",
-        "answer": "O SupoClip é uma alternativa grátis forte ao OpusClip se você quer um criador de clipes com IA de código aberto que possa auto-hospedar, personalizar e rodar com o seu próprio fluxo de vídeo."
+        "answer": "O TokoClippers é uma alternativa grátis forte ao OpusClip se você quer um criador de clipes com IA de código aberto que possa auto-hospedar, personalizar e rodar com o seu próprio fluxo de vídeo."
       },
       "1": {
-        "question": "O SupoClip é totalmente grátis?",
-        "answer": "O código do SupoClip é grátis e de código aberto, e as instalações auto-hospedadas não têm limites de plano. Você ainda paga a própria infraestrutura e qualquer provedor de transcrição ou LLM que configurar. O app hospedado exige um plano pago."
+        "question": "O TokoClippers é totalmente grátis?",
+        "answer": "O código do TokoClippers é grátis e de código aberto, e as instalações auto-hospedadas não têm limites de plano. Você ainda paga a própria infraestrutura e qualquer provedor de transcrição ou LLM que configurar. O app hospedado exige um plano pago."
       },
       "2": {
-        "question": "O SupoClip adiciona marca d'água?",
-        "answer": "Não. O pipeline de renderização do SupoClip não tem uma etapa de marca d'água, seja no app hospedado ou em uma instalação auto-hospedada."
+        "question": "O TokoClippers adiciona marca d'água?",
+        "answer": "Não. O pipeline de renderização do TokoClippers não tem uma etapa de marca d'água, seja no app hospedado ou em uma instalação auto-hospedada."
       }
     },
-    "relatedHeading": "Guias relacionados do SupoClip",
+    "relatedHeading": "Guias relacionados do TokoClippers",
     "sources": {
       "heading": "Fontes",
       "body": "As notas sobre planos e marca d'água do OpusClip se baseiam no centro de ajuda oficial do OpusClip: <plans>planos e créditos</plans> e <watermark>orientação sobre marca d'água</watermark>."
@@ -581,7 +581,7 @@
     },
     "aside": {
       "title": "Controle de código aberto",
-      "body": "Use o SupoClip quando quiser o fluxo de corte sem entregar cada decisão a uma plataforma hospedada."
+      "body": "Use o TokoClippers quando quiser o fluxo de corte sem entregar cada decisão a uma plataforma hospedada."
     }
   }
 }

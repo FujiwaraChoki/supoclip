@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "title": "SupoClip – Recortador de video con IA de código abierto para Shorts",
+    "title": "TokoClippers – Recortador de video con IA de código abierto para Shorts",
     "description": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos, recorte con IA de código abierto, puntuación de viralidad y encuadres 9:16 centrados en el rostro.",
     "openGraphDescription": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos y recorte con IA de código abierto.",
     "twitterDescription": "Recorte con IA de código abierto, puntuación de viralidad, subtítulos y encuadres verticales centrados en el rostro.",
@@ -19,14 +19,14 @@
       "featureExports": "Exportaciones para YouTube Shorts, TikTok e Instagram Reels",
       "featureSelfHost": "Autoalojamiento para fines no comerciales",
       "offerCategory": "Código fuente para autoalojamiento no comercial",
-      "ios": "La app de SupoClip para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
+      "ios": "La app de TokoClippers para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
       "website": "Recorte de video con IA de código abierto para contenido de formato corto."
     }
   },
   "community": {
-    "eyebrow": "SupoClip en Discord",
+    "eyebrow": "TokoClippers en Discord",
     "title": "Creemos mejores clips en comunidad.",
-    "body": "Pide una segunda opinión sobre un corte, intercambia consejos de edición y cuéntanos cómo mejorar SupoClip.",
+    "body": "Pide una segunda opinión sobre un corte, intercambia consejos de edición y cuéntanos cómo mejorar TokoClippers.",
     "join": "Únete en Discord",
     "activities": {
       "showcase": "Comparte un clip y recibe comentarios",
@@ -57,27 +57,27 @@
   "related": {
     "continueExploring": "Sigue explorando",
     "keepReading": "Sigue leyendo",
-    "relatedGuides": "Guías relacionadas de SupoClip",
+    "relatedGuides": "Guías relacionadas de TokoClippers",
     "read": "Leer"
   },
   "links": {
     "blog_tiktok_publishing_is_live": {
       "eyebrow": "Product update",
-      "title": "TikTok publishing is now live in SupoClip",
+      "title": "TikTok publishing is now live in TokoClippers",
       "label": "TikTok publishing",
       "description": "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator."
     },
     "demo": {
       "label": "Demo",
       "eyebrow": "Demo",
-      "title": "Mira clips reales que SupoClip creó a partir de un video largo",
+      "title": "Mira clips reales que TokoClippers creó a partir de un video largo",
       "description": "Mira el resultado y salta a cada momento en el video original."
     },
     "ai_video_clipper": {
       "label": "Recortador de video con IA",
       "eyebrow": "Recorte de video con IA",
       "title": "Recortador de video con IA para Shorts, Reels y TikTok",
-      "description": "Cómo SupoClip encuentra momentos, puntúa candidatos, reencuadra rostros y agrega subtítulos."
+      "description": "Cómo TokoClippers encuentra momentos, puntúa candidatos, reencuadra rostros y agrega subtítulos."
     },
     "youtube_shorts_clipper": {
       "label": "Recortador de YouTube Shorts",
@@ -94,13 +94,13 @@
     "blog_self_host_supoclip_docker": {
       "label": "Guía de autoalojamiento",
       "eyebrow": "Guía de autoalojamiento",
-      "title": "Autoaloja SupoClip con Docker Compose",
+      "title": "Autoaloja TokoClippers con Docker Compose",
       "description": "Requisitos, variables de entorno, primer arranque, una instalación local completa y revisiones de producción."
     },
     "blog_supoclip_vs_opusclip": {
-      "label": "SupoClip vs OpusClip",
+      "label": "TokoClippers vs OpusClip",
       "eyebrow": "Comparación",
-      "title": "SupoClip vs OpusClip: una comparación con fuentes",
+      "title": "TokoClippers vs OpusClip: una comparación con fuentes",
       "description": "Modelo de precios, despliegue, marcas de agua y flujo de trabajo, con cada afirmación enlazada a una fuente."
     },
     "blog_best_free_opusclip_alternative": {
@@ -110,9 +110,9 @@
       "description": "Cuándo un recortador de código abierto y autoalojado conviene más que una herramienta basada en créditos."
     },
     "blog_supoclip_vs_supo_live": {
-      "label": "SupoClip vs supo.live",
+      "label": "TokoClippers vs supo.live",
       "eyebrow": "Comparación",
-      "title": "SupoClip vs supo.live: control de código abierto",
+      "title": "TokoClippers vs supo.live: control de código abierto",
       "description": "Compara autoalojamiento, recorte con IA y flujos de edición antes de elegir una herramienta de video."
     },
     "sign_up": {
@@ -183,7 +183,7 @@
     },
     "blog_open_source_video_clippers": {
       "eyebrow": "Open-source comparison",
-      "title": "Compare SupoClip, Clips AI, and Auto-Editor",
+      "title": "Compare TokoClippers, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     },
@@ -211,13 +211,13 @@
     "badge": "Código abierto y autoalojable. También en iPhone.",
     "titleLine1": "Un video largo.",
     "titleLine2": "Una semana de shorts.",
-    "body": "SupoClip encuentra los momentos que vale la pena publicar en tus videos, VODs y archivos, los reencuadra a 9:16 con subtítulos sincronizados palabra por palabra y los programa en YouTube Shorts.",
+    "body": "TokoClippers encuentra los momentos que vale la pena publicar en tus videos, VODs y archivos, los reencuadra a 9:16 con subtítulos sincronizados palabra por palabra y los programa en YouTube Shorts.",
     "startClipping": "Empieza a recortar",
     "useHosted": "Usar la app alojada",
     "viewSource": "Ver el código",
-    "appStoreAria": "Descarga SupoClip en el App Store",
+    "appStoreAria": "Descarga TokoClippers en el App Store",
     "appStoreAlt": "Descargar en el App Store",
-    "productHuntAlt": "SupoClip - Recortador de video con IA de código abierto: videos largos en shorts virales | Product Hunt",
+    "productHuntAlt": "TokoClippers - Recortador de video con IA de código abierto: videos largos en shorts virales | Product Hunt",
     "sources": {
       "upload": "Tus propios archivos",
       "label": "Recorta desde"
@@ -233,7 +233,7 @@
       "scheduled": "Programado",
       "steps": {
         "source": "Tu video largo",
-        "clip": "El clip que encontró SupoClip",
+        "clip": "El clip que encontró TokoClippers",
         "post": "Programado en YouTube"
       },
       "longForm": "Video largo",
@@ -320,7 +320,7 @@
   "editor": {
     "eyebrow": "Editor",
     "title": "Un editor completo, incluido",
-    "body": "Cada clip se abre en un estudio pensado para video corto. Recorta, corrige una palabra, cambia el estilo de los subtítulos, reencuadra y exporta sin salir de SupoClip.",
+    "body": "Cada clip se abre en un estudio pensado para video corto. Recorta, corrige una palabra, cambia el estilo de los subtítulos, reencuadra y exporta sin salir de TokoClippers.",
     "tryIt": "Esta vista previa funciona. Pulsa las pestañas, cambia el encuadre y mueve los controles.",
     "points": {
       "timeline": {
@@ -360,7 +360,7 @@
   "publish": {
     "eyebrow": "Nuevo: publicación",
     "title": "Recorta una vez. Publica toda la semana.",
-    "body": "Conecta tu canal de YouTube o tu cuenta de TikTok y programa cada clip a tu ritmo. Elige una hora, revisa el título y la descripción que propone la IA y SupoClip lo publica por ti.",
+    "body": "Conecta tu canal de YouTube o tu cuenta de TikTok y programa cada clip a tu ritmo. Elige una hora, revisa el título y la descripción que propone la IA y TokoClippers lo publica por ti.",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -381,7 +381,7 @@
       },
       "learn": {
         "title": "Aprende lo que ve tu audiencia",
-        "description": "Las visualizaciones vuelven a SupoClip, así que las siguientes selecciones se inclinan hacia lo que funciona en tu canal."
+        "description": "Las visualizaciones vuelven a TokoClippers, así que las siguientes selecciones se inclinan hacia lo que funciona en tu canal."
       }
     },
     "plan": "Programar está incluido en Creator. Publicar al momento funciona con Pro.",
@@ -449,10 +449,10 @@
     "items": {
       "sources": {
         "question": "¿Qué videos puedo recortar?",
-        "answer": "Videos de YouTube, VODs o clips de Twitch y Kick, y archivos que subas tú. Pega un enlace o arrastra una grabación, y SupoClip se encarga del resto."
+        "answer": "Videos de YouTube, VODs o clips de Twitch y Kick, y archivos que subas tú. Pega un enlace o arrastra una grabación, y TokoClippers se encarga del resto."
       },
       "selection": {
-        "question": "¿Cómo elige SupoClip los clips?",
+        "question": "¿Cómo elige TokoClippers los clips?",
         "answer": "Transcribe el video palabra por palabra y luego un modelo de IA lee toda la transcripción y elige momentos que se sostienen solos. Cada uno se puntúa por gancho, interacción, valor y compartibilidad, y después puedes recortar, dividir o unir cualquier clip."
       },
       "minutes": {
@@ -460,20 +460,20 @@
         "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales."
       },
       "publishing": {
-        "question": "¿SupoClip puede publicar en TikTok e Instagram?",
+        "question": "¿TokoClippers puede publicar en TikTok e Instagram?",
         "answer": "Sí, puedes publicar directamente en TikTok y YouTube Shorts, o programar publicaciones con Creator. La publicación en Instagram llegará pronto. Mientras tanto, descarga los clips con el ajuste de exportación para Reels y súbelos tú a Instagram."
       },
       "watermark": {
         "question": "¿Los clips llevan marca de agua?",
-        "answer": "No. SupoClip nunca añade marca de agua, ni en los planes alojados ni si lo alojas tú."
+        "answer": "No. TokoClippers nunca añade marca de agua, ni en los planes alojados ni si lo alojas tú."
       },
       "languages": {
-        "question": "¿Qué idiomas admite SupoClip?",
-        "answer": "SupoClip admite más de 99 idiomas hablados mediante Universal-2, como inglés, español, portugués, alemán, francés, chino, japonés, hindi, árabe e indonesio. El idioma se detecta automáticamente y los clips y subtítulos siguen el idioma original. Consulta la lista completa y las limitaciones en las preguntas frecuentes."
+        "question": "¿Qué idiomas admite TokoClippers?",
+        "answer": "TokoClippers admite más de 99 idiomas hablados mediante Universal-2, como inglés, español, portugués, alemán, francés, chino, japonés, hindi, árabe e indonesio. El idioma se detecta automáticamente y los clips y subtítulos siguen el idioma original. Consulta la lista completa y las limitaciones en las preguntas frecuentes."
       },
       "selfHost": {
         "question": "¿De verdad es gratis autoalojarlo?",
-        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC."
+        "answer": "TokoClippers permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC."
       },
       "cancel": {
         "question": "¿Puedo cancelar cuando quiera?",
@@ -482,32 +482,32 @@
     }
   },
   "openSource": {
-    "badge": "Licencia de código fuente no comercial de SupoClip",
+    "badge": "Licencia de código fuente no comercial de TokoClippers",
     "title": "Hecho en público",
     "body": "Código fuente para autoalojamiento no comercial",
     "commandLabel": "autoalojar",
     "comment": "# agrega un proveedor de transcripción y de LLM en .env",
     "facts": {
-      "license": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC.",
+      "license": "TokoClippers permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC.",
       "docker": "Un solo comando de Docker Compose para ejecutarlo tú mismo",
       "models": "Usa tus propios modelos: Gemini, OpenAI, Anthropic u Ollama"
     },
-    "ready": "SupoClip está funcionando en localhost:3107"
+    "ready": "TokoClippers está funcionando en localhost:3107"
   },
   "guides": {
     "eyebrow": "Guías y comparaciones",
     "title": "Aprende el flujo completo de recorte",
-    "body": "Páginas prácticas y con fuentes para elegir un recortador de video, autoalojar SupoClip y convertir grabaciones largas en contenido corto.",
+    "body": "Páginas prácticas y con fuentes para elegir un recortador de video, autoalojar TokoClippers y convertir grabaciones largas en contenido corto.",
     "read": "Leer la guía"
   },
   "cta": {
     "title": "Tu próximo video ya es una semana de contenido.",
-    "body": "Pega un enlace y mira lo que encuentra SupoClip. Usa la app alojada o aloja gratis la versión de código abierto."
+    "body": "Pega un enlace y mira lo que encuentra TokoClippers. Usa la app alojada o aloja gratis la versión de código abierto."
   },
   "faqPage": {
     "title": "Idiomas, subtítulos y clips",
     "metaTitle": "Preguntas frecuentes: idiomas y procesamiento de vídeo",
-    "intro": "Encuentra el idioma de tu vídeo y resuelve tus dudas sobre transcripciones, subtítulos y cómo SupoClip procesa tus vídeos.",
+    "intro": "Encuentra el idioma de tu vídeo y resuelve tus dudas sobre transcripciones, subtítulos y cómo TokoClippers procesa tus vídeos.",
     "topics": "Temas de preguntas frecuentes",
     "sections": {
       "languages": "Idiomas compatibles",
@@ -515,7 +515,7 @@
       "general": "Primeros pasos y planes"
     },
     "languageBadge": "Más de 99 idiomas hablados",
-    "languageIntro": "La aplicación alojada utiliza AssemblyAI Universal-2 para transcribir los idiomas y variantes regionales que aparecen abajo. SupoClip utiliza la transcripción para encontrar clips y generar subtítulos en el idioma original.",
+    "languageIntro": "La aplicación alojada utiliza AssemblyAI Universal-2 para transcribir los idiomas y variantes regionales que aparecen abajo. TokoClippers utiliza la transcripción para encontrar clips y generar subtítulos en el idioma original.",
     "searchLabel": "Busca tu idioma",
     "searchPlaceholder": "Busca en tu idioma o en inglés…",
     "resultCount": "{count} de {total} idiomas y variantes",
@@ -532,8 +532,8 @@
         "answer": "No. La aplicación alojada detecta automáticamente el idioma hablado de cada vídeo. Cambiar el idioma de la interfaz no cambia la transcripción. Una voz clara con poco ruido de fondo facilita una detección correcta."
       },
       "translation": {
-        "question": "¿Puede SupoClip traducir o doblar mi vídeo?",
-        "answer": "SupoClip genera transcripciones y subtítulos en el idioma hablado del vídeo. La traducción automática de subtítulos y el doblaje no forman parte del flujo de creación de clips actual. Puedes corregir el texto de los subtítulos en el editor antes de exportar."
+        "question": "¿Puede TokoClippers traducir o doblar mi vídeo?",
+        "answer": "TokoClippers genera transcripciones y subtítulos en el idioma hablado del vídeo. La traducción automática de subtítulos y el doblaje no forman parte del flujo de creación de clips actual. Puedes corregir el texto de los subtítulos en el editor antes de exportar."
       },
       "mixed": {
         "question": "¿Qué ocurre si un vídeo cambia de idioma?",

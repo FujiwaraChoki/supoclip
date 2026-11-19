@@ -29,7 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       url,
-      siteName: "SupoClip",
+      siteName: "TokoClippers",
       type: "website",
       videos: DEMO_CLIPS.map((clip) => ({ url: `${getSiteUrl()}${clip.src}`, width: 540, height: 960, type: "video/mp4" })),
     },
@@ -50,7 +50,7 @@ export default async function DemoPage() {
       {
         "@type": "BreadcrumbList",
         itemListElement: [
-          { "@type": "ListItem", position: 1, name: "SupoClip", item: siteUrl },
+          { "@type": "ListItem", position: 1, name: "TokoClippers", item: siteUrl },
           { "@type": "ListItem", position: 2, name: t("demo.badge"), item: `${siteUrl}/demo` },
         ],
       },
@@ -73,8 +73,8 @@ export default async function DemoPage() {
       <header className="border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg dark:invert" />
-            <span className="text-lg font-bold tracking-tight">SupoClip</span>
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg dark:invert" />
+            <span className="text-lg font-bold tracking-tight">TokoClippers</span>
           </Link>
           <nav className="flex items-center gap-2" aria-label={t("chrome.primaryNav")}>
             <Link href="/blog"><Button variant="ghost" size="sm">{t("chrome.blog")}</Button></Link>
@@ -86,7 +86,7 @@ export default async function DemoPage() {
       <section className="border-b bg-muted/35">
         <div className="mx-auto max-w-5xl px-6 py-14 md:py-20">
           <Badge variant="secondary">{t("demo.badge")}</Badge>
-          <h1 className="mt-5 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}>
+          <h1 className="mt-5 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ fontFamily: "var(--font-paperlogy), var(--font-montserrat), system-ui" }}>
             {t("demo.heading")}
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-muted-foreground">{t("demo.intro")}</p>

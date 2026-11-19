@@ -89,7 +89,7 @@
     "signIn": "Sign In",
     "title": "Social accounts",
     "unavailable": "Publishing to YouTube, TikTok and Instagram isn't available on your account yet.",
-    "intro": "Connect the accounts you post to. Publish clips straight from a task page, schedule them, and let SupoClip learn from how they perform.",
+    "intro": "Connect the accounts you post to. Publish clips straight from a task page, schedule them, and let TokoClippers learn from how they perform.",
     "loadError": "Failed to load social accounts",
     "connectedNotice": "{label} connected.",
     "connectedAs": "{label} connected as {account}.",
@@ -98,7 +98,7 @@
     "connectHeading": "Connect an account",
     "connect": "Connect",
     "comingSoon": "Coming Soon",
-    "verificationNote": "We are in the process of verifying SupoClip with this platform.",
+    "verificationNote": "We are in the process of verifying TokoClippers with this platform.",
     "instagramNote": "Instagram needs a professional (Business or Creator) account.",
     "tiktokNote": "TikTok checks which visibility options your connected account allows.",
     "youtubeNote": "YouTube uploads from an unverified app are private until Google's review completes.",
@@ -128,6 +128,6 @@
   "loadingPrivacy": "Checking TikTok publishing options…",
   "privacyLoadFailed": "Couldn’t load publishing options. Refresh and try again.",
   "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options.",
-  "tiktokPrivateAccountRequired": "TikTok hasn’t approved SupoClip’s app yet, so it only accepts private posts from accounts set to Private. In TikTok, turn on Settings and privacy → Privacy → Private account before publishing.",
+  "tiktokPrivateAccountRequired": "TikTok hasn’t approved TokoClippers’s app yet, so it only accepts private posts from accounts set to Private. In TikTok, turn on Settings and privacy → Privacy → Private account before publishing.",
   "tiktokPaused": "TikTok publishing is paused while we fix an issue with TikTok. Your other platforms work as usual."
 }

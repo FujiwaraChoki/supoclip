@@ -11,7 +11,7 @@ it("keeps SES recipient correlation across both migration runners without storin
     await db.exec(frontend);
     await db.exec(backend);
     await db.query("INSERT INTO email_deliveries (message_id,recipient,subject,region) VALUES ($1,$2,$3,$4)",
-      ["ses-complaint-message-id", "owner@example.com", "A new SupoClip API key was created", "us-east-1"]);
+      ["ses-complaint-message-id", "owner@example.com", "A new TokoClippers API key was created", "us-east-1"]);
     const result = await db.query<{ recipient: string; sent_at: Date }>("SELECT recipient,sent_at FROM email_deliveries WHERE message_id=$1", ["ses-complaint-message-id"]);
     expect(result.rows[0].recipient).toBe("owner@example.com");
     expect(result.rows[0].sent_at).toBeTruthy();

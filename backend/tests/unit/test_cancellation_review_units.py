@@ -316,7 +316,7 @@ def test_synthetic_and_billing_risk_cases_are_labelled():
 def test_involuntary_and_unlinked_customer():
     text = render(review=review_row(kind="immediate", ended_at=T0, snapshot={
         **review_row()["snapshot"], "cancellation_reason": "payment_failed"}), context=None)
-    assert "Involuntary cancellation" in text and "no SupoClip account matches" in text
+    assert "Involuntary cancellation" in text and "no TokoClippers account matches" in text
 
 
 def test_updates_and_plan_names():

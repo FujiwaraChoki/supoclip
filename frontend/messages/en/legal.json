@@ -2,18 +2,18 @@
   "bindingNotice": "The English version of this document is the legally binding one. This translation is provided for convenience.",
   "hostedApp": "Hosted App",
   "lastUpdated": "Last updated: {date}",
-  "back": "Back to SupoClip",
+  "back": "Back to TokoClippers",
   "terms": {
-    "metaTitle": "Terms of Service | SupoClip",
-    "metaDescription": "The terms that govern your use of the SupoClip apps and hosted video-clipping service, including subscriptions purchased on the web or through the App Store.",
-    "ogTitle": "SupoClip Terms of Service",
-    "ogDescription": "The terms that govern your use of SupoClip.",
+    "metaTitle": "Terms of Service | TokoClippers",
+    "metaDescription": "The terms that govern your use of the TokoClippers apps and hosted video-clipping service, including subscriptions purchased on the web or through the App Store.",
+    "ogTitle": "TokoClippers Terms of Service",
+    "ogDescription": "The terms that govern your use of TokoClippers.",
     "title": "Terms of Service",
     "privacyLink": "Privacy Policy",
     "agreement": {
       "title": "Agreement",
-      "p1": "These Terms of Service (“Terms”) are between you and {company} (“we,” “us,” “our”), the operator of the SupoClip apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips. By creating an account or using the Service you agree to these Terms. If you do not agree, do not use the Service.",
-      "p2": "SupoClip is also available as open-source software you can self-host. These Terms apply to the SupoClip-operated hosted service; self-hosted instances are governed by the applicable software license and the operator’s own terms."
+      "p1": "These Terms of Service (“Terms”) are between you and {company} (“we,” “us,” “our”), the operator of the TokoClippers apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips. By creating an account or using the Service you agree to these Terms. If you do not agree, do not use the Service.",
+      "p2": "TokoClippers is also available as open-source software you can self-host. These Terms apply to the TokoClippers-operated hosted service; self-hosted instances are governed by the applicable software license and the operator’s own terms."
     },
     "account": {
       "title": "Your Account",
@@ -67,15 +67,15 @@
     }
   },
   "privacy": {
-    "metaTitle": "Privacy Policy | SupoClip",
-    "metaDescription": "How SupoClip collects, uses, shares, and protects your data when you use the SupoClip video-clipping service.",
-    "ogTitle": "SupoClip Privacy Policy",
-    "ogDescription": "How SupoClip handles your data.",
+    "metaTitle": "Privacy Policy | TokoClippers",
+    "metaDescription": "How TokoClippers collects, uses, shares, and protects your data when you use the TokoClippers video-clipping service.",
+    "ogTitle": "TokoClippers Privacy Policy",
+    "ogDescription": "How TokoClippers handles your data.",
     "title": "Privacy Policy",
     "overview": {
       "title": "Overview",
-      "p1": "{company} (“we,” “us”) operates the SupoClip apps and hosted service (the “Service”) and is the controller responsible for personal data processed to provide them. This Privacy Policy explains how we collect, use, share, and protect information when you use the Service, which turns long-form videos into short, captioned clips.",
-      "p2": "SupoClip is also available as open-source software you can self-host. If you use a self-hosted instance operated by you or a third party, that operator—not SupoClip—is responsible for the data processed by that instance. This policy describes the SupoClip-operated hosted service."
+      "p1": "{company} (“we,” “us”) operates the TokoClippers apps and hosted service (the “Service”) and is the controller responsible for personal data processed to provide them. This Privacy Policy explains how we collect, use, share, and protect information when you use the Service, which turns long-form videos into short, captioned clips.",
+      "p2": "TokoClippers is also available as open-source software you can self-host. If you use a self-hosted instance operated by you or a third party, that operator—not TokoClippers—is responsible for the data processed by that instance. This policy describes the TokoClippers-operated hosted service."
     },
     "collect": {
       "title": "Information We Collect",
@@ -89,7 +89,7 @@
       "usage": "We collect session identifiers, IP address, and basic technical logs to operate, secure, and debug the Service. If analytics are enabled for the hosted site, we use a privacy-friendly analytics provider that does not build cross-site advertising profiles. We also use PostHog on the hosted site to understand how the product is used, to replay sessions (with everything typed into form fields masked), and to receive error reports so we can fix problems.",
       "campaignLabel": "Campaign and referral information.",
       "campaign1": "When you visit our website while signed out, your browser keeps a record of how you first arrived, for up to 90 days. It stores this in your browser's local storage, not in a cookie. The record includes campaign tags in the link you followed (such as <utmSource>utm_source</utmSource>, <utmCampaign>utm_campaign</utmCampaign>, or a <ref>ref</ref> code), the domain of the referring website (not the full address), the page you landed on, and the time of that visit. Page addresses are reduced to their route, so share links and project IDs are never recorded. Nothing is recorded while you are signed in.",
-      "campaign2": "The first account to sign in on that browser claims the record, and it is then deleted from the browser so no other account can use it. If that account is new, we save the record to it once, shortly after sign-up. We also note when you first download or export a clip. We use this to learn which channels bring people who find SupoClip useful. If analytics are enabled, the sign-up and clip-export events we send to our analytics provider include the same campaign fields. We don't use this information for advertising or sell it. You can remove the record from your browser by clearing site data for supoclip.com."
+      "campaign2": "The first account to sign in on that browser claims the record, and it is then deleted from the browser so no other account can use it. If that account is new, we save the record to it once, shortly after sign-up. We also note when you first download or export a clip. We use this to learn which channels bring people who find TokoClippers useful. If analytics are enabled, the sign-up and clip-export events we send to our analytics provider include the same campaign fields. We don't use this information for advertising or sell it. You can remove the record from your browser by clearing site data for supoclip.com."
     },
     "use": {
       "title": "How We Use Your Information",
@@ -104,16 +104,16 @@
     },
     "social": {
       "title": "Connected Social Accounts",
-      "p1": "You can connect a YouTube, TikTok, or Instagram account so SupoClip can publish clips for you. Connecting is optional, happens through the platform's own sign-in page, and we never see your password for that platform.",
+      "p1": "You can connect a YouTube, TikTok, or Instagram account so TokoClippers can publish clips for you. Connecting is optional, happens through the platform's own sign-in page, and we never see your password for that platform.",
       "accessLabel": "What we access and why.",
       "li1": "<label>Basic profile</label> (account ID, display name, username, profile picture) — to show which account is connected.",
       "li2": "<label>Permission to upload or publish</label> — to post the clips you choose, with the title, caption, visibility, and time you set. We never post anything you didn't ask us to.",
-      "li3": "<label>Statistics for posts made through SupoClip</label> (views, likes, comments, shares) — to show you how your clips perform and, once you have enough results, to tailor clip selection for your own future videos.",
+      "li3": "<label>Statistics for posts made through TokoClippers</label> (views, likes, comments, shares) — to show you how your clips perform and, once you have enough results, to tailor clip selection for your own future videos.",
       "tokens": "We store the access tokens the platform issues in encrypted form and use them only for the purposes above. We do not sell this data, use it for advertising, share it with other users, or use it to train general-purpose AI models.",
       "disconnectLabel": "Disconnecting and deletion.",
-      "disconnect": "You can disconnect an account at any time from the Social page. Disconnecting deletes the stored tokens immediately, cancels any posts still scheduled for that account, and asks the platform to revoke SupoClip's access where it supports that. You can also remove records of published posts, including their statistics, from the app. Deleting your SupoClip account removes all of this data. You can also revoke access from the platform itself, for Google at <google>Google security settings</google>. To ask us to delete this data, email <email>privacy@supoclip.com</email>.",
+      "disconnect": "You can disconnect an account at any time from the Social page. Disconnecting deletes the stored tokens immediately, cancels any posts still scheduled for that account, and asks the platform to revoke TokoClippers' access where it supports that. You can also remove records of published posts, including their statistics, from the app. Deleting your TokoClippers account removes all of this data. You can also revoke access from the platform itself, for Google at <google>Google security settings</google>. To ask us to delete this data, email <email>privacy@supoclip.com</email>.",
       "youtubeLabel": "YouTube and Google.",
-      "youtube": "SupoClip uses YouTube API Services. By connecting a YouTube account you agree to the <youtubeTerms>YouTube Terms of Service</youtubeTerms>, and Google's handling of your data is described in the <googlePrivacy>Google Privacy Policy</googlePrivacy>. SupoClip's use and transfer to any other app of information received from Google APIs will adhere to the <googleApi>Google API Services User Data Policy</googleApi>, including the Limited Use requirements."
+      "youtube": "TokoClippers uses YouTube API Services. By connecting a YouTube account you agree to the <youtubeTerms>YouTube Terms of Service</youtubeTerms>, and Google's handling of your data is described in the <googlePrivacy>Google Privacy Policy</googlePrivacy>. TokoClippers' use and transfer to any other app of information received from Google APIs will adhere to the <googleApi>Google API Services User Data Policy</googleApi>, including the Limited Use requirements."
     },
     "processors": {
       "title": "Service Providers & Subprocessors",

@@ -6,7 +6,7 @@ import { draft } from "../src/lib/editor/document.test-fixture";
 
 /**
  * Recovery paths in the clip studio: a session whose editing copy lost part
- * of the clip, and a browser whose storage for SupoClip is full.
+ * of the clip, and a browser whose storage for TokoClippers is full.
  */
 const generation = { id: "one", user_id: "user", source_title: "A conversation worth sharing", status: "completed", source_type: "youtube", clips_count: 1 };
 const clips = [{ id: "clip1", filename: "clip1.mp4", clip_order: 1, duration: 36.5, text: "Hello world today", video_url: "/tasks/one/clips/clip1/file" }];
@@ -131,7 +131,7 @@ test("a full browser storage explains itself and frees only saved copies", async
     return r.fallback();
   });
   await page.getByLabel("Word 1", { exact: true }).fill("Changed");
-  await expect(page.getByText("This browser's storage for SupoClip is full")).toBeVisible();
+  await expect(page.getByText("This browser's storage for TokoClippers is full")).toBeVisible();
   await capture(page, "3-storage-full.png");
 
   // Before warning, the studio already freed the copy the server has, and
@@ -151,7 +151,7 @@ test("a full browser storage explains itself and frees only saved copies", async
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("status").filter({ hasText: "All changes saved" })).toBeVisible();
   // Saved to the account: no backup is needed, so the warning goes away.
-  await expect(page.getByText("This browser's storage for SupoClip is full")).toHaveCount(0);
+  await expect(page.getByText("This browser's storage for TokoClippers is full")).toHaveCount(0);
 });
 
 test("browser backups can be reviewed and saved copies removed from the menu", async ({ page }) => {

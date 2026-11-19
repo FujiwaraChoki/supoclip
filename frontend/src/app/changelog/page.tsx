@@ -33,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: t("ogDescription"),
       type: "website",
       url,
-      siteName: "SupoClip",
+      siteName: "TokoClippers",
     },
     twitter: {
       card: "summary",
@@ -63,8 +63,8 @@ export default async function ChangelogPage() {
       <header className="border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg dark:invert" />
-            <span className="font-display text-lg font-bold tracking-tight">SupoClip</span>
+            <Image src="/logo.png" alt="TokoClippers" width={24} height={24} className="rounded-lg dark:invert" />
+            <span className="font-display text-lg font-bold tracking-tight">TokoClippers</span>
           </Link>
           <div className="flex items-center gap-2">
             <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">

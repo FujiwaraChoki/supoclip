@@ -52,7 +52,7 @@ export const articleClipGalleries: Record<string, ArticleClipGallery> = {
   "find-best-moments-in-video": {
     afterSection: "example",
     heading: "Two different ideas from Andrew Price's popular talk",
-    intro: "The original talk had 3.8 million YouTube views when selected on October 26, 2026. These are fresh SupoClip renders, not screenshots of someone else's Shorts. Play the complete examples and use the source links to inspect their boundaries.",
+    intro: "The original talk had 3.8 million YouTube views when selected on October 26, 2026. These are fresh TokoClippers renders, not screenshots of someone else's Shorts. Play the complete examples and use the source links to inspect their boundaries.",
     examples: [
       { clipId: "price-1", note: "Apply the four checks: identify the opening idea, the context that makes it accurate, the explanation that earns the payoff, and the point where the excerpt ends." },
       { clipId: "price-2", note: "Compare this idea with the first clip. Keeping a distinct takeaway matters more than filling a quota with several versions of the same answer." },
@@ -78,7 +78,7 @@ export const articleClipGalleries: Record<string, ArticleClipGallery> = {
   "word-by-word-video-captions": {
     afterSection: "style",
     heading: "Read the finished captions while the speaker talks",
-    intro: "These complete clips were transcribed and rendered through SupoClip. Play them with sound to check synchronization, then mute the player and judge readability against the changing background.",
+    intro: "These complete clips were transcribed and rendered through TokoClippers. Play them with sound to check synchronization, then mute the player and judge readability against the changing background.",
     examples: [
       { clipId: "price-1", note: "Follow the active-word highlight through a full sentence. Judge the text at the displayed phone-sized width rather than enlarging the player to make a small font seem readable." },
       { clipId: "ton-1", note: "Use a second speaker and recording to check the same caption style. Reusing a preset still calls for checking names, contrast, line breaks, and placement on each clip." },
@@ -96,8 +96,8 @@ export const articleClipGalleries: Record<string, ArticleClipGallery> = {
   },
   "open-source-video-clippers": {
     afterSection: "supoclip",
-    heading: "Actual output from the local SupoClip pipeline",
-    intro: "We generated these clips with the repository's processing service, local Whisper transcription, and an Ollama model for selection. They demonstrate SupoClip on two recordings; they are not a Clips AI or Auto-Editor benchmark.",
+    heading: "Actual output from the local TokoClippers pipeline",
+    intro: "We generated these clips with the repository's processing service, local Whisper transcription, and an Ollama model for selection. They demonstrate TokoClippers on two recordings; they are not a Clips AI or Auto-Editor benchmark.",
     examples: [
       { clipId: "price-1", note: "Use this longer talk to inspect the final selection, captions, and composition. The attribution file records the source and the processing configuration." },
       { clipId: "ton-1", note: "Compare the same workflow on an interview. Different source footage is useful for evaluating output; it does not establish that one tool is faster or better than another." },
@@ -113,7 +113,7 @@ export function getArticleVideoObjects(slug: string, siteUrl: string) {
     return clip ? [{
       "@type": "VideoObject",
       name: clip.title,
-      description: `SupoClip excerpt from ${clip.source.title}. ${clip.edits}`,
+      description: `TokoClippers excerpt from ${clip.source.title}. ${clip.edits}`,
       thumbnailUrl: `${siteUrl}${clip.poster}`,
       contentUrl: `${siteUrl}${clip.src}`,
       uploadDate: clip.publishedAt,

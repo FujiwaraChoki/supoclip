@@ -2,18 +2,18 @@
   "bindingNotice": "Versi bahasa Inggris dokumen ini yang mengikat secara hukum. Terjemahan ini disediakan untuk memudahkan.",
   "hostedApp": "Aplikasi yang di-host",
   "lastUpdated": "Terakhir diperbarui: {date}",
-  "back": "Kembali ke SupoClip",
+  "back": "Kembali ke TokoClippers",
   "terms": {
-    "metaTitle": "Ketentuan Layanan | SupoClip",
-    "metaDescription": "Ketentuan yang mengatur penggunaan aplikasi SupoClip dan layanan clipping video yang di-host, termasuk langganan yang dibeli di web atau lewat App Store.",
-    "ogTitle": "Ketentuan Layanan SupoClip",
-    "ogDescription": "Ketentuan yang mengatur penggunaan SupoClip.",
+    "metaTitle": "Ketentuan Layanan | TokoClippers",
+    "metaDescription": "Ketentuan yang mengatur penggunaan aplikasi TokoClippers dan layanan clipping video yang di-host, termasuk langganan yang dibeli di web atau lewat App Store.",
+    "ogTitle": "Ketentuan Layanan TokoClippers",
+    "ogDescription": "Ketentuan yang mengatur penggunaan TokoClippers.",
     "title": "Ketentuan Layanan",
     "privacyLink": "Kebijakan Privasi",
     "agreement": {
       "title": "Perjanjian",
-      "p1": "Ketentuan Layanan ini (“Ketentuan”) merupakan perjanjian antara Anda dan {company} (“kami”), operator aplikasi dan layanan terkelola SupoClip (“Layanan”), yang mengubah video panjang menjadi klip pendek dengan takarir. Dengan membuat akun atau menggunakan Layanan, Anda menyetujui Ketentuan ini. Jika tidak setuju, jangan gunakan Layanan.",
-      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi perangkat lunak yang berlaku dan ketentuan operatornya sendiri."
+      "p1": "Ketentuan Layanan ini (“Ketentuan”) merupakan perjanjian antara Anda dan {company} (“kami”), operator aplikasi dan layanan terkelola TokoClippers (“Layanan”), yang mengubah video panjang menjadi klip pendek dengan takarir. Dengan membuat akun atau menggunakan Layanan, Anda menyetujui Ketentuan ini. Jika tidak setuju, jangan gunakan Layanan.",
+      "p2": "TokoClippers juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan TokoClippers; instans yang di-host sendiri diatur oleh lisensi perangkat lunak yang berlaku dan ketentuan operatornya sendiri."
     },
     "account": {
       "title": "Akunmu",
@@ -67,15 +67,15 @@
     }
   },
   "privacy": {
-    "metaTitle": "Kebijakan Privasi | SupoClip",
-    "metaDescription": "Bagaimana SupoClip mengumpulkan, memakai, membagikan, dan melindungi datamu saat kamu memakai layanan clipping video SupoClip.",
-    "ogTitle": "Kebijakan Privasi SupoClip",
-    "ogDescription": "Bagaimana SupoClip menangani datamu.",
+    "metaTitle": "Kebijakan Privasi | TokoClippers",
+    "metaDescription": "Bagaimana TokoClippers mengumpulkan, memakai, membagikan, dan melindungi datamu saat kamu memakai layanan clipping video TokoClippers.",
+    "ogTitle": "Kebijakan Privasi TokoClippers",
+    "ogDescription": "Bagaimana TokoClippers menangani datamu.",
     "title": "Kebijakan Privasi",
     "overview": {
       "title": "Ringkasan",
-      "p1": "{company} (“kami”) mengoperasikan aplikasi dan layanan terkelola SupoClip (“Layanan”) dan merupakan pengendali data yang bertanggung jawab atas data pribadi yang diproses untuk menyediakannya. Kebijakan Privasi ini menjelaskan cara kami mengumpulkan, menggunakan, membagikan, dan melindungi informasi saat Anda menggunakan Layanan, yang mengubah video panjang menjadi klip pendek dengan takarir.",
-      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Jika kamu memakai instans yang di-host sendiri dan dioperasikan olehmu atau pihak ketiga, operator itu—bukan SupoClip—yang bertanggung jawab atas data yang diproses instans tersebut. Kebijakan ini menjelaskan layanan yang di-host dan dioperasikan SupoClip."
+      "p1": "{company} (“kami”) mengoperasikan aplikasi dan layanan terkelola TokoClippers (“Layanan”) dan merupakan pengendali data yang bertanggung jawab atas data pribadi yang diproses untuk menyediakannya. Kebijakan Privasi ini menjelaskan cara kami mengumpulkan, menggunakan, membagikan, dan melindungi informasi saat Anda menggunakan Layanan, yang mengubah video panjang menjadi klip pendek dengan takarir.",
+      "p2": "TokoClippers juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Jika kamu memakai instans yang di-host sendiri dan dioperasikan olehmu atau pihak ketiga, operator itu—bukan TokoClippers—yang bertanggung jawab atas data yang diproses instans tersebut. Kebijakan ini menjelaskan layanan yang di-host dan dioperasikan TokoClippers."
     },
     "collect": {
       "title": "Informasi yang kami kumpulkan",
@@ -89,7 +89,7 @@
       "usage": "Kami mengumpulkan pengenal sesi, alamat IP, dan log teknis dasar untuk mengoperasikan, mengamankan, dan men-debug Layanan. Jika analitik diaktifkan untuk situs yang di-host, kami memakai penyedia analitik yang ramah privasi dan tidak membangun profil iklan lintas situs. Kami juga memakai PostHog di situs yang di-host untuk memahami cara produk dipakai, memutar ulang sesi (dengan semua yang diketik di kolom formulir disamarkan), dan menerima laporan error agar kami bisa memperbaiki masalah.",
       "campaignLabel": "Informasi kampanye dan rujukan.",
       "campaign1": "Saat kamu mengunjungi situs kami dalam keadaan keluar, browser-mu menyimpan catatan cara kamu pertama kali tiba, sampai 90 hari. Catatan ini disimpan di local storage browser, bukan di cookie. Catatan mencakup tag kampanye di tautan yang kamu ikuti (seperti <utmSource>utm_source</utmSource>, <utmCampaign>utm_campaign</utmCampaign>, atau kode <ref>ref</ref>), domain situs perujuk (bukan alamat lengkap), halaman tempat kamu mendarat, dan waktu kunjungan itu. Alamat halaman dipangkas menjadi rutenya, jadi tautan berbagi dan ID proyek tidak pernah dicatat. Tidak ada yang dicatat saat kamu masuk.",
-      "campaign2": "Akun pertama yang masuk di browser itu mengklaim catatan tersebut, lalu catatan dihapus dari browser agar akun lain tidak bisa memakainya. Jika akun itu baru, kami menyimpan catatan ke akun itu sekali, tidak lama setelah pendaftaran. Kami juga mencatat kapan kamu pertama kali mengunduh atau mengekspor clip. Kami memakai ini untuk mempelajari kanal mana yang membawa orang yang merasa SupoClip berguna. Jika analitik diaktifkan, peristiwa pendaftaran dan ekspor clip yang kami kirim ke penyedia analitik menyertakan kolom kampanye yang sama. Kami tidak memakai informasi ini untuk iklan atau menjualnya. Kamu bisa menghapus catatan dari browser dengan membersihkan data situs untuk supoclip.com."
+      "campaign2": "Akun pertama yang masuk di browser itu mengklaim catatan tersebut, lalu catatan dihapus dari browser agar akun lain tidak bisa memakainya. Jika akun itu baru, kami menyimpan catatan ke akun itu sekali, tidak lama setelah pendaftaran. Kami juga mencatat kapan kamu pertama kali mengunduh atau mengekspor clip. Kami memakai ini untuk mempelajari kanal mana yang membawa orang yang merasa TokoClippers berguna. Jika analitik diaktifkan, peristiwa pendaftaran dan ekspor clip yang kami kirim ke penyedia analitik menyertakan kolom kampanye yang sama. Kami tidak memakai informasi ini untuk iklan atau menjualnya. Kamu bisa menghapus catatan dari browser dengan membersihkan data situs untuk supoclip.com."
     },
     "use": {
       "title": "Bagaimana kami memakai informasimu",
@@ -104,16 +104,16 @@
     },
     "social": {
       "title": "Akun sosial yang terhubung",
-      "p1": "Kamu bisa menghubungkan akun YouTube, TikTok, atau Instagram agar SupoClip bisa memublikasikan clip untukmu. Menghubungkan bersifat opsional, terjadi lewat halaman masuk platform itu sendiri, dan kami tidak pernah melihat kata sandimu untuk platform itu.",
+      "p1": "Kamu bisa menghubungkan akun YouTube, TikTok, atau Instagram agar TokoClippers bisa memublikasikan clip untukmu. Menghubungkan bersifat opsional, terjadi lewat halaman masuk platform itu sendiri, dan kami tidak pernah melihat kata sandimu untuk platform itu.",
       "accessLabel": "Apa yang kami akses dan kenapa.",
       "li1": "<label>Profil dasar</label> (ID akun, nama tampilan, nama pengguna, foto profil) — untuk menunjukkan akun mana yang terhubung.",
       "li2": "<label>Izin untuk mengunggah atau memublikasikan</label> — untuk memposting clip yang kamu pilih, dengan judul, caption, visibilitas, dan waktu yang kamu atur. Kami tidak pernah memposting apa pun yang tidak kamu minta.",
-      "li3": "<label>Statistik untuk postingan yang dibuat lewat SupoClip</label> (penayangan, suka, komentar, dibagikan) — untuk menunjukkan performa clip-mu dan, setelah hasilnya cukup, menyesuaikan pemilihan clip untuk videomu berikutnya.",
+      "li3": "<label>Statistik untuk postingan yang dibuat lewat TokoClippers</label> (penayangan, suka, komentar, dibagikan) — untuk menunjukkan performa clip-mu dan, setelah hasilnya cukup, menyesuaikan pemilihan clip untuk videomu berikutnya.",
       "tokens": "Kami menyimpan token akses yang diterbitkan platform dalam bentuk terenkripsi dan memakainya hanya untuk tujuan di atas. Kami tidak menjual data ini, memakainya untuk iklan, membagikannya dengan pengguna lain, atau memakainya untuk melatih model AI serbaguna.",
       "disconnectLabel": "Pemutusan dan penghapusan.",
-      "disconnect": "Kamu bisa memutus akun kapan saja dari halaman Sosial. Memutus menghapus token yang tersimpan segera, membatalkan postingan yang masih terjadwal untuk akun itu, dan meminta platform mencabut akses SupoClip jika platform mendukungnya. Kamu juga bisa menghapus catatan postingan yang sudah dipublikasikan, termasuk statistiknya, dari aplikasi. Menghapus akun SupoClip menghapus semua data ini. Kamu juga bisa mencabut akses dari platform itu sendiri, untuk Google di <google>pengaturan keamanan Google</google>. Untuk meminta kami menghapus data ini, email <email>privacy@supoclip.com</email>.",
+      "disconnect": "Kamu bisa memutus akun kapan saja dari halaman Sosial. Memutus menghapus token yang tersimpan segera, membatalkan postingan yang masih terjadwal untuk akun itu, dan meminta platform mencabut akses TokoClippers jika platform mendukungnya. Kamu juga bisa menghapus catatan postingan yang sudah dipublikasikan, termasuk statistiknya, dari aplikasi. Menghapus akun TokoClippers menghapus semua data ini. Kamu juga bisa mencabut akses dari platform itu sendiri, untuk Google di <google>pengaturan keamanan Google</google>. Untuk meminta kami menghapus data ini, email <email>privacy@supoclip.com</email>.",
       "youtubeLabel": "YouTube dan Google.",
-      "youtube": "SupoClip memakai Layanan API YouTube. Dengan menghubungkan akun YouTube, kamu menyetujui <youtubeTerms>Ketentuan Layanan YouTube</youtubeTerms>, dan penanganan data oleh Google dijelaskan di <googlePrivacy>Kebijakan Privasi Google</googlePrivacy>. Penggunaan dan pemindahan SupoClip ke aplikasi lain atas informasi yang diterima dari API Google akan mematuhi <googleApi>Kebijakan Data Pengguna Layanan API Google</googleApi>, termasuk persyaratan Limited Use."
+      "youtube": "TokoClippers memakai Layanan API YouTube. Dengan menghubungkan akun YouTube, kamu menyetujui <youtubeTerms>Ketentuan Layanan YouTube</youtubeTerms>, dan penanganan data oleh Google dijelaskan di <googlePrivacy>Kebijakan Privasi Google</googlePrivacy>. Penggunaan dan pemindahan TokoClippers ke aplikasi lain atas informasi yang diterima dari API Google akan mematuhi <googleApi>Kebijakan Data Pengguna Layanan API Google</googleApi>, termasuk persyaratan Limited Use."
     },
     "processors": {
       "title": "Penyedia layanan & subpemroses",

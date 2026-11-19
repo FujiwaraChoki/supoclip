@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only SupoClip production health, job, and OpenRouter balance snapshot.
+"""Read-only TokoClippers production health, job, and OpenRouter balance snapshot.
 
 Run from this checkout using Python 3 with SUPOCLIP_PROD_SSH_HOST set to the
 production SSH alias. No purchases, job submissions, or service

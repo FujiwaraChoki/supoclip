@@ -51,15 +51,15 @@ class SubscriptionEmailService:
             "%B %d, %Y at %H:%M UTC"
         )
         paragraphs = [
-            "Your SupoClip cancellation is scheduled. Thanks for giving us a try.",
-            "What would have made SupoClip more useful to you? Just hit reply—a quick note "
+            "Your TokoClippers cancellation is scheduled. Thanks for giving us a try.",
+            "What would have made TokoClippers more useful to you? Just hit reply—a quick note "
             "about what was missing or what got in your way would mean a lot.",
             "If a clip didn't turn out as expected or you got stuck somewhere, tell us "
             "what happened. We'd be happy to take a look.",
         ]
         if include_retention_offer:
             paragraphs.append(
-                "If you decide to give SupoClip another try, we'd love to welcome you back "
+                "If you decide to give TokoClippers another try, we'd love to welcome you back "
                 "with 30% off for 3 months. Just reply to this email and we'll get the "
                 "discount set up for you."
             )
@@ -68,57 +68,57 @@ class SubscriptionEmailService:
             f"until {end_date}. You can undo the cancellation in Settings before then."
         )
         return EmailContent(
-            subject="A quick question about your SupoClip experience",
+            subject="A quick question about your TokoClippers experience",
             reply_to=("support@supoclip.com",),
             category=PRODUCT_UPDATE if include_retention_offer else TRANSACTIONAL,
             html=(
                 f"<p>Hey {escape(first_name)},</p>"
                 + "".join(f"<p>{escape(paragraph)}</p>" for paragraph in paragraphs)
-                + "<p>Best,<br>Team SupoClip</p>"
+                + "<p>Best,<br>Team TokoClippers</p>"
                 + f"<p>{escape(closing)}</p>"
             ),
             text=(
                 f"Hey {first_name},\n\n"
                 + "\n\n".join(paragraphs)
-                + f"\n\nBest,\nTeam SupoClip\n\n{closing}"
+                + f"\n\nBest,\nTeam TokoClippers\n\n{closing}"
             ),
         )
 
     def _build_subscribed_email(self, user: User) -> EmailContent:
         first_name = self._first_name_for(user)
         return EmailContent(
-            subject="Thanks for subscribing to SupoClip",
+            subject="Thanks for subscribing to TokoClippers",
             html=(
                 f"<p>Hi {first_name},</p>"
-                "<p>Thanks for subscribing to SupoClip.</p>"
+                "<p>Thanks for subscribing to TokoClippers.</p>"
                 "<p>Your paid plan is now active, and you can jump back in anytime to create more clips.</p>"
                 "<p>We’re excited to have you with us.</p>"
-                "<p>Team SupoClip</p>"
+                "<p>Team TokoClippers</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
-                "Thanks for subscribing to SupoClip.\n\n"
+                "Thanks for subscribing to TokoClippers.\n\n"
                 "Your paid plan is now active, and you can jump back in anytime to create more clips.\n\n"
                 "We’re excited to have you with us.\n\n"
-                "Team SupoClip"
+                "Team TokoClippers"
             ),
         )
 
     def _build_unsubscribed_email(self, user: User) -> EmailContent:
         first_name = self._first_name_for(user)
         return EmailContent(
-            subject="Sorry to see you go from SupoClip",
+            subject="Sorry to see you go from TokoClippers",
             html=(
                 f"<p>Hi {first_name},</p>"
-                "<p>Sorry to see you go, and thanks for trying SupoClip.</p>"
+                "<p>Sorry to see you go, and thanks for trying TokoClippers.</p>"
                 "<p>Your subscription has been canceled. If you ever want to come back, we’d love to have you.</p>"
-                "<p>Team SupoClip</p>"
+                "<p>Team TokoClippers</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
-                "Sorry to see you go, and thanks for trying SupoClip.\n\n"
+                "Sorry to see you go, and thanks for trying TokoClippers.\n\n"
                 "Your subscription has been canceled. If you ever want to come back, we’d love to have you.\n\n"
-                "Team SupoClip"
+                "Team TokoClippers"
             ),
         )
 

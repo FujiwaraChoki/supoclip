@@ -9,7 +9,7 @@
   "progress": "{current} de {total}",
   "welcome": {
     "intro": {
-      "title": "Te damos la bienvenida a SupoClip",
+      "title": "Te damos la bienvenida a TokoClippers",
       "body": "Danos un video largo y convertimos sus mejores momentos en clips verticales cortos, con subtítulos y listos para publicar. Un recorrido de dos minutos: cómo crear tus primeros clips y luego cada página que usarás."
     },
     "source": {
@@ -34,11 +34,11 @@
     },
     "social": {
       "title": "Conecta tus cuentas",
-      "body": "Vincula aquí tus redes sociales para publicar clips directamente desde SupoClip, sin descargarlos antes."
+      "body": "Vincula aquí tus redes sociales para publicar clips directamente desde TokoClippers, sin descargarlos antes."
     },
     "analytics": {
       "title": "Mira qué funciona",
-      "body": "Las vistas, los me gusta y los comentarios de tus publicaciones vuelven aquí, por plataforma, gancho y duración. Tras unas cuantas publicaciones, SupoClip los usa para elegir clips más parecidos a los mejores."
+      "body": "Las vistas, los me gusta y los comentarios de tus publicaciones vuelven aquí, por plataforma, gancho y duración. Tras unas cuantas publicaciones, TokoClippers los usa para elegir clips más parecidos a los mejores."
     },
     "agents": {
       "title": "Clips desde tu asistente de IA",

@@ -1,7 +1,7 @@
 """
 API key repository - handles all database operations for per-user API keys.
 
-API keys authenticate programmatic clients (such as the SupoClip MCP server)
+API keys authenticate programmatic clients (such as the TokoClippers MCP server)
 directly against the backend. Only the SHA-256 hash of a key is ever stored;
 the plaintext key is shown to the user exactly once at creation time.
 """

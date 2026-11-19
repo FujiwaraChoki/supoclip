@@ -200,7 +200,7 @@ async def classify(db, review: dict[str, Any]) -> tuple[str, str | None, list[st
         if other:
             return "merge", other.id, flags
     if snapshot.get("reconciled"):
-        flags.append("found from SupoClip's account state, not a Stripe event: the survey answer and comment "
+        flags.append("found from TokoClippers' account state, not a Stripe event: the survey answer and comment "
                      "are not available")
     return "report", None, flags
 
@@ -355,7 +355,7 @@ async def _report_failure(review: dict[str, Any], error: str) -> None:
         feedback = snapshot.get("cancellation_feedback")
         comment = customer_text(snapshot.get("cancellation_comment"))
         message = "\n".join(x for x in (
-            f"🔻 SupoClip cancellation ({review['kind']}) — {label}",
+            f"🔻 TokoClippers cancellation ({review['kind']}) — {label}",
             f"The investigation failed {review['attempts']} times ({error[:200]}), so no clips were judged.",
             f"Survey answer: {feedback}" if feedback else "No survey answer.",
             f"Customer's comment (quoted): “{comment}”" if comment else "No comment.",

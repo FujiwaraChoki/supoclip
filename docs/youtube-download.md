@@ -1,6 +1,6 @@
 # YouTube download runbook
 
-SupoClip can download YouTube media with `yt-dlp` through a residential proxy, then keep that media so later edits do not fetch it again. The proxy path is off until `YOUTUBE_PROXY_URL` is set. A datacenter IP (the production host is in this situation) gets YouTube's "Sign in to confirm you're not a bot" page from plain `yt-dlp`.
+TokoClippers can download YouTube media with `yt-dlp` through a residential proxy, then keep that media so later edits do not fetch it again. The proxy path is off until `YOUTUBE_PROXY_URL` is set. A datacenter IP (the production host is in this situation) gets YouTube's "Sign in to confirm you're not a bot" page from plain `yt-dlp`.
 
 ## What a configured job does
 

@@ -1,12 +1,12 @@
 import type { ArticleClipGallery } from "@/lib/article-clips";
 import { getArticleClip } from "@/lib/article-clips";
 
-/** Full, locally hosted SupoClip renders with source and adaptation credits. */
+/** Full, locally hosted TokoClippers renders with source and adaptation credits. */
 export function ArticleClipExamples({ gallery }: { gallery: ArticleClipGallery }) {
   return (
     <section aria-labelledby="worked-clip-examples" className="not-prose space-y-6 rounded-2xl border bg-muted/20 p-5 sm:p-7">
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Made with SupoClip</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Made with TokoClippers</p>
         <h2 id="worked-clip-examples" className="!pt-0 text-2xl font-bold tracking-tight">{gallery.heading}</h2>
         <p className="text-sm leading-7 text-muted-foreground">{gallery.intro}</p>
       </div>
@@ -17,7 +17,7 @@ export function ArticleClipExamples({ gallery }: { gallery: ArticleClipGallery }
           return (
             <figure key={clip.id} id={`example-${clip.id}`} className="scroll-mt-8 space-y-4">
               <video src={clip.src} poster={clip.poster} controls playsInline preload="none" width={540} height={960}
-                aria-label={`${clip.title} — SupoClip example from ${clip.source.title}`}
+                aria-label={`${clip.title} — TokoClippers example from ${clip.source.title}`}
                 className="mx-auto aspect-[9/16] w-full max-w-[270px] rounded-xl bg-black ring-1 ring-border" />
               <figcaption className="space-y-3 text-sm leading-6">
                 <h3 className="!pt-0 font-semibold text-foreground">{clip.title}</h3>

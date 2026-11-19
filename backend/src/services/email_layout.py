@@ -95,7 +95,7 @@ def render_email_html(body: str, *, app_url: str = "") -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>SupoClip</title>
+<title>TokoClippers</title>
 {_font_style(assets)}</head>
 <body style="margin:0;padding:0;background:{_PAGE};">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:{_PAGE};">
@@ -104,14 +104,14 @@ def render_email_html(body: str, *, app_url: str = "") -> str:
 <tr><td style="padding:0 4px 20px;">
 <a href="{escape(site, quote=True)}" target="_blank" style="text-decoration:none;color:{_TEXT};">
 {logo}
-<span style="display:inline-block;vertical-align:middle;{"margin-left:10px;" if logo else ""}font-size:17px;font-weight:700;letter-spacing:-0.2px;color:{_TEXT};">SupoClip</span>
+<span style="display:inline-block;vertical-align:middle;{"margin-left:10px;" if logo else ""}font-size:17px;font-weight:700;letter-spacing:-0.2px;color:{_TEXT};">TokoClippers</span>
 </a>
 </td></tr>
 <tr><td style="background:#ffffff;border:1px solid {_BORDER};border-radius:12px;padding:32px 32px 16px;">
 {_inline_styles(body)}
 </td></tr>
 <tr><td style="padding:20px 4px 0;font-size:12px;line-height:18px;color:{_MUTED};">
-SupoClip turns long videos into short clips.<br>
+TokoClippers turns long videos into short clips.<br>
 <a href="{escape(site, quote=True)}" target="_blank" style="color:{_MUTED};text-decoration:underline;">{escape(site.split("://", 1)[-1])}</a>
 </td></tr>
 </table>

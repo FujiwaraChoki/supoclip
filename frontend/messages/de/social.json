@@ -89,7 +89,7 @@
     "signIn": "Anmelden",
     "title": "Social-Konten",
     "unavailable": "Veröffentlichen auf YouTube, TikTok und Instagram ist für dein Konto noch nicht verfügbar.",
-    "intro": "Verbinde die Konten, auf denen du postest. Veröffentliche Clips direkt von einer Aufgabenseite, plan sie und lass SupoClip aus ihrer Leistung lernen.",
+    "intro": "Verbinde die Konten, auf denen du postest. Veröffentliche Clips direkt von einer Aufgabenseite, plan sie und lass TokoClippers aus ihrer Leistung lernen.",
     "loadError": "Social-Konten konnten nicht geladen werden",
     "connectedNotice": "{label} verbunden.",
     "connectedAs": "{label} verbunden als {account}.",
@@ -98,7 +98,7 @@
     "connectHeading": "Konto verbinden",
     "connect": "Verbinden",
     "comingSoon": "Demnächst verfügbar",
-    "verificationNote": "Wir sind dabei, SupoClip bei dieser Plattform verifizieren zu lassen.",
+    "verificationNote": "Wir sind dabei, TokoClippers bei dieser Plattform verifizieren zu lassen.",
     "instagramNote": "Instagram braucht ein professionelles Konto (Business oder Creator).",
     "tiktokNote": "TikTok prüft, welche Sichtbarkeitsoptionen dein verbundenes Konto erlaubt.",
     "youtubeNote": "YouTube-Uploads aus einer ungeprüften App sind privat, bis die Prüfung von Google fertig ist.",
@@ -128,6 +128,6 @@
   "loadingPrivacy": "TikTok-Veröffentlichungsoptionen werden geprüft…",
   "privacyLoadFailed": "Veröffentlichungsoptionen konnten nicht geladen werden. Bitte aktualisieren.",
   "tiktokPublicUnavailable": "Öffentlich ist für dieses TikTok-Konto nicht verfügbar. Prüfe die Datenschutzeinstellungen in TikTok und aktualisiere die Optionen.",
-  "tiktokPrivateAccountRequired": "TikTok hat die App von SupoClip noch nicht freigegeben und akzeptiert daher nur private Beiträge von privaten Konten. Aktiviere vor dem Veröffentlichen in TikTok Einstellungen und Datenschutz → Datenschutz → Privates Konto.",
+  "tiktokPrivateAccountRequired": "TikTok hat die App von TokoClippers noch nicht freigegeben und akzeptiert daher nur private Beiträge von privaten Konten. Aktiviere vor dem Veröffentlichen in TikTok Einstellungen und Datenschutz → Datenschutz → Privates Konto.",
   "tiktokPaused": "Das Veröffentlichen auf TikTok ist pausiert, während wir ein Problem mit TikTok beheben. Deine anderen Plattformen funktionieren wie gewohnt."
 }

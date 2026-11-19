@@ -1,6 +1,6 @@
 """Tables and columns owned by the web app's Prisma schema.
 
-Hosted SupoClip has them; a self-hosted or test database built from the backend's
+Hosted TokoClippers has them; a self-hosted or test database built from the backend's
 own migrations may not. Queries check here instead of assuming.
 """
 

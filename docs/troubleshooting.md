@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This guide collects the most common operational issues with SupoClip and how to diagnose them.
+This guide collects the most common operational issues with TokoClippers and how to diagnose them.
 
 ## Start Here
 

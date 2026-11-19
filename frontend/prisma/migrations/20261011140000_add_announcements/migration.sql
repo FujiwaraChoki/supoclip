@@ -18,7 +18,7 @@ INSERT INTO "announcements" ("id", "title", "description", "href", "action", "is
 VALUES (
     'creator-program-2026-10',
     'The creator program is open',
-    'Make content about SupoClip and get hosted Pro for free while participating as an approved creator. Your audience gets 20% off their first three months. No cash payments or referral commissions.',
+    'Make content about TokoClippers and get hosted Pro for free while participating as an approved creator. Your audience gets 20% off their first three months. No cash payments or referral commissions.',
     '/affiliate',
     'Explore the creator program',
     true,

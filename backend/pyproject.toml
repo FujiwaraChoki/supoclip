@@ -1,7 +1,7 @@
 [project]
 name = "supoclip-backend"
 version = "0.1.0"
-description = "Python-based backend for SupoClip"
+description = "Python-based backend for TokoClippers"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

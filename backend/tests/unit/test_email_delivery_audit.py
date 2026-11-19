@@ -11,7 +11,7 @@ from src.services.email_service import EmailContent, SesEmailService
 def sender(monkeypatch):
     service = SesEmailService(SimpleNamespace(
         aws_region="us-east-1", aws_access_key_id="test", aws_secret_access_key="test",
-        ses_from_email="SupoClip <support@example.com>",
+        ses_from_email="TokoClippers <support@example.com>",
     ))
     service._send = MagicMock(return_value={"MessageId": "ses-message-1"})
     db = MagicMock()
@@ -61,7 +61,7 @@ def test_ses_uses_per_message_reply_address_only_when_provided(monkeypatch):
     monkeypatch.setattr(email_service.boto3, "client", lambda *args, **kwargs: client)
     service = SesEmailService(SimpleNamespace(
         aws_region="us-east-1", aws_access_key_id="test", aws_secret_access_key="test",
-        ses_from_email="SupoClip <noreply@example.com>",
+        ses_from_email="TokoClippers <noreply@example.com>",
     ))
 
     service._send("user@example.com", EmailContent(

@@ -1,12 +1,12 @@
 {
   "about": {
     "title": "Sobre",
-    "credit": "Baseado no SupoClip.",
+    "credit": "Baseado no TokoClippers.",
     "repository": "Repositório original"
   },
   "title": "Configurações",
   "intro": "Padrões para novas gerações, notificações e seu plano.",
-  "languageDescription": "O idioma usado no SupoClip.",
+  "languageDescription": "O idioma usado no TokoClippers.",
   "signInRequired": {
     "title": "É preciso entrar",
     "body": "Entre para acessar suas configurações",
@@ -78,7 +78,7 @@
     "socialTitle": "Contas sociais",
     "socialDescription": "Conecte YouTube, TikTok e Instagram para publicar clipes e acompanhar o desempenho",
     "creatorTitle": "Programa de criadores",
-    "creatorDescription": "Faça vídeos sobre o SupoClip, ganhe o Pro de graça e um código para o seu público"
+    "creatorDescription": "Faça vídeos sobre o TokoClippers, ganhe o Pro de graça e um código para o seu público"
   },
   "save": {
     "saved": "Preferências salvas!",
@@ -99,7 +99,7 @@
   },
   "apiKeys": {
     "title": "Agentes e API",
-    "intro": "Deixe Claude, Cursor e outros agentes de IA cortarem vídeos por você com o <brand>servidor MCP do SupoClip</brand>, ou chame a API REST no seu código. Trate as chaves como senhas: elas dão acesso total à sua conta.",
+    "intro": "Deixe Claude, Cursor e outros agentes de IA cortarem vídeos por você com o <brand>servidor MCP do TokoClippers</brand>, ou chame a API REST no seu código. Trate as chaves como senhas: elas dão acesso total à sua conta.",
     "docsMcp": "Docs do MCP",
     "docsRest": "Docs da API REST",
     "keysTitle": "Chaves de API",
@@ -149,7 +149,7 @@
     },
     "assistants": {
       "title": "Conecte Claude, ChatGPT ou Grok",
-      "intro": "Nenhuma chave de API para copiar: adicione o SupoClip como conector personalizado no assistente, entre no SupoClip e permita o acesso. O assistente recebe uma chave própria, listada em Chaves de API.",
+      "intro": "Nenhuma chave de API para copiar: adicione o TokoClippers como conector personalizado no assistente, entre no TokoClippers e permita o acesso. O assistente recebe uma chave própria, listada em Chaves de API.",
       "urlLabel": "URL do servidor",
       "pick": "Escolha um assistente",
       "open": "Abrir {name}",
@@ -159,9 +159,9 @@
       "claude": {
         "steps": {
           "1": "No Claude, abra <b>Customize › Connectors</b>, selecione <b>Add</b> e depois <b>Add custom connector</b>.",
-          "2": "Dê o nome SupoClip, cole a URL do servidor e clique em <b>Continue</b>.",
+          "2": "Dê o nome TokoClippers, cole a URL do servidor e clique em <b>Continue</b>.",
           "3": "Mantenha as configurações de login que o Claude marca como <b>Detected</b>. Se ele perguntar como o Claude se identifica, escolha <b>Register automatically</b>. Clique em <b>Add</b>.",
-          "4": "Clique em <b>Connect</b>, entre no SupoClip e selecione <b>Allow</b>."
+          "4": "Clique em <b>Connect</b>, entre no TokoClippers e selecione <b>Allow</b>."
         },
         "availability": "A Anthropic oferece conectores personalizados no Free (um conector), Pro, Max, Ultra, Team e Enterprise. No Team e no Enterprise, um Owner o adiciona em Organization settings › Connectors e depois cada membro clica em Connect.",
         "code": "Claude Code: execute estes comandos em um terminal e entre quando o navegador abrir.",
@@ -170,9 +170,9 @@
       "chatgpt": {
         "steps": {
           "1": "No ChatGPT na web, abra <b>Plugins</b>, selecione <b>+</b> e depois <b>Add custom MCP server</b>.",
-          "2": "Dê o nome SupoClip e cole a URL do servidor em <b>Connection</b>.",
+          "2": "Dê o nome TokoClippers e cole a URL do servidor em <b>Connection</b>.",
           "3": "Defina a autenticação como <b>OAuth</b>, aceite o aviso de risco e selecione <b>Create as a plugin</b>.",
-          "4": "Instale o plugin, entre no SupoClip e selecione <b>Allow</b>. O ChatGPT pede confirmação para cada ação que cria ou altera clipes."
+          "4": "Instale o plugin, entre no TokoClippers e selecione <b>Allow</b>. O ChatGPT pede confirmação para cada ação que cria ou altera clipes."
         },
         "availability": "A OpenAI oferece servidores MCP personalizados no ChatGPT web para Business, Enterprise e Edu; no Business, administradores e proprietários os adicionam. Contas Pro têm só ferramentas de leitura: o ChatGPT lista seus clipes, mas não cria novos. A OpenAI não documenta isso para outros planos."
       },
@@ -180,7 +180,7 @@
         "steps": {
           "1": "No grok.com, abra <b>Connectors</b>, selecione <b>New Connector</b> e depois <b>Custom</b>.",
           "2": "Cole a URL do servidor.",
-          "3": "Conclua o login: entre no SupoClip e selecione <b>Allow</b>."
+          "3": "Conclua o login: entre no TokoClippers e selecione <b>Allow</b>."
         },
         "availability": "Segundo a xAI, os conectores estão disponíveis para todos os usuários do Grok; no Business e no Enterprise, um administrador adiciona o conector antes no console da xAI. A xAI não documenta quais métodos de login os conectores personalizados aceitam, então este fluxo não está confirmado para o Grok. Se falhar, conecte outro assistente ou use uma chave de API abaixo."
       }
@@ -188,7 +188,7 @@
   },
   "creator": {
     "title": "Programa de criadores",
-    "intro": "Faz vídeos sobre o SupoClip? Pegue seu código: seu público ganha <em>20% de desconto nos 3 primeiros meses</em> e você ganha o SupoClip Pro de graça.",
+    "intro": "Faz vídeos sobre o TokoClippers? Pegue seu código: seu público ganha <em>20% de desconto nos 3 primeiros meses</em> e você ganha o TokoClippers Pro de graça.",
     "howItWorks": "Como funciona",
     "signIn": "Crie uma conta grátis ou entre para se candidatar ao programa de criadores.",
     "createAccount": "Criar conta",
@@ -235,13 +235,13 @@
     },
     "profileLabel": "Link do perfil",
     "profilePlaceholder": "https://www.tiktok.com/@you",
-    "videoLabel": "Um vídeo que você fez sobre o SupoClip",
+    "videoLabel": "Um vídeo que você fez sobre o TokoClippers",
     "optional": "(opcional)",
     "videoPlaceholder": "https://",
-    "planLabel": "Como você vai divulgar o SupoClip?",
+    "planLabel": "Como você vai divulgar o TokoClippers?",
     "termsTitle": "Termos do programa",
     "termSponsored": "Marque posts patrocinados (por exemplo #ad).",
-    "termAds": "Não anuncie o nome SupoClip nem publique seu código em sites de cupom ou oferta.",
+    "termAds": "Não anuncie o nome TokoClippers nem publique seu código em sites de cupom ou oferta.",
     "termOwn": "Não use o seu próprio código.",
     "termEnd": "Podemos encerrar o programa ou remover um criador a qualquer momento.",
     "agree": "Concordo com os termos do programa",

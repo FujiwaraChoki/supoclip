@@ -1,5 +1,5 @@
 [Unit]
-Description=SupoClip render worker autoscaler (one run)
+Description=TokoClippers render worker autoscaler (one run)
 After=network-online.target docker.service
 Wants=network-online.target
 

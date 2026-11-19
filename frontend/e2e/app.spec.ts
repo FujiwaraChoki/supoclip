@@ -68,7 +68,7 @@ test("social publishing explains missing configuration without breaking task pag
   await expect(page.getByRole("link", { name: "Connect", exact: true })).toHaveCount(0);
   const details = page.getByRole("button", { name: "YouTube Shorts information", exact: true });
   await details.hover();
-  await expect(page.getByRole("tooltip")).toContainText("We are in the process of verifying SupoClip with this platform.");
+  await expect(page.getByRole("tooltip")).toContainText("We are in the process of verifying TokoClippers with this platform.");
   await expect(page.getByText("No accounts connected yet.", { exact: true })).toBeVisible();
   await expect(page.getByText("Failed to load social accounts")).toHaveCount(0);
   await page.screenshot({ path: "test-results/social-accounts-unconfigured.png", fullPage: true });

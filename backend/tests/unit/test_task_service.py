@@ -69,7 +69,7 @@ def build_task_service() -> TaskService:
     config.aws_region = "us-east-1"
     config.aws_access_key_id = "AKIATEST"
     config.aws_secret_access_key = "secret-test"
-    config.ses_from_email = "SupoClip <noreply@example.com>"
+    config.ses_from_email = "TokoClippers <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
     service._load_performance_context = AsyncMock(return_value=None)
     service._processing_transaction = lambda _task_id: nullcontext()

@@ -36,7 +36,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-dvh flex-col bg-background px-6 py-8">
       <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight">
-        <Image src="/logo.png" alt="" width={24} height={24} className="size-6 dark:invert" priority />SupoClip
+        <Image src="/logo.png" alt="" width={24} height={24} className="size-6 dark:invert" priority />TokoClippers
       </Link>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-12">{children}</div>
     </main>

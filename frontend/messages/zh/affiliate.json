@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "SupoClip 创作者计划：做视频即可免费获得 Pro",
-    "description": "制作关于 SupoClip 的 Shorts、Reels、TikToks 或视频，即可免费获得 SupoClip Pro。观众用你的代码，前 3 个月可享 20% 折扣。"
+    "title": "TokoClippers 创作者计划：做视频即可免费获得 Pro",
+    "description": "制作关于 TokoClippers 的 Shorts、Reels、TikToks 或视频，即可免费获得 TokoClippers Pro。观众用你的代码，前 3 个月可享 20% 折扣。"
   },
   "badge": "创作者计划",
   "nav": {
@@ -10,19 +10,19 @@
     "apply": "申请"
   },
   "hero": {
-    "title": "做关于 SupoClip 的视频。免费获得 Pro。",
-    "body": "在发关于剪辑、播客或创作者工具的 Shorts、Reels 或 TikToks？领取你自己的代码。观众在 SupoClip 上省钱，你在计划期间享有 Pro。",
+    "title": "做关于 TokoClippers 的视频。免费获得 Pro。",
+    "body": "在发关于剪辑、播客或创作者工具的 Shorts、Reels 或 TikToks？领取你自己的代码。观众在 TokoClippers 上省钱，你在计划期间享有 Pro。",
     "apply": "立即申请",
     "noMinimum": "没有粉丝数量要求。"
   },
   "video": {
-    "name": "SupoClip 创作者计划如何运作",
-    "description": "申请、选定代码，观众前 3 个月享 20% 折扣。获批的创作者免费获得 SupoClip Pro。",
+    "name": "TokoClippers 创作者计划如何运作",
+    "description": "申请、选定代码，观众前 3 个月享 20% 折扣。获批的创作者免费获得 TokoClippers Pro。",
     "aria": "创作者计划说明：申请、选定代码，观众前 3 个月享 20% 折扣"
   },
   "offer": {
     "heading": "每个人能得到什么",
-    "youTitle": "你免费获得 SupoClip Pro",
+    "youTitle": "你免费获得 TokoClippers Pro",
     "youDetail": "Pro 通常为每月 ${price}，每月包含 {limit} 小时视频。获批的创作者在参与计划期间可免费使用。",
     "youDetailNoLimit": "Pro 通常为每月 ${price}。获批的创作者在计划期间免费使用。",
     "audienceTitle": "你的观众享 20% 折扣",
@@ -48,7 +48,7 @@
   "rules": {
     "heading": "规则",
     "sponsored": "赞助内容请标明，例如使用 #ad。",
-    "ads": "不要用 SupoClip 的名称投放广告，也不要把代码发到优惠券或折扣网站。",
+    "ads": "不要用 TokoClippers 的名称投放广告，也不要把代码发到优惠券或折扣网站。",
     "ownCode": "不要使用你自己的代码。",
     "end": "我们可以随时结束计划或移除创作者。"
   },
@@ -56,11 +56,11 @@
     "heading": "常见问题",
     "cash": {
       "question": "会用现金支付吗？",
-      "answer": "目前不会。获批的创作者在计划期间免费获得 SupoClip Pro（通常为每月 ${price}）。"
+      "answer": "目前不会。获批的创作者在计划期间免费获得 TokoClippers Pro（通常为每月 ${price}）。"
     },
     "followers": {
       "question": "有最低粉丝数吗？",
-      "answer": "没有。我们看你发布的内容，而不只是粉丝数量。已经在做 SupoClip 视频的小型创作者非常合适。"
+      "answer": "没有。我们看你发布的内容，而不只是粉丝数量。已经在做 TokoClippers 视频的小型创作者非常合适。"
     },
     "audience": {
       "question": "我的观众能得到什么？",
@@ -75,12 +75,12 @@
       "answer": "你会收到一封邮件；如果有具体原因，我们会附上说明。30 天后可以再次申请。"
     },
     "account": {
-      "question": "需要 SupoClip 账号吗？",
+      "question": "需要 TokoClippers 账号吗？",
       "answer": "需要。计划与你的账号绑定，所以申请前要先创建一个免费账号（或登录）。"
     }
   },
   "cta": {
-    "title": "已经在发关于 SupoClip 的内容？",
-    "body": "用你的主页链接申请，并选定代码。如果已经做过关于 SupoClip 的视频，请一并附上。"
+    "title": "已经在发关于 TokoClippers 的内容？",
+    "body": "用你的主页链接申请，并选定代码。如果已经做过关于 TokoClippers 的视频，请一并附上。"
   }
 }
