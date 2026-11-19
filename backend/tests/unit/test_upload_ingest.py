@@ -298,3 +298,30 @@ async def test_preflight_without_a_session_does_not_look_up_storage(monkeypatch)
     monkeypatch.setattr("src.api.routes.tasks.VideoService.probe_upload_duration", staticmethod(probe))
 
     assert await _preflight_upload_source("upload://x.mp4", "user-1", 3600) == 5.0
+
+
+def test_slow_storage_checks_count_against_the_probe_budget(runtime_config, monkeypatch):
+    runtime_config.media_storage = "s3"
+    runtime_config.media_s3_bucket = "bucket"
+    now = {"t": 100.0}
+
+    def slow(seconds, result):
+        def call(*_args, **_kwargs):
+            now["t"] += seconds
+            return result
+        return call
+
+    # A rate-limited store is retried, so checking and signing can take a while.
+    monkeypatch.setattr(MediaStorage, "validate_source", slow(20.0, "s3://bucket/sources/big.mp4"))
+    monkeypatch.setattr(MediaStorage, "signed_url", slow(10.0, "https://signed.example/big"))
+    monkeypatch.setattr("src.services.video_service.time", SimpleNamespace(monotonic=lambda: now["t"]))
+    seen = {}
+
+    def probe(target, timeout=60):
+        seen["timeout"] = timeout
+        return 30.0
+
+    monkeypatch.setattr("src.services.video_service.ffprobe_duration", probe)
+
+    assert VideoService.probe_upload_duration("upload://s3/user-1/big.mp4", "user-1") == 30.0
+    assert seen["timeout"] == pytest.approx(10.0)

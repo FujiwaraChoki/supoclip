@@ -121,14 +121,13 @@ OPENING_CONTEXT_SECONDS = 10.0
 UPLOAD_PROBE_TIMEOUT_SECONDS = 40
 
 
-def _probe_stored_duration(signed_url: str) -> float:
-    """Length of an upload in storage, within ``UPLOAD_PROBE_TIMEOUT_SECONDS``.
+def _probe_stored_duration(signed_url: str, started: float) -> float:
+    """Length of an upload in storage, within ``UPLOAD_PROBE_TIMEOUT_SECONDS`` of ``started``.
 
     ffprobe reads only the container headers through ranged requests, except
     for a fragmented MP4, where it reads every fragment. Its length comes from
     the last fragments instead.
     """
-    started = time.monotonic()
     duration = fragmented_mp4_duration(signed_url)
     if duration is not None:
         return duration
@@ -665,10 +664,13 @@ class VideoService:
     @staticmethod
     def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:
         """Read an uploaded video's length without downloading it."""
+        # Checking and signing the upload count against the probe budget: a
+        # store that rate-limits them is retried and can take several seconds.
+        started = time.monotonic()
         if url.startswith("upload://s3/"):
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
-            return _probe_stored_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+            return _probe_stored_duration(storage.signed_url(reference, "source.mp4", expires_in=300), started)
         path = VideoService.resolve_local_video_path(url)
         if path.is_file():
             return fragmented_mp4_duration(path) or ffprobe_duration(path)
@@ -677,7 +679,7 @@ class VideoService:
         if storage_reference:
             storage = MediaStorage()
             if storage.enabled:
-                return _probe_stored_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
+                return _probe_stored_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300), started)
         return ffprobe_duration(path)
 
     @staticmethod
