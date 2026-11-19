@@ -364,6 +364,8 @@ HOOK TITLES ("hook_title" per segment):
 - Stay grounded: only promise what the clip actually delivers; never invent facts or numbers
 - Do not simply repeat the first spoken words verbatim; reframe them as a headline
 - Plain text only: no hashtags, no emojis, no quotes around the title
+- Sentence case: capitalise only the first word, names and acronyms, never Every Word
+- Keep the sign on a number exactly as it was said: 90%, $40k, £4,000
 - Write it in the same language as the transcript
 - Good examples: "The $40k mistake I keep seeing", "Why nobody tells you this about VC", "Do this before your next interview"
 
@@ -903,12 +905,94 @@ JSON-only output requirements:
 {transcript}"""
 
 
-def sanitize_hook_title(raw: Optional[str]) -> Optional[str]:
+_TITLE_NUMBER = re.compile(r"^(\d+(?:,\d{3})*(?:\.\d+)?)([.,!?:;]*)$")
+_UNIT_WORDS = frozenset({"percent", "per", "pounds", "pound", "dollars", "dollar", "euros", "euro", "quid", "bucks"})
+
+
+def restore_number_signs(title: str, source_text: Optional[str]) -> str:
+    """Give a bare number in the title back the sign the speaker used with it.
+
+    Models sometimes write "90 of guests" for a transcript's "90% of guests".
+    A number gets its "%" (or "$", "£", "€") back only when every time that
+    number appears in ``source_text`` it carries that sign, so nothing is
+    invented.
+    """
+    if not source_text or not any(ch.isdigit() for ch in title):
+        return title
+    words = title.split()
+    for index, word in enumerate(words):
+        match = _TITLE_NUMBER.match(word)
+        if not match:
+            continue
+        following = words[index + 1].lower().strip(".,!?") if index + 1 < len(words) else ""
+        if following in _UNIT_WORDS:
+            continue
+        number, tail = match.group(1), match.group(2)
+        found = re.findall(rf"(?<![\d.,])([$£€]?)\s?{re.escape(number)}(?![\d]|[.,]\d)(\s?%)?", source_text)
+        if not found:
+            continue
+        if all(percent for _currency, percent in found):
+            words[index] = f"{number}%{tail}"
+        else:
+            currencies = {currency for currency, _percent in found}
+            if len(currencies) == 1 and "" not in currencies:
+                words[index] = f"{currencies.pop()}{number}{tail}"
+    return " ".join(words)
+
+
+_WORD_EDGE = re.compile(r"^[^\w]+|[^\w]+$")
+
+
+def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
+    """Bring a Title Case headline to sentence case so one task's clips read alike.
+
+    Models mix "That Tastes Like Dirt, Bro" with "It just tastes like texture".
+    A capitalised later word keeps its capital when the transcript spells it
+    that way in mid-sentence (a name), or when it has capitals inside (CEOs,
+    iPhone) or is "I"; it is lowered when the transcript has it in lower case,
+    and, when the transcript does not have it at all, only if the whole title
+    is in Title Case. The first word of each sentence stays capitalised.
+    """
+    words = title.split()
+    if len(words) < 3:
+        return title
+    source = source_text or ""
+    proper = set(re.findall(r"(?<=[\w,;:'\"”’)]\s)([A-ZÀ-Þ][\w'’-]*)", source))
+    common = set(re.findall(r"\b([a-zß-ÿ][\w'’-]*)", source))
+
+    def simple_capital(core: str) -> bool:
+        return len(core) > 1 and core[0].isupper() and core[1:] == core[1:].lower() and core[1:] != core[1:].upper()
+
+    later = []
+    for index, word in enumerate(words):
+        core = _WORD_EDGE.sub("", word)
+        starts = index == 0 or words[index - 1][-1:] in ".!?:"
+        if core[:1].isalpha() and not starts:
+            later.append(core)
+    capped = [core for core in later if simple_capital(core) and not core.startswith(("I'", "I’"))]
+    title_case = len(capped) >= 2 and len(capped) >= 0.6 * len(later)
+    out = []
+    for index, word in enumerate(words):
+        core = _WORD_EDGE.sub("", word)
+        starts = index == 0 or words[index - 1][-1:] in ".!?:"
+        if starts or not simple_capital(core) or core.startswith(("I'", "I’")) or core in proper:
+            out.append(word)
+            continue
+        lowered = core[0].lower() + core[1:]
+        if lowered in common or title_case:
+            word = word.replace(core, lowered, 1)
+        out.append(word)
+    return " ".join(out)
+
+
+def sanitize_hook_title(raw: Optional[str], source_text: Optional[str] = None) -> Optional[str]:
     """Normalize an AI-provided hook title for on-screen rendering.
 
     Strips wrapping quotes/markdown, collapses whitespace, drops hashtags, and
     trims to a word-boundary length cap. Returns None when nothing usable is
-    left so callers can simply skip the overlay.
+    left so callers can simply skip the overlay. With ``source_text`` (the
+    clip's transcript) it also restores a number's dropped sign and brings a
+    Title Case headline to sentence case.
     """
     if not raw:
         return None
@@ -920,6 +1004,8 @@ def sanitize_hook_title(raw: Optional[str]) -> Optional[str]:
     title = title.rstrip(".,;:-–— ").strip()
     if not title:
         return None
+    if source_text is not None:
+        title = sentence_case_title(restore_number_signs(title, source_text), source_text)
 
     words = title.split()
     if len(words) > HOOK_TITLE_MAX_WORDS:
@@ -1636,7 +1722,7 @@ def _validate_segments(
                     )
                     segment.virality.total_score = calculated_total
 
-            segment.hook_title = sanitize_hook_title(segment.hook_title)
+            segment.hook_title = sanitize_hook_title(segment.hook_title, source_text=segment.text or "")
             # Bounds are final here (after snapping and repair): keep the teaser
             # only when it still sits inside the clip.
             _sanitize_hook_span(segment, start_seconds, end_seconds)
