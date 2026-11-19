@@ -343,7 +343,8 @@
       "sameEmail": "Itu sudah alamat email kamu.",
       "emailTaken": "Alamat email itu sudah digunakan oleh akun lain.",
       "sendFailed": "Kami tidak dapat mengirim email. Silakan coba lagi.",
-      "billingUpdateFailed": "Kami tidak dapat memperbarui email penagihanmu, jadi tidak ada yang berubah. Silakan coba lagi."
+      "billingUpdateFailed": "Kami tidak dapat memperbarui email penagihanmu, jadi tidak ada yang berubah. Silakan coba lagi.",
+      "inProgress": "Perubahan emailmu sedang disimpan. Tunggu sebentar, lalu periksa lagi."
     }
   }
 }

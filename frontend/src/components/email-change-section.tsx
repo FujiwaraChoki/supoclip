@@ -51,6 +51,7 @@ const KNOWN_ERRORS = new Set([
   "email_taken",
   "send_failed",
   "billing_update_failed",
+  "in_progress",
 ]);
 
 interface ApiError {
@@ -120,12 +121,16 @@ export function EmailChangeSection({ email, emailVerified, onChanged }: EmailCha
   useEffect(() => {
     if (!open || step !== "loading") return;
     call("GET")
-      .then((data: EmailChangeState) => apply(data))
+      .then((data: EmailChangeState) => {
+        apply(data);
+        // A finish that was already running (see in_progress) may have switched it meanwhile.
+        if (data.email !== email) onChanged?.(data.email);
+      })
       .catch((data: ApiError) => {
         setError(describeError(data));
         setStep("intro");
       });
-  }, [open, step, call, apply, describeError]);
+  }, [open, step, call, apply, describeError, email, onChanged]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,7 +156,7 @@ export function EmailChangeSection({ email, emailVerified, onChanged }: EmailCha
       const failure = data as ApiError;
       setError(describeError(failure));
       // These leave the request in another step: show that step.
-      if (failure.error === "no_request") setStep("loading");
+      if (failure.error === "no_request" || failure.error === "in_progress") setStep("loading");
       if (failure.error === "email_taken") setStep("enter_new");
       if (failure.error === "billing_update_failed") setStep("finishing");
     } finally {

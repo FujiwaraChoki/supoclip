@@ -142,6 +142,22 @@ describe("EmailChangeSection", () => {
     expect(calls.at(-1)?.body).toEqual({ action: "finish" });
   });
 
+  it("picks up the new address when another finish was already saving it", async () => {
+    const onChanged = vi.fn();
+    mockApi({
+      GET: [
+        { body: state({ stage: "finishing", newEmail: "fresh@example.com" }) },
+        { body: state(null, { email: "fresh@example.com" }) },
+      ],
+      finish: { status: 409, body: { error: "in_progress" } },
+    });
+    render(<EmailChangeSection email={OLD} emailVerified onChanged={onChanged} />);
+    await open();
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/already being saved/)).toBeInTheDocument();
+    await waitFor(() => expect(onChanged).toHaveBeenCalledWith("fresh@example.com"));
+  });
+
   it("shows how long to wait when rate limited", async () => {
     mockApi({
       GET: { body: state(null) },

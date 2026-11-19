@@ -75,7 +75,7 @@ function liveDeps(requestHeaders: Headers): EmailChangeDeps {
       // Never log the body: it carries the code.
       if (!response.ok) throw new Error(`Email change email failed (${response.status})`);
     },
-    updateBillingEmail: (userId, from, to) => updateBillingEmail(liveBillingEmailDeps(prisma), userId, from, to),
+    updateBillingEmail: (userId, _from, to) => updateBillingEmail(liveBillingEmailDeps(prisma), userId, to),
     async verifyPassword(password) {
       try {
         await auth.api.verifyPassword({ body: { password }, headers: requestHeaders });

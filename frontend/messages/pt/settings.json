@@ -343,7 +343,8 @@
       "sameEmail": "Esse já é o seu endereço de e-mail.",
       "emailTaken": "Outra conta já usa esse endereço de e-mail.",
       "sendFailed": "Não conseguimos enviar o e-mail. Tente novamente.",
-      "billingUpdateFailed": "Não conseguimos atualizar seu e-mail de cobrança, então nada mudou. Tente novamente."
+      "billingUpdateFailed": "Não conseguimos atualizar seu e-mail de cobrança, então nada mudou. Tente novamente.",
+      "inProgress": "A alteração do seu e-mail já está sendo salva. Aguarde um momento e confira de novo."
     }
   }
 }

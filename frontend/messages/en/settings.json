@@ -343,7 +343,8 @@
       "sameEmail": "That's already your email address.",
       "emailTaken": "Another account already uses that email address.",
       "sendFailed": "We couldn't send the email. Please try again.",
-      "billingUpdateFailed": "We couldn't update your billing email, so nothing changed. Please try again."
+      "billingUpdateFailed": "We couldn't update your billing email, so nothing changed. Please try again.",
+      "inProgress": "Your email change is already being saved. Wait a moment, then check again."
     }
   }
 }

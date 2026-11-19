@@ -37,7 +37,7 @@ describe("email change (real Postgres)", () => {
     db = new PGlite({ extensions: { uuid_ossp } });
     await db.exec(read("../../../init.sql"));
     // Production databases get the tables from the Prisma migration, so test that DDL.
-    await db.exec("DROP TABLE email_change_events; DROP TABLE email_change_requests;");
+    await db.exec("DROP TABLE email_change_log; DROP TABLE email_change_events; DROP TABLE email_change_requests;");
     await db.exec(read("../../prisma/migrations/20261119120000_email_change_requests/migration.sql"));
   });
 
@@ -47,7 +47,7 @@ describe("email change (real Postgres)", () => {
 
   beforeEach(async () => {
     await db.exec(`
-      DELETE FROM email_change_events; DELETE FROM email_change_requests;
+      DELETE FROM email_change_log; DELETE FROM email_change_events; DELETE FROM email_change_requests;
       DELETE FROM verification; DELETE FROM session; DELETE FROM account; DELETE FROM users;
       INSERT INTO users (id, name, email, "emailVerified") VALUES
         ('u1', 'Owner', '${OLD}', true), ('u2', 'Other', 'taken@example.com', true);
@@ -122,6 +122,13 @@ describe("email change (real Postgres)", () => {
     const resets = (await db.query<{ id: string }>("SELECT id FROM verification")).rows.map((r) => r.id);
     expect(resets).toEqual(["v2"]);
     expect((await getEmailChangeState(deps, actor)).request).toBeNull();
+
+    const log = (await db.query<{ user_id: string; old_email: string; new_email: string; session_id: string; ip_hash: string; notified_at: Date | null }>(
+      "SELECT user_id, old_email, new_email, session_id, ip_hash, notified_at FROM email_change_log",
+    )).rows;
+    expect(log).toEqual([
+      { user_id: "u1", old_email: OLD, new_email: NEW, session_id: "s1", ip_hash: expect.stringMatching(/^[0-9a-f]{64}$/), notified_at: null },
+    ]);
   });
 
   it("stores codes only as an HMAC", async () => {
@@ -331,11 +338,140 @@ describe("email change (real Postgres)", () => {
     expect((await db.query("SELECT * FROM email_change_requests")).rows).toHaveLength(0);
   });
 
+  it("runs one finish at a time, so a second one can't undo the first one's billing change", async () => {
+    await toNewEmailStep();
+    await submitNewEmail(deps, actor, NEW);
+    billing.fail = true;
+    await expectError(verifyNewEmailCode(deps, actor, "222222"), "billing_update_failed");
+    billing.fail = false;
+    // "Try again" sent twice (double click, two tabs of the same session).
+    const realUpdate = deps.updateBillingEmail;
+    deps.updateBillingEmail = async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return realUpdate(...args);
+    };
+    const [first, second] = await Promise.allSettled([finishEmailChange(deps, actor), finishEmailChange(deps, actor)]);
+    expect(first).toMatchObject({ status: "fulfilled", value: { email: NEW } });
+    expect(second).toMatchObject({ status: "rejected", reason: { code: "in_progress" } });
+    expect(billing.calls).toEqual([[OLD, NEW]]);
+    expect(billing.undone).toBe(0);
+    expect((await user()).email).toBe(NEW);
+  });
+
+  it("frees the finish for a retry after a failure, and after a crashed one's lease runs out", async () => {
+    await toNewEmailStep();
+    await submitNewEmail(deps, actor, NEW);
+    billing.fail = true;
+    await expectError(verifyNewEmailCode(deps, actor, "222222"), "billing_update_failed");
+    const claim = (await db.query<{ finish_claimed_at: Date | null }>("SELECT finish_claimed_at FROM email_change_requests")).rows[0];
+    expect(claim.finish_claimed_at).toBeNull();
+
+    // A finish that died mid-way leaves its claim behind.
+    await db.query("UPDATE email_change_requests SET finish_claimed_at = $1", [clock]);
+    billing.fail = false;
+    await expectError(finishEmailChange(deps, actor), "in_progress");
+    advance(EMAIL_CHANGE_LIMITS.finishLeaseMs + 1);
+    expect((await finishEmailChange(deps, actor)).email).toBe(NEW);
+  });
+
+  it("limits parallel password checks like sequential ones", async () => {
+    let checks = 0;
+    deps.verifyPassword = async () => {
+      checks += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return false;
+    };
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 12 }, () => startEmailChange(deps, actor, { password: "guess" })),
+    );
+    expect(attempts.every((a) => a.status === "rejected")).toBe(true);
+    expect(checks).toBeLessThanOrEqual(EMAIL_CHANGE_LIMITS.password.perUser);
+  });
+
+  it("doesn't count a correct password against the limit", async () => {
+    for (let i = 0; i < EMAIL_CHANGE_LIMITS.send.perUser; i += 1) {
+      await startEmailChange(deps, actor, { password: "correct horse" });
+      advance(EMAIL_CHANGE_LIMITS.resendCooldownMs);
+    }
+    const rows = (await db.query("SELECT id FROM email_change_events WHERE action = 'password'")).rows;
+    expect(rows).toHaveLength(0);
+  });
+
+  it("limits parallel codes to different new addresses like sequential ones", async () => {
+    await toNewEmailStep();
+    await submitNewEmail(deps, actor, "first@example.com");
+    const sends = await Promise.allSettled(
+      Array.from({ length: 12 }, (_, i) => submitNewEmail(deps, actor, `target${i}@example.com`)),
+    );
+    // The current-address code and the first new one already used two sends this hour.
+    expect(sends.filter((s) => s.status === "fulfilled").length).toBeLessThanOrEqual(EMAIL_CHANGE_LIMITS.send.perUser - 2);
+    expect(sent.filter((m) => m.kind === "new_code").length).toBeLessThanOrEqual(EMAIL_CHANGE_LIMITS.send.perUser - 1);
+    // Refused attempts give their slot back.
+    expect((await submitNewEmail(deps, actor, NEW)).request?.newEmail).toBe(NEW);
+  });
+
+  it("limits codes to one new address across accounts and networks", async () => {
+    const target = "victim@example.com";
+    let sentToTarget = 0;
+    for (let i = 0; i < EMAIL_CHANGE_LIMITS.send.perTarget + 2; i += 1) {
+      const id = `x${i}`;
+      await db.query(`INSERT INTO users (id, name, email, "emailVerified") VALUES ($1, 'X', $2, true)`, [id, `${id}@example.com`]);
+      await db.query(
+        `INSERT INTO session (id, "expiresAt", token, "createdAt", "updatedAt", "userId") VALUES ($1, now() + interval '1 day', $1, now(), now(), $2)`,
+        [`s-${id}`, id],
+      );
+      const attacker = { userId: id, sessionId: `s-${id}`, sessionCreatedAt: clock, ip: `198.51.100.${i}` };
+      codes.unshift("101010");
+      await db.exec("DELETE FROM account");
+      await startEmailChange(deps, attacker, {});
+      await verifyCurrentEmailCode(deps, attacker, "101010");
+      const result = await submitNewEmail(deps, attacker, target).then(
+        () => "sent",
+        (e: EmailChangeError) => e.code,
+      );
+      if (result === "sent") sentToTarget += 1;
+      else expect(result).toBe("rate_limited");
+    }
+    expect(sentToTarget).toBe(EMAIL_CHANGE_LIMITS.send.perTarget);
+  });
+
+  it("counts lookups of addresses in use against the send limit", async () => {
+    await toNewEmailStep();
+    const results: string[] = [];
+    for (let i = 0; i < EMAIL_CHANGE_LIMITS.send.perUser; i += 1) {
+      await db.query(`INSERT INTO users (id, name, email) VALUES ($1, 'Taken', $2)`, [`t${i}`, `taken${i}@example.com`]);
+      results.push(await submitNewEmail(deps, actor, `taken${i}@example.com`).then(() => "sent", (e: EmailChangeError) => e.code));
+    }
+    // One send went to the current address; the rest of the hour's budget is spent on lookups.
+    expect(results).toEqual([
+      ...Array(EMAIL_CHANGE_LIMITS.send.perUser - 1).fill("email_taken"),
+      "rate_limited",
+    ]);
+  });
+
+  it("refuses addresses Better Auth couldn't sign in with", async () => {
+    await toNewEmailStep();
+    for (const address of ["a!b@example.com", "dé@example.com", "a..b@example.com", "x@localhost", "x@example.c0m"]) {
+      await expectError(submitNewEmail(deps, actor, address), "invalid_email");
+    }
+    expect((await submitNewEmail(deps, actor, "first.o'neil+clips@sub.example.co")).request?.newEmail).toBe(
+      "first.o'neil+clips@sub.example.co",
+    );
+  });
+
   it("removes the request with the account", async () => {
     await startEmailChange(deps, actor, { password: "correct horse" });
     await db.exec("DELETE FROM users WHERE id = 'u1'");
     expect((await db.query("SELECT * FROM email_change_requests")).rows).toHaveLength(0);
     expect((await db.query("SELECT * FROM email_change_events")).rows).toHaveLength(0);
+  });
+
+  it("removes the change log with the account", async () => {
+    await toNewEmailStep();
+    await submitNewEmail(deps, actor, NEW);
+    await verifyNewEmailCode(deps, actor, "222222");
+    await db.exec("DELETE FROM users WHERE id = 'u1'");
+    expect((await db.query("SELECT * FROM email_change_log")).rows).toHaveLength(0);
   });
 });
 
@@ -352,7 +488,7 @@ it.each([false, true])("both migration runners create the tables, in either orde
     const tables = await db.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'email_change_%' ORDER BY table_name",
     );
-    expect(tables.rows.map((row) => row.table_name)).toEqual(["email_change_events", "email_change_requests"]);
+    expect(tables.rows.map((row) => row.table_name)).toEqual(["email_change_events", "email_change_log", "email_change_requests"]);
   } finally {
     await db.close();
   }

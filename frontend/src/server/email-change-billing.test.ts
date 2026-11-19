@@ -55,10 +55,14 @@ describe("updateBillingEmail", () => {
     { accountId: DESTINATION, customerId: "cus_dest" },
   ];
 
-  function clients(failOn?: { account: string; email: string; error?: Error }) {
+  function clients(
+    failOn?: { account: string; email: string; error?: Error },
+    stored: Record<string, Partial<Stripe.Customer> | Stripe.DeletedCustomer> = {},
+  ) {
     const calls: [string | null, string, string][] = [];
     const client = (accountId: string | null) => ({
       customers: {
+        retrieve: vi.fn(async (customerId: string) => stored[customerId] ?? { id: customerId, email: "old@example.com" }),
         update: vi.fn(async (customerId: string, params: { email: string }) => {
           calls.push([accountId, customerId, params.email]);
           if (failOn && failOn.account === accountId && failOn.email === params.email) {
@@ -73,7 +77,7 @@ describe("updateBillingEmail", () => {
 
   it("moves every customer to the new address and can undo it", async () => {
     const { calls, deps } = clients();
-    const undo = await updateBillingEmail(deps, "u1", "old@example.com", "new@example.com");
+    const undo = await updateBillingEmail(deps, "u1", "new@example.com");
     expect(calls).toEqual([
       [SOURCE, "cus_src", "new@example.com"],
       [DESTINATION, "cus_dest", "new@example.com"],
@@ -85,10 +89,23 @@ describe("updateBillingEmail", () => {
     ]);
   });
 
+  it("gives each customer back the address Stripe had, not the sign-in address", async () => {
+    const { calls, deps } = clients(undefined, {
+      cus_src: { id: "cus_src", email: "billing@company.example" },
+      cus_dest: { id: "cus_dest", email: null },
+    });
+    const undo = await updateBillingEmail(deps, "u1", "new@example.com");
+    await undo();
+    expect(calls.slice(2)).toEqual([
+      [SOURCE, "cus_src", "billing@company.example"],
+      [DESTINATION, "cus_dest", ""],
+    ]);
+  });
+
   it("restores the first account when the second fails", async () => {
     const { calls, deps } = clients({ account: DESTINATION, email: "new@example.com" });
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    await expect(updateBillingEmail(deps, "u1", "old@example.com", "new@example.com")).rejects.toThrow("Stripe is unavailable");
+    await expect(updateBillingEmail(deps, "u1", "new@example.com")).rejects.toThrow("Stripe is unavailable");
     expect(calls).toEqual([
       [SOURCE, "cus_src", "new@example.com"],
       [DESTINATION, "cus_dest", "new@example.com"],
@@ -99,12 +116,18 @@ describe("updateBillingEmail", () => {
   it("skips a customer Stripe no longer has", async () => {
     const missing = new Stripe.errors.StripeInvalidRequestError({ type: "invalid_request_error", code: "resource_missing", message: "No such customer" });
     const { calls, deps } = clients({ account: SOURCE, email: "new@example.com", error: missing });
-    const undo = await updateBillingEmail(deps, "u1", "old@example.com", "new@example.com");
+    const undo = await updateBillingEmail(deps, "u1", "new@example.com");
     await undo();
     expect(calls).toEqual([
       [SOURCE, "cus_src", "new@example.com"],
       [DESTINATION, "cus_dest", "new@example.com"],
       [DESTINATION, "cus_dest", "old@example.com"],
     ]);
+  });
+
+  it("leaves a deleted customer alone", async () => {
+    const { calls, deps } = clients(undefined, { cus_src: { id: "cus_src", object: "customer", deleted: true } });
+    await updateBillingEmail(deps, "u1", "new@example.com");
+    expect(calls).toEqual([[DESTINATION, "cus_dest", "new@example.com"]]);
   });
 });

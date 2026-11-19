@@ -17,9 +17,12 @@ async def email_change_client(monkeypatch):
     user_result.scalar_one_or_none.return_value = user
     request_result = MagicMock()
     request_result.first.return_value = (1,)
-    db = SimpleNamespace(execute=AsyncMock(side_effect=lambda *args, **kwargs: (
-        user_result if db.execute.await_count == 1 else request_result
-    )))
+    db = SimpleNamespace(
+        execute=AsyncMock(side_effect=lambda *args, **kwargs: (
+            user_result if db.execute.await_count == 1 else request_result
+        )),
+        commit=AsyncMock(),
+    )
     send_code = AsyncMock(return_value={"MessageId": "m-1"})
     send_notice = AsyncMock(return_value={"MessageId": "m-2"})
     monkeypatch.setattr(account, "get_authenticated_user_id", lambda request, config: user.id)
@@ -69,10 +72,22 @@ async def test_changed_notice_only_after_the_switch(email_change_client):
     body = {"kind": "changed", "old_email": "before@example.com", "new_email": "owner@example.com"}
     assert (await c.http.post("/account/email-change-email", json=body)).status_code == 200
     c.send_notice.assert_awaited_once_with(c.user, "before@example.com", "owner@example.com")
+    query, params = c.db.execute.await_args_list[1].args
+    assert "email_change_log" in str(query)
+    assert params == {"user_id": "user-1", "old_email": "before@example.com", "new_email": "owner@example.com"}
 
     body["new_email"] = "elsewhere@example.com"
     assert (await c.http.post("/account/email-change-email", json=body)).status_code == 409
     assert c.send_notice.await_count == 1
+
+
+async def test_changed_notice_needs_a_logged_change(email_change_client):
+    c = email_change_client
+    # No unsent change from that address in email_change_log: the notice would go to any old_email given.
+    c.request_result.first.return_value = None
+    body = {"kind": "changed", "old_email": "anyone@example.com", "new_email": "owner@example.com"}
+    assert (await c.http.post("/account/email-change-email", json=body)).status_code == 409
+    c.send_notice.assert_not_awaited()
 
 
 @pytest.mark.parametrize("body", [
@@ -110,12 +125,32 @@ def _service():
 async def test_code_email_escapes_name_and_shows_code():
     service = _service()
     user = SimpleNamespace(first_name="<Ada>", name="Ada")
+    await service.send_code(user, "owner@example.com", "042917", new_address=False)
+    recipient, content = service.email_service.send_email.call_args.args
+    assert recipient == "owner@example.com"
+    assert "&lt;Ada&gt;" in content.html and "042917" in content.html and "042917" in content.text
+    assert "10 minutes" in content.text
+
+
+async def test_code_never_in_the_subject():
+    # email_deliveries stores subjects in plain text.
+    service = _service()
+    user = SimpleNamespace(first_name="Ada", name="Ada")
+    for new_address in (False, True):
+        await service.send_code(user, "x@example.com", "042917", new_address=new_address)
+        _, content = service.email_service.send_email.call_args.args
+        assert "042917" not in content.subject
+
+
+async def test_new_address_code_leaves_out_the_account_name():
+    # The name is whatever the account holder typed; the new address may belong to anyone.
+    service = _service()
+    user = SimpleNamespace(first_name="Visit spam.example now", name="Visit spam.example now")
     await service.send_code(user, "new@example.com", "042917", new_address=True)
     recipient, content = service.email_service.send_email.call_args.args
     assert recipient == "new@example.com"
-    assert content.subject.startswith("042917 ")
-    assert "&lt;Ada&gt;" in content.html and "042917" in content.html and "042917" in content.text
-    assert "10 minutes" in content.text
+    assert "spam.example" not in content.html and "spam.example" not in content.text
+    assert "042917" in content.text
 
 
 async def test_changed_notice_goes_to_the_old_address():

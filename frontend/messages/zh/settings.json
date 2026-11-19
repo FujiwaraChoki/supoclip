@@ -343,7 +343,8 @@
       "sameEmail": "这已经是你的邮箱地址。",
       "emailTaken": "该邮箱地址已被其他账户使用。",
       "sendFailed": "无法发送邮件，请重试。",
-      "billingUpdateFailed": "无法更新你的账单邮箱，因此没有任何更改。请重试。"
+      "billingUpdateFailed": "无法更新你的账单邮箱，因此没有任何更改。请重试。",
+      "inProgress": "正在保存你的邮箱更改。请稍等片刻后再查看。"
     }
   }
 }

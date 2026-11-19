@@ -343,7 +343,8 @@
       "sameEmail": "Das ist bereits deine E-Mail-Adresse.",
       "emailTaken": "Diese E-Mail-Adresse wird bereits von einem anderen Konto verwendet.",
       "sendFailed": "Wir konnten die E-Mail nicht senden. Bitte versuche es erneut.",
-      "billingUpdateFailed": "Wir konnten deine Abrechnungs-E-Mail nicht ändern, deshalb hat sich nichts geändert. Bitte versuche es erneut."
+      "billingUpdateFailed": "Wir konnten deine Abrechnungs-E-Mail nicht ändern, deshalb hat sich nichts geändert. Bitte versuche es erneut.",
+      "inProgress": "Deine E-Mail-Änderung wird bereits gespeichert. Warte einen Moment und prüfe es dann erneut."
     }
   }
 }

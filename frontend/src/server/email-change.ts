@@ -15,7 +15,9 @@ import type { SqlExecutor } from "@/server/user-acquisition";
  *
  * Codes are 6 digits, stored only as an HMAC bound to the user, the step and
  * the address, live 10 minutes, are consumed on use and die after 5 wrong
- * guesses. Sends, guesses and wrong passwords are limited per user and per IP.
+ * guesses. Sends, guesses and passwords are limited per user and per IP, and
+ * codes to a new address also per address. Each change is kept in
+ * `email_change_log`.
  */
 
 export const EMAIL_CHANGE_LIMITS = {
@@ -25,9 +27,12 @@ export const EMAIL_CHANGE_LIMITS = {
   maxCodeAttempts: 5,
   /** Accounts without a password re-authenticate by signing in again. */
   sessionFreshMs: 24 * 60 * 60_000,
-  send: { perUser: 5, perIp: 15, windowMs: 60 * 60_000 },
-  verify: { perUser: 20, perIp: 60, windowMs: 60 * 60_000 },
-  password: { perUser: 5, perIp: 20, windowMs: 60 * 60_000 },
+  /** One finish at a time; a crashed one frees the request after this. */
+  finishLeaseMs: 5 * 60_000,
+  /** perTarget: codes to one new address, whichever accounts ask, so we can't be used to mail-bomb it. */
+  send: { perUser: 5, perIp: 15, perTarget: 3, windowMs: 60 * 60_000 },
+  verify: { perUser: 20, perIp: 60, perTarget: null, windowMs: 60 * 60_000 },
+  password: { perUser: 5, perIp: 20, perTarget: null, windowMs: 60 * 60_000 },
 } as const;
 
 type LimitedAction = "send" | "verify" | "password";
@@ -48,7 +53,8 @@ export type EmailChangeErrorCode =
   | "same_email"
   | "email_taken"
   | "send_failed"
-  | "billing_update_failed";
+  | "billing_update_failed"
+  | "in_progress";
 
 const STATUS: Record<EmailChangeErrorCode, number> = {
   password_required: 400,
@@ -65,6 +71,7 @@ const STATUS: Record<EmailChangeErrorCode, number> = {
   email_taken: 409,
   send_failed: 502,
   billing_update_failed: 502,
+  in_progress: 409,
 };
 
 export class EmailChangeError extends Error {
@@ -139,8 +146,11 @@ export function generateEmailChangeCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
-// One address, no display name or list; Better Auth stores addresses lowercased.
-const EMAIL_PATTERN = /^[^\s@<>(),;:"[\]\\]+@[^\s@<>(),;:"[\]\\]+\.[^\s@<>(),;:"[\]\\]{2,}$/;
+// Better Auth's sign-in and password reset check addresses with zod's `z.email()`
+// (this is its pattern), so anything looser could leave the account unable to sign in.
+// Better Auth stores addresses lowercased.
+const EMAIL_PATTERN =
+  /^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
 
 export function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -158,6 +168,10 @@ function codeHash(deps: EmailChangeDeps, userId: string, stage: EmailChangeStage
 
 function ipHash(deps: EmailChangeDeps, ip: string | null) {
   return ip ? hmac(deps.secret, `email-change-ip:${ip}`) : null;
+}
+
+function targetHash(deps: EmailChangeDeps, email: string | null) {
+  return email ? hmac(deps.secret, `email-change-target:${email}`) : null;
 }
 
 function sameHash(a: string, b: string) {
@@ -215,33 +229,63 @@ async function requireRequest(deps: EmailChangeDeps, actor: EmailChangeActor, st
   return { user, request };
 }
 
-async function assertWithinLimit(deps: EmailChangeDeps, actor: EmailChangeActor, action: LimitedAction) {
+/**
+ * Records the attempt, then counts it with every other one in the window, so
+ * parallel requests can't all pass a check made before any of them counted.
+ * Over the limit, the attempt is taken back and refused. `target` is a new
+ * address that a code would go to.
+ */
+async function takeSlot(
+  deps: EmailChangeDeps,
+  actor: EmailChangeActor,
+  action: LimitedAction,
+  target: string | null = null,
+): Promise<string> {
   const limit = EMAIL_CHANGE_LIMITS[action];
   const now = deps.now();
   const ip = ipHash(deps, actor.ip);
-  const [row] = await deps.sql<{ by_user: number; by_ip: number; oldest_user: Date | null; oldest_ip: Date | null }>(
+  const to = limit.perTarget ? targetHash(deps, target) : null;
+  const [slot] = await deps.sql<{ id: string }>(
+    `INSERT INTO email_change_events (user_id, ip_hash, target_hash, action, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id::text`,
+    [actor.userId, ip, to, action, now],
+  );
+  const [row] = await deps.sql<{
+    by_user: number;
+    by_ip: number;
+    by_target: number;
+    oldest_user: Date | null;
+    oldest_ip: Date | null;
+    oldest_target: Date | null;
+  }>(
     `SELECT count(*) FILTER (WHERE user_id = $1)::int AS by_user,
             count(*) FILTER (WHERE ip_hash = $2)::int AS by_ip,
+            count(*) FILTER (WHERE target_hash = $3)::int AS by_target,
             min(created_at) FILTER (WHERE user_id = $1) AS oldest_user,
-            min(created_at) FILTER (WHERE ip_hash = $2) AS oldest_ip
+            min(created_at) FILTER (WHERE ip_hash = $2) AS oldest_ip,
+            min(created_at) FILTER (WHERE target_hash = $3) AS oldest_target
        FROM email_change_events
-      WHERE action = $3 AND created_at > $4 AND (user_id = $1 OR ip_hash = $2)`,
-    [actor.userId, ip, action, new Date(now.getTime() - limit.windowMs)],
+      WHERE action = $4 AND created_at > $5 AND (user_id = $1 OR ip_hash = $2 OR target_hash = $3)`,
+    [actor.userId, ip, to, action, new Date(now.getTime() - limit.windowMs)],
   );
   const oldest =
-    row.by_user >= limit.perUser ? row.oldest_user : ip && row.by_ip >= limit.perIp ? row.oldest_ip : null;
+    row.by_user > limit.perUser
+      ? row.oldest_user
+      : ip && row.by_ip > limit.perIp
+        ? row.oldest_ip
+        : to && limit.perTarget && row.by_target > limit.perTarget
+          ? row.oldest_target
+          : null;
   if (oldest) {
+    await releaseSlot(deps, slot.id);
     throw new EmailChangeError("rate_limited", {
       retryAfterSeconds: secondsUntil(now, later(new Date(oldest), limit.windowMs)),
     });
   }
+  return slot.id;
 }
 
-async function recordEvent(deps: EmailChangeDeps, actor: EmailChangeActor, action: LimitedAction) {
-  await deps.sql(
-    `INSERT INTO email_change_events (user_id, ip_hash, action, created_at) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [actor.userId, ipHash(deps, actor.ip), action, deps.now()],
-  );
+async function releaseSlot(deps: EmailChangeDeps, slotId: string) {
+  await deps.sql(`DELETE FROM email_change_events WHERE id = $1::bigint RETURNING id`, [slotId]);
 }
 
 async function sendOrRollBack(deps: EmailChangeDeps, actor: EmailChangeActor, message: EmailChangeMessage) {
@@ -289,16 +333,15 @@ export async function startEmailChange(
 
   if (user.has_password) {
     if (!password) throw new EmailChangeError("password_required");
-    await assertWithinLimit(deps, actor, "password");
-    if (!(await deps.verifyPassword(password))) {
-      await recordEvent(deps, actor, "password");
-      throw new EmailChangeError("invalid_password");
-    }
+    // Every check holds a slot while it runs; only wrong passwords keep it.
+    const slot = await takeSlot(deps, actor, "password");
+    if (!(await deps.verifyPassword(password))) throw new EmailChangeError("invalid_password");
+    await releaseSlot(deps, slot);
   } else if (now.getTime() - actor.sessionCreatedAt.getTime() > EMAIL_CHANGE_LIMITS.sessionFreshMs) {
     throw new EmailChangeError("reauth_required");
   }
 
-  await assertWithinLimit(deps, actor, "send");
+  const slot = await takeSlot(deps, actor, "send");
   const code = deps.generateCode();
   const rows = await deps.sql<{ user_id: string }>(
     `INSERT INTO email_change_requests AS r
@@ -308,7 +351,7 @@ export async function startEmailChange(
        session_id = EXCLUDED.session_id, stage = EXCLUDED.stage, current_email = EXCLUDED.current_email,
        new_email = NULL, code_hash = EXCLUDED.code_hash, code_sent_at = EXCLUDED.code_sent_at,
        code_expires_at = EXCLUDED.code_expires_at, code_attempts = 0, expires_at = EXCLUDED.expires_at,
-       created_at = EXCLUDED.created_at
+       created_at = EXCLUDED.created_at, finish_claimed_at = NULL
      WHERE r.code_sent_at IS NULL OR r.code_sent_at <= $8 OR r.expires_at <= $5
      RETURNING user_id`,
     [
@@ -322,8 +365,7 @@ export async function startEmailChange(
       new Date(now.getTime() - EMAIL_CHANGE_LIMITS.resendCooldownMs),
     ],
   );
-  if (rows.length === 0) await throwCooldown(deps, actor.userId);
-  await recordEvent(deps, actor, "send");
+  if (rows.length === 0) await throwCooldown(deps, actor.userId, slot);
   await deps.sql(`DELETE FROM email_change_events WHERE created_at < $1 RETURNING id`, [
     new Date(now.getTime() - 24 * 60 * 60_000),
   ]);
@@ -331,7 +373,8 @@ export async function startEmailChange(
   return getEmailChangeState(deps, actor);
 }
 
-async function throwCooldown(deps: EmailChangeDeps, userId: string): Promise<never> {
+async function throwCooldown(deps: EmailChangeDeps, userId: string, slot: string): Promise<never> {
+  await releaseSlot(deps, slot);
   const [row] = await deps.sql<{ code_sent_at: Date | null }>(
     `SELECT code_sent_at FROM email_change_requests WHERE user_id = $1`,
     [userId],
@@ -340,7 +383,7 @@ async function throwCooldown(deps: EmailChangeDeps, userId: string): Promise<nev
   throw new EmailChangeError("cooldown", { retryAfterSeconds: secondsUntil(deps.now(), at) });
 }
 
-/** Stores a fresh code for the request's current step and returns it. */
+/** Stores a fresh code for the request's current step and sends it. */
 async function issueCode(
   deps: EmailChangeDeps,
   actor: EmailChangeActor,
@@ -348,10 +391,12 @@ async function issueCode(
   stage: "verify_current" | "verify_new",
   newEmail: string | null,
 ) {
-  await assertWithinLimit(deps, actor, "send");
+  const target = stage === "verify_current" ? request.current_email : newEmail!;
+  const slot = await takeSlot(deps, actor, "send", stage === "verify_new" ? target : null);
+  // Behind the send limit (the attempt keeps its slot), so this can't be used to look up addresses in bulk.
+  if (stage === "verify_new" && (await emailTaken(deps, actor.userId, target))) throw new EmailChangeError("email_taken");
   const now = deps.now();
   const code = deps.generateCode();
-  const target = stage === "verify_current" ? request.current_email : newEmail!;
   // A different new address may be sent at once; the same one waits out the cooldown.
   const rows = await deps.sql<{ user_id: string }>(
     `UPDATE email_change_requests
@@ -372,8 +417,7 @@ async function issueCode(
       new Date(now.getTime() - EMAIL_CHANGE_LIMITS.resendCooldownMs),
     ],
   );
-  if (rows.length === 0) await throwCooldown(deps, actor.userId);
-  await recordEvent(deps, actor, "send");
+  if (rows.length === 0) await throwCooldown(deps, actor.userId, slot);
   await sendOrRollBack(
     deps,
     actor,
@@ -391,8 +435,7 @@ export async function resendEmailChangeCode(deps: EmailChangeDeps, actor: EmailC
 /** Checks a code for the current step. Every guess counts, also concurrent ones. */
 async function consumeCode(deps: EmailChangeDeps, actor: EmailChangeActor, stage: "verify_current" | "verify_new", rawCode: unknown) {
   const { request } = await requireRequest(deps, actor, [stage]);
-  await assertWithinLimit(deps, actor, "verify");
-  await recordEvent(deps, actor, "verify");
+  await takeSlot(deps, actor, "verify");
   const now = deps.now();
   const max = EMAIL_CHANGE_LIMITS.maxCodeAttempts;
 
@@ -446,7 +489,7 @@ export async function verifyCurrentEmailCode(
   return getEmailChangeState(deps, actor);
 }
 
-/** Step 2a: the new address. Rejected when another account uses it, which sign-up reveals too. */
+/** Step 2a: the new address. Rejected when another account uses it, which sign-up reveals too (see `issueCode`). */
 export async function submitNewEmail(
   deps: EmailChangeDeps,
   actor: EmailChangeActor,
@@ -456,7 +499,6 @@ export async function submitNewEmail(
   const newEmail = normalizeEmail(rawEmail);
   if (!newEmail) throw new EmailChangeError("invalid_email");
   if (newEmail === request.current_email.toLowerCase()) throw new EmailChangeError("same_email");
-  if (await emailTaken(deps, actor.userId, newEmail)) throw new EmailChangeError("email_taken");
   await issueCode(deps, actor, request, "verify_new", newEmail);
   return getEmailChangeState(deps, actor);
 }
@@ -495,13 +537,44 @@ export async function verifyNewEmailCode(
 /**
  * Billing first, then the account, so receipts never keep going to the old
  * address unnoticed. A billing failure leaves the email unchanged and the
- * request in `finishing`, which this retries without new codes.
+ * request in `finishing`, which this retries without new codes. One finish
+ * runs at a time: a second one could otherwise undo the billing change of the
+ * one that switched the email.
  */
 export async function finishEmailChange(deps: EmailChangeDeps, actor: EmailChangeActor): Promise<EmailChangeResult> {
   const { request } = await requireRequest(deps, actor, ["finishing"]);
   const oldEmail = request.current_email;
   const newEmail = request.new_email!;
+  const now = deps.now();
+  const [claimed] = await deps.sql<{ user_id: string }>(
+    `UPDATE email_change_requests SET finish_claimed_at = $3
+      WHERE user_id = $1 AND session_id = $2 AND stage = 'finishing' AND (finish_claimed_at IS NULL OR finish_claimed_at <= $4)
+      RETURNING user_id`,
+    [actor.userId, actor.sessionId, now, new Date(now.getTime() - EMAIL_CHANGE_LIMITS.finishLeaseMs)],
+  );
+  if (!claimed) throw new EmailChangeError("in_progress");
 
+  let result: Awaited<ReturnType<typeof switchEmail>>;
+  try {
+    result = await switchEmail(deps, actor, oldEmail, newEmail);
+  } catch (error) {
+    await deps.sql(
+      `UPDATE email_change_requests SET finish_claimed_at = NULL WHERE user_id = $1 AND session_id = $2 AND finish_claimed_at = $3 RETURNING user_id`,
+      [actor.userId, actor.sessionId, now],
+    );
+    throw error;
+  }
+
+  try {
+    await deps.sendEmail(actor.userId, { kind: "changed", old_email: oldEmail, new_email: newEmail });
+  } catch (error) {
+    // The change itself succeeded; a missing notice must not undo it.
+    console.error("Email change: notice to the previous address failed", error);
+  }
+  return { email: newEmail, sessionsRevoked: result.sessions_revoked };
+}
+
+async function switchEmail(deps: EmailChangeDeps, actor: EmailChangeActor, oldEmail: string, newEmail: string) {
   if (await emailTaken(deps, actor.userId, newEmail)) {
     await backToNewEmail(deps, actor);
     throw new EmailChangeError("email_taken");
@@ -530,9 +603,14 @@ export async function finishEmailChange(deps: EmailChangeDeps, actor: EmailChang
          DELETE FROM session WHERE "userId" IN (SELECT id FROM updated) AND id <> $2 RETURNING id
        ), resets AS (
          DELETE FROM verification WHERE value IN (SELECT id FROM updated) AND identifier LIKE 'reset-password:%' RETURNING id
+       ), logged AS (
+         INSERT INTO email_change_log (user_id, old_email, new_email, session_id, ip_hash, changed_at)
+         SELECT id, $3, $4, $2, $6, $5 FROM updated
+         RETURNING id
        )
-       SELECT (SELECT count(*) FROM updated)::int AS updated, (SELECT count(*) FROM sessions)::int AS sessions_revoked`,
-      [actor.userId, actor.sessionId, oldEmail, newEmail, deps.now()],
+       SELECT (SELECT count(*) FROM updated)::int AS updated, (SELECT count(*) FROM sessions)::int AS sessions_revoked,
+              (SELECT count(*) FROM logged)::int AS logged`,
+      [actor.userId, actor.sessionId, oldEmail, newEmail, deps.now(), ipHash(deps, actor.ip)],
     );
   } catch (error) {
     await undoBilling().catch((undoError) => console.error("Email change: billing email undo failed", undoError));
@@ -547,19 +625,13 @@ export async function finishEmailChange(deps: EmailChangeDeps, actor: EmailChang
     await undoBilling().catch((undoError) => console.error("Email change: billing email undo failed", undoError));
     throw new EmailChangeError("no_request");
   }
-
-  try {
-    await deps.sendEmail(actor.userId, { kind: "changed", old_email: oldEmail, new_email: newEmail });
-  } catch (error) {
-    // The change itself succeeded; a missing notice must not undo it.
-    console.error("Email change: notice to the previous address failed", error);
-  }
-  return { email: newEmail, sessionsRevoked: result.sessions_revoked };
+  return result;
 }
 
 async function backToNewEmail(deps: EmailChangeDeps, actor: EmailChangeActor) {
   await deps.sql(
-    `UPDATE email_change_requests SET stage = 'enter_new', new_email = NULL WHERE user_id = $1 AND session_id = $2 RETURNING user_id`,
+    `UPDATE email_change_requests SET stage = 'enter_new', new_email = NULL, finish_claimed_at = NULL
+      WHERE user_id = $1 AND session_id = $2 RETURNING user_id`,
     [actor.userId, actor.sessionId],
   );
 }

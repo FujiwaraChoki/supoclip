@@ -57,19 +57,20 @@ export interface BillingEmailDeps {
 
 /**
  * Points each customer at `to`. All or nothing: on a failure the customers
- * already moved go back to `from` and the error is rethrown. Returns an undo
- * for when the account update after it fails. A deleted customer is skipped.
+ * already moved get their previous address back and the error is rethrown.
+ * Returns an undo for when the account update after it fails. A deleted
+ * customer is skipped.
  */
 export async function updateBillingEmail(
   deps: BillingEmailDeps,
   userId: string,
-  from: string,
   to: string,
 ): Promise<() => Promise<void>> {
-  const moved: { ref: BillingCustomerRef; client: Pick<Stripe, "customers"> }[] = [];
+  // `previous` is what Stripe had, which may differ from the sign-in address.
+  const moved: { ref: BillingCustomerRef; client: Pick<Stripe, "customers">; previous: string }[] = [];
   const undo = async () => {
     const results = await Promise.allSettled(
-      moved.map(({ ref, client }) => client.customers.update(ref.customerId, { email: from })),
+      moved.map(({ ref, client, previous }) => client.customers.update(ref.customerId, { email: previous })),
     );
     const failed = results.filter((result) => result.status === "rejected");
     if (failed.length > 0) throw new Error(`Could not restore ${failed.length} billing customer email(s)`);
@@ -79,12 +80,15 @@ export async function updateBillingEmail(
     for (const ref of await deps.refs(userId)) {
       const client = await deps.client(ref.accountId);
       try {
+        const customer = await client.customers.retrieve(ref.customerId);
+        if (customer.deleted) continue;
         await client.customers.update(ref.customerId, { email: to });
+        // Stripe clears the field when given "".
+        moved.push({ ref, client, previous: customer.email ?? "" });
       } catch (error) {
         if (isMissingCustomer(error)) continue;
         throw error;
       }
-      moved.push({ ref, client });
     }
   } catch (error) {
     await undo().catch((undoError) => console.error("Email change: billing email rollback failed", undoError));

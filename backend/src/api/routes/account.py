@@ -187,9 +187,24 @@ async def send_email_change_email(
     if not user.email:
         raise HTTPException(status_code=400, detail="User email is missing")
 
-    # Only mail what an open request expects, so this can't relay to arbitrary addresses.
+    # Only mail what an open request or a just-made change expects, so this
+    # can't relay to arbitrary addresses.
+    notice_id = None
     if body.kind == "changed":
-        expected = body.new_email.lower() == user.email.lower()
+        # Once per change in email_change_log, within an hour of it.
+        claimed = await db.execute(
+            text(
+                "UPDATE email_change_log SET notified_at = now() WHERE id = ("
+                "SELECT id FROM email_change_log WHERE user_id = :user_id AND old_email = :old_email "
+                "AND new_email = :new_email AND notified_at IS NULL AND changed_at > now() - interval '1 hour' "
+                "ORDER BY changed_at DESC LIMIT 1) AND notified_at IS NULL RETURNING id"
+            ),
+            {"user_id": user_id, "old_email": body.old_email, "new_email": body.new_email},
+        )
+        row = claimed.first()
+        await db.commit()
+        notice_id = row[0] if row else None
+        expected = notice_id is not None and body.new_email.lower() == user.email.lower()
     else:
         stage, address = ("verify_current", None) if body.kind == "current_code" else ("verify_new", body.new_email)
         open_request = await db.execute(
@@ -211,9 +226,14 @@ async def send_email_change_email(
             await service.send_code(user, body.new_email, body.code, new_address=True)
         else:
             await service.send_changed_notice(user, body.old_email, body.new_email)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
+        if notice_id is not None:
+            await db.execute(
+                text("UPDATE email_change_log SET notified_at = NULL WHERE id = :id"), {"id": notice_id}
+            )
+            await db.commit()
+        if isinstance(exc, RuntimeError):
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         logger.exception("Failed to send email change %s email for user %s", body.kind, user_id)
         raise HTTPException(status_code=502, detail="Failed to send email") from exc
     return {"status": "ok"}
