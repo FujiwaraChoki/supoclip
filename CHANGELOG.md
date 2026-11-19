@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-19
+
+- **Fixed:** When a render server is briefly too busy to start a video, it tries again a few seconds later instead of leaving the video stuck in the queue with its minutes used. If it still can't start after a few tries, the video is marked failed and its minutes are refunded. ([#451](https://github.com/FujiwaraChoki/supoclip/pull/451))
+
 ## 2026-11-18
 
 - **New:** After you subscribe or change plans, your plan card on Settings turns into a thank-you note with a colourful wave, and back into your upgraded plan when you click Done. ([#440](https://github.com/FujiwaraChoki/supoclip/pull/440))
