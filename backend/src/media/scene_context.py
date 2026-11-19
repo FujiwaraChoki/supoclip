@@ -66,6 +66,10 @@ COVER_SAME_X = 0.05
 # and shoulders, or closer) is the subject: motion around it is the person's
 # own gestures, or a chat overlay beside them, not action across the frame.
 PRESENTER_FACE_AREA = 0.03
+# How much less a column at the frame edge counts than one in the middle when looking for the subject of a shot
+# without faces (see ContextAnalyzer._focus_center). Read by the interview layout's covers; the scene plan's
+# covers (_cover_x) keep the detail centre, which suits the handheld POV footage they were tuned on.
+FOCUS_CENTRE_BIAS = 0.6
 
 
 @dataclass(frozen=True)
@@ -95,6 +99,9 @@ class SceneEvidence:
     # a document). Book spines and foliage make stray "lines"; they rarely
     # stack into two or more lines sharing a left edge, centre or right edge.
     text_block_lines: int = 0
+    # Centre (0-1 of the width) of the full-height 9:16 window holding the most detail and colour: the dish in a
+    # food insert, the object in a product shot. The middle when unmeasured.
+    focus_center: float = 0.5
 
 
 class ContextAnalyzer:
@@ -252,6 +259,32 @@ class ContextAnalyzer:
             return 0.5, 0.5
         return float(active[0]) / w, float(active[-1] + 1) / w
 
+    @staticmethod
+    def _focus_center(frame: np.ndarray, gray: np.ndarray, crop_width: float) -> float:
+        """Centre of the crop-wide window that holds the subject of a shot without faces.
+
+        Per column: edge pixels (what is in focus, what has texture) plus saturated colour (food, a product),
+        each relative to its average over the frame, weighted towards the middle, where a subject framed for
+        16:9 usually is. Edges alone follow a wicker basket or a tablecloth past the plate beside them; without
+        the weighting a bright object at the side beats the thing the camera is pointed at.
+        """
+        _, w = gray.shape
+        window = int(round(crop_width))
+        if window < 2 or window >= w:
+            return 0.5
+        edges = (cv2.Canny(gray, 50, 150) > 0).sum(axis=0).astype(np.float32)
+        hsv = cv2.cvtColor(cv2.GaussianBlur(frame, (0, 0), 2), cv2.COLOR_BGR2HSV).astype(np.float32)
+        colour = hsv[..., 1] * hsv[..., 2] / 255.0
+        colour = np.maximum(colour - float(np.median(colour)), 0).sum(axis=0)
+        score = edges / max(float(edges.mean()), 1e-6) + colour / max(float(colour.mean()), 1e-6)
+        score *= 1 - FOCUS_CENTRE_BIAS * np.abs(np.arange(w) - (w - 1) / 2) / (w / 2)
+        sums = np.convolve(score, np.ones(window, dtype=np.float32), "valid")
+        peak = float(sums.max())
+        if peak <= 0:
+            return 0.5
+        best = np.flatnonzero(sums >= peak * 0.97)
+        return float((np.median(best) + window / 2) / w)
+
     def measure(self, frame: np.ndarray, boxes: Sequence[Sequence[float]], time: float) -> SceneEvidence:
         h, w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -334,7 +367,9 @@ class ContextAnalyzer:
         cut_lines, protect_left, protect_right = 0, 0.0, 1.0
         detail_left, detail_right = 0.0, 1.0
         block = 0
+        focus = 0.5
         try:
+            focus = self._focus_center(frame, gray, crop_width)
             lines = self._text_lines(gray)
             block = self._text_block(lines, w)
             margin = max(2, int(w * 0.005))
@@ -352,12 +387,13 @@ class ContextAnalyzer:
             cut_lines, protect_left, protect_right = 0, 0.0, 1.0
             detail_left, detail_right = 0.0, 1.0
             block = 0
+            focus = 0.5
         return SceneEvidence(
             time, area, span, len(significant), center, motion, outside, spread, camera,
             self._text_rows(components, w, left, right), cut, delta,
             detail_left=detail_left, detail_right=detail_right,
             protect_left=max(0.0, protect_left), protect_right=min(1.0, protect_right),
-            cut_text_lines=cut_lines, text_block_lines=block,
+            cut_text_lines=cut_lines, text_block_lines=block, focus_center=focus,
         )
 
 

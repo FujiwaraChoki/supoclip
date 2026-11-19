@@ -7,12 +7,22 @@ as a letterboxed full frame. This module composes every camera shot on its
 own and switches only at the edit:
 
 - ``pair``: two people too far apart for one crop. Each gets a face-centred
-  1080x960 panel, stacked with the left-hand person on top.
+  1080x960 panel, stacked with the left-hand person on top. Three or four
+  people in a row (a table, a booth, friends walking) are divided at the
+  widest gap between them: the left-hand people share the top panel and the
+  right-hand people the bottom one, so everyone is on screen once and the
+  frame is full (reason ``group``).
 - ``single``: one person (or two people close enough to share a crop) in a
   tight, head-and-shoulders 9:16 crop.
-- ``fit``: a shot without a usable subject (b-roll, aerials, a crowd) or with
-  an on-screen paragraph (a tweet, a document, an explainer graphic) keeps
-  the whole picture on a blurred background.
+- ``cover``: live footage without a close subject (a plate of food, a
+  product, a street, a distant figure) fills the frame with a full-height
+  9:16 crop on what is in focus, or on the lone small face. Reported as
+  ``single`` with reason ``cover``: to captions and the hook title it is a
+  frame-filling crop like any other.
+- ``fit``: an on-screen paragraph (a tweet, a document, an explainer
+  graphic), a still picture without people (a chart, a screenshot), a crowd
+  or people who cannot be divided into two panels keep the whole picture on a
+  blurred background.
 
 Crops follow their face with the same eased, dead-zoned trajectory as the
 tracked crop, so a tripod shot stays still and a handheld one is followed.
@@ -41,6 +51,7 @@ import numpy as np
 
 from .common import HOOK_TITLE_SECONDS, UPSCALE_SHARPEN_FILTER, logger
 from .ffmpeg import clamp_even, round_to_even
+from .scene_context import COVER_MAX_TEXT_BLOCK_RATE, COVER_MIN_CAMERA_MOTION, COVER_MIN_MOTION
 
 Box = Tuple[float, float, float, float]
 FaceFrame = Tuple[float, Sequence[Box]]
@@ -76,7 +87,7 @@ SINGLE_MIN_FACE_H_FRAC = 0.11
 # Two people form a pair when the smaller face is at least this share of the
 # larger one's height and their face centres are vertically close.
 PAIR_MIN_SIZE_RATIO = 0.6
-PAIR_MAX_DY_FRAC = 0.25
+PAIR_MAX_DY_FRAC = 0.3
 # Two faces closer than this share of a full-height 9:16 crop share one crop.
 SHARED_CROP_SPAN = 0.85
 # A graphic (or its absence) must last this many samples before a shot is
@@ -117,6 +128,32 @@ WEBCAM_FACE_TOP = 0.3
 # Output y of the seam between the two stacked panels (each 1080x960).
 PAIR_SEAM_Y = 0.5
 
+# A row of three or four people is divided into two panels. Their faces sit
+# within PAIR_MAX_DY_FRAC of each other (a 2x2 call grid does not), the
+# smallest is at least this share of the largest, and each side's faces plus
+# this margin (as a share of their span) fit a 9:8 panel.
+GROUP_MAX_PEOPLE = 4
+GROUP_MIN_SIZE_RATIO = 0.45
+GROUP_PANEL_MARGIN = 1.2
+# Two clusters that never appear together, this many face widths apart at
+# most and of similar size, are one person who moved.
+CLUSTER_JOIN_WIDTHS = 1.6
+CLUSTER_JOIN_SIZE_RATIO = 0.6
+# A third or fourth person seen less than this share of the shot (a passer-by,
+# a stray detection) is left out when the row cannot be divided with them.
+GROUP_MEMBER_SUPPORT = 0.75
+# A face box this close to the left or right frame edge is cut by the frame.
+EDGE_CUT_FRAC = 0.015
+# A person seen in only one sample of a longer shot is a stray detection.
+CLUSTER_MIN_SAMPLES = 2
+# The two people of a pair are on screen together in this share of the shot.
+PAIR_MIN_TOGETHER = 0.3
+# Cover: mean 8-bit change between analysis samples that marks live footage
+# even where the motion measurement gave up (a whip pan, a fast handheld move).
+COVER_MIN_DIFFERENCE = 10.0
+# A face cluster this steady in a shot without a close subject is its subject.
+COVER_FACE_SUPPORT = 0.6
+
 # A lone person on camera (``plan_solo_layout``) gets the single crop only when
 # its face centre lands at or above this share of the output height; lower,
 # the face cannot be lifted without zooming past the upscale cap.
@@ -139,6 +176,8 @@ class Segment:
     tracks: List[Dict[float, Box]] = field(default_factory=list)
     times: List[float] = field(default_factory=list)
     graphic: bool = False
+    # Centre (0-1 of the width) of a ``cover`` crop.
+    cover_x: float = 0.5
 
 
 def _median_box(boxes: Sequence[Box]) -> Box:
@@ -161,21 +200,42 @@ def _clusters(
             if box[3] < min_h:
                 continue
             cx = box[0] + box[2] / 2
-            best = None
+            best, nearest = None, 0.0
             for cluster in clusters:
-                distance = abs(cx - cluster["cx"])
+                if t in cluster["track"]:
+                    continue
+                # A person is where they were last seen (a handheld camera
+                # pans, people lean and walk) or at their usual place.
+                distance = min(abs(cx - cluster["cx"]), abs(cx - cluster["last"]))
                 reach = max(width * 0.06, 0.8 * max(box[2], cluster["w"]))
-                if distance <= reach and (best is None or distance < abs(cx - best["cx"])):
-                    best = cluster
+                if distance <= reach and (best is None or distance < nearest):
+                    best, nearest = cluster, distance
             if best is None:
-                best = {"cx": cx, "w": box[2], "track": {}}
+                best = {"cx": cx, "last": cx, "w": box[2], "track": {}}
                 clusters.append(best)
-            if t in best["track"]:
-                continue
             best["track"][t] = tuple(float(v) for v in box)
+            best["last"] = cx
             boxes = list(best["track"].values())
             best["cx"] = float(np.median([b[0] + b[2] / 2 for b in boxes]))
             best["w"] = float(np.median([b[2] for b in boxes]))
+    # One person lost for a moment and found a little further along (they
+    # leaned over, the camera swung) is two clusters that never share a
+    # sample: join them, nearest first.
+    while True:
+        joins = [
+            (abs(a["cx"] - b["cx"]), i, j)
+            for i, a in enumerate(clusters) for j, b in enumerate(clusters[i + 1:], i + 1)
+            if not set(a["track"]) & set(b["track"])
+            and abs(a["cx"] - b["cx"]) <= CLUSTER_JOIN_WIDTHS * max(a["w"], b["w"])
+            and min(a["w"], b["w"]) >= CLUSTER_JOIN_SIZE_RATIO * max(a["w"], b["w"])
+        ]
+        if not joins:
+            break
+        _, i, j = min(joins)
+        clusters[i]["track"].update(clusters.pop(j)["track"])
+        boxes = list(clusters[i]["track"].values())
+        clusters[i]["cx"] = float(np.median([b[0] + b[2] / 2 for b in boxes]))
+        clusters[i]["w"] = float(np.median([b[2] for b in boxes]))
     total = max(1, len(samples))
     for cluster in clusters:
         cluster["support"] = len(cluster["track"]) / total
@@ -265,23 +325,134 @@ def _graphic_spans(
     return [tuple(r) for r in merged]
 
 
+def _union(boxes: Sequence[Box]) -> Box:
+    x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+    return (x0, y0, max(b[0] + b[2] for b in boxes) - x0, max(b[1] + b[3] for b in boxes) - y0)
+
+
+def _union_track(members: Sequence[Dict[str, Any]]) -> Dict[float, Box]:
+    """The box around ``members`` at every sample that shows all of them."""
+    shared = set(members[0]["track"])
+    for member in members[1:]:
+        shared &= set(member["track"])
+    return {t: _union([m["track"][t] for m in members]) for t in sorted(shared)}
+
+
+def _edge_cut(box: Box, width: int) -> bool:
+    """A face the source frame itself cuts off: someone half out of shot beside the subject.
+
+    A panel on them would mostly show the subject a second time.
+    """
+    return box[0] < width * EDGE_CUT_FRAC or box[0] + box[2] > width * (1 - EDGE_CUT_FRAC)
+
+
+def _group_panels(
+    people: Sequence[Dict[str, Any]], width: int, height: int
+) -> Optional[Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]]:
+    """Divide a row of people into the left-hand and right-hand panel, or None.
+
+    The row is cut at the widest gap between neighbours whose two sides each
+    fit a 9:8 panel. A crowd, people at different heights (a call grid, a
+    stage with an audience) and faces of very different size are not a row.
+    """
+    if not 3 <= len(people) <= GROUP_MAX_PEOPLE:
+        return None
+    row = sorted(people, key=lambda c: _centre(c["box"])[0])
+    heights = [c["box"][3] for c in row]
+    centres = [_centre(c["box"])[1] for c in row]
+    if min(heights) < max(heights) * GROUP_MIN_SIZE_RATIO:
+        return None
+    if max(centres) - min(centres) > height * PAIR_MAX_DY_FRAC:
+        return None
+    panel_w = min(float(width), height * 9 / 8)
+    best = None
+    for index in range(1, len(row)):
+        sides = (row[:index], row[index:])
+        if any(_union([c["box"] for c in side])[2] * GROUP_PANEL_MARGIN > panel_w for side in sides):
+            continue
+        gap = _centre(row[index]["box"])[0] - _centre(row[index - 1]["box"])[0]
+        if best is None or gap > best[0]:
+            best = (gap, sides)
+    return (list(best[1][0]), list(best[1][1])) if best else None
+
+
+def _cover_centre(
+    clusters: Sequence[Dict[str, Any]], evidence: Sequence[Any], width: int
+) -> Optional[float]:
+    """Centre (0-1) of a full-height crop for a shot without a close subject, or None to keep the whole frame.
+
+    Live footage fills the frame the way a short-form editor cuts it; a still
+    picture (a chart, a screenshot, a photo of a document) and a shot showing
+    a paragraph keep the whole frame. The crop sits on a steady face, however
+    small, and otherwise on the densest detail (``focus_center``).
+    """
+    if not evidence:
+        return None
+    moving = (
+        float(np.median([e.motion for e in evidence])) >= COVER_MIN_MOTION
+        or float(np.median([e.camera_motion for e in evidence])) >= COVER_MIN_CAMERA_MOTION
+        or float(np.median([e.difference for e in evidence])) >= COVER_MIN_DIFFERENCE
+    )
+    if not moving:
+        return None
+    if sum(e.text_block_lines >= 2 for e in evidence) / len(evidence) > COVER_MAX_TEXT_BLOCK_RATE:
+        return None
+    steady = [c for c in clusters if c["support"] >= COVER_FACE_SUPPORT]
+    if steady:
+        subject = max(steady, key=lambda c: c["box"][3])
+        return _centre(subject["box"])[0] / max(width, 1)
+    # Someone the camera is swinging past: no steady cluster, but a face in
+    # most samples. People half out of the frame are not the subject.
+    seen: Dict[float, Box] = {}
+    for cluster in clusters:
+        for t, box in cluster["track"].items():
+            if not _edge_cut(box, width) and (t not in seen or box[3] > seen[t][3]):
+                seen[t] = box
+    if len(seen) >= COVER_FACE_SUPPORT * len(evidence):
+        return float(np.median([_centre(b)[0] for b in seen.values()])) / max(width, 1)
+    return float(np.median([getattr(e, "focus_center", 0.5) for e in evidence]))
+
+
 def _classify(
-    segment: Segment, samples: Sequence[FaceFrame], width: int, height: int, crop_w: int
+    segment: Segment, samples: Sequence[FaceFrame], width: int, height: int, crop_w: int,
+    evidence: Sequence[Any] = (),
 ) -> Segment:
     segment.times = [t for t, _ in samples]
     if segment.graphic:
         segment.kind, segment.reason = "fit", "graphic"
         return segment
     clusters = _clusters(samples, width, height)
+    enough = min(CLUSTER_MIN_SAMPLES, len(samples))
     people = [
         c for c in clusters
-        if c["support"] >= CLUSTER_SUPPORT and c["box"][3] >= height * MIN_FACE_H_FRAC
+        if c["support"] >= CLUSTER_SUPPORT and len(c["track"]) >= enough
+        and c["box"][3] >= height * MIN_FACE_H_FRAC
     ]
-    if not people:
-        segment.kind, segment.reason = "fit", "no_subject"
+
+    def cover(reason: str) -> Segment:
+        x = _cover_centre(clusters, evidence, width)
+        segment.kind, segment.reason = ("fit" if x is None else "cover"), reason
+        if x is not None:
+            segment.cover_x = x
         return segment
+
+    if not people:
+        return cover("no_subject")
     if len(people) >= 3:
-        segment.kind, segment.reason = "fit", "group"
+        panels = _group_panels(people, width, height)
+        while panels is None and len(people) >= 3:
+            weakest = min(people, key=lambda c: (c["support"], c["box"][3]))
+            if weakest["support"] >= GROUP_MEMBER_SUPPORT:
+                break
+            people = [c for c in people if c is not weakest]
+            panels = _group_panels(people, width, height)
+    if len(people) >= 3:
+        if panels is None:
+            segment.kind, segment.reason = "fit", "group"
+            return segment
+        segment.kind, segment.reason = "pair", "group"
+        segment.people = [_union([c["box"] for c in side]) for side in panels]
+        segment.tracks = [_union_track(side) for side in panels]
         return segment
     if len(people) == 2:
         left, right = sorted(people, key=lambda c: _centre(c["box"])[0])
@@ -289,36 +460,34 @@ def _classify(
         span = max(lb[0] + lb[2], rb[0] + rb[2]) - min(lb[0], rb[0])
         small, large = sorted((lb[3], rb[3]))
         dy = abs(_centre(lb)[1] - _centre(rb)[1])
-        if span <= crop_w * SHARED_CROP_SPAN:
-            def union(a: Box, b: Box) -> Box:
-                x0, y0 = min(a[0], b[0]), min(a[1], b[1])
-                return (x0, y0, max(a[0] + a[2], b[0] + b[2]) - x0, max(a[1] + a[3], b[1] + b[3]) - y0)
-
-            track = {
-                t: union(left["track"][t], right["track"][t])
-                for t in left["track"] if t in right["track"]
-            }
+        together = len(set(left["track"]) & set(right["track"])) / max(1, len(samples))
+        if together < PAIR_MIN_TOGETHER:
+            # One person found in two places (a pan, a turn of the head): frame the steadier one.
+            people = [max(people, key=lambda c: (c["support"], c["box"][3]))]
+        elif span <= crop_w * SHARED_CROP_SPAN:
             segment.kind, segment.reason = "single", "shared_crop"
-            segment.people, segment.tracks = [union(lb, rb)], [track]
+            segment.people, segment.tracks = [_union([lb, rb])], [_union_track([left, right])]
             return segment
-        if small >= large * PAIR_MIN_SIZE_RATIO and dy <= height * PAIR_MAX_DY_FRAC:
+        elif (small >= large * PAIR_MIN_SIZE_RATIO and dy <= height * PAIR_MAX_DY_FRAC
+              and not any(_edge_cut(c["box"], width) for c in people)):
             segment.kind, segment.reason = "pair", "two_people"
             segment.people, segment.tracks = [lb, rb], [left["track"], right["track"]]
             return segment
-        # Over the shoulder: the near person is a huge, edge-cut blur facing
-        # away; the subject is the face looking into the lens.
-        def foreground(c: Dict[str, Any]) -> bool:
-            x, _, w, h = c["box"]
-            return h > height * 0.5 or x < width * 0.04 or x + w > width * 0.96
+        else:
+            # Over the shoulder: the near person is a huge, edge-cut blur facing
+            # away; the subject is the face looking into the lens.
+            def foreground(c: Dict[str, Any]) -> bool:
+                x, _, w, h = c["box"]
+                return h > height * 0.5 or x < width * 0.04 or x + w > width * 0.96
 
-        facing = [c for c in people if not foreground(c)] or people
-        people = [max(facing, key=lambda c: c["box"][3])]
+            facing = [c for c in people if not foreground(c)] or people
+            people = [max(facing, key=lambda c: c["box"][3])]
     subject = people[0]
     if subject["box"][3] < height * SINGLE_MIN_FACE_H_FRAC:
         # A distant figure, a game character or a false detection in b-roll:
-        # a tight crop would invent a subject, so the frame stays whole.
-        segment.kind, segment.reason = "fit", "small_subject"
-        return segment
+        # a tight crop would invent a subject. Live footage gets a full-height
+        # crop around it; a still picture stays whole.
+        return cover("small_subject")
     segment.kind, segment.reason = "single", "one_person"
     segment.people, segment.tracks = [subject["box"]], [subject["track"]]
     return segment
@@ -346,6 +515,22 @@ def _segments(
     cuts = sorted({float(c) for c in scene_cuts if 0 < c < duration})
     bounds = [0.0, *cuts, duration]
     blocks = {round(float(e.time), 3): getattr(e, "text_block_lines", 0) >= 2 for e in context}
+    measured = {round(float(e.time), 3): e for e in context}
+
+    def evidence(part: Sequence[FaceFrame]) -> List[Any]:
+        return [measured[k] for k in (round(float(t), 3) for t, _ in part) if k in measured]
+
+    def signage(part: Sequence[FaceFrame]) -> bool:
+        # A paragraph in a handheld shot of people is a sign or a menu behind
+        # them, not a graphic laid over the picture: the people are the shot.
+        found = evidence(part)
+        if not part or not found:
+            return False
+        if float(np.median([e.camera_motion for e in found])) < COVER_MIN_CAMERA_MOTION:
+            return False
+        shot = _classify(Segment(part[0][0], part[-1][0]), part, width, height, crop_w, found)
+        return shot.kind in {"single", "pair"}
+
     segments: List[Segment] = []
     for start, end in zip(bounds, bounds[1:]):
         # A sample within a frame or so of a cut may show either shot.
@@ -357,6 +542,8 @@ def _segments(
         graphic = [blocks.get(round(float(t), 3), False) for t, _ in shot]
         for a, b, is_graphic in _graphic_spans(times, graphic, start, end):
             part = [(t, faces) for t, faces in shot if a <= t < b]
+            if is_graphic and signage(part):
+                is_graphic = False
             pieces = (
                 [(a, b, None)] if is_graphic or not part else
                 _runs([t for t, _ in part], [_face_state(f, height) for _, f in part], a, b, FACE_STATE_MIN_SAMPLES)
@@ -365,7 +552,7 @@ def _segments(
                 sub = [(t, faces) for t, faces in part if c <= t < d]
                 segment = Segment(c, d, graphic=bool(is_graphic) and bool(sub))
                 if sub:
-                    segments.append(_classify(segment, sub, width, height, crop_w))
+                    segments.append(_classify(segment, sub, width, height, crop_w, evidence(sub)))
                 elif segments:
                     segments[-1].end = d
                 else:
@@ -482,9 +669,18 @@ def _panel_size(box: Box, other: Box, width: int, height: int) -> Tuple[int, int
     panel_h = min(float(height), max(PANEL_H / MAX_UPSCALE, box[3] / PANEL_FACE_FRAC), width * 8 / 9)
     # Keep the neighbour's face out of the panel, within a looser upscale cap.
     gap = abs(_centre(box)[0] - _centre(other)[0]) - other[2] * 0.6
-    if gap * 2 < panel_h * 9 / 8:
-        panel_h = max(PANEL_H / MAX_PANEL_UPSCALE, gap * 2 * 8 / 9)
-    panel_h = round_to_even(int(min(panel_h, height)))
+    # A panel on someone near the frame edge is pushed back into the frame,
+    # towards the neighbour: it may only reach as far as the neighbour's face.
+    if _centre(box)[0] >= _centre(other)[0]:
+        room = width - (_centre(other)[0] + other[2] * 0.6)
+    else:
+        room = _centre(other)[0] - other[2] * 0.6
+    reach = min(gap * 2, room)
+    if reach < panel_h * 9 / 8:
+        panel_h = max(PANEL_H / MAX_PANEL_UPSCALE, reach * 8 / 9)
+    # Several people sharing the panel (a divided group) all stay inside it.
+    panel_h = max(panel_h, box[2] * GROUP_PANEL_MARGIN * 8 / 9)
+    panel_h = round_to_even(int(min(panel_h, height, width * 8 / 9)))
     return min(round_to_even(width), round_to_even(int(panel_h * 9 / 8))), panel_h
 
 
@@ -519,6 +715,16 @@ def _single_chain(segment: Segment, width: int, height: int) -> Tuple[str, float
     size = _single_size(segment.people[0], width, height)
     crop, bottom = _crop(segment, 0, size, SINGLE_FACE_Y, width, height)
     return f"{crop},scale={OUT_W}:{OUT_H}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1", bottom
+
+
+def _cover_chain(segment: Segment, width: int, height: int) -> str:
+    """Still full-height 9:16 crop centred on ``segment.cover_x``."""
+    from .reframing import compute_vertical_crop_dims
+
+    crop_w, crop_h = compute_vertical_crop_dims(width, height)
+    x = clamp_even(int(segment.cover_x * width - crop_w / 2), 0, max(0, width - crop_w))
+    y = clamp_even(int((height - crop_h) / 2), 0, max(0, height - crop_h))
+    return f"crop={crop_w}:{crop_h}:{x}:{y},scale={OUT_W}:{OUT_H}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1"
 
 
 def _pair_chain(segment: Segment, width: int, height: int, label: str) -> Tuple[str, float]:
@@ -575,6 +781,8 @@ def build_interview_filter(
         elif segment.kind == "pair":
             chain, bottom = _pair_chain(segment, width, height, f"c{i}")
             lowest = max(lowest, bottom)
+        elif segment.kind == "cover":
+            chain = _cover_chain(segment, width, height)
         else:
             chain = _fit_chain(f"c{i}")
         parts.append(f"{source}{trim}{chain},format=yuv420p,setpts=PTS-STARTPTS[v{i}]")
@@ -583,6 +791,20 @@ def build_interview_filter(
     else:
         parts[-1] = parts[-1][: -len("[v0]")] + "[vout]"
     return ";".join(parts), lowest
+
+
+def _reported(segment: Segment) -> Dict[str, Any]:
+    """A shot as the layout report lists it: ``pair``, ``single`` or ``fit``.
+
+    A cover is a frame-filling crop, so captions and the hook title treat it
+    as a ``single``; its reason says ``cover``.
+    """
+    cover = segment.kind == "cover"
+    return {
+        "start": round(segment.start, 3), "end": round(segment.end, 3),
+        "kind": "single" if cover else segment.kind,
+        "reason": "cover" if cover else segment.reason,
+    }
 
 
 def frame_changes(input_path: Path) -> Tuple[List[float], np.ndarray]:
@@ -762,7 +984,10 @@ def plan_interview_layout(
 
     def interview(cuts: Sequence[float]) -> Optional[List[Segment]]:
         segments = _segments(duration, cuts, face_samples, context, width, height, crop_w)
-        pairs = [s for s in segments if s.kind == "pair"]
+        # A divided group does not make a clip an interview by itself: a
+        # three-host podcast or a call gallery keeps speaker framing and the
+        # gallery layouts. Beside a real two-shot it is composed like one.
+        pairs = [s for s in segments if s.kind == "pair" and s.reason == "two_people"]
         if sum(s.end - s.start for s in pairs) < PAIR_MIN_SECONDS:
             return None
         singles = [s for s in segments if s.kind == "single"]
@@ -776,10 +1001,7 @@ def plan_interview_layout(
     _pool_setups(segments, width)
     segments = _merge_neighbours(segments)
     video_filter, lowest = build_interview_filter(segments, width, height)
-    summary = [
-        {"start": round(s.start, 3), "end": round(s.end, 3), "kind": s.kind, "reason": s.reason}
-        for s in segments
-    ]
+    summary = [_reported(s) for s in segments]
     logger.info("Interview layout: %s", summary)
     result = {
         "kind": "interview",
