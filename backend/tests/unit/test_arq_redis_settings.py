@@ -9,6 +9,7 @@ import asyncio
 import pytest
 from arq import create_pool
 from redis.asyncio.connection import Connection
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from src.workers.ai_worker import AIWorkerSettings
 from src.workers.cron_worker import CronWorkerSettings
@@ -34,6 +35,14 @@ def test_every_arq_process_waits_and_retries_when_opening_a_connection(name):
     assert settings.retry_on_timeout is True
     assert settings.retry is not None
     assert settings.retry._retries >= 3
+
+
+@pytest.mark.parametrize("name", ["video worker", "cron worker", "ai worker", "enqueue"])
+def test_every_arq_process_reconnects_when_redis_closes_the_connection(name):
+    """redis-py re-raises any error not in retry_on_error, so without
+    ConnectionError there a Redis restart ends the worker."""
+    settings = _all_settings()[name]
+    assert RedisConnectionError in (settings.retry_on_error or [])
 
 
 def test_connect_timeout_and_retries_come_from_the_environment(monkeypatch):
@@ -77,6 +86,38 @@ async def test_a_slow_connect_on_a_running_worker_is_retried_not_raised(monkeypa
             pipe.delete("arq-conn-timeout-probe")
             await pipe.execute()
         assert attempts == 2
+    finally:
+        await pool.aclose()
+
+
+@pytest.mark.asyncio
+async def test_a_connection_closed_by_redis_is_retried_not_raised(monkeypatch):
+    """When Redis restarts, the next command on a pooled connection fails with
+    'Connection closed by server.' It must reconnect and retry, not surface."""
+    settings = WorkerSettings.redis_settings
+    pool = await create_pool(settings)
+    try:
+        real_read = Connection.read_response
+        closes = 0
+        close_next = False
+
+        async def closed_once(self, *args, **kwargs):
+            nonlocal closes, close_next
+            if close_next:
+                close_next = False
+                closes += 1
+                raise RedisConnectionError("Connection closed by server.")
+            return await real_read(self, *args, **kwargs)
+
+        monkeypatch.setattr(Connection, "read_response", closed_once)
+        close_next = True
+        assert await pool.ping() is True
+        close_next = True
+        async with pool.pipeline(transaction=True) as pipe:
+            pipe.incr("arq-conn-closed-probe")
+            pipe.delete("arq-conn-closed-probe")
+            assert await pipe.execute() == [1, 1]
+        assert closes == 2
     finally:
         await pool.aclose()
 
