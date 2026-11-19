@@ -8,6 +8,7 @@ services:
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
+        - NEXT_PUBLIC_MCP_URL=${NEXT_PUBLIC_MCP_URL:-}
         - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
         - NEXT_PUBLIC_PRO_PRICE_MONTHLY=${NEXT_PUBLIC_PRO_PRICE_MONTHLY:-9.99}
         - NEXT_PUBLIC_SCALE_PRICE_MONTHLY=${NEXT_PUBLIC_SCALE_PRICE_MONTHLY:-24.99}
@@ -31,7 +32,9 @@ services:
     ports:
       # Keep the legacy port for deployments whose proxy already uses 3001.
       # .env.example selects 3107 for new self-hosted installations.
-      - "127.0.0.1:${FRONTEND_PORT:-3001}:3107"
+      # FRONTEND_BIND defaults to loopback; start.sh sets it to the Tailscale
+      # address (or 0.0.0.0) when TAILSCALE=true.
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-3001}:3107"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
@@ -44,6 +47,7 @@ services:
       - BACKEND_INTERNAL_URL=http://backend:8000
       - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
+      - NEXT_PUBLIC_MCP_URL=${NEXT_PUBLIC_MCP_URL:-}
       - NEXT_PUBLIC_LANDING_ONLY_MODE=${NEXT_PUBLIC_LANDING_ONLY_MODE:-false}
       - DISABLE_SIGN_UP=${DISABLE_SIGN_UP:-false}
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
@@ -128,7 +132,9 @@ services:
     platform: "${BACKEND_PLATFORM:-linux/amd64}"
     command: [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "127.0.0.1:8000:8000"
+      # BACKEND_BIND defaults to loopback; start.sh sets it to the Tailscale
+      # address (or 0.0.0.0) when TAILSCALE=true.
+      - "${BACKEND_BIND:-127.0.0.1}:8000:8000"
     volumes:
       - ./backend/src:/app/src
       - uploads:/app/uploads
@@ -212,6 +218,7 @@ services:
       - APIFY_EXPENSIVE_FALLBACKS=${APIFY_EXPENSIVE_FALLBACKS:-false}
       - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_FALLBACK_MODEL=${OPENROUTER_FALLBACK_MODEL:-openai/gpt-6-luna}
       - RERANK_LLM=${RERANK_LLM:-}
@@ -324,6 +331,25 @@ services:
       retries: 5
       start_period: 20s
 
+  # Cloudflare Tunnel: publish the frontend over a Cloudflare-managed domain
+  # without opening a public port. Opt in with COMPOSE_PROFILES=cloudflare.
+  # start.sh writes config.yml next to the tunnel credentials in
+  # CLOUDFLARE_CONFIG_DIR and mounts that directory read-only. See .env.example.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: supoclip-cloudflared
+    profiles: ["cloudflare"]
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    volumes:
+      - ${CLOUDFLARE_CONFIG_DIR:-${HOME}/.cloudflared}:/etc/cloudflared:ro
+    # ~/.cloudflared is 0700 and owned by the host user; run as root so the
+    # read-only mount (config + credentials) is readable inside the container.
+    user: "0:0"
+    restart: unless-stopped
+    depends_on:
+      frontend:
+        condition: service_started
+
   # Worker process for background video processing
   worker:
     build:
@@ -416,6 +442,7 @@ services:
       - APIFY_EXPENSIVE_FALLBACKS=${APIFY_EXPENSIVE_FALLBACKS:-false}
       - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_FALLBACK_MODEL=${OPENROUTER_FALLBACK_MODEL:-openai/gpt-6-luna}
       - RERANK_LLM=${RERANK_LLM:-}

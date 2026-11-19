@@ -35,7 +35,89 @@ fi
 source .env
 
 # Match Compose's host port, including its legacy deployment fallback.
-FRONTEND_LOCAL_URL="http://localhost:${FRONTEND_PORT:-3001}"
+FRONTEND_PORT_EFFECTIVE="${FRONTEND_PORT:-3001}"
+FRONTEND_LOCAL_URL="http://localhost:${FRONTEND_PORT_EFFECTIVE}"
+
+# When TAILSCALE=true, bind the published ports to the Tailscale address (or all
+# interfaces if the CLI is unavailable) and advertise that reachable URL instead
+# of localhost. Otherwise keep the loopback-only bind.
+FRONTEND_BIND="127.0.0.1"
+BACKEND_BIND="127.0.0.1"
+FRONTEND_URL="$FRONTEND_LOCAL_URL"
+BACKEND_URL="http://localhost:8000"
+if [ "${TAILSCALE:-false}" = "true" ]; then
+    TAILSCALE_IP="$(tailscale ip -4 2>/dev/null | head -n1)"
+    if [ -n "$TAILSCALE_IP" ]; then
+        FRONTEND_BIND="$TAILSCALE_IP"
+        BACKEND_BIND="$TAILSCALE_IP"
+        FRONTEND_URL="http://${TAILSCALE_IP}:${FRONTEND_PORT_EFFECTIVE}"
+        BACKEND_URL="http://${TAILSCALE_IP}:8000"
+    else
+        echo -e "${YELLOW}Warning: TAILSCALE=true but 'tailscale ip' returned no address; binding to all interfaces${NC}"
+        echo ""
+        FRONTEND_BIND="0.0.0.0"
+        BACKEND_BIND="0.0.0.0"
+        FRONTEND_URL="http://localhost:${FRONTEND_PORT_EFFECTIVE}"
+        BACKEND_URL="http://localhost:8000"
+    fi
+fi
+export FRONTEND_BIND BACKEND_BIND
+
+# Add an origin to the auth allow-list and CORS without duplicating it.
+add_origin() {
+    local origin="$1"
+    [ -z "$origin" ] && return 0
+    BETTER_AUTH_TRUSTED_ORIGINS="${BETTER_AUTH_TRUSTED_ORIGINS:+${BETTER_AUTH_TRUSTED_ORIGINS},}${origin}"
+    CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:${FRONTEND_PORT_EFFECTIVE},http://sp.localhost:${FRONTEND_PORT_EFFECTIVE},http://supoclip.localhost:${FRONTEND_PORT_EFFECTIVE}}"
+    case ",${CORS_ORIGINS}," in
+        *",${origin},"*) ;;
+        *) CORS_ORIGINS="${CORS_ORIGINS},${origin}" ;;
+    esac
+}
+
+# Let auth and CORS accept the Tailscale origin without breaking localhost.
+if [ "$FRONTEND_BIND" != "127.0.0.1" ] && [ "$FRONTEND_URL" != "$FRONTEND_LOCAL_URL" ]; then
+    add_origin "$FRONTEND_URL"
+    export BETTER_AUTH_TRUSTED_ORIGINS CORS_ORIGINS
+fi
+
+# Cloudflare Tunnel: accept the public https origin and start the opt-in service.
+CLOUDFLARE_URL=""
+CLOUDFLARE_MCP_URL=""
+if [ -n "${CLOUDFLARE_PUBLIC_HOSTNAME:-}" ]; then
+    CLOUDFLARE_URL="https://${CLOUDFLARE_PUBLIC_HOSTNAME}"
+    add_origin "$CLOUDFLARE_URL"
+    export BETTER_AUTH_TRUSTED_ORIGINS CORS_ORIGINS
+    if [ -n "${CLOUDFLARE_MCP_HOSTNAME:-}" ]; then
+        CLOUDFLARE_MCP_URL="https://${CLOUDFLARE_MCP_HOSTNAME}/mcp"
+        add_origin "https://${CLOUDFLARE_MCP_HOSTNAME}"
+        export BETTER_AUTH_TRUSTED_ORIGINS CORS_ORIGINS
+    fi
+    CF_CONFIG_DIR="${CLOUDFLARE_CONFIG_DIR:-$HOME/.cloudflared}"
+    CF_CREDS="${CF_CONFIG_DIR}/${CLOUDFLARE_TUNNEL_ID:-}.json"
+    if [ -z "${CLOUDFLARE_TUNNEL_ID:-}" ] || [ ! -f "$CF_CREDS" ]; then
+        echo -e "${YELLOW}Warning: CLOUDFLARE_PUBLIC_HOSTNAME is set but CLOUDFLARE_TUNNEL_ID is empty or its credentials file is missing in ${CF_CONFIG_DIR}; the tunnel will not start${NC}"
+        echo ""
+    else
+        # Render the ingress config next to the credentials so the mounted
+        # directory holds both; credentials-file path matches the container mount.
+        {
+            echo "tunnel: ${CLOUDFLARE_TUNNEL_ID}"
+            echo "credentials-file: /etc/cloudflared/${CLOUDFLARE_TUNNEL_ID}.json"
+            echo "ingress:"
+            echo "  - hostname: ${CLOUDFLARE_PUBLIC_HOSTNAME}"
+            echo "    service: http://frontend:3107"
+            if [ -n "${CLOUDFLARE_MCP_HOSTNAME:-}" ]; then
+                echo "  - hostname: ${CLOUDFLARE_MCP_HOSTNAME}"
+                echo "    service: http://mcp:9100"
+            fi
+            echo "  - service: http_status:404"
+        } > "${CF_CONFIG_DIR}/config.yml"
+        export CLOUDFLARE_CONFIG_DIR="$CF_CONFIG_DIR"
+        COMPOSE_PROFILES="${COMPOSE_PROFILES:+${COMPOSE_PROFILES},}cloudflare"
+        export COMPOSE_PROFILES
+    fi
+fi
 
 if [ -n "${LLM:-}" ]; then
     case "$LLM" in
@@ -114,9 +196,15 @@ echo ""
 echo -e "${GREEN}SupoClip is starting up!${NC}"
 echo ""
 echo "Services will be available at:"
-echo "  - Frontend:  $FRONTEND_LOCAL_URL"
-echo "  - Backend:   http://localhost:8000"
-echo "  - API Docs:  http://localhost:8000/docs"
+echo "  - Frontend:  $FRONTEND_URL"
+echo "  - Backend:   $BACKEND_URL"
+echo "  - API Docs:  $BACKEND_URL/docs"
+if [ -n "$CLOUDFLARE_URL" ]; then
+    echo "  - Public:    $CLOUDFLARE_URL (Cloudflare Tunnel)"
+    if [ -n "$CLOUDFLARE_MCP_URL" ]; then
+        echo "  - MCP:       $CLOUDFLARE_MCP_URL (Cloudflare Tunnel)"
+    fi
+fi
 echo ""
 echo "To view logs, run:"
 echo "  $DOCKER_COMPOSE logs -f"
@@ -134,7 +222,7 @@ if $DOCKER_COMPOSE ps | grep -q "Up"; then
     echo -e "${GREEN}Services are starting successfully!${NC}"
     echo ""
     echo "You can now:"
-    echo "  1. Open $FRONTEND_LOCAL_URL in your browser"
+    echo "  1. Open $FRONTEND_URL in your browser"
     echo "  2. View logs: $DOCKER_COMPOSE logs -f"
     echo "  3. Stop services: $DOCKER_COMPOSE down"
 else
