@@ -143,7 +143,7 @@ def test_probe_uses_storage_reference_when_the_local_file_is_gone(runtime_config
     monkeypatch.setattr(MediaStorage, "signed_url", signed_url)
     monkeypatch.setattr(
         "src.services.video_service.ffprobe_duration",
-        lambda target: 21.0 if target == "https://signed.example/video" else (_ for _ in ()).throw(AssertionError(target)),
+        lambda target, timeout=60: 21.0 if target == "https://signed.example/video" and timeout < 60 else (_ for _ in ()).throw(AssertionError(target)),
     )
 
     duration = VideoService.probe_upload_duration(
@@ -152,6 +152,25 @@ def test_probe_uses_storage_reference_when_the_local_file_is_gone(runtime_config
 
     assert duration == 21.0
     assert seen == {"reference": "s3://bucket/sources/gone.mp4", "filename": "source.mp4"}
+
+
+def test_probe_of_a_storage_upload_gives_up_before_the_proxy_timeout(runtime_config, monkeypatch):
+    runtime_config.media_storage = "s3"
+    runtime_config.media_s3_bucket = "bucket"
+    seen = {}
+    monkeypatch.setattr(MediaStorage, "validate_source", lambda self, url, user_id: "s3://bucket/sources/big.mp4")
+    monkeypatch.setattr(MediaStorage, "signed_url", lambda self, reference, filename, **_kwargs: "https://signed.example/big")
+
+    def probe(target, timeout=60):
+        seen["call"] = (target, timeout)
+        return 30.0
+
+    monkeypatch.setattr("src.services.video_service.ffprobe_duration", probe)
+
+    assert VideoService.probe_upload_duration("upload://s3/user-1/big.mp4", "user-1") == 30.0
+    assert seen["call"][0] == "https://signed.example/big"
+    # The create-task request sits behind a proxy that gives up after 60 s.
+    assert seen["call"][1] < 60
 
 
 def test_probe_reads_a_local_file_before_the_storage_reference(tmp_path, runtime_config, monkeypatch):

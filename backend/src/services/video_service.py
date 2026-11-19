@@ -114,6 +114,9 @@ from ..stream_source import (
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
+# Probing an upload in storage happens inside the create-task request. Give up
+# well before the proxy in front of the API (60 s) so the caller gets an answer.
+UPLOAD_PROBE_TIMEOUT_SECONDS = 40
 
 
 async def resolve_upload_for_edit(video_service, url: str) -> Path:
@@ -649,7 +652,10 @@ class VideoService:
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
             # ffprobe reads only the container headers through ranged requests.
-            return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+            return ffprobe_duration(
+                storage.signed_url(reference, "source.mp4", expires_in=300),
+                timeout=UPLOAD_PROBE_TIMEOUT_SECONDS,
+            )
         path = VideoService.resolve_local_video_path(url)
         if path.is_file():
             return ffprobe_duration(path)
@@ -658,7 +664,10 @@ class VideoService:
         if storage_reference:
             storage = MediaStorage()
             if storage.enabled:
-                return ffprobe_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
+                return ffprobe_duration(
+                    storage.signed_url(storage_reference, "source.mp4", expires_in=300),
+                    timeout=UPLOAD_PROBE_TIMEOUT_SECONDS,
+                )
         return ffprobe_duration(path)
 
     @staticmethod
