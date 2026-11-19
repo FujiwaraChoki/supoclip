@@ -34,7 +34,7 @@ from urllib.parse import parse_qs, urljoin, urlparse
 import requests
 
 from .stream_transfer import (
-    TransferBudget, TransferStopped, account_chunk, active_transfer, bounded_client,
+    TIMED_OUT_MESSAGE, TransferBudget, TransferStopped, account_chunk, active_transfer, bounded_client,
     check_transfer, extend_transfer_overall, local_work, transfer_scope,
 )
 from .config import get_config
@@ -1232,7 +1232,7 @@ def seed_stream_resolution(task_id: Optional[str], resolution: Optional[dict] = 
         state.actors_run.add(provider)
 
 
-def _download_unbounded(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
+def _download_unbounded(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None, idle=300.0, overall=None) -> Path:
     source, kind, _source_id = detect_stream_source(url)
     task_key = _safe_component(task_id) if task_id else f"unscoped-{uuid.uuid4().hex}"
     op_key = _safe_component(operation) if operation else f"edit-{uuid.uuid4().hex[:12]}"
@@ -1251,15 +1251,23 @@ def _download_unbounded(url: str, *, audio=False, ranges=None, expected_duration
         providers = providers[providers.index(state.preferred):]
     try:
         return _try_providers(url, source, kind, providers, state, op_dir, call_dir, task_key,
-                              audio=audio, ranges=ranges, max_duration=max_duration)
+                              audio=audio, ranges=ranges, max_duration=max_duration, idle=idle, overall=overall)
     except BaseException:
-        # A budget, timeout or cancellation stop raises past the per-provider
+        # A budget or cancellation stop raises past the per-provider
         # cleanup; editor callers never get a path to clean up themselves.
         shutil.rmtree(call_dir, ignore_errors=True)
         raise
 
 
-def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call_dir, task_key, *, audio, ranges, max_duration) -> Path:
+def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call_dir, task_key, *, audio, ranges, max_duration, idle=300.0, overall=None) -> Path:
+    """Try each provider in order.
+
+    Each provider gets its own transfer scope (idle limit and overall cap), so
+    one that crawls until it times out leaves the next one a full allowance.
+    The byte budget is shared. A byte-limit or cancellation stop ends the chain;
+    a timeout moves on. ``providers`` is a deduplicated subset of a fixed set,
+    so the total time is bounded by its length times the overall cap.
+    """
     failures: list[str] = []
     host = _url_host(url)
     last_exc: BaseException | None = None
@@ -1271,23 +1279,24 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
         template = attempt_dir / ("section-%(section_number)03d.%(ext)s" if ranges else "source.%(ext)s")
         fallback = providers[index + 1] if index + 1 < len(providers) else "-"
         started = time.monotonic()
+        transfer = None
         try:
-            _log_stream(
-                logging.INFO, "provider", provider=provider, source=source, kind=kind, host=host,
-                fallback=fallback, attempt=index + 1,
-            )
-            if provider in APIFY_PROVIDERS:
-                result = _actor_media(url, provider, state, op_dir, call_dir, attempt_dir, template, audio=audio, ranges=ranges, max_duration=max_duration, session=task_key)
-            else:
-                result = _ytdlp_media(url, provider, state, attempt_dir, call_dir, template, audio=audio, ranges=ranges, max_duration=max_duration, session=task_key)
-            state.preferred = provider
-            transfer = active_transfer()
-            _log_stream(
-                logging.INFO, "completed", provider=provider, source=source, kind=kind, host=host,
-                bytes_transferred=int(transfer.budget.total) if transfer is not None else 0,
-                elapsed=time.monotonic() - started,
-            )
-            return result
+            with transfer_scope(state.budget, idle, overall) as transfer:
+                _log_stream(
+                    logging.INFO, "provider", provider=provider, source=source, kind=kind, host=host,
+                    fallback=fallback, attempt=index + 1,
+                )
+                if provider in APIFY_PROVIDERS:
+                    result = _actor_media(url, provider, state, op_dir, call_dir, attempt_dir, template, audio=audio, ranges=ranges, max_duration=max_duration, session=task_key)
+                else:
+                    result = _ytdlp_media(url, provider, state, attempt_dir, call_dir, template, audio=audio, ranges=ranges, max_duration=max_duration, session=task_key)
+                state.preferred = provider
+                _log_stream(
+                    logging.INFO, "completed", provider=provider, source=source, kind=kind, host=host,
+                    bytes_transferred=int(transfer.budget.total),
+                    elapsed=time.monotonic() - started,
+                )
+                return result
         except ProviderSkipped as exc:
             shutil.rmtree(attempt_dir, ignore_errors=True)
             failures.append(f"{provider}: skipped ({exc})")
@@ -1301,7 +1310,14 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
         except Exception as exc:
             last_exc = exc
             attempted += 1
-            transient_only = transient_only and _is_transient_error(exc)
+            # This provider ran out of time (crawling or stalled). The user did
+            # not cancel and the byte budget is not spent, so the next provider
+            # may still finish.
+            timed_out = (
+                state.budget is not None and state.budget.timed_out
+                and not (transfer is not None and transfer.cancel_requested)
+            )
+            transient_only = transient_only and (timed_out or _is_transient_error(exc))
             _annotate_transfer(exc, None, started)
             if isinstance(exc, TransferStopped) or (state.budget is not None and state.budget.failure):
                 _log_stream(
@@ -1311,6 +1327,11 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
                     elapsed=float(getattr(exc, "stream_elapsed", time.monotonic() - started) or 0),
                     fallback=fallback,
                 )
+                if timed_out:
+                    state.budget.clear_timeout()
+                    shutil.rmtree(attempt_dir, ignore_errors=True)
+                    failures.append(f"{provider}: {TIMED_OUT_MESSAGE}")
+                    continue
                 shutil.rmtree(call_dir, ignore_errors=True)
                 if not isinstance(exc, TransferStopped) and state.budget is not None and state.budget.failure:
                     raise TransferStopped(state.budget.failure) from _redacted_cause(exc)
@@ -1359,9 +1380,9 @@ def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max
         # and the duration budget, so 300s of no-data timeout is not a wall clock.
         idle = max(1.0, float(getattr(config, "youtube_proxy_timeout_seconds", 300) or 300))
         overall = _overall_allowance(state.expected_duration or _number(expected_duration), ranges, audio)
-        with transfer_scope(state.budget, idle, overall):
-            return _download_unbounded(url, audio=audio, ranges=ranges, expected_duration=expected_duration,
-                max_duration=max_duration, task_id=task_key, operation=op_key)
+        # Each provider opens its own transfer scope with these limits.
+        return _download_unbounded(url, audio=audio, ranges=ranges, expected_duration=expected_duration,
+            max_duration=max_duration, task_id=task_key, operation=op_key, idle=idle, overall=overall)
     except TransferStopped as exc:
         raise StreamSourceError(str(exc)) from _redacted_cause(exc)
 

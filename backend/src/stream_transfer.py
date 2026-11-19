@@ -8,6 +8,9 @@ import threading
 import time
 
 
+TIMED_OUT_MESSAGE = "Stream download timed out"
+
+
 class TransferStopped(RuntimeError):
     pass
 
@@ -32,6 +35,19 @@ class TransferBudget:
                 self.failure = f"Stream download exceeded the {self.limit} byte job limit"
             self.check()
 
+    @property
+    def timed_out(self) -> bool:
+        return self.failure == TIMED_OUT_MESSAGE
+
+    def clear_timeout(self) -> None:
+        """Let the next provider start after one ran out of time.
+
+        Byte-limit and cancellation stops stay: they end the whole download.
+        """
+        with self.lock:
+            if self.failure == TIMED_OUT_MESSAGE:
+                self.failure = None
+
 
 _active = ContextVar("stream_transfer", default=None)
 _cancel = ContextVar("stream_transfer_cancel", default=None)
@@ -55,6 +71,10 @@ class Transfer:
         self.hard_deadline = now + max_seconds if max_seconds else None
         self.cancelled = _cancel.get()
 
+    @property
+    def cancel_requested(self) -> bool:
+        return self.cancelled is not None and self.cancelled.is_set()
+
     def extend_overall(self, seconds: float) -> None:
         """Grow the overall cap. Never shorten it, and never turn the idle limit into a wall clock."""
         target = self.started + float(seconds)
@@ -74,7 +94,7 @@ class Transfer:
         if self.cancelled is not None and self.cancelled.is_set():
             self.budget.failure = "Stream download cancelled"
         elif time.monotonic() >= self.deadline:
-            self.budget.failure = "Stream download timed out"
+            self.budget.failure = TIMED_OUT_MESSAGE
         self.budget.check()
 
 

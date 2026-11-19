@@ -4,12 +4,15 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from src import stream_source as subject
+from src import stream_transfer
 from src.youtube_source import load_time_map
 
 TWITCH_VOD = "https://www.twitch.tv/videos/123456"
@@ -755,4 +758,97 @@ def test_byte_budget_is_shared_between_phases_and_stops_fallbacks(env, monkeypat
     with pytest.raises(subject.StreamSourceError, match="byte job limit"):
         subject.download_stream_video(TWITCH_VOD, task_id="task1", operation="job")
     assert env.ytdlp.providers("download") == ["proxy"]
+    assert env.actors.calls == []
+
+
+# ------------------------------------------------- provider timeouts fall through
+
+_CAP_SECONDS = 0.3
+
+
+def _crawl(env, monkeypatch, slow: set[str], *, on_chunk=None):
+    """Providers in ``slow`` keep receiving bytes but never finish: the overall cap stops them.
+
+    Bytes keep arriving, so the idle limit never trips; this is the 45 KB/s
+    proxy that used up the whole STREAM_DOWNLOAD_MAX_SECONDS in production.
+    """
+    monkeypatch.setattr(subject, "_overall_allowance", lambda *args, **kwargs: _CAP_SECONDS)
+    real_info, real_url = subject._download_info, subject._download_url
+
+    def crawl(provider):
+        for chunk in range(2000):
+            subject.account_chunk(b"x" * 1024)
+            if on_chunk is not None:
+                on_chunk(provider, chunk)
+            time.sleep(0.005)
+        raise AssertionError(f"{provider} was never stopped")
+
+    def download_info(info, provider, template, **kwargs):
+        if provider in slow:
+            env.ytdlp.calls.append(("download", provider, ()))
+            crawl(provider)
+        return real_info(info, provider, template, **kwargs)
+
+    def download_url(url, provider, template, **kwargs):
+        if provider in slow:
+            env.ytdlp.calls.append(("media", provider, url))
+            crawl(provider)
+        return real_url(url, provider, template, **kwargs)
+
+    monkeypatch.setattr(subject, "_download_info", download_info)
+    monkeypatch.setattr(subject, "_download_url", download_url)
+
+
+def test_provider_timeout_falls_through_with_a_fresh_allowance(env, monkeypatch):
+    _crawl(env, monkeypatch, {"proxy"})
+    path = subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    assert path.exists()
+    assert env.ytdlp.providers("extract") == ["proxy", "direct"]
+    assert env.actors.calls == []
+    state = subject._operations[("task1", "job")]
+    assert state.preferred == "direct"
+    assert state.budget.failure is None
+
+
+def test_every_provider_timing_out_reports_the_timeout_message(env, monkeypatch):
+    env.config.twitch_download_providers = "proxy,direct"
+    _crawl(env, monkeypatch, {"proxy", "direct"})
+    started = time.monotonic()
+    with pytest.raises(subject.StreamSourceError) as caught:
+        subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    assert str(caught.value) == subject.TIMEOUT_MESSAGE
+    assert env.ytdlp.providers("extract") == ["proxy", "direct"]
+    # One cap per provider, never more.
+    assert time.monotonic() - started < 2 * _CAP_SECONDS + 2
+
+
+def test_cancel_during_a_provider_does_not_fall_through(env, monkeypatch):
+    cancel = threading.Event()
+
+    def cancel_after_a_few_chunks(provider, chunk):
+        if chunk == 3:
+            cancel.set()
+
+    _crawl(env, monkeypatch, {"proxy"}, on_chunk=cancel_after_a_few_chunks)
+    token = stream_transfer._cancel.set(cancel)
+    try:
+        with pytest.raises(subject.StreamSourceError, match="Stream download cancelled"):
+            subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    finally:
+        stream_transfer._cancel.reset(token)
+    assert env.ytdlp.providers("extract") == ["proxy"]
+    assert env.actors.calls == []
+
+
+def test_cancel_after_a_provider_timed_out_stops_the_chain(env, monkeypatch):
+    cancel = threading.Event()
+    _crawl(env, monkeypatch, {"proxy", "direct"},
+           on_chunk=lambda provider, chunk: provider == "direct" and cancel.set())
+    token = stream_transfer._cancel.set(cancel)
+    try:
+        with pytest.raises(subject.StreamSourceError, match="Stream download cancelled"):
+            subject.download_stream_audio(TWITCH_VOD, task_id="task1", operation="job")
+    finally:
+        stream_transfer._cancel.reset(token)
+    assert env.ytdlp.providers("extract") == ["proxy", "direct"]
     assert env.actors.calls == []
