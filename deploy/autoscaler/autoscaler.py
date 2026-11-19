@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -141,8 +143,8 @@ def load_settings(env: dict[str, str], *, dry_run: bool = False) -> Settings:
         ssh_user=env.get("AUTOSCALER_SSH_USER", "").strip() or "supoclip",
         state_dir=env.get("AUTOSCALER_STATE_DIR", "").strip() or "/var/lib/supoclip-autoscaler",
         tunnel_unit=env.get("AUTOSCALER_TUNNEL_UNIT", "").strip() or "supoclip-render-tunnel",
-        alert_url=env.get("AUTOSCALER_ALERT_WEBHOOK_URL", "").strip(),
-        alert_secret=env.get("AUTOSCALER_ALERT_WEBHOOK_SECRET", "").strip(),
+        alert_url=env.get("HERMES_OPS_ALERT_URL", "").strip(),
+        alert_secret=env.get("HERMES_OPS_ALERT_SECRET", "").strip(),
         error_backoff_seconds=num("AUTOSCALER_ERROR_BACKOFF_MINUTES", 30) * 60,
     )
 
@@ -188,7 +190,10 @@ class Cloud:
             raise CloudError(error.code, detail.get("code", "http_error"), detail.get("message", "")) from None
         except (URLError, TimeoutError, OSError) as error:
             raise CloudError(0, "unreachable", type(error).__name__) from None
-        return json.loads(raw) if raw else {}
+        try:
+            return json.loads(raw) if raw else {}
+        except ValueError:
+            raise CloudError(0, "bad_response", "the cloud API did not answer with JSON") from None
 
     def managed_servers(self) -> list[dict]:
         selector = f"{MANAGED_LABEL}={MANAGED_VALUE}"
@@ -263,9 +268,13 @@ class Remote:
         return result
 
     def container_running(self, ip: str) -> bool | None:
+        """True while any container is up on the machine, None when that is unknown.
+
+        Deliberately not filtered to the worker's compose label: a worker started
+        another way (an adopted machine) must never look like it has exited.
+        """
         try:
-            result = self.run(ip, f"sudo docker ps -q --filter {WORKER_FILTER} --filter status=running",
-                              timeout=30)
+            result = self.run(ip, "sudo docker ps -q", timeout=30)
         except (AutoscalerError, subprocess.TimeoutExpired):
             return None
         return bool(result.stdout.strip())
@@ -289,29 +298,56 @@ class Remote:
 # --------------------------------------------------------------------------- alerts
 
 
-class Alerts:
-    """Signed alerts to the operator chat (the same Hermes V2 signature the API uses)."""
+# Alert event -> (level, title) in the operator chat.
+ALERT_KINDS = {
+    "scale_up": ("info", "Render worker added"),
+    "scale_down": ("info", "Render worker removed"),
+    "blocked": ("warning", "Render scale-up blocked"),
+    "probe": ("warning", "Render autoscaler cannot read the queue"),
+    "failure": ("error", "Render autoscaler failure"),
+    "test": ("info", "Autoscaler alerts connected"),
+}
 
-    def __init__(self, url: str, secret: str, *, dry_run: bool, opener=None):
+
+class Alerts:
+    """Signed ops alerts to the operator chat (the Hermes V2 signature the API uses)."""
+
+    # Waits between attempts when the gateway is unreachable, errors or does not file the alert.
+    RETRY_DELAYS = (2, 6, 15)
+
+    def __init__(self, url: str, secret: str, *, dry_run: bool, opener=None, sleep=time.sleep):
         self.url, self.secret, self.dry_run = url, secret, dry_run
         self._open = (opener or build_opener(ProxyHandler({}))).open
+        self._sleep = sleep
 
-    def send(self, event: str, message: str, **details) -> bool:
+    def send(self, event: str, message: str, *, title: str | None = None) -> bool | None:
+        """True when the gateway filed the alert, False when it did not, None when none was sent."""
+        level, default_title = ALERT_KINDS.get(event, ("warning", "Render autoscaler"))
         log.warning("alert %s: %s", event, message)
         if self.dry_run or not self.url or not self.secret:
-            return False
-        import hashlib
-        import hmac
-
+            return None
         delivery = str(uuid.uuid4())
         body = json.dumps({
-            "type": "supoclip.render_autoscaler",
-            "id": delivery,
-            "event": event,
+            "type": "supoclip.ops_alert",
+            "version": 1,
+            "event_id": delivery,
+            "source": "autoscaler",
+            "level": level,
+            "title": title or default_title,
             "message": message,
-            "details": details,
-            "at": datetime.now(UTC).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }).encode()
+        # The same event id on every attempt, so a retry is never filed twice.
+        for attempt, delay in enumerate((0, *self.RETRY_DELAYS)):
+            if delay:
+                self._sleep(delay)
+            outcome = self._post(body, delivery)
+            if outcome == "filed":
+                return True
+            log.error("alert delivery attempt %d: %s", attempt + 1, outcome)
+        return False
+
+    def _post(self, body: bytes, delivery: str) -> str:
         timestamp = str(int(time.time()))
         signature = hmac.new(self.secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
         request = Request(self.url, data=body, method="POST", headers={
@@ -322,10 +358,21 @@ class Alerts:
         })
         try:
             with self._open(request, timeout=15) as response:
-                return 200 <= response.status < 300
-        except (HTTPError, URLError, TimeoutError, OSError) as error:
-            log.error("alert delivery failed: %s", type(error).__name__)
-            return False
+                status, raw = response.status, response.read()
+        except HTTPError as error:
+            return f"HTTP {error.code}"
+        except (URLError, TimeoutError, OSError) as error:
+            return type(error).__name__
+        if not 200 <= status < 300:
+            return f"HTTP {status}"
+        try:
+            answer = json.loads(raw or b"{}")
+        except ValueError:
+            answer = {}
+        # The gateway answers 200 with status "ignored" when it did not file the alert.
+        if isinstance(answer, dict) and answer.get("status") == "ignored":
+            return "ignored by the gateway"
+        return "filed"
 
 
 # --------------------------------------------------------------------------- state
@@ -366,14 +413,13 @@ class State:
             if record["name"] == name and record.get("end") is None:
                 record["end"] = end
 
-    def should_alert(self, key: str, now: float, repeat: int) -> bool:
-        if not key:
-            return True
-        last = self.data["alerts"].get(key)
-        if last is not None and now - last < repeat:
-            return False
-        self.data["alerts"][key] = now
-        return True
+    def alert_due(self, key: str, now: float, repeat: int) -> bool:
+        last = self.data["alerts"].get(key) if key else None
+        return last is None or now - last >= repeat
+
+    def alerted(self, key: str, now: float) -> None:
+        if key:
+            self.data["alerts"][key] = now
 
 
 # --------------------------------------------------------------------------- local host
@@ -391,7 +437,15 @@ def resolve_image(source: str, runner=subprocess.run) -> str | None:
             image = Path(value).read_text().strip()
         except OSError:
             return None
-        return image or None
+        if not image:
+            return None
+        # A typo here would otherwise drain every worker as "on another release".
+        found = runner(["docker", "image", "inspect", "--format", "{{.Id}}", image],
+                       capture_output=True, text=True, timeout=20)
+        if found.returncode != 0:
+            log.error("the image named in %s is not on this host", value)
+            return None
+        return image
     if kind == "container":
         result = runner(["docker", "inspect", "--format", "{{.Config.Image}}", value],
                         capture_output=True, text=True, timeout=20)
@@ -603,9 +657,13 @@ class Autoscaler:
         self.state.save()
         return plan
 
-    def alert(self, event: str, key: str, message: str, now: float, **details) -> None:
-        if self.state.should_alert(key, now, self.s.alert_repeat_seconds):
-            self.alerts.send(event, message, **details)
+    def alert(self, event: str, key: str, message: str, now: float) -> None:
+        """Send an alert, at most once per repeat interval for the same key."""
+        if not self.state.alert_due(key, now, self.s.alert_repeat_seconds):
+            return
+        # An alert the gateway did not file is tried again on the next run.
+        if self.alerts.send(event, message) is not False:
+            self.state.alerted(key, now)
 
     def apply(self, action: Action, server: dict | None, image: str | None, now: float) -> None:
         try:
@@ -623,7 +681,13 @@ class Autoscaler:
                        f"{action.kind} {action.name} failed: {error}; scale-ups paused for "
                        f"{self.s.error_backoff_seconds // 60} min", now)
         except (AutoscalerError, subprocess.SubprocessError, OSError) as error:
-            self.alert("failure", f"{action.kind}:{action.name}", f"{action.kind} {action.name} failed: {error}", now)
+            message = f"{action.kind} {action.name} failed: {error}"
+            if action.kind == "scale_up":
+                # A server that was created and deleted again is still billed for an hour:
+                # never retry a failing scale-up every cooldown.
+                self.state.data["backoff_until"] = now + self.s.error_backoff_seconds
+                message += f"; scale-ups paused for {self.s.error_backoff_seconds // 60} min"
+            self.alert("failure", f"{action.kind}:{action.name}", message, now)
 
     # ---- actions
 
@@ -632,7 +696,7 @@ class Autoscaler:
         self.remote.drain(public_ip(server))
         self.state.worker(server["name"]).update(drain_started=now, idle_since=None)
         self.cloud.set_labels(server, state=DRAINING, **{"drain-started": str(int(now))})
-        self.alerts.send("scale_down", f"draining {server['name']}: {reason}", worker=server["name"])
+        self.alerts.send("scale_down", f"draining {server['name']}: {reason}", title="Render worker draining")
 
     def delete(self, server: dict, reason: str, now: float) -> None:
         # Checked again right before the delete: never remove a machine with a running worker.
@@ -648,7 +712,7 @@ class Autoscaler:
             # The server is gone; a tunnel left retrying is untidy, not unsafe.
             log.error("%s", error)
         self.alerts.send("scale_down", f"deleted {server['name']}: {reason}; spend today EUR "
-                         f"{self.spend(now):.2f}", worker=server["name"])
+                         f"{self.spend(now):.2f}")
 
     def scale_up(self, name: str, image: str | None, reason: str) -> None:
         if not image:
@@ -686,7 +750,7 @@ class Autoscaler:
         self.state.save()
         ip = public_ip(server)
         self.alerts.send("scale_up", f"creating {name} ({self.s.server_type}, {self.s.concurrency} slots, "
-                         f"EUR {hourly:.4f}/h): {reason}", worker=name)
+                         f"EUR {hourly:.4f}/h): {reason}", title="Render worker starting")
         try:
             self.provision(server, name, ip, host_public, image)
         except BaseException as error:
@@ -703,8 +767,7 @@ class Autoscaler:
             except (AutoscalerError, CloudError, subprocess.SubprocessError, OSError) as drain_error:
                 log.error("could not drain %s: %s", name, drain_error)
             raise AutoscalerError(f"starting the worker on {name} failed: {error}") from error
-        self.alerts.send("scale_up", f"{name} is taking jobs ({int(self.clock() - started)} s to ready)",
-                         worker=name)
+        self.alerts.send("scale_up", f"{name} is taking jobs ({int(self.clock() - started)} s to ready)")
 
     def provision(self, server: dict, name: str, ip: str, host_public: str, image: str) -> None:
         known = self.s.known_hosts
@@ -801,9 +864,15 @@ def _float(value: str | None) -> float | None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="read everything, change nothing, send no alerts")
+    parser.add_argument("--test-alert", action="store_true", help="send one test alert to the operator chat and exit")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     settings = load_settings(dict(os.environ), dry_run=args.dry_run)
+    if args.test_alert:
+        alerts = Alerts(settings.alert_url, settings.alert_secret, dry_run=False)
+        filed = alerts.send("test", "The render autoscaler can reach the operator chat.")
+        log.info("test alert %s", {True: "filed", False: "not filed", None: "not sent: no alert URL or secret"}[filed])
+        return 0 if filed else 1
     if not settings.policy.enabled and not settings.policy.dry_run:
         log.info("AUTOSCALER_ENABLED is not true; nothing to do")
         return 0
@@ -818,7 +887,16 @@ def main(argv: list[str] | None = None) -> int:
         if not settings.token_file:
             log.error("AUTOSCALER_HCLOUD_TOKEN_FILE is not set")
             return 2
-        Autoscaler(settings, Cloud(read_token(settings.token_file))).run()
+        scaler = Autoscaler(settings, Cloud(read_token(settings.token_file)))
+        try:
+            scaler.run()
+        except Exception as error:
+            # Whatever the earlier steps saved stays saved; the next run starts from the cloud's state.
+            log.exception("the run stopped on an unexpected error")
+            scaler.alert("failure", "crashed", f"a run stopped on an unexpected error: {type(error).__name__}",
+                         scaler.clock())
+            scaler.state.save()
+            return 1
     return 0
 
 

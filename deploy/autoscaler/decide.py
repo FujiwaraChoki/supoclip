@@ -162,11 +162,18 @@ def decide(
             continue
         if worker.container_running:
             plan.actions.append(Action("activate", worker.name, "provisioning finished in an earlier run"))
-        else:
+        elif worker.container_running is False:
             plan.actions.append(Action(
                 "delete", worker.name, "provisioning did not finish; no worker ever started on it",
             ))
             plan.alert(f"provision-stuck:{worker.name}", f"{worker.name} never finished provisioning; deleting it")
+        else:
+            # Whether a worker runs there is unknown, so it is not deleted. It keeps billing.
+            plan.alert(
+                f"provision-unreachable:{worker.name}",
+                f"{worker.name} never finished provisioning and cannot be reached; "
+                "it is left alone and still billed: check it and delete it by hand",
+            )
 
     # Drains of active workers. Draining never stops a running job.
     drained: set[str] = set()
@@ -229,7 +236,7 @@ def decide(
     if last_scale_up is not None and now - last_scale_up < config.scale_up_cooldown_seconds:
         return blocked("", "the last scale-up is still in its cooldown", alert=False)
     if backoff_until is not None and now < backoff_until:
-        return blocked("", "scale-ups are backed off after a cloud API error", alert=False)
+        return blocked("", "scale-ups are backed off after a failed scale-up or a cloud API error", alert=False)
     if len(remaining) >= config.max_extra_workers:
         return blocked("max-workers", f"AUTOSCALER_MAX_EXTRA_WORKERS={config.max_extra_workers} are running")
     if not current_image:

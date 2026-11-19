@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import autoscaler
 import decide
+import probe
 from decide import ACTIVE, DRAINING, PROVISIONING, Config, Metrics, Worker
 
 NOW = 1_800_000_000.0
@@ -157,7 +158,10 @@ class ScaleDown(unittest.TestCase):
         stuck = replace(worker(state=PROVISIONING), created_at=NOW - 3600)
         self.assertEqual(run(workers=[replace(stuck, container_running=False)]).kinds(), ["delete", "alert"])
         self.assertEqual(run(workers=[replace(stuck, container_running=True)]).kinds(), ["activate"])
-        self.assertEqual(run(workers=[replace(stuck, container_running=None)]).kinds(), ["delete", "alert"])
+        # Unreachable: whether a worker runs there is unknown, so it is reported and left alone.
+        plan = run(workers=[replace(stuck, container_running=None)])
+        self.assertEqual(plan.kinds(), ["alert"])
+        self.assertEqual(plan.actions[0].key, f"provision-unreachable:{stuck.name}")
 
 
 class Helpers(unittest.TestCase):
@@ -212,8 +216,55 @@ class Helpers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "image"
             path.write_text("supoclip-release:def456-backend\n")
-            self.assertEqual(autoscaler.resolve_image(f"file:{path}"), "supoclip-release:def456-backend")
-            self.assertIsNone(autoscaler.resolve_image(f"file:{path}.missing"))
+            present = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="sha256:synthetic\n")
+            absent = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout="")
+            self.assertEqual(autoscaler.resolve_image(f"file:{path}", runner=present),
+                             "supoclip-release:def456-backend")
+            self.assertIsNone(autoscaler.resolve_image(f"file:{path}.missing", runner=present))
+            # A file naming an image this host does not have is no image at all:
+            # it must not make every worker look like it runs an old release.
+            self.assertIsNone(autoscaler.resolve_image(f"file:{path}", runner=absent))
+
+
+class Probe(unittest.TestCase):
+    """Which queued tasks another worker could start (probe.summarize)."""
+
+    def task(self, task, user="user-a", age=900.0):
+        return {"task": task, "user": user, "age": age}
+
+    def job(self, waited=900.0, running=False, held=False):
+        return {"waited": waited, "running": running, "held": held}
+
+    def test_a_waiting_job_of_an_account_with_a_free_slot_is_startable(self):
+        out = probe.summarize([self.task("t1")], {}, {"t1": self.job(waited=700)}, 2)
+        self.assertEqual((out["queued_tasks"], out["startable_tasks"], out["oldest_startable_seconds"]), (1, 1, 700))
+
+    def test_a_queued_task_whose_job_is_gone_is_not_startable(self):
+        # No job id at all, and a job id that is no longer on the queue.
+        queued = [self.task("orphan-1", age=90000), self.task("orphan-2", user="user-b", age=80000)]
+        out = probe.summarize(queued, {}, {"orphan-2": self.job(waited=None)}, 2)
+        self.assertEqual(out["queued_tasks"], 2)
+        self.assertEqual(out["oldest_queued_seconds"], 90000)
+        self.assertEqual((out["startable_tasks"], out["oldest_startable_seconds"]), (0, 0.0))
+
+    def test_running_cancelled_and_upload_waiting_jobs_are_not_startable(self):
+        queued = [self.task("picked"), self.task("held", user="user-b")]
+        jobs = {"picked": self.job(running=True), "held": self.job(held=True)}
+        self.assertEqual(probe.summarize(queued, {}, jobs, 2)["startable_tasks"], 0)
+
+    def test_an_account_only_counts_up_to_its_free_slots_oldest_first(self):
+        queued = [self.task(f"t{i}") for i in range(5)]
+        jobs = {f"t{i}": self.job(waited=1000 - i * 100) for i in range(5)}
+        out = probe.summarize(queued, {"user-a": 1}, jobs, 2)
+        self.assertEqual((out["startable_tasks"], out["oldest_startable_seconds"]), (1, 1000))
+        self.assertEqual(probe.summarize(queued, {"user-a": 2}, jobs, 2)["startable_tasks"], 0)
+
+    def test_the_wait_is_the_jobs_not_the_tasks(self):
+        # A task created days ago and resumed a minute ago; a deferred job is not due yet.
+        queued = [self.task("resumed", age=400000), self.task("deferred", user="user-b", age=50)]
+        jobs = {"resumed": self.job(waited=60), "deferred": self.job(waited=-45)}
+        out = probe.summarize(queued, {}, jobs, 2)
+        self.assertEqual((out["startable_tasks"], out["oldest_startable_seconds"]), (2, 60))
 
 
 # --------------------------------------------------------------------------- I/O with fakes
@@ -301,12 +352,13 @@ class FakeHost:
 
 
 class RecordingAlerts:
-    def __init__(self):
+    def __init__(self, delivered=True):
         self.sent = []
+        self.delivered = delivered
 
-    def send(self, event, message, **details):
+    def send(self, event, message, title=None):
         self.sent.append((event, message))
-        return True
+        return self.delivered
 
 
 class Scaler(unittest.TestCase):
@@ -380,6 +432,43 @@ class Scaler(unittest.TestCase):
         self.assertIn(("delete", "supoclip-render-auto-1"), cloud.calls)
         self.assertFalse(any(" up -d " in c for c in host.remote_commands()))
         self.assertEqual(self.alerts.sent[-1][0], "failure")
+
+    def test_a_failed_provision_backs_off_instead_of_creating_a_server_every_cooldown(self):
+        cloud = FakeCloud()
+        host = FakeHost(self.busy(), fail_on="run --rm --no-deps")
+        self.scaler(cloud, host).run()
+        self.assertIn("scale-ups paused", self.alerts.sent[-1][1])
+
+        # Past the cooldown, still inside the back-off: each attempt would bill a started hour.
+        self.clock[0] += 900
+        plan = self.scaler(cloud, host).run()
+        self.assertEqual(plan.kinds(), [])
+        self.assertEqual(sum(1 for c in cloud.calls if c[0] == "create"), 1)
+
+        self.clock[0] += 1800
+        self.scaler(cloud, host).run()
+        self.assertEqual(sum(1 for c in cloud.calls if c[0] == "create"), 2)
+
+    def test_an_alert_the_gateway_did_not_file_is_sent_again_on_the_next_run(self):
+        cloud = FakeCloud([server("supoclip-render-auto-1"), server("supoclip-render-auto-2", sid=2)])
+        host = FakeHost(self.busy(**{"supoclip-render-auto-1": 5, "supoclip-render-auto-2": 5}))
+        scaler = self.scaler(cloud, host)
+        scaler.alerts = undelivered = RecordingAlerts(delivered=False)
+        scaler.run()
+        self.assertEqual([e for e, _ in undelivered.sent], ["blocked"])
+
+        self.clock[0] += 120
+        self.scaler(cloud, host).run()
+        self.assertEqual([e for e, _ in self.alerts.sent], ["blocked"])
+        self.clock[0] += 120
+        self.scaler(cloud, host).run()
+        self.assertEqual(self.alerts.sent, [], "a filed alert is not repeated within the hour")
+
+    def test_a_machine_counts_as_running_while_any_container_is_up(self):
+        host = FakeHost(self.busy())
+        autoscaler.Remote(self.settings, runner=host).container_running("192.0.2.30")
+        # No label filter: a worker started outside compose must not look like it has exited.
+        self.assertEqual(host.remote_commands(), ["sudo docker ps -q"])
 
     def test_a_worker_that_fails_after_starting_is_drained_not_deleted(self):
         cloud = FakeCloud()
@@ -491,21 +580,53 @@ class FailingOpener:
 
 
 class Network(unittest.TestCase):
-    def test_alerts_are_signed_like_the_other_hermes_routes(self):
-        captured = {}
+    def alerts(self, answers):
+        sent, slept = [], []
 
         class Opener:
             def open(self, request, timeout):
-                captured["request"] = request
-                return _Response()
+                sent.append(request)
+                answer = answers[min(len(sent), len(answers)) - 1]
+                if isinstance(answer, Exception):
+                    raise answer
+                return _Response(*answer)
 
-        alerts = autoscaler.Alerts("https://alerts.example/hook", "synthetic-secret", dry_run=False, opener=Opener())
-        self.assertTrue(alerts.send("scale_up", "creating a worker", worker="w-1"))
-        request = captured["request"]
+        alerts = autoscaler.Alerts("https://alerts.example/hook", "synthetic-secret", dry_run=False,
+                                   opener=Opener(), sleep=slept.append)
+        return alerts, sent, slept
+
+    def test_alerts_are_signed_ops_alerts(self):
+        alerts, sent, _ = self.alerts([(200, b'{"status": "accepted"}')])
+        self.assertIs(alerts.send("failure", "scale_up w-1 failed"), True)
+        request = sent[0]
         timestamp = request.get_header("X-webhook-timestamp")
         expected = hmac.new(b"synthetic-secret", timestamp.encode() + b"." + request.data, hashlib.sha256).hexdigest()
         self.assertEqual(request.get_header("X-webhook-signature-v2"), expected)
-        self.assertEqual(json.loads(request.data)["type"], "supoclip.render_autoscaler")
+        body = json.loads(request.data)
+        self.assertEqual(sorted(body), ["created_at", "event_id", "level", "message", "source", "title",
+                                        "type", "version"])
+        self.assertEqual((body["type"], body["version"], body["source"], body["level"]),
+                         ("supoclip.ops_alert", 1, "autoscaler", "error"))
+        self.assertEqual(body["message"], "scale_up w-1 failed")
+        self.assertEqual(len(body["event_id"]), 36)
+
+    def test_an_ignored_or_failed_alert_is_retried_with_the_same_event_id(self):
+        gone = HTTPError("https://alerts.example/hook", 502, "Bad Gateway", {}, io.BytesIO(b""))
+        alerts, sent, slept = self.alerts([(200, b'{"status": "ignored"}'), gone, (202, b"")])
+        self.assertIs(alerts.send("scale_up", "creating a worker"), True)
+        self.assertEqual(len(sent), 3)
+        self.assertEqual(len({json.loads(r.data)["event_id"] for r in sent}), 1)
+        self.assertEqual(slept, [2, 6])
+
+        alerts, sent, _ = self.alerts([(200, b'{"status": "ignored"}')])
+        self.assertIs(alerts.send("scale_up", "creating a worker"), False)
+        self.assertEqual(len(sent), 4)
+
+    def test_no_alert_is_sent_without_a_route_or_in_a_dry_run(self):
+        for alerts in (autoscaler.Alerts("", "", dry_run=False, opener=FailingOpener()),
+                       autoscaler.Alerts("https://alerts.example/hook", "synthetic", dry_run=True,
+                                         opener=FailingOpener())):
+            self.assertIsNone(alerts.send("failure", "nothing leaves this host"))
 
     def test_cloud_errors_carry_the_api_code_and_never_the_token(self):
         class Opener:
@@ -536,7 +657,11 @@ class Network(unittest.TestCase):
 
 
 class _Response:
-    status = 202
+    def __init__(self, status=202, body=b""):
+        self.status, self.body = status, body
+
+    def read(self):
+        return self.body
 
     def __enter__(self):
         return self

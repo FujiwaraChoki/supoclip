@@ -22,10 +22,14 @@ minutes. One run at a time: a run that finds the lock held exits. Each run:
    - tasks with `status = 'queued'` and how long the oldest has waited. This is
      the real backlog. The ARQ queue key `supoclip_tasks` also holds running
      jobs and stale jobs of cancelled tasks, so it is only logged;
-   - of those, the **startable** ones: tasks whose account has a free render
-     slot (`VIDEO_JOB_USER_CONCURRENCY` minus its processing tasks). An account
-     that already uses all of its slots is not helped by another machine, so
-     only startable tasks count for scaling up and for idleness;
+   - of those, the **startable** ones: tasks whose job is waiting on the queue
+     (not already picked up, not cancelled, not waiting for its upload) and
+     whose account has a free render slot (`VIDEO_JOB_USER_CONCURRENCY` minus
+     its processing tasks). An account that already uses all of its slots is
+     not helped by another machine, and a queued task whose job is gone never
+     starts anywhere, so only startable tasks count for scaling up and for
+     idleness. Their wait is measured from when the job became due, so a task
+     that was resumed after days is not "waiting for days";
    - `pg_stat_activity` against `max_connections`;
    - each cloud worker's running jobs from the per-host job registry.
 2. **Lists its servers** through the cloud API, by the label
@@ -49,7 +53,10 @@ A worker is added when the oldest startable task has waited
   is at least `AUTOSCALER_DB_CONNECTIONS_PER_WORKER` (25);
 - **spend:** today's spend plus one more hour of every active worker and the new
   one stays within `AUTOSCALER_DAILY_SPEND_CAP_EUR` (40);
-- no cloud API error in the last `AUTOSCALER_ERROR_BACKOFF_MINUTES` (30);
+- no cloud API error and no failed scale-up in the last
+  `AUTOSCALER_ERROR_BACKOFF_MINUTES` (30). A server that is created and deleted
+  again is still billed for a started hour, so a failing scale-up is not retried
+  every cooldown;
 - the current release image is known.
 
 When a limit blocks a wanted scale-up it alerts once an hour, not every run.
@@ -93,11 +100,13 @@ daily spend cap is reached, and when there are more than
 takes no new jobs and waits up to `job_completion_wait` (3 h) for running ones
 before it exits. The server is labelled `state=draining`.
 
-A draining server is deleted only after `docker ps` on it shows the worker
-container has exited, checked again right before the delete call. A server it
-cannot reach is not deleted. A drain still running after 3 h 15 min is
-reported, never forced. After deletion its tunnel is stopped and its host key
-forgotten.
+A draining server is deleted only after `docker ps` on it shows no running
+container at all, checked again right before the delete call. The check is not
+limited to the worker's compose label, so a worker started another way can
+never look like it has exited. A server it cannot reach is not deleted, in any
+state: one that never finished provisioning and cannot be reached is reported
+and left for the operator. A drain still running after 3 h 15 min is reported,
+never forced. After deletion its tunnel is stopped and its host key forgotten.
 
 ### Which jobs run where
 
@@ -135,7 +144,9 @@ application host at boot.**
 - `file:<path>`: a file the deploy flow writes with the image tag. Use this
   when the render hosts run a different image from the container above (for
   example a worker-only hotfix build). Update the file in the same step that
-  rolls the primary render host.
+  rolls the primary render host. The image must exist on the application host;
+  a file naming an image that is not there counts as "no image" (alert, no
+  scale-up, no drains).
 
 A worker on another image than the current one is drained and, if the queue
 still needs it, replaced by one on the new release.
@@ -193,11 +204,16 @@ last step.
    queue, the database and the cloud API, logs what it would do, and changes
    nothing: no server, label, drain, tunnel or alert. Its timers go to
    `state.dry-run.json`. Watch it with `journalctl -u supoclip-render-autoscaler`.
-8. **Alerts.** Add a route on the operator chat gateway for
-   `AUTOSCALER_ALERT_WEBHOOK_URL`, with its own secret. The payload type is
-   `supoclip.render_autoscaler`, with `event` (`scale_up`, `scale_down`,
-   `failure`, `blocked`, `probe`), `message` and `details`, signed like the
-   other routes (`X-Webhook-Signature-V2`).
+8. **Alerts.** Add an ops-alert route on the operator chat gateway and set
+   `HERMES_OPS_ALERT_URL` and `HERMES_OPS_ALERT_SECRET`. The body is
+   `{"type": "supoclip.ops_alert", "version": 1, "event_id", "source": "autoscaler", "level", "title", "message", "created_at"}`
+   with `level` `info` (workers added and removed), `warning` (a blocked
+   scale-up, an unreadable queue) or `error` (failures), signed like the other
+   routes (`X-Webhook-Timestamp`, `X-Webhook-Signature-V2`). An answer of
+   `"status": "ignored"`, an error or no answer is retried three times with the
+   same `event_id`; an alert that still was not filed is sent again on the next
+   run. Check the route with `autoscaler.py --test-alert` (run it through the
+   unit's environment, not with the secret on a command line).
 9. **Enable.** `AUTOSCALER_ENABLED=true`, `AUTOSCALER_DRY_RUN=false`,
    `systemctl enable --now supoclip-render-autoscaler.timer`.
 
@@ -216,7 +232,7 @@ last step.
 | `AUTOSCALER_HOURLY_PRICE_EUR` | `0.7847` | Until the cloud API reports the price of a created server. |
 | `AUTOSCALER_DB_CONNECTIONS_PER_WORKER` | `25` | Connections one worker may open. |
 | `AUTOSCALER_DB_CONNECTION_RESERVE` | `20` | Connections always left free. |
-| `AUTOSCALER_ERROR_BACKOFF_MINUTES` | `30` | No scale-up after a cloud API error. |
+| `AUTOSCALER_ERROR_BACKOFF_MINUTES` | `30` | No scale-up after a cloud API error or a failed scale-up. |
 | `AUTOSCALER_SERVER_TYPE` / `_LOCATION` | `ccx53` / `hel1` | |
 | `AUTOSCALER_WORKER_CONCURRENCY` | `10` | ARQ `max_jobs` on a cloud worker. |
 | `AUTOSCALER_WORKER_DB_POOL_SIZE` / `_MAX_OVERFLOW` | concurrency / `5` | One pool per process; it must cover every slot. |
@@ -225,6 +241,7 @@ last step.
 | `AUTOSCALER_SNAPSHOT_SELECTOR` | `supoclip-render-golden=true` | Newest matching snapshot is used. |
 | `AUTOSCALER_FIREWALL`, `AUTOSCALER_CLOUD_SSH_KEY` | | Cloud firewall and SSH key names. |
 | `AUTOSCALER_NAME_PREFIX` | `supoclip-render-auto` | Servers are `<prefix>-1`, `-2`, ... |
+| `HERMES_OPS_ALERT_URL`, `HERMES_OPS_ALERT_SECRET` | | Ops-alert route of the operator chat. No alerts without both. |
 
 ## Adopting a hand-built cloud worker
 
@@ -232,8 +249,13 @@ A worker built by hand is left alone. To let the autoscaler drain and delete
 it, give it the labels `supoclip-autoscaler=managed`, `state=active` and
 `image=<image label>` (`decide.image_label(<image>)`), make sure its hostname
 equals the server name and that it runs a release with the job registry.
-The autoscaler does not stop a hand-made tunnel unit; remove that yourself
-after the server is deleted.
+The autoscaler must be able to reach it like its own machines: authorize the
+autoscaler's admin key for `AUTOSCALER_SSH_USER` there (with passwordless
+`sudo docker`) and add the machine's host key to
+`/var/lib/supoclip-autoscaler/known_hosts`. Until it can, the machine is never
+drained or deleted. It counts towards `AUTOSCALER_MAX_EXTRA_WORKERS` and the
+spend cap (billed from its creation). The autoscaler does not stop a
+hand-made tunnel unit; remove that yourself after the server is deleted.
 
 ## Turning it off and rolling back
 
@@ -274,5 +296,7 @@ cd backend && .venv/bin/pytest --no-cov tests/unit/test_host_jobs.py
 The decision tests cover thresholds, the idle timer, caps, the database
 budget, back-off and drains. The controller tests use a fake cloud API and a
 fake host and check that secrets only travel on stdin, that a drain only sends
-SIGTERM, that a server with a running worker is never deleted, and that a dry
-run changes nothing.
+SIGTERM, that a server with a running worker is never deleted, that a failed
+scale-up backs off, that alerts are signed, retried and repeated until filed,
+and that a dry run changes nothing. The probe tests cover which queued tasks
+count as startable.
