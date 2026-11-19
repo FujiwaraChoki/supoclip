@@ -51,6 +51,24 @@ instead (layout kind `interview`, logged as `Interview layout`):
   at the neighbour's face. A face the frame itself cuts off is not a second
   person, and a third face seen in under three quarters of the shot (a
   passer-by) is left out when the row cannot be divided with it.
+
+  **When the panels are shown.** Inside one camera shot the layout changes between stacked and single as often
+  as the picture does, without waiting for a cut (`_settle_pair`). The rules, in order:
+
+  1. *Everyone once.* No face is ever inside both panels. If one is (a handheld camera closing in on one person,
+     so both windows find the same head), that stretch is a single crop. This is never overridden.
+  2. *Both sides in the picture.* A panel whose people are not found is kept only if its part of the picture is
+     still the same place (compared on the cut probe's thumbnails): a person who turned away in a tripod shot is
+     still sitting there. If the picture there changed, the camera left them and the stretch is a single crop on
+     whoever is on screen.
+  3. *No flicker.* A person lost for at most 0.7 s in the middle of a two-shot, or 0.34 s at a cut, is a missed
+     detection and the panels hold. Stacked panels shorter than 1 s between single crops stay single.
+  4. *On the moment.* Shots with two people are sampled again at 10 fps (clips up to 3 minutes), so a change lands
+     within about three frames. The unknown time between two samples goes to the single crop: panels never run
+     past the last sample that showed both sides, and start on the first that does.
+  5. *The crop keeps its person.* A crop follows its face with the eased path; where that would leave the face
+     more than 22 % of the crop away (a whip pan, someone crossing the frame), it follows the face directly. A
+     single crop cut out of a two-shot starts from where its person was in the panels.
 - **single**: one person, or two close enough to share a crop. A tight
   head-and-shoulders 9:16 crop (face about a quarter of the frame height).
 - **cover**: live footage without a close subject (a plate of food, a product,

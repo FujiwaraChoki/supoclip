@@ -552,3 +552,100 @@ def test_focus_centre_finds_the_dish_beside_the_middle():
     assert 0.25 <= evidence.focus_center <= 0.4
     assert ContextAnalyzer().measure(np.full((270, 480, 3), 120, np.uint8), [], 0.0).focus_center == 0.5
     assert SceneEvidence(0.0).focus_center == 0.5
+
+
+# ---------------------------------------------------------------- stacked panels inside one handheld shot
+
+def handheld(parts, moving=True, fps=FPS):
+    """[(start, end, [boxes])] of ONE camera shot -> (face_samples, context); ``moving`` marks a camera on the move."""
+    faces, context = [], []
+    for start, end, boxes in parts:
+        t, i = start, 0
+        while t < end - 1e-9:
+            faces.append((t, [jitter(b, i) for b in boxes]))
+            context.append(SceneEvidence(t, difference=50.0 if moving else 0.0))
+            t = round(t + 1 / fps, 6)
+            i += 1
+    return faces, context
+
+
+def settled(parts, duration, **kwargs):
+    faces, context = handheld(parts, **kwargs)
+    result = plan_interview_layout(W, H, duration, [], faces, context)
+    return result, faces
+
+
+def test_a_two_shot_that_opens_on_one_person_starts_as_a_single_crop():
+    # The camera is on the guest's face, pulls back to both, then swings to the host alone. No cut anywhere.
+    result, faces = settled([(0, 1, [CLOSE]), (1, 6, [HOST, GUEST]), (6, 7.4, [HOST])], 7.4)
+    assert [s["kind"] for s in result["segments"]] == ["single", "pair", "single"]
+    pair = result["segments"][1]
+    both = [t for t, boxes in faces if len(boxes) == 2]
+    # The panels start on the first sample that shows both and end a frame after the last one.
+    assert pair["start"] == pytest.approx(both[0], abs=1e-3)
+    assert both[-1] <= pair["end"] <= both[-1] + interview_layout.PAIR_HOLD_SECONDS + 1e-3
+    assert result["video_filter"].count("vstack") == 1
+
+
+def test_no_stretch_of_stacked_panels_shows_only_one_side():
+    result, faces = settled([(0, 4, [HOST, GUEST]), (4, 6, [GUEST]), (6, 10, [HOST, GUEST])], 10)
+    for segment in result["segments"]:
+        inside = [boxes for t, boxes in faces if segment["start"] <= t < segment["end"]]
+        if segment["kind"] == "pair":
+            assert all(len(boxes) == 2 for boxes in inside)
+    assert [s["kind"] for s in result["segments"]] == ["pair", "single", "pair"]
+
+
+def test_a_missed_detection_in_a_moving_two_shot_keeps_the_panels():
+    # Two samples (0.67 s) without the guest, then they are back where they were.
+    result, _ = settled([(0, 4, [HOST, GUEST]), (4, 4.6, [HOST]), (4.6, 9, [HOST, GUEST])], 9)
+    assert [s["kind"] for s in result["segments"]] == ["pair"]
+
+
+def test_a_still_two_shot_holds_its_panels_while_one_person_is_undetected():
+    # A tripod shot: the guest turns to the host in profile for 1.4 s. Nobody left the picture.
+    parts = [(0, 4, [HOST, GUEST]), (4, 5.4, [HOST]), (5.4, 9, [HOST, GUEST])]
+    still, _ = settled(parts, 9, moving=False)
+    assert [s["kind"] for s in still["segments"]] == ["pair"]
+    # The same gap in a moving shot is the camera leaving them.
+    moving, _ = settled(parts, 9, moving=True)
+    assert [s["kind"] for s in moving["segments"]] == ["pair", "single", "pair"]
+
+
+def test_one_face_in_both_panels_is_never_held():
+    # The detector loses the host while the camera drifts until the guest sits where the host was: the guest's
+    # panel follows them into the host's panel. Even a shot measured as still must not show the guest twice.
+    drift = [(4 + i / FPS, [(GUEST[0] - (i + 1) * 150.0, GUEST[1], GUEST[2], GUEST[3])]) for i in range(5)]
+    faces, context = handheld([(0, 4, [HOST, GUEST])], moving=False)
+    faces += drift
+    context += [SceneEvidence(t, difference=0.0) for t, _ in drift]
+    result = plan_interview_layout(W, H, 4 + 5 / FPS, [], faces, context)
+    assert [s["kind"] for s in result["segments"]] == ["pair", "single"]
+    # The panels end before the guest's face reaches the host's window (their third drifting sample).
+    assert result["segments"][0]["end"] < 4 + 2 / FPS
+
+
+def test_a_flash_of_two_people_between_single_stretches_stays_single():
+    result, _ = settled(
+        [(0, 5, [HOST, GUEST]), (5, 7, [HOST]), (7, 7.67, [HOST, GUEST]), (7.67, 9.7, [HOST])], 9.7)
+    assert [s["kind"] for s in result["segments"]] == ["pair", "single"]
+
+
+def test_a_crop_that_would_lose_its_face_follows_it_directly():
+    # A whip pan: the face crosses 700 px in a third of a second. The eased crop cannot keep up.
+    times = [round(i / 10, 3) for i in range(12)]
+    track = {t: (300.0 + (700.0 if t >= 0.5 else 0.0) + i * 2, 300.0, 200.0, 260.0) for i, t in enumerate(times)}
+    segment = interview_layout.Segment(0.0, 1.2, "single", "one_person", [interview_layout._median_box(list(track.values()))],
+                                       [track], times)
+    size = 606
+    desired = {t: box[0] + box[2] / 2 - size / 2 for t, box in track.items()}
+    expression = interview_layout._axis(segment, desired, size, W - size, still=0.0)
+    assert expression.startswith("'")
+    keys = interview_layout._follow_keys(segment, sorted((t, min(max(v, 0.0), W - size)) for t, v in desired.items()))
+    for t, x in keys[1:-1]:
+        if abs(t - 0.5) <= 0.1:
+            continue  # the jump itself is spread over the neighbouring frames
+        assert abs(x - min(max(desired[t], 0.0), W - size)) <= interview_layout.FOLLOW_MAX_ERROR * size
+    # A calm face keeps the still crop.
+    calm = {t: 400.0 + (i % 2) * 6 for i, t in enumerate(times)}
+    assert not interview_layout._axis(segment, calm, size, W - size, still=400.0).startswith("'")

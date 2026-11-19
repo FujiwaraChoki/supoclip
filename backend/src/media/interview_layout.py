@@ -7,7 +7,11 @@ as a letterboxed full frame. This module composes every camera shot on its
 own and switches only at the edit:
 
 - ``pair``: two people too far apart for one crop. Each gets a face-centred
-  1080x960 panel, stacked with the left-hand person on top. Three or four
+  1080x960 panel, stacked with the left-hand person on top. The panels last
+  only while both are in the picture and nobody is in both panels: where a
+  handheld shot closes in on one person or someone leaves, the layout changes
+  to that person's ``single`` crop on the spot, without waiting for a cut
+  (``_settle_pair``). Three or four
   people in a row (a table, a booth, friends walking) are divided at the
   widest gap between them: the left-hand people share the top panel and the
   right-hand people the bottom one, so everyone is on screen once and the
@@ -101,6 +105,31 @@ CUT_GUARD_SECONDS = 0.05
 # last this many samples before the shot is divided (a missed edit, not a
 # guest turning away for a moment).
 FACE_STATE_MIN_SAMPLES = 6
+# Stacked panels are shown only while both sides are on screen and no face sits in both panels (``_settle_pair``).
+# A person the detector loses for at most this long in the middle of a two-shot is still there (a turned head, a
+# hand over the face): the panels hold. In a still shot they hold however long it lasts: nobody left, the
+# detector lost a profile. In a moving shot a longer absence, or one at either end, means the camera left them.
+PAIR_BRIDGE_SECONDS = 0.7
+PAIR_EDGE_BRIDGE_SECONDS = 0.34
+# A stretch of stacked panels shorter than this is not worth two layout changes: it stays a single crop.
+PAIR_MIN_RUN_SECONDS = 1.0
+# One face inside both panels for this long is a real double, not one stray detection.
+PAIR_DOUBLE_SECONDS = 0.15
+# How long after the last sample that showed both people the panels may stay (about a frame): the time up to the
+# next sample is unknown, and a single crop is right either way.
+PAIR_HOLD_SECONDS = 0.04
+# An undetected person is gone when the picture inside their panel is a different place: the mean 8-bit change
+# of that region (on the cut probe's thumbnails) since they were last seen. Someone who only turned away leaves
+# the region nearly as it was. Without thumbnails, a sample this different from the one before means a moving camera.
+PANEL_GONE_DIFF = 18.0
+MOVING_MIN_DIFFERENCE = 32.0
+# Shots with two people are sampled again at this rate, so the change between stacked and single lands within a
+# few frames of the moment and a crop can follow someone through a fast move. Longer clips keep the 3 fps samples.
+DENSE_FPS = 10.0
+DENSE_MAX_SECONDS = 180.0
+# A crop whose eased path leaves its face further than this share of the crop from where it should be has lost
+# them (a whip pan, someone crossing the frame): it follows the face directly instead.
+FOLLOW_MAX_ERROR = 0.22
 # A shot this short where nobody was found keeps its neighbour's composition.
 FLASH_SECONDS = 0.5
 # The clip needs this much two-shot before the interview layout takes over.
@@ -178,6 +207,8 @@ class Segment:
     graphic: bool = False
     # Centre (0-1 of the width) of a ``cover`` crop.
     cover_x: float = 0.5
+    # Per stacked panel, the face track of every person in it (``tracks`` holds one box around them all).
+    members: List[List[Dict[float, Box]]] = field(default_factory=list)
 
 
 def _median_box(boxes: Sequence[Box]) -> Box:
@@ -415,8 +446,10 @@ def _cover_centre(
 
 def _classify(
     segment: Segment, samples: Sequence[FaceFrame], width: int, height: int, crop_w: int,
-    evidence: Sequence[Any] = (),
+    evidence: Sequence[Any] = (), allow_pair: bool = True,
 ) -> Segment:
+    """The composition of one stretch of a shot. ``allow_pair=False`` never stacks: the stretch is part of a
+    two-shot where only one side is on screen, so it frames whoever is there."""
     segment.times = [t for t, _ in samples]
     if segment.graphic:
         segment.kind, segment.reason = "fit", "graphic"
@@ -438,6 +471,9 @@ def _classify(
 
     if not people:
         return cover("no_subject")
+    if not allow_pair and len(people) >= 2:
+        # Whoever is on screen most; of two equally steady people, the one fully in the frame, then the larger.
+        people = [max(people, key=lambda c: (c["support"], not _edge_cut(c["box"], width), c["box"][3]))]
     if len(people) >= 3:
         panels = _group_panels(people, width, height)
         while panels is None and len(people) >= 3:
@@ -453,6 +489,7 @@ def _classify(
         segment.kind, segment.reason = "pair", "group"
         segment.people = [_union([c["box"] for c in side]) for side in panels]
         segment.tracks = [_union_track(side) for side in panels]
+        segment.members = [[c["track"] for c in side] for side in panels]
         return segment
     if len(people) == 2:
         left, right = sorted(people, key=lambda c: _centre(c["box"])[0])
@@ -472,6 +509,7 @@ def _classify(
               and not any(_edge_cut(c["box"], width) for c in people)):
             segment.kind, segment.reason = "pair", "two_people"
             segment.people, segment.tracks = [lb, rb], [left["track"], right["track"]]
+            segment.members = [[left["track"]], [right["track"]]]
             return segment
         else:
             # Over the shoulder: the near person is a huge, edge-cut blur facing
@@ -493,6 +531,191 @@ def _classify(
     return segment
 
 
+def _panel_window(
+    segment: Segment, index: int, t: float, size: Tuple[int, int], face_y: float, width: int, height: int
+) -> Box:
+    """The source window of stacked panel ``index`` at sample ``t``: on its people where they are, or where they
+    were last seen (the eased crop is near there while they are lost)."""
+    w, h = size
+    track = segment.tracks[index] if index < len(segment.tracks) else {}
+    box = track.get(t)
+    if box is None and track:
+        box = track[min(track, key=lambda known: abs(known - t))]
+    if box is None:
+        box = segment.people[index]
+    x = min(max(_centre(box)[0] - w / 2, 0.0), max(0.0, width - w))
+    y = min(max(_vertical_offset(box, h, face_y), 0.0), max(0.0, height - h))
+    return (x, y, float(w), float(h))
+
+
+def _pair_holds(
+    segment: Segment, samples: Sequence[FaceFrame], width: int, height: int, gone: Any = None
+) -> List[bool]:
+    """Per sample, whether the stacked panels show the two sides once each.
+
+    They do not when one face sits inside both panels (the camera closed in on one person, so each panel's
+    window found the same head), or when a side has nobody on screen while the camera moves (it swung away from
+    them, they walked out of a handheld shot). ``gone(window, seen, t)`` says whether the picture in a panel's
+    ``window`` at ``t`` is no longer what it was at ``seen``, when its people were last found; without it every
+    absence counts. In a still shot an undetected person is still sitting there, so the panels hold.
+    """
+    times = [t for t, _ in samples]
+    period = float(np.median(np.diff(times))) if len(times) > 1 else 1 / 3
+    period = max(period, 1e-3)
+    bridge = max(1, int(round(PAIR_BRIDGE_SECONDS / period)))
+    edge_bridge = max(1, int(round(PAIR_EDGE_BRIDGE_SECONDS / period)))
+    min_run = max(2, int(round(PAIR_MIN_RUN_SECONDS / period)))
+    double_run = max(1, int(round(PAIR_DOUBLE_SECONDS / period)))
+    order = sorted(range(2), key=lambda i: _centre(segment.people[i])[0])
+    sizes = {
+        i: (_panel_size(segment.people[i], segment.people[order[1 - order.index(i)]], width, height),
+            TOP_PANEL_FACE_Y if i == order[0] else BOTTOM_PANEL_FACE_Y)
+        for i in order
+    }
+    min_h = height * MIN_FACE_H_FRAC * 0.7
+    holds: List[bool] = []
+    doubled: List[bool] = []
+    def side(i: int) -> List[Dict[float, Box]]:
+        return segment.members[i] if i < len(segment.members) else [segment.tracks[i]]
+
+    for t, faces in samples:
+        windows = [_panel_window(segment, i, t, sizes[i][0], sizes[i][1], width, height) for i in order]
+        absent = False
+        for i, window in zip(order, windows):
+            if any(t in track for track in side(i)):
+                continue
+            seen = [known for track in side(i) for known in track]
+            before = [known for known in seen if known < t]
+            last = max(before) if before else (min(seen) if seen else None)
+            if gone is None or last is None or gone(window, last, t):
+                absent = True
+        twice = any(
+            all(x <= cx <= x + w and y <= cy <= y + h for x, y, w, h in windows)
+            for cx, cy in (_centre(box) for box in faces if box[3] >= min_h)
+        )
+        holds.append(not absent)
+        doubled.append(twice)
+    # One stray detection inside both windows is not a double.
+    index = 0
+    while index < len(doubled):
+        if not doubled[index]:
+            index += 1
+            continue
+        end = index
+        while end < len(doubled) and doubled[end]:
+            end += 1
+        if end - index < double_run:
+            doubled[index:end] = [False] * (end - index)
+        index = end
+    holds = [held and not twice for held, twice in zip(holds, doubled)]
+    # A face lost for a moment between two samples that show everyone is a missed detection, not an exit; so is
+    # one missed sample right at a cut. A face in both panels is never bridged.
+    index = 0
+    while index < len(holds):
+        if holds[index]:
+            index += 1
+            continue
+        end = index
+        while end < len(holds) and not holds[end]:
+            end += 1
+        inside = index > 0 and end < len(holds)
+        limit = bridge if inside else edge_bridge
+        if end - index <= limit and not any(doubled[index:end]) and (inside or len(holds) > end - index):
+            holds[index:end] = [True] * (end - index)
+        index = end
+    # A flash of panels between two single crops is two extra layout changes for nothing.
+    index = 0
+    while index < len(holds):
+        if not holds[index]:
+            index += 1
+            continue
+        end = index
+        while end < len(holds) and holds[end]:
+            end += 1
+        if end - index < min_run and end - index < len(holds):
+            holds[index:end] = [False] * (end - index)
+        index = end
+    return holds
+
+
+def _settle_pair(
+    segment: Segment, samples: Sequence[FaceFrame], width: int, height: int, crop_w: int, evidence: Any,
+    gone: Any = None,
+) -> List[Segment]:
+    """A stacked two-shot, divided where it stops being one.
+
+    A handheld camera does not cut: it closes in on one person, swings to the other, lets someone walk out. The
+    panels are right only while both sides are in the picture. Outside that the stretch is framed like any shot
+    of one person, and the change lands on the single crop's side of the unknown time between two samples, so the
+    panels never run past the last sample that showed both.
+    """
+    if segment.kind != "pair" or len(segment.people) != 2 or len(samples) < 2:
+        return [segment]
+    holds = _pair_holds(segment, samples, width, height, gone)
+    if all(holds):
+        return [segment]
+    times = [t for t, _ in samples]
+    runs: List[List[Any]] = []
+    for index, held in enumerate(holds):
+        if runs and runs[-1][2] == held:
+            runs[-1][1] = index + 1
+        else:
+            runs.append([index, index + 1, held])
+    pieces: List[Segment] = []
+    for position, (first, last, held) in enumerate(runs):
+        if position == 0:
+            start = segment.start
+        elif held:
+            start = times[first]
+        else:
+            start = min(times[first - 1] + PAIR_HOLD_SECONDS, times[first])
+        if position == len(runs) - 1:
+            end = segment.end
+        elif held:
+            end = min(times[last - 1] + PAIR_HOLD_SECONDS, times[last])
+        else:
+            end = times[last]
+        part = list(samples[first:last])
+        if held:
+            keep = set(times[first:last])
+            pieces.append(Segment(
+                start, end, segment.kind, segment.reason, list(segment.people),
+                [{t: box for t, box in track.items() if t in keep} for track in segment.tracks],
+                times[first:last],
+                members=[[{t: box for t, box in track.items() if t in keep} for track in side] for side in segment.members],
+            ))
+        else:
+            piece = _classify(Segment(start, end), part, width, height, crop_w, evidence(part), allow_pair=False)
+            _lead_in(piece, segment, [times[i] for i in (first - 1, last) if 0 <= i < len(times)])
+            pieces.append(piece)
+    return pieces
+
+
+def _lead_in(piece: Segment, shot: Segment, neighbours: Sequence[float]) -> None:
+    """Let a single crop cut out of a two-shot know where its person was just before and just after.
+
+    Its own samples start up to a sample period into the piece; in a moving shot the crop would sit where the
+    person is about to be, on an empty street. The same person's face in the neighbouring samples of the shot
+    gives the crop its position from the first frame and enough points to follow them.
+    """
+    if piece.kind != "single" or len(piece.tracks) != 1:
+        return
+    own = piece.tracks[0]
+    known = [track for side in shot.members for track in side]
+    match = max(known, key=lambda track: sum(1 for t, box in own.items() if track.get(t) == box), default=None)
+    if match is None or not any(match.get(t) == box for t, box in own.items()):
+        return
+    for t in neighbours:
+        if t in match and t not in own and own:
+            near = own[min(own, key=lambda known: abs(known - t))]
+            # Faces are grouped by where they are, so the neighbouring sample may be the other person standing
+            # where this one was: only a face of the same size, within reach, is the same head.
+            same_size = min(near[3], match[t][3]) >= 0.75 * max(near[3], match[t][3])
+            if same_size and abs(_centre(near)[0] - _centre(match[t])[0]) <= 1.5 * max(near[2], match[t][2]):
+                own[t] = match[t]
+    piece.times = sorted(set(piece.times) | set(own))
+
+
 def _face_state(faces: Sequence[Box], height: int) -> int:
     return min(3, sum(1 for box in faces if box[3] >= height * MIN_FACE_H_FRAC))
 
@@ -505,8 +728,14 @@ def _segments(
     width: int,
     height: int,
     crop_w: int,
+    dense: Any = None,
+    picture: Any = None,
 ) -> List[Segment]:
     """Camera shots, divided again where a graphic or the people on screen change.
+
+    ``dense(start, end)`` returns finer face samples of a stretch (or nothing): a stretch with two people is
+    classified and settled on those, so its layout changes land on the moment (``_settle_pair``). ``picture(t)`` returns the cut probe's
+    grey thumbnail nearest ``t`` (or None), which tells an undetected person from one who left.
 
     The cut detector misses some edits (b-roll cut into a close-up, a cut
     between similar colours). A lasting change in the number of people, or a
@@ -519,6 +748,30 @@ def _segments(
 
     def evidence(part: Sequence[FaceFrame]) -> List[Any]:
         return [measured[k] for k in (round(float(t), 3) for t, _ in part) if k in measured]
+
+    def between(a: float, b: float) -> List[Any]:
+        # Measurements exist at the coarse sample times only; a finer stretch reads the ones it spans.
+        found = [e for t, e in sorted(measured.items()) if a - 1e-6 <= t <= b + 1e-6]
+        if not found and measured:
+            found = [measured[min(measured, key=lambda t: abs(t - (a + b) / 2))]]
+        return found
+
+    def gone(window: Box, seen: float, t: float) -> bool:
+        then, now = (picture(seen), picture(t)) if picture else (None, None)
+        if then is not None and now is not None:
+            rows, cols = then.shape
+            x0 = int(window[0] / width * cols)
+            x1 = max(x0 + 2, int(round((window[0] + window[2]) / width * cols)))
+            y0 = int(window[1] / height * rows)
+            y1 = max(y0 + 2, int(round((window[1] + window[3]) / height * rows)))
+            region = np.abs(now[y0:y1, x0:x1].astype(np.int16) - then[y0:y1, x0:x1].astype(np.int16))
+            return bool(region.size) and float(region.mean()) >= PANEL_GONE_DIFF
+        # No thumbnails: an absence in a moving shot is an exit; with nothing measured, never hold on a guess.
+        if not measured:
+            return True
+        near = measured[min(measured, key=lambda known: abs(known - t))]
+        return (float(getattr(near, "camera_motion", 0.0)) >= COVER_MIN_CAMERA_MOTION
+                or float(getattr(near, "difference", 0.0)) >= MOVING_MIN_DIFFERENCE)
 
     def signage(part: Sequence[FaceFrame]) -> bool:
         # A paragraph in a handheld shot of people is a sign or a menu behind
@@ -552,7 +805,19 @@ def _segments(
                 sub = [(t, faces) for t, faces in part if c <= t < d]
                 segment = Segment(c, d, graphic=bool(is_graphic) and bool(sub))
                 if sub:
-                    segments.append(_classify(segment, sub, width, height, crop_w, evidence(sub)))
+                    classified = _classify(segment, sub, width, height, crop_w, evidence(sub))
+                    if classified.kind == "pair":
+                        fine = [
+                            (t, faces) for t, faces in (dense(c, d) if dense else ())
+                            if not any(abs(t - cut) < CUT_GUARD_SECONDS for cut in cuts)
+                        ]
+                        if len(fine) > len(sub):
+                            again = _classify(Segment(c, d), fine, width, height, crop_w, between(c, d))
+                            if again.kind == "pair":
+                                classified, sub = again, fine
+                    segments.extend(_settle_pair(
+                        classified, sub, width, height, crop_w,
+                        lambda part: between(part[0][0], part[-1][0]) if part else [], gone))
                 elif segments:
                     segments[-1].end = d
                 else:
@@ -639,12 +904,41 @@ def _axis(
         (t, desired[t] + size / 2 if t in desired else None, 0.0) for t in segment.times
     ]
     keys = build_crop_trajectory(track, limit + size, size) if len(track) >= 3 else []
-    if not keys or not trajectory_has_movement(keys, size):
+    eased = bool(keys) and trajectory_has_movement(keys, size)
+    wanted = sorted((t, min(max(v, 0.0), float(limit))) for t, v in desired.items())
+    if len(wanted) >= 2:
+        if eased:
+            path = np.interp([t for t, _ in wanted], [t for t, _ in keys], [x for _, x in keys])
+        else:
+            path = np.full(len(wanted), float(clamp_even(int(still), 0, limit)))
+        if float(np.max(np.abs(path - np.asarray([v for _, v in wanted])))) > FOLLOW_MAX_ERROR * size:
+            return f"'{build_smooth_pan_expression(_follow_keys(segment, wanted))}'"
+    if not eased:
         return str(clamp_even(int(still), 0, limit))
     keys = [(segment.start, keys[0][1]),
             *[(t, x) for t, x in keys if segment.start < t < segment.end],
             (segment.end, keys[-1][1])]
     return f"'{build_smooth_pan_expression(keys)}'"
+
+
+def _follow_keys(segment: Segment, wanted: Sequence[Tuple[float, float]]) -> List[Tuple[float, int]]:
+    """Keyframes that stay on the face: its sampled positions, with detection spikes and jitter taken out.
+
+    For a face the eased path cannot keep in the crop. The picture is moving fast there, so the crop moving
+    with it reads as the camera's own motion.
+    """
+    values = [v for _, v in wanted]
+    if len(values) >= 3:
+        values = [values[0], *[float(np.median(values[i - 1:i + 2])) for i in range(1, len(values) - 1)], values[-1]]
+    if len(values) >= 5:
+        values = [values[0], *[(values[i - 1] + 2 * values[i] + values[i + 1]) / 4 for i in range(1, len(values) - 1)],
+                  values[-1]]
+    inner = [(t, int(round(v))) for (t, _), v in zip(wanted, values) if segment.start < t < segment.end]
+    step = max(1, -(-len(inner) // 80))
+    inner = inner[::step]
+    first = int(round(values[0]))
+    last = int(round(values[-1]))
+    return [(segment.start, first), *inner, (segment.end, last)]
 
 
 def _vertical_offset(box: Box, size: int, face_y: float) -> float:
@@ -878,8 +1172,15 @@ def precise_cuts(
     return sorted(hard + soft)
 
 
+def dense_face_samples(input_path: Path) -> List[FaceFrame]:
+    """Face boxes of the whole clip at DENSE_FPS (one more small decode, faces only)."""
+    from .reframing import analyze_vertical_clip
+
+    return list(analyze_vertical_clip(input_path, sample_fps=DENSE_FPS, analyze_context=False)[2])
+
+
 def _on_exact_cuts(
-    build: Any, scene_cuts: Sequence[float], duration: float, input_path: Optional[Path]
+    build: Any, scene_cuts: Sequence[float], duration: float, input_path: Optional[Path], probe: Any = None
 ) -> Optional[List[Segment]]:
     """``build(cuts)`` on the sampled cuts, then again on frame-accurate ones.
 
@@ -891,7 +1192,7 @@ def _on_exact_cuts(
     if segments is None or input_path is None:
         return segments
     try:
-        times, thumbnails = frame_changes(input_path)
+        times, thumbnails = probe() if probe else frame_changes(input_path)
         cuts = [c for c in precise_cuts(times, thumbnails, coarse) if 0 < c < duration]
         segments = build(cuts)
     except Exception as exc:
@@ -982,8 +1283,40 @@ def plan_interview_layout(
         return None
     crop_w, _ = compute_vertical_crop_dims(width, height)
 
+    fine: Dict[str, Any] = {}
+
+    def dense(start: float, end: float) -> List[FaceFrame]:
+        if input_path is None or duration > DENSE_MAX_SECONDS:
+            return []
+        if "samples" not in fine:
+            try:
+                fine["samples"] = dense_face_samples(input_path)
+            except Exception as exc:
+                logger.warning("Fine face sampling failed (%s); switching on the coarse samples", exc)
+                fine["samples"] = []
+        return [(t, faces) for t, faces in fine["samples"] if start <= t < end]
+
+    def probe() -> Tuple[List[float], np.ndarray]:
+        if "probe" not in fine:
+            fine["probe"] = frame_changes(input_path)
+        return fine["probe"]
+
+    def picture(t: float) -> Optional[np.ndarray]:
+        if input_path is None:
+            return None
+        try:
+            times, frames = probe()
+        except Exception:
+            return None
+        if not len(times):
+            return None
+        index = min(int(np.searchsorted(times, t)), len(times) - 1)
+        if index > 0 and abs(times[index - 1] - t) <= abs(times[index] - t):
+            index -= 1
+        return frames[index].reshape(CUT_PROBE_H, CUT_PROBE_W)
+
     def interview(cuts: Sequence[float]) -> Optional[List[Segment]]:
-        segments = _segments(duration, cuts, face_samples, context, width, height, crop_w)
+        segments = _segments(duration, cuts, face_samples, context, width, height, crop_w, dense, picture)
         # A divided group does not make a clip an interview by itself: a
         # three-host podcast or a call gallery keeps speaker framing and the
         # gallery layouts. Beside a real two-shot it is composed like one.
@@ -995,7 +1328,7 @@ def plan_interview_layout(
             return None
         return segments
 
-    segments = _on_exact_cuts(interview, scene_cuts, duration, input_path)
+    segments = _on_exact_cuts(interview, scene_cuts, duration, input_path, probe if input_path else None)
     if segments is None:
         return None
     _pool_setups(segments, width)
