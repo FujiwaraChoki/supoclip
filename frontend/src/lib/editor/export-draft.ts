@@ -12,6 +12,58 @@ import {
 } from "./document";
 import { drawEditorFrame, loadEditorFont, type BRollLayer } from "./render";
 
+export const TOO_LARGE_ON_DEVICE =
+  "This clip is too large to export on this device. Choose background export to render it on the server.";
+
+// The source, its B-roll and the encoded MP4 are all held in memory. iOS
+// closes a tab that grows past roughly a gigabyte, so phones and tablets get a
+// smaller budget and are sent to background export before anything downloads.
+export function onDeviceMemoryBudget() {
+  if (typeof navigator === "undefined") return 2 * 1024 ** 3;
+  const touchMac = /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
+  return /iPhone|iPad|iPod|Android/.test(navigator.userAgent) || touchMac
+    ? 512 * 1024 ** 2
+    : 2 * 1024 ** 3;
+}
+
+// Reads a media response into memory, or refuses before downloading when it
+// would not fit what is left of the budget.
+export async function readMedia(response: Response, budget: { left: number }) {
+  const declared = Number(response.headers.get("content-length"));
+  if (declared > budget.left) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error(TOO_LARGE_ON_DEVICE);
+  }
+  let bytes: ArrayBuffer;
+  if (declared > 0 || !response.body) bytes = await response.arrayBuffer();
+  else {
+    // No length up front: count while reading and stop once it is too large.
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > budget.left) {
+        await reader.cancel().catch(() => {});
+        throw new Error(TOO_LARGE_ON_DEVICE);
+      }
+      chunks.push(value);
+    }
+    const joined = new Uint8Array(total);
+    let at = 0;
+    for (const chunk of chunks) {
+      joined.set(chunk, at);
+      at += chunk.byteLength;
+    }
+    bytes = joined.buffer;
+  }
+  if (bytes.byteLength > budget.left) throw new Error(TOO_LARGE_ON_DEVICE);
+  budget.left -= bytes.byteLength;
+  return bytes;
+}
+
 export async function exportDraft(
   url: string,
   doc: EditDocument,
@@ -37,12 +89,16 @@ export async function exportDraft(
     throw new Error(
       "This browser cannot encode this video. Choose background export to render it on the server.",
     );
+  // The encoded file grows in one buffer and is copied once more for the download.
+  const budget = { left: onDeviceMemoryBudget() - 2 * ((bitrate + 192_000) / 8) * editDuration(doc) };
+  if (budget.left <= 0) throw new Error(TOO_LARGE_ON_DEVICE);
   await loadEditorFont(doc.captions.font);
   const mediaUrl = asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? url.replace(/clean\.mp4$/, "layout.mp4") : url;
   const response = await fetch(mediaUrl, { signal });
   if (!response.ok) throw new Error("Could not load the source video.");
+  // Read from memory: BlobSource reads fail on iOS WebKit and leave unhandled rejections behind.
   const input = new m.Input({
-    source: new m.BlobSource(await response.blob()),
+    source: new m.BufferSource(await readMedia(response, budget)),
     formats: m.ALL_FORMATS,
   });
   const output = new m.Output({
@@ -69,7 +125,7 @@ export async function exportDraft(
       const response = await fetch(footageUrl(endpoint, piece.clip.footage), { signal });
       if (!response.ok) throw new Error("Could not load B-roll footage. Use background export.");
       const footageInput = new m.Input({
-        source: new m.BlobSource(await response.blob()),
+        source: new m.BufferSource(await readMedia(response, budget)),
         formats: m.ALL_FORMATS,
       });
       const track = await footageInput.getPrimaryVideoTrack();

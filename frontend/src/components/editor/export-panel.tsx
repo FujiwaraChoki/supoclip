@@ -34,7 +34,7 @@ import { trackClipExport } from "@/lib/clip-export-tracking";
 import { exportDraft } from "@/lib/editor/export-draft";
 import { singleFlight } from "@/lib/editor/single-flight";
 import { editorRequest } from "./use-editor";
-import { editorMessage } from "./studio-ui";
+import { editorMessage, isEditorMessage } from "./studio-ui";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { WorkflowMeta } from "@/lib/workflows";
@@ -192,10 +192,12 @@ export function ExportPanel({
     setError(null);
     const control = new AbortController();
     controller.current = control;
+    let onDevice = false;
     try {
       await save();
       if (mode === "browser" && !batch) {
         setProgress(0);
+        onDevice = true;
         await exportDraft(
           `${endpoint}/media/clean.mp4`,
           doc,
@@ -227,7 +229,14 @@ export function ExportPanel({
       }
     } catch (e) {
       if (!control.signal.aborted)
-        setError(e instanceof Error ? editorMessage(t, e.message) : t("errors.exportFailed"));
+        setError(
+          // A browser API failed mid-export (e.g. a media read on iOS): point at the server instead.
+          onDevice && !(e instanceof Error && isEditorMessage(e.message))
+            ? t("errors.cannotEncode")
+            : e instanceof Error
+              ? editorMessage(t, e.message)
+              : t("errors.exportFailed"),
+        );
       else toast.info(t("export.cancelled"));
     } finally {
       setBusy(false);
