@@ -69,7 +69,7 @@ def test_build_hook_needs_a_title_and_a_window():
     assert build_hook("Title", window=(2.0, 2.0), **kwargs) is None
     hook = build_hook("Title", window=(0.12, 4.0), x=3, y=-3, scale=9, **kwargs)
     assert (hook.x, hook.y, hook.scale, hook.template) == (1.0, -1.0, 4.0, "highlighter_swipe")
-    # The position is fx-core's and fixed: the contract carries no placement hints.
+    # The position is fx-core's: the contract carries no placement hints.
     assert not {"trim", "picture", "avoid"} & set(type(hook).model_fields)
 
 
@@ -87,7 +87,7 @@ def test_the_scene_carries_the_hook_unless_the_plan_suppresses_it():
     assert FxHookTitle.model_validate(scene(plan()).model_dump(mode="json")["hook"]) == hook
 
 
-def test_a_drawn_hook_asks_for_its_font_and_no_face_track(monkeypatch, tmp_path):
+def test_a_drawn_hook_asks_for_the_face_track_and_its_font(monkeypatch, tmp_path):
     hook = build_hook("Title", template_id="default", look="bold", font="THEBOLDFONT", accent="#FFE45C",
                       window=(0.12, 4.0))
     asked = {}
@@ -102,8 +102,9 @@ def test_a_drawn_hook_asks_for_its_font_and_no_face_track(monkeypatch, tmp_path)
     request = FxRequest(plan=plan(), words=[], caption=None, hook=hook)
     fx_chain._analysis(request, input_path=Path("in.mp4"), head="", head_label="[v]", out_w=1080, out_h=1920,
                        work=tmp_path, timings={})
-    # The title sits at a fixed position: it needs no face analysis of its own.
-    assert asked == {}
+    assert asked == {"face": True}   # it moves beneath a head it would cover
+    # A track handed in (a re-render, the studio) is used as it is; no title, no analysis.
+    asked.clear()
     track = {"version": 1, "space": "picture", "fps": 6, "samples": []}
     fx_chain._analysis(FxRequest(plan=plan(), words=[], caption=None, hook=hook, face_track=track),
                        input_path=Path("in.mp4"), head="", head_label="[v]", out_w=1080, out_h=1920, work=tmp_path,

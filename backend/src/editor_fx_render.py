@@ -504,7 +504,7 @@ def hook_range(document, total: float) -> tuple[float, float] | None:
 
 
 def studio_hook(document, plan: FxPlan):
-    """The hook title fx-core draws for a draft (== studio-scene.ts ``studioHook``): the title at its fixed
+    """The hook title fx-core draws for a draft (== studio-scene.ts ``studioHook``): the title at its own
     position plus the draft's hook transform, in the draft's font and accent, shown for ``hook_range``; None without a
     title or when the plan suppresses it."""
     from .edit_fx.caption_style import _hex6

@@ -2885,6 +2885,10 @@ var HOOK = {
   // stack: neighbouring lines closer in half-width than this share one edge
   oneLine: 0.62,
   // a title narrower than this share of the text width stays on one line
+  twoLineFloor: 0.85,
+  // two lines may shrink to this share of the base size before a third line is used
+  grow: 1.2,
+  // the largest size, as a multiple of the base size (a short title)
   markPadX: 0.12,
   markHeight: 1.08,
   markRadius: 0.18,
@@ -2898,7 +2902,24 @@ var HOOK = {
   markSeconds: 0.18,
   markStagger: 0.08
 };
-var HOOK_PLACE = { top: 0.11 };
+var HOOK_PLACE = {
+  top: 0.11,
+  // home: the title's top edge
+  minFace: 0.05,
+  // faces smaller than this share of H are background people
+  cover: 0.18,
+  // a head counts as covered when the title hides more than this share of its box
+  share: 0.25,
+  // ... in at least this share of the window's face samples
+  gap: 0.02,
+  // between a chin and the title, and between the title and captions
+  jump: 0.1,
+  // the main head moving this far between two samples is a camera cut
+  minShown: 2.2,
+  // a title that leaves at a camera cut still shows this long (s)
+  beneathMax: 0.64
+  // a title beneath a head ends no lower than this (classic captions start under it)
+};
 var HOOK_POWER_WORDS = /* @__PURE__ */ new Set([
   "never",
   "always",
@@ -3026,35 +3047,45 @@ function balance(tokens, widths, space, count) {
   return best;
 }
 var range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
-function hookBlock(title, basePx, minPx, maxCardW, measure, v = STACK) {
+function hookBlock(title, basePx, minPx, maxCardW, measure, v = STACK, maxPx = basePx) {
   const tokens = hookTokens(title);
   if (!tokens.length) return null;
   const marks = hookMarks(tokens);
-  const at = (px2) => {
+  const at = (px2, count2) => {
     const m = (text) => measure(text, px2);
     const widths = tokens.map((t) => m(t.text)), space = m(" ");
     const maxText = Math.max(1, maxCardW - 2 * v.padX * px2);
-    const widest = (lines3) => Math.max(...lines3.map((l) => l.reduce((s, i, k) => s + widths[i] + (k && tokens[i].glue ? space : 0), 0)));
-    const one = balance(tokens, widths, space, 1);
-    let lines2 = one;
-    if (widest(one) > HOOK.oneLine * maxText) {
-      lines2 = one;
-      for (const count2 of [2, 3]) {
-        const split = balance(tokens, widths, space, count2);
-        if (!split) break;
-        lines2 = split;
-        if (widest(split) <= maxText) break;
-      }
-    }
-    return { lines: lines2, widths, space, maxText, widest: widest(lines2) };
+    const lines2 = balance(tokens, widths, space, count2);
+    if (!lines2) return null;
+    const widest = Math.max(...lines2.map((l) => l.reduce((s, i, k) => s + widths[i] + (k && tokens[i].glue ? space : 0), 0)));
+    return { lines: lines2, widths, space, maxText, widest };
   };
-  let px = basePx, fit = at(px);
-  for (let pass = 0; pass < 5 && fit.widest > fit.maxText; pass++) {
-    const next = px * fit.maxText / fit.widest * 0.995;
-    px = pass === 0 ? Math.max(minPx, next) : next;
-    fit = at(px);
+  const fill = (count2, share = 1) => {
+    const f = at(basePx, count2);
+    return f ? share * maxCardW / (f.widest / basePx + 2 * share * v.padX) : 0;
+  };
+  let px, count;
+  const one = at(basePx, 1);
+  if (one.widest <= HOOK.oneLine * one.maxText) {
+    count = 1;
+    px = Math.min(maxPx, fill(1, HOOK.oneLine));
+  } else if (fill(2) >= HOOK.twoLineFloor * basePx) {
+    count = 2;
+    px = Math.min((basePx + maxPx) / 2, fill(2));
+  } else if (fill(3) > 0) {
+    count = 3;
+    px = Math.max(minPx, Math.min(basePx, fill(3)));
+  } else {
+    count = at(basePx, 2) ? 2 : 1;
+    px = Math.max(minPx, Math.min(basePx, fill(count)));
   }
-  const lineH = v.lineHeight * px, count = fit.lines.length;
+  px = Math.max(px, Math.min(basePx, minPx));
+  let fit = at(px, count);
+  for (let pass = 0; pass < 5 && fit.widest > fit.maxText + 1e-6; pass++) {
+    px = px * fit.maxText / fit.widest * 0.995;
+    fit = at(px, count);
+  }
+  const lineH = v.lineHeight * px;
   const lines = fit.lines.map((idx, li) => {
     const total = idx.reduce((s, i, k) => s + fit.widths[i] + (k && tokens[i].glue ? fit.space : 0), 0);
     let x = -total / 2;
@@ -3086,8 +3117,63 @@ function hookBlock(title, basePx, minPx, maxCardW, measure, v = STACK) {
   const w = Math.min(maxCardW, Math.max(...lines.map((l) => l.w)) + 2 * v.padX * px);
   return { px, lines, w, h: count * lineH + 2 * v.padY * px };
 }
-function hookTop(H) {
-  return HOOK_PLACE.top * H;
+function headRect(row, W, H, m) {
+  if (row.length < 4 || row[3] < HOOK_PLACE.minFace) return null;
+  return transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
+}
+function headsDuring(p, hook) {
+  const W = p.width, H = p.height, out = [];
+  for (const [t, rows] of p.scene.face_track?.samples ?? []) {
+    if (t < hook.start - 0.2 || t > hook.end + 0.2) continue;
+    const e = clamp2(t, hook.start, Math.max(hook.start, hook.end - 1e-3));
+    const clock = { e, o: e, frame: Math.round(e * 30) };
+    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
+    out.push({ t: e, heads: (rows ?? []).map((row) => headRect(row, W, H, m)).filter((r) => !!r) });
+  }
+  return out;
+}
+function headCuts(samples, H) {
+  const main = (heads) => heads.reduce((best, r) => !best || r.h > best.h ? r : best, null);
+  const cuts = [];
+  for (let i = 1; i < samples.length; i++) {
+    const a = main(samples[i - 1].heads), b = main(samples[i].heads);
+    if (!a && !b) continue;
+    const jump = !a || !b || Math.abs(a.y + a.h / 2 - b.y - b.h / 2) > HOOK_PLACE.jump * H || Math.abs(a.x + a.w / 2 - b.x - b.w / 2) > HOOK_PLACE.jump * H || Math.max(a.h, b.h) > 1.5 * Math.min(a.h, b.h);
+    if (jump) cuts.push(samples[i].t);
+  }
+  return cuts;
+}
+function captionTop(p, start, end) {
+  let top = Infinity;
+  for (const chunk of p.chunks) {
+    if (chunk.end <= start || chunk.start >= end) continue;
+    for (const w of chunk.words) top = Math.min(top, w.y - 0.15 * chunk.px);
+  }
+  return top;
+}
+function placeHook(p, hook, block) {
+  const W = p.width, H = p.height;
+  const home = HOOK_PLACE.top * H, x = (W - block.w) / 2;
+  const at = (top) => ({ x, y: top, w: block.w, h: block.h });
+  const all = headsDuring(p, hook);
+  const stay = { cy: home + block.h / 2, slot: "top", end: hook.end };
+  if (!all.length) return stay;
+  const covered2 = (card, end) => {
+    const samples = all.filter((s) => s.t < end);
+    const hits = samples.map((s) => s.heads.filter((r) => overlapArea(card, r) > HOOK_PLACE.cover * r.w * r.h)).filter((heads) => heads.length);
+    return { heads: hits.flat(), covers: samples.length > 0 && hits.length >= HOOK_PLACE.share * samples.length };
+  };
+  const cuts = [...rowCuts(p.scene.caption?.rows), ...headCuts(all, H)].sort((a, b) => b - a);
+  const ends = [hook.end, ...cuts.filter((cut) => cut - hook.start >= HOOK_PLACE.minShown && cut < hook.end - 0.1)];
+  if (!covered2(at(home), hook.end).covers) return stay;
+  for (const end of ends) {
+    const there = covered2(at(home), end);
+    if (!there.covers) continue;
+    const top = Math.max(...there.heads.map((r) => r.y + r.h)) + HOOK_PLACE.gap * H;
+    const clear = top + block.h <= Math.min(HOOK_PLACE.beneathMax * H, captionTop(p, hook.start, end) - HOOK_PLACE.gap * H) && !covered2(at(top), end).covers;
+    if (clear) return { cy: top + block.h / 2, slot: "beneath", end };
+  }
+  return stay;
 }
 var layouts = /* @__PURE__ */ new WeakMap();
 function hookMarkColor(accent) {
@@ -3119,10 +3205,12 @@ function hookLayout(p, text) {
     variant.minSizeU * u * HOOK.lookSize[look] * scale,
     HOOK.maxWidth * W,
     (t, px) => p.measure(t, family, 100) * px / 100,
-    variant
+    variant,
+    variant.sizeU * u * HOOK.lookSize[look] * scale * HOOK.grow
   );
   let layout = null;
   if (block && hook.end > hook.start) {
+    const placed = placeHook(p, hook, block);
     layout = {
       text: title,
       family,
@@ -3131,13 +3219,14 @@ function hookLayout(p, text) {
       w: block.w,
       h: block.h,
       cx: W * (0.5 + (hook.x ?? 0)),
-      cy: hookTop(H) + block.h / 2 + H * (hook.y ?? 0),
+      cy: placed.cy + H * (hook.y ?? 0),
       start: hook.start,
-      end: hook.end,
+      end: placed.end,
       tilt: (HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI / 180,
       look,
       mark: hookKeyColor(hook.accent, variant),
-      variant
+      variant,
+      slot: placed.slot
     };
   }
   cache.set(title, layout);

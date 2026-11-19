@@ -148,8 +148,8 @@ The rows follow these rules:
   Captions therefore switch exactly at cuts, never move inside a group, and never sit on another shot's row.
 - **The look emoji** leaves with its group at a cut.
 - **Burned-in source captions:** they push each row clear.
-- **Hook title:** rows never move for it, and it never moves for them: the title has one fixed position at the top
-  ([Hook title](#hook-title)).
+- **Hook title:** rows never move for it, and it never moves for them: it sits at the top, or beneath a head it would
+  cover ([Hook title](#hook-title)).
 - **Overlays:** the look emoji, standalone keywords, the decode accent and sticker obstacles read the row in effect
   (`PreparedScene.captionYAt`).
 - **The user's position wins:** a caption edit's position pins the captions with no rows.
@@ -183,7 +183,7 @@ The hook title is the AI-written headline shown for the first seconds of a clip 
 a Dynamic edits clip it is drawn by fx-core (`frontend/src/lib/fx/core/hook.ts`, scene field `FxScene.hook`, an
 `FxHookTitle`), in the browser and on the worker from the same code. Python resolves the text, font, accent, look,
 caption template and window (`backend/src/edit_fx/hook_title.py`); fx-core picks the style from the template, lays the
-title out and draws it at its fixed position. Every clip that goes through the Dynamic edits render gets this title, also one whose plan
+title out, sizes and places it. Every clip that goes through the Dynamic edits render gets this title, also one whose plan
 only adds sound. Classic clips (intensity Off with a classic template) keep the libass title exactly as before.
 
 The style follows the caption template (`HOOK_VARIANTS`), so the title belongs to the captions under it:
@@ -196,15 +196,24 @@ The style follows the caption template (`HOOK_VARIANTS`), so the title belongs t
 | | |
 |---|---|
 | Type | Poppins ExtraBold for the listed styles (a font the user picked instead wins), other templates their caption font, never a regular weight (TikTok Sans Regular becomes Bold); sentence case as written (an unlisted all-caps template keeps capitals) |
-| Lines | balanced; one line under 62 % of the text width, two preferred, three before the type shrinks; at most 0.88 W; never under the style's floor (58u stack, 64u outline) unless one word is wider than the frame. Text without spaces (Chinese, Japanese, Korean) breaks between characters |
+| Lines | balanced; one line under 62 % of the text width, else two or three (see Size); at most 0.88 W; never under the style's floor (58u stack, 64u outline) unless one word is wider than the frame. Text without spaces (Chinese, Japanese, Korean) breaks between characters |
 | Key words | numbers first, then power words (never, secret, million, …), at most two; a marker box covers the word, not its comma. The accent is the captions' keyword colour; one too pale or too dark becomes `#FFE45C`, and a template with its own accent keeps it |
 | Motion | in over 260 ms (0.86 → 1.035 → 1, fade over the first 120 ms), marker boxes wipe in left to right from 200 ms (180 ms each, the second 80 ms later), out over the last 200 ms (fade, 1 → 0.96). Subtle is 10 % smaller with no overshoot; Max tilts the title −2° |
 | Clock | edit time, so a speed ramp or freeze moves it like the captions |
 
-**Placement** is fixed: the title's top edge is at 11 % of the height (`HOOK_PLACE.top`), centred, on every clip,
-whatever the layout, the faces or the captions, and it shows for its whole window. Nothing on screen moves it; only
-the studio's offset does. A title therefore covers whatever is there, including the upper face of a stacked two-shot.
-Sticker Slap's stickers keep off the title, and the title needs no face analysis.
+**Size** follows the title (`hookBlock`): a few words that fit one line grow up to 1.2 times the style's size; most
+titles take two lines, a little larger when they are short and down to 85 % for a long one; only then a third line,
+which shrinks to the style's floor.
+
+**Placement** (`placeHook`): the title's home is the top of the frame, top edge at 11 % of the height, centred, on
+every clip. It leaves home in one case only: it would cover a head there (more than 18 % of a face box at least 5 % H
+tall, in at least a quarter of the window's face samples). Then it sits right beneath that head, 2 % H under the
+lowest chin, if there is room: clear of the captions fx-core draws, of any other head, and ending no lower than
+64 % H. When that only holds until a camera cut (a caption row change, or the main head jumping in the face track),
+the title is judged on its opening shot and leaves at the cut, as long as it showed for 2.2 s. Without room it stays
+at home. Captions, letterbox bands and stickers never move it (Sticker Slap's stickers keep off it), and the studio's
+offset adds to wherever it sits. A title needs the face track, so a render with a title runs the face analysis even
+when no cue needs it.
 
 **Without the drawing stage** (`FX_RUNTIME=off`, the safe and none levels) libass burns
 the title (`build_hook_title_ass(heavy=True)`): Poppins ExtraBold in white, about 6 % W, black outline and a soft dark
@@ -212,7 +221,7 @@ halo, numbers and power words in the template's accent, no boxes; top of the fra
 opening.
 
 **Studio.** The hook title is its own layer over the preview: `drawEditorTextLayer` draws the same title with
-`hookOps`, and the selection box is the title (`hookBounds`). The draft's hook transform is an offset from the fixed
+`hookOps`, and the selection box is the title (`hookBounds`). The draft's hook transform is an offset from the title's
 position and a scale; its font and accent are the draft's caption font and accent (`studioHook` ==
 `editor_fx_render.studio_hook`, pinned by `shared/fx/fixtures/scene`).
 
@@ -600,7 +609,8 @@ ending and transitions).
   Zooms off for that clip).
 - The hook title card's Chinese, Japanese and Korean text uses the system Noto fonts at regular weight, lighter than
   the Latin type.
-- The title's fixed position covers the upper face of a stacked two-shot and the forehead of a tight close-up.
+- A title with no room beneath a head (a close-up that reaches the captions) stays at the top and covers the forehead.
+- Classic (libass) captions are not known to fx-core: a title beneath a head only stays above 64 % H to clear them.
 - There is no "editorial" flavour yet (the study's Iman Gadzhi look: text 5 frames early, blur-in, film-burn flashes).
 - Caption rows follow the vertical layout when it has one: a clip that letterboxes throughout (mostly fitted
   content) puts captions under the picture, about 0.8 H, lower than the references' 0.50–0.57 H. B-roll, POV and

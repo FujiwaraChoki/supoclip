@@ -11,15 +11,18 @@
 // the scene's. Both pop in and fade out.
 //
 // Layout: balanced lines (one for a short title, two preferred, three before the type shrinks), at most 0.88 W wide.
-// Placement: fixed. The title's top edge is at 11 % of the height on every clip, centred, whatever the layout, the
-// faces or the captions; only the studio's offset moves it.
+// Size: follows the title. A few words on one line grow up to 1.2 times the style's size, most titles take two lines,
+// a long one shrinks before it takes a third.
+// Placement: the top of the frame (top edge at 11 % of the height) on every clip. Only when the title would cover a
+// head there does it move, to right beneath that head; nothing else moves it but the studio's offset.
 import type { DrawOp, Shadow } from "./host";
 import type { Rect } from "./constants";
 import { clamp, clamp01, easeOutCubic, keyframes, easeOutQuad } from "./easing";
-import { pathOp, placeAt, rectOp, round3, textOp } from "./layout";
+import { overlapArea, pathOp, pictureMatrix, placeAt, rectOp, round3, textOp, transformRect } from "./layout";
 import { registerGlobal } from "./registry";
 import type { PreparedScene } from "./scene";
-import type { FxHookTitle } from "./types";
+import { rowCuts, type FxHookTitle } from "./types";
+import { pictureStateAt, type FxClock } from "./frame";
 
 /** How a title is drawn. Lengths in em of the title size unless stated. */
 export interface HookVariant {
@@ -80,6 +83,8 @@ export const HOOK = {
   radius: 0.34,              // stack: corner radius
   snap: 0.5,                 // stack: neighbouring lines closer in half-width than this share one edge
   oneLine: 0.62,             // a title narrower than this share of the text width stays on one line
+  twoLineFloor: 0.85,        // two lines may shrink to this share of the base size before a third line is used
+  grow: 1.2,                 // the largest size, as a multiple of the base size (a short title)
   markPadX: 0.12, markHeight: 1.08, markRadius: 0.18,
   maxMarks: 2,
   mark: "#FFE45C",
@@ -88,8 +93,17 @@ export const HOOK = {
   markDelay: 0.2, markSeconds: 0.18, markStagger: 0.08,
 } as const;
 
-/** Placement: every title's top edge sits here (fraction of the frame height), under the platforms' top bar. */
-export const HOOK_PLACE = { top: 0.11 } as const;
+/** Placement, as fractions of the frame height unless stated. */
+export const HOOK_PLACE = {
+  top: 0.11,                 // home: the title's top edge
+  minFace: 0.05,             // faces smaller than this share of H are background people
+  cover: 0.18,               // a head counts as covered when the title hides more than this share of its box
+  share: 0.25,               // ... in at least this share of the window's face samples
+  gap: 0.02,                 // between a chin and the title, and between the title and captions
+  jump: 0.1,                 // the main head moving this far between two samples is a camera cut
+  minShown: 2.2,             // a title that leaves at a camera cut still shows this long (s)
+  beneathMax: 0.64,          // a title beneath a head ends no lower than this (classic captions start under it)
+} as const;
 
 /** Superlatives, absolutes and hype words (== emoji_captions.POWER_WORDS). */
 export const HOOK_POWER_WORDS: ReadonlySet<string> = new Set([
@@ -155,6 +169,8 @@ export interface HookLayout {
   /** The card (output px, before tilt and motion). */
   w: number; h: number; cx: number; cy: number;
   start: number; end: number; tilt: number; look: FxHookTitle["look"]; mark: string; variant: HookVariant;
+  /** Home at the top, or beneath a head it would have covered. */
+  slot: "top" | "beneath";
 }
 
 type Measure = (text: string) => number;
@@ -189,36 +205,40 @@ interface Block { px: number; lines: HookLine[]; w: number; h: number }
 
 /** The title's lines and card size for a base size (no position). */
 export function hookBlock(title: string, basePx: number, minPx: number, maxCardW: number, measure: (text: string, px: number) => number,
-  v: HookVariant = STACK): Block | null {
+  v: HookVariant = STACK, maxPx = basePx): Block | null {
   const tokens = hookTokens(title);
   if (!tokens.length) return null;
   const marks = hookMarks(tokens);
-  const at = (px: number) => {
+  const at = (px: number, count: number) => {
     const m: Measure = (text) => measure(text, px);
     const widths = tokens.map((t) => m(t.text)), space = m(" ");
     const maxText = Math.max(1, maxCardW - 2 * v.padX * px);
-    const widest = (lines: number[][]) => Math.max(...lines.map((l) => l.reduce((s, i, k) => s + widths[i] + (k && tokens[i].glue ? space : 0), 0)));
-    const one = balance(tokens, widths, space, 1)!;
-    let lines = one;
-    if (widest(one) > HOOK.oneLine * maxText) {
-      lines = one;
-      for (const count of [2, 3]) {
-        const split = balance(tokens, widths, space, count);
-        if (!split) break;
-        lines = split;
-        if (widest(split) <= maxText) break;
-      }
-    }
-    return { lines, widths, space, maxText, widest: widest(lines) };
+    const lines = balance(tokens, widths, space, count);
+    if (!lines) return null;
+    const widest = Math.max(...lines.map((l) => l.reduce((s, i, k) => s + widths[i] + (k && tokens[i].glue ? space : 0), 0)));
+    return { lines, widths, space, maxText, widest };
   };
-  let px = basePx, fit = at(px);
-  // Three lines still too wide: shrink to the floor, then (an unbreakable word) as far as it takes.
-  for (let pass = 0; pass < 5 && fit.widest > fit.maxText; pass++) {
-    const next = (px * fit.maxText) / fit.widest * 0.995;
-    px = pass === 0 ? Math.max(minPx, next) : next;
-    fit = at(px);
+  // Text width grows with the size, so the size at which `count` lines exactly fill the width follows from one layout.
+  const fill = (count: number, share = 1) => {
+    const f = at(basePx, count);
+    return f ? (share * maxCardW) / (f.widest / basePx + 2 * share * v.padX) : 0;
+  };
+  // The size follows the title: a few words on one line grow up to maxPx, most titles take two lines (a little larger
+  // when they are short, down to 85 % for a long one), and only then three lines, which shrink to the floor.
+  let px: number, count: number;
+  const one = at(basePx, 1)!;
+  if (one.widest <= HOOK.oneLine * one.maxText) { count = 1; px = Math.min(maxPx, fill(1, HOOK.oneLine)); }
+  else if (fill(2) >= HOOK.twoLineFloor * basePx) { count = 2; px = Math.min((basePx + maxPx) / 2, fill(2)); }
+  else if (fill(3) > 0) { count = 3; px = Math.max(minPx, Math.min(basePx, fill(3))); }
+  else { count = at(basePx, 2) ? 2 : 1; px = Math.max(minPx, Math.min(basePx, fill(count))); }
+  px = Math.max(px, Math.min(basePx, minPx));
+  let fit = at(px, count)!;
+  // Still too wide (an unbreakable word): shrink as far as it takes.
+  for (let pass = 0; pass < 5 && fit.widest > fit.maxText + 1e-6; pass++) {
+    px = (px * fit.maxText) / fit.widest * 0.995;
+    fit = at(px, count)!;
   }
-  const lineH = v.lineHeight * px, count = fit.lines.length;
+  const lineH = v.lineHeight * px;
   const lines: HookLine[] = fit.lines.map((idx, li) => {
     const total = idx.reduce((s, i, k) => s + fit.widths[i] + (k && tokens[i].glue ? fit.space : 0), 0);
     let x = -total / 2;
@@ -255,9 +275,81 @@ export function hookBlock(title: string, basePx: number, minPx: number, maxCardW
 
 // ----------------------------------------------------------------------------------------------- placement
 
-/** The top edge of every title, whatever is on screen: the same place on every clip (the studio offset adds to it). */
-export function hookTop(H: number): number {
-  return HOOK_PLACE.top * H;
+/** A face row (normalised, output space) as a px box after the frame's picture transform; null for background people. */
+function headRect(row: readonly number[], W: number, H: number, m: ReturnType<typeof pictureMatrix>): Rect | null {
+  if (row.length < 4 || row[3] < HOOK_PLACE.minFace) return null;
+  return transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
+}
+
+/** The heads on screen while the title shows: the boxes of every face sample, with its time. */
+function headsDuring(p: PreparedScene, hook: FxHookTitle): { t: number; heads: Rect[] }[] {
+  const W = p.width, H = p.height, out: { t: number; heads: Rect[] }[] = [];
+  for (const [t, rows] of p.scene.face_track?.samples ?? []) {
+    if (t < hook.start - 0.2 || t > hook.end + 0.2) continue;
+    const e = clamp(t, hook.start, Math.max(hook.start, hook.end - 1e-3));
+    const clock: FxClock = { e, o: e, frame: Math.round(e * 30) };
+    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
+    out.push({ t: e, heads: (rows ?? []).map((row) => headRect(row, W, H, m)).filter((r): r is Rect => !!r) });
+  }
+  return out;
+}
+
+/** Camera cuts as the face track shows them: the largest head jumps, changes size, appears or goes. */
+function headCuts(samples: readonly { t: number; heads: Rect[] }[], H: number): number[] {
+  const main = (heads: Rect[]) => heads.reduce<Rect | null>((best, r) => (!best || r.h > best.h ? r : best), null);
+  const cuts: number[] = [];
+  for (let i = 1; i < samples.length; i++) {
+    const a = main(samples[i - 1].heads), b = main(samples[i].heads);
+    if (!a && !b) continue;
+    const jump = !a || !b || Math.abs(a.y + a.h / 2 - b.y - b.h / 2) > HOOK_PLACE.jump * H
+      || Math.abs(a.x + a.w / 2 - b.x - b.w / 2) > HOOK_PLACE.jump * H || Math.max(a.h, b.h) > 1.5 * Math.min(a.h, b.h);
+    if (jump) cuts.push(samples[i].t);
+  }
+  return cuts;
+}
+
+/** The top edge of the highest caption line fx-core draws between `start` and `end` (Infinity without one). */
+function captionTop(p: PreparedScene, start: number, end: number): number {
+  let top = Infinity;
+  for (const chunk of p.chunks) {
+    if (chunk.end <= start || chunk.start >= end) continue;
+    for (const w of chunk.words) top = Math.min(top, w.y - 0.15 * chunk.px);
+  }
+  return top;
+}
+
+/**
+ * Where a title goes: its home at the top (`HOOK_PLACE.top`) on every clip, and only when it would cover a head there
+ * (for more than a moment), right beneath that head. Beneath needs room: clear of the captions fx-core draws, of other
+ * heads, and no lower than `beneathMax`. When that only holds until a camera cut, the title is judged on its opening
+ * shot and leaves at the cut (never before `minShown`); without room it stays at home.
+ */
+export function placeHook(p: PreparedScene, hook: FxHookTitle, block: Pick<Block, "w" | "h">): { cy: number; slot: HookLayout["slot"]; end: number } {
+  const W = p.width, H = p.height;
+  const home = HOOK_PLACE.top * H, x = (W - block.w) / 2;
+  const at = (top: number): Rect => ({ x, y: top, w: block.w, h: block.h });
+  const all = headsDuring(p, hook);
+  const stay = { cy: home + block.h / 2, slot: "top" as const, end: hook.end };
+  if (!all.length) return stay;
+  /** The heads `card` covers until `end`, and whether that is more than a moment. */
+  const covered = (card: Rect, end: number) => {
+    const samples = all.filter((s) => s.t < end);
+    const hits = samples.map((s) => s.heads.filter((r) => overlapArea(card, r) > HOOK_PLACE.cover * r.w * r.h)).filter((heads) => heads.length);
+    return { heads: hits.flat(), covers: samples.length > 0 && hits.length >= HOOK_PLACE.share * samples.length };
+  };
+  const cuts = [...rowCuts(p.scene.caption?.rows), ...headCuts(all, H)].sort((a, b) => b - a);
+  const ends = [hook.end, ...cuts.filter((cut) => cut - hook.start >= HOOK_PLACE.minShown && cut < hook.end - 0.1)];
+  if (!covered(at(home), hook.end).covers) return stay;
+  for (const end of ends) {
+    const there = covered(at(home), end);
+    if (!there.covers) continue;   // this shot alone would not have moved it
+    // Under the lowest chin of the heads it would cover.
+    const top = Math.max(...there.heads.map((r) => r.y + r.h)) + HOOK_PLACE.gap * H;
+    const clear = top + block.h <= Math.min(HOOK_PLACE.beneathMax * H, captionTop(p, hook.start, end) - HOOK_PLACE.gap * H)
+      && !covered(at(top), end).covers;
+    if (clear) return { cy: top + block.h / 2, slot: "beneath", end };
+  }
+  return stay;
 }
 
 // ----------------------------------------------------------------------------------------------- layout and drawing
@@ -291,14 +383,16 @@ export function hookLayout(p: PreparedScene, text?: string): HookLayout | null {
   const family = p.family(hook.font);
   const variant = hookVariant(hook.template);
   const block = hookBlock(title, variant.sizeU * u * HOOK.lookSize[look] * scale, variant.minSizeU * u * HOOK.lookSize[look] * scale,
-    HOOK.maxWidth * W, (t, px) => (p.measure(t, family, 100) * px) / 100, variant);
+    HOOK.maxWidth * W, (t, px) => (p.measure(t, family, 100) * px) / 100, variant,
+    variant.sizeU * u * HOOK.lookSize[look] * scale * HOOK.grow);
   let layout: HookLayout | null = null;
   if (block && hook.end > hook.start) {
+    const placed = placeHook(p, hook, block);
     layout = {
       text: title, family, px: block.px, lines: block.lines, w: block.w, h: block.h,
-      cx: W * (0.5 + (hook.x ?? 0)), cy: hookTop(H) + block.h / 2 + H * (hook.y ?? 0),
-      start: hook.start, end: hook.end, tilt: ((HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI) / 180, look,
-      mark: hookKeyColor(hook.accent, variant), variant,
+      cx: W * (0.5 + (hook.x ?? 0)), cy: placed.cy + H * (hook.y ?? 0),
+      start: hook.start, end: placed.end, tilt: ((HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI) / 180, look,
+      mark: hookKeyColor(hook.accent, variant), variant, slot: placed.slot,
     };
   }
   cache.set(title, layout);

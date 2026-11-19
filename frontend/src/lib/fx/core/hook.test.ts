@@ -142,6 +142,28 @@ describe("lines", () => {
   });
 });
 
+describe("size", () => {
+  const sized = (title: string) => hookBlock(title, 80, 58, 0.88 * W, measure, HOOK_STACK, 80 * HOOK.grow)!;
+
+  it("follows the title: a few words grow, two short lines sit in between, a long title shrinks before a third line", () => {
+    const short = sized("Why I quit");
+    expect(short.lines).toHaveLength(1);
+    expect(short.px).toBeCloseTo(96, 6);                       // 1.2 times the base
+    const two = sized("I deleted a mega star's episode");
+    expect(two.lines).toHaveLength(2);
+    expect(two.px).toBeCloseTo(88, 6);
+    const long = sized("Nobody tells you what podcast guests want");
+    expect(long.lines).toHaveLength(2);
+    expect(long.px).toBeLessThan(80);
+    expect(long.px).toBeGreaterThanOrEqual(HOOK.twoLineFloor * 80 - 1e-6);
+    const longer = sized("Nobody tells you the truth about what 90% of podcast guests want from you");
+    expect(longer.lines).toHaveLength(3);
+    expect(longer.px).toBeLessThanOrEqual(80);
+    expect(longer.px).toBeGreaterThanOrEqual(58 - 1e-6);
+    for (const b of [short, two, long, longer]) expect(b.w).toBeLessThanOrEqual(0.88 * W + 1e-6);
+  });
+});
+
 describe("placement", () => {
   const layoutOf = (scene: FxScene) => hookLayout(prep(scene))!;
   const top = (l: { cy: number; h: number }) => (l.cy - l.h / 2) / H;
@@ -153,16 +175,16 @@ describe("placement", () => {
     expect(l.cx).toBe(W / 2);
   });
 
-  it("is the same place whatever is on screen: faces, captions, any template, any line count", () => {
+  it("stays at the top whatever else is on screen: captions, any template, any line count, a face it does not cover", () => {
     const base = layoutOf(bareScene({ hook: hook() }));
     const scenes: FxScene[] = [
-      bareScene({ hook: hook(), face_track: face(0.3, 0.06, 0.4, 0.22) }),                    // a face under it
+      bareScene({ hook: hook(), face_track: face(0.3, 0.3, 0.4, 0.22) }),                     // a face below it
       makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.2), hook: hook() }),  // captions under it
       makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.55, { rows: [{ start: 0, end: 2, y: 0.76 }, { start: 2, end: 6, y: 0.5 }] }), hook: hook() }),
     ];
     for (const scene of scenes) {
       const l = layoutOf(scene);
-      expect(top(l)).toBeCloseTo(HOOK_PLACE.top, 6);
+      expect(l.slot).toBe("top");
       expect(l.cy).toBeCloseTo(base.cy, 6);
       expect([l.start, l.end]).toEqual([0.12, 4]);
     }
@@ -173,22 +195,54 @@ describe("placement", () => {
     }
   });
 
-  it("does not move during its window", () => {
-    const moving: FaceTrack = { version: 1, space: "output", fps: 6, samples: [] };
-    for (let i = 0; i <= 36; i++) moving.samples.push([i / 6, [face(0.3, i < 12 ? 0.3 : 0.08, 0.4, 0.22).samples[0][1][0]]]);
-    const p = prep(makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.62), hook: hook(), face_track: moving }));
-    const l = hookLayout(p)!;
-    for (const t of [0.2, 1, 2.5, 3.7]) {
-      const at = (hookOps(p, t)[0] as PathOp).transform.slice(4);
-      expect(at[0]).toBeCloseTo(l.cx, 3);
-      expect(at[1]).toBeCloseTo(l.cy, 3);
-    }
+  it("goes right beneath a head it would cover at the top", () => {
+    // The upper person of a stacked two-shot: head from 6 % to 20 % of the height.
+    const l = layoutOf(bareScene({ hook: hook(), face_track: face(0.3, 0.06, 0.4, 0.14) }));
+    expect(l.slot).toBe("beneath");
+    expect(top(l)).toBeCloseTo(0.06 + 0.14 + HOOK_PLACE.gap, 6);
+    expect(l.end).toBe(4);
+    // A head it only grazes (under 18 % of the box) does not move it.
+    expect(layoutOf(bareScene({ hook: hook(), face_track: face(0.3, 0.22, 0.4, 0.2) })).slot).toBe("top");
+    // Background people do not count.
+    expect(layoutOf(bareScene({ hook: hook(), face_track: face(0.45, 0.12, 0.08, 0.04) })).slot).toBe("top");
   });
 
-  it("adds the studio offset and scale to the fixed position", () => {
+  it("stays at the top when there is no room beneath: a close-up down to the captions, or another head there", () => {
+    const closeUp = makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.55), hook: hook(), face_track: face(0.15, 0.04, 0.7, 0.46) });
+    expect(layoutOf(closeUp).slot).toBe("top");
+    const tall = bareScene({ hook: hook(), face_track: face(0.15, 0.04, 0.7, 0.56) });   // would end under 64 %
+    expect(layoutOf(tall).slot).toBe("top");
+    const two: FaceTrack = { version: 1, space: "output", fps: 6, samples: [] };
+    const row = (y: number, h: number) => face(0.3, y, 0.4, h).samples[0][1][0];
+    for (let i = 0; i <= 36; i++) two.samples.push([i / 6, [row(0.06, 0.14), row(0.22, 0.16)]]);
+    expect(layoutOf(bareScene({ hook: hook(), face_track: two })).slot).toBe("top");
+  });
+
+  it("is judged on its opening shot and leaves at the cut when beneath only works until then", () => {
+    // A stacked two-shot until 2.5 s, then a close-up filling the top and middle.
+    const track: FaceTrack = { version: 1, space: "output", fps: 6, samples: [] };
+    for (let i = 0; i <= 36; i++) {
+      const t = i / 6;
+      track.samples.push([t, [t < 2.5 ? face(0.3, 0.06, 0.4, 0.14).samples[0][1][0] : face(0.15, 0.1, 0.7, 0.42).samples[0][1][0]]]);
+    }
+    const p = prep(bareScene({ hook: hook(), face_track: track }));
+    const l = hookLayout(p)!;
+    expect(l.slot).toBe("beneath");
+    expect(top(l)).toBeCloseTo(0.06 + 0.14 + HOOK_PLACE.gap, 6);
+    expect(l.end).toBeCloseTo(2.5, 6);
+    expect(hookOps(p, 2.4).length).toBeGreaterThan(0);
+    expect(hookOps(p, 2.51)).toEqual([]);
+    // A cut before 2.2 s of title is not used: the title stays home for its whole window.
+    const early: FaceTrack = { ...track, samples: track.samples.map(([t]) => [t, [t < 1.5 ? face(0.3, 0.06, 0.4, 0.14).samples[0][1][0] : face(0.15, 0.1, 0.7, 0.42).samples[0][1][0]]]) };
+    const kept = layoutOf(bareScene({ hook: hook(), face_track: early }));
+    expect([kept.slot, kept.end]).toEqual(["top", 4]);
+  });
+
+  it("adds the studio offset and scale to its position", () => {
     const base = layoutOf(bareScene({ hook: hook() }));
     const moved = layoutOf(bareScene({ hook: hook({ x: 0.1, y: 0.2, scale: 1.5 }) }));
-    expect(moved.px).toBeCloseTo(base.px * 1.5, 6);
+    expect(moved.px).toBeGreaterThan(base.px * 1.2);   // up to 1.5 times; the frame width limits a long line
+    expect(moved.px).toBeLessThanOrEqual(base.px * 1.5 + 1e-6);
     expect(moved.cx).toBeCloseTo(W * 0.6, 6);
     expect(moved.cy - moved.h / 2).toBeCloseTo(base.cy - base.h / 2 + 0.2 * H, 3);
     const box = hookBounds(prep(bareScene({ hook: hook({ x: 0.1, y: 0.2, scale: 1.5 }) })))!;
@@ -198,7 +252,7 @@ describe("placement", () => {
   it("scales with the frame: landscape and square use the short side", () => {
     for (const [w, h] of [[1920, 1080], [1080, 1080], [720, 1280]] as const) {
       const l = hookLayout(prep(bareScene({ width: w, height: h, hook: hook() })))!;
-      expect(l.px).toBeCloseTo(80 * Math.min(w, h) / 1080, 6);
+      expect(l.px).toBeCloseTo(88 * Math.min(w, h) / 1080, 6);   // two short lines: between the base and the largest size
       expect(l.w).toBeLessThanOrEqual(0.88 * w + 1e-6);
       expect((l.cy - l.h / 2) / h).toBeCloseTo(HOOK_PLACE.top, 6);
     }

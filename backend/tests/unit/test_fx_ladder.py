@@ -514,7 +514,7 @@ def test_without_the_drawing_stage_libass_burns_a_heavy_hook_title(ladder, monke
 
 
 def test_the_drawn_hook_title_ignores_the_layout(ladder):
-    """One fixed position: a letterboxed or stacked opening changes nothing about the title."""
+    """Python hands fx-core no layout hints: a letterboxed or stacked opening changes nothing about the request."""
     ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
     plain = fx_renders(ladder.calls)[0]["fx_request"].hook
     segments = [{"start": 0.0, "end": 2.0, "kind": "fit"}, {"start": 2.0, "end": 8.0, "kind": "pair"}]

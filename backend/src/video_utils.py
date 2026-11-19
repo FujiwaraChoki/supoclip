@@ -1144,7 +1144,7 @@ def _render_fx_ladder(
             # A plan that only adds sound needs no drawing stage (P1 → P3 renders all of it), unless the clip has a
             # title: fx-core draws that, so every Dynamic edits clip gets the same title whatever else it has.
             mode = "full" if plan.draws or (hook_title and not plan.hook_title_suppressed) else "safe"
-            # With the drawing stage, fx-core draws the title (at one fixed position) and the ASS layer carries none; without it libass burns the title.
+            # With the drawing stage, fx-core draws the title and the ASS layer carries none; without it libass burns the title.
             fx_hook = mode == "full" and bool(hook_title) and not plan.hook_title_suppressed
             ass_hook = None if (fx_hook or plan.hook_title_suppressed) else hook_title
             full_ass = build_ass(

@@ -3,7 +3,7 @@
 Whenever a render runs the drawing stage, fx-core draws the title in the style of the clip's caption template (a
 white label that hugs each line, or big outlined type in the template's colours; ``HOOK_VARIANTS`` in ``hook.ts``),
 and the ASS layer carries no title. This module resolves what Python decides (the text as shown, the font, the marker colour,
-the look and the window); fx-core lays the title out and draws it at one fixed position, the same on every clip.
+the look and the window); fx-core lays the title out, sizes it and places it (the top of the frame, or beneath a head it would cover).
 Levels without the drawing stage (``FX_RUNTIME=off``, the safe and none levels) keep the libass title
 (``media.captions.build_hook_title_ass``).
 

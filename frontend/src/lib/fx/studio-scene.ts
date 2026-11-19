@@ -364,7 +364,7 @@ const heavy = (font: string) => HOOK_HEAVY[font] ?? font;
 const LOOK_FONTS: readonly string[] = Object.values(STUDIO_LOOKS).map((spec) => spec.font);
 
 /**
- * The hook title fx-core draws for a draft (== editor_fx_render.studio_hook): the title at its fixed position plus
+ * The hook title fx-core draws for a draft (== editor_fx_render.studio_hook): the title at its own position plus
  * the draft's hook transform, in the draft's font and accent, shown for hookRange; null without a title or when the
  * plan suppresses it.
  */

@@ -15,8 +15,8 @@ mirrored by fx-core ``layoutLookCaptions``): words starting before ``cut - CUT_L
 at the cut, the rest form the next shot's groups, shown from the cut on its row. Captions therefore switch exactly at
 cuts, never inside a group, and never sit on a row meant for another shot.
 
-Rows avoid burned-in source captions (``band``, like the single caption y did). The hook title has its own fixed
-position at the top (fx-core ``hook.ts``) and never moves for the rows.
+Rows avoid burned-in source captions (``band``, like the single caption y did). The hook title has its own
+place (the top, or beneath a head it would cover; fx-core ``hook.ts``) and never moves for the rows.
 
 Pure: no I/O. Times are in the clock of the segments given (generation: E == stage-1 clip time; the studio stores
 them in S and maps them with ``mapped_caption_rows``).
