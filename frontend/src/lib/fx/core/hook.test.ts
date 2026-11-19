@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { clockAt, drawerErrors, frameOps } from "./frame";
 import type { DrawOp } from "./host";
-import { HOOK, HOOK_PLACE, hookBlock, hookBounds, hookLayout, hookMarkColor, hookMarks, hookMotion, hookOps, hookTokens } from "./hook";
+import { HOOK, HOOK_PLACE, HOOK_STACK, HOOK_VARIANTS, hookBlock, hookVariant, stackOutline, hookBounds, hookLayout, hookMarkColor, hookMarks, hookMotion, hookOps, hookTokens } from "./hook";
 import { prepareScene } from "./scene";
 import { captionStyle, fakeMeasure, fakeMeasureHost, makeScene, sampleWords } from "./test-utils/fake-host";
 import { expectGolden, renderSceneToPng } from "./test-utils/golden";
@@ -12,6 +12,8 @@ import { bareScene, cue, snap } from "./picture/fixtures";
 import type { FaceTrack, FxHookTitle, FxScene } from "./types";
 
 type RectOp = Extract<DrawOp, { op: "rect" }>;
+type PathOp = Extract<DrawOp, { op: "path" }>;
+const V = HOOK_STACK;
 type TextOp = Extract<DrawOp, { op: "text" }>;
 
 const W = 1080, H = 1920;
@@ -63,19 +65,19 @@ describe("tokens and markers", () => {
 });
 
 describe("lines", () => {
-  const block = (title: string, base = 65, min = 48.6) => hookBlock(title, base, min, 0.86 * W, measure)!;
+  const block = (title: string, base = 80, min = 58) => hookBlock(title, base, min, 0.88 * W, measure)!;
 
   it("one line for a short title, two balanced lines otherwise, three before the type shrinks", () => {
     expect(block("Why I quit").lines.map((l) => l.text)).toEqual(["Why I quit"]);
     const two = block("I deleted a mega star's episode");
     expect(two.lines.map((l) => l.text)).toEqual(["I deleted a mega", "star's episode"]);
-    expect(two.px).toBe(65);
+    expect(two.px).toBe(80);
     const three = block("Nobody tells you the truth about what 90% of podcast guests want");
     expect(three.lines).toHaveLength(3);
-    expect(three.px).toBeGreaterThanOrEqual(48.6);
+    expect(three.px).toBeGreaterThanOrEqual(58);
     for (const b of [two, three]) {
-      expect(b.w).toBeLessThanOrEqual(0.86 * W + 1e-6);
-      for (const line of b.lines) expect(line.w).toBeLessThanOrEqual(b.w - 2 * HOOK.padX * b.px + 1e-6);
+      expect(b.w).toBeLessThanOrEqual(0.88 * W + 1e-6);
+      for (const line of b.lines) expect(line.w).toBeLessThanOrEqual(b.w - 2 * V.padX * b.px + 1e-6);
       const widths = b.lines.map((l) => l.w);
       expect(Math.min(...widths) / Math.max(...widths)).toBeGreaterThan(0.6);   // balanced, no orphan
     }
@@ -83,18 +85,51 @@ describe("lines", () => {
 
   it("never goes under the minimum size unless a single word is wider than the card", () => {
     const long = block("Nobody tells you the truth about what 90% of podcast guests want today ok");
-    expect(long.px).toBeGreaterThanOrEqual(48.6 - 1e-6);
+    expect(long.px).toBeGreaterThanOrEqual(58 - 1e-6);
     const word = block("Pneumonoultramicroscopicsilicovolcanoconiosis");
     expect(word.lines).toHaveLength(1);
-    expect(word.px).toBeLessThan(48.6);
-    expect(word.w).toBeLessThanOrEqual(0.86 * W + 1e-6);
+    expect(word.px).toBeLessThan(58);
+    expect(word.w).toBeLessThanOrEqual(0.88 * W + 1e-6);
   });
 
-  it("the card is the text plus 0.5 em / 0.32 em padding, lines 1.18 em apart", () => {
+  it("a stack is one 1.4 em label per line, 0.42 em wider than the text on each side", () => {
     const b = block("I deleted a mega star's episode");
-    expect(b.h).toBeCloseTo(2 * 1.18 * 65 + 2 * 0.32 * 65, 6);
-    expect(b.w).toBeCloseTo(Math.max(...b.lines.map((l) => l.w)) + 65, 6);
-    expect(b.lines[1].y - b.lines[0].y).toBeCloseTo(1.18 * 65, 6);
+    expect(b.h).toBeCloseTo(2 * 1.4 * 80, 6);
+    expect(b.w).toBeCloseTo(Math.max(...b.lines.map((l) => l.w)) + 2 * 0.42 * 80, 6);
+    expect(b.lines[1].y - b.lines[0].y).toBeCloseTo(1.4 * 80, 6);
+  });
+
+  it("labels of nearly the same width share one edge; a real step keeps both widths", () => {
+    const near = block("I quit my job to cook ramens");
+    expect(Math.abs(near.lines[0].w - near.lines[1].w)).toBeGreaterThan(0);
+    expect(Math.abs(near.lines[0].w - near.lines[1].w)).toBeLessThan(2 * HOOK.snap * 80);
+    expect(near.lines[0].hw).toBe(near.lines[1].hw);
+    expect(near.lines[0].hw).toBeCloseTo(Math.max(near.lines[0].w, near.lines[1].w) / 2 + 0.42 * 80, 6);
+    const far = block("I deleted a mega star's episode");
+    expect(Math.abs(far.lines[0].w - far.lines[1].w)).toBeGreaterThan(2 * HOOK.snap * 80);
+    expect(far.lines[0].hw).not.toBe(far.lines[1].hw);
+    const step = block("Nobody tells you the truth about what 90% of podcast guests want");
+    for (const line of step.lines) expect(line.hw).toBeGreaterThanOrEqual(line.w / 2 + 0.42 * step.px - 1e-6);
+  });
+
+  it("outlined type is larger, set tighter and has no label", () => {
+    const o = HOOK_VARIANTS.slam;
+    const b = hookBlock("I deleted a mega star's episode", o.sizeU, o.minSizeU, 0.88 * W, measure, o)!;
+    expect(b.lines[1].y - b.lines[0].y).toBeCloseTo(o.lineHeight * b.px, 6);
+    expect(b.h).toBeCloseTo(b.lines.length * o.lineHeight * b.px + 2 * o.padY * b.px, 6);
+  });
+
+  it("the outline of a stack: one rounded shape, stepping where the widths differ", () => {
+    const pts = stackOutline([100, 100, 60], 50, -75, 10);
+    const xs = pts.filter((_, i) => i % 2 === 0), ys = pts.filter((_, i) => i % 2 === 1);
+    expect(Math.max(...xs)).toBeCloseTo(100, 6);
+    expect(Math.min(...xs)).toBeCloseTo(-100, 6);
+    expect(Math.min(...ys)).toBeCloseTo(-75, 6);
+    expect(Math.max(...ys)).toBeCloseTo(75, 6);
+    // Two equal lines are one edge: 4 corners a side, 9 points each.
+    expect(pts.length / 2).toBe(8 * 9);
+    // Symmetric about the centre line.
+    expect(xs.reduce((a, b) => a + b, 0)).toBeCloseTo(0, 6);
   });
 
   it("the marker covers the word, not its comma", () => {
@@ -102,7 +137,7 @@ describe("lines", () => {
     const word = b.lines[0].words[0];
     expect(word.text).toBe("3am,");
     expect(word.mark).toBe(0);
-    expect(word.mw).toBeCloseTo(measure("3am", 65), 6);
+    expect(word.mw).toBeCloseTo(measure("3am", 80), 6);
     expect(word.mx).toBe(word.x);
   });
 });
@@ -120,10 +155,10 @@ describe("placement", () => {
   });
 
   it("rises to leave a forehead clear, never past the platform bar", () => {
-    const l = layoutOf(bareScene({ hook: hook(), face_track: face(0.3, 0.2, 0.4, 0.22) }));
+    const l = layoutOf(bareScene({ hook: hook(), face_track: face(0.3, 0.22, 0.4, 0.22) }));
     expect(l.slot).toBe("top");
     expect(top(l)).toBeGreaterThanOrEqual(HOOK_PLACE.topMin - 1e-9);
-    expect(bottom(l)).toBeLessThanOrEqual(0.2 - 0.01 + 1e-6);
+    expect(bottom(l)).toBeLessThanOrEqual(0.22 - 0.01 + 1e-6);
   });
 
   it("never covers eyes or mouth: a face at the top of a stacked two-shot sends it above the captions on the seam", () => {
@@ -213,8 +248,8 @@ describe("placement", () => {
   it("scales with the frame: landscape and square use the short side", () => {
     for (const [w, h] of [[1920, 1080], [1080, 1080], [720, 1280]] as const) {
       const l = hookLayout(prep(bareScene({ width: w, height: h, hook: hook() })))!;
-      expect(l.px).toBeCloseTo(65 * Math.min(w, h) / 1080, 6);
-      expect(l.w).toBeLessThanOrEqual(0.86 * w + 1e-6);
+      expect(l.px).toBeCloseTo(80 * Math.min(w, h) / 1080, 6);
+      expect(l.w).toBeLessThanOrEqual(0.88 * w + 1e-6);
       expect((l.cy - l.h / 2) / h).toBeCloseTo(HOOK_PLACE.top, 6);
     }
   });
@@ -240,17 +275,47 @@ describe("motion", () => {
 
   it("wipes the markers in left to right just after the card lands; max tilts the card 2 degrees", () => {
     const p = prep(bareScene({ hook: hook({ text: "Never trust the first 3 offers", look: "max" }) }));
-    const marks = (t: number) => (hookOps(p, t).filter((o) => o.op === "rect") as RectOp[]).slice(1);
+    const marks = (t: number) => hookOps(p, t).filter((o) => o.op === "rect") as RectOp[];
     expect(marks(0.12 + 0.19)).toHaveLength(0);
     const early = marks(0.12 + 0.26), late = marks(0.12 + 0.6);
     expect(early).toHaveLength(1);                      // the second marker starts 80 ms later
     expect(late).toHaveLength(2);
     expect(early[0].w).toBeLessThan(late[0].w);
     expect(early[0].x).toBe(late[0].x);                 // grows from its left edge
-    const card = hookOps(p, 2)[0] as RectOp;
+    const card = hookOps(p, 2)[0] as PathOp;
     expect(Math.atan2(card.transform[1], card.transform[0])).toBeCloseTo((-2 * Math.PI) / 180, 9);
-    const flat = hookOps(prep(bareScene({ hook: hook() })), 2)[0] as RectOp;
+    const flat = hookOps(prep(bareScene({ hook: hook() })), 2)[0] as PathOp;
     expect(flat.transform.slice(0, 4)).toEqual([1, 0, -0, 1]);
+  });
+});
+
+describe("styles", () => {
+  it("each caption template has a title style; unknown templates get the stack", () => {
+    expect(hookVariant("emoji_drop").style).toBe("stack");
+    expect(hookVariant("tiktok").style).toBe("stack");
+    expect(hookVariant("slam").style).toBe("outline");
+    expect(hookVariant("mrbeast").fill).toBe("#FFE600");
+    expect(hookVariant("nope")).toBe(HOOK_STACK);
+    expect(hookVariant(undefined)).toBe(HOOK_STACK);
+  });
+
+  it("outline: every word's outline is drawn before any fill, key words in the accent, no label", () => {
+    const p = prep(bareScene({ hook: hook({ text: "Never trust the first 3 offers", template: "slam", accent: "#FFE000" }) }));
+    const ops = hookOps(p, 2) as TextOp[];
+    expect(ops.every((o) => o.op === "text")).toBe(true);
+    expect(ops).toHaveLength(12);
+    expect(ops.slice(0, 6).every((o) => o.fill === null && o.stroke === "#000000" && o.strokePx > 0 && !!o.shadow)).toBe(true);
+    expect(ops.slice(6).map((o) => [o.text, o.fill])).toEqual([["Never", "#FFE000"], ["trust", "#FFFFFF"], ["the", "#FFFFFF"],
+      ["first", "#FFFFFF"], ["3", "#FFE000"], ["offers", "#FFFFFF"]]);
+  });
+
+  it("a template's own accent wins where the caption accent would not read; a boxed key word keeps its outline off", () => {
+    const beast = prep(bareScene({ hook: hook({ text: "Never trust it", template: "mrbeast", accent: "#34FD87" }) }));
+    expect(hookLayout(beast)!.mark).toBe("#FF3B30");
+    const boxed = prep(bareScene({ hook: hook({ text: "Never trust it", template: "hormozi" }) }));
+    const ops = hookOps(boxed, 2);
+    expect(ops.filter((o) => o.op === "rect")).toHaveLength(1);
+    expect((ops.filter((o) => o.op === "text") as TextOp[]).filter((o) => o.stroke).map((o) => o.text)).toEqual(["trust", "it"]);
   });
 });
 
@@ -262,12 +327,12 @@ describe("the frame", () => {
     });
     const p = prep(scene);
     const ops = frameOps(p, clockAt(p, 1.05));
-    const card = ops.findIndex((o) => o.op === "rect" && o.fill === HOOK.fill && !!o.shadow);
+    const card = ops.findIndex((o) => o.op === "path" && o.fill === V.fill && !!o.shadow);
     const caption = ops.findIndex((o) => o.op === "text" && o.fill === "#FFFFFF");
     const flash = ops.findIndex((o) => o.op === "rect" && o.w === W && o.h === H);
     expect(card).toBeGreaterThan(caption);
     expect(flash).toBeGreaterThan(card);
-    const titled = (o: number) => frameOps(p, clockAt(p, o)).some((op) => op.op === "text" && op.fill === HOOK.ink);
+    const titled = (o: number) => frameOps(p, clockAt(p, o)).some((op) => op.op === "text" && op.fill === V.ink);
     expect(titled(0.1)).toBe(false);
     expect(titled(0.13)).toBe(true);
     expect(titled(3.99)).toBe(true);
@@ -308,5 +373,10 @@ describe("the frame", () => {
     });
     expectGolden("hook_card_bold", renderSceneToPng(scene("bold", "90% of podcast guests become real friends"), 1.2));
     expectGolden("hook_card_max_long", renderSceneToPng(scene("max", "Nobody tells you the truth about what 90% of podcast guests want"), 1.2));
+    const outlined = (template: string, text: string) => makeScene({
+      words, caption: lookCaptions(0.55), hook: hook({ template, text, accent: "#FFE000" }), face_track: face(0.36, 0.24, 0.28, 0.2),
+    });
+    expectGolden("hook_outline_slam", renderSceneToPng(outlined("slam", "Never trust the first 3 offers"), 1.2));
+    expectGolden("hook_outline_sticker", renderSceneToPng(outlined("sticker_slap", "90% of podcast guests become real friends"), 1.2));
   });
 });

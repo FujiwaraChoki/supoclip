@@ -180,24 +180,32 @@ Noto fonts on both renderers.
 ## Hook title
 
 The hook title is the AI-written headline shown for the first seconds of a clip (`hook_title`, 0.12 s to about 4 s). On
-a Dynamic edits clip it is one white card drawn by fx-core (`frontend/src/lib/fx/core/hook.ts`, scene field
-`FxScene.hook`, an `FxHookTitle`), in the browser and on the worker from the same code. Python resolves the text,
-font, marker colour, look and window (`backend/src/edit_fx/hook_title.py`); fx-core lays the card out and places it.
-Classic clips (intensity Off with a classic template) keep the libass title exactly as before.
+a Dynamic edits clip it is drawn by fx-core (`frontend/src/lib/fx/core/hook.ts`, scene field `FxScene.hook`, an
+`FxHookTitle`), in the browser and on the worker from the same code. Python resolves the text, font, accent, look,
+caption template and window (`backend/src/edit_fx/hook_title.py`); fx-core picks the style from the template, lays the
+title out and places it. Every clip that goes through the Dynamic edits render gets this title, also one whose plan
+only adds sound. Classic clips (intensity Off with a classic template) keep the libass title exactly as before.
+
+The style follows the caption template (`HOOK_VARIANTS`), so the title belongs to the captions under it:
+
+| Style | Templates | Look |
+|---|---|---|
+| Stack | TikTok, Minimal, Podcast, Behind Head, Emoji Drop, Highlighter, Stat Counter, and any template not listed | a white label that hugs every line, drawn as one shape (corner radius 0.34 em, also where two lines differ in width; lines closer than 0.5 em in half-width share an edge); near-black type `#0B0B0F`, 80u (7.4 % W), one label 1.4 em tall per line, 0.42 em of label beside the text; soft shadow. Key words get a marker box in the accent |
+| Outline | Default, Marker Circle, Face Doodles, Slam, Kinetic Stack, Hormozi, MrBeast, Neon, Decode Glitch, Sticker Slap | type straight on the picture, 92u (8.5 % W; Slam and Kinetic Stack 98u), lines 1.14 em apart, outline 0.1 em with round joins, soft shadow; every outline is drawn before any fill. Key words take the accent as their colour (Hormozi: a green box). Own colours: MrBeast yellow with red key words, Neon cyan with a magenta glow, Decode Glitch a magenta offset shadow, Sticker Slap dark type with a white edge turned 3° |
 
 | | |
 |---|---|
-| Card | white, corner radius 0.28 of a line, padding 0.5 em by 0.32 em, shadow 6u down, 24u blur, 35 % black |
-| Type | Poppins ExtraBold for the listed styles (a font the user picked instead wins), other templates their caption font; near-black `#0B0B0F`, 65u (6.0 % W at 1080), lines 1.18 em apart; sentence case as written (an unlisted all-caps template keeps capitals) |
-| Lines | balanced; one line under 62 % of the text width, two preferred, three before the type shrinks; the card is at most 0.86 W; never under 48.6u (4.5 % W) unless one word is wider than the card. Text without spaces (Chinese, Japanese, Korean) breaks between characters |
-| Marker | a rounded box in the captions' keyword colour behind numbers first, then power words (never, secret, million, …), at most two; the box covers the word, not its comma. A colour too pale or too dark behind dark type becomes `#FFE45C` |
-| Motion | in over 260 ms (0.86 → 1.035 → 1, fade over the first 120 ms), markers wipe in left to right from 200 ms (180 ms each, the second 80 ms later), out over the last 200 ms (fade, 1 → 0.96). Subtle is 10 % smaller with no overshoot; Max tilts the card −2° |
+| Type | Poppins ExtraBold for the listed styles (a font the user picked instead wins), other templates their caption font, never a regular weight (TikTok Sans Regular becomes Bold); sentence case as written (an unlisted all-caps template keeps capitals) |
+| Lines | balanced; one line under 62 % of the text width, two preferred, three before the type shrinks; at most 0.88 W; never under the style's floor (58u stack, 64u outline) unless one word is wider than the frame. Text without spaces (Chinese, Japanese, Korean) breaks between characters |
+| Key words | numbers first, then power words (never, secret, million, …), at most two; a marker box covers the word, not its comma. The accent is the captions' keyword colour; one too pale or too dark becomes `#FFE45C`, and a template with its own accent keeps it |
+| Motion | in over 260 ms (0.86 → 1.035 → 1, fade over the first 120 ms), marker boxes wipe in left to right from 200 ms (180 ms each, the second 80 ms later), out over the last 200 ms (fade, 1 → 0.96). Subtle is 10 % smaller with no overshoot; Max tilts the title −2° |
 | Clock | edit time, so a speed ramp or freeze moves it like the captions |
 
 **Placement** is decided once per clip, for the whole window (`placeHook`), from the face track (both faces, after the
 frame's reframes), the captions and emoji on screen during the window, and two hints from Python:
 
-1. Never over eyes or mouth (eyebrows to lower lip of every face at least 5 % H tall), never on the captions.
+1. Never over eyes or mouth (eyebrows to lower lip of every face at least 5 % H tall), never on the captions, never outside the platform-safe area
+   (8.5 % to 80 % H). Hair and forehead may be covered when the alternative is the chest.
 2. The top safe area: card top at 10.5 % H, raised as far as 8.5 % H to leave a forehead clear (the platforms cover
    the top 8 %). A letterboxed opening (`picture`, interview and compositor layouts) puts it in the blurred band above
    the picture instead, and a card over that picture costs extra.
@@ -209,9 +217,9 @@ frame's reframes), the captions and emoji on screen during the window, and two h
 
 With automatic timing (`trim`), a title whose best position only holds until a camera cut leaves at that cut, as long
 as it still shows for 2.2 s. Classic captions (burned by libass after the drawing stage) hand their band over as
-`avoid`. A title needs the face track, so a render with a title runs the face analysis even when no cue needs it.
+`avoid`. Sticker Slap's stickers keep off the title wherever it sits. A title needs the face track, so a render with a title runs the face analysis even when no cue needs it.
 
-**Without the drawing stage** (`FX_RUNTIME=off`, the safe and none levels, a plan that only adds sound) libass burns
+**Without the drawing stage** (`FX_RUNTIME=off`, the safe and none levels) libass burns
 the title (`build_hook_title_ass(heavy=True)`): Poppins ExtraBold in white, about 6 % W, black outline and a soft dark
 halo, numbers and power words in the template's accent, no boxes; top of the frame, or on the seam of a stacked
 opening.

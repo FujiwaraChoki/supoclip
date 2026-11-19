@@ -470,6 +470,7 @@
       "font": "Poppins-ExtraBold",
       "accent": "#FACC15",
       "look": "max",
+      "template": "emoji_drop",
       "start": 0.12,
       "end": 4.0,
       "x": 0.0,

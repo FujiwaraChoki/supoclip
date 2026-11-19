@@ -23,7 +23,7 @@ import { loadFxAtlas } from "@/lib/fx/assets-client";
 import { createBrowserHost, createFxCanvas, loadFxFont, type BrowserHost } from "@/lib/fx/browser-host";
 import { reactionRect } from "@/lib/fx/core/constants";
 import { captionHitBoxes, clockAt, type FxClock } from "@/lib/fx/core/frame";
-import { HOOK, hookBounds, hookLayout, hookOps } from "@/lib/fx/core/hook";
+import { HOOK, hookBounds, hookLayout, hookOps, hookVariant } from "@/lib/fx/core/hook";
 import type { EmojiAtlas, FxCanvas, FxContext2D, FxImage } from "@/lib/fx/core/host";
 import { rasterize } from "@/lib/fx/core/raster";
 import { renderFrame } from "@/lib/fx/core/render";
@@ -105,14 +105,15 @@ function wrapCaptionWords(ctx: CanvasRenderingContext2D, words: CaptionWord[], u
 /** The native field supplies caret/selection; these are the same font metrics as the canvas. */
 export function textEditorLayout(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, draft?: TextDraft, fx?: HookFx): TextEditorLayout {
   if (layer === "hook" && documentNeedsFx(doc)) {
-    // The card fx-core draws: its own font and metrics, dark caret on the white card.
+    // The title fx-core draws: its own font and metrics, the caret in the type's colour.
     const prepared = hookScene(doc, undefined, width, height, fx);
     const layout = hookLayout(prepared, draft?.hookText);
-    const px = layout?.px ?? HOOK.sizeU * prepared.u;
+    const variant = layout?.variant ?? hookVariant(prepared.scene.hook?.template);
+    const px = layout?.px ?? variant.sizeU * prepared.u;
     return {
-      fontSize: px, wrapWidth: Math.max(1, (layout?.w ?? HOOK.maxWidth * width) - 2 * HOOK.padX * px), lineHeight: px * HOOK.lineHeight,
+      fontSize: px, wrapWidth: Math.max(1, (layout?.w ?? HOOK.maxWidth * width) - 2 * variant.padX * px), lineHeight: px * variant.lineHeight,
       lines: layout?.lines.map((line) => line.text) ?? [], fontFamily: layout?.family ?? prepared.family(prepared.scene.hook?.font ?? "Poppins-ExtraBold"),
-      caretColor: HOOK.ink,
+      caretColor: variant.style === "stack" ? variant.ink : variant.fill,
     };
   }
   const group = captionAt(doc, time) ?? [];

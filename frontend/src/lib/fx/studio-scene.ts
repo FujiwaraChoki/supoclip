@@ -358,6 +358,9 @@ function readableTrack(track: unknown): track is FaceTrack {
 
 /** The card's type for the listed animated styles (== edit_fx.hook_title.HOOK_FONT). */
 export const HOOK_FONT = "Poppins-ExtraBold";
+/** A title is never set in a regular weight (== edit_fx.hook_title.HOOK_HEAVY). */
+const HOOK_HEAVY: Readonly<Record<string, string>> = { "TikTokSans-Regular": "TikTokSans-Bold" };
+const heavy = (font: string) => HOOK_HEAVY[font] ?? font;
 const LOOK_FONTS: readonly string[] = Object.values(STUDIO_LOOKS).map((spec) => spec.font);
 
 /**
@@ -380,9 +383,10 @@ export function studioHook(doc: EditDocument): FxHookTitle | null {
   const transform = doc.textTransforms?.hook;
   return {
     text: captions.uppercase && !listed ? title.toUpperCase() : title,
-    font: listed && (!captions.font || LOOK_FONTS.includes(captions.font)) ? HOOK_FONT : String(captions.font || HOOK_FONT).slice(0, 80),
+    font: listed && (!captions.font || LOOK_FONTS.includes(captions.font)) ? HOOK_FONT : heavy(String(captions.font || HOOK_FONT).slice(0, 80)),
     accent: hex6(captions.accent, "#FFE45C"),
     look,
+    template: String(templateId).slice(0, 40),
     start: range.start,
     end: range.end,
     x: clamp(transform?.x ?? 0, -1, 1),

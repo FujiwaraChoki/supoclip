@@ -16,6 +16,7 @@ import { hash01 } from "../rng";
 import { clamp01, easeInQuad, progress } from "../easing";
 import { clampBox, inflate, overlapArea, placeAvoiding, safeRect, transformOps } from "../layout";
 import type { PreparedScene } from "../scene";
+import { hookLayout } from "../hook";
 import { slapAlpha, slapScale, stickerBox, stickerOps, stickerPalette, stickerTilt, type StickerPalette } from "../looks/sticker";
 
 /** A sticker lives at most this long (s). */
@@ -111,6 +112,11 @@ export function placeSticker(p: PreparedScene, cue: Pick<AccentCue, "id" | "seed
   if (face) hard.push(headBox(face, u));
   const band = captionBand(p, start, end);
   if (band) hard.push(band);
+  // The hook title wherever it was placed (not only the top safe area).
+  const title = hookLayout(p);
+  if (title && title.start < end && title.end > start) {
+    hard.push(inflate({ x: title.cx - title.w / 2, y: title.cy - title.h / 2, w: title.w, h: title.h }, 24 * u));
+  }
   // Seeded variety: start the search at one of the first three preferred spots, then a fine grid.
   const first = Math.floor(hash01(cue.seed >>> 0, 4) * 3);
   const order = [...CANDIDATES.slice(first), ...CANDIDATES.slice(0, first), ...GRID].map(([x, y]) => [x * W, y * H] as [number, number]);

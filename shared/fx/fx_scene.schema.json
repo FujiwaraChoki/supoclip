@@ -657,7 +657,7 @@
     },
     "FxHookTitle": {
       "additionalProperties": false,
-      "description": "The hook title drawn by fx-core (``hook.ts``): one white card, heavy dark type, a marker box behind numbers\nand power words. fx-core lays it out and places it; see ``edit_fx/hook_title.py``.",
+      "description": "The hook title drawn by fx-core (``hook.ts``): a white label hugging each line or big outlined type, by the\nclip's caption template, with the numbers and power words marked. fx-core lays it out and places it; see\n``edit_fx/hook_title.py``.",
       "properties": {
         "text": {
           "maxLength": 200,
@@ -683,6 +683,12 @@
             "max"
           ],
           "title": "Look",
+          "type": "string"
+        },
+        "template": {
+          "default": "",
+          "maxLength": 40,
+          "title": "Template",
           "type": "string"
         },
         "start": {

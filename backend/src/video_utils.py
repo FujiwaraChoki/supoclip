@@ -1153,8 +1153,9 @@ def _render_fx_ladder(
     if setup_error is None and fx_env.fx_runtime() != "off":
         try:
             warp = build_warp(plan.cues if fx_env.fx_warp_enabled() else (), duration)
-            # A plan that only adds sound needs no drawing stage: P1 → P3 renders all of it.
-            mode = "full" if plan.draws else "safe"
+            # A plan that only adds sound needs no drawing stage (P1 → P3 renders all of it), unless the clip has a
+            # title: fx-core draws that, so every Dynamic edits clip gets the same title whatever else it has.
+            mode = "full" if plan.draws or (hook_title and not plan.hook_title_suppressed) else "safe"
             # With the drawing stage, fx-core draws the title (a card it places clear of faces and captions) and the
             # ASS layer carries none; without it libass burns the title.
             fx_hook = mode == "full" and bool(hook_title) and not plan.hook_title_suppressed

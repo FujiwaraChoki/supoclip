@@ -17,7 +17,8 @@ export type DrawOp =
       clip?: [number, number, number, number] | null }           // clip: output-px band (glitch slices), not transformed
   | { op: "path"; points: number[]; closed: boolean; smooth: boolean; stroke: string | null; strokePx: number;
       fill: string | null; cap: "round" | "butt"; dash: [number, number] | null; dashOffset: number;
-      transform: Mat2D; alpha: number; blend: Blend }             // points = [x0,y0,x1,y1,...]
+      transform: Mat2D; alpha: number; blend: Blend;
+      shadow?: Shadow | null }                                    // points = [x0,y0,x1,y1,...]; shadow: cast by the fill
   | { op: "rect"; x: number; y: number; w: number; h: number; radius: number; fill: string | null;
       stroke: string | null; strokePx: number; transform: Mat2D; alpha: number; blend: Blend;
       shadow?: Shadow | null }                                    // cast by the fill (the hook title's card)

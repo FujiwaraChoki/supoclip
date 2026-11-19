@@ -516,6 +516,7 @@
       "font": "Poppins-ExtraBold",
       "accent": "#FACC15",
       "look": "bold",
+      "template": "highlighter_swipe",
       "start": 0.12,
       "end": 4.0,
       "x": 0.0,

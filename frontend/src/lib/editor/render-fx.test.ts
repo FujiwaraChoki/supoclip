@@ -168,22 +168,22 @@ describe("text layers with dynamic edits", () => {
     const layout = hookLayout(editorFxScene(doc, undefined, 1080, 1920, 1080, 1920))!;
     expect(box).toEqual({ x: layout.cx - layout.w / 2, y: layout.cy - layout.h / 2, width: layout.w, height: layout.h });
     expect(box.y / 1920).toBeCloseTo(0.105, 3);                               // the top safe area, not y = 0.12 of the ASS title
-    expect(layout.px).toBeCloseTo(65, 6);
-    // The text layer paints the white card; the picture frame itself (fx-core's frame) never draws the title.
+    expect(layout.px).toBeCloseTo(80, 6);
+    // The text layer paints the white label; the picture frame itself (fx-core's frame) never draws the title.
     const layer = canvas(1080, 1920);
     drawEditorTextLayer(layer.ctx, doc, 1080, 1920, 1, undefined, "hook");
     const pixel = (ctx: CanvasRenderingContext2D, x: number, y: number) => [...(ctx as unknown as SKRSContext2D).getImageData(x, y, 1, 1).data];
-    expect(pixel(layer.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2))).toEqual([255, 255, 255, 255]);
+    expect(pixel(layer.ctx, Math.round(box.x + box.width / 2), Math.round(box.y + 6))).toEqual([255, 255, 255, 255]);
     expect(pixel(layer.ctx, 20, 1900)[3]).toBe(0);
     const frame = canvas(1080, 1920);
     drawEditorFrame(frame.ctx, doc, 1080, 1920, 1, picture(), undefined, null, "none");
-    expect(pixel(frame.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2)).slice(0, 3)).toEqual([48, 96, 192]);
+    expect(pixel(frame.ctx, Math.round(box.x + box.width / 2), Math.round(box.y + 6)).slice(0, 3)).toEqual([48, 96, 192]);
     drawEditorFrame(frame.ctx, doc, 1080, 1920, 1, picture(), undefined, null, "all");           // the export
-    expect(pixel(frame.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2))).toEqual([255, 255, 255, 255]);
+    expect(pixel(frame.ctx, Math.round(box.x + box.width / 2), Math.round(box.y + 6))).toEqual([255, 255, 255, 255]);
     // Outside its window nothing is drawn.
     const late = canvas(1080, 1920);
     drawEditorTextLayer(late.ctx, doc, 1080, 1920, 2.9, undefined, "hook");
-    expect(pixel(late.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2))[3]).toBeLessThan(255);
+    expect(pixel(late.ctx, Math.round(box.x + box.width / 2), Math.round(box.y + 6))[3]).toBeLessThan(255);
   });
 
   it("moving, scaling and retyping the hook title follow the card", () => {
@@ -205,7 +205,7 @@ describe("text layers with dynamic edits", () => {
     const editor = textEditorLayout(ctx, doc, 1080, 1920, 1, "hook", { hookText: "The big secret nobody ever told you about money" });
     expect(editor.lines.join(" ")).toBe("The big secret nobody ever told you about money");
     expect(editor.lines.length).toBeGreaterThan(1);
-    expect(editor).toMatchObject({ fontSize: 65, lineHeight: expect.closeTo(65 * 1.18, 6), fontFamily: "FX-Poppins-ExtraBold", caretColor: "#0B0B0F" });
+    expect(editor).toMatchObject({ fontSize: 80, lineHeight: expect.closeTo(80 * 1.4, 6), fontFamily: "FX-Poppins-ExtraBold", caretColor: "#0B0B0F" });
     expect(formatHookEditorText(doc, 1080, 1920, "The big secret nobody ever told you about money ")).toBe(`${editor.lines.join("\n")} `);
     // Retiming: the card shows for the draft's own window.
     const timed = { ...doc, hookTiming: { start: 1.5, end: 2.5 } };

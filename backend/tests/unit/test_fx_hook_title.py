@@ -42,7 +42,8 @@ def test_listed_styles_use_poppins_unless_the_user_picked_a_font():
     assert hook_font("highlighter_swipe", None) == HOOK_FONT
     for look_font in ("TikTokSans-Bold", "Poppins-ExtraBold", "THEBOLDFONT"):
         assert hook_font("emoji_drop", look_font) == HOOK_FONT       # a look's own caption font is not a choice
-    assert hook_font("behind_head", "TikTokSans-Regular") == "TikTokSans-Regular"
+    assert hook_font("behind_head", "TikTokSans-Regular") == "TikTokSans-Bold"   # never a regular weight
+    assert hook_font("minimal", "TikTokSans-Regular") == "TikTokSans-Bold"
     assert hook_font("default", "THEBOLDFONT") == "THEBOLDFONT"
     assert hook_font("slam", None) == HOOK_FONT
 

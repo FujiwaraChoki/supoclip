@@ -681,8 +681,20 @@ function draw(ctx, op, host, base) {
       setMat(ctx, mul(base, op.transform));
       tracePath(ctx, op.points, op.closed, op.smooth);
       if (op.fill) {
+        if (op.shadow) {
+          ctx.shadowColor = op.shadow.color;
+          ctx.shadowBlur = op.shadow.blur * Math.abs(base[0] || 1);
+          ctx.shadowOffsetX = op.shadow.dx * Math.abs(base[0] || 1);
+          ctx.shadowOffsetY = op.shadow.dy * Math.abs(base[3] || 1);
+        }
         ctx.fillStyle = op.fill;
         ctx.fill();
+        if (op.shadow) {
+          ctx.shadowColor = "rgba(0,0,0,0)";
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
       }
       if (op.stroke && op.strokePx > 0) {
         ctx.strokeStyle = op.stroke;
@@ -2799,6 +2811,603 @@ registerAccent({
   hidesCaptions: true
 });
 
+// src/lib/fx/core/hook.ts
+var STACK = {
+  style: "stack",
+  sizeU: 80,
+  minSizeU: 58,
+  lineHeight: 1.4,
+  padX: 0.42,
+  padY: 0,
+  fill: "#FFFFFF",
+  ink: "#0B0B0F",
+  strokeEm: 0,
+  key: "box",
+  accent: null,
+  keyInk: "#0B0B0F",
+  shadow: { dy: 0.07, blur: 0.34, color: "rgba(0,0,0,0.32)" },
+  tiltDeg: 0
+};
+var OUTLINE = {
+  style: "outline",
+  sizeU: 92,
+  minSizeU: 64,
+  lineHeight: 1.14,
+  padX: 0.16,
+  padY: 0.12,
+  fill: "#FFFFFF",
+  ink: "#000000",
+  strokeEm: 0.1,
+  key: "color",
+  accent: null,
+  keyInk: "#FFFFFF",
+  shadow: { dy: 0.07, blur: 0.16, color: "rgba(0,0,0,0.6)" },
+  tiltDeg: 0
+};
+var HOOK_VARIANTS = {
+  // Clean captions: the label.
+  tiktok: STACK,
+  minimal: STACK,
+  podcast: STACK,
+  behind_head: STACK,
+  emoji_drop: STACK,
+  highlighter_swipe: STACK,
+  stat_counter: STACK,
+  // Stroked, loud captions: outlined type in the template's own colours.
+  default: OUTLINE,
+  marker_circle: OUTLINE,
+  face_doodles: OUTLINE,
+  slam: { ...OUTLINE, sizeU: 98, strokeEm: 0.11 },
+  kinetic_stack: { ...OUTLINE, sizeU: 98, strokeEm: 0.11 },
+  hormozi: { ...OUTLINE, key: "box", accent: "#00D95A" },
+  mrbeast: { ...OUTLINE, fill: "#FFE600", accent: "#FF3B30", strokeEm: 0.12 },
+  neon: { ...OUTLINE, fill: "#7DF9FF", ink: "#06123A", accent: "#FF4DFF", shadow: { dy: 0, blur: 0.5, color: "rgba(255,0,255,0.75)" } },
+  decode_glitch: { ...OUTLINE, ink: "#050816", accent: "#00F0FF", shadow: { dy: 0.05, blur: 0.02, color: "rgba(255,0,170,0.9)" } },
+  // A sticker: dark type with a fat white edge, slightly turned.
+  sticker_slap: {
+    ...OUTLINE,
+    fill: "#14121A",
+    ink: "#FFFFFF",
+    strokeEm: 0.14,
+    accent: "#FF2E6C",
+    tiltDeg: -3,
+    shadow: { dy: 0.09, blur: 0.2, color: "rgba(0,0,0,0.5)" }
+  }
+};
+var hookVariant = (template) => HOOK_VARIANTS[template ?? ""] ?? STACK;
+var HOOK = {
+  lookSize: { subtle: 0.9, bold: 1, max: 1 },
+  maxWidth: 0.88,
+  // of W, the whole title
+  radius: 0.34,
+  // stack: corner radius
+  snap: 0.5,
+  // stack: neighbouring lines closer in half-width than this share one edge
+  oneLine: 0.62,
+  // a title narrower than this share of the text width stays on one line
+  markPadX: 0.12,
+  markHeight: 1.08,
+  markRadius: 0.18,
+  maxMarks: 2,
+  mark: "#FFE45C",
+  tiltDeg: { subtle: 0, bold: 0, max: -2 },
+  inSeconds: 0.26,
+  outSeconds: 0.2,
+  fadeIn: 0.12,
+  markDelay: 0.2,
+  markSeconds: 0.18,
+  markStagger: 0.08
+};
+var HOOK_PLACE = {
+  top: 0.105,
+  // card top in the top safe area
+  topMin: 0.085,
+  // the platforms cover the top 8 %
+  bottomMax: 0.8,
+  // and the bottom 18 %
+  gap: 0.02,
+  // between the card and captions
+  bandGap: 0.022,
+  // between the card and a letterboxed picture below it
+  minShown: 2.2,
+  // a trimmed title still shows this long (s)
+  minFace: 0.05
+  // faces smaller than this share of H are background people
+};
+var HOOK_POWER_WORDS = /* @__PURE__ */ new Set([
+  "never",
+  "always",
+  "everything",
+  "nothing",
+  "everyone",
+  "nobody",
+  "anyone",
+  "best",
+  "worst",
+  "most",
+  "biggest",
+  "huge",
+  "massive",
+  "tiny",
+  "every",
+  "only",
+  "first",
+  "last",
+  "free",
+  "now",
+  "today",
+  "instantly",
+  "forever",
+  "guaranteed",
+  "proven",
+  "secret",
+  "truth",
+  "fact",
+  "literally",
+  "actually",
+  "exactly",
+  "must",
+  "need",
+  "stop",
+  "warning",
+  "danger",
+  "critical",
+  "key",
+  "important",
+  "remember",
+  "mistake",
+  "wrong",
+  "right",
+  "perfect",
+  "ultimate",
+  "powerful",
+  "insane",
+  "crazy",
+  "incredible",
+  "amazing",
+  "shocking",
+  "viral",
+  "million",
+  "billion",
+  "thousand",
+  "percent",
+  "double",
+  "triple",
+  "ten"
+]);
+var WIDE = /[⺀-鿿가-힯豈-﫿＀-￯\u{20000}-\u{2FA1F}]/u;
+var NO_LINE_START = /^[、。，．！？：；）」』】〉》”’…,.!?:;)\]]/u;
+function hookTokens(title) {
+  const out = [];
+  for (const word of title.trim().split(/\s+/).filter(Boolean)) {
+    let run = "", first = true;
+    const flush = () => {
+      if (!run) return;
+      out.push({ text: run, glue: first && out.length > 0 });
+      run = "";
+      first = false;
+    };
+    for (const ch of Array.from(word)) {
+      if (!WIDE.test(ch)) {
+        run += ch;
+        continue;
+      }
+      if (NO_LINE_START.test(ch) && (run || !first)) {
+        if (run) run += ch;
+        else out[out.length - 1].text += ch;
+        continue;
+      }
+      flush();
+      out.push({ text: ch, glue: first && out.length > 0 });
+      first = false;
+    }
+    flush();
+  }
+  return out;
+}
+var tokenKey = (text) => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}%]+/gu, "");
+function hookMarks(tokens) {
+  const numbers = [], power = [];
+  tokens.forEach((t, i) => {
+    const key = tokenKey(t.text);
+    if (/\p{N}/u.test(key)) numbers.push(i);
+    else if (HOOK_POWER_WORDS.has(key)) power.push(i);
+  });
+  return [...numbers, ...power].slice(0, HOOK.maxMarks).sort((a, b) => a - b);
+}
+function balance(tokens, widths, space, count) {
+  const n = tokens.length;
+  if (count > n) return null;
+  const lineW = (a, b) => {
+    let w = 0;
+    for (let i = a; i < b; i++) w += widths[i] + (i > a && tokens[i].glue ? space : 0);
+    return w;
+  };
+  let best = null, bestWidest = Infinity, bestLast = -1;
+  const walk = (from, left, lines, widest) => {
+    if (widest > bestWidest) return;
+    if (left === 1) {
+      const w = lineW(from, n), all = Math.max(widest, w);
+      if (all < bestWidest - 1e-6 || Math.abs(all - bestWidest) <= 1e-6 && w > bestLast) {
+        best = [...lines, range(from, n)];
+        bestWidest = all;
+        bestLast = w;
+      }
+      return;
+    }
+    for (let to = from + 1; to <= n - (left - 1); to++) walk(to, left - 1, [...lines, range(from, to)], Math.max(widest, lineW(from, to)));
+  };
+  walk(0, count, [], 0);
+  return best;
+}
+var range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
+function hookBlock(title, basePx, minPx, maxCardW, measure, v = STACK) {
+  const tokens = hookTokens(title);
+  if (!tokens.length) return null;
+  const marks = hookMarks(tokens);
+  const at = (px2) => {
+    const m = (text) => measure(text, px2);
+    const widths = tokens.map((t) => m(t.text)), space = m(" ");
+    const maxText = Math.max(1, maxCardW - 2 * v.padX * px2);
+    const widest = (lines3) => Math.max(...lines3.map((l) => l.reduce((s, i, k) => s + widths[i] + (k && tokens[i].glue ? space : 0), 0)));
+    const one = balance(tokens, widths, space, 1);
+    let lines2 = one;
+    if (widest(one) > HOOK.oneLine * maxText) {
+      lines2 = one;
+      for (const count2 of [2, 3]) {
+        const split = balance(tokens, widths, space, count2);
+        if (!split) break;
+        lines2 = split;
+        if (widest(split) <= maxText) break;
+      }
+    }
+    return { lines: lines2, widths, space, maxText, widest: widest(lines2) };
+  };
+  let px = basePx, fit = at(px);
+  for (let pass = 0; pass < 5 && fit.widest > fit.maxText; pass++) {
+    const next = px * fit.maxText / fit.widest * 0.995;
+    px = pass === 0 ? Math.max(minPx, next) : next;
+    fit = at(px);
+  }
+  const lineH = v.lineHeight * px, count = fit.lines.length;
+  const lines = fit.lines.map((idx, li) => {
+    const total = idx.reduce((s, i, k) => s + fit.widths[i] + (k && tokens[i].glue ? fit.space : 0), 0);
+    let x = -total / 2;
+    const words = idx.map((i, k) => {
+      if (k && tokens[i].glue) x += fit.space;
+      const word = { text: tokens[i].text, x, w: fit.widths[i], mark: marks.indexOf(i), mx: x, mw: fit.widths[i] };
+      if (word.mark >= 0) {
+        const lead = /^[\p{P}\p{Z}]*(?=[\p{L}\p{N}$€£¥#])/u.exec(word.text)?.[0] ?? "";
+        const core = word.text.slice(lead.length).replace(/[^\p{L}\p{N}%]+$/u, "");
+        if (core && core !== word.text) {
+          word.mx = x + (lead ? measure(lead, px) : 0);
+          word.mw = measure(core, px);
+        }
+      }
+      x += fit.widths[i];
+      return word;
+    });
+    const text = idx.map((i, k) => (k && tokens[i].glue ? " " : "") + tokens[i].text).join("");
+    return { words, text, w: total, y: (li - (count - 1) / 2) * lineH, hw: total / 2 + v.padX * px };
+  });
+  const snap = HOOK.snap * px;
+  for (let pass = 0; pass < lines.length; pass++) {
+    for (let i = 0; i + 1 < lines.length; i++) {
+      if (lines[i].hw !== lines[i + 1].hw && Math.abs(lines[i].hw - lines[i + 1].hw) < snap) {
+        lines[i].hw = lines[i + 1].hw = Math.max(lines[i].hw, lines[i + 1].hw);
+      }
+    }
+  }
+  const w = Math.min(maxCardW, Math.max(...lines.map((l) => l.w)) + 2 * v.padX * px);
+  return { px, lines, w, h: count * lineH + 2 * v.padY * px };
+}
+function faceRects(row, W, H, m) {
+  if (row.length < 4 || row[3] < HOOK_PLACE.minFace) return null;
+  const box = transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
+  let top = box.y + 0.2 * box.h, bottom = box.y + 0.95 * box.h;
+  if (row.length >= 15) {
+    const pt = (i) => applyMat(m, row[5 + 2 * i] * W, row[6 + 2 * i] * H)[1];
+    top = Math.min(pt(0), pt(1)) - 0.14 * box.h;
+    bottom = Math.max(pt(3), pt(4)) + 0.12 * box.h;
+  }
+  return { core: { x: box.x + 0.04 * box.w, y: top, w: 0.92 * box.w, h: Math.max(1, bottom - top) }, box };
+}
+function obstacles(p, hook) {
+  const W = p.width, H = p.height, scene = p.scene;
+  const faces = [];
+  for (const [t, rows] of scene.face_track?.samples ?? []) {
+    if (t < hook.start - 0.2 || t > hook.end + 0.2) continue;
+    const e = clamp2(t, hook.start, Math.max(hook.start, hook.end - 1e-3));
+    const clock = { e, o: e, frame: Math.round(e * 30) };
+    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
+    const core = [], box = [];
+    for (const row of rows ?? []) {
+      const r = faceRects(row, W, H, m);
+      if (r) {
+        core.push(r.core);
+        box.push(r.box);
+      }
+    }
+    if (core.length) faces.push({ t: e, core, box });
+  }
+  const captions = [];
+  const g = LOOK_GEOMETRY;
+  for (const chunk of p.chunks) {
+    if (chunk.end <= hook.start || chunk.start >= hook.end || !chunk.words.length) continue;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const w of chunk.words) {
+      x0 = Math.min(x0, w.x);
+      y0 = Math.min(y0, w.y);
+      x1 = Math.max(x1, w.x + w.w);
+      y1 = Math.max(y1, w.y + w.h);
+    }
+    const padX = g.pillPadX * chunk.px, padY = Math.max(g.pillPadY, 0.1) * chunk.px;
+    captions.push({ start: chunk.start, end: chunk.end, rect: { x: x0 - padX, y: y0 - padY, w: x1 - x0 + 2 * padX, h: y1 - y0 + 2 * padY } });
+  }
+  if (activeLook(p)) {
+    for (const cue of p.cuesByKind.get("accent") ?? []) {
+      if (cue.kind !== "accent" || cue.variant !== "emoji" || cue.end <= hook.start || cue.start >= hook.end) continue;
+      const at = lookEmojiPlacement(p, cue);
+      if (at) captions.push({ start: cue.start, end: at.until ?? cue.end, rect: { x: at.x - at.size / 2, y: at.y - at.size / 2, w: at.size, h: at.size } });
+    }
+  }
+  for (const [top, bottom] of hook.avoid ?? []) {
+    if (bottom > top) captions.push({ start: hook.start, end: hook.end, rect: { x: 0, y: top * H, w: W, h: (bottom - top) * H } });
+  }
+  let picture2 = null;
+  if (hook.picture && hook.picture[1] > hook.picture[0]) {
+    const cut = rowCuts(scene.caption?.rows).find((c) => c > hook.start);
+    picture2 = { rect: { x: 0, y: hook.picture[0] * H, w: W, h: (hook.picture[1] - hook.picture[0]) * H }, until: cut ?? hook.end };
+  }
+  return { faces, captions, picture: picture2 };
+}
+function cost(card, o, start, end, H) {
+  let total = 0;
+  const faces = o.faces.filter((f) => f.t >= start - 1e-6 && f.t < end);
+  if (faces.length) {
+    let hits = 0, depth = 0, soft = 0;
+    for (const f of faces) {
+      const core = f.core.reduce((s, r) => s + overlapArea(card, r) / Math.max(1, r.w * r.h), 0);
+      if (core > 0) {
+        hits += 1;
+        depth += Math.min(1, core);
+      }
+      soft += f.box.reduce((s, r) => s + overlapArea(card, r), 0) / Math.max(1, card.w * card.h);
+    }
+    total += (hits ? 1e3 + 1e3 * (hits / faces.length) + 500 * (depth / faces.length) : 0) + 14 * (soft / faces.length);
+  }
+  const span = Math.max(1e-3, end - start);
+  const gap = HOOK_PLACE.gap * H * 0.6;
+  const padded = { x: card.x, y: card.y - gap, w: card.w, h: card.h + 2 * gap };
+  for (const c of o.captions) {
+    const shared = Math.min(end, c.end) - Math.max(start, c.start);
+    if (shared <= 0 || overlapArea(padded, c.rect) <= 0) continue;
+    total += 800 + 400 * Math.min(1, shared / span);
+  }
+  if (o.picture && o.picture.until > start) {
+    total += 40 * (overlapArea(card, o.picture.rect) / Math.max(1, card.w * card.h)) * Math.min(1, (Math.min(end, o.picture.until) - start) / span);
+  }
+  if (card.y + card.h > HOOK_PLACE.bottomMax * H) total += 6e3 + (card.y + card.h - HOOK_PLACE.bottomMax * H);
+  if (card.y < HOOK_PLACE.topMin * H) total += 6e3 + (HOOK_PLACE.topMin * H - card.y);
+  return total;
+}
+function placeHook(p, hook, block) {
+  const W = p.width, H = p.height;
+  const o = obstacles(p, hook);
+  const x = (W - block.w) / 2;
+  const rect = (top2) => ({ x, y: top2, w: block.w, h: block.h });
+  const candidates = [];
+  const picture2 = hook.picture;
+  if (picture2 && picture2[0] > 0) {
+    const bottom = picture2[0] * H - HOOK_PLACE.bandGap * H;
+    const top2 = Math.min(bottom - block.h, Math.max(HOOK_PLACE.top * H, (HOOK_PLACE.topMin * H + bottom - block.h) / 2));
+    if (top2 >= HOOK_PLACE.topMin * H) candidates.push({ slot: "band", top: top2, prefer: 0 });
+  }
+  let top = HOOK_PLACE.top * H;
+  const heads = o.faces.flatMap((f) => f.box.filter((b) => b.x < x + block.w && b.x + b.w > x).map((b) => b.y));
+  if (heads.length) top = clamp2(Math.min(...heads) - 0.01 * H - block.h, HOOK_PLACE.topMin * H, top);
+  candidates.push({ slot: "top", top, prefer: candidates.length ? 4 : 0 });
+  if (o.captions.length) {
+    const first = Math.min(...o.captions.map((c) => c.rect.y)), last = Math.max(...o.captions.map((c) => c.rect.y + c.rect.h));
+    candidates.push({ slot: "above", top: first - HOOK_PLACE.gap * H - block.h, prefer: 12 });
+    candidates.push({ slot: "below", top: last + HOOK_PLACE.gap * H, prefer: 22 });
+  }
+  for (let y = 0.14; y <= 0.72; y += 0.02) candidates.push({ slot: "free", top: y * H - block.h / 2, prefer: 30 + 20 * y });
+  const ends = [hook.end];
+  if (hook.trim) {
+    for (const cut of rowCuts(p.scene.caption?.rows)) {
+      if (cut - hook.start >= HOOK_PLACE.minShown && cut < hook.end - 0.1) ends.push(cut);
+    }
+  }
+  let best = { cy: candidates[0].top + block.h / 2, slot: candidates[0].slot, end: hook.end }, bestCost = Infinity;
+  for (const end of ends) {
+    for (const c of candidates) {
+      const value = cost(rect(c.top), o, hook.start, end, H) + c.prefer + (end < hook.end ? 8 + 4 * (hook.end - end) : 0);
+      if (value < bestCost - 1e-9) {
+        bestCost = value;
+        best = { cy: c.top + block.h / 2, slot: c.slot, end };
+      }
+    }
+  }
+  return best;
+}
+var layouts = /* @__PURE__ */ new WeakMap();
+function hookMarkColor(accent) {
+  const m = /^#([0-9a-fA-F]{6})/.exec((accent ?? "").trim());
+  if (!m) return HOOK.mark;
+  const n = parseInt(m[1], 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const chroma = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+  return luma < 0.45 || luma > 0.9 && chroma < 0.25 ? HOOK.mark : `#${m[1].toUpperCase()}`;
+}
+function hookLayout(p, text) {
+  const hook = p.scene.hook;
+  if (!hook) return null;
+  const title = (text ?? hook.text).trim();
+  let cache = layouts.get(p);
+  if (!cache) {
+    cache = /* @__PURE__ */ new Map();
+    layouts.set(p, cache);
+  }
+  if (cache.has(title)) return cache.get(title);
+  const u = p.u, W = p.width, H = p.height;
+  const look = hook.look === "subtle" || hook.look === "max" ? hook.look : "bold";
+  const scale = clamp2(hook.scale ?? 1, 0.2, 4);
+  const family = p.family(hook.font);
+  const variant = hookVariant(hook.template);
+  const block = hookBlock(
+    title,
+    variant.sizeU * u * HOOK.lookSize[look] * scale,
+    variant.minSizeU * u * HOOK.lookSize[look] * scale,
+    HOOK.maxWidth * W,
+    (t, px) => p.measure(t, family, 100) * px / 100,
+    variant
+  );
+  let layout = null;
+  if (block && hook.end > hook.start) {
+    const placed = placeHook(p, hook, block);
+    layout = {
+      text: title,
+      family,
+      px: block.px,
+      lines: block.lines,
+      w: block.w,
+      h: block.h,
+      cx: W * (0.5 + (hook.x ?? 0)),
+      cy: placed.cy + H * (hook.y ?? 0),
+      start: hook.start,
+      end: placed.end,
+      tilt: (HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI / 180,
+      look,
+      mark: hookKeyColor(hook.accent, variant),
+      variant,
+      slot: placed.slot
+    };
+  }
+  cache.set(title, layout);
+  return layout;
+}
+function hookBounds(p, text) {
+  const l = hookLayout(p, text);
+  return l ? { x: l.cx - l.w / 2, y: l.cy - l.h / 2, w: l.w, h: l.h } : null;
+}
+function hookMotion(look, local, dur) {
+  const inS = Math.min(HOOK.inSeconds, dur / 3), outS = Math.min(HOOK.outSeconds, dur / 3);
+  const left = dur - local;
+  if (left < outS) {
+    const k = clamp01(left / outS);
+    return { scale: 0.96 + 0.04 * k, alpha: k };
+  }
+  const alpha = clamp01(local / Math.min(HOOK.fadeIn, inS));
+  const scale = look === "subtle" ? keyframes([{ t: 0, v: 0.94 }, { t: inS, v: 1, ease: easeOutCubic }], local) : keyframes([{ t: 0, v: 0.86 }, { t: inS * 0.62, v: 1.035, ease: easeOutCubic }, { t: inS, v: 1, ease: easeOutQuad }], local);
+  return { scale, alpha };
+}
+function hookKeyColor(accent, v) {
+  if (v.accent) return v.accent;
+  return hookMarkColor(accent);
+}
+function stackOutline(hw, lineH, top, radius) {
+  const right = [];
+  hw.forEach((w, i) => {
+    const y0 = top + i * lineH, y1 = y0 + lineH;
+    if (i === 0 || hw[i - 1] !== w) right.push([w, y0]);
+    if (i === hw.length - 1 || hw[i + 1] !== w) right.push([w, y1]);
+  });
+  const poly = [...right, ...right.slice().reverse().map(([x, y]) => [-x, y])];
+  const n = poly.length, out = [];
+  const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  for (let i = 0; i < n; i++) {
+    const v = poly[i], prev = poly[(i + n - 1) % n], next = poly[(i + 1) % n];
+    const dp = len(v, prev), dn = len(v, next);
+    const r = Math.min(radius, dp / 2, dn / 2);
+    const a = [v[0] + (prev[0] - v[0]) / dp * r, v[1] + (prev[1] - v[1]) / dp * r];
+    const b = [v[0] + (next[0] - v[0]) / dn * r, v[1] + (next[1] - v[1]) / dn * r];
+    const cx = a[0] + b[0] - v[0], cy = a[1] + b[1] - v[1];
+    const a0 = Math.atan2(a[1] - cy, a[0] - cx);
+    let sweep = Math.atan2(b[1] - cy, b[0] - cx) - a0;
+    if (sweep > Math.PI) sweep -= 2 * Math.PI;
+    if (sweep < -Math.PI) sweep += 2 * Math.PI;
+    const steps = 8;
+    for (let k = 0; k <= steps; k++) {
+      const ang = a0 + sweep * k / steps;
+      out.push(round3(cx + r * Math.cos(ang)), round3(cy + r * Math.sin(ang)));
+    }
+  }
+  return out;
+}
+function hookOps(p, t, text) {
+  const l = hookLayout(p, text);
+  if (!l || t < l.start || t >= l.end) return [];
+  const v = l.variant, local = t - l.start, dur = l.end - l.start;
+  const { scale, alpha } = hookMotion(l.look, local, dur);
+  if (alpha <= 0) return [];
+  const transform = placeAt(round3(l.cx), round3(l.cy), l.tilt, scale);
+  const lineH = v.lineHeight * l.px;
+  const shadow2 = { color: v.shadow.color, blur: v.shadow.blur * l.px, dx: 0, dy: v.shadow.dy * l.px };
+  const ops = [];
+  if (v.style === "stack") {
+    const top = l.lines[0].y - lineH / 2;
+    ops.push(pathOp({
+      points: stackOutline(l.lines.map((line) => line.hw), lineH, top, HOOK.radius * l.px),
+      closed: true,
+      fill: v.fill,
+      stroke: null,
+      strokePx: 0,
+      transform,
+      alpha,
+      shadow: shadow2
+    }));
+  }
+  const inS = Math.min(HOOK.inSeconds, dur / 3);
+  const markStart = Math.min(HOOK.markDelay, inS * 0.77);
+  const boxed = /* @__PURE__ */ new Set();
+  if (v.key === "box") {
+    for (const line of l.lines) {
+      for (const w of line.words) {
+        if (w.mark < 0) continue;
+        const k = easeOutCubic(clamp01((local - markStart - w.mark * HOOK.markStagger) / HOOK.markSeconds));
+        if (k <= 0) continue;
+        boxed.add(w);
+        const h = HOOK.markHeight * l.px, pad = HOOK.markPadX * l.px;
+        ops.push(rectOp({
+          x: w.mx - pad,
+          y: line.y - h / 2,
+          w: (w.mw + 2 * pad) * k,
+          h,
+          radius: HOOK.markRadius * l.px,
+          fill: l.mark,
+          transform,
+          alpha,
+          ...v.style === "outline" ? { shadow: shadow2 } : {}
+        }));
+      }
+    }
+  }
+  const words = l.lines.flatMap((line) => line.words.map((w) => ({ w, y: line.y })));
+  if (v.style === "outline") {
+    const strokePx = v.strokeEm * l.px;
+    for (const { w, y } of words) {
+      if (boxed.has(w)) continue;
+      ops.push(textOp({ text: w.text, font: l.family, px: l.px, x: w.x, y, align: "left", fill: null, stroke: v.ink, strokePx, join: "round", shadow: shadow2, transform, alpha }));
+    }
+    for (const { w, y } of words) {
+      const fill = boxed.has(w) ? v.keyInk : w.mark >= 0 && v.key === "color" ? l.mark : v.fill;
+      ops.push(textOp({ text: w.text, font: l.family, px: l.px, x: w.x, y, align: "left", fill, transform, alpha }));
+    }
+    return ops;
+  }
+  for (const { w, y } of words) {
+    ops.push(textOp({ text: w.text, font: l.family, px: l.px, x: w.x, y, align: "left", fill: v.ink, transform, alpha }));
+  }
+  return ops;
+}
+registerGlobal({
+  id: "hook",
+  layer: "hook",
+  active: (p, clock) => !!p.scene.hook && !p.hookDetached && clock.e >= p.scene.hook.start && clock.e < p.scene.hook.end,
+  ops: (dc) => hookOps(dc.scene, dc.t)
+});
+
 // src/lib/fx/core/looks/sticker.ts
 var STICKER_PALETTES = [
   { fill: "#FF3B5C", keyline: "#2A0710", edge: "#FFFFFF" },
@@ -2917,6 +3526,10 @@ function placeSticker(p, cue, taken, accent) {
   if (face) hard.push(headBox(face, u));
   const band = captionBand(p, start, end);
   if (band) hard.push(band);
+  const title = hookLayout(p);
+  if (title && title.start < end && title.end > start) {
+    hard.push(inflate({ x: title.cx - title.w / 2, y: title.cy - title.h / 2, w: title.w, h: title.h }, 24 * u));
+  }
   const first = Math.floor(hash01(cue.seed >>> 0, 4) * 3);
   const order = [...CANDIDATES.slice(first), ...CANDIDATES.slice(0, first), ...GRID].map(([x, y]) => [x * W, y * H]);
   let box = null, scale = fit;
@@ -3427,12 +4040,12 @@ function kineticRows(words) {
   if (row.length) rows.push(row);
   return rows;
 }
-var layouts = /* @__PURE__ */ new WeakMap();
+var layouts2 = /* @__PURE__ */ new WeakMap();
 function kineticLayout(p, cue) {
-  let map = layouts.get(p);
+  let map = layouts2.get(p);
   if (!map) {
     map = /* @__PURE__ */ new Map();
-    layouts.set(p, map);
+    layouts2.set(p, map);
   }
   const hit = map.get(cue.id);
   if (hit) return hit;
@@ -4752,476 +5365,6 @@ registerGlobal({
     const alpha = loopAlpha(dc.clock.o, dc.scene.scene.out_duration);
     return alpha > 0 ? [{ op: "frame0", alpha }] : [];
   }
-});
-
-// src/lib/fx/core/hook.ts
-var HOOK = {
-  sizeU: 65,
-  // px at a 1080 short side (0.060 W)
-  minSizeU: 48.6,
-  // never below 0.045 W; only a single word wider than the card shrinks further
-  lookSize: { subtle: 0.9, bold: 1, max: 1 },
-  lineHeight: 1.18,
-  maxWidth: 0.86,
-  // of W, the whole card
-  padX: 0.5,
-  padY: 0.32,
-  radius: 0.28,
-  // × line height
-  oneLine: 0.62,
-  // a title narrower than this share of the text width stays on one line
-  markPadX: 0.1,
-  markHeight: 1.1,
-  markRadius: 0.16,
-  maxMarks: 2,
-  fill: "#FFFFFF",
-  ink: "#0B0B0F",
-  mark: "#FFE45C",
-  shadow: { dy: 6, blur: 24, alpha: 0.35 },
-  // u px
-  tiltDeg: { subtle: 0, bold: 0, max: -2 },
-  inSeconds: 0.26,
-  outSeconds: 0.2,
-  fadeIn: 0.12,
-  markDelay: 0.2,
-  markSeconds: 0.18,
-  markStagger: 0.08
-};
-var HOOK_PLACE = {
-  top: 0.105,
-  // card top in the top safe area
-  topMin: 0.085,
-  // the platforms cover the top 8 %
-  bottomMax: 0.8,
-  // and the bottom 18 %
-  gap: 0.02,
-  // between the card and captions
-  bandGap: 0.022,
-  // between the card and a letterboxed picture below it
-  minShown: 2.2,
-  // a trimmed title still shows this long (s)
-  minFace: 0.05
-  // faces smaller than this share of H are background people
-};
-var HOOK_POWER_WORDS = /* @__PURE__ */ new Set([
-  "never",
-  "always",
-  "everything",
-  "nothing",
-  "everyone",
-  "nobody",
-  "anyone",
-  "best",
-  "worst",
-  "most",
-  "biggest",
-  "huge",
-  "massive",
-  "tiny",
-  "every",
-  "only",
-  "first",
-  "last",
-  "free",
-  "now",
-  "today",
-  "instantly",
-  "forever",
-  "guaranteed",
-  "proven",
-  "secret",
-  "truth",
-  "fact",
-  "literally",
-  "actually",
-  "exactly",
-  "must",
-  "need",
-  "stop",
-  "warning",
-  "danger",
-  "critical",
-  "key",
-  "important",
-  "remember",
-  "mistake",
-  "wrong",
-  "right",
-  "perfect",
-  "ultimate",
-  "powerful",
-  "insane",
-  "crazy",
-  "incredible",
-  "amazing",
-  "shocking",
-  "viral",
-  "million",
-  "billion",
-  "thousand",
-  "percent",
-  "double",
-  "triple",
-  "ten"
-]);
-var WIDE = /[⺀-鿿가-힯豈-﫿＀-￯\u{20000}-\u{2FA1F}]/u;
-var NO_LINE_START = /^[、。，．！？：；）」』】〉》”’…,.!?:;)\]]/u;
-function hookTokens(title) {
-  const out = [];
-  for (const word of title.trim().split(/\s+/).filter(Boolean)) {
-    let run = "", first = true;
-    const flush = () => {
-      if (!run) return;
-      out.push({ text: run, glue: first && out.length > 0 });
-      run = "";
-      first = false;
-    };
-    for (const ch of Array.from(word)) {
-      if (!WIDE.test(ch)) {
-        run += ch;
-        continue;
-      }
-      if (NO_LINE_START.test(ch) && (run || !first)) {
-        if (run) run += ch;
-        else out[out.length - 1].text += ch;
-        continue;
-      }
-      flush();
-      out.push({ text: ch, glue: first && out.length > 0 });
-      first = false;
-    }
-    flush();
-  }
-  return out;
-}
-var tokenKey = (text) => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}%]+/gu, "");
-function hookMarks(tokens) {
-  const numbers = [], power = [];
-  tokens.forEach((t, i) => {
-    const key = tokenKey(t.text);
-    if (/\p{N}/u.test(key)) numbers.push(i);
-    else if (HOOK_POWER_WORDS.has(key)) power.push(i);
-  });
-  return [...numbers, ...power].slice(0, HOOK.maxMarks).sort((a, b) => a - b);
-}
-function balance(tokens, widths, space, count) {
-  const n = tokens.length;
-  if (count > n) return null;
-  const lineW = (a, b) => {
-    let w = 0;
-    for (let i = a; i < b; i++) w += widths[i] + (i > a && tokens[i].glue ? space : 0);
-    return w;
-  };
-  let best = null, bestWidest = Infinity, bestLast = -1;
-  const walk = (from, left, lines, widest) => {
-    if (widest > bestWidest) return;
-    if (left === 1) {
-      const w = lineW(from, n), all = Math.max(widest, w);
-      if (all < bestWidest - 1e-6 || Math.abs(all - bestWidest) <= 1e-6 && w > bestLast) {
-        best = [...lines, range(from, n)];
-        bestWidest = all;
-        bestLast = w;
-      }
-      return;
-    }
-    for (let to = from + 1; to <= n - (left - 1); to++) walk(to, left - 1, [...lines, range(from, to)], Math.max(widest, lineW(from, to)));
-  };
-  walk(0, count, [], 0);
-  return best;
-}
-var range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
-function hookBlock(title, basePx, minPx, maxCardW, measure) {
-  const tokens = hookTokens(title);
-  if (!tokens.length) return null;
-  const marks = hookMarks(tokens);
-  const at = (px2) => {
-    const m = (text) => measure(text, px2);
-    const widths = tokens.map((t) => m(t.text)), space = m(" ");
-    const maxText = Math.max(1, maxCardW - 2 * HOOK.padX * px2);
-    const widest = (lines3) => Math.max(...lines3.map((l) => l.reduce((s, i, k) => s + widths[i] + (k && tokens[i].glue ? space : 0), 0)));
-    const one = balance(tokens, widths, space, 1);
-    let lines2 = one;
-    if (widest(one) > HOOK.oneLine * maxText) {
-      lines2 = one;
-      for (const count2 of [2, 3]) {
-        const split = balance(tokens, widths, space, count2);
-        if (!split) break;
-        lines2 = split;
-        if (widest(split) <= maxText) break;
-      }
-    }
-    return { lines: lines2, widths, space, maxText, widest: widest(lines2) };
-  };
-  let px = basePx, fit = at(px);
-  for (let pass = 0; pass < 5 && fit.widest > fit.maxText; pass++) {
-    const next = px * fit.maxText / fit.widest * 0.995;
-    px = pass === 0 ? Math.max(minPx, next) : next;
-    fit = at(px);
-  }
-  const lineH = HOOK.lineHeight * px, count = fit.lines.length;
-  const lines = fit.lines.map((idx, li) => {
-    const total = idx.reduce((s, i, k) => s + fit.widths[i] + (k && tokens[i].glue ? fit.space : 0), 0);
-    let x = -total / 2;
-    const words = idx.map((i, k) => {
-      if (k && tokens[i].glue) x += fit.space;
-      const word = { text: tokens[i].text, x, w: fit.widths[i], mark: marks.indexOf(i), mx: x, mw: fit.widths[i] };
-      if (word.mark >= 0) {
-        const lead = /^[\p{P}\p{Z}]*(?=[\p{L}\p{N}$€£¥#])/u.exec(word.text)?.[0] ?? "";
-        const core = word.text.slice(lead.length).replace(/[^\p{L}\p{N}%]+$/u, "");
-        if (core && core !== word.text) {
-          word.mx = x + (lead ? measure(lead, px) : 0);
-          word.mw = measure(core, px);
-        }
-      }
-      x += fit.widths[i];
-      return word;
-    });
-    const text = idx.map((i, k) => (k && tokens[i].glue ? " " : "") + tokens[i].text).join("");
-    return { words, text, w: total, y: (li - (count - 1) / 2) * lineH };
-  });
-  const w = Math.min(maxCardW, Math.max(...lines.map((l) => l.w)) + 2 * HOOK.padX * px);
-  return { px, lines, w, h: count * lineH + 2 * HOOK.padY * px };
-}
-function faceRects(row, W, H, m) {
-  if (row.length < 4 || row[3] < HOOK_PLACE.minFace) return null;
-  const box = transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
-  let top = box.y + 0.2 * box.h, bottom = box.y + 0.95 * box.h;
-  if (row.length >= 15) {
-    const pt = (i) => applyMat(m, row[5 + 2 * i] * W, row[6 + 2 * i] * H)[1];
-    top = Math.min(pt(0), pt(1)) - 0.14 * box.h;
-    bottom = Math.max(pt(3), pt(4)) + 0.12 * box.h;
-  }
-  return { core: { x: box.x + 0.04 * box.w, y: top, w: 0.92 * box.w, h: Math.max(1, bottom - top) }, box };
-}
-function obstacles(p, hook) {
-  const W = p.width, H = p.height, scene = p.scene;
-  const faces = [];
-  for (const [t, rows] of scene.face_track?.samples ?? []) {
-    if (t < hook.start - 0.2 || t > hook.end + 0.2) continue;
-    const e = clamp2(t, hook.start, Math.max(hook.start, hook.end - 1e-3));
-    const clock = { e, o: e, frame: Math.round(e * 30) };
-    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
-    const core = [], box = [];
-    for (const row of rows ?? []) {
-      const r = faceRects(row, W, H, m);
-      if (r) {
-        core.push(r.core);
-        box.push(r.box);
-      }
-    }
-    if (core.length) faces.push({ t: e, core, box });
-  }
-  const captions = [];
-  const g = LOOK_GEOMETRY;
-  for (const chunk of p.chunks) {
-    if (chunk.end <= hook.start || chunk.start >= hook.end || !chunk.words.length) continue;
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const w of chunk.words) {
-      x0 = Math.min(x0, w.x);
-      y0 = Math.min(y0, w.y);
-      x1 = Math.max(x1, w.x + w.w);
-      y1 = Math.max(y1, w.y + w.h);
-    }
-    const padX = g.pillPadX * chunk.px, padY = Math.max(g.pillPadY, 0.1) * chunk.px;
-    captions.push({ start: chunk.start, end: chunk.end, rect: { x: x0 - padX, y: y0 - padY, w: x1 - x0 + 2 * padX, h: y1 - y0 + 2 * padY } });
-  }
-  if (activeLook(p)) {
-    for (const cue of p.cuesByKind.get("accent") ?? []) {
-      if (cue.kind !== "accent" || cue.variant !== "emoji" || cue.end <= hook.start || cue.start >= hook.end) continue;
-      const at = lookEmojiPlacement(p, cue);
-      if (at) captions.push({ start: cue.start, end: at.until ?? cue.end, rect: { x: at.x - at.size / 2, y: at.y - at.size / 2, w: at.size, h: at.size } });
-    }
-  }
-  for (const [top, bottom] of hook.avoid ?? []) {
-    if (bottom > top) captions.push({ start: hook.start, end: hook.end, rect: { x: 0, y: top * H, w: W, h: (bottom - top) * H } });
-  }
-  let picture2 = null;
-  if (hook.picture && hook.picture[1] > hook.picture[0]) {
-    const cut = rowCuts(scene.caption?.rows).find((c) => c > hook.start);
-    picture2 = { rect: { x: 0, y: hook.picture[0] * H, w: W, h: (hook.picture[1] - hook.picture[0]) * H }, until: cut ?? hook.end };
-  }
-  return { faces, captions, picture: picture2 };
-}
-function cost(card, o, start, end, H) {
-  let total = 0;
-  const faces = o.faces.filter((f) => f.t >= start - 1e-6 && f.t < end);
-  if (faces.length) {
-    let hits = 0, depth = 0, soft = 0;
-    for (const f of faces) {
-      const core = f.core.reduce((s, r) => s + overlapArea(card, r) / Math.max(1, r.w * r.h), 0);
-      if (core > 0) {
-        hits += 1;
-        depth += Math.min(1, core);
-      }
-      soft += f.box.reduce((s, r) => s + overlapArea(card, r), 0) / Math.max(1, card.w * card.h);
-    }
-    total += (hits ? 1e3 + 1e3 * (hits / faces.length) + 500 * (depth / faces.length) : 0) + 60 * (soft / faces.length);
-  }
-  const span = Math.max(1e-3, end - start);
-  const gap = HOOK_PLACE.gap * H * 0.6;
-  const padded = { x: card.x, y: card.y - gap, w: card.w, h: card.h + 2 * gap };
-  for (const c of o.captions) {
-    const shared = Math.min(end, c.end) - Math.max(start, c.start);
-    if (shared <= 0 || overlapArea(padded, c.rect) <= 0) continue;
-    total += 800 + 400 * Math.min(1, shared / span);
-  }
-  if (o.picture && o.picture.until > start) {
-    total += 40 * (overlapArea(card, o.picture.rect) / Math.max(1, card.w * card.h)) * Math.min(1, (Math.min(end, o.picture.until) - start) / span);
-  }
-  if (card.y + card.h > HOOK_PLACE.bottomMax * H) total += 600 + (card.y + card.h - HOOK_PLACE.bottomMax * H);
-  if (card.y < HOOK_PLACE.topMin * H) total += 600 + (HOOK_PLACE.topMin * H - card.y);
-  return total;
-}
-function placeHook(p, hook, block) {
-  const W = p.width, H = p.height;
-  const o = obstacles(p, hook);
-  const x = (W - block.w) / 2;
-  const rect = (top2) => ({ x, y: top2, w: block.w, h: block.h });
-  const candidates = [];
-  const picture2 = hook.picture;
-  if (picture2 && picture2[0] > 0) {
-    const bottom = picture2[0] * H - HOOK_PLACE.bandGap * H;
-    const top2 = Math.min(bottom - block.h, Math.max(HOOK_PLACE.top * H, (HOOK_PLACE.topMin * H + bottom - block.h) / 2));
-    if (top2 >= HOOK_PLACE.topMin * H) candidates.push({ slot: "band", top: top2, prefer: 0 });
-  }
-  let top = HOOK_PLACE.top * H;
-  const heads = o.faces.flatMap((f) => f.box.filter((b) => b.x < x + block.w && b.x + b.w > x).map((b) => b.y));
-  if (heads.length) top = clamp2(Math.min(...heads) - 0.01 * H - block.h, HOOK_PLACE.topMin * H, top);
-  candidates.push({ slot: "top", top, prefer: candidates.length ? 4 : 0 });
-  if (o.captions.length) {
-    const first = Math.min(...o.captions.map((c) => c.rect.y)), last = Math.max(...o.captions.map((c) => c.rect.y + c.rect.h));
-    candidates.push({ slot: "above", top: first - HOOK_PLACE.gap * H - block.h, prefer: 12 });
-    candidates.push({ slot: "below", top: last + HOOK_PLACE.gap * H, prefer: 22 });
-  }
-  for (let y = 0.14; y <= 0.72; y += 0.02) candidates.push({ slot: "free", top: y * H - block.h / 2, prefer: 30 + 20 * y });
-  const ends = [hook.end];
-  if (hook.trim) {
-    for (const cut of rowCuts(p.scene.caption?.rows)) {
-      if (cut - hook.start >= HOOK_PLACE.minShown && cut < hook.end - 0.1) ends.push(cut);
-    }
-  }
-  let best = { cy: candidates[0].top + block.h / 2, slot: candidates[0].slot, end: hook.end }, bestCost = Infinity;
-  for (const end of ends) {
-    for (const c of candidates) {
-      const value = cost(rect(c.top), o, hook.start, end, H) + c.prefer + (end < hook.end ? 8 + 4 * (hook.end - end) : 0);
-      if (value < bestCost - 1e-9) {
-        bestCost = value;
-        best = { cy: c.top + block.h / 2, slot: c.slot, end };
-      }
-    }
-  }
-  return best;
-}
-var layouts2 = /* @__PURE__ */ new WeakMap();
-function hookMarkColor(accent) {
-  const m = /^#([0-9a-fA-F]{6})/.exec((accent ?? "").trim());
-  if (!m) return HOOK.mark;
-  const n = parseInt(m[1], 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
-  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  const chroma = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
-  return luma < 0.45 || luma > 0.9 && chroma < 0.25 ? HOOK.mark : `#${m[1].toUpperCase()}`;
-}
-function hookLayout(p, text) {
-  const hook = p.scene.hook;
-  if (!hook) return null;
-  const title = (text ?? hook.text).trim();
-  let cache = layouts2.get(p);
-  if (!cache) {
-    cache = /* @__PURE__ */ new Map();
-    layouts2.set(p, cache);
-  }
-  if (cache.has(title)) return cache.get(title);
-  const u = p.u, W = p.width, H = p.height;
-  const look = hook.look === "subtle" || hook.look === "max" ? hook.look : "bold";
-  const scale = clamp2(hook.scale ?? 1, 0.2, 4);
-  const family = p.family(hook.font);
-  const block = hookBlock(
-    title,
-    HOOK.sizeU * u * HOOK.lookSize[look] * scale,
-    HOOK.minSizeU * u * HOOK.lookSize[look] * scale,
-    HOOK.maxWidth * W,
-    (t, px) => p.measure(t, family, 100) * px / 100
-  );
-  let layout = null;
-  if (block && hook.end > hook.start) {
-    const placed = placeHook(p, hook, block);
-    layout = {
-      text: title,
-      family,
-      px: block.px,
-      lines: block.lines,
-      w: block.w,
-      h: block.h,
-      cx: W * (0.5 + (hook.x ?? 0)),
-      cy: placed.cy + H * (hook.y ?? 0),
-      start: hook.start,
-      end: placed.end,
-      tilt: HOOK.tiltDeg[look] * Math.PI / 180,
-      look,
-      mark: hookMarkColor(hook.accent),
-      slot: placed.slot
-    };
-  }
-  cache.set(title, layout);
-  return layout;
-}
-function hookBounds(p, text) {
-  const l = hookLayout(p, text);
-  return l ? { x: l.cx - l.w / 2, y: l.cy - l.h / 2, w: l.w, h: l.h } : null;
-}
-function hookMotion(look, local, dur) {
-  const inS = Math.min(HOOK.inSeconds, dur / 3), outS = Math.min(HOOK.outSeconds, dur / 3);
-  const left = dur - local;
-  if (left < outS) {
-    const k = clamp01(left / outS);
-    return { scale: 0.96 + 0.04 * k, alpha: k };
-  }
-  const alpha = clamp01(local / Math.min(HOOK.fadeIn, inS));
-  const scale = look === "subtle" ? keyframes([{ t: 0, v: 0.94 }, { t: inS, v: 1, ease: easeOutCubic }], local) : keyframes([{ t: 0, v: 0.86 }, { t: inS * 0.62, v: 1.035, ease: easeOutCubic }, { t: inS, v: 1, ease: easeOutQuad }], local);
-  return { scale, alpha };
-}
-function hookOps(p, t, text) {
-  const l = hookLayout(p, text);
-  if (!l || t < l.start || t >= l.end) return [];
-  const u = p.u, local = t - l.start, dur = l.end - l.start;
-  const { scale, alpha } = hookMotion(l.look, local, dur);
-  if (alpha <= 0) return [];
-  const transform = placeAt(round3(l.cx), round3(l.cy), l.tilt, scale);
-  const lineH = HOOK.lineHeight * l.px;
-  const ops = [rectOp({
-    x: -l.w / 2,
-    y: -l.h / 2,
-    w: l.w,
-    h: l.h,
-    radius: Math.min(HOOK.radius * lineH, l.h / 2),
-    fill: HOOK.fill,
-    transform,
-    alpha,
-    shadow: { color: `rgba(0,0,0,${HOOK.shadow.alpha})`, blur: HOOK.shadow.blur * u, dx: 0, dy: HOOK.shadow.dy * u }
-  })];
-  const inS = Math.min(HOOK.inSeconds, dur / 3);
-  const markStart = Math.min(HOOK.markDelay, inS * 0.77);
-  for (const line of l.lines) {
-    for (const w of line.words) {
-      if (w.mark < 0) continue;
-      const k = easeOutCubic(clamp01((local - markStart - w.mark * HOOK.markStagger) / HOOK.markSeconds));
-      if (k <= 0) continue;
-      const h = HOOK.markHeight * l.px, pad = HOOK.markPadX * l.px;
-      ops.push(rectOp({ x: w.mx - pad, y: line.y - h / 2, w: (w.mw + 2 * pad) * k, h, radius: HOOK.markRadius * l.px, fill: l.mark, transform, alpha }));
-    }
-  }
-  for (const line of l.lines) {
-    for (const w of line.words) {
-      ops.push(textOp({ text: w.text, font: l.family, px: l.px, x: w.x, y: line.y, align: "left", fill: HOOK.ink, transform, alpha }));
-    }
-  }
-  return ops;
-}
-registerGlobal({
-  id: "hook",
-  layer: "hook",
-  active: (p, clock) => !!p.scene.hook && !p.hookDetached && clock.e >= p.scene.hook.start && clock.e < p.scene.hook.end,
-  ops: (dc) => hookOps(dc.scene, dc.t)
 });
 
 // src/lib/fx/core/frame.ts

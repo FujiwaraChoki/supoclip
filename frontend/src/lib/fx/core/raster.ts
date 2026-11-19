@@ -68,7 +68,17 @@ function draw(ctx: FxContext2D, op: DrawOp, host: FxHost, base: Mat2D) {
       prepare(ctx, op.alpha, op.blend);
       setMat(ctx, mul(base, op.transform));
       tracePath(ctx, op.points, op.closed, op.smooth);
-      if (op.fill) { ctx.fillStyle = op.fill; ctx.fill(); }
+      if (op.fill) {
+        if (op.shadow) {
+          ctx.shadowColor = op.shadow.color;
+          ctx.shadowBlur = op.shadow.blur * Math.abs(base[0] || 1);
+          ctx.shadowOffsetX = op.shadow.dx * Math.abs(base[0] || 1);
+          ctx.shadowOffsetY = op.shadow.dy * Math.abs(base[3] || 1);
+        }
+        ctx.fillStyle = op.fill;
+        ctx.fill();
+        if (op.shadow) { ctx.shadowColor = "rgba(0,0,0,0)"; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; }
+      }
       if (op.stroke && op.strokePx > 0) {
         ctx.strokeStyle = op.stroke;
         ctx.lineWidth = op.strokePx;

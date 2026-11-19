@@ -1260,6 +1260,7 @@
       "font": "Poppins-ExtraBold",
       "accent": "#FACC15",
       "look": "bold",
+      "template": "marker_circle",
       "start": 0.12,
       "end": 3.25,
       "x": 0.0,

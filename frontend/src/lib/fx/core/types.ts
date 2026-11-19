@@ -155,6 +155,8 @@ export interface FxHookTitle {
   accent: string;
   /** Size, tilt and entrance flavour. */
   look: "subtle" | "bold" | "max";
+  /** The clip's caption template: picks the title's style (hook.ts HOOK_VARIANTS). Absent or unknown: the stack. */
+  template?: string;
   /** E window. */
   start: number; end: number;
   /** Studio transform: offset from the automatic position (fractions of W and H) and scale. */

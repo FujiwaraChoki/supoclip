@@ -1,7 +1,8 @@
 """The hook title of a Dynamic edits clip, as fx-core draws it (``FxHookTitle``, fx-core ``hook.ts``).
 
-Whenever a render runs the drawing stage, the title is a white card with heavy dark type drawn by fx-core, and the
-ASS layer carries no title. This module resolves what Python decides (the text as shown, the font, the marker colour,
+Whenever a render runs the drawing stage, fx-core draws the title in the style of the clip's caption template (a
+white label that hugs each line, or big outlined type in the template's colours; ``HOOK_VARIANTS`` in ``hook.ts``),
+and the ASS layer carries no title. This module resolves what Python decides (the text as shown, the font, the marker colour,
 the look, the window and the layout hints); fx-core lays the card out and places it (clear of faces and captions).
 Levels without the drawing stage (``FX_RUNTIME=off``, the safe and none levels) keep the libass title
 (``media.captions.build_hook_title_ass``).
@@ -21,6 +22,8 @@ from .contracts import FxCaptionStyle, FxHookTitle, LISTED_FX_CAPTION_TEMPLATES,
 # The card's type for the listed animated styles, whatever the intensity (their caption fonts are the looks' own).
 HOOK_FONT = "Poppins-ExtraBold"
 HOOK_DEFAULT_ACCENT = "#FFE45C"
+# A title is never set in a regular weight: caption fonts too light for one, and what replaces them.
+HOOK_HEAVY = {"TikTokSans-Regular": "TikTokSans-Bold"}
 # Shown from here (clip seconds) for clips longer than HOOK_TITLE_MIN_SECONDS.
 HOOK_START = 0.12
 _LOOK_FONTS = frozenset(spec["font"] for spec in LOOKS.values())
@@ -39,11 +42,12 @@ def hook_look(template_id: str | None, intensity: str | None, sensitivity: str =
 
 def hook_font(template_id: str | None, font: str | None) -> str:
     """The listed styles' card is Poppins ExtraBold unless the user picked a font of their own (a look's own caption
-    font is not a choice); other templates use their caption font."""
+    font is not a choice); other templates use their caption font (its bold when it is a regular weight)."""
     listed = template_id in LISTED_FX_CAPTION_TEMPLATES
     if listed and (not font or font in _LOOK_FONTS):
         return HOOK_FONT
-    return str(font or HOOK_FONT)[:80]
+    font = str(font or HOOK_FONT)[:80]
+    return HOOK_HEAVY.get(font, font)
 
 
 def hook_text(title: str, template_id: str | None, uppercase: bool) -> str:
@@ -88,6 +92,7 @@ def build_hook(title: str | None, *, template_id: str | None, look: str, font: s
         font=hook_font(template_id, font),
         accent=accent,
         look=look,
+        template=str(template_id or "")[:40],
         start=float(window[0]),
         end=float(window[1]),
         x=max(-1.0, min(1.0, float(x))),

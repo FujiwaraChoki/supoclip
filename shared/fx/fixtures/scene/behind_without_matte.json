@@ -316,6 +316,7 @@
       "font": "Poppins-ExtraBold",
       "accent": "#FACC15",
       "look": "bold",
+      "template": "behind_head",
       "start": 0.12,
       "end": 2.35,
       "x": 0.0,

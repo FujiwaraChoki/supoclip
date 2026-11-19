@@ -417,12 +417,14 @@ class FxCaptionStyle(_Strict):
 
 
 class FxHookTitle(_Strict):
-    """The hook title drawn by fx-core (``hook.ts``): one white card, heavy dark type, a marker box behind numbers
-    and power words. fx-core lays it out and places it; see ``edit_fx/hook_title.py``."""
+    """The hook title drawn by fx-core (``hook.ts``): a white label hugging each line or big outlined type, by the
+    clip's caption template, with the numbers and power words marked. fx-core lays it out and places it; see
+    ``edit_fx/hook_title.py``."""
     text: str = Field(min_length=1, max_length=200)   # as shown (casing already applied)
     font: str = Field(max_length=80)        # bundled font stem
     accent: str = "#FFE45C"                 # marker colour, "#RRGGBB"
     look: Literal["subtle", "bold", "max"] = "bold"
+    template: str = Field(default="", max_length=40)   # the caption template: picks the title's style (HOOK_VARIANTS)
     start: float = Field(ge=0)              # E window
     end: float = Field(ge=0)
     x: float = Field(default=0, ge=-1, le=1)   # studio offset from the automatic position (fractions of W and H)
