@@ -32,7 +32,7 @@ def _manifest_beds() -> tuple[dict[str, tuple[str, ...]], dict[str, float]]:
 
 
 BEDS, BED_LENGTHS = _manifest_beds()
-FX_TEMPLATES = ("marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter", "sticker_slap",
+FX_TEMPLATES = ("marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter",
                 "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles")
 TEMPLATES = (*FX_TEMPLATES, "default")
 INTENSITIES = ("off", "subtle", "bold", "max")

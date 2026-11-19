@@ -93,7 +93,7 @@ the drawing stage (`ass_fallback`). Three are offered (`LISTED_FX_CAPTION_TEMPLA
 | `emoji_drop` | Emoji Drop | An emoji (only one the model picked because it depicts a thing the words name: 💰, 🚗, 📈) under the caption, 0.26 W, 2 frames in, held until the caption group changes. Never a face emoji, never on a sad moment. | `tiktok` | – |
 | `behind_head` | Behind Head | One giant lowercase word (Archivo Black, 0.70 W, at most 0.16 H) behind the speaker: the person is cut out (matte) and drawn over it. On a wide shot it sits at chin/neck height; on a close-up (face at least 12 % of the height) it goes across the top of the head, so the head covers only the foot of its middle letters. It hard-cuts in on a reframe and out on the next; the captions step aside while it shows. Without a person in frame the word goes in front; on an interview's stacked two-shots it is dropped. | `minimal` | face, matte |
 
-**Unlisted styles.** `marker_circle`, `slam`, `stat_counter`, `sticker_slap`, `kinetic_stack`, `decode_glitch` and
+**Unlisted styles.** `marker_circle`, `slam`, `stat_counter`, `kinetic_stack`, `decode_glitch` and
 `face_doodles` (`hidden: True`) are no longer offered anywhere: not in `GET /caption-templates?include=fx`, the
 `templates` of `GET /tasks/edit-styles`, the create screen, the studio picker, the AI editor's choices or MCP. They stay
 valid ids, so a stored task, a draft or an API caller that uses one keeps rendering with that template's own drawers
@@ -191,7 +191,7 @@ The style follows the caption template (`HOOK_VARIANTS`), so the title belongs t
 | Style | Templates | Look |
 |---|---|---|
 | Stack | TikTok, Minimal, Podcast, Behind Head, Emoji Drop, Highlighter, Stat Counter, and any template not listed | a white label that hugs every line, drawn as one shape (corner radius 0.34 em, also where two lines differ in width; lines closer than 0.5 em in half-width share an edge); near-black type `#0B0B0F`, 80u (7.4 % W), one label 1.4 em tall per line, 0.42 em of label beside the text; soft shadow. Key words get a marker box in the accent |
-| Outline | Default, Marker Circle, Face Doodles, Slam, Kinetic Stack, Hormozi, MrBeast, Neon, Decode Glitch, Sticker Slap | type straight on the picture, 92u (8.5 % W; Slam and Kinetic Stack 98u), lines 1.14 em apart, outline 0.1 em with round joins, soft shadow; every outline is drawn before any fill. Key words take the accent as their colour (Hormozi: a green box). Own colours: MrBeast yellow with red key words, Neon cyan with a magenta glow, Decode Glitch a magenta offset shadow, Sticker Slap dark type with a white edge turned 3° |
+| Outline | Default, Marker Circle, Face Doodles, Slam, Kinetic Stack, Hormozi, MrBeast, Neon, Decode Glitch | type straight on the picture, 92u (8.5 % W; Slam and Kinetic Stack 98u), lines 1.14 em apart, outline 0.1 em with round joins, soft shadow; every outline is drawn before any fill. Key words take the accent as their colour (Hormozi: a green box). Own colours: MrBeast yellow with red key words, Neon cyan with a magenta glow, Decode Glitch a magenta offset shadow |
 
 | | |
 |---|---|
@@ -211,7 +211,7 @@ tall, in at least a quarter of the window's face samples). Then it sits right be
 lowest chin, if there is room: clear of the captions fx-core draws, of any other head, and ending no lower than
 64 % H. When that only holds until a camera cut (a caption row change, or the main head jumping in the face track),
 the title is judged on its opening shot and leaves at the cut, as long as it showed for 2.2 s. Without room it stays
-at home. Captions, letterbox bands and stickers never move it (Sticker Slap's stickers keep off it), and the studio's
+at home. Captions, letterbox bands and stickers never move it (a placed sticker keeps off it), and the studio's
 offset adds to wherever it sits. A title needs the face track, so a render with a title runs the face analysis even
 when no cue needs it.
 

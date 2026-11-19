@@ -75,7 +75,7 @@ const editStylesInfo = {
   settings: [],
   music_moods: ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
   grades: ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
-  templates: ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter", "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"],
+  templates: ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"],
   reactions_available: false,
 };
 const legacyTemplates = [
@@ -880,7 +880,7 @@ describe("dynamic edits", () => {
     openSection(/Captions/);
     const tiles = screen.getByRole("radiogroup", { name: "Animated" });
     expect(tiles).toHaveAttribute("data-tour", "caption-styles");
-    expect(within(tiles).getAllByRole("radio")).toHaveLength(10);
+    expect(within(tiles).getAllByRole("radio")).toHaveLength(9);
     // The animated ids never show in the classic list.
     const classic = screen.getByRole("radiogroup", { name: "Caption style" });
     expect(within(classic).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([expect.stringContaining("Default"), expect.stringContaining("MrBeast")]);

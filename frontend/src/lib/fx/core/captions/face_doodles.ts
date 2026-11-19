@@ -1,7 +1,7 @@
 // `face_doodles` (§11.1, WP8): TikTokSans-Bold karaoke captions, and the `doodle` accent — hand-drawn marks around
 // the speaker's head (doodles.ts) that follow the face box as it moves and as the picture zooms or shakes (dc.face is
 // the interpolated face AFTER this frame's picture transform). With no face at t the beat still lands: the cue's text
-// is slapped on as a die-cut sticker instead (looks/sticker.ts via sticker_slap's placement). Doodles are hidden during
+// is slapped on as a die-cut sticker instead (looks/sticker.ts, placed by sticker_place.ts). Doodles are hidden during
 // B-roll windows (the face on screen is not the speaker's). When the face drops out mid-cue the doodle crossfades
 // into the sticker over 250 ms (the sticker slaps in at the drop), and back again when the face returns.
 import type { DrawOp } from "../host";
@@ -11,7 +11,7 @@ import type { AccentCue, DoodleKind } from "../types";
 import type { PreparedScene } from "../scene";
 import { doodleOps } from "../doodles";
 import { IDENTITY, pictureMatrix, transformOps, transformRect } from "../layout";
-import { placedStickerOps, placeSticker, type StickerPlacement } from "./sticker_slap";
+import { placedStickerOps, placeSticker, type StickerPlacement } from "./sticker_place";
 
 /** Sticker text when a doodle with no label has no face to draw on. */
 export const DOODLE_FALLBACK_TEXT: Record<DoodleKind, string> = {
@@ -20,7 +20,7 @@ export const DOODLE_FALLBACK_TEXT: Record<DoodleKind, string> = {
 
 const fallbacks = new WeakMap<PreparedScene, Map<string, StickerPlacement | null>>();
 
-/** The no-face sticker for a doodle cue (placed once per prepared scene, like sticker_slap's stickers). */
+/** The no-face sticker for a doodle cue (placed once per prepared scene). */
 export function doodleFallback(p: PreparedScene, cue: AccentCue): StickerPlacement | null {
   let map = fallbacks.get(p);
   if (!map) { map = new Map(); fallbacks.set(p, map); }

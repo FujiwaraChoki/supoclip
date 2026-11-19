@@ -37,7 +37,7 @@ SOUND_IDS: tuple[str, ...] = ("whoosh", "impact", "pop", "riser", "record_scratc
                               "ticker", "slap", "stamp", "glitch", "tape_stop")
 TransitionStyle = Literal["whip", "flash", "glitch", "zoom_through", "spin", "light_leak"]
 AccentVariant = Literal["circle", "underline", "strike", "arrow", "highlight", "emoji", "emoji_burst",
-                        "slam", "behind", "counter", "sticker", "decode", "kinetic", "doodle"]
+                        "slam", "behind", "counter", "decode", "kinetic", "doodle"]
 DoodleKind = Literal["sparkles", "arrows", "sweat", "horns", "bang", "heart", "anger"]
 FxKind = Literal["accent", "zoom", "shake", "flash", "glitch", "desaturate", "transition",
                  "sfx", "bleep", "speed", "freeze", "sticker", "reaction"]
@@ -47,7 +47,7 @@ INSTANT_KINDS: frozenset[str] = frozenset({"sfx", "freeze", "transition"})   # s
 
 FX_CAPTION_TEMPLATES: tuple[str, ...] = (
     "marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter",
-    "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles",
+    "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles",
 )
 LEGACY_CAPTION_TEMPLATES: tuple[str, ...] = ("default", "hormozi", "mrbeast", "minimal", "tiktok", "neon", "podcast")
 # The animated styles offered in catalogues and pickers. The others stay valid ids (stored tasks, drafts and API

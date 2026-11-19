@@ -5,7 +5,6 @@ import "./captions/emoji_drop";
 import "./captions/slam";
 import "./captions/behind_head";
 import "./captions/stat_counter";
-import "./captions/sticker_slap";
 import "./captions/kinetic_stack";
 import "./captions/decode_glitch";
 import "./captions/highlighter_swipe";

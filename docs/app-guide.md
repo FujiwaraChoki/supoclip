@@ -265,7 +265,7 @@ Settings menu gains an **Edits** tab and an **Animated** group of caption styles
   a music bed and the occasional freeze before a payoff, and Max adds everything,
   more often. Off leaves clips as before.
 - **Animated caption styles** (Marker Circle, Emoji Drop, Slam, Behind Head, Stat
-  Counter, Sticker Slap, Kinetic Stack, Decode Glitch, Highlighter Swipe, Face
+  Counter, Kinetic Stack, Decode Glitch, Highlighter Swipe, Face
   Doodles) are drawn frame by frame. They also work with intensity Off.
 - The results page's settings sheet changes intensity for existing clips; the
   re-render runs in the background and the clips show "Rendering edits…".

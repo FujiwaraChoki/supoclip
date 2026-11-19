@@ -11,7 +11,7 @@ import type { AccentCue } from "../types";
 import { FRAME } from "../types";
 import { clamp01, easeOutBack, easeOutExpo, easeOutQuad, keyframes, progress } from "../easing";
 import { overlapArea, placeAt, safeRect, textOp } from "../layout";
-import { captionBand, headBox } from "./sticker_slap";
+import { captionBand, headBox } from "./sticker_place";
 import { counterFormat, type CounterFormat, type PreparedScene } from "../scene";
 import { BASE_LOOKS, baseCaptionOps } from "./base";
 import { registerAccent, registerCaptionStyle } from "../registry";

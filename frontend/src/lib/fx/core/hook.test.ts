@@ -188,7 +188,7 @@ describe("placement", () => {
       expect(l.cy).toBeCloseTo(base.cy, 6);
       expect([l.start, l.end]).toEqual([0.12, 4]);
     }
-    for (const template of ["slam", "mrbeast", "sticker_slap", "tiktok"]) {
+    for (const template of ["slam", "mrbeast", "neon", "tiktok"]) {
       for (const text of ["Why I quit", "Nobody tells you the truth about what 90% of podcast guests want"]) {
         expect(top(layoutOf(bareScene({ hook: hook({ template, text }) })))).toBeCloseTo(HOOK_PLACE.top, 6);
       }
@@ -381,6 +381,6 @@ describe("the frame", () => {
       words, caption: lookCaptions(0.55), hook: hook({ template, text, accent: "#FFE000" }), face_track: face(0.36, 0.24, 0.28, 0.2),
     });
     expectGolden("hook_outline_slam", renderSceneToPng(outlined("slam", "Never trust the first 3 offers"), 1.2));
-    expectGolden("hook_outline_sticker", renderSceneToPng(outlined("sticker_slap", "90% of podcast guests become real friends"), 1.2));
+    expectGolden("hook_outline_neon", renderSceneToPng(outlined("neon", "90% of podcast guests become real friends"), 1.2));
   });
 });

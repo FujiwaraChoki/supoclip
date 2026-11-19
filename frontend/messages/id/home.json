@@ -459,10 +459,6 @@
         "name": "Penghitung Angka",
         "description": "Angka yang diucapkan naik lalu tercap di tempatnya"
       },
-      "sticker_slap": {
-        "name": "Tempel Stiker",
-        "description": "Kata berbentuk stiker ditempel di sekitar bingkai"
-      },
       "kinetic_stack": {
         "name": "Tumpukan Kinetik",
         "description": "Hook menumpuk di layar dalam baris tebal"

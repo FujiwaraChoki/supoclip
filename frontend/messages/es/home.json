@@ -459,10 +459,6 @@
         "name": "Contador",
         "description": "Las cifras dichas suben y se estampan en su sitio"
       },
-      "sticker_slap": {
-        "name": "Stickers",
-        "description": "Palabras troqueladas pegadas por el encuadre"
-      },
       "kinetic_stack": {
         "name": "Pila cinética",
         "description": "El gancho se apila en filas gruesas"

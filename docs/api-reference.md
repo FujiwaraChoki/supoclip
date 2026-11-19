@@ -312,7 +312,7 @@ choices, and ask `GET /caption-templates?include=fx`, only when it is `true`.
 - `censor`: `off`, `bleep`, `bleep_bar` (bleep and a bar over the mouth) or `bleep_pixelate`.
 - An animated `caption_template` with no `edit_style` is "style only": animated captions, nothing else.
 - `templates` lists the offered animated styles. The older ids (`marker_circle`, `slam`, `stat_counter`,
-  `sticker_slap`, `kinetic_stack`, `decode_glitch`, `face_doodles`) are no longer listed anywhere but stay valid:
+  `kinetic_stack`, `decode_glitch`, `face_doodles`) are no longer listed anywhere but stay valid:
   stored tasks and drafts that use them keep rendering with their own look, and the API still accepts them.
 - 422 `INVALID_EDIT_STYLE` for unknown keys or values, before any charge.
 - 403 `DYNAMIC_EDITS_NOT_AVAILABLE` when the request turns effects on (an active

@@ -288,7 +288,7 @@ def test_intrinsic_slam_impact_boom_at_max():
 
 
 def test_intrinsic_sfx_respect_sfx_toggle():
-    plan = run([mid("wallet", "emphasis")], template="sticker_slap", intensity="bold",
+    plan = run([mid("wallet", "emphasis")], template="slam", intensity="bold",
                style=EditStyle(intensity="bold", sfx=False))
     assert not cues(plan, "sfx") and cues(plan, "accent")
 
@@ -661,15 +661,6 @@ def test_variant_stat_counter():
     assert variants == ["arrow", "counter", "highlight"]
     counter = next(c for c in by_beat.values() if c.variant == "counter")
     assert (counter.value, counter.prefix, counter.suffix) == (12.0, "$", "k")
-
-
-def test_variant_sticker_slap_label_or_short_words():
-    plan = run([mid("wallet", "emphasis", label="NO WAY")], template="sticker_slap", intensity="off")
-    assert one(plan, "b0.accent").text == "NO WAY"
-    plan = run([mid("nobody really wanted to be outside", "emphasis")], template="sticker_slap", intensity="off")
-    sticker = one(plan, "b0.accent")
-    assert sticker.variant == "sticker" and 1 <= len(sticker.text.split()) <= 3
-    assert sticker.end - sticker.start <= 1.6 + 1e-6
 
 
 def test_variant_kinetic_stack_hook_sentence_and_desaturate():

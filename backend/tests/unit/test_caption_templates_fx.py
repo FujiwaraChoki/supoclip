@@ -26,7 +26,6 @@ SPEC = {
     "slam": ("mrbeast", False, False, "THEBOLDFONT", "pop"),
     "behind_head": ("minimal", True, True, "TikTokSans-Bold", "fade"),
     "stat_counter": ("hormozi", False, False, "Poppins-ExtraBold", "pop"),
-    "sticker_slap": ("tiktok", False, False, "TikTokSans-Bold", "pop"),
     "kinetic_stack": ("mrbeast", False, False, "THEBOLDFONT", "bounce"),
     "decode_glitch": ("neon", False, False, "TikTokSans-Bold", "fade"),
     "highlighter_swipe": ("minimal", False, False, "Poppins-ExtraBold", "none"),

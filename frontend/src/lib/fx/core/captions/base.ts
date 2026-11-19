@@ -34,7 +34,6 @@ export const BASE_LOOKS: Record<FxCaptionTemplate, BaseLook> = {
   slam: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
   behind_head: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
   stat_counter: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
-  sticker_slap: { entrance: "settle", active: "accent", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
   kinetic_stack: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
   decode_glitch: { entrance: "none", active: "none", emphasis: true, shadow: "soft", strokeEm: 0.1, tracking: 0.04 },
   highlighter_swipe: { entrance: "rise", active: "none", emphasis: false, shadow: "none", strokeEm: 0, tracking: 0 },

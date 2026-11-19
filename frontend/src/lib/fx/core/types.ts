@@ -17,13 +17,13 @@ export type SoundId = "whoosh" | "impact" | "pop" | "riser" | "record_scratch" |
   | "ticker" | "slap" | "stamp" | "glitch" | "tape_stop";
 export type TransitionStyle = "whip" | "flash" | "glitch" | "zoom_through" | "spin" | "light_leak";
 export type AccentVariant = "circle" | "underline" | "strike" | "arrow" | "highlight" | "emoji" | "emoji_burst"
-  | "slam" | "behind" | "counter" | "sticker" | "decode" | "kinetic" | "doodle";
+  | "slam" | "behind" | "counter" | "decode" | "kinetic" | "doodle";
 export type DoodleKind = "sparkles" | "arrows" | "sweat" | "horns" | "bang" | "heart" | "anger";
 export type FxKind = "accent" | "zoom" | "shake" | "flash" | "glitch" | "desaturate" | "transition"
   | "sfx" | "bleep" | "speed" | "freeze" | "sticker" | "reaction";
 export const INSTANT_KINDS: ReadonlySet<FxKind> = new Set(["sfx", "freeze", "transition"]);
 export const FX_CAPTION_TEMPLATES = ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter",
-  "sticker_slap", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"] as const;
+  "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"] as const;
 export type FxCaptionTemplate = (typeof FX_CAPTION_TEMPLATES)[number];
 export const isFxTemplate = (id: string | null | undefined): id is FxCaptionTemplate =>
   !!id && (FX_CAPTION_TEMPLATES as readonly string[]).includes(id);

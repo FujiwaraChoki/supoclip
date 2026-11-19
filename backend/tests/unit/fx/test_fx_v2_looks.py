@@ -18,7 +18,7 @@ from src.edit_fx.contracts import (
 )
 from src.media import fx_audio
 
-HIDDEN = ("marker_circle", "slam", "stat_counter", "sticker_slap", "kinetic_stack", "decode_glitch", "face_doodles")
+HIDDEN = ("marker_circle", "slam", "stat_counter", "kinetic_stack", "decode_glitch", "face_doodles")
 
 
 def test_only_three_animated_styles_are_listed_but_all_stay_valid():

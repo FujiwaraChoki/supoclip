@@ -7,7 +7,7 @@
 //            type and a marker box behind the numbers and power words;
 //   outline  big type with a thick outline and a soft shadow straight on the picture, the numbers and power words in
 //            the accent colour.
-// Each template sets its own colours on top (MrBeast's yellow, Neon's glow, a sticker's white edge ...); the font is
+// Each template sets its own colours on top (MrBeast's yellow, Neon's glow ...); the font is
 // the scene's. Both pop in and fade out.
 //
 // Layout: balanced lines (one for a short title, two preferred, three before the type shrinks), at most 0.88 W wide.
@@ -68,9 +68,6 @@ export const HOOK_VARIANTS: Readonly<Record<string, HookVariant>> = {
   mrbeast: { ...OUTLINE, fill: "#FFE600", accent: "#FF3B30", strokeEm: 0.12 },
   neon: { ...OUTLINE, fill: "#7DF9FF", ink: "#06123A", accent: "#FF4DFF", shadow: { dy: 0, blur: 0.5, color: "rgba(255,0,255,0.75)" } },
   decode_glitch: { ...OUTLINE, ink: "#050816", accent: "#00F0FF", shadow: { dy: 0.05, blur: 0.02, color: "rgba(255,0,170,0.9)" } },
-  // A sticker: dark type with a fat white edge, slightly turned.
-  sticker_slap: { ...OUTLINE, fill: "#14121A", ink: "#FFFFFF", strokeEm: 0.14, accent: "#FF2E6C", tiltDeg: -3,
-    shadow: { dy: 0.09, blur: 0.2, color: "rgba(0,0,0,0.5)" } },
 };
 /** The default style (tests). */
 export const HOOK_STACK = STACK;

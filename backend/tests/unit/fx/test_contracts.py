@@ -123,7 +123,7 @@ def test_plan_properties():
 
 
 def test_template_lists():
-    assert len(c.FX_CAPTION_TEMPLATES) == 10 and len(c.LEGACY_CAPTION_TEMPLATES) == 7
+    assert len(c.FX_CAPTION_TEMPLATES) == 9 and len(c.LEGACY_CAPTION_TEMPLATES) == 7
     assert not set(c.FX_CAPTION_TEMPLATES) & set(c.LEGACY_CAPTION_TEMPLATES)
     assert c.is_fx_template("slam") and not c.is_fx_template("default") and not c.is_fx_template(None)
 

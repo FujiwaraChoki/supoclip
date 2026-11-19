@@ -13,7 +13,6 @@ var FX_CAPTION_TEMPLATES = [
   "slam",
   "behind_head",
   "stat_counter",
-  "sticker_slap",
   "kinetic_stack",
   "decode_glitch",
   "highlighter_swipe",
@@ -1521,7 +1520,6 @@ var BASE_LOOKS = {
   slam: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
   behind_head: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
   stat_counter: { entrance: "rise", active: "none", emphasis: true, shadow: "soft", strokeEm: 0, tracking: 0 },
-  sticker_slap: { entrance: "settle", active: "accent", emphasis: false, shadow: "soft", strokeEm: 0.12, tracking: 0 },
   kinetic_stack: { entrance: "pop", active: "none", emphasis: true, shadow: "hard", strokeEm: 0.1, tracking: 0.01 },
   decode_glitch: { entrance: "none", active: "none", emphasis: true, shadow: "soft", strokeEm: 0.1, tracking: 0.04 },
   highlighter_swipe: { entrance: "rise", active: "none", emphasis: false, shadow: "none", strokeEm: 0, tracking: 0 },
@@ -2014,7 +2012,7 @@ function layoutCaptions(scene, family, measure) {
   const W = scene.width, H = scene.height, u = unit(W, H);
   const per = clamp2(Math.round(style.words_per_line) || 1, 1, 8);
   const words = [...scene.words].sort((a, b) => a.start - b.start);
-  const placements3 = new Map(style.placements.map((p) => [p.key, p]));
+  const placements2 = new Map(style.placements.map((p) => [p.key, p]));
   const safe = captionSafe(W, H);
   const look = BASE_LOOKS[scene.template] ?? DEFAULT_BASE_LOOK;
   const tracking = look.tracking;
@@ -2025,7 +2023,7 @@ function layoutCaptions(scene, family, measure) {
     if (shown.length) groups.push({ key: captionKey(all[0]), words: shown });
   }
   const chunks = groups.map(({ key, words: group }) => {
-    const placement = placements3.get(key);
+    const placement = placements2.get(key);
     const scale = placement?.scale ?? 1;
     const label = (t) => style.uppercase ? t.toLocaleUpperCase() : t;
     const maxWidth = Math.max(1, W - 120 * u);
@@ -2099,7 +2097,7 @@ function layoutLookCaptions(scene, look, family, measure) {
   const lead = LOOK_LEAD[look];
   const words = groupedWords(scene.words);
   const groups = phraseGroups(words, style.words_per_line, rowCuts(style.rows));
-  const placements3 = new Map(style.placements.map((p) => [p.key, p]));
+  const placements2 = new Map(style.placements.map((p) => [p.key, p]));
   const safe = captionSafe(W, H);
   const boxed = keywordBoxed(scene.template);
   const highlights = scene.cues.filter((c) => c.kind === "accent" && c.variant === "highlight");
@@ -2113,7 +2111,7 @@ function layoutLookCaptions(scene, look, family, measure) {
   for (const group of groups) {
     const members = words.slice(group.first, group.last + 1);
     const key = captionKey(members[0]);
-    const placement = placements3.get(key);
+    const placement = placements2.get(key);
     const scale = placement?.scale ?? 1;
     const kws = members.map(isKeyword);
     const texts = members.map((w, i) => label(w, kws[i]));
@@ -2862,17 +2860,7 @@ var HOOK_VARIANTS = {
   hormozi: { ...OUTLINE, key: "box", accent: "#00D95A" },
   mrbeast: { ...OUTLINE, fill: "#FFE600", accent: "#FF3B30", strokeEm: 0.12 },
   neon: { ...OUTLINE, fill: "#7DF9FF", ink: "#06123A", accent: "#FF4DFF", shadow: { dy: 0, blur: 0.5, color: "rgba(255,0,255,0.75)" } },
-  decode_glitch: { ...OUTLINE, ink: "#050816", accent: "#00F0FF", shadow: { dy: 0.05, blur: 0.02, color: "rgba(255,0,170,0.9)" } },
-  // A sticker: dark type with a fat white edge, slightly turned.
-  sticker_slap: {
-    ...OUTLINE,
-    fill: "#14121A",
-    ink: "#FFFFFF",
-    strokeEm: 0.14,
-    accent: "#FF2E6C",
-    tiltDeg: -3,
-    shadow: { dy: 0.09, blur: 0.2, color: "rgba(0,0,0,0.5)" }
-  }
+  decode_glitch: { ...OUTLINE, ink: "#050816", accent: "#00F0FF", shadow: { dy: 0.05, blur: 0.02, color: "rgba(255,0,170,0.9)" } }
 };
 var hookVariant = (template) => HOOK_VARIANTS[template ?? ""] ?? STACK;
 var HOOK = {
@@ -3399,9 +3387,8 @@ function stickerOps(text, x, y, rot, scale, palette, u) {
   return ops;
 }
 
-// src/lib/fx/core/captions/sticker_slap.ts
+// src/lib/fx/core/captions/sticker_place.ts
 var STICKER_MAX_LIFE = 1.6;
-var STICKER_MAX_STACK = 3;
 var STICKER_OUT = 0.12;
 var STICKER_TILT_DEG = 8;
 var STICKER_SCALE = 1.5;
@@ -3503,24 +3490,6 @@ function placeSticker(p, cue, taken, accent) {
   const at = box;
   return { id: cue.id, text, cx: at.x + at.w / 2, cy: at.y + at.h / 2, rot, scale, palette, box: at, start, end };
 }
-var placements2 = /* @__PURE__ */ new WeakMap();
-function stickerPlacements(p) {
-  let map = placements2.get(p);
-  if (map) return map;
-  map = /* @__PURE__ */ new Map();
-  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "sticker");
-  const placed = [];
-  const accent = p.scene.caption?.accent ?? null;
-  for (const cue of stickers) {
-    const [start] = stickerWindow(cue);
-    const showing = placed.filter((s) => s.start <= start && s.end > start).slice(-(STICKER_MAX_STACK - 1));
-    const spot = placeSticker(p, cue, showing.map((s) => inflate(s.box, 10 * p.u)), accent);
-    map.set(cue.id, spot);
-    if (spot) placed.push(spot);
-  }
-  placements2.set(p, map);
-  return map;
-}
 function stickerMotion(local, life) {
   if (local < 0 || local > life) return [0, 0];
   const out = easeInQuad(progress(local, life - STICKER_OUT, life));
@@ -3532,67 +3501,6 @@ function placedStickerOps(spot, local, u) {
   if (k <= 0 || alpha <= 0) return [];
   return stickerOps(spot.text, spot.cx, spot.cy, spot.rot, spot.scale * k, spot.palette, u).map((o) => o.op === "text" ? { ...o, alpha: o.alpha * alpha } : o);
 }
-var STICKER_PEEL = 0.22;
-function peelOps(spot, k, u) {
-  if (k >= 1) return [];
-  const e = easeInQuad(clamp01(k));
-  const dir = spot.rot >= 0 ? 1 : -1;
-  const ax = spot.cx + dir * spot.box.w * 0.42, ay = spot.cy - spot.box.h * 0.4;
-  const turn = dir * (0.35 * e);
-  const squash = 1 - 0.45 * e;
-  const lift = -90 * u * e * e, drift = dir * 50 * u * e;
-  const c = Math.cos(turn), s = Math.sin(turn);
-  const m = [c, s, -s * squash, c * squash, 0, 0];
-  m[4] = ax + drift - (m[0] * ax + m[2] * ay);
-  m[5] = ay + lift - (m[1] * ax + m[3] * ay);
-  const alpha = clamp01(1 - e * 1.1);
-  if (alpha <= 0) return [];
-  return transformOps(placedStickerOps(spot, Math.min(0.5, spot.end - spot.start - STICKER_OUT), u), m, alpha);
-}
-var evictions = /* @__PURE__ */ new WeakMap();
-function stickerEvictions(p) {
-  let map = evictions.get(p);
-  if (map) return map;
-  map = /* @__PURE__ */ new Map();
-  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c) => c.kind === "accent" && c.variant === "sticker");
-  stickers.forEach((cue, i) => {
-    const [, end] = stickerWindow(cue);
-    let out = Infinity;
-    const newer = stickers.slice(i + 1).map(stickerWindow).filter(([a]) => a < end);
-    for (const [a] of newer) {
-      const showing = newer.filter(([s, e]) => s <= a && e > a).length;
-      if (showing >= STICKER_MAX_STACK) {
-        out = a;
-        break;
-      }
-    }
-    map.set(cue.id, out);
-  });
-  evictions.set(p, map);
-  return map;
-}
-function stickerAccentOps(cue, dc) {
-  const p = dc.scene;
-  const spot = stickerPlacements(p).get(cue.id);
-  if (!spot) return [];
-  const out = stickerEvictions(p).get(cue.id) ?? Infinity;
-  if (dc.t >= out) return peelOps(spot, (dc.t - out) / STICKER_PEEL, dc.u);
-  return placedStickerOps(spot, dc.local, dc.u);
-}
-registerCaptionStyle({
-  template: "sticker_slap",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.sticker_slap)
-});
-registerAccent({
-  variant: "sticker",
-  layer: "overlay",
-  // A sticker evicted just before its own end still finishes its peel.
-  window: (cue) => {
-    const [a, b] = stickerWindow(cue);
-    return [a, b + STICKER_PEEL];
-  },
-  ops: stickerAccentOps
-});
 
 // src/lib/fx/core/captions/stat_counter.ts
 var DEG4 = Math.PI / 180;

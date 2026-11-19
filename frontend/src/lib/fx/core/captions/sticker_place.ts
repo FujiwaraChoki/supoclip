@@ -1,28 +1,19 @@
-// `sticker_slap` (§11.1, WP8): TikTokSans-Bold white captions with an outline, and the `sticker` accent — the beat's
-// label as a die-cut vinyl sticker (looks/sticker.ts, never a copy) slapped onto the frame: scale 1.3 → 1 in 90 ms with
-// a seeded tilt within ±8°, coloured in the caption accent or one of the 4 sticker palettes. Stickers sit inside the
-// safe area, off the face box, the caption band and the hook band, stack up to 3 deep without overlapping, live at most
-// 1.6 s each and peel off with a quick shrink + fade; a 4th sticker makes the oldest peel away (lift at a corner,
-// curl and fly off) instead of vanishing.
-//
-// Placement is decided once per prepared scene for every sticker (earlier stickers still on screen are obstacles), so a
-// sticker never jumps when another one appears. The face_doodles no-face fallback uses the same placement (`placeSticker`).
+// Placing a die-cut sticker (looks/sticker.ts) on the frame: inside the safe area, off the face, the caption band and
+// the hook title, slapped in (scale 1.3 → 1 in 90 ms, seeded tilt within ±8°) and peeled off with a quick shrink and
+// fade after at most 1.6 s. Used by the face_doodles no-face fallback; stat_counter shares the obstacle boxes.
 import type { DrawOp } from "../host";
-import { BASE_LOOKS, baseCaptionOps, cssColor } from "./base";
-import { registerAccent, registerCaptionStyle, type DrawerContext } from "../registry";
+import { cssColor } from "./base";
 import type { AccentCue } from "../types";
 import type { Rect } from "../constants";
 import { hash01 } from "../rng";
 import { clamp01, easeInQuad, progress } from "../easing";
-import { clampBox, inflate, overlapArea, placeAvoiding, safeRect, transformOps } from "../layout";
+import { clampBox, inflate, overlapArea, placeAvoiding, safeRect } from "../layout";
 import type { PreparedScene } from "../scene";
 import { hookLayout } from "../hook";
 import { slapAlpha, slapScale, stickerBox, stickerOps, stickerPalette, stickerTilt, type StickerPalette } from "../looks/sticker";
 
 /** A sticker lives at most this long (s). */
 export const STICKER_MAX_LIFE = 1.6;
-/** At most this many stickers on screen at once (the oldest peels off first). */
-export const STICKER_MAX_STACK = 3;
 /** Peel-off at the end: shrink to 85 % and fade over this long (s). */
 export const STICKER_OUT = 0.12;
 /** Largest tilt (degrees). */
@@ -144,27 +135,6 @@ export function placeSticker(p: PreparedScene, cue: Pick<AccentCue, "id" | "seed
   return { id: cue.id, text, cx: at.x + at.w / 2, cy: at.y + at.h / 2, rot, scale, palette, box: at, start, end };
 }
 
-const placements = new WeakMap<PreparedScene, Map<string, StickerPlacement | null>>();
-
-/** Every sticker accent's placement, decided in start order (earlier stickers still showing are obstacles). */
-export function stickerPlacements(p: PreparedScene): Map<string, StickerPlacement | null> {
-  let map = placements.get(p);
-  if (map) return map;
-  map = new Map();
-  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c): c is AccentCue => c.kind === "accent" && c.variant === "sticker");
-  const placed: StickerPlacement[] = [];
-  const accent = p.scene.caption?.accent ?? null;
-  for (const cue of stickers) {
-    const [start] = stickerWindow(cue);
-    const showing = placed.filter((s) => s.start <= start && s.end > start).slice(-(STICKER_MAX_STACK - 1));
-    const spot = placeSticker(p, cue, showing.map((s) => inflate(s.box, 10 * p.u)), accent);
-    map.set(cue.id, spot);
-    if (spot) placed.push(spot);
-  }
-  placements.set(p, map);
-  return map;
-}
-
 /** Slap-in, rest, peel-off at local seconds into a `life`-long sticker: [scale factor, alpha]. */
 export function stickerMotion(local: number, life: number): [number, number] {
   if (local < 0 || local > life) return [0, 0];
@@ -180,76 +150,3 @@ export function placedStickerOps(spot: StickerPlacement, local: number, u: numbe
   return stickerOps(spot.text, spot.cx, spot.cy, spot.rot, spot.scale * k, spot.palette, u)
     .map((o) => (o.op === "text" ? { ...o, alpha: o.alpha * alpha } : o));
 }
-
-/** A sticker pushed out of the stack by a 4th one peels off over this long (s). */
-export const STICKER_PEEL = 0.22;
-
-/**
- * Peel-off of an evicted sticker, `k` = 0 → 1 through STICKER_PEEL: its higher side lifts while it stays hinged at
- * the lower top corner, curls up (squashed toward the hinge, turning further) and flies off up and out while fading.
- * Ops are the placed sticker's at rest, carried by one transform about the hinge.
- */
-export function peelOps(spot: StickerPlacement, k: number, u: number): DrawOp[] {
-  if (k >= 1) return [];
-  const e = easeInQuad(clamp01(k));
-  const dir = spot.rot >= 0 ? 1 : -1;                 // tilted clockwise: the left corner sits higher and lifts
-  const ax = spot.cx + dir * spot.box.w * 0.42, ay = spot.cy - spot.box.h * 0.4;   // hinge: the lower top corner
-  const turn = dir * (0.35 * e);                      // +20° curl
-  const squash = 1 - 0.45 * e;                         // the far edge folds over the hinge
-  const lift = -90 * u * e * e, drift = dir * 50 * u * e;
-  const c = Math.cos(turn), s = Math.sin(turn);
-  // translate(ax+drift, ay+lift) · rotate(turn) · scale(1, squash) · translate(-ax, -ay)
-  const m: [number, number, number, number, number, number] = [c, s, -s * squash, c * squash, 0, 0];
-  m[4] = ax + drift - (m[0] * ax + m[2] * ay);
-  m[5] = ay + lift - (m[1] * ax + m[3] * ay);
-  const alpha = clamp01(1 - e * 1.1);
-  if (alpha <= 0) return [];
-  return transformOps(placedStickerOps(spot, Math.min(0.5, spot.end - spot.start - STICKER_OUT), u), m, alpha);
-}
-
-const evictions = new WeakMap<PreparedScene, Map<string, number>>();
-
-/**
- * When each sticker is pushed out of the stack: the start of the newer sticker that makes it the 4th on screen
- * (Infinity when it never is). Once out it stays out, even if a newer one ends first.
- */
-export function stickerEvictions(p: PreparedScene): Map<string, number> {
-  let map = evictions.get(p);
-  if (map) return map;
-  map = new Map();
-  const stickers = (p.cuesByKind.get("accent") ?? []).filter((c): c is AccentCue => c.kind === "accent" && c.variant === "sticker");
-  stickers.forEach((cue, i) => {
-    const [, end] = stickerWindow(cue);
-    let out = Infinity;
-    const newer = stickers.slice(i + 1).map(stickerWindow).filter(([a]) => a < end);
-    for (const [a] of newer) {
-      const showing = newer.filter(([s, e]) => s <= a && e > a).length;
-      if (showing >= STICKER_MAX_STACK) { out = a; break; }
-    }
-    map!.set(cue.id, out);
-  });
-  evictions.set(p, map);
-  return map;
-}
-
-export function stickerAccentOps(cue: AccentCue, dc: DrawerContext): DrawOp[] {
-  const p = dc.scene;
-  const spot = stickerPlacements(p).get(cue.id);
-  if (!spot) return [];
-  const out = stickerEvictions(p).get(cue.id) ?? Infinity;
-  if (dc.t >= out) return peelOps(spot, (dc.t - out) / STICKER_PEEL, dc.u);
-  return placedStickerOps(spot, dc.local, dc.u);
-}
-
-registerCaptionStyle({
-  template: "sticker_slap",
-  line: (chunk, dc) => baseCaptionOps(chunk, dc, BASE_LOOKS.sticker_slap),
-});
-
-registerAccent({
-  variant: "sticker",
-  layer: "overlay",
-  // A sticker evicted just before its own end still finishes its peel.
-  window: (cue) => { const [a, b] = stickerWindow(cue); return [a, b + STICKER_PEEL]; },
-  ops: stickerAccentOps,
-});

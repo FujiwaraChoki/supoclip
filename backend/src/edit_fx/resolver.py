@@ -763,10 +763,6 @@ class _Planner:
                 put("arrow", *word_span, text=text)
             else:
                 put("highlight", *word_span, text=text)
-        elif tpl == "sticker_slap":
-            label = b.label.strip() if b.label.strip() else self.text_of(self.key_phrase(words, 3), 40)
-            s = key_words[0]["start"] if b.kind != "hook" else b.start
-            put("sticker", s, s + min(1.6, max(1.0, b.end - b.start + 0.5)), text=label[:40])
         elif tpl == "kinetic_stack":
             if b.kind == "hook":
                 first, last = self.sentence_bounds(b.start)
@@ -828,8 +824,6 @@ class _Planner:
                     self.shake(b, "slam.shake", c.start, 0.25, 14.0, paired=True, hook_bound=hb)
                     self.flash_or_glitch("glitch", b.id, "slam.glitch", c.start + 0.1, 0.12, intrinsic=False,
                                          hook_bound=hb, amount=0.5)
-            elif v == "sticker":
-                self.sfx(b.id, f"{base}.sfx", "slap", c.start, intrinsic=True, hook_bound=hb)
             elif v == "counter":
                 lock = c.start + max(0.6, (b.end - b.start) + 0.4)
                 self.sfx(b.id, f"{base}.sfx", "ticker", c.start, intrinsic=True, hook_bound=hb, counted=False)

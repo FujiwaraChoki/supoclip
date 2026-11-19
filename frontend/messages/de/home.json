@@ -459,10 +459,6 @@
         "name": "Zähler",
         "description": "Gesprochene Zahlen zählen hoch und rasten ein"
       },
-      "sticker_slap": {
-        "name": "Sticker",
-        "description": "Ausgestanzte Sticker-Wörter quer übers Bild"
-      },
       "kinetic_stack": {
         "name": "Kinetischer Stapel",
         "description": "Der Hook stapelt sich in fetten Zeilen"

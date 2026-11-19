@@ -1,4 +1,4 @@
-// The die-cut sticker look (AP-H4), shared by sticker_slap accents, the face_doodles no-face fallback, the
+// The die-cut sticker look (AP-H4), shared by the face_doodles no-face fallback, the
 // "WAIT FOR IT…" retention sticker, sticker `text` cues and the freeze label. One implementation: never copy it.
 //
 // Anatomy, bottom → top: a hard drop shadow (0 6u 0 rgba(0,0,0,.35)) cast by a thick white die-cut border (0.22 em
@@ -37,7 +37,7 @@ export function stickerPalette(pick: number | string): StickerPalette {
   return STICKER_PALETTES[i];
 }
 
-/** Seeded tilt in radians within ±maxDeg (sticker_slap uses ±8°) from a draw in [0, 1). */
+/** Seeded tilt in radians within ±maxDeg (placed stickers use ±8°) from a draw in [0, 1). */
 export const stickerTilt = (draw: number, maxDeg = 8): number => ((draw * 2 - 1) * maxDeg * Math.PI) / 180;
 
 /** Slap-in: scale 1.3 → 1 over 90 ms (easeOutQuad) after `local` seconds; 1 afterwards. */

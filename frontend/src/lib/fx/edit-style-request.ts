@@ -32,7 +32,6 @@ export const FX_ASS_FALLBACK: Readonly<Record<FxCaptionTemplate, string>> = {
   slam: "mrbeast",
   behind_head: "minimal",
   stat_counter: "hormozi",
-  sticker_slap: "tiktok",
   kinetic_stack: "mrbeast",
   decode_glitch: "neon",
   highlighter_swipe: "minimal",

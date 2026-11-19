@@ -459,10 +459,6 @@
         "name": "Stat Counter",
         "description": "Spoken numbers count up and stamp into place"
       },
-      "sticker_slap": {
-        "name": "Sticker Slap",
-        "description": "Die-cut sticker words slapped around the frame"
-      },
       "kinetic_stack": {
         "name": "Kinetic Stack",
         "description": "The hook stacks up the screen in bold rows"

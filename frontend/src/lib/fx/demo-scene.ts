@@ -41,7 +41,6 @@ export const DEMO_TEMPLATE_LOOKS: Readonly<Record<FxCaptionTemplate, {
   slam: { font: "THEBOLDFONT", size: 34, color: "#FFFFFF", accent: "#FFE000", stroke: "#000000", strokeWidth: 4, shadow: true, background: null, y: 0.74, wordsPerLine: 3, uppercase: true },
   behind_head: { font: "TikTokSans-Bold", size: 28, color: "#FFFFFF", accent: "#FFD54A", stroke: null, strokeWidth: 0, shadow: true, background: null, y: 0.55, wordsPerLine: 4, uppercase: false },
   stat_counter: { font: "Poppins-ExtraBold", size: 30, color: "#FFFFFF", accent: "#00E676", stroke: null, strokeWidth: 0, shadow: true, background: null, y: 0.78, wordsPerLine: 4, uppercase: false },
-  sticker_slap: { font: "TikTokSans-Bold", size: 30, color: "#FFFFFF", accent: "#FF5C8A", stroke: "#000000", strokeWidth: 3, shadow: true, background: null, y: 0.78, wordsPerLine: 3, uppercase: false },
   kinetic_stack: { font: "THEBOLDFONT", size: 32, color: "#FFFFFF", accent: "#FFE000", stroke: "#000000", strokeWidth: 4, shadow: true, background: null, y: 0.74, wordsPerLine: 3, uppercase: true },
   decode_glitch: { font: "TikTokSans-Bold", size: 28, color: "#FFFFFF", accent: "#00F0FF", stroke: "#000000", strokeWidth: 2, shadow: true, background: null, y: 0.78, wordsPerLine: 3, uppercase: true },
   highlighter_swipe: { font: "Poppins-ExtraBold", size: 30, color: "#FFFFFF", accent: "#34FD87", stroke: null, strokeWidth: 0, shadow: false, background: "#170904D9", y: 0.55, wordsPerLine: 3, uppercase: false },
@@ -141,10 +140,6 @@ export function demoCues(template: FxCaptionTemplate, words: readonly FxWord[], 
       cue(template, 2, "highlight", number.start, number.start + 0.9, { text: number.text }),
     ];
     case "stat_counter": return [cue(template, 1, "counter", 0.25, 2.7, { text: number.text, ...spoken })];
-    case "sticker_slap": return [
-      cue(template, 1, "sticker", 0.5, 2.0, { text: sticker }),
-      cue(template, 2, "sticker", number.start - 0.1, number.start + 1.4, { text: number.text }),
-    ];
     case "kinetic_stack": return [cue(template, 1, "kinetic", words[0].start, last.end + 0.3, { text: words.map((word) => word.text).join(" ") })];
     case "decode_glitch": return [
       cue(template, 1, "decode", verb.start, verb.start + 0.8, { text: verb.text }),

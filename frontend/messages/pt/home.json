@@ -459,10 +459,6 @@
         "name": "Contador",
         "description": "Números falados sobem e carimbam no lugar"
       },
-      "sticker_slap": {
-        "name": "Adesivos",
-        "description": "Palavras em adesivo coladas pelo quadro"
-      },
       "kinetic_stack": {
         "name": "Pilha cinética",
         "description": "O gancho se empilha em linhas grossas"

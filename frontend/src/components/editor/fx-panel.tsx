@@ -65,7 +65,7 @@ export const SOUND_IDS: readonly SoundId[] = [
 const TRANSITION_STYLES: readonly TransitionStyle[] = ["whip", "flash", "glitch", "zoom_through", "spin", "light_leak"];
 /** Accent looks a user may switch an accent to: text treatments every caption style can draw. */
 const ACCENT_VARIANTS: readonly AccentVariant[] = [
-  "circle", "underline", "strike", "arrow", "highlight", "slam", "sticker", "decode", "kinetic",
+  "circle", "underline", "strike", "arrow", "highlight", "slam", "decode", "kinetic",
 ];
 /** == editor_document.FX_MAX_HOLD_SECONDS. */
 const MAX_HOLD = 2.5;

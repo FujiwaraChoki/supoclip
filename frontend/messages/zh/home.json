@@ -459,10 +459,6 @@
         "name": "数字计数",
         "description": "说出的数字向上计数并盖章定格"
       },
-      "sticker_slap": {
-        "name": "贴纸",
-        "description": "模切贴纸文字贴满画面"
-      },
       "kinetic_stack": {
         "name": "动态堆叠",
         "description": "开场钩子以粗体逐行堆叠"

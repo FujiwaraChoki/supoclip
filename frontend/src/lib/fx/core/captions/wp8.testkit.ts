@@ -1,4 +1,4 @@
-// Test kit for the WP8 drawer tests (sticker_slap, kinetic_stack, decode_glitch, highlighter_swipe, face_doodles,
+// Test kit for the WP8 drawer tests (kinetic_stack, decode_glitch, highlighter_swipe, face_doodles,
 // doodles). Test-only: imported by *.test.ts files, never by fx-core itself (so it is not in the bundle).
 import { expect } from "vitest";
 import type { DrawOp } from "../host";
@@ -40,7 +40,6 @@ export function wp8Style(template: FxCaptionTemplate, width: number): FxCaptionS
     case "kinetic_stack": return { ...base, font: "THEBOLDFONT", uppercase: true, words_per_line: 2, accent: "#FFE000" };
     case "decode_glitch": return { ...base, uppercase: true, accent: "#39FF88", stroke_px: 7 * (width / 1080) };
     case "highlighter_swipe": return { ...base, color: "#111111", stroke_color: null, stroke_px: 0, shadow: false, background: "#FFFFFFE6", accent: "#FFE14D" };
-    case "sticker_slap": return { ...base, accent: "#FF7A1A" };
     default: return base;
   }
 }

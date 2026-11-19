@@ -1,5 +1,5 @@
 // @vitest-environment node
-// WP-POLISH (D7, D10, D11 and the motion fixes): sticker peel-off, doodle → sticker crossfade, decode slices, the
+// WP-POLISH (D7, D10, D11 and the motion fixes): doodle → sticker crossfade, decode slices, the
 // accent pop that never touches its neighbours, the graded behind-head cutout and the golden size budget.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +14,6 @@ import type { FaceTrack, FxCue } from "./types";
 import { ACCENT_POP, activeWordIndex } from "./captions/base";
 import { DECODE_JOLT_FRAMES, sliceBands } from "./captions/decode_glitch";
 import { DOODLE_SWAP } from "./captions/face_doodles";
-import { STICKER_PEEL, stickerEvictions, stickerPlacements } from "./captions/sticker_slap";
 import { accent, cueOps, opsAt, paths, prep, templateScene, texts } from "./captions/wp8.testkit";
 import { hash01 } from "./rng";
 import { createCanvas } from "@napi-rs/canvas";
@@ -26,57 +25,6 @@ import { rasterize } from "./raster";
 import { napiHost } from "./test-utils/napi-host";
 
 type TextOp = Extract<DrawOp, { op: "text" }>;
-
-describe("sticker peel-off (a 4th sticker arrives)", () => {
-  // b4 starts at 1.45 while b1, b2, b3 are on screen: b1 is the oldest and peels off.
-  const CUES = [
-    accent("b1.accent", "sticker", 0.56, 1.9, { text: "No way" }),
-    accent("b2.accent", "sticker", 1.0, 2.4, { text: "300% growth in one year" }),
-    accent("b3.accent", "sticker", 1.3, 2.6, { text: "plot twist" }),
-    accent("b4.accent", "sticker", 1.45, 2.8, { text: "wild" }),
-  ];
-  const scene = templateScene("sticker_slap", { cues: CUES });
-  const noWay = (t: number) => texts(cueOps(scene, t)).filter((o) => o.text === "NO WAY");
-
-  it("evicts the oldest at the 4th sticker's start, and only it", () => {
-    const out = stickerEvictions(prep(scene));
-    expect(out.get("b1.accent")).toBeCloseTo(1.45, 9);
-    for (const id of ["b2.accent", "b3.accent", "b4.accent"]) expect(out.get(id)).toBe(Infinity);
-  });
-
-  it("lifts, curls and fades over STICKER_PEEL instead of vanishing", () => {
-    const rest = noWay(1.44);
-    expect(rest).toHaveLength(3);
-    expect(rest.every((o) => o.alpha === 1)).toBe(true);
-    const mid = noWay(1.45 + STICKER_PEEL / 2);
-    expect(mid).toHaveLength(3);
-    expect(mid[0].alpha).toBeGreaterThan(0);
-    expect(mid[0].alpha).toBeLessThan(1);
-    // The sticker has moved up (lift) and its transform is squashed (curl): the centre's y is above the rest pose.
-    const yRest = applyMat(rest[0].transform, 0, 0)[1], yMid = applyMat(mid[0].transform, 0, 0)[1];
-    expect(yMid).toBeLessThan(yRest);
-    const det = (m: number[]) => m[0] * m[3] - m[1] * m[2];
-    expect(Math.abs(det(mid[0].transform))).toBeLessThan(Math.abs(det(rest[0].transform)));
-    expect(noWay(1.45 + STICKER_PEEL + 0.01)).toEqual([]);
-    expect(noWay(1.85)).toEqual([]);   // once peeled it never comes back
-    expect(drawerErrors(prep(scene))).toEqual([]);
-  });
-
-  it("keeps stickers off the head (face box plus the hair above it)", () => {
-    const p = prep(scene);
-    const head = { x: TEST_FACE.x * 1080, y: (TEST_FACE.y - 0.45 * TEST_FACE.h) * 1920, w: TEST_FACE.w * 1080, h: TEST_FACE.h * 1.45 * 1920 };
-    for (const spot of stickerPlacements(p).values()) {
-      if (!spot) continue;
-      const overlapX = Math.min(spot.box.x + spot.box.w, head.x + head.w) - Math.max(spot.box.x, head.x);
-      const overlapY = Math.min(spot.box.y + spot.box.h, head.y + head.h) - Math.max(spot.box.y, head.y);
-      expect(overlapX <= 0 || overlapY <= 0).toBe(true);
-    }
-  });
-
-  it("golden: mid-peel", () => {
-    expectGolden("polish__sticker_peel", renderSceneToPng(templateScene("sticker_slap", { cues: CUES, width: 540, height: 960 }), 1.45 + STICKER_PEEL * 0.45));
-  });
-});
 
 describe("doodle → sticker crossfade when the face drops", () => {
   // The face is tracked until 1.0 s, then lost (empty samples) until the end.

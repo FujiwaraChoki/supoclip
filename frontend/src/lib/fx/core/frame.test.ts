@@ -85,8 +85,8 @@ describe("every drawer registers", () => {
   it("all stubs are registered", () => {
     const r = registrySnapshot();
     expect([...r.accents].sort()).toEqual(["arrow", "behind", "circle", "counter", "decode", "doodle", "emoji", "emoji_burst",
-      "highlight", "kinetic", "slam", "sticker", "strike", "underline"]);
-    expect(r.captionStyles).toHaveLength(10);
+      "highlight", "kinetic", "slam", "strike", "underline"]);
+    expect(r.captionStyles).toHaveLength(9);
     expect([...r.picture].sort()).toEqual(["desaturate", "glitch", "grade", "shake", "transition", "zoom"]);
     expect(r.cues.map(([k]) => k).sort()).toEqual(["bleep", "flash", "freeze", "reaction", "sticker", "transition"]);
     expect([...r.globals].sort()).toEqual(["grade", "grain", "hook", "loop", "progress"]);
