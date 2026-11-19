@@ -56,13 +56,17 @@ async def _fail_unstarted_task(ctx: Dict[str, Any], task_id: str) -> None:
 
     Holds the run guard so a live render or a resume is left alone, and leaves a
     task that has since moved to another job (resume, deferral) to that job.
+    Uses its own connection: the pool may still be exhausted.
     """
-    from ..database import AsyncSessionLocal
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from sqlalchemy.pool import NullPool
+    from ..database import get_engine
     from ..repositories.task_repository import TaskRepository
     from ..repositories.task_run_guard import task_run_guard
 
+    engine = create_async_engine(get_engine().url, poolclass=NullPool)
     try:
-        async with AsyncSessionLocal() as db:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
             async with task_run_guard(db, task_id):
                 metadata = await TaskRepository.load_source_metadata(db, task_id) or {}
                 current_job = metadata.get("processing_job_id")
@@ -81,6 +85,8 @@ async def _fail_unstarted_task(ctx: Dict[str, Any], task_id: str) -> None:
     except Exception:
         # The stale-task sweep is the backstop.
         logger.exception("Could not fail unstarted task %s", task_id)
+    finally:
+        await engine.dispose()
 
 
 async def _retry_unstarted_job(ctx: Dict[str, Any], task_id: str, progress, error: Exception) -> None:

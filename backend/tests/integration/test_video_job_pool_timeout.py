@@ -114,26 +114,16 @@ async def test_guard_read_on_an_exhausted_pool_retries_the_job(
 
 
 async def test_last_try_on_an_exhausted_pool_fails_and_refunds_the_task(
-    db_session, one_connection_pool, redis, admitted, monkeypatch
+    db_session, one_connection_pool, redis, admitted
 ):
     job_id = f"job-{uuid.uuid4()}"
     task_id, user_id = await charged_queued_task(db_session, job_id)
-    busy = await one_connection_pool.connect()
-    await busy.execute(text("SELECT 1"))
-    read_task = TaskRepository.get_task_by_id
-
-    async def guard_read_then_free_the_pool(db, task_id):
-        try:
-            return await read_task(db, task_id)
-        finally:
-            # The pool frees up once the guard read has timed out.
-            if busy is not None and not busy.closed:
-                await busy.close()
-
-    monkeypatch.setattr(TaskRepository, "get_task_by_id", staticmethod(guard_read_then_free_the_pool))
     try:
-        with pytest.raises(Exception) as failed:
-            await run_job(redis, task_id, user_id, job_try=3, job_id=job_id)
+        # The pool stays exhausted for the whole job, cleanup included.
+        async with one_connection_pool.connect() as busy:
+            await busy.execute(text("SELECT 1"))
+            with pytest.raises(Exception) as failed:
+                await run_job(redis, task_id, user_id, job_try=3, job_id=job_id)
         status, refunded_at = await task_state(db_session, task_id)
         assert status == "error"
         assert refunded_at is not None
@@ -143,35 +133,21 @@ async def test_last_try_on_an_exhausted_pool_fails_and_refunds_the_task(
     finally:
         await redis.delete(f"dead_letter:{task_id}", f"progress:{task_id}")
         await redis.srem("tasks:dead_letter", task_id)
-        if not busy.closed:
-            await busy.close()
 
 
 async def test_last_try_leaves_a_task_that_moved_to_another_job(
-    db_session, one_connection_pool, redis, admitted, monkeypatch
+    db_session, one_connection_pool, redis, admitted
 ):
     task_id, user_id = await charged_queued_task(db_session, "job-from-a-resume")
-    busy = await one_connection_pool.connect()
-    await busy.execute(text("SELECT 1"))
-    read_task = TaskRepository.get_task_by_id
-
-    async def guard_read_then_free_the_pool(db, task_id):
-        try:
-            return await read_task(db, task_id)
-        finally:
-            if not busy.closed:
-                await busy.close()
-
-    monkeypatch.setattr(TaskRepository, "get_task_by_id", staticmethod(guard_read_then_free_the_pool))
     try:
-        with pytest.raises(Exception):
-            await run_job(redis, task_id, user_id, job_try=3, job_id="stale-job")
+        async with one_connection_pool.connect() as busy:
+            await busy.execute(text("SELECT 1"))
+            with pytest.raises(Exception):
+                await run_job(redis, task_id, user_id, job_try=3, job_id="stale-job")
         assert await task_state(db_session, task_id) == ("queued", None)
     finally:
         await redis.delete(f"dead_letter:{task_id}", f"progress:{task_id}")
         await redis.srem("tasks:dead_letter", task_id)
-        if not busy.closed:
-            await busy.close()
 
 
 async def test_admission_read_on_an_exhausted_pool_retries_the_job(
