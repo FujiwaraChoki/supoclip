@@ -313,6 +313,24 @@ def test_synthetic_and_billing_risk_cases_are_labelled():
     assert "billing-risk guard" in risk and "evt_9" not in risk
 
 
+@pytest.mark.parametrize("comment, expected, unexpected", [
+    ("refunded:evt_1", "Refunded:", "billing-risk"),
+    ("dispute:evt_2", "payment dispute", "Refunded"),
+    ("fraud_warning:evt_3", "fraud warning", "Refunded"),
+    ("billing_risk:evt_4", "older record", "Refunded"),
+])
+def test_guard_cancellations_are_labelled_by_cause(comment, expected, unexpected):
+    text = render(review=review_row(kind="immediate", ended_at=T0,
+                                    snapshot={**review_row()["snapshot"], "cancellation_comment": comment}))
+    assert expected in text and unexpected not in text and "evt_" not in text
+    assert "Customer's comment" not in text
+
+
+def test_a_customer_comment_with_a_colon_is_still_quoted():
+    text = render(review=review_row(snapshot={**review_row()["snapshot"], "cancellation_comment": "refunded: too pricey"}))
+    assert "Customer's comment (quoted)" in text
+
+
 def test_involuntary_and_unlinked_customer():
     text = render(review=review_row(kind="immediate", ended_at=T0, snapshot={
         **review_row()["snapshot"], "cancellation_reason": "payment_failed"}), context=None)
