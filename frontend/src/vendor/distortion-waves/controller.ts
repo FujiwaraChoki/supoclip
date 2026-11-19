@@ -990,8 +990,14 @@ export class WaveController {
     cs.pointerEvents = "none";
     cs.zIndex = "1";
     cs.display = "none";
-    const renderer = new WaveRenderer(canvas, { alpha: true });
-    if (!renderer.ok) {
+    let renderer: WaveRenderer | null = null;
+    try {
+      renderer = new WaveRenderer(canvas, { alpha: true });
+    } catch {
+      renderer = null;
+    }
+    // Never try again: a second throw would land in a React commit.
+    if (!renderer?.ok) {
       this.failed = true;
       return null;
     }
@@ -1010,7 +1016,18 @@ export class WaveController {
       "webglcontextrestored",
       () => {
         if (this.destroyed || this.canvas !== canvas) return;
-        this.renderer = new WaveRenderer(canvas, { alpha: true });
+        let restored: WaveRenderer | null = null;
+        try {
+          restored = new WaveRenderer(canvas, { alpha: true });
+        } catch {
+          restored = null;
+        }
+        if (!restored?.ok) {
+          // The old renderer stays and reads as lost, so nothing draws.
+          this.failed = true;
+          return;
+        }
+        this.renderer = restored;
         this.primed = false;
         this.slots.content.stale = this.slots.revealed.stale = true;
         this.scheduleRefresh(true);

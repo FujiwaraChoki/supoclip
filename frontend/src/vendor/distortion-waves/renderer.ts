@@ -407,23 +407,37 @@ void main() {
 }`;
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string) {
-  const sh = gl.createShader(type)!;
+  const kind = type === gl.VERTEX_SHADER ? "vertex" : "fragment";
+  /* A lost context (Safari can hand one out from getContext) makes no shaders. */
+  const sh = gl.createShader(type);
+  if (!sh) throw new Error(`${kind} shader: ${gl.isContextLost() ? "context lost" : "createShader failed"}`);
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    throw new Error(`${type === gl.VERTEX_SHADER ? "vertex" : "fragment"} shader: ${gl.isContextLost() ? "context lost" : gl.getShaderInfoLog(sh)}`);
+    const reason = gl.isContextLost() ? "context lost" : gl.getShaderInfoLog(sh);
+    gl.deleteShader(sh);
+    throw new Error(`${kind} shader: ${reason}`);
   }
   return sh;
 }
 
 function program(gl: WebGL2RenderingContext, vs: string, fs: string) {
-  const p = gl.createProgram()!;
-  gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, vs));
-  gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, fs));
-  gl.bindAttribLocation(p, 0, "aPos");
-  gl.bindAttribLocation(p, 0, "aDot");
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) || "link");
+  const p = gl.createProgram();
+  if (!p) throw new Error(`program: ${gl.isContextLost() ? "context lost" : "createProgram failed"}`);
+  const shaders: WebGLShader[] = [];
+  try {
+    shaders.push(compile(gl, gl.VERTEX_SHADER, vs));
+    shaders.push(compile(gl, gl.FRAGMENT_SHADER, fs));
+    for (const sh of shaders) gl.attachShader(p, sh);
+    gl.bindAttribLocation(p, 0, "aPos");
+    gl.bindAttribLocation(p, 0, "aDot");
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) || "link");
+  } catch (err) {
+    for (const sh of shaders) gl.deleteShader(sh);
+    gl.deleteProgram(p);
+    throw err;
+  }
   const cache = new Map<string, WebGLUniformLocation | null>();
   const loc = (name: string) => {
     if (!cache.has(name)) cache.set(name, gl.getUniformLocation(p, name));
@@ -532,14 +546,31 @@ export class WaveRenderer {
       this.main = this.blur = this.copy = this.dot = null as unknown as ReturnType<typeof program>;
       return;
     }
-    this.main = program(gl, VERT, MAIN_FRAG);
-    this.blur = program(gl, VERT, BLUR_FRAG);
-    this.copy = program(gl, VERT, COPY_FRAG);
-    this.dot = program(gl, DOT_VERT, DOT_FRAG);
-    this.quad = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    this.dots = gl.createBuffer()!;
+    /* Safari can return a context that is already lost, which makes no
+       shaders, programs or buffers. Leave the renderer not ok, so the
+       caller falls back, instead of throwing out of the constructor. */
+    const programs: ReturnType<typeof program>[] = [];
+    let quad: WebGLBuffer | null = null;
+    try {
+      for (const [vs, fs] of [[VERT, MAIN_FRAG], [VERT, BLUR_FRAG], [VERT, COPY_FRAG], [DOT_VERT, DOT_FRAG]]) {
+        programs.push(program(gl, vs, fs));
+      }
+      quad = gl.createBuffer();
+      if (!quad) throw new Error("buffer: createBuffer failed");
+      gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const dots = gl.createBuffer();
+      if (!dots) throw new Error("buffer: createBuffer failed");
+      [this.main, this.blur, this.copy, this.dot] = programs;
+      this.quad = quad;
+      this.dots = dots;
+    } catch {
+      for (const p of programs) gl.deleteProgram(p.p);
+      if (quad) gl.deleteBuffer(quad);
+      this.ok = false;
+      this.quad = this.dots = null as unknown as WebGLBuffer;
+      this.main = this.blur = this.copy = this.dot = null as unknown as ReturnType<typeof program>;
+    }
   }
 
   /** True once the browser has taken the context away; make a new renderer
