@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import pytest
 
@@ -35,7 +36,7 @@ async def test_sweep_reuses_its_connection_before_the_server_closes_it(monkeypat
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("timeout", ["120", "300", "900"])
+@pytest.mark.parametrize("timeout", ["60", "70", "120", "300", "900"])
 async def test_sweep_stays_inside_a_configured_idle_timeout(monkeypatch, timeout):
     monkeypatch.setenv("DATABASE_IDLE_SESSION_TIMEOUT_SECONDS", timeout)
     pauses = await sweep_pauses(monkeypatch)
@@ -46,3 +47,30 @@ async def test_sweep_stays_inside_a_configured_idle_timeout(monkeypatch, timeout
 async def test_sweep_keeps_its_interval_without_an_idle_timeout(monkeypatch):
     monkeypatch.setenv("DATABASE_IDLE_SESSION_TIMEOUT_SECONDS", "0")
     assert await sweep_pauses(monkeypatch) == [worker_tasks.SCRATCH_SWEEP_SECONDS] * 2
+
+
+@pytest.mark.asyncio
+async def test_orphan_sweep_runs_every_six_hours_whatever_the_pause(monkeypatch):
+    # A short idle timeout shortens every pause; the heavier orphan sweep keeps its cadence.
+    monkeypatch.setenv("DATABASE_IDLE_SESSION_TIMEOUT_SECONDS", "60")
+    clock = [0.0]
+    orphan_passes = []
+
+    async def fake_sleep(seconds):
+        clock[0] += seconds
+        if clock[0] > 13 * 60 * 60:
+            raise asyncio.CancelledError
+
+    async def fake_sweep(*, orphans=False):
+        orphan_passes.append((clock[0], orphans))
+
+    monkeypatch.setattr(media_cleanup, "maintain_local_scratch", fake_sweep)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    with pytest.raises(asyncio.CancelledError):
+        await worker_tasks._maintain_scratch_forever()
+
+    sweeps = [at for at, orphans in orphan_passes if orphans]
+    assert len(orphan_passes) > 1000
+    assert len(sweeps) == 3
+    assert all(later - earlier >= 6 * 60 * 60 for earlier, later in zip(sweeps, sweeps[1:]))

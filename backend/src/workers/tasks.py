@@ -259,7 +259,7 @@ async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 SCRATCH_SWEEP_SECONDS = 10 * 60
-ORPHAN_SWEEP_EVERY = 36  # passes, about six hours at the full interval
+ORPHAN_SWEEP_SECONDS = 6 * 60 * 60
 
 
 def scratch_sweep_seconds() -> float:
@@ -268,13 +268,15 @@ def scratch_sweep_seconds() -> float:
     LIFO pooling hands each pass the connection the last pass used. Waking as
     the server closes it for idleness makes pre-ping race the close, which
     asyncpg reports as "another operation in progress" instead of a disconnect.
+    Always 75% of the timeout: a fixed floor would land on the close again
+    when the timeout is short.
     """
     from ..database import idle_session_timeout_seconds
 
     idle_timeout = idle_session_timeout_seconds()
     if idle_timeout <= 0:
         return SCRATCH_SWEEP_SECONDS
-    return max(60.0, min(SCRATCH_SWEEP_SECONDS, idle_timeout * 0.75))
+    return min(SCRATCH_SWEEP_SECONDS, idle_timeout * 0.75)
 
 
 async def check_media_volume(redis) -> None:
@@ -305,20 +307,25 @@ async def _maintain_scratch_forever() -> None:
     """Each machine cleans its own disk; the scheduler only sees the one it runs on."""
     import asyncio
     import random
+    import time
 
     from .media_cleanup import maintain_local_scratch
 
-    passes = 0
+    # By the clock, not by pass: a short idle timeout shortens the passes.
+    last_orphan_sweep = None
     # Workers started together should not all sweep in the same second.
     await asyncio.sleep(random.uniform(30, 120))
     while True:
+        now = time.monotonic()
+        orphans = last_orphan_sweep is None or now - last_orphan_sweep >= ORPHAN_SWEEP_SECONDS
+        if orphans:
+            last_orphan_sweep = now
         try:
-            await maintain_local_scratch(orphans=passes % ORPHAN_SWEEP_EVERY == 0)
+            await maintain_local_scratch(orphans=orphans)
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("Local scratch cleanup failed; it runs again next pass")
-        passes += 1
         await asyncio.sleep(scratch_sweep_seconds())
 
 
