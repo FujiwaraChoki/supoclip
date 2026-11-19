@@ -21,8 +21,8 @@ class DuplicateJobError(RuntimeError):
     """A job with the requested ``_job_id`` is already queued or running."""
 
 
-def _get_redis_settings() -> RedisSettings:
-    return arq_redis_settings(get_config())
+def _get_redis_settings(*, serving_requests: bool = False) -> RedisSettings:
+    return arq_redis_settings(get_config(), serving_requests=serving_requests)
 
 
 async def _job_exists(pool: ArqRedis, job_id: str) -> bool:
@@ -34,14 +34,21 @@ class JobQueue:
     """Wrapper for arq job queue operations."""
 
     _pool: Optional[ArqRedis] = None
+    # Set by the API before its pool exists: a request fails within seconds
+    # while Redis is down instead of waiting out the workers' reconnects.
+    serving_requests: bool = False
 
     @classmethod
     async def get_pool(cls) -> ArqRedis:
         """Get or create the Redis connection pool."""
         if cls._pool is None:
             config = get_config()
-            pool = await create_pool(_get_redis_settings())
-            await use_socket_options(pool, config)
+            pool = await create_pool(
+                _get_redis_settings(serving_requests=cls.serving_requests)
+            )
+            await use_socket_options(
+                pool, config, serving_requests=cls.serving_requests
+            )
             cls._pool = pool
             logger.info(
                 f"Created arq Redis pool: {config.redis_host}:{config.redis_port}"

@@ -356,3 +356,87 @@ async def test_an_enqueue_whose_reply_was_lost_is_a_duplicate_not_a_second_job(m
         await pool.delete(job_key_prefix + job_id, "arq-probe-queue")
         await pool.aclose()
         monkeypatch.setattr(JobQueue, "_pool", None)
+
+
+def test_the_api_enqueue_pool_has_a_request_sized_budget():
+    """A request must not wait out the workers' ~17-77s of reconnects: the
+    gateway would time it out first."""
+    config = _config()
+    serving = arq_redis_settings(config, serving_requests=True)
+    assert serving.conn_timeout <= 3
+    assert serving.retry._retries <= 2
+    assert serving.retry_on_timeout is True and RedisConnectionError in serving.retry_on_error
+    assert arq_socket_options(config, serving_requests=True)["socket_timeout"] <= 5
+    # Workers keep their patient budget.
+    worker = arq_redis_settings(config)
+    assert worker.conn_timeout >= 10 and worker.retry._retries >= 3
+    assert arq_socket_options(config)["socket_timeout"] == 30
+
+
+@pytest.mark.asyncio
+async def test_an_api_command_fails_within_seconds_once_redis_is_gone(monkeypatch):
+    """Redis goes away behind the API's pooled connection: the next enqueue
+    errors out quickly instead of hanging the request."""
+    from src.workers.job_queue import JobQueue
+
+    config = _config()
+    proxy = _BlackholeProxy(config.redis_port)
+    proxied = _config(redis_host="127.0.0.1", redis_port=await proxy.start(), redis_socket_timeout_seconds=1)
+    monkeypatch.setattr("src.workers.job_queue.get_config", lambda: proxied)
+    monkeypatch.setattr(JobQueue, "_pool", None)
+    monkeypatch.setattr(JobQueue, "serving_requests", True)
+    pool = await JobQueue.get_pool()
+    try:
+        await pool.ping()
+        proxy.go_silent()
+        await proxy.close()  # reconnects are now refused
+        started = asyncio.get_running_loop().time()
+        with pytest.raises((RedisConnectionError, asyncio.TimeoutError, OSError)):
+            await asyncio.wait_for(pool.zrangebyscore("arq-api-budget-probe", 0, 1), 20)
+        assert asyncio.get_running_loop().time() - started < 6
+    finally:
+        await pool.aclose()
+        monkeypatch.setattr(JobQueue, "_pool", None)
+
+
+@pytest.mark.asyncio
+async def test_the_api_builds_its_queue_pool_with_the_request_budget(monkeypatch):
+    import contextlib
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import src.main as main
+    from src.config import Config, set_config_override
+
+    async def nothing(*_args, **_kwargs):
+        return None
+
+    @contextlib.asynccontextmanager
+    async def no_session():
+        yield None
+
+    monkeypatch.setattr(main, "init_db", nothing)
+    monkeypatch.setattr(main, "close_db", nothing)
+    monkeypatch.setattr(main, "load_runtime_settings_cache", nothing)
+    monkeypatch.setattr(main, "AsyncSessionLocal", no_session)
+
+    class Queue:
+        serving_requests = False
+        built_for_requests = None
+
+        @classmethod
+        async def get_pool(cls):
+            cls.built_for_requests = cls.serving_requests
+            return SimpleNamespace(set=AsyncMock())
+
+        @classmethod
+        async def close_pool(cls):
+            return None
+
+    app = main.create_app(config=Config(), queue_adapter=Queue)
+    try:
+        async with app.router.lifespan_context(app):
+            pass
+    finally:
+        set_config_override(None)
+    assert Queue.built_for_requests is True

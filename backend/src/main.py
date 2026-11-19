@@ -86,6 +86,8 @@ def create_app(
                 # The message may quote configuration; log only the class name.
                 logger.error("Could not set up the Hermes feedback webhook (%s)", type(exc).__name__)
 
+            if hasattr(queue_adapter, "serving_requests"):
+                queue_adapter.serving_requests = True
             pool = await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
             try:

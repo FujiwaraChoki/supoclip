@@ -21,6 +21,10 @@ new connection like any other. No arq pool runs blocking commands (BLPOP,
 pub/sub); progress streams use their own Redis client.
 
 Each retry is logged, so an outage the workers ride out still shows up.
+
+The API's enqueue pool (``serving_requests=True``) gets a much smaller budget:
+a request waiting the workers' ~17-77s for Redis would outlast the gateway, so
+it reconnects at most twice, with a short connect and read timeout.
 """
 
 import logging
@@ -61,14 +65,30 @@ class LoggedRetry(Retry):
         return await super().call_with_retry(do, fail_and_log)
 
 
-def arq_redis_settings(config: Config | None = None) -> RedisSettings:
+# Worst case for one API command while Redis is unreachable: three connects of
+# at most 3s plus 2s of backoff; a silent connection costs one 5s read first.
+_REQUEST_CONNECT_TIMEOUT_SECONDS = 3
+_REQUEST_RETRIES = 2
+_REQUEST_SOCKET_TIMEOUT_SECONDS = 5
+
+
+def arq_redis_settings(
+    config: Config | None = None, *, serving_requests: bool = False
+) -> RedisSettings:
     config = config or get_config()
+    conn_timeout = config.redis_connect_timeout_seconds
+    retries = config.redis_connect_retries
+    backoff = ExponentialBackoff(cap=5, base=0.5)
+    if serving_requests:
+        conn_timeout = min(conn_timeout, _REQUEST_CONNECT_TIMEOUT_SECONDS)
+        retries = min(retries, _REQUEST_RETRIES)
+        backoff = ExponentialBackoff(cap=1, base=0.5)
     return RedisSettings(
         host=config.redis_host,
         port=config.redis_port,
         password=config.redis_password,
         database=0,
-        conn_timeout=config.redis_connect_timeout_seconds,
+        conn_timeout=conn_timeout,
         # Startup: create_pool pings this many times, conn_retry_delay apart.
         conn_retries=config.redis_connect_retries,
         conn_retry_delay=1,
@@ -77,7 +97,7 @@ def arq_redis_settings(config: Config | None = None) -> RedisSettings:
         # backoff of 1s, 2s, 4s… capped at 5s.
         retry_on_timeout=True,
         retry_on_error=[RedisConnectionError],
-        retry=LoggedRetry(ExponentialBackoff(cap=5, base=0.5), config.redis_connect_retries),
+        retry=LoggedRetry(backoff, retries),
     )
 
 
@@ -85,10 +105,15 @@ def arq_redis_settings(config: Config | None = None) -> RedisSettings:
 _KEEPALIVE = {"TCP_KEEPIDLE": 60, "TCP_KEEPINTVL": 10, "TCP_KEEPCNT": 3}
 
 
-def arq_socket_options(config: Config | None = None) -> dict:
+def arq_socket_options(
+    config: Config | None = None, *, serving_requests: bool = False
+) -> dict:
     config = config or get_config()
+    socket_timeout = config.redis_socket_timeout_seconds
+    if serving_requests:
+        socket_timeout = min(socket_timeout, _REQUEST_SOCKET_TIMEOUT_SECONDS)
     return {
-        "socket_timeout": config.redis_socket_timeout_seconds,
+        "socket_timeout": socket_timeout,
         "socket_keepalive": True,
         "socket_keepalive_options": {
             getattr(socket, name): value
@@ -98,9 +123,11 @@ def arq_socket_options(config: Config | None = None) -> dict:
     }
 
 
-async def use_socket_options(redis: ArqRedis, config: Config | None = None) -> None:
+async def use_socket_options(
+    redis: ArqRedis, config: Config | None = None, *, serving_requests: bool = False
+) -> None:
     """Give every connection of ``redis`` a read timeout and keepalive."""
-    options = arq_socket_options(config)
+    options = arq_socket_options(config, serving_requests=serving_requests)
     pool = redis.connection_pool
     pool.connection_kwargs.update(options)
     for connection in (*pool._available_connections, *pool._in_use_connections):
