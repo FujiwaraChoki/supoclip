@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-19
 
+- **Fixed:** On some Safari versions, finishing checkout could show an error page on Settings instead of the thank-you note. The thank-you now appears with a simple fade when the browser cannot draw the wave. ([#462](https://github.com/FujiwaraChoki/supoclip/pull/462))
 - **Under the hood:** Hosted SupoClip can add extra video workers when the queue backs up and remove them once they are idle, without stopping any video that is being made. It is off until switched on. ([#455](https://github.com/FujiwaraChoki/supoclip/pull/455))
 
 ## 2026-11-18
