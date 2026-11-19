@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-19
 
+- **Fixed:** A fully refunded subscription is now recorded as "Refunded" in cancellation reports instead of looking like a billing-risk (fraud or dispute) cancellation. The subscription still ends on a full refund; only disputes and fraud warnings are reported as billing risk. ([#466](https://github.com/FujiwaraChoki/supoclip/pull/466))
 - **Fixed:** Some large uploads failed with a generic gateway error when you started a generation from them. Long recordings saved as fragmented MP4 (an option in recorders such as OBS) are now measured in about a second instead of reading most of the file. If a file still takes too long to read, SupoClip now says so and suggests re-exporting it with fast start ("optimize for web") or uploading a shorter or smaller file. No minutes are used. ([#463](https://github.com/FujiwaraChoki/supoclip/pull/463))
 - **Fixed:** On some Safari versions, finishing checkout could show an error page on Settings instead of the thank-you note. The thank-you now appears with a simple fade when the browser cannot draw the wave. ([#462](https://github.com/FujiwaraChoki/supoclip/pull/462))
 - **Under the hood:** Hosted SupoClip can add extra video workers when the queue backs up and remove them once they are idle, without stopping any video that is being made. It is off until switched on. ([#455](https://github.com/FujiwaraChoki/supoclip/pull/455))

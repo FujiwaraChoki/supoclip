@@ -39,6 +39,24 @@ _REDACTIONS = (
 )
 
 
+GUARD_CANCELLATIONS = {
+    "refunded": "Refunded: the charge was fully refunded, so SupoClip ended the subscription. Not a customer cancellation and not a risk signal.",
+    "dispute": "Cancelled by SupoClip's billing-risk guard after a payment dispute, not by the customer.",
+    "fraud_warning": "Cancelled by SupoClip's billing-risk guard after a fraud warning, not by the customer.",
+    # Rows written before refunds got their own label; the event type was not stored.
+    "billing_risk": "Cancelled by SupoClip's billing-risk guard after a refund, dispute or fraud warning (an older record that does not say which), not by the customer.",
+}
+
+
+GUARD_COMMENT = re.compile(r"(?P<kind>refunded|dispute|fraud_warning|billing_risk):evt_\w+")
+
+
+def guard_cancellation_line(comment: str | None) -> str | None:
+    """The report line for a cancellation SupoClip made itself, from its `<kind>:<event id>` comment."""
+    match = GUARD_COMMENT.match(comment or "")
+    return GUARD_CANCELLATIONS[match["kind"]] if match else None
+
+
 def customer_text(value: str | None) -> str | None:
     if not value or not value.strip():
         return None
@@ -208,10 +226,11 @@ def render_report(
         lines.append(f"  Stripe reason: {REASON_LABELS.get(reason, reason)}")
     if feedback:
         lines.append(f"  Survey answer: {FEEDBACK_LABELS.get(feedback, feedback)}")
-    if comment and not comment.startswith("billing_risk:"):
+    guard_line = guard_cancellation_line(comment)
+    if comment and not guard_line:
         lines.append(f"  Customer's comment (quoted): “{customer_text(comment)}”")
-    elif comment:
-        lines.append("  Cancelled by SupoClip's billing-risk guard (dispute or fraud signal), not by the customer.")
+    elif guard_line:
+        lines.append(f"  {guard_line}")
     for note in notes:
         lines.append(f"  In-app note {_date(note['created_at'])} (quoted): “{customer_text(note['message'])}”")
     if not (feedback or comment or notes):
