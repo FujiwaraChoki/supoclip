@@ -308,10 +308,13 @@ class ReplicatedMediaClient:
             try:
                 # Signing is local and succeeds even for a suspended account.
                 # Probe access before handing the browser a storage URL.
-                client.head_object(Bucket=bucket, Key=params["Key"])
+                _retry_throttled(lambda: client.head_object(Bucket=bucket, Key=params["Key"]))
                 return client.generate_presigned_url(ClientMethod, Params={**params, "Bucket": bucket}, **kwargs)
             except ERRORS as exc:
-                error = exc
+                # A replica that lacks the object must not turn a throttled
+                # or unavailable store into a false "object missing".
+                if error is None or not _missing(exc):
+                    error = exc
         raise error
 
     @staticmethod

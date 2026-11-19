@@ -1056,11 +1056,13 @@ def test_head_waits_out_throttling_codes(mirrored, tmp_path, sleeps, code, statu
     assert len(calls) == 2 and len(sleeps) == 1
 
 
-def test_missing_object_falls_through_to_the_other_store_without_waiting(mirrored, tmp_path, sleeps):
+@pytest.mark.parametrize("code,status", [("404", 404), ("NoSuchKey", 404), ("403", 403), ("AccessDenied", 403)])
+def test_missing_or_forbidden_object_falls_through_to_the_other_store_without_waiting(mirrored, tmp_path, sleeps,
+                                                                                    code, status):
     primary, fallback = stores(mirrored)
     hold(fallback, b"video")
-    primary.download_file = Mock(side_effect=ClientError({"Error": {"Code": "404"},
-                                                          "ResponseMetadata": {"HTTPStatusCode": 404}}, "HeadObject"))
+    primary.download_file = Mock(side_effect=ClientError({"Error": {"Code": code},
+                                                          "ResponseMetadata": {"HTTPStatusCode": status}}, "HeadObject"))
     restored = tmp_path / "restored.mp4"
     mirrored.download_file("original", KEY, str(restored))
     assert restored.read_bytes() == b"video"
@@ -1075,3 +1077,23 @@ def test_persistent_throttling_gives_up_and_raises(mirrored, tmp_path, sleeps):
         mirrored.download_file("original", KEY, str(tmp_path / "restored.mp4"))
     assert primary.download_file.call_count == 4
     assert len(sleeps) == 3 and sum(sleeps) <= 3.5
+
+
+def test_signing_waits_out_throttling_instead_of_serving_a_replica_that_lacks_the_object(mirrored, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video")
+    real = primary.head_object
+    primary.head_object = Mock(side_effect=[throttle(), real(Bucket="original", Key=KEY)])
+    url = mirrored.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
+    assert url.startswith("https://aws.example/original/")
+    assert primary.head_object.call_count == 2 and len(sleeps) == 1
+
+
+def test_signing_reports_throttling_not_missing_when_the_replica_lacks_the_object(mirrored, sleeps):
+    primary, _ = stores(mirrored)
+    hold(primary, b"video")
+    primary.head_object = Mock(side_effect=throttle())
+    with pytest.raises(ClientError) as raised:
+        mirrored.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
+    assert raised.value.response["Error"]["Code"] == "429"
+    assert primary.head_object.call_count == 4
