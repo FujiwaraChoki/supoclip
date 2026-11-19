@@ -9,6 +9,7 @@ import { isPostHogEnabled } from "@/lib/posthog";
 export function PostHogIdentity() {
   const { data: session, isPending } = useSession();
   const identifiedIdRef = useRef<string | null>(null);
+  const identifiedEmailRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isPostHogEnabled || isPending) return;
@@ -23,12 +24,20 @@ export function PostHogIdentity() {
       return;
     }
 
-    if (identifiedIdRef.current === user.id) return;
+    if (identifiedIdRef.current === user.id) {
+      // Same person, new address (Settings → change email): update the property only.
+      if (identifiedEmailRef.current !== user.email) {
+        posthog.setPersonProperties({ email: user.email });
+        identifiedEmailRef.current = user.email;
+      }
+      return;
+    }
     posthog.identify(user.id, {
       email: user.email,
       ...(user.name ? { name: user.name } : {}),
     });
     identifiedIdRef.current = user.id;
+    identifiedEmailRef.current = user.email;
   }, [isPending, session?.user]);
 
   return null;
