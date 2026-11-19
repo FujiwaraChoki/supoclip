@@ -124,7 +124,7 @@
       },
       "2": {
         "question": "Posso auto-hospedar o SupoClip?",
-        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC."
       },
       "3": {
         "question": "Quais fontes de vídeo o SupoClip aceita?",
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "Auto-hospedar o SupoClip é grátis?",
-        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC. Você continua responsável pela infraestrutura e por qualquer uso pago de transcrição ou de provedores de IA."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC. Você continua responsável pela infraestrutura e por qualquer uso pago de transcrição ou de provedores de IA."
       },
       "1": {
         "question": "O SupoClip pode usar um modelo de linguagem local?",
@@ -292,7 +292,7 @@
     "hostedBody": "O Pro começa em US${price}/mês com {hours} horas de vídeo de origem por mês e clipes em {resolution}. O processamento é gerenciado para você. O app hospedado exige um plano pago.",
     "plans": "Ver planos atuais",
     "selfHostTitle": "Hospedar por conta própria",
-    "selfHostBody": "O SupoClip permite auto-hospedagem e forks para fins não comerciais. O uso comercial exige autorização prévia por escrito da Shiori LLC. Você fornece hardware, armazenamento, manutenção e os serviços pagos de transcrição ou IA que escolher.",
+    "selfHostBody": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC. Você fornece hardware, armazenamento, manutenção e os serviços pagos de transcrição ou IA que escolher.",
     "selfHostButton": "Ler o guia de auto-hospedagem",
     "ai-video-clipper": {
       "title": "Transforme sua gravação em clipes prontos para publicar",

@@ -283,7 +283,7 @@ clip carries `workflow_role` and `workflow_meta`.
 
 ## License
 
-[SupoClip Noncommercial Source License](LICENSE), issued by Shiori LLC. Commercial use requires prior written permission.
+[SupoClip Noncommercial Source License](LICENSE), issued by Shiori LLC. Individual creators may self-host for their own monetized channels; other commercial use, including by companies and agencies, requires prior written permission.
 
 Based on SupoClip. [Original repository](https://github.com/FujiwaraChoki/supoclip) · [Official website](https://www.supoclip.com/)
 

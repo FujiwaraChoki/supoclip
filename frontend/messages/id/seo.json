@@ -124,7 +124,7 @@
       },
       "2": {
         "question": "Bisakah saya meng-host SupoClip sendiri?",
-        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
       },
       "3": {
         "question": "Sumber video apa yang diterima SupoClip?",
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "Apakah SupoClip gratis untuk di-host sendiri?",
-        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Kamu tetap bertanggung jawab atas infrastruktur dan pemakaian transkripsi atau penyedia AI yang berbayar."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Kamu tetap bertanggung jawab atas infrastruktur dan pemakaian transkripsi atau penyedia AI yang berbayar."
       },
       "1": {
         "question": "Bisakah SupoClip memakai model bahasa lokal?",
@@ -292,7 +292,7 @@
     "hostedBody": "Pro mulai US${price}/bulan dengan {hours} jam video sumber per bulan dan klip {resolution}. Pemrosesan dikelola untuk Anda. Aplikasi terkelola memerlukan paket berbayar.",
     "plans": "Lihat paket saat ini",
     "selfHostTitle": "Jalankan sendiri",
-    "selfHostBody": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Anda menyediakan perangkat keras, penyimpanan, pemeliharaan, serta layanan transkripsi atau AI berbayar yang Anda pilih.",
+    "selfHostBody": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC. Anda menyediakan perangkat keras, penyimpanan, pemeliharaan, serta layanan transkripsi atau AI berbayar yang Anda pilih.",
     "selfHostButton": "Baca panduan hosting mandiri",
     "ai-video-clipper": {
       "title": "Ubah rekaman Anda menjadi klip siap terbit",

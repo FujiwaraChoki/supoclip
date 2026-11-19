@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "Ist SupoClip kostenlos selbst zu hosten?",
-        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC. Der Betrieb braucht trotzdem Hardware oder Hosting, Speicher, Transkription und mögliche bezahlte LLM-Nutzung. Gehostetes SupoClip hat eigene Nutzungsbedingungen und Preise."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC. Der Betrieb braucht trotzdem Hardware oder Hosting, Speicher, Transkription und mögliche bezahlte LLM-Nutzung. Gehostetes SupoClip hat eigene Nutzungsbedingungen und Preise."
       },
       "2": {
         "question": "Kann SupoClip Live-Clipping und automatisches Posten ersetzen?",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "Ist selbst gehostetes SupoClip kostenlos?",
-        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC. Hardware oder Server und jede Cloud-Transkription oder LLM-Nutzung, die du einrichtest, zahlst du selbst. Whisper plus Ollama vermeidet KI-Gebühren pro Anfrage, braucht aber genug lokale Rechenleistung."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC. Hardware oder Server und jede Cloud-Transkription oder LLM-Nutzung, die du einrichtest, zahlst du selbst. Whisper plus Ollama vermeidet KI-Gebühren pro Anfrage, braucht aber genug lokale Rechenleistung."
       },
       "1": {
         "question": "Kann SupoClip ohne Cloud-KI-Dienste laufen?",

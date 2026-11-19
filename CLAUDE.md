@@ -21,7 +21,7 @@ How to write instead:
 
 ## Project Overview
 
-SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. Licensed under the SupoClip Noncommercial Source License. Keep the copies in `backend/` and `mcp/` in sync with the root `LICENSE` for packaging.
+SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. Licensed under the SupoClip Noncommercial Source License (v1.1: noncommercial use plus monetized use by individual creators; companies, agencies, client work and paid hosting need written permission). Keep the copies in `backend/` and `mcp/` in sync with the root `LICENSE` for packaging.
 
 ## Development Commands
 
