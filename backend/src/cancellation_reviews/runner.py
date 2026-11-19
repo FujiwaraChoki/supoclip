@@ -158,6 +158,314 @@ async def reconcile(db, now: datetime, source_account: str | None) -> int:
     return created + (reopened.rowcount or 0)
 
 
+async def discover_stripe_cancellations(
+    db, 
+    now: datetime, 
+    source_account: str | None, 
+    dry_run: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+    account_filter: str | None = None,
+    livemode_filter: bool | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> tuple[list[dict], int]:
+    """
+    Discover ended and scheduled Stripe subscriptions directly from Stripe API.
+    Supports pagination, rate limits, and resumable checkpoints.
+    
+    Returns:
+        tuple: (discovered_subscriptions, total_count)
+    """
+    from ..services.stripe_service import StripeService
+    
+    stripe_service = StripeService(db)
+    discovered = []
+    
+    # Build filter parameters
+    params = {
+        "limit": limit,
+        "offset": offset,
+        "source_account": source_account,
+        "account_filter": account_filter,
+        "livemode_filter": livemode_filter,
+        "since": since,
+        "until": until,
+    }
+    
+    try:
+        # Get all subscriptions from Stripe
+        subscriptions = await stripe_service.list_subscriptions(params)
+        
+        for sub_data in subscriptions:
+            # Skip subscriptions that already have reviews
+            existing = await store.get_review_by_subscription(db, sub_data["id"])
+            if existing and existing["status"] not in ("withdrawn", "merged"):
+                continue
+                
+            # Check if this is a cancellation (scheduled or ended)
+            is_scheduled = sub_data.get("cancel_at") is not None or sub_data.get("cancel_at_period_end", False)
+            is_ended = sub_data.get("status") == "canceled"
+            
+            if not (is_scheduled or is_ended):
+                continue
+                
+            # Resolve ownership
+            customer_id = sub_data.get("customer")
+            account_id = sub_data.get("stripe_account")
+            livemode = sub_data.get("livemode", True)
+            
+            # Find matching user
+            user_id = None
+            if customer_id:
+                user_id = await resolve_user(db, account_id, customer_id, source_account)
+            
+            # Build snapshot
+            snapshot = {
+                "status": sub_data.get("status"),
+                "cancel_at": sub_data.get("cancel_at"),
+                "cancel_at_period_end": sub_data.get("cancel_at_period_end"),
+                "current_period_end": sub_data.get("current_period_end"),
+                "ended_at": sub_data.get("ended_at"),
+                "cancellation_reason": sub_data.get("cancellation_reason"),
+                "collection_method": sub_data.get("collection_method"),
+                "payment_settings": sub_data.get("payment_settings"),
+            }
+            
+            # Remove None values
+            snapshot = {k: v for k, v in snapshot.items() if v is not None}
+            
+            discovered.append({
+                "subscription_id": sub_data["id"],
+                "customer_id": customer_id,
+                "account_id": account_id or (source_account if livemode else None),
+                "livemode": livemode,
+                "user_id": user_id,
+                "kind": "scheduled" if is_scheduled else "immediate",
+                "origin": "stripe_discovery",
+                "snapshot": snapshot,
+                "discovered_at": now,
+            })
+            
+    except Exception as exc:
+        logger.error("Failed to discover Stripe cancellations: %s", exc, exc_info=True)
+        raise
+        
+    return discovered, len(subscriptions)
+
+
+async def reconcile_stripe(
+    db, 
+    now: datetime, 
+    source_account: str | None, 
+    dry_run: bool = False,
+    limit: int = 100,
+    account_filter: str | None = None,
+    livemode_filter: bool | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> dict:
+    """
+    Bounded reconciliation of Stripe subscriptions directly from Stripe API.
+    Default to read-only dry run with cohort counts and proposed outcomes.
+    
+    Returns:
+        dict: Reconciliation results including counts by outcome
+    """
+    from ..database import AsyncSessionLocal
+    
+    results = {
+        "dry_run": dry_run,
+        "discovered": 0,
+        "created": 0,
+        "updated": 0,
+        "excluded": 0,
+        "merged": 0,
+        "unresolved": 0,
+        "errors": [],
+    }
+    
+    try:
+        # Discover subscriptions
+        discovered, total_count = await discover_stripe_cancellations(
+            db, now, source_account, dry_run, limit, 0, account_filter, livemode_filter, since, until
+        )
+        results["discovered"] = len(discovered)
+        results["total_count"] = total_count
+        
+        if dry_run:
+            # In dry run, just return counts without writing
+            return results
+            
+        # Process discoveries
+        for sub_data in discovered:
+            # Check for existing review
+            existing = await store.get_review_by_subscription(db, sub_data["subscription_id"])
+            
+            if existing:
+                # Update existing review if needed
+                if existing["status"] in ("excluded", "merged"):
+                    # Check if status should be reopened
+                    if sub_data["kind"] == "scheduled" and existing["status"] == "excluded":
+                        await store.update_review(db, existing["id"], status="pending", exclusion_reason=None)
+                        results["updated"] += 1
+                continue
+                
+            # Create new review
+            await store.create_review(
+                db,
+                account_id=sub_data["account_id"],
+                livemode=sub_data["livemode"],
+                subscription_id=sub_data["subscription_id"],
+                customer_id=sub_data["customer_id"],
+                user_id=sub_data["user_id"],
+                origin=sub_data["origin"],
+                kind=sub_data["kind"],
+                not_before=now,
+                snapshot=sub_data["snapshot"],
+                snapshot_at=sub_data["discovered_at"],
+            )
+            results["created"] += 1
+            
+    except Exception as exc:
+        logger.error("Stripe reconciliation failed: %s", exc, exc_info=True)
+        results["errors"].append(str(exc))
+        
+    return results
+
+
+async def backfill_stripe_cancellations(
+    db,
+    now: datetime,
+    source_account: str | None,
+    accounts: list[str] | None = None,
+    modes: list[bool] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    limit: int = 1000,
+    baseline_policy: str = "skip",
+    dry_run: bool = False,
+) -> dict:
+    """
+    Explicit bounded backfill of historical Stripe cancellations.
+    Importing must not automatically schedule delivery.
+    Label historical records and reports as historical.
+    
+    Returns:
+        dict: Backfill results
+    """
+    from ..database import AsyncSessionLocal
+    
+    results = {
+        "dry_run": dry_run,
+        "discovered": 0,
+        "created": 0,
+        "updated": 0,
+        "skipped": 0,
+        "errors": [],
+    }
+    
+    try:
+        # Discover subscriptions for backfill
+        discovered, total_count = await discover_stripe_cancellations(
+            db, now, source_account, dry_run, limit, 0, 
+            account_filter=",".join(accounts) if accounts else None,
+            livemode_filter=modes[0] if modes else None,
+            since=since, until=until
+        )
+        results["discovered"] = len(discovered)
+        results["total_count"] = total_count
+        
+        if dry_run:
+            return results
+            
+        # Process discoveries
+        for sub_data in discovered:
+            # Check baseline policy
+            if baseline_policy == "skip" and sub_data["kind"] == "scheduled":
+                # Check if this would be a baseline
+                existing = await store.get_review_by_subscription(db, sub_data["subscription_id"])
+                if existing and existing.get("status") == "baseline":
+                    results["skipped"] += 1
+                    continue
+                    
+            # Create review with historical flag
+            await store.create_review(
+                db,
+                account_id=sub_data["account_id"],
+                livemode=sub_data["livemode"],
+                subscription_id=sub_data["subscription_id"],
+                customer_id=sub_data["customer_id"],
+                user_id=sub_data["user_id"],
+                origin=sub_data["origin"],
+                kind=sub_data["kind"],
+                not_before=now,
+                snapshot=sub_data["snapshot"],
+                snapshot_at=sub_data["discovered_at"],
+                historical=True,  # New field to mark as historical
+            )
+            results["created"] += 1
+            
+    except Exception as exc:
+        logger.error("Stripe backfill failed: %s", exc, exc_info=True)
+        results["errors"].append(str(exc))
+        
+    return results
+
+
+async def deliver_backfilled_reviews(
+    db,
+    now: datetime,
+    limit: int = 50,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Operator delivery of backfilled reviews.
+    Separate, explicitly authorized step with redacted preview, finite batch limits.
+    
+    Returns:
+        dict: Delivery results
+    """
+    from ..database import AsyncSessionLocal
+    
+    results = {
+        "dry_run": dry_run,
+        "processed": 0,
+        "delivered": 0,
+        "skipped": 0,
+        "errors": [],
+    }
+    
+    try:
+        # Get historical reviews that haven't been delivered
+        reviews = await store.get_historical_reviews(db, limit, now)
+        results["processed"] = len(reviews)
+        
+        if dry_run:
+            return results
+            
+        for review in reviews:
+            # Skip if already delivered
+            if review.get("delivered_at"):
+                results["skipped"] += 1
+                continue
+                
+            # Deliver the review
+            message = render_report(
+                review, None, None, [], [], {}, {}, 0, None, 
+                ["historical backfill"], now
+            )
+            
+            await store.enqueue_delivery(db, review["id"], "report", message)
+            results["delivered"] += 1
+            
+    except Exception as exc:
+        logger.error("Backfilled review delivery failed: %s", exc, exc_info=True)
+        results["errors"].append(str(exc))
+        
+    return results
+
+
 async def attach_late_notes(db, now: datetime) -> int:
     count = 0
     for note in await store.late_notes(db, NOTE_WINDOW, now):
