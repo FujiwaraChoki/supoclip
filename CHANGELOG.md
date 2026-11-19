@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-19
 
-- **Fixed:** Some large uploads failed with a generic gateway error when you started a generation from them. If a file takes too long to read, SupoClip now says so and suggests re-exporting it with fast start ("optimize for web") or uploading a shorter or smaller file. No minutes are used. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** Some large uploads failed with a generic gateway error when you started a generation from them. If a file takes too long to read, SupoClip now says so and suggests re-exporting it with fast start ("optimize for web") or uploading a shorter or smaller file. No minutes are used. ([#463](https://github.com/FujiwaraChoki/supoclip/pull/463))
 - **Under the hood:** Hosted SupoClip can add extra video workers when the queue backs up and remove them once they are idle, without stopping any video that is being made. It is off until switched on. ([#455](https://github.com/FujiwaraChoki/supoclip/pull/455))
 
 ## 2026-11-18
