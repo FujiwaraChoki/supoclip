@@ -1470,6 +1470,8 @@ def build_vertical_filter_plan(
         report["kind"] = described["kind"]
         if described.get("hook_center_y") is not None:
             report["hook_center_y"] = described["hook_center_y"]
+        if described.get("gaming"):
+            report["gaming"] = described["gaming"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1519,6 +1521,18 @@ def describe_vertical_layout(
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
         tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
         return _described("crop", f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf", None)
+
+    # --- Gaming mode (GAMING_LAYOUT=auto; off by default): media/gaming_layout.py, docs/gaming-mode.md ---
+    from .gaming_layout import choose_gaming_layout
+
+    gaming = choose_gaming_layout(input_path, width, height, duration)
+    if gaming:
+        result = _described("gaming", gaming["video_filter"], "complex", gaming["caption_y"])
+        if gaming.get("hook_center_y") is not None:
+            result["hook_center_y"] = gaming["hook_center_y"]
+        result["gaming"] = gaming["gaming"]
+        return result
+    # --- end gaming mode ---
 
     # One fast decode pass yields the face track, face boxes, and scene cuts.
     try:
