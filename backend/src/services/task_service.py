@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from subprocess import SubprocessError
 from typing import Dict, Any, Optional, Callable
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import asyncio
 import copy
@@ -149,6 +149,26 @@ def user_facing_error(error: Exception) -> str:
     if type(error) is RuntimeError or isinstance(error, _INTERNAL_ERRORS):
         return _GENERIC_ERROR
     return str(error) or _GENERIC_ERROR
+
+
+# Failures stored before this stored the raw exception text (paths, SQL);
+# user_facing_error reached every worker by the 2026-11-12 release.
+_USER_FACING_ERRORS_SINCE = datetime(2026, 11, 13, tzinfo=timezone.utc)
+
+
+def failure_message(task: Dict[str, Any]) -> Optional[str]:
+    """The stored reason a failed task gives its owner, or None for the generic one."""
+    if task.get("status") != "error":
+        return None
+    message = (task.get("progress_message") or "").strip()
+    if not message or message == _GENERIC_ERROR:
+        return None
+    failed_at = task.get("completed_at")
+    if not isinstance(failed_at, datetime):
+        return None
+    if failed_at.tzinfo is None:
+        failed_at = failed_at.replace(tzinfo=timezone.utc)
+    return message if failed_at >= _USER_FACING_ERRORS_SINCE else None
 
 
 class TaskService(ClipEditingMixin):
@@ -1270,6 +1290,7 @@ class TaskService(ClipEditingMixin):
             for clip in clips
         ]
         task["clips_count"] = len(clips)
+        task["error_message"] = failure_message(task)
         task.update(await self._load_task_source_settings(task_id))
 
         return task

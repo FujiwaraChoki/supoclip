@@ -1,7 +1,5 @@
 """Scheduled jobs use their own queue and one stable id."""
 
-import os
-
 import pytest
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -10,6 +8,7 @@ from arq.constants import job_key_prefix
 from src.workers.cron_worker import CRON_QUEUE_NAME, CronWorkerSettings
 from src.workers.run_workers import CRON_WORKER, VIDEO_WORKER, embed_cron_worker, worker_settings
 from src.workers.tasks import WorkerSettings
+from tests.fixtures.redis_env import redis_address
 
 
 def test_cron_jobs_are_not_on_the_video_worker():
@@ -46,10 +45,8 @@ def test_the_worker_process_embeds_cron_unless_asked_not_to():
 
 @pytest.mark.asyncio
 async def test_a_pending_cron_id_is_not_enqueued_twice():
-    redis = await create_pool(RedisSettings(
-        host=os.getenv("REDIS_HOST", "127.0.0.1"),
-        port=int(os.getenv("REDIS_PORT", "6379")),
-    ))
+    host, port = redis_address()
+    redis = await create_pool(RedisSettings(host=host, port=port))
     job_id = "cron:dedupe_probe"
     try:
         first = await redis.enqueue_job(

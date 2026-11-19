@@ -260,6 +260,30 @@ describe("task page workflows", () => {
     expect(screen.queryByText(/Retry generation to try again/)).not.toBeInTheDocument();
   });
 
+  it("shows the stored reason a generation failed", async () => {
+    const reason = "This video uses a streaming format we can't download. Upload the video file instead.";
+    serve(task({ status: "error", source_type: "twitch", error_code: "download_error", error_message: reason }), []);
+    renderPage();
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.queryByText(/Processing failed\. Retry generation/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic failure text without a stored reason", async () => {
+    serve(task({ status: "error", error_message: null }), []);
+    renderPage();
+
+    expect(await screen.findByText(/Processing failed\. Retry generation to try again/)).toBeInTheDocument();
+  });
+
+  it("keeps the stored reason above the clips a failed run kept", async () => {
+    const reason = "We can't download this video yet because the platform still lists it as live. Try again later, or upload the video file instead.";
+    serve(task({ status: "error", error_message: reason }), [clip(1)]);
+    renderPage();
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+  });
+
   it("keeps highlights sorted best first with a top pick", async () => {
     serve(task(), [clip(1, { virality_score: 60 }), clip(2, { virality_score: 90, hook_title: "The best one" })]);
     renderPage();

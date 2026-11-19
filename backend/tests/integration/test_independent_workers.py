@@ -7,7 +7,6 @@ its own files, and the same database and object storage.
 from contextlib import contextmanager
 import copy
 import hashlib
-import os
 from pathlib import Path
 import time
 from unittest.mock import AsyncMock
@@ -36,6 +35,7 @@ from src.workers.media_cleanup import (
     maintain_local_scratch,
 )
 from tests.fixtures.factories import create_source, create_task, create_user
+from tests.fixtures.redis_env import redis_address
 from tests.integration.test_media_deletion_transactions import media_backend  # noqa: F401
 
 
@@ -178,11 +178,8 @@ async def test_a_lost_upload_fails_instead_of_waiting_forever(db_session, media_
 
 @pytest.fixture
 async def redis():
-    client = redis_asyncio.Redis(
-        host=os.getenv("REDIS_HOST", "127.0.0.1"),
-        port=int(os.getenv("REDIS_PORT", "6379")),
-        decode_responses=True,
-    )
+    host, port = redis_address()
+    client = redis_asyncio.Redis(host=host, port=port, decode_responses=True)
     yield client
     await client.aclose()
 

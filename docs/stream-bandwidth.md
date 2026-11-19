@@ -37,6 +37,24 @@ file. Local cutting still uses ffmpeg. The fallback fails safely for sources
 larger than the allowance. Do not raise the allowance to accommodate an
 unexplained download.
 
+Whole-rendition downloads stay on yt-dlp's native HLS downloader; it would hand
+live-marked or unreadable playlists to ffmpeg, which is disabled for network
+transfers. Before downloading, the selected rendition's media playlist is read
+(a master is resolved to its highest-bandwidth rendition). A rendition the
+native downloader can't read (any key method but NONE or AES-128, in whatever
+attribute order, or DRM; AES-128 is decrypted natively) is dropped and the
+format selection runs again. A rendition the platform marks
+live downloads when its playlist is complete (`#EXT-X-ENDLIST`, or
+`#EXT-X-PLAYLIST-TYPE:VOD`, which never changes) and is refused otherwise. Each
+refusal fails only that provider; the next one extracts again. A playlist the
+check can't read (a failed fetch, or an HTTP 200 challenge page) proves
+nothing: the download goes ahead on the native downloader as usual, never
+through ffmpeg, and a paid actor runs only if that download itself fails. When every yt-dlp provider refused, the paid actors
+are skipped (HLS actors' media goes through the same downloader; Kick's MP4
+actor is the most expensive and isn't spent on such a source), and the task
+says the platform still lists the video as live or that its format can't
+be downloaded, and suggests uploading the file.
+
 Each stage logs the provider, source, URL host, HTTP status, exception type,
 bytes, elapsed time, attempt, and the fallback. Proxy credentials and signed
 query strings are not logged. A subscriber-only or private VOD, and a VOD that

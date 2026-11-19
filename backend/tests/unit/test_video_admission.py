@@ -1,6 +1,5 @@
 """Per-account video slots stay off the worker until a slot is free."""
 
-import os
 import secrets
 import time
 from unittest.mock import AsyncMock
@@ -17,6 +16,7 @@ from src.workers.video_admission import (
     release_video_slot,
     wake_next_video_jobs,
 )
+from tests.fixtures.redis_env import redis_address
 
 
 class _Settings:
@@ -25,11 +25,8 @@ class _Settings:
 
 
 def _redis():
-    return redis_asyncio.Redis(
-        host=os.getenv("REDIS_HOST", "127.0.0.1"),
-        port=int(os.getenv("REDIS_PORT", "6379")),
-        decode_responses=True,
-    )
+    host, port = redis_address()
+    return redis_asyncio.Redis(host=host, port=port, decode_responses=True)
 
 
 @pytest.mark.asyncio
