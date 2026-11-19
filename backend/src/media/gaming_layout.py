@@ -35,7 +35,7 @@ GAMING_LAYOUT_MODES = ("off", "auto")
 CANVAS_W, CANVAS_H = 1080, 1920
 
 # --- Sampling ---------------------------------------------------------------
-PROC_WIDTH = 640
+PROC_WIDTH = 960
 MAX_SAMPLES = 90
 MAX_SAMPLE_FPS = 3.0
 MIN_SAMPLES = 16
@@ -56,6 +56,7 @@ MIN_HUD_EDGE_FRACTION = 0.004  # persistent edge pixels outside the facecam, as 
 MAX_OUTSIDE_FACE_RATE = 0.25   # samples with a real face outside the facecam: a vlog, an interview, a reaction
 OUTSIDE_FACE_MIN_AREA = 0.004
 MIN_VALID_FRACTION = 0.7       # share of the clip in which the stream layout is the detected one
+MIN_VALID_FRACTION_WITH_FACECAM = 0.35  # streams hide the camera during cutscenes; those spans fill the frame
 VALID_SAMPLE_SCORE = 0.45
 MIN_FALLBACK_SECONDS = 1.5
 REFINE_FPS = 30
@@ -72,11 +73,12 @@ CROSSHAIR_RADIUS = 0.03
 CROSSHAIR_MAX_SIZE = 0.07
 
 # --- Facecam -------------------------------------------------------------------
-FACE_MIN_AREA, FACE_MAX_AREA = 0.0008, 0.05
+FACE_MIN_AREA, FACE_MAX_AREA = 0.0003, 0.05
 FACECAM_MIN_PRESENCE = 0.5
 FACECAM_MAX_AREA = 0.16
 FACECAM_SIDE_COVERAGE = 0.7
 FACECAM_CLEAN_COVERAGE = 0.92
+CAM_DECORATION_REACH = 0.045   # of the width: how far above or below the camera its own decorations sit
 FACECAM_INSET = 4              # proc pixels trimmed from each side: drawn camera frames are a few pixels thick
 
 # --- Layout --------------------------------------------------------------------
@@ -245,32 +247,43 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
 # ---------------------------------------------------------------------------
 
 def find_fixed_face(faces: Sequence[Sequence[Box]], w: int, h: int) -> Optional[Tuple[Box, float]]:
-    """The face that sits in one place for most of the clip: (median box, presence)."""
+    """The face that sits in one place for most of the clip: (median box, presence).
+
+    A streamer's camera shows one head in one spot at one size, sample after sample. The game shows faces too
+    (cutscenes, photoreal characters), often larger and right beside the camera, so the camera face is the
+    tightest recurring one: the spot with the most detections, then in every sample the detection that matches
+    that spot's usual position and size. Other faces nearby never count for it or against it.
+    """
     if not faces:
         return None
     frame_area = float(w * h)
     cell = max(8.0, w / 12.0)
-    votes: Dict[Tuple[int, int], int] = {}
+    votes: Dict[Tuple[int, int], List[Box]] = {}
     for boxes in faces:
-        seen = set()
-        for x, y, bw, bh in boxes:
+        seen: Dict[Tuple[int, int], Box] = {}
+        for box in boxes:
+            x, y, bw, bh = box
             if not FACE_MIN_AREA <= bw * bh / frame_area <= FACE_MAX_AREA:
                 continue
-            seen.add((int((x + bw / 2) // cell), int((y + bh / 2) // cell)))
-        for key in seen:
-            votes[key] = votes.get(key, 0) + 1
+            seen.setdefault((int((x + bw / 2) // cell), int((y + bh / 2) // cell)), box)
+        for key, box in seen.items():
+            votes.setdefault(key, []).append(box)
     if not votes:
         return None
-    # Neighbouring cells count together: a head sitting on a cell border votes in both.
-    best = max(votes, key=lambda k: sum(votes.get((k[0] + dx, k[1] + dy), 0) for dx in (-1, 0, 1) for dy in (-1, 0, 1)))
-    cx0, cy0 = (best[0] + 0.5) * cell, (best[1] + 0.5) * cell
+
+    # The busiest cell. A head sitting on a cell border splits its votes, which the position match below undoes.
+    best = max(votes, key=lambda k: len(votes[k]))
+    usual = np.median(np.asarray(votes[best], dtype=np.float32), axis=0)
+    ux, uy = float(usual[0] + usual[2] / 2), float(usual[1] + usual[3] / 2)
     members: List[Box] = []
     for boxes in faces:
-        near = [b for b in boxes
-                if FACE_MIN_AREA <= b[2] * b[3] / frame_area <= FACE_MAX_AREA
-                and abs(b[0] + b[2] / 2 - cx0) <= cell * 1.5 and abs(b[1] + b[3] / 2 - cy0) <= cell * 1.5]
-        if near:
-            members.append(max(near, key=lambda b: b[2] * b[3]))
+        same = [
+            b for b in boxes
+            if abs(b[0] + b[2] / 2 - ux) <= usual[2] * 0.9 and abs(b[1] + b[3] / 2 - uy) <= usual[3] * 0.9
+            and 0.55 <= b[3] / max(float(usual[3]), 1.0) <= 1.8
+        ]
+        if same:
+            members.append(min(same, key=lambda b: abs(b[0] + b[2] / 2 - ux) + abs(b[1] + b[3] / 2 - uy)))
     presence = len(members) / len(faces)
     if presence < FACECAM_MIN_PRESENCE:
         return None
@@ -565,6 +578,17 @@ def classify_gaming(
             face_box = fixed[0]
 
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
+    if facecam is not None:
+        # A name plate or ornament drawn on the camera's frame belongs to the camera, not to the game: lifted into
+        # the gameplay panel it is a stray sticker. It sits just above or below the camera, within its width.
+        reach = CAM_DECORATION_REACH * w
+
+        def decoration(r: Rect) -> bool:
+            across = min(r.x2, facecam.x2) - max(r.x, facecam.x)
+            gap = max(facecam.y - r.y2, r.y - facecam.y2, 0)
+            return across >= 0.6 * min(r.w, facecam.w) and gap <= reach
+
+        regions = [r for r in regions if not decoration(r)]
 
     world = np.ones((h, w), bool)
     if facecam is not None:
@@ -611,11 +635,13 @@ def classify_gaming(
         profile.reason = "too_short"
     elif moving_fraction < MIN_MOVING_FRACTION:
         profile.reason = "static_picture"
-    elif outside_rate > MAX_OUTSIDE_FACE_RATE:
+    elif facecam is None and outside_rate > MAX_OUTSIDE_FACE_RATE:
+        # With a camera rectangle found, other faces are the game's own (cutscenes, photoreal characters).
         profile.reason = "people_on_screen"
-    elif len(regions) < needed or hud_edge_fraction < MIN_HUD_EDGE_FRACTION:
+    elif facecam is None and (len(regions) < needed or hud_edge_fraction < MIN_HUD_EDGE_FRACTION):
+        # A camera inset over a moving picture is a stream whether or not the game draws a HUD (story missions).
         profile.reason = "no_hud"
-    elif valid_fraction < MIN_VALID_FRACTION:
+    elif valid_fraction < (MIN_VALID_FRACTION_WITH_FACECAM if facecam is not None else MIN_VALID_FRACTION):
         profile.reason = "layout_changes"
     else:
         profile.is_gaming = True
@@ -837,15 +863,14 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
         graph.append(f"{panel}pad={CANVAS_W}:{CANVAS_H}:0:{panel_y}:black{composed}")
     if fallbacks:
         enable = _between(fallbacks)
+        # Without the camera (a cutscene, a loading screen) the picture fills the frame: a full-height crop of
+        # its middle, where games put what matters. A letterboxed strip would shrink it to a third of the screen.
+        cover_w = clamp_even(int(round(height * CANVAS_W / CANVAS_H)), 2, width)
+        graph.append("[gm_bg]nullsink")
         graph.append(
-            "[gm_bg]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
-            "gblur=sigma=14:steps=2,scale=1080:1920:flags=bilinear,setsar=1[gm_blur]"
+            f"[gm_fit]crop={cover_w}:{height}:{clamp_even((width - cover_w) // 2, 0, width - cover_w)}:0,"
+            f"scale={CANVAS_W}:{CANVAS_H}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[gm_alt]"
         )
-        graph.append(
-            "[gm_fit]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,"
-            "scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[gm_full]"
-        )
-        graph.append("[gm_blur][gm_full]overlay=(W-w)/2:(H-h)/2[gm_alt]")
         graph.append(f"[gm_out][gm_alt]overlay=0:0:enable='{enable}'[vout]")
 
     report = {

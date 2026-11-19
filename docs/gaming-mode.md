@@ -158,3 +158,22 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
 - The gameplay-only crop is as tight as today's 9:16 crop; wide-view games (MOBA, strategy) lose their flanks.
 - Hook title and captions are placed for the camera layout; on the gameplay-only layout the hook can cross a
   top-left cut-out for its four seconds.
+
+## Streams of story games (GTA 6)
+
+Checked on 2026-11-19 against the GTA 6 videos people were submitting (single-streamer playthroughs with a camera
+inset). What changed for them:
+
+- **The camera is found among the game's own faces.** A photoreal game shows faces all the time. The camera face is
+  the one spot with a face of one size in most samples (`find_fixed_face`); faces beside it never count for or
+  against it. Faces down to 0.03 % of the frame are read (analysis at 960 px), so a small inset is found.
+- **A camera inset over a moving picture is a stream.** With a camera rectangle found, the clip needs no HUD
+  (cutscenes and story missions have none) and other faces on screen do not rule it out.
+- **Camera hidden.** Streams hide the camera during cutscenes. Those spans show a full-height crop of the middle
+  of the picture instead of a letterboxed strip, and the layout is used when the camera is there in at least 35 %
+  of the clip.
+- **The camera's own decorations** (a name plate or ornament on its frame) are not lifted into the gameplay panel.
+
+Not handled: compilations where every few seconds a different streamer's camera sits somewhere else (the layout is
+decided once per clip), and gameplay without a camera, which keeps the regular layouts.
+
