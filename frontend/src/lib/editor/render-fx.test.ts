@@ -7,7 +7,8 @@ import { registerFxFonts } from "@/lib/fx/core/test-utils/napi-host";
 import type { FxCue } from "@/lib/fx/core/types";
 import { DEFAULT_DOC_FX, type DocFx, type EditDocument } from "./document";
 import { draft } from "./document.test-fixture";
-import { drawEditorFrame, drawEditorTextLayer, editorFxScene, fxCaptionBounds, fxCaptionRowShift, textLayerBounds } from "./render";
+import { hookLayout } from "@/lib/fx/core/hook";
+import { drawEditorFrame, drawEditorTextLayer, editorFxScene, formatHookEditorText, fxCaptionBounds, fxCaptionRowShift, textEditorLayout, textLayerBounds } from "./render";
 
 beforeAll(() => {
   registerFxFonts();
@@ -159,6 +160,69 @@ describe("text layers with dynamic edits", () => {
     drawEditorTextLayer(second.ctx, hidden, 1080, 1920, 1, undefined, "hook");
     expect(none).toEqual([]);
     expect(textLayerBounds(second.ctx, hidden, 1080, 1920, 1, "hook")).toBeNull();
+  });
+
+  it("draws the hook title as the fx-core card: one layer, the same in preview and export", () => {
+    const doc = withFx({}, { hookTitle: "90% of guests become real friends", captions: { ...draft.captions, template: "highlighter_swipe" } });
+    const box = textLayerBounds(canvas(1080, 1920).ctx, doc, 1080, 1920, 1, "hook")!;
+    const layout = hookLayout(editorFxScene(doc, undefined, 1080, 1920, 1080, 1920))!;
+    expect(box).toEqual({ x: layout.cx - layout.w / 2, y: layout.cy - layout.h / 2, width: layout.w, height: layout.h });
+    expect(box.y / 1920).toBeCloseTo(0.105, 3);                               // the top safe area, not y = 0.12 of the ASS title
+    expect(layout.px).toBeCloseTo(65, 6);
+    // The text layer paints the white card; the picture frame itself (fx-core's frame) never draws the title.
+    const layer = canvas(1080, 1920);
+    drawEditorTextLayer(layer.ctx, doc, 1080, 1920, 1, undefined, "hook");
+    const pixel = (ctx: CanvasRenderingContext2D, x: number, y: number) => [...(ctx as unknown as SKRSContext2D).getImageData(x, y, 1, 1).data];
+    expect(pixel(layer.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2))).toEqual([255, 255, 255, 255]);
+    expect(pixel(layer.ctx, 20, 1900)[3]).toBe(0);
+    const frame = canvas(1080, 1920);
+    drawEditorFrame(frame.ctx, doc, 1080, 1920, 1, picture(), undefined, null, "none");
+    expect(pixel(frame.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2)).slice(0, 3)).toEqual([48, 96, 192]);
+    drawEditorFrame(frame.ctx, doc, 1080, 1920, 1, picture(), undefined, null, "all");           // the export
+    expect(pixel(frame.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2))).toEqual([255, 255, 255, 255]);
+    // Outside its window nothing is drawn.
+    const late = canvas(1080, 1920);
+    drawEditorTextLayer(late.ctx, doc, 1080, 1920, 2.9, undefined, "hook");
+    expect(pixel(late.ctx, Math.round(box.x + 12), Math.round(box.y + box.height / 2))[3]).toBeLessThan(255);
+  });
+
+  it("moving, scaling and retyping the hook title follow the card", () => {
+    // The look's own caption font (here the max look's caps) is not a choice: the card is Poppins ExtraBold.
+    const doc = withFx({}, { hookTitle: "The big secret", captions: { ...draft.captions, template: "highlighter_swipe", font: "THEBOLDFONT" } });
+    const { ctx } = canvas(1080, 1920);
+    const at = (d: EditDocument, text?: string) => textLayerBounds(ctx, d, 1080, 1920, 1, "hook", undefined, text === undefined ? undefined : { hookText: text })!;
+    const home = at(doc);
+    const moved = at({ ...doc, textTransforms: { hook: { x: 0.1, y: 0.25, scale: 1 } } });
+    expect(moved.x - home.x).toBeCloseTo(108, 6);
+    expect(moved.y - home.y).toBeCloseTo(480, 6);
+    expect(moved.width).toBeCloseTo(home.width, 6);
+    const bigger = at({ ...doc, textTransforms: { hook: { x: 0, y: 0, scale: 1.2 } } });
+    expect(bigger.height).toBeGreaterThan(home.height * 1.19);
+    expect(bigger.y).toBeCloseTo(home.y, 3);                                  // it grows down from the same top
+    // Typing: the card follows the draft text, and the native field uses the card's font and a dark caret.
+    const typed = at(doc, "The big secret nobody ever told you about money");
+    expect(typed.height).toBeGreaterThan(home.height);
+    const editor = textEditorLayout(ctx, doc, 1080, 1920, 1, "hook", { hookText: "The big secret nobody ever told you about money" });
+    expect(editor.lines.join(" ")).toBe("The big secret nobody ever told you about money");
+    expect(editor.lines.length).toBeGreaterThan(1);
+    expect(editor).toMatchObject({ fontSize: 65, lineHeight: expect.closeTo(65 * 1.18, 6), fontFamily: "FX-Poppins-ExtraBold", caretColor: "#0B0B0F" });
+    expect(formatHookEditorText(doc, 1080, 1920, "The big secret nobody ever told you about money ")).toBe(`${editor.lines.join("\n")} `);
+    // Retiming: the card shows for the draft's own window.
+    const timed = { ...doc, hookTiming: { start: 1.5, end: 2.5 } };
+    const layer = canvas(1080, 1920);
+    const texts = recordText(layer.ctx);
+    drawEditorTextLayer(layer.ctx, timed, 1080, 1920, 1, undefined, "hook");
+    expect(texts).toEqual([]);
+    drawEditorTextLayer(layer.ctx, timed, 1080, 1920, 2, undefined, "hook");
+    expect(texts.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the classic hook title for drafts without dynamic edits", () => {
+    const classic: EditDocument = { ...draft, hookTitle: "The big secret" };
+    const { ctx } = canvas(1080, 1920);
+    const box = textLayerBounds(ctx, classic, 1080, 1920, 1, "hook")!;
+    expect(box.y).toBeGreaterThan(0.11 * 1920);                               // the ASS title's top margin
+    expect(textEditorLayout(ctx, classic, 1080, 1920, 1, "hook").fontFamily).toBeUndefined();
   });
 });
 

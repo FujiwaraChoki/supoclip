@@ -145,6 +145,27 @@ export interface FxCaptionStyle {
    *  every group at `y`. */
   rows?: CaptionRow[];
 }
+/** The hook title drawn by fx-core (== contracts.FxHookTitle); see hook.ts. */
+export interface FxHookTitle {
+  /** As shown (casing already applied). */
+  text: string;
+  /** Bundled font stem. */
+  font: string;
+  /** Marker colour behind numbers and power words, "#RRGGBB". */
+  accent: string;
+  /** Size, tilt and entrance flavour. */
+  look: "subtle" | "bold" | "max";
+  /** E window. */
+  start: number; end: number;
+  /** Studio transform: offset from the automatic position (fractions of W and H) and scale. */
+  x: number; y: number; scale: number;
+  /** Automatic timing: the title may leave early at a camera cut when that frees a better position. */
+  trim: boolean;
+  /** A letterboxed opening's picture band (top, bottom as fractions of H): the title goes in the band above it. */
+  picture: [number, number] | null;
+  /** Bands (top, bottom as fractions of H) other layers own for the window, e.g. classic captions burned by ASS. */
+  avoid: [number, number][];
+}
 export interface FxWord { id: string; start: number; end: number; text: string; highlight: boolean; run: string }
 export interface WarpPieceJson { e0: number; e1: number; o0: number; rate: number; hold: number }
 export interface MatteWindow { start: number; end: number; person: boolean }
@@ -152,6 +173,9 @@ export interface FxScene {
   version: 1; width: number; height: number; edit_duration: number; out_duration: number; warp: WarpPieceJson[];
   template: string; cues: FxCue[]; words: FxWord[]; caption: FxCaptionStyle | null; grade: GradeId; grain: number;
   progress_bar: boolean; progress_color: string; loop_ending: "none" | "crossfade";
-  hook_window: [number, number] | null; hook_title_suppressed: boolean; face_track: FaceTrack | null;
+  hook_window: [number, number] | null; hook_title_suppressed: boolean;
+  /** The hook title fx-core draws; null or absent: none, or the ASS layer burns it. */
+  hook?: FxHookTitle | null;
+  face_track: FaceTrack | null;
   broll_windows: [number, number][]; matte_windows: MatteWindow[]; seed: number;
 }

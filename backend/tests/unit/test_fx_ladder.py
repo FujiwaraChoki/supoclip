@@ -138,9 +138,11 @@ def test_full_level_draws_fx_captions_and_records_the_render(ladder):
     assert request.hook_window == (0.12, 4.0)
     assert [w["text"] for w in request.words] == ["We", "made", "money"]
     assert all("highlight" in w for w in request.words)
-    ass = ladder.calls["ass"][-1]["kwargs"]
-    assert ass["include_captions"] is False and ass["hook_title"] == "The craziest day"
-    assert "time_map" not in ass and "template_override" not in ass
+    # fx-core draws the title (a card it places itself), so libass has nothing to burn.
+    assert ladder.calls["ass"] == [] and render["subtitle_ass_path"] is None
+    hook = request.hook
+    assert (hook.text, hook.font, hook.look, hook.start, hook.end) == ("The craziest day", "TikTokSans-Bold", "bold", 0.12, 4.0)
+    assert hook.trim is True and hook.picture is None and hook.avoid == ()
     # FX path: never Ken Burns in the plan.
     assert ladder.calls["plan"] == [{"allow_kenburns": False}]
     assert ladder.calls["events"][-1][0] == "fx_render"
@@ -259,7 +261,8 @@ def test_av_mismatch_retries_full_with_an_identity_warp(ladder):
     first, second = fx_renders(ladder.calls)
     assert {c.kind for c in first["fx_request"].plan.cues} >= {"freeze", "speed"}
     assert not {c.kind for c in second["fx_request"].plan.cues} & {"freeze", "speed"}
-    assert "time_map" not in ladder.calls["ass"][-1]["kwargs"]
+    assert ladder.calls["ass"] == []                     # captions and the title are fx-core's on both renders
+    assert first["fx_request"].hook == second["fx_request"].hook is not None
     # The sidecar plan keeps the warp cues as intent; applied_warp [] says they did not render.
     assert {c.kind for c in out["report"]["fx_plan"].cues} >= {"freeze", "speed"}
 
@@ -430,14 +433,90 @@ def test_interview_reframes_stay_off_the_stacked_two_shots(ladder):
     assert sent == ["z1"]
 
 
-def test_interview_hook_title_moves_low_when_look_captions_take_the_seam():
-    seam = {"hook_center_y": 0.5}
-    look = FxRenderInput(plan=fx_plan(template="highlighter_swipe"), words=list(WORDS))
-    assert video_utils._interview_hook_kwargs({}, look, "highlighter_swipe", True) == {}
-    assert video_utils._interview_hook_kwargs(seam, look, "highlighter_swipe", True) == {"hook_position_y": 0.94}
-    # Legacy captions sit low, so the hook keeps the seam; so does a clip without captions or without edits.
-    assert video_utils._interview_hook_kwargs(seam, None, "default", True) == {"hook_center_y": 0.5}
-    assert video_utils._interview_hook_kwargs(seam, look, "highlighter_swipe", False) == {"hook_center_y": 0.5}
+def test_the_libass_hook_title_of_a_stacked_opening_sits_on_the_seam():
+    assert video_utils._interview_hook_kwargs({}) == {}
+    assert video_utils._interview_hook_kwargs({"hook_center_y": 0.5}) == {"hook_center_y": 0.5}
+
+
+def test_the_drawn_hook_title_follows_the_template_and_the_intensity(ladder):
+    def hook_of(plan, template, **kwargs):
+        ladder.state["chain_results"] = [result()]
+        ladder.calls["render"].clear()
+        ladder.run(plan, template=template, **kwargs)
+        return fx_renders(ladder.calls)[0]["fx_request"].hook
+
+    # Listed styles: Poppins ExtraBold in sentence case whatever the look, the look's keyword colour as the marker.
+    bold = hook_of(fx_plan(template="highlighter_swipe"), "highlighter_swipe")
+    assert (bold.font, bold.look, bold.accent, bold.text) == ("Poppins-ExtraBold", "bold", "#34FD87", "The craziest day")
+    loud = hook_of(fx_plan(template="emoji_drop", intensity="max"), "emoji_drop")
+    assert (loud.font, loud.look, loud.text) == ("Poppins-ExtraBold", "max", "The craziest day")
+    assert hook_of(fx_plan(template="emoji_drop", intensity="max", sensitivity="serious"), "emoji_drop").look == "subtle"
+    assert hook_of(fx_plan(template="highlighter_swipe", intensity="off"), "highlighter_swipe").look == "bold"
+    # An unlisted all-caps template keeps its font and case.
+    slam = hook_of(fx_plan(template="slam", intensity="subtle"), "slam")
+    assert (slam.font, slam.look, slam.text) == (get_template("slam")["font_family"], "subtle",
+                                                 "THE CRAZIEST DAY" if get_template("slam").get("uppercase") else "The craziest day")
+    # No title, or a suppressed one: nothing to draw.
+    assert hook_of(fx_plan(template="highlighter_swipe"), "highlighter_swipe", hook=None) is None
+    assert hook_of(fx_plan(template="slam", hook_title_suppressed=True), "slam") is None
+
+
+def test_classic_captions_keep_their_band_clear_of_the_drawn_hook_title(ladder):
+    """A classic template with edits: libass burns the captions after the drawing stage, fx-core draws the title."""
+    from src.edit_fx.contracts import ZoomCue
+
+    ladder.state["chain_results"] = [result()]
+    zoom = ZoomCue(id="z1", start=1.0, end=2.0, mode="punch", scale=1.15)
+
+    def build_ass(*args, **kwargs):
+        ladder.calls["ass"].append({"args": args, "kwargs": kwargs})
+        Path(args[5]).write_text("[Script Info]\n")
+        if kwargs.get("caption_layout_report") is not None:
+            kwargs["caption_layout_report"]["caption_y"] = 0.78
+        return True
+
+    import pytest as _pytest
+    with _pytest.MonkeyPatch.context() as patch:
+        patch.setattr(video_utils, "build_assemblyai_ass_subtitles", build_ass)
+        ladder.run(fx_plan(template="default", cues=[zoom]), template="default")
+    (render,) = fx_renders(ladder.calls)
+    assert render["fx_report"]["mode"] == "full"
+    ass = ladder.calls["ass"][-1]["kwargs"]
+    assert ass["include_captions"] is True and ass["hook_title"] is None
+    hook = render["fx_request"].hook
+    assert hook.avoid == ((pytest.approx(0.72), pytest.approx(0.84)),)
+    assert hook.font == get_template("default")["font_family"]
+
+
+def test_without_the_drawing_stage_libass_burns_a_heavy_hook_title(ladder, monkeypatch):
+    # A plan that only adds sound: P1 → P3, no fx-core, so the title is libass's (heavy outlined type, no boxes).
+    ladder.state["chain_results"] = [result(level="safe")]
+    ladder.run(fx_plan(template="default"), template="default")
+    (render,) = fx_renders(ladder.calls)
+    assert render["fx_report"]["mode"] == "safe" and render["fx_request"].hook is None
+    ass = ladder.calls["ass"][-1]["kwargs"]
+    assert ass["hook_title"] == "The craziest day" and ass["hook_heavy"] is True
+    # The kill switch: the safe level, the same title.
+    monkeypatch.setenv("FX_RUNTIME", "off")
+    ladder.state["chain_results"] = [result(level="safe")]
+    ladder.calls["render"].clear()
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
+    (render,) = fx_renders(ladder.calls)
+    assert render["fx_request"].hook is None
+    ass = ladder.calls["ass"][-1]["kwargs"]
+    assert ass["hook_title"] == "The craziest day" and ass["hook_heavy"] is True and ass["include_captions"] is True
+
+
+def test_a_letterboxed_opening_tells_the_hook_title_where_the_picture_is(ladder):
+    segments = [{"start": 0.0, "end": 2.0, "kind": "fit"}, {"start": 2.0, "end": 8.0, "kind": "pair"}]
+    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
+    (render,) = fx_renders(ladder.calls)
+    assert render["fx_request"].hook.picture == (pytest.approx(0.3418, abs=1e-4), pytest.approx(0.6582, abs=1e-4))
+    # A stacked or close-up opening has no band above the picture.
+    _interview(ladder, hook_center=0.5)
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
+    assert fx_renders(ladder.calls)[0]["fx_request"].hook.picture is None
 
 
 # ----------------------------------------------------------------------------------------- interview caption rows
@@ -509,63 +588,42 @@ def test_other_layouts_templates_and_the_off_path_get_no_rows(ladder):
     assert _caption(ladder) is None and "caption_rows" not in out["report"]
 
 
-def test_a_caption_edit_position_pins_the_captions_and_frees_the_seam_for_the_hook(ladder):
+def test_a_caption_edit_position_pins_the_captions(ladder):
     _interview(ladder, hook_center=0.5)
     override = {"words": WORDS, "position_y": 0.78}
     ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", caption_override=override)
     caption = _caption(ladder)
     assert caption.rows == () and caption.y == pytest.approx(0.78, abs=0.01)
-    assert ladder.calls["ass"][-1]["kwargs"]["hook_center_y"] == 0.5
-    # A caption edit left on the seam keeps the hook low.
-    _interview(ladder, hook_center=0.5)
-    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe",
-               caption_override={"words": WORDS, "position_y": 0.52})
-    assert ladder.calls["ass"][-1]["kwargs"]["hook_position_y"] == 0.94
-    assert _caption(ladder).rows == ()
+    assert ladder.calls["ass"] == []                                       # the title is fx-core's
 
 
 @pytest.mark.parametrize("opening", ["pair", "single", "fit"])
-def test_rows_and_the_hook_never_collide_whatever_the_opening(ladder, opening):
-    from src.edit_fx.caption_rows import HOOK_LOW_TOP, ROW_GAP_FRAC, TWO_LINE_HALF_EM
-
-    # The opening shot, a cut inside the 4 s hook window, then a two-shot (the low hook needs one before 4 s).
+def test_rows_do_not_move_for_the_hook_title(ladder, opening):
+    """fx-core places the title around the captions; the rows are the shots' own, hook or no hook."""
     segments = [{"start": 0.0, "end": 2.0, "kind": opening}, {"start": 2.0, "end": 3.5, "kind": "pair"},
                 {"start": 3.5, "end": 8.0, "kind": "fit" if opening != "fit" else "single"}]
     _interview(ladder, segments=segments, hook_center=0.5)
     ladder.run(fx_plan(template="emoji_drop", intensity="max"), template="emoji_drop")
-    caption, ass = _caption(ladder), ladder.calls["ass"][-1]["kwargs"]
-    assert ass["hook_position_y"] == 0.94                                  # the hook sits low (bottom at 0.94)
-    half = TWO_LINE_HALF_EM * caption.size_px / 1920
-    for row in caption.rows:
-        if row.start < 4.0:                                                # on screen with the hook
-            assert row.y + half + ROW_GAP_FRAC <= HOOK_LOW_TOP + 1e-4, row
-
-
-def test_a_fit_shot_under_a_low_hook_moves_its_row_up_not_the_hook(ladder):
-    from src.edit_fx.caption_rows import HOOK_LOW_TOP
-
-    segments = [{"start": 0.0, "end": 2.0, "kind": "fit"}, {"start": 2.0, "end": 8.0, "kind": "pair"}]
+    with_hook = _caption(ladder).rows
     _interview(ladder, segments=segments, hook_center=0.5)
-    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
-    fit = _caption(ladder).rows[0]
-    assert 0.658 + 0.015 < fit.y < HOOK_LOW_TOP                            # between the picture and the hook
-    # Without the hook (or with it suppressed) the fit row is the usual 0.76.
-    _interview(ladder, segments=segments, hook_center=0.5)
-    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe", hook=None)
-    assert _caption(ladder).rows[0].y == 0.76
-    _interview(ladder, segments=segments, hook_center=0.5)
-    ladder.run(fx_plan(template="highlighter_swipe", hook_title_suppressed=True), template="highlighter_swipe")
-    assert _caption(ladder).rows[0].y == 0.76
+    ladder.run(fx_plan(template="emoji_drop", intensity="max"), template="emoji_drop", hook=None)
+    assert with_hook == _caption(ladder).rows
+    assert {round(r.y, 2) for r in with_hook} <= {0.5, 0.65, 0.76}
 
 
-def test_a_short_clip_hook_window_and_a_hook_spanning_a_cut(ladder):
-    # 2.4 s clip: the hook shows 0.12 .. 2.15 s and spans the 1.2 s cut into a fit shot.
+def test_a_short_clip_shows_the_hook_title_throughout(ladder):
+    ladder.state["probe"] = 1.4
+    ladder.state["chain_results"] = [result()]
+    ladder.run(fx_plan(template="highlighter_swipe", duration=1.4), template="highlighter_swipe")
+    request = fx_renders(ladder.calls)[0]["fx_request"]
+    assert request.hook_window == (0.0, 1.4) and (request.hook.start, request.hook.end) == (0.0, 1.4)
+    # 2.4 s: from 0.12 s until a quarter second before the end.
     ladder.state["probe"] = 2.4
-    segments = [{"start": 0.0, "end": 1.2, "kind": "pair"}, {"start": 1.2, "end": 2.4, "kind": "fit"}]
-    _interview(ladder, segments=segments, hook_center=0.5)
+    ladder.state["chain_results"] = [result()]
+    ladder.calls["render"].clear()
     ladder.run(fx_plan(template="highlighter_swipe", duration=2.4), template="highlighter_swipe")
-    rows = _caption(ladder).rows
-    assert rows[0].y == 0.5 and rows[1].y < 0.76 and rows[-1].end == pytest.approx(2.4)
+    request = fx_renders(ladder.calls)[0]["fx_request"]
+    assert (request.hook.start, request.hook.end) == (0.12, pytest.approx(2.15))
 
 
 def test_rows_are_on_the_edit_clock_with_a_warp(ladder):

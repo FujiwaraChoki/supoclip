@@ -347,6 +347,23 @@ def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
     return best_lines
 
 
+# The hook title of a Dynamic edits clip rendered without the drawing stage (build_hook_title_ass heavy=True).
+HOOK_HEAVY_FONT = "Poppins-ExtraBold"
+# libass sizes a font by ascender + descender (1.4 em for Poppins): this is about 0.060 of the width in em.
+HOOK_HEAVY_SIZE_FRAC = 0.084
+
+
+def hook_heavy_accent(template: Dict[str, Any]) -> str:
+    """A bright accent for numbers and power words on video: the template's, unless it is dark or white."""
+    value = str(template.get("emphasis_color") or template.get("highlight_color") or "").lstrip("#")[:6]
+    try:
+        r, g, b = (int(value[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return "#FFE45C"
+    luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    return "#FFE45C" if luma < 0.45 or (luma > 0.9 and max(r, g, b) - min(r, g, b) < 64) else f"#{value.upper()}"
+
+
 # How long a recap's point stays on screen, and the least worth showing.
 POINT_LABEL_SECONDS = 3.0
 POINT_LABEL_MIN_SECONDS = 1.2
@@ -423,8 +440,13 @@ def build_hook_title_ass(
     editor_style: Optional[Dict[str, Any]] = None,
     time_map: Optional[TimeMap] = None,
     center_y: Optional[float] = None,
+    heavy: bool = False,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
+
+    ``heavy`` is the title of a Dynamic edits clip rendered without the drawing
+    stage (fx-core draws the real one, a white card): heavy white type about
+    6 % of the width tall with a black outline and a soft shadow, never a box.
 
     ``center_y`` centres the title on that output fraction instead (the seam of
     a stacked interview two-shot); ``position_y`` anchors its bottom edge.
@@ -450,7 +472,11 @@ def build_hook_title_ass(
     # still does not fit (a long compound word, or two long lines) shrinks
     # below the preferred size so it is not clipped at the frame edge.
     base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
-    if editor_style is not None:
+    if heavy:
+        base_px = max(30, int(round(min(video_width, video_height) * HOOK_HEAVY_SIZE_FRAC)))
+        font_name = ass_font_name(HOOK_HEAVY_FONT) if find_font_path(HOOK_HEAVY_FONT) else font_name
+        primary, uppercase, title_text = "&H00FFFFFF", False, hook_title
+    elif editor_style is not None:
         base_px = int(editor_style["base_px"])
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
@@ -482,6 +508,10 @@ def build_hook_title_ass(
     elif outline_px == 0:
         outline_px = max(2, hook_px // 16)  # always keep contrast on video
     shadow_px = max(2, hook_px // 20) if template.get("shadow") else 0
+    if heavy:
+        border_style, outline, back_color = 1, "&H00000000", "&H80000000"
+        outline_px, shadow_px = max(3, round(hook_px * 0.065)), 0
+        highlight = hex_to_ass_color(hook_heavy_accent(template), "#FFE45C")
     margin_v = max(48, int(video_height * HOOK_TITLE_TOP_MARGIN_FRAC))
 
     style_line = (
@@ -527,6 +557,14 @@ def build_hook_title_ass(
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{{{entrance}}}{text}"
     ]
+    if heavy:
+        # libass has no soft shadow: a blurred, half-transparent black copy with a wider edge, under the crisp title.
+        plain = "\\N".join(escape_ass_text(line) for line in lines)
+        blur = max(4, round(hook_px * 0.09))
+        events.insert(0, (
+            f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
+            f"{{{entrance}\\1c&H000000&\\3c&H000000&\\alpha&H73&\\bord{outline_px * 2}\\blur{blur}}}{plain}"
+        ))
     return style_line, events
 
 
@@ -591,6 +629,7 @@ def build_assemblyai_ass_subtitles(
     hook_editor_style: Optional[Dict[str, Any]] = None,
     hook_center_y: Optional[float] = None,
     hook_position_y: Optional[float] = None,
+    hook_heavy: bool = False,
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
@@ -744,6 +783,7 @@ def build_assemblyai_ass_subtitles(
             position_y=hook_position_y if hook_position_y is not None else (
                 0.94 if position_y_override is not None and position_y_override < .4 else None),
             editor_style=hook_editor_style,
+            heavy=hook_heavy,
             **({"time_map": time_map} if time_map is not None else {}),
             center_y=hook_center_y,
         )

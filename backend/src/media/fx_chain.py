@@ -46,6 +46,7 @@ from ..edit_fx.contracts import (
     FPS,
     FaceTrack,
     FxCaptionStyle,
+    FxHookTitle,
     FxPlan,
     FxScene,
     FxWord,
@@ -118,6 +119,7 @@ class FxRequest:                           # what renderers hand to run_fx_chain
     reaction_files: dict[str, Path] = field(default_factory=dict)
     broll_windows: tuple[tuple[float, float], ...] = ()
     hook_window: tuple[float, float] | None = None
+    hook: FxHookTitle | None = None        # the title fx-core draws at level full (the ASS then carries none)
     progress_color: str = FX_PROGRESS_COLOR   # "#RRGGBB"; studio: DocFx.progressColor
     voice_gain: float = 1.0                # studio volume (0 when muted)
     loudness: Literal["static", "dynamic", "none"] = "static"   # generation: env FX_LOUDNORM; studio: "none" (AR-M3)
@@ -276,6 +278,7 @@ def build_scene(request: FxRequest, *, out_w: int, out_h: int, warp: Warp, face_
         loop_ending=plan.loop_ending,
         hook_window=tuple(request.hook_window) if request.hook_window else None,
         hook_title_suppressed=plan.hook_title_suppressed,
+        hook=None if plan.hook_title_suppressed else request.hook,
         face_track=_face_track_to_output(face_track, request.picture_rect),
         broll_windows=tuple((float(a), float(b)) for a, b in request.broll_windows),
         matte_windows=tuple(sorted(matte_windows, key=lambda m: m.start)),
@@ -478,14 +481,16 @@ def _at_chain_rate(encode: list[str]) -> list[str]:
     return out
 
 
-def _font_paths(caption: FxCaptionStyle | None, fonts_dir: Path | None) -> dict[str, str]:
-    """Font stem → file for P2: the drawers' bundled stems plus the caption font. Missing fonts are skipped (P2 warns
-    and the text falls back to system Noto)."""
+def _font_paths(caption: FxCaptionStyle | None, fonts_dir: Path | None, hook: FxHookTitle | None = None) -> dict[str, str]:
+    """Font stem → file for P2: the drawers' bundled stems plus the caption and hook title fonts. Missing fonts are
+    skipped (P2 warns and the text falls back to system Noto)."""
     from ..font_registry import FONTS_DIR, SUPPORTED_FONT_EXTENSIONS, find_font_path
 
     stems = list(DRAWER_FONT_STEMS)
     if caption is not None and caption.font and caption.font not in stems:
         stems.append(caption.font)
+    if hook is not None and hook.font and hook.font not in stems:
+        stems.append(hook.font)
     found: dict[str, str] = {}
     for stem in stems:
         path: Path | None = None
@@ -790,7 +795,8 @@ def _analysis(request: FxRequest, *, input_path: Path, head: str, head_label: st
     """Face track and matte (§6.4). Returns (face_track, matte_windows, matte_file, computed_face)."""
     plan = request.plan
     behind = _behind_spans(plan)
-    need_face = plan.needs_face and request.face_track is None
+    # The hook title is placed clear of the faces on screen, so it needs the track too.
+    need_face = (plan.needs_face or request.hook is not None) and request.face_track is None
     need_matte = bool(behind) and request.matte_input is None
     face_track = request.face_track
     if request.matte_input is not None and behind:
@@ -978,7 +984,7 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
             scene = build_scene(request, out_w=out_w, out_h=out_h, warp=warp,
                                 face_track=_as_output_track(face_track) if computed_face else face_track,
                                 matte_windows=matte_windows)
-            fonts = _font_paths(request.caption, fonts_dir)
+            fonts = _font_paths(request.caption, fonts_dir, scene.hook)
             atlas = _atlas()
             job = {
                 "version": 1, "width": out_w, "height": out_h, "fps": FPS,

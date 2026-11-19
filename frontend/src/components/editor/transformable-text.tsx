@@ -83,7 +83,8 @@ export function TransformableText({ doc, layer, captionId, rowShift = 0, label, 
       onDraft={onDraft}
       formatValue={formatValue}
       editorStyle={editorLayout ? {
-        color: "transparent", WebkitTextFillColor: "transparent", caretColor: doc.captions.color, textShadow: "none", borderColor: "transparent", boxShadow: "none",
+        color: "transparent", WebkitTextFillColor: "transparent", caretColor: editorLayout.caretColor ?? doc.captions.color, textShadow: "none", borderColor: "transparent", boxShadow: "none",
+        ...(editorLayout.fontFamily ? { fontFamily: `"${editorLayout.fontFamily}", sans-serif`, textTransform: "none" as const } : {}),
         fontSize: editorLayout.fontSize * scale, lineHeight: `${editorLayout.lineHeight * scale}px`,
         fontWeight: 400, fontStyle: "normal", fontKerning: "normal", letterSpacing: "normal",
         width: editorLayout.wrapWidth * scale, left: "50%", transform: "translateX(-50%)",

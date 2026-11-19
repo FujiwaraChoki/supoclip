@@ -178,6 +178,20 @@ def cases() -> dict[str, dict]:
         textTransforms={"captions": {"x": -0.18, "y": 0.05, "scale": 0.9}},
         captionTransforms={'["second","w5"]': {"x": 0.12, "y": -0.2, "scale": 1.1}}))
     add("no_hook_title", document([("all", 0.0, 5.0)], hookTitle=""))
+    # The hook title card (scene.hook): the draft's transform, its own timing (no trimming at cuts), a font the user
+    # picked on a listed style, an all-caps template, and a title with stray whitespace.
+    add("hook_moved_and_scaled", document(
+        [("all", 0.0, 5.0)], textTransforms={"hook": {"x": 0.08, "y": 0.31, "scale": 1.4}},
+        hookTiming={"start": 0.4, "end": 3.2}))
+    add("hook_listed_style_user_font", document(
+        [("all", 0.0, 5.0)], template="highlighter_swipe",
+        captions={"template": "highlighter_swipe", "font": "TikTokSans-Regular", "accent": "#34fd87", "uppercase": True},
+        hookTitle="  90%  of guests\tbecome friends "))
+    add("hook_listed_style_look_font", document(
+        [("all", 0.0, 5.0)], template="emoji_drop", captions={"template": "emoji_drop", "font": "THEBOLDFONT"},
+        fx_data=fx(style={"intensity": "max"})))
+    add("hook_uppercase_template", document(
+        [("all", 0.0, 5.0)], captions={"template": "slam", "uppercase": True, "font": "THEBOLDFONT"}))
     # Interview caption rows (S): pair → single → fit → pair. They place the look captions while the captions keep
     # their automatic position, mapped through the cuts like B-roll.
     rows = {"y": 0.5, "rows": [{"start": 0.0, "end": 1.5, "y": 0.5}, {"start": 1.5, "end": 2.6, "y": 0.65},

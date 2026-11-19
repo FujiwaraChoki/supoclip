@@ -24,11 +24,13 @@ import { FACE_MAX_GAP } from "./core/scene";
 import {
   captionLookFor,
   isFxTemplate,
+  isListedFxTemplate,
   type CaptionPlacement,
   type CaptionRow,
   type FaceTrack,
   type FxCaptionStyle,
   type FxCue,
+  type FxHookTitle,
   type FxScene,
   type FxWord,
   type MatteWindow,
@@ -354,6 +356,44 @@ function readableTrack(track: unknown): track is FaceTrack {
   return Array.isArray(t.samples) && (t.fps === undefined || (typeof t.fps === "number" && t.fps > 0 && t.fps <= 30));
 }
 
+/** The card's type for the listed animated styles (== edit_fx.hook_title.HOOK_FONT). */
+export const HOOK_FONT = "Poppins-ExtraBold";
+const LOOK_FONTS: readonly string[] = Object.values(STUDIO_LOOKS).map((spec) => spec.font);
+
+/**
+ * The hook title fx-core draws for a draft (== editor_fx_render.studio_hook): the card at its automatic position plus
+ * the draft's hook transform, in the draft's font and accent, shown for hookRange; null without a title or when the
+ * plan suppresses it. Automatic timing (no hookTiming) lets it leave at a camera cut.
+ */
+export function studioHook(doc: EditDocument): FxHookTitle | null {
+  const title = (doc.hookTitle ?? "").trim().split(/\s+/).filter(Boolean).join(" ").slice(0, 200);
+  if (!title || doc.fx?.hookTitleSuppressed) return null;
+  const range = hookRange(doc);
+  if (!(range.end > range.start)) return null;
+  const captions = doc.captions, templateId = captions.template || "default";
+  const listed = isListedFxTemplate(templateId);
+  const intensity = doc.fx?.style.intensity ?? "off", sensitivity = doc.fx?.sensitivity ?? "normal";
+  const captionLook = captionLookFor(templateId, intensity, sensitivity);
+  const look = captionLook !== "template" ? captionLook
+    : sensitivity === "serious" ? "subtle"
+      : intensity === "subtle" || intensity === "bold" || intensity === "max" ? intensity : "bold";
+  const transform = doc.textTransforms?.hook;
+  return {
+    text: captions.uppercase && !listed ? title.toUpperCase() : title,
+    font: listed && (!captions.font || LOOK_FONTS.includes(captions.font)) ? HOOK_FONT : String(captions.font || HOOK_FONT).slice(0, 80),
+    accent: hex6(captions.accent, "#FFE45C"),
+    look,
+    start: range.start,
+    end: range.end,
+    x: clamp(transform?.x ?? 0, -1, 1),
+    y: clamp(transform?.y ?? 0, -1, 1),
+    scale: clamp(transform?.scale ?? 1, 0.2, 4),
+    trim: !doc.hookTiming,
+    picture: null,
+    avoid: [],
+  };
+}
+
 /**
  * The draft as an FxScene (E time), == editor_fx_render.studio_scene: the enabled cues mapped through the cuts
  * (speed/freeze only when they warp, reactions only with a GIF), words censored under bleeps, the FX caption look,
@@ -391,9 +431,12 @@ export function studioScene(doc: EditDocument, looks: Record<string, CaptionLook
   if (session && session.base === base && readableTrack(session.track))
     track = resampleFaceTrack(doc, { version: 1, space: "picture", fps: session.track.fps ?? STUDIO_FACE_FPS, samples: session.track.samples });
   if (!track && needsFace(planCues)) track = { version: 1, space: "picture", fps: STUDIO_FACE_FPS, samples: [] };
-  const faceTrack = track ? placeFaceTrack(track, pictureRect(doc.framing, opts.sourceWidth, opts.sourceHeight, W, H)) : null;
 
   const hook = doc.hookTitle?.trim() ? hookRange(doc) : null;
+  const drawnHook = studioHook(doc);
+  // The hook title is placed clear of the faces on screen: an empty track when the session has none.
+  if (!track && drawnHook) track = { version: 1, space: "picture", fps: STUDIO_FACE_FPS, samples: [] };
+  const faceTrack = track ? placeFaceTrack(track, pictureRect(doc.framing, opts.sourceWidth, opts.sourceHeight, W, H)) : null;
   return {
     version: 1,
     width: W,
@@ -412,6 +455,7 @@ export function studioScene(doc: EditDocument, looks: Record<string, CaptionLook
     loop_ending: fx?.loopEnding ?? "none",
     hook_window: hook ? [hook.start, hook.end] : null,
     hook_title_suppressed: fx?.hookTitleSuppressed ?? false,
+    hook: drawnHook,
     face_track: faceTrack,
     broll_windows: opts.broll === false ? [] : mappedBroll(doc).map((piece) => [piece.start, piece.end] as [number, number]),
     matte_windows: matteWindows,

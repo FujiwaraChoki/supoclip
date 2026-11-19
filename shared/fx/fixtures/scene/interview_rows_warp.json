@@ -579,6 +579,20 @@
       4.0
     ],
     "hook_title_suppressed": false,
+    "hook": {
+      "text": "He tried it for 30 days",
+      "font": "Poppins-ExtraBold",
+      "accent": "#FACC15",
+      "look": "bold",
+      "start": 0.12,
+      "end": 4.0,
+      "x": 0.0,
+      "y": 0.0,
+      "scale": 1.0,
+      "trim": true,
+      "picture": null,
+      "avoid": []
+    },
     "face_track": {
       "version": 1,
       "space": "output",

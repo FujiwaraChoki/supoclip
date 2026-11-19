@@ -15,8 +15,8 @@ mirrored by fx-core ``layoutLookCaptions``): words starting before ``cut - CUT_L
 at the cut, the rest form the next shot's groups, shown from the cut on its row. Captions therefore switch exactly at
 cuts, never inside a group, and never sit on a row meant for another shot.
 
-Rows avoid burned-in source captions (``band``, like the single caption y did) and, while the hook title sits low
-(bottom at 0.94, ``video_utils._interview_hook_kwargs``), its band.
+Rows avoid burned-in source captions (``band``, like the single caption y did). The hook title is placed around
+the captions by fx-core (``hook.ts``): on a stacked two-shot it sits right above the caption line on the seam.
 
 Pure: no I/O. Times are in the clock of the segments given (generation: E == stage-1 clip time; the studio stores
 them in S and maps them with ``mapped_caption_rows``).
@@ -35,13 +35,11 @@ SHOT_KINDS = frozenset(ROW_Y)
 FLASH_SHOT_SECONDS = 1.0
 # Half the height of a two-line look caption block, in em of the caption size (fx-core lines are 1.25 em apart).
 TWO_LINE_HALF_EM = 1.25
-# Space kept between a caption block and the picture band or the hook title, as a share of the frame height
+# Space kept between a caption block and the picture band, as a share of the frame height
 # (== media.captions.caption_center_clear_of_band's gap at 1920).
 ROW_GAP_FRAC = 0.015
 # The lowest a fit row goes when the picture is tall (keeps the bottom platform UI clear).
 FIT_ROW_MAX = 0.84
-# Top of a low hook title (bottom-anchored at 0.94): two lines of the largest hook size (96 px at 1080 x 1920).
-HOOK_LOW_TOP = 0.80
 # Output frame the interview layout composes (media.interview_layout OUT_W x OUT_H).
 LAYOUT_W, LAYOUT_H = 1080, 1920
 MAX_ROWS = 400
@@ -111,21 +109,13 @@ def _clear_of_band(y: float, text_px: float, band: Sequence[float], height: int)
     return y if centre == at else centre / height
 
 
-def _row_y(kind: str, *, half: float, picture: tuple[float, float] | None, hook_low: bool) -> float:
+def _row_y(kind: str, *, half: float, picture: tuple[float, float] | None) -> float:
     """The row of one shot kind before the burned-in caption band. ``half`` is half a two-line block (height
     fraction)."""
     y = ROW_Y[kind]
     if kind == "fit" and picture is not None and picture[1] < 1.0:
         lowest_clear = picture[1] + ROW_GAP_FRAC + half
         y = min(FIT_ROW_MAX, max(y, lowest_clear))
-    if hook_low:
-        highest_clear = HOOK_LOW_TOP - ROW_GAP_FRAC - half
-        if y > highest_clear:
-            if kind == "fit" and picture is not None and picture[1] < 1.0 and highest_clear < picture[1] + ROW_GAP_FRAC + half:
-                # No room between the picture and the hook: on the blurred fill above the picture instead.
-                y = picture[0] - ROW_GAP_FRAC - half
-            else:
-                y = highest_clear
     return max(0.0, min(1.0, y))
 
 
@@ -137,15 +127,13 @@ def interview_caption_rows(
     height: int,
     source_size: Sequence[float] | None = None,
     band: Sequence[float] | None = None,
-    hook: Sequence[float] | None = None,
     duration: float | None = None,
 ) -> tuple[CaptionRow, ...]:
     """Caption rows for an interview clip's shots (``interview_layout`` segments: start, end, kind).
 
     ``text_px`` is the caption size at ``width``; ``source_size`` the source picture (for the fit band);
-    ``band`` the burned-in source captions (top, bottom) to stay clear of; ``hook`` the (start, end) window of a low
-    hook title, whose band rows of shots overlapping it stay above. The first row starts at 0 and the last one ends
-    at ``duration`` when given. Rows of one height join. () when there is no usable shot.
+    ``band`` the burned-in source captions (top, bottom) to stay clear of. The first row starts at 0 and the last one
+    ends at ``duration`` when given. Rows of one height join. () when there is no usable shot.
     """
     runs = shot_runs(segments)
     if not runs or height <= 0 or width <= 0:
@@ -154,8 +142,7 @@ def interview_caption_rows(
     picture = fit_picture_band(source_size)
     rows: list[list] = []
     for index, (start, end, kind) in enumerate(runs):
-        hook_low = hook is not None and start < float(hook[1]) and end > float(hook[0])
-        y = _row_y(kind, half=half, picture=picture, hook_low=hook_low)
+        y = _row_y(kind, half=half, picture=picture)
         if band is not None:
             y = _clear_of_band(y, text_px, band, height)
         y = round(max(0.0, min(1.0, y)), 4)

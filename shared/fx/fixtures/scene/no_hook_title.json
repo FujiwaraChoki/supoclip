@@ -462,6 +462,7 @@
     "loop_ending": "none",
     "hook_window": null,
     "hook_title_suppressed": false,
+    "hook": null,
     "face_track": {
       "version": 1,
       "space": "output",

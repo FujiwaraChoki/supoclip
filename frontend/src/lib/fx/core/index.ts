@@ -7,6 +7,7 @@ export { censorText, censoredWords } from "./censor";                           
 export { gradeOps, gradeMatrix, type GradeSpec } from "./grades";
 export { prepareScene, type PreparedScene } from "./scene";
 export { frameOps, isPassthrough, captionHitBoxes, type FxClock } from "./frame";
+export { hookBounds, hookLayout, hookOps, type HookLayout } from "./hook";
 export { rasterize } from "./raster";
 export { renderFrame } from "./render";
 export type { FxHost, FxCanvas, FxContext2D, FxImage, EmojiAtlas, DrawOp, Mat2D, Blend } from "./host";
