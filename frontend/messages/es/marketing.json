@@ -17,8 +17,8 @@
       "featureCrop": "Recorte vertical 9:16 centrado en el rostro",
       "featureCaptions": "Subtítulos animados sincronizados por palabra",
       "featureExports": "Exportaciones para YouTube Shorts, TikTok e Instagram Reels",
-      "featureSelfHost": "Autoalojamiento para fines no comerciales",
-      "offerCategory": "Código fuente para autoalojamiento no comercial",
+      "featureSelfHost": "Autoalojamiento gratis para fines no comerciales y creadores individuales",
+      "offerCategory": "Código fuente para autoalojamiento no comercial y de creadores individuales",
       "ios": "La app de SupoClip para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
       "website": "Recorte de video con IA de código abierto para contenido de formato corto."
     }
@@ -36,7 +36,7 @@
   },
   "footer": {
     "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
-    "licenseNotice": "El uso comercial, incluido el uso interno en empresas, requiere <license>autorización por escrito</license>.",
+    "licenseNotice": "Los creadores individuales pueden autoalojar y monetizar gratis. Las empresas, las agencias y el alojamiento de pago requieren <license>autorización por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
     "discord": "Comunidad de Discord",
@@ -473,7 +473,7 @@
       },
       "selfHost": {
         "question": "¿De verdad es gratis autoalojarlo?",
-        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC."
+        "answer": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC."
       },
       "cancel": {
         "question": "¿Puedo cancelar cuando quiera?",
@@ -484,11 +484,11 @@
   "openSource": {
     "badge": "Licencia de código fuente no comercial de SupoClip",
     "title": "Hecho en público",
-    "body": "Código fuente para autoalojamiento no comercial",
+    "body": "Código fuente para autoalojamiento no comercial y de creadores individuales",
     "commandLabel": "autoalojar",
     "comment": "# agrega un proveedor de transcripción y de LLM en .env",
     "facts": {
-      "license": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales. El uso comercial requiere la autorización previa por escrito de Shiori LLC.",
+      "license": "SupoClip permite el autoalojamiento y las bifurcaciones para fines no comerciales, y los creadores individuales pueden autoalojarlo para hacer clips para sus propios canales monetizados. Las empresas, las agencias, el trabajo para clientes y el alojamiento de pago requieren la autorización previa por escrito de Shiori LLC.",
       "docker": "Un solo comando de Docker Compose para ejecutarlo tú mismo",
       "models": "Usa tus propios modelos: Gemini, OpenAI, Anthropic u Ollama"
     },

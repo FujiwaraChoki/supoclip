@@ -17,8 +17,8 @@
       "featureCrop": "Crop vertikal 9:16 yang mengikuti wajah",
       "featureCaptions": "Caption animasi yang sinkron per kata",
       "featureExports": "Ekspor YouTube Shorts, TikTok, dan Instagram Reels",
-      "featureSelfHost": "Hosting mandiri untuk penggunaan nonkomersial",
-      "offerCategory": "Kode sumber untuk hosting mandiri nonkomersial",
+      "featureSelfHost": "Hosting mandiri gratis untuk penggunaan nonkomersial dan kreator perorangan",
+      "offerCategory": "Kode sumber untuk hosting mandiri nonkomersial dan kreator perorangan",
       "ios": "Aplikasi iOS SupoClip: ubah video panjang jadi short vertikal ber-caption dari iPhone.",
       "website": "AI video clipping open source untuk konten pendek."
     }
@@ -36,7 +36,7 @@
   },
   "footer": {
     "tagline": "AI video clipper open source. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
-    "licenseNotice": "Penggunaan komersial, termasuk untuk keperluan internal perusahaan, memerlukan <license>izin tertulis</license>.",
+    "licenseNotice": "Kreator perorangan boleh host sendiri dan memonetisasi secara gratis. Perusahaan, agensi, dan hosting berbayar memerlukan <license>izin tertulis</license>.",
     "github": "GitHub",
     "ios": "Aplikasi iOS",
     "discord": "Komunitas Discord",
@@ -473,7 +473,7 @@
       },
       "selfHost": {
         "question": "Benarkah host sendiri itu gratis?",
-        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
+        "answer": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC."
       },
       "cancel": {
         "question": "Bisakah saya berhenti berlangganan kapan saja?",
@@ -484,11 +484,11 @@
   "openSource": {
     "badge": "Lisensi Kode Sumber Nonkomersial SupoClip",
     "title": "Dibangun secara terbuka",
-    "body": "Kode sumber untuk hosting mandiri nonkomersial",
+    "body": "Kode sumber untuk hosting mandiri nonkomersial dan kreator perorangan",
     "commandLabel": "host sendiri",
     "comment": "# tambahkan penyedia transkripsi + LLM ke .env",
     "facts": {
-      "license": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial. Penggunaan komersial memerlukan izin tertulis terlebih dahulu dari Shiori LLC.",
+      "license": "SupoClip mengizinkan hosting mandiri dan fork untuk tujuan nonkomersial, dan kreator perorangan boleh meng-host-nya sendiri untuk membuat clip bagi kanal monetisasi milik mereka sendiri. Perusahaan, agensi, pekerjaan untuk klien, dan hosting berbayar memerlukan izin tertulis terlebih dahulu dari Shiori LLC.",
       "docker": "Satu perintah Docker Compose untuk menjalankannya sendiri",
       "models": "Pakai model pilihanmu: Gemini, OpenAI, Anthropic, atau Ollama"
     },

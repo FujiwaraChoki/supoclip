@@ -41,7 +41,7 @@ Use these claims freely. Each one is backed by the code or the site:
 
 | Claim | Source |
 |-------|--------|
-| Noncommercial self-hosting and forks | `LICENSE` |
+| Noncommercial self-hosting, forks, and individual creators' monetized use | `LICENSE` |
 | Runs hosted, on iOS, or self-hosted with Docker Compose | `docker-compose.yml`, App Store listing |
 | Self-hosted installs have no plan limits | `billing_service.py` (`self_host` plan) |
 | No watermark on exports | No watermark step anywhere in `backend/src` |
@@ -106,7 +106,7 @@ posting, and reply to comments for the first few hours.
 > pick self-contained moments, and renders 9:16 clips with word-synced captions,
 > a hook title, and face-aware framing.
 >
-> It's available for noncommercial self-hosting and runs with `docker compose up`. You choose the models:
+> It's free to self-host for noncommercial use and for individual creators, and it runs with `docker compose up`. You choose the models:
 > OpenAI, Google, Anthropic, OpenRouter, or Ollama, plus AssemblyAI or local
 > Whisper for transcription, so it can run without cloud AI. There's also a
 > REST API and an MCP server, so agents can create and download clips.
@@ -144,10 +144,10 @@ posting, and reply to comments for the first few hours.
 
 ### X thread
 
-1. We published the source for our AI video clipper. Paste a long video, get vertical, captioned clips with hook titles. Self-host it for noncommercial use, or use the hosted app. 🧵
+1. We published the source for our AI video clipper. Paste a long video, get vertical, captioned clips with hook titles. Self-host it for noncommercial use or as an individual creator, or use the hosted app. 🧵
 2. Here's real output from a long-form interview, with links back to each source timestamp: [demo link]
 3. Bring your own AI: OpenAI, Google, Anthropic, OpenRouter, or fully local Whisper + Ollama.
-4. No watermark. No plan limits when self-hosted. Noncommercial license: [GitHub link]
+4. No watermark. No plan limits when self-hosted. Free for noncommercial use and individual creators: [GitHub link]
 5. Comparing tools? Our SupoClip vs OpusClip comparison links a source for every claim: [comparison link]
 
 Attach the demo video (own footage) to tweet 1, not the third-party demo clips.
@@ -158,8 +158,8 @@ Attach the demo video (own footage) to tweet 1, not the third-party demo clips.
 > recordings like podcasts, webinars, and talks into short vertical clips with
 > captions, so one recording becomes a week of posts.
 >
-> You can run it for noncommercial use on your own
-> infrastructure with their own AI models. There's also a hosted version.
+> You can run it on your own infrastructure with your own AI models,
+> free for noncommercial use and for individual creators. There's also a hosted version.
 >
 > See real output: [demo link]
 

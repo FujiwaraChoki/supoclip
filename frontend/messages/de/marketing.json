@@ -17,8 +17,8 @@
       "featureCrop": "Gesichtsbewusster 9:16-Hochformatschnitt",
       "featureCaptions": "Wortgenaue animierte Untertitel",
       "featureExports": "Exporte für YouTube Shorts, TikTok und Instagram Reels",
-      "featureSelfHost": "Für nichtkommerzielle Zwecke selbst hosten",
-      "offerCategory": "Quellcode für nichtkommerzielles Self-Hosting",
+      "featureSelfHost": "Kostenlos selbst hosten für nichtkommerzielle Zwecke und einzelne Creator",
+      "offerCategory": "Quellcode für Self-Hosting: nichtkommerziell und für einzelne Creator",
       "ios": "Die SupoClip-App für iOS: Mach aus langen Videos untertitelte Hochformat-Shorts auf deinem iPhone.",
       "website": "Open-Source-KI-Videoclipping für Kurzform-Content."
     }
@@ -36,7 +36,7 @@
   },
   "footer": {
     "tagline": "Open-Source-KI-Videoclipper. Nutze die gehostete App oder betreib sie auf deiner eigenen Infrastruktur.",
-    "licenseNotice": "Kommerzielle Nutzung, auch firmenintern, erfordert eine <license>schriftliche Genehmigung</license>.",
+    "licenseNotice": "Einzelne Creator dürfen kostenlos selbst hosten und monetarisieren. Unternehmen, Agenturen und bezahltes Hosting erfordern eine <license>schriftliche Genehmigung</license>.",
     "github": "GitHub",
     "ios": "iOS-App",
     "discord": "Discord-Community",
@@ -473,7 +473,7 @@
       },
       "selfHost": {
         "question": "Ist Selbsthosten wirklich kostenlos?",
-        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC."
       },
       "cancel": {
         "question": "Kann ich jederzeit kündigen?",
@@ -484,11 +484,11 @@
   "openSource": {
     "badge": "Nichtkommerzielle SupoClip-Quellcodelizenz",
     "title": "Offen entwickelt",
-    "body": "Quellcode für nichtkommerzielles Self-Hosting",
+    "body": "Quellcode für Self-Hosting: nichtkommerziell und für einzelne Creator",
     "commandLabel": "selbst hosten",
     "comment": "# Trag einen Transkriptions- und LLM-Anbieter in .env ein",
     "facts": {
-      "license": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke. Kommerzielle Nutzung erfordert die vorherige schriftliche Genehmigung von Shiori LLC.",
+      "license": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC.",
       "docker": "Ein Docker-Compose-Befehl, um es selbst zu betreiben",
       "models": "Eigene Modelle nutzen: Gemini, OpenAI, Anthropic oder Ollama"
     },
@@ -502,7 +502,7 @@
   },
   "cta": {
     "title": "Dein nächstes Video ist schon eine Woche Content.",
-    "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste die Version für nichtkommerzielle Zwecke selbst."
+    "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste SupoClip selbst, für nichtkommerzielle Zwecke oder als einzelner Creator."
   },
   "faqPage": {
     "title": "Sprachen, Untertitel und Clips",
