@@ -39,16 +39,14 @@ Regression tests use loopback HTTP and synthetic HLS, with no paid traffic:
 `tests/unit/test_stream_transfer.py`, `tests/unit/test_stream_source.py` and
 `tests/unit/test_stream_hls_sections.py`.
 
-During the 2026-11-13 incident, `dgeft87wbj63p.cloudfront.net` was blocked in
-DataImpulse and cancellation was requested for task
-`89254edf-68bb-445c-9a0c-f6e71fff4b5a`. The offending ffmpeg child was terminated
-and the old worker stopped. At approximately 13:54 UTC, Sora and the API were
-updated to `supoclip-bandwidth-fix:20261113`. Their production allowance was
-reduced from the existing 10 GB override to 2 GB. Both effective settings were
-verified, no offending child processes remained, and API, database, worker and
-storage health checks returned 200. The host block remains enabled.
+During the 2026-11-13 incident a CDN host was blocked in the proxy provider and
+the affected task was cancelled. The offending ffmpeg child was terminated and
+the old worker stopped. The API and the render worker were then updated to the
+bandwidth-fix image and their production allowance was reduced from the existing
+10 GB override to 2 GB. Both effective settings were verified, no offending
+child processes remained, and API, database, worker and storage health checks
+returned 200. The host block remains enabled.
 
-The image passed all 61 focused tests on each host before activation. Sora's
-previous Compose and worker env files have `.before-bandwidth-fix-20261113`
-backups in `/etc/supoclip/`. Hetzner's source, env and Compose rollback files
-are in `/home/fuji/supoclip/backups/bandwidth-fix-20261113/before-api/`.
+The image passed all 61 focused tests on each host before activation. Rollback
+copies of the previous Compose and env files are kept in the private deployment
+notes, outside this repository.
