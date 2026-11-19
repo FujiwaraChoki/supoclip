@@ -396,7 +396,8 @@ Personalized analyses skip the shared `processing_cache` analysis entry.
 ### Account email change
 
 Settings → Account changes the sign-in email after two codes (current address, then new address):
-`frontend/src/server/email-change.ts` (codes, limits, atomic switch + other-session sign-out),
+`frontend/src/server/email-change.ts` (codes, limits per user/IP/target address, atomic switch + other-session
+sign-out + `email_change_log`),
 `email-change-billing.ts` (every Stripe customer, rolled back on failure), route `/api/account/email-change`,
 emails via backend `POST /account/email-change-email`. Design and limits: `docs/email-change.md`.
 
