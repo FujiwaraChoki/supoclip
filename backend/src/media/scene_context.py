@@ -62,6 +62,10 @@ COVER_MAX_TEXT_BLOCK_RATE = 0.35
 COVER_MAX_GROUP_RATE = 0.3
 # A crop centre this close to the last one continues the same composition.
 COVER_SAME_X = 0.05
+# One face away from the frame edge and at least this share of the frame (head
+# and shoulders, or closer) is the subject: motion around it is the person's
+# own gestures, or a chat overlay beside them, not action across the frame.
+PRESENTER_FACE_AREA = 0.03
 
 
 @dataclass(frozen=True)
@@ -397,6 +401,8 @@ def context_reason(sample: SceneEvidence, crop_fraction: float) -> Optional[str]
     if sample.face_area < 0.045 and peripheral:
         return "peripheral_presenter"
     if sample.motion > 0.065 and sample.outside_motion > 0.45 and sample.motion_spread >= 0.5:
+        if sample.face_count == 1 and sample.face_area >= PRESENTER_FACE_AREA and not peripheral:
+            return None
         return "distributed_action"
     return None
 
