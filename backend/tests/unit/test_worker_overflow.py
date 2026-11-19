@@ -139,6 +139,8 @@ async def test_the_video_worker_holds_back_new_jobs_when_configured(monkeypatch)
 
     monkeypatch.setattr(tasks, "check_media_volume", lambda redis: asyncio.sleep(0))
     monkeypatch.setattr(tasks, "_maintain_scratch_forever", lambda: asyncio.sleep(0))
+    # The fake pool has no sockets to configure.
+    monkeypatch.setattr("src.workers.redis_settings.use_socket_options", lambda redis: asyncio.sleep(0))
     for value, held in (("15", True), ("", False)):
         monkeypatch.setenv(overflow.OVERFLOW_ENV, value)
         pool = _Pool()
