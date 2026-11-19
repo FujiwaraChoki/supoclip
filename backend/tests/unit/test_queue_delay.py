@@ -113,4 +113,5 @@ def test_video_worker_measures_delay_on_start():
     from src.workers.tasks import WorkerSettings
 
     assert WorkerSettings.cron_jobs == []
-    assert WorkerSettings.on_job_start.__name__ == "on_video_job_start"
+    # Wrapped together with the per-host job registry (test_host_jobs.py).
+    assert WorkerSettings.on_job_start.__name__ == "on_video_job_begin"

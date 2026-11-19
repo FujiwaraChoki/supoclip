@@ -1,0 +1,27 @@
+# Reverse tunnel from the application host to one autoscaled cloud worker.
+# It exposes PostgreSQL, Redis and bgutil on the worker's loopback only
+# (15432/16379/14416) via this host's loopback gateways. Nothing is public.
+# The autoscaler writes WORKER_ADDRESS to the instance's env file and starts it.
+[Unit]
+Description=SupoClip reverse tunnel to autoscaled render worker %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=supoclip-autoscaler
+# Gateway ports on this host (POSTGRES_/REDIS_/BGUTIL_GATEWAY_PORT), shared by every worker.
+EnvironmentFile=/etc/supoclip-autoscaler/tunnel.env
+EnvironmentFile=/var/lib/supoclip-autoscaler/tunnels/%i.env
+ExecStart=/usr/bin/ssh -N -T -i /etc/supoclip-autoscaler/tunnel_key \
+  -o IdentitiesOnly=yes -o BatchMode=yes -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+  -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/var/lib/supoclip-autoscaler/known_hosts \
+  -R 127.0.0.1:15432:127.0.0.1:${POSTGRES_GATEWAY_PORT} \
+  -R 127.0.0.1:16379:127.0.0.1:${REDIS_GATEWAY_PORT} \
+  -R 127.0.0.1:14416:127.0.0.1:${BGUTIL_GATEWAY_PORT} \
+  tunnel@${WORKER_ADDRESS}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

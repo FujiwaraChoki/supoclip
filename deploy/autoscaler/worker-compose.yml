@@ -1,0 +1,66 @@
+# The video worker on an autoscaled cloud machine. Installed into the golden
+# snapshot as /opt/supoclip-render/compose.yml by build-snapshot.sh; the
+# autoscaler writes /etc/supoclip/render-compose.env for each machine.
+#
+# Same shape as a hand-built render host (docs/render-worker.md): PostgreSQL,
+# Redis and bgutil arrive on this machine's loopback through a reverse tunnel
+# from the application host; nothing is mounted from another machine.
+name: supoclip-render
+services:
+  worker:
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE}
+    platform: linux/amd64
+    # The video worker only. On SIGTERM, ARQ stops taking jobs and waits up to
+    # job_completion_wait for running ones: that is how the autoscaler drains.
+    command:
+      - .venv/bin/python
+      - -c
+      - >-
+        import os;
+        from arq.worker import run_worker;
+        from src.workers.tasks import WorkerSettings;
+        n=int(os.environ['VIDEO_WORKER_CONCURRENCY']);
+        print(f'Video worker concurrency: {n}',flush=True);
+        run_worker(WorkerSettings,max_jobs=n,job_completion_wait=10800)
+    network_mode: host
+    env_file:
+      - path: ${WORKER_ENV_FILE:?Set WORKER_ENV_FILE}
+        format: raw
+    environment:
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
+      SUPOCLIP_SERVICE: worker
+      TEMP_DIR: /app/uploads
+      MEDIA_STORAGE: s3
+      DATABASE_URL: ${WORKER_DATABASE_URL:?Set WORKER_DATABASE_URL}
+      # One pool per process; it must cover every slot (VIDEO_WORKER_CONCURRENCY).
+      DATABASE_POOL_SIZE: ${WORKER_DB_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${WORKER_DB_MAX_OVERFLOW:-5}
+      REDIS_HOST: ${WORKER_REDIS_HOST:-127.0.0.1}
+      REDIS_PORT: ${WORKER_REDIS_PORT:-16379}
+      EMBED_CRON_WORKER: "0"
+      VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-10}
+      # The per-host job registry key; the autoscaler reads it to see this machine is idle.
+      RENDER_HOST_NAME: ${RENDER_HOST_NAME:?Set RENDER_HOST_NAME}
+      YOUTUBE_PROXY_DEFAULT_PROVIDER: ${YOUTUBE_PROXY_DEFAULT_PROVIDER:-geonode}
+      YOUTUBE_PROXY_TRIAL_PREFIX: ${YOUTUBE_PROXY_TRIAL_PREFIX:-}
+      YOUTUBE_PROXY_TRIAL_SECRET_FILE: /run/proxy-secret.json
+    volumes:
+      - type: bind
+        source: /var/log/supoclip/worker-app
+        target: /app/logs
+      # Scratch: downloads, caches and renders in progress. Safe to lose.
+      - type: bind
+        source: ${WORKER_SCRATCH_PATH:-/srv/supoclip-scratch}
+        target: /app/uploads
+      - type: bind
+        source: ${WORKER_PROXY_SECRET_FILE:-/etc/supoclip/proxy-secret.json}
+        target: /run/proxy-secret.json
+        read_only: true
+    restart: unless-stopped
+    stop_grace_period: 3h
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"

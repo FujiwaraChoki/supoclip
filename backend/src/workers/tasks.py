@@ -332,6 +332,15 @@ from ..services.clip_export_service import (
     export_clip_preset,
 )
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
+from . import host_jobs
+from .queue_delay import on_video_job_start
+
+
+async def on_video_job_begin(ctx) -> None:
+    await on_video_job_start(ctx)
+    # Lets the render autoscaler see that this machine is busy (host_jobs.py).
+    await host_jobs.record_job_start(ctx)
+
 
 # Worker configuration for arq
 class WorkerSettings:
@@ -376,7 +385,8 @@ class WorkerSettings:
     max_jobs = 4  # Process up to 4 jobs simultaneously
     cron_jobs = []
 
-    from .queue_delay import on_video_job_start as on_job_start
+    on_job_start = on_video_job_begin
+    on_job_end = host_jobs.record_job_end
 
     on_startup = on_worker_startup
     on_shutdown = on_worker_shutdown
