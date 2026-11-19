@@ -25,6 +25,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-17
 
+- **Improved:** Clips with b-roll, handheld or POV footage, or a drone shot now fill the vertical frame with a crop on the action instead of showing the picture as a thin strip on a blurred background. Screenshots, documents, side-by-side comparisons and group shots still show the full picture, so nothing important is cut off. A single graph or slide cut into a talking-head clip is shown in full without shrinking the speaker for the rest of the clip. ([#432](https://github.com/FujiwaraChoki/supoclip/pull/432))
+- **Fixed:** A stacked clip no longer shows the same person in both halves. In a handheld shot the layout now changes between stacked and a single crop the moment someone leaves the picture or the camera closes in on one person, and the crop stays on a person through a fast camera move. ([#470](https://github.com/FujiwaraChoki/supoclip/pull/470))
 - **Under the hood:** Feedback, bug reports, sales questions and cancellation reasons sent from the app are now kept and followed up from one inbox, so none get lost when a chat channel is down. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
 
 - **New:** A guide to clipping GTA 6 on the blog: what clipping campaigns pay, which clips get taken down, and the steps from a stream recording to finished vertical clips. It includes a payout calculator you can adjust to your own numbers. ([#431](https://github.com/FujiwaraChoki/supoclip/pull/431))
@@ -46,6 +48,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-15
 
+- **Improved:** A host or presenter talking to the camera on their own is framed as a tight crop on their face and shoulders, with the eyes near the top third, instead of the whole picture shrunk into a band with a blurred fill below. Their hand gestures no longer make the clip fall back to the full frame. Only a face too small or too low to crop sharply still gets the full picture. ([#402](https://github.com/FujiwaraChoki/supoclip/pull/402))
 - **Fixed:** Long videos processed with Claude Haiku have more room for their outlines, reducing incomplete outlines in series, topic, recap and trailer runs. ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
 
 - **New:** Settings → Agents & API shows how to connect Claude, ChatGPT or Grok: open the assistant's connector page, paste the SupoClip server URL and sign in. No key to copy. Each assistant lists which of its plans support this. Claude Code can sign in the same way. API keys moved into one tidy list with a Create key button; a new key opens with its Cursor and local config filled in. ([#403](https://github.com/FujiwaraChoki/supoclip/pull/403))

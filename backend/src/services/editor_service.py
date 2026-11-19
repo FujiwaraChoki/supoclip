@@ -234,7 +234,7 @@ PRESERVED_LAYOUT_KINDS = frozenset({"split", "stack", "reaction", "overlap", "in
 # Plans kept beside the uncropped source as layout.mp4 ("Auto layout"), so the
 # studio opens on the generated framing and manual crops still start from the
 # full frame: content fits, the compositor, and the tracked face/speaker crops.
-CONTENT_LAYOUT_KINDS = frozenset({"fit", "compositor", "crop", "speaker", "stage", "generated"})
+CONTENT_LAYOUT_KINDS = frozenset({"fit", "compositor", "crop", "speaker", "solo", "stage", "generated"})
 # A stored plan is replayed only on the media it was planned for.
 STORED_LAYOUT_DURATION_TOLERANCE = 0.25
 

@@ -82,12 +82,14 @@ def test_fast_close_and_wide_cutting_of_one_speaker_stays_cropped():
     assert layout(stabilize_layout_plan(plan)) == [(0, 10, "face")]
 
 
-def test_brief_content_shot_between_close_ups_stays_full_frame():
+def test_brief_content_shot_between_close_ups_shows_in_full_without_widening_them():
+    # A speaker with a slide cut in: the slide is shown whole, the close-ups around it stay cropped
+    # (a whole-clip letterbox for one slide shrinks the speaker for the entire clip).
     close = [subject(i / 3) for i in range(0, 78)]
     slide = [SceneEvidence(i / 3, text_rows=6) for i in range(78, 84)]
     after = [subject(i / 3) for i in range(84, 120)]
     plan = build_context_layout_plan(close + slide + after, [26.0, 28.0], 40.0, 0.316)
-    assert layout(plan) == [(0.0, 40.0, "fit")]
+    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 28.0, "fit"), (28.0, 40.0, "face")]
 
 
 def test_brief_crop_inside_a_wide_two_shot_keeps_speaker_framing_reason():
@@ -105,6 +107,25 @@ def test_repeated_context_changes_use_one_full_frame_layout():
         shot(0, 3, "face", "confident_subject"),
         shot(3, 6, "fit", "screen_content_outside_crop"),
         shot(6, 9, "face", "confident_subject"),
+        shot(9, 12, "fit", "screen_content_outside_crop"),
+        shot(12, 15, "face", "confident_subject"),
+    ]
+    assert layout(stabilize_layout_plan(plan)) == [(0, 15, "fit")]
+
+
+def test_one_content_cutaway_keeps_the_crops_around_it():
+    plan = [
+        shot(0, 3, "face", "confident_subject"),
+        shot(3, 6, "fit", "screen_content_outside_crop"),
+        shot(6, 9, "face", "confident_subject"),
+    ]
+    assert layout(stabilize_layout_plan(plan)) == [(0, 3, "face"), (3, 6, "fit"), (6, 9, "face")]
+
+
+def test_mostly_content_letterboxes_throughout():
+    plan = [
+        shot(0, 2, "face", "confident_subject"),
+        shot(2, 9, "fit", "screen_content_outside_crop"),
     ]
     assert layout(stabilize_layout_plan(plan)) == [(0, 9, "fit")]
 

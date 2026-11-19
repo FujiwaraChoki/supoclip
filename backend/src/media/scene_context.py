@@ -35,9 +35,41 @@ LAYOUT_HOLD_SECONDS = 2.5
 # A fit run this short is a one-sample flash: it cannot be read anyway.
 LAYOUT_FLASH_SECONDS = 0.5
 
+# A clip whose crops and fits alternate this often uses one full-context
+# composition, so it does not flicker between them.
+LAYOUT_MAX_RUNS = 5
+
 # A small but steady single face (a wide shot of the same speaker) may inherit
 # a neighbouring face crop; an empty or crowded shot never does.
 SOFT_SINGLE_FACE_RATE = 0.6
+
+# Cover: a fitted shot of live footage (b-roll, a POV or handheld vlog, a wide
+# scene) fills the 9:16 frame with a full-height crop instead of a letterboxed
+# strip, the way short-form editors cut it. Only shots whose risk is that no
+# close subject was found qualify (never crowds, cut text, slides or a
+# presenter beside a screen), and only when something in the picture moves: a
+# still shot is a composed graphic, a comparison or a screen, and keeps the
+# full frame. A drone crossing a static wall already moves enough, and so does
+# a slow push-in over a photo (camera motion with nothing moving inside it).
+COVER_REASONS = frozenset({"no_reliable_close_subject", "peripheral_presenter"})
+COVER_MIN_MOTION = 0.008
+COVER_MIN_CAMERA_MOTION = 0.003
+# Share of a shot's samples that may show an aligned paragraph (a document,
+# a tweet, a slide) before it is content rather than footage. Shelf labels
+# and brick courses in moving footage stay under it.
+COVER_MAX_TEXT_BLOCK_RATE = 0.35
+# Share of samples with two or more faces that makes a shot a group.
+COVER_MAX_GROUP_RATE = 0.3
+# A crop centre this close to the last one continues the same composition.
+COVER_SAME_X = 0.05
+# One face away from the frame edge and at least this share of the frame (head
+# and shoulders, or closer) is the subject: motion around it is the person's
+# own gestures, or a chat overlay beside them, not action across the frame.
+PRESENTER_FACE_AREA = 0.03
+# How much less a column at the frame edge counts than one in the middle when looking for the subject of a shot
+# without faces (see ContextAnalyzer._focus_center). Read by the interview layout's covers; the scene plan's
+# covers (_cover_x) keep the detail centre, which suits the handheld POV footage they were tuned on.
+FOCUS_CENTRE_BIAS = 0.6
 
 
 @dataclass(frozen=True)
@@ -67,6 +99,9 @@ class SceneEvidence:
     # a document). Book spines and foliage make stray "lines"; they rarely
     # stack into two or more lines sharing a left edge, centre or right edge.
     text_block_lines: int = 0
+    # Centre (0-1 of the width) of the full-height 9:16 window holding the most detail and colour: the dish in a
+    # food insert, the object in a product shot. The middle when unmeasured.
+    focus_center: float = 0.5
 
 
 class ContextAnalyzer:
@@ -224,6 +259,32 @@ class ContextAnalyzer:
             return 0.5, 0.5
         return float(active[0]) / w, float(active[-1] + 1) / w
 
+    @staticmethod
+    def _focus_center(frame: np.ndarray, gray: np.ndarray, crop_width: float) -> float:
+        """Centre of the crop-wide window that holds the subject of a shot without faces.
+
+        Per column: edge pixels (what is in focus, what has texture) plus saturated colour (food, a product),
+        each relative to its average over the frame, weighted towards the middle, where a subject framed for
+        16:9 usually is. Edges alone follow a wicker basket or a tablecloth past the plate beside them; without
+        the weighting a bright object at the side beats the thing the camera is pointed at.
+        """
+        _, w = gray.shape
+        window = int(round(crop_width))
+        if window < 2 or window >= w:
+            return 0.5
+        edges = (cv2.Canny(gray, 50, 150) > 0).sum(axis=0).astype(np.float32)
+        hsv = cv2.cvtColor(cv2.GaussianBlur(frame, (0, 0), 2), cv2.COLOR_BGR2HSV).astype(np.float32)
+        colour = hsv[..., 1] * hsv[..., 2] / 255.0
+        colour = np.maximum(colour - float(np.median(colour)), 0).sum(axis=0)
+        score = edges / max(float(edges.mean()), 1e-6) + colour / max(float(colour.mean()), 1e-6)
+        score *= 1 - FOCUS_CENTRE_BIAS * np.abs(np.arange(w) - (w - 1) / 2) / (w / 2)
+        sums = np.convolve(score, np.ones(window, dtype=np.float32), "valid")
+        peak = float(sums.max())
+        if peak <= 0:
+            return 0.5
+        best = np.flatnonzero(sums >= peak * 0.97)
+        return float((np.median(best) + window / 2) / w)
+
     def measure(self, frame: np.ndarray, boxes: Sequence[Sequence[float]], time: float) -> SceneEvidence:
         h, w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -306,7 +367,9 @@ class ContextAnalyzer:
         cut_lines, protect_left, protect_right = 0, 0.0, 1.0
         detail_left, detail_right = 0.0, 1.0
         block = 0
+        focus = 0.5
         try:
+            focus = self._focus_center(frame, gray, crop_width)
             lines = self._text_lines(gray)
             block = self._text_block(lines, w)
             margin = max(2, int(w * 0.005))
@@ -324,12 +387,13 @@ class ContextAnalyzer:
             cut_lines, protect_left, protect_right = 0, 0.0, 1.0
             detail_left, detail_right = 0.0, 1.0
             block = 0
+            focus = 0.5
         return SceneEvidence(
             time, area, span, len(significant), center, motion, outside, spread, camera,
             self._text_rows(components, w, left, right), cut, delta,
             detail_left=detail_left, detail_right=detail_right,
             protect_left=max(0.0, protect_left), protect_right=min(1.0, protect_right),
-            cut_text_lines=cut_lines, text_block_lines=block,
+            cut_text_lines=cut_lines, text_block_lines=block, focus_center=focus,
         )
 
 
@@ -373,8 +437,37 @@ def context_reason(sample: SceneEvidence, crop_fraction: float) -> Optional[str]
     if sample.face_area < 0.045 and peripheral:
         return "peripheral_presenter"
     if sample.motion > 0.065 and sample.outside_motion > 0.45 and sample.motion_spread >= 0.5:
+        if sample.face_count == 1 and sample.face_area >= PRESENTER_FACE_AREA and not peripheral:
+            return None
         return "distributed_action"
     return None
+
+
+def _cover_x(shot: Sequence[SceneEvidence], reason: str) -> Optional[float]:
+    """Centre (0-1 of the width) of a full-height crop for a fitted shot of live footage, or None to keep the fit.
+
+    A lone face, however small, is the subject: the crop centres on it. Otherwise the crop centres on the visible
+    detail, which is the middle of the frame for most handheld and b-roll footage.
+    """
+    if reason not in COVER_REASONS or not shot:
+        return None
+    if (float(np.median([s.motion for s in shot])) < COVER_MIN_MOTION
+            and float(np.median([s.camera_motion for s in shot])) < COVER_MIN_CAMERA_MOTION):
+        return None
+    if sum(s.text_block_lines >= 2 for s in shot) / len(shot) > COVER_MAX_TEXT_BLOCK_RATE:
+        return None
+    if sum(s.face_count >= 2 for s in shot) / len(shot) >= COVER_MAX_GROUP_RATE:
+        return None
+    faces = [s.face_center for s in shot if s.face_count == 1 and s.face_area > 0]
+    if len(faces) / len(shot) >= SOFT_SINGLE_FACE_RATE:
+        return float(np.median(faces))
+    return float(np.median([(s.detail_left + s.detail_right) / 2 for s in shot]))
+
+
+def _same_layout(a: dict, b: dict) -> bool:
+    if a["kind"] != b["kind"] or a["reason"] != b["reason"]:
+        return False
+    return a["kind"] != "cover" or abs(a["x"] - b["x"]) <= COVER_SAME_X
 
 
 def _soft_fit(shot: Sequence[SceneEvidence], reason: str) -> bool:
@@ -412,7 +505,11 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
                 continue
             neighbours = [runs[j] for j in (index - 1, index + 1) if 0 <= j < len(runs)]
             if plan[a]["kind"] == "face":
-                flip, rank = True, 1
+                # Widening never loses content; a crop next to a cover already fills the frame like it.
+                flip, rank = any(plan[r[0]]["kind"] == "fit" for r in neighbours), 1
+                neighbours = [r for r in neighbours if plan[r[0]]["kind"] == "fit"]
+            elif plan[a]["kind"] == "cover":
+                flip, rank = length < LAYOUT_FLASH_SECONDS, 2
             else:
                 soft = all(p.get("soft") for p in plan[a:b])
                 flip = soft or length < LAYOUT_FLASH_SECONDS
@@ -435,10 +532,13 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
             entry["kind"] = source["kind"]
             entry["reason"] = source["reason"]
             entry["soft"] = source.get("soft", False)
+            entry.pop("x", None)
+            if "x" in source:
+                entry["x"] = source["x"]
         merged = [plan[0]]
         for entry in plan[1:]:
             last = merged[-1]
-            if entry["kind"] == last["kind"] and entry["reason"] == last["reason"]:
+            if _same_layout(entry, last):
                 last["end"] = entry["end"]
                 last["soft"] = last.get("soft", False) and entry.get("soft", False)
             else:
@@ -452,7 +552,11 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
     # Repeated crop/fit changes or a predominantly wide demonstration use one
     # full-context composition. First resolve soft/brief shots above, so a lone
     # speaker's wide angle does not needlessly shrink the whole clip.
-    if hard_fit and (len(runs) >= 3 or (len(runs) > 1 and fit_duration > duration * .6)):
+    # A speaker with a graph or a document cut in (crop, fit, crop) keeps the crops around it; cover shots fill the
+    # frame like crops. Only a clip that is mostly fitted content, or a speaker that keeps flipping to the screen,
+    # letterboxes throughout. A documentary montage (footage between documents) keeps its covers at every cut.
+    flipping = len(runs) >= LAYOUT_MAX_RUNS and not any(p["kind"] == "cover" for p in plan)
+    if hard_fit and len(runs) > 1 and (fit_duration > duration * .5 or flipping):
         return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context", "soft": False}]
     return plan
 
@@ -463,7 +567,9 @@ def build_context_layout_plan(samples: Sequence[SceneEvidence], scene_cuts: Sequ
 
     A brief missed face in an otherwise confident close-up does not change the
     layout. Sustained context risk wins over face tracking, including a small
-    webcam over gameplay. Short shots then inherit their neighbours'
+    webcam over gameplay. A fitted shot of moving footage without a close
+    subject (b-roll, a POV) becomes a ``cover`` shot: a full-height crop
+    centred at ``x`` (see ``_cover_x``). Short shots then inherit their neighbours'
     composition (see ``stabilize_layout_plan``).
     """
     if duration <= 0 or not samples:
@@ -483,11 +589,15 @@ def build_context_layout_plan(samples: Sequence[SceneEvidence], scene_cuts: Sequ
             reason = "analysis_unavailable"
         kind = "fit" if fit else "face"
         soft = kind == "fit" and _soft_fit(shot, reason)
-        if plan and plan[-1]["kind"] == kind and plan[-1]["reason"] == reason:
+        entry = {"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft}
+        x = _cover_x(shot, reason) if fit else None
+        if x is not None:
+            entry.update(kind="cover", soft=False, x=x)
+        if plan and _same_layout(plan[-1], entry):
             plan[-1]["end"] = end
-            plan[-1]["soft"] = plan[-1]["soft"] and soft
+            plan[-1]["soft"] = plan[-1]["soft"] and entry["soft"]
         else:
-            plan.append({"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft})
+            plan.append(entry)
     try:
         return stabilize_layout_plan(plan)
     except Exception as exc:  # pragma: no cover - defensive

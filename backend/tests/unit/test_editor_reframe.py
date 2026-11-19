@@ -32,7 +32,7 @@ def _frames(boxes, count=12):
     return [(index / 3.0, [tuple(box) for box in boxes]) for index in range(count)]
 
 
-@pytest.mark.parametrize("kind", ["crop", "speaker", "stage", "fit", "compositor"])
+@pytest.mark.parametrize("kind", ["crop", "speaker", "solo", "stage", "fit", "compositor"])
 def test_plain_layouts_fall_back_to_the_editor_crop(monkeypatch, tmp_path, kind):
     clip = tmp_path / "clean.mp4"
     clip.write_bytes(b"")
