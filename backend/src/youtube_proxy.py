@@ -469,6 +469,11 @@ def download_options(
     return options
 
 
+# yt-dlp and http.client word IncompleteRead as "N bytes read, M more expected",
+# or "N bytes read" ending the message or a clause, e.g. "IncompleteRead(0 bytes read)".
+_INCOMPLETE_READ = re.compile(r"\b(\d+) bytes read(?:, \d+ more expected\b|(?=[).,;:]|\s*$))")
+
+
 def is_transient_proxy_error(exc: BaseException) -> bool:
     """Only transport failures merit a new residential session, never bad media."""
     transient = False
@@ -486,7 +491,8 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
             transient = True
         # yt-dlp's IncompleteRead is often wrapped in a DownloadError. A peer
         # closing a response early is recoverable just like a connection reset.
-        if re.search(r"\b\d+ bytes read, \d+ more expected\b", message):
+        # Without a Content-Length it reads only "35152 bytes read".
+        if _INCOMPLETE_READ.search(message):
             transient = True
     return transient
 
@@ -1523,7 +1529,7 @@ def _account_failed_media(
     )
     if has_components:
         media = [path for path in media if str(path).startswith(component_prefix)]
-    incomplete = re.search(r"\b(\d+) bytes read, \d+ more expected\b", str(exc)) if include_incomplete else None
+    incomplete = _INCOMPLETE_READ.search(str(exc).lower()) if include_incomplete else None
     for path in media:
         count_bytes({
             "status": "downloading", "filename": str(path).removesuffix(".part"),
