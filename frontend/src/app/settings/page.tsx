@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { DeleteAccountSection } from "@/components/delete-account-section";
+import { EmailChangeSection } from "@/components/email-change-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
@@ -64,7 +65,7 @@ export default function SettingsPage() {
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   // Back from checkout: wait for the paid plan, then thank them on the plan card.
   const [celebration, setCelebration] = useState<"waiting" | "show" | null>(null);
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch: refetchSession } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
   const t = useTranslations("settings");
   const common = useTranslations("common");
@@ -366,6 +367,12 @@ export default function SettingsPage() {
         <Section icon={<Languages className="size-4" />} title={tLang("label")} description={t("languageDescription")}>
           <LanguageSwitcher />
         </Section>
+
+        <EmailChangeSection
+          email={session.user.email}
+          emailVerified={session.user.emailVerified}
+          onChanged={() => void refetchSession()}
+        />
 
         <Section tour="settings-captions" icon={<Type className="size-4" />} title={t("captions.title")} description={t("captions.description")}>
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_150px]">

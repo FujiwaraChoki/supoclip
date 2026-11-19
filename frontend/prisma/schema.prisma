@@ -111,6 +111,9 @@ model User {
   social_accounts     SocialAccount[]
   social_oauth_states SocialOauthState[]
   social_posts        SocialPost[]
+  email_change_request EmailChangeRequest?
+  email_change_events  EmailChangeEvent[]
+  email_change_log     EmailChangeLog[]
 
   @@map("users")
   feature_tours UserFeatureTour[]
@@ -209,6 +212,57 @@ model TaskIdempotencyKey {
 
   @@id([user_id, idempotency_key])
   @@map("task_idempotency_keys")
+}
+
+/// Self-serve email change in progress (server/email-change.ts). Codes are stored as an HMAC only.
+model EmailChangeRequest {
+  user_id           String    @id @db.VarChar(36)
+  session_id        String    @db.VarChar(36)
+  stage             String    @db.VarChar(20)
+  current_email     String    @db.VarChar(255)
+  new_email         String?   @db.VarChar(255)
+  code_hash         String?   @db.VarChar(64)
+  code_sent_at      DateTime? @db.Timestamptz
+  code_expires_at   DateTime? @db.Timestamptz
+  code_attempts     Int       @default(0)
+  expires_at        DateTime  @db.Timestamptz
+  finish_claimed_at DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  user              User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("email_change_requests")
+}
+
+/// Rate limit log for email changes, per user, per HMAC'd client IP and per HMAC'd new address.
+model EmailChangeEvent {
+  id          BigInt   @id @default(autoincrement())
+  user_id     String?  @db.VarChar(36)
+  ip_hash     String?  @db.VarChar(64)
+  target_hash String?  @db.VarChar(64)
+  action      String   @db.VarChar(20)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  user        User?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, action, created_at], map: "ix_email_change_events_user")
+  @@index([ip_hash, action, created_at], map: "ix_email_change_events_ip")
+  @@index([target_hash, action, created_at], map: "ix_email_change_events_target")
+  @@map("email_change_events")
+}
+
+/// Completed email changes, for support and the one notice to the previous address.
+model EmailChangeLog {
+  id          BigInt    @id @default(autoincrement())
+  user_id     String    @db.VarChar(36)
+  old_email   String    @db.VarChar(255)
+  new_email   String    @db.VarChar(255)
+  session_id  String    @db.VarChar(36)
+  ip_hash     String?   @db.VarChar(64)
+  changed_at  DateTime  @default(now()) @db.Timestamptz
+  notified_at DateTime? @db.Timestamptz
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, changed_at], map: "ix_email_change_log_user")
+  @@map("email_change_log")
 }
 
 // Durable billing charges with failure refunds. No task/user relation: deletion must retain usage
