@@ -133,7 +133,7 @@ def test_arq_defaults_would_have_raised():
 
 class _BlackholeProxy:
     """TCP proxy to Redis whose open connections can go silent, the way a
-    tunnel's do when Redis restarts behind it: no data, no close."""
+    proxy's can when Redis restarts behind it: no data, no close."""
 
     def __init__(self, port):
         self.port = port
@@ -236,7 +236,7 @@ def test_socket_timeout_comes_from_the_environment(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_silently_dead_connection_times_out_and_reconnects():
-    """Redis restarted behind a tunnel: the pooled connection stays open but
+    """Redis restarted behind a proxy: the pooled connection stays open but
     nothing comes back. The worker's next poll must give up and reconnect
     instead of waiting until the OS drops the socket."""
     config = _config()
@@ -253,3 +253,106 @@ async def test_a_silently_dead_connection_times_out_and_reconnects():
         await pool.delete("arq-dead-conn-probe")
         await pool.aclose()
         await proxy.close()
+
+
+@pytest.mark.asyncio
+async def test_each_reconnect_is_logged(monkeypatch, caplog):
+    """An outage the worker rides out must still show up in its logs."""
+    pool = await create_pool(WorkerSettings.redis_settings)
+    try:
+        real_read = Connection.read_response
+        close_next = True
+
+        async def closed_once(self, *args, **kwargs):
+            nonlocal close_next
+            if close_next:
+                close_next = False
+                raise RedisConnectionError("Connection closed by server.")
+            return await real_read(self, *args, **kwargs)
+
+        monkeypatch.setattr(Connection, "read_response", closed_once)
+        with caplog.at_level("WARNING", logger="src.workers.redis_settings"):
+            assert await pool.ping() is True
+        messages = [r.getMessage() for r in caplog.records if r.name == "src.workers.redis_settings"]
+        assert len(messages) == 1
+        assert "Connection closed by server." in messages[0]
+        assert "retry 1 of" in messages[0]
+    finally:
+        await pool.aclose()
+
+
+def _interrupt_transactions(monkeypatch, *, after_exec: bool):
+    """The connection drops on the next MULTI/EXEC, before it reaches Redis or
+    after Redis ran it but before the reply came back."""
+    from redis.asyncio.client import Pipeline
+
+    calls = {"interrupted": 0}
+    if after_exec:
+        real = Pipeline.parse_response
+
+        async def reply_lost(self, connection, command_name, **options):
+            # "_" is the EXEC reply: Redis has run the transaction.
+            if command_name == "_" and calls["interrupted"] == 0:
+                calls["interrupted"] += 1
+                await real(self, connection, command_name, **options)
+                raise RedisConnectionError("Connection closed by server.")
+            return await real(self, connection, command_name, **options)
+
+        monkeypatch.setattr(Pipeline, "parse_response", reply_lost)
+    else:
+        real = Pipeline._execute_transaction
+
+        async def never_sent(self, *args, **kwargs):
+            if calls["interrupted"] == 0:
+                calls["interrupted"] += 1
+                raise RedisConnectionError("Connection closed by server.")
+            return await real(self, *args, **kwargs)
+
+        monkeypatch.setattr(Pipeline, "_execute_transaction", never_sent)
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_an_enqueue_cut_off_by_the_connection_is_not_reported_as_a_duplicate(monkeypatch):
+    """arq WATCHes the job key while enqueueing; a dropped connection then
+    surfaces as WatchError and arq returns None, which used to read as
+    "already queued", so exports and social posts were never run."""
+    from arq.constants import job_key_prefix
+
+    from src.workers.job_queue import JobQueue
+
+    monkeypatch.setattr(JobQueue, "_pool", None)
+    pool = await JobQueue.get_pool()
+    job_id = "arq-enqueue-interrupted-probe"
+    try:
+        await pool.delete(job_key_prefix + job_id)
+        calls = _interrupt_transactions(monkeypatch, after_exec=False)
+        assert await JobQueue.enqueue_job("probe", _job_id=job_id, _queue_name="arq-probe-queue") == job_id
+        assert calls["interrupted"] == 1
+        assert await pool.exists(job_key_prefix + job_id)
+    finally:
+        await pool.delete(job_key_prefix + job_id, "arq-probe-queue")
+        await pool.aclose()
+        monkeypatch.setattr(JobQueue, "_pool", None)
+
+
+@pytest.mark.asyncio
+async def test_an_enqueue_whose_reply_was_lost_is_a_duplicate_not_a_second_job(monkeypatch):
+    from arq.constants import job_key_prefix
+
+    from src.workers.job_queue import DuplicateJobError, JobQueue
+
+    monkeypatch.setattr(JobQueue, "_pool", None)
+    pool = await JobQueue.get_pool()
+    job_id = "arq-enqueue-reply-lost-probe"
+    try:
+        await pool.delete(job_key_prefix + job_id, "arq-probe-queue")
+        calls = _interrupt_transactions(monkeypatch, after_exec=True)
+        with pytest.raises(DuplicateJobError):
+            await JobQueue.enqueue_job("probe", _job_id=job_id, _queue_name="arq-probe-queue")
+        assert calls["interrupted"] == 1
+        assert await pool.zcard("arq-probe-queue") == 1
+    finally:
+        await pool.delete(job_key_prefix + job_id, "arq-probe-queue")
+        await pool.aclose()
+        monkeypatch.setattr(JobQueue, "_pool", None)

@@ -2,7 +2,7 @@
 
 arq's defaults give a new Redis connection one second to open and never
 retry it once the worker is running. On a loaded render host (Redis reached
-through a socat gateway) a fresh connection at job start can take longer than
+over the network) a fresh connection at job start can take longer than
 that; arq re-raises the ``TimeoutError`` from its job loop and the whole
 worker exits, leaving its claimed jobs stuck until their in-progress keys
 expire. A longer connect timeout plus a few backed-off retries rides that out.
@@ -13,14 +13,17 @@ listed in ``retry_on_error``, re-raises it instead of reconnecting, which also
 ends the worker.
 
 A connection can also die without being closed (Redis restarted behind a
-tunnel): with no read timeout the worker's next poll waits on it for as long as
+proxy or NAT that keeps the client's side open): with no read timeout the worker's next poll waits on it for as long as
 the OS takes to notice, and the worker silently stops taking jobs. arq's
 ``RedisSettings`` has no socket options, so ``use_socket_options`` adds a read
 timeout and TCP keepalive to a pool once it exists; the timeout is retried on a
 new connection like any other. No arq pool runs blocking commands (BLPOP,
 pub/sub); progress streams use their own Redis client.
+
+Each retry is logged, so an outage the workers ride out still shows up.
 """
 
+import logging
 import socket
 
 from arq.connections import ArqRedis, RedisSettings
@@ -29,6 +32,33 @@ from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from ..config import Config, get_config
+
+logger = logging.getLogger(__name__)
+
+
+class LoggedRetry(Retry):
+    """redis-py's ``Retry``, with a warning for every reconnect it makes."""
+
+    __slots__ = ()
+
+    async def call_with_retry(self, do, fail):
+        failures = 0
+
+        async def fail_and_log(error):
+            nonlocal failures
+            failures += 1
+            # Raises for errors that aren't retried (and for a lost WATCH).
+            await fail(error)
+            if failures <= self._retries:
+                logger.warning(
+                    "Redis %s (%s); reconnecting, retry %d of %d",
+                    type(error).__name__,
+                    error,
+                    failures,
+                    self._retries,
+                )
+
+        return await super().call_with_retry(do, fail_and_log)
 
 
 def arq_redis_settings(config: Config | None = None) -> RedisSettings:
@@ -47,7 +77,7 @@ def arq_redis_settings(config: Config | None = None) -> RedisSettings:
         # backoff of 1s, 2s, 4s… capped at 5s.
         retry_on_timeout=True,
         retry_on_error=[RedisConnectionError],
-        retry=Retry(ExponentialBackoff(cap=5, base=0.5), config.redis_connect_retries),
+        retry=LoggedRetry(ExponentialBackoff(cap=5, base=0.5), config.redis_connect_retries),
     )
 
 

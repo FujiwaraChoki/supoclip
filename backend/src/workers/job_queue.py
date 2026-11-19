@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 from arq import create_pool
 from arq.connections import RedisSettings, ArqRedis
+from arq.constants import job_key_prefix, result_key_prefix
 from ..config import get_config
 from .redis_settings import arq_redis_settings, use_socket_options
 
@@ -22,6 +23,11 @@ class DuplicateJobError(RuntimeError):
 
 def _get_redis_settings() -> RedisSettings:
     return arq_redis_settings(get_config())
+
+
+async def _job_exists(pool: ArqRedis, job_id: str) -> bool:
+    """The check arq makes before enqueueing a job with a fixed id."""
+    return bool(await pool.exists(job_key_prefix + job_id, result_key_prefix + job_id))
 
 
 class JobQueue:
@@ -68,9 +74,21 @@ class JobQueue:
         job = await pool.enqueue_job(
             function_name, *args, _queue_name=queue_name, **kwargs
         )
+        requested_id = kwargs.get("_job_id")
+        if not job and requested_id and not await _job_exists(pool, requested_id):
+            # arq WATCHes the job key while it enqueues. If the connection drops
+            # or times out then, redis-py raises WatchError and arq reports the
+            # job as already existing. It doesn't, so enqueue it again.
+            logger.warning(
+                "Enqueue of job %s was interrupted by the Redis connection; retrying",
+                requested_id,
+            )
+            job = await pool.enqueue_job(
+                function_name, *args, _queue_name=queue_name, **kwargs
+            )
         if not job:
-            if kwargs.get("_job_id"):
-                raise DuplicateJobError(f"Job {kwargs['_job_id']} already exists")
+            if requested_id and await _job_exists(pool, requested_id):
+                raise DuplicateJobError(f"Job {requested_id} already exists")
             raise RuntimeError("Failed to enqueue job")
         job_id = getattr(job, "job_id", None)
         if not job_id:
