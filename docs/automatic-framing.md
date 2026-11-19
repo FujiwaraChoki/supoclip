@@ -59,7 +59,7 @@ instead (layout kind `interview`, logged as `Interview layout`):
      so both windows find the same head), that stretch is a single crop. This is never overridden.
   2. *Both sides in the picture.* A panel whose people are not found is kept only if its part of the picture is
      still the same place (compared on the cut probe's thumbnails): a person who turned away in a tripod shot is
-     still sitting there. If the picture there changed, the camera left them and the stretch is a single crop on
+     still sitting there, however long the detector loses them. If the picture there changed, the camera left them and the stretch is a single crop on
      whoever is on screen.
   3. *No flicker.* A person lost for at most 0.7 s in the middle of a two-shot, or 0.34 s at a cut, is a missed
      detection and the panels hold. Stacked panels shorter than 1 s between single crops stay single.

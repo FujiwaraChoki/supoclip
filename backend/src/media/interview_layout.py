@@ -209,6 +209,8 @@ class Segment:
     cover_x: float = 0.5
     # Per stacked panel, the face track of every person in it (``tracks`` holds one box around them all).
     members: List[List[Dict[float, Box]]] = field(default_factory=list)
+    # A single crop ``_settle_pair`` cut out of a two-shot: its panels were checked and must not come back.
+    settled: bool = False
 
 
 def _median_box(boxes: Sequence[Box]) -> Box:
@@ -686,6 +688,7 @@ def _settle_pair(
             ))
         else:
             piece = _classify(Segment(start, end), part, width, height, crop_w, evidence(part), allow_pair=False)
+            piece.settled = True
             _lead_in(piece, segment, [times[i] for i in (first - 1, last) if 0 <= i < len(times)])
             pieces.append(piece)
     return pieces
@@ -733,7 +736,29 @@ def _absorb(pair: Segment, other: Segment) -> None:
     ]
 
 
-def _hold_pair(pieces: List[Segment], width: int) -> List[Segment]:
+def _left_the_picture(pair: Segment, stays: int, piece: Segment, width: int, height: int, gone: Any) -> bool:
+    """Whether the person of ``pair`` who is not found during ``piece`` is gone, rather than undetected.
+
+    ``stays`` is the person still on screen. The other one's panel is compared with when they were last found
+    (``gone``, see ``_pair_holds``); in at least a third of the piece's samples it must show another place.
+    """
+    if gone is None or len(pair.people) != 2 or not piece.times:
+        return False
+    missing = 1 - stays
+    track = pair.tracks[missing] if missing < len(pair.tracks) else {}
+    if not track:
+        return False
+    before = [t for t in track if t <= piece.times[0]]
+    seen = max(before) if before else min(track)
+    order = sorted(range(2), key=lambda i: _centre(pair.people[i])[0])
+    size = _panel_size(pair.people[missing], pair.people[stays], width, height)
+    face_y = TOP_PANEL_FACE_Y if missing == order[0] else BOTTOM_PANEL_FACE_Y
+    window = _panel_window(pair, missing, seen, size, face_y, width, height)
+    changed = sum(1 for t in piece.times if gone(window, seen, t))
+    return changed * 3 >= len(piece.times)
+
+
+def _hold_pair(pieces: List[Segment], width: int, height: int = 0, gone: Any = None) -> List[Segment]:
     """Keep a two-shot stacked while one of its people drops out of detection.
 
     ``pieces`` are the consecutive stretches of one camera shot. Someone
@@ -742,19 +767,25 @@ def _hold_pair(pieces: List[Segment], width: int) -> List[Segment]:
     two-shot. A tight crop on whoever is left would swing the frame to one
     edge of the room and back, so a lone face sitting where one of a
     neighbouring pair sits keeps the pair's panels. A lone face elsewhere (a
-    missed cut to a close-up) still gets its own crop.
+    missed cut to a close-up) still gets its own crop, and so does one whose
+    partner really left: the picture where they sat is now another place
+    (``gone``), as when a handheld camera turns away from them.
     """
     pieces = list(pieces)
     index = 0
     while index < len(pieces):
         piece = pieces[index]
         pair = None
-        if piece.kind == "single" and piece.reason == "one_person":
+        if piece.kind == "single" and piece.reason == "one_person" and not piece.settled:
             for j in (index - 1, index + 1):
                 near = pieces[j] if 0 <= j < len(pieces) else None
-                if near is not None and near.kind == "pair" and any(
-                    _same_setup([piece.people[0]], [person], width) for person in near.people
-                ):
+                if near is None or near.kind != "pair":
+                    continue
+                stays = next(
+                    (i for i, person in enumerate(near.people) if _same_setup([piece.people[0]], [person], width)),
+                    None,
+                )
+                if stays is not None and not _left_the_picture(near, stays, piece, width, height, gone):
                     pair = near
                     break
         if pair is None:
@@ -877,7 +908,7 @@ def _segments(
                 else:
                     segment.kind, segment.reason = "fit", "unsampled"
                     segments.append(segment)
-            segments[first:] = _hold_pair(segments[first:], width)
+            segments[first:] = _hold_pair(segments[first:], width, height, gone)
     index = 0
     while index < len(segments) and len(segments) > 1:
         segment = segments[index]
