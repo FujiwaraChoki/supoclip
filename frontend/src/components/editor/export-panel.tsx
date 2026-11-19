@@ -227,7 +227,14 @@ export function ExportPanel({
       }
     } catch (e) {
       if (!control.signal.aborted)
-        setError(e instanceof Error ? editorMessage(t, e.message) : t("errors.exportFailed"));
+        setError(
+          // A browser API failed mid-export (e.g. a media read on iOS): point at the server instead.
+          mode === "browser" && e instanceof DOMException
+            ? t("errors.cannotEncode")
+            : e instanceof Error
+              ? editorMessage(t, e.message)
+              : t("errors.exportFailed"),
+        );
       else toast.info(t("export.cancelled"));
     } finally {
       setBusy(false);

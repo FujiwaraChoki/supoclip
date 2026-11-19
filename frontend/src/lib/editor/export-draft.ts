@@ -41,8 +41,9 @@ export async function exportDraft(
   const mediaUrl = asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? url.replace(/clean\.mp4$/, "layout.mp4") : url;
   const response = await fetch(mediaUrl, { signal });
   if (!response.ok) throw new Error("Could not load the source video.");
+  // Read from memory: BlobSource reads fail on iOS WebKit and leave unhandled rejections behind.
   const input = new m.Input({
-    source: new m.BlobSource(await response.blob()),
+    source: new m.BufferSource(await response.arrayBuffer()),
     formats: m.ALL_FORMATS,
   });
   const output = new m.Output({
@@ -69,7 +70,7 @@ export async function exportDraft(
       const response = await fetch(footageUrl(endpoint, piece.clip.footage), { signal });
       if (!response.ok) throw new Error("Could not load B-roll footage. Use background export.");
       const footageInput = new m.Input({
-        source: new m.BlobSource(await response.blob()),
+        source: new m.BufferSource(await response.arrayBuffer()),
         formats: m.ALL_FORMATS,
       });
       const track = await footageInput.getPrimaryVideoTrack();
