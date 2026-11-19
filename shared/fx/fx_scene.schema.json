@@ -655,6 +655,123 @@
       "title": "FxCaptionStyle",
       "type": "object"
     },
+    "FxHookTitle": {
+      "additionalProperties": false,
+      "description": "The hook title drawn by fx-core (``hook.ts``): one white card, heavy dark type, a marker box behind numbers\nand power words. fx-core lays it out and places it; see ``edit_fx/hook_title.py``.",
+      "properties": {
+        "text": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "font": {
+          "maxLength": 80,
+          "title": "Font",
+          "type": "string"
+        },
+        "accent": {
+          "default": "#FFE45C",
+          "title": "Accent",
+          "type": "string"
+        },
+        "look": {
+          "default": "bold",
+          "enum": [
+            "subtle",
+            "bold",
+            "max"
+          ],
+          "title": "Look",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "x": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Y",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 0.2,
+          "title": "Scale",
+          "type": "number"
+        },
+        "trim": {
+          "default": false,
+          "title": "Trim",
+          "type": "boolean"
+        },
+        "picture": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Picture"
+        },
+        "avoid": {
+          "default": [],
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 8,
+          "title": "Avoid",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "font",
+        "start",
+        "end"
+      ],
+      "title": "FxHookTitle",
+      "type": "object"
+    },
     "FxWord": {
       "additionalProperties": false,
       "properties": {
@@ -1530,6 +1647,17 @@
       "default": false,
       "title": "Hook Title Suppressed",
       "type": "boolean"
+    },
+    "hook": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FxHookTitle"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "face_track": {
       "anyOf": [

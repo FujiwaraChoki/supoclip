@@ -24,3 +24,4 @@ import "./overlays/grain";
 import "./retention/progress";
 import "./retention/freeze_label";
 import "./retention/loop";
+import "./hook";

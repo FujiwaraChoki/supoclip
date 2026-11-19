@@ -10,8 +10,8 @@ The feature is behind the `dynamic_edits` feature flag. With intensity **Off** a
 nothing new runs: prompts, cache keys, job arguments and renders are byte-identical to before (pinned by
 `backend/tests/unit/test_dynamic_edits_legacy_pins.py` and the existing legacy pins).
 
-Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) · [Reference edits](#reference-edits) ·
-[Effects](#effects) ·
+Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) · [Hook title](#hook-title) ·
+[Reference edits](#reference-edits) · [Effects](#effects) ·
 [Intensity budgets](#intensity-and-budgets) · [Configuration](#configuration) · [Architecture](#architecture) ·
 [Assets and drop-ins](#assets-and-self-hoster-drop-ins) · [Rollout](#rollout) · [Fallbacks](#fallbacks) ·
 [Known gaps](#known-gaps) · [Troubleshooting](#troubleshooting)
@@ -148,12 +148,11 @@ The rows follow these rules:
   Captions therefore switch exactly at cuts, never move inside a group, and never sit on another shot's row.
 - **The look emoji** leaves with its group at a cut.
 - **Burned-in source captions:** they push each row clear.
-- **Low hook title:** while the hook title sits low (its bottom at 0.94 when a two-shot opens the clip), any row on
-  screen with it stays above 0.80. A fitted shot with no room there puts its captions above the picture instead.
+- **Hook title:** rows never move for it. The title card is placed around the captions ([Hook title](#hook-title)):
+  on a stacked two-shot it sits right above the caption line on the seam.
 - **Overlays:** the look emoji, standalone keywords, the decode accent and sticker obstacles read the row in effect
   (`PreparedScene.captionYAt`).
-- **The user's position wins:** a caption edit's position pins the captions with no rows, and if that position is away
-  from the seam, the hook title takes the seam.
+- **The user's position wins:** a caption edit's position pins the captions with no rows.
 - **Where rows apply:** only the intensity looks, on interview layouts and on compositor layouts that mix crops and
   fitted shots. Other layouts, the hidden templates and legacy ASS captions keep one row.
 - **Stacked two-shots:** automatic reframes and behind-the-head words are dropped while an interview shows its two
@@ -177,6 +176,57 @@ groups (a per-caption move made from the timeline applies when its first word st
 
 Sizes are in units of `min(W, H) / 1080`, so styles survive the 720p cap. Non-Latin text falls back to the system
 Noto fonts on both renderers.
+
+## Hook title
+
+The hook title is the AI-written headline shown for the first seconds of a clip (`hook_title`, 0.12 s to about 4 s). On
+a Dynamic edits clip it is one white card drawn by fx-core (`frontend/src/lib/fx/core/hook.ts`, scene field
+`FxScene.hook`, an `FxHookTitle`), in the browser and on the worker from the same code. Python resolves the text,
+font, marker colour, look and window (`backend/src/edit_fx/hook_title.py`); fx-core lays the card out and places it.
+Classic clips (intensity Off with a classic template) keep the libass title exactly as before.
+
+| | |
+|---|---|
+| Card | white, corner radius 0.28 of a line, padding 0.5 em by 0.32 em, shadow 6u down, 24u blur, 35 % black |
+| Type | Poppins ExtraBold for the listed styles (a font the user picked instead wins), other templates their caption font; near-black `#0B0B0F`, 65u (6.0 % W at 1080), lines 1.18 em apart; sentence case as written (an unlisted all-caps template keeps capitals) |
+| Lines | balanced; one line under 62 % of the text width, two preferred, three before the type shrinks; the card is at most 0.86 W; never under 48.6u (4.5 % W) unless one word is wider than the card. Text without spaces (Chinese, Japanese, Korean) breaks between characters |
+| Marker | a rounded box in the captions' keyword colour behind numbers first, then power words (never, secret, million, …), at most two; the box covers the word, not its comma. A colour too pale or too dark behind dark type becomes `#FFE45C` |
+| Motion | in over 260 ms (0.86 → 1.035 → 1, fade over the first 120 ms), markers wipe in left to right from 200 ms (180 ms each, the second 80 ms later), out over the last 200 ms (fade, 1 → 0.96). Subtle is 10 % smaller with no overshoot; Max tilts the card −2° |
+| Clock | edit time, so a speed ramp or freeze moves it like the captions |
+
+**Placement** is decided once per clip, for the whole window (`placeHook`), from the face track (both faces, after the
+frame's reframes), the captions and emoji on screen during the window, and two hints from Python:
+
+1. Never over eyes or mouth (eyebrows to lower lip of every face at least 5 % H tall), never on the captions.
+2. The top safe area: card top at 10.5 % H, raised as far as 8.5 % H to leave a forehead clear (the platforms cover
+   the top 8 %). A letterboxed opening (`picture`, interview and compositor layouts) puts it in the blurred band above
+   the picture instead, and a card over that picture costs extra.
+3. Else right above the captions: on a stacked two-shot that is the upper person's chest, with the caption line on the
+   seam under it.
+4. Else under the captions, on the chest (a close-up whose face fills the top and middle), never lower than 80 % H:
+   the platforms cover the bottom 18 %.
+5. Else the least bad free position between 14 % and 72 % H.
+
+With automatic timing (`trim`), a title whose best position only holds until a camera cut leaves at that cut, as long
+as it still shows for 2.2 s. Classic captions (burned by libass after the drawing stage) hand their band over as
+`avoid`. A title needs the face track, so a render with a title runs the face analysis even when no cue needs it.
+
+**Without the drawing stage** (`FX_RUNTIME=off`, the safe and none levels, a plan that only adds sound) libass burns
+the title (`build_hook_title_ass(heavy=True)`): Poppins ExtraBold in white, about 6 % W, black outline and a soft dark
+halo, numbers and power words in the template's accent, no boxes; top of the frame, or on the seam of a stacked
+opening.
+
+**Studio.** The hook title is its own layer over the preview: `drawEditorTextLayer` draws the same card with
+`hookOps`, and the selection box is the card (`hookBounds`). The draft's hook transform is an offset from the automatic
+position and a scale; its font and accent are the draft's caption font and accent (`studioHook` ==
+`editor_fx_render.studio_hook`, pinned by `shared/fx/fixtures/scene`). A draft with its own `hookTiming` never leaves
+early at a cut. The studio does not know a letterboxed opening's picture band, so a clip reopened there may sit a
+little higher than it was generated.
+
+**Title text.** `ai.sanitize_hook_title(raw, source_text=…)` gives a bare number back the sign the speaker used
+("90 of guests" → "90% of guests", only when every mention in the clip's transcript carries it) and brings a Title
+Case headline to sentence case (names the transcript capitalises in mid-sentence keep their capital), so one task's
+titles read alike. The prompt asks for both.
 
 ## Reference edits
 
@@ -315,11 +365,11 @@ time after the time warp. Generation is S == E.
    drift) under deno with `@napi-rs/canvas`.
 4. **The render chain** (`backend/src/media/fx_chain.py`), three processes joined by pipes:
    - **P1** ffmpeg: the framing head and B-roll (and a reaction PiP and matte) → raw RGBA frames.
-   - **P2** deno (`src/fx_runtime/main.ts`): draws each output frame through the warp.
-   - **P3** ffmpeg: the ASS layer (hook title, classic captions), the audio mix (`media/fx_audio.py`: voice
+   - **P2** deno (`src/fx_runtime/main.ts`): draws each output frame through the warp, the hook title included.
+   - **P3** ffmpeg: the ASS layer (classic captions, recap point labels), the audio mix (`media/fx_audio.py`: voice
      through the warp, bleeps, SFX and music bus, ducking, static loudness) and the encode.
    - Face tracking (YuNet with landmarks) and the person matte (PP-HumanSeg) run before P1 only when the plan
-     needs them (`media/fx_analysis.py`), from one decode at 6 fps.
+     or the hook title needs them (`media/fx_analysis.py`), from one decode at 6 fps.
    - The 720p cap still runs last.
 5. **Storage**: `tasks.edit_style` holds the choice; `generated_clips.fx_meta`
    (`{fx_level, timing, intensity, template}`) marks FX clips. The clip's `.source_map.json` sidecar holds
@@ -530,7 +580,8 @@ Each FX render steps down a ladder and records `fx_level` (`create_optimized_cli
 1. **full**: the three-process chain. If P1 failed with B-roll, retry once without B-roll. If the audio and video
    lengths disagree with a warp, retry without the warp.
 2. **safe**: no drawing stage, no warp, no picture effects; animated captions are burned with their classic
-   fallback, and sound effects, music and bleeps stay. Also what `FX_RUNTIME=off` gives.
+   fallback and the hook title as heavy outlined type ([Hook title](#hook-title)); sound effects, music and bleeps
+   stay. Also what `FX_RUNTIME=off` gives.
 3. **none**: the classic render, exactly as before.
 
 A planning error renders the clip without effects rather than losing it. Transcripts without word timing get
@@ -554,6 +605,11 @@ ending and transitions).
 - Generation drops automatic zooms on panel layouts (`reaction`, `stack`, `overlap`); the studio does not know the
   layout kind yet, so a studio re-resolve of such a clip can add reframes across the panels (delete them, or turn
   Zooms off for that clip).
+- The hook title card's Chinese, Japanese and Korean text uses the system Noto fonts at regular weight, lighter than
+  the Latin type.
+- A classic caption template whose plan draws nothing (only sounds and music) has no drawing stage, so its hook title
+  is the libass one, not the card.
+- Overlays still treat the top 20 % as the hook band, also when the card sits by the captions.
 - There is no "editorial" flavour yet (the study's Iman Gadzhi look: text 5 frames early, blur-in, film-burn flashes).
 - Caption rows follow the vertical layout when it has one: a clip that letterboxes throughout (mostly fitted
   content) puts captions under the picture, about 0.8 H, lower than the references' 0.50–0.57 H. B-roll, POV and

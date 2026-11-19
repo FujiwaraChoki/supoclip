@@ -23,7 +23,9 @@ import { loadFxAtlas } from "@/lib/fx/assets-client";
 import { createBrowserHost, createFxCanvas, loadFxFont, type BrowserHost } from "@/lib/fx/browser-host";
 import { reactionRect } from "@/lib/fx/core/constants";
 import { captionHitBoxes, clockAt, type FxClock } from "@/lib/fx/core/frame";
+import { HOOK, hookBounds, hookLayout, hookOps } from "@/lib/fx/core/hook";
 import type { EmojiAtlas, FxCanvas, FxContext2D, FxImage } from "@/lib/fx/core/host";
+import { rasterize } from "@/lib/fx/core/raster";
 import { renderFrame } from "@/lib/fx/core/render";
 import { prepareScene, type PreparedScene } from "@/lib/fx/core/scene";
 import { isFxTemplate, type ReactionCue } from "@/lib/fx/core/types";
@@ -101,7 +103,18 @@ function wrapCaptionWords(ctx: CanvasRenderingContext2D, words: CaptionWord[], u
 }
 
 /** The native field supplies caret/selection; these are the same font metrics as the canvas. */
-export function textEditorLayout(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, draft?: TextDraft) {
+export function textEditorLayout(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, draft?: TextDraft, fx?: HookFx): TextEditorLayout {
+  if (layer === "hook" && documentNeedsFx(doc)) {
+    // The card fx-core draws: its own font and metrics, dark caret on the white card.
+    const prepared = hookScene(doc, undefined, width, height, fx);
+    const layout = hookLayout(prepared, draft?.hookText);
+    const px = layout?.px ?? HOOK.sizeU * prepared.u;
+    return {
+      fontSize: px, wrapWidth: Math.max(1, (layout?.w ?? HOOK.maxWidth * width) - 2 * HOOK.padX * px), lineHeight: px * HOOK.lineHeight,
+      lines: layout?.lines.map((line) => line.text) ?? [], fontFamily: layout?.family ?? prepared.family(prepared.scene.hook?.font ?? "Poppins-ExtraBold"),
+      caretColor: HOOK.ink,
+    };
+  }
   const group = captionAt(doc, time) ?? [];
   const transform: CaptionTransform = group.length ? captionTransform(doc, group) : textTransform(doc, "captions");
   const hook = hookTitleLayout(draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, width, height);
@@ -116,11 +129,24 @@ export function prepareTextDraft(doc: EditDocument, time: number, layer: TextLay
   if (layer === "captions") return { captionWords: replaceWords(captionAt(doc, time) ?? [], text, editDuration(doc)) };
   return { hookText: text.trim().replace(/\s+/g, " ") };
 }
-export type TextEditorLayout = ReturnType<typeof textEditorLayout>;
+export interface TextEditorLayout {
+  fontSize: number; wrapWidth: number; lineHeight: number; lines: string[];
+  /** CSS family and caret colour when they differ from the caption font and colour (the fx-core hook card). */
+  fontFamily?: string; caretColor?: string;
+}
+/** What the fx-core hook card needs beyond the document: the session's face track and the source size. */
+export interface HookFx { session?: EditorFxSession; sourceWidth: number; sourceHeight: number; looks?: Record<string, CaptionLook> }
+const hookScene = (doc: EditDocument, looks: Record<string, CaptionLook> | undefined, width: number, height: number, fx?: HookFx) =>
+  editorFxScene(doc, fx?.looks ?? looks, width, height, fx?.sourceWidth ?? width, fx?.sourceHeight ?? height, fx?.session);
 
-export function formatHookEditorText(doc: EditDocument, width: number, height: number, text: string) {
+export function formatHookEditorText(doc: EditDocument, width: number, height: number, text: string, fx?: HookFx) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return text;
+  if (documentNeedsFx(doc)) {
+    // Lines as the card breaks them; text written without spaces keeps its own breaks.
+    const lines = hookLayout(hookScene(doc, undefined, width, height, fx), words.join(" "))?.lines.map((line) => line.text) ?? [];
+    return (lines.length && lines.join(" ") === words.join(" ") ? lines.join("\n") : words.join(" ")) + (/\s$/.test(text) ? " " : "");
+  }
   const layout = hookTitleLayout({ ...doc, hookTitle: words.join(" ") }, width, height);
   let cursor = 0;
   return layout.lines.map(line => { const count = line.trim().split(/\s+/).length; const value = words.slice(cursor, cursor + count).join(" "); cursor += count; return value; }).join("\n") + (/\s$/.test(text) ? " " : "");
@@ -230,7 +256,7 @@ export function drawEditorFrame(
 ) {
   if (documentNeedsFx(doc)) {
     drawFxFrame(ctx, doc, sourceWidth, sourceHeight, time, draw, looks, broll ?? null, fx ?? {});
-    if (textLayers === "all") drawEditorTextLayer(ctx, doc, sourceWidth, sourceHeight, time, looks, "all", false);
+    if (textLayers === "all") drawEditorTextLayer(ctx, doc, sourceWidth, sourceHeight, time, looks, "all", false, undefined, fx?.session);
     return;
   }
   const { width, height } = ctx.canvas;
@@ -452,7 +478,8 @@ export function editorFxScene(doc: EditDocument, looks: Record<string, CaptionLo
     width, height, sourceWidth, sourceHeight, base: session?.base ?? "clean", faceTrack: session?.faceTrack,
     matte: !!session?.matte, reactions: session?.reactions,
   });
-  const prepared = prepareScene(scene, sceneMeasure());
+  // The hook title is its own layer in the studio (drawEditorTextLayer), never part of the picture frame.
+  const prepared = prepareScene(scene, sceneMeasure(), { detachHook: true });
   // A document is drawn by the preview, the text layers and an export at most; keep the last few variants.
   sceneCache.set(doc, [...entries.slice(-3), { key, prepared }]);
   return prepared;
@@ -541,6 +568,7 @@ export function fxCaptionRowShift(doc: EditDocument, width: number, height: numb
 export function drawEditorTextLayer(
   ctx: CanvasRenderingContext2D, doc: EditDocument, sourceWidth: number, sourceHeight: number,
   time: number, looks: Record<string, CaptionLook> | undefined, layer: "hook" | "captions" | "all", clear = true, draft?: TextDraft,
+  session?: EditorFxSession,
 ) {
   const { width, height } = ctx.canvas;
   if (clear) ctx.clearRect(0, 0, width, height);
@@ -551,9 +579,15 @@ export function drawEditorTextLayer(
   if (layer !== "hook" && doc.captions.enabled && !isFxTemplate(doc.captions.template))
     drawCaptions(ctx, doc, out, time, look, draft?.captionWords);
   const hookDocument = draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText };
-  if (layer !== "captions" && hookDocument.hookTitle?.trim() && !hookTitleSuppressed(doc))
-    drawHookTitle(ctx, hookDocument, out, time, look);
+  const hook = layer !== "captions" && !!hookDocument.hookTitle?.trim() && !hookTitleSuppressed(doc);
+  if (hook && !documentNeedsFx(doc)) drawHookTitle(ctx, hookDocument, out, time, look);
   ctx.restore();
+  if (hook && documentNeedsFx(doc)) {
+    // Dynamic edits: the card fx-core draws on the server (placed clear of faces and captions), from the same code.
+    const prepared = editorFxScene(doc, looks, out.width, out.height, sourceWidth, sourceHeight, session);
+    rasterize(ctx as unknown as FxContext2D, hookOps(prepared, time, draft?.hookText), sceneMeasure(),
+      [width / out.width, 0, 0, height / out.height, 0, 0]);
+  }
 }
 
 function drawCaptions(
@@ -778,10 +812,14 @@ function drawHookTitle(
 export interface TextBounds { x: number; y: number; width: number; height: number }
 
 /** Selection geometry in output pixels, measured with the renderer's font. */
-export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, looks?: Record<string, CaptionLook>, draft?: TextDraft): TextBounds | null {
+export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, looks?: Record<string, CaptionLook>, draft?: TextDraft, fx?: HookFx): TextBounds | null {
   const look = cachedLook(doc, looks);
   if (layer === "hook") {
     if (!doc.hookTitle?.trim() || hookTitleSuppressed(doc)) return null;
+    if (documentNeedsFx(doc)) {
+      const box = hookBounds(hookScene(doc, looks, width, height, fx), draft?.hookText) ?? hookBounds(hookScene(doc, looks, width, height, fx));
+      return box ? { x: box.x, y: box.y, width: box.w, height: box.h } : null;
+    }
     const { lines, px, top, x } = hookTitleLayout(draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, width, height);
     setAssFont(ctx, doc.captions.font, px);
     const pad = Math.max(5, Math.round(px * (look.strokeWidth || 2) / 26)) + 3;

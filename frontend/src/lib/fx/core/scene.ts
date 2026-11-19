@@ -48,6 +48,8 @@ export interface PreparedScene {
    *  style's y; null without FX captions. What overlays anchored to "the caption position" use when no chunk shows. */
   captionYAt(t: number): number | null;
   hookActive(t: number): boolean;
+  /** The hook title is drawn apart from the frame (the studio's own text layer): frameOps leaves it out. */
+  readonly hookDetached: boolean;
   inBroll(t: number): boolean;
   matteAt(t: number): MatteWindow | null;
 }
@@ -59,7 +61,7 @@ export const FACE_MAX_GAP = 0.5;
 
 const cueOrder = (a: FxCue, b: FxCue) => a.start - b.start || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-export function prepareScene(scene: FxScene, host: SceneMeasureHost): PreparedScene {
+export function prepareScene(scene: FxScene, host: SceneMeasureHost, options: { detachHook?: boolean } = {}): PreparedScene {
   const width = scene.width, height = scene.height, u = unit(width, height);
   const warp = warpFromJson(scene.warp, scene.edit_duration);
   const cues = [...scene.cues].sort(cueOrder);
@@ -100,6 +102,7 @@ export function prepareScene(scene: FxScene, host: SceneMeasureHost): PreparedSc
   return {
     scene, width, height, u, warp, cues, cuesByKind, captionFamily, chunks, counters,
     outFrames: Math.round(scene.out_duration * 30),
+    hookDetached: !!options.detachHook,
     family, measure, faceAt,
     chunkAt: (t) => findSpan(chunks, t),
     captionYAt: (t) => (style ? captionRowY(style.rows, style.y, t) : null),

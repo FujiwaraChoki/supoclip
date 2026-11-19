@@ -530,8 +530,9 @@ def create_optimized_clip(
                     **({"time_map": time_map} if time_map is not None else {}),
                     **({"censor_spans": censor_spans} if censor_spans else {}),
                     # Only stacked interview openings move the hook title.
-                    **_interview_hook_kwargs(plan_report, fx, caption_template, add_subtitles,
-                                             caption_y_override=override.get("position_y")),
+                    **_interview_hook_kwargs(plan_report),
+                    # A Dynamic edits clip rendered without the drawing stage: heavy outlined type, no boxes.
+                    **({"hook_heavy": True} if fx is not None else {}),
                 )
                 return ass_path if built else None
 
@@ -801,29 +802,18 @@ def _av_mismatch(path: Path) -> bool:
 FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap"})
 
 
-def _interview_hook_kwargs(plan_report: Dict[str, Any], fx: Any, caption_template: Optional[str],
-                           include_captions: bool, caption_y_override: Optional[float] = None) -> Dict[str, Any]:
-    """Where a stacked interview opening puts the hook title: on the panel seam, or, when intensity-look captions
-    own the seam, low on the lower person's chest (as on a reaction stack). Captions the user placed away from the
-    seam (a caption edit's position) leave the seam to the hook."""
+def _interview_hook_kwargs(plan_report: Dict[str, Any]) -> Dict[str, Any]:
+    """Where a stacked interview opening puts the libass hook title: on the panel seam. (Dynamic edits draw their
+    title with fx-core, which places it itself; this is the classic render and the fallback levels.)"""
     if plan_report.get("hook_center_y") is None:
         return {}
-    if fx is not None and include_captions:
-        from .edit_fx.contracts import caption_look_for
-
-        if caption_look_for(caption_template, fx.plan.style.intensity, fx.plan.sensitivity) != "template":
-            seam = float(plan_report["hook_center_y"])
-            if caption_y_override is not None and abs(float(caption_y_override) - seam) > INTERVIEW_HOOK_SEAM_CLEAR:
-                return {"hook_center_y": seam}
-            return {"hook_position_y": INTERVIEW_HOOK_LOW_Y}
     return {"hook_center_y": plan_report["hook_center_y"]}
+
+
 # Intensity-look captions on an interview clip sit on the stacked seam on two-shots, at mid-chest on close-ups and
-# below the picture on fitted shots (per-shot rows, edit_fx.caption_rows); the hook title then moves low, its bottom
-# edge at 0.94. A caption edit's own position pins the captions instead (no rows).
+# below the picture on fitted shots (per-shot rows, edit_fx.caption_rows). A caption edit's own position pins the
+# captions instead (no rows).
 INTERVIEW_LOOK_CAPTION_Y = 0.5
-INTERVIEW_HOOK_LOW_Y = 0.94
-# Captions placed further than this from the seam leave it free for the hook title.
-INTERVIEW_HOOK_SEAM_CLEAR = 0.12
 
 
 def _without_warp(plan: "FxPlan") -> "FxPlan":
@@ -878,7 +868,6 @@ def _fx_ladder_setup(
     layout_kind: Optional[str] = None,
     panel_windows: "tuple[tuple[float, float], ...] | list" = (),
     interview_segments: "list[dict] | tuple" = (),
-    hook_low: bool = False,
     src_size: Optional[Tuple[int, int]] = None,
     caption_y_pinned: bool = False,
     caption_template: str,
@@ -901,7 +890,7 @@ def _fx_ladder_setup(
     from .edit_fx.baseline import baseline_pushes
     from .edit_fx.caption_style import fx_caption_style
     from .edit_fx.contracts import caption_look_for
-    from .media.common import hook_title_window
+    from .media.common import HOOK_TITLE_MIN_SECONDS, hook_title_window
 
     plan = clamp_fx_plan(fx.plan, ffprobe_duration(source_clip_path))
     duration = float(plan.edit_duration)
@@ -950,10 +939,7 @@ def _fx_ladder_setup(
             y = INTERVIEW_LOOK_CAPTION_Y
             rows = interview_caption_rows(
                 interview_segments, text_px=look_size_px(look, width), width=width, height=height,
-                source_size=src_size, band=source_caption_band,
-                hook=(FX_HOOK_WINDOW_START, hook_title_window(duration))
-                if hook_low and hook_title and not plan.hook_title_suppressed else None,
-                duration=duration,
+                source_size=src_size, band=source_caption_band, duration=duration,
             )
         if source_caption_band is not None:
             text_height = int(look_size_px(look, width) * 1.5)
@@ -983,8 +969,40 @@ def _fx_ladder_setup(
         # Where fx-core draws the captions: the studio and caption edits read it back from the sidecar.
         report["caption_y"] = caption_style.y
     words = fx_caption_words(list(caption_words) if caption_words is not None else list(fx.words), highlight_words)
-    hook_window = (FX_HOOK_WINDOW_START, hook_title_window(duration)) if hook_title else None
+    hook_window = None
+    if hook_title:
+        # == build_hook_title_ass: a very short clip shows the title throughout.
+        hook_window = ((0.0, max(0.5, duration)) if duration <= HOOK_TITLE_MIN_SECONDS
+                       else (FX_HOOK_WINDOW_START, hook_title_window(duration)))
     return plan, duration, bleeps, caption_style, words, hook_window
+
+
+# Half the height kept clear around classic (libass) captions for the hook title card, as a share of the height.
+FX_ASS_CAPTION_HALF_BAND = 0.06
+
+
+def _fx_hook_title(hook_title: str, *, plan: "FxPlan", caption_template: str, template: Dict[str, Any],
+                   caption_style, font_family: Optional[str], window, plan_report: Dict[str, Any],
+                   src_size: Optional[Tuple[int, int]], ass_caption_y: Optional[float]):
+    """The hook title fx-core draws for a generated clip (``edit_fx.hook_title``)."""
+    from .edit_fx.contracts import is_listed_fx_template
+    from .edit_fx.hook_title import build_hook, hook_accent, hook_look, opening_picture_band
+
+    look = hook_look(caption_template, plan.style.intensity, plan.sensitivity)
+    picture = None
+    if window and plan_report.get("kind") in ("interview", "compositor"):
+        picture = opening_picture_band(plan_report.get("interview_segments"), src_size, float(window[0]))
+    avoid = []
+    if ass_caption_y is not None:
+        y = float(ass_caption_y)
+        avoid.append((max(0.0, y - FX_ASS_CAPTION_HALF_BAND), min(1.0, y + FX_ASS_CAPTION_HALF_BAND)))
+    return build_hook(
+        hook_title, template_id=caption_template, look=look,
+        # The listed styles' captions use the look's own font, whatever the task's font.
+        font=None if is_listed_fx_template(caption_template) else (font_family or template.get("font_family")),
+        accent=hook_accent(caption_template, look, caption_style, template),
+        window=window, uppercase=bool(template.get("uppercase")), trim=True, picture=picture, avoid=avoid,
+    )
 
 
 def _render_fx_ladder(
@@ -1061,9 +1079,6 @@ def _render_fx_ladder(
             layout_kind=plan_report.get("kind"),
             panel_windows=plan_report.get("panel_windows") or (),
             interview_segments=plan_report.get("interview_segments") or (),
-            hook_low="hook_position_y" in _interview_hook_kwargs(
-                plan_report, fx, caption_template, add_subtitles,
-                caption_y_override=caption_y if caption_y_pinned else None),
             src_size=src_size,
             caption_y_pinned=caption_y_pinned,
             caption_template=caption_template,
@@ -1088,6 +1103,8 @@ def _render_fx_ladder(
             "template": caption_template, "intensity": plan.style.intensity,
         })
 
+    drawn_hook = None   # the title fx-core draws at level full (None: the ASS layer burns it, or there is none)
+
     def request(current_plan, overlays) -> "FxRequest":
         return FxRequest(
             plan=current_plan,
@@ -1097,6 +1114,7 @@ def _render_fx_ladder(
             reaction_files=dict(fx.reaction_files or {}),
             broll_windows=tuple(fx_broll_windows(overlays)),
             hook_window=hook_window,
+            hook=drawn_hook,
             loudness=fx_env.fx_loudnorm_mode(),
         )
 
@@ -1135,14 +1153,26 @@ def _render_fx_ladder(
     if setup_error is None and fx_env.fx_runtime() != "off":
         try:
             warp = build_warp(plan.cues if fx_env.fx_warp_enabled() else (), duration)
+            # A plan that only adds sound needs no drawing stage: P1 → P3 renders all of it.
+            mode = "full" if plan.draws else "safe"
+            # With the drawing stage, fx-core draws the title (a card it places clear of faces and captions) and the
+            # ASS layer carries none; without it libass burns the title.
+            fx_hook = mode == "full" and bool(hook_title) and not plan.hook_title_suppressed
+            ass_hook = None if (fx_hook or plan.hook_title_suppressed) else hook_title
             full_ass = build_ass(
                 add_subtitles and not fx_template,
-                None if plan.hook_title_suppressed else hook_title,
+                ass_hook,
                 time_map=warp.to_output if warp.nontrivial else None,
                 censor_spans=bleeps,
             )
-            # A plan that only adds sound needs no drawing stage: P1 → P3 renders all of it.
-            mode = "full" if plan.draws else "safe"
+            if fx_hook:
+                drawn_hook = _fx_hook_title(
+                    hook_title, plan=plan, caption_template=caption_template, template=template,
+                    caption_style=caption_style, font_family=font_family, window=hook_window,
+                    plan_report=plan_report, src_size=src_size,
+                    # Classic captions are burned by libass after the drawing stage: keep their band clear.
+                    ass_caption_y=report.get("caption_y") if (add_subtitles and not fx_template) else None,
+                )
             ok, result = chain(mode, plan, overlays, full_ass, ass_fonts)
             if not ok and overlays and _fx_stage(getattr(result, "error", None)) == "p1":
                 downgrade("full", result)
@@ -1154,11 +1184,7 @@ def _render_fx_ladder(
                     "stage": "av_check", "level": "full", "error": "audio and video lengths differ",
                     "template": caption_template, "intensity": plan.style.intensity,
                 })
-                identity_ass = build_ass(
-                    add_subtitles and not fx_template,
-                    None if plan.hook_title_suppressed else hook_title,
-                    censor_spans=bleeps,
-                )
+                identity_ass = build_ass(add_subtitles and not fx_template, ass_hook, censor_spans=bleeps)
                 ok, result = chain(mode, _without_warp(plan), overlays, identity_ass, ass_fonts)
         except Exception as exc:  # noqa: BLE001 - an unexpected chain error drops a level, never the clip
             ok, result = False, _FxChainFailure(error=f"setup: {exc}")
@@ -1172,6 +1198,7 @@ def _render_fx_ladder(
             downgrade("full", result)
     overlays = broll_overlays or None
 
+    drawn_hook = None
     # 2. safe: no deno, no warp, no picture FX; the ASS fallback captions, the original hook title and the audio FX.
     if level is None and setup_error is None:
         try:

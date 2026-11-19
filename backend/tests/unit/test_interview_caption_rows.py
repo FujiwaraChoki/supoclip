@@ -19,7 +19,6 @@ from src.caption_templates import get_template
 from src.clip_source_map import load_clip_vertical_layout, save_clip_vertical_layout
 from src.edit_fx.caption_rows import (
     FLASH_SHOT_SECONDS,
-    HOOK_LOW_TOP,
     ROW_GAP_FRAC,
     TWO_LINE_HALF_EM,
     fit_picture_band,
@@ -31,7 +30,6 @@ from src.edit_fx.caption_rows import (
 from src.edit_fx.caption_groups import CUT_LEAD
 from src.edit_fx.contracts import CaptionRow, caption_row_y
 from src.editor_document import EditDocument, editor_dir, studio_caption_rows
-from src.media.captions import build_hook_title_ass, get_scaled_font_size
 from src.services.editor_service import (
     combine_editor,
     combined_caption_rows,
@@ -135,45 +133,6 @@ def test_rows_cover_the_clip_from_zero_to_its_duration():
 
 
 # ----------------------------------------------------------------------------------------------- the hook title
-
-def low_hook_top(title: str, caption_px: int, width=1080, height=1920) -> float:
-    """Top of the hook title ``video_utils._interview_hook_kwargs`` puts low (bottom-anchored at 0.94)."""
-    style, events = build_hook_title_ass(title, get_template("highlighter_swipe"), width, height, 10.0,
-                                         "Poppins", caption_px, position_y=0.94)
-    fields = style.split(",")
-    px, outline = int(fields[2]), int(fields[16])
-    lines = events[0].count("\\N") + 1
-    return 0.94 - (lines * px * 1.25 + 2 * outline) / height
-
-
-@pytest.mark.parametrize("title", ["Short", "He turned down a billion dollar offer from them",
-                                   "Supercalifragilisticexpialidocious and antidisestablishmentarianism"])
-@pytest.mark.parametrize("size", [(1080, 1920), (720, 1280)])
-def test_the_low_hook_never_reaches_the_rows_band(title, size):
-    width, height = size
-    caption_px = get_scaled_font_size(get_template("highlighter_swipe")["font_size"], width)
-    assert low_hook_top(title, caption_px, width, height) >= HOOK_LOW_TOP - 1e-9
-
-
-@pytest.mark.parametrize("opening", ["pair", "single", "fit"])
-@pytest.mark.parametrize("px", [52, 72, 84])
-def test_rows_under_a_low_hook_stay_above_it(opening, px):
-    segments = shots((0, 1.5, opening), (1.5, 3.0, "pair"), (3.0, 4.5, "single"), (4.5, 8, "fit"))
-    rows = interview_caption_rows(segments, text_px=px, width=1080, height=1920, source_size=(1920, 1080),
-                                  hook=(0.12, 4.0), duration=8)
-    half = TWO_LINE_HALF_EM * px / 1920
-    for row in rows:
-        if row.start < 4.0:
-            assert row.y + half + ROW_GAP_FRAC <= HOOK_LOW_TOP + 1e-4, row
-    assert rows[-1].y == 0.76                                       # after the hook, the usual fit row
-
-
-def test_a_tall_fit_picture_under_a_low_hook_puts_its_captions_above_the_picture():
-    rows = interview_caption_rows(shots((0, 2, "fit"), (2, 6, "pair")), text_px=84, width=1080, height=1920,
-                                  source_size=(1440, 1080), hook=(0.12, 4.0))
-    top, _ = fit_picture_band((1440, 1080))
-    assert rows[0].y + TWO_LINE_HALF_EM * 84 / 1920 + ROW_GAP_FRAC <= top + 1e-4
-
 
 # --------------------------------------------------------------------------------------- groups and the edit clock
 

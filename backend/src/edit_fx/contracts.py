@@ -416,6 +416,23 @@ class FxCaptionStyle(_Strict):
     rows: tuple[CaptionRow, ...] = Field(default=(), max_length=400)
 
 
+class FxHookTitle(_Strict):
+    """The hook title drawn by fx-core (``hook.ts``): one white card, heavy dark type, a marker box behind numbers
+    and power words. fx-core lays it out and places it; see ``edit_fx/hook_title.py``."""
+    text: str = Field(min_length=1, max_length=200)   # as shown (casing already applied)
+    font: str = Field(max_length=80)        # bundled font stem
+    accent: str = "#FFE45C"                 # marker colour, "#RRGGBB"
+    look: Literal["subtle", "bold", "max"] = "bold"
+    start: float = Field(ge=0)              # E window
+    end: float = Field(ge=0)
+    x: float = Field(default=0, ge=-1, le=1)   # studio offset from the automatic position (fractions of W and H)
+    y: float = Field(default=0, ge=-1, le=1)
+    scale: float = Field(default=1, ge=0.2, le=4)
+    trim: bool = False                      # automatic timing: may leave early at a camera cut
+    picture: Optional[tuple[float, float]] = None   # a letterboxed opening's picture band (top, bottom of H)
+    avoid: tuple[tuple[float, float], ...] = Field(default=(), max_length=8)   # bands other layers own (ASS captions)
+
+
 class FxWord(_Strict):
     id: str = Field(max_length=40)
     start: float
@@ -458,6 +475,7 @@ class FxScene(_Strict):
     loop_ending: Literal["none", "crossfade"] = "none"
     hook_window: Optional[tuple[float, float]] = None
     hook_title_suppressed: bool = False
+    hook: Optional[FxHookTitle] = None      # the title fx-core draws; None: no title, or the ASS layer burns it
     face_track: Optional[FaceTrack] = None  # space "output" (picture_rect applied), samples on the E clock (studio:
                                             # resampled through locate(e) at 6 fps by build_scene / studioScene, AR-B4)
     broll_windows: tuple[tuple[float, float], ...] = ()

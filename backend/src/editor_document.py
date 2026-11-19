@@ -693,13 +693,15 @@ def write_ass(
     time_map: Callable[[float], float] | None = None,
     censor_spans: Sequence[tuple[float, float]] | None = None,
     hook_title: bool | str | None = True,
+    hook_heavy: bool = False,
 ):
     """Write captions with the generation renderer so edits keep the clip's animation.
 
     The keyword arguments are for dynamic-edit renders only (left at their defaults, the file is exactly what
     earlier releases wrote): ``include_captions=False`` leaves the words to fx-core (FX caption templates),
     ``time_map`` moves every event from E to F through the render's time warp, ``censor_spans`` (E) masks
-    bleeped words, and ``hook_title`` False/None drops the headline (or a string replaces it).
+    bleeped words, ``hook_title`` False/None drops the headline (or a string replaces it), and ``hook_heavy``
+    gives the headline the Dynamic edits fallback look (heavy outlined type instead of the template's boxes).
     """
     from .media.captions import build_assemblyai_ass_subtitles
 
@@ -747,6 +749,7 @@ def write_ass(
             else (hook_title.strip() or None) if isinstance(hook_title, str) else None
         ),
         caption_placements=placements,
+        **({"hook_heavy": True} if hook_heavy else {}),
         **({"time_map": time_map} if time_map is not None else {}),
         **({"censor_spans": list(censor_spans)} if censor_spans else {}),
     )

@@ -468,6 +468,7 @@
       2.0
     ],
     "hook_title_suppressed": true,
+    "hook": null,
     "face_track": {
       "version": 1,
       "space": "output",

@@ -19,7 +19,8 @@ export type DrawOp =
       fill: string | null; cap: "round" | "butt"; dash: [number, number] | null; dashOffset: number;
       transform: Mat2D; alpha: number; blend: Blend }             // points = [x0,y0,x1,y1,...]
   | { op: "rect"; x: number; y: number; w: number; h: number; radius: number; fill: string | null;
-      stroke: string | null; strokePx: number; transform: Mat2D; alpha: number; blend: Blend }
+      stroke: string | null; strokePx: number; transform: Mat2D; alpha: number; blend: Blend;
+      shadow?: Shadow | null }                                    // cast by the fill (the hook title's card)
   | { op: "sprite"; key: string; x: number; y: number; w: number; h: number; transform: Mat2D; alpha: number; blend: Blend }
   | { op: "gradient"; kind: "linear" | "radial"; x0: number; y0: number; r0: number; x1: number; y1: number;
       r1: number; stops: [number, string][]; rect: [number, number, number, number]; alpha: number; blend: Blend }

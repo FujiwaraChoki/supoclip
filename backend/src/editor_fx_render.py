@@ -503,6 +503,28 @@ def hook_range(document, total: float) -> tuple[float, float] | None:
     return 0.12, min(4.0, max(1.5, total - 0.25))
 
 
+def studio_hook(document, plan: FxPlan):
+    """The hook title fx-core draws for a draft (== studio-scene.ts ``studioHook``): the card at its automatic
+    position plus the draft's hook transform, in the draft's font and accent, shown for ``hook_range``; None without a title or when the plan
+    suppresses it. Automatic timing (no ``hookTiming``) lets it leave at a camera cut."""
+    from .edit_fx.caption_style import _hex6
+    from .edit_fx.hook_title import HOOK_DEFAULT_ACCENT, build_hook, hook_look
+
+    window = hook_range(document, plan.edit_duration)
+    if window is None or plan.hook_title_suppressed:
+        return None
+    captions = document.captions
+    template_id = captions.template or "default"
+    transform = document.textTransforms.get("hook")
+    return build_hook(
+        document.hookTitle, template_id=template_id,
+        look=hook_look(template_id, plan.style.intensity, plan.sensitivity), font=captions.font,
+        accent=_hex6(captions.accent, HOOK_DEFAULT_ACCENT), window=window, uppercase=bool(captions.uppercase),
+        x=transform.x if transform else 0.0, y=transform.y if transform else 0.0,
+        scale=transform.scale if transform else 1.0, trim=document.hookTiming is None,
+    )
+
+
 def broll_windows(document) -> tuple[tuple[float, float], ...]:
     """E windows of the document's B-roll pieces (``mapped_broll``)."""
     from .editor_document import mapped_broll
@@ -542,8 +564,11 @@ def studio_request(document, *, segments: Sequence[Segment], out_w: int, out_h: 
     session_face = inputs.face_track if isinstance(inputs.face_track, dict) else None
     if session_face and session_face.get("base") == base:
         face_track = resample_face_track(session_face.get("track"), segments)
-    if face_track is None and plan.needs_face:
-        # No usable session track: draw the fallbacks the preview draws ("Analyse face" fixes both).
+    caption = studio_caption_style(document, out_w, out_h)
+    hook = studio_hook(document, plan)
+    if face_track is None and (plan.needs_face or hook is not None):
+        # No usable session track: draw the fallbacks the preview draws ("Analyse face" fixes both; the hook title
+        # is then placed by the captions alone).
         face_track = empty_face_track()
 
     matte_input = matte_filter = None
@@ -554,7 +579,7 @@ def studio_request(document, *, segments: Sequence[Segment], out_w: int, out_h: 
     return FxRequest(
         plan=plan,
         words=studio_words(document, segments),
-        caption=studio_caption_style(document, out_w, out_h),
+        caption=caption,
         picture_rect=rect,
         face_track=face_track,
         matte_input=matte_input,
@@ -562,6 +587,7 @@ def studio_request(document, *, segments: Sequence[Segment], out_w: int, out_h: 
         reaction_files=_reaction_files_e(plan.cues, document, inputs.reaction_files),
         broll_windows=broll_windows(document) if broll else (),
         hook_window=hook_range(document, plan.edit_duration),
+        hook=hook,
         progress_color=_doc_progress_color(document),
         voice_gain=0.0 if document.muted else float(document.volume),
         loudness="none",
@@ -677,7 +703,7 @@ def _fallback_ass(document, path: Path, width: int, height: int, *, censor: bool
     """ASS for levels safe and none: legacy captions (fallback template) and the original hook title (AR-M12)."""
     from .editor_document import write_ass
 
-    write_ass(path, _fallback_document(document, censor=censor), width, height)
+    write_ass(path, _fallback_document(document, censor=censor), width, height, hook_heavy=True)
     return path
 
 
@@ -730,7 +756,8 @@ def _full_level(document, ctx, request, chain, *, head: str, head_label: str, in
     title only when the plan does not suppress it). A warped render whose audio and video disagree by more than a
     frame is redone with an identity warp (§6.6). Returns the last ``FxResult``, or None when the ASS failed."""
     plan = request.plan
-    hook = None if plan.hook_title_suppressed else ((document.hookTitle or "").strip() or None)
+    # fx-core draws the title (request.hook); the ASS carries it only when there is none to draw.
+    hook = None if (plan.hook_title_suppressed or request.hook is not None) else ((document.hookTitle or "").strip() or None)
     include_captions = document.captions.enabled and not is_fx_template(document.captions.template)
     spans = [(c.start, c.end) for c in plan.cues if c.kind == "bleep" and c.end > c.start] \
         if plan.timing == "word" else []

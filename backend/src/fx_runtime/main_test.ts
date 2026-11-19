@@ -625,6 +625,59 @@ Deno.test("main returns exit 2 for usage errors in-process", async () => {
   assertEquals(await main([]), EXIT_BAD_JOB);
 });
 
+Deno.test("the hook title is fx-core's card: drawn inside its window, pass-through outside it", async () => {
+  const w = 180, h = 320, size = w * h * 4;
+  const input = new Uint8Array(size * 3);
+  for (let i = 0; i < input.length; i += 4) input.set([40, 60, 200, 255], i);
+  const sc = {
+    ...scene({ edit: 3 / 30 }),
+    width: w,
+    height: h,
+    hook_window: [1 / 30, 3 / 30] as [number, number],
+    hook: {
+      text: "90% of guests",
+      font: "Poppins-ExtraBold",
+      accent: "#34FD87",
+      look: "bold",
+      start: 1 / 30,
+      end: 3 / 30,
+      x: 0,
+      y: 0,
+      scale: 1,
+      trim: false,
+      picture: null,
+      avoid: [],
+    },
+  };
+  const font = new URL("../../fonts/Poppins-ExtraBold.ttf", import.meta.url).pathname;
+  const j = { ...job(3, 3, sc), width: w, height: h, fonts: { "Poppins-ExtraBold": font } };
+  const { sink, stats } = await render(j, input);
+  const out = sink.bytes();
+  assertEquals(out.subarray(0, size), input.subarray(0, size)); // before the window: untouched
+  assertEquals(stats.passthrough, 2); // and its first frame, still fully transparent
+  const count = (frameIndex: number, r: number, g: number, b: number) => {
+    let n = 0;
+    for (let i = frameIndex * size; i < (frameIndex + 1) * size; i += 4) {
+      if (out[i] === r && out[i + 1] === g && out[i + 2] === b) n++;
+    }
+    return n;
+  };
+  // The last frame of the window: an opaque white card in the top safe area with the marker behind "90%".
+  assert(count(2, 255, 255, 255) > 400, `white ${count(2, 255, 255, 255)}`);
+  assert(count(2, 0x34, 0xfd, 0x87) > 20, `marker ${count(2, 0x34, 0xfd, 0x87)}`);
+  const row = (y: number) => {
+    let n = 0;
+    for (let x = 0; x < w; x++) {
+      const i = 2 * size + (y * w + x) * 4;
+      if (out[i] === 255 && out[i + 1] === 255 && out[i + 2] === 255) n++;
+    }
+    return n;
+  };
+  assertEquals(row(Math.round(0.08 * h)), 0); // above the card
+  assert(row(Math.round(0.115 * h)) > 20); // inside it, at 0.105 H and below
+  assertEquals(row(Math.round(0.5 * h)), 0);
+});
+
 // ----------------------------------------------------------------------------------------------------- text layout
 
 Deno.test("measure uses fx-core's font string, so caption layout matches what rasterize draws", async () => {

@@ -708,7 +708,7 @@ export function Preview({
               drag.current = null;
             }}
           />
-          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} resolution={resolution} timelineDraft={textDraft} />
+          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} resolution={resolution} timelineDraft={textDraft} fxSession={session} />
           {guides && (
             <div className="pointer-events-none absolute inset-x-[8%] top-[10%] bottom-[20%] rounded-lg border border-dashed border-white/60">
               <span className="absolute -top-5 text-[10px] text-white/70">
