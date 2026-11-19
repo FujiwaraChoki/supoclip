@@ -12,6 +12,9 @@ services:
     platform: linux/amd64
     # The video worker only. On SIGTERM, ARQ stops taking jobs and waits up to
     # job_completion_wait for running ones: that is how the autoscaler drains.
+    # It looks at the queue less often than an always-on render host (0.5 s), so
+    # that host takes a job first whenever it has a free slot and this machine
+    # only gets the overflow. Otherwise it would never be idle.
     command:
       - .venv/bin/python
       - -c
@@ -20,8 +23,9 @@ services:
         from arq.worker import run_worker;
         from src.workers.tasks import WorkerSettings;
         n=int(os.environ['VIDEO_WORKER_CONCURRENCY']);
-        print(f'Video worker concurrency: {n}',flush=True);
-        run_worker(WorkerSettings,max_jobs=n,job_completion_wait=10800)
+        d=float(os.environ.get('VIDEO_WORKER_POLL_DELAY') or 5);
+        print(f'Video worker concurrency: {n}, poll delay: {d} s',flush=True);
+        run_worker(WorkerSettings,max_jobs=n,job_completion_wait=10800,poll_delay=d)
     network_mode: host
     env_file:
       - path: ${WORKER_ENV_FILE:?Set WORKER_ENV_FILE}
@@ -40,6 +44,7 @@ services:
       REDIS_PORT: ${WORKER_REDIS_PORT:-16379}
       EMBED_CRON_WORKER: "0"
       VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-10}
+      VIDEO_WORKER_POLL_DELAY: ${VIDEO_WORKER_POLL_DELAY:-5}
       # The per-host job registry key; the autoscaler reads it to see this machine is idle.
       RENDER_HOST_NAME: ${RENDER_HOST_NAME:?Set RENDER_HOST_NAME}
       YOUTUBE_PROXY_DEFAULT_PROVIDER: ${YOUTUBE_PROXY_DEFAULT_PROVIDER:-geonode}

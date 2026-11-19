@@ -108,6 +108,18 @@ state: one that never finished provisioning and cannot be reached is reported
 and left for the operator. A drain still running after 3 h 15 min is reported,
 never forced. After deletion its tunnel is stopped and its host key forgotten.
 
+### Cloud workers take the overflow
+
+Every worker polls the same queue, and whichever asks first gets the job. A
+cloud worker close to Redis would win nearly every time and stay busy while an
+always-on render host with free slots sat idle, so it would never be removed.
+Cloud workers therefore poll every `AUTOSCALER_WORKER_POLL_SECONDS` (5) instead
+of ARQ's 0.5 s: the always-on host takes a job first whenever it has a free
+slot, and the cloud worker goes idle as soon as that host can carry the load.
+A job waits at most those few seconds longer when only a cloud worker is free.
+For a hand-built worker you adopt, pass the same `poll_delay` to `run_worker`
+in its compose file.
+
 ### Which jobs run where
 
 ARQ's in-progress keys do not say which machine runs a job. Every video worker
@@ -235,6 +247,7 @@ last step.
 | `AUTOSCALER_ERROR_BACKOFF_MINUTES` | `30` | No scale-up after a cloud API error or a failed scale-up. |
 | `AUTOSCALER_SERVER_TYPE` / `_LOCATION` | `ccx53` / `hel1` | |
 | `AUTOSCALER_WORKER_CONCURRENCY` | `10` | ARQ `max_jobs` on a cloud worker. |
+| `AUTOSCALER_WORKER_POLL_SECONDS` | `5` | How often a cloud worker polls the queue (an always-on host: 0.5 s). |
 | `AUTOSCALER_WORKER_DB_POOL_SIZE` / `_MAX_OVERFLOW` | concurrency / `5` | One pool per process; it must cover every slot. |
 | `AUTOSCALER_IMAGE_SOURCE` | `container:supoclip-worker` | See above. |
 | `AUTOSCALER_PROBE_CONTAINER` | `supoclip-worker` | Backend container the probe runs in. |

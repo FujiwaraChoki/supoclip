@@ -197,6 +197,8 @@ class Helpers(unittest.TestCase):
         self.assertIn(f"WORKER_IMAGE={IMAGE}\n", out)
         self.assertNotIn("WORKER_IMAGE=old", out)
         self.assertIn("VIDEO_WORKER_CONCURRENCY=6\n", out)
+        # Cloud workers are overflow: they poll the queue less often than an always-on host.
+        self.assertIn("VIDEO_WORKER_POLL_DELAY=5.0\n", out)
         self.assertIn("WORKER_DB_POOL_SIZE=6\n", out)
         self.assertIn("RENDER_HOST_NAME=w-1\n", out)
 

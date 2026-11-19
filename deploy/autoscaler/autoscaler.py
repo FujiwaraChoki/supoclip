@@ -79,6 +79,7 @@ class Settings:
     server_type: str = "ccx53"
     location: str = "hel1"
     concurrency: int = 10
+    poll_seconds: float = 5.0
     db_pool_size: int = 10
     db_max_overflow: int = 5
     snapshot_selector: str = "supoclip-render-golden=true"
@@ -129,6 +130,7 @@ def load_settings(env: dict[str, str], *, dry_run: bool = False) -> Settings:
         server_type=env.get("AUTOSCALER_SERVER_TYPE", "").strip() or "ccx53",
         location=env.get("AUTOSCALER_LOCATION", "").strip() or "hel1",
         concurrency=concurrency,
+        poll_seconds=num("AUTOSCALER_WORKER_POLL_SECONDS", 5.0, float),
         db_pool_size=num("AUTOSCALER_WORKER_DB_POOL_SIZE", concurrency),
         db_max_overflow=num("AUTOSCALER_WORKER_DB_MAX_OVERFLOW", 5),
         snapshot_selector=env.get("AUTOSCALER_SNAPSHOT_SELECTOR", "").strip() or "supoclip-render-golden=true",
@@ -541,6 +543,7 @@ def compose_env(settings: Settings, name: str, image: str, template: str) -> byt
         "WORKER_PROXY_SECRET_FILE": REMOTE_PROXY_SECRET,
         "WORKER_SCRATCH_PATH": "/srv/supoclip-scratch",
         "VIDEO_WORKER_CONCURRENCY": str(settings.concurrency),
+        "VIDEO_WORKER_POLL_DELAY": str(settings.poll_seconds),
         "WORKER_DB_POOL_SIZE": str(settings.db_pool_size),
         "WORKER_DB_MAX_OVERFLOW": str(settings.db_max_overflow),
         "RENDER_HOST_NAME": name,
