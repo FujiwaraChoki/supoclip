@@ -130,7 +130,7 @@ type ClipFxMeta = { fx_level?: string | null; timing?: string | null; intensity?
 type ClipJob = { id: string; kind: string; clipIds: string[] | "all"; progress: number; error?: string | null };
 const CLIP_JOB_POLL_MS = 2000;
 /** The edit toggles the restyle sheet offers (the create screen has the full set). */
-const SHEET_FX_TOGGLES = ["sfx", "music", "zooms", "transitions", "speed", "progress_bar"] as const satisfies readonly (keyof EditStyle)[];
+const SHEET_FX_TOGGLES = ["sfx", "music", "zooms", "transitions", "progress_bar"] as const satisfies readonly (keyof EditStyle)[];
 const clipJobStorageKey = (taskId: string) => `supoclip.clipJob.${taskId}`;
 
 function readStoredClipJob(taskId: string): ClipJob | null {
