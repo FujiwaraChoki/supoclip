@@ -53,7 +53,7 @@
     },
     "intensity": {
       "title": "Escolha com que força bate",
-      "body": "Sutil: legendas com contorno, um reenquadre de vez em quando e música baixa, como um corte de podcast. Forte: legendas no estilo Hormozi sobre uma pílula escura, palavra por palavra com a palavra-chave numa caixa, e zooms que se mantêm. Máxima: maiúsculas grossas com contorno, um reenquadre em quase toda frase, batidas mais altas e um flash ocasional num corte. Desligada deixa os clipes como estão."
+      "body": "<b>Sutil:</b> legendas com contorno, um reenquadre de vez em quando e música baixa, como um corte de podcast.\n<b>Forte:</b> legendas no estilo Hormozi sobre uma pílula escura, palavra por palavra com a palavra-chave numa caixa, e zooms que se mantêm.\n<b>Máxima:</b> maiúsculas grossas com contorno, um reenquadre em quase toda frase, batidas mais altas e um flash ocasional num corte.\n<b>Desligada</b> deixa os clipes como estão."
     },
     "sound": {
       "title": "Som, música e palavrões",

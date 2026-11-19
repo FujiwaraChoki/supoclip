@@ -33,7 +33,7 @@ const METER: Record<Intensity, { rest: number[]; swing: number; duration: number
 const METER_CSS = `
 @keyframes fx-meter-bar { 0%, 100% { transform: scaleY(var(--fx-rest)); } 50% { transform: scaleY(var(--fx-peak)); } }
 @keyframes fx-meter-shake { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(-0.5px, 0.5px) rotate(-2deg); } 75% { transform: translate(0.5px, -0.5px) rotate(2deg); } }
-.fx-meter-bar { transform: scaleY(var(--fx-rest)); transform-origin: bottom; }
+.fx-meter-bar { transform: scaleY(var(--fx-rest)); transform-origin: center; }
 @media (prefers-reduced-motion: no-preference) {
   .fx-meter[data-animated="true"] .fx-meter-bar { animation: fx-meter-bar var(--fx-duration) ease-in-out infinite; animation-delay: var(--fx-delay); }
   .fx-meter[data-jitter="true"] { animation: fx-meter-shake 0.18s linear infinite; }
@@ -45,7 +45,7 @@ function IntensityGlyph({ intensity, active }: { intensity: Intensity; active: b
   return (
     <span
       aria-hidden
-      className={cn("fx-meter flex h-7 items-end gap-[3px]", active ? "text-brand" : "text-foreground/55")}
+      className={cn("fx-meter flex h-7 shrink-0 items-center gap-[3px]", active ? "text-brand" : "text-foreground/55")}
       data-animated={meter.swing > 0}
       data-jitter={meter.jitter}
     >
@@ -167,7 +167,7 @@ export function EditIntensity({ value, onChange, info, disabled }: {
               onClick={() => set("intensity", level)}
               onKeyDown={(event) => move(event, index)}
               className={cn(
-                "flex min-w-0 items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                "flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                 checked && "border-foreground ring-1 ring-foreground",
               )}
             >

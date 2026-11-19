@@ -94,8 +94,8 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     covers: ["composer-settings"],
     steps: [
       { target: "composer-settings", message: "intro", side: "top", intro: true },
-      { target: "edit-intensity", message: "intensity", side: "left", settingsSection: "edits" },
-      { target: "edit-options", message: "sound", side: "left", settingsSection: "edits" },
+      { target: "edit-intensity", message: "intensity", side: "right", settingsSection: "edits" },
+      { target: "edit-options", message: "sound", side: "right", settingsSection: "edits" },
       { target: "caption-styles", message: "captions", side: "left", settingsSection: "captions" },
     ],
   },

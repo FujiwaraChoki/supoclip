@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
@@ -18,6 +18,8 @@ const SEEN_KEY = "supoclip.featureTour.seen";
 const START_DELAY_MS = 900;
 /** How long a step waits for its target after asking the page to open the section or tab it lives in. */
 const REVEAL_TIMEOUT_MS = 1500;
+/** How often a step asks the page again to open where its target lives, while the target is missing. */
+const REOPEN_INTERVAL_MS = 250;
 
 function readLocal(key: string): string | null {
   try { return window.localStorage.getItem(key); } catch { return null; }
@@ -39,6 +41,8 @@ function seenOnDevice(): string[] {
 function record(id: string, event: "shown" | "completed" | "dismissed", step?: number) {
   void fetch("/api/feature-tours", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, event, step }), keepalive: true }).catch(() => {});
 }
+
+const richText = { b: (chunks: ReactNode) => <strong className="font-semibold text-foreground">{chunks}</strong> };
 
 function targetOf(step: TourStep): HTMLElement | null {
   const element = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
@@ -174,6 +178,13 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
   const indexRef = useRef(index);
   useEffect(() => { runningRef.current = running; indexRef.current = index; }, [running, index]);
 
+  // Marks the page while a tour runs, so menus it opens stay open between and during its steps (composer-settings).
+  useEffect(() => {
+    if (!running) return;
+    document.body.setAttribute("data-feature-tour", running.tour.id);
+    return () => document.body.removeAttribute("data-feature-tour");
+  }, [running]);
+
   const end = useCallback((how: "completed" | "dismissed", restore = true) => {
     const current = runningRef.current;
     if (current && !current.preview) {
@@ -246,35 +257,49 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
   useEffect(() => {
     if (step?.workflow) onWorkflow?.(step.workflow);
   }, [step, onWorkflow]);
-  // A target in a closed menu or another tab: ask the page to open it, then wait for it to appear.
-  const [revealed, setRevealed] = useState<{ step: TourStep; element: HTMLElement } | null>(null);
-  const direct = useMemo(() => (step ? targetOf(step) : null), [step]);
-  const target = direct ?? (revealed && revealed.step === step ? revealed.element : null);
+  // A target in a closed menu or another tab: ask the page to open it, then wait for it to appear. The target is looked
+  // up again every frame: a menu can close under the tour (focus returning from the opening dialog, a click elsewhere),
+  // and a removed element measures as 0,0, which would put the card in the corner. While it's gone the card hides and
+  // the menu is asked to open again.
+  // `found` only makes the host render again when the target comes, goes or is replaced; each render looks it up fresh.
+  const [, setFound] = useState<{ step: TourStep; element: HTMLElement } | null>(null);
+  const target = step ? targetOf(step) : null;
   useEffect(() => {
     if (!step || step.intro) return;
-    if (step.settingsSection) openers.current.onSettingsSection?.(step.settingsSection);
-    if (step.inspectorTab) openers.current.onInspectorTab?.(step.inspectorTab);
-    if (direct) return;
-    const deadline = performance.now() + REVEAL_TIMEOUT_MS;
+    const open = () => {
+      if (step.settingsSection) openers.current.onSettingsSection?.(step.settingsSection);
+      if (step.inspectorTab) openers.current.onInspectorTab?.(step.inspectorTab);
+    };
+    open();
+    let missingSince: number | null = performance.now();
+    let openedAt = performance.now();
     let frame = 0;
     const look = () => {
+      const now = performance.now();
       const element = targetOf(step);
       if (element) {
-        setRevealed({ step, element });
-        return;
+        missingSince = null;
+        setFound((current) => (current?.step === step && current.element === element ? current : { step, element }));
+      } else {
+        setFound((current) => (current?.step === step ? null : current));
+        missingSince ??= now;
+        if (now - openedAt > REOPEN_INTERVAL_MS) {
+          open();
+          openedAt = now;
+        }
+        if (now - missingSince > REVEAL_TIMEOUT_MS) {
+          // Still not there (the section isn't offered after all): move on rather than hang.
+          const current = runningRef.current;
+          if (current && indexRef.current < current.steps.length - 1) setIndex(indexRef.current + 1);
+          else end("dismissed");
+          return;
+        }
       }
-      if (performance.now() < deadline) {
-        frame = requestAnimationFrame(look);
-        return;
-      }
-      // Still not there (the section isn't offered after all): move on rather than hang.
-      const current = runningRef.current;
-      if (current && indexRef.current < current.steps.length - 1) setIndex(indexRef.current + 1);
-      else end("dismissed");
+      frame = requestAnimationFrame(look);
     };
     frame = requestAnimationFrame(look);
     return () => cancelAnimationFrame(frame);
-  }, [step, direct, end]);
+  }, [step, end]);
   useEffect(() => {
     target?.scrollIntoView?.({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [target]);
@@ -336,7 +361,8 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd, onSettingsSe
         >
           {step.workflow && <WorkflowGlyph id={step.workflow} className="mb-3" />}
           <p className="text-sm font-semibold">{t(`${keys}.title`)}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t(`${keys}.body`)}</p>
+          {/* Copy may set terms in <b> and put items on their own lines. */}
+          <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{t.rich(`${keys}.body`, richText)}</p>
           <div className="mt-3 flex items-center justify-between gap-2">
               {/* Always a quiet way out, without competing with Next. */}
               <button type="button" onClick={() => end("dismissed")} className="-ml-1 rounded-md px-1 py-1 text-xs text-muted-foreground/70 transition-colors hover:text-foreground">{t("skip")}</button>

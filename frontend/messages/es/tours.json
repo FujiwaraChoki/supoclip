@@ -53,7 +53,7 @@
     },
     "intensity": {
       "title": "Elige con cuánta fuerza golpea",
-      "body": "Sutil: subtítulos con contorno, un reencuadre de vez en cuando y música suave, como un clip de pódcast. Marcada: subtítulos al estilo Hormozi sobre una píldora oscura, palabra a palabra con la palabra clave en un recuadro, y zooms que se mantienen. Máxima: mayúsculas gruesas con contorno, un reencuadre en casi cada frase, golpes más fuertes y algún destello en un corte. Desactivada deja los clips como están."
+      "body": "<b>Sutil:</b> subtítulos con contorno, un reencuadre de vez en cuando y música suave, como un clip de pódcast.\n<b>Marcada:</b> subtítulos al estilo Hormozi sobre una píldora oscura, palabra a palabra con la palabra clave en un recuadro, y zooms que se mantienen.\n<b>Máxima:</b> mayúsculas gruesas con contorno, un reencuadre en casi cada frase, golpes más fuertes y algún destello en un corte.\n<b>Desactivada</b> deja los clips como están."
     },
     "sound": {
       "title": "Sonido, música y palabrotas",

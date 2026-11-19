@@ -44,8 +44,9 @@ function tour(overrides: Partial<FeatureTour>): FeatureTour {
 }
 
 /** A page whose "edits" section only exists once something opens it, like the composer's settings popover. */
-function Page({ onSection, onTab }: { onSection?: (id: string) => void; onTab?: (id: string) => void }) {
+function Page({ onSection, onTab, closeRef }: { onSection?: (id: string) => void; onTab?: (id: string) => void; closeRef?: { current: (() => void) | null } }) {
   const [section, setSection] = useState<string | null>(null);
+  if (closeRef) closeRef.current = () => setSection(null);
   const [tab, setTab] = useState<string | null>(null);
   return (
     <>
@@ -101,6 +102,29 @@ describe("FeatureTourHost: flags and hidden targets", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(onSection).toHaveBeenCalledWith("edits");
     expect(await screen.findByText("2 of 2")).toBeInTheDocument();
+  });
+
+  it("follows a menu that closes under a step: hides, opens it again and points at the new target", async () => {
+    const onSection = vi.fn();
+    const close: { current: (() => void) | null } = { current: null };
+    tours.list = [tour({
+      steps: [
+        { target: "composer-settings", message: "settings", side: "top" },
+        { target: "edit-intensity", message: "settings", side: "top", settingsSection: "edits" },
+      ],
+    })];
+    render(<Page onSection={onSection} closeRef={close} />);
+    await screen.findByText("1 of 2", undefined, { timeout: 2500 });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("2 of 2");
+    expect(document.body).toHaveAttribute("data-feature-tour", "composer-settings");
+    onSection.mockClear();
+    // Something closed the menu (focus moving out of it, say): the old target is gone from the page.
+    act(() => close.current?.());
+    expect(screen.queryByText("intensity")).not.toBeInTheDocument();
+    await waitFor(() => expect(onSection).toHaveBeenCalledWith("edits"));
+    expect(await screen.findByText("2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("intensity")).toBeInTheDocument();
   });
 
   it("opens the inspector tab a step needs", async () => {

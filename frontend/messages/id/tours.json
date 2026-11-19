@@ -53,7 +53,7 @@
     },
     "intensity": {
       "title": "Pilih seberapa keras hantamannya",
-      "body": "Halus: subtitle bergaris tepi, sesekali bingkai ulang, dan musik pelan, seperti klip podcast. Tegas: teks gaya Hormozi di atas kapsul gelap, kata demi kata dengan kata kunci di dalam kotak, plus zoom yang bertahan. Maksimal: huruf kapital tebal bergaris tepi, bingkai ulang hampir di setiap kalimat, hantaman lebih keras, dan sesekali kilatan di potongan. Mati membiarkan klip apa adanya."
+      "body": "<b>Halus:</b> subtitle bergaris tepi, sesekali bingkai ulang, dan musik pelan, seperti klip podcast.\n<b>Tegas:</b> teks gaya Hormozi di atas kapsul gelap, kata demi kata dengan kata kunci di dalam kotak, plus zoom yang bertahan.\n<b>Maksimal:</b> huruf kapital tebal bergaris tepi, bingkai ulang hampir di setiap kalimat, hantaman lebih keras, dan sesekali kilatan di potongan.\n<b>Mati</b> membiarkan klip apa adanya."
     },
     "sound": {
       "title": "Suara, musik, dan kata kasar",
