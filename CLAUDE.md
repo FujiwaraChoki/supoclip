@@ -393,6 +393,13 @@ Personalized analyses skip the shared `processing_cache` analysis entry.
   Instagram only app testers until Meta review, and YouTube uploads from an unaudited project stay
   private. Provider app IDs and setup notes are in `docs/configuration.md`.
 
+### Account email change
+
+Settings → Account changes the sign-in email after two codes (current address, then new address):
+`frontend/src/server/email-change.ts` (codes, limits, atomic switch + other-session sign-out),
+`email-change-billing.ts` (every Stripe customer, rolled back on failure), route `/api/account/email-change`,
+emails via backend `POST /account/email-change-email`. Design and limits: `docs/email-change.md`.
+
 ### Clip studio (editor)
 
 Full-screen, classic NLE layout at `/tasks/{id}/edit` (`frontend/src/components/editor/`): clip picker in the header, viewer and
