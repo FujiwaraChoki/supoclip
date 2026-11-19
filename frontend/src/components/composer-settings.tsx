@@ -41,7 +41,7 @@ export function ComposerSettings({ trigger, sections, label, footer }: { trigger
       <PopoverContent
         align="center"
         collisionPadding={12}
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(94vw,720px)] flex-col overflow-hidden rounded-2xl p-0 sm:h-[460px] sm:flex-row"
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(94vw,720px)] flex-col overflow-hidden rounded-2xl p-0 sm:h-[560px] sm:flex-row"
         // A feature tour walking through this menu keeps it open: its own card, the focus coming back from its opening
         // dialog and clicks on the dimmed page would otherwise close the menu under the step that points into it.
         onInteractOutside={(event) => { if (tourOnScreen()) event.preventDefault(); }}

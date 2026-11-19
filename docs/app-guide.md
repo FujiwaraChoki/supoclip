@@ -258,7 +258,7 @@ Caption templates are exposed by the backend and loaded into the frontend task c
 ### Dynamic edits
 
 When the `dynamic_edits` feature flag is on for the account, the composer's
-Settings menu gains an **Edits** tab and an **Animated** group of caption styles:
+Settings menu gains an **Edits** tab, and the caption style grid gains the animated styles:
 
 - **Edit intensity** decides how much happens on the moments the AI tags. Subtle
   adds a few zooms and soft sounds, Bold adds punch-ins, whooshes, transitions,

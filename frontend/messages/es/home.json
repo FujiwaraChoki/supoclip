@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Limpieza del clip",
   "cleanupBody": "Reduce los silencios y corta sonidos de relleno al renderizar.",
+  "cleanupMore": "Más opciones",
   "shortenPauses": "Acortar pausas largas",
   "shortenPausesHint": "Recorta los silencios más largos que esto hasta dejar una respiración breve",
   "pauseThreshold": "Umbral de pausa (ms)",
-  "milliseconds": "milisegundos",
   "removeFillers": "Quitar muletillas",
   "removeFillersHint": "“um”, “uh”, “erm” y sonidos parecidos",
   "extraWords": "Palabras o frases extra para cortar",
@@ -430,11 +430,11 @@
       "bleep": "Pitido",
       "bleep_bar": "Pitido y tapar la boca",
       "bleep_pixelate": "Pitido y pixelar la boca"
-    }
+    },
+    "fineTune": "Ajuste fino"
   },
   "animatedCaptions": {
     "title": "Animados",
-    "body": "Dibujados fotograma a fotograma sobre tu video.",
     "demoLine": "Nuestros ingresos crecieron un 300% en solo un año",
     "demoSticker": "¡No puede ser!",
     "needsFace": "Mejor con una cara a cámara",

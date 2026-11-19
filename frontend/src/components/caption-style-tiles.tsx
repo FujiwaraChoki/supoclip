@@ -1,6 +1,6 @@
 "use client";
 
-// Animated caption styles as 9:16 tiles, each drawn live by fx-core (the renderer the server uses) over the procedural
+// Caption styles as 9:16 tiles. Animated styles are drawn live by fx-core (the renderer the server uses) over the procedural
 // demo backdrop. One shared clock drives every visible tile; with reduced motion each tile is one still frame.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
@@ -12,9 +12,9 @@ import { clockAt } from "@/lib/fx/core/frame";
 import { renderFrame } from "@/lib/fx/core/render";
 import { prepareScene, type PreparedScene } from "@/lib/fx/core/scene";
 import type { EmojiAtlas, FxCanvas, FxContext2D } from "@/lib/fx/core/host";
-import type { FxCaptionTemplate } from "@/lib/fx/core/types";
+import { isFxTemplate, type FxCaptionTemplate } from "@/lib/fx/core/types";
 import {
-  DEMO_DURATION, DEMO_FONTS, DEMO_HEIGHT, DEMO_STATIC_T, DEMO_WIDTH, demoScene, paintDemoBackdrop, paintDemoPerson,
+  DEMO_DURATION, DEMO_FONTS, DEMO_HEIGHT, DEMO_STATIC_T, DEMO_WIDTH, demoScene, demoWords, paintDemoBackdrop, paintDemoPerson,
   TILE_CAPTION_SCALE,
 } from "@/lib/fx/demo-scene";
 import { FX_NEEDS_FACE } from "@/lib/fx/edit-style-request";
@@ -57,10 +57,16 @@ function paintLayer(paint: (ctx: FxContext2D, width: number, height: number) => 
 }
 
 /** The one browser host every tile draws with: backdrop + speaker as the picture, the speaker alone as the cutout. */
+let layers: { backdrop: FxCanvas | null; person: FxCanvas | null } | null = null;
+/** The demo room and its speaker, painted once and shared by every tile. */
+function getLayers() {
+  layers ??= { backdrop: paintLayer(paintDemoBackdrop), person: paintLayer(paintDemoPerson) };
+  return layers;
+}
+
 function getStage(): Stage {
   if (stage) return stage;
-  const backdrop = paintLayer(paintDemoBackdrop);
-  const person = paintLayer(paintDemoPerson);
+  const { backdrop, person } = getLayers();
   let atlas: EmojiAtlas | null = null;
   const drawLayer = (ctx: FxContext2D, layer: FxCanvas | null) => {
     if (layer) ctx.drawImage(layer as unknown as CanvasImageSource, 0, 0, DEMO_WIDTH, DEMO_HEIGHT);
@@ -217,16 +223,88 @@ export function CaptionStyleCanvas({ template, line, sticker, className }: {
 
 // ----------------------------------------------------------------------------------------------- the group
 
-export type CaptionStyleOption = { id: FxCaptionTemplate; name?: string; description?: string };
+/** How a classic style draws its words: the fields `GET /caption-templates` lists for it. */
+export type ClassicCaptionLook = { font: string; size: number; color: string; highlight: string };
+/** An animated style is drawn live by fx-core; a style with `classic` is drawn from its own font and colours. */
+export type CaptionStyleOption = { id: string; name?: string; description?: string; classic?: ClassicCaptionLook };
+
+// What the list endpoint leaves out of a classic style (== CAPTION_TEMPLATES in backend/src/caption_templates.py).
+const CLASSIC_EXTRAS: Readonly<Record<string, { stroke?: string; box?: string; background?: string; uppercase?: boolean; glow?: boolean }>> = {
+  default: { stroke: "#000000" },
+  hormozi: { stroke: "#000000", box: "#00BF49", uppercase: true },
+  mrbeast: { stroke: "#000000", uppercase: true },
+  minimal: { background: "#00000080" },
+  tiktok: { stroke: "#000000" },
+  neon: { stroke: "#002A6B", glow: true },
+  podcast: { stroke: "#1A1A1A", background: "#1A1A1ACC" },
+};
+
+/** Same enlargement as the animated tiles: a classic size is in px of a 560-wide frame. */
+const classicFontSize = (size: number) => `${((size / 560) * TILE_CAPTION_SCALE * 100).toFixed(2)}cqw`;
 
 /**
- * The "Animated" caption styles as a radio group of live tiles (`data-tour="caption-styles"`). Arrow keys move between
+ * One classic style on the tiles' backdrop: the first words of the demo line in the style's font and colours, the
+ * second word as the spoken one. A still: these styles animate word by word only in the render.
+ */
+export function ClassicCaptionTile({ id, look, line, className }: { id: string; look: ClassicCaptionLook; line?: string; className?: string }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const { backdrop, person } = getLayers();
+      for (const layer of [backdrop, person]) {
+        if (layer) ctx.drawImage(layer as unknown as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+      }
+    } catch {
+      // A preview never breaks the form.
+    }
+  }, []);
+  const extras = CLASSIC_EXTRAS[id] ?? { stroke: "#000000" };
+  const words = demoWords(line).slice(0, 3).map((word) => (extras.uppercase ? word.text.toUpperCase() : word.text));
+  const outline = extras.stroke
+    ? `0 0 0.08em ${extras.stroke}, 0.06em 0.06em 0 ${extras.stroke}, -0.06em -0.06em 0 ${extras.stroke}, 0.06em -0.06em 0 ${extras.stroke}, -0.06em 0.06em 0 ${extras.stroke}`
+    : "none";
+  return (
+    <span aria-hidden className={cn("relative block aspect-[9/16] w-full overflow-hidden bg-[#1B1F3A]", className)} style={{ containerType: "inline-size" }}>
+      <canvas ref={canvasRef} width={LAYER_WIDTH / 2} height={LAYER_HEIGHT / 2} className="absolute inset-0 size-full" />
+      <span className="absolute inset-x-[4%] top-[76%] flex -translate-y-1/2 justify-center">
+        <span
+          className="flex flex-wrap justify-center gap-x-[0.26em] rounded-[0.3em] text-center leading-[1.15]"
+          style={{
+            fontFamily: `'${look.font}', system-ui, sans-serif`,
+            fontSize: classicFontSize(look.size),
+            fontWeight: 700,
+            color: look.color,
+            textShadow: extras.glow ? `0 0 0.35em ${look.color}, ${outline}` : outline,
+            ...(extras.background ? { backgroundColor: extras.background, padding: "0.2em 0.45em" } : {}),
+          }}
+        >
+          {words.map((word, index) => (
+            <span
+              key={index}
+              className="rounded-[0.22em]"
+              style={index === 1 ? { color: extras.box ? "#FFFFFF" : look.highlight, ...(extras.box ? { backgroundColor: extras.box, padding: "0 0.18em" } : {}) } : undefined}
+            >
+              {word}
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Every caption style as one radio group of preview tiles (`data-tour="caption-styles"`). Arrow keys move between
  * tiles; selecting one is the caption template.
  */
 export function CaptionStyleTiles({ options, value, onChange, disabled, className }: {
   options: readonly CaptionStyleOption[];
   value: string;
-  onChange: (template: FxCaptionTemplate) => void;
+  onChange: (template: string) => void;
   disabled?: boolean;
   className?: string;
 }) {
@@ -237,6 +315,7 @@ export function CaptionStyleTiles({ options, value, onChange, disabled, classNam
   const focusable = options.some((option) => option.id === value) ? value : options[0].id;
   const label = (option: CaptionStyleOption) => {
     const key = `animatedCaptions.templates.${option.id}`;
+    if (option.classic) return { name: option.name ?? option.id, description: option.description ?? "" };
     return {
       name: t.has(`${key}.name`) ? t(`${key}.name`) : option.name ?? option.id,
       description: t.has(`${key}.description`) ? t(`${key}.description`) : option.description ?? "",
@@ -255,9 +334,9 @@ export function CaptionStyleTiles({ options, value, onChange, disabled, classNam
   return (
     <div
       role="radiogroup"
-      aria-label={t("animatedCaptions.title")}
+      aria-label={t("captionStyle")}
       data-tour="caption-styles"
-      className={cn("grid grid-cols-3 gap-2", className)}
+      className={cn("grid grid-cols-3 gap-2 sm:grid-cols-5", className)}
     >
       {options.map((option, index) => {
         const checked = option.id === value;
@@ -284,13 +363,15 @@ export function CaptionStyleTiles({ options, value, onChange, disabled, classNam
                 checked && "ring-2 ring-foreground group-hover:ring-foreground",
               )}
             >
-              <CaptionStyleCanvas template={option.id} line={t("animatedCaptions.demoLine")} sticker={t("animatedCaptions.demoSticker")} />
+              {option.classic
+                ? <ClassicCaptionTile id={option.id} look={option.classic} line={t("animatedCaptions.demoLine")} />
+                : isFxTemplate(option.id) && <CaptionStyleCanvas template={option.id} line={t("animatedCaptions.demoLine")} sticker={t("animatedCaptions.demoSticker")} />}
               {checked && (
                 <span className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-foreground text-background shadow">
                   <Check className="size-3" />
                 </span>
               )}
-              {FX_NEEDS_FACE.has(option.id) && (
+              {isFxTemplate(option.id) && FX_NEEDS_FACE.has(option.id) && (
                 <span className="absolute bottom-1.5 left-1.5 flex size-5 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur" title={t("animatedCaptions.needsFace")}>
                   <ScanFace className="size-3" aria-hidden />
                   <span className="sr-only">{t("animatedCaptions.needsFace")}</span>

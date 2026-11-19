@@ -36,6 +36,11 @@ describe("EditIntensity", () => {
     render(<Harness onChange={onChange} />);
     fireEvent.click(screen.getByRole("radio", { name: /Bold/ }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold" });
+    // The switches wait behind "Fine-tune", which the tour points at.
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    const fineTune = screen.getByRole("button", { name: "Fine-tune" });
+    expect(fineTune.parentElement).toHaveAttribute("data-tour", "edit-options");
+    fireEvent.click(fineTune);
     for (const name of ["Sound effects", "Music", "Zooms", "Transitions", "Progress bar", "Loop ending"]) {
       expect(screen.getByRole("switch", { name })).toBeInTheDocument();
     }
@@ -45,12 +50,17 @@ describe("EditIntensity", () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold", progress_bar: true });
     fireEvent.click(screen.getByRole("switch", { name: "Music" }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_EDIT_STYLE, intensity: "bold", progress_bar: true, music: false });
+    // Closed again, the row still says two things are changed.
+    fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
+    expect(screen.getByRole("button", { name: /Fine-tune/ })).toHaveTextContent("2");
+    fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
     // The mood picker belongs to music.
     expect(screen.queryByRole("combobox", { name: "Music mood" })).not.toBeInTheDocument();
   });
 
   it("offers GIF reactions when the server can serve them", () => {
     render(<Harness initial={{ ...DEFAULT_EDIT_STYLE, intensity: "subtle" }} info={{ ...INFO, reactions_available: true }} />);
+    fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
     expect(screen.getByRole("switch", { name: "GIF reactions" })).not.toBeChecked();
     expect(screen.getByRole("combobox", { name: "Music mood" })).toHaveTextContent("Match the video");
     expect(screen.getByRole("combobox", { name: "Swearing" })).toHaveTextContent("Bleep and cover mouth");
@@ -60,6 +70,7 @@ describe("EditIntensity", () => {
     const full = parseEditStylesInfo({ ...INFO, music_moods: [...MOODS] });
     expect(full.music_moods).toContain("aggressive");
     render(<Harness initial={{ ...DEFAULT_EDIT_STYLE, intensity: "bold", music_mood: "aggressive" }} info={full} />);
+    fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
     expect(screen.getByRole("combobox", { name: "Music mood" })).toHaveTextContent("Aggressive");
   });
 

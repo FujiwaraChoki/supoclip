@@ -57,7 +57,7 @@
     },
     "sound": {
       "title": "Suara, musik, dan kata kasar",
-      "body": "Efek suara jatuh di potongan dan momen di layar, tidak pernah di obrolan biasa. Musik hadir dalam tujuh suasana, dari santai sampai agresif: biarkan di “Sesuai video” dan AI memilih yang cocok, atau pilih sendiri. Kata kasar disensor dengan bunyi bip dan ditampilkan sebagai f*** di teks. Setelah edit aktif, semuanya punya sakelar di sini."
+      "body": "Efek suara jatuh di potongan dan momen di layar, tidak pernah di obrolan biasa. Musik hadir dalam tujuh suasana, dari santai sampai agresif: biarkan di “Sesuai video” dan AI memilih yang cocok, atau pilih sendiri. Kata kasar disensor dengan bunyi bip dan ditampilkan sebagai f*** di teks. Setelah edit aktif, semuanya punya sakelar di “Atur detail”."
     },
     "captions": {
       "title": "Gaya teks animasi",

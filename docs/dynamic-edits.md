@@ -33,15 +33,19 @@ Open **Settings** in the composer:
     light leak at a real cut.
   - At every intensity zooms are reframes that hold, transitions happen only at real cuts, sound effects land only
     on visual events, the music is a steady bed and the clip ends at −14 LUFS ([Effects](#effects)).
-  - Once it's on, switches turn off what you don't want: sound effects, music (and its mood: Auto lets the AI pick
+  - Once it's on, **Fine-tune** (closed until you open it; a number on it counts what you changed) holds the
+    switches that turn off what you don't want: sound effects, music (and its mood: Auto lets the AI pick
     one of seven, or pick aggressive, hype, chill, dramatic, inspiring, funny or dark yourself), zooms, transitions,
     the swearing treatment (leave, bleep, bleep and cover the mouth with a bar, bleep and pixelate the mouth; the
     captions show a bleeped word as `f***`), a progress bar, a loop ending, and GIF reactions where the server
     offers them. Camera shake, speed ramps and
     freezes and the "Wait for it" sticker are never placed automatically (no reference edit uses them); their stored
     settings stay valid and hand-made cues of those kinds still render.
-- **Captions** tab: an **Animated** group with the [three styles](#animated-caption-styles). Each tile is the
-  real renderer drawing the Bold look over a demo scene. An animated style works with intensity Off too ("style
+  - B-roll, where the server offers it, is a switch under the intensity cards and works at any intensity, Off included.
+- **Captions** tab: one grid of preview tiles, the classic styles first and then the
+  [three animated styles](#animated-caption-styles). An animated tile is the real renderer drawing the Bold look
+  over a demo scene; a classic tile is a still in the style's own font and colours. Font, size and colour sit
+  behind **Customize**. An animated style works with intensity Off too ("style
   only"): the captions are drawn with the Bold look and nothing else changes.
 
 The create screen remembers the choice on your account. If dynamic edits aren't available to you (flag off,
@@ -620,7 +624,7 @@ ending and transitions).
 
 | Symptom | Check |
 |---|---|
-| No Edits tab or Animated styles | `GET /tasks/edit-styles` → `enabled`. The flag must be on for the platform (or the user an admin with bypass) |
+| No Edits tab or animated caption styles | `GET /tasks/edit-styles` → `enabled`. The flag must be on for the platform (or the user an admin with bypass) |
 | 403 `DYNAMIC_EDITS_NOT_AVAILABLE` | The flag is off for this platform and the request turns effects on |
 | Clips render but say "simplified" | `fx_render_failed` in PostHog: its `stage` says where. `p2`/`setup` usually means deno or the napi cache: run `deno task selftest` on that machine |
 | Every render falls to safe | `FX_RUNTIME=off`, deno missing, or the image was built without the baked `DENO_DIR` cache |

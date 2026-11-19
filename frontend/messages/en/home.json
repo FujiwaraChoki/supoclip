@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",
+  "cleanupMore": "More options",
   "shortenPauses": "Shorten long pauses",
   "shortenPausesHint": "Trim silences longer than this down to a short breath",
   "pauseThreshold": "Pause threshold (ms)",
-  "milliseconds": "milliseconds",
   "removeFillers": "Remove filler words",
   "removeFillersHint": "“um”, “uh”, “erm” and similar sounds",
   "extraWords": "Extra words or phrases to cut",
@@ -430,11 +430,11 @@
       "bleep": "Bleep",
       "bleep_bar": "Bleep and cover mouth",
       "bleep_pixelate": "Bleep and pixelate mouth"
-    }
+    },
+    "fineTune": "Fine-tune"
   },
   "animatedCaptions": {
     "title": "Animated",
-    "body": "Drawn frame by frame on top of your video.",
     "demoLine": "Our revenue grew 300% in just one year",
     "demoSticker": "No way!",
     "needsFace": "Best with a face on camera",

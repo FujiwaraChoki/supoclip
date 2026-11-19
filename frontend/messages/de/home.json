@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Clip-Bereinigung",
   "cleanupBody": "Kürzt Leerlauf und schneidet Fülllaute beim Rendern heraus.",
+  "cleanupMore": "Weitere Optionen",
   "shortenPauses": "Lange Pausen kürzen",
   "shortenPausesHint": "Kürzt Stille, die länger ist als das, auf einen kurzen Atemzug",
   "pauseThreshold": "Pausenschwelle (ms)",
-  "milliseconds": "Millisekunden",
   "removeFillers": "Füllwörter entfernen",
   "removeFillersHint": "„ähm“, „äh“, „hm“ und ähnliche Laute",
   "extraWords": "Weitere Wörter oder Sätze zum Schneiden",
@@ -430,11 +430,11 @@
       "bleep": "Piepen",
       "bleep_bar": "Piepen und Mund abdecken",
       "bleep_pixelate": "Piepen und Mund verpixeln"
-    }
+    },
+    "fineTune": "Feinabstimmung"
   },
   "animatedCaptions": {
     "title": "Animiert",
-    "body": "Bild für Bild über dein Video gezeichnet.",
     "demoLine": "Unser Umsatz wuchs in nur einem Jahr um 300%",
     "demoSticker": "Krass!",
     "needsFace": "Am besten mit einem Gesicht vor der Kamera",

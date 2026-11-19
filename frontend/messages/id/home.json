@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Pembersihan clip",
   "cleanupBody": "Rapatkan jeda kosong dan potong suara pengisi saat render.",
+  "cleanupMore": "Opsi lainnya",
   "shortenPauses": "Perpendek jeda panjang",
   "shortenPausesHint": "Potong keheningan yang lebih lama dari ini jadi napas pendek",
   "pauseThreshold": "Ambang jeda (md)",
-  "milliseconds": "milidetik",
   "removeFillers": "Hapus kata pengisi",
   "removeFillersHint": "“um”, “uh”, “erm”, dan suara serupa",
   "extraWords": "Kata atau frasa tambahan untuk dipotong",
@@ -430,11 +430,11 @@
       "bleep": "Bip",
       "bleep_bar": "Bip dan tutup mulut",
       "bleep_pixelate": "Bip dan piksel mulut"
-    }
+    },
+    "fineTune": "Atur detail"
   },
   "animatedCaptions": {
     "title": "Animasi",
-    "body": "Digambar per frame di atas videomu.",
     "demoLine": "Seluruh omzet kami naik 300% hanya dalam setahun",
     "demoSticker": "Masa sih!",
     "needsFace": "Paling bagus dengan wajah di kamera",

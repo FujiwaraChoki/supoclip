@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "片段清理",
   "cleanupBody": "渲染时收紧空白，并切掉填充音。",
+  "cleanupMore": "更多选项",
   "shortenPauses": "缩短长停顿",
   "shortenPausesHint": "把长于这个时间的静音剪到一次短呼吸",
   "pauseThreshold": "停顿阈值（毫秒）",
-  "milliseconds": "毫秒",
   "removeFillers": "移除填充词",
   "removeFillersHint": "“嗯”、“呃”、“啊”和类似的声音",
   "extraWords": "额外要剪掉的词或短语",
@@ -430,11 +430,11 @@
       "bleep": "哔声",
       "bleep_bar": "哔声并遮住嘴",
       "bleep_pixelate": "哔声并给嘴打码"
-    }
+    },
+    "fineTune": "微调"
   },
   "animatedCaptions": {
     "title": "动画",
-    "body": "逐帧绘制在你的视频上。",
     "demoLine": "我们的 收入 在 短短 一年 里 增长了 300%",
     "demoSticker": "不会吧！",
     "needsFace": "画面中有人脸时效果最好",

@@ -859,6 +859,7 @@ describe("dynamic edits", () => {
     expect(within(group).getByRole("radio", { name: /Off/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("switch", { name: "Sound effects" })).not.toBeInTheDocument();
     pick(/Bold/);
+    fireEvent.click(screen.getByRole("button", { name: "Fine-tune" }));
     fireEvent.click(screen.getByRole("switch", { name: "Music" }));
     expect(settingsChip()).toHaveAccessibleName(/Bold/);
     fireEvent.change(urlInput(), { target: { value: LINK } });
@@ -878,12 +879,17 @@ describe("dynamic edits", () => {
   it("offers animated caption styles as live tiles, and sends the one picked", async () => {
     await renderWithEdits();
     openSection(/Captions/);
-    const tiles = screen.getByRole("radiogroup", { name: "Animated" });
+    // One list: the classic styles first, then the animated ones.
+    const tiles = screen.getByRole("radiogroup", { name: "Caption style" });
     expect(tiles).toHaveAttribute("data-tour", "caption-styles");
-    expect(within(tiles).getAllByRole("radio")).toHaveLength(9);
-    // The animated ids never show in the classic list.
-    const classic = screen.getByRole("radiogroup", { name: "Caption style" });
-    expect(within(classic).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([expect.stringContaining("Default"), expect.stringContaining("MrBeast")]);
+    const names = within(tiles).getAllByRole("radio").map((radio) => radio.getAttribute("aria-label"));
+    expect(names).toHaveLength(11);
+    expect(names.slice(0, 2)).toEqual(["Default", "MrBeast"]);
+    expect(screen.getAllByRole("radiogroup", { name: "Caption style" })).toHaveLength(1);
+    // Font and colour stay folded away until asked for.
+    expect(screen.queryByText("Color")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    expect(screen.getByText("Color")).toBeInTheDocument();
     fireEvent.click(within(tiles).getByRole("radio", { name: "Slam" }));
     expect(within(tiles).getByRole("radio", { name: "Slam" })).toHaveAttribute("aria-checked", "true");
     expect(settingsChip()).toHaveAccessibleName(/Slam/);
@@ -901,7 +907,7 @@ describe("dynamic edits", () => {
     openSettings();
     expect(screen.queryByRole("tab", { name: /Edits/ })).not.toBeInTheDocument();
     openSection(/Captions/);
-    expect(screen.queryByRole("radiogroup", { name: "Animated" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("radiogroup", { name: "Caption style" })).queryByRole("radio", { name: "Slam" })).not.toBeInTheDocument();
     expect(templateRequests.every((url) => !url.includes("include"))).toBe(true);
   });
 
@@ -929,10 +935,23 @@ describe("dynamic edits", () => {
     });
   }
 
+  it("keeps the two cleanup switches up front and the fine print behind More options", async () => {
+    await renderWithEdits();
+    openSection(/Cleanup/);
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    expect(screen.queryByLabelText("Pause threshold (ms)")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    fireEvent.change(screen.getByLabelText("Pause threshold (ms)"), { target: { value: "800" } });
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(body.pause_threshold_ms).toBe(800);
+  });
+
   it("saves the edit style and brings it back", async () => {
     await renderWithEdits();
     openSection(/Edits/);
     pick(/Max/);
+    fireEvent.click(screen.getByRole("button", { name: "Fine-tune" }));
     fireEvent.click(screen.getByRole("switch", { name: "Sound effects" }));
     await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
     expect(settingsSaves[settingsSaves.length - 1].createSettings.editStyle).toEqual({ intensity: "max", sfx: false });
@@ -944,6 +963,9 @@ describe("dynamic edits", () => {
     await renderWithEdits();
     openSection(/Edits/);
     expect(screen.getByRole("radio", { name: /Subtle/ })).toHaveAttribute("aria-checked", "true");
+    // The folded row says one thing is changed; opened, it is the progress bar.
+    expect(screen.getByRole("button", { name: /Fine-tune/ })).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
     expect(screen.getByRole("switch", { name: "Progress bar" })).toBeChecked();
     fireEvent.change(urlInput(), { target: { value: LINK } });
     expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "subtle", progress_bar: true });

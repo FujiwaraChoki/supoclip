@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { useTranslations } from "next-intl";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Disclosure } from "@/components/disclosure";
 import { Switch } from "@/components/ui/switch";
 import { INTENSITIES, type Censor, type EditStyle, type Intensity } from "@/lib/fx/core/types";
 import { CENSORS, EDIT_STYLES_UNAVAILABLE, fetchEditStylesInfo, type EditStylesInfo } from "@/lib/fx/edit-style-request";
@@ -96,22 +97,28 @@ const BOOL_OPTIONS = {
   retention: ["progress_bar", "loop_ending"],
 } as const;
 
+const FINE_TUNE_KEYS = [...Object.values(BOOL_OPTIONS).flat(), "reactions", "censor", "music_mood"] as const;
+
 /**
  * Intensity as four radio cards (`data-tour="edit-intensity"`) and, once edits are on, the switches for what they use
- * (`data-tour="edit-options"`, on the "turn edits on" hint while they are off).
+ * behind "Fine-tune", closed until asked for (`data-tour="edit-options"`, on the "turn edits on" hint while they are off).
  * Off sends nothing new: the request stays exactly what it was before dynamic edits.
  */
-export function EditIntensity({ value, onChange, info, disabled }: {
+export function EditIntensity({ value, onChange, info, disabled, children }: {
   value: EditStyle;
   onChange: (style: EditStyle) => void;
   info: EditStylesInfo;
   disabled?: boolean;
+  /** Rows that belong with the edits but work at any intensity (B-roll), shown under the cards. */
+  children?: ReactNode;
 }) {
   const t = useTranslations("home");
   const cards = useRef(new Map<Intensity, HTMLButtonElement>());
   const intensities = INTENSITIES.filter((level) => info.intensities.includes(level));
   const set = <K extends keyof EditStyle>(key: K, next: EditStyle[K]) => onChange({ ...value, [key]: next });
   const active = value.intensity !== "off";
+  const [fineTune, setFineTune] = useState(false);
+  const tuned = FINE_TUNE_KEYS.filter((key) => (key !== "reactions" || info.reactions_available) && value[key] !== info.defaults[key]).length;
 
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
@@ -181,8 +188,11 @@ export function EditIntensity({ value, onChange, info, disabled }: {
         })}
       </div>
 
+      {children}
+
       {active ? (
-        <div className="space-y-4" data-tour="edit-options">
+        <Disclosure label={t("edits.fineTune")} count={tuned} open={fineTune} onOpenChange={setFineTune} data-tour="edit-options" className="border-t pt-2">
+        <div className="space-y-4">
           <section aria-labelledby="edits-sound">
             <p id="edits-sound" className="text-xs font-medium text-muted-foreground">{t("edits.groups.sound")}</p>
             <div className="divide-y">
@@ -220,6 +230,7 @@ export function EditIntensity({ value, onChange, info, disabled }: {
             </div>
           </section>
         </div>
+        </Disclosure>
       ) : (
         <p data-tour="edit-options" className="rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">{t("edits.offHint")}</p>
       )}

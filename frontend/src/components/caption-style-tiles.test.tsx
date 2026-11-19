@@ -40,11 +40,28 @@ afterEach(() => {
 });
 
 describe("CaptionStyleTiles", () => {
+  it("lists classic styles in the same group, drawn from their own font and colours", () => {
+    stubMotion(true);
+    const onChange = vi.fn();
+    const classic = { font: "THEBOLDFONT", size: 32, color: "#FFFFFF", highlight: "#00FF66" };
+    render(<CaptionStyleTiles options={[{ id: "hormozi", name: "Hormozi", description: "Green pill", classic }, { id: "slam" }]} value="hormozi" onChange={onChange} />);
+    const group = screen.getByRole("radiogroup", { name: "Caption style" });
+    expect(group.querySelectorAll('[role="radio"]')).toHaveLength(2);
+    const tile = screen.getByRole("radio", { name: "Hormozi" });
+    expect(tile).toHaveAttribute("aria-checked", "true");
+    expect(tile).toHaveAccessibleDescription("Green pill");
+    // Its sample is the demo line in the style's case, not an fx-core scene.
+    expect(tile).toHaveTextContent("OURREVENUEGREW");
+    expect(rendered.calls.every((call) => call.template === "slam")).toBe(true);
+    fireEvent.keyDown(tile, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenLastCalledWith("slam");
+  });
+
   it("is a radio group of named tiles the tour can point at", () => {
     stubMotion(true);
     const onChange = vi.fn();
     render(<CaptionStyleTiles options={OPTIONS} value="behind_head" onChange={onChange} />);
-    const group = screen.getByRole("radiogroup", { name: "Animated" });
+    const group = screen.getByRole("radiogroup", { name: "Caption style" });
     expect(group).toHaveAttribute("data-tour", "caption-styles");
     expect(screen.getByRole("radio", { name: "Behind Head" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: "Slam" })).toHaveAttribute("aria-checked", "false");
