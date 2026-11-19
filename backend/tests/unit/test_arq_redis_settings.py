@@ -14,7 +14,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from src.workers.ai_worker import AIWorkerSettings
 from src.workers.cron_worker import CronWorkerSettings
 from src.workers.job_queue import _get_redis_settings
-from src.workers.redis_settings import arq_redis_settings
+from src.workers.redis_settings import arq_redis_settings, arq_socket_options, use_socket_options
 from src.workers.tasks import WorkerSettings
 
 
@@ -129,3 +129,127 @@ def test_arq_defaults_would_have_raised():
     default = RedisSettings()
     assert default.conn_timeout == 1
     assert default.retry_on_timeout is False and default.retry is None
+
+
+class _BlackholeProxy:
+    """TCP proxy to Redis whose open connections can go silent, the way a
+    tunnel's do when Redis restarts behind it: no data, no close."""
+
+    def __init__(self, port):
+        self.port = port
+        self.silent = set()
+        self._open = set()
+        self.server = None
+
+    async def start(self):
+        self.server = await asyncio.start_server(self._serve, "127.0.0.1", 0)
+        return self.server.sockets[0].getsockname()[1]
+
+    def go_silent(self):
+        self.silent.update(self._open)
+
+    async def _serve(self, client_reader, client_writer):
+        upstream_reader, upstream_writer = await asyncio.open_connection("127.0.0.1", self.port)
+        key = object()
+        self._open.add(key)
+
+        async def pipe(reader, writer):
+            while data := await reader.read(65536):
+                if key in self.silent:
+                    await asyncio.Event().wait()
+                writer.write(data)
+                await writer.drain()
+
+        try:
+            await asyncio.gather(pipe(client_reader, upstream_writer), pipe(upstream_reader, client_writer))
+        except (ConnectionError, asyncio.CancelledError):
+            pass
+        finally:
+            client_writer.close()
+            upstream_writer.close()
+
+    async def close(self):
+        self.server.close()
+
+
+def _config(**overrides):
+    from src.config import Config
+
+    config = Config()
+    for name, value in overrides.items():
+        setattr(config, name, value)
+    return config
+
+
+async def _run_startup(name, pool, monkeypatch):
+    if name == "video worker":
+        import src.workers.tasks as tasks
+
+        async def nothing(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr(tasks, "check_media_volume", nothing)
+        monkeypatch.setattr(tasks, "_maintain_scratch_forever", nothing)
+        ctx = {"redis": pool}
+        await WorkerSettings.on_startup(ctx)
+        await ctx["scratch_maintenance"]
+    elif name == "cron worker":
+        await CronWorkerSettings.on_startup({"redis": pool})
+    else:
+        await AIWorkerSettings.on_startup({"redis": pool})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["video worker", "cron worker", "ai worker", "enqueue"])
+async def test_every_arq_process_bounds_reads_and_keeps_connections_alive(name, monkeypatch):
+    """A connection that dies silently must not hang the worker's poll."""
+    from src.workers.job_queue import JobQueue
+
+    if name == "enqueue":
+        monkeypatch.setattr(JobQueue, "_pool", None)
+        pool = await JobQueue.get_pool()
+    else:
+        pool = await create_pool(_all_settings()[name])
+        await _run_startup(name, pool, monkeypatch)
+    try:
+        kwargs = pool.connection_pool.connection_kwargs
+        assert 0 < kwargs.get("socket_timeout", 0) <= 60
+        assert kwargs.get("socket_keepalive") is True
+        await pool.ping()
+        connection = next(iter(pool.connection_pool._available_connections))
+        assert connection.socket_timeout == kwargs["socket_timeout"]
+    finally:
+        await pool.aclose()
+        monkeypatch.setattr(JobQueue, "_pool", None)
+
+
+def test_socket_timeout_comes_from_the_environment(monkeypatch):
+    from src.config import Config
+
+    monkeypatch.setenv("REDIS_SOCKET_TIMEOUT_SECONDS", "45")
+    assert arq_socket_options(Config())["socket_timeout"] == 45
+    monkeypatch.setenv("REDIS_SOCKET_TIMEOUT_SECONDS", "nonsense")
+    assert arq_socket_options(Config())["socket_timeout"] == 30
+    monkeypatch.setenv("REDIS_SOCKET_TIMEOUT_SECONDS", "0")
+    assert arq_socket_options(Config())["socket_timeout"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_silently_dead_connection_times_out_and_reconnects():
+    """Redis restarted behind a tunnel: the pooled connection stays open but
+    nothing comes back. The worker's next poll must give up and reconnect
+    instead of waiting until the OS drops the socket."""
+    config = _config()
+    proxy = _BlackholeProxy(config.redis_port)
+    proxied = _config(redis_host="127.0.0.1", redis_port=await proxy.start(), redis_socket_timeout_seconds=1)
+    pool = await create_pool(arq_redis_settings(proxied))
+    try:
+        await use_socket_options(pool, proxied)
+        await pool.zadd("arq-dead-conn-probe", {"job": 1})
+        proxy.go_silent()
+        found = await asyncio.wait_for(pool.zrangebyscore("arq-dead-conn-probe", 0, 2), 15)
+        assert found == [b"job"]
+    finally:
+        await pool.delete("arq-dead-conn-probe")
+        await pool.aclose()
+        await proxy.close()

@@ -172,6 +172,11 @@ class Config:
         self.redis_connect_retries = max(
             0, self._get_int_env("REDIS_CONNECT_RETRIES", 5)
         )
+        # A reply slower than this means the connection is dead (e.g. Redis
+        # restarted behind a tunnel); arq connections then reconnect and retry.
+        self.redis_socket_timeout_seconds = max(
+            1, self._get_int_env("REDIS_SOCKET_TIMEOUT_SECONDS", 30)
+        )
 
         # Fail-safe: queued tasks should not stay queued forever
         self.queued_task_timeout_seconds = int(

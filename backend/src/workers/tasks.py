@@ -310,6 +310,9 @@ async def _maintain_scratch_forever() -> None:
 async def on_worker_startup(ctx: Dict[str, Any]) -> None:
     import asyncio
 
+    from .redis_settings import use_socket_options
+
+    await use_socket_options(ctx["redis"])
     await check_media_volume(ctx["redis"])
     hold = overflow.overflow_after_seconds()
     if hold:

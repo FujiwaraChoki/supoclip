@@ -29,7 +29,7 @@ from ..observability import configure_logging  # noqa: E402
 from ..cancellation_reviews.runner import process_cancellation_reviews  # noqa: E402
 from ..feedback.delivery import deliver_feedback_webhooks  # noqa: E402
 from .media_cleanup import cleanup_media, copy_pending_uploads, sweep_orphaned_media  # noqa: E402
-from .redis_settings import arq_redis_settings  # noqa: E402
+from .redis_settings import arq_redis_settings, on_arq_startup  # noqa: E402
 from .media_replication import check_media_storage, replicate_pending_media  # noqa: E402
 from .tasks import (  # noqa: E402
     dispatch_scheduled_social_posts,
@@ -52,6 +52,7 @@ class CronWorkerSettings:
     functions = []
     queue_name = CRON_QUEUE_NAME
     redis_settings = arq_redis_settings(config)
+    on_startup = on_arq_startup
     max_jobs = 4
     max_tries = 1
     job_timeout = 3600

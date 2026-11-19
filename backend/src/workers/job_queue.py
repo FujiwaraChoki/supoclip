@@ -7,7 +7,7 @@ from typing import Optional
 from arq import create_pool
 from arq.connections import RedisSettings, ArqRedis
 from ..config import get_config
-from .redis_settings import arq_redis_settings
+from .redis_settings import arq_redis_settings, use_socket_options
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,9 @@ class JobQueue:
         """Get or create the Redis connection pool."""
         if cls._pool is None:
             config = get_config()
-            cls._pool = await create_pool(_get_redis_settings())
+            pool = await create_pool(_get_redis_settings())
+            await use_socket_options(pool, config)
+            cls._pool = pool
             logger.info(
                 f"Created arq Redis pool: {config.redis_host}:{config.redis_port}"
             )

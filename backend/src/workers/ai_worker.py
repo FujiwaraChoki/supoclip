@@ -16,7 +16,7 @@ from arq.worker import func  # noqa: E402
 
 from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
-from .redis_settings import arq_redis_settings  # noqa: E402
+from .redis_settings import arq_redis_settings, on_arq_startup  # noqa: E402
 from ..services.ai_edit_service import (  # noqa: E402
     AI_EDIT_QUEUE,
     AI_EDIT_TIMEOUT_SECONDS,
@@ -32,6 +32,7 @@ class AIWorkerSettings:
     functions = [func(ai_edit_job, timeout=AI_EDIT_TIMEOUT_SECONDS * 3, max_tries=1, keep_result=0)]
     queue_name = AI_EDIT_QUEUE
     redis_settings = arq_redis_settings(config)
+    on_startup = on_arq_startup
     # Jobs are network-bound (Claude, Pexels search), so many can run at once.
     max_jobs = 16
     health_check_interval = 30
