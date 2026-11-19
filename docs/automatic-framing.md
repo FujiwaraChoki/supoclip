@@ -44,11 +44,34 @@ instead (layout kind `interview`, logged as `Interview layout`):
 - **pair**: two people of similar size, side by side, too far apart for one
   crop. Each gets a face-centred 1080×960 panel (face about a third of the
   panel, eyes near its upper third), stacked with the left-hand person on top.
+  Three or four people in a row (a table, a booth, friends walking) are divided
+  at the widest gap between them: the left-hand people share the top panel and
+  the right-hand people the bottom one (reason `group`), so everyone is on
+  screen once and the frame is full. A panel on someone at the frame edge stops
+  at the neighbour's face. A face the frame itself cuts off is not a second
+  person, and a third face seen in under three quarters of the shot (a
+  passer-by) is left out when the row cannot be divided with it.
 - **single**: one person, or two close enough to share a crop. A tight
   head-and-shoulders 9:16 crop (face about a quarter of the frame height).
-- **fit**: no usable subject (b-roll, aerials, a crowd of three or more) or an
-  on-screen paragraph (a tweet, a document, an explainer graphic: two or more
-  aligned lines of text, which book spines and foliage rarely form).
+- **cover**: live footage without a close subject (a plate of food, a product,
+  a street, a distant figure). A still full-height 9:16 crop on a steady face,
+  however small, or else on the picture's subject (`focus_center`: edges and
+  saturated colour per column, weighted towards the middle). The layout report
+  lists it as `single` with reason `cover`. "Live" means the shot moves (the
+  scene plan's motion thresholds, or a mean frame change of 10 where a whip pan
+  defeats the motion measurement) and shows a paragraph in at most 35 % of its
+  samples.
+- **fit**: an on-screen paragraph (a tweet, a document, an explainer graphic:
+  two or more aligned lines of text, which book spines and foliage rarely
+  form), a still picture without people (a chart, a screenshot), five or more
+  people, or a group that is not a row (a call grid, faces of very different
+  size). A paragraph in a handheld shot of people is a sign behind them, not a
+  graphic: the people are composed as usual.
+
+People are face clusters that follow their person through a pan, and two
+clusters that never appear together a face width or so apart are one person
+who moved. A person needs two samples; a pair needs both people on screen
+together in 30 % of the shot.
 
 Crops follow their face with the tracked crop's dead-zoned spring (still on a
 tripod, followed when handheld), never enlarge the source more than 2.25×
@@ -62,7 +85,8 @@ are on screen also divides a shot. The graph decodes the source once: each
 composition `trim`s its own time range and the pieces are joined with
 `concat`, so the stored plan replays in the studio like any other.
 
-It takes over only when a clip has at least 1.5 s of such a two-shot, after the
+It takes over only when a clip has at least 1.5 s of a real two-shot (a divided
+group does not count: a three-host podcast keeps speaker framing), after the
 reaction layout. Two low faces side by side with nothing else (webcam tiles)
 keep the call stack. Clips without a two-shot (single talking heads, slides,
 sports) keep the policy above. Diarized speaker cuts are not used in an

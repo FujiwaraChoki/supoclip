@@ -390,3 +390,165 @@ def test_opening_on_a_two_shot_moves_the_hook_title_to_the_panel_seam():
     assert plan(INTERVIEW, [5, 9, 14], 18)["hook_center_y"] == interview_layout.PAIR_SEAM_Y
     close_first = [(0, 5, [CLOSE]), (5, 9, [HOST, GUEST]), (9, 14, [CLOSE])]
     assert "hook_center_y" not in plan(close_first, [5, 9], 14)
+
+
+# --- Vlog footage: groups, b-roll and stray detections (three hosts, handheld, food inserts) ---
+
+LEFT = (180.0, 230.0, 200.0, 250.0)       # three friends at a table, across the whole frame
+MIDDLE = (940.0, 270.0, 150.0, 185.0)
+RIGHT = (1400.0, 180.0, 200.0, 250.0)
+PAIR_SHOT = (0, 4, [HOST, GUEST])
+
+
+def live(shots, **evidence):
+    """``samples`` for moving footage: every context sample measures motion (and ``evidence``)."""
+    faces, context = samples(shots)
+    values = {"motion": 0.1, **evidence}
+    return faces, [replace(e, **values) for e in context]
+
+
+def panel_crops(graph, index):
+    found = re.search(
+        rf"\[c{index}t\]crop=(\d+):(\d+):x=(\d+):y=(\d+).*?\[c{index}b\]crop=(\d+):(\d+):x=(\d+):y=(\d+)", graph)
+    return tuple(map(int, found.groups()))
+
+
+def test_three_people_in_a_row_are_divided_into_two_panels():
+    # Was a letterboxed full frame (reason "group"): a third of the output height, the rest blur.
+    result = plan([PAIR_SHOT, (4, 10, [LEFT, MIDDLE, RIGHT])], [4], 10)
+    group = result["segments"][1]
+    assert (group["kind"], group["reason"]) == ("pair", "group")
+    assert "gblur" not in result["video_filter"]
+    tw, th, tx, ty, bw, bh, bx, by = panel_crops(result["video_filter"], 1)
+    # The widest gap is left of the middle person: the left one is alone on top, the other two share the bottom.
+    assert tx <= LEFT[0] and LEFT[0] + LEFT[2] <= tx + tw < MIDDLE[0]
+    assert bx <= MIDDLE[0] and RIGHT[0] + RIGHT[2] <= bx + bw
+    assert bx > LEFT[0] + LEFT[2]
+    for w, h, x, y in ((tw, th, tx, ty), (bw, bh, bx, by)):
+        assert abs(w / h - 9 / 8) < 0.01 and w % 2 == h % 2 == 0
+        assert 0 <= x and x + w <= W and 0 <= y and y + h <= H
+    # Captions and the hook title treat it like any stacked two-shot.
+    assert [s["kind"] for s in result["segments"]] == ["pair", "pair"]
+
+
+def test_a_group_alone_does_not_make_the_clip_an_interview():
+    # A three-host podcast or a call gallery keeps speaker framing and the gallery layouts.
+    assert plan([(0, 10, [LEFT, MIDDLE, RIGHT])], [5], 10) is None
+
+
+def test_a_call_grid_and_a_crowd_keep_the_whole_frame():
+    grid = [(300.0, 150.0, 160.0, 200.0), (1300.0, 150.0, 160.0, 200.0),
+            (300.0, 690.0, 160.0, 200.0), (1300.0, 690.0, 160.0, 200.0)]
+    crowd = [(100.0 + 350 * i, 250.0, 150.0, 190.0) for i in range(5)]
+    for people in (grid, crowd):
+        result = plan([PAIR_SHOT, (4, 10, people)], [4], 10)
+        assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("fit", "group")
+
+
+def test_a_passer_by_does_not_turn_two_people_into_a_group():
+    # The third face shows in half the samples and cannot share a panel: it is left out, not letterboxed.
+    stranger = (1700.0, 620.0, 150.0, 190.0)
+    shots = [PAIR_SHOT]
+    t = 4.0
+    while t < 10 - 1e-9:
+        nxt = round(t + 1 / FPS, 6)
+        shots.append((t, nxt, [HOST, GUEST] + ([stranger] if len(shots) % 2 else [])))
+        t = nxt
+    result = plan(shots, [4], 10)
+    assert [(s["kind"], s["reason"]) for s in result["segments"]] == [("pair", "two_people")] * 2
+
+
+def test_a_panel_at_the_frame_edge_stops_at_the_neighbours_face():
+    # A booth: the right-hand person sits against the frame edge, so their panel is pushed back towards the
+    # others. It must not show the middle person a second time.
+    edge = (1650.0, 150.0, 250.0, 330.0)
+    booth = [(250.0, 320.0, 180.0, 230.0), (820.0, 280.0, 160.0, 200.0), edge]
+    result = plan([PAIR_SHOT, (4, 10, booth)], [4], 10)
+    assert result["segments"][1]["reason"] == "group"
+    *_, bw, bh, bx, by = panel_crops(result["video_filter"], 1)
+    assert bx >= 820 + 160 and bx + bw <= W
+
+
+def test_moving_b_roll_fills_the_frame_and_a_still_picture_does_not():
+    shots = [PAIR_SHOT, (4, 8, [])]
+    faces, context = live(shots, focus_center=0.42)
+    result = plan_interview_layout(W, H, 8, [4], faces, context)
+    # Reported as a frame-filling crop, so captions sit where they do on a close-up.
+    assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("single", "cover")
+    assert "gblur" not in result["video_filter"]
+    w, h, x, y = map(int, re.search(r"\[s1\]trim=start=4.000,crop=(\d+):(\d+):(\d+):(\d+)", result["video_filter"]).groups())
+    assert (w, h, y) == (606, 1080, 0)
+    assert abs((x + w / 2) / W - 0.42) < 0.01
+    # A chart or a screenshot does not move: the whole picture stays.
+    still = plan(shots, [4], 8)
+    assert (still["segments"][1]["kind"], still["segments"][1]["reason"]) == ("fit", "no_subject")
+    # A whip pan defeats the motion measurement but not the frame difference.
+    faces, context = samples(shots)
+    whip = plan_interview_layout(W, H, 8, [4], faces, [replace(e, difference=40.0) for e in context])
+    assert whip["segments"][1]["reason"] == "cover"
+
+
+def test_b_roll_showing_a_paragraph_keeps_the_whole_frame():
+    faces, context = live([PAIR_SHOT, (4, 8, [])])
+    context = [replace(e, text_block_lines=3) if e.time >= 4 and i % 2 else e for i, e in enumerate(context)]
+    result = plan_interview_layout(W, H, 8, [4], faces, context)
+    assert "cover" not in [s["reason"] for s in result["segments"]]
+
+
+def test_a_small_lone_face_in_live_footage_is_covered_around_it():
+    small = (1300.0, 300.0, 80.0, 100.0)
+    faces, context = live([PAIR_SHOT, (4, 8, [small])])
+    result = plan_interview_layout(W, H, 8, [4], faces, context)
+    assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("single", "cover")
+    w, x = map(int, re.search(r"\[s1\]trim=start=4.000,crop=(\d+):\d+:(\d+):", result["video_filter"]).groups())
+    assert abs(x + w / 2 - 1340) <= 6
+
+
+def test_one_stray_detection_does_not_make_a_two_shot():
+    # Two samples, a face in a different place in each: one person the camera swings past, not a pair.
+    faces, context = live([PAIR_SHOT, (4, 4.34, [(900.0, 270.0, 220.0, 280.0)]), (4.34, 4.67, [(400.0, 330.0, 220.0, 290.0)]),
+                           (4.67, 9, [CLOSE])])
+    result = plan_interview_layout(W, H, 9, [4, 4.67], faces, context)
+    assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("single", "cover")
+
+
+def test_a_face_cut_by_the_frame_edge_is_not_the_second_person_of_a_pair():
+    # Someone half out of shot beside the subject: a panel on them would show the subject twice.
+    partial = (0.0, 180.0, 290.0, 340.0)
+    subject = (760.0, 200.0, 300.0, 390.0)
+    result = plan([PAIR_SHOT, (4, 8, [partial, subject])], [4], 8)
+    assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("single", "one_person")
+    w, x = re.search(r"\[s1\]trim=start=4.000,crop=(\d+):\d+:x=(\d+)", result["video_filter"]).group(1, 2)
+    assert int(x) <= 760 and 1060 <= int(x) + int(w)
+
+
+def test_a_person_who_moves_along_is_still_one_person():
+    # Lost for a sample and found a face width further on: one cluster, so the three stay a group
+    # instead of dropping the mover (half support in each place).
+    moved = (LEFT[0] + 230, LEFT[1], LEFT[2], LEFT[3])
+    shots = [PAIR_SHOT, (4, 7, [LEFT, MIDDLE, RIGHT]), (7, 7.34, [MIDDLE, RIGHT]), (7.34, 10, [moved, MIDDLE, RIGHT])]
+    result = plan(shots, [4], 10)
+    assert [(s["start"], s["kind"], s["reason"]) for s in result["segments"]][1] == (4, "pair", "group")
+
+
+def test_a_sign_behind_people_in_a_handheld_shot_is_not_a_graphic():
+    shots = [PAIR_SHOT, (4, 8, [HOST, GUEST], "graphic")]
+    faces, context = samples(shots)
+    handheld = [replace(e, camera_motion=0.02) if e.time >= 4 else e for e in context]
+    result = plan_interview_layout(W, H, 8, [4], faces, handheld)
+    assert {s["kind"] for s in result["segments"]} == {"pair"}
+    # On a tripod the paragraph is a graphic laid over the interview, as before.
+    assert plan(shots, [4], 8)["segments"][-1]["reason"] == "graphic"
+
+
+def test_focus_centre_finds_the_dish_beside_the_middle():
+    frame = np.full((270, 480, 3), 120, np.uint8)
+    rng = np.random.default_rng(3)
+    dish = np.zeros((150, 120, 3), np.uint8)
+    dish[..., 1] = rng.integers(120, 255, (150, 120))   # saturated, textured
+    dish[..., 2] = 230
+    frame[60:210, 90:210] = dish
+    evidence = ContextAnalyzer().measure(frame, [], 0.0)
+    assert 0.25 <= evidence.focus_center <= 0.4
+    assert ContextAnalyzer().measure(np.full((270, 480, 3), 120, np.uint8), [], 0.0).focus_center == 0.5
+    assert SceneEvidence(0.0).focus_center == 0.5
