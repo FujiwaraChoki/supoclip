@@ -223,6 +223,10 @@ const EDITOR_ERROR_KEYS: Record<string, string> = {
   "Audio encoding is unavailable. Use background export.":
     "errors.audioEncodeUnavailable",
   "Export produced no video.": "errors.noVideo",
+  "Could not load B-roll footage. Use background export.": "errors.cannotLoadBroll",
+  "This browser cannot decode the B-roll. Use background export.": "errors.cannotDecodeBroll",
+  "This clip is too large to export on this device. Choose background export to render it on the server.":
+    "errors.tooLargeOnDevice",
   "The source video could not be fetched in full for this clip, so it was not opened with missing footage. Retry in a minute.":
     "errors.sourceIncomplete",
   "The original upload is shorter than this clip, so it cannot be opened for editing.":
@@ -235,6 +239,10 @@ const EDITOR_ERROR_KEYS: Record<string, string> = {
 export function editorStatus(t: Translate, status: string) {
   const key = EDITOR_STATUS_KEYS[status];
   return key ? t(key) : status;
+}
+
+export function isEditorMessage(message: string) {
+  return Object.hasOwn(EDITOR_ERROR_KEYS, message);
 }
 
 export function editorMessage(t: Translate, message: string) {
