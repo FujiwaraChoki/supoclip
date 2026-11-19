@@ -3,7 +3,7 @@
 Whenever a render runs the drawing stage, fx-core draws the title in the style of the clip's caption template (a
 white label that hugs each line, or big outlined type in the template's colours; ``HOOK_VARIANTS`` in ``hook.ts``),
 and the ASS layer carries no title. This module resolves what Python decides (the text as shown, the font, the marker colour,
-the look, the window and the layout hints); fx-core lays the card out and places it (clear of faces and captions).
+the look and the window); fx-core lays the title out and draws it at one fixed position, the same on every clip.
 Levels without the drawing stage (``FX_RUNTIME=off``, the safe and none levels) keep the libass title
 (``media.captions.build_hook_title_ass``).
 
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from .caption_rows import fit_picture_band, shot_runs
 from .caption_style import LOOKS, _hex6, look_accent
 from .contracts import FxCaptionStyle, FxHookTitle, LISTED_FX_CAPTION_TEMPLATES, caption_look_for
 
@@ -67,22 +66,9 @@ def hook_accent(template_id: str | None, look: str, caption: FxCaptionStyle | No
     return _hex6(template.get("emphasis_color") or template.get("highlight_color"), HOOK_DEFAULT_ACCENT)
 
 
-def opening_picture_band(interview_segments: Sequence[Any] | None, source_size: Sequence[float] | None,
-                         start: float) -> tuple[float, float] | None:
-    """The picture band of a letterboxed opening shot (the shot on screen when the title appears), else None."""
-    for shot_start, shot_end, kind in shot_runs(interview_segments or ()):
-        if shot_start <= start < shot_end or (shot_start > start and shot_start <= start + 1e-3):
-            if kind != "fit":
-                return None
-            band = fit_picture_band(source_size)
-            return (round(band[0], 4), round(band[1], 4)) if band and band[0] > 0 else None
-    return None
-
-
 def build_hook(title: str | None, *, template_id: str | None, look: str, font: str | None, accent: str,
                window: Sequence[float] | None, uppercase: bool = False, x: float = 0.0, y: float = 0.0,
-               scale: float = 1.0, trim: bool = False, picture: Sequence[float] | None = None,
-               avoid: Sequence[Sequence[float]] = ()) -> FxHookTitle | None:
+               scale: float = 1.0) -> FxHookTitle | None:
     """The scene's hook title, or None without a title or a window."""
     text = hook_text(title or "", template_id, uppercase)
     if not text or not window or float(window[1]) <= float(window[0]):
@@ -98,7 +84,4 @@ def build_hook(title: str | None, *, template_id: str | None, look: str, font: s
         x=max(-1.0, min(1.0, float(x))),
         y=max(-1.0, min(1.0, float(y))),
         scale=max(0.2, min(4.0, float(scale))),
-        trim=bool(trim),
-        picture=(float(picture[0]), float(picture[1])) if picture else None,
-        avoid=tuple((float(a), float(b)) for a, b in avoid),
     )

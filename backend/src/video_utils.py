@@ -977,31 +977,19 @@ def _fx_ladder_setup(
     return plan, duration, bleeps, caption_style, words, hook_window
 
 
-# Half the height kept clear around classic (libass) captions for the hook title card, as a share of the height.
-FX_ASS_CAPTION_HALF_BAND = 0.06
-
-
 def _fx_hook_title(hook_title: str, *, plan: "FxPlan", caption_template: str, template: Dict[str, Any],
-                   caption_style, font_family: Optional[str], window, plan_report: Dict[str, Any],
-                   src_size: Optional[Tuple[int, int]], ass_caption_y: Optional[float]):
+                   caption_style, font_family: Optional[str], window):
     """The hook title fx-core draws for a generated clip (``edit_fx.hook_title``)."""
     from .edit_fx.contracts import is_listed_fx_template
-    from .edit_fx.hook_title import build_hook, hook_accent, hook_look, opening_picture_band
+    from .edit_fx.hook_title import build_hook, hook_accent, hook_look
 
     look = hook_look(caption_template, plan.style.intensity, plan.sensitivity)
-    picture = None
-    if window and plan_report.get("kind") in ("interview", "compositor"):
-        picture = opening_picture_band(plan_report.get("interview_segments"), src_size, float(window[0]))
-    avoid = []
-    if ass_caption_y is not None:
-        y = float(ass_caption_y)
-        avoid.append((max(0.0, y - FX_ASS_CAPTION_HALF_BAND), min(1.0, y + FX_ASS_CAPTION_HALF_BAND)))
     return build_hook(
         hook_title, template_id=caption_template, look=look,
         # The listed styles' captions use the look's own font, whatever the task's font.
         font=None if is_listed_fx_template(caption_template) else (font_family or template.get("font_family")),
         accent=hook_accent(caption_template, look, caption_style, template),
-        window=window, uppercase=bool(template.get("uppercase")), trim=True, picture=picture, avoid=avoid,
+        window=window, uppercase=bool(template.get("uppercase")),
     )
 
 
@@ -1156,8 +1144,7 @@ def _render_fx_ladder(
             # A plan that only adds sound needs no drawing stage (P1 → P3 renders all of it), unless the clip has a
             # title: fx-core draws that, so every Dynamic edits clip gets the same title whatever else it has.
             mode = "full" if plan.draws or (hook_title and not plan.hook_title_suppressed) else "safe"
-            # With the drawing stage, fx-core draws the title (a card it places clear of faces and captions) and the
-            # ASS layer carries none; without it libass burns the title.
+            # With the drawing stage, fx-core draws the title (at one fixed position) and the ASS layer carries none; without it libass burns the title.
             fx_hook = mode == "full" and bool(hook_title) and not plan.hook_title_suppressed
             ass_hook = None if (fx_hook or plan.hook_title_suppressed) else hook_title
             full_ass = build_ass(
@@ -1170,9 +1157,6 @@ def _render_fx_ladder(
                 drawn_hook = _fx_hook_title(
                     hook_title, plan=plan, caption_template=caption_template, template=template,
                     caption_style=caption_style, font_family=font_family, window=hook_window,
-                    plan_report=plan_report, src_size=src_size,
-                    # Classic captions are burned by libass after the drawing stage: keep their band clear.
-                    ass_caption_y=report.get("caption_y") if (add_subtitles and not fx_template) else None,
                 )
             ok, result = chain(mode, plan, overlays, full_ass, ass_fonts)
             if not ok and overlays and _fx_stage(getattr(result, "error", None)) == "p1":

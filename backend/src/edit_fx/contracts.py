@@ -430,9 +430,6 @@ class FxHookTitle(_Strict):
     x: float = Field(default=0, ge=-1, le=1)   # studio offset from the automatic position (fractions of W and H)
     y: float = Field(default=0, ge=-1, le=1)
     scale: float = Field(default=1, ge=0.2, le=4)
-    trim: bool = False                      # automatic timing: may leave early at a camera cut
-    picture: Optional[tuple[float, float]] = None   # a letterboxed opening's picture band (top, bottom of H)
-    avoid: tuple[tuple[float, float], ...] = Field(default=(), max_length=8)   # bands other layers own (ASS captions)
 
 
 class FxWord(_Strict):

@@ -138,11 +138,11 @@ def test_full_level_draws_fx_captions_and_records_the_render(ladder):
     assert request.hook_window == (0.12, 4.0)
     assert [w["text"] for w in request.words] == ["We", "made", "money"]
     assert all("highlight" in w for w in request.words)
-    # fx-core draws the title (a card it places itself), so libass has nothing to burn.
+    # fx-core draws the title, so libass has nothing to burn.
     assert ladder.calls["ass"] == [] and render["subtitle_ass_path"] is None
     hook = request.hook
     assert (hook.text, hook.font, hook.look, hook.start, hook.end) == ("The craziest day", "TikTokSans-Bold", "bold", 0.12, 4.0)
-    assert hook.trim is True and hook.picture is None and hook.avoid == ()
+    assert hook.template == "marker_circle"
     # FX path: never Ken Burns in the plan.
     assert ladder.calls["plan"] == [{"allow_kenburns": False}]
     assert ladder.calls["events"][-1][0] == "fx_render"
@@ -461,7 +461,7 @@ def test_the_drawn_hook_title_follows_the_template_and_the_intensity(ladder):
     assert hook_of(fx_plan(template="slam", hook_title_suppressed=True), "slam") is None
 
 
-def test_classic_captions_keep_their_band_clear_of_the_drawn_hook_title(ladder):
+def test_classic_captions_are_burned_by_libass_under_the_drawn_hook_title(ladder):
     """A classic template with edits: libass burns the captions after the drawing stage, fx-core draws the title."""
     from src.edit_fx.contracts import ZoomCue
 
@@ -484,22 +484,28 @@ def test_classic_captions_keep_their_band_clear_of_the_drawn_hook_title(ladder):
     ass = ladder.calls["ass"][-1]["kwargs"]
     assert ass["include_captions"] is True and ass["hook_title"] is None
     hook = render["fx_request"].hook
-    assert hook.avoid == ((pytest.approx(0.72), pytest.approx(0.84)),)
     assert hook.font == get_template("default")["font_family"]
 
 
-def test_without_the_drawing_stage_libass_burns_a_heavy_hook_title(ladder, monkeypatch):
-    # A plan that only adds sound: P1 → P3, no fx-core, so the title is libass's (heavy outlined type, no boxes).
-    ladder.state["chain_results"] = [result(level="safe")]
+def test_a_plan_that_only_adds_sound_still_gets_the_drawn_title(ladder):
+    ladder.state["chain_results"] = [result()]
     ladder.run(fx_plan(template="default"), template="default")
     (render,) = fx_renders(ladder.calls)
-    assert render["fx_report"]["mode"] == "safe" and render["fx_request"].hook is None
-    ass = ladder.calls["ass"][-1]["kwargs"]
-    assert ass["hook_title"] == "The craziest day" and ass["hook_heavy"] is True
-    # The kill switch: the safe level, the same title.
-    monkeypatch.setenv("FX_RUNTIME", "off")
+    assert render["fx_report"]["mode"] == "full"
+    assert render["fx_request"].hook.text == "The craziest day"
+    assert ladder.calls["ass"][-1]["kwargs"]["hook_title"] is None
+    # Without a title there is nothing to draw: P1 → P3.
     ladder.state["chain_results"] = [result(level="safe")]
     ladder.calls["render"].clear()
+    ladder.run(fx_plan(template="default"), template="default", hook=None)
+    (render,) = fx_renders(ladder.calls)
+    assert render["fx_report"]["mode"] == "safe" and render["fx_request"].hook is None
+
+
+def test_without_the_drawing_stage_libass_burns_a_heavy_hook_title(ladder, monkeypatch):
+    # The kill switch: the safe level, libass's title (heavy outlined type, no boxes).
+    monkeypatch.setenv("FX_RUNTIME", "off")
+    ladder.state["chain_results"] = [result(level="safe")]
     ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
     (render,) = fx_renders(ladder.calls)
     assert render["fx_request"].hook is None
@@ -507,16 +513,14 @@ def test_without_the_drawing_stage_libass_burns_a_heavy_hook_title(ladder, monke
     assert ass["hook_title"] == "The craziest day" and ass["hook_heavy"] is True and ass["include_captions"] is True
 
 
-def test_a_letterboxed_opening_tells_the_hook_title_where_the_picture_is(ladder):
+def test_the_drawn_hook_title_ignores_the_layout(ladder):
+    """One fixed position: a letterboxed or stacked opening changes nothing about the title."""
+    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
+    plain = fx_renders(ladder.calls)[0]["fx_request"].hook
     segments = [{"start": 0.0, "end": 2.0, "kind": "fit"}, {"start": 2.0, "end": 8.0, "kind": "pair"}]
     _interview(ladder, segments=segments, hook_center=0.5)
     ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
-    (render,) = fx_renders(ladder.calls)
-    assert render["fx_request"].hook.picture == (pytest.approx(0.3418, abs=1e-4), pytest.approx(0.6582, abs=1e-4))
-    # A stacked or close-up opening has no band above the picture.
-    _interview(ladder, hook_center=0.5)
-    ladder.run(fx_plan(template="highlighter_swipe"), template="highlighter_swipe")
-    assert fx_renders(ladder.calls)[0]["fx_request"].hook.picture is None
+    assert fx_renders(ladder.calls)[0]["fx_request"].hook == plain
 
 
 # ----------------------------------------------------------------------------------------- interview caption rows

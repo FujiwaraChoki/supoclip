@@ -11,21 +11,15 @@
 // the scene's. Both pop in and fade out.
 //
 // Layout: balanced lines (one for a short title, two preferred, three before the type shrinks), at most 0.88 W wide.
-// Placement: one position for the whole window, picked once per scene from the face track, the captions on screen and
-// the layout hints, in this order: never over eyes or mouth, never on the captions, top safe area by default (the
-// blurred band above a letterboxed picture when there is one), else right above the captions (a stacked two-shot's
-// seam), else under them on the chest; never in the bottom 18 % the platforms cover. With `trim`, a title whose best
-// position only holds until a camera cut leaves at that cut.
+// Placement: fixed. The title's top edge is at 11 % of the height on every clip, centred, whatever the layout, the
+// faces or the captions; only the studio's offset moves it.
 import type { DrawOp, Shadow } from "./host";
 import type { Rect } from "./constants";
 import { clamp, clamp01, easeOutCubic, keyframes, easeOutQuad } from "./easing";
-import { applyMat, overlapArea, pathOp, pictureMatrix, placeAt, rectOp, round3, textOp, transformRect } from "./layout";
+import { pathOp, placeAt, rectOp, round3, textOp } from "./layout";
 import { registerGlobal } from "./registry";
 import type { PreparedScene } from "./scene";
-import { rowCuts, type AccentCue, type FxHookTitle } from "./types";
-import { pictureStateAt, type FxClock } from "./frame";
-import { lookEmojiPlacement } from "./captions/emoji_drop";
-import { activeLook, LOOK_GEOMETRY } from "./captions/looks";
+import type { FxHookTitle } from "./types";
 
 /** How a title is drawn. Lengths in em of the title size unless stated. */
 export interface HookVariant {
@@ -94,16 +88,8 @@ export const HOOK = {
   markDelay: 0.2, markSeconds: 0.18, markStagger: 0.08,
 } as const;
 
-/** Placement, as fractions of the frame height unless stated. */
-export const HOOK_PLACE = {
-  top: 0.105,                // card top in the top safe area
-  topMin: 0.085,             // the platforms cover the top 8 %
-  bottomMax: 0.8,            // and the bottom 18 %
-  gap: 0.02,                 // between the card and captions
-  bandGap: 0.022,            // between the card and a letterboxed picture below it
-  minShown: 2.2,             // a trimmed title still shows this long (s)
-  minFace: 0.05,             // faces smaller than this share of H are background people
-} as const;
+/** Placement: every title's top edge sits here (fraction of the frame height), under the platforms' top bar. */
+export const HOOK_PLACE = { top: 0.11 } as const;
 
 /** Superlatives, absolutes and hype words (== emoji_captions.POWER_WORDS). */
 export const HOOK_POWER_WORDS: ReadonlySet<string> = new Set([
@@ -169,8 +155,6 @@ export interface HookLayout {
   /** The card (output px, before tilt and motion). */
   w: number; h: number; cx: number; cy: number;
   start: number; end: number; tilt: number; look: FxHookTitle["look"]; mark: string; variant: HookVariant;
-  /** Which rule placed it (tests and debugging). */
-  slot: "band" | "top" | "above" | "below" | "free";
 }
 
 type Measure = (text: string) => number;
@@ -271,142 +255,9 @@ export function hookBlock(title: string, basePx: number, minPx: number, maxCardW
 
 // ----------------------------------------------------------------------------------------------- placement
 
-interface Obstacles {
-  /** Per face sample in the window: eyes-to-mouth boxes (never covered) and whole face boxes (better left clear). */
-  faces: { t: number; core: Rect[]; box: Rect[] }[];
-  /** Captions and their emoji while the title shows. */
-  captions: { start: number; end: number; rect: Rect }[];
-  /** A letterboxed opening's picture, on screen until `until`: better left uncovered. */
-  picture: { rect: Rect; until: number } | null;
-}
-
-/** A face row (normalised, output space) as px boxes after the frame's picture transform. */
-function faceRects(row: readonly number[], W: number, H: number, m: ReturnType<typeof pictureMatrix>): { core: Rect; box: Rect } | null {
-  if (row.length < 4 || row[3] < HOOK_PLACE.minFace) return null;
-  const box = transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
-  let top = box.y + 0.2 * box.h, bottom = box.y + 0.95 * box.h;
-  if (row.length >= 15) {
-    const pt = (i: number) => applyMat(m, row[5 + 2 * i] * W, row[6 + 2 * i] * H)[1];
-    top = Math.min(pt(0), pt(1)) - 0.14 * box.h;       // eyebrows
-    bottom = Math.max(pt(3), pt(4)) + 0.12 * box.h;    // lower lip
-  }
-  return { core: { x: box.x + 0.04 * box.w, y: top, w: 0.92 * box.w, h: Math.max(1, bottom - top) }, box };
-}
-
-function obstacles(p: PreparedScene, hook: FxHookTitle): Obstacles {
-  const W = p.width, H = p.height, scene = p.scene;
-  const faces: Obstacles["faces"] = [];
-  for (const [t, rows] of scene.face_track?.samples ?? []) {
-    if (t < hook.start - 0.2 || t > hook.end + 0.2) continue;
-    const e = clamp(t, hook.start, Math.max(hook.start, hook.end - 1e-3));
-    const clock: FxClock = { e, o: e, frame: Math.round(e * 30) };
-    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
-    const core: Rect[] = [], box: Rect[] = [];
-    for (const row of rows ?? []) {
-      const r = faceRects(row, W, H, m);
-      if (r) { core.push(r.core); box.push(r.box); }
-    }
-    if (core.length) faces.push({ t: e, core, box });
-  }
-  const captions: Obstacles["captions"] = [];
-  const g = LOOK_GEOMETRY;
-  for (const chunk of p.chunks) {
-    if (chunk.end <= hook.start || chunk.start >= hook.end || !chunk.words.length) continue;
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const w of chunk.words) {
-      x0 = Math.min(x0, w.x); y0 = Math.min(y0, w.y); x1 = Math.max(x1, w.x + w.w); y1 = Math.max(y1, w.y + w.h);
-    }
-    const padX = g.pillPadX * chunk.px, padY = Math.max(g.pillPadY, 0.1) * chunk.px;
-    captions.push({ start: chunk.start, end: chunk.end, rect: { x: x0 - padX, y: y0 - padY, w: x1 - x0 + 2 * padX, h: y1 - y0 + 2 * padY } });
-  }
-  if (activeLook(p)) {
-    for (const cue of p.cuesByKind.get("accent") ?? []) {
-      if (cue.kind !== "accent" || cue.variant !== "emoji" || cue.end <= hook.start || cue.start >= hook.end) continue;
-      const at = lookEmojiPlacement(p, cue as AccentCue);
-      if (at) captions.push({ start: cue.start, end: at.until ?? cue.end, rect: { x: at.x - at.size / 2, y: at.y - at.size / 2, w: at.size, h: at.size } });
-    }
-  }
-  for (const [top, bottom] of hook.avoid ?? []) {
-    if (bottom > top) captions.push({ start: hook.start, end: hook.end, rect: { x: 0, y: top * H, w: W, h: (bottom - top) * H } });
-  }
-  let picture: Obstacles["picture"] = null;
-  if (hook.picture && hook.picture[1] > hook.picture[0]) {
-    const cut = rowCuts(scene.caption?.rows).find((c) => c > hook.start);
-    picture = { rect: { x: 0, y: hook.picture[0] * H, w: W, h: (hook.picture[1] - hook.picture[0]) * H }, until: cut ?? hook.end };
-  }
-  return { faces, captions, picture };
-}
-
-interface Candidate { slot: HookLayout["slot"]; top: number; prefer: number }
-
-/** How bad a card position is until `end` (0 = clear). */
-function cost(card: Rect, o: Obstacles, start: number, end: number, H: number): number {
-  let total = 0;
-  const faces = o.faces.filter((f) => f.t >= start - 1e-6 && f.t < end);
-  if (faces.length) {
-    let hits = 0, depth = 0, soft = 0;
-    for (const f of faces) {
-      const core = f.core.reduce((s, r) => s + overlapArea(card, r) / Math.max(1, r.w * r.h), 0);
-      if (core > 0) { hits += 1; depth += Math.min(1, core); }
-      soft += f.box.reduce((s, r) => s + overlapArea(card, r), 0) / Math.max(1, card.w * card.h);
-    }
-    total += (hits ? 1000 + 1000 * (hits / faces.length) + 500 * (depth / faces.length) : 0) + 14 * (soft / faces.length);
-  }
-  const span = Math.max(1e-3, end - start);
-  const gap = HOOK_PLACE.gap * H * 0.6;
-  const padded = { x: card.x, y: card.y - gap, w: card.w, h: card.h + 2 * gap };
-  for (const c of o.captions) {
-    const shared = Math.min(end, c.end) - Math.max(start, c.start);
-    if (shared <= 0 || overlapArea(padded, c.rect) <= 0) continue;
-    total += 800 + 400 * Math.min(1, shared / span);
-  }
-  if (o.picture && o.picture.until > start) {
-    total += 40 * (overlapArea(card, o.picture.rect) / Math.max(1, card.w * card.h)) * Math.min(1, (Math.min(end, o.picture.until) - start) / span);
-  }
-  if (card.y + card.h > HOOK_PLACE.bottomMax * H) total += 6000 + (card.y + card.h - HOOK_PLACE.bottomMax * H);
-  if (card.y < HOOK_PLACE.topMin * H) total += 6000 + (HOOK_PLACE.topMin * H - card.y);
-  return total;
-}
-
-/** The automatic card centre for a block: `{cy, slot, end}` (output px; `end` trimmed to a cut when that frees a better slot). */
-export function placeHook(p: PreparedScene, hook: FxHookTitle, block: Pick<Block, "w" | "h">): { cy: number; slot: HookLayout["slot"]; end: number } {
-  const W = p.width, H = p.height;
-  const o = obstacles(p, hook);
-  const x = (W - block.w) / 2;
-  const rect = (top: number): Rect => ({ x, y: top, w: block.w, h: block.h });
-  const candidates: Candidate[] = [];
-  const picture = hook.picture;
-  if (picture && picture[0] > 0) {
-    const bottom = picture[0] * H - HOOK_PLACE.bandGap * H;
-    const top = Math.min(bottom - block.h, Math.max(HOOK_PLACE.top * H, (HOOK_PLACE.topMin * H + bottom - block.h) / 2));
-    if (top >= HOOK_PLACE.topMin * H) candidates.push({ slot: "band", top, prefer: 0 });
-  }
-  // Top safe area: as low as 0.105 H, raised (never past the platform bar) to leave a forehead clear.
-  let top = HOOK_PLACE.top * H;
-  const heads = o.faces.flatMap((f) => f.box.filter((b) => b.x < x + block.w && b.x + b.w > x).map((b) => b.y));
-  if (heads.length) top = clamp(Math.min(...heads) - 0.01 * H - block.h, HOOK_PLACE.topMin * H, top);
-  candidates.push({ slot: "top", top, prefer: candidates.length ? 4 : 0 });
-  if (o.captions.length) {
-    const first = Math.min(...o.captions.map((c) => c.rect.y)), last = Math.max(...o.captions.map((c) => c.rect.y + c.rect.h));
-    candidates.push({ slot: "above", top: first - HOOK_PLACE.gap * H - block.h, prefer: 12 });
-    candidates.push({ slot: "below", top: last + HOOK_PLACE.gap * H, prefer: 22 });
-  }
-  for (let y = 0.14; y <= 0.72; y += 0.02) candidates.push({ slot: "free", top: y * H - block.h / 2, prefer: 30 + 20 * y });
-
-  const ends: number[] = [hook.end];
-  if (hook.trim) {
-    for (const cut of rowCuts(p.scene.caption?.rows)) {
-      if (cut - hook.start >= HOOK_PLACE.minShown && cut < hook.end - 0.1) ends.push(cut);
-    }
-  }
-  let best = { cy: candidates[0].top + block.h / 2, slot: candidates[0].slot, end: hook.end }, bestCost = Infinity;
-  for (const end of ends) {
-    for (const c of candidates) {
-      const value = cost(rect(c.top), o, hook.start, end, H) + c.prefer + (end < hook.end ? 8 + 4 * (hook.end - end) : 0);
-      if (value < bestCost - 1e-9) { bestCost = value; best = { cy: c.top + block.h / 2, slot: c.slot, end }; }
-    }
-  }
-  return best;
+/** The top edge of every title, whatever is on screen: the same place on every clip (the studio offset adds to it). */
+export function hookTop(H: number): number {
+  return HOOK_PLACE.top * H;
 }
 
 // ----------------------------------------------------------------------------------------------- layout and drawing
@@ -443,13 +294,11 @@ export function hookLayout(p: PreparedScene, text?: string): HookLayout | null {
     HOOK.maxWidth * W, (t, px) => (p.measure(t, family, 100) * px) / 100, variant);
   let layout: HookLayout | null = null;
   if (block && hook.end > hook.start) {
-    const placed = placeHook(p, hook, block);
     layout = {
       text: title, family, px: block.px, lines: block.lines, w: block.w, h: block.h,
-      cx: W * (0.5 + (hook.x ?? 0)), cy: placed.cy + H * (hook.y ?? 0),
-      start: hook.start, end: placed.end, tilt: ((HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI) / 180, look,
+      cx: W * (0.5 + (hook.x ?? 0)), cy: hookTop(H) + block.h / 2 + H * (hook.y ?? 0),
+      start: hook.start, end: hook.end, tilt: ((HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI) / 180, look,
       mark: hookKeyColor(hook.accent, variant), variant,
-      slot: placed.slot,
     };
   }
   cache.set(title, layout);

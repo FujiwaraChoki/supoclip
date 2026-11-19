@@ -364,9 +364,9 @@ const heavy = (font: string) => HOOK_HEAVY[font] ?? font;
 const LOOK_FONTS: readonly string[] = Object.values(STUDIO_LOOKS).map((spec) => spec.font);
 
 /**
- * The hook title fx-core draws for a draft (== editor_fx_render.studio_hook): the card at its automatic position plus
+ * The hook title fx-core draws for a draft (== editor_fx_render.studio_hook): the title at its fixed position plus
  * the draft's hook transform, in the draft's font and accent, shown for hookRange; null without a title or when the
- * plan suppresses it. Automatic timing (no hookTiming) lets it leave at a camera cut.
+ * plan suppresses it.
  */
 export function studioHook(doc: EditDocument): FxHookTitle | null {
   const title = (doc.hookTitle ?? "").trim().split(/\s+/).filter(Boolean).join(" ").slice(0, 200);
@@ -392,9 +392,6 @@ export function studioHook(doc: EditDocument): FxHookTitle | null {
     x: clamp(transform?.x ?? 0, -1, 1),
     y: clamp(transform?.y ?? 0, -1, 1),
     scale: clamp(transform?.scale ?? 1, 0.2, 4),
-    trim: !doc.hookTiming,
-    picture: null,
-    avoid: [],
   };
 }
 

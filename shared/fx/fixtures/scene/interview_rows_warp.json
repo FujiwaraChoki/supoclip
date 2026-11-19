@@ -589,10 +589,7 @@
       "end": 4.0,
       "x": 0.0,
       "y": 0.0,
-      "scale": 1.0,
-      "trim": true,
-      "picture": null,
-      "avoid": []
+      "scale": 1.0
     },
     "face_track": {
       "version": 1,

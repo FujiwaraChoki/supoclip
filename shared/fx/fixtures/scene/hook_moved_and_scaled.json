@@ -484,10 +484,7 @@
       "end": 3.2,
       "x": 0.08,
       "y": 0.31,
-      "scale": 1.4,
-      "trim": false,
-      "picture": null,
-      "avoid": []
+      "scale": 1.4
     },
     "face_track": {
       "version": 1,

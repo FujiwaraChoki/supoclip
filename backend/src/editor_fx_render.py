@@ -504,9 +504,9 @@ def hook_range(document, total: float) -> tuple[float, float] | None:
 
 
 def studio_hook(document, plan: FxPlan):
-    """The hook title fx-core draws for a draft (== studio-scene.ts ``studioHook``): the card at its automatic
-    position plus the draft's hook transform, in the draft's font and accent, shown for ``hook_range``; None without a title or when the plan
-    suppresses it. Automatic timing (no ``hookTiming``) lets it leave at a camera cut."""
+    """The hook title fx-core draws for a draft (== studio-scene.ts ``studioHook``): the title at its fixed
+    position plus the draft's hook transform, in the draft's font and accent, shown for ``hook_range``; None without a
+    title or when the plan suppresses it."""
     from .edit_fx.caption_style import _hex6
     from .edit_fx.hook_title import HOOK_DEFAULT_ACCENT, build_hook, hook_look
 
@@ -521,7 +521,7 @@ def studio_hook(document, plan: FxPlan):
         look=hook_look(template_id, plan.style.intensity, plan.sensitivity), font=captions.font,
         accent=_hex6(captions.accent, HOOK_DEFAULT_ACCENT), window=window, uppercase=bool(captions.uppercase),
         x=transform.x if transform else 0.0, y=transform.y if transform else 0.0,
-        scale=transform.scale if transform else 1.0, trim=document.hookTiming is None,
+        scale=transform.scale if transform else 1.0,
     )
 
 

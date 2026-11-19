@@ -474,9 +474,6 @@ export function selftestScene(w: number, h: number, fontStem: string): FxJobFile
       x: 0,
       y: 0,
       scale: 1,
-      trim: false,
-      picture: null,
-      avoid: [],
     },
     face_track: {
       version: 1,

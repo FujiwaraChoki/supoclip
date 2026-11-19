@@ -2898,22 +2898,7 @@ var HOOK = {
   markSeconds: 0.18,
   markStagger: 0.08
 };
-var HOOK_PLACE = {
-  top: 0.105,
-  // card top in the top safe area
-  topMin: 0.085,
-  // the platforms cover the top 8 %
-  bottomMax: 0.8,
-  // and the bottom 18 %
-  gap: 0.02,
-  // between the card and captions
-  bandGap: 0.022,
-  // between the card and a letterboxed picture below it
-  minShown: 2.2,
-  // a trimmed title still shows this long (s)
-  minFace: 0.05
-  // faces smaller than this share of H are background people
-};
+var HOOK_PLACE = { top: 0.11 };
 var HOOK_POWER_WORDS = /* @__PURE__ */ new Set([
   "never",
   "always",
@@ -3101,135 +3086,8 @@ function hookBlock(title, basePx, minPx, maxCardW, measure, v = STACK) {
   const w = Math.min(maxCardW, Math.max(...lines.map((l) => l.w)) + 2 * v.padX * px);
   return { px, lines, w, h: count * lineH + 2 * v.padY * px };
 }
-function faceRects(row, W, H, m) {
-  if (row.length < 4 || row[3] < HOOK_PLACE.minFace) return null;
-  const box = transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
-  let top = box.y + 0.2 * box.h, bottom = box.y + 0.95 * box.h;
-  if (row.length >= 15) {
-    const pt = (i) => applyMat(m, row[5 + 2 * i] * W, row[6 + 2 * i] * H)[1];
-    top = Math.min(pt(0), pt(1)) - 0.14 * box.h;
-    bottom = Math.max(pt(3), pt(4)) + 0.12 * box.h;
-  }
-  return { core: { x: box.x + 0.04 * box.w, y: top, w: 0.92 * box.w, h: Math.max(1, bottom - top) }, box };
-}
-function obstacles(p, hook) {
-  const W = p.width, H = p.height, scene = p.scene;
-  const faces = [];
-  for (const [t, rows] of scene.face_track?.samples ?? []) {
-    if (t < hook.start - 0.2 || t > hook.end + 0.2) continue;
-    const e = clamp2(t, hook.start, Math.max(hook.start, hook.end - 1e-3));
-    const clock = { e, o: e, frame: Math.round(e * 30) };
-    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
-    const core = [], box = [];
-    for (const row of rows ?? []) {
-      const r = faceRects(row, W, H, m);
-      if (r) {
-        core.push(r.core);
-        box.push(r.box);
-      }
-    }
-    if (core.length) faces.push({ t: e, core, box });
-  }
-  const captions = [];
-  const g = LOOK_GEOMETRY;
-  for (const chunk of p.chunks) {
-    if (chunk.end <= hook.start || chunk.start >= hook.end || !chunk.words.length) continue;
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const w of chunk.words) {
-      x0 = Math.min(x0, w.x);
-      y0 = Math.min(y0, w.y);
-      x1 = Math.max(x1, w.x + w.w);
-      y1 = Math.max(y1, w.y + w.h);
-    }
-    const padX = g.pillPadX * chunk.px, padY = Math.max(g.pillPadY, 0.1) * chunk.px;
-    captions.push({ start: chunk.start, end: chunk.end, rect: { x: x0 - padX, y: y0 - padY, w: x1 - x0 + 2 * padX, h: y1 - y0 + 2 * padY } });
-  }
-  if (activeLook(p)) {
-    for (const cue of p.cuesByKind.get("accent") ?? []) {
-      if (cue.kind !== "accent" || cue.variant !== "emoji" || cue.end <= hook.start || cue.start >= hook.end) continue;
-      const at = lookEmojiPlacement(p, cue);
-      if (at) captions.push({ start: cue.start, end: at.until ?? cue.end, rect: { x: at.x - at.size / 2, y: at.y - at.size / 2, w: at.size, h: at.size } });
-    }
-  }
-  for (const [top, bottom] of hook.avoid ?? []) {
-    if (bottom > top) captions.push({ start: hook.start, end: hook.end, rect: { x: 0, y: top * H, w: W, h: (bottom - top) * H } });
-  }
-  let picture2 = null;
-  if (hook.picture && hook.picture[1] > hook.picture[0]) {
-    const cut = rowCuts(scene.caption?.rows).find((c) => c > hook.start);
-    picture2 = { rect: { x: 0, y: hook.picture[0] * H, w: W, h: (hook.picture[1] - hook.picture[0]) * H }, until: cut ?? hook.end };
-  }
-  return { faces, captions, picture: picture2 };
-}
-function cost(card, o, start, end, H) {
-  let total = 0;
-  const faces = o.faces.filter((f) => f.t >= start - 1e-6 && f.t < end);
-  if (faces.length) {
-    let hits = 0, depth = 0, soft = 0;
-    for (const f of faces) {
-      const core = f.core.reduce((s, r) => s + overlapArea(card, r) / Math.max(1, r.w * r.h), 0);
-      if (core > 0) {
-        hits += 1;
-        depth += Math.min(1, core);
-      }
-      soft += f.box.reduce((s, r) => s + overlapArea(card, r), 0) / Math.max(1, card.w * card.h);
-    }
-    total += (hits ? 1e3 + 1e3 * (hits / faces.length) + 500 * (depth / faces.length) : 0) + 14 * (soft / faces.length);
-  }
-  const span = Math.max(1e-3, end - start);
-  const gap = HOOK_PLACE.gap * H * 0.6;
-  const padded = { x: card.x, y: card.y - gap, w: card.w, h: card.h + 2 * gap };
-  for (const c of o.captions) {
-    const shared = Math.min(end, c.end) - Math.max(start, c.start);
-    if (shared <= 0 || overlapArea(padded, c.rect) <= 0) continue;
-    total += 800 + 400 * Math.min(1, shared / span);
-  }
-  if (o.picture && o.picture.until > start) {
-    total += 40 * (overlapArea(card, o.picture.rect) / Math.max(1, card.w * card.h)) * Math.min(1, (Math.min(end, o.picture.until) - start) / span);
-  }
-  if (card.y + card.h > HOOK_PLACE.bottomMax * H) total += 6e3 + (card.y + card.h - HOOK_PLACE.bottomMax * H);
-  if (card.y < HOOK_PLACE.topMin * H) total += 6e3 + (HOOK_PLACE.topMin * H - card.y);
-  return total;
-}
-function placeHook(p, hook, block) {
-  const W = p.width, H = p.height;
-  const o = obstacles(p, hook);
-  const x = (W - block.w) / 2;
-  const rect = (top2) => ({ x, y: top2, w: block.w, h: block.h });
-  const candidates = [];
-  const picture2 = hook.picture;
-  if (picture2 && picture2[0] > 0) {
-    const bottom = picture2[0] * H - HOOK_PLACE.bandGap * H;
-    const top2 = Math.min(bottom - block.h, Math.max(HOOK_PLACE.top * H, (HOOK_PLACE.topMin * H + bottom - block.h) / 2));
-    if (top2 >= HOOK_PLACE.topMin * H) candidates.push({ slot: "band", top: top2, prefer: 0 });
-  }
-  let top = HOOK_PLACE.top * H;
-  const heads = o.faces.flatMap((f) => f.box.filter((b) => b.x < x + block.w && b.x + b.w > x).map((b) => b.y));
-  if (heads.length) top = clamp2(Math.min(...heads) - 0.01 * H - block.h, HOOK_PLACE.topMin * H, top);
-  candidates.push({ slot: "top", top, prefer: candidates.length ? 4 : 0 });
-  if (o.captions.length) {
-    const first = Math.min(...o.captions.map((c) => c.rect.y)), last = Math.max(...o.captions.map((c) => c.rect.y + c.rect.h));
-    candidates.push({ slot: "above", top: first - HOOK_PLACE.gap * H - block.h, prefer: 12 });
-    candidates.push({ slot: "below", top: last + HOOK_PLACE.gap * H, prefer: 22 });
-  }
-  for (let y = 0.14; y <= 0.72; y += 0.02) candidates.push({ slot: "free", top: y * H - block.h / 2, prefer: 30 + 20 * y });
-  const ends = [hook.end];
-  if (hook.trim) {
-    for (const cut of rowCuts(p.scene.caption?.rows)) {
-      if (cut - hook.start >= HOOK_PLACE.minShown && cut < hook.end - 0.1) ends.push(cut);
-    }
-  }
-  let best = { cy: candidates[0].top + block.h / 2, slot: candidates[0].slot, end: hook.end }, bestCost = Infinity;
-  for (const end of ends) {
-    for (const c of candidates) {
-      const value = cost(rect(c.top), o, hook.start, end, H) + c.prefer + (end < hook.end ? 8 + 4 * (hook.end - end) : 0);
-      if (value < bestCost - 1e-9) {
-        bestCost = value;
-        best = { cy: c.top + block.h / 2, slot: c.slot, end };
-      }
-    }
-  }
-  return best;
+function hookTop(H) {
+  return HOOK_PLACE.top * H;
 }
 var layouts = /* @__PURE__ */ new WeakMap();
 function hookMarkColor(accent) {
@@ -3265,7 +3123,6 @@ function hookLayout(p, text) {
   );
   let layout = null;
   if (block && hook.end > hook.start) {
-    const placed = placeHook(p, hook, block);
     layout = {
       text: title,
       family,
@@ -3274,14 +3131,13 @@ function hookLayout(p, text) {
       w: block.w,
       h: block.h,
       cx: W * (0.5 + (hook.x ?? 0)),
-      cy: placed.cy + H * (hook.y ?? 0),
+      cy: hookTop(H) + block.h / 2 + H * (hook.y ?? 0),
       start: hook.start,
-      end: placed.end,
+      end: hook.end,
       tilt: (HOOK.tiltDeg[look] + variant.tiltDeg) * Math.PI / 180,
       look,
       mark: hookKeyColor(hook.accent, variant),
-      variant,
-      slot: placed.slot
+      variant
     };
   }
   cache.set(title, layout);
@@ -3547,9 +3403,9 @@ function placeSticker(p, cue, taken, accent) {
     let best = Infinity;
     for (const [x, y] of order) {
       const spot = clampBox(x, y, size.w, size.h, area);
-      const cost2 = hard.reduce((c2, r) => c2 + 4 * overlapArea(spot, r), 0) + taken.reduce((c2, r) => c2 + overlapArea(spot, r), 0) + (face ? 12 * overlapArea(spot, inflate(face, 18 * u)) : 0);
-      if (cost2 < best) {
-        best = cost2;
+      const cost = hard.reduce((c2, r) => c2 + 4 * overlapArea(spot, r), 0) + taken.reduce((c2, r) => c2 + overlapArea(spot, r), 0) + (face ? 12 * overlapArea(spot, inflate(face, 18 * u)) : 0);
+      if (cost < best) {
+        best = cost;
         box = spot;
       }
     }
@@ -3735,12 +3591,12 @@ function counterCenterY(p, cue, px) {
       head.y - gap - half
       // above the hair
     ];
-    const cost2 = (cy) => {
+    const cost = (cy) => {
       const box = { x: 0, y: cy - half, w: p.width, h: 2 * half };
       const outside = Math.max(0, safe.y - box.y) + Math.max(0, box.y + box.h - bottomLimit);
       return overlapArea(box, head) / p.width + outside * 4;
     };
-    y = options.reduce((best, cy) => cost2(cy) < cost2(best) - 1e-6 ? cy : best, preferred);
+    y = options.reduce((best, cy) => cost(cy) < cost(best) - 1e-6 ? cy : best, preferred);
   }
   rows.set(cue.id, y);
   return y;

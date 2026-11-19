@@ -167,7 +167,7 @@ describe("text layers with dynamic edits", () => {
     const box = textLayerBounds(canvas(1080, 1920).ctx, doc, 1080, 1920, 1, "hook")!;
     const layout = hookLayout(editorFxScene(doc, undefined, 1080, 1920, 1080, 1920))!;
     expect(box).toEqual({ x: layout.cx - layout.w / 2, y: layout.cy - layout.h / 2, width: layout.w, height: layout.h });
-    expect(box.y / 1920).toBeCloseTo(0.105, 3);                               // the top safe area, not y = 0.12 of the ASS title
+    expect(box.y / 1920).toBeCloseTo(0.11, 3);                                // the fixed position
     expect(layout.px).toBeCloseTo(80, 6);
     // The text layer paints the white label; the picture frame itself (fx-core's frame) never draws the title.
     const layer = canvas(1080, 1920);

@@ -795,8 +795,7 @@ def _analysis(request: FxRequest, *, input_path: Path, head: str, head_label: st
     """Face track and matte (§6.4). Returns (face_track, matte_windows, matte_file, computed_face)."""
     plan = request.plan
     behind = _behind_spans(plan)
-    # The hook title is placed clear of the faces on screen, so it needs the track too.
-    need_face = (plan.needs_face or request.hook is not None) and request.face_track is None
+    need_face = plan.needs_face and request.face_track is None
     need_matte = bool(behind) and request.matte_input is None
     face_track = request.face_track
     if request.matte_input is not None and behind:

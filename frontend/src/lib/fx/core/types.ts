@@ -161,12 +161,6 @@ export interface FxHookTitle {
   start: number; end: number;
   /** Studio transform: offset from the automatic position (fractions of W and H) and scale. */
   x: number; y: number; scale: number;
-  /** Automatic timing: the title may leave early at a camera cut when that frees a better position. */
-  trim: boolean;
-  /** A letterboxed opening's picture band (top, bottom as fractions of H): the title goes in the band above it. */
-  picture: [number, number] | null;
-  /** Bands (top, bottom as fractions of H) other layers own for the window, e.g. classic captions burned by ASS. */
-  avoid: [number, number][];
 }
 export interface FxWord { id: string; start: number; end: number; text: string; highlight: boolean; run: string }
 export interface WarpPieceJson { e0: number; e1: number; o0: number; rate: number; hold: number }

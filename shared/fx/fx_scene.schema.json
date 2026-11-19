@@ -721,52 +721,6 @@
           "minimum": 0.2,
           "title": "Scale",
           "type": "number"
-        },
-        "trim": {
-          "default": false,
-          "title": "Trim",
-          "type": "boolean"
-        },
-        "picture": {
-          "anyOf": [
-            {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "number"
-                }
-              ],
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Picture"
-        },
-        "avoid": {
-          "default": [],
-          "items": {
-            "maxItems": 2,
-            "minItems": 2,
-            "prefixItems": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "type": "array"
-          },
-          "maxItems": 8,
-          "title": "Avoid",
-          "type": "array"
         }
       },
       "required": [

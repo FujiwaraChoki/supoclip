@@ -148,8 +148,8 @@ The rows follow these rules:
   Captions therefore switch exactly at cuts, never move inside a group, and never sit on another shot's row.
 - **The look emoji** leaves with its group at a cut.
 - **Burned-in source captions:** they push each row clear.
-- **Hook title:** rows never move for it. The title card is placed around the captions ([Hook title](#hook-title)):
-  on a stacked two-shot it sits right above the caption line on the seam.
+- **Hook title:** rows never move for it, and it never moves for them: the title has one fixed position at the top
+  ([Hook title](#hook-title)).
 - **Overlays:** the look emoji, standalone keywords, the decode accent and sticker obstacles read the row in effect
   (`PreparedScene.captionYAt`).
 - **The user's position wins:** a caption edit's position pins the captions with no rows.
@@ -183,7 +183,7 @@ The hook title is the AI-written headline shown for the first seconds of a clip 
 a Dynamic edits clip it is drawn by fx-core (`frontend/src/lib/fx/core/hook.ts`, scene field `FxScene.hook`, an
 `FxHookTitle`), in the browser and on the worker from the same code. Python resolves the text, font, accent, look,
 caption template and window (`backend/src/edit_fx/hook_title.py`); fx-core picks the style from the template, lays the
-title out and places it. Every clip that goes through the Dynamic edits render gets this title, also one whose plan
+title out and draws it at its fixed position. Every clip that goes through the Dynamic edits render gets this title, also one whose plan
 only adds sound. Classic clips (intensity Off with a classic template) keep the libass title exactly as before.
 
 The style follows the caption template (`HOOK_VARIANTS`), so the title belongs to the captions under it:
@@ -201,35 +201,20 @@ The style follows the caption template (`HOOK_VARIANTS`), so the title belongs t
 | Motion | in over 260 ms (0.86 → 1.035 → 1, fade over the first 120 ms), marker boxes wipe in left to right from 200 ms (180 ms each, the second 80 ms later), out over the last 200 ms (fade, 1 → 0.96). Subtle is 10 % smaller with no overshoot; Max tilts the title −2° |
 | Clock | edit time, so a speed ramp or freeze moves it like the captions |
 
-**Placement** is decided once per clip, for the whole window (`placeHook`), from the face track (both faces, after the
-frame's reframes), the captions and emoji on screen during the window, and two hints from Python:
-
-1. Never over eyes or mouth (eyebrows to lower lip of every face at least 5 % H tall), never on the captions, never outside the platform-safe area
-   (8.5 % to 80 % H). Hair and forehead may be covered when the alternative is the chest.
-2. The top safe area: card top at 10.5 % H, raised as far as 8.5 % H to leave a forehead clear (the platforms cover
-   the top 8 %). A letterboxed opening (`picture`, interview and compositor layouts) puts it in the blurred band above
-   the picture instead, and a card over that picture costs extra.
-3. Else right above the captions: on a stacked two-shot that is the upper person's chest, with the caption line on the
-   seam under it.
-4. Else under the captions, on the chest (a close-up whose face fills the top and middle), never lower than 80 % H:
-   the platforms cover the bottom 18 %.
-5. Else the least bad free position between 14 % and 72 % H.
-
-With automatic timing (`trim`), a title whose best position only holds until a camera cut leaves at that cut, as long
-as it still shows for 2.2 s. Classic captions (burned by libass after the drawing stage) hand their band over as
-`avoid`. Sticker Slap's stickers keep off the title wherever it sits. A title needs the face track, so a render with a title runs the face analysis even when no cue needs it.
+**Placement** is fixed: the title's top edge is at 11 % of the height (`HOOK_PLACE.top`), centred, on every clip,
+whatever the layout, the faces or the captions, and it shows for its whole window. Nothing on screen moves it; only
+the studio's offset does. A title therefore covers whatever is there, including the upper face of a stacked two-shot.
+Sticker Slap's stickers keep off the title, and the title needs no face analysis.
 
 **Without the drawing stage** (`FX_RUNTIME=off`, the safe and none levels) libass burns
 the title (`build_hook_title_ass(heavy=True)`): Poppins ExtraBold in white, about 6 % W, black outline and a soft dark
 halo, numbers and power words in the template's accent, no boxes; top of the frame, or on the seam of a stacked
 opening.
 
-**Studio.** The hook title is its own layer over the preview: `drawEditorTextLayer` draws the same card with
-`hookOps`, and the selection box is the card (`hookBounds`). The draft's hook transform is an offset from the automatic
+**Studio.** The hook title is its own layer over the preview: `drawEditorTextLayer` draws the same title with
+`hookOps`, and the selection box is the title (`hookBounds`). The draft's hook transform is an offset from the fixed
 position and a scale; its font and accent are the draft's caption font and accent (`studioHook` ==
-`editor_fx_render.studio_hook`, pinned by `shared/fx/fixtures/scene`). A draft with its own `hookTiming` never leaves
-early at a cut. The studio does not know a letterboxed opening's picture band, so a clip reopened there may sit a
-little higher than it was generated.
+`editor_fx_render.studio_hook`, pinned by `shared/fx/fixtures/scene`).
 
 **Title text.** `ai.sanitize_hook_title(raw, source_text=…)` gives a bare number back the sign the speaker used
 ("90 of guests" → "90% of guests", only when every mention in the clip's transcript carries it) and brings a Title
@@ -615,9 +600,7 @@ ending and transitions).
   Zooms off for that clip).
 - The hook title card's Chinese, Japanese and Korean text uses the system Noto fonts at regular weight, lighter than
   the Latin type.
-- A classic caption template whose plan draws nothing (only sounds and music) has no drawing stage, so its hook title
-  is the libass one, not the card.
-- Overlays still treat the top 20 % as the hook band, also when the card sits by the captions.
+- The title's fixed position covers the upper face of a stacked two-shot and the forehead of a tight close-up.
 - There is no "editorial" flavour yet (the study's Iman Gadzhi look: text 5 frames early, blur-in, film-burn flashes).
 - Caption rows follow the vertical layout when it has one: a clip that letterboxes throughout (mostly fitted
   content) puts captions under the picture, about 0.8 H, lower than the references' 0.50–0.57 H. B-roll, POV and

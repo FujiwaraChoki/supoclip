@@ -644,9 +644,6 @@ Deno.test("the hook title is fx-core's card: drawn inside its window, pass-throu
       x: 0,
       y: 0,
       scale: 1,
-      trim: false,
-      picture: null,
-      avoid: [],
     },
   };
   const font = new URL("../../fonts/Poppins-ExtraBold.ttf", import.meta.url).pathname;

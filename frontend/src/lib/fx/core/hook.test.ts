@@ -1,5 +1,5 @@
 // @vitest-environment node
-// The hook title card (hook.ts): tokens and markers, balanced lines, placement clear of faces and captions, motion,
+// The hook title (hook.ts): tokens and markers, balanced lines, the two styles, the fixed position, motion,
 // and the drawn frame.
 import { describe, expect, it } from "vitest";
 import { clockAt, drawerErrors, frameOps } from "./frame";
@@ -19,7 +19,7 @@ type TextOp = Extract<DrawOp, { op: "text" }>;
 const W = 1080, H = 1920;
 const hook = (overrides: Partial<FxHookTitle> = {}): FxHookTitle => ({
   text: "I deleted a mega star's episode", font: "Poppins-ExtraBold", accent: "#34FD87", look: "bold", start: 0.12, end: 4,
-  x: 0, y: 0, scale: 1, trim: false, picture: null, avoid: [], ...overrides,
+  x: 0, y: 0, scale: 1, ...overrides,
 });
 const prep = (scene: FxScene, detachHook = false) => prepareScene(scene, fakeMeasureHost, { detachHook });
 const measure = (text: string, px: number) => fakeMeasure(text, "", px);
@@ -145,97 +145,47 @@ describe("lines", () => {
 describe("placement", () => {
   const layoutOf = (scene: FxScene) => hookLayout(prep(scene))!;
   const top = (l: { cy: number; h: number }) => (l.cy - l.h / 2) / H;
-  const bottom = (l: { cy: number; h: number }) => (l.cy + l.h / 2) / H;
 
-  it("sits in the top safe area by default", () => {
+  it("sits at one fixed place: top edge at 11 % of the height, centred", () => {
     const l = layoutOf(bareScene({ hook: hook() }));
-    expect(l.slot).toBe("top");
     expect(top(l)).toBeCloseTo(HOOK_PLACE.top, 6);
+    expect(HOOK_PLACE.top).toBe(0.11);
     expect(l.cx).toBe(W / 2);
   });
 
-  it("rises to leave a forehead clear, never past the platform bar", () => {
-    const l = layoutOf(bareScene({ hook: hook(), face_track: face(0.3, 0.22, 0.4, 0.22) }));
-    expect(l.slot).toBe("top");
-    expect(top(l)).toBeGreaterThanOrEqual(HOOK_PLACE.topMin - 1e-9);
-    expect(bottom(l)).toBeLessThanOrEqual(0.22 - 0.01 + 1e-6);
+  it("is the same place whatever is on screen: faces, captions, any template, any line count", () => {
+    const base = layoutOf(bareScene({ hook: hook() }));
+    const scenes: FxScene[] = [
+      bareScene({ hook: hook(), face_track: face(0.3, 0.06, 0.4, 0.22) }),                    // a face under it
+      makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.2), hook: hook() }),  // captions under it
+      makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.55, { rows: [{ start: 0, end: 2, y: 0.76 }, { start: 2, end: 6, y: 0.5 }] }), hook: hook() }),
+    ];
+    for (const scene of scenes) {
+      const l = layoutOf(scene);
+      expect(top(l)).toBeCloseTo(HOOK_PLACE.top, 6);
+      expect(l.cy).toBeCloseTo(base.cy, 6);
+      expect([l.start, l.end]).toEqual([0.12, 4]);
+    }
+    for (const template of ["slam", "mrbeast", "sticker_slap", "tiktok"]) {
+      for (const text of ["Why I quit", "Nobody tells you the truth about what 90% of podcast guests want"]) {
+        expect(top(layoutOf(bareScene({ hook: hook({ template, text }) })))).toBeCloseTo(HOOK_PLACE.top, 6);
+      }
+    }
   });
 
-  it("never covers eyes or mouth: a face at the top of a stacked two-shot sends it above the captions on the seam", () => {
-    const scene = makeScene({
-      template: "highlighter_swipe", caption: lookCaptions(0.5), hook: hook({ start: 0.12, end: 4 }),
-      face_track: face(0.3, 0.06, 0.4, 0.22),
-    });
-    const p = prep(scene), l = hookLayout(p)!;
-    expect(l.slot).toBe("above");
-    const chunks = p.chunks.filter((c) => c.start < 4 && c.end > 0.12);
-    const captionTop = Math.min(...chunks.flatMap((c) => c.words.map((w) => w.y)));
-    expect(l.cy + l.h / 2).toBeLessThan(captionTop);
-    expect(l.cy - l.h / 2).toBeGreaterThan((0.06 + 0.22) * H);   // under the upper face
-  });
-
-  it("goes under the captions on the chest when a close-up fills the top and middle", () => {
-    const scene = makeScene({
-      template: "highlighter_swipe", caption: lookCaptions(0.55), hook: hook(), face_track: face(0.15, 0.04, 0.7, 0.46),
-    });
-    const p = prep(scene), l = hookLayout(p)!;
-    expect(l.slot).toBe("below");
-    const captionBottom = Math.max(...p.chunks.filter((c) => c.start < 4).flatMap((c) => c.words.map((w) => w.y + w.h)));
-    expect(l.cy - l.h / 2).toBeGreaterThan(captionBottom);
-    expect(bottom(l)).toBeLessThanOrEqual(HOOK_PLACE.bottomMax);
-  });
-
-  it("uses the blurred band above a letterboxed picture", () => {
-    const l = layoutOf(bareScene({ hook: hook({ picture: [0.342, 0.658] }) }));
-    expect(l.slot).toBe("band");
-    expect(top(l)).toBeGreaterThanOrEqual(HOOK_PLACE.top - 1e-9);
-    expect(bottom(l)).toBeLessThanOrEqual(0.342 - HOOK_PLACE.bandGap + 1e-9);
-    // No room in the band (a tall picture): the top safe area as usual.
-    expect(layoutOf(bareScene({ hook: hook({ picture: [0.15, 0.85] }) })).slot).toBe("top");
-  });
-
-  it("keeps clear of bands other layers own (classic captions burned by ASS)", () => {
-    const l = layoutOf(bareScene({ hook: hook({ avoid: [[0.08, 0.24]] }) }));
-    expect(top(l)).toBeGreaterThan(0.24);
-  });
-
-  it("has one position for the whole window, wherever the face goes", () => {
+  it("does not move during its window", () => {
     const moving: FaceTrack = { version: 1, space: "output", fps: 6, samples: [] };
     for (let i = 0; i <= 36; i++) moving.samples.push([i / 6, [face(0.3, i < 12 ? 0.3 : 0.08, 0.4, 0.22).samples[0][1][0]]]);
     const p = prep(makeScene({ template: "highlighter_swipe", caption: lookCaptions(0.62), hook: hook(), face_track: moving }));
     const l = hookLayout(p)!;
-    const rects = [0.2, 1, 2.5, 3.7].map((t) => (hookOps(p, t)[0] as RectOp).transform.slice(4));
-    for (const r of rects) {
-      expect(r[0]).toBeCloseTo(l.cx, 3);
-      expect(r[1]).toBeCloseTo(l.cy, 3);
-    }
-    // The spot clears the eyes and mouth of both face positions.
-    for (const y of [0.3, 0.08]) {
-      const eyes = (y + 0.38 * 0.22 - 0.14 * 0.22) * H, lip = (y + 0.75 * 0.22 + 0.12 * 0.22) * H;
-      expect(l.cy + l.h / 2 <= eyes || l.cy - l.h / 2 >= lip).toBe(true);
+    for (const t of [0.2, 1, 2.5, 3.7]) {
+      const at = (hookOps(p, t)[0] as PathOp).transform.slice(4);
+      expect(at[0]).toBeCloseTo(l.cx, 3);
+      expect(at[1]).toBeCloseTo(l.cy, 3);
     }
   });
 
-  it("with automatic timing, leaves at a camera cut when that frees the band above a letterboxed opening", () => {
-    // A letterboxed graphic until 3 s, then a close-up whose face fills the top: the title sits above the graphic and
-    // goes at the cut, instead of covering the graphic for the whole window.
-    const samples: FaceTrack["samples"] = [];
-    for (let i = 18; i <= 36; i++) samples.push([i / 6, [face(0.2, 0.05, 0.6, 0.4).samples[0][1][0]]]);
-    const rows = [{ start: 0, end: 3, y: 0.76 }, { start: 3, end: 6, y: 0.65 }];
-    const scene = (trim: boolean) => makeScene({
-      template: "highlighter_swipe", caption: lookCaptions(0.76, { rows }), hook: hook({ trim, picture: [0.342, 0.658] }),
-      face_track: { version: 1, space: "output", fps: 6, samples },
-    });
-    const trimmed = hookLayout(prep(scene(true)))!;
-    expect(trimmed.slot).toBe("band");
-    expect(trimmed.end).toBe(3);
-    expect(hookOps(prep(scene(true)), 3.01)).toEqual([]);
-    const kept = hookLayout(prep(scene(false)))!;
-    expect(kept.end).toBe(4);
-    expect(kept.slot).not.toBe("band");   // the whole window: somewhere clear of the close-up's eyes and mouth
-  });
-
-  it("adds the studio offset and scale to the automatic position", () => {
+  it("adds the studio offset and scale to the fixed position", () => {
     const base = layoutOf(bareScene({ hook: hook() }));
     const moved = layoutOf(bareScene({ hook: hook({ x: 0.1, y: 0.2, scale: 1.5 }) }));
     expect(moved.px).toBeCloseTo(base.px * 1.5, 6);

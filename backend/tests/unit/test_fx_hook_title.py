@@ -17,7 +17,6 @@ from src.edit_fx.hook_title import (
     hook_font,
     hook_look,
     hook_text,
-    opening_picture_band,
 )
 from src.edit_fx.warp import identity_warp
 from src.media import fx_chain
@@ -62,28 +61,16 @@ def test_marker_colour_is_the_captions_keyword_colour():
     assert hook_accent("default", "bold", None, {}) == "#FFE45C"
 
 
-def test_only_a_letterboxed_opening_has_a_picture_band():
-    fit_first = [{"start": 0.0, "end": 2.0, "kind": "fit"}, {"start": 2.0, "end": 8.0, "kind": "pair"}]
-    assert opening_picture_band(fit_first, (1920, 1080), 0.12) == (pytest.approx(0.3418), pytest.approx(0.6582))
-    pair_first = [{"start": 0.0, "end": 2.0, "kind": "pair"}, {"start": 2.0, "end": 8.0, "kind": "fit"}]
-    assert opening_picture_band(pair_first, (1920, 1080), 0.12) is None
-    # A flash of a graphic before the first real shot is not the opening.
-    flash = [{"start": 0.0, "end": 0.4, "kind": "fit"}, {"start": 0.4, "end": 8.0, "kind": "single"}]
-    assert opening_picture_band(flash, (1920, 1080), 0.12) is None
-    assert opening_picture_band(fit_first, None, 0.12) is None
-    assert opening_picture_band([], (1920, 1080), 0.12) is None
-    # A vertical source fills the frame: no band.
-    assert opening_picture_band(fit_first, (1080, 1920), 0.12) is None
-
-
 def test_build_hook_needs_a_title_and_a_window():
     kwargs = dict(template_id="highlighter_swipe", look="bold", font=None, accent="#34FD87")
     assert build_hook(None, window=(0.12, 4.0), **kwargs) is None
     assert build_hook("   ", window=(0.12, 4.0), **kwargs) is None
     assert build_hook("Title", window=None, **kwargs) is None
     assert build_hook("Title", window=(2.0, 2.0), **kwargs) is None
-    hook = build_hook("Title", window=(0.12, 4.0), x=3, y=-3, scale=9, trim=True, avoid=[(0.7, 0.8)], **kwargs)
-    assert (hook.x, hook.y, hook.scale, hook.trim, hook.avoid) == (1.0, -1.0, 4.0, True, ((0.7, 0.8),))
+    hook = build_hook("Title", window=(0.12, 4.0), x=3, y=-3, scale=9, **kwargs)
+    assert (hook.x, hook.y, hook.scale, hook.template) == (1.0, -1.0, 4.0, "highlighter_swipe")
+    # The position is fx-core's and fixed: the contract carries no placement hints.
+    assert not {"trim", "picture", "avoid"} & set(type(hook).model_fields)
 
 
 def test_the_scene_carries_the_hook_unless_the_plan_suppresses_it():
@@ -100,7 +87,7 @@ def test_the_scene_carries_the_hook_unless_the_plan_suppresses_it():
     assert FxHookTitle.model_validate(scene(plan()).model_dump(mode="json")["hook"]) == hook
 
 
-def test_a_drawn_hook_asks_for_the_face_track_and_its_font(monkeypatch, tmp_path):
+def test_a_drawn_hook_asks_for_its_font_and_no_face_track(monkeypatch, tmp_path):
     hook = build_hook("Title", template_id="default", look="bold", font="THEBOLDFONT", accent="#FFE45C",
                       window=(0.12, 4.0))
     asked = {}
@@ -115,9 +102,8 @@ def test_a_drawn_hook_asks_for_the_face_track_and_its_font(monkeypatch, tmp_path
     request = FxRequest(plan=plan(), words=[], caption=None, hook=hook)
     fx_chain._analysis(request, input_path=Path("in.mp4"), head="", head_label="[v]", out_w=1080, out_h=1920,
                        work=tmp_path, timings={})
-    assert asked == {"face": True}
-    # A track handed in (a re-render, the studio) is used as it is; no title, no analysis.
-    asked.clear()
+    # The title sits at a fixed position: it needs no face analysis of its own.
+    assert asked == {}
     track = {"version": 1, "space": "picture", "fps": 6, "samples": []}
     fx_chain._analysis(FxRequest(plan=plan(), words=[], caption=None, hook=hook, face_track=track),
                        input_path=Path("in.mp4"), head="", head_label="[v]", out_w=1080, out_h=1920, work=tmp_path,
