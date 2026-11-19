@@ -311,3 +311,16 @@ def test_jumping_back_in_a_dense_clip_does_not_buffer_raw_frames(tmp_path, monke
         source, [(50.0, 54.0), (5.0, 35.0)], tmp_path / "b.mp4", output_offsets=[0.0, 3.96]
     )
     assert max(peaks) < in_order + 100
+
+
+@pytest.mark.parametrize("kwargs,expected", [({}, 60), ({"timeout": 40}, 40)])
+def test_ffprobe_duration_passes_its_timeout_to_ffprobe(kwargs, expected):
+    seen = {}
+
+    def run(command, timeout):
+        seen["timeout"] = timeout
+        return SimpleNamespace(returncode=0, stdout="12.5\n")
+
+    with patch.object(ffmpeg, "run_ffmpeg_command", run):
+        assert ffprobe_duration(Path("video.mp4"), **kwargs) == 12.5
+    assert seen["timeout"] == expected
