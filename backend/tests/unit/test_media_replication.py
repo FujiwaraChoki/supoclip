@@ -1097,3 +1097,78 @@ def test_signing_reports_throttling_not_missing_when_the_replica_lacks_the_objec
         mirrored.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
     assert raised.value.response["Error"]["Code"] == "429"
     assert primary.head_object.call_count == 4
+
+
+def test_a_store_that_keeps_throttling_is_read_last_instead_of_stalling_every_read(mirrored, tmp_path, sleeps):
+    # A task reads many objects (sections, sidecars, clips). Only the first
+    # read should wait out a store that keeps throttling.
+    primary, fallback = stores(mirrored)
+    for key in ("a", "b", "c"):
+        hold(primary, b"video", key)
+        hold(fallback, b"video", key)
+    primary.download_file = Mock(side_effect=throttle("SlowDown", 503))
+    for key in ("a", "b", "c"):
+        restored = tmp_path / f"{key}.mp4"
+        mirrored.download_file("original", key, str(restored))
+        assert restored.read_bytes() == b"video"
+    assert primary.download_file.call_count == 4
+    assert len(sleeps) == 3
+
+
+def test_a_cooling_store_is_still_waited_on_when_it_alone_has_the_object(mirrored, tmp_path, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video", "a")
+    hold(fallback, b"video", "a")
+    hold(primary, b"fresh", "b")  # not replicated yet
+    real = primary.download_file
+    throttled = iter([True] * 4 + [True, False])
+
+    def flaky(*args, **kwargs):
+        if next(throttled):
+            raise throttle()
+        return real(*args, **kwargs)
+
+    primary.download_file = flaky
+    mirrored.download_file("original", "a", str(tmp_path / "a.mp4"))
+    sleeps.clear()
+    restored = tmp_path / "b.mp4"
+    mirrored.download_file("original", "b", str(restored))
+    assert restored.read_bytes() == b"fresh"
+    assert len(sleeps) == 1
+
+
+def test_when_both_stores_throttle_only_the_last_one_is_waited_on(mirrored, tmp_path, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video")
+    hold(fallback, b"video")
+    primary.download_file = Mock(side_effect=throttle())
+    fallback.download_file = Mock(side_effect=throttle())
+    for _ in range(2):
+        with pytest.raises(ClientError, match="429"):
+            mirrored.download_file("original", KEY, str(tmp_path / "restored.mp4"))
+    assert primary.download_file.call_count == 4 + 1
+    assert fallback.download_file.call_count == 4 + 4
+    assert len(sleeps) == 3 + 3 + 3
+
+
+def test_a_store_is_preferred_again_once_its_throttling_cooldown_ends(mirrored, tmp_path, sleeps, monkeypatch):
+    monkeypatch.setattr("src.media_replication.THROTTLE_COOLDOWN_SECONDS", 0.0)
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video")
+    hold(fallback, b"video")
+    primary.download_file = Mock(side_effect=[throttle()] * 4 + [None])
+    mirrored.download_file("original", KEY, str(tmp_path / "first.mp4"))
+    fallback.download_file = Mock(side_effect=AssertionError("the preferred store has recovered"))
+    mirrored.download_file("original", KEY, str(tmp_path / "second.mp4"))
+    assert primary.download_file.call_count == 5
+
+
+def test_signing_skips_the_wait_on_a_store_that_keeps_throttling(mirrored, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video")
+    hold(fallback, b"video")
+    primary.head_object = Mock(side_effect=throttle())
+    for _ in range(3):
+        url = mirrored.generate_presigned_url("get_object", Params={"Bucket": "original", "Key": KEY})
+        assert url.startswith("https://r2.example/replica/")
+    assert primary.head_object.call_count == 4 and len(sleeps) == 3
