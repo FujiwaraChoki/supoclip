@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Read-only SupoClip production health, job, and OpenRouter balance snapshot.
 
-Run from this checkout using Python 3. No purchases, job submissions, or service
+Run from this checkout using Python 3 with SUPOCLIP_PROD_SSH_HOST set to the
+production SSH alias. No purchases, job submissions, or service
 changes. API keys are read on the production host and never returned.
 """
 import json
+import os
 import shlex
 import subprocess
+import sys
 import urllib.request
 
 REMOTE = r'''
@@ -57,6 +60,9 @@ asyncio.run(main())
 '''
 
 def main():
+    HOST=os.environ.get('SUPOCLIP_PROD_SSH_HOST','').strip()
+    if not HOST:
+        sys.exit('Set SUPOCLIP_PROD_SSH_HOST to the SSH alias or host of the production server.')
     snapshot={}
     try:
         with urllib.request.urlopen('https://www.supoclip.com/',timeout=20) as response:
@@ -65,13 +71,13 @@ def main():
         snapshot['public_site_error']=type(error).__name__
     command='docker exec supoclip-backend /app/.venv/bin/python -c '+shlex.quote(REMOTE)
     try:
-        response=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','hetzner',command],
+        response=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15',HOST,command],
             check=True,capture_output=True,text=True,timeout=90)
         snapshot['production']=json.loads(response.stdout)
     except Exception as error:
         snapshot['production_error']=type(error).__name__
     try:
-        response=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','hetzner',
+        response=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15',HOST,
             'docker ps -a --filter name=supoclip --format '+shlex.quote('{{.Names}}: {{.Status}}')],
             check=True,capture_output=True,text=True,timeout=25)
         snapshot['containers']=response.stdout.strip().splitlines()
