@@ -80,6 +80,7 @@ class Settings:
     location: str = "hel1"
     concurrency: int = 10
     poll_seconds: float = 5.0
+    overflow_after_seconds: float = 15.0
     db_pool_size: int = 10
     db_max_overflow: int = 5
     snapshot_selector: str = "supoclip-render-golden=true"
@@ -131,6 +132,7 @@ def load_settings(env: dict[str, str], *, dry_run: bool = False) -> Settings:
         location=env.get("AUTOSCALER_LOCATION", "").strip() or "hel1",
         concurrency=concurrency,
         poll_seconds=num("AUTOSCALER_WORKER_POLL_SECONDS", 5.0, float),
+        overflow_after_seconds=num("AUTOSCALER_WORKER_OVERFLOW_AFTER_SECONDS", 15.0, float),
         db_pool_size=num("AUTOSCALER_WORKER_DB_POOL_SIZE", concurrency),
         db_max_overflow=num("AUTOSCALER_WORKER_DB_MAX_OVERFLOW", 5),
         snapshot_selector=env.get("AUTOSCALER_SNAPSHOT_SELECTOR", "").strip() or "supoclip-render-golden=true",
@@ -544,6 +546,7 @@ def compose_env(settings: Settings, name: str, image: str, template: str) -> byt
         "WORKER_SCRATCH_PATH": "/srv/supoclip-scratch",
         "VIDEO_WORKER_CONCURRENCY": str(settings.concurrency),
         "VIDEO_WORKER_POLL_DELAY": str(settings.poll_seconds),
+        "VIDEO_WORKER_OVERFLOW_AFTER_SECONDS": str(settings.overflow_after_seconds),
         "WORKER_DB_POOL_SIZE": str(settings.db_pool_size),
         "WORKER_DB_MAX_OVERFLOW": str(settings.db_max_overflow),
         "RENDER_HOST_NAME": name,

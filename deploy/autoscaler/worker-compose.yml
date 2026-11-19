@@ -12,9 +12,10 @@ services:
     platform: linux/amd64
     # The video worker only. On SIGTERM, ARQ stops taking jobs and waits up to
     # job_completion_wait for running ones: that is how the autoscaler drains.
-    # It looks at the queue less often than an always-on render host (0.5 s), so
-    # that host takes a job first whenever it has a free slot and this machine
-    # only gets the overflow. Otherwise it would never be idle.
+    # It only takes a job that has waited VIDEO_WORKER_OVERFLOW_AFTER_SECONDS
+    # (src/workers/overflow.py), so an always-on render host takes a job first
+    # whenever it has a free slot and this machine only gets the overflow.
+    # Otherwise it would never be idle. It also polls less often than that host.
     command:
       - .venv/bin/python
       - -c
@@ -45,6 +46,7 @@ services:
       EMBED_CRON_WORKER: "0"
       VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-10}
       VIDEO_WORKER_POLL_DELAY: ${VIDEO_WORKER_POLL_DELAY:-5}
+      VIDEO_WORKER_OVERFLOW_AFTER_SECONDS: ${VIDEO_WORKER_OVERFLOW_AFTER_SECONDS:-15}
       # The per-host job registry key; the autoscaler reads it to see this machine is idle.
       RENDER_HOST_NAME: ${RENDER_HOST_NAME:?Set RENDER_HOST_NAME}
       YOUTUBE_PROXY_DEFAULT_PROVIDER: ${YOUTUBE_PROXY_DEFAULT_PROVIDER:-geonode}

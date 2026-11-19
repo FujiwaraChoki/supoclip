@@ -113,12 +113,24 @@ never forced. After deletion its tunnel is stopped and its host key forgotten.
 Every worker polls the same queue, and whichever asks first gets the job. A
 cloud worker close to Redis would win nearly every time and stay busy while an
 always-on render host with free slots sat idle, so it would never be removed.
-Cloud workers therefore poll every `AUTOSCALER_WORKER_POLL_SECONDS` (5) instead
-of ARQ's 0.5 s: the always-on host takes a job first whenever it has a free
-slot, and the cloud worker goes idle as soon as that host can carry the load.
-A job waits at most those few seconds longer when only a cloud worker is free.
-For a hand-built worker you adopt, pass the same `poll_delay` to `run_worker`
-in its compose file.
+A slower poll alone is not enough: a cloud worker still wins every job that
+becomes due just before its own look at the queue.
+
+A cloud worker therefore only takes a job that has been due for
+`AUTOSCALER_WORKER_OVERFLOW_AFTER_SECONDS` (15): it reaches the worker as
+`VIDEO_WORKER_OVERFLOW_AFTER_SECONDS` (`backend/src/workers/overflow.py`). The
+always-on host polls every 0.5 s, so it takes a new job first whenever it has a
+free slot, and the cloud worker goes idle as soon as that host can carry the
+load. Nothing starves: when the always-on host is full or down, a job waits at
+most those 15 s plus one poll (`AUTOSCALER_WORKER_POLL_SECONDS`, 5) longer.
+That applies to every job on the video queue, editor and social jobs included.
+Per-account render slots are unchanged.
+
+The variable also works from the worker's env file, so it reaches machines made
+from an older snapshot and hand-built workers you adopt: add
+`VIDEO_WORKER_OVERFLOW_AFTER_SECONDS=15` to the autoscaler's `worker.env`
+template and to an adopted machine's own env file. Never set it on the
+always-on host.
 
 ### Which jobs run where
 
@@ -247,6 +259,7 @@ last step.
 | `AUTOSCALER_ERROR_BACKOFF_MINUTES` | `30` | No scale-up after a cloud API error or a failed scale-up. |
 | `AUTOSCALER_SERVER_TYPE` / `_LOCATION` | `ccx53` / `hel1` | |
 | `AUTOSCALER_WORKER_CONCURRENCY` | `10` | ARQ `max_jobs` on a cloud worker. |
+| `AUTOSCALER_WORKER_OVERFLOW_AFTER_SECONDS` | `15` | A cloud worker takes a job only after it has waited this long. |
 | `AUTOSCALER_WORKER_POLL_SECONDS` | `5` | How often a cloud worker polls the queue (an always-on host: 0.5 s). |
 | `AUTOSCALER_WORKER_DB_POOL_SIZE` / `_MAX_OVERFLOW` | concurrency / `5` | One pool per process; it must cover every slot. |
 | `AUTOSCALER_IMAGE_SOURCE` | `container:supoclip-worker` | See above. |
