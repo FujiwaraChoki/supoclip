@@ -1015,3 +1015,63 @@ class TestMemoryLedger(LedgerContract):
     @pytest.fixture
     def ledger(self):
         return MemoryLedger()
+
+
+def throttle(code="429", status=429):
+    return ClientError({"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status}}, "HeadObject")
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    waits = []
+    monkeypatch.setattr("src.media_replication._sleep", waits.append, raising=False)
+    return waits
+
+
+def test_download_waits_out_brief_throttling_on_the_same_store(mirrored, tmp_path, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video")
+    primary.download_file = Mock(side_effect=[throttle(), None])
+    fallback.download_file = Mock(side_effect=AssertionError("The replica does not have the object yet"))
+    mirrored.download_file("original", KEY, str(tmp_path / "restored.mp4"))
+    assert primary.download_file.call_count == 2
+    assert len(sleeps) == 1 and 0.25 <= sleeps[0] <= 0.5
+
+
+@pytest.mark.parametrize("code,status", [("SlowDown", 503), ("503", 503), ("TooManyRequests", 400)])
+def test_head_waits_out_throttling_codes(mirrored, tmp_path, sleeps, code, status):
+    primary, _ = stores(mirrored)
+    hold(primary, b"video")
+    real = primary.head_object
+    calls = []
+
+    def flaky(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise throttle(code, status)
+        return real(**kwargs)
+
+    primary.head_object = flaky
+    assert mirrored.head_object(Bucket="original", Key=KEY)["ContentLength"] == 5
+    assert len(calls) == 2 and len(sleeps) == 1
+
+
+def test_missing_object_falls_through_to_the_other_store_without_waiting(mirrored, tmp_path, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(fallback, b"video")
+    primary.download_file = Mock(side_effect=ClientError({"Error": {"Code": "404"},
+                                                          "ResponseMetadata": {"HTTPStatusCode": 404}}, "HeadObject"))
+    restored = tmp_path / "restored.mp4"
+    mirrored.download_file("original", KEY, str(restored))
+    assert restored.read_bytes() == b"video"
+    assert primary.download_file.call_count == 1 and sleeps == []
+
+
+def test_persistent_throttling_gives_up_and_raises(mirrored, tmp_path, sleeps):
+    primary, fallback = stores(mirrored)
+    hold(primary, b"video")
+    primary.download_file = Mock(side_effect=throttle())
+    with pytest.raises(ClientError, match="429"):
+        mirrored.download_file("original", KEY, str(tmp_path / "restored.mp4"))
+    assert primary.download_file.call_count == 4
+    assert len(sleeps) == 3 and sum(sleeps) <= 3.5

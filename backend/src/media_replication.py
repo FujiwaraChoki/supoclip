@@ -20,6 +20,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import random
 import shutil
 import time
 import uuid
@@ -38,6 +39,11 @@ TRANSFER = TransferConfig(max_concurrency=2, multipart_chunksize=64 * 1024 * 102
 MISSING = {"404", "NoSuchKey", "NotFound"}
 COPIED_HEADERS = ("ContentType", "ContentDisposition", "CacheControl", "Metadata")
 HEADROOM = 256 * 1024 * 1024
+# A store that rate-limits a read is retried before the next store is tried:
+# botocore does not retry a HEAD answered 429, whose code is the bare status.
+THROTTLED = {"429", "503", "SlowDown", "TooManyRequests"}
+THROTTLE_DELAYS = (0.5, 1.0, 2.0)
+_sleep = time.sleep
 _ledger_warning_at = float("-inf")
 
 
@@ -54,6 +60,25 @@ def fingerprint(path: Path) -> tuple[str, int]:
 
 def _missing(error) -> bool:
     return isinstance(error, ClientError) and error.response["Error"]["Code"] in MISSING
+
+
+def _throttled(error) -> bool:
+    if not isinstance(error, ClientError):
+        return False
+    status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return status in (429, 503) or error.response.get("Error", {}).get("Code") in THROTTLED
+
+
+def _retry_throttled(call):
+    """Run one store request, waiting out brief rate limiting (at most ~3.5s)."""
+    for delay in THROTTLE_DELAYS:
+        try:
+            return call()
+        except ClientError as error:
+            if not _throttled(error):
+                raise
+            _sleep(delay * random.uniform(0.5, 1.0))
+    return call()
 
 
 class ReplicatedMediaClient:
@@ -201,7 +226,7 @@ class ReplicatedMediaClient:
         for name in names:
             client, bucket = self.stores[name]
             try:
-                return getattr(client, operation)(Bucket=bucket, Key=Key, **kwargs)
+                return _retry_throttled(lambda: getattr(client, operation)(Bucket=bucket, Key=Key, **kwargs))
             except ERRORS as exc:
                 # An unavailable store must not hide a real error by becoming
                 # a false "object missing" when its replica is absent.
@@ -256,7 +281,7 @@ class ReplicatedMediaClient:
         for name in names:
             client, target = self.stores[name]
             try:
-                client.download_file(target, key, filename, Config=TRANSFER)
+                _retry_throttled(lambda: client.download_file(target, key, filename, Config=TRANSFER))
                 return
             except ERRORS as exc:
                 errors.append(exc)
