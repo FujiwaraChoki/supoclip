@@ -61,7 +61,10 @@ including cuts the 3 fps analysis missed; a lasting change in how many people
 are on screen also divides a shot, unless the one face left sits where one of
 the pair sat: that is the same two-shot with someone turned away in profile, so
 it stays stacked instead of swinging a tight crop to that edge of the room and
-back. The graph decodes the source once: each
+back (also when that face is too small for its own crop). The hold lasts at most
+as long as the shot's two-shot, unless the pair is seen again afterwards, so a
+guest who leaves or a visitor passing a single speaker does not leave an empty
+seat on screen. The graph decodes the source once: each
 composition `trim`s its own time range and the pieces are joined with
 `concat`, so the stored plan replays in the studio like any other.
 

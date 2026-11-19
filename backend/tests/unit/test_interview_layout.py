@@ -470,3 +470,66 @@ def test_a_single_speaker_after_a_two_shot_is_still_cropped_tight():
     assert [k for *_, k in kinds(result)] == ["pair", "single"]
     w, x = map(int, re.search(r"\[s1\]trim=start=6.000,crop=(\d+):\d+:x=(\d+)", result["video_filter"]).groups())
     assert x < off_centre[0] + off_centre[2] / 2 < x + w
+
+
+@pytest.mark.parametrize("shots, expected", [
+    # A visitor stands beside a single speaker for 2.5 s, then leaves.
+    ([(0, 2.5, [LEFT, RIGHT]), (2.5, 30, [LEFT])], ["pair", "single"]),
+    ([(0, 14, [LEFT]), (14, 16.5, [LEFT, RIGHT]), (16.5, 30, [LEFT])], ["single", "pair", "single"]),
+    # The guest gets up and leaves for good a third of the way in.
+    ([(0, 10, [LEFT, RIGHT]), (10, 30, [LEFT])], ["pair", "single"]),
+])
+def test_someone_alone_for_longer_than_the_two_shot_gets_their_own_crop(shots, expected):
+    # Holding the pair here would stack the speaker over an empty seat for
+    # most of the clip.
+    result = plan(shots, [], 30)
+    assert [k for *_, k in kinds(result)] == expected
+
+
+def test_a_long_profile_between_two_frontal_moments_stays_stacked():
+    # The guest listens in profile for 12 s, frontal only briefly before and
+    # after: present on both sides, so it is the same two-shot throughout.
+    result = plan([(0, 3, [LEFT, RIGHT]), (3, 15, [RIGHT]), (15, 18, [LEFT, RIGHT])], [], 18)
+    assert kinds(result) == [(0, 18, "pair")]
+
+
+def test_a_wide_two_shot_with_small_faces_does_not_drop_to_the_full_frame():
+    # Faces 9-10% of the frame tall are enough for a pair but too small for a
+    # single crop; a dropout used to letterbox the whole picture for it.
+    left, right = (300.0, 260.0, 80.0, 100.0), (1450.0, 255.0, 82.0, 104.0)
+    result = plan([(0, 4, [left, right]), (4, 7, [left]), (7, 12, [left, right])], [], 12)
+    assert kinds(result) == [(0, 12, "pair")]
+
+
+@pytest.mark.parametrize("cam, npc", [
+    ((1600.0, 820.0, 120.0, 150.0), (700.0, 790.0, 110.0, 140.0)),
+    # A facecam too small for its own crop.
+    ((1650.0, 860.0, 80.0, 100.0), (700.0, 840.0, 78.0, 95.0)),
+])
+def test_a_facecam_over_gameplay_is_not_held_in_a_stack(cam, npc):
+    # A game character's face briefly level with the streamer's facecam
+    # makes a short false two-shot; the facecam alone is never stacked.
+    # (Or the interview layout declines the clip, which keeps its own layout.)
+    result = plan([(0, 14, [cam]), (14, 16, [cam, npc]), (16, 30, [cam])], [], 30)
+    assert result is None or [(s, e) for s, e, k in kinds(result) if k == "pair"] == [(14, 16)]
+
+
+def test_a_noisy_two_shot_stays_stacked():
+    # Detector-like noise: face sizes vary by up to 8%, positions drift a
+    # little, and each person is missed on one sample in ten, besides the
+    # longer stretches in profile.
+    rng = np.random.default_rng(7)
+    faces, context = [], []
+    for i in range(90):
+        t = round(i / FPS, 6)
+        boxes = []
+        for box, away in ((LEFT, 30 <= i < 41), (RIGHT, 12 <= i < 21 or 60 <= i < 72)):
+            if away or rng.random() < 0.1:
+                continue
+            x, y, w, h = box
+            s = 1 + rng.uniform(-0.08, 0.08)
+            boxes.append((x + rng.normal(0, 6), y + rng.normal(0, 4), w * s, h * s))
+        faces.append((t, boxes))
+        context.append(SceneEvidence(t))
+    result = plan_interview_layout(W, H, 30, [], faces, context)
+    assert kinds(result) == [(0, 30, "pair")]

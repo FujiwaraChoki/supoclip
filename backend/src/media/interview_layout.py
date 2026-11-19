@@ -307,6 +307,9 @@ def _classify(
         # A distant figure, a game character or a false detection in b-roll:
         # a tight crop would invent a subject, so the frame stays whole.
         segment.kind, segment.reason = "fit", "small_subject"
+        # Kept so a two-shot can hold this face (``_hold_pair``); a fitted
+        # shot draws no crop from it.
+        segment.people, segment.tracks = [subject["box"]], [subject["track"]]
         return segment
     segment.kind, segment.reason = "single", "one_person"
     segment.people, segment.tracks = [subject["box"]], [subject["track"]]
@@ -340,20 +343,33 @@ def _hold_pair(pieces: List[Segment], width: int) -> List[Segment]:
     edge of the room and back, so a lone face sitting where one of a
     neighbouring pair sits keeps the pair's panels. A lone face elsewhere (a
     missed cut to a close-up) still gets its own crop.
+
+    The hold is bounded: a lone stretch longer than all of the shot's
+    detected two-shot, and not between two of its pieces, is someone alone
+    in the frame (a guest who left, or a visitor who passed by a single
+    speaker). It keeps its own crop, so half the screen never shows an
+    empty seat.
     """
     pieces = list(pieces)
+    two_shot = sum(p.end - p.start for p in pieces if p.kind == "pair")
+
+    def matches(piece: Segment, near: Optional[Segment]) -> bool:
+        return near is not None and near.kind == "pair" and any(
+            _same_setup([piece.people[0]], [person], width) for person in near.people
+        )
+
     index = 0
     while index < len(pieces):
         piece = pieces[index]
         pair = None
-        if piece.kind == "single" and piece.reason == "one_person":
-            for j in (index - 1, index + 1):
-                near = pieces[j] if 0 <= j < len(pieces) else None
-                if near is not None and near.kind == "pair" and any(
-                    _same_setup([piece.people[0]], [person], width) for person in near.people
-                ):
-                    pair = near
-                    break
+        # A lone face too small for its own crop would otherwise drop the
+        # whole picture into the fitted layout for those seconds.
+        if piece.people and piece.reason in {"one_person", "small_subject"}:
+            before = pieces[index - 1] if index > 0 else None
+            after = pieces[index + 1] if index + 1 < len(pieces) else None
+            between = matches(piece, before) and matches(piece, after)
+            if between or piece.end - piece.start <= two_shot:
+                pair = before if matches(piece, before) else after if matches(piece, after) else None
         if pair is None:
             index += 1
             continue
