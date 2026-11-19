@@ -317,6 +317,59 @@ def _face_state(faces: Sequence[Box], height: int) -> int:
     return min(3, sum(1 for box in faces if box[3] >= height * MIN_FACE_H_FRAC))
 
 
+def _absorb(pair: Segment, other: Segment) -> None:
+    """Extend ``pair`` over ``other``; each face joins the nearer person's track."""
+    pair.start, pair.end = min(pair.start, other.start), max(pair.end, other.end)
+    pair.times = sorted(set(pair.times) | set(other.times))
+    for box, track in zip(other.people, other.tracks):
+        index = min(range(len(pair.people)), key=lambda i: abs(_centre(pair.people[i])[0] - _centre(box)[0]))
+        pair.tracks[index] = {**pair.tracks[index], **track}
+    pair.people = [
+        _median_box(list(track.values())) if track else box
+        for box, track in zip(pair.people, pair.tracks)
+    ]
+
+
+def _hold_pair(pieces: List[Segment], width: int) -> List[Segment]:
+    """Keep a two-shot stacked while one of its people drops out of detection.
+
+    ``pieces`` are the consecutive stretches of one camera shot. Someone
+    turning to the other person in profile, or looking down, is lost by the
+    face detector for a few seconds; with no cut, the picture is the same
+    two-shot. A tight crop on whoever is left would swing the frame to one
+    edge of the room and back, so a lone face sitting where one of a
+    neighbouring pair sits keeps the pair's panels. A lone face elsewhere (a
+    missed cut to a close-up) still gets its own crop.
+    """
+    pieces = list(pieces)
+    index = 0
+    while index < len(pieces):
+        piece = pieces[index]
+        pair = None
+        if piece.kind == "single" and piece.reason == "one_person":
+            for j in (index - 1, index + 1):
+                near = pieces[j] if 0 <= j < len(pieces) else None
+                if near is not None and near.kind == "pair" and any(
+                    _same_setup([piece.people[0]], [person], width) for person in near.people
+                ):
+                    pair = near
+                    break
+        if pair is None:
+            index += 1
+            continue
+        _absorb(pair, piece)
+        del pieces[index]
+        index = max(0, index - 1)
+    merged: List[Segment] = []
+    for piece in pieces:
+        last = merged[-1] if merged else None
+        if last is not None and last.kind == piece.kind == "pair" and _same_setup(last.people, piece.people, width):
+            _absorb(last, piece)
+            continue
+        merged.append(piece)
+    return merged
+
+
 def _segments(
     duration: float,
     scene_cuts: Sequence[float],
@@ -350,6 +403,7 @@ def _segments(
                 [(a, b, None)] if is_graphic or not part else
                 _runs([t for t, _ in part], [_face_state(f, height) for _, f in part], a, b, FACE_STATE_MIN_SAMPLES)
             )
+            first = len(segments)
             for c, d, _ in pieces:
                 sub = [(t, faces) for t, faces in part if c <= t < d]
                 segment = Segment(c, d, graphic=bool(is_graphic) and bool(sub))
@@ -360,6 +414,7 @@ def _segments(
                 else:
                     segment.kind, segment.reason = "fit", "unsampled"
                     segments.append(segment)
+            segments[first:] = _hold_pair(segments[first:], width)
     index = 0
     while index < len(segments) and len(segments) > 1:
         segment = segments[index]

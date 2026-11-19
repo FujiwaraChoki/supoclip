@@ -58,7 +58,10 @@ for hair and caps. Every return to the same camera setup gets the same zoom.
 Layouts switch only at edits. A full-rate 64×36 decode finds each cut on its
 exact frame (straight cuts and one-to-three-frame whips, not pans or flashes),
 including cuts the 3 fps analysis missed; a lasting change in how many people
-are on screen also divides a shot. The graph decodes the source once: each
+are on screen also divides a shot, unless the one face left sits where one of
+the pair sat: that is the same two-shot with someone turned away in profile, so
+it stays stacked instead of swinging a tight crop to that edge of the room and
+back. The graph decodes the source once: each
 composition `trim`s its own time range and the pieces are joined with
 `concat`, so the stored plan replays in the studio like any other.
 

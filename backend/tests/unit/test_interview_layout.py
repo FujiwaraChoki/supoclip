@@ -390,3 +390,83 @@ def test_opening_on_a_two_shot_moves_the_hook_title_to_the_panel_seam():
     assert plan(INTERVIEW, [5, 9, 14], 18)["hook_center_y"] == interview_layout.PAIR_SEAM_Y
     close_first = [(0, 5, [CLOSE]), (5, 9, [HOST, GUEST]), (9, 14, [CLOSE])]
     assert "hook_center_y" not in plan(close_first, [5, 9], 14)
+
+
+# A static podcast two-shot: two people at the far left and right of the room,
+# too far apart for one 9:16 crop, and no camera cut in the whole clip.
+LEFT = (300.0, 240.0, 150.0, 190.0)
+RIGHT = (1450.0, 230.0, 150.0, 195.0)
+
+
+def _podcast(dropouts):
+    """30 s of LEFT and RIGHT; in each (first, last, keep) only ``keep`` is found."""
+    faces, context = [], []
+    for i in range(90):
+        t = round(i / FPS, 6)
+        boxes = [LEFT, RIGHT]
+        for first, last, keep in dropouts:
+            if first <= i < last:
+                boxes = [keep]
+        faces.append((t, [jitter(b, i) for b in boxes]))
+        context.append(SceneEvidence(t))
+    return faces, context
+
+
+def _crops(graph):
+    return [tuple(map(int, m)) for m in re.findall(r"crop=(\d+):(\d+):x=(\d+):y=(\d+)", graph)]
+
+
+@pytest.mark.parametrize("dropouts", [
+    # The right-hand guest turns to the host in profile, several times.
+    [(12, 21, LEFT), (42, 51, LEFT), (70, 80, LEFT)],
+    # Each of them looks away in turn.
+    [(12, 21, LEFT), (30, 38, RIGHT), (70, 80, LEFT)],
+    # The clip opens with one of them undetected.
+    [(0, 9, RIGHT), (45, 54, LEFT)],
+])
+def test_a_two_shot_stays_stacked_while_one_person_is_not_detected(dropouts):
+    faces, context = _podcast(dropouts)
+    result = plan_interview_layout(W, H, 30, [], faces, context)
+    # One stable composition: no switch and no tight crop onto one edge of the room.
+    assert kinds(result) == [(0, 30, "pair")]
+    graph = result["video_filter"]
+    assert "concat" not in graph
+    crops = _crops(graph)
+    assert len(crops) == 2
+    (tw, _, tx, _), (bw, _, bx, _) = crops
+    assert tx < LEFT[0] + LEFT[2] / 2 < tx + tw
+    assert bx < RIGHT[0] + RIGHT[2] / 2 < bx + bw
+
+
+def test_a_lone_face_away_from_the_pair_is_still_its_own_shot():
+    # Without a detected cut, a close-up of someone else (not where either
+    # person of the two-shot sits) still gets its own tight crop.
+    faces, context = _podcast([(45, 90, (860.0, 200.0, 240.0, 320.0))])
+    result = plan_interview_layout(W, H, 30, [], faces, context)
+    assert [k for *_, k in kinds(result)] == ["pair", "single"]
+    assert result["segments"][1]["start"] == pytest.approx(15, abs=0.01)
+
+
+@pytest.mark.parametrize("box", [
+    (1450.0, 230.0, 150.0, 195.0),   # one speaker, off-centre
+    (885.0, 240.0, 150.0, 195.0),    # one speaker, centred
+])
+def test_a_single_speaker_keeps_the_generic_tracked_crop(box):
+    faces, context = samples([(0, 30, [box])])
+    assert plan_interview_layout(W, H, 30, [], faces, context) is None
+    # The generic crop is centred on that one face, as before.
+    track = [(t, f[0][0] + f[0][2] / 2, 0.02) for t, f in faces]
+    crop_w, _ = reframing.compute_vertical_crop_dims(W, H)
+    keys = reframing.build_crop_trajectory(track, W, crop_w)
+    x = int(np.median([x for _, x in keys]))
+    assert x < box[0] + box[2] / 2 < x + crop_w
+    assert abs(x + crop_w / 2 - (box[0] + box[2] / 2)) < crop_w * 0.1
+
+
+def test_a_single_speaker_after_a_two_shot_is_still_cropped_tight():
+    # An off-centre close-up cut in after the two-shot keeps its own crop.
+    off_centre = (1300.0, 180.0, 250.0, 320.0)
+    result = plan([(0, 6, [LEFT, RIGHT]), (6, 12, [off_centre])], [6], 12)
+    assert [k for *_, k in kinds(result)] == ["pair", "single"]
+    w, x = map(int, re.search(r"\[s1\]trim=start=6.000,crop=(\d+):\d+:x=(\d+)", result["video_filter"]).groups())
+    assert x < off_centre[0] + off_centre[2] / 2 < x + w
