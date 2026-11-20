@@ -684,25 +684,18 @@ def parse_timestamp_to_seconds(timestamp_str: str) -> float:
     """Parse timestamp string to seconds."""
     try:
         timestamp_str = timestamp_str.strip()
-        logger.info(f"Parsing timestamp: '{timestamp_str}'")  # Debug logging
 
         if ":" in timestamp_str:
             parts = timestamp_str.split(":")
             if len(parts) == 2:
                 minutes, seconds = map(int, parts)
-                result = minutes * 60 + seconds
-                logger.info(f"Parsed '{timestamp_str}' -> {result}s")
-                return result
+                return minutes * 60 + seconds
             elif len(parts) == 3:  # HH:MM:SS format
                 hours, minutes, seconds = map(int, parts)
-                result = hours * 3600 + minutes * 60 + seconds
-                logger.info(f"Parsed '{timestamp_str}' -> {result}s")
-                return result
+                return hours * 3600 + minutes * 60 + seconds
 
         # Try parsing as pure seconds
-        result = float(timestamp_str)
-        logger.info(f"Parsed '{timestamp_str}' as seconds -> {result}s")
-        return result
+        return float(timestamp_str)
 
     except (ValueError, IndexError) as e:
         logger.error(f"Failed to parse timestamp '{timestamp_str}': {e}")

@@ -6,6 +6,7 @@ the React outro (#280) and the 60s Huberman clip (#280).
 """
 
 import json
+import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -378,3 +379,18 @@ def test_generated_clip_stores_the_probed_file_length(tmp_path, monkeypatch):
         add_subtitles=False,
     )
     assert clips[0]["duration"] == pytest.approx(2.5)
+
+
+def test_parse_timestamp_does_not_log_at_info(caplog):
+    # Renders parse many timestamps; a log line per call drowns the worker logs.
+    with caplog.at_level(logging.DEBUG):
+        assert timeline.parse_timestamp_to_seconds("24:14") == 1454
+        assert timeline.parse_timestamp_to_seconds("01:02:03") == 3723
+        assert timeline.parse_timestamp_to_seconds("12.5") == 12.5
+    assert [r for r in caplog.records if r.levelno >= logging.INFO] == []
+
+
+def test_parse_timestamp_still_reports_invalid_input(caplog):
+    with caplog.at_level(logging.DEBUG):
+        assert timeline.parse_timestamp_to_seconds("not a time") == 0.0
+    assert any(r.levelno == logging.ERROR for r in caplog.records)
