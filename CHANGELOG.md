@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-20
+
+- **Fixed:** In the clip studio, Play now starts the preview in some iPhone in-app browsers where tapping it used to do nothing because the browser would not start the sound. The video plays, and the sound is tried again on your next tap. ([#474](https://github.com/FujiwaraChoki/supoclip/pull/474))
+
 ## 2026-11-19
 
 - **Improved:** Gameplay streams are framed for vertical video: your camera sits on top and the game fills the rest, with the minimap kept, instead of a crop around your camera that cut the game off. Works for single-streamer videos with a camera on screen, including story games without a HUD. ([#471](https://github.com/FujiwaraChoki/supoclip/pull/471))
