@@ -211,6 +211,78 @@ def test_fallback_ranges_stay_inside_a_cameras_own_spans():
     assert ranges == [(1.75, 5.0), (14.75, 20.0)]
 
 
+def test_a_game_that_stands_still_beside_a_camera_is_still_a_stream():
+    # A menu or the map: only part of the picture moves. Without a camera that is a screen recording.
+    rng = np.random.default_rng(5)
+    still = world(rng)
+    frames = []
+    for i in range(48):
+        frame = still.copy()
+        frame[120:300, 40:300] = world(rng)[120:300, 40:300]      # a quarter of the screen keeps moving
+        draw_hud(frame)
+        draw_cam(frame, i)
+        frames.append(frame)
+    frames = np.stack(frames)
+    times = [i / 3 for i in range(48)]
+    with_cam = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert gl.MIN_MOVING_FRACTION_WITH_FACECAM <= with_cam.moving_fraction < gl.MIN_MOVING_FRACTION
+    assert with_cam.is_gaming and with_cam.facecam is not None
+    without = classify(frames, times)
+    assert not without.is_gaming and without.reason == "static_picture"
+
+
+def split_clip(count=48, split=lambda i: 12 <= i < 36, seed=9):
+    rng = np.random.default_rng(seed)
+    frames = []
+    for i in range(count):
+        frame = world(rng)
+        if split(i):
+            frame[:, W // 2 - 2:W // 2 + 2] = 255                 # the divider between two pictures
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
+
+
+def test_a_side_by_side_comparison_stacks_its_halves_while_the_screen_is_split():
+    frames, times = split_clip()
+    profile = classify(frames, times)
+    assert profile.is_gaming and profile.reason == "split_screen"
+    assert profile.split_ranges == [(pytest.approx(4.0 - 1 / 6), pytest.approx(12.0 - 1 / 6))]
+    layout = gl.build_split_layout(profile, 16.0)
+    report = layout["gaming"]
+    left, right = report["split"]["left"], report["split"]["right"]
+    # Each half keeps clear of the divider and fills half of the canvas.
+    assert left[0] + left[2] < SRC_W // 2 < right[0]
+    assert left[2] / left[3] == pytest.approx(1080 / 960, rel=0.01) == pytest.approx(right[2] / right[3], rel=0.01)
+    graph = layout["video_filter"]
+    assert "vstack=inputs=2[sp_out]" in graph and graph.endswith("[vout]") and graph.count("[vout]") == 1
+    assert "enable='between(t\\,3.833\\,11.833)'" in graph
+
+
+def test_gameplay_without_a_divider_and_people_side_by_side_are_not_comparisons():
+    frames, times = split_clip(split=lambda i: False)
+    assert classify(frames, times).split_ranges == []
+    frames, times = split_clip(split=lambda i: i == 20)            # one sample: a lamp post, not a split
+    assert classify(frames, times).split_ranges == []
+    frames, times = split_clip()
+    debate = classify(frames, times, [[(150.0, 120.0, 90.0, 110.0)] for _ in frames])
+    assert debate.reason == "people_on_screen" and not debate.is_gaming
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_split_layout_renders_a_1080x1920_frame(tmp_path):
+    profile = profile_with()
+    profile.split_ranges = [(0.2, 0.7)]
+    layout = gl.build_split_layout(profile, 1.0)
+    out = tmp_path / "frame.mp4"
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={SRC_W}x{SRC_H}:rate=10:duration=1",
+         "-filter_complex", layout["video_filter"], "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast",
+         str(out)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_people_on_screen_rule_out_gameplay():
     frames, times = clip()
     faces = [[(250.0, 120.0, 90.0, 110.0)] for _ in frames]  # a vlog with challenge graphics in the corners

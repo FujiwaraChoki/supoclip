@@ -155,7 +155,9 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
   game draws a HUD. Round cameras are not found.
 - A camera with a heavily decorated frame whose streamer is rarely detected (a cap, looking down) can be missed;
   the clip then keeps the regular layout.
-- Side-by-side comparison videos with persistent graphics pass as gameplay without a camera and get a centre crop.
+- A game that stands almost still beside a camera (a page on the character's phone, a pause menu: under 15 % of
+  the picture moving) is still refused as `static_picture` and gets the letterboxed fit: slides and screen
+  recordings with a webcam measure the same.
 - The camera panel upscales a small inset (often 350-500 px wide in a 1080p source) to 1080 px: it is soft.
 - A sports broadcast with three or more persistent graphics and no detected faces would pass as gameplay.
 - Games without a HUD, cutscenes and menus are not recognised and keep today's layout.
@@ -217,6 +219,15 @@ Also changed after that review:
   HUD and no other faces: the top panel shows head and shoulders (`virtual_camera_rect`).
 - **Not a camera:** a rectangle whose inside does not move (a channel logo, a drawn avatar), and an inset beside a
   larger face that also sits still for half the clip (a reaction video, a podcast): `people_on_screen`.
+- **Side-by-side comparisons** (`split_screen`). A straight line down the middle of the screen covering 75 % of
+  the height in a sample (`centre_line_score`: splits measure 0.8-1.0, gameplay at most 0.5), for 1.5 s or more
+  and 20 % of the clip, with nobody on screen and no camera. While the screen is split the left picture is stacked
+  over the right one, each cropped to 9:8 around its middle (`build_split_layout`); in between the full-height
+  middle of the picture fills the frame. Starts and ends are moved onto the frame (`refine_split_ranges`). The
+  report has `split` with both crops and the `between` ranges.
+- **A game that stands still beside a camera.** With a camera rectangle the picture needs 15 % moving instead of
+  50 % (`MIN_MOVING_FRACTION_WITH_FACECAM`): the map, a menu with an animated background, a slow cutscene.
+  Production clips refused as static with a camera measured 0.16-0.5 in 8 of 17 cases.
 - **Camera decorations** beside the camera, not only above and below it, stay out of the gameplay panel (a thin
   black bar was being pasted on the panel edge).
 

@@ -51,6 +51,18 @@ MOVING_CHANGE_RATE = 0.25      # a pixel that changed in a quarter of the sample
 
 # --- Classification -----------------------------------------------------------
 MIN_MOVING_FRACTION = 0.5      # measured: gameplay 0.76-0.96, podcast 0.11-0.19, screen recordings 0.0
+# With a camera inset a game may stand still (a menu, the map, a phone in the character's hand): production
+# clips refused as static with a camera measured 0.16-0.5. Slides and screen recordings stay below 0.1.
+MIN_MOVING_FRACTION_WITH_FACECAM = 0.15
+
+# Side-by-side comparisons (two games, before and after): a divider down the middle of the screen
+SPLIT_LINE_BAND = 0.006        # of the width, either side of the centre
+SPLIT_LINE_COVERAGE = 0.75     # of the height one straight line must cover in a sample (splits 0.8-1.0, gameplay <= 0.5)
+SPLIT_MIN_FRACTION = 0.2       # of the clip
+SPLIT_MIN_SECONDS = 1.5
+SPLIT_PANEL_H = 960            # each half fills half of the canvas
+SPLIT_GAP = 0.012              # of the width, left out on either side of the centre: the divider itself
+SPLIT_CROP_DOWN = 0.85         # where the crop sits between the top (0) and the bottom (1) of the picture
 MIN_HUD_REGIONS = 3            # without a facecam
 MIN_HUD_REGIONS_WITH_FACECAM = 1
 MIN_HUD_EDGE_FRACTION = 0.004  # persistent edge pixels outside the facecam, as a share of the frame
@@ -149,6 +161,7 @@ class FrameEvidence:
     change: np.ndarray        # share of sample pairs in which the pixel changed
     edges: np.ndarray         # (N, h, w) bool, for per-sample checks
     times: List[float]
+    centre_line: Optional[np.ndarray] = None  # (N,) share of the height a straight line down the middle covers
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -171,6 +184,8 @@ class GamingProfile:
     valid_fraction: float = 0.0
     fallback_ranges: List[Tuple[float, float]] = field(default_factory=list)
     check_masks: List[np.ndarray] = field(default_factory=list, repr=False)
+    # Seconds in which the screen is split down the middle (reason ``split_screen``): the halves are stacked.
+    split_ranges: List[Tuple[float, float]] = field(default_factory=list)
     virtual_camera: bool = False  # the camera has no rectangle (keyed-out streamer); one was drawn around the head
     # Where this layout applies (seconds). Empty: the whole clip.
     active: List[Tuple[float, float]] = field(default_factory=list)
@@ -190,6 +205,7 @@ class GamingProfile:
             "valid_fraction": round(self.valid_fraction, 3),
             "fallback_ranges": [[round(a, 3), round(b, 3)] for a, b in self.fallback_ranges],
             "virtual_camera": self.virtual_camera,
+            "split_ranges": [[round(a, 3), round(b, 3)] for a, b in self.split_ranges],
             "active": [[round(a, 3), round(b, 3)] for a, b in self.active],
         }
 
@@ -235,6 +251,17 @@ def detect_faces(frames: np.ndarray) -> List[List[Box]]:
 # Evidence
 # ---------------------------------------------------------------------------
 
+def centre_line_score(vertical_lines: np.ndarray) -> float:
+    """How much of the height one straight vertical line near the middle of the screen covers.
+
+    ``vertical_lines`` is (h, w) bool: a strong horizontal gradient. The best single column counts, so texture
+    that merely has edges somewhere around the middle scores low.
+    """
+    w = vertical_lines.shape[1]
+    band = max(2, int(round(w * SPLIT_LINE_BAND)))
+    return float(vertical_lines[:, w // 2 - band:w // 2 + band + 1].mean(axis=0).max())
+
+
 def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     """Edge persistence and change rate per pixel.
 
@@ -248,6 +275,7 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     persist_h = np.zeros((h, w), np.float32)
     change = np.zeros((h, w), np.float32)
     edges = np.zeros((count, h, w), bool)
+    centre_line = np.zeros(count, np.float32)
     previous = None
     for i, frame in enumerate(frames):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
@@ -255,7 +283,9 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
         gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1)
         edges[i] = np.hypot(gx, gy) > EDGE_MAGNITUDE
         persist += edges[i]
-        persist_v += np.abs(gx) > LINE_MAGNITUDE
+        lines_v = np.abs(gx) > LINE_MAGNITUDE
+        persist_v += lines_v
+        centre_line[i] = centre_line_score(lines_v)
         persist_h += np.abs(gy) > LINE_MAGNITUDE
         if previous is not None:
             change += np.abs(gray - previous) > CHANGE_DIFF
@@ -263,7 +293,7 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     n = max(1, count)
     return FrameEvidence(
         persist=persist / n, persist_v=persist_v / n, persist_h=persist_h / n,
-        change=change / max(1, count - 1), edges=edges, times=list(times),
+        change=change / max(1, count - 1), edges=edges, times=list(times), centre_line=centre_line,
     )
 
 
@@ -646,6 +676,71 @@ def fallback_ranges(valid: np.ndarray, times: Sequence[float], duration: float) 
     return ranges
 
 
+def split_screen_ranges(evidence: FrameEvidence, duration: float) -> List[Tuple[float, float]]:
+    """Spans (seconds) in which a divider splits the screen into a left and a right picture."""
+    if evidence.centre_line is None:
+        return []
+    present = evidence.centre_line >= SPLIT_LINE_COVERAGE
+    count = len(present)
+    if count >= 3:
+        # One sample is not a split (a lamp post in the middle of the road) and not the end of one (a flash).
+        padded = np.pad(present.astype(np.uint8), 1, mode="edge")
+        present = np.array([np.median(padded[i:i + 3]) for i in range(count)]) > 0
+    times = evidence.times
+    step = (times[1] - times[0]) if count > 1 else duration
+    ranges: List[Tuple[float, float]] = []
+    start: Optional[int] = None
+    for i, on in enumerate(list(present) + [False]):
+        if on and start is None:
+            start = i
+        elif not on and start is not None:
+            a = 0.0 if start == 0 else times[start] - step / 2
+            b = duration if i >= count else times[i] - step / 2
+            if b - a >= SPLIT_MIN_SECONDS:
+                ranges.append((max(0.0, a), min(duration, b)))
+            start = None
+    return ranges
+
+
+def refine_split_ranges(
+    path: Path, ranges: Sequence[Tuple[float, float]], duration: float, step: float, shape: Tuple[int, int],
+) -> List[Tuple[float, float]]:
+    """Move each start and end of a split onto the frame where the divider appears or goes."""
+    h, w = shape
+
+    def switch(near: float, appears: bool) -> float:
+        a = max(0.0, near - step)
+        result = subprocess.run(
+            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * step:.3f}", "-i", str(path),
+             "-vf", f"fps={REFINE_FPS},scale={w}:{h}", "-pix_fmt", "gray", "-f", "rawvideo", "-"],
+            capture_output=True, timeout=120,
+        )
+        count = len(result.stdout) // (w * h) if result.returncode == 0 else 0
+        if count < 2:
+            return near
+        gray = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w).astype(np.float32)
+        states = [
+            centre_line_score(np.abs(cv2.Sobel(f, cv2.CV_32F, 1, 0)) > LINE_MAGNITUDE) >= SPLIT_LINE_COVERAGE
+            for f in gray
+        ]
+        for i in range(1, count):
+            if states[i] == appears and states[i - 1] != appears:
+                return a + i / REFINE_FPS
+        return near
+
+    refined = []
+    for start, end in ranges:
+        try:
+            a = start if start <= 0.0 else switch(start, True)
+            b = end if end >= duration - 1e-3 else switch(end, False)
+        except Exception as exc:  # noqa: BLE001 - the sampled boundary still stands
+            logger.debug("Split boundary refinement failed: %s", exc)
+            a, b = start, end
+        if b > a:
+            refined.append((a, b))
+    return refined
+
+
 def fallback_ranges_within(
     valid: np.ndarray, times: Sequence[float], spans: Sequence[Tuple[float, float]],
 ) -> List[Tuple[float, float]]:
@@ -795,10 +890,20 @@ def classify_gaming(
         virtual_camera=virtual, active=[(float(a), float(b)) for a, b in spans] if spans else [],
     )
     needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None else MIN_HUD_REGIONS
+    splits = split_screen_ranges(evidence, duration) if facecam is None and track is None else []
+    moving_needed = MIN_MOVING_FRACTION_WITH_FACECAM if facecam is not None and not virtual else MIN_MOVING_FRACTION
     if len(evidence.edges) < MIN_SAMPLES:
         profile.reason = "too_short"
-    elif moving_fraction < MIN_MOVING_FRACTION:
+    elif moving_fraction < moving_needed:
         profile.reason = "static_picture"
+    elif (splits and sum(b - a for a, b in splits) >= SPLIT_MIN_FRACTION * duration
+          and outside_rate <= MAX_OUTSIDE_FACE_RATE):
+        # Two pictures side by side with nobody on screen: a comparison. The halves are stacked while the
+        # screen is split, and the middle of the picture fills the frame in between.
+        profile.is_gaming = True
+        profile.reason = "split_screen"
+        profile.split_ranges = splits
+        profile.hud, profile.fallback_ranges, profile.check_masks = [], [], []
     elif (facecam is None or virtual) and outside_rate > MAX_OUTSIDE_FACE_RATE:
         # With a camera rectangle found, other faces are the game's own (cutscenes, photoreal characters).
         profile.reason = "people_on_screen"
@@ -967,6 +1072,9 @@ def analyze_gaming_clip(path: Path, width: int, height: int, duration: float) ->
     whole = classify_gaming(evidence, faces, width, height, duration)
     if whole.is_gaming and whole.fallback_ranges and len(times) > 1:
         whole.fallback_ranges = refine_fallback_ranges(path, whole, duration, times[1] - times[0])
+    if whole.split_ranges and len(times) > 1:
+        whole.split_ranges = refine_split_ranges(path, whole.split_ranges, duration, times[1] - times[0], evidence.shape)
+        return [whole]
     del evidence
     try:
         cameras = analyze_camera_segments(path, width, height, duration, times, frames, faces)
@@ -1236,6 +1344,49 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
     }
 
 
+def build_split_layout(profile: GamingProfile, duration: float) -> Dict[str, Any]:
+    """A side-by-side comparison: the left picture over the right one while the screen is split, and the
+    full-height middle of the picture in between."""
+    width, height = profile.width, profile.height
+    gap = clamp_even(int(round(width * SPLIT_GAP)), 2, width // 8)
+    half_w = clamp_even(width // 2 - gap, 2, width // 2)
+    half_h = clamp_even(int(round(half_w * SPLIT_PANEL_H / CANVAS_W)), 2, height)
+    half_w = clamp_even(int(round(half_h * CANVAS_W / SPLIT_PANEL_H)), 2, half_w)
+    # Comparison videos put their title across the top of the divider: the crop sits low to leave it out.
+    y = clamp_even(int(round((height - half_h) * SPLIT_CROP_DOWN)), 0, height - half_h)
+    left = Rect(clamp_even((width // 2 - gap - half_w) // 2, 0, width // 2 - gap - half_w), y, half_w, half_h)
+    right_x0 = width // 2 + gap
+    right = Rect(clamp_even(right_x0 + (width - right_x0 - half_w) // 2, right_x0, width - half_w), y, half_w, half_h)
+    spans = [(a, 1e6 if b >= duration - 0.05 else b) for a, b in profile.split_ranges if b > a]
+    graph = ["[0:v]split=3[gm_fit][sp_l][sp_r]"] + _cover_lines(width, height)
+    for tag, r, name in (("sp_l", left, "sp_top"), ("sp_r", right, "sp_bottom")):
+        graph.append(
+            f"[{tag}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={CANVAS_W}:{SPLIT_PANEL_H}:flags=lanczos,"
+            f"{UPSCALE_SHARPEN_FILTER},setsar=1[{name}]"
+        )
+    graph.append("[sp_top][sp_bottom]vstack=inputs=2[sp_out]")
+    graph.append(f"[gm_alt][sp_out]overlay=0:0:enable='{_between(spans)}'[vout]")
+    cover_w = clamp_even(int(round(height * CANVAS_W / CANVAS_H)), 2, width)
+    report = {
+        "facecam": None, "facecam_panel": None,
+        "gameplay": [clamp_even((width - cover_w) // 2, 0, width - cover_w), 0, cover_w, round_to_even(height)],
+        "gameplay_panel": [0, 0, CANVAS_W, CANVAS_H],
+        "hud": [],
+        "fallback_ranges": [],
+        "crosshair": False,
+        "split": {"left": left.as_list(), "right": right.as_list(),
+                  "between": [[round(a, 3), round(min(b, duration), 3)] for a, b in spans]},
+    }
+    return {
+        "kind": "gaming",
+        "video_filter": ";".join(graph),
+        "mode": "complex",
+        "caption_y": CAPTION_CANDIDATES[0],
+        "hook_center_y": None,
+        "gaming": report,
+    }
+
+
 def build_camera_layouts(profiles: Sequence[GamingProfile], duration: float) -> Dict[str, Any]:
     """The filter graph for a clip in which several cameras take turns (``profile.active`` says when).
 
@@ -1312,6 +1463,8 @@ def choose_gaming_layout(path: Path, width: int, height: int, duration: float) -
         profiles = [profile for profile in profiles if profile.is_gaming]
         if not profiles:
             return None
+        if profiles[0].split_ranges:
+            return build_split_layout(profiles[0], duration)
         if len(profiles) == 1 and not profiles[0].active:
             return build_gaming_layout(profiles[0], duration)
         return build_camera_layouts(profiles, duration)
