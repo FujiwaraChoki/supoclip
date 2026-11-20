@@ -323,6 +323,63 @@ def test_a_side_by_side_comparison_stacks_its_halves_while_the_screen_is_split()
     assert "enable='between(t\\,3.833\\,11.833)'" in graph
 
 
+def test_a_shaded_pole_down_the_middle_is_not_a_divider():
+    rng = np.random.default_rng(21)
+    frames = []
+    for i in range(48):
+        frame = world(rng)
+        column = np.linspace(40, 230, H).astype(np.uint8)          # lit from above: not one flat colour
+        frame[:, W // 2 - 2:W // 2 + 2] = column[:, None, None]
+        frames.append(frame)
+    profile = classify(np.stack(frames), [i / 3 for i in range(48)])
+    assert profile.split_ranges == [] and not profile.is_gaming
+
+
+def test_a_guest_thumbnail_beside_a_larger_speaker_is_not_a_stream():
+    # A calm picture, an inset with a small face, and a speaker whose face is too close or too seldom seen to track.
+    frames, times = still_clip()
+    close_up = (150.0, 60.0, 190.0, 230.0)                          # 19 % of the frame: never a fixed track
+    often = classify(frames, times, [[CAM_FACE, close_up] for _ in frames])
+    assert not often.is_gaming and often.reason == "people_on_screen"
+    medium = (200.0, 120.0, 80.0, 100.0)
+    seldom = classify(frames, times, [[CAM_FACE, medium] if i % 5 < 2 else [CAM_FACE] for i in range(len(frames))])
+    assert not seldom.is_gaming and seldom.reason == "people_on_screen"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_a_fitted_still_picture_with_a_fallback_span_renders(tmp_path):
+    profile = profile_with(Rect(1320, 60, 540, 304), None, [], [(0.3, 0.6)])
+    profile.focus = Rect(60, 100, 1352, 700)                        # wider than the panel: fitted, over a blur
+    layout = gl.build_gaming_layout(profile, 1.0)
+    graph = layout["video_filter"]
+    labels = re.findall(r"\[(\w+)\]", graph)
+    assert all(labels.count(name) == 2 for name in set(labels) - {"0", "vout"}), graph
+    out = tmp_path / "frame.mp4"
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={SRC_W}x{SRC_H}:rate=10:duration=1",
+         "-filter_complex", graph, "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast", str(out)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_layout_switch_is_placed_half_a_frame_before_the_new_picture(tmp_path):
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not installed")
+    # 2 s at 30 fps: black, then white from frame 41 (a frame whose time rounds up at three decimals).
+    frames = np.zeros((60, 90, 160, 3), np.uint8)
+    frames[41:] = 255
+    source = tmp_path / "cut.mp4"
+    encode = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", "160x90", "-r", "30", "-i", "-",
+         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", "-pix_fmt", "yuv420p", str(source)],
+        input=frames.tobytes(), capture_output=True,
+    )
+    assert encode.returncode == 0, encode.stderr
+    cut = gl.find_cut(source, 1.0, 1.667)
+    assert 40 / 30 < cut < 41 / 30                                   # frame 40 keeps the old layout, frame 41 has the new
+
+
 def test_gameplay_without_a_divider_and_people_side_by_side_are_not_comparisons():
     frames, times = split_clip(split=lambda i: False)
     assert classify(frames, times).split_ranges == []

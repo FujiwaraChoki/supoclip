@@ -71,6 +71,7 @@ CALM_PICTURE_FACE_MAX_AREA = 0.02  # camera heads measured up to 1.7 %; a speake
 SPLIT_LINE_BAND = 0.006        # of the width, either side of the centre
 SPLIT_LINE_COVERAGE = 0.75     # of the height one straight line must cover in a sample (splits 0.8-1.0, gameplay <= 0.5)
 SPLIT_MIN_FRACTION = 0.2       # of the clip
+SPLIT_LINE_MAX_SPREAD = 24.0   # grey levels between the 10th and 90th percentile along the divider: it is one flat colour
 SPLIT_MIN_SECONDS = 1.5
 SPLIT_PANEL_H = 960            # each half fills half of the canvas
 SPLIT_GAP = 0.012              # of the width, left out on either side of the centre: the divider itself
@@ -85,6 +86,7 @@ MIN_VALID_FRACTION_WITH_FACECAM = 0.35  # streams hide the camera during cutscen
 VALID_SAMPLE_SCORE = 0.45
 MIN_FALLBACK_SECONDS = 1.5
 REFINE_FPS = 30
+REFINE_MAX_REACH = 1.5         # seconds decoded either side of a sampled switch, whatever the clip length
 
 # --- HUD regions ---------------------------------------------------------------
 HUD_MERGE_FRAC = 0.019         # persistent edges closer than this (of the width) are one element
@@ -266,15 +268,30 @@ def detect_faces(frames: np.ndarray) -> List[List[Box]]:
 # Evidence
 # ---------------------------------------------------------------------------
 
-def centre_line_score(vertical_lines: np.ndarray) -> float:
+def centre_line_score(vertical_lines: np.ndarray, gray: Optional[np.ndarray] = None) -> float:
     """How much of the height one straight vertical line near the middle of the screen covers.
 
     ``vertical_lines`` is (h, w) bool: a strong horizontal gradient. The best single column counts, so texture
-    that merely has edges somewhere around the middle scores low.
+    that merely has edges somewhere around the middle scores low. With ``gray`` the line must also be drawn:
+    one flat colour from top to bottom beside that edge. A window mullion or a pole is shaded along its length
+    and scores 0.
     """
     w = vertical_lines.shape[1]
     band = max(2, int(round(w * SPLIT_LINE_BAND)))
-    return float(vertical_lines[:, w // 2 - band:w // 2 + band + 1].mean(axis=0).max())
+    lo = w // 2 - band
+    columns = vertical_lines[:, lo:w // 2 + band + 1].mean(axis=0)
+    best = int(np.argmax(columns))
+    score = float(columns[best])
+    if gray is not None and score > 0:
+        # The divider's body is on one side of the edge or the other.
+        spreads = []
+        for x in (lo + best - 2, lo + best + 2):
+            if 0 <= x < w:
+                low, high = np.percentile(gray[:, x], (10, 90))
+                spreads.append(float(high - low))
+        if not spreads or min(spreads) > SPLIT_LINE_MAX_SPREAD:
+            return 0.0
+    return score
 
 
 def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
@@ -300,7 +317,7 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
         persist += edges[i]
         lines_v = np.abs(gx) > LINE_MAGNITUDE
         persist_v += lines_v
-        centre_line[i] = centre_line_score(lines_v)
+        centre_line[i] = centre_line_score(lines_v, gray)
         persist_h += np.abs(gy) > LINE_MAGNITUDE
         if previous is not None:
             change += np.abs(gray - previous) > CHANGE_DIFF
@@ -640,10 +657,12 @@ def refine_fallback_ranges(
         return profile.fallback_ranges
     h, w = masks[0].shape
 
+    reach = min(step, REFINE_MAX_REACH)
+
     def switch(near: float, to_valid: bool) -> float:
-        a = max(0.0, near - step)
+        a = max(0.0, near - reach)
         result = subprocess.run(
-            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * step:.3f}", "-i", str(path),
+            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * reach:.3f}", "-i", str(path),
              "-vf", f"fps={REFINE_FPS},scale={w}:{h}", "-pix_fmt", "bgr24", "-f", "rawvideo", "-"],
             capture_output=True, timeout=120,
         )
@@ -653,7 +672,7 @@ def refine_fallback_ranges(
         states = [frame_layout_valid(frame, masks) for frame in frames]
         for i in range(1, len(states)):
             if states[i] == to_valid and states[i - 1] != to_valid:
-                return a + i / REFINE_FPS
+                return a + (i - 0.5) / REFINE_FPS
         return near
 
     refined = []
@@ -738,24 +757,27 @@ def refine_split_ranges(
     """Move each start and end of a split onto the frame where the divider appears or goes."""
     h, w = shape
 
+    reach = min(step, REFINE_MAX_REACH)
+
     def switch(near: float, appears: bool) -> float:
-        a = max(0.0, near - step)
+        a = max(0.0, near - reach)
         result = subprocess.run(
-            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * step:.3f}", "-i", str(path),
+            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * reach:.3f}", "-i", str(path),
              "-vf", f"fps={REFINE_FPS},scale={w}:{h}", "-pix_fmt", "gray", "-f", "rawvideo", "-"],
             capture_output=True, timeout=120,
         )
         count = len(result.stdout) // (w * h) if result.returncode == 0 else 0
         if count < 2:
             return near
-        gray = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w).astype(np.float32)
+        gray = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w)
         states = [
-            centre_line_score(np.abs(cv2.Sobel(f, cv2.CV_32F, 1, 0)) > LINE_MAGNITUDE) >= SPLIT_LINE_COVERAGE
+            centre_line_score(np.abs(cv2.Sobel(f.astype(np.float32), cv2.CV_32F, 1, 0)) > LINE_MAGNITUDE, f)
+            >= SPLIT_LINE_COVERAGE
             for f in gray
         ]
         for i in range(1, count):
             if states[i] == appears and states[i - 1] != appears:
-                return a + i / REFINE_FPS
+                return a + (i - 0.5) / REFINE_FPS
         return near
 
     refined = []
@@ -945,6 +967,17 @@ def classify_gaming(
             if not inside and other.presence >= FACECAM_MIN_PRESENCE and other.box[3] > face_box[3]:
                 host = other
                 break
+    # ... or is seen now and then, or too close to be tracked: any face larger than the camera's own, outside it.
+    larger_outside = 0.0
+    if facecam is not None and face_box is not None:
+        seen = 0
+        for boxes in faces:
+            for x, y, bw, bh in boxes:
+                cx, cy = x + bw / 2, y + bh / 2
+                if bh > face_box[3] * 1.2 and not (facecam.x <= cx <= facecam.x2 and facecam.y <= cy <= facecam.y2):
+                    seen += 1
+                    break
+        larger_outside = seen / max(1, len(faces))
     valid = layout_valid_samples(evidence, hud_mask, bordered)
     valid_fraction = float(valid.mean()) if len(valid) else 0.0
 
@@ -975,6 +1008,10 @@ def classify_gaming(
         profile.reason = "too_short"
     elif moving_fraction < MIN_MOVING_FRACTION and not inset:
         profile.reason = "static_picture"
+    elif moving_fraction < MIN_MOVING_FRACTION and inset and larger_outside > MAX_OUTSIDE_FACE_RATE:
+        # A calm picture with someone larger than the inset on screen: an interview with a guest thumbnail.
+        # (Over a moving game, larger faces are the game's own characters and do not count.)
+        profile.reason = "people_on_screen"
     elif moving_fraction < MIN_MOVING_FRACTION_WITH_FACECAM and host is None:
         # The game stands still beside the camera: camera on top, the detailed part of the picture below.
         profile.is_gaming = True
@@ -1065,7 +1102,8 @@ def find_cut(path: Path, start: float, end: float) -> float:
         return (start + end) / 2
     frames = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w).astype(np.int16)
     change = np.abs(frames[1:] - frames[:-1]).mean(axis=(1, 2))
-    return start + (int(np.argmax(change)) + 1) / REFINE_FPS
+    # Half a frame before the first frame of the new camera: the switch is then exact however the time is rounded.
+    return start + (int(np.argmax(change)) + 0.5) / REFINE_FPS
 
 
 def sample_spans(
@@ -1074,6 +1112,7 @@ def sample_spans(
     """Frames of a few short spans, sampled densely enough to classify them on their own."""
     total = sum(b - a for a, b in spans)
     fps = min(SEGMENT_MAX_SAMPLE_FPS, max(MAX_SAMPLE_FPS, (MIN_SAMPLES + 2) / max(total, 1e-3)))
+    fps = min(fps, MAX_SAMPLES / max(total, 1e-3))  # a long camera is never more frames than the whole-clip sample
     times: List[float] = []
     chunks: List[np.ndarray] = []
     size = proc_w * proc_h * 3
@@ -1365,8 +1404,8 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
             f"[{tag}_fill]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},scale={CANVAS_W}:{panel_h}:"
             f"force_original_aspect_ratio=increase,crop={CANVAS_W}:{panel_h},boxblur=24:2,eq=brightness=-0.12[{tag}_blur]",
             f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
-            f"scale={fit_w}:{fit_h}:flags=lanczos{sharpen},setsar=1[{tag}_fit]",
-            f"[{tag}_blur][{tag}_fit]overlay={(CANVAS_W - fit_w) // 2}:{(panel_h - fit_h) // 2},setsar=1[{tag}_p0]",
+            f"scale={fit_w}:{fit_h}:flags=lanczos{sharpen},setsar=1[{tag}_fitted]",
+            f"[{tag}_blur][{tag}_fitted]overlay={(CANVAS_W - fit_w) // 2}:{(panel_h - fit_h) // 2},setsar=1[{tag}_p0]",
         ]
     else:
         lines = [

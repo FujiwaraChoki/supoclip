@@ -238,6 +238,10 @@ Also changed after that review:
 - **Not a stream:** with less than half of the picture moving, the camera's face may cover at most 2 % of the
   frame (`CALM_PICTURE_FACE_MAX_AREA`; camera heads measure up to 1.7 %). A speaker filmed in front of a window
   or a shelf has a rectangle around the face too, and stays with the regular layouts.
+- **After review:** a switch between layouts is placed half a frame before the first frame of the new picture, so
+  it is exact however the time is rounded; boundary searches decode at most 1.5 s either side of a sampled
+  switch; a divider must be one flat colour along its length (a shaded pole or mullion is not one); and over a
+  calm picture any face larger than the inset's, on screen in a quarter of the samples, means people, not a game.
 - **Camera decorations** beside the camera, not only above and below it, stay out of the gameplay panel (a thin
   black bar was being pasted on the panel edge).
 
