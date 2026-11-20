@@ -26,11 +26,13 @@ from ...repositories.upload_repository import (
     get_upload,
     finish_upload,
     claim_stored_upload,
+    reclaim_dead_uploads,
     claim_completion,
     completion_digest,
     release_completion,
     UploadCompletionConflict,
     UploadIdempotencyConflict,
+    UploadConcurrencyLimitReached,
     UploadLimitReached,
 )
 from ...utils.async_helpers import run_in_thread
@@ -429,9 +431,17 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
         video_path = f"upload://{unique_filename}"
 
         digest, size = await publish_spooled_upload(upload, published, max_bytes)
-        video_path, created = await claim_stored_upload(
-            db, user_id, size, digest, video_path, idempotency_key, config,
-        )
+        try:
+            video_path, created = await claim_stored_upload(
+                db, user_id, size, digest, video_path, idempotency_key, config,
+            )
+        except UploadConcurrencyLimitReached:
+            storage = MediaStorage()
+            if not storage.enabled or not await reclaim_dead_uploads(db, user_id, storage):
+                raise
+            video_path, created = await claim_stored_upload(
+                db, user_id, size, digest, video_path, idempotency_key, config,
+            )
         if not created and published is not None:
             published.unlink(missing_ok=True)
             published = None
@@ -480,7 +490,14 @@ async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db))
         content_type = payload.get("contentType") or "application/octet-stream"
         if not isinstance(content_type, str) or len(content_type) > 128:
             raise ValueError("Invalid content type")
-        session_id = await reserve_upload(db, user_id, size, storage.config)
+        try:
+            session_id = await reserve_upload(db, user_id, size, storage.config)
+        except UploadConcurrencyLimitReached:
+            # A crashed tab's upload holds its slot until expiry. The daily
+            # limit is never reclaimed: aborted sessions still count.
+            if not await reclaim_dead_uploads(db, user_id, storage):
+                raise
+            session_id = await reserve_upload(db, user_id, size, storage.config)
         authorization = {}
         def begin():
             # Retain the SDK result even if cancellation prevents delivery of
