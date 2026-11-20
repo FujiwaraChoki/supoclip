@@ -416,7 +416,11 @@ class BillingService:
     ) -> dict[str, Any]:
         """Require an active plan with room left, and for a known source length,
         enough minutes to cover the whole video."""
-        summary = await self.get_usage_summary(user_id, team_id=team_id)
+        summary = (
+            await self.get_usage_summary(user_id, team_id=team_id)
+            if team_id
+            else await self.get_usage_summary(user_id)
+        )
         if not summary.get("can_create_task"):
             raise BillingLimitExceeded(summary)
 
@@ -454,7 +458,11 @@ class BillingService:
         Workers may run an already-paid queued job after its plan lapses. Explicit
         resumes and all new/reinstated charges still require paid access.
         """
-        summary = await self.get_usage_summary(user_id, team_id=team_id)
+        summary = (
+            await self.get_usage_summary(user_id, team_id=team_id)
+            if team_id
+            else await self.get_usage_summary(user_id)
+        )
         if not self.config.monetization_enabled:
             return summary
         paid_access = grants_paid_access(
@@ -523,7 +531,10 @@ class BillingService:
             seconds = await VideoService().measure_source_duration(url, user_id)
 
         # Refunded rows do not contribute usage, so the entire retry must fit.
-        await self.assert_can_create_task(user_id, seconds, team_id=team_id)
+        if team_id:
+            await self.assert_can_create_task(user_id, seconds, team_id=team_id)
+        else:
+            await self.assert_can_create_task(user_id, seconds)
         try:
             if team_id:
                 result = await self.db.execute(

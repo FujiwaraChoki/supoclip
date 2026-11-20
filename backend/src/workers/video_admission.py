@@ -181,6 +181,10 @@ async def _waits_for_slot(redis, task_id: str, job_id: str | None) -> bool:
     )
 
 
+def _team_kw(team_id: str | None) -> dict[str, str]:
+    return {"team_id": team_id} if team_id else {}
+
+
 async def waiting_video_tasks(
     db,
     redis,
@@ -195,7 +199,7 @@ async def waiting_video_tasks(
     With ``before``, only tasks submitted ahead of that task are returned.
     """
     waiting = []
-    for task_id, job_id in await queued_video_tasks(db, user_id, team_id=team_id):
+    for task_id, job_id in await queued_video_tasks(db, user_id, **_team_kw(team_id)):
         if task_id == before:
             break
         if task_id in holders:
@@ -272,7 +276,7 @@ async def wake_next_video_jobs(
     """
     limit = _concurrency_limit(get_config(), team_id)
     await prune_video_slots(
-        redis, user_id, await active_task_ids(db, user_id, team_id=team_id), team_id=team_id
+        redis, user_id, await active_task_ids(db, user_id, **_team_kw(team_id)), **_team_kw(team_id)
     )
     holders = await _slot_holders(redis, user_id, team_id=team_id)
     free = limit - len(holders)
@@ -281,7 +285,7 @@ async def wake_next_video_jobs(
     woken = []
     now_ms = int(time.time() * 1000)
     for task_id, job_id in (
-        await waiting_video_tasks(db, redis, user_id, holders, team_id=team_id)
+        await waiting_video_tasks(db, redis, user_id, holders, **_team_kw(team_id))
     )[:free]:
         if int(await redis.eval(_WAKE_LUA, 1, DEFAULT_QUEUE_NAME, job_id, str(now_ms))):
             woken.append(task_id)
@@ -324,8 +328,8 @@ async def admit_video_job(
         await prune_video_slots(
             redis,
             user_id,
-            await active_task_ids(db, user_id, team_id=team_id),
-            team_id=team_id,
+            await active_task_ids(db, user_id, **_team_kw(team_id)),
+            **_team_kw(team_id),
         )
         await _clear_finished_upload_wait(redis, task_id, url)
         # A task already processing (a retry of a started render) is not
@@ -334,7 +338,7 @@ async def admit_video_job(
             db, redis, task_id=task_id, user_id=user_id, limit=limit, team_id=team_id
         )
         acquired = in_turn and await acquire_video_slot(
-            redis, user_id, task_id, limit, team_id=team_id
+            redis, user_id, task_id, limit, **_team_kw(team_id)
         )
     except Exception:
         # A Redis blip must not drop a paid job. Running it may briefly exceed
@@ -405,7 +409,7 @@ async def hold_for_upload(
     key = UPLOAD_WAIT_KEY.format(task_id=task_id)
     await redis.set(key, str(time.time()), nx=True, ex=24 * 60 * 60)
     started = float(_decode(await redis.get(key) or time.time()))
-    await release_video_slot(redis, user_id, task_id, team_id=team_id)
+    await release_video_slot(redis, user_id, task_id, **_team_kw(team_id))
     if time.time() - started > config.upload_copy_wait_seconds:
         logger.error("Upload for task %s never reached object storage", task_id)
         await TaskRepository.update_task_status(
@@ -418,7 +422,7 @@ async def hold_for_upload(
     logger.info("Deferred video task %s; its upload is still being copied to object storage", task_id)
     # The slot this task gave back goes to the next task in line now.
     try:
-        await wake_next_video_jobs(db, redis, user_id, team_id=team_id)
+        await wake_next_video_jobs(db, redis, user_id, **_team_kw(team_id))
     except Exception:
         logger.exception("Could not wake the next video task after task %s", task_id)
     return "deferred"
