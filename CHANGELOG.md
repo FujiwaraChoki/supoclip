@@ -7,6 +7,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-20
 
 - **Fixed:** Creating an account failed on fresh self-hosted installs with a generic "Failed to create account" because the database setup lagged the app by a few columns and tables. New installs now create the full schema, existing installs can catch up with one command (see the troubleshooting guide), and SupoClip warns at startup when its database is out of date. Sign-in and sign-up also say when the server, not the form, is the problem. ([#481](https://github.com/FujiwaraChoki/supoclip/pull/481))
+- **Fixed:** Self-hosted installs no longer show YouTube imports as degraded from the start. The status page and the library banner begin as operational and only warn when an operator posts an incident. ([#481](https://github.com/FujiwaraChoki/supoclip/pull/481))
 
 ## 2026-11-19
 
