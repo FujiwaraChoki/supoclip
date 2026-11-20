@@ -109,6 +109,11 @@ MIN_CAMERA_MOTION = 0.03       # share of the camera rectangle that moves: a log
 VIRTUAL_CAMERA_WIDTH = 4.2     # a keyed-out streamer has no rectangle: one is drawn around the head, in face widths
 VIRTUAL_CAMERA_ABOVE, VIRTUAL_CAMERA_BELOW = 0.7, 1.4  # ... and in face heights above and below the face
 VIRTUAL_CAMERA_FACE_MAX_AREA = 0.02  # a larger still face is a person filmed, not an inset
+KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
+KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
+HOST_MIN_PRESENCE = 0.8        # someone filmed is there for the whole clip; a game character comes and goes
+HOST_MIN_SIZE = 1.4            # ... and is clearly larger than the camera's face (of its height)
+HOST_HUD_REGIONS = 2           # persistent elements that make a HUD; over one, a larger face is a character
 
 # Several cameras in one clip (a compilation, a streamer who resizes the camera)
 MAX_CAMERA_LAYOUTS = 4
@@ -882,6 +887,21 @@ def classify_gaming(
             return False
         return float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) >= FACECAM_SELDOM_BORDER
 
+    def keyed_streamer(box: Box) -> bool:
+        # A streamer without a camera rectangle sits small, or at the edge of the picture, beside the game.
+        # A person in the middle of the frame at a size that fills it is being filmed (a vlog).
+        if box[2] * box[3] > VIRTUAL_CAMERA_FACE_MAX_AREA * w * h:
+            return False
+        if box[2] * box[3] <= KEYED_FREE_FACE_AREA * w * h:
+            return True
+        r = virtual_camera_rect(box, w, h)
+        # At the sides the head-and-shoulders rectangle touches the edge. At the top the head itself nearly
+        # does (someone filmed has headroom); at the bottom the body runs out of the picture, a face height
+        # below the rectangle.
+        return (r.x <= KEYED_EDGE_REACH * w or r.x2 >= (1 - KEYED_EDGE_REACH) * w
+                or box[1] <= 0.5 * box[3]
+                or r.y2 + box[3] >= (1 - KEYED_EDGE_REACH) * h)
+
     def inner(rect: Rect) -> np.ndarray:
         dx, dy = max(1, int(rect.w * 0.06)), max(1, int(rect.h * 0.06))
         return evidence.change[rect.y + dy:rect.y2 - dy, rect.x + dx:rect.x2 - dx]
@@ -915,7 +935,7 @@ def classify_gaming(
             break
 
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
-    keyed = [t for t in candidates if t.box[2] * t.box[3] <= VIRTUAL_CAMERA_FACE_MAX_AREA * w * h]
+    keyed = [t for t in candidates if keyed_streamer(t.box)]
     if facecam is None and keyed and regions and float(hud_mask.sum()) / float(w * h) >= MIN_HUD_EDGE_FRACTION:
         # No rectangle, but a head that stays put over a game that draws a HUD: a streamer with the background
         # keyed out. The top panel shows head and shoulders with the game behind them.
@@ -964,7 +984,15 @@ def classify_gaming(
         for other in fixed_face_tracks(faces, w, h):
             cx, cy = other.box[0] + other.box[2] / 2, other.box[1] + other.box[3] / 2
             inside = facecam.x <= cx <= facecam.x2 and facecam.y <= cy <= facecam.y2
-            if not inside and other.presence >= FACECAM_MIN_PRESENCE and other.box[3] > face_box[3]:
+            if inside or other.presence < FACECAM_MIN_PRESENCE or other.box[3] <= face_box[3]:
+                continue
+            # Over a game that draws a HUD, a larger face that stays put is a character (a cutscene, a
+            # conversation, the driver seen from behind). One persistent graphic is not a HUD: a watermark, a
+            # lower third. Without a HUD the face has to be there for nearly the whole clip and clearly
+            # larger: then somebody is being filmed.
+            if (len(regions) >= HOST_HUD_REGIONS or crosshair) and not virtual:
+                continue
+            if other.presence >= HOST_MIN_PRESENCE and other.box[3] >= HOST_MIN_SIZE * face_box[3]:
                 host = other
                 break
     # ... or is seen now and then, or too close to be tracked: any face larger than the camera's own, outside it.
