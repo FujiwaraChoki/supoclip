@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-20
 
+- **Fixed:** A video whose worker stops mid-render no longer sits on "processing" forever. A periodic check notices the missing job and marks the task as failed with a retry prompt, instead of leaving the page stuck with no explanation.
 - **Improved:** TokoClippers now uses its own brand: the product name, colours, and typeface across the app, marketing pages, articles, and emails. The top menu also drops the Pricing, Open Source, Blog, and Affiliate links; those pages stay reachable from the footer and their own addresses.
 
 ## 2026-11-19

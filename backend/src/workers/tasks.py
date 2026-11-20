@@ -246,6 +246,22 @@ async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
+async def sweep_stale_processing_tasks(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: fail renders whose worker died without recording an error.
+
+    A restart or kill mid-render leaves the task in "processing" forever.
+    Runs on the cron worker so it keeps working when the video worker is down.
+    """
+    from ..database import AsyncSessionLocal
+    from ..services.task_service import TaskService
+
+    async with AsyncSessionLocal() as db:
+        recovered = await TaskService(db).sweep_stale_processing_tasks()
+    if recovered:
+        logger.warning("Recovered %d stalled render(s)", len(recovered))
+    return {"recovered": len(recovered)}
+
+
 async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Cron: pull fresh audience metrics for recently published posts."""
     from ..database import AsyncSessionLocal

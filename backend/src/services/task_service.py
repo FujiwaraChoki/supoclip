@@ -2,6 +2,7 @@
 Task service - orchestrates task creation and processing workflow.
 """
 
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from subprocess import SubprocessError
@@ -1303,6 +1304,68 @@ class TaskService(ClipEditingMixin):
 
         logger.info(f"Deleted task {task_id} and all associated clips")
 
+
+    async def sweep_stale_processing_tasks(
+        self, *, grace_seconds: float = 120.0
+    ) -> list[str]:
+        """Fail processing tasks whose worker died without recording an error.
+
+        A worker that is restarted or killed mid-render leaves the row in
+        "processing" forever: the exception never runs, so nothing marks it.
+        This lives on the cron worker, which re-checks the stored job id rather
+        than trusting a heartbeat gap, so a healthy long render keeps its row.
+
+        ``grace_seconds`` covers the gap between a job ending in a worker that
+        is still starting its replacement and this sweep reading both keys.
+        """
+        rows = await self.db.execute(
+            text(
+                """
+                SELECT id, user_id FROM tasks
+                WHERE status = 'processing'
+                  AND updated_at < NOW() - make_interval(secs => :grace)
+                """
+            ),
+            {"grace": int(grace_seconds)},
+        )
+        task_ids = [row[0] for row in rows]
+        if not task_ids:
+            return []
+
+        pool = await JobQueue.get_pool()
+        recovered: list[str] = []
+        for task_id in task_ids:
+            metadata = await self.task_repo.load_source_metadata(self.db, task_id)
+            job_id = metadata.get("processing_job_id")
+            if job_id:
+                try:
+                    alive = bool(await pool.exists(
+                        job_key_prefix + job_id, in_progress_key_prefix + job_id
+                    ))
+                except Exception:
+                    # A Redis blip must not fail a render that may still be live.
+                    logger.exception("Could not verify job for task %s; skipping", task_id)
+                    continue
+                if alive:
+                    continue
+            changed = await self.task_repo.update_task_status(
+                self.db,
+                task_id,
+                "error",
+                progress=0,
+                progress_message=(
+                    "The render stopped unexpectedly (the worker was restarted or "
+                    "ran out of time). Please retry this generation."
+                ),
+                expected_statuses=["processing"],
+            )
+            if changed:
+                logger.warning(
+                    "Recovered task %s: worker stopped mid-render with no recorded error",
+                    task_id,
+                )
+                recovered.append(task_id)
+        return recovered
 
     async def get_performance_metrics(self) -> Dict[str, Any]:
         """Return aggregate processing performance metrics."""
