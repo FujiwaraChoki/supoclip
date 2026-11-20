@@ -425,7 +425,7 @@ PAUSES = {"cut_long_pauses": True, "pause_threshold_ms": 900, "remove_filler_wor
 def _words(monkeypatch, words):
     monkeypatch.setattr(
         "src.media.timeline.load_cached_transcript_data",
-        lambda _video_path: {"words": [{"text": t, "start": a, "end": b} for t, a, b in words]},
+        lambda _video_path: {"language_code": "en", "words": [{"text": t, "start": a, "end": b} for t, a, b in words]},
     )
 
 
@@ -444,11 +444,41 @@ def test_one_stray_word_over_gameplay_does_not_become_the_clip(monkeypatch):
     assert checked == [[(0.0, 27.0), (27.6, 30.0)]]
 
 
-def test_cleanup_that_would_leave_a_sliver_keeps_the_selection(monkeypatch):
-    # No action found either: 0.95 s of a 30 s selection would be left. The selection is rendered as it is.
-    _words(monkeypatch, [("Sam.", 27000, 27600)])
-    monkeypatch.setattr("src.media.timeline.active_gap_ranges", lambda _p, gaps, _s: [[] for _ in gaps])
-    assert build_clip_keep_ranges(Path("/tmp/demo.mp4"), 0.0, 30.0, PAUSES) == [(0.0, 30.0)]
+def test_a_filler_in_the_silence_before_the_first_word_is_not_action(monkeypatch):
+    # "Um ... so here is the thing": the um is loud, so the action check flags it. It is being removed, and
+    # the silence after it goes with it instead of opening the clip.
+    words = [("Um", 0, 400)] + [(f"w{i}", 2000 + i * 300, 2000 + i * 300 + 280) for i in range(40)]
+    _words(monkeypatch, words)
+    monkeypatch.setattr(
+        "src.media.timeline.active_gap_ranges",
+        lambda _p, gaps, _s: [[(0.0, 0.6)] if gap[0] == 0.0 else [] for gap in gaps],
+    )
+    ranges = build_clip_keep_ranges(Path("/tmp/demo.mp4"), 0.0, 14.0, {**PAUSES, "remove_filler_words": True})
+    assert ranges == [(pytest.approx(2.0 - PAUSE_LEAD_IN_SECONDS), 14.0)]
+
+
+def test_action_after_the_last_word_is_kept(monkeypatch):
+    words = [(f"w{i}", i * 400, i * 400 + 350) for i in range(25)]                      # speech until 9.95 s
+    _words(monkeypatch, words)
+    monkeypatch.setattr(
+        "src.media.timeline.active_gap_ranges",
+        lambda _p, gaps, _s: [[(17.0, 20.0)] if gap[1] == 20.0 else [] for gap in gaps],
+    )
+    ranges = build_clip_keep_ranges(Path("/tmp/demo.mp4"), 0.0, 20.0, PAUSES)
+    assert len(ranges) == 2
+    (speech_start, speech_end), (action_start, action_end) = ranges
+    assert speech_start == 0.0 and speech_end == pytest.approx(9.95 + PAUSE_TAIL_SECONDS)
+    assert 16.5 < action_start < 17.0 and action_end == 20.0
+
+
+def test_a_short_silence_at_the_edge_is_cut_without_a_look(monkeypatch):
+    # Half a second cannot be judged (two frames are needed); it is trimmed as before, and nothing is decoded.
+    words = [(f"w{i}", 500 + i * 300, 500 + i * 300 + 280) for i in range(20)]
+    _words(monkeypatch, words)
+    seen = []
+    monkeypatch.setattr("src.media.timeline.active_gap_ranges", lambda _p, gaps, _s: seen.append(gaps) or [[] for _ in gaps])
+    ranges = build_clip_keep_ranges(Path("/tmp/demo.mp4"), 0.0, 6.5, {**PAUSES, "pause_threshold_ms": 300})
+    assert seen == [] and ranges[0][0] == pytest.approx(0.5 - PAUSE_LEAD_IN_SECONDS)
 
 
 def test_action_before_the_first_word_is_kept_and_the_quiet_around_it_cut(monkeypatch):

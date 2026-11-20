@@ -1076,8 +1076,23 @@ def get_transcript_text_in_range(
     return _join_transcript_tokens([word["text"] for word in relevant_words])
 
 
-CLEANUP_MIN_KEPT_SECONDS = 0.5   # pause and filler clean-up never leaves less than this of a selection ...
-CLEANUP_MIN_KEPT_SHARE = 0.2     # ... or less than this share of it: 6 s of a 30 s selection
+EDGE_GAP_MIN_CHECK_SECONDS = 0.6     # a shorter silence at a clip's edge is cut without looking for action
+FILLER_ACTION_MARGIN_SECONDS = 0.25  # action this close to a removed filler is the filler itself
+
+
+def _subtract_intervals(
+    intervals: List[Tuple[float, float]], holes: List[Tuple[float, float]]
+) -> List[Tuple[float, float]]:
+    """``intervals`` without the parts covered by ``holes``, in order."""
+    result = list(intervals)
+    for hole_start, hole_end in holes:
+        result = [
+            piece
+            for start, end in result
+            for piece in ((start, min(end, hole_start)), (max(start, hole_end), end))
+            if piece[1] > piece[0]
+        ]
+    return result
 
 
 def build_clip_keep_ranges(
@@ -1176,26 +1191,39 @@ def build_clip_keep_ranges(
         )
         if clip_end - spoken_words[-1]["end"] >= pause_threshold_seconds:
             gaps.append((spoken_words[-1]["end"], clip_end, PAUSE_TAIL_SECONDS, 0.0))
-        protected = active_gap_ranges(
+        # An edge gap too short to judge (two frames are needed) is cut as it always was.
+        checked = [
+            index for index, (gap_start, gap_end, keep_first, keep_last) in enumerate(gaps)
+            if (keep_first and keep_last) or gap_end - gap_start >= EDGE_GAP_MIN_CHECK_SECONDS
+        ]
+        found = active_gap_ranges(
             video_path,
-            [(gap_start, gap_end) for gap_start, gap_end, _, _ in gaps],
+            [gaps[index][:2] for index in checked],
             [(word["start"], word["end"]) for word in spoken_words],
-        ) if gaps else []
+        ) if checked else []
+        protected: List[List[Tuple[float, float]]] = [[] for _ in gaps]
+        # A filler that is being removed is loud, so it reads as action and would protect the silence around
+        # it: "Um ... so" would open on dead air. Its span is taken out of the action again.
+        fillers = [(start - FILLER_ACTION_MARGIN_SECONDS, end + FILLER_ACTION_MARGIN_SECONDS)
+                   for start, end in removal_intervals]
+        for index, action in zip(checked, found):
+            protected[index] = [
+                window for window in _subtract_intervals(action, fillers)
+                if window[1] - window[0] >= FILLER_ACTION_MARGIN_SECONDS
+            ]
         for (gap_start, gap_end, keep_first, keep_last), action in zip(gaps, protected):
-            cursor = gap_start
+            cursor, at_start = gap_start, True
             # Keep detected action, compressing only the quiet windows between it.
             for action_start, action_end in action:
                 if action_start - cursor >= pause_threshold_seconds:
                     compress_pause(
                         cursor, action_start,
-                        keep_first if cursor == gap_start else PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS,
+                        keep_first if at_start else PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS,
                     )
-                cursor = max(cursor, action_end)
+                if action_end > cursor:
+                    cursor, at_start = action_end, False
             if gap_end - cursor >= pause_threshold_seconds:
-                compress_pause(
-                    cursor, gap_end,
-                    keep_first if cursor == gap_start else PAUSE_EDGE_PADDING_SECONDS, keep_last,
-                )
+                compress_pause(cursor, gap_end, keep_first if at_start else PAUSE_EDGE_PADDING_SECONDS, keep_last)
 
     merged_removals = _merge_intervals(removal_intervals)
     if not merged_removals:
@@ -1221,11 +1249,7 @@ def build_clip_keep_ranges(
         keep_ranges.append((cursor, clip_end))
 
     total_kept = sum(max(0.0, end - start) for start, end in keep_ranges)
-    # Clean-up tightens a clip; it does not replace it. When hardly anything would be left (a few words in a
-    # long selection), the selection is rendered as it is.
-    window = clip_end - clip_start
-    floor = max(CLEANUP_MIN_KEPT_SECONDS, CLEANUP_MIN_KEPT_SHARE * window)
-    if not keep_ranges or total_kept < floor:
+    if not keep_ranges or total_kept < 0.5:
         return [(clip_start, clip_end)]
 
     return keep_ranges

@@ -70,6 +70,9 @@ def segment_bounds(segment: Dict[str, Any]) -> Range:
     )
 
 
+MIN_CLEANED_CLIP_SECONDS = 3.0  # what pause and filler clean-up must leave of a selected moment
+
+
 def resolve_render_ranges(
     video_path: Path,
     segment: Dict[str, Any],
@@ -109,6 +112,12 @@ def _resolve_legacy(
             end_seconds,
             cleanup_settings,
         )
+        # Clean-up tightens a selected moment; it does not replace it. A few words in a selection whose
+        # silence shows no action would leave a clip of a second or two: the selection is rendered as it is.
+        # Planned ranges never come here, so workflow budgets (SpeechClock) are unaffected.
+        kept = sum(end - start for start, end in keep_ranges)
+        if kept < min(MIN_CLEANED_CLIP_SECONDS, end_seconds - start_seconds):
+            keep_ranges = [(start_seconds, end_seconds)]
     keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
     clip_text = segment.get("text", "")
     if not provided_keep_ranges and not source_ranges:
