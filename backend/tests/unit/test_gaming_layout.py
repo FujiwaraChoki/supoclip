@@ -152,11 +152,69 @@ def test_a_logo_in_a_frame_is_not_a_camera():
     assert profile.facecam is None or profile.virtual_camera
 
 
+def test_someone_filmed_in_the_middle_of_the_frame_is_not_a_keyed_out_streamer():
+    frames, times = clip(cam=False)
+    middle = (290.0, 90.0, 56.0, 70.0)                              # 1.7 % of the frame, nowhere near its edge
+    profile = classify(frames, times, [[middle] for _ in frames])
+    assert not profile.is_gaming and not profile.virtual_camera
+    assert profile.reason == "people_on_screen"
+    # The same head at the edge of the picture is a streamer beside the game.
+    edge = (20.0, 240.0, 56.0, 70.0)
+    profile = classify(frames, times, [[edge] for _ in frames])
+    assert profile.is_gaming and profile.virtual_camera
+
+
+def camera_without_hud(count=48, seed=7):
+    rng = np.random.default_rng(seed)
+    frames = []
+    for i in range(count):
+        frame = world(rng)
+        draw_cam(frame, i)
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
+
+
 def test_a_bigger_still_face_beside_the_inset_is_a_reaction_video():
-    frames, times = clip(cam=True)
+    frames, times = camera_without_hud()
     host = (120.0, 150.0, 60.0, 75.0)
     profile = classify(frames, times, [[CAM_FACE, host] for _ in frames])
     assert not profile.is_gaming and profile.reason == "people_on_screen"
+
+
+def test_a_character_who_comes_and_goes_in_a_cutscene_is_not_a_host():
+    # No HUD during a cutscene; the character is on screen for 60 % of the clip, larger than the streamer.
+    frames, times = camera_without_hud()
+    character = (120.0, 150.0, 60.0, 75.0)
+    faces = [[CAM_FACE, character] if i % 5 < 3 else [CAM_FACE] for i in range(len(frames))]
+    profile = classify(frames, times, faces)
+    assert profile.is_gaming and profile.reason == "facecam_hud"
+
+
+def test_a_host_only_slightly_larger_than_the_inset_is_not_a_host():
+    frames, times = camera_without_hud()
+    other = (120.0, 150.0, 44.0, 58.0)                              # 1.16 times the camera's face
+    profile = classify(frames, times, [[CAM_FACE, other] for _ in frames])
+    assert profile.is_gaming and profile.reason == "facecam_hud"
+
+
+def test_one_watermark_does_not_switch_the_host_rule_off():
+    # A reaction video with a channel logo in the corner: one persistent graphic is not a game's HUD.
+    frames, times = camera_without_hud()
+    for frame in frames:
+        cv2.rectangle(frame, (12, 322), (170, 348), (15, 15, 15), -1)
+        cv2.putText(frame, "CHANNEL TV", (16, 342), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    host = (120.0, 150.0, 60.0, 75.0)
+    profile = classify(frames, times, [[CAM_FACE, host] for _ in frames])
+    assert len(profile.hud) == 1
+    assert not profile.is_gaming and profile.reason == "people_on_screen"
+
+
+def test_a_face_that_stays_put_over_a_hud_is_the_games_own_character():
+    # The player's character seen from behind, a conversation: the game draws its HUD around them.
+    frames, times = clip(cam=True)
+    character = (120.0, 150.0, 60.0, 75.0)
+    profile = classify(frames, times, [[CAM_FACE, character] for _ in frames])
+    assert profile.is_gaming and profile.reason == "facecam_hud"
 
 
 def test_a_seldom_detected_face_still_marks_a_camera_that_is_always_there():
