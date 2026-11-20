@@ -46,6 +46,7 @@ LINE_MAGNITUDE = 60.0          # one-direction Sobel response for straight borde
 CHANGE_DIFF = 6.0              # grey-level change between two samples that counts as "changed"
 HUD_PERSISTENCE = 0.6          # an edge present in this share of samples is drawn by the game or the stream
 LINE_PERSISTENCE = 0.5
+CHANGE_STEP = 0.3              # jump in the change rate across a camera border without a drawn line
 MOVING_CHANGE_RATE = 0.25      # a pixel that changed in a quarter of the sample pairs belongs to moving footage
 
 # --- Classification -----------------------------------------------------------
@@ -75,6 +76,21 @@ CROSSHAIR_MAX_SIZE = 0.07
 # --- Facecam -------------------------------------------------------------------
 FACE_MIN_AREA, FACE_MAX_AREA = 0.0003, 0.05
 FACECAM_MIN_PRESENCE = 0.5
+FACECAM_SELDOM_PRESENCE = 0.12  # a face seen this seldom still marks a camera whose border is always there
+FACECAM_SELDOM_BORDER = 0.7
+FACE_TRACK_MIN_SAMPLES = 5     # detections before a spot counts as a recurring face
+MIN_CAMERA_MOTION = 0.03       # share of the camera rectangle that moves: a logo or an avatar never does
+VIRTUAL_CAMERA_WIDTH = 4.2     # a keyed-out streamer has no rectangle: one is drawn around the head, in face widths
+VIRTUAL_CAMERA_ABOVE, VIRTUAL_CAMERA_BELOW = 0.7, 1.4  # ... and in face heights above and below the face
+VIRTUAL_CAMERA_FACE_MAX_AREA = 0.02  # a larger still face is a person filmed, not an inset
+
+# Several cameras in one clip (a compilation, a streamer who resizes the camera)
+MAX_CAMERA_LAYOUTS = 4
+SEGMENT_MIN_SECONDS = 2.5      # a camera on screen for less keeps the full-frame fallback
+SEGMENT_MIN_RUN_SAMPLES = 3    # a shorter run of one camera between two others is a stray detection
+SEGMENT_MAX_SAMPLE_FPS = 8.0
+CUT_SEARCH_SECONDS = 2.5       # two cameras this close together are separated by a hard cut, found frame by frame
+SEGMENT_MIN_GAIN = 0.1         # of the clip: what several layouts must add over one to be used
 FACECAM_MAX_AREA = 0.16
 FACECAM_SIDE_COVERAGE = 0.7
 FACECAM_CLEAN_COVERAGE = 0.92
@@ -155,6 +171,13 @@ class GamingProfile:
     valid_fraction: float = 0.0
     fallback_ranges: List[Tuple[float, float]] = field(default_factory=list)
     check_masks: List[np.ndarray] = field(default_factory=list, repr=False)
+    virtual_camera: bool = False  # the camera has no rectangle (keyed-out streamer); one was drawn around the head
+    # Where this layout applies (seconds). Empty: the whole clip.
+    active: List[Tuple[float, float]] = field(default_factory=list)
+
+    def shown_seconds(self, duration: float) -> float:
+        total = sum(b - a for a, b in self.active) if self.active else duration
+        return max(0.0, total - sum(b - a for a, b in self.fallback_ranges))
 
     def summary(self) -> Dict[str, Any]:
         return {
@@ -166,6 +189,8 @@ class GamingProfile:
             "outside_face_rate": round(self.outside_face_rate, 3),
             "valid_fraction": round(self.valid_fraction, 3),
             "fallback_ranges": [[round(a, 3), round(b, 3)] for a, b in self.fallback_ranges],
+            "virtual_camera": self.virtual_camera,
+            "active": [[round(a, 3), round(b, 3)] for a, b in self.active],
         }
 
 
@@ -246,54 +271,109 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
 # Facecam
 # ---------------------------------------------------------------------------
 
-def find_fixed_face(faces: Sequence[Sequence[Box]], w: int, h: int) -> Optional[Tuple[Box, float]]:
-    """The face that sits in one place for most of the clip: (median box, presence).
+@dataclass
+class FaceTrack:
+    """One head that sits in one place: its usual box, and the samples it was seen in."""
+    box: Box
+    samples: List[int]
+    presence: float
+
+
+def fixed_face_tracks(faces: Sequence[Sequence[Box]], w: int, h: int) -> List[FaceTrack]:
+    """Every face that stays in one spot at one size, most seen first.
 
     A streamer's camera shows one head in one spot at one size, sample after sample. The game shows faces too
-    (cutscenes, photoreal characters), often larger and right beside the camera, so the camera face is the
-    tightest recurring one: the spot with the most detections, then in every sample the detection that matches
-    that spot's usual position and size. Other faces nearby never count for it or against it.
+    (cutscenes, photoreal characters), often larger and right beside the camera, and a compilation shows a
+    different camera in every segment. A spot is a detection that repeats almost exactly; every detection then joins
+    the spot it fits best, so two cameras that sit close together in different segments stay two tracks.
     """
     if not faces:
-        return None
+        return []
     frame_area = float(w * h)
-    cell = max(8.0, w / 12.0)
-    votes: Dict[Tuple[int, int], List[Box]] = {}
-    for boxes in faces:
-        seen: Dict[Tuple[int, int], Box] = {}
-        for box in boxes:
-            x, y, bw, bh = box
-            if not FACE_MIN_AREA <= bw * bh / frame_area <= FACE_MAX_AREA:
-                continue
-            seen.setdefault((int((x + bw / 2) // cell), int((y + bh / 2) // cell)), box)
-        for key, box in seen.items():
-            votes.setdefault(key, []).append(box)
-    if not votes:
-        return None
+    usable = [
+        [b for b in boxes if FACE_MIN_AREA <= b[2] * b[3] / frame_area <= FACE_MAX_AREA] for boxes in faces
+    ]
 
-    # The busiest cell. A head sitting on a cell border splits its votes, which the position match below undoes.
-    best = max(votes, key=lambda k: len(votes[k]))
-    usual = np.median(np.asarray(votes[best], dtype=np.float32), axis=0)
-    ux, uy = float(usual[0] + usual[2] / 2), float(usual[1] + usual[3] / 2)
-    members: List[Box] = []
-    for boxes in faces:
-        same = [
-            b for b in boxes
-            if abs(b[0] + b[2] / 2 - ux) <= usual[2] * 0.9 and abs(b[1] + b[3] / 2 - uy) <= usual[3] * 0.9
-            and 0.55 <= b[3] / max(float(usual[3]), 1.0) <= 1.8
-        ]
-        if same:
-            members.append(min(same, key=lambda b: abs(b[0] + b[2] / 2 - ux) + abs(b[1] + b[3] / 2 - uy)))
-    presence = len(members) / len(faces)
-    if presence < FACECAM_MIN_PRESENCE:
+    def offset(box: Box, ref: np.ndarray) -> Tuple[float, float, float]:
+        return (abs(box[0] + box[2] / 2 - (ref[0] + ref[2] / 2)) / max(float(ref[2]), 1.0),
+                abs(box[1] + box[3] / 2 - (ref[1] + ref[3] / 2)) / max(float(ref[3]), 1.0),
+                box[3] / max(float(ref[3]), 1.0))
+
+    # Seeds: detections that repeat almost exactly, followed through the samples in order.
+    seeds: List[List[Box]] = []
+    seen_at: List[List[int]] = []
+    for i, boxes in enumerate(usable):
+        taken: set = set()
+        for box in boxes:
+            best, best_d = None, None
+            for k, members in enumerate(seeds):
+                if k in taken:
+                    continue
+                dx, dy, ratio = offset(box, np.median(np.asarray(members[-9:], dtype=np.float32), axis=0))
+                if dx <= 0.5 and dy <= 0.5 and 0.75 <= ratio <= 1.35 and (best_d is None or dx + dy < best_d):
+                    best, best_d = k, dx + dy
+            if best is None:
+                seeds.append([box])
+                seen_at.append([i])
+                taken.add(len(seeds) - 1)
+            else:
+                seeds[best].append(box)
+                seen_at[best].append(i)
+                taken.add(best)
+    # A head that leans forward for a while seeds a second spot: two spots that fit each other and were seen in
+    # the same stretch of the clip are one camera.
+    groups: List[Tuple[List[Box], int, int]] = []
+    for members, at in sorted(zip(seeds, seen_at), key=lambda pair: -len(pair[0])):
+        if len(members) < 2:
+            continue
+        ref = np.median(np.asarray(members, dtype=np.float32), axis=0)
+        for g, (boxes_g, first, last) in enumerate(groups):
+            dx, dy, ratio = offset(tuple(ref), np.median(np.asarray(boxes_g, dtype=np.float32), axis=0))
+            if dx <= 0.9 and dy <= 0.9 and 0.55 <= ratio <= 1.8 and at[0] <= last and at[-1] >= first:
+                groups[g] = (boxes_g + members, min(first, at[0]), max(last, at[-1]))
+                break
+        else:
+            groups.append((list(members), at[0], at[-1]))
+    spots = [np.median(np.asarray(m, dtype=np.float32), axis=0) for m, _, _ in groups if len(m) >= FACE_TRACK_MIN_SAMPLES]
+
+    # Members: every detection goes to the spot it fits best; a lean or a turn still belongs to its camera.
+    open_tracks: List[List[Tuple[int, Box]]] = [[] for _ in spots]
+    for i, boxes in enumerate(usable):
+        chosen: Dict[int, Tuple[float, Box]] = {}
+        for box in boxes:
+            best, best_d = None, None
+            for k, spot in enumerate(spots):
+                dx, dy, ratio = offset(box, spot)
+                if dx <= 0.9 and dy <= 0.9 and 0.55 <= ratio <= 1.8:
+                    d = dx + dy + abs(float(np.log(ratio)))
+                    if best_d is None or d < best_d:
+                        best, best_d = k, d
+            if best is not None and (best not in chosen or best_d < chosen[best][0]):
+                chosen[best] = (best_d, box)
+        for k, (_, box) in chosen.items():
+            open_tracks[k].append((i, box))
+
+    tracks: List[FaceTrack] = []
+    for members in open_tracks:
+        if len(members) < FACE_TRACK_MIN_SAMPLES:
+            continue
+        arr = np.asarray([m[1] for m in members], dtype=np.float32)
+        median = np.median(arr, axis=0)
+        centres = arr[:, :2] + arr[:, 2:] / 2
+        # A streamer leans and turns; a face that wanders further than its own size is not behind a fixed camera.
+        if np.std(centres[:, 0]) > median[2] * 0.6 or np.std(centres[:, 1]) > median[3] * 0.6:
+            continue
+        tracks.append(FaceTrack(tuple(float(v) for v in median), [m[0] for m in members], len(members) / len(faces)))
+    tracks.sort(key=lambda t: -len(t.samples))
+    return tracks
+
+
+def find_fixed_face(faces: Sequence[Sequence[Box]], w: int, h: int) -> Optional[Tuple[Box, float]]:
+    """The face that sits in one place for most of the clip: (median box, presence)."""
+    tracks = fixed_face_tracks(faces, w, h)
+    if not tracks or tracks[0].presence < FACECAM_MIN_PRESENCE:
         return None
-    arr = np.asarray(members, dtype=np.float32)
-    median = np.median(arr, axis=0)
-    centres = arr[:, :2] + arr[:, 2:] / 2
-    # A streamer leans and turns; a face that wanders further than its own size is not behind a fixed camera.
-    if np.std(centres[:, 0]) > median[2] * 0.6 or np.std(centres[:, 1]) > median[3] * 0.6:
-        return None
-    return tuple(float(v) for v in median), presence
+    return tracks[0].box, tracks[0].presence
 
 
 def _line_candidates(profile: np.ndarray, lo: int, hi: int, edge: Optional[int], nearest_to: float) -> List[int]:
@@ -327,8 +407,15 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     h, w = evidence.shape
     fx, fy, fw, fh = face
     cx, cy = fx + fw / 2, fy + fh / 2
-    vertical = cv2.dilate((evidence.persist_v >= LINE_PERSISTENCE).astype(np.uint8), np.ones((1, 3), np.uint8))
-    horizontal = cv2.dilate((evidence.persist_h >= LINE_PERSISTENCE).astype(np.uint8), np.ones((3, 1), np.uint8))
+    # A border is a line that is drawn in most samples, or the place where the picture stops moving: the room
+    # behind a streamer stands still while the game beside it changes all the time, whatever their colours.
+    calm = cv2.blur(evidence.change, (3, 3))
+    step_v = np.zeros((h, w), bool)
+    step_h = np.zeros((h, w), bool)
+    step_v[:, 2:-2] = np.abs(calm[:, 4:] - calm[:, :-4]) >= CHANGE_STEP
+    step_h[2:-2, :] = np.abs(calm[4:, :] - calm[:-4, :]) >= CHANGE_STEP
+    vertical = cv2.dilate(((evidence.persist_v >= LINE_PERSISTENCE) | step_v).astype(np.uint8), np.ones((1, 3), np.uint8))
+    horizontal = cv2.dilate(((evidence.persist_h >= LINE_PERSISTENCE) | step_h).astype(np.uint8), np.ones((3, 1), np.uint8))
 
     y0, y1 = max(0, int(fy)), min(h, int(fy + fh) + 1)
     x0, x1 = max(0, int(fx)), min(w, int(fx + fw) + 1)
@@ -481,7 +568,7 @@ def frame_layout_valid(frame_bgr: np.ndarray, masks: Sequence[np.ndarray]) -> bo
 
 
 def refine_fallback_ranges(
-    path: Path, profile: "GamingProfile", duration: float, step: float,
+    path: Path, profile: "GamingProfile", duration: float, step: float, fixed: Sequence[float] = (),
 ) -> List[Tuple[float, float]]:
     """Move each switch between the gaming layout and the full frame onto the frame where the stream changes.
 
@@ -512,8 +599,9 @@ def refine_fallback_ranges(
     refined = []
     for start, end in profile.fallback_ranges:
         try:
-            a = start if start <= 0.0 else switch(start, to_valid=False)
-            b = end if end >= duration - 1e-3 else switch(end, to_valid=True)
+            # An edge that is the start or end of this layout's own span is already exact.
+            a = start if start <= 0.0 or any(abs(start - t) < 1e-3 for t in fixed) else switch(start, to_valid=False)
+            b = end if end >= duration - 1e-3 or any(abs(end - t) < 1e-3 for t in fixed) else switch(end, to_valid=True)
         except Exception as exc:  # noqa: BLE001 - the sampled boundary still stands
             logger.debug("Gaming boundary refinement failed: %s", exc)
             a, b = start, end
@@ -558,35 +646,100 @@ def fallback_ranges(valid: np.ndarray, times: Sequence[float], duration: float) 
     return ranges
 
 
+def fallback_ranges_within(
+    valid: np.ndarray, times: Sequence[float], spans: Sequence[Tuple[float, float]],
+) -> List[Tuple[float, float]]:
+    """``fallback_ranges`` for a layout that applies in ``spans`` only; the samples are those inside the spans."""
+    ranges: List[Tuple[float, float]] = []
+    for lo, hi in spans:
+        inside = [i for i, t in enumerate(times) if lo - 1e-6 <= t < hi]
+        if not inside:
+            continue
+        step = (times[inside[1]] - times[inside[0]]) if len(inside) > 1 else hi - lo
+        start: Optional[int] = None
+        for n, i in enumerate(inside + [None]):
+            ok = True if i is None else bool(valid[i])
+            if not ok and start is None:
+                start = n
+            elif ok and start is not None:
+                a = lo if start == 0 else times[inside[start]] - step / 2
+                b = hi if i is None else times[i] - step / 2
+                if b - a >= MIN_FALLBACK_SECONDS:
+                    ranges.append((max(lo, a), min(hi, b)))
+                start = None
+    return ranges
+
+
+def virtual_camera_rect(face: Box, w: int, h: int) -> Rect:
+    """A camera rectangle for a streamer shown without one (background keyed out): head and shoulders."""
+    fx, fy, fw, fh = face
+    cw = min(float(w), fw * VIRTUAL_CAMERA_WIDTH)
+    x0 = int(min(max(0.0, fx + fw / 2 - cw / 2), w - cw))
+    y0 = int(max(0.0, fy - fh * VIRTUAL_CAMERA_ABOVE))
+    y1 = int(min(float(h), fy + fh * (1 + VIRTUAL_CAMERA_BELOW)))
+    return Rect(x0, y0, int(cw), max(2, y1 - y0))
+
+
 def classify_gaming(
     evidence: FrameEvidence,
     faces: Sequence[Sequence[Box]],
     width: int,
     height: int,
     duration: float,
+    track: Optional[FaceTrack] = None,
+    spans: Optional[Sequence[Tuple[float, float]]] = None,
 ) -> GamingProfile:
-    """Decide whether the sampled clip is gameplay, and where its parts are (source pixels)."""
+    """Decide whether the sampled clip is gameplay, and where its parts are (source pixels).
+
+    ``track`` names the camera's face when the caller already knows it (one camera of several in a clip);
+    ``spans`` are then the seconds the samples come from.
+    """
     h, w = evidence.shape
     sx, sy = width / w, height / h
 
     facecam: Optional[Rect] = None
     face_box: Optional[Box] = None
-    fixed = find_fixed_face(faces, w, h)
-    if fixed is not None:
-        facecam = find_facecam_rect(evidence, fixed[0])
-        if facecam is not None:
-            face_box = fixed[0]
+    virtual = False
+    tracks = [track] if track is not None else fixed_face_tracks(faces, w, h)
+    candidates = [t for t in tracks if track is not None or t.presence >= FACECAM_MIN_PRESENCE]
+    # A streamer in a cap who looks down at the controller is detected in a few samples only. The rectangle
+    # around that head still counts when its border is on screen for the whole clip.
+    seldom = [t for t in tracks if t not in candidates and t.presence >= FACECAM_SELDOM_PRESENCE]
+    for candidate in candidates + seldom:
+        rect = find_facecam_rect(evidence, candidate.box)
+        if rect is None:
+            continue
+        # A camera shows a person, who moves. A channel logo or a drawn avatar in a frame does not.
+        if float((evidence.change[rect.y:rect.y2, rect.x:rect.x2] > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
+            continue
+        if candidate in seldom:
+            border = _facecam_border_mask((h, w), rect) & (evidence.persist >= LINE_PERSISTENCE)
+            if border.sum() < 12 or float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) < FACECAM_SELDOM_BORDER:
+                continue
+        facecam, face_box = rect, candidate.box
+        break
 
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
+    keyed = [t for t in candidates if t.box[2] * t.box[3] <= VIRTUAL_CAMERA_FACE_MAX_AREA * w * h]
+    if facecam is None and keyed and regions and float(hud_mask.sum()) / float(w * h) >= MIN_HUD_EDGE_FRACTION:
+        # No rectangle, but a head that stays put over a game that draws a HUD: a streamer with the background
+        # keyed out. The top panel shows head and shoulders with the game behind them.
+        facecam, face_box, virtual = virtual_camera_rect(keyed[0].box, w, h), keyed[0].box, True
+        regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
     if facecam is not None:
         # A name plate or ornament drawn on the camera's frame belongs to the camera, not to the game: lifted into
-        # the gameplay panel it is a stray sticker. It sits just above or below the camera, within its width.
+        # the gameplay panel it is a stray sticker. It sits just above or below the camera, within its width,
         reach = CAM_DECORATION_REACH * w
 
         def decoration(r: Rect) -> bool:
             across = min(r.x2, facecam.x2) - max(r.x, facecam.x)
             gap = max(facecam.y - r.y2, r.y - facecam.y2, 0)
-            return across >= 0.6 * min(r.w, facecam.w) and gap <= reach
+            if across >= 0.6 * min(r.w, facecam.w) and gap <= reach:
+                return True
+            # ... or beside it, along its height: a frame's side bar, the strip between the camera and the edge.
+            along = min(r.y2, facecam.y2) - max(r.y, facecam.y)
+            side_gap = max(facecam.x - r.x2, r.x - facecam.x2, 0)
+            return along >= 0.6 * min(r.h, facecam.h) and side_gap <= reach
 
         regions = [r for r in regions if not decoration(r)]
 
@@ -610,7 +763,16 @@ def classify_gaming(
             break
     outside_rate = outside / max(1, len(faces))
 
-    valid = layout_valid_samples(evidence, hud_mask, facecam)
+    bordered = None if virtual else facecam
+    host = None
+    if facecam is not None and face_box is not None:
+        for other in fixed_face_tracks(faces, w, h):
+            cx, cy = other.box[0] + other.box[2] / 2, other.box[1] + other.box[3] / 2
+            inside = facecam.x <= cx <= facecam.x2 and facecam.y <= cy <= facecam.y2
+            if not inside and other.presence >= FACECAM_MIN_PRESENCE and other.box[3] > face_box[3]:
+                host = other
+                break
+    valid = layout_valid_samples(evidence, hud_mask, bordered)
     valid_fraction = float(valid.mean()) if len(valid) else 0.0
 
     def to_source(r: Rect, inset: int = 0) -> Rect:
@@ -622,23 +784,29 @@ def classify_gaming(
 
     profile = GamingProfile(
         width=width, height=height, is_gaming=False, reason="",
-        facecam=to_source(facecam, inset=FACECAM_INSET) if facecam is not None else None,
+        facecam=to_source(facecam, inset=0 if virtual else FACECAM_INSET) if facecam is not None else None,
         face=(face_box[0] * sx, face_box[1] * sy, face_box[2] * sx, face_box[3] * sy) if face_box else None,
         hud=[to_source(r) for r in regions], crosshair=crosshair,
         moving_fraction=moving_fraction, hud_edge_fraction=hud_edge_fraction,
         outside_face_rate=outside_rate, valid_fraction=valid_fraction,
-        fallback_ranges=fallback_ranges(valid, evidence.times, duration),
-        check_masks=layout_check_masks(evidence, hud_mask, facecam),
+        fallback_ranges=(fallback_ranges_within(valid, evidence.times, spans) if spans
+                         else fallback_ranges(valid, evidence.times, duration)),
+        check_masks=layout_check_masks(evidence, hud_mask, bordered),
+        virtual_camera=virtual, active=[(float(a), float(b)) for a, b in spans] if spans else [],
     )
     needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None else MIN_HUD_REGIONS
     if len(evidence.edges) < MIN_SAMPLES:
         profile.reason = "too_short"
     elif moving_fraction < MIN_MOVING_FRACTION:
         profile.reason = "static_picture"
-    elif facecam is None and outside_rate > MAX_OUTSIDE_FACE_RATE:
+    elif (facecam is None or virtual) and outside_rate > MAX_OUTSIDE_FACE_RATE:
         # With a camera rectangle found, other faces are the game's own (cutscenes, photoreal characters).
         profile.reason = "people_on_screen"
-    elif facecam is None and (len(regions) < needed or hud_edge_fraction < MIN_HUD_EDGE_FRACTION):
+    elif host is not None:
+        # Someone else sits still on screen for most of the clip, larger than the camera's face: a reaction or
+        # a podcast with a small inset, not a game.
+        profile.reason = "people_on_screen"
+    elif (facecam is None or virtual) and (len(regions) < needed or hud_edge_fraction < MIN_HUD_EDGE_FRACTION):
         # A camera inset over a moving picture is a stream whether or not the game draws a HUD (story missions).
         profile.reason = "no_hud"
     elif valid_fraction < (MIN_VALID_FRACTION_WITH_FACECAM if facecam is not None else MIN_VALID_FRACTION):
@@ -649,15 +817,170 @@ def classify_gaming(
     return profile
 
 
-def analyze_gaming_clip(path: Path, width: int, height: int, duration: float) -> Optional[GamingProfile]:
+def camera_timeline(tracks: Sequence[FaceTrack], count: int) -> List[Tuple[int, int, int]]:
+    """Which camera each sample belongs to: runs of (track index, first sample, last sample).
+
+    A sample with two tracked faces goes to the one seen most. Samples without a tracked face go to the camera
+    around them (it is hidden for a cutscene), or are shared between the cameras before and after.
+    """
+    label = np.full(count, -1, dtype=np.int64)
+    for k in range(len(tracks) - 1, -1, -1):
+        label[np.asarray(tracks[k].samples, dtype=np.int64)] = k
+    known = np.flatnonzero(label >= 0)
+    if not len(known):
+        return []
+    label[:known[0]] = label[known[0]]
+    label[known[-1] + 1:] = label[known[-1]]
+    for a, b in zip(known[:-1], known[1:]):
+        if b - a > 1:
+            middle = b if label[a] == label[b] else (a + b + 1) // 2
+            label[a + 1:middle] = label[a]
+            label[middle:b] = label[b]
+
+    def runs_of(values: np.ndarray) -> List[Tuple[int, int, int]]:
+        out: List[Tuple[int, int, int]] = []
+        start = 0
+        for i in range(1, count + 1):
+            if i == count or values[i] != values[start]:
+                out.append((int(values[start]), start, i - 1))
+                start = i
+        return out
+
+    runs = runs_of(label)
+    while len(runs) > 1:
+        short = min(range(len(runs)), key=lambda r: runs[r][2] - runs[r][1])
+        k, first, last = runs[short]
+        if last - first + 1 >= SEGMENT_MIN_RUN_SAMPLES:
+            break
+        # A stray detection: it takes the camera of the longer run beside it.
+        beside = [r for r in (short - 1, short + 1) if 0 <= r < len(runs)]
+        keep = max(beside, key=lambda r: runs[r][2] - runs[r][1])
+        label[first:last + 1] = runs[keep][0]
+        runs = runs_of(label)
+    return runs
+
+
+def find_cut(path: Path, start: float, end: float) -> float:
+    """The hard cut between two samples that show different cameras, to the frame."""
+    if end - start > CUT_SEARCH_SECONDS or end <= start:
+        return (start + end) / 2
+    w, h = 160, 90
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{start:.3f}", "-t", f"{end - start + 1 / REFINE_FPS:.3f}",
+         "-i", str(path), "-vf", f"fps={REFINE_FPS},scale={w}:{h}", "-pix_fmt", "gray", "-f", "rawvideo", "-"],
+        capture_output=True, timeout=120,
+    )
+    count = len(result.stdout) // (w * h) if result.returncode == 0 else 0
+    if count < 2:
+        return (start + end) / 2
+    frames = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w).astype(np.int16)
+    change = np.abs(frames[1:] - frames[:-1]).mean(axis=(1, 2))
+    return start + (int(np.argmax(change)) + 1) / REFINE_FPS
+
+
+def sample_spans(
+    path: Path, spans: Sequence[Tuple[float, float]], proc_w: int, proc_h: int,
+) -> Tuple[List[float], np.ndarray]:
+    """Frames of a few short spans, sampled densely enough to classify them on their own."""
+    total = sum(b - a for a, b in spans)
+    fps = min(SEGMENT_MAX_SAMPLE_FPS, max(MAX_SAMPLE_FPS, (MIN_SAMPLES + 2) / max(total, 1e-3)))
+    times: List[float] = []
+    chunks: List[np.ndarray] = []
+    size = proc_w * proc_h * 3
+    for a, b in spans:
+        result = subprocess.run(
+            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}", "-i", str(path),
+             "-vf", f"fps={fps:.4f},scale={proc_w}:{proc_h}", "-pix_fmt", "bgr24", "-f", "rawvideo", "-"],
+            capture_output=True, timeout=300,
+        )
+        if result.returncode != 0:
+            raise RuntimeError("gaming analysis decode failed")
+        count = len(result.stdout) // size
+        chunks.append(np.frombuffer(result.stdout[:count * size], dtype=np.uint8).reshape(count, proc_h, proc_w, 3))
+        times.extend(a + i / fps for i in range(count))
+    return times, np.concatenate(chunks) if chunks else np.zeros((0, proc_h, proc_w, 3), np.uint8)
+
+
+def analyze_camera_segments(
+    path: Path, width: int, height: int, duration: float,
+    times: Sequence[float], frames: np.ndarray, faces: Sequence[Sequence[Box]],
+) -> List[GamingProfile]:
+    """One profile per camera when the clip shows several: a compilation of streamers, or one streamer whose
+    camera changes size or place. Each camera is classified from its own part of the clip.
+    """
+    h, w = frames.shape[1:3]
+    tracks = fixed_face_tracks(faces, w, h)
+    runs = camera_timeline(tracks, len(frames))
+    if len({k for k, _, _ in runs}) < 2:
+        return []
+    bounds = [0.0]
+    for (_, _, last), (_, first, _) in zip(runs[:-1], runs[1:]):
+        bounds.append(find_cut(path, times[last], times[first]))
+    bounds.append(duration)
+    spans_of: Dict[int, List[Tuple[float, float]]] = {}
+    for n, (k, _, _) in enumerate(runs):
+        if bounds[n + 1] > bounds[n]:
+            spans_of.setdefault(k, []).append((bounds[n], bounds[n + 1]))
+
+    profiles: List[GamingProfile] = []
+    for k, spans in spans_of.items():
+        total = sum(b - a for a, b in spans)
+        if total < SEGMENT_MIN_SECONDS:
+            continue
+        chosen = [i for i, t in enumerate(times) if any(a <= t < b for a, b in spans)]
+        if len(chosen) >= MIN_SAMPLES:
+            part_times, part_frames = [times[i] for i in chosen], frames[chosen]
+            part_faces: Sequence[Sequence[Box]] = [faces[i] for i in chosen]
+        else:
+            part_times, part_frames = sample_spans(path, spans, w, h)
+            part_faces = detect_faces(part_frames)
+        if len(part_frames) < 2:
+            continue
+        # The same head, found again in this camera's own samples.
+        ux, uy, uw, uh = tracks[k].box
+        same = [
+            t for t in fixed_face_tracks(part_faces, w, h)
+            if abs(t.box[0] + t.box[2] / 2 - ux - uw / 2) <= uw * 0.9 and abs(t.box[1] + t.box[3] / 2 - uy - uh / 2) <= uh * 0.9
+        ]
+        track = same[0] if same and same[0].presence >= FACECAM_MIN_PRESENCE else None
+        if track is None:
+            continue
+        profile = classify_gaming(
+            measure_frames(part_frames, part_times), part_faces, width, height, total, track=track, spans=spans,
+        )
+        if profile.is_gaming and profile.fallback_ranges and len(part_times) > 1:
+            edges = [t for span in spans for t in span]
+            profile.fallback_ranges = refine_fallback_ranges(
+                path, profile, duration, part_times[1] - part_times[0], fixed=edges,
+            )
+        profiles.append(profile)
+    return profiles
+
+
+def analyze_gaming_clip(path: Path, width: int, height: int, duration: float) -> List[GamingProfile]:
+    """The clip's profile: one for the whole clip, or one per camera when several take turns."""
     times, frames = sample_clip_frames(path, width, height, duration)
     if len(frames) < 2:
-        return None
+        return []
+    faces = detect_faces(frames)
     evidence = measure_frames(frames, times)
-    profile = classify_gaming(evidence, detect_faces(frames), width, height, duration)
-    if profile.is_gaming and profile.fallback_ranges and len(times) > 1:
-        profile.fallback_ranges = refine_fallback_ranges(path, profile, duration, times[1] - times[0])
-    return profile
+    whole = classify_gaming(evidence, faces, width, height, duration)
+    if whole.is_gaming and whole.fallback_ranges and len(times) > 1:
+        whole.fallback_ranges = refine_fallback_ranges(path, whole, duration, times[1] - times[0])
+    del evidence
+    try:
+        cameras = analyze_camera_segments(path, width, height, duration, times, frames, faces)
+    except Exception as exc:  # noqa: BLE001 - the whole-clip profile still stands
+        logger.warning("Gaming camera segments failed (%s); using one layout", exc)
+        cameras = []
+    for profile in cameras:
+        logger.info("Gaming camera: %s", profile.summary())
+    cameras = sorted((c for c in cameras if c.is_gaming), key=lambda c: -c.shown_seconds(duration))[:MAX_CAMERA_LAYOUTS]
+    shown = sum(c.shown_seconds(duration) for c in cameras)
+    alone = whole.shown_seconds(duration) if whole.is_gaming else 0.0
+    if cameras and shown >= MIN_VALID_FRACTION_WITH_FACECAM * duration and shown > alone + SEGMENT_MIN_GAIN * duration:
+        return sorted(cameras, key=lambda c: c.active[0][0])
+    return [whole]
 
 
 # ---------------------------------------------------------------------------
@@ -816,13 +1139,15 @@ def _between(ranges: Sequence[Tuple[float, float]]) -> str:
     return "+".join(f"between(t\\,{a:.3f}\\,{b:.3f})" for a, b in ranges)
 
 
-def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, Any]:
-    """The filter graph and report for a clip classified as gameplay.
+def _minus(ranges: Sequence[Tuple[float, float]], holes: Sequence[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    out = [(a, b) for a, b in ranges if b > a]
+    for lo, hi in holes:
+        out = [piece for a, b in out for piece in ((a, min(b, lo)), (max(a, hi), b)) if piece[1] > piece[0]]
+    return out
 
-    One self-contained ``filter_complex`` ending in ``[vout]`` (1080x1920): the
-    camera panel, the gameplay crop with HUD cut-outs overlaid, and, for spans
-    where the stream shows something else, the whole frame over a blurred fill.
-    """
+
+def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
+    """One camera's layout as filter lines reading ``[<tag>_*]`` copies of the source and ending in ``out``."""
     width, height = profile.width, profile.height
     if profile.facecam is not None:
         cam, cam_h = facecam_crop(profile.facecam, profile.face)
@@ -830,49 +1155,30 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
     else:
         cam, cam_h = None, 0
         panel_y, panel_h = (CANVAS_H - GAMEPLAY_ONLY_HEIGHT) // 2, GAMEPLAY_ONLY_HEIGHT
-    crop = gameplay_crop(width, height, panel_h, profile.facecam)
+    crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
     cutouts, occupied = place_hud(profile.hud, crop, width, panel_y, panel_h)
-    fallbacks = [(a, b) for a, b in profile.fallback_ranges if b > a]
-    # The last span runs to the final frame even when the stream is a little longer than probed.
-    fallbacks = [(a, 1e6 if b >= duration - 0.05 else b) for a, b in fallbacks]
 
-    labels = ["gm_game"] + (["gm_cam"] if cam else []) + [f"gm_h{i}" for i in range(len(cutouts))]
-    if fallbacks:
-        labels += ["gm_bg", "gm_fit"]
-    graph = [f"[0:v]split={len(labels)}" + "".join(f"[{name}]" for name in labels)]
+    inputs = [f"{tag}_game"] + ([f"{tag}_cam"] if cam else []) + [f"{tag}_h{i}" for i in range(len(cutouts))]
     sharpen = f",{UPSCALE_SHARPEN_FILTER}" if crop.w < CANVAS_W else ""
-    graph.append(
-        f"[gm_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
-        f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[gm_p0]"
-    )
+    lines = [
+        f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
+        f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
+    ]
     for i, item in enumerate(cutouts):
         r: Rect = item["source"]
-        graph.append(f"[gm_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[gm_c{i}]")
-        graph.append(f"[gm_p{i}][gm_c{i}]overlay={item['x']}:{item['y'] - panel_y}[gm_p{i + 1}]")
-    panel = f"[gm_p{len(cutouts)}]"
-    composed = "[gm_out]" if fallbacks else "[vout]"
+        lines.append(f"[{tag}_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[{tag}_c{i}]")
+        lines.append(f"[{tag}_p{i}][{tag}_c{i}]overlay={item['x']}:{item['y'] - panel_y}[{tag}_p{i + 1}]")
+    panel = f"[{tag}_p{len(cutouts)}]"
     if cam:
-        graph.append(
-            f"[gm_cam]crop={cam.w}:{cam.h}:{cam.x}:{cam.y},"
-            f"scale={CANVAS_W}:{cam_h}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[gm_top]"
+        lines.append(
+            f"[{tag}_cam]crop={cam.w}:{cam.h}:{cam.x}:{cam.y},"
+            f"scale={CANVAS_W}:{cam_h}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[{tag}_top]"
         )
-        graph.append(f"[gm_top]{panel}vstack=inputs=2{composed}")
+        lines.append(f"[{tag}_top]{panel}vstack=inputs=2{out}")
     elif panel_h == CANVAS_H:
-        graph.append(f"{panel}null{composed}")
+        lines.append(f"{panel}null{out}")
     else:
-        graph.append(f"{panel}pad={CANVAS_W}:{CANVAS_H}:0:{panel_y}:black{composed}")
-    if fallbacks:
-        enable = _between(fallbacks)
-        # Without the camera (a cutscene, a loading screen) the picture fills the frame: a full-height crop of
-        # its middle, where games put what matters. A letterboxed strip would shrink it to a third of the screen.
-        cover_w = clamp_even(int(round(height * CANVAS_W / CANVAS_H)), 2, width)
-        graph.append("[gm_bg]nullsink")
-        graph.append(
-            f"[gm_fit]crop={cover_w}:{height}:{clamp_even((width - cover_w) // 2, 0, width - cover_w)}:0,"
-            f"scale={CANVAS_W}:{CANVAS_H}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[gm_alt]"
-        )
-        graph.append(f"[gm_out][gm_alt]overlay=0:0:enable='{enable}'[vout]")
-
+        lines.append(f"{panel}pad={CANVAS_W}:{CANVAS_H}:0:{panel_y}:black{out}")
     report = {
         "facecam": cam.as_list() if cam else None,
         "facecam_panel": [0, 0, CANVAS_W, cam_h] if cam else None,
@@ -880,16 +1186,114 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
         "gameplay_panel": [0, panel_y, CANVAS_W, panel_h],
         "hud": [{"source": item["source"].as_list(), "at": [item["x"], item["y"], item["w"], item["h"]]}
                 for item in cutouts],
-        "fallback_ranges": [[round(a, 3), round(min(b, duration), 3)] for a, b in fallbacks],
         "crosshair": profile.crosshair,
     }
+    return {"inputs": inputs, "lines": lines, "report": report, "occupied": occupied,
+            "cam_h": cam_h, "panel_y": panel_y, "panel_h": panel_h}
+
+
+def _cover_lines(width: int, height: int) -> List[str]:
+    # Without the camera (a cutscene, a loading screen) the picture fills the frame: a full-height crop of
+    # its middle, where games put what matters. A letterboxed strip would shrink it to a third of the screen.
+    cover_w = clamp_even(int(round(height * CANVAS_W / CANVAS_H)), 2, width)
+    return [
+        f"[gm_fit]crop={cover_w}:{height}:{clamp_even((width - cover_w) // 2, 0, width - cover_w)}:0,"
+        f"scale={CANVAS_W}:{CANVAS_H}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[gm_alt]"
+    ]
+
+
+def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, Any]:
+    """The filter graph and report for a clip classified as gameplay.
+
+    One self-contained ``filter_complex`` ending in ``[vout]`` (1080x1920): the
+    camera panel, the gameplay crop with HUD cut-outs overlaid, and, for spans
+    where the stream shows something else, the whole frame over a blurred fill.
+    """
+    fallbacks = [(a, b) for a, b in profile.fallback_ranges if b > a]
+    # The last span runs to the final frame even when the stream is a little longer than probed.
+    fallbacks = [(a, 1e6 if b >= duration - 0.05 else b) for a, b in fallbacks]
+    part = _compose(profile, "gm", "[gm_out]" if fallbacks else "[vout]")
+
+    labels = part["inputs"] + (["gm_bg", "gm_fit"] if fallbacks else [])
+    graph = [f"[0:v]split={len(labels)}" + "".join(f"[{name}]" for name in labels)] + part["lines"]
+    if fallbacks:
+        graph.append("[gm_bg]nullsink")
+        graph.extend(_cover_lines(profile.width, profile.height))
+        graph.append(f"[gm_out][gm_alt]overlay=0:0:enable='{_between(fallbacks)}'[vout]")
+
+    report = dict(part["report"])
+    crosshair = report.pop("crosshair")
+    report["fallback_ranges"] = [[round(a, 3), round(min(b, duration), 3)] for a, b in fallbacks]
+    report["crosshair"] = crosshair
     return {
         "kind": "gaming",
         "video_filter": ";".join(graph),
         "mode": "complex",
-        "caption_y": choose_caption_y(occupied, panel_y, panel_h),
+        "caption_y": choose_caption_y(part["occupied"], part["panel_y"], part["panel_h"]),
         # The hook title sits on the seam under the camera; without a camera it keeps its usual place.
-        "hook_center_y": (cam_h / CANVAS_H) if cam else None,
+        "hook_center_y": (part["cam_h"] / CANVAS_H) if part["cam_h"] else None,
+        "gaming": report,
+    }
+
+
+def build_camera_layouts(profiles: Sequence[GamingProfile], duration: float) -> Dict[str, Any]:
+    """The filter graph for a clip in which several cameras take turns (``profile.active`` says when).
+
+    The full-frame crop is the base; each camera's layout is laid over it for the seconds that camera is on
+    screen. Captions and the hook title keep one place for the whole clip: the one the longest camera needs.
+    """
+    width, height = profiles[0].width, profiles[0].height
+    parts = []
+    for n, profile in enumerate(profiles):
+        shown = _minus(profile.active, profile.fallback_ranges)
+        if shown:
+            parts.append((profile, shown, _compose(profile, f"g{n}", f"[g{n}_out]"), f"[g{n}_out]"))
+    labels = [name for _, _, part, _ in parts for name in part["inputs"]] + ["gm_fit"]
+    graph = [f"[0:v]split={len(labels)}" + "".join(f"[{name}]" for name in labels)]
+    for _, _, part, _ in parts:
+        graph.extend(part["lines"])
+    graph.extend(_cover_lines(width, height))
+    previous = "[gm_alt]"
+    for n, (_, shown, _, out) in enumerate(parts):
+        enable = _between([(a, 1e6 if b >= duration - 0.05 else b) for a, b in shown])
+        target = "[vout]" if n == len(parts) - 1 else f"[gm_m{n}]"
+        graph.append(f"{previous}{out}overlay=0:0:enable='{enable}'{target}")
+        previous = target
+
+    def seconds(item) -> float:
+        return sum(b - a for a, b in item[1])
+
+    lead = max(parts, key=seconds)[2]
+    segments = [
+        {**part["report"], "between": [[round(a, 3), round(min(b, duration), 3)] for a, b in shown]}
+        for _, shown, part, _ in parts
+    ]
+    everything = [(a, b) for _, shown, _, _ in parts for a, b in shown]
+    report = dict(lead["report"])
+    report["fallback_ranges"] = [[round(a, 3), round(b, 3)] for a, b in _minus([(0.0, duration)], everything)]
+    report["segments"] = segments
+    # One caption row for the clip: the candidate that crosses the least HUD over all cameras, by time on screen.
+    panel_y = max(part["panel_y"] for _, _, part, _ in parts)
+    best, best_cost = CAPTION_CANDIDATES[0], None
+    for candidate in CAPTION_CANDIDATES:
+        band = (CANVAS_W * 0.1, (candidate - CAPTION_BAND / 2) * CANVAS_H, CANVAS_W * 0.8, CAPTION_BAND * CANVAS_H)
+        if band[1] < panel_y:
+            continue
+        cost = 0.0
+        for item in parts:
+            part = item[2]
+            centre_zone = (CANVAS_W * 0.3, part["panel_y"] + part["panel_h"] * 0.44, CANVAS_W * 0.4, part["panel_h"] * 0.12)
+            cost += seconds(item) * sum(_overlap(band, rect) for rect in list(part["occupied"]) + [centre_zone])
+        if best_cost is None or cost < best_cost - 1e-6:
+            best, best_cost = candidate, cost
+        if cost == 0:
+            break
+    return {
+        "kind": "gaming",
+        "video_filter": ";".join(graph),
+        "mode": "complex",
+        "caption_y": best,
+        "hook_center_y": (lead["cam_h"] / CANVAS_H) if lead["cam_h"] else None,
         "gaming": report,
     }
 
@@ -902,13 +1306,15 @@ def choose_gaming_layout(path: Path, width: int, height: int, duration: float) -
     if gaming_layout_mode() != "auto":
         return None
     try:
-        profile = analyze_gaming_clip(path, width, height, duration)
-        if profile is None:
+        profiles = analyze_gaming_clip(path, width, height, duration)
+        for profile in profiles:
+            logger.info("Gaming analysis: %s", profile.summary())
+        profiles = [profile for profile in profiles if profile.is_gaming]
+        if not profiles:
             return None
-        logger.info("Gaming analysis: %s", profile.summary())
-        if not profile.is_gaming:
-            return None
-        return build_gaming_layout(profile, duration)
+        if len(profiles) == 1 and not profiles[0].active:
+            return build_gaming_layout(profiles[0], duration)
+        return build_camera_layouts(profiles, duration)
     except Exception as exc:  # noqa: BLE001 - detection never breaks a render
         logger.warning("Gaming layout failed (%s); using the regular layout", exc)
         return None
