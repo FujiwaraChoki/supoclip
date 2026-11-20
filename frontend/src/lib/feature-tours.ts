@@ -139,7 +139,7 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
   {
     id: "dynamic-edits",
     // Placeholder: set to the day the dynamic_edits flag opens on web (docs/dynamic-edits.md, "Rollout").
-    releasedAt: "2026-12-01T00:00:00Z",
+    releasedAt: "2026-11-21T00:00:00Z",
     requiresFlag: "dynamic_edits",
     // Rendered by backend/scripts/fx/render_tour_media.py through the real FX chain.
     media: {
@@ -159,7 +159,7 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
   },
   {
     id: "dynamic-edits-studio",
-    releasedAt: "2026-12-01T00:00:00Z",
+    releasedAt: "2026-11-21T00:00:00Z",
     requiresFlag: "dynamic_edits",
     steps: [
       { target: "studio-edits-tab", message: "intro", side: "left", intro: true, inspectorTab: "edits" },
