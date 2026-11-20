@@ -45,10 +45,19 @@ export async function POST(request: NextRequest) {
   try {
     const prisma = getPrismaClient();
     const key = { user_id_tour_id: { user_id: session.user.id, tour_id: body.id as string } };
-    const existing = await prisma.userFeatureTour.findUnique({ where: key, select: { completed_at: true, dismissed_at: true } });
+    const read = () => prisma.userFeatureTour.findUnique({ where: key, select: { completed_at: true, dismissed_at: true } });
+    let existing = await read();
     if (!existing) {
-      await prisma.userFeatureTour.create({ data: { user_id: session.user.id, tour_id: body.id, ...ending, ...(step !== undefined && { last_step: step }) } });
-    } else if (event !== "shown" && !existing.completed_at && !existing.dismissed_at) {
+      try {
+        await prisma.userFeatureTour.create({ data: { user_id: session.user.id, tour_id: body.id, ...ending, ...(step !== undefined && { last_step: step }) } });
+        return NextResponse.json({ ok: true });
+      } catch (error) {
+        // "shown" and an ending can arrive together: the one that loses the insert updates the row instead.
+        if ((error as { code?: string }).code !== "P2002") throw error;
+        existing = await read();
+      }
+    }
+    if (existing && event !== "shown" && !existing.completed_at && !existing.dismissed_at) {
       await prisma.userFeatureTour.update({ where: key, data: { ...ending, ...(step !== undefined && { last_step: step }) } });
     }
     return NextResponse.json({ ok: true });
