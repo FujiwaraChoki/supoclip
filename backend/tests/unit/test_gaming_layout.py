@@ -231,6 +231,71 @@ def test_a_game_that_stands_still_beside_a_camera_is_still_a_stream():
     assert not without.is_gaming and without.reason == "static_picture"
 
 
+def still_clip(count=48, seed=5):
+    rng = np.random.default_rng(seed)
+    still = world(rng)
+    frames = []
+    for i in range(count):
+        frame = still.copy()
+        draw_hud(frame)
+        draw_cam(frame, i)
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
+
+
+def test_a_picture_that_stands_still_beside_a_camera_is_shown_whole_under_it():
+    frames, times = still_clip()
+    profile = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert profile.is_gaming and profile.reason == "facecam_still"
+    assert profile.focus is not None and profile.hud == []
+    layout = gl.build_gaming_layout(profile, 16.0)
+    graph = layout["video_filter"]
+    assert "boxblur" in graph and "[gm_fill]" in graph and graph.endswith("[vout]")
+    assert layout["gaming"]["facecam_panel"] is not None
+
+
+def test_a_speaker_in_front_of_a_frame_is_not_a_stream():
+    # The same picture with a head several times larger: someone filmed in front of a window, not an inset.
+    frames, times = still_clip()
+    big = (CAM_FACE[0] - 20, CAM_FACE[1] - 10, 90.0, 80.0)
+    assert big[2] * big[3] > gl.CALM_PICTURE_FACE_MAX_AREA * W * H
+    profile = classify(frames, times, [[big] for _ in frames])
+    assert not profile.is_gaming and profile.reason == "static_picture"
+
+
+def test_still_detail_fills_the_panel_or_is_fitted_across_it():
+    phone = Rect(820, 200, 280, 700)                   # narrower than the panel: the crop widens around it
+    crop, fitted = gl.still_crop(phone, SRC_W, SRC_H, 1312)
+    assert fitted is None and crop.w / crop.h == pytest.approx(1080 / 1312, rel=0.01)
+    assert crop.x <= phone.x and crop.x2 >= phone.x2 and crop.y <= phone.y and crop.y2 >= phone.y2
+    slide = Rect(0, 0, SRC_W, SRC_H)                    # the whole frame: nothing is cut
+    crop, fitted = gl.still_crop(slide, SRC_W, SRC_H, 1312)
+    assert crop.as_list() == [0, 0, SRC_W, SRC_H] and fitted == (1080, 608)
+
+
+def test_a_wide_camera_without_a_drawn_border_is_found_on_the_second_look():
+    rng = np.random.default_rng(13)
+    cam = (370, 0, 270, 125)                            # nine face widths across, flush with the top right corner
+    face = (490.0, 40.0, 30.0, 38.0)
+    frames = []
+    for i in range(48):
+        frame = world(rng)
+        draw_hud(frame)
+        x, y, w, h = cam
+        frame[y:y + h, x:x + w] = (70, 40, 90)          # a dark room, no frame drawn around it
+        sway = (i * 7) % 23 - 11
+        cv2.circle(frame, (505 + sway, 60), 20, (150, 170, 210), -1)
+        cv2.rectangle(frame, (475 + sway, 85), (535 + sway, 123), (40, 40, 160), -1)
+        frames.append(frame)
+    frames = np.stack(frames)
+    evidence = gl.measure_frames(frames, [i / 3 for i in range(48)])
+    assert gl.find_facecam_rect(evidence, face) is None
+    found = gl.find_facecam_rect(evidence, face, patient=True)
+    assert found is not None and abs(found.x - 370) <= 4 and abs(found.y2 - 125) <= 4
+    profile = gl.classify_gaming(evidence, [[face] if i % 4 == 0 else [] for i in range(48)], SRC_W, SRC_H, 16.0)
+    assert profile.is_gaming and profile.facecam is not None and not profile.virtual_camera
+
+
 def split_clip(count=48, split=lambda i: 12 <= i < 36, seed=9):
     rng = np.random.default_rng(seed)
     frames = []

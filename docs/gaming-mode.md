@@ -153,11 +153,10 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
 - A HUD element cut by the crop edge stays partly visible next to its cut-out when the cut-out is smaller.
 - A keyed-out streamer (no rectangle) is shown as head and shoulders with the game behind them, and only when the
   game draws a HUD. Round cameras are not found.
-- A camera with a heavily decorated frame whose streamer is rarely detected (a cap, looking down) can be missed;
-  the clip then keeps the regular layout.
-- A game that stands almost still beside a camera (a page on the character's phone, a pause menu: under 15 % of
-  the picture moving) is still refused as `static_picture` and gets the letterboxed fit: slides and screen
-  recordings with a webcam measure the same.
+- A dark camera beside a dark, slow cutscene has no visible border and no calmer inside: it is still missed
+  in that clip, which keeps the regular layout.
+- A picture that stands still beside a camera is shown whole under the camera, so it is no larger than in the
+  regular fit unless its detail sits in one part of the frame. Slides with a webcam get the same layout.
 - The camera panel upscales a small inset (often 350-500 px wide in a 1080p source) to 1080 px: it is soft.
 - A sports broadcast with three or more persistent graphics and no detected faces would pass as gameplay.
 - Games without a HUD, cutscenes and menus are not recognised and keep today's layout.
@@ -228,6 +227,17 @@ Also changed after that review:
 - **A game that stands still beside a camera.** With a camera rectangle the picture needs 15 % moving instead of
   50 % (`MIN_MOVING_FRACTION_WITH_FACECAM`): the map, a menu with an animated background, a slow cutscene.
   Production clips refused as static with a camera measured 0.16-0.5 in 8 of 17 cases.
+- **A second look for the camera** (`find_facecam_rect(patient=True)`), only when the first finds none: borders
+  present in 35 % of samples instead of 50 %, a camera up to 13 face widths wide (8 on the first look), more
+  border candidates including both ends of a thick line (a neon sign or an ornament drawn against the border).
+  Such a rectangle counts when its inside is calm and the picture around it is not (mean change inside at most
+  0.6 of outside, outside at least 0.2), or when its border is on screen in 70 % of samples.
+- **A picture that stands still** (`facecam_still`): under 15 % moving beside a camera. The camera goes on top;
+  below it `still_focus` boxes the persistent detail and `still_crop` fills the panel with it when it is narrow
+  (a phone held up, a menu) or fits it across the panel over a blurred copy when it is wide (the whole frame).
+- **Not a stream:** with less than half of the picture moving, the camera's face may cover at most 2 % of the
+  frame (`CALM_PICTURE_FACE_MAX_AREA`; camera heads measure up to 1.7 %). A speaker filmed in front of a window
+  or a shelf has a rectangle around the face too, and stays with the regular layouts.
 - **Camera decorations** beside the camera, not only above and below it, stay out of the gameplay panel (a thin
   black bar was being pasted on the panel edge).
 

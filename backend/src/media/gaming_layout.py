@@ -46,6 +46,10 @@ LINE_MAGNITUDE = 60.0          # one-direction Sobel response for straight borde
 CHANGE_DIFF = 6.0              # grey-level change between two samples that counts as "changed"
 HUD_PERSISTENCE = 0.6          # an edge present in this share of samples is drawn by the game or the stream
 LINE_PERSISTENCE = 0.5
+PATIENT_LINE_PERSISTENCE = 0.35  # second look for a camera border, see find_facecam_rect
+PATIENT_MAX_FACE_WIDTHS = 13     # ... and the widest camera it accepts, in face widths (8 on the first look)
+PATIENT_OUTSIDE_CHANGE = 0.2     # mean change rate around the rectangle: the game has to move
+PATIENT_CALM_RATIO = 0.6         # ... and the inside changes at most this much of that
 CHANGE_STEP = 0.3              # jump in the change rate across a camera border without a drawn line
 MOVING_CHANGE_RATE = 0.25      # a pixel that changed in a quarter of the sample pairs belongs to moving footage
 
@@ -54,6 +58,14 @@ MIN_MOVING_FRACTION = 0.5      # measured: gameplay 0.76-0.96, podcast 0.11-0.19
 # With a camera inset a game may stand still (a menu, the map, a phone in the character's hand): production
 # clips refused as static with a camera measured 0.16-0.5. Slides and screen recordings stay below 0.1.
 MIN_MOVING_FRACTION_WITH_FACECAM = 0.15
+# Below that the picture stands still (a page on the character's phone, a pause menu, but also slides with a
+# webcam). The camera goes on top and the part of the picture that carries detail is shown below it, whole.
+STILL_DETAIL_PERSISTENCE = 0.6
+STILL_FOCUS_QUANTILES = (0.02, 0.98)
+STILL_FOCUS_PAD = 0.03
+# A camera over a picture that hardly moves must show a small head: a speaker filmed in front of a window
+# or a shelf has a rectangle around the face too, and a face several times larger.
+CALM_PICTURE_FACE_MAX_AREA = 0.02  # camera heads measured up to 1.7 %; a speaker in a medium shot starts around 2.5 %
 
 # Side-by-side comparisons (two games, before and after): a divider down the middle of the screen
 SPLIT_LINE_BAND = 0.006        # of the width, either side of the centre
@@ -184,6 +196,8 @@ class GamingProfile:
     valid_fraction: float = 0.0
     fallback_ranges: List[Tuple[float, float]] = field(default_factory=list)
     check_masks: List[np.ndarray] = field(default_factory=list, repr=False)
+    # A picture that stands still beside the camera: the part of it that carries detail (source pixels).
+    focus: Optional[Rect] = None
     # Seconds in which the screen is split down the middle (reason ``split_screen``): the halves are stacked.
     split_ranges: List[Tuple[float, float]] = field(default_factory=list)
     virtual_camera: bool = False  # the camera has no rectangle (keyed-out streamer); one was drawn around the head
@@ -205,6 +219,7 @@ class GamingProfile:
             "valid_fraction": round(self.valid_fraction, 3),
             "fallback_ranges": [[round(a, 3), round(b, 3)] for a, b in self.fallback_ranges],
             "virtual_camera": self.virtual_camera,
+            "focus": self.focus.as_list() if self.focus else None,
             "split_ranges": [[round(a, 3), round(b, 3)] for a, b in self.split_ranges],
             "active": [[round(a, 3), round(b, 3)] for a, b in self.active],
         }
@@ -406,7 +421,10 @@ def find_fixed_face(faces: Sequence[Sequence[Box]], w: int, h: int) -> Optional[
     return tracks[0].box, tracks[0].presence
 
 
-def _line_candidates(profile: np.ndarray, lo: int, hi: int, edge: Optional[int], nearest_to: float) -> List[int]:
+def _line_candidates(
+    profile: np.ndarray, lo: int, hi: int, edge: Optional[int], nearest_to: float, keep: int = 6,
+    ends: bool = False,
+) -> List[int]:
     """Positions in [lo, hi) where a persistent straight line crosses, nearest first, plus the frame edge."""
     lo, hi = max(0, lo), min(len(profile), hi)
     found = []
@@ -417,15 +435,19 @@ def _line_candidates(profile: np.ndarray, lo: int, hi: int, edge: Optional[int],
             while j + 1 < hi and profile[j + 1] >= 0.8:
                 j += 1
             found.append((i + j) // 2)
+            if ends and j - i >= 4:
+                # A thick run is a border with something drawn against it (a sign, a shelf, a frame's ornament):
+                # the border itself is at one of its ends.
+                found.extend((i + 1, j - 1))
             i = j + 1
         else:
             i += 1
     if edge is not None:
         found.append(edge)
-    return sorted(set(found), key=lambda p: abs(p - nearest_to))[:6]
+    return sorted(set(found), key=lambda p: abs(p - nearest_to))[:keep]
 
 
-def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
+def find_facecam_rect(evidence: FrameEvidence, face: Box, patient: bool = False) -> Optional[Rect]:
     """The camera rectangle around a fixed face, in proc pixels.
 
     A camera inset has four straight borders that are there in every sample
@@ -433,6 +455,10 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     looked for as a persistent line next to the face, or the frame edge itself,
     and the rectangle is accepted only when all four sides are lines for most of
     their length.
+
+    ``patient`` is the second look when the first finds nothing: borders that show in fewer samples (a dark
+    camera edge beside a dark cutscene) and a wider camera around a small head. The caller then asks for more
+    proof that the rectangle is a camera.
     """
     h, w = evidence.shape
     fx, fy, fw, fh = face
@@ -444,8 +470,9 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     step_h = np.zeros((h, w), bool)
     step_v[:, 2:-2] = np.abs(calm[:, 4:] - calm[:, :-4]) >= CHANGE_STEP
     step_h[2:-2, :] = np.abs(calm[4:, :] - calm[:-4, :]) >= CHANGE_STEP
-    vertical = cv2.dilate(((evidence.persist_v >= LINE_PERSISTENCE) | step_v).astype(np.uint8), np.ones((1, 3), np.uint8))
-    horizontal = cv2.dilate(((evidence.persist_h >= LINE_PERSISTENCE) | step_h).astype(np.uint8), np.ones((3, 1), np.uint8))
+    persistence = PATIENT_LINE_PERSISTENCE if patient else LINE_PERSISTENCE
+    vertical = cv2.dilate(((evidence.persist_v >= persistence) | step_v).astype(np.uint8), np.ones((1, 3), np.uint8))
+    horizontal = cv2.dilate(((evidence.persist_h >= persistence) | step_h).astype(np.uint8), np.ones((3, 1), np.uint8))
 
     y0, y1 = max(0, int(fy)), min(h, int(fy + fh) + 1)
     x0, x1 = max(0, int(fx)), min(w, int(fx + fw) + 1)
@@ -453,15 +480,18 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
         return None
     col_profile = vertical[y0:y1].mean(axis=0)
     row_profile = horizontal[:, x0:x1].mean(axis=1)
-    reach_x, reach_y = fw * 5.0, fh * 4.5
+    reach_x, reach_y = (fw * 8.0, fh * 6.0) if patient else (fw * 5.0, fh * 4.5)
+    widest = fw * (PATIENT_MAX_FACE_WIDTHS if patient else 8)
+    # A neon sign or a shelf behind the streamer draws lines too; the patient look keeps more of them.
+    keep = 14 if patient else 6
     lefts = _line_candidates(col_profile, int(cx - reach_x), int(fx - fw * 0.1),
-                             0 if cx - reach_x <= 0 else None, fx)
+                             0 if cx - reach_x <= 0 else None, fx, keep, patient)
     rights = _line_candidates(col_profile, int(fx + fw * 1.1), int(cx + reach_x),
-                              w - 1 if cx + reach_x >= w - 1 else None, fx + fw)
+                              w - 1 if cx + reach_x >= w - 1 else None, fx + fw, keep, patient)
     tops = _line_candidates(row_profile, int(cy - reach_y), int(fy - fh * 0.1),
-                            0 if cy - reach_y <= 0 else None, fy)
+                            0 if cy - reach_y <= 0 else None, fy, keep, patient)
     bottoms = _line_candidates(row_profile, int(fy + fh * 1.1), int(cy + reach_y),
-                               h - 1 if cy + reach_y >= h - 1 else None, fy + fh)
+                               h - 1 if cy + reach_y >= h - 1 else None, fy + fh, keep, patient)
 
     def side(mask: np.ndarray, at: int, a: int, b: int, is_column: bool) -> float:
         limit = (w if is_column else h) - 1
@@ -474,7 +504,7 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     for left in lefts:
         for right in rights:
             rw = right - left
-            if not fw * 1.5 <= rw <= fw * 8:
+            if not fw * 1.5 <= rw <= widest:
                 continue
             for top in tops:
                 for bottom in bottoms:
@@ -765,6 +795,30 @@ def fallback_ranges_within(
     return ranges
 
 
+def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
+    """The part of a still picture that carries detail (proc pixels): a phone held up in the game, a menu.
+
+    Edges that are there in most samples, outside the camera; the box that holds nearly all of them, with a
+    little air. A picture with detail everywhere (slides, a map) gives the whole frame.
+    """
+    h, w = evidence.shape
+    detail = evidence.persist >= STILL_DETAIL_PERSISTENCE
+    detail[max(0, facecam.y - 4):facecam.y2 + 4, max(0, facecam.x - 4):facecam.x2 + 4] = False
+    if detail.sum() < HUD_MIN_EDGE_PIXELS:
+        return Rect(0, 0, w, h)
+
+    def span(profile: np.ndarray, size: int) -> Tuple[int, int]:
+        total = np.cumsum(profile.astype(np.float64))
+        lo = int(np.searchsorted(total, total[-1] * STILL_FOCUS_QUANTILES[0]))
+        hi = int(np.searchsorted(total, total[-1] * STILL_FOCUS_QUANTILES[1]))
+        pad = int(round(size * STILL_FOCUS_PAD))
+        return max(0, lo - pad), min(size, hi + 1 + pad)
+
+    x0, x1 = span(detail.sum(axis=0), w)
+    y0, y1 = span(detail.sum(axis=1), h)
+    return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0))
+
+
 def virtual_camera_rect(face: Box, w: int, h: int) -> Rect:
     """A camera rectangle for a streamer shown without one (background keyed out): head and shoulders."""
     fx, fy, fw, fh = face
@@ -800,19 +854,43 @@ def classify_gaming(
     # A streamer in a cap who looks down at the controller is detected in a few samples only. The rectangle
     # around that head still counts when its border is on screen for the whole clip.
     seldom = [t for t in tracks if t not in candidates and t.presence >= FACECAM_SELDOM_PRESENCE]
-    for candidate in candidates + seldom:
-        rect = find_facecam_rect(evidence, candidate.box)
-        if rect is None:
-            continue
-        # A camera shows a person, who moves. A channel logo or a drawn avatar in a frame does not.
-        if float((evidence.change[rect.y:rect.y2, rect.x:rect.x2] > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
-            continue
-        if candidate in seldom:
-            border = _facecam_border_mask((h, w), rect) & (evidence.persist >= LINE_PERSISTENCE)
-            if border.sum() < 12 or float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) < FACECAM_SELDOM_BORDER:
+    def always_there(rect: Rect, persistence: float) -> bool:
+        border = _facecam_border_mask((h, w), rect) & (evidence.persist >= persistence)
+        if border.sum() < 12:
+            return False
+        return float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) >= FACECAM_SELDOM_BORDER
+
+    def inner(rect: Rect) -> np.ndarray:
+        dx, dy = max(1, int(rect.w * 0.06)), max(1, int(rect.h * 0.06))
+        return evidence.change[rect.y + dy:rect.y2 - dy, rect.x + dx:rect.x2 - dx]
+
+    def stands_apart(rect: Rect) -> bool:
+        # The room in a camera is calm and the game around it is not: the proof for a border that is hard to see.
+        band = max(4, int(rect.w * 0.08))
+        around = np.zeros((h, w), bool)
+        around[max(0, rect.y - band):rect.y2 + band, max(0, rect.x - band):rect.x2 + band] = True
+        around[rect.y:rect.y2, rect.x:rect.x2] = False
+        if not around.any() or not inner(rect).size:
+            return False
+        outside = float(evidence.change[around].mean())
+        return outside >= PATIENT_OUTSIDE_CHANGE and float(inner(rect).mean()) <= PATIENT_CALM_RATIO * outside
+
+    for patient in (False, True):
+        for candidate in candidates + seldom:
+            rect = find_facecam_rect(evidence, candidate.box, patient=patient)
+            if rect is None:
                 continue
-        facecam, face_box = rect, candidate.box
-        break
+            # A camera shows a person, who moves. A channel logo or a drawn avatar in a frame does not.
+            if not inner(rect).size or float((inner(rect) > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
+                continue
+            if patient and not (stands_apart(rect) or always_there(rect, PATIENT_LINE_PERSISTENCE)):
+                continue
+            if not patient and candidate in seldom and not always_there(rect, LINE_PERSISTENCE):
+                continue
+            facecam, face_box = rect, candidate.box
+            break
+        if facecam is not None:
+            break
 
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
     keyed = [t for t in candidates if t.box[2] * t.box[3] <= VIRTUAL_CAMERA_FACE_MAX_AREA * w * h]
@@ -891,11 +969,18 @@ def classify_gaming(
     )
     needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None else MIN_HUD_REGIONS
     splits = split_screen_ranges(evidence, duration) if facecam is None and track is None else []
-    moving_needed = MIN_MOVING_FRACTION_WITH_FACECAM if facecam is not None and not virtual else MIN_MOVING_FRACTION
+    inset = (facecam is not None and not virtual and face_box is not None
+             and face_box[2] * face_box[3] <= CALM_PICTURE_FACE_MAX_AREA * w * h)
     if len(evidence.edges) < MIN_SAMPLES:
         profile.reason = "too_short"
-    elif moving_fraction < moving_needed:
+    elif moving_fraction < MIN_MOVING_FRACTION and not inset:
         profile.reason = "static_picture"
+    elif moving_fraction < MIN_MOVING_FRACTION_WITH_FACECAM and host is None:
+        # The game stands still beside the camera: camera on top, the detailed part of the picture below.
+        profile.is_gaming = True
+        profile.reason = "facecam_still"
+        profile.focus = to_source(still_focus(evidence, facecam))
+        profile.hud = []
     elif (splits and sum(b - a for a, b in splits) >= SPLIT_MIN_FRACTION * duration
           and outside_rate <= MAX_OUTSIDE_FACE_RATE):
         # Two pictures side by side with nobody on screen: a comparison. The halves are stacked while the
@@ -1263,15 +1348,31 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
     else:
         cam, cam_h = None, 0
         panel_y, panel_h = (CANVAS_H - GAMEPLAY_ONLY_HEIGHT) // 2, GAMEPLAY_ONLY_HEIGHT
-    crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
+    fitted: Optional[Tuple[int, int]] = None
+    if profile.focus is not None:
+        crop, fitted = still_crop(profile.focus, width, height, panel_h)
+    else:
+        crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
     cutouts, occupied = place_hud(profile.hud, crop, width, panel_y, panel_h)
 
     inputs = [f"{tag}_game"] + ([f"{tag}_cam"] if cam else []) + [f"{tag}_h{i}" for i in range(len(cutouts))]
     sharpen = f",{UPSCALE_SHARPEN_FILTER}" if crop.w < CANVAS_W else ""
-    lines = [
-        f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
-        f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
-    ]
+    if fitted is not None:
+        # Wider than the panel: shown whole across the width, over a blurred copy of itself.
+        fit_w, fit_h = fitted
+        inputs.append(f"{tag}_fill")
+        lines = [
+            f"[{tag}_fill]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},scale={CANVAS_W}:{panel_h}:"
+            f"force_original_aspect_ratio=increase,crop={CANVAS_W}:{panel_h},boxblur=24:2,eq=brightness=-0.12[{tag}_blur]",
+            f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
+            f"scale={fit_w}:{fit_h}:flags=lanczos{sharpen},setsar=1[{tag}_fit]",
+            f"[{tag}_blur][{tag}_fit]overlay={(CANVAS_W - fit_w) // 2}:{(panel_h - fit_h) // 2},setsar=1[{tag}_p0]",
+        ]
+    else:
+        lines = [
+            f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
+            f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
+        ]
     for i, item in enumerate(cutouts):
         r: Rect = item["source"]
         lines.append(f"[{tag}_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[{tag}_c{i}]")
@@ -1298,6 +1399,30 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
     }
     return {"inputs": inputs, "lines": lines, "report": report, "occupied": occupied,
             "cam_h": cam_h, "panel_y": panel_y, "panel_h": panel_h}
+
+
+def still_crop(focus: Rect, width: int, height: int, panel_h: int) -> Tuple[Rect, Optional[Tuple[int, int]]]:
+    """How a still picture's detailed part goes into the gameplay panel: (crop, fitted size or None).
+
+    Narrower than the panel: the crop widens around it and fills the panel. Wider: more of the picture above and
+    below is taken in; when the whole height is not enough it is fitted to the panel width instead of cut.
+    """
+    aspect = CANVAS_W / panel_h
+    cx, cy = focus.x + focus.w / 2, focus.y + focus.h / 2
+    if focus.w <= focus.h * aspect:
+        cw = clamp_even(int(round(focus.h * aspect)), 2, width)
+        ch = clamp_even(int(round(cw / aspect)), 2, height)
+    else:
+        ch = int(round(focus.w / aspect))
+        if ch > height:
+            x = clamp_even(focus.x, 0, width - 2)
+            cw = clamp_even(focus.w, 2, width - x)
+            fit_h = clamp_even(int(round(CANVAS_W * height / cw)), 2, panel_h)
+            return Rect(x, 0, cw, round_to_even(height)), (CANVAS_W, fit_h)
+        cw, ch = clamp_even(focus.w, 2, width), clamp_even(ch, 2, height)
+    x = clamp_even(int(round(cx - cw / 2)), 0, width - cw)
+    y = clamp_even(int(round(cy - ch / 2)), 0, height - ch)
+    return Rect(x, y, cw, ch), None
 
 
 def _cover_lines(width: int, height: int) -> List[str]:
