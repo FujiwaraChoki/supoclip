@@ -28,11 +28,29 @@ def _screen(monkeypatch, lines):
 
 
 def test_dialogue_the_game_subtitles_gets_no_captions(monkeypatch):
-    spoken = "This guy runs a grow house and pays Brian in weed. He left it in the trunk of his car."
+    spoken = ("This fellow operates a growing house and always pays Brian with product. "
+              "He left it inside the trunk.")
     words = _words(spoken)
     # The OCR reads the first line and misses the second: the voice is the game's, so all of it goes.
-    _screen(monkeypatch, [(0.0, 5.0, "This guy runs a grow house and pays Brian in weed.")])
+    _screen(monkeypatch, [(0.0, 5.0, "This fellow operates a growing house and always pays Brian with product.")])
     assert sw.spoken_caption_words(Path("clip.mp4"), words) == []
+
+
+def test_text_all_over_the_screen_does_not_silence_a_streamer(monkeypatch):
+    # A quest log full of ordinary words under somebody who never reads it: short words prove nothing.
+    words = _words("okay so over there you can see the boat and I think that is where we need to go for the next one")
+    _screen(monkeypatch, [(0.0, 30.0, "Deliver the package over there before the timer ends and you can collect "
+                                      "the reward for the next one, then return to where we started")])
+    assert sw.spoken_caption_words(Path("clip.mp4"), words) == words
+
+
+def test_without_speaker_labels_a_long_stretch_off_screen_keeps_its_captions(monkeypatch):
+    game = _words("Listen carefully because nobody leaves until every single dollar returns safely tonight")
+    own = _words("honestly that whole cutscene looked incredible compared against anything rockstar released "
+                 "before, absolutely unbelievable lighting everywhere tonight", start=8.0)
+    _screen(monkeypatch, [(0.0, 6.0, "Listen carefully because nobody leaves until every single dollar returns safely tonight")])
+    kept = sw.spoken_caption_words(Path("clip.mp4"), game + own)
+    assert kept and kept[0]["text"] == "honestly" and all(word in own for word in kept)
 
 
 def test_a_streamer_talking_over_the_game_keeps_every_caption(monkeypatch):
@@ -42,9 +60,9 @@ def test_a_streamer_talking_over_the_game_keeps_every_caption(monkeypatch):
 
 
 def test_with_speaker_labels_only_the_subtitled_voice_goes(monkeypatch):
-    game = _words("You are carrying a lot of cash deposit it at an ATM", speaker="B")
+    game = _words("You are carrying plenty of money, deposit everything inside the nearest machine quickly", speaker="B")
     streamer = _words("oh my god chat did you see that that was insane", start=8.0, speaker="A")
-    _screen(monkeypatch, [(0.0, 6.0, "You're carrying a lot of cash. Deposit it at an ATM.")])
+    _screen(monkeypatch, [(0.0, 6.0, "You are carrying plenty of money, deposit everything inside the nearest machine quickly.")])
     assert sw.spoken_caption_words(Path("clip.mp4"), game + streamer) == streamer
 
 
@@ -91,9 +109,9 @@ def test_the_picture_is_read_a_bounded_number_of_times(monkeypatch):
 
 def test_the_transcript_is_filtered_for_captions_only(monkeypatch):
     data = {"words": [{"text": w["text"], "start": int(w["start"] * 1000), "end": int(w["end"] * 1000)}
-                      for w in _words("This guy runs a grow house and pays Brian in weed")]}
-    _screen(monkeypatch, [(0.0, 9.0, "This guy runs a grow house and pays Brian in weed.")])
+                      for w in _words("This fellow operates a growing house and always pays Brian with product")]}
+    _screen(monkeypatch, [(0.0, 9.0, "This fellow operates a growing house and always pays Brian with product.")])
     filtered = sw.without_screen_words(Path("clip.mp4"), data, [(0.0, 10.0)])
-    assert filtered["words"] == [] and len(data["words"]) == 11
+    assert filtered["words"] == [] and len(data["words"]) == 12
     _screen(monkeypatch, [])
     assert sw.without_screen_words(Path("clip.mp4"), data, [(0.0, 10.0)]) is data

@@ -222,7 +222,8 @@ and each has a rule now (the second and third shipped first, in #497):
 - **The host rule** needs the other face in 90 % of the samples (`HOST_MIN_PRESENCE`).
 - **Captions and the game's own subtitles** are handled outside this module: `media/screen_words.py` reads the
   lower part of the picture while somebody speaks and leaves out the captions of a voice whose words are
-  written there. It runs for gaming layouts and for sources with burned-in captions.
+  written there (words of five letters or more; shorter ones are on any screen with text). It runs for
+  gaming layouts only.
 - **Text a crop would cut** is the regular layout's business (`scene_context._cover_x`): a shot whose captions,
   title card or labels the full-height crop would cut keeps the whole frame.
 

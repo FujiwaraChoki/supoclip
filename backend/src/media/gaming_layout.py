@@ -1601,6 +1601,10 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
                 aside.x <= KEYED_EDGE_REACH * width or aside.x2 >= (1 - KEYED_EDGE_REACH) * width):
             aside = None        # a keyed-out head away from the sides is in the game's picture: nothing to step off
         crop = gameplay_crop(width, height, panel_h, aside)
+        if cam is None and aside is not None and min(crop.x2, aside.x2) > max(crop.x, aside.x):
+            # A logo is stepped off only when that frees it. One the shifted crop would still cut stays in
+            # the centred picture, whole or as it was.
+            crop = gameplay_crop(width, height, panel_h, None)
     cutouts, occupied = place_hud(profile.hud, crop, width, panel_y, panel_h)
 
     inputs = [f"{tag}_game"] + ([f"{tag}_cam"] if cam else []) + [f"{tag}_h{i}" for i in range(len(cutouts))]

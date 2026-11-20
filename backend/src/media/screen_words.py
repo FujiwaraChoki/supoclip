@@ -28,12 +28,14 @@ SCREEN_BAND_TOP = 0.6           # games write subtitles in the lower part of the
 SCREEN_FRAME_WIDTH = 2560       # enlarged: subtitle text is small, and the OCR wants tall letters
 SCREEN_TEXT_LEVEL = 175         # subtitles are near white; everything darker becomes background
 SCREEN_MATCH_SHARE = 0.6        # of a phrase's content words found on screen
-CONTENT_WORD_LETTERS = 3
+CONTENT_WORD_LETTERS = 5        # shorter words (the, you, over) are on any screen with text: they prove nothing
+UNLABELLED_OWN_RUN = 8          # this many words in a row not on screen, without speaker labels: somebody else talking
+PHRASE_MIN_CONTENT = 3          # content words a phrase needs before it can count as read from the screen
 MAX_SCREEN_READS = 30           # per clip
 READ_EVERY_SECONDS = 1.25       # how often the picture is read while somebody speaks
 READ_REACH_SECONDS = 1.5        # a subtitle may come up this long before its word and stay as long after
 SUBTITLED_VOICE_SHARE = 0.4     # of a voice's content words found on screen: the game subtitles that voice ...
-SUBTITLED_VOICE_WORDS = 8       # ... judged on this many words at least; then none of its words get a caption
+SUBTITLED_VOICE_WORDS = 8       # ... judged on this many content words at least; then none of its words get a caption
 STRAY_MAX_WORDS = 2             # a "phrase" this short ...
 STRAY_SILENCE_SECONDS = 4.0     # ... with this much silence either side ...
 STRAY_MAX_CONFIDENCE = 0.5      # ... and this little confidence is a sound, not speech
@@ -148,11 +150,23 @@ def spoken_caption_words(video_path: Path, words: Sequence[Dict[str, Any]]) -> L
     for speaker, indices in voices.items():
         if (len(indices) >= SUBTITLED_VOICE_WORDS
                 and sum(written[i] for i in indices) >= SUBTITLED_VOICE_SHARE * len(indices)):
-            drop.update(index for index, word in enumerate(words) if word.get("speaker") == speaker)
+            gone = {index for index, word in enumerate(words) if word.get("speaker") == speaker}
+            if speaker is None:
+                # No labels to tell the voices apart: a long stretch with nothing of it on screen is the
+                # streamer between two subtitled lines, and keeps its captions.
+                run: List[int] = []
+                for index in sorted(indices) + [None]:
+                    if index is not None and not written[index]:
+                        run.append(index)
+                        continue
+                    if len(run) >= UNLABELLED_OWN_RUN:
+                        gone -= set(range(run[0], run[-1] + 1))
+                    run = []
+            drop.update(gone)
     # Otherwise only the phrases that are written out: a line read from the screen between the streamer's own.
     for group in groups:
         content = [i for i in group if i in written]
-        if len(content) >= 2 and sum(written[i] for i in content) >= SCREEN_MATCH_SHARE * len(content):
+        if len(content) >= PHRASE_MIN_CONTENT and sum(written[i] for i in content) >= SCREEN_MATCH_SHARE * len(content):
             drop.update(group)
     if drop:
         logger.info("Captions: %d of %d words left out (shown on screen or not speech)", len(drop), len(words))
