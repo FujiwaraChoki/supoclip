@@ -18,6 +18,10 @@ if (isPostHogEnabled) {
     defaults: "2026-08-30",
     person_profiles: "identified_only",
     capture_exceptions: true,
+    // Autocaptured clicks and web vitals were most of our event volume. Pageviews,
+    // custom events, exceptions and session replay's network timing stay on.
+    autocapture: false,
+    capture_performance: { web_vitals: false },
     session_recording: {
       maskAllInputs: true,
     },

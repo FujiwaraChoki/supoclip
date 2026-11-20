@@ -299,6 +299,17 @@ def test_tiktok_active_user_cap_says_to_retry_tomorrow(clip_file):
     assert not exc.value.retryable
 
 
+def test_tiktok_daily_post_limit_explains_account_limit_without_retrying(clip_file):
+    from src.social.base import PublishRequest
+
+    session = FakeSession(_tiktok_init_error("spam_risk_too_many_posts"))
+    with pytest.raises(SocialProviderError, match="daily posting limit") as exc:
+        TikTokProvider(_config(), session=session).publish(
+            "token", PublishRequest(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="private")
+        )
+    assert not exc.value.retryable and not exc.value.reauth
+
+
 def test_unaudited_tiktok_never_starts_a_public_upload(clip_file):
     from src.social.base import PublishRequest
 

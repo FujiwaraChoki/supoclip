@@ -74,6 +74,10 @@ def segment_bounds(segment: Dict[str, Any]) -> Range:
 MIN_CLEANED_CLIP_SECONDS = 3.0  # what pause and filler clean-up must leave of a selected moment
 
 
+def _kept_seconds(ranges: Sequence[Tuple[float, float]]) -> float:
+    return sum(end - start for start, end in ranges)
+
+
 def resolve_render_ranges(
     video_path: Path,
     segment: Dict[str, Any],
@@ -95,6 +99,17 @@ def _resolve_legacy(
     provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
     source_ranges = normalize_source_ranges(segment.get("source_ranges"))
     start_seconds, end_seconds = segment_bounds(segment)
+    # Nothing was selected (a video without speech). The segment spans the stretch that was fetched; the clip
+    # is the first chapter in it, or its first seconds. A fallback stored before that carries no target
+    # length and keeps its range.
+    fallback = segment.get("hook_type") == "fallback" and not provided_keep_ranges and len(source_ranges) == 1
+    if fallback:
+        range_start, range_end = source_ranges[0]
+        start_seconds, end_seconds = fallback_window(
+            video_path, range_start, range_end,
+            float(segment.get("fallback_seconds") or range_end - range_start), max_clip_seconds,
+        )
+        source_ranges = [(start_seconds, end_seconds)]
     if provided_keep_ranges:
         keep_ranges = provided_keep_ranges
     elif source_ranges:
@@ -103,14 +118,9 @@ def _resolve_legacy(
             source_ranges,
             cleanup_settings,
         )
+        if fallback and _kept_seconds(keep_ranges) < min(MIN_CLEANED_CLIP_SECONDS, end_seconds - start_seconds):
+            keep_ranges = list(source_ranges)
     else:
-        if segment.get("hook_type") == "fallback":
-            # Nothing was selected (a video without speech). The segment spans the stretch that was fetched;
-            # the clip is the first chapter in it, or its first seconds.
-            start_seconds, end_seconds = fallback_window(
-                video_path, start_seconds, end_seconds,
-                float(segment.get("fallback_seconds") or 30.0), max_clip_seconds,
-            )
         start_seconds = snap_clip_start_to_sentence(
             video_path, start_seconds, end_seconds
         )
@@ -123,8 +133,7 @@ def _resolve_legacy(
         # Clean-up tightens a selected moment; it does not replace it. A few words in a selection whose
         # silence shows no action would leave a clip of a second or two: the selection is rendered as it is.
         # Planned ranges never come here, so workflow budgets (SpeechClock) are unaffected.
-        kept = sum(end - start for start, end in keep_ranges)
-        if kept < min(MIN_CLEANED_CLIP_SECONDS, end_seconds - start_seconds):
+        if _kept_seconds(keep_ranges) < min(MIN_CLEANED_CLIP_SECONDS, end_seconds - start_seconds):
             keep_ranges = [(start_seconds, end_seconds)]
     keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
     clip_text = segment.get("text", "")
@@ -134,7 +143,7 @@ def _resolve_legacy(
     # ranges — and the render, which must not extend them again — stay
     # inside the selected duration cap.
     keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
-    if not provided_keep_ranges and not source_ranges:
+    if fallback or (not provided_keep_ranges and not source_ranges):
         # Snapping, cleanup, the teaser and the cap change what is
         # spoken; keep the stored text word-for-word with the timeline.
         clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text

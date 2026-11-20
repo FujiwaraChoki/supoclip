@@ -59,4 +59,8 @@ def test_an_unreadable_file_keeps_the_first_seconds(tmp_path):
 def test_the_fallback_segment_asks_for_enough_to_find_a_chapter():
     segment = VideoService._build_fallback_segment(video_duration=660.0, transcript="", target_duration=30)
     assert segment["start_time"] == "00:00" and segment["end_time"] == "01:30"
+    assert segment["source_ranges"] == [[0.0, 90.0]]
     assert segment["fallback_seconds"] == 30.0 and segment["hook_type"] == "fallback"
+    # A source shorter than the target plays exactly its length (#422).
+    short = VideoService._build_fallback_segment(video_duration=24.6, transcript="", target_duration=30)
+    assert short["source_ranges"] == [[0.0, 24.6]] and short["fallback_seconds"] == 24.6 and short["end_time"] == "00:24"

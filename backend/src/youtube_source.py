@@ -181,6 +181,9 @@ class TimeSpan:
 
 # Section cuts land on frame boundaries, so allow a few frames either side.
 COVERAGE_TOLERANCE_SECONDS = 0.15
+# Older clips stored an end rounded to the whole second ("00:59" for a 58.6s
+# source), up to half a second past the file. Such an end means the file's end.
+ROUNDED_END_SLACK_SECONDS = 0.5
 
 
 class SourceCoverageError(ValueError):
@@ -470,9 +473,15 @@ def local_ranges_for(
             return converted
         last = max(end for _, end in converted)
         if duration and last > duration + COVERAGE_TOLERANCE_SECONDS:
-            raise SourceCoverageError(
-                f"The source file ends before {last:.2f}s"
-            )
+            clamped = [(start, min(end, duration)) for start, end in converted]
+            if last > duration + ROUNDED_END_SLACK_SECONDS + COVERAGE_TOLERANCE_SECONDS or any(
+                start >= end for start, end in clamped
+            ):
+                raise SourceCoverageError(
+                    f"The source file ends before {last:.2f}s"
+                )
+            logger.info("Clamped a rounded end of %.2fs to the file's %.2fs", last, duration)
+            return clamped
     return converted
 
 

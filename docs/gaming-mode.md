@@ -157,12 +157,30 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
   in that clip, which keeps the regular layout.
 - A picture that stands still beside a camera is shown whole under the camera, so it is no larger than in the
   regular fit unless its detail sits in one part of the frame. Slides with a webcam get the same layout.
+- A cutscene without a HUD in which one character's face stays in one place for 80 % of the clip, 1.4 times the
+  size of the streamer's, is still read as a person being filmed and keeps the regular layout.
+- A keyed-out streamer whose head is larger than 0.6 % of the frame and nowhere near its edge is not recognised.
 - The camera panel upscales a small inset (often 350-500 px wide in a 1080p source) to 1080 px: it is soft.
 - A sports broadcast with three or more persistent graphics and no detected faces would pass as gameplay.
 - Games without a HUD, cutscenes and menus are not recognised and keep today's layout.
 - The gameplay-only crop is as tight as today's 9:16 crop; wide-view games (MOBA, strategy) lose their flanks.
 - Hook title and captions are placed for the camera layout; on the gameplay-only layout the hook can cross a
   top-left cut-out for its four seconds.
+
+## What the first production day showed (2026-11-20)
+
+518 clips from one afternoon were checked against their logged decisions. Two rules changed:
+
+- **A keyed-out streamer sits small or at the edge.** A person filmed in the middle of the frame, with a sign
+  in view, passed as a keyed-out streamer over a HUD. A head larger than `KEYED_FREE_FACE_AREA` (0.6 % of the
+  frame) now only counts at the edge: the head-and-shoulders rectangle within `KEYED_EDGE_REACH` of a side, the
+  head nearly touching the top, or the body running out of the bottom. In the logged production rectangles,
+  every large keyed-out head sat at an edge.
+- **Game characters are not hosts.** The rule that rejects a small inset beside a larger, still face (a reaction
+  video, a podcast) fired on story games: the player's character seen from behind, a conversation, a cutscene.
+  It now needs the other face in `HOST_MIN_PRESENCE` (80 %) of the samples at `HOST_MIN_SIZE` (1.4) times the
+  camera's face, and it does not apply while the game draws a HUD (two persistent elements or a
+  crosshair; one is a watermark).
 
 ## Streams of story games (GTA 6)
 
@@ -217,7 +235,8 @@ Also changed after that review:
 - **Keyed-out streamers.** A small still head (at most 2 % of the frame) without a rectangle, over a game with a
   HUD and no other faces: the top panel shows head and shoulders (`virtual_camera_rect`).
 - **Not a camera:** a rectangle whose inside does not move (a channel logo, a drawn avatar), and an inset beside a
-  larger face that also sits still for half the clip (a reaction video, a podcast): `people_on_screen`.
+  larger face that also sits still for the clip (a reaction video, a podcast): `people_on_screen`. The second
+  rule was tightened after the first production day, see below.
 - **Side-by-side comparisons** (`split_screen`). A straight line down the middle of the screen covering 75 % of
   the height in a sample (`centre_line_score`: splits measure 0.8-1.0, gameplay at most 0.5), for 1.5 s or more
   and 20 % of the clip, with nobody on screen and no camera. While the screen is split the left picture is stacked
