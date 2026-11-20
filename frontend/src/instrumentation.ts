@@ -4,6 +4,13 @@ function firstHeader(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { warnIfSchemaOutOfDate } = await import("@/server/schema-check");
+  // Not awaited: the check must never delay startup.
+  void warnIfSchemaOutOfDate();
+}
+
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
