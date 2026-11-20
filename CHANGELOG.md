@@ -53,6 +53,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-16
 
 - **Fixed:** When no strong moment is found and SupoClip makes a starter clip instead, videos whose length isn't a whole number of seconds can now be opened in the clip studio. ([#422](https://github.com/FujiwaraChoki/supoclip/pull/422))
+- **Fixed:** Starter clips made before that fix, and starter clips built from an earlier analysis of the same video, also open in the clip studio now instead of asking you to retry in a minute. ([#422](https://github.com/FujiwaraChoki/supoclip/pull/422))
 - **Fixed:** Exporting a clip while its clips are being regenerated no longer hangs and then fails. You're asked to try again in a moment, and if the clip was replaced you're told it's gone. ([#419](https://github.com/FujiwaraChoki/supoclip/pull/419))
 - **Improved:** Accounts can process two videos at once, reducing waits when several videos are queued. ([#418](https://github.com/FujiwaraChoki/supoclip/pull/418))
 

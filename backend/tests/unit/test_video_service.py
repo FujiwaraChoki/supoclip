@@ -181,9 +181,11 @@ def test_fallback_render_ranges_stay_inside_a_fractional_source(monkeypatch, tmp
     assert resolved.bounds == (0.0, 24.6)
     # The stored range passes the editor's strict coverage check...
     assert local_ranges_for(source, resolved.keep_ranges, strict=True) == [(0.0, 24.6)]
-    # ...which still rejects the rounded range the old fallback produced.
+    # The rounded range older fallbacks stored means the file's end...
+    assert local_ranges_for(source, [(0.0, 25.0)], strict=True) == [(0.0, 24.6)]
+    # ...while a file that ends well before the range is still rejected.
     with pytest.raises(SourceCoverageError):
-        local_ranges_for(source, [(0.0, 25.0)], strict=True)
+        local_ranges_for(source, [(0.0, 26.0)], strict=True)
 
 
 @pytest.mark.asyncio
