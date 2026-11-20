@@ -252,6 +252,13 @@ async def test_style_dedupe_also_matches_tasks_saved_before_source_keys(db_sessi
     assert await TaskRepository.find_active_source_task(
         db_session, user_id, key, edit_identity=({"intensity": "subtle"}, "slam")
     ) is None
+    # A request without dynamic edits is not answered with the edited task...
+    assert await TaskRepository.find_active_source_task(db_session, user_id, key) is None
+    # ...but still joins an in-flight task made without them.
+    plain = await create_task(db_session, user_id=user_id, source_id=source["id"], status="queued")
+    await db_session.commit()
+    found = await TaskRepository.find_active_source_task(db_session, user_id, key)
+    assert found is not None and found.id == plain["id"]
 
 
 # --------------------------------------------------------------------------- settings

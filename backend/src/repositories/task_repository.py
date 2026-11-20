@@ -246,7 +246,9 @@ class TaskRepository:
 
         ``edit_identity`` = ``(EditStyle.to_json(), caption_template)`` for a
         request with dynamic edits: only an in-flight task with that same stored
-        style and template is the same job. Without it the lookup is unchanged.
+        style and template is the same job. Without it the request has no dynamic
+        edits, so an in-flight task that renders them is a different job and is
+        passed over; with no such task the lookup is unchanged.
         """
         if not user_id or not source_key:
             return None
@@ -257,27 +259,28 @@ class TaskRepository:
         direct = await db.execute(
             text(
                 """
-                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id
+                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id,
+                       t.edit_style, t.caption_template
                 FROM tasks t
                 WHERE t.user_id = :user
                   AND t.status IN ('queued', 'processing')
                   AND t.source_metadata->>'source_key' = :key
                 ORDER BY t.created_at ASC
-                LIMIT 1
                 """
             ),
             {"user": user_id, "key": source_key},
         )
-        found = direct.first()
-        if found is not None:
-            return found
+        for found in direct.all():
+            if not TaskRepository._renders_dynamic_edits(found):
+                return found
 
         from ..source_identity import source_key_for_url
 
         rows = await db.execute(
             text(
                 """
-                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id, s.url AS source_url
+                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id, s.url AS source_url,
+                       t.edit_style, t.caption_template
                 FROM tasks t
                 JOIN sources s ON s.id = t.source_id
                 WHERE t.user_id = :user
@@ -289,9 +292,19 @@ class TaskRepository:
             {"user": user_id},
         )
         for row in rows:
+            if TaskRepository._renders_dynamic_edits(row):
+                continue
             if await source_key_for_url(db, user_id, row.source_url or "") == source_key:
                 return row
         return None
+
+    @staticmethod
+    def _renders_dynamic_edits(row: Any) -> bool:
+        """Was this task made with dynamic edits (an active intensity or an animated caption style)?"""
+        from ..edit_fx.jobs import fx_active
+        from ..edit_fx.settings import read_edit_style
+
+        return fx_active(read_edit_style(getattr(row, "edit_style", None)), getattr(row, "caption_template", None))
 
     @staticmethod
     async def _find_active_source_task_with_style(
