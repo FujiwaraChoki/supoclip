@@ -168,6 +168,15 @@ export const DEFAULT_EFFECTS: Effects = {
 };
 export const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+/** Shortest segment the server accepts: one frame at 25 fps. */
+export const MIN_SEGMENT_SECONDS = 0.04;
+/** Move one edge of a segment; the other edge stays, and the segment stays inside the source. */
+export function trimEdge(segment: Segment, edge: "start" | "end", seconds: number, duration: number): Segment {
+  const time = Number.isFinite(seconds) ? seconds : edge === "start" ? segment.start : segment.end;
+  return edge === "start"
+    ? { ...segment, start: Math.max(0, Math.min(time, segment.end - MIN_SEGMENT_SECONDS)) }
+    : { ...segment, end: Math.max(segment.start + MIN_SEGMENT_SECONDS, Math.min(time, duration)) };
+}
 export const editDuration = (doc: EditDocument) =>
   doc.segments.reduce((total, s) => total + s.end - s.start, 0);
 /** Decode source-continuous splits together without changing the editable draft. */
