@@ -174,21 +174,28 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
 and each has a rule now:
 
 - **A face that never moves is a picture.** A channel logo with a face in it, or a drawn avatar, was taken for a
-  keyed-out streamer and filled the top panel. A head moves and talks, so its own pixels change between samples
-  (`MIN_FACE_MOTION`: real heads measure 0.98-1.0 of the face box changing, pictures 0.0). A face below that is
-  no camera, and is also left out of the count of people on screen, so the clip keeps the game-only layout.
+  keyed-out streamer and filled the top panel. A head's own pixels change between samples; a picture's do not.
+  Over 30 samples or more (`FACE_MOTION_MIN_SAMPLES`), the share of the face box whose pixels changed in 5 % of
+  the sample pairs (`FACE_PIXEL_CHANGE_RATE`) measures 0.60-1.0 for a streamer sitting still and 0.0-0.13 for a
+  picture; the line is `MIN_FACE_MOTION` = 0.3. With fewer samples a calm moment cannot be told from a picture
+  and the face counts as a person, as before. A pictured face is no camera and is left out of the count of
+  people on screen. The clip then gets the game-only layout when the game draws three HUD elements, and the
+  regular layout otherwise.
 - **A keyed-out streamer sits small or at the edge.** A person filmed in the middle of the frame, with a sign
   in view, passed as a keyed-out streamer over a HUD. A head larger than `KEYED_FREE_FACE_AREA` (0.6 % of the
-  frame) now only counts when its head-and-shoulders rectangle reaches within `KEYED_EDGE_REACH` of the frame's
-  edge. In the logged production rectangles, every large keyed-out head sat at an edge.
+  frame) now only counts at the edge: the head-and-shoulders rectangle within `KEYED_EDGE_REACH` of a side, the
+  head nearly touching the top, or the body running out of the bottom. In the logged production rectangles,
+  every large keyed-out head sat at an edge.
 - **Game characters are not hosts.** The rule that rejects a small inset beside a larger, still face (a reaction
   video, a podcast) fired on story games: the player's character seen from behind, a conversation, a cutscene.
   It now needs the other face in `HOST_MIN_PRESENCE` (80 %) of the samples at `HOST_MIN_SIZE` (1.4) times the
-  camera's face, and never applies while the game draws a HUD.
+  camera's face, alive, and it does not apply while the game draws a HUD (two persistent elements or a
+  crosshair; one is a watermark).
 - **A still picture is enlarged around what changes in it.** In a still picture every edge persists, so detail
   alone often spans the frame and the picture was fitted as a thin strip. `still_focus` also looks at the pixels
-  that change (`STILL_ACTIVITY_RATE`): when they all sit in one part of the width, that part is kept and shown
-  up to `STILL_MAX_ZOOM` larger.
+  that change at least twice (`STILL_ACTIVITY_RATE`). When they cover 0.4 % of the frame or more
+  (`STILL_ACTIVITY_MIN_AREA`, so a clock or a counter does not count) and sit in one part of the width, that
+  part is kept and shown up to `STILL_MAX_ZOOM` larger, provided at least a fifth of the width is saved.
 
 ## Streams of story games (GTA 6)
 

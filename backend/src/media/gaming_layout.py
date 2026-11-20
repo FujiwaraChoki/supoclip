@@ -65,7 +65,9 @@ STILL_FOCUS_QUANTILES = (0.02, 0.98)
 STILL_FOCUS_PAD = 0.03
 STILL_MAX_ZOOM = 1.5           # how far a wide still picture is enlarged around the part of it that changes
 STILL_ACTIVITY_RATE = 0.05     # a pixel that changed in this share of sample pairs: text scrolling, a cursor
+STILL_ACTIVITY_MIN_AREA = 0.004  # of the frame: less is a clock or a counter, not what the picture is about
 STILL_ACTIVITY_PAD = 0.1       # air kept either side of that part, of its width
+STILL_MIN_GAIN = 0.8           # the kept width, of the detailed width: a smaller cut is not worth losing an edge
 # A camera over a picture that hardly moves must show a small head: a speaker filmed in front of a window
 # or a shelf has a rectangle around the face too, and a face several times larger.
 CALM_PICTURE_FACE_MAX_AREA = 0.02  # camera heads measured up to 1.7 %; a speaker in a medium shot starts around 2.5 %
@@ -112,11 +114,17 @@ MIN_CAMERA_MOTION = 0.03       # share of the camera rectangle that moves: a log
 VIRTUAL_CAMERA_WIDTH = 4.2     # a keyed-out streamer has no rectangle: one is drawn around the head, in face widths
 VIRTUAL_CAMERA_ABOVE, VIRTUAL_CAMERA_BELOW = 0.7, 1.4  # ... and in face heights above and below the face
 VIRTUAL_CAMERA_FACE_MAX_AREA = 0.02  # a larger still face is a person filmed, not an inset
-MIN_FACE_MOTION = 0.2          # share of a head that changes: real heads measure 0.98-1.0, a logo or an avatar 0.0
+# A face is a picture (a logo, an avatar) when hardly any of it ever changes. Measured over 30 samples: a
+# streamer sitting still 0.60-1.0 of the face box, pictures 0.0-0.13. Fewer samples cannot tell a calm moment
+# from a picture, and the face counts as a person.
+FACE_PIXEL_CHANGE_RATE = 0.05  # a face pixel that changed in this share of the sample pairs
+MIN_FACE_MOTION = 0.3          # share of the face box made of such pixels
+FACE_MOTION_MIN_SAMPLES = 30
 KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
 KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
 HOST_MIN_PRESENCE = 0.8        # someone filmed is there for the whole clip; a game character comes and goes
 HOST_MIN_SIZE = 1.4            # ... and is clearly larger than the camera's face (of its height)
+HOST_HUD_REGIONS = 2           # persistent elements that make a HUD; over one, a larger face is a character
 
 # Several cameras in one clip (a compilation, a streamer who resizes the camera)
 MAX_CAMERA_LAYOUTS = 4
@@ -851,17 +859,21 @@ def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
     # phone, a cursor in a menu. When all of that sits in one part of the width, the sides give way and that part
     # is shown up to STILL_MAX_ZOOM larger. Changes at both edges (chat on one side, a counter on the other)
     # leave the picture whole.
-    active = evidence.change >= STILL_ACTIVITY_RATE
-    active[max(0, facecam.y - 4):facecam.y2 + 4, max(0, facecam.x - 4):facecam.x2 + 4] = False
+    # Two changes at least, whatever the number of samples: one pop-up in a short clip is not activity.
+    pairs = max(1, len(evidence.edges) - 1)
+    active = evidence.change >= max(STILL_ACTIVITY_RATE, 2.0 / pairs)
+    # The camera, its frame and the alerts stacked on it are not part of the picture.
+    reach = int(CAM_DECORATION_REACH * w)
+    active[max(0, facecam.y - reach):facecam.y2 + reach, max(0, facecam.x - reach):facecam.x2 + reach] = False
     active[:, :x0] = False
     active[:, x1:] = False
-    if active.sum() >= HUD_MIN_EDGE_PIXELS:
+    if active.sum() >= STILL_ACTIVITY_MIN_AREA * w * h:
         columns = np.cumsum(active.sum(axis=0).astype(np.float64))
         a0 = int(np.searchsorted(columns, columns[-1] * STILL_FOCUS_QUANTILES[0]))
         a1 = int(np.searchsorted(columns, columns[-1] * STILL_FOCUS_QUANTILES[1])) + 1
         pad = (a1 - a0) * STILL_ACTIVITY_PAD
         keep = max((x1 - x0) / STILL_MAX_ZOOM, a1 - a0 + 2 * pad)
-        if keep <= 0.95 * (x1 - x0):
+        if keep <= STILL_MIN_GAIN * (x1 - x0):
             left = min(max((a0 + a1) / 2 - keep / 2, x0), x1 - keep)
             x0, x1 = int(round(left)), int(round(left + keep))
     return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0))
@@ -913,7 +925,9 @@ def classify_gaming(
         # however much the game moves behind it.
         x, y, bw, bh = box
         patch = evidence.change[int(y + bh * 0.15):int(y + bh * 0.85) + 1, int(x + bw * 0.15):int(x + bw * 0.85) + 1]
-        return bool(patch.size) and float((patch > MOVING_CHANGE_RATE).mean()) >= MIN_FACE_MOTION
+        if not patch.size or len(evidence.edges) < FACE_MOTION_MIN_SAMPLES:
+            return True
+        return float((patch >= FACE_PIXEL_CHANGE_RATE).mean()) >= MIN_FACE_MOTION
 
     def keyed_streamer(box: Box) -> bool:
         # A streamer without a camera rectangle sits small, or at the edge of the picture, beside the game.
@@ -923,8 +937,12 @@ def classify_gaming(
         if box[2] * box[3] <= KEYED_FREE_FACE_AREA * w * h:
             return True
         r = virtual_camera_rect(box, w, h)
+        # At the sides the head-and-shoulders rectangle touches the edge. At the top the head itself nearly
+        # does (someone filmed has headroom); at the bottom the body runs out of the picture, a face height
+        # below the rectangle.
         return (r.x <= KEYED_EDGE_REACH * w or r.x2 >= (1 - KEYED_EDGE_REACH) * w
-                or r.y <= KEYED_EDGE_REACH * h or r.y2 >= (1 - KEYED_EDGE_REACH) * h)
+                or box[1] <= 0.5 * box[3]
+                or r.y2 + box[3] >= (1 - KEYED_EDGE_REACH) * h)
 
     def inner(rect: Rect) -> np.ndarray:
         dx, dy = max(1, int(rect.w * 0.06)), max(1, int(rect.h * 0.06))
@@ -1015,11 +1033,13 @@ def classify_gaming(
             if inside or other.presence < FACECAM_MIN_PRESENCE or other.box[3] <= face_box[3]:
                 continue
             # Over a game that draws a HUD, a larger face that stays put is a character (a cutscene, a
-            # conversation, the driver seen from behind). Without one it has to be there for nearly the whole
-            # clip and clearly larger: then somebody is being filmed.
-            if regions and not virtual:
+            # conversation, the driver seen from behind). One persistent graphic is not a HUD: a watermark, a
+            # lower third. Without a HUD the face has to be there for nearly the whole clip, clearly larger
+            # and alive: then somebody is being filmed.
+            if (len(regions) >= HOST_HUD_REGIONS or crosshair) and not virtual:
                 continue
-            if other.presence >= HOST_MIN_PRESENCE and other.box[3] >= HOST_MIN_SIZE * face_box[3]:
+            if (other.presence >= HOST_MIN_PRESENCE and other.box[3] >= HOST_MIN_SIZE * face_box[3]
+                    and alive(other.box)):
                 host = other
                 break
     # ... or is seen now and then, or too close to be tracked: any face larger than the camera's own, outside it.

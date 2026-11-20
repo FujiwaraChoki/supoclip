@@ -170,7 +170,7 @@ def test_a_face_that_never_moves_is_a_picture_not_a_keyed_out_streamer():
 
 def test_someone_filmed_in_the_middle_of_the_frame_is_not_a_keyed_out_streamer():
     frames, times = clip(cam=False)
-    middle = (290.0, 130.0, 56.0, 70.0)                             # 1.7 % of the frame, nowhere near its edge
+    middle = (290.0, 90.0, 56.0, 70.0)                              # 1.7 % of the frame, nowhere near its edge
     profile = classify(frames, times, [[middle] for _ in frames])
     assert not profile.is_gaming and not profile.virtual_camera
     assert profile.reason == "people_on_screen"
@@ -204,6 +204,61 @@ def test_a_character_who_comes_and_goes_in_a_cutscene_is_not_a_host():
     faces = [[CAM_FACE, character] if i % 5 < 3 else [CAM_FACE] for i in range(len(frames))]
     profile = classify(frames, times, faces)
     assert profile.is_gaming and profile.reason == "facecam_hud"
+
+
+def calm_head_clip(count=48, seed=7, noise=True):
+    """Gameplay with a HUD and a head in the bottom-left corner that barely moves: a streamer listening."""
+    rng = np.random.default_rng(seed)
+    texture = rng.integers(120, 200, (42, 34, 3), dtype=np.uint8)
+    frames = []
+    for i in range(count):
+        frame = world(rng)
+        draw_hud(frame)
+        skin = texture.copy()
+        if noise:                                                   # a live camera: grain, a blink, a nod
+            skin = np.clip(skin.astype(np.int16) + rng.integers(-14, 15, skin.shape), 0, 255).astype(np.uint8)
+        frame[250:292, 60:94] = skin
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
+
+
+def test_a_streamer_who_sits_still_is_not_a_picture():
+    face = (60.0, 250.0, 34.0, 42.0)
+    frames, times = calm_head_clip()
+    profile = classify(frames, times, [[face] for _ in frames])
+    assert profile.is_gaming and profile.virtual_camera
+    # The very same head without a single change is a picture.
+    frames, times = calm_head_clip(noise=False)
+    profile = classify(frames, times, [[face] for _ in frames])
+    assert profile.facecam is None and not profile.virtual_camera
+
+
+def test_a_short_look_cannot_call_a_face_a_picture():
+    # A per-camera segment of a compilation can be a few seconds long: too little to tell a calm moment from
+    # a picture, so the face counts as a person, as it did before.
+    face = (60.0, 250.0, 34.0, 42.0)
+    frames, times = calm_head_clip(count=gl.FACE_MOTION_MIN_SAMPLES - 6, noise=False)
+    profile = classify(frames, times, [[face] for _ in frames])
+    assert profile.virtual_camera
+
+
+def test_a_host_only_slightly_larger_than_the_inset_is_not_a_host():
+    frames, times = camera_without_hud()
+    other = (120.0, 150.0, 44.0, 58.0)                              # 1.16 times the camera's face
+    profile = classify(frames, times, [[CAM_FACE, other] for _ in frames])
+    assert profile.is_gaming and profile.reason == "facecam_hud"
+
+
+def test_one_watermark_does_not_switch_the_host_rule_off():
+    # A reaction video with a channel logo in the corner: one persistent graphic is not a game's HUD.
+    frames, times = camera_without_hud()
+    for frame in frames:
+        cv2.rectangle(frame, (12, 322), (170, 348), (15, 15, 15), -1)
+        cv2.putText(frame, "CHANNEL TV", (16, 342), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    host = (120.0, 150.0, 60.0, 75.0)
+    profile = classify(frames, times, [[CAM_FACE, host] for _ in frames])
+    assert len(profile.hud) == 1
+    assert not profile.is_gaming and profile.reason == "people_on_screen"
 
 
 def test_a_face_that_stays_put_over_a_hud_is_the_games_own_character():
@@ -325,7 +380,8 @@ def test_a_still_picture_is_enlarged_around_the_part_that_changes():
         for i, frame in enumerate(frames):
             for x in columns:
                 cv2.rectangle(frame, (x, 150), (x + 60, 250), (245, 245, 245), -1)
-                cv2.putText(frame, str(i * 37 % 1000), (x + 4, 170 + i % 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+                for line in range(150 + (i * 5) % 12, 250, 12):         # lines of text, scrolling
+                    cv2.line(frame, (x + 6, line), (x + 54, line), (30, 30, 30), 3)
         return frames, times
 
     frames, times = frames_with([250])
@@ -338,6 +394,14 @@ def test_a_still_picture_is_enlarged_around_the_part_that_changes():
     frames, times = frames_with([20, 380])
     whole = classify(frames, times, [[CAM_FACE] for _ in frames])
     assert whole.reason == "facecam_still" and whole.focus.w > 0.95 * SRC_W * (440 / W)
+
+
+def test_a_clock_in_the_corner_does_not_narrow_a_still_picture():
+    frames, times = still_clip()
+    for i, frame in enumerate(frames):
+        cv2.rectangle(frame, (400, 340), (414, 350), (i * 53 % 255, 255 - i * 31 % 255, 40), -1)
+    profile = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert profile.reason == "facecam_still" and profile.focus.x <= 12
 
 
 def test_still_detail_fills_the_panel_or_is_fitted_across_it():
