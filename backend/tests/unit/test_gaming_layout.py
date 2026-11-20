@@ -48,6 +48,9 @@ def draw_cam(frame: np.ndarray, i: int = 0, cam=CAM, still: bool = False) -> Non
     frame[y:y + h, x:x + w] = (90, 70, 60)
     sway = 0 if still else (i * 7) % 23 - 11                                # a person moves; a logo does not
     cv2.circle(frame, (x + w // 2 + sway, y + 45), 24, (150, 170, 210), -1)  # a head; the face boxes are supplied
+    for eye in (-9, 9):                                                     # with eyes: a face has features
+        cv2.circle(frame, (x + w // 2 + sway + eye, y + 40), 4, (30, 30, 30), -1)
+    cv2.line(frame, (x + w // 2 + sway - 8, y + 56), (x + w // 2 + sway + 8, y + 56), (40, 40, 90), 2)
     cv2.rectangle(frame, (x + w // 2 - 30 + sway, y + 70), (x + w // 2 + 30 + sway, y + h - 2), (40, 40, 160), -1)
     cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
 
@@ -149,14 +152,66 @@ def test_a_small_still_head_over_a_hud_is_a_keyed_out_streamer():
 def test_a_logo_in_a_frame_is_not_a_camera():
     frames, times = clip(cam=True, still_cam=True)
     profile = classify(frames, times, [[CAM_FACE] for _ in frames])
-    assert profile.facecam is None or profile.virtual_camera
+    assert profile.facecam is None and not profile.virtual_camera
+
+
+def test_a_face_that_never_moves_is_a_picture_not_a_keyed_out_streamer():
+    # A channel logo or a drawn avatar with a face in it, over gameplay with a HUD and no camera.
+    frames, times = clip(cam=False)
+    face = (60.0, 250.0, 34.0, 42.0)
+    for frame in frames:
+        cv2.circle(frame, (77, 271), 26, (150, 170, 210), -1)
+        cv2.circle(frame, (70, 264), 4, (20, 20, 20), -1)
+        cv2.circle(frame, (84, 264), 4, (20, 20, 20), -1)
+    profile = classify(frames, times, [[face] for _ in frames])
+    assert profile.facecam is None and not profile.virtual_camera
+    assert profile.is_gaming and profile.reason == "hud"            # still gameplay: the game-only layout
+
+
+def test_someone_filmed_in_the_middle_of_the_frame_is_not_a_keyed_out_streamer():
+    frames, times = clip(cam=False)
+    middle = (290.0, 130.0, 56.0, 70.0)                             # 1.7 % of the frame, nowhere near its edge
+    profile = classify(frames, times, [[middle] for _ in frames])
+    assert not profile.is_gaming and not profile.virtual_camera
+    assert profile.reason == "people_on_screen"
+    # The same head at the edge of the picture is a streamer beside the game.
+    edge = (20.0, 240.0, 56.0, 70.0)
+    profile = classify(frames, times, [[edge] for _ in frames])
+    assert profile.is_gaming and profile.virtual_camera
+
+
+def camera_without_hud(count=48, seed=7):
+    rng = np.random.default_rng(seed)
+    frames = []
+    for i in range(count):
+        frame = world(rng)
+        draw_cam(frame, i)
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
 
 
 def test_a_bigger_still_face_beside_the_inset_is_a_reaction_video():
-    frames, times = clip(cam=True)
+    frames, times = camera_without_hud()
     host = (120.0, 150.0, 60.0, 75.0)
     profile = classify(frames, times, [[CAM_FACE, host] for _ in frames])
     assert not profile.is_gaming and profile.reason == "people_on_screen"
+
+
+def test_a_character_who_comes_and_goes_in_a_cutscene_is_not_a_host():
+    # No HUD during a cutscene; the character is on screen for 60 % of the clip, larger than the streamer.
+    frames, times = camera_without_hud()
+    character = (120.0, 150.0, 60.0, 75.0)
+    faces = [[CAM_FACE, character] if i % 5 < 3 else [CAM_FACE] for i in range(len(frames))]
+    profile = classify(frames, times, faces)
+    assert profile.is_gaming and profile.reason == "facecam_hud"
+
+
+def test_a_face_that_stays_put_over_a_hud_is_the_games_own_character():
+    # The player's character seen from behind, a conversation: the game draws its HUD around them.
+    frames, times = clip(cam=True)
+    character = (120.0, 150.0, 60.0, 75.0)
+    profile = classify(frames, times, [[CAM_FACE, character] for _ in frames])
+    assert profile.is_gaming and profile.reason == "facecam_hud"
 
 
 def test_a_seldom_detected_face_still_marks_a_camera_that_is_always_there():
@@ -263,6 +318,28 @@ def test_a_speaker_in_front_of_a_frame_is_not_a_stream():
     assert not profile.is_gaming and profile.reason == "static_picture"
 
 
+def test_a_still_picture_is_enlarged_around_the_part_that_changes():
+    # A phone held up in the middle of a still scene, its text scrolling: the sides of the picture give way.
+    def frames_with(columns):
+        frames, times = still_clip()
+        for i, frame in enumerate(frames):
+            for x in columns:
+                cv2.rectangle(frame, (x, 150), (x + 60, 250), (245, 245, 245), -1)
+                cv2.putText(frame, str(i * 37 % 1000), (x + 4, 170 + i % 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        return frames, times
+
+    frames, times = frames_with([250])
+    profile = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert profile.reason == "facecam_still"
+    focus = profile.focus
+    assert focus.w <= SRC_W / gl.STILL_MAX_ZOOM + 12                 # as far as the zoom goes
+    assert focus.x <= 250 * 3 and focus.x2 >= 310 * 3                # the phone is inside it
+    # Changes at both sides of the picture (chat on the left, a counter on the right): shown whole, as before.
+    frames, times = frames_with([20, 380])
+    whole = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert whole.reason == "facecam_still" and whole.focus.w > 0.95 * SRC_W * (440 / W)
+
+
 def test_still_detail_fills_the_panel_or_is_fitted_across_it():
     phone = Rect(820, 200, 280, 700)                   # narrower than the panel: the crop widens around it
     crop, fitted = gl.still_crop(phone, SRC_W, SRC_H, 1312)
@@ -285,6 +362,8 @@ def test_a_wide_camera_without_a_drawn_border_is_found_on_the_second_look():
         frame[y:y + h, x:x + w] = (70, 40, 90)          # a dark room, no frame drawn around it
         sway = (i * 7) % 23 - 11
         cv2.circle(frame, (505 + sway, 60), 20, (150, 170, 210), -1)
+        for eye in (-8, 8):
+            cv2.circle(frame, (505 + sway + eye, 56), 3, (30, 30, 30), -1)
         cv2.rectangle(frame, (475 + sway, 85), (535 + sway, 123), (40, 40, 160), -1)
         frames.append(frame)
     frames = np.stack(frames)

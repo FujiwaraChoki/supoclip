@@ -63,6 +63,9 @@ MIN_MOVING_FRACTION_WITH_FACECAM = 0.15
 STILL_DETAIL_PERSISTENCE = 0.6
 STILL_FOCUS_QUANTILES = (0.02, 0.98)
 STILL_FOCUS_PAD = 0.03
+STILL_MAX_ZOOM = 1.5           # how far a wide still picture is enlarged around the part of it that changes
+STILL_ACTIVITY_RATE = 0.05     # a pixel that changed in this share of sample pairs: text scrolling, a cursor
+STILL_ACTIVITY_PAD = 0.1       # air kept either side of that part, of its width
 # A camera over a picture that hardly moves must show a small head: a speaker filmed in front of a window
 # or a shelf has a rectangle around the face too, and a face several times larger.
 CALM_PICTURE_FACE_MAX_AREA = 0.02  # camera heads measured up to 1.7 %; a speaker in a medium shot starts around 2.5 %
@@ -109,6 +112,11 @@ MIN_CAMERA_MOTION = 0.03       # share of the camera rectangle that moves: a log
 VIRTUAL_CAMERA_WIDTH = 4.2     # a keyed-out streamer has no rectangle: one is drawn around the head, in face widths
 VIRTUAL_CAMERA_ABOVE, VIRTUAL_CAMERA_BELOW = 0.7, 1.4  # ... and in face heights above and below the face
 VIRTUAL_CAMERA_FACE_MAX_AREA = 0.02  # a larger still face is a person filmed, not an inset
+MIN_FACE_MOTION = 0.2          # share of a head that changes: real heads measure 0.98-1.0, a logo or an avatar 0.0
+KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
+KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
+HOST_MIN_PRESENCE = 0.8        # someone filmed is there for the whole clip; a game character comes and goes
+HOST_MIN_SIZE = 1.4            # ... and is clearly larger than the camera's face (of its height)
 
 # Several cameras in one clip (a compilation, a streamer who resizes the camera)
 MAX_CAMERA_LAYOUTS = 4
@@ -838,6 +846,24 @@ def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
 
     x0, x1 = span(detail.sum(axis=0), w)
     y0, y1 = span(detail.sum(axis=1), h)
+    # In a still picture every edge persists, grass as much as text, so detail alone often spans the frame and
+    # the picture is fitted as a thin strip. What changes in it says where to look: a message scrolling on a
+    # phone, a cursor in a menu. When all of that sits in one part of the width, the sides give way and that part
+    # is shown up to STILL_MAX_ZOOM larger. Changes at both edges (chat on one side, a counter on the other)
+    # leave the picture whole.
+    active = evidence.change >= STILL_ACTIVITY_RATE
+    active[max(0, facecam.y - 4):facecam.y2 + 4, max(0, facecam.x - 4):facecam.x2 + 4] = False
+    active[:, :x0] = False
+    active[:, x1:] = False
+    if active.sum() >= HUD_MIN_EDGE_PIXELS:
+        columns = np.cumsum(active.sum(axis=0).astype(np.float64))
+        a0 = int(np.searchsorted(columns, columns[-1] * STILL_FOCUS_QUANTILES[0]))
+        a1 = int(np.searchsorted(columns, columns[-1] * STILL_FOCUS_QUANTILES[1])) + 1
+        pad = (a1 - a0) * STILL_ACTIVITY_PAD
+        keep = max((x1 - x0) / STILL_MAX_ZOOM, a1 - a0 + 2 * pad)
+        if keep <= 0.95 * (x1 - x0):
+            left = min(max((a0 + a1) / 2 - keep / 2, x0), x1 - keep)
+            x0, x1 = int(round(left)), int(round(left + keep))
     return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0))
 
 
@@ -882,6 +908,24 @@ def classify_gaming(
             return False
         return float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) >= FACECAM_SELDOM_BORDER
 
+    def alive(box: Box) -> bool:
+        # A head moves and talks, so its own pixels change. A face in a channel logo or a drawn avatar never does,
+        # however much the game moves behind it.
+        x, y, bw, bh = box
+        patch = evidence.change[int(y + bh * 0.15):int(y + bh * 0.85) + 1, int(x + bw * 0.15):int(x + bw * 0.85) + 1]
+        return bool(patch.size) and float((patch > MOVING_CHANGE_RATE).mean()) >= MIN_FACE_MOTION
+
+    def keyed_streamer(box: Box) -> bool:
+        # A streamer without a camera rectangle sits small, or at the edge of the picture, beside the game.
+        # A person in the middle of the frame at a size that fills it is being filmed (a vlog).
+        if box[2] * box[3] > VIRTUAL_CAMERA_FACE_MAX_AREA * w * h or not alive(box):
+            return False
+        if box[2] * box[3] <= KEYED_FREE_FACE_AREA * w * h:
+            return True
+        r = virtual_camera_rect(box, w, h)
+        return (r.x <= KEYED_EDGE_REACH * w or r.x2 >= (1 - KEYED_EDGE_REACH) * w
+                or r.y <= KEYED_EDGE_REACH * h or r.y2 >= (1 - KEYED_EDGE_REACH) * h)
+
     def inner(rect: Rect) -> np.ndarray:
         dx, dy = max(1, int(rect.w * 0.06)), max(1, int(rect.h * 0.06))
         return evidence.change[rect.y + dy:rect.y2 - dy, rect.x + dx:rect.x2 - dx]
@@ -900,7 +944,7 @@ def classify_gaming(
     for patient in (False, True):
         for candidate in candidates + seldom:
             rect = find_facecam_rect(evidence, candidate.box, patient=patient)
-            if rect is None:
+            if rect is None or not alive(candidate.box):
                 continue
             # A camera shows a person, who moves. A channel logo or a drawn avatar in a frame does not.
             if not inner(rect).size or float((inner(rect) > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
@@ -915,7 +959,7 @@ def classify_gaming(
             break
 
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
-    keyed = [t for t in candidates if t.box[2] * t.box[3] <= VIRTUAL_CAMERA_FACE_MAX_AREA * w * h]
+    keyed = [t for t in candidates if keyed_streamer(t.box)]
     if facecam is None and keyed and regions and float(hud_mask.sum()) / float(w * h) >= MIN_HUD_EDGE_FRACTION:
         # No rectangle, but a head that stays put over a game that draws a HUD: a streamer with the background
         # keyed out. The top panel shows head and shoulders with the game behind them.
@@ -946,12 +990,16 @@ def classify_gaming(
     moving_fraction = float((evidence.change[world_only] > MOVING_CHANGE_RATE).mean()) if world_only.any() else 0.0
 
     frame_area = float(w * h)
+    # A face in a logo or an avatar is nobody on screen: it is left out of the count of people.
+    pictures = [t.box for t in tracks if t.presence >= FACECAM_MIN_PRESENCE and not alive(t.box)]
     outside = 0
     for boxes in faces:
         for x, y, bw, bh in boxes:
             if bw * bh / frame_area < OUTSIDE_FACE_MIN_AREA:
                 continue
             cx, cy = x + bw / 2, y + bh / 2
+            if any(px <= cx <= px + pw and py <= cy <= py + ph for px, py, pw, ph in pictures):
+                continue
             if facecam is not None and facecam.x <= cx <= facecam.x2 and facecam.y <= cy <= facecam.y2:
                 continue
             outside += 1
@@ -964,7 +1012,14 @@ def classify_gaming(
         for other in fixed_face_tracks(faces, w, h):
             cx, cy = other.box[0] + other.box[2] / 2, other.box[1] + other.box[3] / 2
             inside = facecam.x <= cx <= facecam.x2 and facecam.y <= cy <= facecam.y2
-            if not inside and other.presence >= FACECAM_MIN_PRESENCE and other.box[3] > face_box[3]:
+            if inside or other.presence < FACECAM_MIN_PRESENCE or other.box[3] <= face_box[3]:
+                continue
+            # Over a game that draws a HUD, a larger face that stays put is a character (a cutscene, a
+            # conversation, the driver seen from behind). Without one it has to be there for nearly the whole
+            # clip and clearly larger: then somebody is being filmed.
+            if regions and not virtual:
+                continue
+            if other.presence >= HOST_MIN_PRESENCE and other.box[3] >= HOST_MIN_SIZE * face_box[3]:
                 host = other
                 break
     # ... or is seen now and then, or too close to be tracked: any face larger than the camera's own, outside it.

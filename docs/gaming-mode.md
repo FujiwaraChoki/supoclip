@@ -155,14 +155,40 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
   game draws a HUD. Round cameras are not found.
 - A dark camera beside a dark, slow cutscene has no visible border and no calmer inside: it is still missed
   in that clip, which keeps the regular layout.
-- A picture that stands still beside a camera is shown whole under the camera, so it is no larger than in the
-  regular fit unless its detail sits in one part of the frame. Slides with a webcam get the same layout.
+- A picture that stands still beside a camera is shown whole under the camera unless its detail, or what
+  changes in it, sits in one part of the frame (then that part is enlarged, by at most 1.5). A menu with chat on
+  one side and a counter on the other stays a strip. Slides with a webcam get the same layout.
+- A cutscene without a HUD in which one character's face stays in one place for 80 % of the clip, 1.4 times the
+  size of the streamer's, is still read as a person being filmed and keeps the regular layout.
+- A keyed-out streamer whose head is larger than 0.6 % of the frame and nowhere near its edge is not recognised.
 - The camera panel upscales a small inset (often 350-500 px wide in a 1080p source) to 1080 px: it is soft.
 - A sports broadcast with three or more persistent graphics and no detected faces would pass as gameplay.
 - Games without a HUD, cutscenes and menus are not recognised and keep today's layout.
 - The gameplay-only crop is as tight as today's 9:16 crop; wide-view games (MOBA, strategy) lose their flanks.
 - Hook title and captions are placed for the camera layout; on the gameplay-only layout the hook can cross a
   top-left cut-out for its four seconds.
+
+## What the first production day showed (2026-11-20)
+
+518 clips from one afternoon were checked against their logged decisions. Four mistakes came up more than once,
+and each has a rule now:
+
+- **A face that never moves is a picture.** A channel logo with a face in it, or a drawn avatar, was taken for a
+  keyed-out streamer and filled the top panel. A head moves and talks, so its own pixels change between samples
+  (`MIN_FACE_MOTION`: real heads measure 0.98-1.0 of the face box changing, pictures 0.0). A face below that is
+  no camera, and is also left out of the count of people on screen, so the clip keeps the game-only layout.
+- **A keyed-out streamer sits small or at the edge.** A person filmed in the middle of the frame, with a sign
+  in view, passed as a keyed-out streamer over a HUD. A head larger than `KEYED_FREE_FACE_AREA` (0.6 % of the
+  frame) now only counts when its head-and-shoulders rectangle reaches within `KEYED_EDGE_REACH` of the frame's
+  edge. In the logged production rectangles, every large keyed-out head sat at an edge.
+- **Game characters are not hosts.** The rule that rejects a small inset beside a larger, still face (a reaction
+  video, a podcast) fired on story games: the player's character seen from behind, a conversation, a cutscene.
+  It now needs the other face in `HOST_MIN_PRESENCE` (80 %) of the samples at `HOST_MIN_SIZE` (1.4) times the
+  camera's face, and never applies while the game draws a HUD.
+- **A still picture is enlarged around what changes in it.** In a still picture every edge persists, so detail
+  alone often spans the frame and the picture was fitted as a thin strip. `still_focus` also looks at the pixels
+  that change (`STILL_ACTIVITY_RATE`): when they all sit in one part of the width, that part is kept and shown
+  up to `STILL_MAX_ZOOM` larger.
 
 ## Streams of story games (GTA 6)
 
@@ -217,7 +243,8 @@ Also changed after that review:
 - **Keyed-out streamers.** A small still head (at most 2 % of the frame) without a rectangle, over a game with a
   HUD and no other faces: the top panel shows head and shoulders (`virtual_camera_rect`).
 - **Not a camera:** a rectangle whose inside does not move (a channel logo, a drawn avatar), and an inset beside a
-  larger face that also sits still for half the clip (a reaction video, a podcast): `people_on_screen`.
+  larger face that also sits still for the clip (a reaction video, a podcast): `people_on_screen`. Both rules
+  were tightened after the first production day, see below.
 - **Side-by-side comparisons** (`split_screen`). A straight line down the middle of the screen covering 75 % of
   the height in a sample (`centre_line_score`: splits measure 0.8-1.0, gameplay at most 0.5), for 1.5 s or more
   and 20 % of the clip, with nobody on screen and no camera. While the screen is split the left picture is stacked
