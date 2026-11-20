@@ -55,7 +55,7 @@
     "increase": "Aumentar assentos",
     "minimumNote": "Você tem {occupied} assentos ocupados (membros + convites pendentes). Remova membros ou revogue convites para reduzir ainda mais.",
     "saveButton": "Atualizar para {count} assentos",
-    "capReachedBanner": "Todos os {occupied} de {limit} assentos estão em uso. Adicione mais assentos abaixo antes de convidar outra pessoa.",
+    "capReachedBanner": "Todos os {occupied} de {limit} assentos estão em uso. Adicione mais assentos acima antes de convidar outra pessoa.",
     "addMoreSeats": "Adicionar assentos"
   },
   "billing": {

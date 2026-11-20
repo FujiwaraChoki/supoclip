@@ -55,7 +55,7 @@
     "increase": "增加席位",
     "minimumNote": "当前已占用 {occupied} 个席位（成员 + 待接受邀请）。移除成员或撤销邀请后才能进一步减少席位。",
     "saveButton": "更新为 {count} 个席位",
-    "capReachedBanner": "全部 {occupied} / {limit} 个席位已用满。请在下方增加席位后再邀请新成员。",
+    "capReachedBanner": "全部 {occupied} / {limit} 个席位已用满。请在上方增加席位后再邀请新成员。",
     "addMoreSeats": "增加席位"
   },
   "billing": {

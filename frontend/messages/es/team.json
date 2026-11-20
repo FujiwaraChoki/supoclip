@@ -55,7 +55,7 @@
     "increase": "Aumentar puestos",
     "minimumNote": "Actualmente tienes {occupied} puestos ocupados (miembros + invitaciones pendientes). Elimina miembros o revoca invitaciones para reducir más.",
     "saveButton": "Actualizar a {count} puestos",
-    "capReachedBanner": "Los {occupied} de {limit} puestos están en uso. Agrega más puestos abajo antes de invitar a otra persona.",
+    "capReachedBanner": "Los {occupied} de {limit} puestos están en uso. Agrega más puestos arriba antes de invitar a otra persona.",
     "addMoreSeats": "Agregar puestos"
   },
   "billing": {

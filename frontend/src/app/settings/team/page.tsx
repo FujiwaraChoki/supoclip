@@ -1160,7 +1160,7 @@ export default function TeamSettingsPage() {
                   onSubmit={handleInvite}
                   className="flex flex-col gap-2.5 sm:flex-row sm:items-end"
                 >
-                  <div className="flex-1 space-y-1.5">
+                  <div className="flex flex-1 flex-col gap-1.5">
                     <Label htmlFor="invite-member-email">{t("members.inviteEmailLabel")}</Label>
                     <Input
                       id="invite-member-email"
@@ -1172,14 +1172,14 @@ export default function TeamSettingsPage() {
                       disabled={inviting || atSeatCap}
                     />
                   </div>
-                  <div className="w-full space-y-1.5 sm:w-36">
+                  <div className="flex w-full flex-col gap-1.5 sm:w-36">
                     <Label htmlFor="invite-member-role">{t("members.roleLabel")}</Label>
                     <Select
                       value={inviteRole}
                       onValueChange={(value) => setInviteRole(value as "member" | "admin")}
                       disabled={inviting || atSeatCap}
                     >
-                      <SelectTrigger id="invite-member-role">
+                      <SelectTrigger id="invite-member-role" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

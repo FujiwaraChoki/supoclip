@@ -55,7 +55,7 @@
     "increase": "Increase seats",
     "minimumNote": "You currently have {occupied} occupied seats (members + pending invites). Remove members or revoke invites to lower your seat count further.",
     "saveButton": "Update to {count} seats",
-    "capReachedBanner": "All {occupied} of {limit} seats are in use. Add seats below before inviting another teammate.",
+    "capReachedBanner": "All {occupied} of {limit} seats are in use. Add seats above before inviting another teammate.",
     "addMoreSeats": "Add seats"
   },
   "billing": {

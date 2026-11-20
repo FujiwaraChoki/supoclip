@@ -55,7 +55,7 @@
     "increase": "Tambah kursi",
     "minimumNote": "Saat ini ada {occupied} kursi terpakai (anggota + undangan tertunda). Hapus anggota atau batalkan undangan untuk menurunkan jumlah kursi lagi.",
     "saveButton": "Perbarui ke {count} kursi",
-    "capReachedBanner": "Semua {occupied} dari {limit} kursi sedang digunakan. Tambahkan kursi di bawah sebelum mengundang rekan baru.",
+    "capReachedBanner": "Semua {occupied} dari {limit} kursi sedang digunakan. Tambahkan kursi di atas sebelum mengundang rekan baru.",
     "addMoreSeats": "Tambah kursi"
   },
   "billing": {

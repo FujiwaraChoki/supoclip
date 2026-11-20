@@ -55,7 +55,7 @@
     "increase": "Plätze erhöhen",
     "minimumNote": "Aktuell sind {occupied} Plätze belegt (Mitglieder + offene Einladungen). Entferne Mitglieder oder widerrufe Einladungen, um weiter zu reduzieren.",
     "saveButton": "Auf {count} Plätze aktualisieren",
-    "capReachedBanner": "Alle {occupied} von {limit} Plätzen sind belegt. Füge unten Plätze hinzu, bevor du weitere Personen einlädst.",
+    "capReachedBanner": "Alle {occupied} von {limit} Plätzen sind belegt. Füge oben Plätze hinzu, bevor du weitere Personen einlädst.",
     "addMoreSeats": "Plätze hinzufügen"
   },
   "billing": {
