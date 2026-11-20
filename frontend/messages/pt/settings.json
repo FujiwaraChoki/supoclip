@@ -29,9 +29,11 @@
   },
   "notifications": {
     "title": "Notificações",
-    "description": "Como avisamos que seus clipes estão prontos.",
+    "description": "Como avisamos você sobre seus clipes.",
     "emails": "E-mails ao concluir",
-    "emailsHint": "Receba um e-mail assim que uma geração terminar."
+    "emailsHint": "Receba um e-mail assim que uma geração terminar.",
+    "publishEmails": "E-mails ao publicar",
+    "publishEmailsHint": "Receba um e-mail assim que um clipe for publicado em uma conta conectada."
   },
   "plan": {
     "title": "Plano e cobrança",

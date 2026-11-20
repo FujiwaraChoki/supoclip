@@ -1101,6 +1101,25 @@ def get_transcript_text_in_range(
     return _join_transcript_tokens([word["text"] for word in relevant_words])
 
 
+EDGE_GAP_MIN_CHECK_SECONDS = 0.6     # a shorter silence at a clip's edge is cut without looking for action
+FILLER_ACTION_MARGIN_SECONDS = 0.25  # action this close to a removed filler is the filler itself
+
+
+def _subtract_intervals(
+    intervals: List[Tuple[float, float]], holes: List[Tuple[float, float]]
+) -> List[Tuple[float, float]]:
+    """``intervals`` without the parts covered by ``holes``, in order."""
+    result = list(intervals)
+    for hole_start, hole_end in holes:
+        result = [
+            piece
+            for start, end in result
+            for piece in ((start, min(end, hole_start)), (max(start, hole_end), end))
+            if piece[1] > piece[0]
+        ]
+    return result
+
+
 def build_clip_keep_ranges(
     video_path: Path,
     clip_start: float,
@@ -1183,29 +1202,53 @@ def build_clip_keep_ranges(
             if removal_end - removal_start >= 0.05:
                 removal_intervals.append((removal_start, removal_end))
 
-        leading_gap = spoken_words[0]["start"] - clip_start
-        if leading_gap >= pause_threshold_seconds:
-            compress_pause(clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS)
-
-        internal_gaps = [
-            (current["end"], nxt["start"])
+        # Every silence is checked for action before it is cut: the ones between words, and the ones before
+        # the first word and after the last. Gameplay or music with a single stray word is a clip of the
+        # action, not of that word. Each gap carries the silence kept at its two ends: none at the clip's own
+        # edge, a breath next to a word.
+        gaps: List[Tuple[float, float, float, float]] = []
+        if spoken_words[0]["start"] - clip_start >= pause_threshold_seconds:
+            gaps.append((clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS))
+        gaps.extend(
+            (current["end"], nxt["start"], PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
             for current, nxt in zip(spoken_words, spoken_words[1:])
             if nxt["start"] - current["end"] >= pause_threshold_seconds
+        )
+        if clip_end - spoken_words[-1]["end"] >= pause_threshold_seconds:
+            gaps.append((spoken_words[-1]["end"], clip_end, PAUSE_TAIL_SECONDS, 0.0))
+        # An edge gap too short to judge (two frames are needed) is cut as it always was.
+        checked = [
+            index for index, (gap_start, gap_end, keep_first, keep_last) in enumerate(gaps)
+            if (keep_first and keep_last) or gap_end - gap_start >= EDGE_GAP_MIN_CHECK_SECONDS
         ]
-        protected = active_gap_ranges(video_path, internal_gaps, [(word["start"], word["end"]) for word in spoken_words])
-        for (gap_start, gap_end), action in zip(internal_gaps, protected):
-            cursor = gap_start
+        found = active_gap_ranges(
+            video_path,
+            [gaps[index][:2] for index in checked],
+            [(word["start"], word["end"]) for word in spoken_words],
+        ) if checked else []
+        protected: List[List[Tuple[float, float]]] = [[] for _ in gaps]
+        # A filler that is being removed is loud, so it reads as action and would protect the silence around
+        # it: "Um ... so" would open on dead air. Its span is taken out of the action again.
+        fillers = [(start - FILLER_ACTION_MARGIN_SECONDS, end + FILLER_ACTION_MARGIN_SECONDS)
+                   for start, end in removal_intervals]
+        for index, action in zip(checked, found):
+            protected[index] = [
+                window for window in _subtract_intervals(action, fillers)
+                if window[1] - window[0] >= FILLER_ACTION_MARGIN_SECONDS
+            ]
+        for (gap_start, gap_end, keep_first, keep_last), action in zip(gaps, protected):
+            cursor, at_start = gap_start, True
             # Keep detected action, compressing only the quiet windows between it.
             for action_start, action_end in action:
                 if action_start - cursor >= pause_threshold_seconds:
-                    compress_pause(cursor, action_start, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
-                cursor = max(cursor, action_end)
+                    compress_pause(
+                        cursor, action_start,
+                        keep_first if at_start else PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS,
+                    )
+                if action_end > cursor:
+                    cursor, at_start = action_end, False
             if gap_end - cursor >= pause_threshold_seconds:
-                compress_pause(cursor, gap_end, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
-
-        trailing_gap = clip_end - spoken_words[-1]["end"]
-        if trailing_gap >= pause_threshold_seconds:
-            compress_pause(spoken_words[-1]["end"], clip_end, PAUSE_TAIL_SECONDS, 0.0)
+                compress_pause(cursor, gap_end, keep_first if at_start else PAUSE_EDGE_PADDING_SECONDS, keep_last)
 
     merged_removals = _merge_intervals(removal_intervals)
     if not merged_removals:

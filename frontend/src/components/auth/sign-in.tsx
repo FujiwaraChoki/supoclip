@@ -31,7 +31,7 @@ export function SignIn() {
     });
 
     if (response.error) {
-      setMessage(response.error.message || t("signIn.failed"));
+      setMessage(response.error.message || t(response.error.status >= 500 ? "signIn.serverError" : "signIn.failed"));
       setLoading(false);
       return;
     }

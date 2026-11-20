@@ -529,6 +529,8 @@ def create_optimized_clip(
                     **({"template_override": template_override} if template_override else {}),
                     **({"time_map": time_map} if time_map is not None else {}),
                     **({"censor_spans": censor_spans} if censor_spans else {}),
+                    # A game writes its characters' lines on the screen; captions would say them twice.
+                    **({"drop_screen_words": True} if include_captions and plan_report.get("kind") == "gaming" else {}),
                     # Only stacked interview openings move the hook title.
                     **_interview_hook_kwargs(plan_report),
                     # A Dynamic edits clip rendered without the drawing stage: heavy outlined type, no boxes.
