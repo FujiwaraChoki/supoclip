@@ -593,7 +593,18 @@ def clip_job(monkeypatch):
             raise state.error
         return state.record
 
+    state.holder, state.written = None, []
+
+    async def claim(job_id, holder):
+        state.holder = state.holder or holder
+        return state.holder
+
+    async def write(job_id, record):
+        state.written.append(record)
+
     monkeypatch.setattr(tasks, "read_fx_clip_job_state", read)
+    monkeypatch.setattr(tasks, "claim_fx_clip_job", claim)
+    monkeypatch.setattr(tasks, "write_fx_clip_job_state", write)
     monkeypatch.setattr(tasks, "TaskService", lambda _db: SimpleNamespace())
     monkeypatch.setattr(tasks, "_require_task_owner", AsyncMock(return_value={"id": "task-1"}))
 
@@ -622,6 +633,18 @@ async def test_clip_job_still_queued_after_15_minutes_reports_worker_unavailable
     assert body["status"] == "failed"
     assert body["error"]["code"] == "WORKER_UNAVAILABLE"
     assert body["error"]["message"]
+    # The failure is final: the record says so, and no worker may start the job afterwards.
+    assert clip_job.holder == "closed"
+    assert clip_job.written[-1]["status"] == "failed"
+    assert clip_job.written[-1]["error"]["code"] == "WORKER_UNAVAILABLE"
+
+
+async def test_clip_job_a_worker_took_after_15_minutes_is_not_reported_as_failed(clip_job):
+    clip_job.record = _record(queued_at=time.time() - 15 * 60 - 5)
+    clip_job.holder = "started"
+    body = (await clip_job.get()).json()
+    assert body == {"status": "queued", "kind": "settings", "progress": 0.0}
+    assert clip_job.written == []
 
 
 async def test_clip_job_running_progress_is_clamped(clip_job):

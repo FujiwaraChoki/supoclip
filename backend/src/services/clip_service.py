@@ -259,6 +259,23 @@ async def write_fx_clip_job_state(job_id: str, state: Dict[str, Any]) -> None:
         await client.aclose()
 
 
+FX_CLIP_JOB_STARTED = "started"
+FX_CLIP_JOB_CLOSED = "closed"
+
+
+async def claim_fx_clip_job(job_id: str, holder: str) -> str:
+    """Who decides a queued job's fate: the worker that runs it (``started``) or the status route that gave up
+    on it (``closed``). The first caller wins and every caller gets the winner back, so a job reported as failed
+    for waiting too long is never run afterwards, and a job a worker has taken is never reported as failed."""
+    client = _fx_clip_job_redis()
+    try:
+        key = f"{fx_clip_job_key(job_id)}:claim"
+        await client.set(key, holder, nx=True, ex=FX_CLIP_JOB_TTL_SECONDS)
+        return str(await client.get(key) or holder)
+    finally:
+        await client.aclose()
+
+
 async def read_fx_clip_job_state(job_id: str) -> Optional[Dict[str, Any]]:
     """The job's Redis record, or None when it is unknown or expired."""
     client = _fx_clip_job_redis()

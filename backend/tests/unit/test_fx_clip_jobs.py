@@ -34,8 +34,11 @@ class FakeRedis:
     def __init__(self, *args, **kwargs):
         pass
 
-    async def set(self, key, value, ex=None):
+    async def set(self, key, value, ex=None, nx=False):
+        if nx and key in type(self).store:
+            return None
         type(self).store[key] = value
+        return True
 
     async def get(self, key):
         return type(self).store.get(key)
@@ -336,6 +339,24 @@ async def test_a_finished_job_delivered_again_is_not_rendered_twice(redis):
     service = SimpleNamespace(trim_clip=AsyncMock())
     await _run(_job("trim", {"clip_id": "c1"}), service)
     service.trim_clip.assert_not_awaited()
+
+
+async def test_a_job_given_up_on_while_queued_is_not_run_later(redis):
+    job = await _queued("trim", {"clip_id": "c1"})
+    assert await clip_service.claim_fx_clip_job(JOB_ID, clip_service.FX_CLIP_JOB_CLOSED) == "closed"
+    service = SimpleNamespace(trim_clip=AsyncMock())
+    final = await _run(job, service)
+    service.trim_clip.assert_not_awaited()
+    assert final["status"] == "failed" and final["error"]["code"] == "WORKER_UNAVAILABLE"
+    assert record()["status"] == "queued"          # the route that closed it writes the failed record
+
+
+async def test_a_job_a_worker_has_taken_cannot_be_given_up_on(redis):
+    job = await _queued("trim", {"clip_id": "c1"})
+    service = SimpleNamespace(trim_clip=AsyncMock(return_value={"ok": True}))
+    await _run(job, service)
+    service.trim_clip.assert_awaited_once()
+    assert await clip_service.claim_fx_clip_job(JOB_ID, clip_service.FX_CLIP_JOB_CLOSED) == "started"
 
 
 async def test_an_unknown_kind_fails_without_touching_the_task(redis):

@@ -18,7 +18,10 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 from ..observability import set_trace_id, set_user_id
 from .clip_service import (
+    FX_CLIP_JOB_CLOSED,
     FX_CLIP_JOB_KINDS,
+    FX_CLIP_JOB_STARTED,
+    claim_fx_clip_job,
     _fx_clip_job_redis,
     read_fx_clip_job_state,
     write_fx_clip_job_state,
@@ -252,6 +255,11 @@ async def run_fx_clip_job(
         # A duplicate delivery of a finished job: never render twice.
         logger.info("FX clip job %s already %s; skipping", job_id, stored["status"])
         return stored
+    if await claim_fx_clip_job(job_id, FX_CLIP_JOB_STARTED) == FX_CLIP_JOB_CLOSED:
+        # It waited so long that the status route reported it as failed and the user was told to retry:
+        # running it now would apply the edit a second time.
+        logger.info("FX clip job %s was given up on while queued; skipping", job_id)
+        return {**base, "status": "failed", "progress": 0.0, "error": stored.get("error") or {"code": "WORKER_UNAVAILABLE", "message": "No worker picked up this edit. Please try again."}}
     if kind not in RUNNERS or not task_id:
         state = {**base, "status": "failed", "progress": 0.0,
                  "error": {"code": "INVALID_EDIT", "message": f"Unknown clip edit {kind!r}"}}

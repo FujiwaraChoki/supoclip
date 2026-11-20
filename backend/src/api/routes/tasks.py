@@ -56,7 +56,10 @@ from ...services.clip_service import (
     FxClipJobRequest,
     QueuedClipJob,
     clip_has_fx,
+    FX_CLIP_JOB_CLOSED,
+    claim_fx_clip_job,
     enqueue_fx_clip_job,
+    write_fx_clip_job_state,
     read_fx_clip_job_state,
 )
 from ...source_identity import (
@@ -751,7 +754,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     if fx_requested and not await _dynamic_edits_enabled(db, request, user_id):
         raise _dynamic_edits_not_available()
     # With dynamic edits, an in-flight task for the same video is the same job only
-    # if it was made with the same style and caption template.
+    # if it was made with the same style and caption template. Without them, an
+    # in-flight task that renders dynamic edits is never the same job (the lookup skips it).
     edit_identity = {"edit_identity": (edit_style_json, caption_template or "default")} if fx_requested else {}
     workflow_options = workflow_spec.options.to_json()
     cleanup_settings = new_task_cleanup_settings(data)
@@ -1870,6 +1874,22 @@ async def apply_task_settings(
         )
 
 
+async def _close_queued_clip_job(job_id: str, state: Dict[str, Any], error: Dict[str, str]) -> bool:
+    """Give up on a clip job no worker has started, so that none starts it later. False if a worker has it.
+
+    The user is told to try again, and a retry would otherwise run next to the first job once the queue
+    clears (two trims or splits of one clip). Unreachable Redis is False too: the job may still run.
+    """
+    try:
+        if await claim_fx_clip_job(job_id, FX_CLIP_JOB_CLOSED) != FX_CLIP_JOB_CLOSED:
+            return False
+        await write_fx_clip_job_state(job_id, {**state, "status": "failed", "progress": 0.0, "error": error})
+        return True
+    except Exception as exc:  # noqa: BLE001 - not closed, so not reported as failed
+        logger.warning("Could not close queued clip job %s: %s", job_id, exc)
+        return False
+
+
 @router.get("/{task_id}/clip-jobs/{job_id}")
 async def get_clip_job(
     task_id: str, job_id: str, request: Request, db: AsyncSession = Depends(get_db)
@@ -1904,13 +1924,18 @@ async def get_clip_job(
     except (TypeError, ValueError):
         queued_at = 0.0
     if status == "queued" and queued_at and time.time() - queued_at > FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS:
-        body["status"] = "failed"
-        body["error"] = {
+        error = {
             "code": "WORKER_UNAVAILABLE",
             "message": "No worker picked up this edit. Please try again.",
         }
+        # Failed only once no worker can run it any more; a job a worker has just taken stays queued here.
+        if await _close_queued_clip_job(job_id, state, error):
+            body["status"] = "failed"
+            body["error"] = error
         return body
     stale = stale_job_error({**state, "status": status})
+    if stale and status == "queued" and not await _close_queued_clip_job(job_id, state, stale):
+        return body
     if stale:
         # The worker died mid-job (no heartbeat) or the job outlived its budget: nothing will finish it.
         body["status"] = "failed"
