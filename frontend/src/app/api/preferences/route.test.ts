@@ -35,6 +35,7 @@ describe("/api/preferences", () => {
           default_font_size: 28,
           default_font_color: "#123456",
           notify_on_completion: false,
+          notify_on_publish: false,
         }),
       },
     } as never);
@@ -47,6 +48,7 @@ describe("/api/preferences", () => {
       fontSize: 28,
       fontColor: "#123456",
       notifyOnCompletion: false,
+      notifyOnPublish: false,
       clipLength: "auto",
       createSettings: {},
     });
@@ -90,6 +92,25 @@ describe("/api/preferences", () => {
     });
   });
 
+  it("validates notifyOnPublish", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "user-1" },
+    } as never);
+
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notifyOnPublish: "yes" }),
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid notifyOnPublish",
+    });
+  });
+
   it("updates stored preferences", async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "user-1" },
@@ -99,6 +120,7 @@ describe("/api/preferences", () => {
       default_font_size: 24,
       default_font_color: "#FFFFFF",
       notify_on_completion: true,
+      notify_on_publish: true,
     });
     vi.mocked(getPrismaClient).mockReturnValue({
       user: { update },
@@ -113,17 +135,23 @@ describe("/api/preferences", () => {
           fontSize: 24,
           fontColor: "#FFFFFF",
           notifyOnCompletion: true,
+          notifyOnPublish: true,
         }),
       }) as never,
     );
 
     expect(update).toHaveBeenCalled();
+    expect(update.mock.calls[0][0].data).toMatchObject({
+      notify_on_completion: true,
+      notify_on_publish: true,
+    });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       fontFamily: "TikTokSans-Regular",
       fontSize: 24,
       fontColor: "#FFFFFF",
       notifyOnCompletion: true,
+      notifyOnPublish: true,
       clipLength: "auto",
       createSettings: {},
     });

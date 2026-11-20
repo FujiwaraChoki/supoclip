@@ -195,7 +195,9 @@ async def test_highlights_fallback_window_matches_the_golden_output(monkeypatch,
 
     assert result["segments_to_render"] == [
         {
-            "start_time": "00:00", "end_time": "00:18", "text": "[00:00 - 00:01] hello",
+            "start_time": "00:00", "end_time": "00:18", "source_ranges": [[0.0, 18.0]],
+            # The words the exact range plays, not the transcript preview.
+            "text": "Welcome back everyone.",
             "relevance_score": 0.25,
             "reasoning": (
                 "AI analysis did not identify a strong standalone segment, "

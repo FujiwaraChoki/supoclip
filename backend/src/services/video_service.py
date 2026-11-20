@@ -4,6 +4,7 @@ Video service - handles video processing business logic.
 
 import asyncio
 import copy
+import math
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
@@ -607,7 +608,8 @@ class VideoService:
         """Create a bounded starter clip when AI analysis selects no segments."""
         fallback_duration = max(1.0, float(target_duration or 30))
         if video_duration and video_duration > 0:
-            fallback_duration = min(fallback_duration, max(1.0, video_duration))
+            # Never past the source's end: a 24.6s video plays 0-24.6s, not 0-25s.
+            fallback_duration = min(fallback_duration, float(video_duration))
 
         transcript_preview = " ".join((transcript or "").split())
         if len(transcript_preview) > 240:
@@ -615,7 +617,10 @@ class VideoService:
 
         return {
             "start_time": "00:00",
-            "end_time": seconds_to_mmss(fallback_duration),
+            # MM:SS rounds, so the label floors to stay inside the source and
+            # the render plays the exact range.
+            "end_time": seconds_to_mmss(math.floor(fallback_duration)),
+            "source_ranges": [[0.0, fallback_duration]],
             "text": transcript_preview,
             "relevance_score": 0.25,
             "reasoning": (
@@ -1325,14 +1330,20 @@ class VideoService:
             logger.warning(
                 "AI analysis selected no segments; using fallback clip window"
             )
-            segments_json = [
-                VideoService._build_fallback_segment(
-                    file_duration,
-                    transcript,
-                    (runtime_config.clip_duration if clip_length == "auto"
-                     else clip_duration(clip_length).ideal_minimum),
+            fallback = VideoService._build_fallback_segment(
+                file_duration,
+                transcript,
+                (runtime_config.clip_duration if clip_length == "auto"
+                 else clip_duration(clip_length).ideal_minimum),
+            )
+            if transcript_data:
+                # Exact source ranges keep their stored text, so it is the
+                # words they play rather than the transcript preview.
+                start, end = fallback["source_ranges"][0]
+                fallback["text"] = (
+                    get_transcript_text_in_range(transcript_data, start, end) or fallback["text"]
                 )
-            ]
+            segments_json = [fallback]
 
         return relevant_parts, segments_json, clip_limit, final_plan
 

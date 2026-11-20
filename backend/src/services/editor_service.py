@@ -836,6 +836,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 )
             metadata = await run_in_thread(make_assets, directory)
             expected = expected_prepared_duration(ranges, source_offsets)
+            # A rounded end clamped to the file's end plays that much less.
+            clamped = expected_prepared_duration(ranges, None) - expected_prepared_duration(local_ranges, None)
+            expected -= max(0.0, clamped)
             if prepared_too_short(metadata["duration"], expected):
                 logging.getLogger(__name__).error(
                     "Editor source for clip %s is %.2fs, expected %.2fs", clip_id, metadata["duration"], expected

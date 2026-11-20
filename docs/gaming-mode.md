@@ -171,7 +171,7 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
 ## What the first production day showed (2026-11-20)
 
 518 clips from one afternoon were checked against their logged decisions. Four mistakes came up more than once,
-and each has a rule now:
+and each has a rule now (the second and third shipped first, in #497):
 
 - **A face that never moves is a picture.** A channel logo with a face in it, or a drawn avatar, was taken for a
   keyed-out streamer and filled the top panel. A head's own pixels change between samples; a picture's do not.
