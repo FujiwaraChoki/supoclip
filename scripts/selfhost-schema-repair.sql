@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS social_posts (
     shareability_score INTEGER,
     clip_duration DOUBLE PRECISION,
     published_at TIMESTAMP WITH TIME ZONE,
+    publish_notification_sent_at TIMESTAMP WITH TIME ZONE,
     last_metrics_at TIMESTAMP WITH TIME ZONE,
     metrics JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
