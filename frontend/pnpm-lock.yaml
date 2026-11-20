@@ -35,7 +35,7 @@ importers:
     dependencies:
       '@posthog/nextjs-config':
         specifier: ^1.11.3
-        version: 1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(lightningcss@1.32.0))
+        version: 1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
       '@prisma/client':
         specifier: ^6.19.2
         version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
@@ -5900,11 +5900,11 @@ snapshots:
     dependencies:
       '@posthog/types': 1.416.0
 
-  '@posthog/nextjs-config@1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(lightningcss@1.32.0))':
+  '@posthog/nextjs-config@1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))':
     dependencies:
       '@posthog/cli': 0.18.11
       '@posthog/plugin-utils': 2.0.1
-      '@posthog/webpack-plugin': 1.7.1(webpack@5.112.0(lightningcss@1.32.0))
+      '@posthog/webpack-plugin': 1.7.1(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
       next: 15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10)
       posthog-js: 1.438.13(@types/react@19.2.14)(react@19.1.10)
       semver: 7.8.5
