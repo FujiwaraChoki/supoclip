@@ -155,9 +155,9 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
   game draws a HUD. Round cameras are not found.
 - A dark camera beside a dark, slow cutscene has no visible border and no calmer inside: it is still missed
   in that clip, which keeps the regular layout.
-- A picture that stands still beside a camera is shown whole under the camera unless its detail, or what
-  changes in it, sits in one part of the frame (then that part is enlarged, by at most 1.5). A menu with chat on
-  one side and a counter on the other stays a strip. Slides with a webcam get the same layout.
+- A picture that stands still beside a camera is fitted whole under the camera, as a strip, unless what
+  changes in it sits in one part of the frame. Slides with a webcam get the same layout.
+- A logo or avatar the gameplay crop still shows stays where it is, over the game.
 - A cutscene without a HUD in which one character's face stays in one place for 80 % of the clip, 1.4 times the
   size of the streamer's, is still read as a person being filmed and keeps the regular layout.
 - A keyed-out streamer whose head is larger than 0.6 % of the frame and nowhere near its edge is not recognised.
@@ -191,11 +191,22 @@ and each has a rule now (the second and third shipped first, in #497):
   It now needs the other face in `HOST_MIN_PRESENCE` (80 %) of the samples at `HOST_MIN_SIZE` (1.4) times the
   camera's face, alive, and it does not apply while the game draws a HUD (two persistent elements or a
   crosshair; one is a watermark).
-- **A still picture is enlarged around what changes in it.** In a still picture every edge persists, so detail
-  alone often spans the frame and the picture was fitted as a thin strip. `still_focus` also looks at the pixels
-  that change at least twice (`STILL_ACTIVITY_RATE`). When they cover 0.4 % of the frame or more
-  (`STILL_ACTIVITY_MIN_AREA`, so a clock or a counter does not count) and sit in one part of the width, that
-  part is kept and shown up to `STILL_MAX_ZOOM` larger, provided at least a fifth of the width is saved.
+- **A pictured face becomes a sticker.** With no camera on screen, the logo or avatar is the channel's mark.
+  `sticker_region` finds it: the patch of pixels that never change, near persistent lines, that holds the face
+  (flat sky does not change either but has no lines). Its outline is kept as a small mask
+  (`STICKER_GRID` cells, joined into rectangles), drawn into the filter graph itself, so the layout needs no
+  file beside it and replays on any machine. The clip gets the game-only layout when one HUD element is found
+  beside the mark, and the mark is set at the top of the frame, on the side it came from, once the hook title
+  has gone (`STICKER_FROM_SECONDS`), clear of the HUD cut-outs. When the crop still shows the picture where it
+  is, no sticker is added: it cannot be taken out of the game.
+- **A still picture's subject fills the panel.** In a still picture every edge persists, so detail alone often
+  spans the frame and the picture was fitted as a thin strip between blurred bands. `still_focus` also looks at
+  the pixels that change at least twice (`STILL_ACTIVITY_RATE`), when they cover 0.4 % of the frame or more
+  (a clock or a counter does not count). If one window as wide as the panel shows at full height holds three
+  quarters of them (`STILL_SUBJECT_SHARE`) and its share of the picture's lines, that window is the subject
+  (`focus_fill`): `still_crop` crops to the panel around it, without blurred bands, and steps off the camera
+  sideways when the frame has the room, so the camera is not shown twice. A menu with chat on one side and a
+  counter on the other, or a blurred backdrop shimmering behind a menu, stays fitted whole.
 
 ## Streams of story games (GTA 6)
 

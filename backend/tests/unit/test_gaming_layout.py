@@ -166,6 +166,58 @@ def test_a_face_that_never_moves_is_a_picture_not_a_keyed_out_streamer():
     profile = classify(frames, times, [[face] for _ in frames])
     assert profile.facecam is None and not profile.virtual_camera
     assert profile.is_gaming and profile.reason == "hud"            # still gameplay: the game-only layout
+    # The picture is lifted out as a sticker: its box holds the drawn head and not much more.
+    mark = profile.sticker
+    assert mark is not None and mark.x <= 53 * 3 and mark.x2 >= 101 * 3 and mark.w <= 80 * 3 and mark.h <= 80 * 3
+    cols, rows, cells = profile.sticker_mask
+    covered = sum(w * h for _, _, w, h in cells) / (cols * rows)
+    assert 0.55 <= covered <= 0.95                                  # a disc in its box, not the box
+    assert all(0 <= x and x + w <= cols and 0 <= y and y + h <= rows for x, y, w, h in cells)
+    assert not any(r.x < mark.x2 and mark.x < r.x2 and r.y < mark.y2 and mark.y < r.y2 for r in profile.hud)
+
+
+def sticker_profile(mark=Rect(1700, 700, 200, 260)):
+    return GamingProfile(
+        width=SRC_W, height=SRC_H, is_gaming=True, reason="hud",
+        hud=[Rect(30, 30, 300, 300)], sticker=mark, sticker_mask=(4, 5, [(1, 0, 2, 5), (0, 2, 4, 1)]),
+    )
+
+
+def test_a_sticker_goes_to_the_top_once_the_hook_title_has_gone():
+    layout = gl.build_gaming_layout(sticker_profile(), 20.0)
+    graph = layout["video_filter"]
+    assert "alphamerge" in graph and graph.count("color=white") == 2
+    x, y = (int(v) for v in re.search(r"\[gm_sa\]overlay=(\d+):(\d+)", graph).groups())
+    assert x > 1080 / 2 and y < 1920 * 0.1                          # top, on the side it came from
+    assert f"enable='gte(t,{gl.STICKER_FROM_SECONDS:g})'" in graph
+    # A picture on the left goes to the left, unless a HUD cut-out already sits there.
+    left = sticker_profile(Rect(20, 700, 200, 260))
+    left.hud = []
+    assert int(re.search(r"\[gm_sa\]overlay=(\d+):", gl.build_gaming_layout(left, 20.0)["video_filter"]).group(1)) < 200
+
+
+def test_a_picture_the_crop_still_shows_gets_no_sticker():
+    inside = sticker_profile(Rect(900, 700, 120, 160))              # in the middle of the frame: the crop shows it
+    assert "alphamerge" not in gl.build_gaming_layout(inside, 20.0)["video_filter"]
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_a_sticker_layout_renders(tmp_path):
+    graph = gl.build_gaming_layout(sticker_profile(), 6.0)["video_filter"]
+    script = tmp_path / "graph.txt"
+    script.write_text(graph)
+    out = tmp_path / "out.mp4"
+    run = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s={SRC_W}x{SRC_H}:r=10:d=6",
+         "-/filter_complex", str(script), "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast", str(out)],
+        capture_output=True, text=True,
+    )
+    assert run.returncode == 0, run.stderr
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,nb_frames",
+         "-of", "csv=p=0", str(out)], capture_output=True, text=True,
+    )
+    assert probe.stdout.strip() == "1080,1920,60"
 
 
 def test_someone_filmed_in_the_middle_of_the_frame_is_not_a_keyed_out_streamer():
@@ -388,12 +440,29 @@ def test_a_still_picture_is_enlarged_around_the_part_that_changes():
     profile = classify(frames, times, [[CAM_FACE] for _ in frames])
     assert profile.reason == "facecam_still"
     focus = profile.focus
-    assert focus.w <= SRC_W / gl.STILL_MAX_ZOOM + 12                 # as far as the zoom goes
+    assert profile.focus_fill and focus.w <= 0.85 * SRC_H
     assert focus.x <= 250 * 3 and focus.x2 >= 310 * 3                # the phone is inside it
+    # It fills the panel: no fitted strip, no blurred bars, and the camera on top is not in the picture again.
+    layout = gl.build_gaming_layout(profile, 16.0)
+    assert "boxblur" not in layout["video_filter"]
+    crop, cam = Rect(*layout["gaming"]["gameplay"]), profile.facecam
+    assert crop.x2 <= cam.x or crop.x >= cam.x2 or crop.y2 <= cam.y or crop.y >= cam.y2
+    assert crop.x <= 250 * 3 and crop.x2 >= 310 * 3
     # Changes at both sides of the picture (chat on the left, a counter on the right): shown whole, as before.
     frames, times = frames_with([20, 380])
     whole = classify(frames, times, [[CAM_FACE] for _ in frames])
-    assert whole.reason == "facecam_still" and whole.focus.w > 0.95 * SRC_W * (440 / W)
+    assert whole.reason == "facecam_still" and not whole.focus_fill and whole.focus.w > 0.95 * SRC_W * (440 / W)
+    assert "boxblur" in gl.build_gaming_layout(whole, 16.0)["video_filter"]
+
+
+def test_a_filling_crop_steps_off_the_camera_when_there_is_room():
+    cam = Rect(40, 400, 300, 300)
+    crop, fitted = gl.still_crop(Rect(200, 0, 700, 1080), SRC_W, SRC_H, 1312, fill=True, avoid=cam)
+    assert fitted is None and crop.h >= SRC_H - 2 and crop.w / crop.h == pytest.approx(1080 / 1312, rel=0.01)
+    assert crop.x >= cam.x2
+    # A camera in the middle of a narrow frame leaves no room: the crop stays on the subject.
+    crop, _ = gl.still_crop(Rect(0, 0, 900, 1080), 900, SRC_H, 1312, fill=True, avoid=Rect(300, 400, 300, 300))
+    assert crop.x <= 12
 
 
 def test_a_clock_in_the_corner_does_not_narrow_a_still_picture():

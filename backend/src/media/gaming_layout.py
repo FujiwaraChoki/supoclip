@@ -22,7 +22,7 @@ import subprocess
 import cv2
 import numpy as np
 
-from .common import UPSCALE_SHARPEN_FILTER
+from .common import HOOK_TITLE_SECONDS, UPSCALE_SHARPEN_FILTER
 from .ffmpeg import clamp_even, round_to_even
 
 logger = logging.getLogger(__name__)
@@ -63,11 +63,11 @@ MIN_MOVING_FRACTION_WITH_FACECAM = 0.15
 STILL_DETAIL_PERSISTENCE = 0.6
 STILL_FOCUS_QUANTILES = (0.02, 0.98)
 STILL_FOCUS_PAD = 0.03
-STILL_MAX_ZOOM = 1.5           # how far a wide still picture is enlarged around the part of it that changes
 STILL_ACTIVITY_RATE = 0.05     # a pixel that changed in this share of sample pairs: text scrolling, a cursor
 STILL_ACTIVITY_MIN_AREA = 0.004  # of the frame: less is a clock or a counter, not what the picture is about
-STILL_ACTIVITY_PAD = 0.1       # air kept either side of that part, of its width
-STILL_MIN_GAIN = 0.8           # the kept width, of the detailed width: a smaller cut is not worth losing an edge
+STILL_WINDOW_ASPECT = 0.8      # width of the part the panel shows at full height, of the picture's height
+STILL_SUBJECT_SHARE = 0.75     # of what changes: inside that part it is the picture's subject
+STILL_SUBJECT_DETAIL = 0.7      # ... when it also holds this much of its fair share of the picture's lines
 # A camera over a picture that hardly moves must show a small head: a speaker filmed in front of a window
 # or a shelf has a rectangle around the face too, and a face several times larger.
 CALM_PICTURE_FACE_MAX_AREA = 0.02  # camera heads measured up to 1.7 %; a speaker in a medium shot starts around 2.5 %
@@ -120,6 +120,14 @@ VIRTUAL_CAMERA_FACE_MAX_AREA = 0.02  # a larger still face is a person filmed, n
 FACE_PIXEL_CHANGE_RATE = 0.05  # a face pixel that changed in this share of the sample pairs
 MIN_FACE_MOTION = 0.3          # share of the face box made of such pixels
 FACE_MOTION_MIN_SAMPLES = 30
+# A pictured face (channel logo, drawn avatar) over gameplay is lifted out as a sticker and set at the top.
+STICKER_REACH = (3.0, 2.0, 6.0)   # how far the picture may extend from the face: sideways, up, down (face sizes)
+STICKER_GRID = 44                 # cells along the longer side of the cut-out mask
+STICKER_MAX_BOXES = 260           # mask rectangles in the filter graph; a busier mask is not used
+STICKER_WIDTH = 0.2               # of the canvas
+STICKER_MAX_SCALE = 1.6
+STICKER_TOP, STICKER_SIDE = 0.06, 0.035   # where it sits, of the canvas height and width
+STICKER_FROM_SECONDS = HOOK_TITLE_SECONDS + 0.2   # the hook title has the top of the frame until then
 KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
 KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
 HOST_MIN_PRESENCE = 0.8        # someone filmed is there for the whole clip; a game character comes and goes
@@ -216,6 +224,12 @@ class GamingProfile:
     check_masks: List[np.ndarray] = field(default_factory=list, repr=False)
     # A picture that stands still beside the camera: the part of it that carries detail (source pixels).
     focus: Optional[Rect] = None
+    # ... and whether what changes in it sits in that part: then it fills the panel instead of being fitted whole.
+    focus_fill: bool = False
+    # A pictured face over the game (a channel logo, a drawn avatar), source pixels, and its cut-out mask:
+    # (columns, rows, [(x, y, w, h) cells that belong to the picture]).
+    sticker: Optional[Rect] = None
+    sticker_mask: Optional[Tuple[int, int, List[Tuple[int, int, int, int]]]] = field(default=None, repr=False)
     # Seconds in which the screen is split down the middle (reason ``split_screen``): the halves are stacked.
     split_ranges: List[Tuple[float, float]] = field(default_factory=list)
     virtual_camera: bool = False  # the camera has no rectangle (keyed-out streamer); one was drawn around the head
@@ -238,6 +252,8 @@ class GamingProfile:
             "fallback_ranges": [[round(a, 3), round(b, 3)] for a, b in self.fallback_ranges],
             "virtual_camera": self.virtual_camera,
             "focus": self.focus.as_list() if self.focus else None,
+            "focus_fill": self.focus_fill,
+            "sticker": self.sticker.as_list() if self.sticker else None,
             "split_ranges": [[round(a, 3), round(b, 3)] for a, b in self.split_ranges],
             "active": [[round(a, 3), round(b, 3)] for a, b in self.active],
         }
@@ -833,17 +849,18 @@ def fallback_ranges_within(
     return ranges
 
 
-def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
+def still_focus(evidence: FrameEvidence, facecam: Rect) -> Tuple[Rect, bool]:
     """The part of a still picture that carries detail (proc pixels): a phone held up in the game, a menu.
 
     Edges that are there in most samples, outside the camera; the box that holds nearly all of them, with a
-    little air. A picture with detail everywhere (slides, a map) gives the whole frame.
+    little air. A picture with detail everywhere (slides, a map) gives the whole frame. The second value says
+    that what changes in the picture sits in the returned part: it may then fill the panel.
     """
     h, w = evidence.shape
     detail = evidence.persist >= STILL_DETAIL_PERSISTENCE
     detail[max(0, facecam.y - 4):facecam.y2 + 4, max(0, facecam.x - 4):facecam.x2 + 4] = False
     if detail.sum() < HUD_MIN_EDGE_PIXELS:
-        return Rect(0, 0, w, h)
+        return Rect(0, 0, w, h), False
 
     def span(profile: np.ndarray, size: int) -> Tuple[int, int]:
         total = np.cumsum(profile.astype(np.float64))
@@ -854,11 +871,10 @@ def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
 
     x0, x1 = span(detail.sum(axis=0), w)
     y0, y1 = span(detail.sum(axis=1), h)
-    # In a still picture every edge persists, grass as much as text, so detail alone often spans the frame and
-    # the picture is fitted as a thin strip. What changes in it says where to look: a message scrolling on a
-    # phone, a cursor in a menu. When all of that sits in one part of the width, the sides give way and that part
-    # is shown up to STILL_MAX_ZOOM larger. Changes at both edges (chat on one side, a counter on the other)
-    # leave the picture whole.
+    # In a still picture every edge persists, grass as much as text, so detail alone often spans the frame.
+    # What changes in it says where to look: a message scrolling on a phone, a cursor in a menu. When all of
+    # that sits in one part of the width, that part is the picture's subject and fills the panel. Changes
+    # across the width (chat on one side, a counter on the other) leave the picture whole.
     # Two changes at least, whatever the number of samples: one pop-up in a short clip is not activity.
     pairs = max(1, len(evidence.edges) - 1)
     active = evidence.change >= max(STILL_ACTIVITY_RATE, 2.0 / pairs)
@@ -868,15 +884,76 @@ def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
     active[:, :x0] = False
     active[:, x1:] = False
     if active.sum() >= STILL_ACTIVITY_MIN_AREA * w * h:
-        columns = np.cumsum(active.sum(axis=0).astype(np.float64))
-        a0 = int(np.searchsorted(columns, columns[-1] * STILL_FOCUS_QUANTILES[0]))
-        a1 = int(np.searchsorted(columns, columns[-1] * STILL_FOCUS_QUANTILES[1])) + 1
-        pad = (a1 - a0) * STILL_ACTIVITY_PAD
-        keep = max((x1 - x0) / STILL_MAX_ZOOM, a1 - a0 + 2 * pad)
-        if keep <= STILL_MIN_GAIN * (x1 - x0):
-            left = min(max((a0 + a1) / 2 - keep / 2, x0), x1 - keep)
-            x0, x1 = int(round(left)), int(round(left + keep))
-    return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0))
+        # The window the panel can show at full height (a little under the frame's height wide) that holds the
+        # most of it. One subject is nearly all inside; two at opposite sides are not.
+        window = min(x1 - x0, max(2, int(round((y1 - y0) * STILL_WINDOW_ASPECT))))
+        columns = np.concatenate(([0.0], np.cumsum(active.sum(axis=0).astype(np.float64))))
+        inside = columns[x0 + window:x1 + 1] - columns[x0:x1 + 1 - window]
+        if len(inside) and inside.max() >= STILL_SUBJECT_SHARE * columns[-1] and window < x1 - x0:
+            best = np.flatnonzero(inside >= inside.max() - 1e-9)
+            left = x0 + int(best[len(best) // 2])
+            # The subject is sharp: that part holds its share of the picture's lines. A blurred backdrop
+            # shimmering behind a menu changes too, and the menu's text is elsewhere.
+            lines = detail[:, x0:x1].sum(axis=0).astype(np.float64)
+            share = lines[left - x0:left - x0 + window].sum() / max(1.0, lines.sum())
+            if share >= STILL_SUBJECT_DETAIL * window / (x1 - x0):
+                return Rect(left, y0, window, max(2, y1 - y0)), True
+    return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0)), False
+
+
+def sticker_region(
+    evidence: FrameEvidence, face: Box
+) -> Optional[Tuple[Rect, Tuple[int, int, List[Tuple[int, int, int, int]]]]]:
+    """The drawn picture a still face belongs to (proc pixels) and its cut-out mask, or None.
+
+    A logo or an avatar is drawn over the game: its pixels never change and it has lines of its own. Flat sky
+    behind it does not change either but has no lines, and the game around it moves. The picture is the patch
+    of unchanging pixels near persistent edges that holds the face.
+    """
+    h, w = evidence.shape
+    fx, fy, fw, fh = face
+    side, up, down = STICKER_REACH
+    wx0, wx1 = max(0, int(fx - side * fw)), min(w, int(fx + (1 + side) * fw))
+    wy0, wy1 = max(0, int(fy - up * fh)), min(h, int(fy + (1 + down) * fh))
+    if wx1 - wx0 < 8 or wy1 - wy0 < 8:
+        return None
+    still = evidence.change[wy0:wy1, wx0:wx1] < FACE_PIXEL_CHANGE_RATE
+    lines = (evidence.persist[wy0:wy1, wx0:wx1] >= HUD_PERSISTENCE).astype(np.uint8)
+    reach = max(3, int(round(fw * 0.35))) | 1
+    near_lines = cv2.dilate(lines, np.ones((reach, reach), np.uint8)) > 0
+    drawn = (still & near_lines).astype(np.uint8)
+    drawn = cv2.morphologyEx(drawn, cv2.MORPH_CLOSE, np.ones((reach, reach), np.uint8))
+    count, labels = cv2.connectedComponents(drawn, connectivity=8)
+    cy, cx = int(fy + fh / 2) - wy0, int(fx + fw / 2) - wx0
+    if count < 2 or not (0 <= cy < labels.shape[0] and 0 <= cx < labels.shape[1]) or labels[cy, cx] == 0:
+        return None
+    body = labels == labels[cy, cx]
+    ys, xs = np.nonzero(body)
+    x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
+    # A patch that runs out of the window on several sides is the scene (a still background), not a picture.
+    touching = sum((x0 == 0 and wx0 > 0, y0 == 0 and wy0 > 0, x1 == body.shape[1] and wx1 < w, y1 == body.shape[0] and wy1 < h))
+    if touching >= 2 or (x1 - x0) < fw or (y1 - y0) < fh:
+        return None
+    body = body[y0:y1, x0:x1]
+    scale = STICKER_GRID / max(body.shape)
+    cols, rows = max(2, int(round(body.shape[1] * scale))), max(2, int(round(body.shape[0] * scale)))
+    grid = cv2.resize(body.astype(np.uint8) * 255, (cols, rows), interpolation=cv2.INTER_AREA) >= 110
+    # Runs along each row, with equal runs in consecutive rows joined into one taller cell.
+    cells: List[Tuple[int, int, int, int]] = []
+    open_runs: Dict[Tuple[int, int], int] = {}
+    for row in range(rows + 1):
+        runs: List[Tuple[int, int]] = []
+        if row < rows:
+            padded = np.concatenate(([False], grid[row], [False]))
+            edges = np.flatnonzero(padded[1:] != padded[:-1])
+            runs = [(int(a), int(b - a)) for a, b in zip(edges[::2], edges[1::2])]
+        for run in [r for r in open_runs if r not in runs]:
+            cells.append((run[0], open_runs[run], run[1], row - open_runs.pop(run)))
+        for run in runs:
+            open_runs.setdefault(run, row)
+    if not cells or len(cells) > STICKER_MAX_BOXES:
+        return None
+    return Rect(wx0 + x0, wy0 + y0, x1 - x0, y1 - y0), (cols, rows, cells)
 
 
 def virtual_camera_rect(face: Box, w: int, h: int) -> Rect:
@@ -1000,6 +1077,25 @@ def classify_gaming(
 
         regions = [r for r in regions if not decoration(r)]
 
+    # A pictured face over the game with no camera on screen: the channel's logo or the streamer's avatar. It is
+    # lifted out as a sticker; the persistent edges it produced are not HUD.
+    sticker = None
+    if facecam is None:
+        for t in tracks:
+            if t.presence >= FACECAM_MIN_PRESENCE and not alive(t.box):
+                sticker = sticker_region(evidence, t.box)
+                if sticker is not None:
+                    break
+    if sticker is not None:
+        mark = sticker[0]
+
+        def on_sticker(r: Rect) -> bool:
+            ix = min(r.x2, mark.x2) - max(r.x, mark.x)
+            iy = min(r.y2, mark.y2) - max(r.y, mark.y)
+            return ix > 0 and iy > 0 and ix * iy >= 0.3 * min(r.w * r.h, mark.w * mark.h)
+
+        regions = [r for r in regions if not on_sticker(r)]
+
     world = np.ones((h, w), bool)
     if facecam is not None:
         world &= ~_rect_mask((h, w), [facecam])
@@ -1075,7 +1171,10 @@ def classify_gaming(
         check_masks=layout_check_masks(evidence, hud_mask, bordered),
         virtual_camera=virtual, active=[(float(a), float(b)) for a, b in spans] if spans else [],
     )
-    needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None else MIN_HUD_REGIONS
+    # A channel's own graphic over moving footage is a stream already: one HUD element beside it is enough.
+    needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None or sticker is not None else MIN_HUD_REGIONS
+    if sticker is not None:
+        profile.sticker, profile.sticker_mask = to_source(sticker[0]), sticker[1]
     splits = split_screen_ranges(evidence, duration) if facecam is None and track is None else []
     inset = (facecam is not None and not virtual and face_box is not None
              and face_box[2] * face_box[3] <= CALM_PICTURE_FACE_MAX_AREA * w * h)
@@ -1091,7 +1190,8 @@ def classify_gaming(
         # The game stands still beside the camera: camera on top, the detailed part of the picture below.
         profile.is_gaming = True
         profile.reason = "facecam_still"
-        profile.focus = to_source(still_focus(evidence, facecam))
+        focus, profile.focus_fill = still_focus(evidence, facecam)
+        profile.focus = to_source(focus)
         profile.hud = []
     elif (splits and sum(b - a for a, b in splits) >= SPLIT_MIN_FRACTION * duration
           and outside_rate <= MAX_OUTSIDE_FACE_RATE):
@@ -1464,7 +1564,8 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
         panel_y, panel_h = (CANVAS_H - GAMEPLAY_ONLY_HEIGHT) // 2, GAMEPLAY_ONLY_HEIGHT
     fitted: Optional[Tuple[int, int]] = None
     if profile.focus is not None:
-        crop, fitted = still_crop(profile.focus, width, height, panel_h)
+        crop, fitted = still_crop(profile.focus, width, height, panel_h, fill=profile.focus_fill,
+                                  avoid=profile.facecam)
     else:
         crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
     cutouts, occupied = place_hud(profile.hud, crop, width, panel_y, panel_h)
@@ -1492,6 +1593,35 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
         lines.append(f"[{tag}_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[{tag}_c{i}]")
         lines.append(f"[{tag}_p{i}][{tag}_c{i}]overlay={item['x']}:{item['y'] - panel_y}[{tag}_p{i + 1}]")
     panel = f"[{tag}_p{len(cutouts)}]"
+    mark = profile.sticker
+    # The sticker goes up only when the crop does not show the picture where it is: it cannot be taken out
+    # of the game, and twice is worse than once.
+    if mark is not None and profile.sticker_mask and cam is None and (mark.x2 <= crop.x or mark.x >= crop.x2):
+        cols, rows, cells = profile.sticker_mask
+        out_w = clamp_even(int(round(min(CANVAS_W * STICKER_WIDTH, mark.w * STICKER_MAX_SCALE))), 2, CANVAS_W)
+        out_h = clamp_even(int(round(out_w * mark.h / mark.w)), 2, CANVAS_H)
+        top = panel_y + int(CANVAS_H * STICKER_TOP)
+        side = int(CANVAS_W * STICKER_SIDE)
+        spots = [CANVAS_W - side - out_w, side]
+        if mark.x + mark.w / 2 < width / 2:
+            spots.reverse()                                          # on the side it came from, if that is free
+        free = [x for x in spots if not any(_overlap((x, top, out_w, out_h), box) > 0 for box in occupied)]
+        if free:
+            x = free[0]
+            inputs += [f"{tag}_st", f"{tag}_sm"]
+            boxes = ",".join(f"drawbox=x={cx}:y={cy}:w={cw}:h={ch}:color=white:t=fill" for cx, cy, cw, ch in cells)
+            lines += [
+                # The mask is drawn on a copy of the picture so it runs as long as the clip does.
+                f"[{tag}_sm]crop={2 * cols}:{2 * rows}:0:0,scale={cols}:{rows},format=yuv444p,"
+                f"drawbox=x=0:y=0:w={cols}:h={rows}:color=black:t=fill,{boxes},"
+                f"scale={out_w}:{out_h}:flags=bilinear,format=gray[{tag}_sk]",
+                f"[{tag}_st]crop={mark.w}:{mark.h}:{mark.x}:{mark.y},scale={out_w}:{out_h}:flags=lanczos,"
+                f"format=yuv444p[{tag}_sc]",
+                f"[{tag}_sc][{tag}_sk]alphamerge[{tag}_sa]",
+                f"{panel}[{tag}_sa]overlay={x}:{top - panel_y}:enable='gte(t,{STICKER_FROM_SECONDS:g})'[{tag}_ps]",
+            ]
+            panel = f"[{tag}_ps]"
+            occupied = list(occupied) + [(x, top, out_w, out_h)]
     if cam:
         lines.append(
             f"[{tag}_cam]crop={cam.w}:{cam.h}:{cam.x}:{cam.y},"
@@ -1515,11 +1645,15 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
             "cam_h": cam_h, "panel_y": panel_y, "panel_h": panel_h}
 
 
-def still_crop(focus: Rect, width: int, height: int, panel_h: int) -> Tuple[Rect, Optional[Tuple[int, int]]]:
+def still_crop(
+    focus: Rect, width: int, height: int, panel_h: int, fill: bool = False, avoid: Optional[Rect] = None
+) -> Tuple[Rect, Optional[Tuple[int, int]]]:
     """How a still picture's detailed part goes into the gameplay panel: (crop, fitted size or None).
 
     Narrower than the panel: the crop widens around it and fills the panel. Wider: more of the picture above and
-    below is taken in; when the whole height is not enough it is fitted to the panel width instead of cut.
+    below is taken in. When the whole height is not enough, a picture whose subject is ``focus`` (``fill``) is
+    cropped to the panel around it; any other is fitted to the panel width instead of cut. ``avoid`` is the
+    camera, already shown on top: the crop steps off it sideways when the frame has the room.
     """
     aspect = CANVAS_W / panel_h
     cx, cy = focus.x + focus.w / 2, focus.y + focus.h / 2
@@ -1528,14 +1662,22 @@ def still_crop(focus: Rect, width: int, height: int, panel_h: int) -> Tuple[Rect
         ch = clamp_even(int(round(cw / aspect)), 2, height)
     else:
         ch = int(round(focus.w / aspect))
-        if ch > height:
+        if ch > height and not fill:
             x = clamp_even(focus.x, 0, width - 2)
             cw = clamp_even(focus.w, 2, width - x)
             fit_h = clamp_even(int(round(CANVAS_W * height / cw)), 2, panel_h)
             return Rect(x, 0, cw, round_to_even(height)), (CANVAS_W, fit_h)
-        cw, ch = clamp_even(focus.w, 2, width), clamp_even(ch, 2, height)
+        if ch > height:
+            ch = round_to_even(height)
+            cw = clamp_even(int(round(ch * aspect)), 2, width)
+        else:
+            cw, ch = clamp_even(focus.w, 2, width), clamp_even(ch, 2, height)
     x = clamp_even(int(round(cx - cw / 2)), 0, width - cw)
     y = clamp_even(int(round(cy - ch / 2)), 0, height - ch)
+    if avoid is not None and x < avoid.x2 and avoid.x < x + cw and y < avoid.y2 and avoid.y < y + ch:
+        clear = avoid.x2 if avoid.x + avoid.w / 2 < width / 2 else avoid.x - cw
+        if 0 <= clear <= width - cw:
+            x = clamp_even(clear, 0, width - cw)
     return Rect(x, y, cw, ch), None
 
 
