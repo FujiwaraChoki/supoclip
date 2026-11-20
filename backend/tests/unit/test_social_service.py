@@ -61,7 +61,7 @@ class FakeRepo:
                 "email": "creator@example.com",
                 "name": "Ada Lovelace",
                 "first_name": "Ada",
-                "notify_on_publish": True,
+                "notify_on_publish": False,
             }
         }
 
@@ -162,7 +162,7 @@ class FakeRepo:
             "hook_title": post.get("hook_title"),
             "external_url": post.get("external_url"),
             "publish_notification_sent_at": post.get("publish_notification_sent_at"),
-            "notify_on_publish": user.get("notify_on_publish", True),
+            "notify_on_publish": user.get("notify_on_publish", False),
             "user_email": user.get("email"),
             "user_name": user.get("name"),
             "user_first_name": user.get("first_name"),
@@ -1677,6 +1677,7 @@ def _stub_publish_email(monkeypatch, *, configured=True, error=None):
 @pytest.mark.asyncio
 async def test_publish_post_sends_notification_email_when_enabled(service, provider, monkeypatch):
     sent = _stub_publish_email(monkeypatch)
+    service.repo.users["user-1"]["notify_on_publish"] = True
     account = await _connect(service)
     post = await service.create_post(
         "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
@@ -1700,6 +1701,7 @@ async def test_resolve_pending_post_sends_notification_email_once_published(
     service, provider, monkeypatch
 ):
     sent = _stub_publish_email(monkeypatch)
+    service.repo.users["user-1"]["notify_on_publish"] = True
     provider.publish_result = PublishResult(
         external_post_id=None, external_url=None, pending_handle="handle-1"
     )
@@ -1727,7 +1729,6 @@ async def test_resolve_pending_post_sends_notification_email_once_published(
 @pytest.mark.asyncio
 async def test_publish_post_skips_notification_email_when_disabled(service, provider, monkeypatch):
     sent = _stub_publish_email(monkeypatch)
-    service.repo.users["user-1"]["notify_on_publish"] = False
     account = await _connect(service)
     post = await service.create_post(
         "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
@@ -1746,6 +1747,7 @@ async def test_publish_post_skips_duplicate_notification_when_already_sent(
     service, provider, monkeypatch
 ):
     sent = _stub_publish_email(monkeypatch)
+    service.repo.users["user-1"]["notify_on_publish"] = True
     account = await _connect(service)
     post = await service.create_post(
         "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
@@ -1762,6 +1764,7 @@ async def test_publish_post_skips_duplicate_notification_when_already_sent(
 @pytest.mark.asyncio
 async def test_publish_post_ignores_notification_email_failure(service, provider, monkeypatch):
     _stub_publish_email(monkeypatch, error=RuntimeError("SES down"))
+    service.repo.users["user-1"]["notify_on_publish"] = True
     account = await _connect(service)
     post = await service.create_post(
         "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],

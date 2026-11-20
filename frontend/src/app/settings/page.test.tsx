@@ -29,7 +29,7 @@ const preferences = {
   fontSize: 24,
   fontColor: "#FFFFFF",
   notifyOnCompletion: true,
-  notifyOnPublish: true,
+  notifyOnPublish: false,
 };
 
 function billing(overrides: Record<string, unknown>) {
@@ -147,7 +147,7 @@ describe("settings plan section", () => {
       const url = String(input);
       if (url.includes("billing-summary")) return Response.json(billing({}));
       if (url.includes("/api/preferences") && init?.method === "PATCH") {
-        return Response.json({ ...preferences, notifyOnPublish: false });
+        return Response.json({ ...preferences, notifyOnPublish: true });
       }
       if (url.includes("/api/preferences")) return Response.json(preferences);
       if (url.includes("/api/fonts")) return Response.json({ fonts: [] });
@@ -158,10 +158,10 @@ describe("settings plan section", () => {
     render(<SettingsPage />);
 
     const publishSwitch = await screen.findByRole("switch", { name: /Publish emails/ });
-    expect(publishSwitch).toBeChecked();
+    expect(publishSwitch).not.toBeChecked();
 
     fireEvent.click(publishSwitch);
-    expect(publishSwitch).not.toBeChecked();
+    expect(publishSwitch).toBeChecked();
 
     fireEvent.click(await screen.findByRole("button", { name: "Save Preferences" }));
 
@@ -175,7 +175,7 @@ describe("settings plan section", () => {
             fontSize: 24,
             fontColor: "#FFFFFF",
             notifyOnCompletion: true,
-            notifyOnPublish: false,
+            notifyOnPublish: true,
           }),
         }),
       ),

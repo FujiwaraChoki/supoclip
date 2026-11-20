@@ -64,7 +64,7 @@ class User(Base):
         Boolean, nullable=False, server_default=sql_text("'true'")
     )
     notify_on_publish: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=sql_text("'true'")
+        Boolean, nullable=False, server_default=sql_text("'false'")
     )
     product_updates_unsubscribed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -42,7 +42,7 @@ export async function GET() {
       fontSize: user.default_font_size || 24,
       fontColor: user.default_font_color || "#FFFFFF",
       notifyOnCompletion: user.notify_on_completion ?? true,
-      notifyOnPublish: user.notify_on_publish ?? true,
+      notifyOnPublish: user.notify_on_publish ?? false,
       clipLength: user.default_clip_length || "auto",
       createSettings: parseCreateSettings(user.create_settings),
     });
@@ -163,7 +163,7 @@ export async function PATCH(request: NextRequest) {
       fontSize: updatedUser.default_font_size,
       fontColor: updatedUser.default_font_color,
       notifyOnCompletion: updatedUser.notify_on_completion,
-      notifyOnPublish: updatedUser.notify_on_publish ?? true,
+      notifyOnPublish: updatedUser.notify_on_publish ?? false,
       clipLength: updatedUser.default_clip_length || "auto",
       createSettings: parseCreateSettings(updatedUser.create_settings),
     });

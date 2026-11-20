@@ -25,14 +25,14 @@ it.each([false, true])(
       const defaults = await db.query<{ notify_on_publish: boolean }>(
         "SELECT notify_on_publish FROM users WHERE id = 'user-1'",
       );
-      expect(defaults.rows[0].notify_on_publish).toBe(true);
+      expect(defaults.rows[0].notify_on_publish).toBe(false);
 
       const postDefault = await db.query<{ publish_notification_sent_at: Date | null }>(
         "SELECT publish_notification_sent_at FROM social_posts WHERE id = 'post-1'",
       );
       expect(postDefault.rows[0].publish_notification_sent_at).toBeNull();
 
-      await db.exec("UPDATE users SET notify_on_publish = false WHERE id = 'user-1'");
+      await db.exec("UPDATE users SET notify_on_publish = true WHERE id = 'user-1'");
       await db.exec(
         "UPDATE social_posts SET publish_notification_sent_at = '2026-11-20T12:00:00Z' WHERE id = 'post-1'",
       );
@@ -42,7 +42,7 @@ it.each([false, true])(
       const userAfter = await db.query<{ notify_on_publish: boolean; notify_on_completion: boolean }>(
         "SELECT notify_on_publish, notify_on_completion FROM users WHERE id = 'user-1'",
       );
-      expect(userAfter.rows[0]).toEqual({ notify_on_publish: false, notify_on_completion: true });
+      expect(userAfter.rows[0]).toEqual({ notify_on_publish: true, notify_on_completion: true });
 
       const postAfter = await db.query<{ publish_notification_sent_at: Date }>(
         "SELECT publish_notification_sent_at FROM social_posts WHERE id = 'post-1'",

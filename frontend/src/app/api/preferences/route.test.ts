@@ -120,7 +120,7 @@ describe("/api/preferences", () => {
       default_font_size: 24,
       default_font_color: "#FFFFFF",
       notify_on_completion: true,
-      notify_on_publish: false,
+      notify_on_publish: true,
     });
     vi.mocked(getPrismaClient).mockReturnValue({
       user: { update },
@@ -135,7 +135,7 @@ describe("/api/preferences", () => {
           fontSize: 24,
           fontColor: "#FFFFFF",
           notifyOnCompletion: true,
-          notifyOnPublish: false,
+          notifyOnPublish: true,
         }),
       }) as never,
     );
@@ -143,7 +143,7 @@ describe("/api/preferences", () => {
     expect(update).toHaveBeenCalled();
     expect(update.mock.calls[0][0].data).toMatchObject({
       notify_on_completion: true,
-      notify_on_publish: false,
+      notify_on_publish: true,
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -151,7 +151,7 @@ describe("/api/preferences", () => {
       fontSize: 24,
       fontColor: "#FFFFFF",
       notifyOnCompletion: true,
-      notifyOnPublish: false,
+      notifyOnPublish: true,
       clipLength: "auto",
       createSettings: {},
     });

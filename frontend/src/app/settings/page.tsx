@@ -54,7 +54,7 @@ export default function SettingsPage() {
   const [fontSize, setFontSize] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
   const [completionEmails, setCompletionEmails] = useState(true);
-  const [publishEmails, setPublishEmails] = useState(true);
+  const [publishEmails, setPublishEmails] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -191,14 +191,14 @@ export default function SettingsPage() {
           setFontSize(data.fontSize);
           setFontColor(data.fontColor);
           setCompletionEmails(data.notifyOnCompletion ?? true);
-          setPublishEmails(data.notifyOnPublish ?? true);
+          setPublishEmails(data.notifyOnPublish ?? false);
           setSavedSnapshot(
             JSON.stringify([
               data.fontFamily,
               data.fontSize,
               data.fontColor,
               data.notifyOnCompletion ?? true,
-              data.notifyOnPublish ?? true,
+              data.notifyOnPublish ?? false,
             ]),
           );
         }

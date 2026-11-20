@@ -431,6 +431,7 @@ async def test_publish_notification_respects_user_setting_and_stamps_once(
 
     monkeypatch.setattr(social_service, "SocialPublishEmailService", FakePublishEmailService)
 
+    # Publish notifications are off by default.
     first_res = await client.post("/social/posts", headers=auth_headers, json=payload)
     assert first_res.status_code == 200
     first_post = first_res.json()["post"]
@@ -438,20 +439,19 @@ async def test_publish_notification_respects_user_setting_and_stamps_once(
     service = SocialService(db_session, queue_adapter=FakeQueue())
     published = await service.publish_post(first_post["id"])
     assert published["status"] == "published"
-    assert len(sent) == 1
-    assert sent[0]["recipient"].email == "user-1@example.com"
+    assert sent == []
 
-    row = (
+    first_row = (
         await db_session.execute(
             text("SELECT publish_notification_sent_at FROM social_posts WHERE id = :id"),
             {"id": first_post["id"]},
         )
     ).fetchone()
-    assert row.publish_notification_sent_at is not None
+    assert first_row.publish_notification_sent_at is None
 
-    # Turn off publish notifications for the user and publish another clip.
+    # Turn on publish notifications for the user and publish another clip.
     await db_session.execute(
-        text("UPDATE users SET notify_on_publish = false WHERE id = 'user-1'")
+        text("UPDATE users SET notify_on_publish = true WHERE id = 'user-1'")
     )
     await db_session.commit()
 
@@ -462,3 +462,12 @@ async def test_publish_notification_respects_user_setting_and_stamps_once(
     published_second = await service.publish_post(second_post["id"])
     assert published_second["status"] == "published"
     assert len(sent) == 1
+    assert sent[0]["recipient"].email == "user-1@example.com"
+
+    second_row = (
+        await db_session.execute(
+            text("SELECT publish_notification_sent_at FROM social_posts WHERE id = :id"),
+            {"id": second_post["id"]},
+        )
+    ).fetchone()
+    assert second_row.publish_notification_sent_at is not None
