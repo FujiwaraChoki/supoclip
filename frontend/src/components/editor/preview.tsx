@@ -40,7 +40,7 @@ import {
   type EditDocument,
   type EditorState,
 } from "@/lib/editor/document";
-import { playPreview } from "@/lib/editor/playback";
+import { playPreview, resumePreviewAudio } from "@/lib/editor/playback";
 import { drawEditorFrame, loadEditorFont, type TextDraft, type BRollLayer } from "@/lib/editor/render";
 import type { InspectorTab } from "./inspector";
 import { cn } from "@/lib/utils";
@@ -134,7 +134,7 @@ export function Preview({
     }
     if (audioRef.current) {
       audioRef.current.gain.gain.value = doc.muted ? 0 : doc.volume;
-      await audioRef.current.context.resume();
+      await resumePreviewAudio(audioRef.current.context);
     }
     const s = doc.segments[segmentIndex];
     if (video.currentTime < s.start || video.currentTime >= s.end - 0.01)
