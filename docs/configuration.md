@@ -281,12 +281,27 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `AUTH_SIGNATURE_TTL_SECONDS` | `300` | Lifetime of backend request signatures |
 | `PRO_PLAN_MINUTE_LIMIT` | `600` | Hosted-mode Pro allowance, in minutes of source video per month (`0` = unlimited) |
 | `SCALE_PLAN_MINUTE_LIMIT` | `1500` | Hosted-mode Creator (`scale`) allowance, in minutes of source video per month |
+| `TEAM_PLAN_INCLUDED_SEATS` | `3` | Seats included in the Team base subscription |
+| `TEAM_PLAN_MINUTE_LIMIT` | `3600` | Hosted-mode Team base pooled allowance, in minutes of source video per month (60 hours) |
+| `TEAM_EXTRA_SEAT_MINUTE_LIMIT` | `900` | Extra pooled minutes per month added for each seat above `TEAM_PLAN_INCLUDED_SEATS` (+15 hours) |
+| `TEAM_PLAN_AI_EDIT_LIMIT` | `300` | Hosted-mode Team pooled AI edits per month |
+| `TEAM_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube video length in seconds for Team workspaces (180 minutes) |
+| `VIDEO_JOB_TEAM_CONCURRENCY` | `3` | Maximum simultaneous video jobs running for a single team workspace |
 | `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the Pro plan |
 | `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `24.99` | Frontend display price for the Creator plan |
 | `NEXT_PUBLIC_PRO_PRICE_ANNUAL` | `99.90` | Frontend display price for a year of Pro |
 | `NEXT_PUBLIC_SCALE_PRICE_ANNUAL` | `249.90` | Frontend display price for a year of Creator |
 | `NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT` | `600` | Frontend display allowance for the Pro plan |
 | `NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT` | `1500` | Frontend display allowance for the Creator plan |
+| `NEXT_PUBLIC_TEAM_PRICE_MONTHLY` | `69` | Frontend display monthly price for the Team base plan |
+| `NEXT_PUBLIC_TEAM_PRICE_ANNUAL` | `690` | Frontend display annual price for the Team base plan |
+| `NEXT_PUBLIC_TEAM_SEAT_PRICE_MONTHLY` | `15` | Frontend display monthly price per extra Team seat |
+| `NEXT_PUBLIC_TEAM_SEAT_PRICE_ANNUAL` | `150` | Frontend display annual price per extra Team seat |
+| `NEXT_PUBLIC_TEAM_INCLUDED_SEATS` | `3` | Frontend display included seats for the Team base plan |
+| `NEXT_PUBLIC_TEAM_PLAN_MINUTE_LIMIT` | `3600` | Frontend display base pooled minute allowance for Team |
+| `NEXT_PUBLIC_TEAM_EXTRA_SEAT_MINUTE_LIMIT` | `900` | Frontend display extra pooled minutes per additional Team seat |
+| `NEXT_PUBLIC_TEAM_YOUTUBE_MAX_MINUTES` | `180` | Frontend display max YouTube video length (minutes) for Team |
+| `NEXT_PUBLIC_TEAM_AI_EDIT_LIMIT` | `300` | Frontend display pooled monthly AI edits for Team |
 | `NEXT_PUBLIC_SOCIAL_PUBLISHING` | `soon` | How Creator's scheduled posting appears on pricing pages: `soon` ("Coming soon" tag, YouTube and TikTok), `live`, or `off` |
 
 Plans are metered in minutes of source video. A video's full length, rounded up
@@ -319,6 +334,10 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_SCALE_PRICE_ID` | Price identifier for the Creator (`scale`) plan |
 | `STRIPE_PRO_ANNUAL_PRICE_ID` | Yearly price identifier for the Pro plan |
 | `STRIPE_SCALE_ANNUAL_PRICE_ID` | Yearly price identifier for the Creator plan |
+| `STRIPE_TEAM_PRICE_ID` | Monthly price identifier for the Team base subscription (includes 3 seats) |
+| `STRIPE_TEAM_SEAT_PRICE_ID` | Monthly per-seat add-on price identifier for seats beyond the included 3 |
+| `STRIPE_TEAM_ANNUAL_PRICE_ID` | Yearly price identifier for the Team base subscription |
+| `STRIPE_TEAM_SEAT_ANNUAL_PRICE_ID` | Yearly per-seat add-on price identifier for extra Team seats |
 | `STRIPE_PRO_LEGACY_PRICE_IDS` | Comma-separated earlier Pro prices existing subscribers still pay; they stay Pro and keep 1080p |
 | `STRIPE_SCALE_LEGACY_PRICE_IDS` | Comma-separated earlier Creator prices that still map to Creator |
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |

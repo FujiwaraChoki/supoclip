@@ -114,9 +114,79 @@ model User {
   email_change_request EmailChangeRequest?
   email_change_events  EmailChangeEvent[]
   email_change_log     EmailChangeLog[]
+  owned_teams          Team[]           @relation("TeamOwner")
+  team_memberships     TeamMember[]
+  sent_team_invitations TeamInvitation[] @relation("TeamInviter")
 
   @@map("users")
   feature_tours UserFeatureTour[]
+}
+
+model Team {
+  id                      String    @id @default(uuid()) @db.VarChar(36)
+  name                    String    @db.VarChar(120)
+  slug                    String    @unique @db.VarChar(80)
+  owner_id                String    @db.VarChar(36)
+  plan                    String    @default("free") @db.VarChar(20)
+  subscription_status     String    @default("inactive") @db.VarChar(20)
+  subscription_provider   String?   @db.VarChar(20)
+  stripe_customer_id      String?   @unique @db.VarChar(255)
+  stripe_account_id       String?   @db.VarChar(255)
+  stripe_subscription_id  String?   @unique @db.VarChar(255)
+  seat_limit              Int       @default(3)
+  billing_period_start    DateTime? @db.Timestamptz
+  billing_period_end      DateTime? @db.Timestamptz
+  subscription_cancel_at  DateTime? @db.Timestamptz
+  pending_plan            String?   @db.VarChar(20)
+  pending_plan_invoice_id String?   @db.VarChar(255)
+  created_at              DateTime  @default(now()) @db.Timestamptz
+  updated_at              DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  owner               User               @relation("TeamOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  members             TeamMember[]
+  invitations         TeamInvitation[]
+  tasks               Task[]
+  social_accounts     SocialAccount[]
+  social_oauth_states SocialOauthState[]
+  social_posts        SocialPost[]
+
+  @@index([owner_id], map: "ix_teams_owner_id")
+  @@map("teams")
+}
+
+model TeamMember {
+  team_id    String   @db.VarChar(36)
+  user_id    String   @db.VarChar(36)
+  role       String   @default("member") @db.VarChar(20)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([team_id, user_id])
+  @@index([user_id], map: "ix_team_members_user_id")
+  @@map("team_members")
+}
+
+model TeamInvitation {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  team_id     String    @db.VarChar(36)
+  email       String    @db.VarChar(255)
+  role        String    @default("member") @db.VarChar(20)
+  token_hash  String    @unique @db.VarChar(64)
+  invited_by  String?   @db.VarChar(36)
+  expires_at  DateTime  @db.Timestamptz
+  accepted_at DateTime? @db.Timestamptz
+  revoked_at  DateTime? @db.Timestamptz
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  team    Team  @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  inviter User? @relation("TeamInviter", fields: [invited_by], references: [id], onDelete: SetNull)
+
+  @@index([team_id, email], map: "ix_team_invitations_team_email")
+  @@index([email], map: "ix_team_invitations_email")
+  @@map("team_invitations")
 }
 
 // First-touch campaign attribution, written once shortly after sign-up.
@@ -270,6 +340,7 @@ model EmailChangeLog {
 model MinuteUsageEvent {
   id                      String   @id @db.VarChar(36)
   user_id                 String
+  team_id                 String?  @db.VarChar(36)
   task_id                 String?  @unique
   minutes                 Int
   source_duration_seconds Int
@@ -277,6 +348,7 @@ model MinuteUsageEvent {
   refunded_at             DateTime? @db.Timestamptz
 
   @@index([user_id, created_at], map: "ix_minute_usage_events_user_created")
+  @@index([team_id, created_at], map: "ix_minute_usage_events_team_created")
   @@map("minute_usage_events")
 }
 
@@ -284,16 +356,19 @@ model MinuteUsageEvent {
 model AIEditUsageEvent {
   job_id      String    @id @db.VarChar(32)
   user_id     String
+  team_id     String?   @db.VarChar(36)
   created_at  DateTime  @default(now()) @db.Timestamptz
   refunded_at DateTime? @db.Timestamptz
 
   @@index([user_id, created_at], map: "ix_ai_edit_usage_events_user_created")
+  @@index([team_id, created_at], map: "ix_ai_edit_usage_events_team_created")
   @@map("ai_edit_usage_events")
 }
 
 model Task {
   id                   String    @id @default(uuid())
   user_id              String
+  team_id              String?   @db.VarChar(36)
   source_id            String?
   generated_clips_ids  String[]
   status               String    @default("pending") @db.VarChar(20)
@@ -317,10 +392,12 @@ model Task {
 
   // Relationships
   user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team                 Team?     @relation(fields: [team_id], references: [id], onDelete: Cascade)
   source               Source?   @relation(fields: [source_id], references: [id], onDelete: SetNull)
   social_posts         SocialPost[]
 
   @@index([user_id])
+  @@index([team_id], map: "idx_tasks_team_id")
   @@index([source_id])
   @@index([created_at])
   @@index([status])
@@ -332,6 +409,7 @@ model Task {
 model SocialAccount {
   id                      String    @id @default(dbgenerated("(uuid_generate_v4())::text")) @db.VarChar(36)
   user_id                 String    @db.VarChar(36)
+  team_id                 String?   @db.VarChar(36)
   provider                String    @db.VarChar(20)
   external_account_id     String    @db.VarChar(255)
   display_name            String?   @db.VarChar(255)
@@ -349,23 +427,27 @@ model SocialAccount {
   revoked_at              DateTime? @db.Timestamptz
 
   user  User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team  Team?        @relation(fields: [team_id], references: [id], onDelete: Cascade)
   posts SocialPost[]
 
   @@unique([user_id, provider, external_account_id], map: "idx_social_accounts_unique_account")
   @@index([user_id], map: "idx_social_accounts_user_id")
+  @@index([team_id], map: "idx_social_accounts_team_id")
   @@map("social_accounts")
 }
 
 model SocialOauthState {
   state         String    @id @db.VarChar(128)
   user_id       String    @db.VarChar(36)
+  team_id       String?   @db.VarChar(36)
   provider      String    @db.VarChar(20)
   code_verifier String?   @db.VarChar(255)
   redirect_uri  String
   created_at    DateTime? @default(now()) @db.Timestamptz
   expires_at    DateTime  @db.Timestamptz
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team Team? @relation(fields: [team_id], references: [id], onDelete: Cascade)
 
   @@index([expires_at], map: "idx_social_oauth_states_expires_at")
   @@map("social_oauth_states")
@@ -374,6 +456,7 @@ model SocialOauthState {
 model SocialPost {
   id                     String    @id @default(dbgenerated("(uuid_generate_v4())::text")) @db.VarChar(36)
   user_id                String    @db.VarChar(36)
+  team_id                String?   @db.VarChar(36)
   task_id                String?   @db.VarChar(36)
   /// generated_clips(id), ON DELETE SET NULL (generated_clips is not modeled here).
   clip_id                String?   @db.VarChar(36)
@@ -409,11 +492,13 @@ model SocialPost {
   updated_at             DateTime? @default(now()) @db.Timestamptz
 
   user           User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team           Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
   task           Task?              @relation(fields: [task_id], references: [id], onDelete: SetNull)
   social_account SocialAccount?     @relation(fields: [social_account_id], references: [id], onDelete: SetNull)
   metric_history SocialPostMetric[]
 
   @@index([user_id], map: "idx_social_posts_user_id")
+  @@index([team_id], map: "idx_social_posts_team_id")
   @@index([clip_id], map: "idx_social_posts_clip_id")
   @@index([task_id], map: "idx_social_posts_task_id")
   @@index([status, scheduled_for], map: "idx_social_posts_status_scheduled")
