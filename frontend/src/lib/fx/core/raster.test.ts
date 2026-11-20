@@ -158,7 +158,7 @@ describe("raster goldens", () => {
       const ops = pictureOps({ ...IDENTITY_PICTURE, filter: [], slices: [], ...st }, 1080, 1920);
       expectGolden(`base__picture_${name}`, renderOpsToPng(ops, 1080, 1920, { background: false }));
     }
-  });
+  }, 30_000); // five full-size frames; a shared CI runner needs more than the default 5 s
 
   it("sticker looks", () => {
     const ops: DrawOp[] = [

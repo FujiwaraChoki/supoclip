@@ -9,10 +9,9 @@ import { applyMat } from "../layout";
 import type { AccentCue, AccentVariant, FaceTrack, FxCaptionStyle, FxScene } from "../types";
 import { fakeMeasureHost, makeScene } from "../test-utils/fake-host";
 import { expectGolden, renderSceneToPng } from "../test-utils/golden";
-import { ATLAS_DIR, TEST_FACE } from "../test-utils/napi-host";
+import { ATLAS_DIR, TEST_FACE, readAtlasMap } from "../test-utils/napi-host";
 import type { EmojiAtlas } from "../host";
 import { loadImage } from "@napi-rs/canvas";
-import atlasMap from "../../../../../../backend/src/fx_assets/emoji/atlas.json";
 
 /** JSON snapshot form: numbers to 3 dp so float noise never churns a snapshot. */
 export const snap = (ops: DrawOp[]): unknown =>
@@ -75,7 +74,8 @@ let atlas: Promise<EmojiAtlas> | null = null;
 export function decodedAtlas(): Promise<EmojiAtlas> {
   atlas ??= (async () => {
     const image = await loadImage(`${ATLAS_DIR}/atlas.png`);
-    return { image, cell: atlasMap.cell, glyphs: atlasMap.glyphs as EmojiAtlas["glyphs"] };
+    const atlasMap = readAtlasMap();
+    return { image, cell: atlasMap.cell, glyphs: atlasMap.glyphs };
   })();
   return atlas;
 }

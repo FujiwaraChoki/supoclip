@@ -26,6 +26,9 @@ export function registerFxFonts(): void {
 // Decoded once at import: `image.src = buffer` leaves a napi Image undecoded (width 0) when drawn right away, so
 // every sprite would draw nothing. Top-level await keeps `loadTestAtlas()` synchronous for the callers.
 const ATLAS_PNG = join(ATLAS_DIR, "atlas.png"), ATLAS_JSON = join(ATLAS_DIR, "atlas.json");
+/** The committed atlas map. Read at run time: importing the JSON would pull a backend file into the app's type
+ *  check, and the frontend image is built without the backend directory. */
+export const readAtlasMap = (): { cell: number; glyphs: EmojiAtlas["glyphs"] } => JSON.parse(readFileSync(ATLAS_JSON, "utf8"));
 const TEST_ATLAS: EmojiAtlas | null = existsSync(ATLAS_PNG) && existsSync(ATLAS_JSON)
   ? await (async () => {
     const map = JSON.parse(readFileSync(ATLAS_JSON, "utf8")) as { cell: number; glyphs: Record<string, { x: number; y: number }> };
