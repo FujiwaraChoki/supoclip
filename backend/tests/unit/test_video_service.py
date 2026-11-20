@@ -79,8 +79,10 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
     assert result["segments_to_render"] == [
         {
             "start_time": "00:00",
-            "end_time": "00:30",
-            "source_ranges": [[0.0, 30.0]],
+            # The video is 42 s long: the segment spans all of it and the render picks the 30 s (or a chapter).
+            "end_time": "00:42",
+            "source_ranges": [[0.0, 42.0]],
+            "fallback_seconds": 30.0,
             "text": "[00:00 - 00:01] hello",
             "relevance_score": 0.25,
             "reasoning": (

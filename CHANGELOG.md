@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-20
 
+- **Fixed:** A video with almost no speech, such as gameplay with music and no commentary, could come back as a clip under a second long. Cutting long pauses now checks the silence before the first word and after the last one for action, the way it already did between words, and a selected moment is never trimmed to less than three seconds. When such a video is built from chapters with title cards, like a comparison, the clip is now the first whole chapter instead of the first 30 seconds, which used to stop halfway through it. ([#492](https://github.com/FujiwaraChoki/supoclip/pull/492))
 - **Fixed:** A gameplay stream keeps the camera-on-top layout through cutscenes and conversations where a game character's face is larger than yours, and footage of a person filmed in real life is no longer framed as gameplay. ([#497](https://github.com/FujiwaraChoki/supoclip/pull/497))
 - **New:** Turn on publish emails under Settings → Notifications to get an email as soon as a clip finishes publishing to a connected social account, with a direct link to the live post. ([#496](https://github.com/FujiwaraChoki/supoclip/pull/496))
 - **Fixed:** TikTok publishing is back: connect a TikTok account and publish or schedule clips directly as public or private posts again. If an account hits TikTok's daily posting limit, SupoClip now explains the limit clearly instead of retrying automatically. ([#494](https://github.com/FujiwaraChoki/supoclip/pull/494))
