@@ -65,6 +65,16 @@ class YouTubeAgeRestrictedError(YouTubeDownloadError):
         )
 
 
+class YouTubeVideoPrivateError(YouTubeDownloadError):
+    """The owner made the source private; only accounts they invited can watch it."""
+
+    def __init__(self):
+        super().__init__(
+            "This YouTube video is private, so we can't access it. Ask the owner to make "
+            "it public or unlisted, or download it yourself and upload the file instead."
+        )
+
+
 def _exception_chain(exc: BaseException):
     """yt-dlp also retains its extractor error in DownloadError.exc_info."""
     pending = [exc]
@@ -106,6 +116,18 @@ def is_age_restricted_error(exc: BaseException) -> bool:
             return True
         message = str(error).lower()
         if "confirm your age" in message or "age-restricted" in message:
+            return True
+    return False
+
+
+def is_private_video_error(exc: BaseException) -> bool:
+    """yt-dlp's answer for a private video. Bot checks also say "Sign in", so
+    only the explicit private-video wording counts."""
+    for error in _exception_chain(exc):
+        if isinstance(error, YouTubeVideoPrivateError):
+            return True
+        message = str(error).lower()
+        if "private video" in message or "this video is private" in message:
             return True
     return False
 
