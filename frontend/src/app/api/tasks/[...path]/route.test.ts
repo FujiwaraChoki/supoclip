@@ -94,3 +94,48 @@ it("rejects a malformed storage redirect", async () => {
   vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: "file:///private" } }));
   expect((await GET(new Request("https://app.example/"), context())).status).toBe(502);
 });
+
+class ResponseAborted extends Error { override name = "ResponseAborted"; }
+
+function disconnectedRequest(reason: unknown = new ResponseAborted()) {
+  const controller = new AbortController();
+  controller.abort(reason);
+  return new Request("https://app.example/", { signal: controller.signal });
+}
+
+it("answers an empty 499 when the browser leaves before the backend responds", async () => {
+  const request = disconnectedRequest();
+  vi.mocked(fetchBackend).mockRejectedValue(request.signal.reason);
+  const response = await GET(request, context(["task", "progress"]));
+  expect(response.status).toBe(499);
+  expect(await response.text()).toBe("");
+  expect(fetchBackend).toHaveBeenCalledWith("/tasks/task/progress", expect.objectContaining({ signal: request.signal }));
+});
+
+it("answers an empty 499 when the browser leaves before storage responds", async () => {
+  const request = disconnectedRequest();
+  vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: signed } }));
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(request.signal.reason));
+  const response = await GET(request, context());
+  expect(response.status).toBe(499);
+  expect(await response.text()).toBe("");
+});
+
+it.each([
+  ["the request was not aborted", () => [new Request("https://app.example/"), new ResponseAborted()] as const],
+  ["the error is not the abort reason", () => [disconnectedRequest(), new ResponseAborted()] as const],
+  ["the abort is not a client disconnect", () => {
+    const request = disconnectedRequest(new DOMException("aborted", "AbortError"));
+    return [request, request.signal.reason] as const;
+  }],
+])("rethrows fetch failures when %s", async (_, setup) => {
+  const [request, error] = setup();
+  vi.mocked(fetchBackend).mockRejectedValue(error);
+  await expect(GET(request, context(["task"]))).rejects.toBe(error);
+});
+
+it("rethrows backend failures that are not client disconnects", async () => {
+  const error = new TypeError("fetch failed");
+  vi.mocked(fetchBackend).mockRejectedValue(error);
+  await expect(GET(new Request("https://app.example/"), context(["task"]))).rejects.toBe(error);
+});
