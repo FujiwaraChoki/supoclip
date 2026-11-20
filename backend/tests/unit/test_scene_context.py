@@ -417,6 +417,25 @@ def test_a_montage_with_one_document_keeps_its_crops():
     assert plan[3]["x"] == pytest.approx(0.7)
 
 
+def test_footage_with_captions_the_crop_would_cut_keeps_the_whole_picture():
+    # An edited video without faces: a two-line caption comes up in a quarter of the shot, wider than the crop.
+    samples = [footage(i / 3, text_block_lines=2, cut_text_lines=2) if i % 4 == 0 else footage(i / 3)
+               for i in range(60)]
+    assert build_context_layout_plan(samples, [], 20, 0.316)[0]["kind"] == "fit"
+    # A title card: one line across the frame, in every sample.
+    card = [footage(i / 3, cut_text_lines=1) for i in range(9)]
+    assert build_context_layout_plan(card, [], 3, 0.316)[0]["kind"] == "fit"
+    # A drawn map: labels everywhere, two or more cut in most samples.
+    drawn = [footage(i / 3, cut_text_lines=3) for i in range(30)]
+    assert build_context_layout_plan(drawn, [], 10, 0.316)[0]["kind"] == "fit"
+
+
+def test_stray_lines_in_plain_footage_do_not_stop_the_crop():
+    # Signs and textures: a line cut in half the samples, two in a fifth, no caption block. As measured on gameplay.
+    samples = [footage(i / 3, cut_text_lines=2 if i % 5 == 0 else (1 if i % 2 == 0 else 0)) for i in range(60)]
+    assert build_context_layout_plan(samples, [], 20, 0.316)[0]["kind"] == "cover"
+
+
 def test_mostly_fitted_content_still_letterboxes_throughout():
     samples = [footage(i / 3) for i in range(6)] + [SceneEvidence(2 + i / 3, text_block_lines=4) for i in range(30)]
     plan = build_context_layout_plan(samples, [2], 12, 0.316)
