@@ -104,5 +104,7 @@
     "yearly": "Jährlich",
     "monthsFree": "{count, plural, one {# Monat gratis} other {# Monate gratis}}"
   },
-  "comingSoon": "Demnächst"
+  "comingSoon": "Demnächst",
+  "teamWorkspaceBody": "{team} nutzt ein gemeinsames Team-Abo. Eigentümer können den Tarif aktivieren oder Plätze hinzufügen, um das Stundenkontingent zu erhöhen.",
+  "manageTeamSeats": "Team & Plätze verwalten"
 }

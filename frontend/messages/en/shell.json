@@ -25,7 +25,9 @@
     "social": "Social accounts",
     "socialHint": "Connect YouTube, TikTok & Instagram",
     "analyticsHint": "How your published clips perform",
-    "agentsHint": "API keys & MCP"
+    "agentsHint": "API keys & MCP",
+    "team": "Team & workspaces",
+    "teamHint": "Manage members, seats & pooled hours"
   },
   "usage": {
     "pickPlan": "Pick a plan to start clipping",
@@ -35,7 +37,9 @@
     "minutesOf": "{used} / {limit} min",
     "minutes": "{used} min",
     "minutesLeft": "{count} min left this month",
-    "minutesThisMonth": "minutes of video this month"
+    "minutesThisMonth": "minutes of video this month",
+    "activateTeam": "Activate Team plan",
+    "addTeamSeats": "Add seats or manage team"
   },
   "user": {
     "creator": "Creator",
@@ -66,5 +70,13 @@
     "success": "Feedback submitted — thank you!",
     "failed": "Failed to submit feedback",
     "error": "Something went wrong"
+  },
+  "workspace": {
+    "label": "Workspaces",
+    "switchAria": "Switch workspace",
+    "personal": "Personal",
+    "personalSubtitle": "Personal workspace",
+    "teamSettings": "Team settings",
+    "createTeam": "Create a team"
   }
 }

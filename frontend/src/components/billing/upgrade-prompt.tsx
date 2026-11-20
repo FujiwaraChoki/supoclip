@@ -48,6 +48,10 @@ type UpgradeBilling = Pick<
   | "remaining_minutes"
   | "period_end"
   | "upgrade_required"
+  | "workspace_type"
+  | "team_id"
+  | "team_name"
+  | "seat_limit"
 >;
 
 /**
@@ -233,9 +237,14 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
   const text = useBillingPlanText();
   const settings = useTranslations("settings");
   const state = getUpgradeState(billing);
+  const isTeamWorkspace = billing?.workspace_type === "team" || billing?.plan === "team";
   const allPlans = getPublicBillingPlans();
   // Free users choose between every plan; subscribers see their plan next to the step up.
-  const options: PublicBillingPlan[] = state?.isPaid ? (state.nextPlan ? [state.nextPlan] : []) : allPlans;
+  const options: PublicBillingPlan[] = isTeamWorkspace
+    ? []
+    : state?.isPaid
+      ? (state.nextPlan ? [state.nextPlan] : [])
+      : allPlans;
   const currentPlan = state?.isPaid ? allPlans.find((plan) => plan.id === billing?.plan) : undefined;
   const preferred = preferredPlan(reason, options);
   const [selected, setSelected] = useState<BillingPlanId | undefined>(preferred);
@@ -289,6 +298,10 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
 
           {state?.needsPayment ? (
             <PaymentFailedBanner className="mt-6" />
+          ) : isTeamWorkspace ? (
+            <div className="mt-6 rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">
+              <p>{text.t("teamWorkspaceBody", { team: billing?.team_name || text.planName("team") })}</p>
+            </div>
           ) : state?.managedByAppStore ? (
             <p className="mt-6 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
               {text.t("appStore")}
@@ -326,7 +339,15 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
           {target && !state?.isPaid && !state?.needsPayment && <CreatorCodeField className="mt-4 self-start" />}
 
           <div className="mt-6 flex flex-col gap-2">
-            {target && !state?.managedByAppStore && !state?.needsPayment && (
+            {isTeamWorkspace && !state?.needsPayment && (
+              <Button asChild size="lg" onClick={() => onOpenChange(false)}>
+                <Link href="/settings/team">
+                  {text.t("manageTeamSeats")}
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            )}
+            {target && !isTeamWorkspace && !state?.managedByAppStore && !state?.needsPayment && (
               <Button size="lg" onClick={handleContinue} disabled={isRedirecting}>
                 {isRedirecting ? <Loader2 className="size-4 animate-spin" /> : null}
                 {isRedirecting ? text.t("openingCheckout") : text.t("continueWith", { name: text.planName(target.id) })}

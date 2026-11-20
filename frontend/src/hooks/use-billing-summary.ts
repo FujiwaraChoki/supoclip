@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+export const WORKSPACE_CHANGED_EVENT = "supoclip:workspace-changed";
+
 export interface BillingSummary {
   monetization_enabled: boolean;
   plan: string;
@@ -29,12 +31,19 @@ export interface BillingSummary {
   max_upload_duration_seconds?: number;
   /** Configured upload size cap in bytes. */
   max_upload_bytes?: number;
+  /** Workspace scope ("personal" or "team") and team metadata when active. */
+  workspace_type?: "personal" | "team";
+  team_id?: string | null;
+  team_name?: string | null;
+  seat_limit?: number | null;
+  included_seats?: number | null;
 }
 
 // One in-flight request shared by the shell and the page it wraps.
 let pending: Promise<BillingSummary | null> | null = null;
 
-function loadBillingSummary() {
+function loadBillingSummary(force = false) {
+  if (force) pending = null;
   pending ??= fetch("/api/tasks/billing-summary", { cache: "no-store" })
     .then((response) => (response.ok ? (response.json() as Promise<BillingSummary>) : null))
     .catch(() => null)
@@ -42,13 +51,30 @@ function loadBillingSummary() {
   return pending;
 }
 
+export function invalidateBillingSummary() {
+  pending = null;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(WORKSPACE_CHANGED_EVENT));
+  }
+}
+
 export function useBillingSummary(enabled: boolean) {
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    void loadBillingSummary().then((data) => { if (!cancelled) setSummary(data); });
-    return () => { cancelled = true; };
+    const fetchNow = (force = false) => {
+      void loadBillingSummary(force).then((data) => {
+        if (!cancelled) setSummary(data);
+      });
+    };
+    fetchNow();
+    const onWorkspaceChanged = () => fetchNow(true);
+    window.addEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
+    };
   }, [enabled]);
   const update = useCallback((patch: Partial<BillingSummary>) => {
     setSummary((current) => (current ? { ...current, ...patch } : current));

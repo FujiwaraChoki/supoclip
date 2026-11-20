@@ -440,7 +440,23 @@
     },
     "publishPlatforms": "Post clips to YouTube Shorts and TikTok",
     "schedulingPlatforms": "Schedule clips to YouTube Shorts and TikTok",
-    "schedulingSoon": "Scheduling to Instagram"
+    "schedulingSoon": "Scheduling to Instagram",
+    "team": {
+      "badge": "Teams & Agencies",
+      "description": "For clipping crews, agencies, and creators with editors.",
+      "seatAddon": "Includes {seats} seats · +${price}/extra seat (+{hours}h)",
+      "seatsLabel": "{count} seats",
+      "decreaseSeats": "Decrease seats",
+      "increaseSeats": "Increase seats",
+      "cta": "Start a Team",
+      "features": {
+        "pooledHours": "{hours} pooled hours of video/month",
+        "seats": "{seats} seats with shared clip library",
+        "quality": "Full HD {resolution} clips · YouTube up to {hours}h",
+        "sharedWorkspace": "Social scheduling & {aiEdits} pooled AI edits/mo",
+        "roles": "Owner, Admin & Member roles + faster concurrency"
+      }
+    }
   },
   "faq": {
     "eyebrow": "FAQ",

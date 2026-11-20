@@ -440,7 +440,23 @@
     },
     "publishPlatforms": "Publica clips en YouTube Shorts y TikTok",
     "schedulingPlatforms": "Programa clips en YouTube Shorts y TikTok",
-    "schedulingSoon": "Programación en Instagram"
+    "schedulingSoon": "Programación en Instagram",
+    "team": {
+      "badge": "Equipos y Agencias",
+      "description": "Para equipos de edición, agencias y creadores con editores.",
+      "seatAddon": "Incluye {seats} puestos · +${price}/puesto extra (+{hours} h)",
+      "seatsLabel": "{count} puestos",
+      "decreaseSeats": "Reducir puestos",
+      "increaseSeats": "Aumentar puestos",
+      "cta": "Crear un equipo",
+      "features": {
+        "pooledHours": "{hours} horas compartidas de video/mes",
+        "seats": "{seats} puestos con biblioteca compartida",
+        "quality": "Clips Full HD {resolution} · YouTube hasta {hours} h",
+        "sharedWorkspace": "Programación social y {aiEdits} ediciones IA/mes",
+        "roles": "Roles de Propietario, Admin y Miembro + mayor concurrencia"
+      }
+    }
   },
   "faq": {
     "eyebrow": "Preguntas frecuentes",

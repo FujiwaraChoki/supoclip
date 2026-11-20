@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, Bot, ChartColumn, CornerDownLeft, Film, ListChecks, ListOrdered, LogOut, Play, Plus, Search, Settings, Share2, Shield, Sparkles, Target,
+  ArrowRight, Bot, ChartColumn, CornerDownLeft, Film, ListChecks, ListOrdered, LogOut, Play, Plus, Search, Settings, Share2, Shield, Sparkles, Target, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { FeatureTourHost } from "@/components/feature-tour";
+import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import type { Workflow } from "@/lib/workflows";
 
 // `mobile: false` keeps an item out of the five-slot mobile tab bar.
@@ -111,7 +112,11 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
           {!compact && "SupoClip"}
         </Link>
 
-        <SidebarLink compact={compact} href="/" label={t("nav.newGeneration")} shortcut="N" className="mb-4 mt-1 bg-foreground text-background hover:bg-foreground/90 hover:text-background">
+        <div className="mb-3 w-full">
+          <WorkspaceSwitcher compact={compact} />
+        </div>
+
+        <SidebarLink compact={compact} href="/" label={t("nav.newGeneration")} shortcut="N" className="mb-4 bg-foreground text-background hover:bg-foreground/90 hover:text-background">
           <Plus className="size-4" />
         </SidebarLink>
 
@@ -152,6 +157,7 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
             <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px] dark:invert" />SupoClip
           </Link>
           <div className="flex items-center gap-1">
+            <WorkspaceSwitcher compact className="size-9 border-0 bg-transparent" />
             <Announcements key={user.id} userId={user.id} compact />
             <ThemeToggle tooltipSide="bottom" className="rounded-lg p-2 hover:bg-accent [&_svg]:size-5" />
             <button type="button" onClick={() => setPaletteOpen(true)} aria-label={t("search.generations")} className="rounded-lg p-2 text-muted-foreground hover:bg-accent">
@@ -216,20 +222,30 @@ function SidebarLink({ href, label, active, compact, shortcut, className, tour, 
 function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBillingSummary>[0]> }) {
   const t = useTranslations("shell");
   const tCommon = useTranslations("common");
+  const isTeam = billing.workspace_type === "team";
   const limit = billing.minute_limit ?? null;
   const used = billing.usage_minutes ?? 0;
   const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
   const upgrade = getUpgradeState(billing);
-  const nudge = !upgrade?.isPaid
+  const nudge = isTeam
+    ? !upgrade?.isPaid
+      ? t("usage.activateTeam")
+      : upgrade.atLimit || upgrade.nearLimit
+      ? t("usage.addTeamSeats")
+      : null
+    : !upgrade?.isPaid
     ? t("usage.pickPlan")
     : upgrade.nextPlan && (upgrade.atLimit || upgrade.nearLimit)
     ? t("usage.moreWith", { name: tCommon(`plans.${billingPlanMessageKey(upgrade.nextPlan.id)}`) })
     : null;
+  const planTitle = isTeam
+    ? billing.team_name || tCommon("plans.team")
+    : tCommon(`plans.${billingPlanMessageKey(billing.plan)}`);
   return (
-    <Link data-tour="usage" href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
-      <div className="flex items-center justify-between">
-        <span className="font-semibold">{tCommon(`plans.${billingPlanMessageKey(billing.plan)}`)}</span>
-        <span className="text-muted-foreground tabular-nums">
+    <Link data-tour="usage" href={isTeam ? "/settings/team" : "/settings#plan"} className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-semibold">{planTitle}</span>
+        <span className="shrink-0 text-muted-foreground tabular-nums">
           {limit ? t("usage.minutesOf", { used, limit }) : t("usage.minutes", { used })}
         </span>
       </div>
@@ -324,6 +340,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
       ...(socialAccess === true ? [{ id: "social", label: t("palette.social"), hint: t("palette.socialHint"), href: "/settings/social", icon: Share2 },
       { id: "analytics", label: t("nav.analytics"), hint: t("palette.analyticsHint"), href: "/analytics", icon: ChartColumn }] : []),
       { id: "keys", label: t("nav.agents"), hint: t("palette.agentsHint"), href: "/settings/api-keys", icon: Bot },
+      { id: "team", label: t("palette.team"), hint: t("palette.teamHint"), href: "/settings/team", icon: Users },
       { id: "settings", label: t("nav.settings"), href: "/settings", icon: Settings },
     ].filter((entry) => !q || entry.label.toLowerCase().includes(q));
     const matches = generations

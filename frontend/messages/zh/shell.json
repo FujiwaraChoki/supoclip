@@ -25,7 +25,9 @@
     "social": "社交账号",
     "socialHint": "连接 YouTube、TikTok 和 Instagram",
     "analyticsHint": "已发布短片的表现",
-    "agentsHint": "API 密钥与 MCP"
+    "agentsHint": "API 密钥与 MCP",
+    "team": "团队与工作区",
+    "teamHint": "管理成员、席位与共享时长"
   },
   "usage": {
     "pickPlan": "选择套餐，开始剪辑",
@@ -35,7 +37,9 @@
     "minutesOf": "{used} / {limit} 分钟",
     "minutes": "{used} 分钟",
     "minutesLeft": "本月剩余 {count} 分钟",
-    "minutesThisMonth": "本月视频分钟数"
+    "minutesThisMonth": "本月视频分钟数",
+    "activateTeam": "开通团队套餐",
+    "addTeamSeats": "增加席位或管理团队"
   },
   "user": {
     "creator": "创作者",
@@ -66,5 +70,13 @@
     "success": "反馈已提交 — 谢谢！",
     "failed": "反馈提交失败",
     "error": "出了点问题"
+  },
+  "workspace": {
+    "label": "工作区",
+    "switchAria": "切换工作区",
+    "personal": "个人",
+    "personalSubtitle": "个人工作区",
+    "teamSettings": "团队设置",
+    "createTeam": "创建团队"
   }
 }

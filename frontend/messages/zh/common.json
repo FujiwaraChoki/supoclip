@@ -14,7 +14,8 @@
     "free": "免费",
     "pro": "Pro",
     "scale": "Creator",
-    "selfHost": "自托管"
+    "selfHost": "自托管",
+    "team": "团队版"
   },
   "duration": {
     "hours": "{count} 小时",

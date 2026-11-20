@@ -104,5 +104,7 @@
     "yearly": "Anual",
     "monthsFree": "{count, plural, one {# mes gratis} other {# meses gratis}}"
   },
-  "comingSoon": "Próximamente"
+  "comingSoon": "Próximamente",
+  "teamWorkspaceBody": "{team} usa una suscripción compartida de Equipo. Los propietarios pueden activar el plan o agregar puestos para ampliar las horas mensuales.",
+  "manageTeamSeats": "Gestionar equipo y puestos"
 }

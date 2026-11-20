@@ -104,5 +104,7 @@
     "yearly": "Tahunan",
     "monthsFree": "{count, plural, one {# bulan gratis} other {# bulan gratis}}"
   },
-  "comingSoon": "Segera hadir"
+  "comingSoon": "Segera hadir",
+  "teamWorkspaceBody": "{team} menggunakan langganan Tim bersama. Pemilik dapat mengaktifkan paket atau menambah kursi untuk memperluas jam bulanan.",
+  "manageTeamSeats": "Kelola tim & kursi"
 }

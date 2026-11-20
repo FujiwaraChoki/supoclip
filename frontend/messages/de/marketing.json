@@ -440,7 +440,23 @@
     },
     "publishPlatforms": "Clips auf YouTube Shorts und TikTok posten",
     "schedulingPlatforms": "Clips auf YouTube Shorts und TikTok planen",
-    "schedulingSoon": "Planen für Instagram"
+    "schedulingSoon": "Planen für Instagram",
+    "team": {
+      "badge": "Teams & Agenturen",
+      "description": "Für Clipping-Crews, Agenturen und Creator mit Editoren.",
+      "seatAddon": "Inkl. {seats} Plätze · +${price}/Zusatzplatz (+{hours} Std.)",
+      "seatsLabel": "{count} Plätze",
+      "decreaseSeats": "Plätze verringern",
+      "increaseSeats": "Plätze erhöhen",
+      "cta": "Team starten",
+      "features": {
+        "pooledHours": "{hours} gemeinsame Videostunden/Monat",
+        "seats": "{seats} Plätze mit geteilter Clip-Mediathek",
+        "quality": "Full-HD-{resolution}-Clips · YouTube bis {hours} Std.",
+        "sharedWorkspace": "Social-Planung & {aiEdits} gemeinsame KI-Edits/Monat",
+        "roles": "Eigentümer-, Admin- & Mitgliedsrollen + höhere Parallelität"
+      }
+    }
   },
   "faq": {
     "eyebrow": "FAQ",

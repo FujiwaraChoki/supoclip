@@ -104,5 +104,7 @@
     "yearly": "Yearly",
     "monthsFree": "{count, plural, one {# month free} other {# months free}}"
   },
-  "comingSoon": "Coming soon"
+  "comingSoon": "Coming soon",
+  "teamWorkspaceBody": "{team} uses a pooled Team subscription. Owners can activate the plan or add seats to expand pooled monthly hours.",
+  "manageTeamSeats": "Manage team & seats"
 }

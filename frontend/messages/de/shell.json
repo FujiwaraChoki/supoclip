@@ -25,7 +25,9 @@
     "social": "Social-Konten",
     "socialHint": "YouTube, TikTok und Instagram verbinden",
     "analyticsHint": "So laufen deine veröffentlichten Clips",
-    "agentsHint": "API-Schlüssel & MCP"
+    "agentsHint": "API-Schlüssel & MCP",
+    "team": "Team & Workspaces",
+    "teamHint": "Mitglieder, Plätze & gemeinsame Stunden verwalten"
   },
   "usage": {
     "pickPlan": "Wähl einen Tarif, um loszulegen",
@@ -35,7 +37,9 @@
     "minutesOf": "{used} / {limit} Min.",
     "minutes": "{used} Min.",
     "minutesLeft": "noch {count} Min. diesen Monat",
-    "minutesThisMonth": "Minuten Video diesen Monat"
+    "minutesThisMonth": "Minuten Video diesen Monat",
+    "activateTeam": "Team-Tarif aktivieren",
+    "addTeamSeats": "Plätze hinzufügen oder Team verwalten"
   },
   "user": {
     "creator": "Creator",
@@ -66,5 +70,13 @@
     "success": "Feedback gesendet — danke!",
     "failed": "Feedback konnte nicht gesendet werden",
     "error": "Etwas ist schiefgelaufen"
+  },
+  "workspace": {
+    "label": "Workspaces",
+    "switchAria": "Workspace wechseln",
+    "personal": "Persönlich",
+    "personalSubtitle": "Persönlicher Workspace",
+    "teamSettings": "Team-Einstellungen",
+    "createTeam": "Team erstellen"
   }
 }

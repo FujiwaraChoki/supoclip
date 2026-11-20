@@ -70,7 +70,14 @@
     "monthlyEquivalentYearly": "${price}/mês, cobrado anualmente",
     "transferCancel": "Cancelar assinatura",
     "transferCancelConfirm": "Cancelar as próximas renovações da sua assinatura? O período já pago continuará disponível.",
-    "transferCancelSuccess": "As próximas renovações foram canceladas."
+    "transferCancelSuccess": "As próximas renovações foram canceladas.",
+    "teamWorkspaceTitle": "Espaço ativo: {team}",
+    "teamWorkspaceBody": "Cobrança, horas compartilhadas e assentos deste espaço são gerenciados nas configurações da equipe.",
+    "manageTeam": "Gerenciar equipe e assentos",
+    "teamPriceMonthly": "${price}/mês + ${extraPrice}/assento extra",
+    "teamPriceYearly": "${price}/ano + ${extraPrice}/assento extra",
+    "teamSummary": "Inclui {seats} assentos e {hours} horas compartilhadas/mês. Cada assento extra soma +{extraHours} horas.",
+    "createTeamCta": "Criar equipe"
   },
   "links": {
     "agentsTitle": "Agentes e API",
@@ -78,7 +85,9 @@
     "socialTitle": "Contas sociais",
     "socialDescription": "Conecte YouTube, TikTok e Instagram para publicar clipes e acompanhar o desempenho",
     "creatorTitle": "Programa de criadores",
-    "creatorDescription": "Faça vídeos sobre o SupoClip, ganhe o Pro de graça e um código para o seu público"
+    "creatorDescription": "Faça vídeos sobre o SupoClip, ganhe o Pro de graça e um código para o seu público",
+    "teamTitle": "Equipe e espaços de trabalho",
+    "teamDescription": "Compartilhe horas mensais de vídeo, gerencie assentos e convide editores"
   },
   "save": {
     "saved": "Preferências salvas!",

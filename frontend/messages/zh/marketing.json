@@ -440,7 +440,23 @@
     },
     "publishPlatforms": "发布片段到 YouTube Shorts 和 TikTok",
     "schedulingPlatforms": "定时发布片段到 YouTube Shorts 和 TikTok",
-    "schedulingSoon": "定时发布到 Instagram"
+    "schedulingSoon": "定时发布到 Instagram",
+    "team": {
+      "badge": "团队与机构",
+      "description": "适合切片团队、MCN 机构及配备剪辑师的创作者。",
+      "seatAddon": "含 {seats} 个席位 · 额外席位 +${price}（+{hours} 小时）",
+      "seatsLabel": "{count} 个席位",
+      "decreaseSeats": "减少席位",
+      "increaseSeats": "增加席位",
+      "cta": "创建团队",
+      "features": {
+        "pooledHours": "每月 {hours} 小时共享视频时长",
+        "seats": "{seats} 个席位及共享切片库",
+        "quality": "Full HD {resolution} 切片 · 最长 {hours} 小时 YouTube 视频",
+        "sharedWorkspace": "社交定时发布与每月 {aiEdits} 次共享 AI 编辑",
+        "roles": "所有者、管理员与成员权限 + 更高并发处理"
+      }
+    }
   },
   "faq": {
     "eyebrow": "常见问题",

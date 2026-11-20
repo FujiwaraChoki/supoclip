@@ -104,5 +104,7 @@
     "yearly": "按年",
     "monthsFree": "免费 {count} 个月"
   },
-  "comingSoon": "即将推出"
+  "comingSoon": "即将推出",
+  "teamWorkspaceBody": "{team} 使用共享团队订阅。团队所有者可以开通套餐或增加席位以扩充每月共享时长。",
+  "manageTeamSeats": "管理团队与席位"
 }
