@@ -56,6 +56,7 @@ from ..media.timeline import seconds_to_mmss
 from ..workflows.boundaries import cleanup_key
 from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_from_task
 from ..workflows.errors import WorkflowError
+from ..speech_check import LOW_SPEECH_CHECK_KEY, LOW_SPEECH_CODE, LOW_SPEECH_CONFIRMED_KEY
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
@@ -439,6 +440,12 @@ class TaskService(ClipEditingMixin):
                 metadata["storage_reference"] = stored.storage_reference
             await self.task_repo.save_source_metadata(self.db, task_id, metadata)
 
+        # Creating a video again after its low-speech notice is the "make clips anyway" answer.
+        if await self.task_repo.had_low_speech_notice(self.db, user_id, url):
+            await self.task_repo.save_source_metadata(
+                self.db, task_id, {LOW_SPEECH_CONFIRMED_KEY: True}
+            )
+
         logger.info(f"Created task {task_id} for user {user_id}")
         return task_id
 
@@ -661,6 +668,22 @@ class TaskService(ClipEditingMixin):
                     "outline_cache_key": outline_cache_key,
                     "cleanup_settings": normalized_cleanup_settings,
                 }
+
+            # Ask before making clips from a video with little speech when the
+            # flag was on at creation, unless the user already chose to, or
+            # this task got past that point.
+            speech_check = False
+            if (
+                self.config.low_speech_words_per_minute > 0
+                and not prior_outputs
+                and not any(checkpoint.get(key) for key in ("analysis", "candidates", "segments", "workflow_final"))
+            ):
+                task_metadata = await self.task_repo.load_source_metadata(self.db, task_id)
+                speech_check = bool(task_metadata.get(LOW_SPEECH_CHECK_KEY)) and not task_metadata.get(
+                    LOW_SPEECH_CONFIRMED_KEY
+                )
+            if speech_check:
+                workflow_kwargs["speech_check"] = True
 
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
@@ -1039,7 +1062,7 @@ class TaskService(ClipEditingMixin):
             )
             if is_workflow_error and prior_outputs:
                 is_workflow_error = False
-            if is_workflow_error:
+            if is_workflow_error and e.code != LOW_SPEECH_CODE:
                 try:
                     await self.task_repo.merge_workflow_plan_error(
                         self.db, task_id, e.code, e.details or {}

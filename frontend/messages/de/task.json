@@ -272,6 +272,11 @@
       "body": "Für genaue Schnitte brauchen wir Zeitmarken. Lade stattdessen die Datei hoch.",
       "cta": "Zurück zur Startseite"
     },
+    "low_speech": {
+      "title": "SupoClip funktioniert am besten mit Sprache",
+      "body": "In diesem Video wird kaum gesprochen, daher könnten die Clips schwach ausfallen. Deine Minuten wurden erstattet. Trotzdem Clips erstellen?",
+      "cta": "Trotzdem Clips erstellen"
+    },
     "highlightsInstead": "Stattdessen Highlights erstellen"
   },
   "clipLoadFailed": "Dieser Clip konnte nicht geladen werden.",

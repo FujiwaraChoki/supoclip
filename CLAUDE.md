@@ -333,6 +333,7 @@ WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=a
 WORKFLOW_TOPIC_MAX_CLIPS=15          # Most clips a topic run returns
 WORKFLOW_PLAN_TIMEOUT_SECONDS=1800   # Planning wall clock; past it the task fails with plan_failed
 WORKFLOW_FULL_CONTEXT_MAX_WORDS=0    # Words read in one outline call; 0 = provider default
+LOW_SPEECH_WORDS_PER_MINUTE=40       # Below this, the worker asks first (`low_speech`, refunded; resume = make clips anyway); 0 = off
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
@@ -361,6 +362,9 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   access (unaudited, TikTok rejects posts from public accounts). Off, `/social/providers` reports TikTok `configured: false,
   paused: true` (the web shows a short notice; iOS hides it) and connect/options/publish/retry return 503. Self-hosters
   with their own audited TikTok app turn it on in /admin.
+- **`low_speech_notice`:** seeded on for web, off for iOS (admins bypass) until the iOS build that explains the
+  `low_speech` stop ships. Read when a task is created, for the creating platform, and stored as
+  `source_metadata.low_speech_check`; the worker only asks when it is set (`speech_check.py`).
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
   `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 

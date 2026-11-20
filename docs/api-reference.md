@@ -263,6 +263,7 @@ refunded automatically), `progress_message` explains it in English, and
 | `plan_failed` | Planning failed or exceeded `WORKFLOW_PLAN_TIMEOUT_SECONDS` | Resume |
 | `render_incomplete` | A required part, recap or trailer failed to render | Resume |
 | `transcript_untimed` | The transcript has no timings to cut on | Upload the file instead |
+| `low_speech` | Any workflow, highlights included: the video has little or no speech (under `LOW_SPEECH_WORDS_PER_MINUTE`). `details` are not stored; the task stops after transcription | Resume to make clips anyway, or create the same video again within 7 days |
 
 A cancelled series keeps the parts already rendered; resuming re-renders from
 the cached plan. Resume needs no extra fields for any workflow: the worker reads

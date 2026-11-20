@@ -351,6 +351,11 @@ class Config:
             for name in os.getenv("WORKFLOWS_PUBLIC", "").split(",")
             if name.strip()
         )
+        # Below this many spoken words per minute the worker asks before making
+        # clips (refunded ``low_speech`` failure). 0 turns the notice off.
+        self.low_speech_words_per_minute = max(
+            0.0, self._get_float_env("LOW_SPEECH_WORDS_PER_MINUTE", 40.0)
+        )
         self.workflow_topic_max_clips = max(1, self._get_int_env("WORKFLOW_TOPIC_MAX_CLIPS", 15))
         self.workflow_plan_timeout_seconds = self._get_positive_float_env(
             "WORKFLOW_PLAN_TIMEOUT_SECONDS", 1800.0, maximum=6 * 60 * 60

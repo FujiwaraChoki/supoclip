@@ -269,7 +269,9 @@ minutes are refunded. `supoclip_get_task` then shows `status: "error"` and an
 to try instead), `source_too_short`, `no_story`, `recap_unsupported`,
 `trailer_unbuildable`, `transcript_untimed`, or the retryable
 `analysis_incomplete`, `plan_failed` and `render_incomplete`
-(use `supoclip_resume_task`). Series clips carry `part_number`; every workflow
+(use `supoclip_resume_task`). Any task, highlights included, can stop with
+`low_speech` when the video has little or no speech; the minutes are refunded,
+and `supoclip_resume_task` makes the clips anyway. Series clips carry `part_number`; every workflow
 clip carries `workflow_role` and `workflow_meta`.
 
 ## Example prompts

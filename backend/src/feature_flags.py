@@ -32,6 +32,9 @@ CACHE_TTL_SECONDS = 15.0
 
 WORKFLOWS = "workflows"
 TIKTOK_PUBLISHING = "tiktok_publishing"
+# Ask before making clips from a video with little speech (``speech_check``).
+# Evaluated when a task is created, for the platform that created it.
+LOW_SPEECH_NOTICE = "low_speech_notice"
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,7 @@ class FeatureFlag:
 DEFAULT_FLAGS: dict[str, FeatureFlag] = {
     WORKFLOWS: FeatureFlag(WORKFLOWS),
     TIKTOK_PUBLISHING: FeatureFlag(TIKTOK_PUBLISHING, admins_bypass=False),
+    LOW_SPEECH_NOTICE: FeatureFlag(LOW_SPEECH_NOTICE),
 }
 
 _cache: Optional[tuple[float, dict[str, FeatureFlag]]] = None
@@ -56,9 +60,10 @@ _cache: Optional[tuple[float, dict[str, FeatureFlag]]] = None
 
 def client_platform(request: Optional[Request]) -> Platform:
     """``ios`` when the request says it comes from the iOS app, else ``web``."""
-    if request is None:
+    headers = getattr(request, "headers", None)
+    if headers is None:
         return "web"
-    value = (request.headers.get(CLIENT_HEADER) or "").strip().lower()
+    value = (headers.get(CLIENT_HEADER) or "").strip().lower()
     return "ios" if value == "ios" else "web"
 
 

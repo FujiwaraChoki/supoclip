@@ -153,3 +153,21 @@ async def test_resume_preserves_original_clip_length(resume_context):
     tasks._load_task_source_metadata.return_value = {"clip_length": "long"}
     await tasks.resume_task("task-1", SimpleNamespace(), db=None)
     assert queue.await_args.args[-1] == "long"
+
+
+@pytest.mark.asyncio
+async def test_resume_after_low_speech_notice_makes_clips_anyway(resume_context):
+    task, _, _, _, _ = resume_context
+    task["error_code"] = "low_speech"
+    await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    saved = tasks._save_task_source_metadata.await_args.args[1]
+    assert saved["low_speech_confirmed"] is True
+
+
+@pytest.mark.asyncio
+async def test_resume_after_other_failures_keeps_the_speech_check(resume_context):
+    task, _, _, _, _ = resume_context
+    task["error_code"] = "analysis_error"
+    await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    saved = tasks._save_task_source_metadata.await_args.args[1]
+    assert "low_speech_confirmed" not in saved

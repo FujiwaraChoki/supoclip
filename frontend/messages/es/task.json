@@ -272,6 +272,11 @@
       "body": "Necesitamos tiempos para cortar con precisión. Sube el archivo en su lugar.",
       "cta": "Volver al inicio"
     },
+    "low_speech": {
+      "title": "SupoClip funciona mejor con voz",
+      "body": "En este video casi no se habla, así que los clips podrían quedar flojos. Te devolvimos tus minutos. ¿Quieres clips de todos modos?",
+      "cta": "Crear clips de todos modos"
+    },
     "highlightsInstead": "Crear momentos destacados"
   },
   "clipLoadFailed": "No se pudo cargar este clip.",

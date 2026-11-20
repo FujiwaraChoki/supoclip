@@ -387,3 +387,56 @@ async def test_clip_edit_rejects_invalid_values(client, auth_headers, suffix, me
 async def test_fonts_preserves_unauthorized_status(client):
     response = await client.get("/fonts")
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("client_header", "web_enabled", "ios_enabled", "checked"),
+    [
+        ({}, True, False, True),                          # web, flag on for web
+        ({"x-supoclip-client": "ios"}, True, False, False),  # iOS waits for its app build
+        ({}, False, True, False),                         # web with the flag off
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_task_records_the_low_speech_flag_for_its_platform(
+    client, db_session, auth_headers, feature_flag, monkeypatch,
+    client_header, web_enabled, ios_enabled, checked,
+):
+    import uuid as uuid_module
+    from unittest.mock import AsyncMock
+
+    from src import feature_flags
+
+    feature_flags.clear_cache()
+    await feature_flag(
+        "low_speech_notice", web_enabled=web_enabled, ios_enabled=ios_enabled, admins_bypass=False
+    )
+    monkeypatch.setattr(
+        "src.api.routes.tasks.async_get_youtube_video_info",
+        AsyncMock(return_value={"duration": 213, "title": "Gameplay"}),
+    )
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+    video_id = uuid_module.uuid4().hex[:11]
+    url = f"https://www.youtube.com/watch?v={video_id}"
+
+    try:
+        response = await client.post(
+            "/tasks/", headers={**auth_headers, **client_header}, json={"source": {"url": url}}
+        )
+        assert response.status_code == 200, response.text
+        metadata = (
+            await db_session.execute(
+                text("SELECT source_metadata FROM tasks WHERE id = :id"),
+                {"id": response.json()["task_id"]},
+            )
+        ).scalar_one()
+        assert bool(metadata.get("low_speech_check")) is checked
+    finally:
+        feature_flags.clear_cache()
+        await db_session.rollback()
+        await db_session.execute(
+            text("DELETE FROM tasks WHERE source_id IN (SELECT id FROM sources WHERE url LIKE :url)"),
+            {"url": f"%{video_id}%"},
+        )
+        await db_session.execute(text("DELETE FROM sources WHERE url LIKE :url"), {"url": f"%{video_id}%"})
+        await db_session.commit()
