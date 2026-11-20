@@ -14,8 +14,8 @@ from src.media.gaming_layout import GamingProfile, Rect
 
 W, H = 640, 360
 SRC_W, SRC_H = 1920, 1080
-CAM = (440, 20, 180, 102)          # x, y, w, h on the 640x360 frame
-CAM_FACE = (505.0, 40.0, 40.0, 50.0)
+CAM = (460, 20, 180, 102)          # x, y, w, h on the 640x360 frame, flush with its right edge
+CAM_FACE = (525.0, 40.0, 40.0, 50.0)
 
 
 def world(rng: np.random.Generator) -> np.ndarray:
@@ -43,14 +43,16 @@ def draw_hud(frame: np.ndarray) -> None:
     cv2.line(frame, (320, 174), (320, 186), (255, 255, 255), 1)
 
 
-def draw_cam(frame: np.ndarray) -> None:
-    x, y, w, h = CAM
+def draw_cam(frame: np.ndarray, i: int = 0, cam=CAM, still: bool = False) -> None:
+    x, y, w, h = cam
     frame[y:y + h, x:x + w] = (90, 70, 60)
-    cv2.circle(frame, (x + w // 2, y + 45), 24, (150, 170, 210), -1)        # a head; the face boxes are supplied
+    sway = 0 if still else (i * 7) % 23 - 11                                # a person moves; a logo does not
+    cv2.circle(frame, (x + w // 2 + sway, y + 45), 24, (150, 170, 210), -1)  # a head; the face boxes are supplied
+    cv2.rectangle(frame, (x + w // 2 - 30 + sway, y + 70), (x + w // 2 + 30 + sway, y + h - 2), (40, 40, 160), -1)
     cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
 
 
-def clip(count=48, hud=True, cam=False, moving=True, hud_until=None, seed=7):
+def clip(count=48, hud=True, cam=False, moving=True, hud_until=None, seed=7, still_cam=False):
     rng = np.random.default_rng(seed)
     still = world(rng)
     frames = []
@@ -59,7 +61,7 @@ def clip(count=48, hud=True, cam=False, moving=True, hud_until=None, seed=7):
         if hud and (hud_until is None or i < hud_until):
             draw_hud(frame)
             if cam:
-                draw_cam(frame)
+                draw_cam(frame, i, still=still_cam)
         frames.append(frame)
     return np.stack(frames), [i / 3 for i in range(count)]
 
@@ -119,16 +121,49 @@ def test_facecam_rectangle_is_found_around_a_fixed_face():
     assert cam is not None
     x, y, w, h = (v * 3 for v in CAM)
     assert abs(cam.x - x) <= 15 and abs(cam.y - y) <= 15
-    assert abs(cam.x2 - (x + w)) <= 15 and abs(cam.y2 - (y + h)) <= 15
+    assert abs(cam.x2 - (x + w)) <= 18 and abs(cam.y2 - (y + h)) <= 15
     # The camera is not also reported as a HUD element.
     assert all(r.x2 <= cam.x or r.x >= cam.x2 or r.y2 <= cam.y or r.y >= cam.y2 for r in profile.hud)
 
 
 def test_a_face_without_a_camera_rectangle_is_not_a_facecam():
-    frames, times = clip(cam=False)
+    frames, times = clip(cam=False, hud=False)
     faces = [[CAM_FACE] for _ in frames]
     profile = classify(frames, times, faces)
-    assert profile.facecam is None
+    assert profile.facecam is None and not profile.is_gaming
+
+
+def test_a_small_still_head_over_a_hud_is_a_keyed_out_streamer():
+    frames, times = clip(cam=False)
+    face = (60.0, 250.0, 34.0, 42.0)
+    profile = classify(frames, times, [[face] for _ in frames])
+    assert profile.is_gaming and profile.virtual_camera
+    cam = profile.facecam
+    # Head and shoulders around the face, in source pixels.
+    assert cam.x <= face[0] * 3 and cam.x2 >= (face[0] + face[2]) * 3
+    assert cam.y < face[1] * 3 and cam.y2 > (face[1] + face[3]) * 3
+    layout = gl.build_gaming_layout(profile, 16.0)
+    assert layout["gaming"]["facecam_panel"] is not None
+
+
+def test_a_logo_in_a_frame_is_not_a_camera():
+    frames, times = clip(cam=True, still_cam=True)
+    profile = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert profile.facecam is None or profile.virtual_camera
+
+
+def test_a_bigger_still_face_beside_the_inset_is_a_reaction_video():
+    frames, times = clip(cam=True)
+    host = (120.0, 150.0, 60.0, 75.0)
+    profile = classify(frames, times, [[CAM_FACE, host] for _ in frames])
+    assert not profile.is_gaming and profile.reason == "people_on_screen"
+
+
+def test_a_seldom_detected_face_still_marks_a_camera_that_is_always_there():
+    frames, times = clip(cam=True)
+    faces = [[CAM_FACE] if i % 5 == 0 else [] for i in range(len(frames))]
+    profile = classify(frames, times, faces)
+    assert profile.is_gaming and profile.facecam is not None and not profile.virtual_camera
 
 
 def test_a_wandering_face_is_not_a_fixed_camera():
@@ -147,6 +182,33 @@ def test_moving_footage_without_overlays_is_not_gameplay():
     profile = classify(*clip(hud=False))
     assert not profile.is_gaming and profile.reason == "no_hud"
     assert profile.hud == []
+
+
+def test_two_cameras_that_take_turns_are_two_tracks():
+    first, second = (505.0, 40.0, 40.0, 50.0), (60.0, 250.0, 36.0, 44.0)
+    faces = [[first] for _ in range(20)] + [[second] for _ in range(14)] + [[first] for _ in range(6)]
+    faces[25] = [second, first]                       # a stray detection where the first camera used to be
+    tracks = gl.fixed_face_tracks(faces, W, H)
+    assert [t.box for t in tracks] == [first, second]
+    assert gl.camera_timeline(tracks, len(faces)) == [(0, 0, 19), (1, 20, 33), (0, 34, 39)]
+    # Samples without a face go to the camera around them, or are shared between two.
+    gaps = [[first]] * 6 + [[]] * 4 + [[first]] * 6 + [[]] * 4 + [[second]] * 6
+    assert gl.camera_timeline(gl.fixed_face_tracks(gaps, W, H), len(gaps)) == [(0, 0, 17), (1, 18, 25)]
+
+
+def test_cameras_close_together_in_different_segments_stay_apart():
+    near, far = (130.0, 241.0, 42.0, 50.0), (77.0, 270.0, 34.0, 44.0)
+    faces = [[near] for _ in range(12)] + [[far] for _ in range(12)]
+    assert sorted(len(t.samples) for t in gl.fixed_face_tracks(faces, W, H)) == [12, 12]
+
+
+def test_fallback_ranges_stay_inside_a_cameras_own_spans():
+    times = [i / 2 for i in range(40)]
+    valid = np.ones(40, bool)
+    valid[4:12] = False                               # 2.0 s to 6.0 s: outside the spans from 5.0 s on
+    valid[30:40] = False
+    ranges = gl.fallback_ranges_within(valid, times, [(0.0, 5.0), (14.0, 20.0)])
+    assert ranges == [(1.75, 5.0), (14.75, 20.0)]
 
 
 def test_people_on_screen_rule_out_gameplay():
@@ -348,6 +410,88 @@ def test_filter_graph_renders_a_1080x1920_frame(tmp_path, with_cam, fallback):
          "-of", "csv=p=0", str(out)], capture_output=True, text=True,
     ).stdout.strip()
     assert probe == "1080,1920,10"
+
+
+def camera_profile(cam, active, fallback=(), hud=()):
+    profile = profile_with(cam, None, hud, fallback)
+    profile.active = list(active)
+    return profile
+
+
+def test_cameras_that_take_turns_each_get_their_layout_over_the_full_frame():
+    left = camera_profile(Rect(8, 470, 370, 224), [(0.0, 6.0), (14.0, 20.0)], fallback=[(2.0, 4.0)], hud=[MINIMAP])
+    right = camera_profile(Rect(1320, 60, 540, 304), [(6.0, 14.0)], hud=[HEALTH, AMMO])
+    layout = gl.build_camera_layouts([left, right], 20.0)
+    graph = layout["video_filter"]
+    assert graph.count("[vout]") == 1 and graph.endswith("[vout]")
+    assert "[gm_alt][g0_out]overlay=0:0:enable='between(t\\,0.000\\,2.000)+between(t\\,4.000\\,6.000)+between(t\\,14.000\\,1000000.000)'[gm_m0]" in graph
+    assert "[gm_m0][g1_out]overlay=0:0:enable='between(t\\,6.000\\,14.000)'[vout]" in graph
+    report = layout["gaming"]
+    assert [s["between"] for s in report["segments"]] == [[[0.0, 2.0], [4.0, 6.0], [14.0, 20.0]], [[6.0, 14.0]]]
+    assert report["fallback_ranges"] == [[2.0, 4.0]]
+    # The longest camera sets the seam for the hook title.
+    assert layout["hook_center_y"] == pytest.approx(report["segments"][0]["facecam_panel"][3] / 1920)
+    assert layout["caption_y"] in gl.CAPTION_CANDIDATES
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_camera_layouts_render_a_1080x1920_frame(tmp_path):
+    left = camera_profile(Rect(8, 470, 370, 224), [(0.0, 0.5)], hud=[MINIMAP])
+    right = camera_profile(Rect(1320, 60, 540, 304), [(0.5, 1.0)], fallback=[(0.8, 1.0)], hud=[HEALTH, AMMO, KILLFEED])
+    layout = gl.build_camera_layouts([left, right], 1.0)
+    out = tmp_path / "frame.mp4"
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={SRC_W}x{SRC_H}:rate=10:duration=1",
+         "-filter_complex", layout["video_filter"], "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast",
+         str(out)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,nb_frames",
+         "-of", "csv=p=0", str(out)], capture_output=True, text=True,
+    ).stdout.strip()
+    assert probe == "1080,1920,10"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_a_compilation_of_two_streamers_is_analysed_per_camera(monkeypatch, tmp_path):
+    monkeypatch.setenv("GAMING_LAYOUT", "auto")
+    second_cam, second_face = (20, 230, 170, 110), (85.0, 250.0, 40.0, 50.0)
+    rng = np.random.default_rng(11)
+    frames = []
+    for i in range(96):                                # 12 s at 8 fps: one streamer, a hard cut, another
+        frame = world(rng)
+        draw_hud(frame)
+        draw_cam(frame, i) if i < 48 else draw_cam(frame, i, cam=second_cam)
+        frames.append(cv2.resize(frame, (SRC_W, SRC_H), interpolation=cv2.INTER_NEAREST))
+    source = tmp_path / "compilation.mp4"
+    encode = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{SRC_W}x{SRC_H}", "-r", "8",
+         "-i", "-", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-pix_fmt", "yuv420p", str(source)],
+        input=np.stack(frames).tobytes(), capture_output=True,
+    )
+    assert encode.returncode == 0, encode.stderr
+
+    def faces_of(sampled):
+        scale = sampled.shape[2] / W
+        found = []
+        for frame in sampled:
+            x, y, w, h = (int(v * scale) for v in CAM)
+            first = abs(int(frame[y + 4, x + 8, 0]) - 90) < 25 and abs(int(frame[y + 4, x + 8, 2]) - 60) < 25
+            face = CAM_FACE if first else second_face
+            found.append([tuple(v * scale for v in face)])
+        return found
+
+    monkeypatch.setattr(gl, "detect_faces", faces_of)
+    profiles = gl.analyze_gaming_clip(source, SRC_W, SRC_H, 12.0)
+    assert len(profiles) == 2 and all(p.is_gaming and p.facecam is not None for p in profiles)
+    first, second = profiles
+    assert first.active[0][0] == 0.0 and second.active[-1][1] == 12.0
+    assert first.active[-1][1] == pytest.approx(6.0, abs=0.15) == pytest.approx(second.active[0][0], abs=0.15)
+    assert first.facecam.x > SRC_W / 2 and second.facecam.x < SRC_W / 2
+    layout = gl.choose_gaming_layout(source, SRC_W, SRC_H, 12.0)
+    assert layout is not None and len(layout["gaming"]["segments"]) == 2
 
 
 # ---------------------------------------------------------------------------

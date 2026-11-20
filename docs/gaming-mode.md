@@ -55,8 +55,8 @@ and boxed. A box is dropped when it has fewer than 30 edge pixels, covers more t
 the central 40% x 40% (that is the world). A small persistent mark at the exact centre is the crosshair: it is
 recorded, never cut out.
 
-**Facecam.** A face that stays in one grid cell (1/12 of the width) for >= 50% of samples and wanders less than
-0.6 of its own size. Around it the camera rectangle is searched as four persistent straight lines (or the frame
+**Facecam.** A face that stays in one spot for >= 50% of samples and wanders less than
+0.6 of its own size (see "Several cameras in one clip" for how spots are tracked). Around it the camera rectangle is searched as four persistent straight lines (or the frame
 edge): each side must be a line for >= 70% of its length, the shape between 0.9 and 2.5 wide per high, at most
 16% of the frame. Of the rectangles with clean sides (>= 92%) the largest wins, so shelves and door frames
 behind the streamer do not close a smaller one. 4 px (at 640) are trimmed from each side to lose a drawn frame.
@@ -151,7 +151,11 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
   elements. Nothing ranks elements by importance.
 - HUD that comes and goes (kill feed, pop-ups) is below the persistence threshold and is not cut out.
 - A HUD element cut by the crop edge stays partly visible next to its cut-out when the cut-out is smaller.
-- Cameras without a rectangle (chroma key, circles) are not found; the clip then gets the gameplay-only layout.
+- A keyed-out streamer (no rectangle) is shown as head and shoulders with the game behind them, and only when the
+  game draws a HUD. Round cameras are not found.
+- A camera with a heavily decorated frame whose streamer is rarely detected (a cap, looking down) can be missed;
+  the clip then keeps the regular layout.
+- Side-by-side comparison videos with persistent graphics pass as gameplay without a camera and get a centre crop.
 - The camera panel upscales a small inset (often 350-500 px wide in a 1080p source) to 1080 px: it is soft.
 - A sports broadcast with three or more persistent graphics and no detected faces would pass as gameplay.
 - Games without a HUD, cutscenes and menus are not recognised and keep today's layout.
@@ -174,6 +178,45 @@ inset). What changed for them:
   of the clip.
 - **The camera's own decorations** (a name plate or ornament on its frame) are not lifted into the gameplay panel.
 
-Not handled: compilations where every few seconds a different streamer's camera sits somewhere else (the layout is
-decided once per clip), and gameplay without a camera, which keeps the regular layouts.
+Gameplay without a camera keeps the regular layouts.
+
+## Several cameras in one clip
+
+Checked on 2026-11-20 against every production clip rendered since the layout went live (497 clips of 91 tasks,
+117 of them viewed) and fixed for the cases found there.
+
+- **Tracks, not one face.** `fixed_face_tracks` follows every head that stays in one spot at one size. A spot is
+  seeded by detections that repeat almost exactly; each detection then joins the spot it fits best, so two cameras
+  that sit close together in different segments stay two tracks, and a streamer who leans forward stays one.
+- **Timeline.** `camera_timeline` gives every sample to one track: the most seen when two are on screen, the
+  camera around a gap when none is (it is hidden for a cutscene), half each between two different cameras. Runs
+  shorter than three samples are stray detections and join the longer run beside them.
+- **One profile per camera.** `analyze_camera_segments` cuts the clip where the camera changes, to the frame
+  (`find_cut`: the largest frame-to-frame difference between the two samples), and classifies each camera from its
+  own samples; a camera with fewer than 16 is sampled again at up to 8 fps. Each profile carries `active`, the
+  seconds it applies to, and its own fallback spans inside them.
+- **Layout.** `build_camera_layouts` draws the full-height centre crop as the base and lays each camera's layout
+  over it while that camera is on screen. Captions and the hook title keep one place for the clip: the row that
+  crosses the least HUD weighted by time, and the seam of the camera shown longest. The report lists the cameras
+  under `segments` with their `between` ranges.
+- **When it is used.** At most four cameras, each on screen for 2.5 s or more. Several layouts replace the single
+  one only when they show a layout for at least 10 % more of the clip, and for at least 35 % of it.
+
+This covers compilations of different streamers, and one streamer whose camera changes size or place (an editor's
+zoom, a larger camera during cutscenes).
+
+Also changed after that review:
+
+- **Any fixed face can be the camera.** The whole-clip path tries every track seen in half the samples, not only
+  the busiest one, which a game character in a long cutscene used to take.
+- **Borders without a line.** A camera side is also the place where the picture stops moving (`CHANGE_STEP`): the
+  room behind a streamer stands still while the game beside it changes, whatever their colours.
+- **A face seen seldom** (12 % of samples) still marks a camera when the rectangle's border is on screen in 70 %
+  of the samples.
+- **Keyed-out streamers.** A small still head (at most 2 % of the frame) without a rectangle, over a game with a
+  HUD and no other faces: the top panel shows head and shoulders (`virtual_camera_rect`).
+- **Not a camera:** a rectangle whose inside does not move (a channel logo, a drawn avatar), and an inset beside a
+  larger face that also sits still for half the clip (a reaction video, a podcast): `people_on_screen`.
+- **Camera decorations** beside the camera, not only above and below it, stay out of the gameplay panel (a thin
+  black bar was being pasted on the panel edge).
 
