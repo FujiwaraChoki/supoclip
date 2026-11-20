@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-20
 
+- **New:** Turn on publish emails under Settings → Notifications to get an email as soon as a clip finishes publishing to a connected social account, with a direct link to the live post. ([#496](https://github.com/FujiwaraChoki/supoclip/pull/496))
 - **Fixed:** TikTok publishing is back: connect a TikTok account and publish or schedule clips directly as public or private posts again. If an account hits TikTok's daily posting limit, SupoClip now explains the limit clearly instead of retrying automatically. ([#494](https://github.com/FujiwaraChoki/supoclip/pull/494))
 - **Fixed:** When no strong moment is found and SupoClip makes a starter clip instead, videos whose length isn't a whole number of seconds can now be opened in the clip studio. ([#422](https://github.com/FujiwaraChoki/supoclip/pull/422))
 - **Fixed:** Starter clips made before that fix, and starter clips built from an earlier analysis of the same video, also open in the clip studio now instead of asking you to retry in a minute. ([#422](https://github.com/FujiwaraChoki/supoclip/pull/422))
