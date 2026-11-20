@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from datetime import datetime, time, timedelta, timezone
+from typing import Any, Dict, Optional, Set
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from ..config import Config, get_config
 from .base import (
@@ -35,6 +36,66 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API_BASE = "https://www.googleapis.com/youtube/v3"
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
+
+# YouTube's per-project quotas (including "Video Uploads per day") reset at
+# midnight Pacific time.
+QUOTA_TIMEZONE = ZoneInfo("America/Los_Angeles")
+QUOTA_HOLD_REASON = "youtube_quota"
+QUOTA_HOLD_MESSAGE = (
+    "YouTube's daily upload limit is reached. This clip will publish automatically "
+    "after the limit resets at midnight Pacific time."
+)
+QUOTA_GAVE_UP_MESSAGE = (
+    "YouTube's daily upload limit stayed reached for several days, so this clip "
+    "wasn't published. Try again to publish it."
+)
+# Shown for posts that failed on the quota before such posts were held.
+QUOTA_FAILED_MESSAGE = (
+    "YouTube's daily upload limit was reached. It resets at midnight Pacific time; "
+    "try again after that."
+)
+CHANNEL_LIMIT_MESSAGE = (
+    "Your YouTube channel has reached the upload limit YouTube sets for each channel. "
+    "This limit belongs to your channel, not SupoClip. Try again later or tomorrow."
+)
+# ``quotaExceeded`` is the project's daily unit budget. Per-minute limits are
+# not daily and keep the normal short retries.
+_DAILY_QUOTA_REASONS = {"quotaExceeded", "dailyLimitExceeded"}
+_CHANNEL_LIMIT_REASONS = {"uploadLimitExceeded"}
+_CHANNEL_LIMIT_TEXT = "exceeded the number of videos they may upload"
+
+
+def quota_reset_after(now: Optional[datetime] = None) -> datetime:
+    """The next midnight in Pacific time after ``now``, in UTC."""
+    local = (now or datetime.now(timezone.utc)).astimezone(QUOTA_TIMEZONE)
+    reset = datetime.combine(local.date() + timedelta(days=1), time.min, tzinfo=QUOTA_TIMEZONE)
+    return reset.astimezone(timezone.utc)
+
+
+def is_daily_quota_error(message: str, reasons: Set[str]) -> bool:
+    if reasons & _DAILY_QUOTA_REASONS:
+        return True
+    lowered = (message or "").lower()
+    return "quota exceeded for quota metric" in lowered and "per day" in lowered
+
+
+def is_channel_limit_error(message: str, reasons: Set[str]) -> bool:
+    return bool(reasons & _CHANNEL_LIMIT_REASONS) or _CHANNEL_LIMIT_TEXT in (message or "").lower()
+
+
+def _error_reasons(response) -> Set[str]:
+    try:
+        payload = response.json()
+    except ValueError:
+        return set()
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return set()
+    reasons = set()
+    for item in list(error.get("errors") or []) + list(error.get("details") or []):
+        if isinstance(item, dict) and item.get("reason"):
+            reasons.add(str(item["reason"]))
+    return reasons
 
 SCOPES = (
     "https://www.googleapis.com/auth/youtube.upload",
@@ -287,6 +348,17 @@ class YouTubeProvider(SocialProvider):
                 f"YouTube rejected the credentials while trying to {action}: {message}",
                 reauth=True,
             )
+        reasons = _error_reasons(response)
+        if response.status_code in (403, 429) and is_daily_quota_error(message, reasons):
+            # SupoClip's shared daily allowance, not the user's channel: the
+            # post waits for the reset instead of failing.
+            raise SocialProviderError(
+                QUOTA_HOLD_MESSAGE,
+                hold_until=quota_reset_after(),
+                hold_reason=QUOTA_HOLD_REASON,
+            )
+        if is_channel_limit_error(message, reasons):
+            raise SocialProviderError(CHANNEL_LIMIT_MESSAGE)
         retryable = response.status_code in (403, 429, 500, 502, 503, 504) and (
             "quota" in message.lower()
             or "rate" in message.lower()

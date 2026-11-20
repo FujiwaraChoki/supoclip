@@ -57,6 +57,9 @@ export interface SocialPost {
   external_post_id: string | null;
   external_url: string | null;
   error_message: string | null;
+  /** Why a scheduled post is waiting, e.g. "youtube_quota". Absent from older API versions. */
+  hold_reason?: string | null;
+  held_since?: string | null;
   attempts: number;
   hook_type: string | null;
   hook_title: string | null;
@@ -137,6 +140,26 @@ export const POST_STATUS_LABELS: Record<SocialPostStatus, string> = {
 };
 
 export const ACTIVE_POST_STATUSES: SocialPostStatus[] = ["queued", "publishing"];
+
+/** A scheduled post waiting for YouTube's daily upload limit to reset. */
+export const YOUTUBE_QUOTA_HOLD = "youtube_quota";
+
+export function isQuotaHeld(post: Pick<SocialPost, "status" | "hold_reason">): boolean {
+  return post.status === "scheduled" && post.hold_reason === YOUTUBE_QUOTA_HOLD;
+}
+
+/** When a held post publishes, in the viewer's time zone: "9:05 AM", or "Sat 9:05 AM" on another day. */
+export function formatHoldTime(value: string | null | undefined, locale?: string, now: Date = new Date()): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const sameDay = date.toDateString() === now.toDateString();
+  return new Intl.DateTimeFormat(locale, {
+    ...(sameDay ? {} : { weekday: "short" as const }),
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
 export function connectionLabel(connection: Pick<SocialConnection, "display_name" | "username" | "provider">): string {
   const handle = connection.username ? `@${connection.username.replace(/^@/, "")}` : null;

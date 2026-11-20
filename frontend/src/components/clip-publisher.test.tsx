@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { ClipPostList, ClipPublishButton } from "./clip-publisher";
-import type { SocialConnection, SocialPost, SocialProviderStatus } from "@/lib/social";
+import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "./clip-publisher";
+import { formatHoldTime, type SocialConnection, type SocialPost, type SocialProviderStatus } from "@/lib/social";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn(), warning: vi.fn() } }));
 
 const clip = { id: "clip-1", clip_order: 1, hook_title: "Hook title", text: "Transcript" };
 
@@ -196,6 +196,48 @@ it("shows a spinner while a post is uploading and offers no actions", () => {
   render(<ClipPostList posts={[post]} onChanged={vi.fn()} />);
   expect(screen.getByText("Uploading…")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Post actions" })).toBeNull();
+});
+
+function heldPost(scheduledFor: string): SocialPost {
+  return {
+    id: "post-held",
+    provider: "youtube",
+    status: "scheduled",
+    scheduled_for: scheduledFor,
+    hold_reason: "youtube_quota",
+    error_message: "YouTube's daily upload limit is reached.",
+    account: { display_name: "My Channel", username: null, avatar_url: null, status: "active" },
+    metrics: null,
+  } as unknown as SocialPost;
+}
+
+it("explains a post held for YouTube's daily limit with its local publish time, and lets it be cancelled", async () => {
+  const when = new Date(Date.now() + 2 * 3_600_000);
+  const time = formatHoldTime(when.toISOString(), "en");
+  render(<ClipPostList posts={[heldPost(when.toISOString())]} onChanged={vi.fn()} />);
+  expect(screen.getByText("Waiting for YouTube’s daily limit")).toBeInTheDocument();
+  expect(
+    screen.getByText(`YouTube’s daily upload limit is reached. This clip will publish automatically at ${time}.`),
+  ).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("button", { name: "Post actions" }), { key: "Enter" });
+  expect(await screen.findByRole("menuitem", { name: /cancel/i })).toBeInTheDocument();
+});
+
+it("replaces the publishing toast when a post starts waiting for YouTube's daily limit", () => {
+  const when = new Date(Date.now() + 2 * 3_600_000).toISOString();
+  const queued = { ...heldPost(when), status: "queued", hold_reason: null } as SocialPost;
+  const { rerender } = renderHook(({ posts }) => useSocialPostToasts(posts), { initialProps: { posts: [queued] } });
+  rerender({ posts: [heldPost(when)] });
+  expect(toast.warning).toHaveBeenCalledWith("Waiting for YouTube’s daily limit", {
+    id: "social-post-post-held",
+    description: `YouTube’s daily upload limit is reached. This clip will publish automatically at ${formatHoldTime(when, "en")}.`,
+  });
+});
+
+it("formats the hold time as a time today and with the weekday on another day", () => {
+  const now = new Date(2026, 10, 20, 15, 0);
+  expect(formatHoldTime(new Date(2026, 10, 20, 17, 5).toISOString(), "en-US", now)).toBe("5:05 PM");
+  expect(formatHoldTime(new Date(2026, 10, 21, 9, 5).toISOString(), "en-US", now)).toBe("Sat 9:05 AM");
 });
 
 const tikTokConnection = () => connection({ id: "tt-1", provider: "tiktok", display_name: "My TikTok" });

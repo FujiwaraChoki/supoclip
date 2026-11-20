@@ -218,7 +218,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 
 Worker crons (`workers/tasks.py`): every minute `dispatch_scheduled_social_posts`, hourly `refresh_social_metrics`.
 Feedback webhook retries: every minute `deliver_feedback_webhooks` (`feedback/delivery.py`).
-Post status flow: `scheduled → queued → publishing → published/failed/cancelled`.
+Post status flow: `scheduled → queued → publishing → published/failed/cancelled`. A YouTube upload refused for the
+project's daily quota goes back to `scheduled` (`hold_reason = 'youtube_quota'`) until just after midnight Pacific, oldest hold first.
 
 **API keys (programmatic access):**
 - `GET /api-keys/` — List the user's API keys (metadata only)

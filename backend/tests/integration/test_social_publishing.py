@@ -410,3 +410,56 @@ async def test_providers_report_tiktok_paused_by_its_flag(app, client, auth_head
     rows = await providers()
     assert rows["tiktok"]["configured"] is True and "paused" not in rows["tiktok"]
     feature_flags.clear_cache()
+
+
+@pytest.mark.asyncio
+async def test_quota_held_posts_wait_and_go_out_oldest_hold_first(
+    social_setup, client, db_session, auth_headers,
+):
+    from src.social.youtube import QUOTA_HOLD_MESSAGE, QUOTA_HOLD_REASON
+
+    provider, payload = social_setup
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    reset = datetime.now(timezone.utc) + timedelta(hours=2)
+    provider.publish_error = SocialProviderError(
+        QUOTA_HOLD_MESSAGE, hold_until=reset, hold_reason=QUOTA_HOLD_REASON
+    )
+    ids = []
+    for _ in range(2):
+        response = await client.post("/social/posts", headers=auth_headers, json=payload)
+        assert response.status_code == 200
+        ids.append(response.json()["post"]["id"])
+        held = await service.publish_post(ids[-1])
+        assert held["status"] == "scheduled"
+        assert held["hold_reason"] == QUOTA_HOLD_REASON
+        assert held["attempts"] == 0
+
+    # The API reports the hold; older clients just see a scheduled post.
+    listed = await client.get("/social/posts?status=scheduled", headers=auth_headers)
+    rows = {row["id"]: row for row in listed.json()["posts"]}
+    assert rows[ids[0]]["hold_reason"] == QUOTA_HOLD_REASON
+    assert rows[ids[0]]["error_message"] == QUOTA_HOLD_MESSAGE
+    assert rows[ids[0]]["scheduled_for"] and rows[ids[0]]["held_since"]
+
+    # Nothing goes out before the reset. After it, the post held first goes first.
+    assert await service.dispatch_scheduled_posts() == []
+    await db_session.execute(
+        text(
+            "UPDATE social_posts SET scheduled_for = NOW() - INTERVAL '1 minute', "
+            "held_since = held_since - (CASE WHEN id = :first THEN INTERVAL '1 hour' ELSE INTERVAL '0' END) "
+            "WHERE id = ANY(:ids)"
+        ),
+        {"first": ids[1], "ids": ids},
+    )
+    await db_session.commit()
+    assert await service.dispatch_scheduled_posts(limit=1) == [ids[1]]
+    provider.publish_error = None
+    assert (await service.publish_post(ids[1]))["status"] == "published"
+
+    # Cancel still works on a held post, and retrying starts a clean attempt.
+    cancelled = await client.post(f"/social/posts/{ids[0]}/cancel", headers=auth_headers)
+    assert cancelled.status_code == 200 and cancelled.json()["post"]["status"] == "cancelled"
+    retried = await client.post(f"/social/posts/{ids[0]}/retry", headers=auth_headers)
+    assert retried.status_code == 200
+    assert retried.json()["post"]["hold_reason"] is None
+    assert retried.json()["post"]["held_since"] is None
