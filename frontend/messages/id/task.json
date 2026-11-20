@@ -58,6 +58,7 @@
   "failedBody": "Pemrosesan gagal. Coba pembuatan lagi. Klip yang sudah selesai akan tetap disimpan.",
   "failedBodyAgeRestricted": "Video YouTube ini dibatasi usia, jadi kami tidak bisa mengunduhnya. Unduh videonya sendiri lalu unggah filenya. Tidak ada menit yang terpakai.",
   "failedBodyGeoRestricted": "Video YouTube ini tidak tersedia di wilayah kami, jadi kami tidak bisa mengunduhnya. Unduh videonya sendiri lalu unggah filenya. Tidak ada menit yang terpakai.",
+  "failedBodyPrivate": "Video YouTube ini privat, jadi kami tidak bisa mengaksesnya. Minta pemiliknya menjadikannya publik atau tidak publik, atau unduh videonya sendiri lalu unggah filenya. Tidak ada menit yang terpakai.",
   "backHome": "Kembali ke beranda",
   "noClipsTitle": "Tidak ada clip yang dihasilkan",
   "noClipsBody": "Generasi selesai, tapi tidak ada clip yang dihasilkan. Videonya mungkin tidak punya konten yang cocok untuk di-clip.",

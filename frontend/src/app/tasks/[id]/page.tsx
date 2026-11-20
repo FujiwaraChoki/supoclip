@@ -200,7 +200,9 @@ export default function TaskPage() {
     ? t("failedBodyAgeRestricted")
     : task?.error_code === "youtube_geo_restricted"
       ? t("failedBodyGeoRestricted")
-      : t("failedBody");
+      : task?.error_code === "youtube_video_private"
+        ? t("failedBodyPrivate")
+        : t("failedBody");
   // Next steps on the failure screen stay inside what this user may make.
   const workflowsInfo = useWorkflowsInfo(Boolean(failureCode));
   const [clips, setClips] = useState<Clip[]>([]);

@@ -32,7 +32,9 @@ from .youtube_proxy import (
     extract_video_info,
     YouTubeDownloadError,
     YouTubeGeoRestrictedError,
+    YouTubeVideoPrivateError,
     is_geo_restricted_error,
+    is_private_video_error,
     log_youtube_attempt,
     proxy_configured,
     public_download_error,
@@ -470,6 +472,7 @@ def get_youtube_video_info(
     providers = [primary_provider, secondary_provider]
     last_error: Optional[Exception] = None
     geo_error: Optional[Exception] = None
+    private_error: Optional[Exception] = None
     # A result without a usable length. The other provider gets one try
     # (same deadline) before this is returned and the caller fails closed.
     incomplete: Optional[Dict[str, Any]] = None
@@ -523,6 +526,8 @@ def get_youtube_video_info(
             last_error = exc
             if is_geo_restricted_error(exc):
                 geo_error = exc
+            elif is_private_video_error(exc):
+                private_error = exc
             if index == 0:
                 logger.warning(
                     "Primary YouTube metadata provider %s failed for %s: %s. Trying %s.",
@@ -545,6 +550,9 @@ def get_youtube_video_info(
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
         if errors is not None:
             errors.append(public_download_error(last_error))
+    if private_error is not None:
+        # Definitive: no retry or provider can read it, so don't report a timeout.
+        raise YouTubeVideoPrivateError() from private_error
     if deadline is not None and time.monotonic() >= deadline:
         raise TimeoutError("YouTube metadata deadline exceeded") from last_error
     if geo_error is not None:
