@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-20
 
-- **Fixed:** In the clip studio, clearing or lowering a clip's Out time no longer pushes its In time before the start of the video, which made saving the draft fail. The In time now stays where it was and the clip just gets shorter. (PR_LINK)
+- **Fixed:** In the clip studio, clearing or lowering a clip's Out time no longer pushes its In time before the start of the video, which made saving the draft fail. The In time now stays where it was and the clip just gets shorter. ([#476](https://github.com/FujiwaraChoki/supoclip/pull/476))
 
 ## 2026-11-19
 
