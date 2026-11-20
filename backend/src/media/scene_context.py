@@ -60,6 +60,12 @@ COVER_MIN_CAMERA_MOTION = 0.003
 COVER_MAX_TEXT_BLOCK_RATE = 0.35
 # Share of samples with two or more faces that makes a shot a group.
 COVER_MAX_GROUP_RATE = 0.3
+# Share of a shot's samples in which the crop would cut text, above which the shot keeps the full frame.
+# Measured: an edited comparison with burned-in captions 0.28 / 0.32 / 0.52, its title card 0.0 / 0.0 / 1.0,
+# a drawn map 0.01 / 0.97 / 1.0; plain gameplay 0.0 / 0.20 / 0.48.
+COVER_MAX_CUT_CAPTION_RATE = 0.15   # an aligned block of two lines or more, cut
+COVER_MAX_CUT_LINES_RATE = 0.6      # two lines or more cut
+COVER_MAX_CUT_ALWAYS_RATE = 0.9     # some line cut, in nearly every sample
 # A crop centre this close to the last one continues the same composition.
 COVER_SAME_X = 0.05
 # One face away from the frame edge and at least this share of the frame (head
@@ -455,6 +461,14 @@ def _cover_x(shot: Sequence[SceneEvidence], reason: str) -> Optional[float]:
             and float(np.median([s.camera_motion for s in shot])) < COVER_MIN_CAMERA_MOTION):
         return None
     if sum(s.text_block_lines >= 2 for s in shot) / len(shot) > COVER_MAX_TEXT_BLOCK_RATE:
+        return None
+    # Text the full-height crop would cut through keeps the whole picture: a caption burned into an edited
+    # video (in a seventh of the shot is a caption that comes and goes), a title card, labels across a map.
+    cut_captions = sum(s.text_block_lines >= 2 and s.cut_text_lines >= 1 for s in shot) / len(shot)
+    cut_lines = sum(s.cut_text_lines >= 2 for s in shot) / len(shot)
+    cut_always = sum(s.cut_text_lines >= 1 for s in shot) / len(shot)
+    if (cut_captions >= COVER_MAX_CUT_CAPTION_RATE or cut_lines >= COVER_MAX_CUT_LINES_RATE
+            or cut_always >= COVER_MAX_CUT_ALWAYS_RATE):
         return None
     if sum(s.face_count >= 2 for s in shot) / len(shot) >= COVER_MAX_GROUP_RATE:
         return None

@@ -208,6 +208,29 @@ and each has a rule now (the second and third shipped first, in #497):
   sideways when the frame has the room, so the camera is not shown twice. A menu with chat on one side and a
   counter on the other, or a blurred backdrop shimmering behind a menu, stays fitted whole.
 
+### Later the same day
+
+- **A HUD sits at the edge.** Without a camera, a sticker or a crosshair, two of the persistent elements have to
+  lie within `HUD_ANCHOR_REACH` (2 %) of the frame's edge (`MIN_ANCHORED_HUD_REGIONS`). Labels on a drawn map
+  panned across the screen were three "HUD elements" and the map was cropped as gameplay.
+- **A keyed-out streamer who leaves.** There is no rectangle to check, so the head itself says whether the
+  streamer is on screen: samples without a face in the drawn rectangle (median over seven) become fallback
+  spans. The gameplay crop also slides off a keyed-out head that sits at the side of the frame, and off a
+  pictured logo at the crop's edge, so neither shows twice or is cut in half.
+- **Stickers are small and whole.** A patch that runs out of the search window, or is larger than
+  `STICKER_MAX_FACE_AREAS` face boxes, is a HUD panel or a wordmark beside the picture, not the picture.
+- **The host rule** needs the other face in 90 % of the samples (`HOST_MIN_PRESENCE`).
+- **Captions and the game's own subtitles** are handled outside this module: `media/screen_words.py` reads the
+  lower part of the picture while somebody speaks and leaves out the captions of a voice whose words are
+  written there. It runs for gaming layouts and for sources with burned-in captions.
+- **Text a crop would cut** is the regular layout's business (`scene_context._cover_x`): a shot whose captions,
+  title card or labels the full-height crop would cut keeps the whole frame.
+
+Still open: a menu with content at both sides of the screen stays a strip under the camera (it cannot be
+shown larger without cutting one side); a logo in the middle of the gameplay crop stays where it is; a
+cutscene without a HUD where one character holds the frame for 90 % of the clip keeps the regular layout; in
+heavily edited videos a game character can be taken for a keyed-out streamer while the creators are off screen.
+
 ## Streams of story games (GTA 6)
 
 Checked on 2026-11-19 against the GTA 6 videos people were submitting (single-streamer playthroughs with a camera

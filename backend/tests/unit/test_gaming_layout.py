@@ -455,12 +455,17 @@ def test_a_still_picture_is_enlarged_around_the_part_that_changes():
     assert "boxblur" in gl.build_gaming_layout(whole, 16.0)["video_filter"]
 
 
-def test_a_filling_crop_steps_off_the_camera_when_there_is_room():
+def test_a_filling_crop_steps_off_the_camera_only_while_the_subject_stays_in_it():
     cam = Rect(40, 400, 300, 300)
-    crop, fitted = gl.still_crop(Rect(200, 0, 700, 1080), SRC_W, SRC_H, 1312, fill=True, avoid=cam)
+    subject = Rect(400, 0, 500, 1080)
+    crop, fitted = gl.still_crop(subject, SRC_W, SRC_H, 1312, fill=True, avoid=cam)
     assert fitted is None and crop.h >= SRC_H - 2 and crop.w / crop.h == pytest.approx(1080 / 1312, rel=0.01)
-    assert crop.x >= cam.x2
-    # A camera in the middle of a narrow frame leaves no room: the crop stays on the subject.
+    assert crop.x >= cam.x2 and crop.x <= subject.x and crop.x2 >= subject.x2
+    # The subject sits right beside the camera: stepping off the camera would push it out, so the crop stays.
+    near = Rect(200, 0, 700, 1080)
+    crop, _ = gl.still_crop(near, SRC_W, SRC_H, 1312, fill=True, avoid=cam)
+    assert crop.x <= near.x and crop.x2 >= near.x2
+    # A camera in the middle of a narrow frame leaves no room either.
     crop, _ = gl.still_crop(Rect(0, 0, 900, 1080), 900, SRC_H, 1312, fill=True, avoid=Rect(300, 400, 300, 300))
     assert crop.x <= 12
 
@@ -916,3 +921,78 @@ def test_describe_vertical_layout_returns_the_gaming_plan(monkeypatch, tmp_path)
     assert (video_filter, mode, caption_y) == (plan["video_filter"], "complex", plan["caption_y"])
     assert report["kind"] == "gaming" and report["hook_center_y"] == plan["hook_center_y"]
     assert report["gaming"] == plan["gaming"]
+
+
+# ---------------------------------------------------------------------------
+# Second production review: maps, keyed-out streamers who leave, stickers beside HUD
+# ---------------------------------------------------------------------------
+
+def test_labels_in_the_middle_of_the_picture_are_not_a_hud():
+    # A drawn map panned across the screen: persistent labels, none of them at the frame's edge.
+    rng = np.random.default_rng(3)
+    frames = []
+    for _ in range(48):
+        frame = world(rng)
+        for x, y, text in ((120, 90, "TWILIGHT"), (410, 90, "STRONGHOLD"), (120, 250, "SUNNYGLADE"), (410, 250, "RIVERGLADE")):
+            cv2.rectangle(frame, (x, y), (x + 120, y + 40), (15, 15, 15), -1)
+            cv2.putText(frame, text, (x + 6, y + 27), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        frames.append(frame)
+    profile = classify(np.stack(frames), [i / 3 for i in range(48)])
+    assert len(profile.hud) >= 3 and not profile.is_gaming and profile.reason == "no_hud"
+
+
+def test_a_keyed_out_streamer_who_leaves_the_screen_gives_the_frame_back():
+    frames, times = clip(cam=False)
+    face = (60.0, 250.0, 34.0, 42.0)
+    faces = [[face] if i < 28 else [] for i in range(len(frames))]      # gone for the last 6.7 s
+    profile = classify(frames, times, faces)
+    assert profile.is_gaming and profile.virtual_camera
+    assert len(profile.fallback_ranges) == 1
+    start, end = profile.fallback_ranges[0]
+    assert 8.0 <= start <= 10.5 and end == pytest.approx(16.0, abs=0.4)
+    # A missed detection or two is not leaving.
+    blinks = [[face] if i % 9 else [] for i in range(len(frames))]
+    assert classify(frames, times, blinks).fallback_ranges == []
+
+
+def test_the_crop_slides_off_a_keyed_out_streamer_and_a_logo_at_its_edge():
+    keyed = GamingProfile(width=SRC_W, height=SRC_H, is_gaming=True, reason="facecam_hud",
+                          facecam=Rect(16, 596, 686, 484), face=(250.0, 700.0, 160.0, 190.0), virtual_camera=True)
+    crop = Rect(*gl.build_gaming_layout(keyed, 20.0)["gaming"]["gameplay"])
+    centred = (SRC_W - crop.w) // 2
+    assert crop.x >= min(702, centred + int(SRC_W * gl.CROP_SHIFT_MAX)) - 2   # as far as the shift goes
+    # A logo the centre crop would cut in half: the crop steps off it and the logo goes up as a sticker.
+    logo = sticker_profile(Rect(1180, 40, 200, 120))
+    layout = gl.build_gaming_layout(logo, 20.0)
+    crop = Rect(*layout["gaming"]["gameplay"])
+    assert crop.x2 <= 1180 and "alphamerge" in layout["video_filter"]
+
+
+def test_a_picture_joined_to_a_hud_panel_is_not_a_sticker():
+    # An avatar right beside the minimap: one unchanging patch. Lifting it out would take the minimap with it.
+    frames, times = clip(cam=False)
+    face = (118.0, 30.0, 34.0, 42.0)
+    for frame in frames:
+        cv2.circle(frame, (135, 51), 26, (150, 170, 210), -1)
+        cv2.circle(frame, (128, 44), 4, (20, 20, 20), -1)
+        cv2.circle(frame, (142, 44), 4, (20, 20, 20), -1)
+    profile = classify(frames, times, [[face] for _ in frames])
+    mark = profile.sticker
+    assert mark is None or mark.w * mark.h <= gl.STICKER_MAX_FACE_AREAS * (34 * 3) * (42 * 3)
+    assert any(r.x < 330 and r.y < 330 for r in profile.hud)             # the minimap is still a HUD element
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_a_sticker_mask_is_fully_opaque_on_a_full_range_source(tmp_path):
+    graph = gl.build_gaming_layout(sticker_profile(), 6.0)["video_filter"]
+    mask = graph.split("[gm_sk]")[0].split(";")[-1]                     # the chain that draws the mask
+    assert "out_range=tv" in mask
+    script = tmp_path / "graph.txt"
+    script.write_text(graph)
+    out = tmp_path / "out.mp4"
+    run = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s={SRC_W}x{SRC_H}:r=10:d=6,format=yuvj420p",
+         "-/filter_complex", str(script), "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast", str(out)],
+        capture_output=True, text=True,
+    )
+    assert run.returncode == 0, run.stderr

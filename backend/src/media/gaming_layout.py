@@ -83,6 +83,8 @@ SPLIT_GAP = 0.012              # of the width, left out on either side of the ce
 SPLIT_CROP_DOWN = 0.85         # where the crop sits between the top (0) and the bottom (1) of the picture
 MIN_HUD_REGIONS = 3            # without a facecam
 MIN_HUD_REGIONS_WITH_FACECAM = 1
+MIN_ANCHORED_HUD_REGIONS = 2   # without a camera or a crosshair: elements that sit at the frame's edge ...
+HUD_ANCHOR_REACH = 0.02        # ... within this much of it (HUD elements measure 0.3-1.4 %; map labels 2.7 % and up)
 MIN_HUD_EDGE_FRACTION = 0.004  # persistent edge pixels outside the facecam, as a share of the frame
 MAX_OUTSIDE_FACE_RATE = 0.25   # samples with a real face outside the facecam: a vlog, an interview, a reaction
 OUTSIDE_FACE_MIN_AREA = 0.004
@@ -122,6 +124,7 @@ MIN_FACE_MOTION = 0.3          # share of the face box made of such pixels
 FACE_MOTION_MIN_SAMPLES = 30
 # A pictured face (channel logo, drawn avatar) over gameplay is lifted out as a sticker and set at the top.
 STICKER_REACH = (3.0, 2.0, 6.0)   # how far the picture may extend from the face: sideways, up, down (face sizes)
+STICKER_MAX_FACE_AREAS = 30.0     # its box, in face boxes: an avatar to the waist is about 20, a HUD panel more
 STICKER_GRID = 44                 # cells along the longer side of the cut-out mask
 STICKER_MAX_BOXES = 260           # mask rectangles in the filter graph; a busier mask is not used
 STICKER_WIDTH = 0.2               # of the canvas
@@ -130,7 +133,7 @@ STICKER_TOP, STICKER_SIDE = 0.06, 0.035   # where it sits, of the canvas height 
 STICKER_FROM_SECONDS = HOOK_TITLE_SECONDS + 0.2   # the hook title has the top of the frame until then
 KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
 KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
-HOST_MIN_PRESENCE = 0.8        # someone filmed is there for the whole clip; a game character comes and goes
+HOST_MIN_PRESENCE = 0.9        # someone filmed is there for the whole clip; a game character comes and goes
 HOST_MIN_SIZE = 1.4            # ... and is clearly larger than the camera's face (of its height)
 HOST_HUD_REGIONS = 2           # persistent elements that make a HUD; over one, a larger face is a character
 
@@ -931,8 +934,12 @@ def sticker_region(
     ys, xs = np.nonzero(body)
     x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
     # A patch that runs out of the window on several sides is the scene (a still background), not a picture.
+    # A patch that runs out of the window is more than a picture around a face: a HUD panel beside it, a bar
+    # across the screen, a wordmark, or the scene itself standing still. Cut off there it would be half a logo.
     touching = sum((x0 == 0 and wx0 > 0, y0 == 0 and wy0 > 0, x1 == body.shape[1] and wx1 < w, y1 == body.shape[0] and wy1 < h))
-    if touching >= 2 or (x1 - x0) < fw or (y1 - y0) < fh:
+    if touching or (x1 - x0) < fw or (y1 - y0) < fh:
+        return None
+    if (x1 - x0) * (y1 - y0) > STICKER_MAX_FACE_AREAS * fw * fh:
         return None
     body = body[y0:y1, x0:x1]
     scale = STICKER_GRID / max(body.shape)
@@ -1150,6 +1157,16 @@ def classify_gaming(
                     break
         larger_outside = seen / max(1, len(faces))
     valid = layout_valid_samples(evidence, hud_mask, bordered)
+    if virtual and len(faces) == len(valid) and len(valid) >= 7:
+        # No rectangle to check: the head itself says whether the streamer is on screen. Gone for a stretch
+        # (an edit cuts to the game alone), the panel would show the game twice.
+        seen = np.array([
+            any(facecam.x <= bx + bw / 2 <= facecam.x2 and facecam.y <= by + bh / 2 <= facecam.y2
+                for bx, by, bw, bh in boxes)
+            for boxes in faces
+        ], dtype=np.uint8)
+        padded = np.pad(seen, 3, mode="edge")
+        valid &= np.array([np.median(padded[i:i + 7]) for i in range(len(seen))]) > 0
     valid_fraction = float(valid.mean()) if len(valid) else 0.0
 
     def to_source(r: Rect, inset: int = 0) -> Rect:
@@ -1173,6 +1190,12 @@ def classify_gaming(
     )
     # A channel's own graphic over moving footage is a stream already: one HUD element beside it is enough.
     needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None or sticker is not None else MIN_HUD_REGIONS
+
+    def anchored(r: Rect) -> bool:
+        # A game pins its HUD to the edges of the screen. Labels on a drawn map, signs in a panning shot and
+        # captions sit anywhere.
+        reach_x, reach_y = HUD_ANCHOR_REACH * w, HUD_ANCHOR_REACH * h
+        return r.x <= reach_x or r.x2 >= w - reach_x or r.y <= reach_y or r.y2 >= h - reach_y
     if sticker is not None:
         profile.sticker, profile.sticker_mask = to_source(sticker[0]), sticker[1]
     splits = split_screen_ranges(evidence, duration) if facecam is None and track is None else []
@@ -1208,7 +1231,11 @@ def classify_gaming(
         # Someone else sits still on screen for most of the clip, larger than the camera's face: a reaction or
         # a podcast with a small inset, not a game.
         profile.reason = "people_on_screen"
-    elif (facecam is None or virtual) and (len(regions) < needed or hud_edge_fraction < MIN_HUD_EDGE_FRACTION):
+    elif (facecam is None or virtual) and (
+        len(regions) < needed or hud_edge_fraction < MIN_HUD_EDGE_FRACTION
+        or (facecam is None and sticker is None and not crosshair
+            and sum(anchored(r) for r in regions) < MIN_ANCHORED_HUD_REGIONS)
+    ):
         # A camera inset over a moving picture is a stream whether or not the game draws a HUD (story missions).
         profile.reason = "no_hud"
     elif valid_fraction < (MIN_VALID_FRACTION_WITH_FACECAM if facecam is not None else MIN_VALID_FRACTION):
@@ -1567,7 +1594,13 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
         crop, fitted = still_crop(profile.focus, width, height, panel_h, fill=profile.focus_fill,
                                   avoid=profile.facecam)
     else:
-        crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
+        # A keyed-out streamer and a pictured logo sit over the game: the crop slides off them where it can,
+        # so neither is shown twice or cut in half.
+        aside = profile.facecam if cam else profile.sticker
+        if profile.virtual_camera and aside is not None and not (
+                aside.x <= KEYED_EDGE_REACH * width or aside.x2 >= (1 - KEYED_EDGE_REACH) * width):
+            aside = None        # a keyed-out head away from the sides is in the game's picture: nothing to step off
+        crop = gameplay_crop(width, height, panel_h, aside)
     cutouts, occupied = place_hud(profile.hud, crop, width, panel_y, panel_h)
 
     inputs = [f"{tag}_game"] + ([f"{tag}_cam"] if cam else []) + [f"{tag}_h{i}" for i in range(len(cutouts))]
@@ -1595,7 +1628,7 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
     panel = f"[{tag}_p{len(cutouts)}]"
     mark = profile.sticker
     # The sticker goes up only when the crop does not show the picture where it is: it cannot be taken out
-    # of the game, and twice is worse than once.
+    # of the game, and twice is worse than once. (_compose already slid the crop off a picture at its edge.)
     if mark is not None and profile.sticker_mask and cam is None and (mark.x2 <= crop.x or mark.x >= crop.x2):
         cols, rows, cells = profile.sticker_mask
         out_w = clamp_even(int(round(min(CANVAS_W * STICKER_WIDTH, mark.w * STICKER_MAX_SCALE))), 2, CANVAS_W)
@@ -1612,7 +1645,7 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
             boxes = ",".join(f"drawbox=x={cx}:y={cy}:w={cw}:h={ch}:color=white:t=fill" for cx, cy, cw, ch in cells)
             lines += [
                 # The mask is drawn on a copy of the picture so it runs as long as the clip does.
-                f"[{tag}_sm]crop={2 * cols}:{2 * rows}:0:0,scale={cols}:{rows},format=yuv444p,"
+                f"[{tag}_sm]crop={2 * cols}:{2 * rows}:0:0,scale={cols}:{rows}:out_range=tv,format=yuv444p,"
                 f"drawbox=x=0:y=0:w={cols}:h={rows}:color=black:t=fill,{boxes},"
                 f"scale={out_w}:{out_h}:flags=bilinear,format=gray[{tag}_sk]",
                 f"[{tag}_st]crop={mark.w}:{mark.h}:{mark.x}:{mark.y},scale={out_w}:{out_h}:flags=lanczos,"
@@ -1675,8 +1708,11 @@ def still_crop(
     x = clamp_even(int(round(cx - cw / 2)), 0, width - cw)
     y = clamp_even(int(round(cy - ch / 2)), 0, height - ch)
     if avoid is not None and x < avoid.x2 and avoid.x < x + cw and y < avoid.y2 and avoid.y < y + ch:
+        # Off the camera, as long as the subject stays in the picture: the shift ends where the focus would
+        # leave the crop.
         clear = avoid.x2 if avoid.x + avoid.w / 2 < width / 2 else avoid.x - cw
-        if 0 <= clear <= width - cw:
+        lowest, highest = max(0, focus.x2 - cw), min(width - cw, focus.x)
+        if focus.w <= cw and lowest <= clear <= highest:
             x = clamp_even(clear, 0, width - cw)
     return Rect(x, y, cw, ch), None
 
