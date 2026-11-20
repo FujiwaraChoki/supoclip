@@ -307,3 +307,39 @@ def test_adjacent_series_parts_share_one_cut_after_rendering(video_path, cleanup
     spoken = [text for part in played for text, _ in part]
     removed = {"um"} if cleanup else set()
     assert spoken == [text for text in all_words if text not in removed]
+
+
+# --- Clean-up never replaces a selected moment (#487) --------------------------
+
+def _sparse_video(tmp_path, monkeypatch, words):
+    video = tmp_path / "sparse.mp4"
+    video.with_suffix(".transcript_cache.json").write_text(json.dumps({
+        "version": 2, "language_code": "en", "utterances": [], "words": _words(*words),
+    }), encoding="utf-8")
+    monkeypatch.setattr("src.media.timeline.ffprobe_duration", lambda _path: 120.0)
+    monkeypatch.setattr(timeline, "get_config", lambda: SimpleNamespace(hook_first_teaser=False))
+    monkeypatch.setattr(timeline, "active_gap_ranges", lambda _p, gaps, _s: [[] for _ in gaps])
+    return video
+
+
+def test_a_selection_that_cleanup_would_reduce_to_a_sliver_is_rendered_whole(tmp_path, monkeypatch):
+    # One word in 30 s and no action found around it: 0.95 s would be left of the selected moment.
+    video = _sparse_video(tmp_path, monkeypatch, [("Sam.", 27.0, 27.6)])
+    segment = _segment({"start_time": "00:00", "end_time": "00:30"})
+    resolved = render_ranges.resolve_render_ranges(video, segment, CLEANUP, 60.0)
+    assert sum(end - start for start, end in resolved.keep_ranges) >= 29.0
+
+
+def test_a_selection_with_a_few_seconds_of_speech_is_still_tightened(tmp_path, monkeypatch):
+    words = [(f"w{i}.", i * 0.4, i * 0.4 + 0.35) for i in range(13)]                    # 5.15 s of speech, then nothing
+    video = _sparse_video(tmp_path, monkeypatch, words)
+    segment = _segment({"start_time": "00:00", "end_time": "00:30"})
+    resolved = render_ranges.resolve_render_ranges(video, segment, CLEANUP, 60.0)
+    assert sum(end - start for start, end in resolved.keep_ranges) < 7.0
+
+
+def test_a_sparse_planned_range_keeps_its_cleanup(tmp_path, monkeypatch):
+    # Workflow budgets are measured with pauses cut: a planned range is never handed its dead air back.
+    video = _sparse_video(tmp_path, monkeypatch, [("Okay.", 0.0, 0.5), ("Right.", 9.5, 10.0)])
+    resolved = render_ranges.resolve_render_ranges(video, _planned([(0.0, 10.35)]), CLEANUP, 60.0)
+    assert sum(end - start for start, end in resolved.keep_ranges) < 3.0
