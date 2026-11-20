@@ -72,6 +72,7 @@ from ..clip_duration import clip_duration
 from ..config import get_config
 from ..workflows.contracts import PlanCache, PlanContext, WorkflowResult, WorkflowSpec
 from ..workflows.durations import workflow_budget
+from ..media.fallback_window import SCAN_SECONDS as FALLBACK_SCAN_SECONDS
 from ..media.source_limits import normalize_source_media, probe_media_duration
 from ..media.upload_ingest import (
     materialize_stored_upload,
@@ -606,8 +607,12 @@ class VideoService:
     ) -> Dict[str, Any]:
         """Create a bounded starter clip when AI analysis selects no segments."""
         fallback_duration = max(1.0, float(target_duration or 30))
+        # The segment asks for more than the clip will be, so the render can look at the picture and end
+        # on a chapter instead of wherever the target length falls (media/fallback_window.py).
+        scan_duration = max(fallback_duration, FALLBACK_SCAN_SECONDS)
         if video_duration and video_duration > 0:
             fallback_duration = min(fallback_duration, max(1.0, video_duration))
+            scan_duration = min(scan_duration, max(1.0, video_duration))
 
         transcript_preview = " ".join((transcript or "").split())
         if len(transcript_preview) > 240:
@@ -615,7 +620,8 @@ class VideoService:
 
         return {
             "start_time": "00:00",
-            "end_time": seconds_to_mmss(fallback_duration),
+            "end_time": seconds_to_mmss(scan_duration),
+            "fallback_seconds": fallback_duration,
             "text": transcript_preview,
             "relevance_score": 0.25,
             "reasoning": (

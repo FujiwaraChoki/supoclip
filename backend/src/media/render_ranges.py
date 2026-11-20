@@ -26,6 +26,7 @@ from ..clip_source_map import normalize_source_ranges, source_range_bounds
 from ..workflows.durations import WORKFLOW_RENDER_HARD_MAX_SECONDS
 from ..workflows.language import is_no_space
 from .common import logger
+from .fallback_window import fallback_window
 from .ffmpeg import crossfade_fade_for_ranges
 from .timeline import (
     apply_segment_hook_teaser,
@@ -103,6 +104,13 @@ def _resolve_legacy(
             cleanup_settings,
         )
     else:
+        if segment.get("hook_type") == "fallback":
+            # Nothing was selected (a video without speech). The segment spans the stretch that was fetched;
+            # the clip is the first chapter in it, or its first seconds.
+            start_seconds, end_seconds = fallback_window(
+                video_path, start_seconds, end_seconds,
+                float(segment.get("fallback_seconds") or 30.0), max_clip_seconds,
+            )
         start_seconds = snap_clip_start_to_sentence(
             video_path, start_seconds, end_seconds
         )
