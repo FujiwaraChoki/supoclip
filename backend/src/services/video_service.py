@@ -1288,6 +1288,13 @@ class VideoService:
                 }
                 if segment.get("opening_reviewed"):
                     segment_payload["opening_reviewed"] = True
+                if segment.get("hook_type") == "fallback":
+                    # A starter clip read back from an earlier analysis of the same video: it stays a
+                    # fallback, with the span to look in and its target length, not a 90-second selection.
+                    segment_payload["hook_type"] = "fallback"
+                    for key in ("source_ranges", "fallback_seconds"):
+                        if segment.get(key) is not None:
+                            segment_payload[key] = segment[key]
             else:
                 virality = segment.virality.model_dump() if segment.virality else {}
                 segment_payload = {

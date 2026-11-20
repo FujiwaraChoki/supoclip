@@ -64,3 +64,36 @@ def test_the_fallback_segment_asks_for_enough_to_find_a_chapter():
     # A source shorter than the target plays exactly its length (#422).
     short = VideoService._build_fallback_segment(video_duration=24.6, transcript="", target_duration=30)
     assert short["source_ranges"] == [[0.0, 24.6]] and short["fallback_seconds"] == 24.6 and short["end_time"] == "00:24"
+
+
+def test_a_video_that_opens_on_its_first_title_card_starts_there(tmp_path):
+    video = _video(tmp_path, [("card", 2), ("scene", 23), ("card", 2), ("scene", 23), ("card", 2), ("scene", 10)])
+    start, end = fw.fallback_window(video, 0.0, 62.0, 30.0, 60.0)
+    assert start == pytest.approx(0.0, abs=0.3) and end == pytest.approx(25.0, abs=0.3)
+
+
+def _dark_video(tmp_path, source):
+    path = tmp_path / "dark.mp4"
+    run = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:v", "libx264", "-preset", "ultrafast",
+         "-pix_fmt", "yuv420p", str(path)], capture_output=True, text=True,
+    )
+    assert run.returncode == 0, run.stderr
+    return path
+
+
+def test_a_fade_to_black_is_not_a_title_card(tmp_path):
+    # Black gaps with nothing written on them, 20 s apart.
+    video = _dark_video(tmp_path, "testsrc2=s=320x180:r=8:d=60,drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill:"
+                                  "enable='between(mod(t,20),5,7)'")
+    assert fw.title_cards(video, 0.0, 60.0) == []
+    assert fw.fallback_window(video, 0.0, 60.0, 30.0, 60.0) == (0.0, 30.0)
+
+
+def test_dark_footage_that_moves_or_lasts_is_not_a_title_card(tmp_path):
+    # A vertical picture pillarboxed in 16:9 (most of the frame is black bars) that dims every 17 s for 8 s.
+    video = _dark_video(
+        tmp_path,
+        "testsrc2=s=100x180:r=8:d=60,eq=brightness=-0.25:enable='lt(mod(t,17),8)',pad=320:180:110:0:black",
+    )
+    assert fw.title_cards(video, 0.0, 60.0) == []

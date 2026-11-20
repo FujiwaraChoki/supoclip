@@ -23,13 +23,21 @@ _FPS = 4.0
 _SIZE = (160, 90)
 CARD_DARK_LEVEL = 70         # grey level under which a pixel is dark
 CARD_DARK_SHARE = 0.85       # share of dark pixels on a title card (measured 0.88-1.0; gameplay at night 0.6)
+CARD_TEXT_LEVEL = 140        # ... and its text is bright:
+CARD_TEXT_SHARE = 0.005      # this share of the pixels at least (measured 0.017-0.035; a fade to black 0.0)
+CARD_STILL_DIFF = 5.0        # median change between frames, grey levels (cards 0.0-4.4; dark gameplay 6 and up)
 CARD_MIN_SECONDS = 0.75
+CARD_MAX_SECONDS = 6.0       # held longer, a dark frame is a scene, not a card
 CARD_LEAD_SECONDS = 20.0     # the first card comes this early, or the video is not built from chapters
 CHAPTER_MIN_SECONDS = 12.0
 
 
 def title_cards(video_path: Path, start: float, end: float) -> List[Tuple[float, float]]:
-    """Spans (seconds) of dark, held frames between ``start`` and ``end``."""
+    """Spans (seconds) of title cards between ``start`` and ``end``: dark, still, with bright text, held briefly.
+
+    Darkness alone is not a card: night gameplay, a dim studio and a pillarboxed vertical video are dark too.
+    They move, or they stay dark for longer than anyone holds a title. A fade to black has no text.
+    """
     width, height = _SIZE
     result = subprocess.run(
         ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-i", str(video_path), "-t", f"{end - start:.3f}", "-an",
@@ -40,14 +48,21 @@ def title_cards(video_path: Path, start: float, end: float) -> List[Tuple[float,
         raise RuntimeError(result.stderr.decode("utf-8", "replace")[-300:])
     data = np.frombuffer(result.stdout, dtype=np.uint8)
     frames = data[:len(data) // (width * height) * (width * height)].reshape(-1, height, width)
+    if not len(frames):
+        return []
     dark = (frames < CARD_DARK_LEVEL).mean(axis=(1, 2)) >= CARD_DARK_SHARE
+    text = (frames >= CARD_TEXT_LEVEL).mean(axis=(1, 2)) >= CARD_TEXT_SHARE
+    change = np.abs(np.diff(frames.astype(np.int16), axis=0)).mean(axis=(1, 2))
     cards: List[Tuple[float, float]] = []
     run_start = None
-    for index, flag in enumerate(list(dark) + [False]):
+    for index, flag in enumerate(list(dark & text) + [False]):
         if flag and run_start is None:
             run_start = index
         elif not flag and run_start is not None:
-            if (index - run_start) / _FPS >= CARD_MIN_SECONDS:
+            seconds = (index - run_start) / _FPS
+            inside = change[run_start:index - 1]
+            still = not len(inside) or float(np.median(inside)) <= CARD_STILL_DIFF
+            if CARD_MIN_SECONDS <= seconds <= CARD_MAX_SECONDS and still:
                 cards.append((start + run_start / _FPS, start + index / _FPS))
             run_start = None
     return cards
@@ -69,8 +84,6 @@ def fallback_window(
     except Exception as exc:
         logger.warning("Fallback window: could not read %s (%s); using the first %.0fs", video_path, exc, target_seconds)
         return plain
-    # A black frame the video opens on is its fade-in, not a chapter's card.
-    cards = [card for card in cards if card[0] > start + 0.5]
     if not cards or cards[0][0] - start > CARD_LEAD_SECONDS:
         return plain
     opening = cards[0][0]
