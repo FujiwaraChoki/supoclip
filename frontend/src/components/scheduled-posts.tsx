@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { intlLocale } from "@/i18n/config";
 import { timeAgo } from "@/lib/generations";
-import { PROVIDER_LABELS, type SocialPost } from "@/lib/social";
+import { PROVIDER_LABELS, isQuotaHeld, type SocialPost } from "@/lib/social";
 
 function dayLabel(date: Date, todayLabel: string, tomorrowLabel: string, format: Intl.DateTimeFormat): string {
   const today = new Date();
@@ -128,7 +128,8 @@ export function ScheduledPosts({ sectionHeadingClassName }: { sectionHeadingClas
                           <span className="block truncate font-medium">{title}</span>
                         )}
                         <p className="truncate text-xs text-muted-foreground">
-                          {accountName(post)} · {timeAgo(post.scheduled_for!, locale)}
+                          {accountName(post)} ·{" "}
+                          {isQuotaHeld(post) ? t("postStatus.waitingForLimit") : timeAgo(post.scheduled_for!, locale)}
                         </p>
                       </div>
                       <DropdownMenu>

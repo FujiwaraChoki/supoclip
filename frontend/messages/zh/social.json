@@ -19,7 +19,8 @@
     "failed": "失败",
     "cancelled": "已取消",
     "queued": "排队中",
-    "publishing": "发布中"
+    "publishing": "发布中",
+    "waitingForLimit": "等待 YouTube 每日上限重置"
   },
   "privacy": {
     "public": "公开",
@@ -129,5 +130,6 @@
   "privacyLoadFailed": "无法加载发布选项，请刷新后重试。",
   "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。",
   "tiktokPrivateAccountRequired": "TikTok 尚未批准 SupoClip 的应用，因此只接受来自私密账号的仅自己可见发布。发布前，请在 TikTok 中开启「设置和隐私 → 隐私 → 私密账号」。",
-  "tiktokPaused": "我们正在修复 TikTok 的一个问题，TikTok 发布暂时暂停。其他平台照常可用。"
+  "tiktokPaused": "我们正在修复 TikTok 的一个问题，TikTok 发布暂时暂停。其他平台照常可用。",
+  "quotaHold": "已达到 YouTube 每日上传上限。此片段将在 {time} 自动发布。"
 }

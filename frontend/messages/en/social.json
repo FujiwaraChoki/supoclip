@@ -19,7 +19,8 @@
     "failed": "Failed",
     "cancelled": "Cancelled",
     "queued": "Queued",
-    "publishing": "Publishing"
+    "publishing": "Publishing",
+    "waitingForLimit": "Waiting for YouTube’s daily limit"
   },
   "privacy": {
     "public": "Public",
@@ -129,5 +130,6 @@
   "privacyLoadFailed": "Couldn’t load publishing options. Refresh and try again.",
   "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options.",
   "tiktokPrivateAccountRequired": "TikTok hasn’t approved SupoClip’s app yet, so it only accepts private posts from accounts set to Private. In TikTok, turn on Settings and privacy → Privacy → Private account before publishing.",
-  "tiktokPaused": "TikTok publishing is paused while we fix an issue with TikTok. Your other platforms work as usual."
+  "tiktokPaused": "TikTok publishing is paused while we fix an issue with TikTok. Your other platforms work as usual.",
+  "quotaHold": "YouTube’s daily upload limit is reached. This clip will publish automatically at {time}."
 }

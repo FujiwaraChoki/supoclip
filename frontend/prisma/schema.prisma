@@ -394,6 +394,9 @@ model SocialPost {
   error_message          String?
   attempts               Int       @default(0)
   claimed_at             DateTime? @db.Timestamptz
+  /// Why a scheduled post is waiting, e.g. "youtube_quota" (daily upload limit).
+  hold_reason            String?   @db.VarChar(40)
+  held_since             DateTime? @db.Timestamptz
   hook_type              String?   @db.VarChar(50)
   hook_title             String?   @db.VarChar(255)
   virality_score         Int?

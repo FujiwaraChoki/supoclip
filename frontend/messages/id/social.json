@@ -19,7 +19,8 @@
     "failed": "Gagal",
     "cancelled": "Dibatalkan",
     "queued": "Dalam antrean",
-    "publishing": "Memublikasikan"
+    "publishing": "Memublikasikan",
+    "waitingForLimit": "Menunggu batas harian YouTube"
   },
   "privacy": {
     "public": "Publik",
@@ -129,5 +130,6 @@
   "privacyLoadFailed": "Opsi publikasi tidak dapat dimuat. Perbarui dan coba lagi.",
   "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi.",
   "tiktokPrivateAccountRequired": "TikTok belum menyetujui aplikasi SupoClip, jadi hanya menerima postingan privat dari akun privat. Sebelum memublikasikan, aktifkan Pengaturan dan privasi → Privasi → Akun privat di TikTok.",
-  "tiktokPaused": "Publikasi ke TikTok dijeda sementara kami memperbaiki masalah dengan TikTok. Platform lainnya tetap berfungsi seperti biasa."
+  "tiktokPaused": "Publikasi ke TikTok dijeda sementara kami memperbaiki masalah dengan TikTok. Platform lainnya tetap berfungsi seperti biasa.",
+  "quotaHold": "Batas unggahan harian YouTube telah tercapai. Klip ini akan dipublikasikan otomatis pada {time}."
 }

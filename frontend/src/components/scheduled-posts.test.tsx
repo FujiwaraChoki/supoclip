@@ -38,6 +38,13 @@ it("lists scheduled posts soonest first and links each to its clip", async () =>
   expect(fetch).toHaveBeenCalledWith("/api/social/posts?status=scheduled&limit=200", { cache: "no-store" });
 });
 
+it("says a post is waiting for YouTube's daily limit instead of a countdown", async () => {
+  const held = { ...scheduledPost("h", 3, "Held clip"), hold_reason: "youtube_quota" };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ posts: [held] }))));
+  render(<ScheduledPosts sectionHeadingClassName="" />);
+  expect(await screen.findByText("My Channel · Waiting for YouTube’s daily limit")).toBeInTheDocument();
+});
+
 it("shows an empty state when nothing is scheduled", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ posts: [] }))));
   render(<ScheduledPosts sectionHeadingClassName="" />);

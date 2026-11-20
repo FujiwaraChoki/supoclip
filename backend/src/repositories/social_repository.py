@@ -20,6 +20,9 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..social.tiktok import UNAUDITED_PRIVATE_ACCOUNT_ERROR, UNAUDITED_PRIVATE_ACCOUNT_MESSAGE
+from ..social.youtube import CHANNEL_LIMIT_MESSAGE as YOUTUBE_CHANNEL_LIMIT_MESSAGE
+from ..social.youtube import QUOTA_FAILED_MESSAGE as YOUTUBE_QUOTA_FAILED_MESSAGE
+from ..social.youtube import is_channel_limit_error, is_daily_quota_error
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,7 @@ _POST_COLUMNS = """
     p.status, p.scheduled_for, p.title, p.caption, p.hashtags, p.privacy_level,
     p.media_token, p.media_token_expires_at, p.source_file_path,
     p.pending_handle, p.external_post_id, p.external_url, p.error_message, p.attempts,
-    p.claimed_at,
+    p.claimed_at, p.hold_reason, p.held_since,
     p.hook_type, p.hook_title, p.virality_score, p.hook_score,
     p.engagement_score, p.value_score, p.shareability_score, p.clip_duration,
     p.published_at, p.last_metrics_at, p.metrics, p.created_at, p.updated_at,
@@ -75,6 +78,8 @@ _POST_UPDATABLE_COLUMNS = {
     "last_metrics_at",
     "metrics",
     "social_account_id",
+    "hold_reason",
+    "held_since",
 }
 
 
@@ -95,6 +100,13 @@ def present_post_error(provider: str, message: Optional[str]) -> Optional[str]:
     # Posts that failed before the readable message existed stored TikTok's raw code.
     if provider == "tiktok" and message and UNAUDITED_PRIVATE_ACCOUNT_ERROR in message:
         return UNAUDITED_PRIVATE_ACCOUNT_MESSAGE
+    # Posts that failed on YouTube's limits before readable messages existed
+    # stored Google's raw error.
+    if provider == "youtube" and message and message.startswith("Failed to "):
+        if is_daily_quota_error(message, set()):
+            return YOUTUBE_QUOTA_FAILED_MESSAGE
+        if is_channel_limit_error(message, set()):
+            return YOUTUBE_CHANNEL_LIMIT_MESSAGE
     return message
 
 
@@ -738,6 +750,8 @@ class SocialRepository:
                 SET status = 'queued',
                     error_message = NULL,
                     scheduled_for = NULL,
+                    hold_reason = NULL,
+                    held_since = NULL,
                     media_token = COALESCE(media_token, :media_token),
                     updated_at = NOW()
                 WHERE id = :id AND user_id = :user_id
@@ -751,6 +765,51 @@ class SocialRepository:
         row = result.fetchone()
         await db.commit()
         return int(row.attempts or 0) if row else None
+
+    @staticmethod
+    async def hold_post(
+        db: AsyncSession,
+        post_id: str,
+        *,
+        until: datetime,
+        reason: str,
+        message: str,
+        held_since: datetime,
+    ) -> bool:
+        """
+        Park a claimed post as ``scheduled`` until a platform allowance resets.
+
+        The attempt that hit the limit is given back, so waiting never uses up
+        the retries a real failure gets later. ``held_since`` keeps the first
+        hold, which bounds the wait and puts the oldest held post first.
+        """
+        result = await db.execute(
+            text(
+                """
+                UPDATE social_posts
+                SET status = 'scheduled',
+                    scheduled_for = :until,
+                    hold_reason = :reason,
+                    held_since = COALESCE(held_since, :held_since),
+                    error_message = :message,
+                    attempts = GREATEST(attempts - 1, 0),
+                    media_token_expires_at = NULL,
+                    updated_at = NOW()
+                WHERE id = :id AND status = 'publishing'
+                RETURNING id
+                """
+            ),
+            {
+                "id": post_id,
+                "until": until,
+                "reason": reason,
+                "message": message,
+                "held_since": held_since,
+            },
+        )
+        row = result.fetchone()
+        await db.commit()
+        return row is not None
 
     @staticmethod
     async def fail_stale_publishing(
@@ -795,7 +854,8 @@ class SocialRepository:
                     WHERE status = 'scheduled'
                       AND scheduled_for IS NOT NULL
                       AND scheduled_for <= NOW()
-                    ORDER BY scheduled_for ASC
+                    -- Posts held for a platform limit go out oldest hold first.
+                    ORDER BY scheduled_for ASC, held_since ASC NULLS LAST, created_at ASC
                     LIMIT :limit
                     FOR UPDATE SKIP LOCKED
                 )
@@ -888,6 +948,8 @@ class SocialRepository:
             "error_message": present_post_error(row.provider, row.error_message),
             "attempts": row.attempts,
             "claimed_at": _iso(row.claimed_at),
+            "hold_reason": row.hold_reason,
+            "held_since": _iso(row.held_since),
             "hook_type": row.hook_type,
             "hook_title": row.hook_title,
             "virality_score": row.virality_score,

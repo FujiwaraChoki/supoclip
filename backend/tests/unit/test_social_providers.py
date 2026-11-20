@@ -706,3 +706,112 @@ def test_tiktok_profile_only_requests_basic_scope_fields():
     assert profile.external_account_id == "o1"
     assert profile.display_name == "Creator"
     assert profile.username is None
+
+
+# ----------------------------------------------------------------------
+# YouTube daily limits
+# ----------------------------------------------------------------------
+def _youtube_upload_error(status, message, reasons=()):
+    from src.social.base import PublishRequest
+
+    payload = {
+        "error": {
+            "code": status,
+            "message": message,
+            "errors": [{"reason": reason, "message": message} for reason in reasons],
+        }
+    }
+    session = FakeSession({("POST", "upload/youtube/v3/videos"): FakeResponse(status, payload)})
+    provider = YouTubeProvider(_config(), session=session)
+    request = PublishRequest(
+        file_path=__file__, title="t", caption="c", hashtags=[], privacy_level="public"
+    )
+    with pytest.raises(SocialProviderError) as excinfo:
+        provider.publish("token", request)
+    return excinfo.value
+
+
+PROJECT_QUOTA = (
+    "Quota exceeded for quota metric 'Video Uploads' and limit 'Video Uploads per day' "
+    "of service 'youtube.googleapis.com' for consumer 'project_number:123'."
+)
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "reasons"),
+    [
+        (429, PROJECT_QUOTA, ("rateLimitExceeded",)),
+        (429, PROJECT_QUOTA, ()),
+        (403, "The request cannot be completed because you have exceeded your quota.", ("quotaExceeded",)),
+    ],
+)
+def test_youtube_daily_project_quota_holds_until_midnight_pacific(status, message, reasons):
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    from src.social.youtube import QUOTA_HOLD_MESSAGE, QUOTA_HOLD_REASON
+
+    error = _youtube_upload_error(status, message, reasons)
+    assert error.hold_reason == QUOTA_HOLD_REASON
+    assert str(error) == QUOTA_HOLD_MESSAGE
+    assert "project_number" not in str(error)
+    reset = error.hold_until.astimezone(ZoneInfo("America/Los_Angeles"))
+    assert (reset.hour, reset.minute, reset.second) == (0, 0, 0)
+    assert error.hold_until > datetime.now(timezone.utc)
+
+
+def test_youtube_per_minute_quota_keeps_short_retries():
+    error = _youtube_upload_error(
+        429,
+        "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute' of service 'youtube.googleapis.com'.",
+        ("rateLimitExceeded",),
+    )
+    assert error.hold_until is None
+    assert error.retryable is True
+
+
+@pytest.mark.parametrize("reasons", [("uploadLimitExceeded",), ()])
+def test_youtube_channel_upload_limit_fails_with_a_plain_message(reasons):
+    from src.social.youtube import CHANNEL_LIMIT_MESSAGE
+
+    error = _youtube_upload_error(
+        400, "The user has exceeded the number of videos they may upload.", reasons
+    )
+    assert str(error) == CHANNEL_LIMIT_MESSAGE
+    assert error.hold_until is None
+    assert error.retryable is False
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        # 02:37 PST -> next midnight PST (UTC-8).
+        ("2026-11-20T10:37:00+00:00", "2026-11-21T08:00:00+00:00"),
+        # 23:59 PST the night daylight saving time starts -> midnight PST.
+        ("2026-03-08T07:59:00+00:00", "2026-03-08T08:00:00+00:00"),
+        # Noon PDT (UTC-7) that day -> midnight PDT.
+        ("2026-03-08T19:00:00+00:00", "2026-03-09T07:00:00+00:00"),
+        # Exactly at the reset -> the next one.
+        ("2026-11-21T08:00:00+00:00", "2026-11-22T08:00:00+00:00"),
+    ],
+)
+def test_youtube_quota_reset_follows_pacific_time(now, expected):
+    from datetime import datetime
+
+    from src.social.youtube import quota_reset_after
+
+    assert quota_reset_after(datetime.fromisoformat(now)) == datetime.fromisoformat(expected)
+
+
+def test_old_raw_youtube_limit_failures_read_plainly():
+    from src.repositories.social_repository import present_post_error
+    from src.social.youtube import CHANNEL_LIMIT_MESSAGE, QUOTA_FAILED_MESSAGE
+
+    raw_quota = f"Failed to start the YouTube upload: {PROJECT_QUOTA} (429)"
+    raw_channel = (
+        "Failed to start the YouTube upload: The user has exceeded the number of videos they may upload. (400)"
+    )
+    assert present_post_error("youtube", raw_quota) == QUOTA_FAILED_MESSAGE
+    assert present_post_error("youtube", raw_channel) == CHANNEL_LIMIT_MESSAGE
+    assert present_post_error("youtube", "Something else") == "Something else"
+    assert present_post_error("tiktok", raw_quota) == raw_quota

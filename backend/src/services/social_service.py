@@ -43,6 +43,8 @@ from ..social import (
     list_provider_status,
 )
 from ..social.base import OUTCOME_UNKNOWN_MESSAGE, PRIVACY_LEVELS, redact, redacted_errors
+from ..social.youtube import QUOTA_GAVE_UP_MESSAGE as YOUTUBE_QUOTA_GAVE_UP_MESSAGE
+from ..social.youtube import QUOTA_HOLD_REASON as YOUTUBE_QUOTA_HOLD_REASON
 from ..utils.async_helpers import run_in_thread
 from ..workers.job_queue import DuplicateJobError, JobQueue
 
@@ -76,6 +78,14 @@ MOBILE_STATE_PREFIX = "m."
 MOBILE_CLIENTS = frozenset({"ios"})
 MAX_TITLE_LENGTH = 255
 MAX_CAPTION_LENGTH = 2200
+# A post held for a platform's daily limit (YouTube's upload quota) waits for
+# the reset, but not forever: after this long it fails and the user decides.
+HOLD_MAX_AGE = timedelta(days=3)
+# Held posts are spread over the first minutes after the reset in the order
+# they were held, so they don't all fire in the same second and the oldest
+# goes first.
+HOLD_SPREAD_SECONDS = 600
+HOLD_GAVE_UP_MESSAGES = {YOUTUBE_QUOTA_HOLD_REASON: YOUTUBE_QUOTA_GAVE_UP_MESSAGE}
 _HASHTAG_RE = re.compile(r"[^0-9A-Za-z_À-￿]+")
 
 
@@ -849,6 +859,7 @@ class SocialService:
             external_url=url,
             pending_handle=None,
             error_message=None,
+            hold_reason=None,
             published_at=datetime.now(timezone.utc),
             media_token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
         )
@@ -872,6 +883,8 @@ class SocialService:
         exc: SocialProviderError,
     ) -> Dict[str, Any]:
         message = str(exc)[:2000]
+        if exc.hold_until and exc.hold_reason and not exc.outcome_unknown and not exc.reauth:
+            return await self._hold_for_limit(post, exc)
         if exc.reauth:
             await self.repo.set_account_status(self.db, account["id"], "reauth_required", message)
         # A definitive platform failure kills the pending upload, so an explicit
@@ -903,6 +916,40 @@ class SocialService:
                 self.db, post["id"], status="failed", error_message=message, **handle_fields
             )
             logger.error("Publish failed for post %s: %s", post["id"], message)
+        return await self.repo.get_post(self.db, post["id"]) or post
+
+    async def _hold_for_limit(
+        self, post: Dict[str, Any], exc: SocialProviderError
+    ) -> Dict[str, Any]:
+        """Wait for a platform's daily limit to reset instead of failing."""
+        assert exc.hold_until is not None and exc.hold_reason is not None
+        now = datetime.now(timezone.utc)
+        held_since = _parse_datetime(post.get("held_since")) or now
+        if now - held_since > HOLD_MAX_AGE:
+            await self.repo.update_post(
+                self.db,
+                post["id"],
+                status="failed",
+                error_message=HOLD_GAVE_UP_MESSAGES.get(exc.hold_reason, str(exc)),
+                hold_reason=None,
+            )
+            logger.error(
+                "Post %s waited %s for %s; giving up", post["id"], now - held_since, exc.hold_reason
+            )
+            return await self.repo.get_post(self.db, post["id"]) or post
+        until = hold_slot(exc.hold_until, held_since)
+        held = await self.repo.hold_post(
+            self.db,
+            post["id"],
+            until=until,
+            reason=exc.hold_reason,
+            message=str(exc)[:2000],
+            held_since=held_since,
+        )
+        if held:
+            logger.warning(
+                "Post %s hit %s; held until %s", post["id"], exc.hold_reason, until.isoformat()
+            )
         return await self.repo.get_post(self.db, post["id"]) or post
 
     async def resolve_pending_post(self, post: Dict[str, Any]) -> Dict[str, Any]:
@@ -1154,6 +1201,20 @@ def _parse_schedule(value: Optional[str]) -> Optional[datetime]:
     if parsed is None:
         raise SocialValidationError("scheduled_for must be an ISO-8601 timestamp")
     return parsed
+
+
+def hold_slot(reset_at: datetime, held_since: datetime) -> datetime:
+    """
+    When a held post goes out after ``reset_at``.
+
+    Posts first held earlier in the day before the reset get earlier slots in
+    the first ``HOLD_SPREAD_SECONDS`` after it; posts still waiting from an
+    earlier day go out right at the reset.
+    """
+    day = timedelta(days=1)
+    elapsed = held_since - (reset_at - day)
+    fraction = min(max(elapsed / day, 0.0), 1.0)
+    return reset_at + timedelta(seconds=round(HOLD_SPREAD_SECONDS * fraction))
 
 
 def _parse_datetime(value: Any) -> Optional[datetime]:

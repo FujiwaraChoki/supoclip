@@ -58,6 +58,8 @@ class SocialProviderError(Exception):
         reauth: bool = False,
         rejected: bool = False,
         outcome_unknown: bool = False,
+        hold_until: Optional[datetime] = None,
+        hold_reason: Optional[str] = None,
     ):
         # Messages reach logs, the database and API responses.
         super().__init__(redact(message))
@@ -72,6 +74,12 @@ class SocialProviderError(Exception):
         # (e.g. a timeout after the video was sent). Retrying automatically
         # could publish it twice, so only the user may retry.
         self.outcome_unknown = outcome_unknown
+        # ``hold_until`` means the platform refused because a shared allowance
+        # (e.g. YouTube's daily upload quota for our project) is used up. The
+        # post should wait for that moment instead of failing; ``hold_reason``
+        # names the allowance for the UI.
+        self.hold_until = hold_until
+        self.hold_reason = hold_reason
 
 
 @dataclass

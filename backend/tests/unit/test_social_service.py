@@ -174,9 +174,26 @@ class FakeRepo:
             or not post.get("social_account_id")
         ):
             return None
-        post.update(status="queued", error_message=None, scheduled_for=None)
+        post.update(
+            status="queued", error_message=None, scheduled_for=None, hold_reason=None, held_since=None
+        )
         post["media_token"] = post.get("media_token") or media_token
         return post["attempts"]
+
+    async def hold_post(self, db, post_id, *, until, reason, message, held_since):
+        post = self.posts.get(post_id)
+        if not post or post["status"] != "publishing":
+            return False
+        post.update(
+            status="scheduled",
+            scheduled_for=until.isoformat(),
+            hold_reason=reason,
+            held_since=post.get("held_since") or held_since.isoformat(),
+            error_message=message,
+            attempts=max(post["attempts"] - 1, 0),
+            media_token_expires_at=None,
+        )
+        return True
 
     async def delete_post(self, db, user_id, post_id):
         post = self.posts.get(post_id)
@@ -1607,3 +1624,104 @@ async def test_queued_tiktok_post_fails_readably_while_paused(service, tiktok_fl
     assert result["error_message"] == social_module.TIKTOK_PAUSED_MESSAGE
     # The worker has no platform: it asked about both before refusing.
     assert {platform for _, platform, _ in tiktok_flag["checks"][-2:]} == {"web", "ios"}
+
+
+# ----------------------------------------------------------------------
+# Holding posts for YouTube's daily upload limit
+# ----------------------------------------------------------------------
+def _quota_error(reset):
+    from src.social.youtube import QUOTA_HOLD_MESSAGE, QUOTA_HOLD_REASON
+
+    return SocialProviderError(QUOTA_HOLD_MESSAGE, hold_until=reset, hold_reason=QUOTA_HOLD_REASON)
+
+
+@pytest.mark.asyncio
+async def test_daily_quota_holds_the_post_until_the_reset_instead_of_failing(service, provider):
+    from src.social.youtube import QUOTA_HOLD_MESSAGE
+
+    post = await _queued_post(service)
+    jobs_before = len(service.queue_adapter.jobs)
+    reset = datetime.now(timezone.utc) + timedelta(hours=1)
+    provider.publish_error = _quota_error(reset)
+
+    held = await service.publish_post(post["id"])
+    assert held["status"] == "scheduled"
+    assert held["hold_reason"] == "youtube_quota"
+    assert held["error_message"] == QUOTA_HOLD_MESSAGE
+    assert held["held_since"]
+    # Waiting doesn't use up an attempt, and no short retry is queued.
+    assert held["attempts"] == 0
+    assert len(service.queue_adapter.jobs) == jobs_before
+    slot = _parse_datetime(held["scheduled_for"])
+    assert reset <= slot <= reset + timedelta(seconds=social_module.HOLD_SPREAD_SECONDS)
+
+    # The user can still cancel it, and a retry starts clean.
+    cancelled = await service.cancel_post("user-1", post["id"])
+    assert cancelled["status"] == "cancelled"
+    retried = await service.retry_post("user-1", post["id"])
+    assert retried["status"] == "queued"
+    assert retried["hold_reason"] is None and retried["held_since"] is None
+
+
+@pytest.mark.asyncio
+async def test_held_post_that_hits_the_limit_again_waits_for_the_next_reset(service, provider):
+    post = await _queued_post(service)
+    reset = datetime.now(timezone.utc) + timedelta(hours=1)
+    provider.publish_error = _quota_error(reset)
+    first = await service.publish_post(post["id"])
+
+    # The reset passes, the dispatcher queues it, and the quota is gone again.
+    service.repo.posts[post["id"]]["status"] = "queued"
+    next_reset = reset + timedelta(days=1)
+    provider.publish_error = _quota_error(next_reset)
+    second = await service.publish_post(post["id"])
+    assert second["status"] == "scheduled"
+    assert second["held_since"] == first["held_since"]
+    # Held since an earlier day: first in line at the next reset.
+    assert _parse_datetime(second["scheduled_for"]) == next_reset
+    assert second["attempts"] == 0
+
+    # A real failure afterwards still gets its normal retries.
+    service.repo.posts[post["id"]]["status"] = "queued"
+    provider.publish_error = SocialProviderError("temporary", retryable=True)
+    retrying = await service.publish_post(post["id"])
+    assert retrying["status"] == "queued"
+    assert retrying["attempts"] == 1
+
+
+@pytest.mark.asyncio
+async def test_held_post_gives_up_after_waiting_three_days(service, provider):
+    from src.social.youtube import QUOTA_GAVE_UP_MESSAGE
+
+    post = await _queued_post(service)
+    service.repo.posts[post["id"]]["held_since"] = (
+        datetime.now(timezone.utc) - timedelta(days=3, hours=1)
+    ).isoformat()
+    provider.publish_error = _quota_error(datetime.now(timezone.utc) + timedelta(hours=1))
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "failed"
+    assert result["error_message"] == QUOTA_GAVE_UP_MESSAGE
+    assert result["hold_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_published_held_post_clears_its_hold(service, provider):
+    post = await _queued_post(service)
+    provider.publish_error = _quota_error(datetime.now(timezone.utc) + timedelta(hours=1))
+    await service.publish_post(post["id"])
+    service.repo.posts[post["id"]]["status"] = "queued"
+    provider.publish_error = None
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "published"
+    assert result["hold_reason"] is None
+    assert result["error_message"] is None
+
+
+def test_hold_slots_spread_held_posts_oldest_first():
+    reset = datetime(2026, 11, 21, 8, 0, tzinfo=timezone.utc)
+    spread = timedelta(seconds=social_module.HOLD_SPREAD_SECONDS)
+    morning = social_module.hold_slot(reset, reset - timedelta(hours=20))
+    evening = social_module.hold_slot(reset, reset - timedelta(minutes=5))
+    yesterday = social_module.hold_slot(reset, reset - timedelta(days=2))
+    assert yesterday == reset
+    assert reset < morning < evening <= reset + spread

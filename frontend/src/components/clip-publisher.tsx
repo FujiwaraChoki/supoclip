@@ -48,13 +48,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
+import { intlLocale } from "@/i18n/config";
 import { timeAgo } from "@/lib/generations";
 import {
   ACTIVE_POST_STATUSES,
   PROVIDER_LABELS,
   connectionLabel,
   formatDateTime,
+  formatHoldTime,
   formatMetric,
+  isQuotaHeld,
   parseHashtagInput,
   type SocialConnection,
   type SocialPost,
@@ -141,7 +144,9 @@ function PostStatus({ post }: { post: SocialPost }) {
       return (
         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           <Clock className="size-3.5" />
-          {post.scheduled_for ? formatDateTime(post.scheduled_for) : t("postStatus.scheduled")}
+          {isQuotaHeld(post)
+            ? t("postStatus.waitingForLimit")
+            : post.scheduled_for ? formatDateTime(post.scheduled_for) : t("postStatus.scheduled")}
         </span>
       );
     case "published":
@@ -165,6 +170,7 @@ function PostStatus({ post }: { post: SocialPost }) {
  */
 export function useSocialPostToasts(posts: SocialPost[]) {
   const t = useTranslations("social");
+  const locale = useLocale();
   const seen = useRef<Map<string, SocialPostStatus> | null>(null);
   useEffect(() => {
     const previous = seen.current;
@@ -186,11 +192,17 @@ export function useSocialPostToasts(posts: SocialPost[]) {
         });
       } else if (post.status === "failed") {
         toast.error(t("toasts.failed", { platform }), { id, description: post.error_message ?? undefined });
+      } else if (isQuotaHeld(post)) {
+        // Replaces the "Publishing…" spinner: the post now waits for the reset.
+        toast.warning(t("postStatus.waitingForLimit"), {
+          id,
+          description: t("quotaHold", { time: formatHoldTime(post.scheduled_for, intlLocale(locale)) }),
+        });
       } else if (ACTIVE_POST_STATUSES.includes(post.status)) {
         toast.loading(t("toasts.publishing", { platform }), { id });
       }
     }
-  }, [posts, t]);
+  }, [posts, t, locale]);
 }
 
 function postToastId(postId: string) {
@@ -199,6 +211,7 @@ function postToastId(postId: string) {
 
 export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
   const t = useTranslations("social");
+  const locale = useLocale();
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
   const metricLabel = (value: number | null | undefined, one: "view" | "like" | "comment") =>
     `${formatMetric(value)} ${value === 1 ? t(`metrics.${one}`) : t(`metrics.${one}s`)}`;
@@ -249,6 +262,10 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
               {post.status === "failed" && post.error_message ? (
                 <p className="mt-0.5 line-clamp-2 text-xs text-destructive" title={post.error_message}>
                   {post.error_message}
+                </p>
+              ) : isQuotaHeld(post) ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t("quotaHold", { time: formatHoldTime(post.scheduled_for, intlLocale(locale)) })}
                 </p>
               ) : metrics ? (
                 <p className="mt-0.5 text-xs text-muted-foreground">{metrics}</p>

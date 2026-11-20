@@ -436,6 +436,10 @@ Public:
     With `MEDIA_STORAGE=s3` it redirects to a presigned URL instead
 
 Post status flow: `scheduled → queued → publishing → published | failed | cancelled`.
+When YouTube refuses an upload because SupoClip's daily project quota is used up, the
+post goes back to `scheduled` with `hold_reason: "youtube_quota"`, `held_since`, and
+`scheduled_for` set a few minutes after the next midnight Pacific time (oldest hold
+first). It can be cancelled like any scheduled post, and fails after waiting 3 days.
 A worker claims a queued post atomically before uploading, and always publishes
 the clip's current render. Deleting a clip or task cancels its scheduled and
 queued posts. The worker runs a cron every minute to promote due scheduled
