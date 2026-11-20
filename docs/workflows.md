@@ -420,7 +420,9 @@ class WorkflowError(ValueError):          # raised in the worker; str(e) == mess
 Worker codes (`WorkflowError.code`, the task's `error_code`, `workflow_plan.error.code`):
 `source_too_short`, `no_story`, `topic_not_found`, `recap_unsupported`,
 `trailer_unbuildable`, `analysis_incomplete`, `plan_failed`,
-`render_incomplete`, `transcript_untimed`. Any other code raises `ValueError`.
+`render_incomplete`, `transcript_untimed`, and `low_speech` (raised for every workflow, highlights
+included, by `speech_check` right after transcription; resuming the task or creating the same video
+again skips the check). Any other code raises `ValueError`.
 
 ### `backend/src/workflows/durations.py`
 

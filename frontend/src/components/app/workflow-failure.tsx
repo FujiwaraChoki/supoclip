@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { AlertCircle, ArrowLeft, Clapperboard, Loader2, RotateCcw, Search } from "lucide-react";
+import { AlertCircle, ArrowLeft, Clapperboard, Loader2, MicOff, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buildFontOptionsPayload } from "@/lib/font-options";
 import {
@@ -18,15 +18,18 @@ import {
 
 export const WORKFLOW_ERROR_CODES: readonly WorkflowErrorCode[] = [
   "source_too_short", "no_story", "topic_not_found", "recap_unsupported", "trailer_unbuildable",
-  "analysis_incomplete", "plan_failed", "render_incomplete", "transcript_untimed",
+  "analysis_incomplete", "plan_failed", "render_incomplete", "transcript_untimed", "low_speech",
 ];
 
 export function isWorkflowErrorCode(value: unknown): value is WorkflowErrorCode {
   return typeof value === "string" && WORKFLOW_ERROR_CODES.includes(value as WorkflowErrorCode);
 }
 
-/** Failures a retry can fix. The others fail the same way again, so they offer another workflow instead. */
-const RETRYABLE: ReadonlySet<WorkflowErrorCode> = new Set(["analysis_incomplete", "plan_failed", "render_incomplete"]);
+/**
+ * Failures a retry can fix. The others fail the same way again, so they offer another workflow instead.
+ * low_speech is a question, not a fault: resuming it makes the clips anyway.
+ */
+const RETRYABLE: ReadonlySet<WorkflowErrorCode> = new Set(["analysis_incomplete", "plan_failed", "render_incomplete", "low_speech"]);
 
 export function isRetryableWorkflowError(code: WorkflowErrorCode) {
   return RETRYABLE.has(code);
@@ -189,7 +192,8 @@ export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, ca
   const primary = readOnly ? null
     : action.kind === "resume" ? (
       <Button onClick={onResume} disabled={busy}>
-        {pendingAction === "retry" ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}{t(`workflowErrors.${code}.cta`)}
+        {pendingAction === "retry" ? <Loader2 className="size-4 animate-spin" />
+          : code === "low_speech" ? <Clapperboard className="size-4" /> : <RotateCcw className="size-4" />}{t(`workflowErrors.${code}.cta`)}
       </Button>
     ) : action.kind === "create" ? (
       <Button onClick={() => onCreate(action.workflow)} disabled={busy}>
@@ -199,7 +203,11 @@ export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, ca
 
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed px-6 py-14 text-center">
-      <span className="flex size-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="size-7" /></span>
+      {code === "low_speech" ? (
+        <span className="flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground"><MicOff className="size-7" /></span>
+      ) : (
+        <span className="flex size-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive"><AlertCircle className="size-7" /></span>
+      )}
       <h2 className="mt-4 max-w-xl text-lg font-semibold text-balance">{t(`${copy}.title`, { topic: shownTopic })}</h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">{t(`${copy}.body`)}</p>
       {mentions.length > 0 && (

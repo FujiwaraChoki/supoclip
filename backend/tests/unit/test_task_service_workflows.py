@@ -124,6 +124,7 @@ async def test_highlights_without_instructions_is_unchanged(row):
     analysis_key = TaskService._build_analysis_cache_key(source_key, "medium")
     assert [call.args[1] for call in service.cache_repo.get_cache.await_args_list] == [source_key, analysis_key]
     kwargs = service.video_service.process_video_complete.await_args.kwargs
+    # The low-speech notice is off unless the task was created with its flag on.
     assert set(kwargs) == LEGACY_PIPELINE_KWARGS
     service._load_performance_context.assert_awaited_once()
     render = service.video_service.create_single_clip.await_args
@@ -561,3 +562,52 @@ async def test_planner_progress_and_cache_never_share_the_session_at_once():
     await _run(service)
 
     assert max(overlaps) == 1
+
+
+@pytest.mark.asyncio
+async def test_low_speech_stops_refunded_without_touching_the_plan():
+    service, events = _workflow_service("highlights", [], None)
+    message = "SupoClip works best on videos where people talk."
+    service.video_service.process_video_complete = AsyncMock(
+        side_effect=WorkflowError("low_speech", message, {"words": 5, "words_per_minute": 1})
+    )
+
+    with pytest.raises(WorkflowError):
+        await _run(service)
+
+    assert events == [
+        ("status", "processing", "Starting..."),
+        ("delete_clips",),
+        ("status", "error", message),
+    ]
+    assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "low_speech"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata, checkpoint, clips", [
+    ({}, {}, []),                                         # created with the flag off
+    ({"low_speech_check": True, "low_speech_confirmed": True}, {}, []),  # the user asked for clips anyway
+    ({"low_speech_check": True}, {"analysis": {"most_relevant_segments": []}}, []),  # got past the check
+    ({"low_speech_check": True}, {}, [{"id": "clip-1", "clip_order": 1}]),  # and has clips to finish
+])
+async def test_speech_check_is_skipped_once_answered_or_passed(metadata, checkpoint, clips):
+    service, _events = _workflow_service("highlights", [], None)
+    service.task_repo.load_source_metadata = AsyncMock(return_value=metadata)
+    service.checkpoint_repo.get = AsyncMock(return_value=checkpoint)
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=clips)
+
+    with pytest.raises(Exception):  # no segments to render; only the pipeline call matters
+        await _run(service)
+
+    assert "speech_check" not in service.video_service.process_video_complete.await_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_a_task_created_with_the_flag_on_is_checked():
+    service, _events = _workflow_service("highlights", [], None)
+    service.task_repo.load_source_metadata = AsyncMock(return_value={"low_speech_check": True})
+
+    with pytest.raises(Exception):  # no segments to render; only the pipeline call matters
+        await _run(service)
+
+    assert service.video_service.process_video_complete.await_args.kwargs["speech_check"] is True

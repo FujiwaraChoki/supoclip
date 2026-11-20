@@ -419,6 +419,15 @@ VALUES (
     false,
     false
 );
+-- Low-speech notice: web on, iOS off until the app build that explains it ships.
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'low_speech_notice',
+    'Stop a video with little or no speech after transcription, refund it, and offer "Create clips anyway". Read when a task is created, for the platform that creates it. Turn iOS on once the app build with the notice is live.',
+    true,
+    false,
+    true
+);
 
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);

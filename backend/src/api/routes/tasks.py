@@ -45,6 +45,7 @@ from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
+from ... import feature_flags
 from ...feature_flags import client_platform
 from ...source_identity import (
     duplicate_source_response,
@@ -74,6 +75,7 @@ from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user, user_is_admin
 from ...source_submission import SourceAttempt
 from ...workflows.contracts import workflow_spec_from_task
+from ...speech_check import LOW_SPEECH_CHECK_KEY, LOW_SPEECH_CODE, LOW_SPEECH_CONFIRMED_KEY
 from ...workflows.errors import WorkflowRequestError
 from ...workflows.options import (
     check_source_duration,
@@ -843,6 +845,12 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 ))
 
             try:
+                # The worker asks about a video with little speech only when the
+                # flag is on for the platform creating the task.
+                speech_check = await feature_flags.is_enabled(
+                    db, feature_flags.LOW_SPEECH_NOTICE,
+                    platform=client_platform(request), user_id=user_id,
+                )
                 # Persist retry options before submitting the job; Redis remains a legacy cache.
                 processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
                 await _save_task_source_metadata(
@@ -852,6 +860,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                             "processing_job_id": processing_job_id,
                             "clip_length": clip_length,
                             "enqueued_at": datetime.now(timezone.utc).isoformat(),
+                            **({LOW_SPEECH_CHECK_KEY: True} if speech_check else {}),
                             **({"source_key": source_key} if source_key else {}),
                             **_stream_resolution_metadata(stream_metadata),
                         },
@@ -1820,6 +1829,9 @@ async def resume_task(
 
                     processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
                     metadata["processing_job_id"] = processing_job_id
+                    if task.get("error_code") == LOW_SPEECH_CODE:
+                        # Resuming after the low-speech notice means "make clips anyway".
+                        metadata[LOW_SPEECH_CONFIRMED_KEY] = True
                     await _save_task_source_metadata(task_id, metadata, db=db)
                     job_id = await JobQueue.enqueue_processing_job(
                         "process_video_task",

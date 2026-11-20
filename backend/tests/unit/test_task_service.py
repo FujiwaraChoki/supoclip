@@ -39,6 +39,34 @@ async def test_create_task_with_source_creates_queued_task(monkeypatch):
     assert service.task_repo.create_task.await_args.kwargs["source_duration_seconds"] == 61
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("noticed", [True, False])
+async def test_creating_a_video_again_after_its_low_speech_notice_makes_clips_anyway(noticed):
+    service = TaskService(db=AsyncMock())
+    service.task_repo.user_exists = AsyncMock(return_value=True)
+    service.source_repo.create_source = AsyncMock(return_value="source-1")
+    service.task_repo.create_task = AsyncMock(return_value="task-2")
+    service.task_repo.had_low_speech_notice = AsyncMock(return_value=noticed)
+    service.task_repo.save_source_metadata = AsyncMock()
+
+    await service.create_task_with_source(
+        user_id="user-1",
+        url="https://www.youtube.com/watch?v=abcdefghijk",
+        title="Gameplay",
+        source_duration_seconds=600,
+    )
+
+    service.task_repo.had_low_speech_notice.assert_awaited_once_with(
+        service.db, "user-1", "https://www.youtube.com/watch?v=abcdefghijk"
+    )
+    if noticed:
+        service.task_repo.save_source_metadata.assert_awaited_once_with(
+            service.db, "task-2", {"low_speech_confirmed": True}
+        )
+    else:
+        service.task_repo.save_source_metadata.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_create_task_with_source_requires_existing_user():
     service = TaskService(db=AsyncMock())
     service.task_repo.user_exists = AsyncMock(return_value=False)

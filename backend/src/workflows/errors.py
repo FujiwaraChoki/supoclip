@@ -54,6 +54,9 @@ class WorkflowError(ValueError):
             "plan_failed",
             "render_incomplete",
             "transcript_untimed",
+            # Not a workflow failure: any task stops here before analysis
+            # when its video has little speech (``speech_check``).
+            "low_speech",
         }
     )
 

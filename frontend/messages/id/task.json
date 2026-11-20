@@ -272,6 +272,11 @@
       "body": "Kami butuh penanda waktu untuk memotong dengan presisi. Unggah filenya saja.",
       "cta": "Kembali ke beranda"
     },
+    "low_speech": {
+      "title": "SupoClip paling bagus untuk video yang ada suara bicaranya",
+      "body": "Hampir tidak ada yang bicara di video ini, jadi klipnya mungkin kurang bagus. Menit kamu sudah dikembalikan. Tetap mau buat klip?",
+      "cta": "Tetap buat klip"
+    },
     "highlightsInstead": "Buat highlight saja"
   },
   "clipLoadFailed": "Clip ini tidak bisa dimuat.",

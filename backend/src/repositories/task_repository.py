@@ -172,6 +172,24 @@ class TaskRepository:
         return metadata if isinstance(metadata, dict) else {}
 
     @staticmethod
+    async def had_low_speech_notice(db: AsyncSession, user_id: str, url: str) -> bool:
+        """Whether this user's task for ``url`` stopped at the low-speech notice this week."""
+        result = await db.execute(
+            text("""
+                SELECT 1
+                FROM tasks t
+                JOIN sources s ON s.id = t.source_id
+                WHERE t.user_id = :user
+                  AND s.url = :url
+                  AND t.error_code = 'low_speech'
+                  AND t.created_at > NOW() - INTERVAL '7 days'
+                LIMIT 1
+            """),
+            {"user": user_id, "url": url},
+        )
+        return result.first() is not None
+
+    @staticmethod
     async def find_recent_upload_task(db: AsyncSession, user_id: str, key: str):
         """In-progress upload task for this request, or one completed in the last 2 minutes."""
         if not key:

@@ -272,6 +272,11 @@
       "body": "We need timings to cut precisely. Upload the file instead.",
       "cta": "Back to home"
     },
+    "low_speech": {
+      "title": "SupoClip works best with speech",
+      "body": "We heard very little talking in this video, so the clips may come out weak. Your minutes were refunded. Want clips anyway?",
+      "cta": "Create clips anyway"
+    },
     "highlightsInstead": "Make highlights instead"
   },
   "clipLoadFailed": "Couldn't load this clip.",

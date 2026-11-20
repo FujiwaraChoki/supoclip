@@ -76,6 +76,16 @@ describe("WorkflowFailure", () => {
     expect(onCreate).not.toHaveBeenCalled();
   });
 
+  it("asks before making clips from a video with little speech", () => {
+    const { onResume, onCreate } = renderFailure("low_speech", { workflow: "highlights" });
+    expect(screen.getByRole("heading", { name: "SupoClip works best with speech" })).toBeInTheDocument();
+    expect(screen.getByText(/very little talking/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create clips anyway" }));
+    expect(onResume).toHaveBeenCalled();
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/");
+  });
+
   it("sends untimed transcripts back home", () => {
     renderFailure("transcript_untimed");
     expect(screen.getByRole("link", { name: "Back to home" })).toHaveAttribute("href", "/");
@@ -156,6 +166,7 @@ describe("failure helpers", () => {
     expect(failureAction("trailer_unbuildable", 600)).toEqual({ kind: "create", workflow: "recap" });
     expect(failureAction("render_incomplete")).toEqual({ kind: "resume" });
     expect(failureAction("transcript_untimed")).toEqual({ kind: "home" });
+    expect(failureAction("low_speech")).toEqual({ kind: "resume" });
   });
 
   it("rebuilds the create body with the task's look and the new workflow", () => {

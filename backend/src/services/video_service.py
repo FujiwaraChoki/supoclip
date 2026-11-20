@@ -71,8 +71,16 @@ from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_dura
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
+from ..speech_check import (
+    LOW_SPEECH_CODE,
+    LOW_SPEECH_MESSAGE,
+    count_spoken_words,
+    is_no_speech_error,
+    low_speech_details,
+)
 from ..workflows.contracts import PlanCache, PlanContext, WorkflowResult, WorkflowSpec
 from ..workflows.durations import workflow_budget
+from ..workflows.errors import WorkflowError
 from ..media.source_limits import normalize_source_media, probe_media_duration
 from ..media.upload_ingest import (
     materialize_stored_upload,
@@ -1374,6 +1382,7 @@ class VideoService:
         plan_cache: Optional[PlanCache] = None,
         outline_cache_key: Optional[str] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        speech_check: bool = False,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -1384,6 +1393,10 @@ class VideoService:
         word-timed transcript, using ``plan_cache`` and ``outline_cache_key``
         for its cached plan and outline, and returns locked segments plus the
         ``workflow_plan`` to persist.
+
+        ``speech_check`` stops a video with little or no speech after
+        transcription with the refunded ``low_speech`` failure, before any
+        analysis is paid for.
 
         progress_callback: Optional function to call with progress updates
                           Signature: async def callback(progress: int, message: str, status: str)
@@ -1569,11 +1582,18 @@ class VideoService:
                 and not (load_cached_transcript_data(video_path) or {}).get("words")
             )
             if not transcript or needs_word_timings:
-                transcript = await VideoService.generate_transcript(
-                    video_path,
-                    processing_mode=processing_mode,
-                    source_url=url if source_type == "youtube" else None,
-                )
+                try:
+                    transcript = await VideoService.generate_transcript(
+                        video_path,
+                        processing_mode=processing_mode,
+                        source_url=url if source_type == "youtube" else None,
+                    )
+                except Exception as exc:
+                    if speech_check and is_no_speech_error(exc):
+                        raise WorkflowError(
+                            LOW_SPEECH_CODE, LOW_SPEECH_MESSAGE, {"words": 0, "words_per_minute": 0}
+                        ) from exc
+                    raise
                 if checkpoint.get("analysis") or checkpoint.get("workflow_final"):
                     # Never combine new word timings with an old clip plan.
                     await save_checkpoint({
@@ -1594,6 +1614,17 @@ class VideoService:
             except Exception:
                 logger.warning("Source word timings retained locally for upload retry")
             await run_in_thread(persist_cache_sidecar, video_path)
+
+            if speech_check:
+                spoken = await run_in_thread(
+                    lambda: count_spoken_words(load_cached_transcript_data(video_path), transcript)
+                )
+                details = low_speech_details(
+                    spoken, file_duration, runtime_config.low_speech_words_per_minute
+                )
+                if details is not None:
+                    logger.info("Little speech in this video (%s); asking before making clips", details)
+                    raise WorkflowError(LOW_SPEECH_CODE, LOW_SPEECH_MESSAGE, details)
 
             workflow = workflow_spec.workflow if workflow_spec is not None else "highlights"
             workflow_result: Optional[WorkflowResult] = None

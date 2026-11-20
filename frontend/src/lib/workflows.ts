@@ -126,7 +126,9 @@ export type WorkflowErrorCode =
   | "analysis_incomplete"
   | "plan_failed"
   | "render_incomplete"
-  | "transcript_untimed";
+  | "transcript_untimed"
+  /** Any task: the video has little or no speech. Resuming makes the clips anyway. */
+  | "low_speech";
 
 /** `POST /tasks/` rejections (`detail.code`): 422, or 403 for WORKFLOW_NOT_AVAILABLE. */
 export type WorkflowRequestErrorCode =
