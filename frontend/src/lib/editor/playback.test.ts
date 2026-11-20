@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { isPlayAbortError, playPreview } from "./playback";
+import { isPlayAbortError, playPreview, resumePreviewAudio } from "./playback";
 
 function videoRejecting(error: unknown) {
   return { play: vi.fn(() => Promise.reject(error)) } as unknown as HTMLVideoElement;
@@ -39,5 +39,22 @@ describe("playPreview", () => {
     const video = { play: vi.fn(() => Promise.resolve()) } as unknown as HTMLVideoElement;
     await playPreview(video, onFailure);
     expect(onFailure).not.toHaveBeenCalled();
+  });
+});
+
+describe("resumePreviewAudio", () => {
+  it("reports false instead of throwing when the audio device will not start", async () => {
+    const context = {
+      resume: vi.fn(() =>
+        Promise.reject(new DOMException("Failed to start the audio device", "InvalidStateError")),
+      ),
+    } as unknown as AudioContext;
+    await expect(resumePreviewAudio(context)).resolves.toBe(false);
+  });
+
+  it("reports true when the audio resumes", async () => {
+    const context = { resume: vi.fn(() => Promise.resolve()) } as unknown as AudioContext;
+    await expect(resumePreviewAudio(context)).resolves.toBe(true);
+    expect(context.resume).toHaveBeenCalledOnce();
   });
 });

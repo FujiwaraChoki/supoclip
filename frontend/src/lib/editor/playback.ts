@@ -13,3 +13,17 @@ export function playPreview(video: HTMLVideoElement, onFailure: () => void) {
     onFailure();
   });
 }
+
+/**
+ * Resumes the preview's audio and reports whether it worked. Some in-app
+ * browsers reject with InvalidStateError when the audio device won't start;
+ * the video should still play, and the next tap tries again.
+ */
+export async function resumePreviewAudio(context: AudioContext) {
+  try {
+    await context.resume();
+    return true;
+  } catch {
+    return false;
+  }
+}
