@@ -47,4 +47,36 @@ describe("SignUp", () => {
       await screen.findByText("Account created successfully! Signing you in..."),
     ).toBeInTheDocument();
   });
+
+  it("explains a server failure when the response has no message", async () => {
+    vi.mocked(signUp.email).mockResolvedValue({
+      error: { status: 500, statusText: "Internal Server Error", message: "" },
+    } as never);
+    const user = userEvent.setup();
+
+    render(<SignUp />);
+
+    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
+    await user.type(screen.getByPlaceholderText("Password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+
+    expect(await screen.findByText(/frontend log/)).toBeInTheDocument();
+  });
+
+  it("keeps the short message for other errors without a message", async () => {
+    vi.mocked(signUp.email).mockResolvedValue({
+      error: { status: 400, statusText: "Bad Request", message: "" },
+    } as never);
+    const user = userEvent.setup();
+
+    render(<SignUp />);
+
+    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
+    await user.type(screen.getByPlaceholderText("Password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+
+    expect(await screen.findByText("Failed to create account")).toBeInTheDocument();
+  });
 });

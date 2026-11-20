@@ -32,7 +32,7 @@ export function SignUp() {
     });
 
     if (response.error) {
-      setMessage(response.error.message || t("signUp.failed"));
+      setMessage(response.error.message || t(response.error.status >= 500 ? "signUp.serverError" : "signUp.failed"));
       setLoading(false);
       return;
     }
