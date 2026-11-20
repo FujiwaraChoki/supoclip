@@ -89,7 +89,11 @@ async def process_video_task(
     progress = ProgressTracker(ctx["redis"], task_id)
 
     async with AsyncSessionLocal() as db:
+        from ..repositories.task_repository import TaskRepository
+
         await load_runtime_settings_cache(db)
+        task_record = await TaskRepository.get_task_by_id(db, task_id)
+        task_team_id = task_record.get("team_id") if task_record else None
         decision = await admit_video_job(
             ctx, db, task_id=task_id, user_id=user_id, job_args=job_args, url=url
         )
@@ -99,7 +103,13 @@ async def process_video_task(
 
         # An upload this machine cannot read yet goes back on the queue.
         decision = await hold_for_upload(
-            ctx, db, task_id=task_id, user_id=user_id, url=url, job_args=job_args
+            ctx,
+            db,
+            task_id=task_id,
+            user_id=user_id,
+            url=url,
+            job_args=job_args,
+            team_id=task_team_id,
         )
         if decision != "run":
             if decision == "failed":
@@ -185,11 +195,13 @@ async def process_video_task(
             raise
         finally:
             # The slot is held only while this process is actually rendering.
-            await release_video_slot(ctx["redis"], user_id, task_id)
-            # Hand it to the account's next task now instead of after its deferral.
+            await release_video_slot(ctx["redis"], user_id, task_id, team_id=task_team_id)
+            # Hand it to the workspace's next task now instead of after its deferral.
             try:
                 async with AsyncSessionLocal() as wake_db:
-                    await wake_next_video_jobs(wake_db, ctx["redis"], user_id)
+                    await wake_next_video_jobs(
+                        wake_db, ctx["redis"], user_id, team_id=task_team_id
+                    )
             except Exception:
                 logger.exception("Could not wake the next video task after task %s", task_id)
 

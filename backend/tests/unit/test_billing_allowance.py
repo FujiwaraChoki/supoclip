@@ -41,7 +41,7 @@ def allowance_db():
         connection.connection.create_function("current_timestamp", 0, lambda: CREATED_AT.isoformat(" "))
         connection.execute(text("""
             CREATE TABLE tasks (
-                id TEXT PRIMARY KEY, user_id TEXT, source_id TEXT, status TEXT,
+                id TEXT PRIMARY KEY, user_id TEXT, team_id TEXT, source_id TEXT, status TEXT,
                 created_at TIMESTAMP, updated_at TIMESTAMP,
                 source_duration_seconds INTEGER, source_metadata JSON,
                 font_family TEXT, font_size INTEGER, font_color TEXT,
@@ -54,6 +54,7 @@ def allowance_db():
         migration = Path("src/migrations/sql/20261025_0002_minute_usage_ledger.sql").read_text()
         for statement in migration.split(";")[:2]:
             connection.execute(text(statement.replace("::bigint", "")))
+        connection.execute(text("ALTER TABLE minute_usage_events ADD COLUMN team_id TEXT"))
         yield connection
     engine.dispose()
 

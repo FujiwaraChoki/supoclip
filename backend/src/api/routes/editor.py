@@ -111,7 +111,9 @@ async def get_editor(
 
         state["aiEditing"] = ai_editing_configured()
         if state["aiEditing"]:
-            state["aiEditUsage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+            state["aiEditUsage"] = await AIEditAllowanceService(db).summary(
+                task["user_id"], team_id=task.get("team_id")
+            )
             # The allowance read reopened the request's session.
             await db.close()
     if state.get("status") == "ready":
@@ -596,7 +598,9 @@ async def ai_edit_usage(
     clip = await service.clip_repo.get_clip_by_id(db, clip_id)
     if not clip or clip["task_id"] != task_id:
         raise HTTPException(404, "Clip not found")
-    return await AIEditAllowanceService(db).summary(task["user_id"])
+    return await AIEditAllowanceService(db).summary(
+        task["user_id"], team_id=task.get("team_id")
+    )
 
 
 @router.post("/{task_id}/clips/{clip_id}/editor/ai", status_code=202)
@@ -645,11 +649,13 @@ async def start_ai_edit(
     pool = await JobQueue.get_pool()
     job_id = uuid.uuid4().hex
     try:
-        usage = await AIEditAllowanceService(db).reserve(task["user_id"], job_id)
+        usage = await AIEditAllowanceService(db).reserve(
+            task["user_id"], job_id, team_id=task.get("team_id")
+        )
     except AIEditLimitExceeded as exc:
         raise HTTPException(429 if exc.usage["limit"] else 402, {
             "code": "AI_EDIT_LIMIT_REACHED",
-            "message": "Your monthly AI edit allowance is used up." if exc.usage["limit"] else "AI editing requires an active Pro or Creator subscription.",
+            "message": "Your monthly AI edit allowance is used up." if exc.usage["limit"] else "AI editing requires an active Pro, Creator, or Team subscription.",
             "usage": exc.usage,
         }) from None
     try:
@@ -707,5 +713,7 @@ async def ai_edit_status(
         return {"id": job_id, "status": "queued"}
     payload = json.loads(result)
     if payload.get("status") in {"completed", "failed"}:
-        payload["usage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+        payload["usage"] = await AIEditAllowanceService(db).summary(
+            task["user_id"], team_id=task.get("team_id")
+        )
     return {"id": job_id, **payload}

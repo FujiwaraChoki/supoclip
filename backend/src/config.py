@@ -112,6 +112,9 @@ class Config:
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
+        self.team_youtube_max_video_duration = int(
+            os.getenv("TEAM_YOUTUBE_MAX_VIDEO_DURATION", "10800")
+        )
         # 4 GB fits a full-length upload (the duration cap is 90 minutes) at a
         # normal 1080p bitrate. Larger files make transcription, storage, and
         # rendering slow and fragile.
@@ -196,6 +199,9 @@ class Config:
         self.video_job_user_concurrency = max(
             1, self._get_int_env("VIDEO_JOB_USER_CONCURRENCY", 1)
         )
+        self.video_job_team_concurrency = max(
+            1, self._get_int_env("VIDEO_JOB_TEAM_CONCURRENCY", 3)
+        )
         self.video_job_defer_seconds = min(
             300, max(5, self._get_int_env("VIDEO_JOB_DEFER_SECONDS", 20))
         )
@@ -227,6 +233,14 @@ class Config:
         # Monthly allowance in minutes of source video; 0 or less means unlimited.
         self.pro_plan_minute_limit = int(os.getenv("PRO_PLAN_MINUTE_LIMIT", "600"))
         self.scale_plan_minute_limit = int(os.getenv("SCALE_PLAN_MINUTE_LIMIT", "1500"))
+        self.team_included_seats = max(1, self._get_int_env("TEAM_PLAN_INCLUDED_SEATS", 3))
+        self.team_plan_minute_limit = int(os.getenv("TEAM_PLAN_MINUTE_LIMIT", "3600"))
+        self.team_extra_seat_minute_limit = max(
+            0, self._get_int_env("TEAM_EXTRA_SEAT_MINUTE_LIMIT", 900)
+        )
+        self.team_plan_ai_edit_limit = max(
+            0, self._get_int_env("TEAM_PLAN_AI_EDIT_LIMIT", 300)
+        )
         self.cors_origins = self._get_csv_env(
             "CORS_ORIGINS",
             [
@@ -388,11 +402,21 @@ class Config:
         if not entitled:
             return self.max_video_duration
 
+        if (plan or "").lower() == "team":
+            return self.team_youtube_max_video_duration
         if (plan or "").lower() == "scale":
             return self.scale_youtube_max_video_duration
         if (plan or "").lower() == "pro":
             return self.pro_youtube_max_video_duration
         return self.max_video_duration
+
+    def team_minute_limit_for_seats(self, seat_limit: int | None) -> int:
+        """Pooled monthly minute allowance for a Team plan with `seat_limit` seats."""
+        if self.team_plan_minute_limit <= 0:
+            return 0
+        seats = max(int(seat_limit or self.team_included_seats), self.team_included_seats)
+        extra_seats = max(seats - self.team_included_seats, 0)
+        return self.team_plan_minute_limit + extra_seats * self.team_extra_seat_minute_limit
 
     @staticmethod
     def _get_optional_env(name: str):

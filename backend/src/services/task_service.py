@@ -222,11 +222,19 @@ class TaskService(ClipEditingMixin):
         payload = f"{cache_key}|{OUTLINE_VERSION}|{config.llm}|{config.rerank_llm}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    async def _media_limits(self, user_id: Optional[str]) -> tuple[Optional[str], Optional[int]]:
-        """(download quality, clip cap) for the user's plan; see reduced_media_limits."""
-        if not user_id:
+    async def _media_limits(
+        self, user_id: Optional[str], *, team_id: Optional[str] = None
+    ) -> tuple[Optional[str], Optional[int]]:
+        """(download quality, clip cap) for the workspace's plan; see reduced_media_limits."""
+        if not user_id and not team_id:
             return None, None
-        summary = await BillingService(self.db, self.config).get_usage_summary(user_id)
+        summary = (
+            await BillingService(self.db, self.config).get_usage_summary(
+                user_id or "", team_id=team_id
+            )
+            if team_id
+            else await BillingService(self.db, self.config).get_usage_summary(user_id or "")
+        )
         return reduced_media_limits(summary)
 
     def _is_stale_queued_task(self, task: Dict[str, Any]) -> bool:
@@ -359,6 +367,7 @@ class TaskService(ClipEditingMixin):
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
         idempotency: Optional[tuple[str, str]] = None,
+        team_id: Optional[str] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -375,7 +384,7 @@ class TaskService(ClipEditingMixin):
 
         if upload_request_key and url.startswith("upload://"):
             existing = await self.task_repo.find_recent_upload_task(
-                self.db, user_id, upload_request_key,
+                self.db, user_id, upload_request_key, team_id=team_id,
             )
             if existing is not None:
                 self.reused_upload_task = True
@@ -424,6 +433,7 @@ class TaskService(ClipEditingMixin):
                 workflow=workflow,
                 workflow_options=workflow_options,
                 **({"idempotency": idempotency} if idempotency else {}),
+                **({"team_id": team_id} if team_id else {}),
             )
         except TaskIdempotencyReplay:
             # The task insert rolled back. Drop the source made for it.
@@ -530,19 +540,31 @@ class TaskService(ClipEditingMixin):
             # What to make is read from the task, so queued jobs and resumes
             # honour it with the ARQ job arguments unchanged.
             task_row = await self.task_repo.get_task_by_id(self.db, task_id) or {}
+            task_team_id = task_row.get("team_id")
             spec = workflow_spec_from_task(task_row, clip_length)
             prior_outputs = bool(await self.clip_repo.get_clips_by_task(self.db, task_id))
             # New tasks already have an atomic acceptance charge. Recover queued
             # legacy jobs with missing durations before doing paid processing.
             if self.config.monetization_enabled and user_id:
-                async with generation_allowance_guard(self.db, user_id, enabled=True):
+                async with generation_allowance_guard(
+                    self.db,
+                    user_id,
+                    enabled=True,
+                    **({"team_id": task_team_id} if task_team_id else {}),
+                ):
                     await BillingService(self.db, self.config).assert_can_resume_task(
-                        user_id, task_id, require_active_plan=False
+                        user_id,
+                        task_id,
+                        require_active_plan=False,
+                        **({"team_id": task_team_id} if task_team_id else {}),
                     )
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
             billing = (
-                await BillingService(self.db, self.config).get_usage_summary(user_id)
+                await BillingService(self.db, self.config).get_usage_summary(
+                    user_id,
+                    **({"team_id": task_team_id} if task_team_id else {}),
+                )
                 if user_id
                 else {}
             )
@@ -1275,10 +1297,12 @@ class TaskService(ClipEditingMixin):
         return task
 
     async def get_user_tasks(
-        self, user_id: str, limit: int = 50
+        self, user_id: str, limit: int = 50, *, team_id: Optional[str] = None
     ) -> list[Dict[str, Any]]:
-        """Get all tasks for a user."""
-        return await self.task_repo.get_user_tasks(self.db, user_id, limit)
+        """Get all tasks for a user or team workspace."""
+        return await self.task_repo.get_user_tasks(
+            self.db, user_id, limit, team_id=team_id
+        )
 
     @serialized_task_edit
     async def delete_task(self, task_id: str) -> None:

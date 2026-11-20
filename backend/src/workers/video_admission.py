@@ -60,61 +60,105 @@ def _decode(value) -> str:
     return str(value)
 
 
-async def acquire_video_slot(redis, user_id: str, task_id: str, limit: int) -> bool:
-    key = ACTIVE_KEY.format(user_id=user_id)
+def _slot_owner(user_id: str, team_id: str | None = None) -> str:
+    return f"team:{team_id}" if team_id else user_id
+
+
+def _concurrency_limit(config, team_id: str | None = None) -> int:
+    if team_id:
+        return config.video_job_team_concurrency
+    return config.video_job_user_concurrency
+
+
+async def acquire_video_slot(
+    redis, user_id: str, task_id: str, limit: int, *, team_id: str | None = None
+) -> bool:
+    key = ACTIVE_KEY.format(user_id=_slot_owner(user_id, team_id))
     result = await redis.eval(
         _ACQUIRE_LUA, 1, key, task_id, str(limit), str(SLOT_TTL_SECONDS)
     )
     return int(result) == 1
 
 
-async def release_video_slot(redis, user_id: str, task_id: str) -> None:
+async def release_video_slot(
+    redis, user_id: str, task_id: str, *, team_id: str | None = None
+) -> None:
     try:
-        await redis.srem(ACTIVE_KEY.format(user_id=user_id), task_id)
+        await redis.srem(ACTIVE_KEY.format(user_id=_slot_owner(user_id, team_id)), task_id)
     except Exception:
         logger.exception("Could not release video slot for task %s", task_id)
 
 
-async def prune_video_slots(redis, user_id: str, live_task_ids: set[str]) -> None:
-    key = ACTIVE_KEY.format(user_id=user_id)
+async def prune_video_slots(
+    redis, user_id: str, live_task_ids: set[str], *, team_id: str | None = None
+) -> None:
+    key = ACTIVE_KEY.format(user_id=_slot_owner(user_id, team_id))
     members = await redis.smembers(key)
     stale = [_decode(member) for member in members if _decode(member) not in live_task_ids]
     if stale:
         await redis.srem(key, *stale)
 
 
-async def active_task_ids(db, user_id: str) -> set[str]:
+async def active_task_ids(
+    db, user_id: str, *, team_id: str | None = None
+) -> set[str]:
     """Queued and processing tasks still own a slot if they acquired one.
 
     A render is queued for a moment after it takes a slot, before its status
     flips to processing. Pruning only processing ids would free that slot and
     let a second video from the same account start.
     """
-    rows = await db.execute(
-        text(
-            """
-            SELECT id FROM tasks
-            WHERE user_id = :user AND status IN ('queued', 'processing')
-            """
-        ),
-        {"user": user_id},
-    )
+    if team_id:
+        rows = await db.execute(
+            text(
+                """
+                SELECT id FROM tasks
+                WHERE team_id = :team_id AND status IN ('queued', 'processing')
+                """
+            ),
+            {"team_id": team_id},
+        )
+    else:
+        rows = await db.execute(
+            text(
+                """
+                SELECT id FROM tasks
+                WHERE user_id = :user AND team_id IS NULL AND status IN ('queued', 'processing')
+                """
+            ),
+            {"user": user_id},
+        )
     return {row[0] for row in rows}
 
 
-async def queued_video_tasks(db, user_id: str) -> list[tuple[str, str | None]]:
-    """The account's queued tasks and their current job ids, oldest first."""
-    rows = await db.execute(
-        text(
-            """
-            SELECT id, source_metadata->>'processing_job_id' AS job_id
-            FROM tasks
-            WHERE user_id = :user AND status = 'queued'
-            ORDER BY created_at ASC, id ASC
-            """
-        ),
-        {"user": user_id},
-    )
+async def queued_video_tasks(
+    db, user_id: str, *, team_id: str | None = None
+) -> list[tuple[str, str | None]]:
+    """The workspace's queued tasks and their current job ids, oldest first."""
+    if team_id:
+        rows = await db.execute(
+            text(
+                """
+                SELECT id, source_metadata->>'processing_job_id' AS job_id
+                FROM tasks
+                WHERE team_id = :team_id AND status = 'queued'
+                ORDER BY created_at ASC, id ASC
+                """
+            ),
+            {"team_id": team_id},
+        )
+    else:
+        rows = await db.execute(
+            text(
+                """
+                SELECT id, source_metadata->>'processing_job_id' AS job_id
+                FROM tasks
+                WHERE user_id = :user AND team_id IS NULL AND status = 'queued'
+                ORDER BY created_at ASC, id ASC
+                """
+            ),
+            {"user": user_id},
+        )
     return [(row[0], row[1]) for row in rows]
 
 
@@ -138,14 +182,20 @@ async def _waits_for_slot(redis, task_id: str, job_id: str | None) -> bool:
 
 
 async def waiting_video_tasks(
-    db, redis, user_id: str, holders: set[str], *, before: str | None = None
+    db,
+    redis,
+    user_id: str,
+    holders: set[str],
+    *,
+    before: str | None = None,
+    team_id: str | None = None,
 ) -> list[tuple[str, str]]:
     """Queued tasks waiting for a render slot, oldest first.
 
     With ``before``, only tasks submitted ahead of that task are returned.
     """
     waiting = []
-    for task_id, job_id in await queued_video_tasks(db, user_id):
+    for task_id, job_id in await queued_video_tasks(db, user_id, team_id=team_id):
         if task_id == before:
             break
         if task_id in holders:
@@ -155,19 +205,36 @@ async def waiting_video_tasks(
     return waiting
 
 
-async def _slot_holders(redis, user_id: str) -> set[str]:
-    return {_decode(m) for m in await redis.smembers(ACTIVE_KEY.format(user_id=user_id))}
+async def _slot_holders(
+    redis, user_id: str, *, team_id: str | None = None
+) -> set[str]:
+    return {
+        _decode(m)
+        for m in await redis.smembers(
+            ACTIVE_KEY.format(user_id=_slot_owner(user_id, team_id))
+        )
+    }
 
 
-async def _is_turn(db, redis, *, task_id: str, user_id: str, limit: int) -> bool:
+async def _is_turn(
+    db,
+    redis,
+    *,
+    task_id: str,
+    user_id: str,
+    limit: int,
+    team_id: str | None = None,
+) -> bool:
     """True when this task is among the oldest waiting tasks that fit the free slots."""
-    holders = await _slot_holders(redis, user_id)
+    holders = await _slot_holders(redis, user_id, team_id=team_id)
     if task_id in holders:
         return True
     free = limit - len(holders)
     if free <= 0:
         return False
-    ahead = await waiting_video_tasks(db, redis, user_id, holders, before=task_id)
+    ahead = await waiting_video_tasks(
+        db, redis, user_id, holders, before=task_id, team_id=team_id
+    )
     return len(ahead) < free
 
 
@@ -195,21 +262,27 @@ return 0
 """
 
 
-async def wake_next_video_jobs(db, redis, user_id: str) -> list[str]:
-    """Start the account's next waiting tasks now that a slot is free.
+async def wake_next_video_jobs(
+    db, redis, user_id: str, *, team_id: str | None = None
+) -> list[str]:
+    """Start the workspace's next waiting tasks now that a slot is free.
 
     Returns the task ids whose jobs were moved forward. Each job still goes
     through ``admit_video_job``, so a wake never bypasses the cap or the order.
     """
-    limit = get_config().video_job_user_concurrency
-    await prune_video_slots(redis, user_id, await active_task_ids(db, user_id))
-    holders = await _slot_holders(redis, user_id)
+    limit = _concurrency_limit(get_config(), team_id)
+    await prune_video_slots(
+        redis, user_id, await active_task_ids(db, user_id, team_id=team_id), team_id=team_id
+    )
+    holders = await _slot_holders(redis, user_id, team_id=team_id)
     free = limit - len(holders)
     if free <= 0:
         return []
     woken = []
     now_ms = int(time.time() * 1000)
-    for task_id, job_id in (await waiting_video_tasks(db, redis, user_id, holders))[:free]:
+    for task_id, job_id in (
+        await waiting_video_tasks(db, redis, user_id, holders, team_id=team_id)
+    )[:free]:
         if int(await redis.eval(_WAKE_LUA, 1, DEFAULT_QUEUE_NAME, job_id, str(now_ms))):
             woken.append(task_id)
     if woken:
@@ -239,22 +312,30 @@ async def admit_video_job(
     redis = ctx["redis"]
     task = await TaskRepository.get_task_by_id(db, task_id)
     status = task.get("status") if task else None
+    team_id = task.get("team_id") if task else None
     if status not in {"queued", "processing"}:
         return "skipped"
     if await redis.get(f"task_cancel:{task_id}"):
         return "skipped"
 
     config = get_config()
-    limit = config.video_job_user_concurrency
+    limit = _concurrency_limit(config, team_id)
     try:
-        await prune_video_slots(redis, user_id, await active_task_ids(db, user_id))
+        await prune_video_slots(
+            redis,
+            user_id,
+            await active_task_ids(db, user_id, team_id=team_id),
+            team_id=team_id,
+        )
         await _clear_finished_upload_wait(redis, task_id, url)
         # A task already processing (a retry of a started render) is not
         # queued behind anyone; only queued tasks wait for their turn.
         in_turn = status != "queued" or await _is_turn(
-            db, redis, task_id=task_id, user_id=user_id, limit=limit
+            db, redis, task_id=task_id, user_id=user_id, limit=limit, team_id=team_id
         )
-        acquired = in_turn and await acquire_video_slot(redis, user_id, task_id, limit)
+        acquired = in_turn and await acquire_video_slot(
+            redis, user_id, task_id, limit, team_id=team_id
+        )
     except Exception:
         # A Redis blip must not drop a paid job. Running it may briefly exceed
         # the cap; losing it would refund or strand the task.
@@ -297,7 +378,16 @@ async def defer_video_job(db, task_id: str, job_args: tuple, seconds: int) -> No
         raise
 
 
-async def hold_for_upload(ctx, db, *, task_id: str, user_id: str, url: str, job_args: tuple) -> str:
+async def hold_for_upload(
+    ctx,
+    db,
+    *,
+    task_id: str,
+    user_id: str,
+    url: str,
+    job_args: tuple,
+    team_id: str | None = None,
+) -> str:
     """Return ``run``, ``deferred``, or ``failed`` for a job whose source is an upload.
 
     An upload is written to the API's disk first and copied to object storage
@@ -315,7 +405,7 @@ async def hold_for_upload(ctx, db, *, task_id: str, user_id: str, url: str, job_
     key = UPLOAD_WAIT_KEY.format(task_id=task_id)
     await redis.set(key, str(time.time()), nx=True, ex=24 * 60 * 60)
     started = float(_decode(await redis.get(key) or time.time()))
-    await release_video_slot(redis, user_id, task_id)
+    await release_video_slot(redis, user_id, task_id, team_id=team_id)
     if time.time() - started > config.upload_copy_wait_seconds:
         logger.error("Upload for task %s never reached object storage", task_id)
         await TaskRepository.update_task_status(
@@ -328,7 +418,7 @@ async def hold_for_upload(ctx, db, *, task_id: str, user_id: str, url: str, job_
     logger.info("Deferred video task %s; its upload is still being copied to object storage", task_id)
     # The slot this task gave back goes to the next task in line now.
     try:
-        await wake_next_video_jobs(db, redis, user_id)
+        await wake_next_video_jobs(db, redis, user_id, team_id=team_id)
     except Exception:
         logger.exception("Could not wake the next video task after task %s", task_id)
     return "deferred"

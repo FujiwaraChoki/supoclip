@@ -35,7 +35,7 @@ from ...repositories.upload_repository import (
 )
 from ...utils.async_helpers import run_in_thread
 from ...database import get_db
-from ...auth_headers import resolve_authenticated_user_id
+from ...auth_headers import resolve_auth_context, resolve_authenticated_user_id
 from ...services.billing_service import BillingService, grants_paid_access
 from starlette.formparsers import MultiPartException, MultiPartParser
 
@@ -217,9 +217,12 @@ async def upload_font(
 ):
     """Upload a custom .ttf/.otf font so it appears in the font picker."""
     try:
-        user_id = await _get_authenticated_user_id(request, db)
+        auth_ctx = await resolve_auth_context(request, db, get_config())
+        user_id = auth_ctx.user_id
         billing_service = BillingService(db)
-        summary = await billing_service.get_usage_summary(user_id)
+        summary = await billing_service.get_usage_summary(
+            user_id, team_id=auth_ctx.team_id
+        )
         paid_access = not summary.get("monetization_enabled") or grants_paid_access(
             summary.get("plan"),
             summary.get("subscription_status"),

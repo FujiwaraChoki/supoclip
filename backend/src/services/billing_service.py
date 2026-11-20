@@ -16,12 +16,13 @@ PAID_PLAN_STATUSES = {"active", "trialing"}
 PAID_PLAN_MINUTE_LIMIT_CONFIG = {
     "pro": "pro_plan_minute_limit",
     "scale": "scale_plan_minute_limit",
+    "team": "team_plan_minute_limit",
 }
 # Short side, in pixels, of the clips each plan receives. Pro subscribers from
 # before the 720p change keep 1080p while they stay subscribed (legacy_hd).
 FULL_HD_SHORT_SIDE = 1080
 HD_SHORT_SIDE = 720
-SCHEDULING_PLANS = {"scale"}
+SCHEDULING_PLANS = {"scale", "team"}
 # Periods longer than this are annual; their allowance still resets monthly.
 MAX_MONTHLY_PERIOD_DAYS = 32
 
@@ -166,27 +167,92 @@ class BillingService:
                 "legacy_hd": False,
             }
 
-    async def _count_usage(
-        self, user_id: str, period_start: datetime, period_end: datetime
-    ) -> tuple[int, int]:
-        """Return durable task charges and minutes in the allowance window."""
+    async def _load_team_billing_row(self, team_id: str) -> dict[str, Any]:
         result = await self.db.execute(
             text(
                 """
-                SELECT COUNT(*) AS total, COALESCE(SUM(minutes), 0) AS minutes
-                FROM minute_usage_events
-                WHERE user_id = :user_id
-                  AND created_at >= :period_start
-                  AND created_at <= :period_end
-                  AND refunded_at IS NULL
+                SELECT
+                    name,
+                    plan,
+                    subscription_status,
+                    subscription_provider,
+                    seat_limit,
+                    billing_period_start,
+                    billing_period_end,
+                    subscription_cancel_at
+                FROM teams
+                WHERE id = :team_id
                 """
             ),
-            {
-                "user_id": user_id,
-                "period_start": period_start,
-                "period_end": period_end,
-            },
+            {"team_id": team_id},
         )
+        row = result.fetchone()
+        if not row:
+            raise ValueError("Team not found")
+
+        return {
+            "name": row.name,
+            "plan": (row.plan or "free").lower(),
+            "subscription_status": (row.subscription_status or "inactive").lower(),
+            "subscription_provider": (
+                row.subscription_provider.lower()
+                if row.subscription_provider
+                else None
+            ),
+            "seat_limit": max(int(getattr(row, "seat_limit", None) or self.config.team_included_seats), 1),
+            "billing_period_start": row.billing_period_start,
+            "billing_period_end": row.billing_period_end,
+            "trial_ends_at": None,
+            "cancel_at": row.subscription_cancel_at,
+            "legacy_hd": False,
+        }
+
+    async def _count_usage(
+        self,
+        user_id: str,
+        period_start: datetime,
+        period_end: datetime,
+        *,
+        team_id: str | None = None,
+    ) -> tuple[int, int]:
+        """Return durable task charges and minutes in the allowance window."""
+        if team_id:
+            result = await self.db.execute(
+                text(
+                    """
+                    SELECT COUNT(*) AS total, COALESCE(SUM(minutes), 0) AS minutes
+                    FROM minute_usage_events
+                    WHERE team_id = :team_id
+                      AND created_at >= :period_start
+                      AND created_at <= :period_end
+                      AND refunded_at IS NULL
+                    """
+                ),
+                {
+                    "team_id": team_id,
+                    "period_start": period_start,
+                    "period_end": period_end,
+                },
+            )
+        else:
+            result = await self.db.execute(
+                text(
+                    """
+                    SELECT COUNT(*) AS total, COALESCE(SUM(minutes), 0) AS minutes
+                    FROM minute_usage_events
+                    WHERE user_id = :user_id
+                      AND team_id IS NULL
+                      AND created_at >= :period_start
+                      AND created_at <= :period_end
+                      AND refunded_at IS NULL
+                    """
+                ),
+                {
+                    "user_id": user_id,
+                    "period_start": period_start,
+                    "period_end": period_end,
+                },
+            )
         row = result.fetchone()
         if not row:
             return 0, 0
@@ -194,10 +260,14 @@ class BillingService:
         minutes = getattr(row, "minutes", None)
         return total, int(minutes) if minutes is not None else 0
 
-    async def get_usage_summary(self, user_id: str) -> dict[str, Any]:
+    async def get_usage_summary(
+        self, user_id: str, *, team_id: str | None = None
+    ) -> dict[str, Any]:
         if not self.config.monetization_enabled:
-            return {
+            summary: dict[str, Any] = {
                 "monetization_enabled": False,
+                "workspace_type": "team" if team_id else "personal",
+                "team_id": team_id,
                 "plan": "self_host",
                 "max_youtube_duration_seconds": self.config.max_video_duration,
                 "max_upload_duration_seconds": self.config.max_video_duration,
@@ -220,21 +290,40 @@ class BillingService:
                 "upgrade_required": False,
                 "reason": None,
             }
+            if team_id:
+                try:
+                    team_row = await self._load_team_billing_row(team_id)
+                    summary["team_name"] = team_row.get("name")
+                    summary["seat_limit"] = team_row.get("seat_limit")
+                    summary["included_seats"] = self.config.team_included_seats
+                except Exception:
+                    pass
+            return summary
 
-        row = await self._load_user_billing_row(user_id)
+        row = (
+            await self._load_team_billing_row(team_id)
+            if team_id
+            else await self._load_user_billing_row(user_id)
+        )
         now = datetime.now(timezone.utc)
         start, end = self._usage_window(
             row.get("billing_period_start"), row.get("billing_period_end"), now
         )
-        usage_count, usage_minutes = await self._count_usage(user_id, start, end)
+        usage_count, usage_minutes = await self._count_usage(
+            user_id, start, end, team_id=team_id
+        )
 
         plan = row["plan"]
         status = row["subscription_status"]
         provider = row.get("subscription_provider")
         is_paid = grants_paid_access(plan, status, provider)
+        if team_id and plan != "team":
+            is_paid = False
 
-        common = {
+        common: dict[str, Any] = {
             "monetization_enabled": True,
+            "workspace_type": "team" if team_id else "personal",
+            "team_id": team_id,
             "plan": plan,
             "max_youtube_duration_seconds": self.config.max_youtube_video_duration_for_plan(
                 plan, status, provider
@@ -250,6 +339,10 @@ class BillingService:
             "usage_count": usage_count,
             "usage_minutes": usage_minutes,
         }
+        if team_id:
+            common["team_name"] = row.get("name")
+            common["seat_limit"] = row.get("seat_limit")
+            common["included_seats"] = self.config.team_included_seats
 
         if not is_paid:
             return {
@@ -263,10 +356,20 @@ class BillingService:
                 "can_schedule_posts": False,
                 "can_create_task": False,
                 "upgrade_required": True,
-                "reason": "Choose a paid plan to process videos.",
+                "reason": (
+                    "Start a Team subscription to process videos in this team workspace."
+                    if team_id
+                    else "Choose a paid plan to process videos."
+                ),
             }
 
-        minute_limit = int(getattr(self.config, PAID_PLAN_MINUTE_LIMIT_CONFIG[plan]))
+        if plan == "team":
+            minute_limit = self.config.team_minute_limit_for_seats(
+                row.get("seat_limit")
+            )
+        else:
+            minute_limit = int(getattr(self.config, PAID_PLAN_MINUTE_LIMIT_CONFIG[plan]))
+
         unlimited = minute_limit <= 0
         remaining_minutes = None if unlimited else max(minute_limit - usage_minutes, 0)
         can_create = unlimited or remaining_minutes > 0
@@ -282,6 +385,12 @@ class BillingService:
         legacy_hd = bool(plan == "pro" and row.get("legacy_hd", False))
         full_hd = plan != "pro" or legacy_hd
 
+        exhausted_reason = (
+            "Your team has used this month's pooled video minutes. Add seats to increase the monthly allowance."
+            if team_id
+            else "You've used this month's video minutes."
+        )
+
         return {
             **common,
             "billing_interval": billing_interval,
@@ -295,57 +404,83 @@ class BillingService:
             "can_schedule_posts": plan in SCHEDULING_PLANS,
             "can_create_task": can_create,
             "upgrade_required": not can_create,
-            "reason": None if can_create else "You've used this month's video minutes.",
+            "reason": None if can_create else exhausted_reason,
         }
 
     async def assert_can_create_task(
-        self, user_id: str, duration_seconds: float | None = None
+        self,
+        user_id: str,
+        duration_seconds: float | None = None,
+        *,
+        team_id: str | None = None,
     ) -> dict[str, Any]:
         """Require an active plan with room left, and for a known source length,
         enough minutes to cover the whole video."""
-        summary = await self.get_usage_summary(user_id)
+        summary = await self.get_usage_summary(user_id, team_id=team_id)
         if not summary.get("can_create_task"):
             raise BillingLimitExceeded(summary)
 
         needed = source_minutes(duration_seconds)
         remaining = summary.get("remaining_minutes")
         if remaining is not None and needed > remaining:
+            reason = (
+                f"This video is {needed} minutes long and your team has "
+                f"{remaining} pooled minutes left this month."
+                if team_id
+                else f"This video is {needed} minutes long and you have "
+                f"{remaining} minutes left this month."
+            )
             raise BillingLimitExceeded(
                 {
                     **summary,
                     "upgrade_required": True,
                     "required_minutes": needed,
-                    "reason": (
-                        f"This video is {needed} minutes long and you have "
-                        f"{remaining} minutes left this month."
-                    ),
+                    "reason": reason,
                 }
             )
         return summary
 
     async def assert_can_resume_task(
-        self, user_id: str, task_id: str, *, require_active_plan: bool = True
+        self,
+        user_id: str,
+        task_id: str,
+        *,
+        require_active_plan: bool = True,
+        team_id: str | None = None,
     ) -> dict[str, Any]:
         """Reuse an active charge or re-charge a refunded retry after checking room.
 
-        The caller holds the user's allowance lock through this check and commit.
+        The caller holds the allowance lock through this check and commit.
         Workers may run an already-paid queued job after its plan lapses. Explicit
         resumes and all new/reinstated charges still require paid access.
         """
-        summary = await self.get_usage_summary(user_id)
+        summary = await self.get_usage_summary(user_id, team_id=team_id)
         if not self.config.monetization_enabled:
             return summary
         paid_access = grants_paid_access(
-            summary.get("plan"), summary.get("subscription_status"),
+            summary.get("plan"),
+            summary.get("subscription_status"),
             summary.get("subscription_provider"),
         )
-        result = await self.db.execute(
-            text("""
-                SELECT refunded_at, source_duration_seconds FROM minute_usage_events
-                WHERE task_id = :task_id AND user_id = :user_id
-            """),
-            {"task_id": task_id, "user_id": user_id},
-        )
+        if team_id and summary.get("plan") != "team":
+            paid_access = False
+
+        if team_id:
+            result = await self.db.execute(
+                text("""
+                    SELECT refunded_at, source_duration_seconds FROM minute_usage_events
+                    WHERE task_id = :task_id AND team_id = :team_id
+                """),
+                {"task_id": task_id, "team_id": team_id},
+            )
+        else:
+            result = await self.db.execute(
+                text("""
+                    SELECT refunded_at, source_duration_seconds FROM minute_usage_events
+                    WHERE task_id = :task_id AND user_id = :user_id AND team_id IS NULL
+                """),
+                {"task_id": task_id, "user_id": user_id},
+            )
         event = result.fetchone()
         if event is not None and event.refunded_at is None:
             if require_active_plan and not paid_access:
@@ -354,14 +489,24 @@ class BillingService:
         if not paid_access:
             raise BillingLimitExceeded(summary)
 
-        result = await self.db.execute(
-            text("""
-                SELECT t.source_duration_seconds, s.url AS source_url, t.source_metadata
-                FROM tasks t LEFT JOIN sources s ON s.id = t.source_id
-                WHERE t.id = :task_id AND t.user_id = :user_id
-            """),
-            {"task_id": task_id, "user_id": user_id},
-        )
+        if team_id:
+            result = await self.db.execute(
+                text("""
+                    SELECT t.source_duration_seconds, s.url AS source_url, t.source_metadata
+                    FROM tasks t LEFT JOIN sources s ON s.id = t.source_id
+                    WHERE t.id = :task_id AND t.team_id = :team_id
+                """),
+                {"task_id": task_id, "team_id": team_id},
+            )
+        else:
+            result = await self.db.execute(
+                text("""
+                    SELECT t.source_duration_seconds, s.url AS source_url, t.source_metadata
+                    FROM tasks t LEFT JOIN sources s ON s.id = t.source_id
+                    WHERE t.id = :task_id AND t.user_id = :user_id AND t.team_id IS NULL
+                """),
+                {"task_id": task_id, "user_id": user_id},
+            )
         task = result.fetchone()
         if task is None:
             raise ValueError("Task not found")
@@ -378,27 +523,44 @@ class BillingService:
             seconds = await VideoService().measure_source_duration(url, user_id)
 
         # Refunded rows do not contribute usage, so the entire retry must fit.
-        await self.assert_can_create_task(user_id, seconds)
+        await self.assert_can_create_task(user_id, seconds, team_id=team_id)
         try:
-            result = await self.db.execute(
-                text("""
-                    UPDATE tasks SET source_duration_seconds = :seconds
-                    WHERE id = :task_id AND user_id = :user_id
-                      AND (:explicit_resume OR status IN ('queued', 'processing'))
-                """),
-                {
-                    "seconds": seconds, "task_id": task_id, "user_id": user_id,
-                    "explicit_resume": require_active_plan,
-                },
-            )
+            if team_id:
+                result = await self.db.execute(
+                    text("""
+                        UPDATE tasks SET source_duration_seconds = :seconds
+                        WHERE id = :task_id AND team_id = :team_id
+                          AND (:explicit_resume OR status IN ('queued', 'processing'))
+                    """),
+                    {
+                        "seconds": seconds,
+                        "task_id": task_id,
+                        "team_id": team_id,
+                        "explicit_resume": require_active_plan,
+                    },
+                )
+            else:
+                result = await self.db.execute(
+                    text("""
+                        UPDATE tasks SET source_duration_seconds = :seconds
+                        WHERE id = :task_id AND user_id = :user_id AND team_id IS NULL
+                          AND (:explicit_resume OR status IN ('queued', 'processing'))
+                    """),
+                    {
+                        "seconds": seconds,
+                        "task_id": task_id,
+                        "user_id": user_id,
+                        "explicit_resume": require_active_plan,
+                    },
+                )
             if result.rowcount == 0:
                 # Cancellation may win while a legacy worker measures duration.
                 # Do not re-charge a task that has already stopped.
                 raise TaskCancelled()
             if event is not None:
-                await reactivate_minute_usage(self.db, user_id, task_id)
+                await reactivate_minute_usage(self.db, user_id, task_id, team_id=team_id)
             else:
-                await record_minute_usage(self.db, user_id, task_id, seconds)
+                await record_minute_usage(self.db, user_id, task_id, seconds, team_id=team_id)
             await self.db.commit()
         except Exception:
             await self.db.rollback()

@@ -1,9 +1,10 @@
 """
 API key management routes.
 
-These endpoints let an authenticated user mint, list and revoke their own API
-keys. They are authenticated with the frontend's signed session headers (not
-with an API key) so that a leaked key cannot be used to create more keys.
+These endpoints let an authenticated user mint, list and revoke personal or
+team-scoped API keys. They are authenticated with the frontend's signed session
+headers (not with an API key) so that a leaked key cannot be used to create
+more keys.
 """
 
 import logging
@@ -12,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...auth_headers import get_authenticated_user_id
+from ...auth_headers import AuthContext, resolve_auth_context
 from ...config import get_config
 from ...database import get_db
 from ...models import User
@@ -43,33 +44,40 @@ async def notify_api_key_created(user: User, created: dict) -> None:
         )
 
 
-def _get_user_id(request: Request) -> str:
-    """Resolve the user from signed session headers (never from an API key)."""
-    return get_authenticated_user_id(request, get_config())
+async def _get_session_context(request: Request, db: AsyncSession) -> AuthContext:
+    """Resolve user + verified team membership from signed session headers only."""
+    return await resolve_auth_context(request, db, get_config(), session_only=True)
 
 
 @router.get("/")
 async def list_api_keys(request: Request, db: AsyncSession = Depends(get_db)):
-    """List the authenticated user's API keys (metadata only, no secrets)."""
-    user_id = _get_user_id(request)
+    """List the active workspace's API keys (metadata only, no secrets)."""
+    ctx = await _get_session_context(request, db)
     service = ApiKeyService(db)
-    keys = await service.list_api_keys(user_id)
-    return {"api_keys": keys, "total": len(keys)}
+    keys = await service.list_api_keys(
+        ctx.user_id, **({"team_id": ctx.team_id} if ctx.team_id else {})
+    )
+    return {"api_keys": keys, "total": len(keys), "team_id": ctx.team_id}
 
 
 @router.post("/")
 async def create_api_key(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Create a new API key.
+    Create a new API key scoped to the active workspace.
 
-    Returns the plaintext key exactly once in the ``key`` field; it cannot be
-    retrieved again afterwards.
+    Team API keys require the owner or admin role.
     """
     data = await request.json()
     name = data.get("name", "API Key")
 
-    user_id = _get_user_id(request)
-    user_result = await db.execute(select(User).where(User.id == user_id))
+    ctx = await _get_session_context(request, db)
+    if ctx.team_id and not ctx.is_team_manager:
+        raise HTTPException(
+            status_code=403,
+            detail="Only team owners and admins can create team API keys.",
+        )
+
+    user_result = await db.execute(select(User).where(User.id == ctx.user_id))
     user = user_result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -81,7 +89,9 @@ async def create_api_key(request: Request, db: AsyncSession = Depends(get_db)):
 
     service = ApiKeyService(db)
     try:
-        created = await service.create_api_key(user_id, name)
+        created = await service.create_api_key(
+            ctx.user_id, name, **({"team_id": ctx.team_id} if ctx.team_id else {})
+        )
     except ApiKeyLimitExceeded as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except Exception as exc:  # pragma: no cover - defensive
@@ -97,10 +107,17 @@ async def create_api_key(request: Request, db: AsyncSession = Depends(get_db)):
 async def revoke_api_key(
     key_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    """Revoke (permanently disable) one of the user's API keys."""
-    user_id = _get_user_id(request)
+    """Revoke (permanently disable) an API key in the active workspace."""
+    ctx = await _get_session_context(request, db)
+    if ctx.team_id and not ctx.is_team_manager:
+        raise HTTPException(
+            status_code=403,
+            detail="Only team owners and admins can revoke team API keys.",
+        )
     service = ApiKeyService(db)
-    revoked = await service.revoke_api_key(user_id, key_id)
+    revoked = await service.revoke_api_key(
+        ctx.user_id, key_id, **({"team_id": ctx.team_id} if ctx.team_id else {})
+    )
     if not revoked:
         raise HTTPException(status_code=404, detail="API key not found")
     return {"message": "API key revoked"}
