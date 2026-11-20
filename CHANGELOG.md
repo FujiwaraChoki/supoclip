@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-20
 
-- **Fixed:** Closing or finishing a feature tour right as it opened could fail to save how the tour ended. Two tour updates sent at the same moment are now both recorded. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** Closing or finishing a feature tour right as it opened could fail to save how the tour ended. Two tour updates sent at the same moment are now both recorded. ([#475](https://github.com/FujiwaraChoki/supoclip/pull/475))
 
 ## 2026-11-19
 
