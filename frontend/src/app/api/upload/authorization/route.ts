@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders, hasSignedBackendAuth } from "@/lib/backend-auth";
 import { backendTraceHeaders } from "@/server/backend-api";
+import { getActiveTeamIdFromCookies } from "@/server/workspace";
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -11,12 +12,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const teamId = await getActiveTeamIdFromCookies();
   const payload = await request.json().catch(() => null);
   if (payload) {
     const internalUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const upstream = await fetch(`${internalUrl.replace(/\/$/, "")}/upload/authorize`, {
       method: "POST",
-      headers: { ...buildBackendAuthHeaders(session.user.id), ...(await backendTraceHeaders()), "Content-Type": "application/json" },
+      headers: { ...buildBackendAuthHeaders(session.user.id, teamId), ...(await backendTraceHeaders()), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       cache: "no-store",
     });
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
     {
       directUpload: true,
       uploadUrl: `${normalizedApiUrl}/upload`,
-      headers: buildBackendAuthHeaders(session.user.id),
+      headers: buildBackendAuthHeaders(session.user.id, teamId),
     },
     {
       headers: {

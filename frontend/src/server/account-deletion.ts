@@ -51,6 +51,38 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
     }
   }
 
+  // Prevent deleting an account that still owns a team with an active subscription or other members.
+  const ownedTeams = prisma.team?.findMany
+    ? await prisma.team.findMany({
+        where: { owner_id: userId },
+        select: {
+          id: true,
+          name: true,
+          stripe_subscription_id: true,
+          subscription_status: true,
+          subscription_cancel_at: true,
+          _count: { select: { members: true } },
+        },
+      })
+    : [];
+  for (const team of ownedTeams) {
+    if (
+      monetizationEnabled &&
+      team.stripe_subscription_id &&
+      BILLABLE_STRIPE_STATUSES.has(team.subscription_status) &&
+      !team.subscription_cancel_at
+    ) {
+      throw new APIError("BAD_REQUEST", {
+        message: `Team "${team.name}" has an active subscription. Cancel it or transfer team ownership before deleting your account.`,
+      });
+    }
+    if (team._count.members > 1) {
+      throw new APIError("BAD_REQUEST", {
+        message: `You own team "${team.name}" which still has other members. Transfer ownership or remove them before deleting your account.`,
+      });
+    }
+  }
+
   // The affiliates row cascades away with the user; free its code in Stripe so it can be reused.
   const affiliate = await prisma.affiliate.findUnique({
     where: { user_id: userId },

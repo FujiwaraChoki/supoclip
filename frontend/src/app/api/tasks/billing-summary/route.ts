@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { backendTraceHeaders } from "@/server/backend-api";
 import { restorePastDueEntitlement } from "@/server/stripe-subscription-sync";
+import { getActiveTeamIdFromCookies } from "@/server/workspace";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,6 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const teamId = await getActiveTeamIdFromCookies();
   const apiUrl =
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
@@ -19,14 +21,17 @@ export async function GET() {
   const loadSummary = async () => {
     const upstream = await fetch(`${apiUrl}/tasks/billing/summary`, {
       method: "GET",
-      headers: { ...buildBackendAuthHeaders(session.user.id), ...(await backendTraceHeaders()) },
+      headers: {
+        ...buildBackendAuthHeaders(session.user.id, teamId),
+        ...(await backendTraceHeaders()),
+      },
       cache: "no-store",
     });
     return { upstream, responseText: await upstream.text() };
   };
 
   let { upstream, responseText } = await loadSummary();
-  if (upstream.ok && storedPastDuePlanIsFree(responseText)) {
+  if (!teamId && upstream.ok && storedPastDuePlanIsFree(responseText)) {
     try {
       if (await restorePastDueEntitlement(session.user.id)) {
         ({ upstream, responseText } = await loadSummary());

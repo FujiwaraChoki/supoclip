@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { backendTraceHeaders } from "@/server/backend-api";
+import { getActiveTeamIdFromCookies } from "@/server/workspace";
 import { maxVideoUploadBytes, uploadTooLargeMessage } from "@/lib/video-upload";
 
 // Same slack the API allows for multipart boundaries around a file on the cap.
@@ -45,8 +46,9 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
+  const teamId = await getActiveTeamIdFromCookies();
   const forwardHeaders: Record<string, string> = {
-    ...buildBackendAuthHeaders(session.user.id),
+    ...buildBackendAuthHeaders(session.user.id, teamId),
     ...(await backendTraceHeaders()),
     "content-type": contentType,
     "content-length": declaredLength,
