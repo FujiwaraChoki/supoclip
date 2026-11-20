@@ -80,6 +80,7 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
         {
             "start_time": "00:00",
             "end_time": "00:30",
+            "source_ranges": [[0.0, 30.0]],
             "text": "[00:00 - 00:01] hello",
             "relevance_score": 0.25,
             "reasoning": (
@@ -109,6 +110,82 @@ def test_fallback_segment_caps_to_video_duration():
     assert segment["start_time"] == "00:00"
     assert segment["end_time"] == "00:12"
     assert segment["hook_type"] == "fallback"
+
+
+def test_fallback_segment_keeps_a_fractional_source_end():
+    # A 24.6s source used to get a "00:25" end, which rendered and stored a
+    # 0-25s range that editor preparation then rejected as uncovered.
+    segment = VideoService._build_fallback_segment(
+        video_duration=24.6,
+        transcript="short transcript",
+        target_duration=30,
+    )
+
+    assert segment["source_ranges"] == [[0.0, 24.6]]
+    assert segment["end_time"] == "00:24"
+
+
+@pytest.mark.asyncio
+async def test_fallback_text_is_the_words_its_exact_range_plays(monkeypatch, tmp_path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"placeholder")
+    config = SimpleNamespace(
+        max_video_duration=5400, clip_duration=30, max_clips=10, fast_mode_max_clips=4,
+    )
+    monkeypatch.setattr(video_service_module, "get_config", lambda: config)
+    monkeypatch.setattr(VideoService, "resolve_local_video_path", staticmethod(lambda _url: source))
+    monkeypatch.setattr(VideoService, "_get_file_duration", staticmethod(lambda _path: 24.6))
+    words = {"words": [
+        {"text": "Hello", "start": 0, "end": 500},
+        {"text": "there.", "start": 600, "end": 1200},
+        {"text": "Gone", "start": 24700, "end": 25000},
+    ]}
+    monkeypatch.setattr(video_service_module, "load_cached_transcript_data", lambda _path: words)
+
+    async def empty_analysis(*_args, **_kwargs):
+        return _EmptyAnalysis()
+
+    async def fake_run_in_thread(func, *args, **_kwargs):
+        if func == VideoService._drop_static_segments:
+            return args[1]
+        return None
+
+    monkeypatch.setattr(VideoService, "analyze_transcript", staticmethod(empty_analysis))
+    monkeypatch.setattr(video_service_module, "run_in_thread", fake_run_in_thread)
+
+    result = await VideoService.process_video_complete(
+        url="upload://source.mp4",
+        source_type="video_url",
+        processing_mode="fast",
+        cached_transcript="[00:00 - 00:01] Hello there.",
+    )
+
+    [segment] = result["segments_to_render"]
+    assert segment["source_ranges"] == [[0.0, 24.6]]
+    assert segment["end_time"] == "00:24"
+    assert segment["text"] == "Hello there."
+
+
+def test_fallback_render_ranges_stay_inside_a_fractional_source(monkeypatch, tmp_path):
+    from src.media.render_ranges import resolve_render_ranges
+    from src.youtube_source import SourceCoverageError, local_ranges_for
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"placeholder")
+    monkeypatch.setattr("src.media.ffmpeg.ffprobe_duration", lambda _path: 24.6)
+    segment = VideoService._build_fallback_segment(24.6, "short transcript", 30)
+
+    resolved = resolve_render_ranges(source, segment, {}, 60.0)
+
+    assert resolved.keep_ranges == [(0.0, 24.6)]
+    assert resolved.bounds == (0.0, 24.6)
+    # The stored range passes the editor's strict coverage check...
+    assert local_ranges_for(source, resolved.keep_ranges, strict=True) == [(0.0, 24.6)]
+    # The rounded range older fallbacks stored means the file's end...
+    assert local_ranges_for(source, [(0.0, 25.0)], strict=True) == [(0.0, 24.6)]
+    # ...while a file that ends well before the range is still rejected.
+    with pytest.raises(SourceCoverageError):
+        local_ranges_for(source, [(0.0, 26.0)], strict=True)
 
 
 @pytest.mark.asyncio

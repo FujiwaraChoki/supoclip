@@ -98,7 +98,9 @@ def work_render(config, ranges) -> Path:
     return render
 
 
-def prepare_harness(monkeypatch, tmp_path, *, cached: Path | None, downloaded: Path, duration: float):
+def prepare_harness(
+    monkeypatch, tmp_path, *, cached: Path | None, downloaded: Path, duration: float, ranges=(CLIP_FOUR,)
+):
     clip = {"id": "clip4", "task_id": "task", "filename": "clip.mp4", "file_path": str(tmp_path / "clip.mp4"), "text": ""}
     task = {"source_url": SOURCE_URL, "source_type": "youtube", "processing_mode": "fast"}
     download = AsyncMock(return_value=downloaded)
@@ -115,7 +117,7 @@ def prepare_harness(monkeypatch, tmp_path, *, cached: Path | None, downloaded: P
         config=SimpleNamespace(default_processing_mode="fast"),
         _build_cache_key=lambda *_: "cache-key",
         _media_limits=AsyncMock(return_value=(None, None)),
-        _get_clip_source_ranges=lambda _: [CLIP_FOUR],
+        _get_clip_source_ranges=lambda _: list(ranges),
         _load_task_source_settings=AsyncMock(return_value={"output_format": "original"}),
         _cleanup_source_video=TaskService._cleanup_source_video,
     )
@@ -193,6 +195,64 @@ async def test_a_prepared_source_shorter_than_the_clip_is_rejected(config, monke
     state = await stored_state("task", "clip4", "clip.mp4")
     assert state["status"] == "failed"
     assert state["error"] == editor_service.SOURCE_INCOMPLETE
+
+
+def full_file(tmp_path, monkeypatch, duration: float) -> Path:
+    source = tmp_path / "full" / "source.mp4"
+    source.parent.mkdir()
+    source.write_bytes(b"full source")
+    monkeypatch.setattr("src.media.ffmpeg.ffprobe_duration", lambda _path: duration)
+    return source
+
+
+def test_a_whole_second_end_on_a_fractional_file_means_its_end(tmp_path, monkeypatch):
+    # Older fallback clips stored "00:59" for a 58.6s source.
+    source = full_file(tmp_path, monkeypatch, 58.6)
+    assert local_ranges_for(source, [(0.0, 59.0)], strict=True) == [(0.0, 58.6)]
+    assert local_ranges_for(source, [(0.0, 20.0), (40.0, 59.0)], strict=True) == [(0.0, 20.0), (40.0, 58.6)]
+    # Ranges inside the file are left as they are.
+    assert local_ranges_for(source, [(0.0, 58.6)], strict=True) == [(0.0, 58.6)]
+
+
+def test_a_file_that_ends_well_before_the_range_still_fails(tmp_path, monkeypatch):
+    source = full_file(tmp_path, monkeypatch, 58.0)
+    with pytest.raises(SourceCoverageError):
+        local_ranges_for(source, [(0.0, 59.0)], strict=True)
+
+
+def test_a_range_that_starts_past_the_file_still_fails(tmp_path, monkeypatch):
+    source = full_file(tmp_path, monkeypatch, 58.6)
+    with pytest.raises(SourceCoverageError):
+        local_ranges_for(source, [(0.0, 20.0), (58.7, 59.0)], strict=True)
+
+
+async def test_a_stored_clip_with_a_rounded_end_opens(config, monkeypatch, tmp_path):
+    cached = full_file(tmp_path, monkeypatch, 58.6)
+    download, rendered = prepare_harness(
+        monkeypatch, tmp_path, cached=cached, downloaded=cached, duration=58.6, ranges=[(0.0, 59.0)]
+    )
+
+    await editor_service.prepare_editor({}, "task", "clip4", "clip.mp4")
+
+    state = await stored_state("task", "clip4", "clip.mp4")
+    assert state["status"] == "ready", state
+    download.assert_not_awaited()
+    assert rendered[0]["ranges"] == [(0.0, 58.6)]
+
+
+async def test_a_short_clip_with_a_rounded_end_is_not_called_too_short(config, monkeypatch, tmp_path):
+    # Clamping 16.0s to the file's 15.35s leaves 5.35s, more than the
+    # too-short check's half second under the stored 6s.
+    cached = full_file(tmp_path, monkeypatch, 15.35)
+    _download, rendered = prepare_harness(
+        monkeypatch, tmp_path, cached=cached, downloaded=cached, duration=5.35, ranges=[(10.0, 16.0)]
+    )
+
+    await editor_service.prepare_editor({}, "task", "clip4", "clip.mp4")
+
+    state = await stored_state("task", "clip4", "clip.mp4")
+    assert state["status"] == "ready", state
+    assert rendered[0]["ranges"] == [(10.0, 15.35)]
 
 
 def test_expected_duration_follows_crossfaded_offsets():
