@@ -1076,6 +1076,10 @@ def get_transcript_text_in_range(
     return _join_transcript_tokens([word["text"] for word in relevant_words])
 
 
+CLEANUP_MIN_KEPT_SECONDS = 0.5   # pause and filler clean-up never leaves less than this of a selection ...
+CLEANUP_MIN_KEPT_SHARE = 0.2     # ... or less than this share of it: 6 s of a 30 s selection
+
+
 def build_clip_keep_ranges(
     video_path: Path,
     clip_start: float,
@@ -1158,29 +1162,40 @@ def build_clip_keep_ranges(
             if removal_end - removal_start >= 0.05:
                 removal_intervals.append((removal_start, removal_end))
 
-        leading_gap = spoken_words[0]["start"] - clip_start
-        if leading_gap >= pause_threshold_seconds:
-            compress_pause(clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS)
-
-        internal_gaps = [
-            (current["end"], nxt["start"])
+        # Every silence is checked for action before it is cut: the ones between words, and the ones before
+        # the first word and after the last. Gameplay or music with a single stray word is a clip of the
+        # action, not of that word. Each gap carries the silence kept at its two ends: none at the clip's own
+        # edge, a breath next to a word.
+        gaps: List[Tuple[float, float, float, float]] = []
+        if spoken_words[0]["start"] - clip_start >= pause_threshold_seconds:
+            gaps.append((clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS))
+        gaps.extend(
+            (current["end"], nxt["start"], PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
             for current, nxt in zip(spoken_words, spoken_words[1:])
             if nxt["start"] - current["end"] >= pause_threshold_seconds
-        ]
-        protected = active_gap_ranges(video_path, internal_gaps, [(word["start"], word["end"]) for word in spoken_words])
-        for (gap_start, gap_end), action in zip(internal_gaps, protected):
+        )
+        if clip_end - spoken_words[-1]["end"] >= pause_threshold_seconds:
+            gaps.append((spoken_words[-1]["end"], clip_end, PAUSE_TAIL_SECONDS, 0.0))
+        protected = active_gap_ranges(
+            video_path,
+            [(gap_start, gap_end) for gap_start, gap_end, _, _ in gaps],
+            [(word["start"], word["end"]) for word in spoken_words],
+        ) if gaps else []
+        for (gap_start, gap_end, keep_first, keep_last), action in zip(gaps, protected):
             cursor = gap_start
             # Keep detected action, compressing only the quiet windows between it.
             for action_start, action_end in action:
                 if action_start - cursor >= pause_threshold_seconds:
-                    compress_pause(cursor, action_start, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
+                    compress_pause(
+                        cursor, action_start,
+                        keep_first if cursor == gap_start else PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS,
+                    )
                 cursor = max(cursor, action_end)
             if gap_end - cursor >= pause_threshold_seconds:
-                compress_pause(cursor, gap_end, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
-
-        trailing_gap = clip_end - spoken_words[-1]["end"]
-        if trailing_gap >= pause_threshold_seconds:
-            compress_pause(spoken_words[-1]["end"], clip_end, PAUSE_TAIL_SECONDS, 0.0)
+                compress_pause(
+                    cursor, gap_end,
+                    keep_first if cursor == gap_start else PAUSE_EDGE_PADDING_SECONDS, keep_last,
+                )
 
     merged_removals = _merge_intervals(removal_intervals)
     if not merged_removals:
@@ -1206,7 +1221,11 @@ def build_clip_keep_ranges(
         keep_ranges.append((cursor, clip_end))
 
     total_kept = sum(max(0.0, end - start) for start, end in keep_ranges)
-    if not keep_ranges or total_kept < 0.5:
+    # Clean-up tightens a clip; it does not replace it. When hardly anything would be left (a few words in a
+    # long selection), the selection is rendered as it is.
+    window = clip_end - clip_start
+    floor = max(CLEANUP_MIN_KEPT_SECONDS, CLEANUP_MIN_KEPT_SHARE * window)
+    if not keep_ranges or total_kept < floor:
         return [(clip_start, clip_end)]
 
     return keep_ranges
