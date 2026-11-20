@@ -13,6 +13,7 @@ import {
   setCaptionVisualSize,
   renderSegments,
   splitSegment,
+  trimEdge,
 } from "./document";
 import { draft } from "./document.test-fixture";
 
@@ -142,5 +143,37 @@ describe("non-destructive edits", () => {
     expect(activeWordIndex(group, 0.9)).toBe(0);
     expect(activeWordIndex(group, 1)).toBe(1);
     expect(activeWordIndex(group, 2.4)).toBe(2);
+  });
+});
+
+describe("trimEdge", () => {
+  const segment = { id: "s", start: 12.5, end: 20 };
+
+  it("never moves a start before the source's first frame", () => {
+    expect(trimEdge(segment, "start", -3, 30).start).toBe(0);
+    expect(trimEdge({ id: "s", start: 0.02, end: 0.05 }, "start", 0, 30).start).toBe(0);
+  });
+
+  it("keeps the start when the out point is set to zero or below it", () => {
+    for (const out of [0, 0.01, -1, 5]) {
+      const next = trimEdge(segment, "end", out, 30);
+      expect(next.start).toBe(12.5);
+      expect(next.end).toBeCloseTo(12.54);
+    }
+  });
+
+  it("keeps the end when the in point is set past it", () => {
+    const next = trimEdge(segment, "start", 25, 30);
+    expect(next.end).toBe(20);
+    expect(next.start).toBeCloseTo(19.96);
+  });
+
+  it("caps the out point at the source length", () => {
+    expect(trimEdge(segment, "end", 45, 30).end).toBe(30);
+  });
+
+  it("ignores an empty number field", () => {
+    expect(trimEdge(segment, "end", Number.NaN, 30)).toEqual(segment);
+    expect(trimEdge(segment, "start", Number.NaN, 30)).toEqual(segment);
   });
 });

@@ -44,6 +44,7 @@ import {
 import { downloadBlob } from "@/lib/clip-actions";
 import {
   clamp,
+  trimEdge,
   outputTime,
   splitSegment,
   timecode,
@@ -263,7 +264,6 @@ export function EditorWorkspace({
         }
         return;
       }
-      const segment = doc.segments[index];
       if (event.code === "Space") {
         event.preventDefault();
         document
@@ -293,7 +293,7 @@ export function EditorWorkspace({
           ...d,
           segments: d.segments.map((s, i) =>
             i === index
-              ? { ...s, start: clamp(time, 0, segment.end - 0.04) }
+              ? trimEdge(s, "start", time, asset.duration)
               : s,
           ),
         }));
@@ -304,7 +304,7 @@ export function EditorWorkspace({
           ...d,
           segments: d.segments.map((s, i) =>
             i === index
-              ? { ...s, end: clamp(time, segment.start + 0.04, asset.duration) }
+              ? trimEdge(s, "end", time, asset.duration)
               : s,
           ),
         }));

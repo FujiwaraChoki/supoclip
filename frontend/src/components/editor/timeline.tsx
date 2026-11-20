@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import {
   captionGroups,
   clamp,
+  MIN_SEGMENT_SECONDS as MIN_SEGMENT,
+  trimEdge,
   editDuration,
   hookRange,
   locate,
@@ -66,7 +68,6 @@ interface Props {
   seekBroll?: (time: number) => void;
 }
 
-const MIN_SEGMENT = 0.04;
 const TRACK = {
   video: "h-12 [@media(max-height:780px)]:h-10",
   broll: "h-8",
@@ -142,19 +143,11 @@ export function Timeline({
       box.scrollLeft = Math.max(0, x - box.clientWidth / 3);
   }, [playhead, total, zoom]);
 
-  const setRange = (start: number, end: number) =>
+  const setEdge = (edge: "start" | "end", seconds: number) =>
     update(
       (d) => ({
         ...d,
-        segments: d.segments.map((s) =>
-          s.id === active.id
-            ? {
-                ...s,
-                start: clamp(start, 0, end - MIN_SEGMENT),
-                end: clamp(end, start + MIN_SEGMENT, asset.duration),
-              }
-            : s,
-        ),
+        segments: d.segments.map((s) => (s.id === active.id ? trimEdge(s, edge, seconds, asset.duration) : s)),
       }),
       "trim",
     );
@@ -203,11 +196,7 @@ export function Timeline({
       (current) => ({
         ...current,
         segments: current.segments.map((s) =>
-          s.id !== d.id
-            ? s
-            : d.edge === "start"
-              ? { ...s, start: clamp(d.start + delta, 0, d.end - MIN_SEGMENT) }
-              : { ...s, end: clamp(d.end + delta, d.start + MIN_SEGMENT, asset.duration) },
+          s.id !== d.id ? s : trimEdge(s, d.edge, (d.edge === "start" ? d.start : d.end) + delta, asset.duration),
         ),
       }),
       "trim",
@@ -297,9 +286,7 @@ export function Timeline({
               step="0.01"
               value={Number((edge === "in" ? active.start : active.end).toFixed(2))}
               onChange={(e) =>
-                edge === "in"
-                  ? setRange(Number(e.target.value), active.end)
-                  : setRange(active.start, Number(e.target.value))
+                setEdge(edge === "in" ? "start" : "end", e.target.valueAsNumber)
               }
             />
           </label>
@@ -309,7 +296,7 @@ export function Timeline({
           shortcut="I"
           size="sm"
           className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setRange(clamp(currentTime, 0, active.end - MIN_SEGMENT), active.end)}
+          onClick={() => setEdge("start", currentTime)}
         >
           {t("timeline.setIn")}
         </ToolButton>
@@ -318,7 +305,7 @@ export function Timeline({
           shortcut="O"
           size="sm"
           className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setRange(active.start, clamp(currentTime, active.start + MIN_SEGMENT, asset.duration))}
+          onClick={() => setEdge("end", currentTime)}
         >
           {t("timeline.setOut")}
         </ToolButton>

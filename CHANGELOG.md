@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-20
+
+- **Fixed:** In the clip studio, clearing or lowering a clip's Out time no longer pushes its In time before the start of the video, which made saving the draft fail. The In time now stays where it was and the clip just gets shorter. ([#476](https://github.com/FujiwaraChoki/supoclip/pull/476))
+
 ## 2026-11-19
 
 - **Improved:** Gameplay streams are framed for vertical video: your camera sits on top and the game fills the rest, with the minimap kept, instead of a crop around your camera that cut the game off. Works for single-streamer videos with a camera on screen, including story games without a HUD. ([#471](https://github.com/FujiwaraChoki/supoclip/pull/471))
