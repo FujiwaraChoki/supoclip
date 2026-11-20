@@ -46,11 +46,36 @@ LINE_MAGNITUDE = 60.0          # one-direction Sobel response for straight borde
 CHANGE_DIFF = 6.0              # grey-level change between two samples that counts as "changed"
 HUD_PERSISTENCE = 0.6          # an edge present in this share of samples is drawn by the game or the stream
 LINE_PERSISTENCE = 0.5
+PATIENT_LINE_PERSISTENCE = 0.35  # second look for a camera border, see find_facecam_rect
+PATIENT_MAX_FACE_WIDTHS = 13     # ... and the widest camera it accepts, in face widths (8 on the first look)
+PATIENT_OUTSIDE_CHANGE = 0.2     # mean change rate around the rectangle: the game has to move
+PATIENT_CALM_RATIO = 0.6         # ... and the inside changes at most this much of that
 CHANGE_STEP = 0.3              # jump in the change rate across a camera border without a drawn line
 MOVING_CHANGE_RATE = 0.25      # a pixel that changed in a quarter of the sample pairs belongs to moving footage
 
 # --- Classification -----------------------------------------------------------
 MIN_MOVING_FRACTION = 0.5      # measured: gameplay 0.76-0.96, podcast 0.11-0.19, screen recordings 0.0
+# With a camera inset a game may stand still (a menu, the map, a phone in the character's hand): production
+# clips refused as static with a camera measured 0.16-0.5. Slides and screen recordings stay below 0.1.
+MIN_MOVING_FRACTION_WITH_FACECAM = 0.15
+# Below that the picture stands still (a page on the character's phone, a pause menu, but also slides with a
+# webcam). The camera goes on top and the part of the picture that carries detail is shown below it, whole.
+STILL_DETAIL_PERSISTENCE = 0.6
+STILL_FOCUS_QUANTILES = (0.02, 0.98)
+STILL_FOCUS_PAD = 0.03
+# A camera over a picture that hardly moves must show a small head: a speaker filmed in front of a window
+# or a shelf has a rectangle around the face too, and a face several times larger.
+CALM_PICTURE_FACE_MAX_AREA = 0.02  # camera heads measured up to 1.7 %; a speaker in a medium shot starts around 2.5 %
+
+# Side-by-side comparisons (two games, before and after): a divider down the middle of the screen
+SPLIT_LINE_BAND = 0.006        # of the width, either side of the centre
+SPLIT_LINE_COVERAGE = 0.75     # of the height one straight line must cover in a sample (splits 0.8-1.0, gameplay <= 0.5)
+SPLIT_MIN_FRACTION = 0.2       # of the clip
+SPLIT_LINE_MAX_SPREAD = 24.0   # grey levels between the 10th and 90th percentile along the divider: it is one flat colour
+SPLIT_MIN_SECONDS = 1.5
+SPLIT_PANEL_H = 960            # each half fills half of the canvas
+SPLIT_GAP = 0.012              # of the width, left out on either side of the centre: the divider itself
+SPLIT_CROP_DOWN = 0.85         # where the crop sits between the top (0) and the bottom (1) of the picture
 MIN_HUD_REGIONS = 3            # without a facecam
 MIN_HUD_REGIONS_WITH_FACECAM = 1
 MIN_HUD_EDGE_FRACTION = 0.004  # persistent edge pixels outside the facecam, as a share of the frame
@@ -61,6 +86,7 @@ MIN_VALID_FRACTION_WITH_FACECAM = 0.35  # streams hide the camera during cutscen
 VALID_SAMPLE_SCORE = 0.45
 MIN_FALLBACK_SECONDS = 1.5
 REFINE_FPS = 30
+REFINE_MAX_REACH = 1.5         # seconds decoded either side of a sampled switch, whatever the clip length
 
 # --- HUD regions ---------------------------------------------------------------
 HUD_MERGE_FRAC = 0.019         # persistent edges closer than this (of the width) are one element
@@ -149,6 +175,7 @@ class FrameEvidence:
     change: np.ndarray        # share of sample pairs in which the pixel changed
     edges: np.ndarray         # (N, h, w) bool, for per-sample checks
     times: List[float]
+    centre_line: Optional[np.ndarray] = None  # (N,) share of the height a straight line down the middle covers
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -171,6 +198,10 @@ class GamingProfile:
     valid_fraction: float = 0.0
     fallback_ranges: List[Tuple[float, float]] = field(default_factory=list)
     check_masks: List[np.ndarray] = field(default_factory=list, repr=False)
+    # A picture that stands still beside the camera: the part of it that carries detail (source pixels).
+    focus: Optional[Rect] = None
+    # Seconds in which the screen is split down the middle (reason ``split_screen``): the halves are stacked.
+    split_ranges: List[Tuple[float, float]] = field(default_factory=list)
     virtual_camera: bool = False  # the camera has no rectangle (keyed-out streamer); one was drawn around the head
     # Where this layout applies (seconds). Empty: the whole clip.
     active: List[Tuple[float, float]] = field(default_factory=list)
@@ -190,6 +221,8 @@ class GamingProfile:
             "valid_fraction": round(self.valid_fraction, 3),
             "fallback_ranges": [[round(a, 3), round(b, 3)] for a, b in self.fallback_ranges],
             "virtual_camera": self.virtual_camera,
+            "focus": self.focus.as_list() if self.focus else None,
+            "split_ranges": [[round(a, 3), round(b, 3)] for a, b in self.split_ranges],
             "active": [[round(a, 3), round(b, 3)] for a, b in self.active],
         }
 
@@ -235,6 +268,32 @@ def detect_faces(frames: np.ndarray) -> List[List[Box]]:
 # Evidence
 # ---------------------------------------------------------------------------
 
+def centre_line_score(vertical_lines: np.ndarray, gray: Optional[np.ndarray] = None) -> float:
+    """How much of the height one straight vertical line near the middle of the screen covers.
+
+    ``vertical_lines`` is (h, w) bool: a strong horizontal gradient. The best single column counts, so texture
+    that merely has edges somewhere around the middle scores low. With ``gray`` the line must also be drawn:
+    one flat colour from top to bottom beside that edge. A window mullion or a pole is shaded along its length
+    and scores 0.
+    """
+    w = vertical_lines.shape[1]
+    band = max(2, int(round(w * SPLIT_LINE_BAND)))
+    lo = w // 2 - band
+    columns = vertical_lines[:, lo:w // 2 + band + 1].mean(axis=0)
+    best = int(np.argmax(columns))
+    score = float(columns[best])
+    if gray is not None and score > 0:
+        # The divider's body is on one side of the edge or the other.
+        spreads = []
+        for x in (lo + best - 2, lo + best + 2):
+            if 0 <= x < w:
+                low, high = np.percentile(gray[:, x], (10, 90))
+                spreads.append(float(high - low))
+        if not spreads or min(spreads) > SPLIT_LINE_MAX_SPREAD:
+            return 0.0
+    return score
+
+
 def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     """Edge persistence and change rate per pixel.
 
@@ -248,6 +307,7 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     persist_h = np.zeros((h, w), np.float32)
     change = np.zeros((h, w), np.float32)
     edges = np.zeros((count, h, w), bool)
+    centre_line = np.zeros(count, np.float32)
     previous = None
     for i, frame in enumerate(frames):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
@@ -255,7 +315,9 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
         gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1)
         edges[i] = np.hypot(gx, gy) > EDGE_MAGNITUDE
         persist += edges[i]
-        persist_v += np.abs(gx) > LINE_MAGNITUDE
+        lines_v = np.abs(gx) > LINE_MAGNITUDE
+        persist_v += lines_v
+        centre_line[i] = centre_line_score(lines_v, gray)
         persist_h += np.abs(gy) > LINE_MAGNITUDE
         if previous is not None:
             change += np.abs(gray - previous) > CHANGE_DIFF
@@ -263,7 +325,7 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     n = max(1, count)
     return FrameEvidence(
         persist=persist / n, persist_v=persist_v / n, persist_h=persist_h / n,
-        change=change / max(1, count - 1), edges=edges, times=list(times),
+        change=change / max(1, count - 1), edges=edges, times=list(times), centre_line=centre_line,
     )
 
 
@@ -376,7 +438,10 @@ def find_fixed_face(faces: Sequence[Sequence[Box]], w: int, h: int) -> Optional[
     return tracks[0].box, tracks[0].presence
 
 
-def _line_candidates(profile: np.ndarray, lo: int, hi: int, edge: Optional[int], nearest_to: float) -> List[int]:
+def _line_candidates(
+    profile: np.ndarray, lo: int, hi: int, edge: Optional[int], nearest_to: float, keep: int = 6,
+    ends: bool = False,
+) -> List[int]:
     """Positions in [lo, hi) where a persistent straight line crosses, nearest first, plus the frame edge."""
     lo, hi = max(0, lo), min(len(profile), hi)
     found = []
@@ -387,15 +452,19 @@ def _line_candidates(profile: np.ndarray, lo: int, hi: int, edge: Optional[int],
             while j + 1 < hi and profile[j + 1] >= 0.8:
                 j += 1
             found.append((i + j) // 2)
+            if ends and j - i >= 4:
+                # A thick run is a border with something drawn against it (a sign, a shelf, a frame's ornament):
+                # the border itself is at one of its ends.
+                found.extend((i + 1, j - 1))
             i = j + 1
         else:
             i += 1
     if edge is not None:
         found.append(edge)
-    return sorted(set(found), key=lambda p: abs(p - nearest_to))[:6]
+    return sorted(set(found), key=lambda p: abs(p - nearest_to))[:keep]
 
 
-def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
+def find_facecam_rect(evidence: FrameEvidence, face: Box, patient: bool = False) -> Optional[Rect]:
     """The camera rectangle around a fixed face, in proc pixels.
 
     A camera inset has four straight borders that are there in every sample
@@ -403,6 +472,10 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     looked for as a persistent line next to the face, or the frame edge itself,
     and the rectangle is accepted only when all four sides are lines for most of
     their length.
+
+    ``patient`` is the second look when the first finds nothing: borders that show in fewer samples (a dark
+    camera edge beside a dark cutscene) and a wider camera around a small head. The caller then asks for more
+    proof that the rectangle is a camera.
     """
     h, w = evidence.shape
     fx, fy, fw, fh = face
@@ -414,8 +487,9 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     step_h = np.zeros((h, w), bool)
     step_v[:, 2:-2] = np.abs(calm[:, 4:] - calm[:, :-4]) >= CHANGE_STEP
     step_h[2:-2, :] = np.abs(calm[4:, :] - calm[:-4, :]) >= CHANGE_STEP
-    vertical = cv2.dilate(((evidence.persist_v >= LINE_PERSISTENCE) | step_v).astype(np.uint8), np.ones((1, 3), np.uint8))
-    horizontal = cv2.dilate(((evidence.persist_h >= LINE_PERSISTENCE) | step_h).astype(np.uint8), np.ones((3, 1), np.uint8))
+    persistence = PATIENT_LINE_PERSISTENCE if patient else LINE_PERSISTENCE
+    vertical = cv2.dilate(((evidence.persist_v >= persistence) | step_v).astype(np.uint8), np.ones((1, 3), np.uint8))
+    horizontal = cv2.dilate(((evidence.persist_h >= persistence) | step_h).astype(np.uint8), np.ones((3, 1), np.uint8))
 
     y0, y1 = max(0, int(fy)), min(h, int(fy + fh) + 1)
     x0, x1 = max(0, int(fx)), min(w, int(fx + fw) + 1)
@@ -423,15 +497,18 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
         return None
     col_profile = vertical[y0:y1].mean(axis=0)
     row_profile = horizontal[:, x0:x1].mean(axis=1)
-    reach_x, reach_y = fw * 5.0, fh * 4.5
+    reach_x, reach_y = (fw * 8.0, fh * 6.0) if patient else (fw * 5.0, fh * 4.5)
+    widest = fw * (PATIENT_MAX_FACE_WIDTHS if patient else 8)
+    # A neon sign or a shelf behind the streamer draws lines too; the patient look keeps more of them.
+    keep = 14 if patient else 6
     lefts = _line_candidates(col_profile, int(cx - reach_x), int(fx - fw * 0.1),
-                             0 if cx - reach_x <= 0 else None, fx)
+                             0 if cx - reach_x <= 0 else None, fx, keep, patient)
     rights = _line_candidates(col_profile, int(fx + fw * 1.1), int(cx + reach_x),
-                              w - 1 if cx + reach_x >= w - 1 else None, fx + fw)
+                              w - 1 if cx + reach_x >= w - 1 else None, fx + fw, keep, patient)
     tops = _line_candidates(row_profile, int(cy - reach_y), int(fy - fh * 0.1),
-                            0 if cy - reach_y <= 0 else None, fy)
+                            0 if cy - reach_y <= 0 else None, fy, keep, patient)
     bottoms = _line_candidates(row_profile, int(fy + fh * 1.1), int(cy + reach_y),
-                               h - 1 if cy + reach_y >= h - 1 else None, fy + fh)
+                               h - 1 if cy + reach_y >= h - 1 else None, fy + fh, keep, patient)
 
     def side(mask: np.ndarray, at: int, a: int, b: int, is_column: bool) -> float:
         limit = (w if is_column else h) - 1
@@ -444,7 +521,7 @@ def find_facecam_rect(evidence: FrameEvidence, face: Box) -> Optional[Rect]:
     for left in lefts:
         for right in rights:
             rw = right - left
-            if not fw * 1.5 <= rw <= fw * 8:
+            if not fw * 1.5 <= rw <= widest:
                 continue
             for top in tops:
                 for bottom in bottoms:
@@ -580,10 +657,12 @@ def refine_fallback_ranges(
         return profile.fallback_ranges
     h, w = masks[0].shape
 
+    reach = min(step, REFINE_MAX_REACH)
+
     def switch(near: float, to_valid: bool) -> float:
-        a = max(0.0, near - step)
+        a = max(0.0, near - reach)
         result = subprocess.run(
-            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * step:.3f}", "-i", str(path),
+            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * reach:.3f}", "-i", str(path),
              "-vf", f"fps={REFINE_FPS},scale={w}:{h}", "-pix_fmt", "bgr24", "-f", "rawvideo", "-"],
             capture_output=True, timeout=120,
         )
@@ -593,7 +672,7 @@ def refine_fallback_ranges(
         states = [frame_layout_valid(frame, masks) for frame in frames]
         for i in range(1, len(states)):
             if states[i] == to_valid and states[i - 1] != to_valid:
-                return a + i / REFINE_FPS
+                return a + (i - 0.5) / REFINE_FPS
         return near
 
     refined = []
@@ -646,6 +725,74 @@ def fallback_ranges(valid: np.ndarray, times: Sequence[float], duration: float) 
     return ranges
 
 
+def split_screen_ranges(evidence: FrameEvidence, duration: float) -> List[Tuple[float, float]]:
+    """Spans (seconds) in which a divider splits the screen into a left and a right picture."""
+    if evidence.centre_line is None:
+        return []
+    present = evidence.centre_line >= SPLIT_LINE_COVERAGE
+    count = len(present)
+    if count >= 3:
+        # One sample is not a split (a lamp post in the middle of the road) and not the end of one (a flash).
+        padded = np.pad(present.astype(np.uint8), 1, mode="edge")
+        present = np.array([np.median(padded[i:i + 3]) for i in range(count)]) > 0
+    times = evidence.times
+    step = (times[1] - times[0]) if count > 1 else duration
+    ranges: List[Tuple[float, float]] = []
+    start: Optional[int] = None
+    for i, on in enumerate(list(present) + [False]):
+        if on and start is None:
+            start = i
+        elif not on and start is not None:
+            a = 0.0 if start == 0 else times[start] - step / 2
+            b = duration if i >= count else times[i] - step / 2
+            if b - a >= SPLIT_MIN_SECONDS:
+                ranges.append((max(0.0, a), min(duration, b)))
+            start = None
+    return ranges
+
+
+def refine_split_ranges(
+    path: Path, ranges: Sequence[Tuple[float, float]], duration: float, step: float, shape: Tuple[int, int],
+) -> List[Tuple[float, float]]:
+    """Move each start and end of a split onto the frame where the divider appears or goes."""
+    h, w = shape
+
+    reach = min(step, REFINE_MAX_REACH)
+
+    def switch(near: float, appears: bool) -> float:
+        a = max(0.0, near - reach)
+        result = subprocess.run(
+            ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{a:.3f}", "-t", f"{2 * reach:.3f}", "-i", str(path),
+             "-vf", f"fps={REFINE_FPS},scale={w}:{h}", "-pix_fmt", "gray", "-f", "rawvideo", "-"],
+            capture_output=True, timeout=120,
+        )
+        count = len(result.stdout) // (w * h) if result.returncode == 0 else 0
+        if count < 2:
+            return near
+        gray = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w)
+        states = [
+            centre_line_score(np.abs(cv2.Sobel(f.astype(np.float32), cv2.CV_32F, 1, 0)) > LINE_MAGNITUDE, f)
+            >= SPLIT_LINE_COVERAGE
+            for f in gray
+        ]
+        for i in range(1, count):
+            if states[i] == appears and states[i - 1] != appears:
+                return a + (i - 0.5) / REFINE_FPS
+        return near
+
+    refined = []
+    for start, end in ranges:
+        try:
+            a = start if start <= 0.0 else switch(start, True)
+            b = end if end >= duration - 1e-3 else switch(end, False)
+        except Exception as exc:  # noqa: BLE001 - the sampled boundary still stands
+            logger.debug("Split boundary refinement failed: %s", exc)
+            a, b = start, end
+        if b > a:
+            refined.append((a, b))
+    return refined
+
+
 def fallback_ranges_within(
     valid: np.ndarray, times: Sequence[float], spans: Sequence[Tuple[float, float]],
 ) -> List[Tuple[float, float]]:
@@ -668,6 +815,30 @@ def fallback_ranges_within(
                     ranges.append((max(lo, a), min(hi, b)))
                 start = None
     return ranges
+
+
+def still_focus(evidence: FrameEvidence, facecam: Rect) -> Rect:
+    """The part of a still picture that carries detail (proc pixels): a phone held up in the game, a menu.
+
+    Edges that are there in most samples, outside the camera; the box that holds nearly all of them, with a
+    little air. A picture with detail everywhere (slides, a map) gives the whole frame.
+    """
+    h, w = evidence.shape
+    detail = evidence.persist >= STILL_DETAIL_PERSISTENCE
+    detail[max(0, facecam.y - 4):facecam.y2 + 4, max(0, facecam.x - 4):facecam.x2 + 4] = False
+    if detail.sum() < HUD_MIN_EDGE_PIXELS:
+        return Rect(0, 0, w, h)
+
+    def span(profile: np.ndarray, size: int) -> Tuple[int, int]:
+        total = np.cumsum(profile.astype(np.float64))
+        lo = int(np.searchsorted(total, total[-1] * STILL_FOCUS_QUANTILES[0]))
+        hi = int(np.searchsorted(total, total[-1] * STILL_FOCUS_QUANTILES[1]))
+        pad = int(round(size * STILL_FOCUS_PAD))
+        return max(0, lo - pad), min(size, hi + 1 + pad)
+
+    x0, x1 = span(detail.sum(axis=0), w)
+    y0, y1 = span(detail.sum(axis=1), h)
+    return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0))
 
 
 def virtual_camera_rect(face: Box, w: int, h: int) -> Rect:
@@ -705,19 +876,43 @@ def classify_gaming(
     # A streamer in a cap who looks down at the controller is detected in a few samples only. The rectangle
     # around that head still counts when its border is on screen for the whole clip.
     seldom = [t for t in tracks if t not in candidates and t.presence >= FACECAM_SELDOM_PRESENCE]
-    for candidate in candidates + seldom:
-        rect = find_facecam_rect(evidence, candidate.box)
-        if rect is None:
-            continue
-        # A camera shows a person, who moves. A channel logo or a drawn avatar in a frame does not.
-        if float((evidence.change[rect.y:rect.y2, rect.x:rect.x2] > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
-            continue
-        if candidate in seldom:
-            border = _facecam_border_mask((h, w), rect) & (evidence.persist >= LINE_PERSISTENCE)
-            if border.sum() < 12 or float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) < FACECAM_SELDOM_BORDER:
+    def always_there(rect: Rect, persistence: float) -> bool:
+        border = _facecam_border_mask((h, w), rect) & (evidence.persist >= persistence)
+        if border.sum() < 12:
+            return False
+        return float((evidence.edges[:, border].mean(axis=1) >= VALID_SAMPLE_SCORE).mean()) >= FACECAM_SELDOM_BORDER
+
+    def inner(rect: Rect) -> np.ndarray:
+        dx, dy = max(1, int(rect.w * 0.06)), max(1, int(rect.h * 0.06))
+        return evidence.change[rect.y + dy:rect.y2 - dy, rect.x + dx:rect.x2 - dx]
+
+    def stands_apart(rect: Rect) -> bool:
+        # The room in a camera is calm and the game around it is not: the proof for a border that is hard to see.
+        band = max(4, int(rect.w * 0.08))
+        around = np.zeros((h, w), bool)
+        around[max(0, rect.y - band):rect.y2 + band, max(0, rect.x - band):rect.x2 + band] = True
+        around[rect.y:rect.y2, rect.x:rect.x2] = False
+        if not around.any() or not inner(rect).size:
+            return False
+        outside = float(evidence.change[around].mean())
+        return outside >= PATIENT_OUTSIDE_CHANGE and float(inner(rect).mean()) <= PATIENT_CALM_RATIO * outside
+
+    for patient in (False, True):
+        for candidate in candidates + seldom:
+            rect = find_facecam_rect(evidence, candidate.box, patient=patient)
+            if rect is None:
                 continue
-        facecam, face_box = rect, candidate.box
-        break
+            # A camera shows a person, who moves. A channel logo or a drawn avatar in a frame does not.
+            if not inner(rect).size or float((inner(rect) > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
+                continue
+            if patient and not (stands_apart(rect) or always_there(rect, PATIENT_LINE_PERSISTENCE)):
+                continue
+            if not patient and candidate in seldom and not always_there(rect, LINE_PERSISTENCE):
+                continue
+            facecam, face_box = rect, candidate.box
+            break
+        if facecam is not None:
+            break
 
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
     keyed = [t for t in candidates if t.box[2] * t.box[3] <= VIRTUAL_CAMERA_FACE_MAX_AREA * w * h]
@@ -772,6 +967,17 @@ def classify_gaming(
             if not inside and other.presence >= FACECAM_MIN_PRESENCE and other.box[3] > face_box[3]:
                 host = other
                 break
+    # ... or is seen now and then, or too close to be tracked: any face larger than the camera's own, outside it.
+    larger_outside = 0.0
+    if facecam is not None and face_box is not None:
+        seen = 0
+        for boxes in faces:
+            for x, y, bw, bh in boxes:
+                cx, cy = x + bw / 2, y + bh / 2
+                if bh > face_box[3] * 1.2 and not (facecam.x <= cx <= facecam.x2 and facecam.y <= cy <= facecam.y2):
+                    seen += 1
+                    break
+        larger_outside = seen / max(1, len(faces))
     valid = layout_valid_samples(evidence, hud_mask, bordered)
     valid_fraction = float(valid.mean()) if len(valid) else 0.0
 
@@ -795,10 +1001,31 @@ def classify_gaming(
         virtual_camera=virtual, active=[(float(a), float(b)) for a, b in spans] if spans else [],
     )
     needed = MIN_HUD_REGIONS_WITH_FACECAM if facecam is not None else MIN_HUD_REGIONS
+    splits = split_screen_ranges(evidence, duration) if facecam is None and track is None else []
+    inset = (facecam is not None and not virtual and face_box is not None
+             and face_box[2] * face_box[3] <= CALM_PICTURE_FACE_MAX_AREA * w * h)
     if len(evidence.edges) < MIN_SAMPLES:
         profile.reason = "too_short"
-    elif moving_fraction < MIN_MOVING_FRACTION:
+    elif moving_fraction < MIN_MOVING_FRACTION and not inset:
         profile.reason = "static_picture"
+    elif moving_fraction < MIN_MOVING_FRACTION and inset and larger_outside > MAX_OUTSIDE_FACE_RATE:
+        # A calm picture with someone larger than the inset on screen: an interview with a guest thumbnail.
+        # (Over a moving game, larger faces are the game's own characters and do not count.)
+        profile.reason = "people_on_screen"
+    elif moving_fraction < MIN_MOVING_FRACTION_WITH_FACECAM and host is None:
+        # The game stands still beside the camera: camera on top, the detailed part of the picture below.
+        profile.is_gaming = True
+        profile.reason = "facecam_still"
+        profile.focus = to_source(still_focus(evidence, facecam))
+        profile.hud = []
+    elif (splits and sum(b - a for a, b in splits) >= SPLIT_MIN_FRACTION * duration
+          and outside_rate <= MAX_OUTSIDE_FACE_RATE):
+        # Two pictures side by side with nobody on screen: a comparison. The halves are stacked while the
+        # screen is split, and the middle of the picture fills the frame in between.
+        profile.is_gaming = True
+        profile.reason = "split_screen"
+        profile.split_ranges = splits
+        profile.hud, profile.fallback_ranges, profile.check_masks = [], [], []
     elif (facecam is None or virtual) and outside_rate > MAX_OUTSIDE_FACE_RATE:
         # With a camera rectangle found, other faces are the game's own (cutscenes, photoreal characters).
         profile.reason = "people_on_screen"
@@ -875,7 +1102,8 @@ def find_cut(path: Path, start: float, end: float) -> float:
         return (start + end) / 2
     frames = np.frombuffer(result.stdout[:count * w * h], dtype=np.uint8).reshape(count, h, w).astype(np.int16)
     change = np.abs(frames[1:] - frames[:-1]).mean(axis=(1, 2))
-    return start + (int(np.argmax(change)) + 1) / REFINE_FPS
+    # Half a frame before the first frame of the new camera: the switch is then exact however the time is rounded.
+    return start + (int(np.argmax(change)) + 0.5) / REFINE_FPS
 
 
 def sample_spans(
@@ -884,6 +1112,7 @@ def sample_spans(
     """Frames of a few short spans, sampled densely enough to classify them on their own."""
     total = sum(b - a for a, b in spans)
     fps = min(SEGMENT_MAX_SAMPLE_FPS, max(MAX_SAMPLE_FPS, (MIN_SAMPLES + 2) / max(total, 1e-3)))
+    fps = min(fps, MAX_SAMPLES / max(total, 1e-3))  # a long camera is never more frames than the whole-clip sample
     times: List[float] = []
     chunks: List[np.ndarray] = []
     size = proc_w * proc_h * 3
@@ -967,6 +1196,9 @@ def analyze_gaming_clip(path: Path, width: int, height: int, duration: float) ->
     whole = classify_gaming(evidence, faces, width, height, duration)
     if whole.is_gaming and whole.fallback_ranges and len(times) > 1:
         whole.fallback_ranges = refine_fallback_ranges(path, whole, duration, times[1] - times[0])
+    if whole.split_ranges and len(times) > 1:
+        whole.split_ranges = refine_split_ranges(path, whole.split_ranges, duration, times[1] - times[0], evidence.shape)
+        return [whole]
     del evidence
     try:
         cameras = analyze_camera_segments(path, width, height, duration, times, frames, faces)
@@ -1155,15 +1387,31 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
     else:
         cam, cam_h = None, 0
         panel_y, panel_h = (CANVAS_H - GAMEPLAY_ONLY_HEIGHT) // 2, GAMEPLAY_ONLY_HEIGHT
-    crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
+    fitted: Optional[Tuple[int, int]] = None
+    if profile.focus is not None:
+        crop, fitted = still_crop(profile.focus, width, height, panel_h)
+    else:
+        crop = gameplay_crop(width, height, panel_h, None if profile.virtual_camera else profile.facecam)
     cutouts, occupied = place_hud(profile.hud, crop, width, panel_y, panel_h)
 
     inputs = [f"{tag}_game"] + ([f"{tag}_cam"] if cam else []) + [f"{tag}_h{i}" for i in range(len(cutouts))]
     sharpen = f",{UPSCALE_SHARPEN_FILTER}" if crop.w < CANVAS_W else ""
-    lines = [
-        f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
-        f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
-    ]
+    if fitted is not None:
+        # Wider than the panel: shown whole across the width, over a blurred copy of itself.
+        fit_w, fit_h = fitted
+        inputs.append(f"{tag}_fill")
+        lines = [
+            f"[{tag}_fill]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},scale={CANVAS_W}:{panel_h}:"
+            f"force_original_aspect_ratio=increase,crop={CANVAS_W}:{panel_h},boxblur=24:2,eq=brightness=-0.12[{tag}_blur]",
+            f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
+            f"scale={fit_w}:{fit_h}:flags=lanczos{sharpen},setsar=1[{tag}_fitted]",
+            f"[{tag}_blur][{tag}_fitted]overlay={(CANVAS_W - fit_w) // 2}:{(panel_h - fit_h) // 2},setsar=1[{tag}_p0]",
+        ]
+    else:
+        lines = [
+            f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
+            f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
+        ]
     for i, item in enumerate(cutouts):
         r: Rect = item["source"]
         lines.append(f"[{tag}_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[{tag}_c{i}]")
@@ -1190,6 +1438,30 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
     }
     return {"inputs": inputs, "lines": lines, "report": report, "occupied": occupied,
             "cam_h": cam_h, "panel_y": panel_y, "panel_h": panel_h}
+
+
+def still_crop(focus: Rect, width: int, height: int, panel_h: int) -> Tuple[Rect, Optional[Tuple[int, int]]]:
+    """How a still picture's detailed part goes into the gameplay panel: (crop, fitted size or None).
+
+    Narrower than the panel: the crop widens around it and fills the panel. Wider: more of the picture above and
+    below is taken in; when the whole height is not enough it is fitted to the panel width instead of cut.
+    """
+    aspect = CANVAS_W / panel_h
+    cx, cy = focus.x + focus.w / 2, focus.y + focus.h / 2
+    if focus.w <= focus.h * aspect:
+        cw = clamp_even(int(round(focus.h * aspect)), 2, width)
+        ch = clamp_even(int(round(cw / aspect)), 2, height)
+    else:
+        ch = int(round(focus.w / aspect))
+        if ch > height:
+            x = clamp_even(focus.x, 0, width - 2)
+            cw = clamp_even(focus.w, 2, width - x)
+            fit_h = clamp_even(int(round(CANVAS_W * height / cw)), 2, panel_h)
+            return Rect(x, 0, cw, round_to_even(height)), (CANVAS_W, fit_h)
+        cw, ch = clamp_even(focus.w, 2, width), clamp_even(ch, 2, height)
+    x = clamp_even(int(round(cx - cw / 2)), 0, width - cw)
+    y = clamp_even(int(round(cy - ch / 2)), 0, height - ch)
+    return Rect(x, y, cw, ch), None
 
 
 def _cover_lines(width: int, height: int) -> List[str]:
@@ -1232,6 +1504,49 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
         "caption_y": choose_caption_y(part["occupied"], part["panel_y"], part["panel_h"]),
         # The hook title sits on the seam under the camera; without a camera it keeps its usual place.
         "hook_center_y": (part["cam_h"] / CANVAS_H) if part["cam_h"] else None,
+        "gaming": report,
+    }
+
+
+def build_split_layout(profile: GamingProfile, duration: float) -> Dict[str, Any]:
+    """A side-by-side comparison: the left picture over the right one while the screen is split, and the
+    full-height middle of the picture in between."""
+    width, height = profile.width, profile.height
+    gap = clamp_even(int(round(width * SPLIT_GAP)), 2, width // 8)
+    half_w = clamp_even(width // 2 - gap, 2, width // 2)
+    half_h = clamp_even(int(round(half_w * SPLIT_PANEL_H / CANVAS_W)), 2, height)
+    half_w = clamp_even(int(round(half_h * CANVAS_W / SPLIT_PANEL_H)), 2, half_w)
+    # Comparison videos put their title across the top of the divider: the crop sits low to leave it out.
+    y = clamp_even(int(round((height - half_h) * SPLIT_CROP_DOWN)), 0, height - half_h)
+    left = Rect(clamp_even((width // 2 - gap - half_w) // 2, 0, width // 2 - gap - half_w), y, half_w, half_h)
+    right_x0 = width // 2 + gap
+    right = Rect(clamp_even(right_x0 + (width - right_x0 - half_w) // 2, right_x0, width - half_w), y, half_w, half_h)
+    spans = [(a, 1e6 if b >= duration - 0.05 else b) for a, b in profile.split_ranges if b > a]
+    graph = ["[0:v]split=3[gm_fit][sp_l][sp_r]"] + _cover_lines(width, height)
+    for tag, r, name in (("sp_l", left, "sp_top"), ("sp_r", right, "sp_bottom")):
+        graph.append(
+            f"[{tag}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={CANVAS_W}:{SPLIT_PANEL_H}:flags=lanczos,"
+            f"{UPSCALE_SHARPEN_FILTER},setsar=1[{name}]"
+        )
+    graph.append("[sp_top][sp_bottom]vstack=inputs=2[sp_out]")
+    graph.append(f"[gm_alt][sp_out]overlay=0:0:enable='{_between(spans)}'[vout]")
+    cover_w = clamp_even(int(round(height * CANVAS_W / CANVAS_H)), 2, width)
+    report = {
+        "facecam": None, "facecam_panel": None,
+        "gameplay": [clamp_even((width - cover_w) // 2, 0, width - cover_w), 0, cover_w, round_to_even(height)],
+        "gameplay_panel": [0, 0, CANVAS_W, CANVAS_H],
+        "hud": [],
+        "fallback_ranges": [],
+        "crosshair": False,
+        "split": {"left": left.as_list(), "right": right.as_list(),
+                  "between": [[round(a, 3), round(min(b, duration), 3)] for a, b in spans]},
+    }
+    return {
+        "kind": "gaming",
+        "video_filter": ";".join(graph),
+        "mode": "complex",
+        "caption_y": CAPTION_CANDIDATES[0],
+        "hook_center_y": None,
         "gaming": report,
     }
 
@@ -1312,6 +1627,8 @@ def choose_gaming_layout(path: Path, width: int, height: int, duration: float) -
         profiles = [profile for profile in profiles if profile.is_gaming]
         if not profiles:
             return None
+        if profiles[0].split_ranges:
+            return build_split_layout(profiles[0], duration)
         if len(profiles) == 1 and not profiles[0].active:
             return build_gaming_layout(profiles[0], duration)
         return build_camera_layouts(profiles, duration)

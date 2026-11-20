@@ -211,6 +211,200 @@ def test_fallback_ranges_stay_inside_a_cameras_own_spans():
     assert ranges == [(1.75, 5.0), (14.75, 20.0)]
 
 
+def test_a_game_that_stands_still_beside_a_camera_is_still_a_stream():
+    # A menu or the map: only part of the picture moves. Without a camera that is a screen recording.
+    rng = np.random.default_rng(5)
+    still = world(rng)
+    frames = []
+    for i in range(48):
+        frame = still.copy()
+        frame[120:300, 40:300] = world(rng)[120:300, 40:300]      # a quarter of the screen keeps moving
+        draw_hud(frame)
+        draw_cam(frame, i)
+        frames.append(frame)
+    frames = np.stack(frames)
+    times = [i / 3 for i in range(48)]
+    with_cam = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert gl.MIN_MOVING_FRACTION_WITH_FACECAM <= with_cam.moving_fraction < gl.MIN_MOVING_FRACTION
+    assert with_cam.is_gaming and with_cam.facecam is not None
+    without = classify(frames, times)
+    assert not without.is_gaming and without.reason == "static_picture"
+
+
+def still_clip(count=48, seed=5):
+    rng = np.random.default_rng(seed)
+    still = world(rng)
+    frames = []
+    for i in range(count):
+        frame = still.copy()
+        draw_hud(frame)
+        draw_cam(frame, i)
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
+
+
+def test_a_picture_that_stands_still_beside_a_camera_is_shown_whole_under_it():
+    frames, times = still_clip()
+    profile = classify(frames, times, [[CAM_FACE] for _ in frames])
+    assert profile.is_gaming and profile.reason == "facecam_still"
+    assert profile.focus is not None and profile.hud == []
+    layout = gl.build_gaming_layout(profile, 16.0)
+    graph = layout["video_filter"]
+    assert "boxblur" in graph and "[gm_fill]" in graph and graph.endswith("[vout]")
+    assert layout["gaming"]["facecam_panel"] is not None
+
+
+def test_a_speaker_in_front_of_a_frame_is_not_a_stream():
+    # The same picture with a head several times larger: someone filmed in front of a window, not an inset.
+    frames, times = still_clip()
+    big = (CAM_FACE[0] - 20, CAM_FACE[1] - 10, 90.0, 80.0)
+    assert big[2] * big[3] > gl.CALM_PICTURE_FACE_MAX_AREA * W * H
+    profile = classify(frames, times, [[big] for _ in frames])
+    assert not profile.is_gaming and profile.reason == "static_picture"
+
+
+def test_still_detail_fills_the_panel_or_is_fitted_across_it():
+    phone = Rect(820, 200, 280, 700)                   # narrower than the panel: the crop widens around it
+    crop, fitted = gl.still_crop(phone, SRC_W, SRC_H, 1312)
+    assert fitted is None and crop.w / crop.h == pytest.approx(1080 / 1312, rel=0.01)
+    assert crop.x <= phone.x and crop.x2 >= phone.x2 and crop.y <= phone.y and crop.y2 >= phone.y2
+    slide = Rect(0, 0, SRC_W, SRC_H)                    # the whole frame: nothing is cut
+    crop, fitted = gl.still_crop(slide, SRC_W, SRC_H, 1312)
+    assert crop.as_list() == [0, 0, SRC_W, SRC_H] and fitted == (1080, 608)
+
+
+def test_a_wide_camera_without_a_drawn_border_is_found_on_the_second_look():
+    rng = np.random.default_rng(13)
+    cam = (370, 0, 270, 125)                            # nine face widths across, flush with the top right corner
+    face = (490.0, 40.0, 30.0, 38.0)
+    frames = []
+    for i in range(48):
+        frame = world(rng)
+        draw_hud(frame)
+        x, y, w, h = cam
+        frame[y:y + h, x:x + w] = (70, 40, 90)          # a dark room, no frame drawn around it
+        sway = (i * 7) % 23 - 11
+        cv2.circle(frame, (505 + sway, 60), 20, (150, 170, 210), -1)
+        cv2.rectangle(frame, (475 + sway, 85), (535 + sway, 123), (40, 40, 160), -1)
+        frames.append(frame)
+    frames = np.stack(frames)
+    evidence = gl.measure_frames(frames, [i / 3 for i in range(48)])
+    assert gl.find_facecam_rect(evidence, face) is None
+    found = gl.find_facecam_rect(evidence, face, patient=True)
+    assert found is not None and abs(found.x - 370) <= 4 and abs(found.y2 - 125) <= 4
+    profile = gl.classify_gaming(evidence, [[face] if i % 4 == 0 else [] for i in range(48)], SRC_W, SRC_H, 16.0)
+    assert profile.is_gaming and profile.facecam is not None and not profile.virtual_camera
+
+
+def split_clip(count=48, split=lambda i: 12 <= i < 36, seed=9):
+    rng = np.random.default_rng(seed)
+    frames = []
+    for i in range(count):
+        frame = world(rng)
+        if split(i):
+            frame[:, W // 2 - 2:W // 2 + 2] = 255                 # the divider between two pictures
+        frames.append(frame)
+    return np.stack(frames), [i / 3 for i in range(count)]
+
+
+def test_a_side_by_side_comparison_stacks_its_halves_while_the_screen_is_split():
+    frames, times = split_clip()
+    profile = classify(frames, times)
+    assert profile.is_gaming and profile.reason == "split_screen"
+    assert profile.split_ranges == [(pytest.approx(4.0 - 1 / 6), pytest.approx(12.0 - 1 / 6))]
+    layout = gl.build_split_layout(profile, 16.0)
+    report = layout["gaming"]
+    left, right = report["split"]["left"], report["split"]["right"]
+    # Each half keeps clear of the divider and fills half of the canvas.
+    assert left[0] + left[2] < SRC_W // 2 < right[0]
+    assert left[2] / left[3] == pytest.approx(1080 / 960, rel=0.01) == pytest.approx(right[2] / right[3], rel=0.01)
+    graph = layout["video_filter"]
+    assert "vstack=inputs=2[sp_out]" in graph and graph.endswith("[vout]") and graph.count("[vout]") == 1
+    assert "enable='between(t\\,3.833\\,11.833)'" in graph
+
+
+def test_a_shaded_pole_down_the_middle_is_not_a_divider():
+    rng = np.random.default_rng(21)
+    frames = []
+    for i in range(48):
+        frame = world(rng)
+        column = np.linspace(40, 230, H).astype(np.uint8)          # lit from above: not one flat colour
+        frame[:, W // 2 - 2:W // 2 + 2] = column[:, None, None]
+        frames.append(frame)
+    profile = classify(np.stack(frames), [i / 3 for i in range(48)])
+    assert profile.split_ranges == [] and not profile.is_gaming
+
+
+def test_a_guest_thumbnail_beside_a_larger_speaker_is_not_a_stream():
+    # A calm picture, an inset with a small face, and a speaker whose face is too close or too seldom seen to track.
+    frames, times = still_clip()
+    close_up = (150.0, 60.0, 190.0, 230.0)                          # 19 % of the frame: never a fixed track
+    often = classify(frames, times, [[CAM_FACE, close_up] for _ in frames])
+    assert not often.is_gaming and often.reason == "people_on_screen"
+    medium = (200.0, 120.0, 80.0, 100.0)
+    seldom = classify(frames, times, [[CAM_FACE, medium] if i % 5 < 2 else [CAM_FACE] for i in range(len(frames))])
+    assert not seldom.is_gaming and seldom.reason == "people_on_screen"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_a_fitted_still_picture_with_a_fallback_span_renders(tmp_path):
+    profile = profile_with(Rect(1320, 60, 540, 304), None, [], [(0.3, 0.6)])
+    profile.focus = Rect(60, 100, 1352, 700)                        # wider than the panel: fitted, over a blur
+    layout = gl.build_gaming_layout(profile, 1.0)
+    graph = layout["video_filter"]
+    labels = re.findall(r"\[(\w+)\]", graph)
+    assert all(labels.count(name) == 2 for name in set(labels) - {"0", "vout"}), graph
+    out = tmp_path / "frame.mp4"
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={SRC_W}x{SRC_H}:rate=10:duration=1",
+         "-filter_complex", graph, "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast", str(out)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_layout_switch_is_placed_half_a_frame_before_the_new_picture(tmp_path):
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not installed")
+    # 2 s at 30 fps: black, then white from frame 41 (a frame whose time rounds up at three decimals).
+    frames = np.zeros((60, 90, 160, 3), np.uint8)
+    frames[41:] = 255
+    source = tmp_path / "cut.mp4"
+    encode = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", "160x90", "-r", "30", "-i", "-",
+         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", "-pix_fmt", "yuv420p", str(source)],
+        input=frames.tobytes(), capture_output=True,
+    )
+    assert encode.returncode == 0, encode.stderr
+    cut = gl.find_cut(source, 1.0, 1.667)
+    assert 40 / 30 < cut < 41 / 30                                   # frame 40 keeps the old layout, frame 41 has the new
+
+
+def test_gameplay_without_a_divider_and_people_side_by_side_are_not_comparisons():
+    frames, times = split_clip(split=lambda i: False)
+    assert classify(frames, times).split_ranges == []
+    frames, times = split_clip(split=lambda i: i == 20)            # one sample: a lamp post, not a split
+    assert classify(frames, times).split_ranges == []
+    frames, times = split_clip()
+    debate = classify(frames, times, [[(150.0, 120.0, 90.0, 110.0)] for _ in frames])
+    assert debate.reason == "people_on_screen" and not debate.is_gaming
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_split_layout_renders_a_1080x1920_frame(tmp_path):
+    profile = profile_with()
+    profile.split_ranges = [(0.2, 0.7)]
+    layout = gl.build_split_layout(profile, 1.0)
+    out = tmp_path / "frame.mp4"
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={SRC_W}x{SRC_H}:rate=10:duration=1",
+         "-filter_complex", layout["video_filter"], "-map", "[vout]", "-c:v", "libx264", "-preset", "ultrafast",
+         str(out)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_people_on_screen_rule_out_gameplay():
     frames, times = clip()
     faces = [[(250.0, 120.0, 90.0, 110.0)] for _ in frames]  # a vlog with challenge graphics in the corners
