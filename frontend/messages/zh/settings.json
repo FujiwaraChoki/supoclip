@@ -29,9 +29,11 @@
   },
   "notifications": {
     "title": "通知",
-    "description": "短片做好后，我们怎么通知你。",
+    "description": "我们如何向你发送短片通知。",
     "emails": "完成邮件",
-    "emailsHint": "生成一结束就给你发邮件。"
+    "emailsHint": "生成一结束就给你发邮件。",
+    "publishEmails": "发布邮件",
+    "publishEmailsHint": "短片发布到已关联账号后立即给你发邮件。"
   },
   "plan": {
     "title": "方案与账单",

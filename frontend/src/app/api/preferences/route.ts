@@ -24,6 +24,7 @@ export async function GET() {
         default_font_size: true,
         default_font_color: true,
         notify_on_completion: true,
+        notify_on_publish: true,
         default_clip_length: true,
         create_settings: true,
       },
@@ -41,6 +42,7 @@ export async function GET() {
       fontSize: user.default_font_size || 24,
       fontColor: user.default_font_color || "#FFFFFF",
       notifyOnCompletion: user.notify_on_completion ?? true,
+      notifyOnPublish: user.notify_on_publish ?? true,
       clipLength: user.default_clip_length || "auto",
       createSettings: parseCreateSettings(user.create_settings),
     });
@@ -69,7 +71,15 @@ export async function PATCH(request: NextRequest) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Expected a preferences object" }, { status: 400 });
     }
-    const { fontFamily, fontSize, fontColor, notifyOnCompletion, clipLength, createSettings } = body;
+    const {
+      fontFamily,
+      fontSize,
+      fontColor,
+      notifyOnCompletion,
+      notifyOnPublish,
+      clipLength,
+      createSettings,
+    } = body;
 
     if (clipLength !== undefined && !isClipLength(clipLength)) {
       return NextResponse.json({ error: "Invalid clipLength" }, { status: 400 });
@@ -107,6 +117,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (
+      notifyOnPublish !== undefined &&
+      typeof notifyOnPublish !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "Invalid notifyOnPublish" },
+        { status: 400 }
+      );
+    }
+
     if (createSettings !== undefined && (typeof createSettings !== "object" || createSettings === null || Array.isArray(createSettings))) {
       return NextResponse.json({ error: "Invalid createSettings" }, { status: 400 });
     }
@@ -123,12 +143,16 @@ export async function PATCH(request: NextRequest) {
         ...(notifyOnCompletion !== undefined && {
           notify_on_completion: notifyOnCompletion,
         }),
+        ...(notifyOnPublish !== undefined && {
+          notify_on_publish: notifyOnPublish,
+        }),
       },
       select: {
         default_font_family: true,
         default_font_size: true,
         default_font_color: true,
         notify_on_completion: true,
+        notify_on_publish: true,
         default_clip_length: true,
         create_settings: true,
       },
@@ -139,6 +163,7 @@ export async function PATCH(request: NextRequest) {
       fontSize: updatedUser.default_font_size,
       fontColor: updatedUser.default_font_color,
       notifyOnCompletion: updatedUser.notify_on_completion,
+      notifyOnPublish: updatedUser.notify_on_publish ?? true,
       clipLength: updatedUser.default_clip_length || "auto",
       createSettings: parseCreateSettings(updatedUser.create_settings),
     });

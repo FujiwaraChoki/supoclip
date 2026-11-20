@@ -410,3 +410,55 @@ async def test_providers_report_tiktok_paused_by_its_flag(app, client, auth_head
     rows = await providers()
     assert rows["tiktok"]["configured"] is True and "paused" not in rows["tiktok"]
     feature_flags.clear_cache()
+
+
+@pytest.mark.asyncio
+async def test_publish_notification_respects_user_setting_and_stamps_once(
+    social_setup, client, db_session, auth_headers, monkeypatch,
+):
+    _, payload = social_setup
+    sent = []
+
+    class FakePublishEmailService:
+        def __init__(self, config):
+            self.config = config
+
+        is_configured = True
+
+        async def send_clip_published_email(self, **kwargs):
+            sent.append(kwargs)
+            return {"MessageId": f"msg-{len(sent)}"}
+
+    monkeypatch.setattr(social_service, "SocialPublishEmailService", FakePublishEmailService)
+
+    first_res = await client.post("/social/posts", headers=auth_headers, json=payload)
+    assert first_res.status_code == 200
+    first_post = first_res.json()["post"]
+
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    published = await service.publish_post(first_post["id"])
+    assert published["status"] == "published"
+    assert len(sent) == 1
+    assert sent[0]["recipient"].email == "user-1@example.com"
+
+    row = (
+        await db_session.execute(
+            text("SELECT publish_notification_sent_at FROM social_posts WHERE id = :id"),
+            {"id": first_post["id"]},
+        )
+    ).fetchone()
+    assert row.publish_notification_sent_at is not None
+
+    # Turn off publish notifications for the user and publish another clip.
+    await db_session.execute(
+        text("UPDATE users SET notify_on_publish = false WHERE id = 'user-1'")
+    )
+    await db_session.commit()
+
+    second_res = await client.post("/social/posts", headers=auth_headers, json=payload)
+    assert second_res.status_code == 200
+    second_post = second_res.json()["post"]
+
+    published_second = await service.publish_post(second_post["id"])
+    assert published_second["status"] == "published"
+    assert len(sent) == 1

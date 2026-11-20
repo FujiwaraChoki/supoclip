@@ -21,6 +21,7 @@ CREATE TABLE users (
     default_font_size INTEGER DEFAULT 24,
     default_font_color VARCHAR(7) DEFAULT '#FFFFFF',
     notify_on_completion BOOLEAN NOT NULL DEFAULT true,
+    notify_on_publish BOOLEAN NOT NULL DEFAULT true,
     default_clip_length VARCHAR(10) NOT NULL DEFAULT 'auto'
         CONSTRAINT users_default_clip_length_check CHECK (default_clip_length IN ('auto', 'short', 'medium', 'long')),
     create_settings JSONB NOT NULL DEFAULT '{}'::jsonb,

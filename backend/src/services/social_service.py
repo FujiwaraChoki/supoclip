@@ -29,6 +29,10 @@ from ..config import Config, get_config
 from .. import feature_flags
 from ..feature_flags import PLATFORMS, TIKTOK_PUBLISHING, Platform
 from .billing_service import BillingService
+from .social_publish_email_service import (
+    SocialPublishEmailService,
+    SocialPublishRecipient,
+)
 from ..media_storage import STORAGE_ERRORS, MediaStorage, is_s3, media_work
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.social_repository import SocialRepository, TERMINAL_POST_STATUSES
@@ -863,6 +867,64 @@ class SocialService:
                 "attempts": post.get("attempts"),
             },
         )
+        await self._send_publish_notification_if_needed(post["id"])
+
+    async def _send_publish_notification_if_needed(self, post_id: str) -> None:
+        try:
+            context = await self.repo.get_post_notification_context(self.db, post_id)
+        except Exception:  # noqa: BLE001 - notification must never fail publishing
+            logger.exception(
+                "Failed to load publish notification context for post %s", post_id
+            )
+            return
+        if not context:
+            logger.warning("Post %s missing notification context; skipping email", post_id)
+            return
+        if not context.get("notify_on_publish"):
+            return
+        if context.get("publish_notification_sent_at"):
+            logger.info(
+                "Publish notification already sent for post %s; skipping", post_id
+            )
+            return
+        user_email = context.get("user_email")
+        if not user_email:
+            logger.warning(
+                "Post %s has notify_on_publish enabled but user email is missing",
+                post_id,
+            )
+            return
+        email_service = SocialPublishEmailService(self.config)
+        if not email_service.is_configured:
+            logger.warning(
+                "Skipping publish notification for post %s because Amazon SES is not configured",
+                post_id,
+            )
+            return
+        try:
+            await email_service.send_clip_published_email(
+                recipient=SocialPublishRecipient(
+                    email=user_email,
+                    name=context.get("user_name"),
+                    first_name=context.get("user_first_name"),
+                ),
+                provider=context["provider"],
+                title=context.get("title") or context.get("hook_title"),
+                external_url=context.get("external_url"),
+                task_id=context.get("task_id"),
+                account_display_name=context.get("account_display_name"),
+                account_username=context.get("account_username"),
+            )
+            stamped = await self.repo.mark_publish_notification_sent(self.db, post_id)
+            if not stamped:
+                logger.info(
+                    "Publish notification stamp already existed for post %s",
+                    post_id,
+                )
+        except Exception:  # noqa: BLE001 - notification must never fail publishing
+            logger.exception(
+                "Failed to send publish notification for post %s", post_id
+            )
 
     async def _handle_publish_failure(
         self,

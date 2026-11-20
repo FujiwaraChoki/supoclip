@@ -29,9 +29,11 @@
   },
   "notifications": {
     "title": "Benachrichtigungen",
-    "description": "Wie wir dir sagen, dass deine Clips fertig sind.",
+    "description": "Wie wir dich über deine Clips informieren.",
     "emails": "E-Mails bei Abschluss",
-    "emailsHint": "Du bekommst eine E-Mail, sobald eine Generierung fertig ist."
+    "emailsHint": "Du bekommst eine E-Mail, sobald eine Generierung fertig ist.",
+    "publishEmails": "E-Mails bei Veröffentlichung",
+    "publishEmailsHint": "Du bekommst eine E-Mail, sobald ein Clip auf einem verbundenen Konto veröffentlicht wird."
   },
   "plan": {
     "title": "Plan & Abrechnung",
