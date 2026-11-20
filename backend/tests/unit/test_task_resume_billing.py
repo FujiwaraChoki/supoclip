@@ -171,3 +171,16 @@ async def test_resume_after_other_failures_keeps_the_speech_check(resume_context
     await tasks.resume_task("task-1", SimpleNamespace(), db=None)
     saved = tasks._save_task_source_metadata.await_args.args[1]
     assert "low_speech_confirmed" not in saved
+
+
+@pytest.mark.asyncio
+async def test_resume_saves_low_speech_confirmation_before_queuing(resume_context):
+    task, repo, _, queue, _ = resume_context
+    task["error_code"] = "low_speech"
+    events = []
+    tasks._save_task_source_metadata.side_effect = lambda *_args, **_kwargs: events.append("save_metadata")
+    repo.update_task_status.side_effect = lambda *_args, **_kwargs: events.append("queued") or True
+    queue.side_effect = lambda *_args, **_kwargs: events.append("enqueue") or "job-1"
+
+    await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    assert events == ["save_metadata", "queued", "enqueue"]

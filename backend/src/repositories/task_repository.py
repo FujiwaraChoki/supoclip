@@ -173,19 +173,33 @@ class TaskRepository:
 
     @staticmethod
     async def had_low_speech_notice(db: AsyncSession, user_id: str, url: str) -> bool:
-        """Whether this user's task for ``url`` stopped at the low-speech notice this week."""
+        """Whether this user's task for ``url`` stopped at or confirmed the low-speech notice this week."""
+        from ..source_identity import source_key_from_url
+
+        source_key = source_key_from_url(url)
+        source_match = (
+            "(s.url = :url OR t.source_metadata->>'source_key' = :source_key)"
+            if source_key
+            else "s.url = :url"
+        )
+        params: Dict[str, Any] = {"user": user_id, "url": url}
+        if source_key:
+            params["source_key"] = source_key
         result = await db.execute(
-            text("""
+            text(f"""
                 SELECT 1
                 FROM tasks t
                 JOIN sources s ON s.id = t.source_id
                 WHERE t.user_id = :user
-                  AND s.url = :url
-                  AND t.error_code = 'low_speech'
+                  AND {source_match}
+                  AND (
+                    t.error_code = 'low_speech'
+                    OR t.source_metadata->>'low_speech_confirmed' = 'true'
+                  )
                   AND t.created_at > NOW() - INTERVAL '7 days'
                 LIMIT 1
             """),
-            {"user": user_id, "url": url},
+            params,
         )
         return result.first() is not None
 
@@ -488,6 +502,10 @@ class TaskRepository:
 
         if progress_message is not None:
             set_parts.append("progress_message = :progress_message")
+
+        if status == "queued":
+            # A re-queued attempt starts without the previous failure's error code.
+            set_parts.append("error_code = NULL")
 
         set_parts.append("updated_at = NOW()")
 

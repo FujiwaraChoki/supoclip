@@ -1815,14 +1815,6 @@ async def resume_task(
                     finally:
                         await redis_client.aclose()
 
-                    await task_service.task_repo.update_task_status(
-                        db,
-                        task_id,
-                        "queued",
-                        progress=0,
-                        progress_message="Re-queued by user",
-                    )
-
                     processing_mode = (
                         task.get("processing_mode") or runtime_config.default_processing_mode
                     )
@@ -1831,8 +1823,18 @@ async def resume_task(
                     metadata["processing_job_id"] = processing_job_id
                     if task.get("error_code") == LOW_SPEECH_CODE:
                         # Resuming after the low-speech notice means "make clips anyway".
+                        # Persisted before queueing clears error_code so a failed write
+                        # never drops both the confirmation and the notice code.
                         metadata[LOW_SPEECH_CONFIRMED_KEY] = True
                     await _save_task_source_metadata(task_id, metadata, db=db)
+
+                    await task_service.task_repo.update_task_status(
+                        db,
+                        task_id,
+                        "queued",
+                        progress=0,
+                        progress_message="Re-queued by user",
+                    )
                     job_id = await JobQueue.enqueue_processing_job(
                         "process_video_task",
                         processing_mode,

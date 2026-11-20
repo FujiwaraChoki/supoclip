@@ -440,3 +440,111 @@ async def test_create_task_records_the_low_speech_flag_for_its_platform(
         )
         await db_session.execute(text("DELETE FROM sources WHERE url LIKE :url"), {"url": f"%{video_id}%"})
         await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_resume_clears_low_speech_error_code_and_still_confirms_recreates(
+    client, db_session, auth_headers, feature_flag, monkeypatch,
+):
+    import uuid as uuid_module
+    from unittest.mock import AsyncMock
+
+    from src import feature_flags
+    from src.api.routes import tasks as tasks_route
+
+    feature_flags.clear_cache()
+    await feature_flag("low_speech_notice", web_enabled=True, ios_enabled=False, admins_bypass=False)
+    monkeypatch.setattr(
+        "src.api.routes.tasks.async_get_youtube_video_info",
+        AsyncMock(return_value={"duration": 213, "title": "Gameplay"}),
+    )
+    monkeypatch.setattr(tasks_route.JobQueue, "enqueue_processing_job", AsyncMock(return_value="job-resume"))
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+    video_id = uuid_module.uuid4().hex[:11]
+    url = f"https://www.youtube.com/watch?v={video_id}"
+
+    try:
+        first = await client.post("/tasks/", headers=auth_headers, json={"source": {"url": url}})
+        assert first.status_code == 200, first.text
+        first_id = first.json()["task_id"]
+
+        await db_session.execute(
+            text("UPDATE tasks SET status = 'error', error_code = 'low_speech' WHERE id = :id"),
+            {"id": first_id},
+        )
+        await db_session.commit()
+
+        resumed = await client.post(f"/tasks/{first_id}/resume", headers=auth_headers)
+        assert resumed.status_code == 200, resumed.text
+        row = (
+            await db_session.execute(
+                text("SELECT status, error_code, source_metadata FROM tasks WHERE id = :id"),
+                {"id": first_id},
+            )
+        ).one()
+        assert row.status == "queued"
+        assert row.error_code is None
+        assert row.source_metadata.get("low_speech_confirmed") is True
+
+        # Even after the resumed task finishes (so error_code is no longer 'low_speech'),
+        # creating the same video again within 7 days still skips the notice.
+        await db_session.execute(
+            text("UPDATE tasks SET status = 'completed', error_code = '' WHERE id = :id"),
+            {"id": first_id},
+        )
+        await db_session.commit()
+
+        second = await client.post("/tasks/", headers=auth_headers, json={"source": {"url": url}})
+        assert second.status_code == 200, second.text
+        second_meta = (
+            await db_session.execute(
+                text("SELECT source_metadata FROM tasks WHERE id = :id"),
+                {"id": second.json()["task_id"]},
+            )
+        ).scalar_one()
+        assert second_meta.get("low_speech_confirmed") is True
+    finally:
+        feature_flags.clear_cache()
+        await db_session.rollback()
+        await db_session.execute(
+            text("DELETE FROM tasks WHERE source_id IN (SELECT id FROM sources WHERE url LIKE :url)"),
+            {"url": f"%{video_id}%"},
+        )
+        await db_session.execute(text("DELETE FROM sources WHERE url LIKE :url"), {"url": f"%{video_id}%"})
+        await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_had_low_speech_notice_matches_stream_url_variants_and_uploads(db_session):
+    import json
+    import uuid as uuid_module
+
+    from src.repositories.task_repository import TaskRepository
+
+    user_id = f"user-{uuid_module.uuid4().hex[:8]}"
+    vod_id = str(uuid_module.uuid4().int)[:10]
+    first_url = f"https://www.twitch.tv/videos/{vod_id}?t=0h5m"
+    variant_url = f"https://m.twitch.tv/videos/{vod_id}"
+    upload_url = f"upload://s3/{uuid_module.uuid4().hex}/clip.mp4"
+
+    await create_user(db_session, user_id=user_id, email=f"{user_id}@example.com")
+    source = await create_source(db_session, url=first_url, source_type="twitch", title="VOD")
+    task = await create_task(db_session, user_id=user_id, source_id=source["id"], status="error")
+    await db_session.execute(
+        text(
+            "UPDATE tasks SET error_code = 'low_speech', "
+            "source_metadata = source_metadata || CAST(:meta AS JSONB) WHERE id = :id"
+        ),
+        {"id": task["id"], "meta": json.dumps({"source_key": f"twitch:vod:{vod_id}"})},
+    )
+    await db_session.commit()
+
+    try:
+        assert await TaskRepository.had_low_speech_notice(db_session, user_id, variant_url) is True
+        assert await TaskRepository.had_low_speech_notice(db_session, user_id, upload_url) is False
+    finally:
+        await db_session.rollback()
+        await db_session.execute(text("DELETE FROM tasks WHERE user_id = :u"), {"u": user_id})
+        await db_session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": source["id"]})
+        await db_session.execute(text("DELETE FROM users WHERE id = :u"), {"u": user_id})
+        await db_session.commit()
