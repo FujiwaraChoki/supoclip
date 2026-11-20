@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { AnimatePresence, motion, useInView, useMotionValue, useReducedMotion, type MotionValue } from "motion/react";
+import { AnimatePresence, motion, useInView, useMotionValue, type MotionValue } from "motion/react";
 import {
   ArrowLeft, ArrowUp, Bot, Captions, ChartColumn, CheckCircle2, ChevronDown, Clapperboard, Clock, Download,
   ExternalLink, Film, Flame, Link2, Loader2, LogOut, MessageSquare, Paintbrush, Paperclip, Pause, Play, Plus, RefreshCw,
@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoSourceIcon } from "@/components/video-source-icon";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { DEMO_CLIPS, DEMO_SOURCE } from "@/lib/demo";
 import { formatClipDuration } from "@/lib/generations";
 import { cn } from "@/lib/utils";
@@ -360,7 +361,7 @@ function TaskScene({ frame }: { frame: Frame }) {
         ) : (
           <div className="space-y-8">
             <ProcessingPanel status="processing" progress={frame.progress} message={message}
-              elapsedSeconds={frame.progress * 2.4}
+              remainingSeconds={(100 - frame.progress) * 2.4}
               clipProgress={frame.progress >= 65 ? { current: Math.min(frame.ready + 1, 2), total: 2 } : null} />
             <ProcessingSlots status="processing" progress={frame.progress} message={message} total={2} className="grid-cols-5 sm:grid-cols-5 lg:grid-cols-5">
               {Array.from({ length: frame.ready }, (_, i) => <FilmTile key={i} index={i} />)}
@@ -572,7 +573,7 @@ function Cursor({ x, y, pressed }: { x: MotionValue<number>; y: MotionValue<numb
 
 export function ProductFilm() {
   const t = useTranslations("marketing");
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const scale = useCanvasScale(wrapRef);

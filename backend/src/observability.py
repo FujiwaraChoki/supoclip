@@ -1,5 +1,6 @@
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -137,6 +138,7 @@ class JsonLogFormatter(logging.Formatter):
             "youtube_download_kind",
             "youtube_outcome",
             "youtube_bytes",
+            "youtube_error_type",
             "youtube_fallback",
             "task_id",
             # Task-creation source submissions. Values are sanitized; the raw
@@ -149,6 +151,18 @@ class JsonLogFormatter(logging.Formatter):
             "source_outcome",
             "source_status",
             "source_reason",
+            # Twitch/Kick stream downloads. Host only; no signed URL or proxy secret.
+            "stream_stage",
+            "stream_provider",
+            "stream_source",
+            "stream_kind",
+            "stream_host",
+            "stream_http_status",
+            "stream_exc_type",
+            "stream_bytes",
+            "stream_elapsed_ms",
+            "stream_attempt",
+            "stream_fallback",
         ):
             value = getattr(record, key, None)
             if value not in (None, ""):
@@ -176,12 +190,12 @@ def configure_logging() -> None:
     stream_handler.setFormatter(formatter)
     stream_handler.addFilter(trace_filter)
 
-    app_file_handler = logging.FileHandler(logs_dir / "backend.log")
+    app_file_handler = RotatingFileHandler(logs_dir / "backend.log", maxBytes=20 * 1024 * 1024, backupCount=10)
     app_file_handler.setLevel(log_level)
     app_file_handler.setFormatter(formatter)
     app_file_handler.addFilter(trace_filter)
 
-    error_file_handler = logging.FileHandler(logs_dir / "backend-error.log")
+    error_file_handler = RotatingFileHandler(logs_dir / "backend-error.log", maxBytes=10 * 1024 * 1024, backupCount=10)
     error_file_handler.setLevel(logging.ERROR)
     error_file_handler.setFormatter(formatter)
     error_file_handler.addFilter(trace_filter)

@@ -1,5 +1,6 @@
 "use client";
 
+import { removeTaskDrafts } from "@/lib/editor/draft-cache";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { ACTIVE_TASK_STATUSES, RETRYABLE_TASK_STATUSES } from "@/components/app/status-badge";
@@ -285,7 +286,11 @@ export default function ListPage() {
     await runBatchAction(
       "delete",
       targetTaskIds,
-      (taskId) => fetch(`/api/tasks/${taskId}`, { method: "DELETE" }),
+      async (taskId) => {
+        const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+        if (response.ok) removeTaskDrafts(taskId);
+        return response;
+      },
       {
         empty: t("delete.empty"),
         fallback: t("delete.fallback"),
@@ -351,7 +356,7 @@ export default function ListPage() {
 
   return (
     <main className={cn("mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 md:py-10", selectedCount > 0 && "pb-32")}>
-      <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <div data-tour="library-header" className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">{t("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -436,7 +441,7 @@ export default function ListPage() {
         </Alert>
       )}
 
-      <div className="mt-6">
+      <div data-tour="library-content" className="mt-6">
         {isLoading ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="aspect-[3/4] rounded-xl" />)}

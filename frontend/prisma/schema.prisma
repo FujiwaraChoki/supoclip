@@ -85,6 +85,7 @@ model User {
   subscription_provider String?   @db.VarChar(20)
   is_admin             Boolean   @default(false)
   stripe_customer_id   String?   @unique @db.VarChar(255)
+  stripe_account_id    String?   @db.VarChar(255)
   stripe_subscription_id String? @unique @db.VarChar(255)
   billing_period_start DateTime? @db.Timestamptz
   billing_period_end   DateTime? @db.Timestamptz
@@ -97,6 +98,8 @@ model User {
   pending_plan_invoice_id String? @db.VarChar(255)
 
   // Relationships
+  stripe_migration StripeAccountMigration?
+  task_idempotency_keys TaskIdempotencyKey[]
   tasks         Task[]
   sessions      Session[]
   accounts      Account[]
@@ -108,6 +111,9 @@ model User {
   social_accounts     SocialAccount[]
   social_oauth_states SocialOauthState[]
   social_posts        SocialPost[]
+  email_change_request EmailChangeRequest?
+  email_change_events  EmailChangeEvent[]
+  email_change_log     EmailChangeLog[]
 
   @@map("users")
   feature_tours UserFeatureTour[]
@@ -193,6 +199,70 @@ model AppSetting {
 
   @@index([updated_by])
   @@map("app_settings")
+}
+
+// Keep the original response available even after the task is deleted.
+model TaskIdempotencyKey {
+  user_id         String
+  idempotency_key String
+  request_hash    String
+  task_id         String
+  created_at      DateTime @default(now()) @db.Timestamptz
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, idempotency_key])
+  @@map("task_idempotency_keys")
+}
+
+/// Self-serve email change in progress (server/email-change.ts). Codes are stored as an HMAC only.
+model EmailChangeRequest {
+  user_id           String    @id @db.VarChar(36)
+  session_id        String    @db.VarChar(36)
+  stage             String    @db.VarChar(20)
+  current_email     String    @db.VarChar(255)
+  new_email         String?   @db.VarChar(255)
+  code_hash         String?   @db.VarChar(64)
+  code_sent_at      DateTime? @db.Timestamptz
+  code_expires_at   DateTime? @db.Timestamptz
+  code_attempts     Int       @default(0)
+  expires_at        DateTime  @db.Timestamptz
+  finish_claimed_at DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  user              User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("email_change_requests")
+}
+
+/// Rate limit log for email changes, per user, per HMAC'd client IP and per HMAC'd new address.
+model EmailChangeEvent {
+  id          BigInt   @id @default(autoincrement())
+  user_id     String?  @db.VarChar(36)
+  ip_hash     String?  @db.VarChar(64)
+  target_hash String?  @db.VarChar(64)
+  action      String   @db.VarChar(20)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  user        User?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, action, created_at], map: "ix_email_change_events_user")
+  @@index([ip_hash, action, created_at], map: "ix_email_change_events_ip")
+  @@index([target_hash, action, created_at], map: "ix_email_change_events_target")
+  @@map("email_change_events")
+}
+
+/// Completed email changes, for support and the one notice to the previous address.
+model EmailChangeLog {
+  id          BigInt    @id @default(autoincrement())
+  user_id     String    @db.VarChar(36)
+  old_email   String    @db.VarChar(255)
+  new_email   String    @db.VarChar(255)
+  session_id  String    @db.VarChar(36)
+  ip_hash     String?   @db.VarChar(64)
+  changed_at  DateTime  @default(now()) @db.Timestamptz
+  notified_at DateTime? @db.Timestamptz
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, changed_at], map: "ix_email_change_log_user")
+  @@map("email_change_log")
 }
 
 // Durable billing charges with failure refunds. No task/user relation: deletion must retain usage
@@ -431,8 +501,40 @@ model StripeWebhookEvent {
   id         String   @id
   type       String
   created_at DateTime @default(now()) @db.Timestamptz
+  status String @default("processed") @db.VarChar(20)
+  claim_token String? @db.VarChar(255)
+  lease_expires_at DateTime? @db.Timestamptz
 
   @@map("stripe_webhook_events")
+}
+
+model StripeAccountMigration {
+  id String @id @db.VarChar(255)
+  user_id String @unique @db.VarChar(255)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  source_account String @db.VarChar(255)
+  source_customer String @db.VarChar(255)
+  source_subscription String @db.VarChar(255)
+  destination_account String @db.VarChar(255)
+  destination_customer String @db.VarChar(255)
+  destination_subscription String? @db.VarChar(255)
+  destination_schedule String? @db.VarChar(255)
+  stage String @db.VarChar(32)
+  revision Int @default(0)
+  paid_through DateTime @db.Timestamptz
+  source_stopped_verified Boolean @default(false)
+  source_resumed_verified Boolean @default(false)
+  destination_disabled_verified Boolean @default(false)
+  destination_paid_invoice String? @db.VarChar(255)
+  cancellation_requested Boolean @default(false)
+  recovery_required Boolean @default(false)
+  review_reason String? @db.Text
+  livemode Boolean
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([source_account, source_customer])
+  @@unique([destination_account, destination_customer])
+  @@map("stripe_account_migrations")
 }
 
 model RevenueCatWebhookEvent {

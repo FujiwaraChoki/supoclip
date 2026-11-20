@@ -1,88 +1,61 @@
-"""Feedback submission endpoint — forwards to Discord webhook."""
+"""Feedback submissions: stored in the inbox, then sent to the admin's webhooks (docs/feedback.md)."""
 
 import logging
-from datetime import datetime, timezone
+from typing import Optional
 
-import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth_headers import get_authenticated_user_id
 from ...config import get_config
+from ...database import get_db
+from ...feature_flags import client_platform
+from ...feedback import CATEGORIES
+from ...feedback.delivery import schedule_immediate_delivery
+from ...feedback.service import FeedbackRateLimited, FeedbackUserGone, SubmissionInput, submit_feedback as store_submission
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["feedback"])
 
-VALID_CATEGORIES = {"bug", "feature", "general", "sales", "cancellation"}
-
-CATEGORY_COLORS = {
-    "bug": 0xEF4444,
-    "feature": 0x3B82F6,
-    "general": 0xA855F7,
-    "sales": 0x22C55E,
-    "cancellation": 0xF59E0B,
-}
-
-CATEGORY_LABELS = {
-    "bug": "Bug Report",
-    "feature": "Feature Request",
-    "general": "General Feedback",
-    "sales": "Sales Inquiry",
-    "cancellation": "Cancellation Reason",
-}
-
-# Sales category routes to its own webhook; everything else goes to the feedback webhook
-SALES_CATEGORIES = {"sales"}
+APP_VERSION_HEADER = "x-supoclip-app-version"
 
 
 class FeedbackRequest(BaseModel):
-    category: str = Field(..., description="One of: bug, feature, general")
+    category: str = Field(..., description="One of: bug, feature, general, sales, cancellation")
     message: str = Field(..., min_length=1, max_length=2000)
+    page_url: Optional[str] = Field(default=None, max_length=2000, description="Page the user was on")
+    locale: Optional[str] = Field(default=None, max_length=20)
+    app_version: Optional[str] = Field(default=None, max_length=50)
 
 
 @router.post("/feedback")
-async def submit_feedback(body: FeedbackRequest, request: Request):
-    config = get_config()
-    user_id = get_authenticated_user_id(request, config)
-
-    is_sales = body.category in SALES_CATEGORIES
-    webhook_url = (
-        config.discord_sales_webhook_url if is_sales else config.discord_feedback_webhook_url
-    )
-
-    if not webhook_url:
-        raise HTTPException(status_code=400, detail="Feedback is not configured")
-
-    if body.category not in VALID_CATEGORIES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid category. Must be one of: {', '.join(VALID_CATEGORIES)}",
-        )
-
-    embed = {
-        "title": CATEGORY_LABELS.get(body.category, body.category),
-        "description": body.message,
-        "color": CATEGORY_COLORS.get(body.category, 0x6B7280),
-        "fields": [
-            {"name": "Category", "value": body.category, "inline": True},
-            {"name": "User ID", "value": user_id or "anonymous", "inline": True},
-        ],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
+async def submit_feedback(body: FeedbackRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = get_authenticated_user_id(request, get_config())
+    if body.category not in CATEGORIES:
+        # Keep the existing 422 + string detail contract for signed mobile clients.
+        raise HTTPException(status_code=422, detail=f"Invalid category. Must be one of: {', '.join(CATEGORIES)}")
+    if not body.message.strip():
+        raise HTTPException(status_code=422, detail="Message is empty")
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                webhook_url,
-                json={"embeds": [embed]},
-                timeout=10,
-            )
-            resp.raise_for_status()
-    except httpx.HTTPError as e:
-        logger.error("Discord webhook failed: %s", e)
-        raise HTTPException(
-            status_code=500, detail="Failed to submit feedback"
-        ) from e
-
-    return {"status": "ok"}
+        stored = await store_submission(
+            db,
+            SubmissionInput(
+                category=body.category,
+                message=body.message,
+                user_id=user_id,
+                page_url=body.page_url,
+                platform=client_platform(request),
+                user_agent=request.headers.get("user-agent"),
+                app_version=body.app_version or request.headers.get(APP_VERSION_HEADER),
+                locale=body.locale,
+            ),
+        )
+    except FeedbackUserGone:
+        raise HTTPException(status_code=401, detail="Account no longer exists")
+    except FeedbackRateLimited:
+        raise HTTPException(status_code=429, detail="Too many messages. Try again in a few minutes.")
+    if stored["deliveries"]:
+        schedule_immediate_delivery(stored["id"])
+    return {"status": "ok", "id": stored["id"]}

@@ -13,7 +13,7 @@
     "agreement": {
       "title": "Perjanjian",
       "p1": "Ketentuan Layanan ini (“Ketentuan”) merupakan perjanjian antara Anda dan {company} (“kami”), operator aplikasi dan layanan terkelola SupoClip (“Layanan”), yang mengubah video panjang menjadi klip pendek dengan takarir. Dengan membuat akun atau menggunakan Layanan, Anda menyetujui Ketentuan ini. Jika tidak setuju, jangan gunakan Layanan.",
-      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi open source yang berlaku dan ketentuan operatornya sendiri."
+      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi perangkat lunak yang berlaku dan ketentuan operatornya sendiri."
     },
     "account": {
       "title": "Akunmu",

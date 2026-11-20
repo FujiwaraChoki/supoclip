@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MessageSquare, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { track } from "@/lib/datafast";
@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export function FeedbackButton() {
   const t = useTranslations("shell");
+  const locale = useLocale();
   const { data: session } = useSession();
   const categories = [
     { value: "bug", label: t("feedback.bug") },
@@ -46,7 +47,7 @@ export function FeedbackButton() {
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, message: message.trim() }),
+        body: JSON.stringify({ category, message: message.trim(), page_url: window.location.pathname, locale }),
       });
 
       if (!res.ok) {

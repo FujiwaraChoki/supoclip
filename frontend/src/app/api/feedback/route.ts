@@ -17,10 +17,18 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
 
+  // Stored with the submission in the admin feedback inbox.
+  const client: Record<string, string> = {};
+  const userAgent = request.headers.get("user-agent");
+  const appVersion = request.headers.get("x-supoclip-app-version");
+  if (userAgent) client["User-Agent"] = userAgent.slice(0, 500);
+  if (appVersion) client["x-supoclip-app-version"] = appVersion.slice(0, 50);
+
   const upstream = await fetch(`${apiUrl}/feedback`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...client,
       ...buildBackendAuthHeaders(session.user.id),
       ...(await backendTraceHeaders()),
     },

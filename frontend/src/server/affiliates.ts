@@ -1,4 +1,13 @@
 import { getStripeClient } from "@/lib/stripe";
+import {
+  BillingAccountHoldError,
+  checkoutStripeAccountId,
+  runWithStripeAccount,
+  sourceStripeAccountId,
+  stripeAccountsEnabled,
+  stripePriceEnvPrefix,
+  verifiedStripeClient,
+} from "@/lib/stripe-accounts";
 import { fetchBackend } from "@/server/backend-api";
 import type { getPrismaClient } from "@/server/prisma";
 
@@ -28,7 +37,25 @@ const RESERVED_SLUGS = new Set([
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,18})[a-z0-9]$/;
 
 export function creatorCouponId() {
-  return process.env.STRIPE_CREATOR_COUPON_ID || "creator-20-3mo";
+  const prefix = stripePriceEnvPrefix();
+  const configured = process.env[`${prefix}CREATOR_COUPON_ID`];
+  if (prefix !== "STRIPE_" && !configured) throw new BillingAccountHoldError();
+  return configured || "creator-20-3mo";
+}
+
+/** Existing affiliate administration owns source codes; destination copies are mapped explicitly. */
+export async function affiliateAdminStripeClient() {
+  return stripeAccountsEnabled() ? verifiedStripeClient(sourceStripeAccountId()) : getStripeClient();
+}
+
+/** A source promotion ID must never be passed to a destination Checkout. */
+function promotionCodeForAccount(sourceId: string): string {
+  if (stripePriceEnvPrefix() === "STRIPE_") return sourceId;
+  const value: unknown = JSON.parse(process.env.STRIPE_DESTINATION_PROMOTION_CODE_MAP || "{}");
+  if (!value || typeof value !== "object" || !(sourceId in value)) throw new BillingAccountHoldError();
+  const mapped = (value as Record<string, unknown>)[sourceId];
+  if (typeof mapped !== "string" || !/^promo_[A-Za-z0-9]+$/.test(mapped)) throw new BillingAccountHoldError();
+  return mapped;
 }
 
 export type SlugCheck = { ok: true; slug: string } | { ok: false; error: string };
@@ -141,8 +168,20 @@ export async function findCreatorOffer(prisma: PrismaClient, rawCode: string): P
   return {
     affiliateUserId: affiliate.user_id,
     code: slug.slug.toUpperCase(),
-    promotionCodeId: affiliate.stripe_promotion_code_id,
+    promotionCodeId: promotionCodeForAccount(affiliate.stripe_promotion_code_id),
   };
+}
+
+/**
+ * The offer for a visitor with no billing account yet, as a new checkout would see it.
+ * Public lookups have no user to route, so they use the account new checkouts open in;
+ * malformed codes return before any Stripe work.
+ */
+export async function findCheckoutCreatorOffer(prisma: PrismaClient, rawCode: string): Promise<CreatorOffer | null> {
+  if (!stripeAccountsEnabled() || !validateSlug(rawCode).ok) return findCreatorOffer(prisma, rawCode);
+  const accountId = checkoutStripeAccountId();
+  const client = await verifiedStripeClient(accountId);
+  return runWithStripeAccount({ accountId, client }, () => findCreatorOffer(prisma, rawCode));
 }
 
 /**
@@ -189,7 +228,7 @@ export async function restoreAffiliateProIfApproved(prisma: PrismaClient, userId
 /** Best effort: an inactive code is never applied by our checkout anyway, this just frees it in Stripe. */
 export async function deactivatePromotionCode(promotionCodeId: string) {
   try {
-    await getStripeClient().promotionCodes.update(promotionCodeId, { active: false });
+    await (await affiliateAdminStripeClient()).promotionCodes.update(promotionCodeId, { active: false });
   } catch (error) {
     console.error(`Failed to deactivate Stripe promotion code ${promotionCodeId}`, error);
   }

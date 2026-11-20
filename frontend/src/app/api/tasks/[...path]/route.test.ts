@@ -1,4 +1,4 @@
-import { GET } from "./route";
+import { GET, POST } from "./route";
 import { fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
@@ -17,6 +17,30 @@ beforeEach(() => {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: "owner" } } as never);
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("preserves the busy export response and retry guidance for hosted clients", async () => {
+  const body = { detail: "This task's clips are being edited. Try again in a moment.", trace_id: "export-race-test" };
+  vi.mocked(fetchBackend).mockResolvedValue(Response.json(body, {
+    status: 409,
+    headers: { "Retry-After": "5", "x-trace-id": body.trace_id },
+  }));
+  const exportPath = ["task", "clips", "clip", "exports"];
+  const request = new Request("https://app.example/api/tasks/" + exportPath.join("/"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ preset: "tiktok" }),
+  });
+
+  const response = await POST(request, context(exportPath));
+
+  expect(response.status).toBe(409);
+  expect(response.headers.get("retry-after")).toBe("5");
+  expect(response.headers.get("x-trace-id")).toBe(body.trace_id);
+  expect(await response.json()).toEqual(body);
+  expect(fetchBackend).toHaveBeenCalledWith("/tasks/task/clips/clip/exports", expect.objectContaining({
+    method: "POST", userId: "owner", body: JSON.stringify({ preset: "tiktok" }),
+  }));
+});
 
 it("streams signed editor media with ranges on the authenticated origin, without forwarding credentials", async () => {
   vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: signed } }));

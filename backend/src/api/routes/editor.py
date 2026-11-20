@@ -12,6 +12,7 @@ from ...media_storage import MediaStorage, STORAGE_ERRORS, media_work
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...analytics import capture_clip_export
 from ...database import get_db
 from ...editor_document import EditDocument, RevisionConflict
 from ...editor_state import (
@@ -28,9 +29,15 @@ from ...services.ai_edit_allowance_service import (
 )
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
+from ..pool_timeout import PoolTimeoutRoute
 from .tasks import _require_task_owner, _read_json_object
 
-router = APIRouter(prefix="/tasks", tags=["editor"])
+# A request holds at most one pooled connection at a time. The editor store
+# opens a short session per statement, so a route closes the request's
+# session (``db``) before it calls the store or does slow I/O; otherwise
+# overlapping requests each hold one connection while waiting for another and
+# starve the pool.
+router = APIRouter(prefix="/tasks", tags=["editor"], route_class=PoolTimeoutRoute)
 
 
 async def owned_context(request, db, task_id, clip_id):
@@ -105,10 +112,111 @@ async def get_editor(
         state["aiEditing"] = ai_editing_configured()
         if state["aiEditing"]:
             state["aiEditUsage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+            # The allowance read reopened the request's session.
+            await db.close()
+    if state.get("status") == "ready":
+        incomplete = await run_in_thread(_incomplete_source, clip, state)
+        if incomplete:
+            state["sourceIncomplete"] = incomplete
     state["basis"] = clip["filename"]
     await reap_jobs(session.key)
     state["jobs"] = await get_store().jobs(session.key)
     return state
+
+
+def _incomplete_source(clip: dict, state: dict) -> dict | None:
+    """``{duration, expected}`` when the prepared source lost part of the clip.
+
+    Sessions prepared before the source was checked can hold a truncated
+    copy (two preparations of one task once shared a work file). The studio
+    offers to rebuild them.
+    """
+    from ...clip_source_map import load_clip_output_offsets, load_clip_source_ranges
+    from ...services.editor_service import expected_prepared_duration, prepared_too_short
+
+    duration = state.get("duration")
+    if not isinstance(duration, (int, float)):
+        return None
+    expected = state.get("expectedDuration")
+    if not isinstance(expected, (int, float)):
+        try:
+            path = MediaStorage().local_path(clip["file_path"], metadata_only=True)
+            ranges = load_clip_source_ranges(path)
+            if not ranges:
+                return None
+            expected = expected_prepared_duration(ranges, load_clip_output_offsets(path, ranges))
+        except Exception:
+            logging.getLogger(__name__).warning("Could not read the clip's source ranges", exc_info=True)
+            return None
+    if not prepared_too_short(float(duration), float(expected)):
+        return None
+    return {"duration": round(float(duration), 2), "expected": round(float(expected), 2)}
+
+
+async def _enqueue_prepare(store, session, task_id: str, clip: dict, job: str) -> None:
+    try:
+        await JobQueue.enqueue_job("prepare_editor", task_id, clip["id"], clip["filename"], _job_id=job)
+    except Exception:
+        await store.fail_prepare(
+            session.key,
+            task_id,
+            clip["id"],
+            clip["filename"],
+            "The rendering worker is unavailable. Try again shortly.",
+            only_stale=True,
+        )
+        raise HTTPException(
+            503, "The rendering worker is unavailable. Try again shortly."
+        )
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/rebuild", status_code=202)
+async def rebuild(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Prepare the clip's editing copy again and start a fresh draft.
+
+    The client sends the draft revision it shows, so a rebuild never discards
+    edits it has not seen. The replaced draft stays downloadable from
+    ``GET .../editor/backup``.
+    """
+    payload = await _read_json_object(request)
+    revision = payload.get("revision")
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
+        raise HTTPException(400, "Invalid draft revision")
+    clip, session = await context(request, db, task_id, clip_id)
+    store = get_store()
+    job = f"editor-prepare:{uuid.uuid4().hex}"
+    outcome = await store.rebuild(session.key, revision, job)
+    if outcome == "missing":
+        raise HTTPException(404, "This clip has not been opened in the editor yet")
+    if outcome == "busy":
+        raise HTTPException(409, "Wait for the current preparation or export to finish, then rebuild.")
+    if outcome == "conflict":
+        raise HTTPException(409, "This draft changed in another tab. Reload it before rebuilding.")
+    await _enqueue_prepare(store, session, task_id, clip, job)
+    return {"status": "preparing"}
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/backup")
+async def draft_backup(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """The draft a rebuild replaced, as a downloadable JSON file."""
+    from fastapi.responses import JSONResponse
+
+    clip, session = await context(request, db, task_id, clip_id)
+    backup = await get_store().draft_backup(session.key)
+    if not isinstance(backup, dict) or not isinstance(backup.get("document"), dict):
+        raise HTTPException(404, "No earlier draft is kept for this clip")
+    stem = re.sub(r"[^A-Za-z0-9_-]", "_", clip["filename"].rsplit(".", 1)[0])[:80] or "clip"
+    return JSONResponse(
+        {"clip": clip_id, "basis": clip["filename"], **backup},
+        headers={
+            "Content-Disposition": f'attachment; filename="{stem}-previous-draft.json"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.post("/{task_id}/clips/{clip_id}/editor/prepare", status_code=202)
@@ -125,20 +233,7 @@ async def prepare(
     claimed = await store.claim_prepare(session.key, task_id, clip_id, clip["filename"], job)
     if claimed != "claimed":
         return {"status": claimed}
-    try:
-        await JobQueue.enqueue_job("prepare_editor", task_id, clip_id, clip["filename"], _job_id=job)
-    except Exception:
-        await store.fail_prepare(
-            session.key,
-            task_id,
-            clip_id,
-            clip["filename"],
-            "The rendering worker is unavailable. Try again shortly.",
-            only_stale=True,
-        )
-        raise HTTPException(
-            503, "The rendering worker is unavailable. Try again shortly."
-        )
+    await _enqueue_prepare(store, session, task_id, clip, job)
     return {"status": "preparing"}
 
 
@@ -148,6 +243,8 @@ async def save(
 ):
     service = TaskService(db)
     await _require_task_owner(request, service, db, task_id)
+    # Don't hold a connection while the body uploads; context() checks again.
+    await db.close()
     payload = await _read_json_object(request)
     clip, session = await context(request, db, task_id, clip_id)
     try:
@@ -282,7 +379,7 @@ async def export_file(
     request: Request,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
-    _, session = await context(request, db, task_id, clip_id)
+    task, _, session = await owned_context(request, db, task_id, clip_id)
     job = await _job(session, job_id)
     if job["status"] != "completed":
         raise HTTPException(409, "Export is not ready")
@@ -290,9 +387,11 @@ async def export_file(
     filename = f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4"
     redirect = await _stored_media(MediaStorage(), session, output.name, filename, attachment=True)
     if redirect is not None:
+        capture_clip_export(request, task, surface="editor", format="editor")
         return redirect
     if not output.exists():
         raise HTTPException(409, "Export is not ready")
+    capture_clip_export(request, task, surface="editor", format="editor")
     return FileResponse(
         output,
         media_type="video/mp4",
@@ -315,12 +414,16 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         or len(set(ids)) != len(ids)
     ):
         raise HTTPException(400, "Select between 2 and 20 distinct clips")
-    entries = []
-    anchor_session = None
+    clips = []
     for clip_id in ids:
         clip = await service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip["task_id"] != task_id:
             raise HTTPException(404, "Clip not found")
+        clips.append(clip)
+    await db.close()
+    entries = []
+    anchor_session = None
+    for clip_id, clip in zip(ids, clips):
         session = await open_session(service.config.temp_dir, task_id, {**clip, "id": clip_id})
         anchor_session = anchor_session or session
         state = await session.state()
@@ -340,12 +443,11 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                 "document": upgrade_document(
                     state["draft"]["document"], clip, task, placements, state["duration"]
                 ),
-                "state": {k: state[k] for k in ("width", "height", "hasAudio")},
+                "state": {k: state[k] for k in ("width", "height", "hasAudio", "mediaVersion") if k in state},
                 "ranges": source_ranges,
                 "source_offsets": source_offsets,
             }
         )
-    await db.close()
     anchor = entries[0]
     store = get_store()
     await reap_jobs(anchor_session.key)

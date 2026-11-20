@@ -36,11 +36,7 @@
   "prorated": "你会在 Stripe 确认变更，并只支付按比例计算的差价。",
   "cancelAnytime": "可随时取消 · 通过 Stripe 安全结账",
   "appStore": "你的订阅由 App Store 管理。可以在 SupoClip iOS 应用里更换方案。",
-  "selfHosted": {
-    "title": "自行托管",
-    "body": "在你自己的电脑上运行 SupoClip，没有订阅，也没有每月视频上限。需要自行安装；硬件和你选用的付费 AI 服务由你提供。",
-    "guide": "自行托管指南"
-  },
+  "selfHostLink": "或自行托管",
   "upgrade": {
     "start": {
       "eyebrow": "随时可以开始",

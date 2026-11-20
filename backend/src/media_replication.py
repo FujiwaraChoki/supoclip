@@ -20,7 +20,9 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import random
 import shutil
+import threading
 import time
 import uuid
 from urllib.request import Request, urlopen
@@ -38,6 +40,15 @@ TRANSFER = TransferConfig(max_concurrency=2, multipart_chunksize=64 * 1024 * 102
 MISSING = {"404", "NoSuchKey", "NotFound"}
 COPIED_HEADERS = ("ContentType", "ContentDisposition", "CacheControl", "Metadata")
 HEADROOM = 256 * 1024 * 1024
+# A store that rate-limits a read is retried before the next store is tried:
+# botocore does not retry a HEAD answered 429, whose code is the bare status.
+THROTTLED = {"429", "503", "SlowDown", "TooManyRequests"}
+THROTTLE_DELAYS = (0.5, 1.0, 2.0)
+# A store still throttling after those waits is read last for a while, and
+# without waiting while another store can answer, so a task reading many
+# objects does not wait out the same throttling for every one of them.
+THROTTLE_COOLDOWN_SECONDS = 60.0
+_sleep = time.sleep
 _ledger_warning_at = float("-inf")
 
 
@@ -56,10 +67,34 @@ def _missing(error) -> bool:
     return isinstance(error, ClientError) and error.response["Error"]["Code"] in MISSING
 
 
+def _throttled(error) -> bool:
+    if not isinstance(error, ClientError):
+        return False
+    status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return status in (429, 503) or error.response.get("Error", {}).get("Code") in THROTTLED
+
+
+def _retry_throttled(call):
+    """Run one store request, waiting out brief rate limiting (at most ~3.5s)."""
+    for delay in THROTTLE_DELAYS:
+        try:
+            return call()
+        except ClientError as error:
+            if not _throttled(error):
+                raise
+            _sleep(delay * random.uniform(0.5, 1.0))
+    return call()
+
+
 class ReplicatedMediaClient:
     """Implement the S3 operations used by MediaStorage, preserving its scope."""
 
-    def __init__(self, primary, fallback, primary_bucket, fallback_bucket, root, *, failover=False, ledger=None):
+    def __init__(self, primary, fallback, primary_bucket, fallback_bucket, root, *, failover=False,
+                 preferred_store="primary", ledger=None):
+        if preferred_store not in {"primary", "fallback"}:
+            raise ValueError("Unknown preferred media store")
+        if preferred_store == "fallback" and not failover:
+            raise ValueError("Preferring the fallback store requires failover")
         self.stores = {"primary": (primary, primary_bucket), "fallback": (fallback, fallback_bucket)}
         self.bucket = primary_bucket
         # Scratch for store-to-store copies and the backfill tool's records.
@@ -67,7 +102,10 @@ class ReplicatedMediaClient:
         self.root = Path(root) / "media-replication"
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.failover = failover
+        self.preferred_store = preferred_store
         self._ledger = ledger
+        self._throttled_until = {}
+        self._throttle_lock = threading.Lock()
 
     @property
     def ledger(self):
@@ -176,7 +214,7 @@ class ReplicatedMediaClient:
             # Recorded before the first byte is sent, so a crash from here on
             # leaves a row the drainer can settle against what the stores hold.
             row = self.ledger.begin(key, "upload", pending=list(self.stores), sha256=digest, size=size, extra=extra)
-            remaining, error = self._replicate(row, path, list(self.stores), sha256=digest, size=size, extra=extra)
+            remaining, error = self._replicate(row, path, self._preferred_names(), sha256=digest, size=size, extra=extra)
             if len(remaining) == len(self.stores):
                 # Nothing changed in either store: what was owed before is still owed.
                 try:
@@ -188,14 +226,37 @@ class ReplicatedMediaClient:
                     logger.warning("Media replication ledger not restored: error=%s", type(failure).__name__)
                 raise error or OSError("No media store accepted the upload")
 
+    def _cooling(self, name):
+        return time.monotonic() < self._throttled_until.get(name, float("-inf"))
+
+    def _call(self, name, call, *, last):
+        """Run one request on one store, waiting out throttling unless it is
+        cooling down and another store can still be asked."""
+        cooling = self._cooling(name)
+        try:
+            result = call() if cooling and not last else _retry_throttled(call)
+        except ClientError as error:
+            if _throttled(error):
+                with self._throttle_lock:
+                    self._throttled_until[name] = time.monotonic() + THROTTLE_COOLDOWN_SECONDS
+                if not cooling:
+                    logger.warning("Media store %s is still throttling; reading it last for %ss",
+                                   name, int(THROTTLE_COOLDOWN_SECONDS))
+            raise
+        if cooling:
+            with self._throttle_lock:
+                self._throttled_until.pop(name, None)
+        return result
+
     def _read(self, operation, *, Bucket, Key, **kwargs):
         self._scope(Bucket)
         error = None
         names = self._read_names(Key)
-        for name in names:
+        for index, name in enumerate(names):
             client, bucket = self.stores[name]
             try:
-                return getattr(client, operation)(Bucket=bucket, Key=Key, **kwargs)
+                return self._call(name, lambda: getattr(client, operation)(Bucket=bucket, Key=Key, **kwargs),
+                                  last=index == len(names) - 1)
             except ERRORS as exc:
                 # An unavailable store must not hide a real error by becoming
                 # a false "object missing" when its replica is absent.
@@ -203,10 +264,13 @@ class ReplicatedMediaClient:
                     error = exc
         raise error
 
+    def _preferred_names(self):
+        return [self.preferred_store, "fallback" if self.preferred_store == "primary" else "primary"]
+
     def _read_names(self, key):
         if not self.failover:
             return ["primary"]
-        names = list(self.stores)
+        names = self._preferred_names()
         try:
             row, health = self.ledger.routing(key)
         except Exception as error:
@@ -216,16 +280,20 @@ class ReplicatedMediaClient:
                 _ledger_warning_at = time.monotonic()
                 logger.warning("Media replication ledger unreadable, using the default store order: error=%s",
                                type(error).__name__)
+            if self._cooling(names[0]) and not self._cooling(names[1]):
+                names.reverse()
             return names
         try:
             if (0 <= time.time() - health["checked_at"] <= 180
-                    and health["providers"]["primary"]["status"] == "unhealthy"
-                    and health["providers"]["fallback"]["status"] == "healthy"):
-                # Avoid a full AWS timeout on every playback during a known
+                    and health["providers"][names[0]]["status"] == "unhealthy"
+                    and health["providers"][names[1]]["status"] == "healthy"):
+                # Avoid a full provider timeout on every playback during a known
                 # outage. Independent probes keep testing recovery each minute.
                 names.reverse()
         except (KeyError, TypeError):
             pass
+        if self._cooling(names[0]) and not self._cooling(names[1]):
+            names.reverse()
         if row and row["operation"] == "upload":
             # Mutable drafts must prefer the store that acknowledged the
             # newest revision, even if AWS still permits reads of an old one.
@@ -244,10 +312,11 @@ class ReplicatedMediaClient:
         self._scope(bucket)
         errors = []
         names = self._read_names(key)
-        for name in names:
+        for index, name in enumerate(names):
             client, target = self.stores[name]
             try:
-                client.download_file(target, key, filename, Config=TRANSFER)
+                self._call(name, lambda: client.download_file(target, key, filename, Config=TRANSFER),
+                           last=index == len(names) - 1)
                 return
             except ERRORS as exc:
                 errors.append(exc)
@@ -269,15 +338,20 @@ class ReplicatedMediaClient:
         if ClientMethod != "get_object" or not self.failover:
             return self.stores["primary"][0].generate_presigned_url(ClientMethod, Params=params, **kwargs)
         error = None
-        for name in self._read_names(params["Key"]):
+        names = self._read_names(params["Key"])
+        for index, name in enumerate(names):
             client, bucket = self.stores[name]
             try:
                 # Signing is local and succeeds even for a suspended account.
                 # Probe access before handing the browser a storage URL.
-                client.head_object(Bucket=bucket, Key=params["Key"])
+                self._call(name, lambda: client.head_object(Bucket=bucket, Key=params["Key"]),
+                           last=index == len(names) - 1)
                 return client.generate_presigned_url(ClientMethod, Params={**params, "Bucket": bucket}, **kwargs)
             except ERRORS as exc:
-                error = exc
+                # A replica that lacks the object must not turn a throttled
+                # or unavailable store into a false "object missing".
+                if error is None or not _missing(exc):
+                    error = exc
         raise error
 
     @staticmethod

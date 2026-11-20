@@ -267,3 +267,64 @@ async def test_old_drafts_regain_template_animation_and_hook_title(client, edito
     state = (await http.get("/tasks/task/clips/clip/editor")).json()
     assert state["draft"]["document"]["hookTitle"] == ""
     assert state["draft"]["document"]["captions"]["karaoke"] is False
+
+
+async def test_rebuild_keeps_the_replaced_draft_and_blocks_stale_tabs(client, editor_store):
+    http, service, doc, directory = client
+    edited = {**doc, "volume": 0.5}
+    saved = await http.patch(
+        "/tasks/task/clips/clip/editor", json={"basis": "clip.mp4", "revision": 0, "document": edited}
+    )
+    assert saved.json()["revision"] == 1
+
+    # A tab that has not seen the latest save cannot discard it.
+    assert (await http.post("/tasks/task/clips/clip/editor/rebuild", json={"revision": 0})).status_code == 409
+    assert (await http.post("/tasks/task/clips/clip/editor/rebuild", json={"revision": "1"})).status_code == 400
+    response = await http.post("/tasks/task/clips/clip/editor/rebuild", json={"revision": 1})
+    assert response.status_code == 202
+    editor.JobQueue.enqueue_job.assert_awaited()
+    assert editor.JobQueue.enqueue_job.await_args.args[0] == "prepare_editor"
+
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["status"] == "preparing"
+    assert state["draftBackup"]["revision"] == 1
+    # A save from the old tab is refused while (and after) the source is rebuilt.
+    assert (await http.patch(
+        "/tasks/task/clips/clip/editor", json={"basis": "clip.mp4", "revision": 1, "document": edited}
+    )).status_code == 409
+    # Preparing again is not a second rebuild.
+    assert (await http.post("/tasks/task/clips/clip/editor/rebuild", json={"revision": 2})).status_code == 409
+
+    backup = await http.get("/tasks/task/clips/clip/editor/backup")
+    assert backup.status_code == 200
+    assert "attachment" in backup.headers["content-disposition"]
+    assert backup.json()["document"]["volume"] == 0.5
+
+    key = editor_key("task", "clip", "clip.mp4")
+    fresh = EditDocument.model_validate({"segments": [{"id": "original", "start": 0, "end": 3}]}).model_dump()
+    await editor_store.finish_prepare(key, "task", "clip", "clip.mp4", {"status": "ready", "duration": 3}, fresh)
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["draft"]["revision"] == 2
+    assert state["draft"]["document"]["segments"][0]["end"] == 3
+    assert state["draftBackup"]["revision"] == 1
+
+
+async def test_rebuild_waits_for_running_exports(client, editor_store):
+    http, service, doc, directory = client
+    key = editor_key("task", "clip", "clip.mp4")
+    assert await editor_store.create_job(key, "a" * 32, "export", {"document": doc})
+    assert (await http.post("/tasks/task/clips/clip/editor/rebuild", json={"revision": 0})).status_code == 409
+    assert (await http.get("/tasks/task/clips/clip/editor/backup")).status_code == 404
+
+
+async def test_a_truncated_session_is_reported(client, editor_store, monkeypatch):
+    http, service, doc, directory = client
+    monkeypatch.setattr(editor, "_clip_broll", lambda _clip: [])
+    from src import clip_source_map
+
+    monkeypatch.setattr(clip_source_map, "load_clip_source_ranges", lambda _path: [(310.46, 346.88)])
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["sourceIncomplete"] == {"duration": 2.0, "expected": 36.42}
+
+    monkeypatch.setattr(clip_source_map, "load_clip_source_ranges", lambda _path: [(0.0, 2.0)])
+    assert "sourceIncomplete" not in (await http.get("/tasks/task/clips/clip/editor")).json()

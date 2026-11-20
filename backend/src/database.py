@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from .sql_statements import split_sql_statements
+
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase
@@ -31,21 +33,40 @@ class Base(DeclarativeBase):
 
 
 def _build_engine(database_url: str) -> AsyncEngine:
+    pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
+    max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "0"))
+    pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT_SECONDS", "10"))
+    # A pooled connection unused this long is closed by PostgreSQL. Without it every
+    # process keeps its busiest moment's connections for life, so a draining release
+    # slot holds its whole pool. 0 leaves it off (PostgreSQL before 14 rejects it).
+    idle_session_timeout = int(os.getenv("DATABASE_IDLE_SESSION_TIMEOUT_SECONDS", "600"))
+    if pool_size < 1 or max_overflow < 0 or pool_timeout < 1:
+        raise ValueError("Database pool size and timeout must be positive; overflow must be nonnegative")
+    if idle_session_timeout < 0:
+        raise ValueError("Database idle session timeout must be nonnegative")
+    # Safety net for the primary leak fix in api/routes/tasks.py
+    # (get_clip_file/export_clip release their session before streaming):
+    # any session parked mid-transaction this long is leaked, not legitimately
+    # busy. Killing it returns the connection to the pool instead of letting
+    # it accumulate toward QueuePool exhaustion.
+    server_settings = {"idle_in_transaction_session_timeout": "300000"}
+    if idle_session_timeout:
+        server_settings["idle_session_timeout"] = str(idle_session_timeout * 1000)
     return create_async_engine(
         database_url,
         echo=False,
-        pool_size=10,
-        max_overflow=20,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
+        # pre-ping replaces a connection the server closed for idleness, and LIFO
+        # lets a trickle of queries (health checks) reuse one connection so the
+        # rest can go idle instead of each being touched in turn.
         pool_pre_ping=True,
+        pool_use_lifo=True,
         pool_recycle=3600,
-        # Safety net for the primary leak fix in api/routes/tasks.py
-        # (get_clip_file/export_clip release their session before streaming):
-        # any session parked mid-transaction this long is leaked, not legitimately
-        # busy. Killing it returns the connection to the pool instead of letting
-        # it accumulate toward QueuePool exhaustion.
-        connect_args={
-            "server_settings": {"idle_in_transaction_session_timeout": "300000"}
-        },
+        # Advisory lock holders sit idle outside a transaction, so they use their
+        # own engine (session_lock_connection, sync_db) without these settings.
+        connect_args={"server_settings": server_settings},
     )
 
 
@@ -131,8 +152,8 @@ async def init_db():
 
                 sql = migration_file.read_text()
                 # asyncpg doesn't support multiple statements in one execute(),
-                # so split on semicolons and run each statement individually
-                for statement in sql.split(";"):
+                # so split outside quoted function bodies and strings.
+                for statement in split_sql_statements(sql):
                     statement = statement.strip()
                     if statement:
                         await conn.execute(text(statement))

@@ -1,5 +1,7 @@
 """Scheduled jobs use their own queue and one stable id."""
 
+import os
+
 import pytest
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -16,7 +18,7 @@ def test_cron_jobs_are_not_on_the_video_worker():
     assert CronWorkerSettings.queue_name == CRON_QUEUE_NAME
     assert CronWorkerSettings.queue_name != WorkerSettings.queue_name
     jobs = CronWorkerSettings.cron_jobs
-    assert len(jobs) == 7
+    assert len(jobs) == 9
     assert [job.job_id for job in jobs] == [job.name for job in jobs]
     assert {job.job_id for job in jobs} == {
         "cron:check_media_storage",
@@ -26,6 +28,8 @@ def test_cron_jobs_are_not_on_the_video_worker():
         "cron:copy_pending_uploads",
         "cron:dispatch_scheduled_social_posts",
         "cron:refresh_social_metrics",
+        "cron:process_cancellation_reviews",
+        "cron:deliver_feedback_webhooks",
     }
     for job in jobs:
         assert job.job_id.count(":") == 1
@@ -42,7 +46,10 @@ def test_the_worker_process_embeds_cron_unless_asked_not_to():
 
 @pytest.mark.asyncio
 async def test_a_pending_cron_id_is_not_enqueued_twice():
-    redis = await create_pool(RedisSettings(host="127.0.0.1", port=6379))
+    redis = await create_pool(RedisSettings(
+        host=os.getenv("REDIS_HOST", "127.0.0.1"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+    ))
     job_id = "cron:dedupe_probe"
     try:
         first = await redis.enqueue_job(

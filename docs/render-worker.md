@@ -23,7 +23,7 @@ combine or a social publish.
   a session-mode pooler; replication uses session advisory locks, which a
   transaction-mode pooler breaks.
 - **The same media settings** (`MEDIA_S3_*`, `MEDIA_FALLBACK_*`,
-  `MEDIA_FAILOVER_ENABLED`) and the same provider credentials the worker on the
+  `MEDIA_FAILOVER_ENABLED`, `MEDIA_PREFERRED_STORE`) and the same provider credentials the worker on the
   application host uses. The queue also carries social publishing, so include
   those credentials too.
 - **Free local disk** for scratch. Allow for the largest source video, its
@@ -121,6 +121,26 @@ Names that only resolve inside the application host's Compose network, such as
 `bgutil`, `redis`, `postgres` or `host.docker.internal`, do not work on another
 machine. Replace them with addresses the worker can reach.
 
+## Stream downloads and the YouTube proxy trial
+
+Twitch, Kick, and YouTube downloads run inside the video worker, on whichever
+machine takes the job. The API and a worker do not share a disk. Files under
+`TEMP_DIR` stay on that machine. Anything another process needs is in
+PostgreSQL, Redis, or the media bucket before the job reports it.
+
+`YOUTUBE_PROXY_TIMEOUT_SECONDS` is how long a Twitch or Kick download may go
+without receiving data. `STREAM_DOWNLOAD_MAX_SECONDS` is the shortest overall
+cap for one call; a long VOD is allowed longer, up to an hour, while data is
+still arriving. Set both on every worker, including this one, to the same
+values as the application host.
+
+When `YOUTUBE_PROXY_TRIAL_PREFIX` is set, YouTube jobs use the proxy trial.
+Admission lives in Redis, so workers on different machines share one counter.
+`YOUTUBE_PROXY_DEFAULT_PROVIDER` selects the active provider (`geonode` or
+`dataimpulse`). `YOUTUBE_PROXY_TRIAL_SECRET_FILE` is the mounted JSON template
+(production mounts it at `/run/geonode-trial.json`). The file is not in the
+image. Leave the prefix empty to keep the normal proxy.
+
 ## Checking it works
 
 Workers compete for jobs, so a given job may land on either machine. Look at
@@ -137,9 +157,42 @@ each machine's worker log to see what it processed.
 `GET /health/worker` reports that at least one video worker is alive; it does
 not say which.
 
+## Per-account capacity on the hosted render server
+
+The hosted render server runs eight video-worker slots. Its production environment sets
+`VIDEO_JOB_USER_CONCURRENCY=2`: one account can process two videos at once,
+leaving six slots available for other accounts when both are busy. The global
+worker limit remains eight. This is an initial capacity setting, not a measured
+throughput optimum; review queue waits and active accounts before raising it.
+
+Set the same per-account limit on every video worker sharing the queue. Keep
+it in the private worker environment and the application host's canonical
+production environment so subsequent deployments preserve it. The portable
+application default remains one for smaller installations. No credentials
+belong in this document.
+
+The account limit is read from the process environment. Changing an env file
+requires recreating the video-worker container. First verify that PostgreSQL
+has no queued or processing tasks and Redis has no waiting or ongoing video
+jobs; let active work finish. Keep the existing backend release image, scratch
+mounts and worker hooks when applying the configuration. Roll back by restoring
+`VIDEO_JOB_USER_CONCURRENCY=1` and recreating the worker at another idle window.
+
+## Adding workers automatically
+
+The render autoscaler adds cloud workers when the queue backs up and removes
+them once they are idle, using the same layout as this page. See
+[autoscaling.md](./autoscaling.md). Every video worker records the jobs it runs
+under its host name in Redis (`src/workers/host_jobs.py`), which is how the
+autoscaler knows a machine is idle; set `RENDER_HOST_NAME` if the container's
+hostname is not the machine's.
+
 ## Stopping a worker
 
-Stop the container. Running jobs get up to `stop_grace_period` to finish. A job
+Stop the container. Running jobs get up to `stop_grace_period` to finish.
+To drain without a deadline, run `docker update --restart=no` and then
+`docker kill -s TERM` on the container: the worker takes no new jobs, finishes
+the running ones (up to `job_completion_wait`) and exits. A job
 that is cut off is retried by the queue on whichever worker is free. Queued
 deletions for that machine's disk stay in the database for a month in case the
 machine returns, then are dropped; the scratch directory can simply be removed.

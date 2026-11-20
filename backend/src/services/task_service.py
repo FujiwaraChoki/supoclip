@@ -17,9 +17,11 @@ from time import perf_counter
 
 
 from arq.constants import job_key_prefix, in_progress_key_prefix, expires_extra_ms
+from ..analytics import capture_event, elapsed_seconds, source_kind
 from ..broll import BRollSession
 from ..workers.job_queue import JobQueue
 from ..repositories.task_repository import TaskRepository
+from ..repositories.task_idempotency_repository import TaskIdempotencyReplay
 from ..repositories.minute_usage_repository import charged_duration
 from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
@@ -31,13 +33,20 @@ from ..repositories.edit_transaction import serialized_task_edit, task_edit_tran
 from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
 from ..repositories.generation_allowance_guard import generation_allowance_guard
 from .billing_service import BillingService, reduced_media_limits
+from .email_previews import (
+    MAX_CLIP_PREVIEWS,
+    ClipPreview,
+    TaskPreviews,
+    clip_preview,
+    source_preview,
+)
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
 )
 from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
-from ..youtube_proxy import YouTubeGeoRestrictedError
+from ..youtube_proxy import YouTubeGeoRestrictedError, is_age_restricted_error
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_duration import clip_duration, validate_clip_length
@@ -349,10 +358,14 @@ class TaskService(ClipEditingMixin):
         upload_request_key: Optional[str] = None,
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
+        idempotency: Optional[tuple[str, str]] = None,
     ) -> str:
         """
         Create a new task with associated source.
         Returns the task ID.
+
+        With ``idempotency`` (key, request hash), raises ``TaskIdempotencyReplay``
+        when a concurrent request with the same key created its task first.
         """
         self.reused_upload_task = False
         self.reused_upload_job_id = None
@@ -394,22 +407,28 @@ class TaskService(ClipEditingMixin):
         )
 
         # Create task
-        task_id = await self.task_repo.create_task(
-            self.db,
-            user_id=user_id,
-            source_id=source_id,
-            status="queued",  # Changed from "processing" to "queued"
-            font_family=font_family,
-            font_size=font_size,
-            font_color=font_color,
-            caption_template=caption_template,
-            include_broll=include_broll,
-            processing_mode=processing_mode,
-            source_duration_seconds=source_duration_seconds,
-            charge_minutes=self.config.monetization_enabled,
-            workflow=workflow,
-            workflow_options=workflow_options,
-        )
+        try:
+            task_id = await self.task_repo.create_task(
+                self.db,
+                user_id=user_id,
+                source_id=source_id,
+                status="queued",  # Changed from "processing" to "queued"
+                font_family=font_family,
+                font_size=font_size,
+                font_color=font_color,
+                caption_template=caption_template,
+                include_broll=include_broll,
+                processing_mode=processing_mode,
+                source_duration_seconds=source_duration_seconds,
+                charge_minutes=self.config.monetization_enabled,
+                workflow=workflow,
+                workflow_options=workflow_options,
+                **({"idempotency": idempotency} if idempotency else {}),
+            )
+        except TaskIdempotencyReplay:
+            # The task insert rolled back. Drop the source made for it.
+            await self.source_repo.delete_unused_source(self.db, source_id)
+            raise
 
         if upload_request_key and url.startswith("upload://"):
             metadata: Dict[str, Any] = {"upload_request_key": upload_request_key}
@@ -497,6 +516,9 @@ class TaskService(ClipEditingMixin):
         # Finished output from an earlier attempt, which may carry edits, exports
         # and scheduled posts. Unknown until read, so a failure before that deletes nothing.
         prior_outputs = True
+        # For the task_completed / task_failed product events.
+        started_at: Optional[datetime] = None
+        cache_hit: Optional[bool] = None
 
         async def check_cancelled():
             if should_cancel and await should_cancel():
@@ -753,6 +775,9 @@ class TaskService(ClipEditingMixin):
             # Read from the task so queued jobs and resumes honour the setting.
             include_broll = bool(task_row.get("include_broll"))
             broll_session = BRollSession()
+            wants_previews: Optional[bool] = None  # checked once a clip renders
+            # (virality, render order, still) for each saved clip.
+            clip_previews: list[tuple[int, int, ClipPreview]] = []
             noun = OUTPUT_NOUNS.get(spec.workflow, "clip")
             rendered_meta: list[tuple[Dict[str, Any], list]] = []
 
@@ -815,6 +840,16 @@ class TaskService(ClipEditingMixin):
                 if clip_info is None:
                     failed_positions.append(i + 1)
                     continue
+                # Take the email still now: once saved, the clip may move to S3/R2.
+                if wants_previews is None:
+                    wants_previews = await self._completion_email_wanted(task_id)
+                preview = (
+                    await run_in_thread(
+                        clip_preview, Path(clip_info["path"]), clip_info.get("hook_title")
+                    )
+                    if wants_previews
+                    else None
+                )
                 if time_map:
                     clip_info = await run_in_thread(
                         restore_clip_timeline, clip_info, time_map, segment
@@ -874,6 +909,8 @@ class TaskService(ClipEditingMixin):
                 pending_clip_path = None
                 clip_ids_by_order[clip_order] = clip_id
                 completed_positions.add(i + 1)
+                if preview:
+                    clip_previews.append((clip_info.get("virality_score") or 0, i, preview))
 
                 # Notify frontend via SSE
                 if clip_ready_callback:
@@ -931,8 +968,29 @@ class TaskService(ClipEditingMixin):
             await self._send_completion_notification_if_needed(
                 task_id=task_id,
                 clips_count=len(clip_ids),
+                source_path=video_path,
+                source_type=source_type,
+                url=url,
+                clip_previews=tuple(
+                    preview
+                    for _, _, preview in sorted(clip_previews, key=lambda item: (-item[0], item[1]))
+                )[:MAX_CLIP_PREVIEWS],
                 workflow=spec.workflow,
                 topic=spec.options.topic,
+            )
+
+            capture_event(
+                "task_completed",
+                user_id,
+                {
+                    "task_id": task_id,
+                    "workflow": spec.workflow,
+                    "has_instructions": bool(spec.options.instructions),
+                    "source_kind": source_kind(source_type, url),
+                    "clip_count": len(clip_ids),
+                    "processing_seconds": elapsed_seconds(started_at),
+                    "cache_hit": cache_hit,
+                },
             )
 
             logger.info(
@@ -1000,6 +1058,8 @@ class TaskService(ClipEditingMixin):
                 error_code = e.code
             elif isinstance(e, YouTubeGeoRestrictedError):
                 error_code = "youtube_geo_restricted"
+            elif is_age_restricted_error(e):
+                error_code = "youtube_age_restricted"
             elif "download" in message or "youtube" in message:
                 error_code = "download_error"
             elif "analysis" in message:
@@ -1014,6 +1074,19 @@ class TaskService(ClipEditingMixin):
                 task_id,
                 completed_at=datetime.utcnow(),
                 error_code=error_code,
+            )
+            capture_event(
+                "task_failed",
+                user_id,
+                {
+                    "task_id": task_id,
+                    "workflow": spec.workflow if spec is not None else None,
+                    "source_kind": source_kind(source_type, url),
+                    "error_code": error_code,
+                    "processing_seconds": elapsed_seconds(started_at),
+                    "cache_hit": cache_hit,
+                    "kept_outputs": prior_outputs,
+                },
             )
             if progress_callback:
                 try:
@@ -1051,6 +1124,10 @@ class TaskService(ClipEditingMixin):
         clips_count: int,
         workflow: str = "highlights",
         topic: str = "",
+        source_path: Optional[Path] = None,
+        source_type: Optional[str] = None,
+        url: Optional[str] = None,
+        clip_previews: tuple[ClipPreview, ...] = (),
     ) -> None:
         context = await self.task_repo.get_task_notification_context(self.db, task_id)
         if not context:
@@ -1082,6 +1159,15 @@ class TaskService(ClipEditingMixin):
             )
             return
 
+        # Local ffmpeg and one HTTP fetch, each bounded by source_preview's
+        # budget; images are a nice-to-have and never block the email.
+        source = await run_in_thread(
+            source_preview,
+            source_path=source_path,
+            youtube_video_id=extract_video_id(url) if source_type == "youtube" and url else None,
+        )
+        previews = TaskPreviews(source=source, clips=clip_previews)
+
         try:
             await email_service.send_task_completed_email(
                 recipient=TaskCompletionRecipient(
@@ -1094,6 +1180,7 @@ class TaskService(ClipEditingMixin):
                 clips_count=clips_count,
                 workflow=workflow,
                 topic=topic,
+                previews=previews,
             )
             stamped = await self.task_repo.mark_completion_notification_sent(
                 self.db, task_id
@@ -1108,6 +1195,21 @@ class TaskService(ClipEditingMixin):
                 "Failed to send completion notification for task %s",
                 task_id,
             )
+
+    async def _completion_email_wanted(self, task_id: str) -> bool:
+        """Whether a completion email will go out, so clip stills are worth taking."""
+        try:
+            context = await self.task_repo.get_task_notification_context(self.db, task_id)
+        except Exception:
+            logger.warning("Could not read notification settings for task %s", task_id, exc_info=True)
+            return False
+        return bool(
+            context
+            and context.get("notify_on_completion")
+            and not context.get("completion_notification_sent_at")
+            and context.get("user_email")
+            and TaskCompletionEmailService(self.config).is_configured
+        )
 
     async def get_task_with_clips(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get task details with all clips."""

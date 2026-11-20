@@ -11,8 +11,8 @@ INSERT INTO "service_statuses" ("id", "name", "status", "headline", "description
 VALUES (
     'video-downloads',
     'Video downloads',
-    'degraded',
-    'Investigating',
-    'We are investigating slow video downloads. Importing videos from YouTube may take longer than usual or fail with a timeout. Please avoid repeatedly retrying the same video while we investigate. We will update this page when we have more information.'
+    'operational',
+    'Operational',
+    'Video downloads are working normally.'
 )
 ON CONFLICT ("id") DO NOTHING;

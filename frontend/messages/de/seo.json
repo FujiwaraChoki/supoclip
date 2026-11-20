@@ -123,8 +123,8 @@
         "answer": "Ja. SupoClip nimmt YouTube-URLs an, findet Kandidatenmomente und kann vertikale Clips mit Untertiteln für YouTube Shorts rendern."
       },
       "2": {
-        "question": "Ist SupoClip Open Source?",
-        "answer": "Ja. Der SupoClip-Quellcode steht unter der AGPL-3.0-Lizenz und kann selbst gehostet oder verändert werden."
+        "question": "Kann ich SupoClip selbst hosten?",
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC."
       },
       "3": {
         "question": "Welche Videoquellen unterstützt SupoClip?",
@@ -147,8 +147,8 @@
     "tableRows": {
       "0": {
         "0": "Quellcodezugriff",
-        "1": "Vollständiges AGPL-3.0-Repository",
-        "2": "Volles AGPL-3.0-Repository"
+        "1": "Nichtkommerzielle SupoClip-Quellcodelizenz",
+        "2": "Nichtkommerzielle SupoClip-Quellcodelizenz"
       },
       "1": {
         "0": "Infrastruktur",
@@ -175,7 +175,7 @@
       "1": {
         "heading": "Wofür du weiter verantwortlich bist",
         "p1": "Open Source heißt nicht, dass jede Abhängigkeit kostenlos ist. Wer selbst hostet, stellt Rechenleistung, Speicher, Transkription und die Sprachmodell-Konfiguration selbst. Der Tausch ist Betriebsverantwortung gegen Kontrolle über den Quellcode.",
-        "p2": "Teams sollten außerdem die AGPL-3.0-Lizenz lesen, Umgebungsvariablen absichern, Abhängigkeiten aktuell halten und Worker sowie Speicher in Produktion beobachten.",
+        "p2": "Teams sollten außerdem die Nichtkommerzielle SupoClip-Quellcodelizenz lesen, Umgebungsvariablen absichern, Abhängigkeiten aktuell halten und Worker sowie Speicher in Produktion beobachten.",
         "bullet1": "Rechenleistung und dauerhaften Speicher bereitstellen",
         "bullet2": "Transkription und Modellanbieter einrichten",
         "bullet3": "Geheimnisse und geschützte Routen absichern",
@@ -193,7 +193,7 @@
     "faqs": {
       "0": {
         "question": "Ist SupoClip kostenlos selbst zu hosten?",
-        "answer": "Der Quellcode ist unter der AGPL-3.0-Lizenz kostenlos. Für Infrastruktur und bezahlte Transkriptions- oder KI-Nutzung bleibst du verantwortlich."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC. Für Infrastruktur und bezahlte Transkriptions- oder KI-Nutzung bleibst du verantwortlich."
       },
       "1": {
         "question": "Kann SupoClip ein lokales Sprachmodell nutzen?",
@@ -292,7 +292,7 @@
     "hostedBody": "Pro gibt es ab US${price}/Monat mit {hours} Stunden Quellvideo pro Monat und Clips in {resolution}. Wir übernehmen die Verarbeitung. Die gehostete App erfordert ein kostenpflichtiges Abo.",
     "plans": "Aktuelle Abos ansehen",
     "selfHostTitle": "Selbst betreiben",
-    "selfHostBody": "Der Quellcode ist unter AGPL-3.0 kostenlos. Du stellst Hardware, Speicher, Wartung und die von dir gewählten kostenpflichtigen Transkriptions- oder KI-Dienste bereit.",
+    "selfHostBody": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC. Du stellst Hardware, Speicher, Wartung und die von dir gewählten kostenpflichtigen Transkriptions- oder KI-Dienste bereit.",
     "selfHostButton": "Self-Hosting-Anleitung lesen",
     "ai-video-clipper": {
       "title": "Mach aus deiner Aufnahme fertige Clips",

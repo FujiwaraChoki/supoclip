@@ -7,7 +7,7 @@ import "./globals.css";
 import { isPostHogEnabled } from "@/lib/posthog";
 
 // Replaces the root layout when it crashes, so it can't rely on the intl provider or app chrome.
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     if (isPostHogEnabled) posthog.captureException(error);
   }, [error]);
@@ -20,7 +20,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <p className="text-muted-foreground">We couldn&apos;t load SupoClip. Please try again.</p>
           <button
             type="button"
-            onClick={reset}
+            onClick={() => window.location.reload()}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
           >
             Try again

@@ -17,16 +17,29 @@
       "featureCrop": "Corte vertical 9:16 centrado no rosto",
       "featureCaptions": "Legendas animadas sincronizadas por palavra",
       "featureExports": "Exportações para YouTube Shorts, TikTok e Instagram Reels",
-      "featureSelfHost": "Auto-hospedagem de código aberto",
-      "offerCategory": "Edição de código aberto auto-hospedada",
+      "featureSelfHost": "Auto-hospedagem grátis para fins não comerciais e criadores individuais",
+      "offerCategory": "Código-fonte para auto-hospedagem não comercial e de criadores individuais",
       "ios": "O app SupoClip para iOS: transforme vídeos longos em shorts verticais legendados no seu iPhone.",
       "website": "Clipping de vídeo com IA de código aberto para conteúdo curto."
     }
   },
+  "community": {
+    "eyebrow": "SupoClip no Discord",
+    "title": "Crie clipes melhores em comunidade.",
+    "body": "Peça uma segunda opinião sobre um corte, troque dicas de edição e conte como podemos melhorar o SupoClip.",
+    "join": "Entre no Discord",
+    "activities": {
+      "showcase": "Compartilhe um clipe e receba feedback",
+      "tips": "Troque dicas de edição",
+      "ideas": "Vote em ideias de recursos"
+    }
+  },
   "footer": {
     "tagline": "Clipper de vídeo com IA de código aberto. Use o app hospedado ou rode na sua própria infraestrutura.",
+    "licenseNotice": "Criadores individuais podem auto-hospedar e monetizar de graça. Empresas, agências e hospedagem paga exigem <license>autorização por escrito</license>.",
     "github": "GitHub",
     "ios": "App para iOS",
+    "discord": "Comunidade no Discord",
     "columns": {
       "guides": "Guias",
       "compare": "Comparar",
@@ -143,6 +156,12 @@
       "title": "Turn Twitch VODs into TikTok clips and Shorts",
       "label": "Twitch VOD to Shorts",
       "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+    },
+    "blog_how_to_clip_gta_6": {
+      "eyebrow": "Clipes de GTA 6",
+      "title": "Como fazer clipes de GTA 6",
+      "label": "Clipes de GTA 6",
+      "description": "Quanto pagam as campanhas de clipping, as regras da Rockstar e o fluxo do VOD ao clipe vertical."
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -454,7 +473,7 @@
       },
       "selfHost": {
         "question": "Auto-hospedar é mesmo de graça?",
-        "answer": "Sim. O SupoClip é de código aberto sob AGPL-3.0 e roda com Docker Compose na sua própria máquina. Você só paga pelos provedores de transcrição e IA que escolher, se escolher algum."
+        "answer": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC."
       },
       "cancel": {
         "question": "Posso cancelar quando quiser?",
@@ -463,13 +482,13 @@
     }
   },
   "openSource": {
-    "badge": "Licença AGPL-3.0",
+    "badge": "Licença de Código-Fonte Não Comercial do SupoClip",
     "title": "Feito às claras",
-    "body": "Totalmente de código aberto. Auto-hospede na sua infraestrutura, contribua com recursos ou faça um fork e deixe do seu jeito.",
+    "body": "Código-fonte para auto-hospedagem não comercial e de criadores individuais",
     "commandLabel": "auto-hospedar",
     "comment": "# adicione um provedor de transcrição e de LLM no .env",
     "facts": {
-      "license": "AGPL-3.0, com cada linha no GitHub",
+      "license": "O SupoClip permite auto-hospedagem e forks para fins não comerciais, e criadores individuais podem auto-hospedá-lo para fazer clipes para os próprios canais monetizados. Empresas, agências, trabalho para clientes e hospedagem paga exigem autorização prévia por escrito da Shiori LLC.",
       "docker": "Um comando do Docker Compose para rodar por conta própria",
       "models": "Use seus próprios modelos: Gemini, OpenAI, Anthropic ou Ollama"
     },

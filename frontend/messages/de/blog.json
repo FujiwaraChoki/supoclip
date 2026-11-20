@@ -82,7 +82,7 @@
         },
         "source": {
           "label": "Quellcodezugriff",
-          "supoclip": "Öffentliches AGPL-3.0-Repository",
+          "supoclip": "Nichtkommerzielle SupoClip-Quellcodelizenz",
           "supolive": "Auf der Startseite keine Open-Source- oder Self-Hosting-Option beworben"
         },
         "usecase": {
@@ -184,7 +184,7 @@
       },
       "1": {
         "question": "Ist SupoClip kostenlos selbst zu hosten?",
-        "answer": "SupoClip stellt Quellcode unter AGPL-3.0 kostenlos bereit. Der Betrieb braucht trotzdem Hardware oder Hosting, Speicher, Transkription und mögliche bezahlte LLM-Nutzung. Gehostetes SupoClip hat eigene Nutzungsbedingungen und Preise."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC. Der Betrieb braucht trotzdem Hardware oder Hosting, Speicher, Transkription und mögliche bezahlte LLM-Nutzung. Gehostetes SupoClip hat eigene Nutzungsbedingungen und Preise."
       },
       "2": {
         "question": "Kann SupoClip Live-Clipping und automatisches Posten ersetzen?",
@@ -251,7 +251,7 @@
       },
       "source": {
         "label": "Quellcode",
-        "supoclip": "Öffentlich, <license>AGPL-3.0</license>"
+        "supoclip": "Öffentlich, <license>Nichtkommerzielle SupoClip-Quellcodelizenz</license>"
       },
       "pricing": {
         "label": "Preismodell",
@@ -330,7 +330,7 @@
     "faqs": {
       "0": {
         "question": "Ist selbst gehostetes SupoClip kostenlos?",
-        "answer": "Der Code ist unter AGPL-3.0 kostenlos, und der Self-Host-Modus hat keine Generierungslimits und keine Paywall. Hardware oder Server und jede Cloud-Transkription oder LLM-Nutzung, die du einrichtest, zahlst du selbst. Whisper plus Ollama vermeidet KI-Gebühren pro Anfrage, braucht aber genug lokale Rechenleistung."
+        "answer": "SupoClip erlaubt Self-Hosting und Forks für nichtkommerzielle Zwecke, und einzelne Creator dürfen es selbst hosten, um Clips für ihre eigenen monetarisierten Kanäle zu erstellen. Unternehmen, Agenturen, Kundenaufträge und bezahltes Hosting erfordern die vorherige schriftliche Genehmigung von Shiori LLC. Hardware oder Server und jede Cloud-Transkription oder LLM-Nutzung, die du einrichtest, zahlst du selbst. Whisper plus Ollama vermeidet KI-Gebühren pro Anfrage, braucht aber genug lokale Rechenleistung."
       },
       "1": {
         "question": "Kann SupoClip ohne Cloud-KI-Dienste laufen?",
@@ -561,7 +561,7 @@
       },
       "1": {
         "question": "Ist SupoClip komplett kostenlos?",
-        "answer": "Der SupoClip-Quellcode ist kostenlos und Open Source, und selbst gehostete Installationen haben keine Planlimits. Infrastruktur und jeden Transkriptions- oder LLM-Anbieter, den du einrichtest, zahlst du selbst. Die gehostete App braucht einen bezahlten Plan."
+        "answer": "Der SupoClip-Quellcode ist kostenlos für nichtkommerzielle Zwecke einsetzbar, und selbst gehostete Installationen haben keine Planlimits. Infrastruktur und jeden Transkriptions- oder LLM-Anbieter, den du einrichtest, zahlst du selbst. Die gehostete App braucht einen bezahlten Plan."
       },
       "2": {
         "question": "Setzt SupoClip ein Wasserzeichen?",

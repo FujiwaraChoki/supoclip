@@ -4,11 +4,94 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
-## 2026-11-12
+## 2026-11-20
 
 - **Fixed:** Closing or reloading the page during a video upload no longer blocks new uploads for a day with "Upload limit reached". The unfinished upload is cancelled when you leave. An upload that is still running, however slowly, always keeps its place. ([#366](https://github.com/FujiwaraChoki/supoclip/pull/366))
+- **Fixed:** Creating an account failed on fresh self-hosted installs with a generic "Failed to create account" because the database setup lagged the app by a few columns and tables. New installs now create the full schema, existing installs can catch up with one command (see the troubleshooting guide), and SupoClip warns at startup when its database is out of date. Sign-in and sign-up also say when the server, not the form, is the problem. ([#481](https://github.com/FujiwaraChoki/supoclip/pull/481))
+- **Fixed:** Self-hosted installs no longer show YouTube imports as degraded from the start. The status page and the library banner begin as operational and only warn when an operator posts an incident. ([#481](https://github.com/FujiwaraChoki/supoclip/pull/481))
+- **Improved:** Gaming clips handle more streams: compilations give every streamer their own camera panel instead of a crop that cut the cameras off, a camera that changes size mid-clip is followed, streamers shown without a camera frame get a head-and-shoulders panel, and the camera is found in clips where a game cutscene used to hide it. Reaction videos with a small logo are no longer framed as gameplay. ([#482](https://github.com/FujiwaraChoki/supoclip/pull/482))
+- **Improved:** Side-by-side comparison videos (two games next to each other) stack the two pictures instead of cropping through the divider, a stream keeps the camera-on-top layout when the game stands still, such as on the map, in a menu or on the character's phone, and cameras with a faint or decorated border are found more often. ([#483](https://github.com/FujiwaraChoki/supoclip/pull/483))
+
+## 2026-11-19
+
+- **Improved:** Gameplay streams are framed for vertical video: your camera sits on top and the game fills the rest, with the minimap kept, instead of a crop around your camera that cut the game off. Works for single-streamer videos with a camera on screen, including story games without a HUD. ([#471](https://github.com/FujiwaraChoki/supoclip/pull/471))
+- **New:** Change the email address you sign in with from Settings → Account. You confirm with a code sent to your current address, then a code sent to the new one. Your receipts move to the new address too, your other devices are signed out, and the old address gets a notice. ([#464](https://github.com/FujiwaraChoki/supoclip/pull/464))
+- **Improved:** Individual creators can now self-host SupoClip and monetize their clips without asking: post to your own YouTube, TikTok, Reels and Shorts channels, earn from them, and join clipping campaigns that let you clip the content. Companies, agencies, freelance client work, team use and paid hosting still need written permission. The README has a short license FAQ, and the website's license wording is updated. Hosted plans are unchanged. ([#467](https://github.com/FujiwaraChoki/supoclip/pull/467))
+- **Fixed:** A fully refunded subscription is now recorded as "Refunded" in cancellation reports instead of looking like a billing-risk (fraud or dispute) cancellation. The subscription still ends on a full refund; only disputes and fraud warnings are reported as billing risk. ([#466](https://github.com/FujiwaraChoki/supoclip/pull/466))
+- **Fixed:** Some large uploads failed with a generic gateway error when you started a generation from them. Long recordings saved as fragmented MP4 (an option in recorders such as OBS) are now measured in about a second instead of reading most of the file. If a file still takes too long to read, SupoClip now says so and suggests re-exporting it with fast start ("optimize for web") or uploading a shorter or smaller file. No minutes are used. ([#463](https://github.com/FujiwaraChoki/supoclip/pull/463))
+- **Fixed:** On some Safari versions, finishing checkout could show an error page on Settings instead of the thank-you note. The thank-you now appears with a simple fade when the browser cannot draw the wave. ([#462](https://github.com/FujiwaraChoki/supoclip/pull/462))
+- **Fixed:** Pages no longer crash for people whose browser translates the site automatically, and Try again on the error page now reloads the page instead of leaving it stuck. ([#460](https://github.com/FujiwaraChoki/supoclip/pull/460))
+- **Fixed:** A video no longer fails when file storage briefly rate-limits a download. SupoClip waits a moment and tries again before giving up. ([#461](https://github.com/FujiwaraChoki/supoclip/pull/461))
+- **Under the hood:** Hosted SupoClip can add extra video workers when the queue backs up and remove them once they are idle, without stopping any video that is being made. It is off until switched on. ([#455](https://github.com/FujiwaraChoki/supoclip/pull/455))
+
+## 2026-11-18
+
+- **Fixed:** A clip generation no longer stalls for hours when its render server is briefly too busy to reach the job queue. The server waits longer and retries the connection instead of stopping, so queued generations keep moving. ([#449](https://github.com/FujiwaraChoki/supoclip/pull/449))
+- **Fixed:** Background workers keep running when the job queue restarts or drops a connection. They reconnect and retry instead of stopping, and a connection that goes silent is given up after 30 seconds instead of leaving a worker idle for many minutes, so generations, scheduled posts and studio AI edits carry on. ([#449](https://github.com/FujiwaraChoki/supoclip/pull/449))
+- **New:** After you subscribe or change plans, your plan card on Settings turns into a thank-you note with a colourful wave, and back into your upgraded plan when you click Done. ([#440](https://github.com/FujiwaraChoki/supoclip/pull/440))
+- **Fixed:** The MCP tool for waiting on a generation returns by the requested timeout, even when the next status check is delayed or the API stalls. ([#442](https://github.com/FujiwaraChoki/supoclip/pull/442))
+- **Improved:** SupoClip's new source license allows noncommercial self-hosting and forks. Internal business use, paid hosting, and other commercial use require written permission. The website footer links to the license, and Settings → About links to the original project and website. ([#441](https://github.com/FujiwaraChoki/supoclip/pull/441))
+- **New:** Join the SupoClip Discord community from the homepage, changelog, or site footer to share clips, get editing tips, and vote on feature ideas. ([#437](https://github.com/FujiwaraChoki/supoclip/pull/437))
+- **Under the hood:** Every feedback message, bug report, sales question and cancellation reason now also reaches the team's assistant chat, alongside Discord, with the same retries. Admins see it in the webhook list and can switch it off or test it. ([#435](https://github.com/FujiwaraChoki/supoclip/pull/435))
+- **Fixed:** Feedback delivery no longer ties up the app during slow webhooks, retries stop reliably, and deleting an account clears saved feedback email addresses atomically. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
+
+## 2026-11-17
+
+- **Improved:** Clips with b-roll, handheld or POV footage, or a drone shot now fill the vertical frame with a crop on the action instead of showing the picture as a thin strip on a blurred background. Screenshots, documents, side-by-side comparisons and group shots still show the full picture, so nothing important is cut off. A single graph or slide cut into a talking-head clip is shown in full without shrinking the speaker for the rest of the clip. ([#432](https://github.com/FujiwaraChoki/supoclip/pull/432))
+- **Fixed:** A stacked clip no longer shows the same person in both halves. In a handheld shot the layout now changes between stacked and a single crop the moment someone leaves the picture or the camera closes in on one person, and the crop stays on a person through a fast camera move. ([#470](https://github.com/FujiwaraChoki/supoclip/pull/470))
+- **Under the hood:** Feedback, bug reports, sales questions and cancellation reasons sent from the app are now kept and followed up from one inbox, so none get lost when a chat channel is down. ([#433](https://github.com/FujiwaraChoki/supoclip/pull/433))
+
+- **New:** A guide to clipping GTA 6 on the blog: what clipping campaigns pay, which clips get taken down, and the steps from a stream recording to finished vertical clips. It includes a payout calculator you can adjust to your own numbers. ([#431](https://github.com/FujiwaraChoki/supoclip/pull/431))
+- **New:** New accounts get a welcome tour on their first visit. It opens with a short animation, shows how to make a first clip, then goes to each page in turn: Library, Social and Analytics, Agents & API and Settings, and ends back on Create at the link field. It can be skipped at any step. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))
+- **Improved:** Free accounts see what a plan gets them above the link field, with a short animation of a long video being cut into clips. The plan picker's self-hosting option is now a small link. ([#423](https://github.com/FujiwaraChoki/supoclip/pull/423))
+- **Fixed:** Uploads and other requests are less likely to fail because the database ran out of connections. A server that has gone quiet, such as the previous release while it drains, now gives its unused database connections back after 10 minutes instead of holding them indefinitely. ([#428](https://github.com/FujiwaraChoki/supoclip/pull/428))
+- **Fixed:** The clip studio no longer fails to open, or to start an export, when several clips load at the same moment. A request now uses one database connection at a time, the export list stops piling up refreshes behind a slow one, checking an export's file in storage no longer holds a connection, and a briefly busy server says to try again in a few seconds instead of showing a generic error. ([#429](https://github.com/FujiwaraChoki/supoclip/pull/429))
+- **Fixed:** Creating a generation no longer fails when old deployments fill the database connection limit. Connection pools are bounded, and deployments require the previous release to be retired before another is staged. ([#427](https://github.com/FujiwaraChoki/supoclip/pull/427))
+
+- **Fixed:** House promo codes in referral links or entered before checkout are recognised again when billing uses multiple payment accounts. Code validation now uses the same payment account as checkout. ([#382](https://github.com/FujiwaraChoki/supoclip/pull/382))
+- **Fixed:** Long YouTube downloads save completed sections so a connection failure has less video to download again. Series jobs show a range for the wait, and the task page tells you when a download is taking longer than expected. ([#426](https://github.com/FujiwaraChoki/supoclip/pull/426))
+
+## 2026-11-16
+
+- **Fixed:** Exporting a clip while its clips are being regenerated no longer hangs and then fails. You're asked to try again in a moment, and if the clip was replaced you're told it's gone. ([#419](https://github.com/FujiwaraChoki/supoclip/pull/419))
+- **Improved:** Accounts can process two videos at once, reducing waits when several videos are queued. ([#418](https://github.com/FujiwaraChoki/supoclip/pull/418))
+
+- **Under the hood:** Hosted deployments can switch new requests to a ready frontend and API while uploads and downloads on the previous release finish. ([#412](https://github.com/FujiwaraChoki/supoclip/pull/412))
+
+## 2026-11-15
+
+- **Improved:** A host or presenter talking to the camera on their own is framed as a tight crop on their face and shoulders, with the eyes near the top third, instead of the whole picture shrunk into a band with a blurred fill below. Their hand gestures no longer make the clip fall back to the full frame. Only a face too small or too low to crop sharply still gets the full picture. ([#402](https://github.com/FujiwaraChoki/supoclip/pull/402))
+- **Fixed:** Long videos processed with Claude Haiku have more room for their outlines, reducing incomplete outlines in series, topic, recap and trailer runs. ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
+
+- **New:** Settings → Agents & API shows how to connect Claude, ChatGPT or Grok: open the assistant's connector page, paste the SupoClip server URL and sign in. No key to copy. Each assistant lists which of its plans support this. Claude Code can sign in the same way. API keys moved into one tidy list with a Create key button; a new key opens with its Cursor and local config filled in. ([#403](https://github.com/FujiwaraChoki/supoclip/pull/403))
+
+## 2026-11-14
+
+- **Improved:** Interview clips are framed shot by shot instead of shrinking the whole video into a strip. When both people are on camera, each gets their own half of the screen, stacked; a close-up of one person becomes a tight crop on their face; on-screen graphics and b-roll are shown in full. The layout changes exactly on the video's own cuts. ([#392](https://github.com/FujiwaraChoki/supoclip/pull/392))
+- **Fixed:** Long Twitch and Kick videos download the parts your clips use, instead of the whole stream, and a download that is still receiving data is no longer cut off after a few minutes. ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
+- **Fixed:** A subscriber-only or private VOD, and a VOD that is blocked in our regions, is reported as such instead of a generic "try again later". ([#394](https://github.com/FujiwaraChoki/supoclip/pull/394))
+- **Fixed:** Age-restricted YouTube videos are now turned down when you submit them, with a note to download the video and upload the file instead. Before, they failed after a long wait with a message to retry, which couldn't work. No minutes are used. ([#391](https://github.com/FujiwaraChoki/supoclip/pull/391))
+
+## 2026-11-12
+
+- **Fixed:** Opening several clips in the studio at once no longer leaves one of them shorter than the clip. If the whole source can't be fetched, the studio says so instead of opening part of it. A clip that already opened short shows the problem and offers to rebuild its editing copy; your earlier draft stays downloadable. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** The studio opens a clip with the framing it was generated with, including face tracking and the blurred full-frame fit, instead of a centred crop. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** The studio no longer fills your browser's storage. It keeps a small copy of unsaved changes and a short undo history for your last few clips, and removes a generation's copies when you delete it. If storage does fill up, the message explains that your edits still save to your account, and ⋯ → Browser backups shows what is stored and frees what's already saved. ([#379](https://github.com/FujiwaraChoki/supoclip/pull/379))
+- **Fixed:** When you queue several videos, they now start in the order you submitted them, and the next one starts as soon as the previous one finishes. Before, a video submitted earlier could keep waiting while later ones went ahead. ([#378](https://github.com/FujiwaraChoki/supoclip/pull/378))
+- **Under the hood:** Media playback, downloads and uploads can prefer the independent storage replica to reduce transfer costs, while keeping the other provider as a backup. ([#376](https://github.com/FujiwaraChoki/supoclip/pull/376))
+
+- **Improved:** When you connect claude.ai, ChatGPT or another app and your email isn't verified yet, the approval page sends the verification email itself, and the link brings you straight back to approve. Connection requests now stay open for 30 minutes. ([#375](https://github.com/FujiwaraChoki/supoclip/pull/375))
+- **Under the hood:** We now measure the main steps from sign-up to a first video, a subscription and later renewals. Only the kind of step is recorded, never your links, files, instructions or captions. ([#370](https://github.com/FujiwaraChoki/supoclip/pull/370))
+- **New:** Connect SupoClip to claude.ai, ChatGPT and other apps with custom connectors: add `https://mcp.supoclip.com/mcp`, sign in, and allow access. No key to copy. Each connection gets its own API key, listed in Settings → Agents & API, where you can revoke it to disconnect. ([#372](https://github.com/FujiwaraChoki/supoclip/pull/372))
+- **Fixed:** The time left on a generation now includes downloading the chosen moments and rendering each clip, so it no longer says "less than a minute" while several minutes remain. ([#371](https://github.com/FujiwaraChoki/supoclip/pull/371))
+- **Fixed:** The SupoClip MCP server at `mcp.supoclip.com` now works with clients that use the current MCP connection type, as well as older SSE clients, including ones already set up with the old address. When a connection fails, the error says what is missing, such as an API key or a placeholder that wasn't replaced. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Improved:** Settings → Agents & API shows ready-to-copy setup for Claude Code, Cursor, Claude Desktop and a local server, with your new key filled in. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Improved:** When an agent tries to make clips on an account without a paid plan or without minutes left, it gets a plain explanation and a link to choose a plan instead of a raw error. ([#368](https://github.com/FujiwaraChoki/supoclip/pull/368))
+- **Under the hood:** Billing can keep existing subscriptions with their current payment account while preparing a new account, with separate payment recovery and refund handling. ([#367](https://github.com/FujiwaraChoki/supoclip/pull/367))
 
 ## 2026-11-10
+
+- **Fixed:** With reduced motion enabled, the homepage and sign-in and sign-up forms now keep their contents as the page becomes interactive. ([#358](https://github.com/FujiwaraChoki/supoclip/pull/358))
 
 - **Improved:** A studio export or clip preparation whose server stops unexpectedly is now retried or shown as failed within a few minutes, instead of staying in progress. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
 - **Under the hood:** Video rendering can run on additional servers. Studio drafts and exports are kept in the database, and uploads, fonts and finished videos are shared through storage instead of one server's disk. ([#359](https://github.com/FujiwaraChoki/supoclip/pull/359))
@@ -18,6 +101,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-08
 
+- **Fixed:** Retrying a generation after a dropped connection no longer creates and charges a second one, and a video upload whose final step lost its answer no longer has to be sent again. ([#349](https://github.com/FujiwaraChoki/supoclip/pull/349))
 - **Fixed:** Uploading a video from the iPhone app no longer fails when sending the file takes longer than five minutes. ([#348](https://github.com/FujiwaraChoki/supoclip/pull/348))
 
 ## 2026-11-07

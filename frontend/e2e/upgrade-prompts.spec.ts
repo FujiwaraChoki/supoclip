@@ -32,11 +32,38 @@ async function mockApp(page: Page, billing: object) {
   await page.route(/\/api\/tasks\/?(\?.*)?$/, (route) => route.fulfill({ json: { tasks: [] } }));
 }
 
+test.describe("creator-code checkout", () => {
+  test("retains a validated house code when choosing a plan", async ({ page }) => {
+    await mockApp(page, free);
+    // Demo transports for the real settings UI. Account routing and the Stripe
+    // guard are exercised separately by the offer route's server tests.
+    await page.route("**/api/affiliates/offer?**", (route) =>
+      route.fulfill({ json: { code: "DEMOHOUSE" } }));
+    await page.route("**/api/billing/checkout", (route) =>
+      route.fulfill({ json: { url: "https://checkout.example/demo" } }));
+    await page.route("https://checkout.example/demo", (route) =>
+      route.fulfill({ contentType: "text/html", body: "Demo Checkout transport" }));
+
+    await page.goto("/settings#plan");
+    await page.getByRole("button", { name: "Have a creator code?" }).click();
+    await page.getByRole("textbox", { name: "Creator code" }).fill("demohouse");
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(page.getByText("Creator code DEMOHOUSE: 20% off your first 3 months.")).toBeVisible();
+    await page.locator("#plan").screenshot({ path: "test-results/creator-code-applied.png" });
+
+    const checkout = page.waitForRequest((request) =>
+      request.url().endsWith("/api/billing/checkout") && request.method() === "POST");
+    await page.getByRole("button", { name: /Choose Pro/ }).click();
+    expect((await checkout).postDataJSON()).toMatchObject({ plan: "pro", code: "DEMOHOUSE" });
+    await expect(page).toHaveURL("https://checkout.example/demo");
+  });
+});
+
 test("free users explore first and see plans when they generate", async ({ page }) => {
   await mockApp(page, free);
   await page.goto("/");
   await expect(
-    page.getByRole("main").getByText("Pick a plan to start clipping", { exact: true }),
+    page.getByRole("main").getByText("One long video. A week of shorts.", { exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: "test-results/upgrade-home-free.png" });
 

@@ -40,6 +40,7 @@ import {
   type EditDocument,
   type EditorState,
 } from "@/lib/editor/document";
+import { playPreview } from "@/lib/editor/playback";
 import { drawEditorFrame, loadEditorFont, type TextDraft, type BRollLayer } from "@/lib/editor/render";
 import type { InspectorTab } from "./inspector";
 import { cn } from "@/lib/utils";
@@ -138,7 +139,7 @@ export function Preview({
     const s = doc.segments[segmentIndex];
     if (video.currentTime < s.start || video.currentTime >= s.end - 0.01)
       video.currentTime = s.start;
-    await video.play().catch(() => setMediaError(true));
+    await playPreview(video, () => setMediaError(true));
   }, [asset.hasAudio, doc, segmentIndex, videoRef]);
   useEffect(() => {
     void loadEditorFont(doc.captions.font)
@@ -326,7 +327,7 @@ export function Preview({
               if (loop && videoRef.current) {
                 select(0);
                 videoRef.current.currentTime = doc.segments[0].start;
-                void videoRef.current.play();
+                void playPreview(videoRef.current, () => setMediaError(true));
               } else setPlaying(false);
             }}
             onError={() => setMediaError(true)}

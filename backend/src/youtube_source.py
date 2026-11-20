@@ -14,6 +14,7 @@ import logging
 import shutil
 import subprocess
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,8 @@ logger = logging.getLogger(__name__)
 CACHE_DIRNAME = "youtube-cache"
 WORK_DIRNAME = "youtube-work"
 MANIFEST_NAME = "manifest.json"
+# Checkpoint long selections in minutes of source media, independent of transfer speed.
+SECTION_WINDOW_SECONDS = 60
 # v2 rejects auto-dub tracks before language_preference. Cached v1 audio is discarded.
 AUDIO_POLICY = "original-v2"
 
@@ -122,12 +125,12 @@ def missing_intervals(
                 continue
             if cached_start >= limit:
                 break
-            if cached_start > cursor:
+            if cached_start > cursor + COVERAGE_TOLERANCE_SECONDS:
                 gaps.append((cursor, min(cached_start, limit)))
             cursor = max(cursor, cached_end)
             if cursor >= limit:
                 break
-        if cursor < limit - 0.05:
+        if cursor < limit - COVERAGE_TOLERANCE_SECONDS:
             gaps.append((cursor, limit))
     return merge_ranges(gaps, padding=0.0)
 
@@ -176,6 +179,14 @@ class TimeSpan:
         return self.local_start + (self.original_end - self.original_start)
 
 
+# Section cuts land on frame boundaries, so allow a few frames either side.
+COVERAGE_TOLERANCE_SECONDS = 0.15
+
+
+class SourceCoverageError(ValueError):
+    """A media file does not hold every requested source range."""
+
+
 @dataclass(frozen=True)
 class TimeMap:
     """Maps original source time onto a concatenated local file."""
@@ -213,9 +224,49 @@ class TimeMap:
             return nearest.original_start
         return nearest.original_end
 
-    def to_local_ranges(self, ranges: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
+    def covered_local_range(
+        self, start: float, end: float, tolerance: float = COVERAGE_TOLERANCE_SECONDS
+    ) -> Optional[tuple[float, float]]:
+        """The local range that plays ``start``-``end`` in full, or None.
+
+        The pieces of the file that hold the range must be adjacent both in
+        the source and in the file. Anything else would play a shorter or
+        different stretch of the video.
+        """
+        pieces = []
+        for span in self.spans:
+            a, b = max(start, span.original_start), min(end, span.original_end)
+            if b > a:
+                pieces.append((a, b, span.local_start + a - span.original_start, span.local_start + b - span.original_start))
+        if not pieces:
+            return None
+        pieces.sort()
+        if pieces[0][0] > start + tolerance or pieces[-1][1] < end - tolerance:
+            return None
+        for previous, current in zip(pieces, pieces[1:]):
+            if current[0] > previous[1] + tolerance or abs(current[2] - previous[3]) > tolerance:
+                return None
+        return pieces[0][2], pieces[-1][3]
+
+    def to_local_ranges(
+        self, ranges: Iterable[tuple[float, float]], *, strict: bool = False
+    ) -> list[tuple[float, float]]:
+        """Map source ranges onto the file.
+
+        By default a range the file does not hold is clamped to the nearest
+        piece. ``strict`` raises ``SourceCoverageError`` instead, so a caller
+        never renders a shorter clip than it asked for.
+        """
         converted = []
         for start, end in ranges:
+            if strict:
+                local = self.covered_local_range(float(start), float(end))
+                if local is None:
+                    raise SourceCoverageError(
+                        f"The source file does not contain {float(start):.2f}-{float(end):.2f}s"
+                    )
+                converted.append(local)
+                continue
             local_start = self.to_local(float(start))
             local_end = self.to_local(float(end))
             if local_end > local_start:
@@ -246,7 +297,12 @@ def build_time_map(pieces: Iterable[tuple[float, float]]) -> TimeMap:
         start_value, end_value = float(start), float(end)
         if end_value <= start_value:
             continue
-        spans.append(TimeSpan(start_value, end_value, local))
+        # A cache-file boundary in a continuous shot is not an edit.
+        if spans and spans[-1].original_end == start_value:
+            previous = spans[-1]
+            spans[-1] = TimeSpan(previous.original_start, end_value, previous.local_start)
+        else:
+            spans.append(TimeSpan(start_value, end_value, local))
         local += end_value - start_value
     return TimeMap(tuple(spans))
 
@@ -267,7 +323,11 @@ def save_time_map(media_path: Path, time_map: TimeMap) -> None:
             for span in time_map.spans
         ],
     }
-    timeline_path(media_path).write_text(json.dumps(payload), encoding="utf-8")
+    # Write then rename, so a reader never sees half a timeline.
+    destination = timeline_path(media_path)
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    temporary.write_text(json.dumps(payload), encoding="utf-8")
+    temporary.replace(destination)
 
 
 def load_time_map(media_path: Path) -> Optional[TimeMap]:
@@ -386,11 +446,58 @@ def restore_clip_timeline(clip_info: dict, time_map: Optional[TimeMap], original
     return clip_info
 
 
-def local_ranges_for(media_path: Path, ranges: list[tuple[float, float]]) -> list[tuple[float, float]]:
+def local_ranges_for(
+    media_path: Path, ranges: list[tuple[float, float]], *, strict: bool = False
+) -> list[tuple[float, float]]:
+    """Source ranges in ``media_path``'s own time.
+
+    ``strict`` raises ``SourceCoverageError`` when the file does not hold a
+    range in full, for a section file and for a full file alike.
+    """
     time_map = load_time_map(media_path)
-    if time_map is None:
-        return [(float(start), float(end)) for start, end in ranges]
-    return time_map.to_local_ranges(ranges)
+    if time_map is not None:
+        return time_map.to_local_ranges(ranges, strict=strict)
+    converted = [(float(start), float(end)) for start, end in ranges]
+    if strict and converted:
+        from .media.ffmpeg import ffprobe_duration
+
+        try:
+            duration = ffprobe_duration(Path(media_path))
+        except RuntimeError:
+            # Unreadable media fails the render itself; the prepared length
+            # is checked again afterwards.
+            logger.warning("Could not read the duration of %s", media_path)
+            return converted
+        last = max(end for _, end in converted)
+        if duration and last > duration + COVERAGE_TOLERANCE_SECONDS:
+            raise SourceCoverageError(
+                f"The source file ends before {last:.2f}s"
+            )
+    return converted
+
+
+def private_work_copy(media_path: Path, video_id: str, task_id: Optional[str]) -> Optional[Path]:
+    """Hard-link another job's assembled timeline into a new work directory.
+
+    A ``youtube-work`` file belongs to the job that assembled it, which may
+    delete its directory at any time. The links keep this job's copy whole
+    until it removes its own directory. None when linking is not possible.
+    """
+    import os
+
+    source = Path(media_path)
+    if not is_youtube_work_path(source) or not source.is_file():
+        return None
+    work = _work_dir(video_id, task_id)
+    try:
+        for sibling in source.parent.glob(f"{source.stem}.*"):
+            if sibling.is_file() and not sibling.name.endswith(".tmp"):
+                os.link(sibling, work / sibling.name)
+    except OSError:
+        shutil.rmtree(work, ignore_errors=True)
+        return None
+    copy = work / source.name
+    return copy if copy.exists() else None
 
 
 @dataclass
@@ -965,8 +1072,8 @@ def _cover_pieces(pieces: list[CachedPiece], start: float, end: float) -> Option
     """Greedy cover of ``[start, end]`` by cached pieces, in timeline order."""
     chosen: list[CachedPiece] = []
     cursor = start
-    while cursor < end - 0.05:
-        candidates = [piece for piece in pieces if piece.start <= cursor + 0.25 and piece.end > cursor + 0.05]
+    while cursor < end - COVERAGE_TOLERANCE_SECONDS:
+        candidates = [piece for piece in pieces if piece.start <= cursor + COVERAGE_TOLERANCE_SECONDS and piece.end > cursor + 0.05]
         if not candidates:
             return None
         best = max(candidates, key=lambda piece: piece.end)
@@ -992,9 +1099,9 @@ def _plan_slices(
             continue
         slices.append((piece, slice_start, slice_end))
         cursor = slice_end
-        if cursor >= end - 0.05:
+        if cursor >= end - COVERAGE_TOLERANCE_SECONDS:
             break
-    if cursor < end - 0.05:
+    if cursor < end - COVERAGE_TOLERANCE_SECONDS:
         return []
     return slices
 
@@ -1078,12 +1185,40 @@ def _concat_local(files: list[Path], dest: Path, *, durations: Optional[list[flo
 def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
     from .youtube_proxy import sticky_session_id
 
+    # Several jobs of one task (the task itself, editor preparations of its
+    # clips) can assemble timelines at the same time. Each gets its own
+    # directory, so none of them overwrites or deletes another's file.
     name = sticky_session_id(task_id, video_id)
-    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}"
-    if directory.exists():
-        shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = Path(get_config().temp_dir) / WORK_DIRNAME / f"{video_id}-{name}-{uuid.uuid4().hex[:12]}"
+    directory.mkdir(parents=True, exist_ok=False)
     return directory
+
+
+def _cache_section_gap(
+    url: str, video_id: str, start: float, end: float, directory: Path,
+    manifest: dict, task_id: Optional[str], budget: ByteBudget,
+) -> None:
+    """Publish each completed window before asking the proxy for the next."""
+    while start < end - COVERAGE_TOLERANCE_SECONDS:
+        window_end = min(start + SECTION_WINDOW_SECONDS, end)
+        target = directory / _range_filename(start, window_end)
+        _, media_start, media_end = download_section_file(
+            url, video_id, start, window_end, target, task_id=task_id, budget=budget,
+        )
+        if (media_start > start + COVERAGE_TOLERANCE_SECONDS
+                or media_end < window_end - COVERAGE_TOLERANCE_SECONDS):
+            raise YouTubeDownloadError(f"Downloaded section does not cover {start:.2f}-{window_end:.2f}s")
+        manifest["ranges"] = [
+            item for item in manifest["ranges"] if item.get("file") != target.name
+        ]
+        manifest["ranges"].append({
+            "start": media_start, "end": media_end, "file": target.name, "bytes": target.stat().st_size,
+        })
+        _save_manifest(directory, manifest)
+        _persist_named(video_id, target)
+        _persist_manifest(video_id, directory)
+        # The last complete media fragment may extend beyond the requested window.
+        start = media_end
 
 
 def materialize_clip_source(
@@ -1134,25 +1269,7 @@ def materialize_clip_source(
         # Recheck and fill gaps under the same lock so a waiting job reuses
         # completed files instead of writing to another job's native parts.
         for gap_start, gap_end in gaps:
-            filename = _range_filename(gap_start, gap_end)
-            target = directory / filename
-            _path, media_start, media_end = download_section_file(
-                url, video_id, gap_start, gap_end, target, task_id=task_id, budget=counter,
-            )
-            manifest = _load_manifest(directory, video_id)
-            manifest["ranges"] = [
-                item for item in manifest.get("ranges") or []
-                if not (abs(float(item.get("start", -1)) - media_start) < 0.05 and item.get("file") == filename)
-            ]
-            manifest["ranges"].append({
-                "start": media_start,
-                "end": media_end,
-                "file": filename,
-                "bytes": target.stat().st_size,
-            })
-            _save_manifest(directory, manifest)
-            _persist_named(video_id, target)
-            _persist_manifest(video_id, directory)
+            _cache_section_gap(url, video_id, gap_start, gap_end, directory, manifest, task_id, counter)
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)

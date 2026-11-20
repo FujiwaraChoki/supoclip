@@ -147,6 +147,7 @@ class MediaStorage:
                 self._client = ReplicatedMediaClient(
                     primary, fallback, self.bucket, self.config.media_fallback_bucket,
                     self.config.temp_dir, failover=self.config.media_failover_enabled,
+                    preferred_store=self.config.media_preferred_store,
                 )
             else:
                 self._client = boto3.client("s3", **options)
@@ -175,14 +176,15 @@ class MediaStorage:
             raise ValueError("Invalid S3 upload reference")
         return self.reference(self.key("sources", relative))
 
-    def validate_source(self, upload_url: str, user_id: str) -> str:
+    def validate_source(self, upload_url: str, user_id: str, *, expected_size: int | None = None) -> str:
         reference = self.source_reference(upload_url)
         if not self.parse(reference).startswith(self.key("sources", owner_key(user_id)) + "/"):
             raise ValueError("Uploaded video does not belong to this user")
         metadata = self.client.head_object(Bucket=self.bucket, Key=self.parse(reference))
         size = metadata["ContentLength"]
         expected = metadata.get("Metadata", {}).get("expected-size")
-        if size <= 0 or (expected and size != int(expected)):
+        if (size <= 0 or (expected and size != int(expected))
+                or (expected_size is not None and size != expected_size)):
             raise ValueError("Uploaded video has an invalid size")
         if size > self.config.max_video_upload_bytes:
             raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
@@ -570,8 +572,9 @@ class MediaStorage:
         if sum(seen.values()) != size:
             raise ValueError("Uploaded video has an invalid size")
 
-    def complete_upload(self, user_id: str, payload: dict, *, size: int | None = None):
-        key = self.owned_upload_key(payload["video_path"], user_id)
+    @staticmethod
+    def completion_parts(payload: dict, *, size: int | None = None) -> list[dict]:
+        """The ``parts`` of a complete request, checked for shape and count."""
         parts = payload["parts"]
         if (not isinstance(parts, list) or not parts or len(parts) > 10000
                 or any(not isinstance(p, dict) or type(p.get("partNumber")) is not int for p in parts)
@@ -580,8 +583,27 @@ class MediaStorage:
             raise ValueError("Invalid multipart upload parts")
         if size is not None and len(parts) != (size + PART_BYTES - 1) // PART_BYTES:
             raise ValueError("Multipart upload does not contain every expected part")
+        return parts
+
+    def complete_upload(self, user_id: str, payload: dict, *, size: int | None = None):
+        """Complete a multipart upload. Repeating it after success is safe.
+
+        When the multipart session is already gone, an earlier attempt either
+        completed it (and only its response was lost) or it was aborted. The
+        stored object then answers: it must exist, sit under this user's
+        prefix, and have exactly the authorized size. Callers that need the
+        retry to name the same parts compare that themselves (the API records
+        a digest of the parts before completing).
+        """
+        key = self.owned_upload_key(payload["video_path"], user_id)
+        parts = self.completion_parts(payload, size=size)
         if size is not None:
-            self._require_declared_part_sizes(key, payload["uploadId"], size)
+            try:
+                self._require_declared_part_sizes(key, payload["uploadId"], size)
+            except ClientError as exc:
+                if exc.response["Error"]["Code"] != "NoSuchUpload":
+                    raise
+                return self._completed_upload(user_id, payload["video_path"], key, size)
         try:
             self.client.complete_multipart_upload(Bucket=self.bucket, Key=key, UploadId=payload["uploadId"],
                 MultipartUpload={"Parts": [{"PartNumber": p["partNumber"], "ETag": p["etag"]} for p in parts]})
@@ -590,8 +612,12 @@ class MediaStorage:
             # the completed object remains, but the multipart session is gone.
             if exc.response["Error"]["Code"] != "NoSuchUpload":
                 raise
+        return self._completed_upload(user_id, payload["video_path"], key, size)
+
+    def _completed_upload(self, user_id: str, video_path: str, key: str, size: int | None):
+        """Check the completed object, deleting it if it isn't the authorized upload."""
         try:
-            self.validate_source(payload["video_path"], user_id)
+            self.validate_source(video_path, user_id, expected_size=size)
         except ValueError:
             self.client.delete_object(Bucket=self.bucket, Key=key)
             raise
@@ -599,7 +625,7 @@ class MediaStorage:
             if exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
                 raise ValueError("Upload is unavailable; restart the upload") from None
             raise
-        return {"video_path": payload["video_path"]}
+        return {"video_path": video_path}
 
     def multipart_upload_exists(self, user_id: str, payload: dict) -> bool:
         """Whether the bucket still accepts parts for this multipart upload."""
@@ -693,12 +719,14 @@ class MediaStorage:
             self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
             self._stamp_editor_file(directory, self._editor_stamps(directory), path)
 
-    def restore_editor_media(self, directory: Path, *, has_layout=False):
+    def restore_editor_media(self, directory: Path, *, has_layout=False, version: str | None = None):
         """Put the session's source video into this machine's scratch directory.
 
         The lease keeps the cache sweeper away until the surrounding render
         finishes. The lock only orders processes on this machine that fill the
-        same directory; another machine has its own copy.
+        same directory; another machine has its own copy. ``version`` is the
+        session's ``mediaVersion``: a copy from an earlier preparation (the
+        session was rebuilt since) is replaced with the stored one.
         """
         directory.mkdir(parents=True, exist_ok=True)
         leases = _workspace.get()
@@ -710,17 +738,29 @@ class MediaStorage:
                     leases["editors"][directory] = handle
         (directory / ".access").touch()
         wanted = ["clean.mp4"] + (["layout.mp4"] if has_layout else [])
-        if not self.bucket or all((directory / name).exists() for name in wanted):
+        marker = directory / ".media-version"
+
+        def outdated() -> bool:
+            return bool(version) and (not marker.exists() or marker.read_text(encoding="utf-8").strip() != version)
+
+        if not self.bucket or (not outdated() and all((directory / name).exists() for name in wanted)):
             return
         with (directory / ".sync").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             stamps = self._editor_stamps(directory)
+            if outdated():
+                for name in ("clean.mp4", "layout.mp4", "layout.json", "thumbnails.jpg"):
+                    (directory / name).unlink(missing_ok=True)
+                    stamps.pop(name, None)
+                atomic_json(directory / ".s3-manifest", stamps)
             for name in wanted:
                 path = directory / name
                 if path.exists():
                     continue
                 if self._download(self.parse(self.editor_reference(directory, name)), path, optional=True):
                     self._stamp_editor_file(directory, stamps, path)
+            if version and all((directory / name).exists() for name in wanted):
+                marker.write_text(version, encoding="utf-8")
 
     def restore_legacy_editor_state(self, directory: Path, *, s3_backed=False):
         """Fetch the JSON an earlier release kept beside the media in object storage.

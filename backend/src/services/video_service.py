@@ -9,8 +9,10 @@ from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
 import json
 import subprocess
+import time
 import uuid
 
+from ..stream_transfer import run_stream_download
 from ..utils.async_helpers import run_in_thread
 from ..download_progress import (
     DownloadRecovery,
@@ -30,6 +32,7 @@ from ..youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    YouTubeAgeRestrictedError,
     YouTubeGeoRestrictedError,
     proxy_configured,
     public_download_error,
@@ -77,6 +80,7 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
+from ..media.mp4_fragments import fragmented_mp4_duration
 from ..media.ffmpeg import (
     cap_video_short_side,
     ffprobe_duration,
@@ -112,6 +116,23 @@ from ..stream_source import (
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
+# Probing an upload in storage happens inside the create-task request. Give up
+# well before the proxy in front of the API (60 s) so the caller gets an answer.
+UPLOAD_PROBE_TIMEOUT_SECONDS = 40
+
+
+def _probe_stored_duration(signed_url: str, started: float) -> float:
+    """Length of an upload in storage, within ``UPLOAD_PROBE_TIMEOUT_SECONDS`` of ``started``.
+
+    ffprobe reads only the container headers through ranged requests, except
+    for a fragmented MP4, where it reads every fragment. Its length comes from
+    the last fragments instead.
+    """
+    duration = fragmented_mp4_duration(signed_url)
+    if duration is not None:
+        return duration
+    remaining = UPLOAD_PROBE_TIMEOUT_SECONDS - (time.monotonic() - started)
+    return ffprobe_duration(signed_url, timeout=max(1, remaining))
 
 
 async def resolve_upload_for_edit(video_service, url: str) -> Path:
@@ -643,20 +664,22 @@ class VideoService:
     @staticmethod
     def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:
         """Read an uploaded video's length without downloading it."""
+        # Checking and signing the upload count against the probe budget: a
+        # store that rate-limits them is retried and can take several seconds.
+        started = time.monotonic()
         if url.startswith("upload://s3/"):
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
-            # ffprobe reads only the container headers through ranged requests.
-            return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+            return _probe_stored_duration(storage.signed_url(reference, "source.mp4", expires_in=300), started)
         path = VideoService.resolve_local_video_path(url)
         if path.is_file():
-            return ffprobe_duration(path)
+            return fragmented_mp4_duration(path) or ffprobe_duration(path)
         # Local file and sidecar are both gone. The upload session still names
         # the durable object; ffprobe reads its headers through a signed URL.
         if storage_reference:
             storage = MediaStorage()
             if storage.enabled:
-                return ffprobe_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
+                return _probe_stored_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300), started)
         return ffprobe_duration(path)
 
     @staticmethod
@@ -1396,6 +1419,10 @@ class VideoService:
                     video_info = None
                     logger.warning("YouTube metadata timed out; trying saved media and download providers")
                 source_duration = None
+                if video_info and video_info.get("age_restricted"):
+                    # No download provider can play these without a signed-in
+                    # adult account; fail before paying for fallback attempts.
+                    raise YouTubeAgeRestrictedError()
                 if video_info:
                     duration = video_info.get("duration", 0)
                     source_duration = duration or None
@@ -1457,9 +1484,10 @@ class VideoService:
                 # seeds that length), so no second metadata request is made here.
                 # Each provider checks the plan cap before downloading media.
                 try:
-                    video_path = await run_in_thread(
+                    video_path = await run_stream_download(
                         download_stream_audio, url, None, task_id,
                         max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                     )
                     audio_first = True
                 except StreamSourceError:
@@ -1468,9 +1496,10 @@ class VideoService:
                     raise
                 except Exception as exc:
                     logger.warning("Stream audio download unavailable; using full video: %s", exc)
-                    video_path = await run_in_thread(
+                    video_path = await run_stream_download(
                         download_stream_video, url, None, task_id,
                         max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                     )
             else:
                 if url.startswith("upload://s3/"):
@@ -1633,9 +1662,10 @@ class VideoService:
                 section_error = None
                 try:
                     if source_type in {"twitch", "kick"}:
-                        video_path = await run_in_thread(
+                        video_path = await run_stream_download(
                             download_stream_sections, url, segments_json, file_duration, task_id,
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                         )
                         # Shift word timings onto the stitched sections' timeline.
                         await run_in_thread(
@@ -1661,12 +1691,15 @@ class VideoService:
                         await progress_callback(65, DownloadRecovery.FULL_VIDEO.value, "processing")
                     logger.warning(
                         "Section download failed, falling back to a full download: %s",
-                        section_error,
+                        public_download_error(section_error),
+                        extra={"task_id": task_id, "youtube_download_kind": "section_materialization",
+                               "youtube_outcome": "failure", "youtube_error_type": type(section_error).__name__},
                     )
                     if source_type in {"twitch", "kick"}:
-                        video_path = await run_in_thread(
+                        video_path = await run_stream_download(
                             download_stream_video, url, file_duration, task_id,
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            should_cancel=should_cancel,
                         )
                     else:
                         video_path = await VideoService.download_video(
@@ -1679,7 +1712,7 @@ class VideoService:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                         await run_in_thread(persist_cache_sidecar, video_path)
                 if not video_path:
-                    raise Exception("Failed to download selected segments")
+                    raise Exception("Failed to download selected segments") from section_error
                 # Transcription used the audio download. The picture is only
                 # available now, so the 1080p/60 cap has to run again or a
                 # section download stays at the source resolution.

@@ -8,6 +8,7 @@ import json
 from arq import Retry
 from arq.worker import func
 from ..repositories.task_run_guard import TaskRunBusy
+from ..youtube_proxy_trial import run_trial_job
 
 from ..observability import configure_logging, set_trace_id, set_user_id
 
@@ -65,6 +66,7 @@ async def process_video_task(
         admit_video_job,
         hold_for_upload,
         release_video_slot,
+        wake_next_video_jobs,
     )
 
     job_args = (
@@ -89,7 +91,7 @@ async def process_video_task(
     async with AsyncSessionLocal() as db:
         await load_runtime_settings_cache(db)
         decision = await admit_video_job(
-            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args
+            ctx, db, task_id=task_id, user_id=user_id, job_args=job_args, url=url
         )
         if decision != "run":
             logger.info("Video task %s admission=%s", task_id, decision)
@@ -134,7 +136,8 @@ async def process_video_task(
                 await progress.clip_ready(clip_index, total_clips, clip_data)
 
             # Process the video
-            result = await task_service.process_task(
+            result = await run_trial_job(
+                task_service.process_task, ctx["redis"], task_id, source_type,
                 task_id=task_id,
                 url=url,
                 source_type=source_type,
@@ -183,6 +186,12 @@ async def process_video_task(
         finally:
             # The slot is held only while this process is actually rendering.
             await release_video_slot(ctx["redis"], user_id, task_id)
+            # Hand it to the account's next task now instead of after its deferral.
+            try:
+                async with AsyncSessionLocal() as wake_db:
+                    await wake_next_video_jobs(wake_db, ctx["redis"], user_id)
+            except Exception:
+                logger.exception("Could not wake the next video task after task %s", task_id)
 
 
 async def _social_service(db):
@@ -301,7 +310,14 @@ async def _maintain_scratch_forever() -> None:
 async def on_worker_startup(ctx: Dict[str, Any]) -> None:
     import asyncio
 
+    from .redis_settings import use_socket_options
+
+    await use_socket_options(ctx["redis"])
     await check_media_volume(ctx["redis"])
+    hold = overflow.overflow_after_seconds()
+    if hold:
+        overflow.take_only_overflow(ctx["redis"], DEFAULT_QUEUE_NAME, hold)
+        logger.info("Overflow worker: takes video jobs once they have waited %s s", hold)
     ctx["scratch_maintenance"] = asyncio.create_task(_maintain_scratch_forever())
 
 
@@ -323,13 +339,23 @@ from ..services.clip_export_service import (
     export_clip_preset,
 )
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
+from . import host_jobs, overflow
+from .job_queue import DEFAULT_QUEUE_NAME
+from .queue_delay import on_video_job_start
+
+
+async def on_video_job_begin(ctx) -> None:
+    await on_video_job_start(ctx)
+    # Lets the render autoscaler see that this machine is busy (host_jobs.py).
+    await host_jobs.record_job_start(ctx)
+
 
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
 
     from ..config import Config
-    from arq.connections import RedisSettings
+    from .redis_settings import arq_redis_settings
 
     config = Config()
 
@@ -354,9 +380,7 @@ class WorkerSettings:
     health_check_interval = 30
 
     # Redis settings from environment
-    redis_settings = RedisSettings(
-        host=config.redis_host, port=config.redis_port, password=config.redis_password, database=0
-    )
+    redis_settings = arq_redis_settings(config)
 
     # Retry settings
     max_tries = 3  # Retry failed jobs up to 3 times
@@ -367,7 +391,8 @@ class WorkerSettings:
     max_jobs = 4  # Process up to 4 jobs simultaneously
     cron_jobs = []
 
-    from .queue_delay import on_video_job_start as on_job_start
+    on_job_start = on_video_job_begin
+    on_job_end = host_jobs.record_job_end
 
     on_startup = on_worker_startup
     on_shutdown = on_worker_shutdown

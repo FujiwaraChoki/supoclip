@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from functools import wraps
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..media_storage import media_work
 
@@ -19,6 +20,32 @@ async def commit_unless_editing(db: AsyncSession) -> None:
 class TaskCancelled(Exception):
     def __init__(self):
         super().__init__("Task cancelled")
+
+
+class TaskEditInProgress(Exception):
+    def __init__(self):
+        super().__init__("This task's clips are being edited. Try again in a moment.")
+
+
+async def hold_off_task_edits(db: AsyncSession, task_id: str) -> None:
+    """Keep clip edits out of this task until the caller's transaction ends.
+
+    Rows that point at a clip (exports) take this before re-reading the clip.
+    ``FOR KEY SHARE`` conflicts only with an edit's ``FOR UPDATE``, so progress
+    updates and other readers are not blocked. ``NOWAIT``: a regeneration holds
+    the edit lock across its render, and waiting on it would outlast the
+    request, then find the clip gone.
+    """
+    try:
+        await db.execute(
+            text("SELECT 1 FROM tasks WHERE id = :task_id FOR KEY SHARE NOWAIT"),
+            {"task_id": task_id},
+        )
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) == "55P03":
+            await db.rollback()
+            raise TaskEditInProgress() from exc
+        raise
 
 
 @asynccontextmanager

@@ -56,12 +56,21 @@ def _json(value):
 
 def _present_session(row) -> dict:
     draft = _json(row["draft"])
+    backup = _json(row.get("draft_backup")) if hasattr(row, "get") else None
     return {
         "asset": _json(row["asset"]),
         "draft": None if draft is None else {"revision": row["draft_revision"], "document": draft},
         "original": _json(row["original"]),
         "idle_seconds": float(row["idle_seconds"]),
+        "backup": backup,
     }
+
+
+def backup_summary(backup: dict | None) -> dict | None:
+    """What the studio shows about a draft kept by a rebuild, without the document."""
+    if not isinstance(backup, dict) or not isinstance(backup.get("document"), dict):
+        return None
+    return {key: backup.get(key) for key in ("revision", "duration", "savedAt")}
 
 
 def present_job(row) -> dict:
@@ -83,7 +92,7 @@ class EditorStore:
     async def load(self, key: str) -> dict | None:
         async with self._session() as db:
             row = (await db.execute(text("""
-                SELECT asset, draft, draft_revision, original,
+                SELECT asset, draft, draft_revision, original, draft_backup,
                        EXTRACT(EPOCH FROM (NOW() - updated_at)) AS idle_seconds
                 FROM editor_sessions WHERE id = :id
             """), {"id": key})).mappings().first()
@@ -157,6 +166,54 @@ class EditorStore:
                 WHERE editor_sessions.asset->>'status' {guard}
             """), {"id": key, "task": task_id, "clip": clip_id, "filename": filename, "asset": asset})
             await db.commit()
+
+    async def rebuild(self, key: str, revision: int, job: str) -> str:
+        """Start preparing a ready or failed session again, from a fresh draft.
+
+        The current draft moves to ``draft_backup`` (an earlier backup is kept
+        when there is no draft to replace it). The revision is bumped, so a
+        save from a tab that still shows the old media fails instead of
+        writing old timings over the new source. Returns ``claimed`` when the
+        caller must enqueue ``job``, ``conflict`` when ``revision`` is stale,
+        ``busy`` while the session prepares or renders, ``missing`` otherwise.
+        """
+        async with self._session() as db:
+            claimed = (await db.execute(text("""
+                UPDATE editor_sessions
+                SET draft_backup = CASE WHEN draft IS NULL THEN draft_backup ELSE jsonb_build_object(
+                        'document', draft, 'revision', draft_revision,
+                        'duration', asset->'duration', 'savedAt', to_jsonb(NOW())) END,
+                    draft = NULL, original = NULL, draft_revision = draft_revision + 1,
+                    asset = jsonb_build_object('status', 'preparing', 'job', CAST(:job AS TEXT)),
+                    updated_at = NOW()
+                WHERE id = :id AND draft_revision = :revision
+                  AND asset->>'status' IN ('ready', 'failed')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM editor_jobs
+                      WHERE session_id = :id AND status IN ('queued', 'rendering'))
+                RETURNING id
+            """), {"id": key, "revision": revision, "job": job})).first()
+            await db.commit()
+            if claimed:
+                return "claimed"
+            row = (await db.execute(text("""
+                SELECT asset->>'status' AS status, draft_revision,
+                       EXISTS (SELECT 1 FROM editor_jobs
+                               WHERE session_id = :id AND status IN ('queued', 'rendering')) AS active
+                FROM editor_sessions WHERE id = :id
+            """), {"id": key})).mappings().first()
+        if row is None:
+            return "missing"
+        if row["status"] not in {"ready", "failed"} or row["active"]:
+            return "busy"
+        return "conflict"
+
+    async def draft_backup(self, key: str) -> dict | None:
+        async with self._session() as db:
+            value = (await db.execute(
+                text("SELECT draft_backup FROM editor_sessions WHERE id = :id"), {"id": key}
+            )).scalar()
+        return _json(value)
 
     async def save_draft(self, key: str, document: dict, revision: int) -> int | None:
         """Compare-and-swap on the revision. None means another save won."""
@@ -471,6 +528,9 @@ async def read_state(key: str, session: dict | None, *, task_id: str, clip_id: s
     if state.get("status") == "ready":
         state["draft"] = session["draft"]
         state["original"] = session["original"]
+    backup = backup_summary(session.get("backup"))
+    if backup:
+        state["draftBackup"] = backup
     return state
 
 

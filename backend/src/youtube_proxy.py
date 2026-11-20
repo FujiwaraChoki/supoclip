@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -54,6 +55,16 @@ class YouTubeGeoRestrictedError(YouTubeDownloadError):
         )
 
 
+class YouTubeAgeRestrictedError(YouTubeDownloadError):
+    """YouTube only plays the source to signed-in adults, which no provider can do."""
+
+    def __init__(self):
+        super().__init__(
+            "This YouTube video is age-restricted, and we can't download it. "
+            "Download the video yourself and upload the file instead."
+        )
+
+
 def _exception_chain(exc: BaseException):
     """yt-dlp also retains its extractor error in DownloadError.exc_info."""
     pending = [exc]
@@ -85,6 +96,16 @@ def is_geo_restricted_error(exc: BaseException) -> bool:
             "not available from your location",
             "this youtube video has regional restrictions",
         )):
+            return True
+    return False
+
+
+def is_age_restricted_error(exc: BaseException) -> bool:
+    for error in _exception_chain(exc):
+        if isinstance(error, YouTubeAgeRestrictedError):
+            return True
+        message = str(error).lower()
+        if "confirm your age" in message or "age-restricted" in message:
             return True
     return False
 
@@ -125,8 +146,23 @@ class AudioDownloadForbidden(YouTubeDownloadError):
     """Direct audio was forbidden and the HLS audio retry did not produce a file."""
 
 
+_SECTION_IDLE_SECONDS = 60
+
+
+@dataclass
+class _SectionTransferClock:
+    # Socket options are copied for each audio/video format. Both clients and
+    # yt-dlp's progress hook must observe the same deadline.
+    deadline: float
+    hard_deadline: float
+
+    def on_new_bytes(self) -> None:
+        self.deadline = min(self.hard_deadline, time.monotonic() + _SECTION_IDLE_SECONDS)
+
+
 def _check_deadline(options: dict) -> float:
-    deadline = options.get("_youtube_deadline")
+    section_clock = options.get("_youtube_section_clock")
+    deadline = section_clock.deadline if section_clock else options.get("_youtube_deadline")
     remaining = deadline - time.monotonic() if deadline is not None else 20.0
     if remaining <= 0:
         raise DownloadDeadlineExceeded("Residential proxy download attempt timed out")
@@ -192,13 +228,13 @@ class ByteBudget:
 
 
 def proxy_configured(config=None) -> bool:
-    runtime = config or get_config()
+    runtime = trial_config(config or get_config())
     return bool((getattr(runtime, "youtube_proxy_url", "") or "").strip())
 
 
 def capped_height(value: int | None = None, config=None) -> int:
     """Never request above 1080p. Lower env values are honored."""
-    runtime = config or get_config()
+    runtime = trial_config(config or get_config())
     raw = runtime.youtube_max_height if value is None else value
     try:
         height = int(raw)
@@ -293,6 +329,10 @@ def is_forbidden_media_error(exc: BaseException) -> bool:
     return False
 
 
+from .youtube_proxy_trial import trial_config, trial_log, trial_retry
+
+
+@trial_log
 def log_youtube_attempt(
     *,
     provider: str,
@@ -341,7 +381,7 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
     Player clients are left at yt-dlp defaults. PO tokens are requested only
     when a bgutil HTTP provider URL is configured.
     """
-    runtime = config or get_config()
+    runtime = trial_config(config or get_config())
     session = session_id or sticky_session_id(task_id, video_id)
     country = normalize_country(
         getattr(runtime, "youtube_proxy_country", "") if country is None else country
@@ -378,16 +418,21 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
     return params
 
 
-def _progress_hook(budget: ByteBudget, seen: dict[str, int]) -> Callable[[dict], None]:
-    def hook(status: dict) -> None:
+def _progress_hook(budget: ByteBudget, seen: dict[str, int]) -> Callable[[dict], bool]:
+    def hook(status: dict) -> bool:
         if status.get("status") not in {"downloading", "finished"}:
-            return
+            return False
         filename = str(status.get("filename") or status.get("tmpfilename") or "")
-        downloaded = int(status.get("downloaded_bytes") or status.get("total_bytes") or 0)
+        downloaded = status.get("downloaded_bytes")
+        if downloaded is None and status["status"] == "finished":
+            downloaded = status.get("total_bytes")
+        downloaded = int(downloaded or 0)
         previous = seen.get(filename, 0)
         if downloaded > previous:
             seen[filename] = downloaded
             budget.add(downloaded - previous)
+            return True
+        return False
 
     return hook
 
@@ -412,8 +457,11 @@ def download_options(
     options["_youtube_seen_bytes"] = observed
 
     def bounded_progress(status):
-        count_bytes(status)
+        received = count_bytes(status)
         _check_deadline(options)
+        section_clock = options.get("_youtube_section_clock")
+        if received and section_clock:
+            section_clock.on_new_bytes()
 
     options["progress_hooks"] = [bounded_progress]
     # Guard: section cuts must not be delegated to ffmpeg's protocol handler.
@@ -443,6 +491,7 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
     return transient
 
 
+@trial_retry
 def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: str,
                       budget: ByteBudget, cleanup: Callable[[], None],
                       deadline: Optional[float] = None):
@@ -451,7 +500,7 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
     Each attempt re-extracts metadata, keeping signed URLs and all fragments on
     that attempt's session. Completed sections outside this operation are kept.
     """
-    runtime = get_config()
+    runtime = trial_config(get_config())
     initial_seconds = max(30, getattr(runtime, "youtube_proxy_timeout_seconds", 300))
     overall_deadline = time.monotonic() + initial_seconds + 60
     if deadline is not None:
@@ -470,6 +519,7 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
         options["_youtube_deadline"] = min(
             overall_deadline, retry_deadline if attempt else time.monotonic() + initial_seconds
         )
+        options["_youtube_overall_deadline"] = overall_deadline
         options["_youtube_metadata_ready"] = lambda country=country, session=session: (
             budget.remember_proxy_route(task_id, video_id, country, session)
         )
@@ -1394,6 +1444,12 @@ def _download_section_attempt(
             raise PartialDownloadUnavailable("Audio and video fragment windows do not overlap")
         work.mkdir(parents=True, exist_ok=True)
         before_media = counter.snapshot()
+        # First byte still has to arrive inside this attempt's deadline.
+        # After that, a moving transfer can use the remaining shared time.
+        options["_youtube_section_clock"] = _SectionTransferClock(
+            deadline=min(options["_youtube_deadline"], time.monotonic() + _SECTION_IDLE_SECONDS),
+            hard_deadline=options["_youtube_overall_deadline"],
+        )
         video_path = native_download_format(
             options, url, video_id, video_fmt, work / "video", video_fragments
         )
@@ -1497,7 +1553,7 @@ def download_full_with_proxy(
     quality: Optional[str] = None,
 ) -> Path:
     """Download into owned staging paths, preserving shared media and sidecars."""
-    runtime = get_config()
+    runtime = trial_config(get_config())
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
     dest_dir.mkdir(parents=True, exist_ok=True)
     job_dir = Path(tempfile.mkdtemp(prefix=f"proxy-{video_id}-", dir=dest_dir))

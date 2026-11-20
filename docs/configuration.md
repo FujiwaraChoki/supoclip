@@ -29,6 +29,25 @@ preflight. An actor result found there is stored with the task and reused by the
 so each actor runs at most once per task, and a chain that has failed completely is not
 rerun for the same job.
 
+Selected sections of a plain HLS VOD are fetched fragment by fragment, four at a time,
+through the same byte budget. Encrypted, byte-range, master, or discontinuous playlists
+fall back to one full download and a local cut. A media read waits 30 seconds and retries
+a stalled fragment; metadata preflight keeps a 10-second read so a stalled proxy still
+leaves time for the next provider. `YOUTUBE_PROXY_TIMEOUT_SECONDS` is how long a download
+may go without receiving data (default 300). It is not a wall clock. The overall cap is
+the longer of `STREAM_DOWNLOAD_MAX_SECONDS` (default 2400) and a duration-based budget
+that grows with the VOD, up to an hour. Subscriber-only and private VODs fail before any
+paid fallback. A region-locked VOD asks the user to upload the file. Other failures say
+to try again. Each stage is logged with the provider, source, URL host, HTTP status,
+error type, bytes, elapsed time, attempt, and the fallback that ran next. Proxy
+credentials and signed query strings are not logged.
+
+The same code runs on every video worker, including a render worker on another machine.
+Scratch stays on that machine's `TEMP_DIR`. The YouTube proxy trial, when
+`YOUTUBE_PROXY_TRIAL_PREFIX` is set, keeps its admission in Redis so every worker shares
+one counter. `YOUTUBE_PROXY_TRIAL_SECRET_FILE` points at the mounted proxy template; the
+file is not in the image.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
@@ -194,10 +213,62 @@ Fonts and transitions are configured by mounted files rather than environment va
 |---|---|---|
 | `REDIS_HOST` | `redis` in Docker, `localhost` in code | Redis hostname |
 | `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_CONNECT_TIMEOUT_SECONDS` | `10` | Time arq (API enqueue and every worker) allows to open a Redis connection. The API's enqueue pool uses at most 3 |
+| `REDIS_CONNECT_RETRIES` | `5` | Retries, with backoff, when opening a Redis connection times out or fails, at startup and while a worker runs. While serving requests the API retries at most twice, so a request fails within seconds while Redis is down |
+| `REDIS_SOCKET_TIMEOUT_SECONDS` | `30` | Longest arq (API enqueue and every worker) waits for a Redis reply before treating the connection as dead and retrying on a new one (minimum 1; at most 5 for the API's enqueue pool) |
 | `DATABASE_URL` | injected by Docker | PostgreSQL connection string |
+| `DATABASE_POOL_SIZE` | `5` | Retained SQLAlchemy connections per API/worker process; must be positive |
+| `DATABASE_MAX_OVERFLOW` | `0` | Extra SQLAlchemy connections per process; must be nonnegative |
+| `DATABASE_POOL_TIMEOUT_SECONDS` | `10` | Maximum wait for a SQLAlchemy connection |
+| `DATABASE_IDLE_SESSION_TIMEOUT_SECONDS` | `600` | PostgreSQL closes a pooled connection left unused this long; `0` turns it off (needed on PostgreSQL 13 or older) |
 | `POSTGRES_DB` | `supoclip` | PostgreSQL database name |
 | `POSTGRES_USER` | `supoclip` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | `supoclip_password` | PostgreSQL password |
+
+Each frontend process defaults to five Prisma connections and a ten-second
+pool wait. Override with positive `connection_limit` and `pool_timeout` parameters
+in its `DATABASE_URL`. CPU count no longer determines the frontend pool size.
+Count every API, web, video, AI and cron process, including a candidate during
+deployment, when budgeting connections. Advisory-lock and media connections
+also need headroom. The serving prepare script refuses a third release pair;
+drain and retire the previous pair before another deployment.
+
+### Connection budget
+
+`docker-compose.yml` gives the API service (`backend`) a pool of 10 with 5
+overflow, so one API process can open 15 ORM connections. Editor loads, export
+polling and SSE arrive in bursts, and the default 5 ran out on 17 November 2026.
+Workers keep the default 5 with no overflow. Every backend process can also open
+up to two connections for signed media URLs (`sync_db.py`) and one unpooled
+connection per advisory lock it holds or waits for.
+
+The figures below are ceilings, reached only while a process is busy. A pooled
+connection left unused for `DATABASE_IDLE_SESSION_TIMEOUT_SECONDS` (10 minutes)
+is closed by PostgreSQL, the pool hands out the most recently used connection
+first, and pre-ping replaces a closed one on checkout without an error. So a
+quiet process, such as a draining slot whose only traffic is health checks,
+falls back to about one connection. Advisory lock connections and the media
+URL connections are separate and not affected. Plan for the ceilings anyway:
+two slots can both be busy during a switch.
+
+Size the total against PostgreSQL `max_connections` (100 by default, 3 of them
+reserved for superusers). A serving deployment runs two API slots at once, the
+candidate and the draining release, so count the API twice:
+
+| Process | Connections |
+|---|---|
+| API, serving slot (10 + 5, plus 2 media) | 17 |
+| API, candidate or draining slot | 17 |
+| Direct API container used by MCP (`supoclip-backend`), if it runs this compose | 17 |
+| Web, two slots (Prisma, 5 each) | 10 |
+| Each worker process: video, cron, AI, remote render (5, plus 2 media) | 7 each |
+
+With three local workers and one remote render worker that is about 89 of the 97
+usable connections, before advisory locks and operator sessions. A third
+release pair would push it over, which is why `prepare.sh` refuses one. Raise a
+pool only after raising `max_connections` or removing a process from this list.
+Override the API values in a server's `docker-compose.override.yml`; a value set
+under `environment:` there replaces the one here.
 
 ## Self-Host and Monetization Settings
 
@@ -298,12 +369,23 @@ classic repeating coupon can discount an entire annual renewal within its
 discount period. It does not enforce a once-per-customer offer limit; support
 must check previous use before applying it.
 
-### Discord feedback forwarding
+### Feedback webhooks
+
+Feedback is stored in the database and admins choose where it goes at
+`/admin/feedback/webhooks` (Discord or signed JSON, per category). See
+[feedback.md](feedback.md).
 
 | Variable | Purpose |
 |---|---|
-| `DISCORD_FEEDBACK_WEBHOOK_URL` | Receives product feedback messages |
-| `DISCORD_SALES_WEBHOOK_URL` | Receives sales or lead-oriented submissions |
+| `DISCORD_FEEDBACK_WEBHOOK_URL` | Legacy. Imported once, on API start, as a Discord webhook for bug, feature, general and cancellation messages |
+| `DISCORD_SALES_WEBHOOK_URL` | Legacy. Imported once, on API start, as a Discord webhook for sales messages |
+| `HERMES_FEEDBACK_WEBHOOK_URL` | Optional. Hermes gateway route that gets every submission (e.g. `https://<hermes host>/p/supoclip/webhooks/feedback-supoclip`). May be an internal address. API and cron worker |
+| `HERMES_FEEDBACK_WEBHOOK_SECRET` | The route's secret, for Hermes' V2 signature. Both set adds a read-only "Hermes assistant" webhook on API start; either unset removes it. API and cron worker |
+
+After the import the Discord variables are no longer read and can be removed. The Hermes pair
+is read on every API start and by every sender: set it on every API instance and the cron worker.
+An API start without it removes the destination. Roll the cron worker before the API that adds
+it. See [feedback.md](feedback.md#hermes-assistant).
 
 ## Social Publishing Settings
 
@@ -462,7 +544,7 @@ YouTube metadata lookup is configurable independently from the download provider
 Behavior notes:
 
 - `yt_dlp` preserves the current metadata preflight behavior.
-- Task creation gives that lookup `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30, the same budget Twitch and Kick already use). Metadata requests and region retries share this deadline, with time reserved for the alternate metadata provider. A timeout returns HTTP 503 `VIDEO_METADATA_TIMEOUT` and does not create a task or use minutes. An exhausted regional restriction returns HTTP 422 `YOUTUBE_GEO_RESTRICTED` with upload guidance. Other metadata failures return `VIDEO_METADATA_UNAVAILABLE`.
+- Task creation gives that lookup `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30, the same budget Twitch and Kick already use). Metadata requests and region retries share this deadline, with time reserved for the alternate metadata provider. A timeout returns HTTP 503 `VIDEO_METADATA_TIMEOUT` and does not create a task or use minutes. An exhausted regional restriction returns HTTP 422 `YOUTUBE_GEO_RESTRICTED` with upload guidance. An age-restricted video (Data API `contentRating.ytRating = ytAgeRestricted`, or yt-dlp `age_limit` ≥ 18) returns HTTP 422 `YOUTUBE_AGE_RESTRICTED` with upload guidance: no download provider can fetch it without a signed-in account. A task resumed on such a video fails in the worker before any download with `error_code = youtube_age_restricted`. Other metadata failures return `VIDEO_METADATA_UNAVAILABLE`.
 - On Apple Silicon, the default `BACKEND_PLATFORM=linux/amd64` runs this lookup under emulation, and yt-dlp's deno step can use most of the 30 seconds. Raise the timeout (for example to 60) or set `BACKEND_PLATFORM=linux/arm64` with `BACKEND_CPU_ONLY=true` and rebuild the backend and worker. See [setup](./setup.md).
 - `youtube_data_api` uses YouTube Data API v3 `videos.list` as the primary metadata source.
 - If `YOUTUBE_DATA_API_KEY` is empty, the backend tries `GOOGLE_API_KEY` for YouTube Data API requests.

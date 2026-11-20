@@ -67,7 +67,27 @@ def create_app(
             async with AsyncSessionLocal() as db:
                 await load_runtime_settings_cache(db)
             logger.info("✅ Runtime settings loaded")
+            try:
+                # Pre-inbox Discord webhooks become admin-managed rows, once (docs/feedback.md).
+                from .feedback.webhooks import import_env_webhooks
 
+                async with AsyncSessionLocal() as db:
+                    await import_env_webhooks(db, runtime_config)
+            except Exception:
+                logger.exception("Could not import the environment feedback webhooks")
+            try:
+                # Server-configured Hermes assistant webhook (docs/feedback.md).
+                from .feedback.webhooks import sync_hermes_webhook
+
+                async with AsyncSessionLocal() as db:
+                    outcome = await sync_hermes_webhook(db, runtime_config)
+                logger.info("Hermes feedback webhook: %s", outcome)
+            except Exception as exc:
+                # The message may quote configuration; log only the class name.
+                logger.error("Could not set up the Hermes feedback webhook (%s)", type(exc).__name__)
+
+            if hasattr(queue_adapter, "serving_requests"):
+                queue_adapter.serving_requests = True
             pool = await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
             try:
@@ -155,7 +175,7 @@ def create_app(
         return JSONResponse(
             status_code=exc.status_code,
             content=jsonable_encoder({"detail": exc.detail, "trace_id": trace_id}),
-            headers={TRACE_HEADER: trace_id},
+            headers={**(exc.headers or {}), TRACE_HEADER: trace_id},
         )
 
     @app.exception_handler(RequestValidationError)
@@ -163,13 +183,18 @@ def create_app(
         trace_id = get_trace_id()
         # Task creation logs a sanitized source line instead of exc.errors(),
         # which includes the submitted input (query tokens and all).
-        if is_task_create_request(request.method, request.url.path):
+        errors = exc.errors()
+        if request.url.path == "/admin/feedback-webhooks" or request.url.path.startswith("/admin/feedback-webhooks/"):
+            # Missing fields and malformed JSON can echo the entire secret-bearing body.
+            errors = [{"type": e["type"], "loc": e["loc"], "msg": "Invalid webhook input"} for e in errors]
+            logger.warning("Webhook validation error: %s", errors)
+        elif is_task_create_request(request.method, request.url.path):
             await log_task_create_validation_error(request, exc)
         else:
-            logger.warning("Validation error: %s", exc.errors())
+            logger.warning("Validation error: %s", errors)
         return JSONResponse(
             status_code=422,
-            content={"detail": exc.errors(), "trace_id": trace_id},
+            content={"detail": errors, "trace_id": trace_id},
             headers={TRACE_HEADER: trace_id},
         )
 
@@ -196,21 +221,29 @@ def create_app(
 
     from .api.routes.media import router as media_router
     from .api.routes.feedback import router as feedback_router
+    from .api.routes.admin_feedback import router as admin_feedback_router
     from .api.routes.billing import router as billing_router
     from .api.routes.api_keys import router as api_keys_router
     from .api.routes.account import router as account_router
     from .api.routes.social import router as social_router
     from .api.routes.email_preferences import router as email_preferences_router
     from .api.routes.feature_flags import router as feature_flags_router
+    from .api.routes.stripe_cancellations import router as stripe_cancellations_router
+    from .api.routes.mcp_oauth import consent_router as mcp_oauth_consent_router
+    from .api.routes.mcp_oauth import internal_router as mcp_oauth_internal_router
 
     app.include_router(media_router)
     app.include_router(feedback_router)
+    app.include_router(admin_feedback_router)
     app.include_router(billing_router)
     app.include_router(api_keys_router)
     app.include_router(account_router)
     app.include_router(social_router)
     app.include_router(email_preferences_router)
     app.include_router(feature_flags_router)
+    app.include_router(stripe_cancellations_router)
+    app.include_router(mcp_oauth_internal_router)
+    app.include_router(mcp_oauth_consent_router)
 
     @app.get("/")
     def read_root():

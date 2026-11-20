@@ -1305,6 +1305,17 @@ def plan_fit_windows(
     return windows
 
 
+def cover_windows(plan: List[Dict[str, Any]], width: int, crop_w: int) -> List[FitWindow]:
+    """Full-height 9:16 crops (start, end, crop_w, x) for the plan's ``cover`` shots, centred on their ``x``."""
+    if crop_w >= width:
+        return []
+    return [
+        (shot["start"], shot["end"], crop_w,
+         clamp_even(int(float(shot["x"]) * width - crop_w / 2), 0, width - crop_w))
+        for shot in plan if shot["kind"] == "cover"
+    ]
+
+
 def build_fit_layers(
     fit_intervals: List[Tuple[float, float]],
     windows: Optional[List[FitWindow]] = None,
@@ -1443,17 +1454,24 @@ def build_vertical_filter_plan(
     height: int,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
+    report: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, str, Optional[float]]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
     Returns (filter, mode, caption_y). mode 'vf' is a simple crop chain; mode
     'complex' is a filter_complex producing [vout]. caption_y is a 0-1 output
     fraction that keeps captions off the detected face, or None to keep the
-    template default.
+    template default. ``report["kind"]`` receives the layout kind.
     """
     described = describe_vertical_layout(
         input_path, width, height, speaker_turns, speaker_words
     )
+    if report is not None:
+        report["kind"] = described["kind"]
+        if described.get("hook_center_y") is not None:
+            report["hook_center_y"] = described["hook_center_y"]
+        if described.get("gaming"):
+            report["gaming"] = described["gaming"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1467,13 +1485,16 @@ def describe_vertical_layout(
     """Same plan as ``build_vertical_filter_plan``, plus a layout ``kind``.
 
     Kinds the editor keeps whole are ``reaction`` (reactor above the source),
-    ``stack`` (side-by-side call tiles) and ``overlap`` (two speakers at once).
-    ``crop``, ``speaker``, ``stage``, ``fit`` and ``compositor`` stay on the
-    editor's vertical or original crop.
+    ``stack`` (side-by-side call tiles), ``overlap`` (two speakers at once)
+    and ``interview`` (per shot: two people stacked, one cropped tight, or
+    the full frame; see ``interview_layout``).
+    ``crop``, ``speaker``, ``solo``, ``stage``, ``fit`` and ``compositor``
+    stay on the editor's vertical or original crop.
 
     All-face clips use a face-aware layout when the subject would otherwise
-    sit low in a full-height crop (stacked call tiles, a wider stage for one
-    webcam, or the whole gallery). Well-framed closeups keep the tracked crop.
+    sit low in a full-height crop (stacked call tiles, a tight crop on one
+    person, a wider stage for a small webcam face, or the whole gallery).
+    Well-framed closeups keep the tracked crop.
     Clips containing content shots use the scene-aware compositor so tweets /
     graphs / slides are shown in full. With diarized speaker turns, multi-person
     wide shots that are not a video-call grid cut to whoever is talking.
@@ -1501,6 +1522,18 @@ def describe_vertical_layout(
         tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
         return _described("crop", f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf", None)
 
+    # --- Gaming mode (GAMING_LAYOUT=auto; off by default): media/gaming_layout.py, docs/gaming-mode.md ---
+    from .gaming_layout import choose_gaming_layout
+
+    gaming = choose_gaming_layout(input_path, width, height, duration)
+    if gaming:
+        result = _described("gaming", gaming["video_filter"], "complex", gaming["caption_y"])
+        if gaming.get("hook_center_y") is not None:
+            result["hook_center_y"] = gaming["hook_center_y"]
+        result["gaming"] = gaming["gaming"]
+        return result
+    # --- end gaming mode ---
+
     # One fast decode pass yields the face track, face boxes, and scene cuts.
     try:
         analyzed = analyze_vertical_clip(input_path)
@@ -1520,15 +1553,21 @@ def describe_vertical_layout(
     except Exception as exc:
         logger.warning("Readable fit planning failed (%s); keeping the plain fit", exc)
         fit_windows = []
+    covers = cover_windows(plan, width, crop_w)
+    if covers:
+        # Live footage fills the frame: a full-height crop, drawn by the same fit layers as a readable zoom.
+        fit_windows = sorted((fit_windows or [
+            (s["start"], s["end"], None, 0) for s in plan if s["kind"] == "fit"
+        ]) + covers)
     if fit_windows:
         logger.info("Readable fit windows (start, end, crop_w, x): %s", fit_windows)
-    fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
+    fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] in ("fit", "cover")]
     # Two people who cannot share a 9:16 crop are not slide or sports content.
     # Call/stage layouts and speaker framing still apply; if both decline, that
     # shot keeps the full frame instead of a dominant-face crop.
     content_fits = [
         shot for shot in plan
-        if shot["kind"] == "fit" and shot.get("reason") != "interaction_exceeds_crop"
+        if shot["kind"] in ("fit", "cover") and shot.get("reason") != "interaction_exceeds_crop"
     ]
 
     # A persistent reaction inset is independent of fit intervals, camera cuts,
@@ -1564,13 +1603,36 @@ def describe_vertical_layout(
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
         return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
 
-    if all(s["kind"] == "fit" for s in plan) and content_fits:
-        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+    # A sit-down interview (a two-shot, usually cut with close-ups) is composed
+    # shot by shot: both people stacked, one person cropped tight, graphics
+    # and b-roll in full. Without this the two-shot letterboxes the clip.
+    from .interview_layout import plan_interview_layout
+
+    try:
+        interview = plan_interview_layout(
+            width, height, duration, scene_cuts, face_samples, context, input_path=input_path)
+    except Exception as exc:
+        logger.warning("Interview layout failed (%s); using the generic layout", exc)
+        interview = None
+    if interview:
+        result = _described(
+            "interview", interview["video_filter"], "complex",
+            caption_y_below_subject(interview["face_bottom"]),
+        )
+        if interview.get("hook_center_y") is not None:
+            result["hook_center_y"] = interview["hook_center_y"]
+        return result
+
+    if all(s["kind"] in ("fit", "cover") for s in plan) and content_fits:
+        if all(s["kind"] == "cover" for s in plan):
+            return _described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None)
+        kind = "compositor" if covers else "fit"
+        return _described(kind, build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
     talking = (
-        choose_talking_head_layout(width, height, face_samples, scene_cuts)
+        choose_talking_head_layout(width, height, face_samples, scene_cuts, duration, input_path)
         if not content_fits else None
     )
     if not content_fits and speaker_words and (not talking or talking["kind"] == "stack"):

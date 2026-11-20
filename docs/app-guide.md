@@ -297,7 +297,7 @@ When `SELF_HOST=true`:
 
 - Monetization is disabled
 - Billing-related friction is minimized
-- The app behaves like an open-source self-hosted tool
+- The app runs on your own infrastructure under the SupoClip Noncommercial Source License (noncommercial use, and monetized use by individual creators)
 
 ### Hosted mode
 

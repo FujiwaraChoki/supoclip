@@ -253,3 +253,63 @@ def split_source_ranges(
         slice_source_ranges(ranges, 0.0, split_point),
         slice_source_ranges(ranges, split_point, total_duration),
     )
+
+
+# Generated filters are a few KB; anything far larger is not a plan we wrote.
+MAX_VERTICAL_FILTER_CHARS = 200_000
+# A stored filter is only replayed when it reads no other file.
+_FILTER_FILE_INPUTS = ("movie=", "amovie=", "sendcmd", "filename=", "file=")
+
+
+def save_clip_vertical_layout(clip_path: Path, layout: dict | None) -> None:
+    """Store the 9:16 plan the clip was rendered with, so the editor can show the same framing.
+
+    ``layout`` holds ``kind``, ``video_filter`` and ``mode`` from
+    ``describe_vertical_layout``, plus the ``width``, ``height`` and
+    ``duration`` of the trimmed source the filter was planned on.
+    """
+    path = clip_source_map_path(clip_path)
+    if not layout and not path.exists():
+        return
+    payload = _read_payload(path) or {"version": SOURCE_MAP_VERSION}
+    if layout:
+        payload["vertical_layout"] = {
+            "kind": str(layout["kind"]),
+            "video_filter": str(layout["video_filter"]),
+            "mode": str(layout["mode"]),
+            "width": int(layout["width"]),
+            "height": int(layout["height"]),
+            "duration": round(float(layout["duration"]), 3),
+        }
+    else:
+        payload.pop("vertical_layout", None)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def load_clip_vertical_layout(clip_path: Path) -> dict | None:
+    """The stored vertical plan, or None when absent or not safe to replay."""
+    layout = _read_payload(clip_source_map_path(clip_path)).get("vertical_layout")
+    if not isinstance(layout, dict):
+        return None
+    try:
+        plan = {
+            "kind": str(layout["kind"]),
+            "video_filter": str(layout["video_filter"]),
+            "mode": str(layout["mode"]),
+            "width": int(layout["width"]),
+            "height": int(layout["height"]),
+            "duration": float(layout["duration"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+    lowered = plan["video_filter"].lower()
+    if (
+        plan["mode"] not in {"vf", "complex"}
+        or not plan["video_filter"]
+        or len(plan["video_filter"]) > MAX_VERTICAL_FILTER_CHARS
+        or any(marker in lowered for marker in _FILTER_FILE_INPUTS)
+        or plan["width"] <= 0
+        or plan["height"] <= 0
+    ):
+        return None
+    return plan

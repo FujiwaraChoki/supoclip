@@ -12,6 +12,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  serving-rollout:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nginx for the isolated proxy
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nginx
+      - name: Exercise readiness, traffic switching, transfer draining and rollback
+        run: |
+          python3 deploy/serving/test_prepare.py
+          python3 deploy/serving/test_switch.py
+
   backend:
     runs-on: ubuntu-latest
     services:

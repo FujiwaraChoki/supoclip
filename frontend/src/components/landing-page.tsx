@@ -49,7 +49,7 @@ import {
   getMarketingLink,
   type MarketingLink,
 } from "@/lib/marketing-links";
-import { APP_STORE_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL } from "@/lib/site";
+import { APP_STORE_URL, DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL, SOURCE_LICENSE_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -537,7 +537,57 @@ export default function LandingPage() {
 
       <FaqSection />
 
-      {/* ─── OPEN SOURCE ─── */}
+      {/* ─── COMMUNITY ─── */}
+      <section id="community" aria-labelledby="community-title" className="relative scroll-mt-24 overflow-hidden border-t py-24 md:py-32">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(currentColor_1px,transparent_1.5px)] bg-[size:22px_22px] text-foreground/[0.13] [mask-image:radial-gradient(ellipse_55%_60%_at_50%_28%,black,transparent)]"
+        />
+        <div className="relative mx-auto max-w-6xl px-6">
+          <Reveal className="flex flex-col items-center text-center">
+            <div className="relative">
+              <div aria-hidden="true" className="absolute inset-0 -z-10 scale-150 rounded-full bg-[#5865f2]/20 blur-2xl" />
+              <div className="flex size-20 items-center justify-center rounded-[22px] border bg-background shadow-[0_18px_40px_-18px_rgba(88,101,242,0.6)]">
+                <Image src="/discord-mark.svg" alt="" width={42} height={31} className="h-auto" />
+              </div>
+            </div>
+            <p className="mt-8 text-sm font-medium text-muted-foreground">{t("community.eyebrow")}</p>
+            <h2
+              id="community-title"
+              className="mt-3 max-w-3xl font-display text-[2.6rem] font-bold leading-[0.98] tracking-[-0.035em] text-balance sm:text-6xl lg:text-7xl"
+            >
+              {t("community.title")}
+            </h2>
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">{t("community.body")}</p>
+            <Button asChild size="lg" className="mt-9 h-12 rounded-full bg-[#5865f2] px-7 text-[15px] text-white shadow-[0_10px_30px_-10px_rgba(88,101,242,0.8)] hover:bg-[#4752c4]">
+              <a href={DISCORD_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
+                {t("community.join")}
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </a>
+            </Button>
+          </Reveal>
+
+          <Reveal delay={0.08}>
+            <ol className="mx-auto mt-20 grid max-w-5xl border-t sm:grid-cols-3">
+              {[
+                { key: "showcase", channel: "showcase" },
+                { key: "tips", channel: "creator-tips" },
+                { key: "ideas", channel: "feature-requests" },
+              ].map(({ key, channel }, index) => (
+                <li key={key} className="border-b py-6 sm:border-b-0 sm:px-8 sm:py-8 sm:first:pl-0 sm:[&:not(:first-child)]:border-l">
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <span className="text-[#4752c4] dark:text-[#a5adff]">#{channel}</span>
+                    <span aria-hidden="true" className="text-muted-foreground/70">0{index + 1}</span>
+                  </div>
+                  <p className="mt-4 font-display text-xl font-bold leading-snug tracking-tight">{t(`community.activities.${key}`)}</p>
+                </li>
+              ))}
+            </ol>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ─── SELF-HOSTING ─── */}
       <section id="open-source" className="scroll-mt-24 border-y bg-canvas py-24 md:py-32">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 lg:grid-cols-2 lg:gap-16">
           <div>
@@ -547,7 +597,9 @@ export default function LandingPage() {
                 {(["license", "docker", "models"] as const).map((fact) => (
                   <li key={fact} className="flex items-start gap-3">
                     <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    {t(`openSource.facts.${fact}`)}
+                    {fact === "license" ? (
+                      <a href={SOURCE_LICENSE_URL} className="underline underline-offset-4">{t("openSource.facts.license")}</a>
+                    ) : t(`openSource.facts.${fact}`)}
                   </li>
                 ))}
               </ul>

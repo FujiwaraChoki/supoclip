@@ -307,7 +307,30 @@ def test_fetch_video_info_with_youtube_data_api_normalizes_response(monkeypatch)
             "resolution": None,
             "fps": None,
             "filesize": None,
+            "age_restricted": False,
         }
+    finally:
+        set_config_override(None)
+
+
+def test_fetch_video_info_with_youtube_data_api_reports_age_restriction(monkeypatch):
+    config = Config()
+    config.youtube_data_api_key = "youtube-key"
+
+    def fake_get(url, params=None, timeout=None):
+        assert "contentRating(ytRating)" in params["fields"]
+        return FakeResponse({"items": [{
+            "id": "abcdefghijk",
+            "snippet": {"title": "Adult"},
+            "contentDetails": {"duration": "PT26M49S", "contentRating": {"ytRating": "ytAgeRestricted"}},
+        }]})
+
+    set_config_override(config)
+    try:
+        monkeypatch.setattr("src.youtube_utils.requests.get", fake_get)
+        result = _fetch_video_info_with_youtube_data_api("https://www.youtube.com/watch?v=abcdefghijk")
+        assert result["age_restricted"] is True
+        assert result["duration"] == 1609
     finally:
         set_config_override(None)
 

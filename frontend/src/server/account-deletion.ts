@@ -1,3 +1,4 @@
+import { stripeAccountsEnabled } from "@/lib/stripe-accounts";
 import { APIError } from "better-auth/api";
 import { monetizationEnabled } from "@/lib/monetization";
 import { deactivatePromotionCode } from "@/server/affiliates";
@@ -17,10 +18,15 @@ export const ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE =
  * charging them. Otherwise removes the user's video sources: `sources` has no
  * user column, so the `users -> tasks` cascade would leave them orphaned.
  * Tasks, generated clips, sessions, accounts, API keys and social accounts
- * cascade from `users`.
+ * cascade from `users`; feedback submissions are kept, anonymized.
  */
 export async function prepareAccountDeletion(userId: string): Promise<void> {
   const prisma = getPrismaClient();
+
+  if (stripeAccountsEnabled()) {
+    const migration = await prisma.stripeAccountMigration.findUnique({ where: { user_id: userId } });
+    if (migration && !["destination_active", "cancelled", "rollback_verified"].includes(migration.stage)) throw new APIError("BAD_REQUEST", { message: "Cancel the billing transfer from Manage Billing before deleting your account." });
+  }
 
   if (monetizationEnabled) {
     const user = await prisma.user.findUnique({
@@ -57,6 +63,8 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
   // Social account rows cascade away with the user; revoke their grants at the
   // platforms first, while the backend can still decrypt the tokens.
   await revokeSocialConnections(userId);
+
+  // PostgreSQL atomically anonymizes feedback snapshots when the user is deleted.
 
   // Only sources no other user's task points at.
   await prisma.source.deleteMany({

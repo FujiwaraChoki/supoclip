@@ -42,6 +42,29 @@ Keep production's public HTTPS URLs and proxy port. Do not disable origin or
 CSRF checks to make login work. If the error persists, share the browser URL,
 commit, build target, and auth error from `docker compose logs frontend`.
 
+## Sign-Up Fails With "Failed to create account"
+
+A red "Failed to create account" (or "could not finish this") with no other detail is a
+server error, not a wrong origin: a bad origin shows `Invalid origin`. The usual cause is
+a database that is older than the app, for example a missing `users.stripe_account_id`
+column. `init.sql` only runs when the database volume is first created, so an install
+started before a column or table was added never gets it. The frontend log names the
+cause (`P2022`, "column ... does not exist") and, at startup, lists what is missing:
+
+```bash
+docker compose logs frontend | grep -i -E "SupoClip\]|P2022"
+```
+
+Bring the database up to date. The script is idempotent and changes no existing data:
+
+```bash
+docker compose exec -T postgres psql -U supoclip -d supoclip < scripts/selfhost-schema-repair.sql
+```
+
+Then try again; no restart is needed. Do not run `prisma db push` or
+`prisma migrate deploy` against this database: the backend owns tables that Prisma
+does not know about, and `db push` drops them.
+
 ## Services Fail to Start
 
 ### Symptom

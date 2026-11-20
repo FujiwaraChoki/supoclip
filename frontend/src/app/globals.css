@@ -185,6 +185,12 @@
 }
 .animate-rise { animation: rise-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+/* The free-plan card's glow: the render's colours drifting around its edge. */
+@keyframes start-plan-glow {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
 @keyframes progress-sheen {
   from { transform: translateX(-100%); }
   to { transform: translateX(250%); }
