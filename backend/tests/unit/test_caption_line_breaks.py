@@ -117,6 +117,13 @@ def test_a_line_too_brief_to_read_joins_a_neighbour(tmp_path, monkeypatch):
     assert all("OKAY. FINE" not in text for text in texts)
 
 
+def test_the_last_line_of_a_passage_ends_with_its_last_word():
+    """A planned clip jumps to its next moment right after a passage: no hold or bridge across that cut."""
+    lines = [(0.0, 0.2), (0.25, 0.5), (0.6, 0.9)]
+    assert captions._line_display_ends(lines) == [0.25, 0.6, 1.0]
+    assert captions._line_display_ends(lines, before_cut=[1]) == [0.25, 0.5, 1.0]
+
+
 def test_words_between_two_breaks_are_shared_evenly():
     bounds = lambda count, breaks=(): list(captions._chunk_bounds(count, 4, list(breaks), True))
     assert bounds(5) == [(0, 3), (3, 5)]

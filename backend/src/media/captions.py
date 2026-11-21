@@ -665,14 +665,20 @@ def _merge_flash_lines(
     return lines
 
 
-def _line_display_ends(lines: List[Tuple[float, float]]) -> List[float]:
+def _line_display_ends(lines: List[Tuple[float, float]], before_cut: Iterable[int] = ()) -> List[float]:
     """When each caption line leaves the screen, given (first word start, last word end) per line.
 
     A line ends with its last word, stays for the minimum hold, and bridges a short gap to the next
-    line. It never overlaps the next line and never waits out a long pause.
+    line. It never overlaps the next line and never waits out a long pause. A line that is the last
+    of its passage (``before_cut``: line indices) ends with its last word, so it is gone when a
+    planned clip jumps to its next moment.
     """
+    cut = set(before_cut)
     ends: List[float] = []
     for index, (start, end) in enumerate(lines):
+        if index in cut:
+            ends.append(end)
+            continue
         shown_until = max(end, start + CAPTION_LINE_MIN_HOLD_SECONDS)
         if index + 1 < len(lines):
             next_start = lines[index + 1][0]
@@ -787,6 +793,7 @@ def build_assemblyai_ass_subtitles(
     # an FX caption edit keep their fixed groups: per-line placements are keyed by them.
     natural_lines = False
     hard_breaks: List[int] = []
+    jump_breaks: set = set()
     if (
         include_captions
         and not relevant_words
@@ -810,6 +817,7 @@ def build_assemblyai_ass_subtitles(
         # A caption line holds each word until the next one starts. Across a pause (a laugh, a silent
         # stretch of gameplay, a line that was left out) that is seconds of the same words with the
         # next ones already readable, so a line ends at a pause and at the end of a sentence.
+        jump_breaks = set(passage_breaks)
         hard_breaks = sorted({*passage_breaks, *_pause_breaks(relevant_words)})
         passage_breaks = sorted({*hard_breaks, *_sentence_breaks(relevant_words)})
         natural_lines = True
@@ -1056,9 +1064,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events: List[str] = []
     original_geometry = (outline_px, shadow_px, box_bord)
-    display_ends = _line_display_ends([
-        (float(relevant_words[a]["start"]), float(relevant_words[b - 1]["end"])) for a, b, _ in chunk_spans
-    ]) if natural_lines else None
+    display_ends = _line_display_ends(
+        [(float(relevant_words[a]["start"]), float(relevant_words[b - 1]["end"])) for a, b, _ in chunk_spans],
+        [index for index, (_, stop, _) in enumerate(chunk_spans) if stop in jump_breaks],
+    ) if natural_lines else None
     for line_index, (chunk_start, chunk_stop, chunk_scale) in enumerate(chunk_spans):
         chunk = relevant_words[chunk_start:chunk_stop]
         indices = list(range(chunk_start, chunk_stop))
