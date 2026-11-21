@@ -72,6 +72,11 @@ test("free users explore first and see plans when they generate", async ({ page 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Turn long videos into ready-to-post clips")).toBeVisible();
   await expect(dialog.getByRole("radiogroup", { name: "Plans" }).getByRole("radio")).toHaveCount(2);
+  await expect(dialog.getByText("Self-hosted", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Self-hosting guide" })).toHaveAttribute(
+    "href",
+    "/blog/self-host-supoclip-docker",
+  );
   await dialog.getByRole("radio", { name: /Yearly/ }).click();
   await expect(dialog.getByText("$99.90")).toBeVisible();
   await expect(dialog.getByText("$8.33/mo")).toBeVisible();
@@ -90,6 +95,7 @@ test("Pro users at their limit are offered Creator, not told to pay", async ({ p
   await page.getByRole("button", { name: "Get Creator" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Current plan")).toBeVisible();
+  await expect(dialog.getByText("Self-hosted", { exact: true })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: /Continue with Creator/ })).toBeVisible();
   await page.waitForTimeout(2200);
   await page.screenshot({ path: "test-results/upgrade-dialog-limit.png" });

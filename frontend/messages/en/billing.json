@@ -36,7 +36,11 @@
   "prorated": "You'll confirm the change on Stripe and only pay the prorated difference.",
   "cancelAnytime": "Cancel anytime · Secure checkout with Stripe",
   "appStore": "Your subscription is managed through the App Store. You can change plans in the SupoClip iOS app.",
-  "selfHostLink": "Or self-host",
+  "selfHosted": {
+    "title": "Self-hosted",
+    "body": "Run SupoClip on your own computer with no subscription or monthly video limit. Setup required; you provide the hardware and any paid AI services you choose.",
+    "guide": "Self-hosting guide"
+  },
   "upgrade": {
     "start": {
       "eyebrow": "Ready when you are",
