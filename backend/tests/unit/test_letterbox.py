@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from src.media import letterbox, reframing
-from src.media.letterbox import bars_from_frames, detect_letterbox, plan_on_picture
+from src.media.letterbox import bars_from_frames, bars_that_keep_faces_whole, detect_letterbox, plan_on_picture
 
 needs_ffmpeg = pytest.mark.skipif(
     not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg required")
@@ -35,7 +35,14 @@ def test_a_frame_without_bars_and_thin_strips_are_left_alone():
     assert bars_from_frames(_frames(12, top=60, bottom=60)) is None     # less than half the frame is picture
 
 
-def test_dark_frames_do_not_decide_and_a_subtitle_in_a_bar_keeps_that_bar():
+def test_a_dark_background_is_picture_not_a_bar():
+    """A code editor or a dark-mode page: dark margins around the content, but not black."""
+    frames = np.full((12, 180, 320), 22, dtype=np.uint8)
+    frames[:, 40:140, 96:224] = 60
+    assert bars_from_frames(frames) is None
+
+
+def test_dark_frames_do_not_decide_and_a_subtitle_in_a_bar_goes_with_it():
     frames = _frames(12, top=23, bottom=23)
     frames[:3] = 0                                   # a fade from black: says nothing about bars
     assert bars_from_frames(frames)[0] == pytest.approx(23 / 180)
@@ -64,6 +71,19 @@ def test_a_bar_with_a_channel_logo_in_it_is_still_a_bar():
     frames = _frames(12, top=23, bottom=23)
     frames[:, 4:18, 100:220] = 200
     assert bars_from_frames(frames) == (0.0, pytest.approx(23 / 180))
+
+
+def test_close_ups_keep_as_much_bar_as_keeps_their_faces_whole():
+    # 1080 rows with 150-row bars: the picture is 780 rows.
+    # Wide shots (faces a tenth of the frame): all of both bars go.
+    assert bars_that_keep_faces_whole(150, 150, 1080, 0.10) == (150, 150)
+    assert bars_that_keep_faces_whole(150, 150, 1080, 0.0) == (150, 150)
+    # A face of 39% of the frame needs 936 rows to stay at 45%: 156 rows of bar stay, 72 go on each side.
+    assert bars_that_keep_faces_whole(150, 150, 1080, 0.39) == (72, 72)
+    # A face of 48% of the frame needs the whole frame: nothing is removed.
+    assert bars_that_keep_faces_whole(150, 150, 1080, 0.48) is None
+    # Uneven bars are trimmed in proportion.
+    assert bars_that_keep_faces_whole(200, 100, 1080, 0.39) == (96, 48)
 
 
 def test_plan_on_picture_puts_the_crop_in_front_of_every_read():

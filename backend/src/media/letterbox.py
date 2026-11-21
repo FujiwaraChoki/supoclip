@@ -21,10 +21,11 @@ import numpy as np
 from .common import INTERMEDIATE_CRF, logger
 from .ffmpeg import ffprobe_duration, run_ffmpeg_command
 
-PROBE_W = 320
 PROBE_FRAMES = 10
-# A pixel is black at or below this (0-255); a row is black when all of its pixels are.
-BLACK_ROW_MAX = 24
+# A pixel is black at or below this (0-255); a row is black when all of its pixels are. Bars are
+# true black (0-3 after decoding, a little more with compression noise). The dark background of a
+# code editor or a dark-mode page is 15-30 and is picture.
+BLACK_ROW_MAX = 10
 # A row belongs to a bar when it is black in this share of the frames that show a picture at all ...
 BAR_ROW_SUPPORT = 0.8
 # ... and in nearly all of the rest holds no more than a line of text: at most this share of its
@@ -34,7 +35,7 @@ BAR_TEXT_MAX_LIT = 0.45
 BAR_TEXT_SUPPORT = 0.95
 # A channel logo or watermark sits in a bar for the whole clip: a row that never has more than this
 # share of its pixels lit is bar as well, although it is never fully black.
-BAR_LOGO_MAX_LIT = 0.2
+BAR_LOGO_MAX_LIT = 0.25
 # Frames darker than this on average say nothing about bars (a fade, a night shot).
 DARK_FRAME_MEAN = 14.0
 # A bar is at least this share of the height; smaller strips are encoder padding or a soft edge.
@@ -42,6 +43,11 @@ MIN_BAR_FRAC = 0.04
 # The bars together are at least this share, and leave at least half of the frame as picture.
 MIN_BARS_FRAC = 0.08
 MIN_PICTURE_FRAC = 0.5
+# Removing the bars makes every crop tighter (a full-height crop of a shorter picture is narrower).
+# The largest faces of the clip stay at most this share of the height the layout is planned on: a
+# close-up keeps as much of its bars as that takes, a wide shot loses them all.
+MAX_FACE_FRAC = 0.45
+FACE_PROBE_W = 640
 
 
 def bars_from_frames(frames: np.ndarray) -> Optional[Tuple[float, float]]:
@@ -77,33 +83,77 @@ def bars_from_frames(frames: np.ndarray) -> Optional[Tuple[float, float]]:
 
 
 def probe_frames(input_path: Path, duration: float, probe_h: int) -> np.ndarray:
-    """A few small grey frames spread over the clip, each fetched by seeking (no full decode)."""
-    size = PROBE_W * probe_h
+    """A few small colour frames (n, h, w, 3) spread over the clip, each fetched by seeking (no full decode)."""
+    size = FACE_PROBE_W * probe_h * 3
     frames = []
     for index in range(PROBE_FRAMES):
         at = duration * (index + 0.5) / PROBE_FRAMES
         try:
             result = subprocess.run(
                 ["ffmpeg", "-v", "error", "-an", "-sn", "-ss", f"{at:.3f}", "-i", str(input_path), "-frames:v", "1",
-                 "-vf", f"scale={PROBE_W}:{probe_h}", "-pix_fmt", "gray", "-f", "rawvideo", "-"],
+                 "-vf", f"scale={FACE_PROBE_W}:{probe_h}", "-pix_fmt", "bgr24", "-f", "rawvideo", "-"],
                 capture_output=True, timeout=60,
             )
         except (OSError, subprocess.SubprocessError):
             continue
         if result.returncode == 0 and len(result.stdout) >= size:
-            frames.append(np.frombuffer(result.stdout[:size], dtype=np.uint8).reshape(probe_h, PROBE_W))
-    return np.stack(frames) if frames else np.empty((0, probe_h, PROBE_W), dtype=np.uint8)
+            frames.append(np.frombuffer(result.stdout[:size], dtype=np.uint8).reshape(probe_h, FACE_PROBE_W, 3))
+    return np.stack(frames) if frames else np.empty((0, probe_h, FACE_PROBE_W, 3), dtype=np.uint8)
+
+
+def largest_face_height(frames: np.ndarray) -> float:
+    """Height of the clip's large faces as a share of the frame height (0 without faces).
+
+    The 90th percentile of the largest face per frame: one stray detection does not decide, the
+    close-ups of the clip do.
+    """
+    from .face_detection import open_yunet_detector
+
+    if not len(frames):
+        return 0.0
+    detector = open_yunet_detector()
+    if detector is None:
+        return 0.0
+    heights = []
+    for frame in frames:
+        try:
+            faces = detector.detect(np.ascontiguousarray(frame))
+        except Exception:  # noqa: BLE001 - no faces known for this frame
+            continue
+        if faces:
+            heights.append(max(float(face[3]) for face in faces) / frame.shape[0])
+    return float(np.percentile(heights, 90)) if heights else 0.0
+
+
+def bars_that_keep_faces_whole(top: int, bottom: int, height: int, face_frac: float) -> Optional[Tuple[int, int]]:
+    """How much of the bars to remove so the clip's large faces stay at most ``MAX_FACE_FRAC`` of the
+    planned height. ``face_frac`` is their height as a share of the full frame. None when what is left
+    to remove is not worth a crop."""
+    picture = height - top - bottom
+    wanted = min(float(height), face_frac * height / MAX_FACE_FRAC)
+    if wanted > picture and top + bottom > 0:
+        keep = wanted - picture
+        share = keep / (top + bottom)
+        top = int(top * (1 - share) // 2 * 2)
+        bottom = int(bottom * (1 - share) // 2 * 2)
+    if top + bottom < MIN_BARS_FRAC * height / 2:
+        return None
+    return top, bottom
 
 
 def detect_letterbox(input_path: Path, width: int, height: int) -> Optional[Tuple[int, int]]:
-    """(top, bottom) rows of black bar in the clip, in source pixels (even), or None."""
+    """(top, bottom) rows of black bar to remove from the clip, in source pixels (even), or None."""
     if width < 16 or height < 16:
         return None
     duration = ffprobe_duration(input_path)
     if duration <= 0:
         return None
-    probe_h = max(2, int(round(height * PROBE_W / width / 2)) * 2)
-    bars = bars_from_frames(probe_frames(input_path, duration, probe_h))
+    probe_h = max(2, int(round(height * FACE_PROBE_W / width / 2)) * 2)
+    colour = probe_frames(input_path, duration, probe_h)
+    if not len(colour):
+        return None
+    grey = colour.mean(axis=3).astype(np.uint8)
+    bars = bars_from_frames(grey)
     if bars is None:
         return None
     # One probe row of margin into the picture: the bar's edge is soft after scaling.
@@ -112,7 +162,7 @@ def detect_letterbox(input_path: Path, width: int, height: int) -> Optional[Tupl
     bottom = int((bars[1] * height + margin) // 2 * 2) if bars[1] else 0
     if height - top - bottom < 16:
         return None
-    return top, bottom
+    return bars_that_keep_faces_whole(top, bottom, height, largest_face_height(colour))
 
 
 def cropped_copy(input_path: Path, destination: Path, width: int, height: int, top: int) -> bool:
