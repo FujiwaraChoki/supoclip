@@ -95,18 +95,23 @@ test("Pro users at their limit are offered Creator, not told to pay", async ({ p
   await page.screenshot({ path: "test-results/upgrade-dialog-limit.png" });
 });
 
-test("a too-long video opens the Creator prompt instead of a dead-end error", async ({ page }) => {
+test("a too-long video offers a part of it and the Creator plan instead of a dead-end error", async ({ page }) => {
   await mockApp(page, summary);
   await page.route("**/api/tasks/create", (route) => route.fulfill({
     status: 422,
-    json: { detail: { code: "VIDEO_TOO_LONG", message: "This video is 120.0 minutes long.", duration_seconds: 7200, max_duration_seconds: 5400 } },
+    json: { detail: { code: "VIDEO_TOO_LONG", message: "This video is 120.0 minutes long.", duration_seconds: 7200, max_duration_seconds: 5400, range_allowed: true } },
   }));
   await page.goto("/");
   await page.getByRole("textbox").first().fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   await page.getByRole("button", { name: "Generate clips" }).click();
-  await expect(page.getByRole("dialog").getByText("Creator can take this 2 h video")).toBeVisible();
-  await page.waitForTimeout(2200);
-  await page.screenshot({ path: "test-results/upgrade-dialog-too-long.png" });
+  const panel = page.getByTestId("source-range-panel");
+  await expect(panel.getByText("This 2 h video is over your 90-minute limit")).toBeVisible();
+  await page.route("**/api/billing/checkout", (route) => route.fulfill({ json: { url: "https://checkout.example/creator" } }));
+  await page.route("https://checkout.example/creator", (route) => route.fulfill({ contentType: "text/html", body: "Demo Checkout transport" }));
+  const checkout = page.waitForRequest((request) => request.url().endsWith("/api/billing/checkout") && request.method() === "POST");
+  await panel.getByRole("button", { name: "Upgrade to Creator (up to 180 min per video)" }).click();
+  expect((await checkout).postDataJSON()).toMatchObject({ plan: "scale", interval: "month" });
+  await expect(page).toHaveURL("https://checkout.example/creator");
 });
 
 test("settings shows Pro users the step up to Creator and yearly billing", async ({ page }) => {

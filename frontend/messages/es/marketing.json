@@ -512,6 +512,10 @@
         "roles": "Roles de Propietario, Admin y Miembro + mayor concurrencia",
         "aiEdits": "{aiEdits} ediciones IA compartidas/mes"
       }
+    },
+    "limits": {
+      "monthly": "Video al mes",
+      "perVideo": "Duración máx. por video"
     }
   },
   "faq": {

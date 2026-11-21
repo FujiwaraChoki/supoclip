@@ -512,6 +512,10 @@
         "roles": "Owner, Admin & Member roles + faster concurrency",
         "aiEdits": "{aiEdits} pooled AI edits/mo"
       }
+    },
+    "limits": {
+      "monthly": "Video per month",
+      "perVideo": "Max length per video"
     }
   },
   "faq": {

@@ -494,5 +494,40 @@
         "description": "Kilau, tanduk, dan panah yang mengikuti wajah pembicara"
       }
     }
+  },
+  "sourceRange": {
+    "start": "Mulai",
+    "end": "Selesai",
+    "format": "Gunakan h:mm:ss, misalnya 1:30:00",
+    "first": "{minutes} menit pertama",
+    "last": "{minutes} menit terakhir",
+    "selected": "Memotong {length}. Memakai {minutes} menit.",
+    "problems": {
+      "invalid": "Masukkan waktu mulai dan selesai.",
+      "order": "Waktu selesai harus setelah waktu mulai.",
+      "outOfBounds": "Pilih waktu antara 0:00 dan {duration}.",
+      "tooShort": "Pilih minimal {min} menit.",
+      "tooLong": "Pilih paling lama {max} menit."
+    }
+  },
+  "tooLongPanel": {
+    "title": "Video {runtime} ini melebihi batas {minutes} menit kamu",
+    "body": "Pilih bagian sampai {minutes} menit dan kami hanya memotong bagian itu. Hanya bagian itu yang dihitung ke menitmu.",
+    "bodyUpgrade": "Pilih bagian sampai {minutes} menit dan kami hanya memotong bagian itu, atau upgrade ke {plan} untuk video sampai {nextMinutes} menit. Hanya bagian yang kamu pilih yang dihitung ke menitmu.",
+    "submit": "Potong bagian ini",
+    "cancel": "Pilih video lain",
+    "label": "Bagian video yang akan dipotong",
+    "upgradeTo": "Upgrade ke {plan} (sampai {minutes} menit per video)",
+    "checkoutFailed": "Checkout tidak terbuka. Coba lagi sebentar lagi."
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "Kami tidak bisa membaca durasi video ini",
+      "body": "Kalau ini livestream yang masih berjalan, tunggu sampai selesai lalu tempel rekaman lengkapnya. Kalau sudah selesai, coba lagi dalam semenit. Tidak ada menit yang terpakai."
+    },
+    "tooLongNoRange": {
+      "title": "Video ini melebihi batas {minutes} menit kamu",
+      "body": "Video ini lebih panjang dari yang diizinkan paketmu, dan bagiannya tidak bisa dipilih di sini. Coba rekaman lengkapnya atau video yang lebih pendek. Tidak ada menit yang terpakai."
+    }
   }
 }

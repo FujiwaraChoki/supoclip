@@ -33,6 +33,7 @@ from .youtube_proxy import (
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
     capped_height,
     download_audio,
+    download_audio_section,
     download_section_file,
     log_youtube_attempt,
     proxy_configured,
@@ -395,7 +396,43 @@ def shift_transcript(payload: dict, time_map: TimeMap) -> dict:
     return shifted_payload
 
 
+def unshift_transcript(payload: dict, time_map: TimeMap) -> dict:
+    """Move word timings from a mapped file's own timeline back onto the source's."""
+
+    def to_original(value) -> int:
+        return int(round(time_map.to_original(float(value) / 1000.0) * 1000))
+
+    def unshift_word(word):
+        if not isinstance(word, dict):
+            return word
+        copied = dict(word)
+        start = float(word.get("start") or 0)
+        copied["start"] = to_original(start)
+        copied["end"] = to_original(float(word.get("end") or start))
+        return copied
+
+    restored = dict(payload)
+    restored["words"] = [unshift_word(word) for word in payload.get("words") or []]
+    utterances = []
+    for utterance in payload.get("utterances") or []:
+        if not isinstance(utterance, dict):
+            continue
+        copied = dict(utterance)
+        for key in ("start", "end"):
+            if utterance.get(key) is not None:
+                copied[key] = to_original(utterance[key])
+        copied["words"] = [unshift_word(word) for word in utterance.get("words") or []]
+        utterances.append(copied)
+    restored["utterances"] = utterances
+    return restored
+
+
 def copy_transcript_sidecar(source: Path, dest: Path, time_map: Optional[TimeMap] = None) -> None:
+    """Copy word timings to ``dest``, on ``time_map``'s timeline when given.
+
+    A source with its own timeline (the audio of a picked part of a video)
+    holds local timings; they are moved onto the original timeline first.
+    """
     cache = source.with_suffix(".transcript_cache.json")
     if not cache.exists():
         return
@@ -403,6 +440,9 @@ def copy_transcript_sidecar(source: Path, dest: Path, time_map: Optional[TimeMap
         payload = json.loads(cache.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return
+    source_map = load_time_map(source)
+    if source_map is not None:
+        payload = unshift_transcript(payload, source_map)
     if time_map is not None:
         payload = shift_transcript(payload, time_map)
     dest.with_suffix(".transcript_cache.json").write_text(json.dumps(payload), encoding="utf-8")
@@ -1023,6 +1063,62 @@ def download_analysis_source(
     # handler. Its own transport, local-file and programming errors stay intact.
     report_download_recovery(DownloadRecovery.BACKUP)
     return preserve_geo_restriction(download_full(), failure), False
+
+
+def download_range_audio(
+    url: str,
+    video_id: str,
+    source_range,
+    dest: Path,
+    *,
+    task_id: Optional[str] = None,
+    budget: Optional[ByteBudget] = None,
+) -> Path:
+    """Audio of a picked part of a video, with a timeline back to the source.
+
+    Reuses cached full-length audio when another job already downloaded it.
+    Otherwise only the HLS audio fragments under the part go through the
+    proxy, so a 2-hour part of an 8-hour stream costs 2 hours of audio. When
+    the formats cannot be sliced, the full audio (modest, cached for later
+    jobs) is downloaded and cut locally.
+    """
+    from .source_range import cut_audio_range
+
+    runtime = get_config()
+    directory = cache_dir_for(video_id, runtime)
+    with _cache_lock(directory):
+        _restore_remote_cache(video_id, directory)
+        cached = _audio_path(directory, _load_manifest(directory, video_id))
+    if cached:
+        log_youtube_attempt(
+            provider="cache", video_id=video_id, kind="audio",
+            outcome="cache_hit", nbytes=0, task_id=task_id,
+        )
+        return cut_audio_range(cached, dest, source_range)
+    if not proxy_configured(runtime):
+        raise PartialDownloadUnavailable("A section download requires YOUTUBE_PROXY_URL")
+    stem = dest.parent / "range-audio-section"
+    try:
+        section, media_start, media_end = download_audio_section(
+            url, video_id, float(source_range.start), float(source_range.end), stem,
+            task_id=task_id, budget=budget,
+        )
+        if (media_start > source_range.start + COVERAGE_TOLERANCE_SECONDS
+                or media_end < source_range.end - 1.0):
+            raise YouTubeDownloadError("The audio section does not cover the selected part")
+        try:
+            return cut_audio_range(section, dest, source_range, offset=media_start)
+        finally:
+            section.unlink(missing_ok=True)
+    except DownloadBudgetExceeded:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "Audio section download unavailable for %s, using the full audio: %s",
+            video_id, public_download_error(exc),
+        )
+    full_audio = download_audio_for_job(url, video_id, task_id=task_id, budget=budget)
+    return cut_audio_range(full_audio, dest, source_range)
 
 
 def preserve_geo_restriction(

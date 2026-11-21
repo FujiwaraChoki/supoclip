@@ -305,5 +305,6 @@
     "retry": "Coba lagi",
     "approxTiming": "Video ini tidak punya waktu per kata, jadi teks dan efek mengikuti waktu perkiraan.",
     "simplified": "Beberapa efek disederhanakan untuk klip ini."
-  }
+  },
+  "sourceRange": "Bagian {start}–{end}"
 }
