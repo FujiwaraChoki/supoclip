@@ -392,6 +392,8 @@ FX_PASSAGE_GAP_SECONDS = 3.0       # a junction skipping this much source is a n
 class NeedsPlan(ValueError):
     """An active intensity with no tagged beats: the studio must plan beats first (409 ``NEEDS_PLAN``)."""
 
+    expected_client_error = True  # run_in_thread logs it at INFO, not ERROR
+
 
 def edit_duration(document: EditDocument) -> float:
     """The E length of a draft before any time warp."""

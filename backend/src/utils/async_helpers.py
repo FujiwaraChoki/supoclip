@@ -42,8 +42,21 @@ async def run_in_thread(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
                 operation.exception()
             raise
     except Exception as e:
-        logger.error(f"Error running {func.__name__} in thread: {e}")
+        if _is_expected_client_error(e):
+            logger.info(f"{func.__name__} in thread ended with a client error: {e}")
+        else:
+            logger.error(f"Error running {func.__name__} in thread: {e}")
         raise
+
+
+def _is_expected_client_error(exc: BaseException) -> bool:
+    """A 4xx the caller turns into a response (an ``HTTPException`` or an exception class marked
+    ``expected_client_error``): not a failure, so it must not reach error tracking."""
+    from starlette.exceptions import HTTPException
+
+    if isinstance(exc, HTTPException):
+        return 400 <= exc.status_code < 500
+    return bool(getattr(type(exc), "expected_client_error", False))
 
 
 def async_wrap(func: Callable[..., T]) -> Callable[..., Any]:
