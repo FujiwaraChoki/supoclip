@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { backendTraceHeaders } from "@/server/backend-api";
 import { restorePastDueEntitlement } from "@/server/stripe-subscription-sync";
-import { getActiveTeamIdFromCookies } from "@/server/workspace";
+import { getVerifiedActiveTeamId } from "@/server/workspace";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const teamId = await getActiveTeamIdFromCookies();
+  const teamId = await getVerifiedActiveTeamId(session.user.id);
   const apiUrl =
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||

@@ -17,17 +17,22 @@ export async function getActiveTeamIdFromCookies(): Promise<string | null> {
   }
 }
 
-/** Verify the cookie's team belongs to `userId`; returns null if not a member. */
+/**
+ * The cookie's team when `userId` still belongs to it, otherwise null (personal).
+ *
+ * The cookie outlives a membership: a removed member, a deleted team or another
+ * person signing in on the same browser all leave it behind. Sending that id to
+ * the backend makes every request fail with "Not a member of this team", so a
+ * stale cookie reads as the personal workspace. A database error is thrown, not
+ * treated as "no team": a task meant for a team must never be billed to the
+ * person because a lookup failed.
+ */
 export async function getVerifiedActiveTeamId(userId: string): Promise<string | null> {
   const teamId = await getActiveTeamIdFromCookies();
   if (!teamId) return null;
-  try {
-    const membership = await getPrismaClient().teamMember.findUnique({
-      where: { team_id_user_id: { team_id: teamId, user_id: userId } },
-      select: { team_id: true },
-    });
-    return membership?.team_id ?? null;
-  } catch {
-    return null;
-  }
+  const membership = await getPrismaClient().teamMember.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: userId } },
+    select: { team_id: true },
+  });
+  return membership?.team_id ?? null;
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
-import { getActiveTeamIdFromCookies } from "@/server/workspace";
+import { getVerifiedActiveTeamId } from "@/server/workspace";
 
 export const DEFAULT_FORWARDED_HEADERS = [
   "accept-ranges",
@@ -65,7 +65,7 @@ export async function fetchBackend(
   path: string,
   init: RequestInit & {
     userId?: string;
-    /** Explicitly pass a team id, `null` to force personal workspace, or omit to use the active workspace cookie. */
+    /** A team id, `null` for the personal workspace, or omit for the caller's active workspace (the cookie, checked against their memberships). */
     teamId?: string | null;
     extraHeaders?: HeadersInit;
   } = {},
@@ -73,7 +73,7 @@ export async function fetchBackend(
   const { userId, teamId, extraHeaders, headers, ...rest } = init;
   const resolvedTeamId = userId
     ? teamId === undefined
-      ? await getActiveTeamIdFromCookies()
+      ? await getVerifiedActiveTeamId(userId)
       : teamId
     : null;
 
