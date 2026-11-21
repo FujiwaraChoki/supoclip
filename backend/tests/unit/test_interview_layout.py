@@ -809,3 +809,40 @@ def test_the_facing_probe_reads_frames_of_a_clip_and_knows_nothing_without_faces
     # No faces in a test pattern: both people unknown, so no layout changes because of it.
     assert probe_eye_ratios(clip, 0.5, 2.5, [HOST, GUEST], 1280, 720) == [None, None]
     assert probe_eye_ratios(clip, 2.0, 2.0, [HOST, GUEST], 1280, 720) is None
+
+
+# --- A layout does not flash by inside one continuous shot ---
+
+def _seg(start, end, kind="single"):
+    from src.media.interview_layout import Segment
+    return Segment(start, end, kind=kind, reason="one_person" if kind == "single" else "two_people", times=[start])
+
+
+def test_a_flash_of_another_layout_with_no_camera_cut_joins_its_neighbour():
+    from src.media.interview_layout import _steady
+    # One continuous shot from 0 to 10 s: the two-shot drops to a single crop for 0.5 s and comes back.
+    # Neither side is a cut: it goes with the longer neighbour.
+    steady = _steady([_seg(0, 6, "pair"), _seg(6, 6.5), _seg(6.5, 10, "pair")], cuts=[])
+    assert [(s.start, s.end, s.kind) for s in steady] == [(0, 6.5, "pair"), (6.5, 10, "pair")]
+    steady = _steady([_seg(0, 2, "pair"), _seg(2, 2.6), _seg(2.6, 10, "pair")], cuts=[])
+    assert [(s.start, s.end, s.kind) for s in steady] == [(0, 2, "pair"), (2, 10, "pair")]
+    # How the clip opens and closes is not a flash: a short first or last stretch stays.
+    edges = [_seg(0, 0.8), _seg(0.8, 9, "pair"), _seg(9, 9.6)]
+    assert len(_steady(edges, cuts=[])) == 3
+
+
+def test_a_short_shot_between_two_camera_cuts_keeps_its_framing():
+    from src.media.interview_layout import _steady
+    # A 0.7 s reaction shot is the source's own editing.
+    shots = [_seg(0, 4, "pair"), _seg(4, 4.7), _seg(4.7, 10, "pair")]
+    assert [(s.start, s.end) for s in _steady(shots, cuts=[4.0, 4.7])] == [(0, 4), (4, 4.7), (4.7, 10)]
+    # Cut on one side only: it joins the side it was not cut from.
+    steady = _steady([_seg(0, 4, "pair"), _seg(4, 4.7), _seg(4.7, 10, "pair")], cuts=[4.05])
+    assert [(s.start, s.end, s.kind) for s in steady] == [(0, 4, "pair"), (4, 10, "pair")]
+
+
+def test_a_change_without_a_cut_that_lasts_is_kept():
+    from src.media.interview_layout import _steady
+    # Someone walks out of a two-shot and stays out: the single crop holds 3 s, so the change stands.
+    shots = [_seg(0, 4, "pair"), _seg(4, 7), _seg(7, 10, "pair")]
+    assert len(_steady(shots, cuts=[])) == 3

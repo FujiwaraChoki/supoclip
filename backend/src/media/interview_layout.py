@@ -189,6 +189,12 @@ COVER_FACE_SUPPORT = 0.6
 # their panels.
 FACING_MIN_EYE_RATIO = 0.27
 TURNED_MAX_EYE_RATIO = 0.2
+# A layout that changes where the camera did not cut (someone leaves a two-shot, a face is lost and
+# found again) holds at least this long on both sides. Shorter than that it is a flash of another
+# framing in one continuous shot, and the stretch stays with the neighbour it was not cut from.
+UNCUT_HOLD_SECONDS = 1.2
+# A change this close to a camera cut is on that cut.
+CUT_MATCH_SECONDS = 0.12
 # Frames looked at per two-shot, and their width, for that test.
 FACING_PROBE_FRAMES = 5
 FACING_PROBE_WIDTH = 960
@@ -1023,6 +1029,43 @@ def _segments(
     return segments
 
 
+def _steady(segments: List[Segment], cuts: Sequence[float]) -> List[Segment]:
+    """Take out layouts that flash by inside one continuous shot.
+
+    A stretch shorter than ``UNCUT_HOLD_SECONDS`` whose start or end is not a camera cut joins the
+    neighbour on that side (the longer one when neither side is a cut). A short shot between two
+    cuts is the source's own editing and keeps its framing.
+    """
+    def on_cut(time: float) -> bool:
+        return any(abs(time - cut) <= CUT_MATCH_SECONDS for cut in cuts)
+
+    def length(segment: Segment) -> float:
+        return segment.end - segment.start
+
+    segments = list(segments)
+    index = 0
+    while index < len(segments) and len(segments) > 1:
+        segment = segments[index]
+        # The clip's first and last stretch are how it opens and closes (a two-shot that opens on one
+        # person starts on that person); only a stretch between two others is a flash.
+        inner = 0 < index < len(segments) - 1
+        left = inner and not on_cut(segment.start)
+        right = inner and not on_cut(segment.end)
+        if length(segment) >= UNCUT_HOLD_SECONDS or not (left or right):
+            index += 1
+            continue
+        if left and right:
+            keep = index - 1 if length(segments[index - 1]) >= length(segments[index + 1]) else index + 1
+        else:
+            keep = index - 1 if left else index + 1
+        neighbour = segments[keep]
+        neighbour.start, neighbour.end = min(neighbour.start, segment.start), max(neighbour.end, segment.end)
+        neighbour.times = sorted(set(neighbour.times) | set(segment.times))
+        del segments[index]
+        index = max(0, index - 1)
+    return segments
+
+
 def _same_setup(a: Sequence[Box], b: Sequence[Box], width: int) -> bool:
     if len(a) != len(b):
         return False
@@ -1514,6 +1557,7 @@ def plan_interview_layout(
 
     def interview(cuts: Sequence[float]) -> Optional[List[Segment]]:
         segments = _segments(duration, cuts, face_samples, context, width, height, crop_w, dense, picture, facing)
+        segments = _steady(segments, cuts)
         # A divided group does not make a clip an interview by itself: a
         # three-host podcast or a call gallery keeps speaker framing and the
         # gallery layouts. Beside a real two-shot it is composed like one.
