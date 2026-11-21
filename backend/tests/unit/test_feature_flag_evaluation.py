@@ -109,6 +109,9 @@ def test_evaluate(flag, platform, is_admin, expected):
 
 def test_unknown_flags_default_to_closed_with_the_admin_bypass():
     assert feature_flags.DEFAULT_FLAGS["workflows"] == FeatureFlag("workflows", False, False, True)
+    assert feature_flags.DEFAULT_FLAGS["instagram_publishing"] == FeatureFlag(
+        "instagram_publishing", False, False, True
+    )
 
 
 @pytest.mark.asyncio
@@ -152,7 +155,13 @@ async def test_evaluated_flags_looks_up_the_user_once():
         [workflows_row(), {"key": "other", "web_enabled": False, "ios_enabled": False, "admins_bypass": True, "description": ""}],
         admins={"boss"},
     )
-    assert await feature_flags.evaluated_flags(db, platform="web", user_id="boss") == {"dynamic_edits": True, "other": True, "tiktok_publishing": False, "workflows": True}
+    assert await feature_flags.evaluated_flags(db, platform="web", user_id="boss") == {
+        "dynamic_edits": True,
+        "instagram_publishing": True,
+        "other": True,
+        "tiktok_publishing": False,
+        "workflows": True,
+    }
     assert db.user_reads == 1
 
 

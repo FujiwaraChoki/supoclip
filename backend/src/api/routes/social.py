@@ -96,12 +96,22 @@ async def list_providers(request: Request, db: AsyncSession = Depends(get_db)):
     if not enabled:
         providers = [{**provider, "configured": False} for provider in providers]
     else:
-        providers = [
-            {**provider, "configured": False, "paused": True}
-            if provider["configured"] and await service.provider_paused(provider["provider"], ctx.user_id)
-            else provider
-            for provider in providers
-        ]
+        # A paused platform (TikTok) reads as unconfigured + paused so the web
+        # explains why and older clients (iOS) hide it. Other flag-gated
+        # platforms (Instagram) read as unconfigured ("Coming soon") for
+        # non-admins while admins bypass for testing.
+        filtered = []
+        for provider in providers:
+            if not provider["configured"]:
+                filtered.append(provider)
+            elif not await service.provider_flag_enabled(provider["provider"], ctx.user_id):
+                if provider["provider"] == "tiktok":
+                    filtered.append({**provider, "configured": False, "paused": True})
+                else:
+                    filtered.append({**provider, "configured": False})
+            else:
+                filtered.append(provider)
+        providers = filtered
     can_schedule = enabled and await service.can_schedule(ctx.user_id, team_id=ctx.team_id)
     return {"enabled": enabled, "can_schedule": can_schedule, "providers": providers}
 

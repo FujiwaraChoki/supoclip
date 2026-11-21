@@ -1648,6 +1648,50 @@ async def test_queued_tiktok_post_fails_readably_while_paused(service, tiktok_fl
     assert {platform for _, platform, _ in tiktok_flag["checks"][-2:]} == {"web", "ios"}
 
 
+@pytest.mark.asyncio
+async def test_instagram_flag_gates_connecting_options_and_publishing_without_paused_state(service, tiktok_flag):
+    account = await _connect(service)
+    service.repo.accounts[account["id"]]["provider"] = "instagram"
+    tiktok_flag["on"] = False
+    unavailable = social_module.INSTAGRAM_UNAVAILABLE_MESSAGE
+
+    assert await service.provider_paused("instagram", "user-1") is False
+    assert await service.provider_flag_enabled("instagram", "user-1") is False
+    assert tiktok_flag["checks"][-1] == ("instagram_publishing", "web", "user-1")
+
+    with pytest.raises(social_module.SocialProviderUnavailable) as exc:
+        await service.start_connection("user-1", "instagram")
+    assert str(exc.value) == unavailable
+    with pytest.raises(social_module.SocialProviderUnavailable) as exc:
+        await service.complete_connection("user-1", "instagram", code="good-code", state="old")
+    assert str(exc.value) == unavailable
+    with pytest.raises(social_module.SocialProviderUnavailable) as exc:
+        await service.publishing_options("user-1", account["id"])
+    assert str(exc.value) == unavailable
+
+    jobs_before = len(service.queue_adapter.jobs)
+    with pytest.raises(social_module.SocialProviderUnavailable) as exc:
+        await service.create_post(
+            "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+            title=None, caption=None, hashtags=None, privacy_level="public", scheduled_for=None,
+        )
+    assert str(exc.value) == unavailable
+    assert len(service.queue_adapter.jobs) == jobs_before
+
+    # Queued post created while flag was on fails cleanly if the flag is turned off before publish.
+    tiktok_flag["on"] = True
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title=None, caption=None, hashtags=None, privacy_level="public", scheduled_for=None,
+    )
+    service.repo.posts[post["id"]]["provider"] = "instagram"
+    tiktok_flag["on"] = False
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "failed"
+    assert result["error_message"] == unavailable
+    assert {platform for _, platform, _ in tiktok_flag["checks"][-2:]} == {"web", "ios"}
+
+
 # ----------------------------------------------------------------------
 # Publish email notifications
 # ----------------------------------------------------------------------

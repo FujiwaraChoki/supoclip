@@ -466,6 +466,7 @@ def test_instagram_publish_polls_container_then_publishes(clip_file):
     assert result.external_url == "https://instagram.com/reel/abc"
 
     create_call = next(call for call in session.calls if call[1].endswith("/me/media"))
+    assert create_call[1] == "https://graph.instagram.com/v26.0/me/media"
     # Tokens travel in the Authorization header, never in URLs or form bodies.
     for _method, _url, kwargs in session.calls:
         assert kwargs["headers"]["Authorization"] == "Bearer token"
