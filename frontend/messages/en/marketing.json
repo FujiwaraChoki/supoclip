@@ -507,7 +507,7 @@
       "features": {
         "pooledHours": "{hours} pooled hours of video/month",
         "seats": "{seats} seats with shared clip library",
-        "quality": "Full HD {resolution} clips · YouTube up to {hours}h",
+        "quality": "Full HD {resolution} clips · videos up to {hours}h each",
         "sharedWorkspace": "Social scheduling & {aiEdits} pooled AI edits/mo",
         "roles": "Owner, Admin & Member roles + faster concurrency",
         "aiEdits": "{aiEdits} pooled AI edits/mo"

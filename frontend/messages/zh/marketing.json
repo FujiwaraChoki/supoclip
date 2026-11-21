@@ -507,7 +507,7 @@
       "features": {
         "pooledHours": "每月 {hours} 小时共享视频时长",
         "seats": "{seats} 个席位及共享切片库",
-        "quality": "Full HD {resolution} 切片 · 最长 {hours} 小时 YouTube 视频",
+        "quality": "Full HD {resolution} 切片 · 单个视频最长 {hours} 小时",
         "sharedWorkspace": "社交定时发布与每月 {aiEdits} 次共享 AI 编辑",
         "roles": "所有者、管理员与成员权限 + 更高并发处理",
         "aiEdits": "每月 {aiEdits} 次共享 AI 编辑"
