@@ -46,6 +46,8 @@ def test_the_prompt_bundle_carries_the_transcript_and_the_json_shape():
     assert "[00:10 - 00:20] line 010" in bundle
     assert "most_relevant_segments" in bundle and "virality" in bundle
     assert "ONE JSON object" in bundle
+    # The chat is told which hook types are allowed, not left to guess.
+    assert "JSON Schema" in bundle and '"statistic"' in bundle and '"contrast"' in bundle
     assert "Pick funny parts" in bundle
 
 

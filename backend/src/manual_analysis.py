@@ -86,7 +86,9 @@ def build_prompt_bundle(
         "## Task\n\n"
         f"{task}\n\n"
         "## Required JSON shape (example values)\n\n"
-        f"{json.dumps(_EXAMPLE, indent=2)}\n"
+        f"{json.dumps(_EXAMPLE, indent=2)}\n\n"
+        "## JSON Schema (allowed values and ranges; the answer is rejected if it does not match)\n\n"
+        f"{json.dumps(TranscriptAnalysis.model_json_schema(), indent=1)}\n"
     )
 
 

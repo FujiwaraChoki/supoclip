@@ -2447,5 +2447,6 @@ class VideoService:
                         cleanup_downloaded_files(video_id, source_path=video_path)
                     except Exception:
                         logger.exception("Could not clean up failed YouTube download")
-            logger.error(f"Error in video processing pipeline: {e}")
+            if not isinstance(e, ManualAnalysisPending):  # a pause, not a failure
+                logger.error(f"Error in video processing pipeline: {e}")
             raise
