@@ -1569,7 +1569,7 @@ export default function HomeApp() {
   );
 }
 
-/** Ties a detail row to the source above it, like a branch: down from the source icon, then across to this row's icon. */
+/** Shown when a source is over the plan's per-video limit: pick a part of it to clip, or compare plans. */
 function TooLongPanel({ ref, offer, range, onRangeChange, nextPlan, onUpgrade, onSubmit, onCancel, busy, problem }: {
   ref: React.Ref<HTMLElement>;
   offer: { durationSeconds: number; maxSeconds: number; minSeconds: number };
@@ -1620,6 +1620,7 @@ function TooLongPanel({ ref, offer, range, onRangeChange, nextPlan, onUpgrade, o
   );
 }
 
+/** Ties a detail row to the source above it, like a branch: down from the source icon, then across to this row's icon. */
 function SourceBranch({ continues = false }: { continues?: boolean }) {
   return (
     <span aria-hidden className="pointer-events-none absolute inset-y-0 left-[2.125rem] sm:left-[2.375rem]">
