@@ -595,6 +595,8 @@ CAPTION_LINE_MAX_PAUSE_SECONDS = 1.0
 # (never past the next line's start). Same values as the look captions (edit_fx.caption_groups).
 CAPTION_LINE_BRIDGE_SECONDS = 0.30
 CAPTION_LINE_MIN_HOLD_SECONDS = 0.40
+# A line that the next one replaces sooner than this cannot be read; it joins a neighbour instead.
+CAPTION_LINE_MIN_READABLE_SECONDS = 0.30
 
 _SENTENCE_END = re.compile(r"[.!?…。！？][\"'”’)\]]*$")
 # "Mr." and "J." end with a full stop without ending a sentence.
@@ -627,6 +629,40 @@ def _sentence_breaks(words: List[Dict[str, Any]]) -> List[int]:
         index for index in range(1, len(words))
         if ends_sentence(str(words[index - 1].get("text", "")))
     ]
+
+
+def _merge_flash_lines(
+    lines: List[Tuple[int, int]], words: List[Dict[str, Any]], chunk_size: int, hard_breaks: Iterable[int],
+) -> List[Tuple[int, int]]:
+    """Join a line that the next one would replace too soon to read to a neighbour.
+
+    In fast speech a one-word sentence ("Yeah.") is followed by the next line a fifth of a second
+    later. Such a line goes with the line after it, or with the one before when they run together,
+    as long as the result stays within ``chunk_size`` words. Lines are never joined across a pause
+    or a passage break (``hard_breaks``).
+    """
+    hard = set(hard_breaks)
+    lines = list(lines)
+    index = 0
+    while index < len(lines) - 1:
+        start, stop = lines[index]
+        next_start, next_stop = lines[index + 1]
+        shown = float(words[next_start]["start"]) - float(words[start]["start"])
+        if shown >= CAPTION_LINE_MIN_READABLE_SECONDS:
+            index += 1
+            continue
+        if next_start not in hard and next_stop - start <= chunk_size:
+            lines[index:index + 2] = [(start, next_stop)]
+            continue
+        if index and start not in hard:
+            prev_start, prev_stop = lines[index - 1]
+            gap = float(words[start]["start"]) - float(words[prev_stop - 1]["end"])
+            if stop - prev_start <= chunk_size and gap <= CAPTION_LINE_BRIDGE_SECONDS:
+                lines[index - 1:index + 1] = [(prev_start, stop)]
+                index -= 1
+                continue
+        index += 1
+    return lines
 
 
 def _line_display_ends(lines: List[Tuple[float, float]]) -> List[float]:
@@ -750,6 +786,7 @@ def build_assemblyai_ass_subtitles(
     # Lines cut from the transcript follow speech (pauses, sentences). Words handed in by the editor or
     # an FX caption edit keep their fixed groups: per-line placements are keyed by them.
     natural_lines = False
+    hard_breaks: List[int] = []
     if (
         include_captions
         and not relevant_words
@@ -773,9 +810,8 @@ def build_assemblyai_ass_subtitles(
         # A caption line holds each word until the next one starts. Across a pause (a laugh, a silent
         # stretch of gameplay, a line that was left out) that is seconds of the same words with the
         # next ones already readable, so a line ends at a pause and at the end of a sentence.
-        passage_breaks = sorted({
-            *passage_breaks, *_pause_breaks(relevant_words), *_sentence_breaks(relevant_words),
-        })
+        hard_breaks = sorted({*passage_breaks, *_pause_breaks(relevant_words)})
+        passage_breaks = sorted({*hard_breaks, *_sentence_breaks(relevant_words)})
         natural_lines = True
     if not relevant_words and not hook_title and not point_labels:
         logger.warning("No words or hook title available for ASS subtitles")
@@ -937,7 +973,10 @@ def build_assemblyai_ass_subtitles(
 
     word_widths = [display_width(index, word) for index, word in enumerate(relevant_words)]
     chunk_spans: List[Tuple[int, int, float]] = []
-    for chunk_start, chunk_stop in _chunk_bounds(len(relevant_words), chunk_size, passage_breaks, natural_lines):
+    line_bounds = list(_chunk_bounds(len(relevant_words), chunk_size, passage_breaks, natural_lines))
+    if natural_lines:
+        line_bounds = _merge_flash_lines(line_bounds, relevant_words, chunk_size, hard_breaks)
+    for chunk_start, chunk_stop in line_bounds:
         if wrap_lines:
             chunk_spans.append((chunk_start, chunk_stop, 1.0))
             continue

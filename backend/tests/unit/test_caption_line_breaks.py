@@ -99,6 +99,24 @@ def test_editor_words_keep_their_fixed_groups(tmp_path):
     assert bodies == {"WAS THE PLAN. NOW", "TELL"}
 
 
+def test_a_line_too_brief_to_read_joins_a_neighbour(tmp_path, monkeypatch):
+    """Fast speech: "Yeah." lasts a fifth of a second before the next sentence starts."""
+    words = _words(
+        ("Yeah.", 1000, 1150), ("Let's", 1200, 1400), ("go", 1400, 1600), ("now.", 1600, 1900),
+        ("We", 2000, 2150), ("have", 2150, 2300), ("to", 2300, 2400), ("leave.", 2400, 2750), ("Okay.", 2800, 2950),
+        ("Fine.", 5000, 5150), ("Move", 5200, 5400), ("it", 5400, 5500), ("over", 5500, 5700), ("there.", 5700, 6000),
+    )
+    lines = _lines(tmp_path, monkeypatch, words, 900, 6100)
+    texts = [text for _, _, text in lines]
+    # "Yeah." joins the sentence after it; "Okay." is the last line before a pause and keeps its hold;
+    # "Fine." cannot join a four-word sentence, so it stays on its own.
+    assert texts == ["YEAH. LET'S GO NOW.", "WE HAVE TO LEAVE.", "OKAY.", "FINE.", "MOVE IT OVER THERE."]
+    by_text = {text: end - start for start, end, text in lines}
+    assert by_text["OKAY."] >= captions.CAPTION_LINE_MIN_HOLD_SECONDS - 0.011
+    # A pause is never bridged: nothing joins "Okay." (before a 2 s pause) to "Fine." after it.
+    assert all("OKAY. FINE" not in text for text in texts)
+
+
 def test_words_between_two_breaks_are_shared_evenly():
     bounds = lambda count, breaks=(): list(captions._chunk_bounds(count, 4, list(breaks), True))
     assert bounds(5) == [(0, 3), (3, 5)]
