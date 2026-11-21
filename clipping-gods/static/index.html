@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111018">
+    <meta name="description" content="Turn long videos into standout vertical clips with a five-reviewer Gonka AI team.">
+    <title>Clipping Gods — make every moment count</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true"><span></span><span></span></div>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Clipping Gods home">
+        <span class="brand-mark" aria-hidden="true">CG</span>
+        <span>CLIPPING <b>GODS</b></span>
+      </a>
+      <div class="topbar-status"><span class="pulse"></span> FIVE AI REVIEWERS READY</div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="headline">
+        <p class="eyebrow"><span class="spark">✳</span> THE CREATOR'S CLIP STUDIO</p>
+        <h1 id="headline">Find the moment.<br><span>Make it matter.</span></h1>
+        <p class="intro">Drop in a public video. A scout and five focused AI editors find the hook, shape the story, and score what deserves the spotlight.</p>
+
+        <div class="source-row" aria-label="Supported sources">
+          <span class="source-pill"><span class="source-dot youtube"></span>YouTube</span>
+          <span class="source-pill"><span class="source-dot tiktok"></span>TikTok</span>
+          <span class="source-pill"><span class="source-dot facebook"></span>Facebook</span>
+          <span class="source-note">Public videos · no platform API keys</span>
+        </div>
+
+        <form id="create-job" class="create-card">
+          <label for="video-url">PASTE A VIDEO LINK</label>
+          <div class="input-row">
+            <input id="video-url" name="url" type="url" inputmode="url" autocomplete="url" required maxlength="2048" placeholder="https://www.youtube.com/watch?v=..." aria-describedby="url-hint">
+            <button type="submit"><span>MAKE CLIPS</span><span aria-hidden="true">↗</span></button>
+          </div>
+          <p id="url-hint" class="hint">Up to 90 minutes · only videos you have permission to reuse.</p>
+          <p id="create-error" class="error" role="alert" hidden></p>
+        </form>
+
+        <div class="team-card" aria-label="One scout and five specialist AI reviewers">
+          <div class="team-header"><span>THE LINEUP · SCOUT + FIVE REVIEWERS</span><span>01 — 06</span></div>
+          <div class="team-grid">
+            <div class="team-member"><span class="team-icon">✦</span><span><b>Scout</b><small>Finds the moment</small></span></div>
+            <div class="team-member"><span class="team-icon">↗</span><span><b>Hook editor</b><small>Wins the first second</small></span></div>
+            <div class="team-member"><span class="team-icon">◉</span><span><b>Context editor</b><small>Makes it make sense</small></span></div>
+            <div class="team-member"><span class="team-icon">⌁</span><span><b>Story editor</b><small>Looks for payoff</small></span></div>
+            <div class="team-member"><span class="team-icon">♡</span><span><b>Audience editor</b><small>Finds shareable value</small></span></div>
+            <div class="team-member"><span class="team-icon">✓</span><span><b>Fidelity editor</b><small>Protects source meaning</small></span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="jobs-section" aria-labelledby="jobs-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">YOUR WORKSPACE</p><h2 id="jobs-title">Recent sessions</h2></div>
+          <button id="refresh-jobs" class="refresh-button" type="button" aria-label="Refresh sessions">↻</button>
+        </div>
+        <div id="jobs-list" class="jobs-list" aria-live="polite">
+          <div class="empty-state"><span class="empty-icon">✧</span><p>Your next great clip starts with a link.</p></div>
+        </div>
+      </section>
+    </main>
+    <footer><span>CLIPPING GODS</span><span>Five perspectives. One standout moment.</span></footer>
+
+    <dialog id="password-dialog" class="password-dialog" aria-labelledby="password-title">
+      <form id="password-form" method="dialog">
+        <p class="eyebrow">PRIVATE WORKSPACE</p>
+        <h2 id="password-title">Welcome back.</h2>
+        <p class="password-copy">Enter your app password to view and create clips.</p>
+        <label for="app-password">APP PASSWORD</label>
+        <input id="app-password" type="password" autocomplete="current-password" required>
+        <button type="submit">UNLOCK STUDIO <span aria-hidden="true">↗</span></button>
+        <p id="password-error" class="error" role="alert" hidden></p>
+      </form>
+    </dialog>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

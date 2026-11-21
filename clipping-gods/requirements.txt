@@ -1,0 +1,6 @@
+fastapi==0.121.0
+httpx==0.28.1
+openai==2.8.1
+python-dotenv==1.0.1
+uvicorn[standard]==0.38.0
+yt-dlp[default]==2026.10.21
