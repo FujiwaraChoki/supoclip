@@ -486,6 +486,8 @@ async def supoclip_create_clip_task(
     instructions: str = "",
     intensity: str = "off",
     edit_style: Optional[dict] = None,
+    start_seconds: Optional[float] = None,
+    end_seconds: Optional[float] = None,
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -519,6 +521,14 @@ async def supoclip_create_clip_task(
     Both need dynamic edits on for the account (403 DYNAMIC_EDITS_NOT_AVAILABLE);
     ``supoclip_list_edit_styles`` tells you first.
 
+    Long videos: a video longer than the plan's per-video limit fails with 422
+    VIDEO_TOO_LONG (``detail.duration_seconds``, ``max_duration_seconds``,
+    ``range_allowed``). Pass ``start_seconds``/``end_seconds`` to clip one part
+    of it instead (highlights only): the part may be up to the plan's limit and
+    at least 60 s, only the part is downloaded and processed, and only its
+    minutes are charged. Clip timestamps stay on the full video's timeline.
+    An invalid part fails with 422 INVALID_SOURCE_RANGE.
+
     Workflows other than plain highlights may not be enabled for every account
     (403 WORKFLOW_NOT_AVAILABLE); ``supoclip_list_workflows`` tells you first.
     A failed workflow task ends with ``status: error`` and an ``error_code``
@@ -549,6 +559,10 @@ async def supoclip_create_clip_task(
         intensity: Dynamic edits: 'off' (default) | 'subtle' | 'bold' | 'max'.
         edit_style: Optional dynamic-edits settings, e.g. {"music": false, "censor": "bleep"};
             "intensity" may be set here too (the intensity argument wins when not "off").
+        start_seconds: Optional start of the part to clip, in seconds into the video
+            (default 0 when only end_seconds is given).
+        end_seconds: Optional end of the part to clip, in seconds into the video
+            (default: the video's end when only start_seconds is given).
 
     Returns:
         str: JSON ``{"task_id": str, "job_id": str, "message": str}`` on success.
@@ -570,6 +584,14 @@ async def supoclip_create_clip_task(
     cleaned_title = title.strip()
     if cleaned_title:
         source["title"] = cleaned_title[:300]
+    for name, value in (("start_seconds", start_seconds), ("end_seconds", end_seconds)):
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise SupoClipError(f"{name} must be zero or more seconds")
+        source[name] = value
+    if start_seconds is not None and end_seconds is not None and end_seconds <= start_seconds:
+        raise SupoClipError("end_seconds must be after start_seconds")
 
     body: dict = {
         "source": source,

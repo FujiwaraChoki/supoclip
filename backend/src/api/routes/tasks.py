@@ -106,6 +106,14 @@ from ...workflows.options import (
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
+from ...source_range import (
+    METADATA_KEY as SOURCE_RANGE_KEY,
+    SourceRangeError,
+    parse_requested_range,
+    resolve_source_range,
+    video_too_long_detail,
+    workflow_supports_range,
+)
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -157,8 +165,12 @@ def _duration_unavailable_error(platform: str) -> HTTPException:
     )
 
 
-async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
-    """Check duration before creating a task or consuming a generation."""
+async def _preflight_youtube_source(url: str, duration_limit: Optional[int]) -> Dict[str, Any]:
+    """Check duration before creating a task or consuming a generation.
+
+    ``duration_limit`` None skips the whole-video check (a part was picked;
+    the part's length is checked once the duration is known).
+    """
     # wait_for cancels the awaiting task when this elapses. A yt-dlp call already
     # running inside asyncio.to_thread can finish in the background.
     timeout_seconds = get_config().youtube_preflight_timeout_seconds
@@ -219,23 +231,11 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             },
         ) from None
 
-    if duration > duration_limit:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "VIDEO_TOO_LONG",
-                "message": (
-                    f"This video is {duration / 60:.1f} minutes long. Your plan allows "
-                    f"YouTube videos up to {duration_limit / 60:g} minutes. "
-                    "Choose a shorter video. No minutes were used."
-                ),
-                "duration_seconds": duration,
-                "max_duration_seconds": duration_limit,
-            },
-        )
+    if duration_limit is not None and duration > duration_limit:
+        raise HTTPException(status_code=422, detail=video_too_long_detail(duration, duration_limit))
     return metadata
 
-async def _preflight_stream_source(url: str, source: str, duration_limit: int) -> Dict[str, Any]:
+async def _preflight_stream_source(url: str, source: str, duration_limit: Optional[int]) -> Dict[str, Any]:
     try:
         # One overall deadline: yt-dlp (proxy, direct) metadata, then the cheap
         # metadata actor only when both fail. The full-video actor never runs
@@ -253,8 +253,8 @@ async def _preflight_stream_source(url: str, source: str, duration_limit: int) -
         raise HTTPException(status_code=422, detail={"code": "VIDEO_UNAVAILABLE", "message": str(exc)}) from None
     except Exception:
         raise HTTPException(status_code=503, detail={"code": "VIDEO_METADATA_UNAVAILABLE", "message": "We couldn't fetch this video, try again later. No minutes were used."}) from None
-    if duration > duration_limit:
-        raise HTTPException(status_code=422, detail={"code": "VIDEO_TOO_LONG", "message": f"This {source.title()} video is {duration / 60:.1f} minutes long. Your plan allows videos up to {duration_limit / 60:g} minutes. Choose a shorter VOD or clip. No minutes were used.", "duration_seconds": duration, "max_duration_seconds": duration_limit})
+    if duration_limit is not None and duration > duration_limit:
+        raise HTTPException(status_code=422, detail=video_too_long_detail(duration, duration_limit, platform=source.title()))
     return metadata
 
 
@@ -271,7 +271,7 @@ def _stream_resolution_metadata(metadata: Dict[str, Any] | None) -> Dict[str, An
     }
 
 
-async def _preflight_upload_source(url: str, user_id: str, duration_limit: int, db=None) -> float:
+async def _preflight_upload_source(url: str, user_id: str, duration_limit: Optional[int], db=None) -> float:
     """Read an uploaded video's length so its minutes are charged up front."""
     reference = None
     if db is not None and isinstance(url, str) and url.startswith("upload://") and not url.startswith("upload://s3/"):
@@ -308,19 +308,8 @@ async def _preflight_upload_source(url: str, user_id: str, duration_limit: int, 
             },
         ) from None
 
-    if duration > duration_limit:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "VIDEO_TOO_LONG",
-                "message": (
-                    f"This video is {duration / 60:.1f} minutes long. Uploads can be "
-                    f"up to {duration_limit / 60:g} minutes. No minutes were used."
-                ),
-                "duration_seconds": duration,
-                "max_duration_seconds": duration_limit,
-            },
-        )
+    if duration_limit is not None and duration > duration_limit:
+        raise HTTPException(status_code=422, detail=video_too_long_detail(duration, duration_limit, upload=True))
     return duration
 
 
@@ -752,6 +741,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         attempt.note_url(raw_source.get("url"))
     if not isinstance(raw_source, dict) or not isinstance(raw_source.get("url"), str) or not raw_source["url"].strip():
         raise HTTPException(status_code=400, detail="Source URL is required")
+    try:
+        requested_range = parse_requested_range(raw_source)
+    except SourceRangeError as exc:
+        raise HTTPException(status_code=422, detail=exc.to_detail()) from None
     auth_ctx = await _get_auth_context(request, db)
     user_id = auth_ctx.user_id
     team_id = auth_ctx.team_id
@@ -787,6 +780,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         workflow_spec = parse_workflow_request(data, clip_length)
     except WorkflowRequestError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
+    if requested_range is not None and not workflow_supports_range(workflow_spec.workflow):
+        raise HTTPException(status_code=422, detail=SourceRangeError(
+            "Picking a part of a video works with highlights. Choose highlights, or a shorter video."
+        ).to_detail())
     if not workflow_spec.legacy and not await workflow_allowed_for(
         db, user_id, workflow_spec.workflow, platform=client_platform(request)
     ):
@@ -832,6 +829,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         upload_options["workflow_options"] = workflow_options
     if edit_style_json:
         upload_options["edit_style"] = edit_style_json
+    if requested_range is not None:
+        # Two parts of one upload are two jobs. Whole-video keys are unchanged.
+        upload_options["source_range"] = requested_range.key()
     upload_request_key = _upload_request_key(request, raw_source["url"], upload_options)
     # A keyed request answers with the task the key made, however long ago
     # within retention. Unkeyed upload retries keep the short-window dedupe.
@@ -856,6 +856,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     source_key = None
     if db is not None:
         source_key = await source_key_for_url(db, user_id, raw_source["url"].strip())
+        if source_key and requested_range is not None:
+            source_key = f"{source_key}|range:{requested_range.key()}"
         if source_key:
             existing = await TaskRepository.find_active_source_task(
                 db, user_id, source_key, team_id=team_id, **edit_identity
@@ -890,22 +892,35 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             raw_source["url"] = canonical_youtube_url(raw_source["url"]) or raw_source["url"]
         source_title = raw_source.get("title")
         stream_metadata: Dict[str, Any] | None = None
+        duration_limit = (
+            billing["max_youtube_duration_seconds"]
+            if source_type in {"youtube", "twitch", "kick"}
+            else billing["max_upload_duration_seconds"]
+        )
+        # With a picked part the whole video may be longer than the plan allows.
+        whole_video_limit = None if requested_range is not None else duration_limit
         if source_type == "youtube":
-            metadata = await _preflight_youtube_source(
-                raw_source["url"], billing["max_youtube_duration_seconds"]
-            )
+            metadata = await _preflight_youtube_source(raw_source["url"], whole_video_limit)
             source_title = source_title or metadata.get("title") or "YouTube Video"
             duration_seconds = float(metadata["duration"])
         elif source_type in {"twitch", "kick"}:
-            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, billing["max_youtube_duration_seconds"])
+            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, whole_video_limit)
             source_title = source_title or stream_metadata.get("title") or f"{source_type.title()} Video"
             duration_seconds = float(stream_metadata["duration"])
         else:
             if await foreign_upload(db, raw_source["url"], user_id):
                 raise HTTPException(status_code=404, detail="Video file not found")
             duration_seconds = await _preflight_upload_source(
-                raw_source["url"], user_id, billing["max_upload_duration_seconds"], db
+                raw_source["url"], user_id, whole_video_limit, db
             )
+
+        try:
+            source_range = resolve_source_range(requested_range, duration_seconds, duration_limit)
+        except SourceRangeError as exc:
+            raise HTTPException(status_code=422, detail=exc.to_detail()) from None
+        # Minutes are charged for the part that is processed, and refunded the same.
+        if source_range is not None:
+            duration_seconds = source_range.length
 
         try:
             check_source_duration(workflow_spec, duration_seconds)
@@ -980,6 +995,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                             "enqueued_at": datetime.now(timezone.utc).isoformat(),
                             **({"source_key": source_key} if source_key else {}),
                             **_stream_resolution_metadata(stream_metadata),
+                            **({SOURCE_RANGE_KEY: source_range.to_metadata()} if source_range else {}),
                         },
                         source_url=raw_source["url"],
                         source_type=source_type,
@@ -1028,6 +1044,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                     "workflow": workflow_spec.workflow,
                     "source_kind": source_kind(source_type, raw_source["url"]),
                     "source_duration_seconds": math.ceil(duration_seconds),
+                    **({"source_range": True} if source_range else {}),
                     "has_instructions": bool(workflow_spec.options.instructions),
                     "plan": billing.get("plan") if isinstance(billing, dict) else None,
                     "client": request_client(request),

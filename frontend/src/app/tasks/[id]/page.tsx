@@ -79,6 +79,7 @@ import { intlLocale } from "@/i18n/config";
 import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
 import { cn } from "@/lib/utils";
+import { formatClock } from "@/lib/source-range";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
@@ -183,6 +184,9 @@ interface TaskDetails extends WorkflowTaskFields {
   progress_message?: string;
   clips_count: number;
   source_duration_seconds?: number | null;
+  /** Set when only part of the video was clipped; seconds into the original. Clip times are already on the original's timeline. */
+  source_start_seconds?: number | null;
+  source_end_seconds?: number | null;
   created_at: string;
   updated_at: string;
   font_family?: string | null;
@@ -228,11 +232,19 @@ function sourceLabel(source: VideoSourceKind, uploadLabel: string) {
 }
 
 /** Link back to the YouTube/Twitch/Kick video a task was cut from, when its URL is stored. */
-function originalVideoUrl(task: Pick<TaskDetails, "source_type" | "source_url">): string | null {
+function originalVideoUrl(task: Pick<TaskDetails, "source_type" | "source_url" | "source_start_seconds">): string | null {
   if (videoSourceKind(task.source_type) === "upload" || !task.source_url) return null;
   try {
     const url = new URL(task.source_url);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    // A clipped part opens the original where the part starts.
+    const start = Math.floor(task.source_start_seconds ?? 0);
+    if (start > 0) {
+      const kind = videoSourceKind(task.source_type);
+      if (kind === "youtube") url.searchParams.set("t", `${start}s`);
+      else if (kind === "twitch") url.searchParams.set("t", `${Math.floor(start / 3600)}h${Math.floor((start % 3600) / 60)}m${start % 60}s`);
+    }
+    return url.href;
   } catch {
     return null;
   }
@@ -1111,6 +1123,11 @@ export default function TaskPage() {
                   {new Date(task.created_at).toLocaleString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
                 </TooltipContent>
               </Tooltip>
+              {task.source_start_seconds != null && task.source_end_seconds != null && (
+                <span className="tabular-nums" data-testid="source-range">
+                  {t("sourceRange", { start: formatClock(task.source_start_seconds), end: formatClock(task.source_end_seconds) })}
+                </span>
+              )}
               {isActive && task.source_duration_seconds ? <span className="tabular-nums">{t("sourceLength", { duration: formatDuration(task.source_duration_seconds) })}</span> : null}
               {clips.length > 0 && (
                 <span className="tabular-nums">
