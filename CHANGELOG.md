@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
-- **Fixed:** In a conversation filmed over the shoulder, the person seen from behind no longer gets half of a split screen. When one of two people faces the camera and the other has their back to it, the clip shows the one facing the camera; two people filmed from the side keep their two panels. ([#545](https://github.com/FujiwaraChoki/supoclip/pull/545))
+- **Fixed:** In a conversation filmed over the shoulder, the person seen from behind no longer gets half of a split screen. When one of two people faces the camera and the other has their back to it, the clip shows the one facing the camera; two people filmed from the side keep their two panels. A split screen also no longer flickers to another framing for a fraction of a second in the middle of a shot. ([#545](https://github.com/FujiwaraChoki/supoclip/pull/545))
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))
 - **Fixed:** Clips from very long YouTube videos (six hours and up, including day-long streams) no longer fail on every try. SupoClip now downloads just the parts it needs from them instead of falling back to the whole video, and a video too large to download in full now fails right away with a clear message instead of after a long wait. ([#544](https://github.com/FujiwaraChoki/supoclip/pull/544))
 - **Improved:** The pricing modal shows the full Self-hosted card again, with what self-hosting includes and a direct link to the self-hosting guide alongside the hosted plans. ([#532](https://github.com/FujiwaraChoki/supoclip/pull/532))
