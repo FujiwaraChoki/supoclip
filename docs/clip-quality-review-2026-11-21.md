@@ -27,17 +27,17 @@ one got 4. They recorded 747 problems. Grouped by pattern (a clip can be in seve
 | Pattern | Clips (of 90) | Status |
 |---|---|---|
 | Caption lines join the end of one sentence to the start of the next | 79 | Fixed (#529) |
-| Picture reduced to a third of the frame, with blur above and below | 77 | Partly addressed by layout work already on `main`; open (#282) |
+| Picture reduced to a third of the frame, with blur above and below | 77 | Partly addressed by layout work already on `main`; streamers side by side fixed in #550; open (#282) |
 | Caption line frozen through a pause (up to 19.5 s) | 55 | Fixed (#529) |
 | Wrong words from transcription burned in | 50 | Open (#543) |
 | Clip ends before the payoff, mid-sentence or on a question | 47 | Open (#542) |
-| Hook title on the seam between two bands, or over a face | 43 | Open (#540) |
-| Frames of a neighbouring shot, or a source transition, at the start or end | 37 | Hard cuts within 0.4 s fixed (#530); transitions and longer overruns open (#542) |
-| Layout changes with no cut in the source, or layouts shorter than 1.5 s | 35 | Open (#539) |
+| Hook title on the seam between two bands, or over a face | 43 | One cause fixed in #548; open (#540) |
+| Frames of a neighbouring shot, or a source transition, at the start or end | 37 | Hard cuts within 0.4 s, black frames and fades up to 0.6 s fixed (#530); other transitions and longer overruns open (#542) |
+| Layout changes with no cut in the source, or layouts shorter than 1.5 s | 35 | Flashes under 1.2 s fixed in #545; longer ones open (#539) |
 | On-screen counters, timers and labels cut by the crop | 34 | Open (#539, #541) |
-| A band or crop showing the wrong thing (a wall, a back of a head, extras) | 32 | Open (#539) |
+| A band or crop showing the wrong thing (a wall, a back of a head, extras) | 32 | A back of a head with no face in view fixed in #545; the rest open (#539) |
 | Hook title describes something that is not on screen | 20 | Open (#543) |
-| Source letterbox bars kept, shown as black bands | 15 | Open (#538) |
+| Source letterbox bars kept, shown as black bands | 15 | Fixed for the Auto format in #546; Fit format open (#538) |
 | Footage repeated between clips of one task | 10 | Fixed for overlaps above a third (#531) |
 | Clips shown without a score (25 clips, all from cached analyses) | 25 | Fixed (#528) |
 
@@ -58,11 +58,35 @@ between 28 and 92.
 
 **Clip edges (#530).** A clip is cut a moment before its first word and after its last. A shot change
 inside that moment showed as a flash of another scene on the first or last frames. Up to 0.4 s of a
-neighbouring shot is now replaced by a held frame of the clip's own shot, with the audio untouched.
+neighbouring shot is now replaced by a held frame of the clip's own shot, with the audio untouched. The
+same is done for black frames at an edge and for a fade from or to black of up to 0.6 s, so a clip does
+not open or close on a black or dimmed picture.
 
 **Near-duplicate clips (#531).** One reviewed task delivered three clips from one two-minute stretch; the
 middle one had a second of footage of its own. The overlap limit between two picks went from a half to a
 third, and a pick mostly covered by stronger picks together is dropped.
+
+## Follow-up pull requests (framing)
+
+After #534, framing was what still held the re-rendered clips back, so the layout planner was measured on
+the same clips (the real planner on each clip's source cut, its plan rendered as a preview and compared
+with the source) and four targeted fixes were made, each in its own pull request:
+
+- **#545, interview layout.** A person whose face is not in view (a back of a head) gets no split-screen
+  half, and a layout under 1.2 s inside one continuous shot stays with its neighbour. On the 23 clips that
+  use this layout the most: picture jumps with no cut in the source 100 to 64, sub-second layouts 33 to 14.
+  A person in profile keeps their half: a first version that judged by the eyes alone removed more bad
+  halves but three times dropped someone speaking in profile.
+- **#546, letterbox bars.** Black bars baked into a 16:9 file are measured and the layout is planned on the
+  picture between them, unless that would crop into close-up faces.
+- **#548, hook title row.** The title sits on the seam between two halves only when the split screen fills
+  most of the title's four seconds.
+- **#550, streamers side by side.** Two or three creators keyed out next to each other over a game share
+  one camera panel. Seven of the reviewed clips that were a small picture or a two-face split screen become
+  gameplay layouts; on the 14 clips it touches, time as a small picture goes from 91.7 s to none.
+
+Reviewers who compared the re-rendered clips again found the targeted defects gone where the rules fire,
+and the scores of those clips mostly unchanged: each still has other problems from the open list below.
 
 ## Already different on `main`
 
@@ -78,10 +102,10 @@ the open list below is what the re-renders still show.
 
 What the re-renders on today's code still show, by issue:
 
-- #538: letterboxed sources keep their black bars in every layout.
-- #539: framing in multi-person scenes (backs of heads, halves without a person, crops that slide after a
-  cut) and layout changes off the cut.
-- #540: the hook title and the captions are placed over faces, seams and the source's own text.
+- #538: letterboxed sources keep their black bars in the Fit format, and bars that differ from shot to shot.
+- #539: framing in multi-person scenes (a listener who turns away mid-shot, halves with an extra or an
+  object, crops that slide after a cut or miss the action) and layout changes off the cut that last.
+- #540: the hook title and the captions are placed over faces and the source's own text.
 - #541: in the gameplay layout the pasted minimap hides the game's subtitles on lines whose captions are
   left off.
 - #542: clip boundaries ignore scene changes and source transitions; clips end before the payoff.
