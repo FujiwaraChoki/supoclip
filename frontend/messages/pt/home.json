@@ -494,5 +494,29 @@
         "description": "Brilhos, chifres e setas que seguem o rosto de quem fala"
       }
     }
+  },
+  "sourceRange": {
+    "start": "Início",
+    "end": "Fim",
+    "format": "Use h:mm:ss, como 1:30:00",
+    "first": "Primeiros {minutes} min",
+    "last": "Últimos {minutes} min",
+    "selected": "Vamos cortar {length}. Usa {minutes} minutos.",
+    "problems": {
+      "invalid": "Informe um horário de início e um de fim.",
+      "order": "O fim precisa vir depois do início.",
+      "outOfBounds": "Escolha horários entre 0:00 e {duration}.",
+      "tooShort": "Escolha pelo menos {min} minuto.",
+      "tooLong": "Escolha {max} minutos ou menos."
+    }
+  },
+  "tooLongPanel": {
+    "title": "Este vídeo de {runtime} passa do seu limite de {minutes} minutos",
+    "body": "Escolha uma parte de até {minutes} minutos e cortamos só ela. Só essa parte conta nos seus minutos.",
+    "bodyUpgrade": "Escolha uma parte de até {minutes} minutos e cortamos só ela, ou mude para o {plan} para vídeos de até {nextMinutes} minutos. Só a parte escolhida conta nos seus minutos.",
+    "submit": "Cortar esta parte",
+    "cancel": "Escolher outro vídeo",
+    "upgradeLink": "Comparar planos",
+    "label": "Parte do vídeo para cortar"
   }
 }
