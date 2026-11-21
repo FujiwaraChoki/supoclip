@@ -453,8 +453,14 @@ class TaskService(ClipEditingMixin):
         logger.info(f"Created task {task_id} for user {user_id}")
         return task_id
 
-    async def _load_performance_context(self, user_id: Optional[str]) -> Optional[str]:
-        """Build the creator's performance summary for the AI prompt (best effort)."""
+    async def _load_performance_context(
+        self, user_id: Optional[str], *, team_id: Optional[str] = None
+    ) -> Optional[str]:
+        """Build the workspace's performance summary for the AI prompt (best effort).
+
+        A team task learns from the team's posts, never from the personal
+        accounts of the member who started it.
+        """
         if not user_id:
             return None
         try:
@@ -466,7 +472,7 @@ class TaskService(ClipEditingMixin):
             # leave the task's transaction aborted.
             async with AsyncSessionLocal() as session:
                 return await SocialService(session, self.config).build_performance_context(
-                    user_id
+                    user_id, **({"team_id": team_id} if team_id else {})
                 )
         except Exception as exc:  # never block processing
             logger.warning("Skipping performance context for user %s: %s", user_id, exc)
@@ -600,7 +606,9 @@ class TaskService(ClipEditingMixin):
             # cache so one creator's history never shapes another's clips.
             # Series, recaps and trailers follow the video, not past metrics.
             performance_context = (
-                await self._load_performance_context(user_id)
+                await self._load_performance_context(
+                    user_id, **({"team_id": task_team_id} if task_team_id else {})
+                )
                 if spec.uses_performance_context
                 else None
             )

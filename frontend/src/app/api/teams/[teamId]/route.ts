@@ -287,17 +287,18 @@ export async function DELETE(
   }).catch(() => {});
 
   // `sources` has no team column: remove the ones only this team's tasks use,
-  // before the team's tasks cascade away with it.
-  await prisma.source.deleteMany({
-    where: {
-      tasks: {
-        some: { team_id: teamId },
-        none: { OR: [{ team_id: null }, { team_id: { not: teamId } }] },
+  // together with the team whose tasks then cascade away.
+  await prisma.$transaction(async (tx) => {
+    await tx.source.deleteMany({
+      where: {
+        tasks: {
+          some: { team_id: teamId },
+          none: { OR: [{ team_id: null }, { team_id: { not: teamId } }] },
+        },
       },
-    },
+    });
+    await tx.team.delete({ where: { id: teamId } });
   });
-
-  await prisma.team.delete({ where: { id: teamId } });
 
   const response = NextResponse.json({ deleted: true });
   response.cookies.set(WORKSPACE_COOKIE, "", {

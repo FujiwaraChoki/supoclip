@@ -187,6 +187,12 @@ async def test_team_pooled_billing_allowance_isolation_and_refund(monkeypatch):
         """))
         conn.execute(text("CREATE TABLE generated_clips (id TEXT PRIMARY KEY, task_id TEXT)"))
         conn.execute(text("""
+            CREATE TABLE team_members (
+                team_id TEXT, user_id TEXT, role TEXT,
+                monthly_minute_limit INTEGER, monthly_ai_edit_limit INTEGER
+            )
+        """))
+        conn.execute(text("""
             CREATE TABLE minute_usage_events (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -304,7 +310,10 @@ async def test_team_ai_edit_allowance_uses_team_pool(monkeypatch):
             self.used = used
 
         async def execute(self, *_args, **_kwargs):
-            return SimpleNamespace(scalar_one=lambda: self.used, scalar=lambda: self.used)
+            # fetchone: the member has no row of limits (None = no personal cap).
+            return SimpleNamespace(
+                scalar_one=lambda: self.used, scalar=lambda: self.used, fetchone=lambda: None
+            )
 
     config = Config()
     config.self_host = False

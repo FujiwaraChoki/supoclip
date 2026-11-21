@@ -267,28 +267,25 @@ class BillingService:
 
         Owners are never subject to per-member caps.
         """
-        try:
-            result = await self.db.execute(
-                text(
-                    """
-                    SELECT role, monthly_minute_limit, monthly_ai_edit_limit
-                    FROM team_members
-                    WHERE team_id = :team_id AND user_id = :user_id
-                    """
-                ),
-                {"team_id": team_id, "user_id": user_id},
-            )
-            row = result.fetchone()
-            if not row or (getattr(row, "role", None) or "").lower() == "owner":
-                return None, None
-            min_lim = getattr(row, "monthly_minute_limit", None)
-            ai_lim = getattr(row, "monthly_ai_edit_limit", None)
-            return (
-                int(min_lim) if min_lim is not None else None,
-                int(ai_lim) if ai_lim is not None else None,
-            )
-        except Exception:
+        result = await self.db.execute(
+            text(
+                """
+                SELECT role, monthly_minute_limit, monthly_ai_edit_limit
+                FROM team_members
+                WHERE team_id = :team_id AND user_id = :user_id
+                """
+            ),
+            {"team_id": team_id, "user_id": user_id},
+        )
+        row = result.fetchone()
+        if not row or (getattr(row, "role", None) or "").lower() == "owner":
             return None, None
+        min_lim = getattr(row, "monthly_minute_limit", None)
+        ai_lim = getattr(row, "monthly_ai_edit_limit", None)
+        return (
+            int(min_lim) if min_lim is not None else None,
+            int(ai_lim) if ai_lim is not None else None,
+        )
 
     async def _count_member_usage(
         self,

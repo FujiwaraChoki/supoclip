@@ -357,13 +357,13 @@ async def client(tmp_path, monkeypatch):
     pool.reserved = set()
 
     class Allowance:
-        async def summary(self, user_id):
+        async def summary(self, user_id, *, team_id=None):
             used = len(pool.reserved)
             return {"plan": "pro", "limit": pool.allowance_limit, "used": used,
                     "remaining": max(0, pool.allowance_limit - used),
                     "resetsAt": "2026-12-01T00:00:00+00:00", "allowed": used < pool.allowance_limit}
 
-        async def reserve(self, user_id, job_id):
+        async def reserve(self, user_id, job_id, *, team_id=None):
             usage = await self.summary(user_id)
             if not usage["allowed"]:
                 raise editor.AIEditLimitExceeded(usage)

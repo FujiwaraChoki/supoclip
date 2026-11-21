@@ -354,3 +354,215 @@ async def test_team_redis_video_concurrency_slots_real_redis():
     finally:
         await redis_client.delete(f"user_video_active:team:{team_id}", f"user_video_active:{user_id}")
         await redis_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_deleting_team_work_follows_team_membership(client, db_session):
+    """Delete goes through the same workspace check as every other change to a task."""
+    uid_owner = f"u-do-{uuid.uuid4().hex[:8]}"
+    uid_editor = f"u-de-{uuid.uuid4().hex[:8]}"
+    team_a = f"team-da-{uuid.uuid4().hex[:8]}"
+    for uid in (uid_owner, uid_editor):
+        await create_user(db_session, user_id=uid, email=f"{uid}@example.com", name=uid)
+    await db_session.execute(
+        text('UPDATE users SET "emailVerified" = TRUE WHERE id = :u'), {"u": uid_owner}
+    )
+    await _seed_team(
+        db_session,
+        team_id=team_a,
+        name="Delete Crew",
+        owner_id=uid_owner,
+        members=[(uid_owner, "owner"), (uid_editor, "member")],
+    )
+
+    async def team_task(creator: str) -> str:
+        source = await create_source(db_session, title="Team video")
+        task = await create_task(db_session, user_id=creator, source_id=source["id"], status="completed")
+        await db_session.execute(
+            text("UPDATE tasks SET team_id = :t WHERE id = :id"), {"t": team_a, "id": task["id"]}
+        )
+        await db_session.commit()
+        return task["id"]
+
+    editors_first = await team_task(uid_editor)
+    editors_second = await team_task(uid_editor)
+    source = await create_source(db_session, title="Owner personal video")
+    owners_personal = (
+        await create_task(db_session, user_id=uid_owner, source_id=source["id"], status="completed")
+    )["id"]
+    await db_session.commit()
+
+    # A team key reaches its team only, even for the tasks of the person who made the key.
+    created = await client.post("/api-keys/", json={"name": "Team key"}, headers=_sign(uid_owner, team_a))
+    team_key = {"Authorization": f"Bearer {created.json()['api_key']['key']}"}
+    assert (await client.delete(f"/tasks/{owners_personal}", headers=team_key)).status_code == 403
+
+    # The owner can delete a teammate's task in the team.
+    assert (await client.delete(f"/tasks/{editors_first}", headers=_sign(uid_owner, team_a))).status_code == 200
+
+    # Once removed from the team, its creator can no longer delete what they made there.
+    await db_session.execute(
+        text("DELETE FROM team_members WHERE team_id = :t AND user_id = :u"),
+        {"t": team_a, "u": uid_editor},
+    )
+    await db_session.commit()
+    assert (await client.delete(f"/tasks/{editors_second}", headers=_sign(uid_editor))).status_code == 403
+    remaining = await db_session.execute(
+        text("SELECT id FROM tasks WHERE id IN (:a, :b, :c)"),
+        {"a": editors_first, "b": editors_second, "c": owners_personal},
+    )
+    assert {row.id for row in remaining} == {editors_second, owners_personal}
+
+
+@pytest.mark.asyncio
+async def test_team_key_stops_everywhere_when_its_creator_leaves(client, db_session):
+    """Routes that only need the user (uploads, fonts, workflows) refuse a dead team key too."""
+    uid_owner = f"u-lo-{uuid.uuid4().hex[:8]}"
+    uid_admin = f"u-la-{uuid.uuid4().hex[:8]}"
+    team_a = f"team-la-{uuid.uuid4().hex[:8]}"
+    for uid in (uid_owner, uid_admin):
+        await create_user(db_session, user_id=uid, email=f"{uid}@example.com", name=uid)
+    await db_session.execute(
+        text('UPDATE users SET "emailVerified" = TRUE WHERE id = :u'), {"u": uid_admin}
+    )
+    await _seed_team(
+        db_session,
+        team_id=team_a,
+        name="Leaving Crew",
+        owner_id=uid_owner,
+        members=[(uid_owner, "owner"), (uid_admin, "admin")],
+    )
+    created = await client.post("/api-keys/", json={"name": "Admin key"}, headers=_sign(uid_admin, team_a))
+    assert created.status_code == 200
+    team_key = {"Authorization": f"Bearer {created.json()['api_key']['key']}"}
+    assert (await client.get("/tasks/workflows", headers=team_key)).status_code == 200
+
+    await db_session.execute(
+        text("DELETE FROM team_members WHERE team_id = :t AND user_id = :u"),
+        {"t": team_a, "u": uid_admin},
+    )
+    await db_session.commit()
+
+    assert (await client.get("/tasks/", headers=team_key)).status_code == 403
+    assert (await client.get("/tasks/workflows", headers=team_key)).status_code == 403
+    assert (await client.get("/fonts", headers=team_key)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_one_channel_connected_personally_and_in_a_team_stays_two_accounts(db_session):
+    """The same person connects the same channel in both workspaces: neither overwrites the other."""
+    from src.repositories.social_repository import SocialRepository
+
+    uid = f"u-so-{uuid.uuid4().hex[:8]}"
+    team_a = f"team-so-{uuid.uuid4().hex[:8]}"
+    channel = f"channel-{uuid.uuid4().hex[:8]}"
+    await create_user(db_session, user_id=uid, email=f"{uid}@example.com", name="Owner")
+    await _seed_team(db_session, team_id=team_a, name="Social Crew", owner_id=uid)
+
+    async def connect(token: str, team_id: str | None = None):
+        return await SocialRepository.upsert_account(
+            db_session,
+            user_id=uid,
+            provider="youtube",
+            external_account_id=channel,
+            display_name="Demo Channel",
+            username="demo",
+            avatar_url=None,
+            access_token_encrypted=token,
+            refresh_token_encrypted=None,
+            token_expires_at=None,
+            scopes=None,
+            metadata={},
+            **({"team_id": team_id} if team_id else {}),
+        )
+
+    personal = await connect("personal-token-1")
+    team = await connect("team-token-1", team_a)
+    assert personal["id"] != team["id"]
+    # The team owns its account; it does not hang off the member who connected it.
+    assert (team["user_id"], team["team_id"]) == (None, team_a)
+    assert (personal["user_id"], personal["team_id"]) == (uid, None)
+
+    # Reconnecting in either workspace refreshes that workspace's row only.
+    assert (await connect("personal-token-2"))["id"] == personal["id"]
+    assert (await connect("team-token-2", team_a))["id"] == team["id"]
+    tokens = await db_session.execute(
+        text(
+            "SELECT id, access_token_encrypted FROM social_accounts "
+            "WHERE provider = 'youtube' AND external_account_id = :channel"
+        ),
+        {"channel": channel},
+    )
+    assert {row.id: row.access_token_encrypted for row in tokens} == {
+        personal["id"]: "personal-token-2",
+        team["id"]: "team-token-2",
+    }
+
+    assert [a["id"] for a in await SocialRepository.list_accounts(db_session, uid)] == [personal["id"]]
+    assert [a["id"] for a in await SocialRepository.list_accounts(db_session, uid, team_id=team_a)] == [team["id"]]
+
+    # The connecting member's account can go without taking the team's connection with it.
+    await db_session.execute(
+        text("UPDATE teams SET owner_id = :other WHERE id = :t"),
+        {"other": (await create_user(db_session, email=f"other-{uid}@example.com"))["id"], "t": team_a},
+    )
+    await db_session.execute(text("DELETE FROM users WHERE id = :u"), {"u": uid})
+    await db_session.commit()
+    left = await db_session.execute(
+        text("SELECT id FROM social_accounts WHERE external_account_id = :channel"), {"channel": channel}
+    )
+    assert [row.id for row in left] == [team["id"]]
+
+
+@pytest.mark.asyncio
+async def test_team_ai_edit_counts_against_the_member_who_asked(db_session):
+    """Any member can open any team clip; a member's AI edit limit follows the member."""
+    from types import SimpleNamespace
+
+    from src.api.routes.editor import _ai_edit_payer, _ai_limit_message
+
+    creator, editor = "member-who-made-it", "member-who-edits-it"
+    team_task = {"id": "t", "user_id": creator, "team_id": "team-a"}
+    personal_task = {"id": "p", "user_id": creator, "team_id": None}
+    assert _ai_edit_payer(SimpleNamespace(user_id=editor), team_task) == editor
+    assert _ai_edit_payer(SimpleNamespace(user_id=creator), personal_task) == creator
+
+    uid_owner = f"u-ao-{uuid.uuid4().hex[:8]}"
+    uid_paused = f"u-ap-{uuid.uuid4().hex[:8]}"
+    team_a = f"team-ai-{uuid.uuid4().hex[:8]}"
+    for uid in (uid_owner, uid_paused):
+        await create_user(db_session, user_id=uid, email=f"{uid}@example.com", name=uid)
+    await _seed_team(
+        db_session,
+        team_id=team_a,
+        name="AI Crew",
+        owner_id=uid_owner,
+        members=[(uid_owner, "owner"), (uid_paused, "member")],
+    )
+    await db_session.execute(
+        text("UPDATE team_members SET monthly_ai_edit_limit = 0 WHERE team_id = :t AND user_id = :u"),
+        {"t": team_a, "u": uid_paused},
+    )
+    await db_session.commit()
+
+    config = get_config()
+    previous = config.monetization_enabled
+    config.monetization_enabled = True
+    try:
+        allowance = AIEditAllowanceService(db_session, config)
+        # The paused member is refused on a clip the (unlimited) owner made ...
+        with pytest.raises(AIEditLimitExceeded) as refused:
+            await allowance.reserve(uid_paused, uuid.uuid4().hex, team_id=team_a)
+        assert refused.value.usage["memberLimitReached"] is True
+        assert "paused" in _ai_limit_message(refused.value.usage)
+        # ... and the owner's own edit is still allowed and counted to the owner.
+        job_id = uuid.uuid4().hex
+        await allowance.reserve(uid_owner, job_id, team_id=team_a)
+        row = (
+            await db_session.execute(
+                text("SELECT user_id, team_id FROM ai_edit_usage_events WHERE job_id = :j"), {"j": job_id}
+            )
+        ).one()
+        assert (row.user_id, row.team_id) == (uid_owner, team_a)
+    finally:
+        config.monetization_enabled = previous
