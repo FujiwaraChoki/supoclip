@@ -7,10 +7,20 @@ import path from "node:path";
 
 const require = createRequire(import.meta.url);
 const preloadPath = path.resolve(__dirname, "../../server-request-timeout.cjs");
-const { DEFAULT_REQUEST_TIMEOUT_MS, requestTimeoutMs, withRequestTimeout } = require(preloadPath) as {
+const {
+  DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  requestTimeoutMs,
+  withRequestTimeout,
+} = require(preloadPath) as {
+  DEFAULT_KEEP_ALIVE_TIMEOUT_MS: number;
   DEFAULT_REQUEST_TIMEOUT_MS: number;
   requestTimeoutMs: (env: Record<string, string | undefined>) => number;
-  withRequestTimeout: (createServer: typeof http.createServer, timeoutMs: number) => typeof http.createServer;
+  withRequestTimeout: (
+    createServer: typeof http.createServer,
+    timeoutMs: number,
+    keepAliveTimeoutMs?: number,
+  ) => typeof http.createServer;
 };
 
 // Runs `script` in a fresh Node, preloaded the way the Dockerfile starts Next.
@@ -63,6 +73,44 @@ function slowUpload(port: number, chunks: number, intervalMs: number): Promise<s
   });
 }
 
+// Sends a request, waits `idleMs` on the open keep-alive connection, then
+// sends a POST on it the way nginx reuses an idle upstream connection.
+// Resolves with both status lines ("" when the server had closed it).
+function reuseAfterIdle(port: number, idleMs: number): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect(port, "127.0.0.1");
+    const statuses: string[] = [];
+    let pending = "";
+    socket.on("connect", () => {
+      socket.write("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    });
+    socket.on("data", (data) => {
+      pending += data.toString();
+      const responses = pending.split("HTTP/1.1 ").slice(1);
+      if (responses.length > statuses.length) {
+        statuses.push(`HTTP/1.1 ${responses[responses.length - 1].split("\r\n")[0]}`);
+        if (statuses.length === 1) {
+          setTimeout(() => {
+            if (socket.destroyed) return;
+            socket.write(
+              "POST /ingest/e HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\n\r\n{}",
+            );
+          }, idleMs);
+        } else {
+          socket.end();
+        }
+      }
+    });
+    socket.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE" && error.code !== "ECONNRESET") reject(error);
+    });
+    socket.on("close", () => {
+      while (statuses.length < 2) statuses.push("");
+      resolve(statuses);
+    });
+  });
+}
+
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   return (server.address() as net.AddressInfo).port;
@@ -96,13 +144,55 @@ describe("server-request-timeout preload", () => {
     ];
     for (const server of servers) {
       expect(server.requestTimeout).toBe(1_234_000);
+      expect(server.keepAliveTimeout).toBe(DEFAULT_KEEP_ALIVE_TIMEOUT_MS);
       // Node's 60 s header limit is untouched.
       expect(server.headersTimeout).toBe(60_000);
     }
     expect(servers[1].listenerCount("request")).toBe(1);
     expect(servers[3].listenerCount("request")).toBe(1);
     expect(create({ requestTimeout: 5_000 }).requestTimeout).toBe(5_000);
+    expect(create({ keepAliveTimeout: 7_000 }).keepAliveTimeout).toBe(7_000);
   });
+
+  it("keeps idle connections open longer than nginx's 60 s upstream keepalive_timeout", () => {
+    expect(DEFAULT_KEEP_ALIVE_TIMEOUT_MS).toBeGreaterThan(60_000);
+    // Without the preload Next's standalone server closed them after 5 s.
+    expect(http.createServer().keepAliveTimeout).toBe(5_000);
+    const script =
+      "const http = require('http');" +
+      "const interop = { default: http };" +
+      "console.log(interop.default.createServer(() => {}).keepAliveTimeout)";
+    expect(nodeWithPreload(script)).toBe(String(DEFAULT_KEEP_ALIVE_TIMEOUT_MS));
+    // Next sets KEEP_ALIVE_TIMEOUT on the server after creating it, so it wins.
+    expect(nodeWithPreload(
+      "const s = require('http').createServer(() => {}); s.keepAliveTimeout = 90000;" +
+      "console.log(s.keepAliveTimeout)",
+    )).toBe("90000");
+  });
+
+  // The production failure, scaled from nginx's 60 s and Node's 5 s: nginx
+  // reuses a connection the server has already given up on, and the POST on
+  // it gets no response (nginx answers 502 and does not retry a POST).
+  it("answers a POST on a connection reused after the old 5 s idle limit", async () => {
+    const idleMs = 1_600; // Node closes 1 s after keepAliveTimeout.
+    const reply: http.RequestListener = (req, res) => {
+      req.resume();
+      req.on("end", () => res.end("ok"));
+    };
+    const stock = http.createServer({ keepAliveTimeout: 100 }, reply);
+    const raised = withRequestTimeout(http.createServer, 10_000, 5_000)(reply);
+    try {
+      const [stockStatuses, raisedStatuses] = await Promise.all([
+        listen(stock).then((port) => reuseAfterIdle(port, idleMs)),
+        listen(raised).then((port) => reuseAfterIdle(port, idleMs)),
+      ]);
+      expect(stockStatuses).toEqual(["HTTP/1.1 200 OK", ""]);
+      expect(raisedStatuses).toEqual(["HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]);
+    } finally {
+      stock.close();
+      raised.close();
+    }
+  }, 10_000);
 
   it("raises Node's 300 s default for servers created after it is preloaded", () => {
     // Without the preload this is what Next's standalone server got.
