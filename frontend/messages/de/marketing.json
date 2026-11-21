@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "FAQ"
+    },
+    "examples": {
+      "label": "Beispiel-Clips"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "Gehostete App öffnen",
     "toggleMenu": "Menü umschalten",
     "publishing": "Veröffentlichen",
-    "faq": "FAQ"
+    "faq": "FAQ",
+    "examples": "Beispiele"
   },
   "hero": {
     "badge": "Open Source und selbst hostbar. Auch fürs iPhone.",

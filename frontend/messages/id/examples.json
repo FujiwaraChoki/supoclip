@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "title": "Contoh SupoClip: klip AI nyata dari podcast, gaming, dan vlog",
+    "description": "Tonton klip vertikal yang dibuat SupoClip dari video panjang publik: wawancara, stream gaming, dan vlog, lengkap dengan teks, judul hook, dan skor viralitas untuk setiap klip."
+  },
+  "badge": "Contoh",
+  "heading": "Klip yang dibuat SupoClip dari video nyata",
+  "intro": "{clips} klip dari {sources} video publik, dibuat dengan pipeline yang sama yang Anda dapatkan: menemukan momen terbaik, membingkainya 9:16, menulis judul hook, dan menempelkan teks yang sinkron per kata. Tidak ada yang diedit manual.",
+  "primaryNav": "Navigasi contoh",
+  "filters": {
+    "label": "Filter menurut kategori",
+    "all": "Semua"
+  },
+  "groups": {
+    "interview": {
+      "label": "Podcast & wawancara",
+      "description": "Percakapan panjang dipangkas menjadi jawaban yang dibagikan orang."
+    },
+    "gaming": {
+      "label": "Gaming & stream",
+      "description": "Gameplay dengan facecam tetap terlihat, dari playthrough cerita hingga reaksi live."
+    },
+    "vlog": {
+      "label": "Vlog",
+      "description": "Rekaman IRL genggam diubah menjadi momen singkat bertekst."
+    }
+  },
+  "card": {
+    "videoLabel": "Contoh klip: {title}",
+    "play": "Putar “{title}”",
+    "lengthLabel": "Durasi",
+    "viralityLabel": "Viralitas",
+    "viralityHint": "Skor viralitas AI SupoClip, dari 100",
+    "captionsLabel": "Teks",
+    "credit": "Dari <strong>{channel}</strong>.",
+    "watchOriginal": "Tonton aslinya",
+    "originalLabel": "Video asli: {title}"
+  },
+  "videoDescription": "Klip vertikal yang dibuat SupoClip dari “{title}” oleh {channel}.",
+  "note": "Klip ini dibuat SupoClip dari video YouTube publik untuk menunjukkan hasil produknya. Semua hak tetap milik kreator aslinya: setiap klip mencantumkan channel-nya dan menautkan ke video lengkap. Watermark SupoClip hanya ditambahkan di halaman ini; klip Anda sendiri tidak memilikinya.",
+  "cta": {
+    "title": "Buat klip seperti ini dari video Anda",
+    "body": "Tempel link YouTube atau unggah file. SupoClip menemukan momen terbaik dan memberi Anda klip vertikal bertekst dalam hitungan menit.",
+    "signUp": "Mulai membuat klip",
+    "pricing": "Harga"
+  }
+}

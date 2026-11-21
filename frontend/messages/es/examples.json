@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "title": "Ejemplos de SupoClip: clips reales con IA de podcasts, gaming y vlogs",
+    "description": "Mira clips verticales que SupoClip creó a partir de vídeos largos públicos: entrevistas, streams de gaming y vlogs, con subtítulos, títulos gancho y una puntuación de viralidad para cada uno."
+  },
+  "badge": "Ejemplos",
+  "heading": "Clips que SupoClip creó a partir de vídeos reales",
+  "intro": "{clips, plural, one {# clip} other {# clips}} de {sources, plural, one {# vídeo público} other {# vídeos públicos}}, creados con el mismo proceso que obtienes tú: encuentra los momentos, los encuadra en 9:16, escribe un título gancho y añade subtítulos sincronizados palabra por palabra. Nada se editó a mano.",
+  "primaryNav": "Navegación de ejemplos",
+  "filters": {
+    "label": "Filtrar por categoría",
+    "all": "Todos"
+  },
+  "groups": {
+    "interview": {
+      "label": "Podcasts y entrevistas",
+      "description": "Conversaciones largas reducidas a la respuesta que la gente comparte."
+    },
+    "gaming": {
+      "label": "Gaming y streams",
+      "description": "Gameplay con la facecam en el encuadre, desde partidas de historia hasta reacciones en directo."
+    },
+    "vlog": {
+      "label": "Vlogs",
+      "description": "Grabaciones IRL a mano convertidas en momentos breves con subtítulos."
+    }
+  },
+  "card": {
+    "videoLabel": "Clip de ejemplo: {title}",
+    "play": "Reproducir «{title}»",
+    "lengthLabel": "Duración",
+    "viralityLabel": "Viralidad",
+    "viralityHint": "Puntuación de viralidad de la IA de SupoClip, sobre 100",
+    "captionsLabel": "Subtítulos",
+    "credit": "De <strong>{channel}</strong>.",
+    "watchOriginal": "Ver el original",
+    "originalLabel": "Vídeo original: {title}"
+  },
+  "videoDescription": "Clip vertical generado por SupoClip a partir de «{title}» de {channel}.",
+  "note": "SupoClip generó estos clips a partir de vídeos públicos de YouTube para mostrar lo que hace el producto. Todos los derechos son de sus creadores originales: cada clip nombra su canal y enlaza al vídeo completo. La marca de agua de SupoClip solo se añade en esta página; tus clips no la llevan.",
+  "cta": {
+    "title": "Crea clips así con tus vídeos",
+    "body": "Pega un enlace de YouTube o sube un archivo. SupoClip encuentra los mejores momentos y te da clips verticales con subtítulos en minutos.",
+    "signUp": "Empieza a crear clips",
+    "pricing": "Precios"
+  }
+}

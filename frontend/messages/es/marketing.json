@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "Preguntas frecuentes"
+    },
+    "examples": {
+      "label": "Clips de ejemplo"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "Abrir la app alojada",
     "toggleMenu": "Abrir o cerrar el menú",
     "publishing": "Publicación",
-    "faq": "Preguntas frecuentes"
+    "faq": "Preguntas frecuentes",
+    "examples": "Ejemplos"
   },
   "hero": {
     "badge": "Código abierto y autoalojable. También en iPhone.",

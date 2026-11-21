@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "常见问题"
+    },
+    "examples": {
+      "label": "示例片段"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "打开托管应用",
     "toggleMenu": "打开或关闭菜单",
     "publishing": "发布",
-    "faq": "常见问题"
+    "faq": "常见问题",
+    "examples": "示例"
   },
   "hero": {
     "badge": "开源，可自托管。也有 iPhone 版。",
