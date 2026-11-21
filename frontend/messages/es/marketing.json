@@ -507,7 +507,7 @@
       "features": {
         "pooledHours": "{hours} horas compartidas de video/mes",
         "seats": "{seats} puestos con biblioteca compartida",
-        "quality": "Clips Full HD {resolution} · YouTube hasta {hours} h",
+        "quality": "Clips Full HD {resolution} · vídeos de hasta {hours} h",
         "sharedWorkspace": "Programación social y {aiEdits} ediciones IA/mes",
         "roles": "Roles de Propietario, Admin y Miembro + mayor concurrencia",
         "aiEdits": "{aiEdits} ediciones IA compartidas/mes"
@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "¿Cómo se cuentan los minutos?",
-        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales."
+        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales. Cada video puede durar hasta {proMinutes} minutos en Pro y {creatorMinutes} minutos en Creator."
       },
       "publishing": {
         "question": "¿SupoClip puede publicar en TikTok e Instagram?",

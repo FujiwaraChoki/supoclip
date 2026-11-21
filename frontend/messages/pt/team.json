@@ -71,7 +71,7 @@
     "baseLine": "Base Equipe ({seats} assentos, {hours} h/mês)",
     "extraSeatsLine": "{count, plural, one {# assento extra} other {# assentos extras}} (${price} cada, +{hours} h/mês)",
     "totalLine": "Total ({seats} assentos · {hours} h compartilhadas/mês)",
-    "includedFeatures": "Inclui clipes em {resolution}, YouTube de até {youtubeHours}h, agendamento social e {aiEdits} edições de IA/mês.",
+    "includedFeatures": "Inclui clipes em {resolution}, vídeos de até {youtubeHours}h, agendamento social e {aiEdits} edições de IA/mês.",
     "openingCheckout": "Abrindo checkout…",
     "startPlan": "Iniciar Plano Equipe",
     "managePortal": "Gerenciar cobrança",
@@ -80,7 +80,7 @@
     "paymentFailed": "O último pagamento da equipe falhou. Atualize o método de pagamento para continuar.",
     "updatePayment": "Atualizar forma de pagamento",
     "cancelScheduled": "Esta assinatura de equipe está programada para cancelar em {date}.",
-    "includedFeaturesNoScheduling": "Inclui clipes em {resolution}, YouTube de até {youtubeHours}h e {aiEdits} edições de IA/mês."
+    "includedFeaturesNoScheduling": "Inclui clipes em {resolution}, vídeos de até {youtubeHours}h e {aiEdits} edições de IA/mês."
   },
   "members": {
     "title": "Membros e convites",

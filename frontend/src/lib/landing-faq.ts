@@ -10,6 +10,8 @@ export function getLandingFaqs(t: Translate) {
   const values = {
     proHours: Math.round((pro?.minuteLimit ?? 600) / 60),
     creatorHours: Math.round((scale?.minuteLimit ?? 1500) / 60),
+    proMinutes: pro?.youtubeMaxMinutes ?? 120,
+    creatorMinutes: scale?.youtubeMaxMinutes ?? 180,
   };
   return FAQ_KEYS.map((key) => ({
     key,

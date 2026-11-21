@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} Videos jeden Monat geschnitten",
-    "youtube": "YouTube-Videos bis {length}",
+    "youtube": "Videos bis {length} pro Video",
     "fonts": "Eigene Schriften, B-roll und Untertitelvorlagen",
     "priority": "Bevorzugte Verarbeitung",
     "minutes": "{length} Video pro Monat",
@@ -58,8 +58,8 @@
       "eyebrow": "Ein langes",
       "title": "{plan} schafft dieses Video von {runtime}",
       "fallbackPlan": "Ein größerer Plan",
-      "body": "{plan} unterstützt YouTube-Videos bis {length}. {next} schafft bis zu {nextLength}, damit läuft dieses Video direkt durch. Dieser Versuch hat keine Minuten verbraucht.",
-      "bodyNoNext": "{plan} unterstützt YouTube-Videos bis {length}. Dieser Versuch hat keine Minuten verbraucht."
+      "body": "{plan} schafft Videos bis {length}. {next} schafft bis zu {nextLength}, damit läuft dieses Video direkt durch. Dieser Versuch hat keine Minuten verbraucht.",
+      "bodyNoNext": "{plan} schafft Videos bis {length}. Dieser Versuch hat keine Minuten verbraucht."
     },
     "fonts": {
       "eyebrow": "Mach es zu deinem",

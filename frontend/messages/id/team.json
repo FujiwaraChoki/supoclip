@@ -71,7 +71,7 @@
     "baseLine": "Paket dasar Tim ({seats} kursi, {hours} jam/bln)",
     "extraSeatsLine": "{count, plural, other {# kursi tambahan}} (${price} tiap kursi, +{hours} jam/bln)",
     "totalLine": "Total ({seats} kursi · {hours} jam bersama/bln)",
-    "includedFeatures": "Termasuk klip {resolution}, YouTube hingga {youtubeHours} jam, penjadwalan sosial, dan {aiEdits} edit AI bersama/bln.",
+    "includedFeatures": "Termasuk klip {resolution}, video hingga {youtubeHours} jam, penjadwalan sosial, dan {aiEdits} edit AI bersama/bln.",
     "openingCheckout": "Membuka pembayaran…",
     "startPlan": "Mulai Paket Tim",
     "managePortal": "Kelola penagihan",
@@ -80,7 +80,7 @@
     "paymentFailed": "Pembayaran terakhir tim gagal. Perbarui metode pembayaran agar tetap bisa membuat klip.",
     "updatePayment": "Perbarui metode pembayaran",
     "cancelScheduled": "Langganan tim ini dijadwalkan batal pada {date}.",
-    "includedFeaturesNoScheduling": "Termasuk klip {resolution}, YouTube hingga {youtubeHours} jam, dan {aiEdits} edit AI bersama/bln."
+    "includedFeaturesNoScheduling": "Termasuk klip {resolution}, video hingga {youtubeHours} jam, dan {aiEdits} edit AI bersama/bln."
   },
   "members": {
     "title": "Anggota & undangan",

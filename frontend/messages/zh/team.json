@@ -71,7 +71,7 @@
     "baseLine": "团队基础版（{seats} 席位，{hours} 小时/月）",
     "extraSeatsLine": "{count, plural, other {# 个额外席位}}（每个 ${price}，+{hours} 小时/月）",
     "totalLine": "合计（{seats} 席位 · {hours} 小时/月）",
-    "includedFeatures": "包含 {resolution} 切片、最长 {youtubeHours} 小时 YouTube 视频、社交定时发布及每月 {aiEdits} 次共享 AI 编辑。",
+    "includedFeatures": "包含 {resolution} 切片、单个视频最长 {youtubeHours} 小时、社交定时发布及每月 {aiEdits} 次共享 AI 编辑。",
     "openingCheckout": "正在打开结账页…",
     "startPlan": "订阅团队套餐",
     "managePortal": "管理账单",
@@ -80,7 +80,7 @@
     "paymentFailed": "团队上次付款失败。请更新付款方式以继续剪辑。",
     "updatePayment": "更新付款方式",
     "cancelScheduled": "此团队订阅计划于 {date} 取消。",
-    "includedFeaturesNoScheduling": "包含 {resolution} 切片、最长 {youtubeHours} 小时 YouTube 视频及每月 {aiEdits} 次共享 AI 编辑。"
+    "includedFeaturesNoScheduling": "包含 {resolution} 切片、单个视频最长 {youtubeHours} 小时及每月 {aiEdits} 次共享 AI 编辑。"
   },
   "members": {
     "title": "成员与邀请",

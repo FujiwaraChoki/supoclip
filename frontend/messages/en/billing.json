@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} videos clipped every month",
-    "youtube": "YouTube videos up to {length}",
+    "youtube": "Videos up to {length} each",
     "fonts": "Custom fonts, B-roll and caption templates",
     "priority": "Priority processing",
     "minutes": "{length} of video every month",
@@ -58,8 +58,8 @@
       "eyebrow": "A long one",
       "title": "{plan} can take this {runtime} video",
       "fallbackPlan": "A bigger plan",
-      "body": "{plan} covers YouTube videos up to {length}. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use any minutes.",
-      "bodyNoNext": "{plan} covers YouTube videos up to {length}. This try didn't use any minutes."
+      "body": "{plan} takes videos up to {length} each. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use any minutes.",
+      "bodyNoNext": "{plan} takes videos up to {length} each. This try didn't use any minutes."
     },
     "fonts": {
       "eyebrow": "Make it yours",

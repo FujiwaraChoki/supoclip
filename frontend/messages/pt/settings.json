@@ -54,7 +54,7 @@
     "upgrade": "Fazer upgrade",
     "upgradeMultiplier": "Tenha {multiplier}× mais vídeo com o {plan}",
     "upgradeMore": "Faça mais com {plan}",
-    "upgradeDescription": "${price}/mês · {minutes} por mês · {resolution} · YouTube até {length}",
+    "upgradeDescription": "${price}/mês · {minutes} por mês · {resolution} · vídeos de até {length}",
     "choose": "Escolher {name}",
     "actionFailed": "A ação de cobrança falhou",
     "usageMinutesOf": "{used} / {limit} min",

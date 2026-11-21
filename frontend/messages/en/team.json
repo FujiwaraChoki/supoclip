@@ -71,7 +71,7 @@
     "baseLine": "Team base ({seats} seats, {hours} hrs/mo)",
     "extraSeatsLine": "{count, plural, one {# extra seat} other {# extra seats}} (${price} each, +{hours} hrs/mo)",
     "totalLine": "Total ({seats} seats · {hours} pooled hrs/mo)",
-    "includedFeatures": "Includes {resolution} clips, YouTube up to {youtubeHours}h, social scheduling, and {aiEdits} pooled AI edits/mo.",
+    "includedFeatures": "Includes {resolution} clips, videos up to {youtubeHours}h each, social scheduling, and {aiEdits} pooled AI edits/mo.",
     "openingCheckout": "Opening checkout…",
     "startPlan": "Start Team Plan",
     "managePortal": "Manage Billing",
@@ -80,7 +80,7 @@
     "paymentFailed": "Your team's last payment failed. Update the payment method to keep clipping.",
     "updatePayment": "Update payment method",
     "cancelScheduled": "This team subscription is scheduled to cancel on {date}.",
-    "includedFeaturesNoScheduling": "Includes {resolution} clips, YouTube up to {youtubeHours}h, and {aiEdits} pooled AI edits/mo."
+    "includedFeaturesNoScheduling": "Includes {resolution} clips, videos up to {youtubeHours}h each, and {aiEdits} pooled AI edits/mo."
   },
   "members": {
     "title": "Members & invitations",

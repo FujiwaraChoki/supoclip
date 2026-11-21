@@ -31,6 +31,17 @@ def test_youtube_duration_limit_uses_active_subscription_plan(monkeypatch):
     assert config.max_youtube_video_duration_for_plan("scale", "unpaid", "stripe") == 5400
 
 
+def test_pro_per_video_limit_defaults_to_two_hours(monkeypatch):
+    monkeypatch.delenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", raising=False)
+    monkeypatch.delenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", raising=False)
+    monkeypatch.setenv("MAX_VIDEO_DURATION", "5400")
+    config = Config()
+
+    assert config.max_youtube_video_duration_for_plan("pro", "active") == 7200
+    assert config.max_youtube_video_duration_for_plan("scale", "active") == 10800
+    assert config.max_youtube_video_duration_for_plan(None, None) == 5400
+
+
 @pytest.mark.parametrize(
     "raw,expected",
     [

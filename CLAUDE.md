@@ -247,6 +247,9 @@ RevenueCat `...scale.monthly/annual` product IDs); only the display name changed
   600/1500). `tasks.source_duration_seconds` is recorded at task creation (YouTube
   preflight, ffprobe for uploads) and `BillingService` sums started minutes.
   Yearly subscriptions still reset monthly (`_usage_window`).
+- **Per-video length:** Pro 120 min, Creator/Team 180 min, for every source (YouTube, Twitch,
+  Kick, uploads) via `max_youtube_video_duration_for_plan` (`PRO_/SCALE_/TEAM_YOUTUBE_MAX_VIDEO_DURATION`;
+  the names predate uploads following them). No active plan or self-hosting: `MAX_VIDEO_DURATION` (90 min).
 - **Resolution:** Pro gets 720p via a final `cap_video_short_side` pass on generated
   clips and editor renders; Creator gets 1080p. Pro subscribers from before the
   change have `users.legacy_hd` (backfilled once) and keep 1080p until they cancel.

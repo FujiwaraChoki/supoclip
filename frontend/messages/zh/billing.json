@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "每月剪辑 {count} 个视频",
-    "youtube": "YouTube 视频最长 {length}",
+    "youtube": "单个视频最长 {length}",
     "fonts": "自定义字体、B-roll 和字幕模板",
     "priority": "优先处理",
     "minutes": "每月 {length} 视频",
@@ -58,8 +58,8 @@
       "eyebrow": "这条比较长",
       "title": "{plan} 可以处理这条 {runtime} 的视频",
       "fallbackPlan": "更大的方案",
-      "body": "{plan} 支持最长 {length} 的 YouTube 视频。{next} 支持最长 {nextLength}，这个视频可以直接处理。本次尝试未消耗分钟数。",
-      "bodyNoNext": "{plan} 支持最长 {length} 的 YouTube 视频。本次尝试未消耗分钟数。"
+      "body": "{plan} 支持单个视频最长 {length}。{next} 支持最长 {nextLength}，这个视频可以直接处理。本次尝试未消耗分钟数。",
+      "bodyNoNext": "{plan} 支持单个视频最长 {length}。本次尝试未消耗分钟数。"
     },
     "fonts": {
       "eyebrow": "做成你的风格",
