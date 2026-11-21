@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
+- **Fixed:** Gameplay videos where two or three creators sit side by side over the game (no camera frame around them) are now laid out as gameplay: the creators on top, the game filling the rest. They used to come out as a small picture between blurred bars, or as two faces with no game in view. ([#550](https://github.com/FujiwaraChoki/supoclip/pull/550))
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))
 - **Fixed:** Clips from very long YouTube videos (six hours and up, including day-long streams) no longer fail on every try. SupoClip now downloads just the parts it needs from them instead of falling back to the whole video, and a video too large to download in full now fails right away with a clear message instead of after a long wait. ([#544](https://github.com/FujiwaraChoki/supoclip/pull/544))
 - **Improved:** The pricing modal shows the full Self-hosted card again, with what self-hosting includes and a direct link to the self-hosting guide alongside the hosted plans. ([#532](https://github.com/FujiwaraChoki/supoclip/pull/532))
