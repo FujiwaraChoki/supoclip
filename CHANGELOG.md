@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
+- **Improved:** The pricing modal shows the full Self-hosted card again, with what self-hosting includes and a direct link to the self-hosting guide alongside the hosted plans. ([#532](https://github.com/FujiwaraChoki/supoclip/pull/532))
 - **Improved:** Self-hosted installs are no longer capped by the hosted video length limit. YouTube, Twitch, Kick, and uploaded videos are no longer rejected at 90 minutes (upload size, download size, and processing time limits still apply), and the create screen no longer shows a video-length limit on self-hosted setups. ([#525](https://github.com/FujiwaraChoki/supoclip/pull/525))
 - **New:** An Examples page at /examples shows real clips SupoClip made from public videos (podcasts and interviews, gaming streams and vlogs), with each clip's hook title, length, virality score and caption style. Hover a clip to preview it, click or tap to play it with sound, filter by category, and follow the credit to the creator's original video. ([#527](https://github.com/FujiwaraChoki/supoclip/pull/527))
 - **Improved:** Pricing shows each plan's two limits side by side: video per month and the longest single video. When a video is over Pro's limit, the prompt offers "Upgrade to Creator (up to 180 min per video)" straight to checkout next to the part picker, and a livestream that is still going, or a video whose length can't be read, gets a plain explanation instead of an error. ([#522](https://github.com/FujiwaraChoki/supoclip/pull/522))
