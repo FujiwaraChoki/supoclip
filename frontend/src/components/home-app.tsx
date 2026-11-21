@@ -42,6 +42,7 @@ import { workspaceAllowance } from "@/lib/workspace-usage";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { trackEvent } from "@/lib/analytics";
+import { startUpgrade } from "@/lib/start-upgrade";
 import { track } from "@/lib/datafast";
 import { taskPathFromCreate } from "@/lib/task-create";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
@@ -273,10 +274,13 @@ export default function HomeApp() {
     setSourceRange(defaultSourceRange(offer));
     requestAnimationFrame(() => rangePanelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
   }, []);
+  // A refusal that a part of the video can't fix (a livestream, an unknown length): said plainly.
+  const [lengthError, setLengthError] = useState<{ kind: "durationUnavailable" } | { kind: "tooLongNoRange"; minutes: number } | null>(null);
   useEffect(() => {
     // A different link or file starts over.
     setRangeOffer(null);
     setSourceRange(null);
+    setLengthError(null);
   }, [url, file]);
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
@@ -722,6 +726,25 @@ export default function HomeApp() {
     offerRange({ durationSeconds: sourceSeconds, maxSeconds: uploadMaxSeconds, minSeconds: DEFAULT_MIN_RANGE_SECONDS });
   }, [sourceType, sourceSeconds, uploadMaxSeconds, rangeOffer, offerRange]);
   const rangeProblem = rangeOffer && sourceRange ? sourceRangeProblem(sourceRange, rangeOffer) : null;
+  // A team workspace's limits come from the team, so it never gets a personal plan offer.
+  const tooLongUpgradePlan = rangeOffer && !billingTeamId && upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds
+    ? upgradeState.nextPlan
+    : null;
+  const analyticsSourceKind = () => (file ? "upload" as const : validateVideoSourceUrl(url).source ?? "unknown");
+  useEffect(() => {
+    // A video whose length can't be read wasn't refused for being too long.
+    if (!rangeOffer && lengthError?.kind !== "tooLongNoRange") return;
+    trackEvent("video_too_long_shown", {
+      source_kind: analyticsSourceKind(),
+      plan: billingSummary?.plan ?? "unknown",
+      duration_minutes: rangeOffer ? Math.round(rangeOffer.durationSeconds / 60) : 0,
+      max_minutes: rangeOffer ? Math.round(rangeOffer.maxSeconds / 60) : lengthError?.kind === "tooLongNoRange" ? lengthError.minutes : 0,
+      range_offered: Boolean(rangeOffer),
+      upgrade_offered: Boolean(tooLongUpgradePlan),
+    });
+    // Once per refusal; the plan and source are read as they were then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeOffer, lengthError]);
   const sourceTooShort = activeWorkflow !== "highlights" && sourceType === "upload" && sourceSeconds !== null && sourceSeconds < minSourceSeconds;
   // An explicit part count needs room for every part at its shortest (backend: D ≥ N · min · 1.25).
   const partRange = workflowsInfo?.workflows.find((entry) => entry.id === "series")?.lengths?.[workflowLengths.series ?? "auto"];
@@ -943,7 +966,19 @@ export default function HomeApp() {
 
       if (!startResponse.ok) {
         const info = await parseApiError(startResponse, t("errors.api", { status: startResponse.status }));
+        if (info.code === "VIDEO_DURATION_UNAVAILABLE") {
+          setLengthError({ kind: "durationUnavailable" });
+          setIsLoading(false);
+          setStatusMessage("");
+          return;
+        }
         const tooLong = tooLongRangeOffer(info);
+        if (!tooLong && info.code === "VIDEO_TOO_LONG" && (info.detail as Record<string, unknown> | undefined)?.range_allowed === false) {
+          setLengthError({ kind: "tooLongNoRange", minutes: Math.round(Number((info.detail as Record<string, unknown>).max_duration_seconds) / 60) || 0 });
+          setIsLoading(false);
+          setStatusMessage("");
+          return;
+        }
         if (tooLong) {
           offerRange({ ...tooLong, ...(sourceType === "upload" ? { uploadedUrl: videoUrl } : {}) });
           setIsLoading(false);
@@ -962,6 +997,13 @@ export default function HomeApp() {
 
       const startResult = await startResponse.json();
       const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
+      if (rangeOffer && sourceRange && !alreadyProcessing) trackEvent("source_range_chosen", {
+        source_kind: analyticsSourceKind(),
+        plan: billingSummary?.plan ?? "unknown",
+        range_minutes: Math.ceil((sourceRange.end - sourceRange.start) / 60),
+        start_minutes: Math.floor(sourceRange.start / 60),
+        duration_minutes: Math.round(rangeOffer.durationSeconds / 60),
+      });
       if (!alreadyProcessing) track("task_created", {
         // Analytics keeps ten fields, so workflow runs lead with theirs; plain highlights reports as before.
         ...(activeWorkflow !== "highlights" || sentInstructions ? {
@@ -1511,15 +1553,35 @@ export default function HomeApp() {
               offer={rangeOffer}
               range={sourceRange}
               onRangeChange={setSourceRange}
-              nextPlan={upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds ? upgradeState.nextPlan : null}
-              onUpgrade={(nextPlan) => nextPlan.youtubeMaxMinutes * 60 >= rangeOffer.durationSeconds
-                ? openUpgrade({ kind: "video_too_long", durationSeconds: rangeOffer.durationSeconds, maxSeconds: rangeOffer.maxSeconds })
-                : openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" })}
+              nextPlan={tooLongUpgradePlan}
+              onUpgrade={async (nextPlan) => {
+                trackEvent("video_too_long_upgrade_clicked", {
+                  plan: billingSummary?.plan ?? "unknown",
+                  target_plan: nextPlan.id,
+                  duration_minutes: Math.round(rangeOffer.durationSeconds / 60),
+                });
+                // Straight to checkout: the prompt already says what the plan adds.
+                await startUpgrade(nextPlan.id, "video_too_long");
+              }}
               onSubmit={() => void handleSubmit()}
               onCancel={() => { setUrl(""); attachFile(null); }}
               busy={isLoading}
               problem={rangeProblem}
             />
+          )}
+
+          {lengthError && (
+            <Alert role="alert" data-testid="length-error" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                <p className="font-medium text-foreground">
+                  {lengthError.kind === "tooLongNoRange"
+                    ? t("lengthErrors.tooLongNoRange.title", { minutes: lengthError.minutes })
+                    : t("lengthErrors.durationUnavailable.title")}
+                </p>
+                <p className="mt-1 text-muted-foreground">{t(`lengthErrors.${lengthError.kind}.body`)}</p>
+              </AlertDescription>
+            </Alert>
           )}
 
           {error && (
@@ -1576,7 +1638,7 @@ function TooLongPanel({ ref, offer, range, onRangeChange, nextPlan, onUpgrade, o
   range: SourceRange;
   onRangeChange: (range: SourceRange) => void;
   nextPlan: PublicBillingPlan | null;
-  onUpgrade: (plan: PublicBillingPlan) => void;
+  onUpgrade: (plan: PublicBillingPlan) => Promise<void>;
   onSubmit: () => void;
   onCancel: () => void;
   busy: boolean;
@@ -1585,6 +1647,18 @@ function TooLongPanel({ ref, offer, range, onRangeChange, nextPlan, onUpgrade, o
   const t = useTranslations("home.tooLongPanel");
   const plans = useBillingPlanText();
   const headingId = useId();
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeFailed, setUpgradeFailed] = useState(false);
+  const upgrade = async (plan: PublicBillingPlan) => {
+    setUpgrading(true);
+    setUpgradeFailed(false);
+    try {
+      await onUpgrade(plan);
+    } catch {
+      setUpgradeFailed(true);
+      setUpgrading(false);
+    }
+  };
   const values = {
     runtime: plans.formatRuntime(offer.durationSeconds),
     minutes: Math.round(offer.maxSeconds / 60),
@@ -1609,13 +1683,17 @@ function TooLongPanel({ ref, offer, range, onRangeChange, nextPlan, onUpgrade, o
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={busy} className="sm:mr-auto">{t("cancel")}</Button>
         {nextPlan && (
-          <Button type="button" variant="outline" onClick={() => onUpgrade(nextPlan)} disabled={busy}>{t("upgradeLink")}</Button>
+          <Button type="button" variant="outline" onClick={() => void upgrade(nextPlan)} disabled={busy || upgrading} className="h-auto min-h-9 whitespace-normal py-2 text-center">
+            {upgrading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {t("upgradeTo", { plan: plans.planName(nextPlan.id), minutes: nextPlan.youtubeMaxMinutes })}
+          </Button>
         )}
         <Button type="button" onClick={onSubmit} disabled={busy || problem !== null} className="bg-brand text-brand-foreground hover:bg-brand/90">
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
           {t("submit")}
         </Button>
       </div>
+      {upgradeFailed && <p role="alert" className="mt-2 text-right text-xs text-red-600 dark:text-red-400">{t("checkoutFailed")}</p>}
     </section>
   );
 }

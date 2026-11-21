@@ -516,7 +516,18 @@
     "bodyUpgrade": "选择最长 {minutes} 分钟的一段，我们只剪辑这一段；或升级到 {plan}，单个视频最长 {nextMinutes} 分钟。只有你选的这一段计入分钟数。",
     "submit": "剪辑这一段",
     "cancel": "换一个视频",
-    "upgradeLink": "比较方案",
-    "label": "要剪辑的视频片段"
+    "label": "要剪辑的视频片段",
+    "upgradeTo": "升级到 {plan}（单个视频最长 {minutes} 分钟）",
+    "checkoutFailed": "结账页面没有打开，请稍后再试。"
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "我们无法读取这个视频的时长",
+      "body": "如果是仍在进行的直播，请等直播结束后粘贴完整录像。如果已经结束，请一分钟后再试。未消耗分钟数。"
+    },
+    "tooLongNoRange": {
+      "title": "这个视频超过了你 {minutes} 分钟的上限",
+      "body": "它比你的方案允许的更长，并且这里无法选择其中一段。请使用完整录像或更短的视频。未消耗分钟数。"
+    }
   }
 }

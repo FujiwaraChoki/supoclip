@@ -30,6 +30,11 @@ vi.mock("@/lib/video-upload", async (importOriginal) => ({
 }));
 
 vi.mock("@/lib/datafast", () => ({ track: analytics.track }));
+const productEvents = vi.hoisted(() => ({ trackEvent: vi.fn() }));
+vi.mock("@/lib/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/analytics")>()),
+  trackEvent: productEvents.trackEvent,
+}));
 
 // The tour host's own behaviour is tested in feature-tour.test.tsx; here we only need what the page hands it.
 const tour = vi.hoisted(() => ({ props: null as null | { onSettingsSection?: (id: string) => void; onEnd?: () => void } }));
@@ -1079,5 +1084,75 @@ describe("dynamic edits", () => {
     await waitFor(() => expect(document.querySelector('[data-tour="caption-styles"]')).not.toBeNull());
     act(() => tour.props?.onEnd?.());
     await waitFor(() => expect(screen.queryByRole("tablist", { name: "Settings" })).not.toBeInTheDocument());
+  });
+});
+
+describe("a video over the per-video limit", () => {
+  const tooLong = () => Response.json({
+    detail: {
+      code: "VIDEO_TOO_LONG", message: "This video is 240.0 minutes long.",
+      duration_seconds: 14_400, max_duration_seconds: 7200, range_allowed: true, min_range_seconds: 60,
+    },
+  }, { status: 422 });
+  const eventsNamed = (name: string) => productEvents.trackEvent.mock.calls.filter(([event]) => event === name);
+
+  beforeEach(() => {
+    productEvents.trackEvent.mockClear();
+    // The part picker's slider measures itself.
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+  afterEach(() => invalidateWorkspaces());
+
+  async function submitLink() {
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const button = screen.getByRole("button", { name: "Generate clips" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+  }
+
+  it("reports the refusal once and a chosen part only when a task is made", async () => {
+    summaryResponse = { ...billingSummary, plan: "free", subscription_status: "inactive" };
+    await renderHome();
+    createResponse = tooLong;
+    await submitLink();
+    await screen.findByTestId("source-range-panel");
+    await waitFor(() => expect(eventsNamed("video_too_long_shown")).toHaveLength(1));
+
+    // The same part is already being clipped: nothing new was chosen.
+    createResponse = () => Response.json({ task_id: "task-1", duplicate: true });
+    fireEvent.click(screen.getByRole("button", { name: "Clip this part" }));
+    await waitFor(() => expect(created).toHaveLength(2));
+    await act(async () => {});
+    expect(eventsNamed("source_range_chosen")).toHaveLength(0);
+    expect(eventsNamed("video_too_long_shown")).toHaveLength(1);
+  });
+
+  it("doesn't count a video whose length can't be read as too long", async () => {
+    await renderHome();
+    createResponse = () => Response.json({
+      detail: { code: "VIDEO_DURATION_UNAVAILABLE", message: "We couldn't read this video's length." },
+    }, { status: 422 });
+    await submitLink();
+    await waitFor(() => expect(created).toHaveLength(1));
+    await act(async () => {});
+    expect(eventsNamed("video_too_long_shown")).toHaveLength(0);
+  });
+
+  it("offers a team workspace the part picker but no personal plan", async () => {
+    summaryResponse = {
+      ...billingSummary, plan: "free", subscription_status: "inactive", workspace_type: "team", team_id: "team_example_1",
+    };
+    teamsResponse = { activeTeamId: "team_example_1", teams: [{
+      id: "team_example_1", name: "Northwind Studio", slug: "northwind", ownerId: "user-9", role: "member",
+      plan: "team", subscriptionStatus: "past_due", seatLimit: 3, memberCount: 2, pendingInviteCount: 0, occupiedSeats: 2,
+    }] };
+    invalidateWorkspaces();
+    await renderHome();
+    createResponse = tooLong;
+    await submitLink();
+    const panel = await screen.findByTestId("source-range-panel");
+    expect(within(panel).getByRole("button", { name: "Clip this part" })).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: /Upgrade to/ })).toBeNull();
   });
 });

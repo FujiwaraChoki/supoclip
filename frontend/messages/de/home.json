@@ -516,7 +516,18 @@
     "bodyUpgrade": "Wähl einen Teil bis {minutes} Minuten, dann clippen wir nur den, oder wechsle zu {plan} für Videos bis {nextMinutes} Minuten. Nur der gewählte Teil zählt für deine Minuten.",
     "submit": "Diesen Teil clippen",
     "cancel": "Anderes Video wählen",
-    "upgradeLink": "Tarife vergleichen",
-    "label": "Teil des Videos zum Clippen"
+    "label": "Teil des Videos zum Clippen",
+    "upgradeTo": "Auf {plan} upgraden (bis {minutes} Min. pro Video)",
+    "checkoutFailed": "Der Checkout hat sich nicht geöffnet. Versuch es gleich noch einmal."
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "Wir konnten die Länge dieses Videos nicht lesen",
+      "body": "Läuft der Livestream noch, warte bis zum Ende und füge die fertige Aufzeichnung ein. Ist er schon vorbei, versuch es in einer Minute noch einmal. Es wurden keine Minuten verbraucht."
+    },
+    "tooLongNoRange": {
+      "title": "Dieses Video ist länger als dein Limit von {minutes} Minuten",
+      "body": "Es ist länger, als dein Tarif erlaubt, und hier lässt sich kein Teil davon wählen. Nimm die fertige Aufzeichnung oder ein kürzeres Video. Es wurden keine Minuten verbraucht."
+    }
   }
 }
