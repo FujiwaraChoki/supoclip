@@ -533,6 +533,13 @@ class MediaStorage:
             if marker is None:
                 return collected
 
+    def latest_part_time(self, user_id: str, payload: dict):
+        """When the newest part of an open multipart upload reached storage, or None."""
+        key = self.owned_upload_key(payload["video_path"], user_id)
+        times = [part["LastModified"] for part in self._list_uploaded_parts(key, payload["uploadId"])
+                 if part.get("LastModified")]
+        return max(times, default=None)
+
     def _require_declared_part_sizes(self, key: str, upload_id: str, size: int) -> None:
         """Reject a multipart body that is not the size the part URLs signed.
 

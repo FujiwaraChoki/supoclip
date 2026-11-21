@@ -449,42 +449,78 @@ async def _expire_finished_upload_sessions(db, storage) -> None:
 
 
 async def cleanup_upload_sessions(db, storage):
-    if storage.bucket:
+    if storage.bucket and await _upload_activity_migrated(db):
         await _abort_expired_multipart_uploads(db, storage)
     await _expire_finished_upload_sessions(db, storage)
+
+
+async def _upload_activity_migrated(db) -> bool:
+    """False until the API has added ``last_activity_at``; this worker can start first in a deploy."""
+    present = (await db.execute(text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'media_upload_sessions'
+          AND column_name = 'last_activity_at'
+    """))).first() is not None
+    await db.rollback()
+    return present
 
 
 async def _abort_expired_multipart_uploads(db, storage):
     """Abort open multipart uploads that expired or were abandoned.
 
-    A closed tab never sends its abort, so a session older than
-    ``media_upload_stale_seconds`` is treated as abandoned.
+    A closed tab never sends its abort, so a session with no sign of life for
+    ``media_upload_stale_seconds`` is treated as abandoned. Storage has the last
+    word: a session that has a part younger than that is still running (a page
+    loaded before activity reports existed, or another client), so it is
+    marked active instead. A storage error skips only its own row.
     """
+    from ..repositories.upload_repository import LAST_ACTIVITY
+
+    stale = storage.config.media_upload_stale_seconds
+    failed: list[str] = []
     for _ in range(100):
-        row = (await db.execute(text("""
-            SELECT id, user_id, upload_id, video_path FROM media_upload_sessions
+        row = (await db.execute(text(f"""
+            SELECT id, user_id, upload_id, video_path, expires_at < clock_timestamp() AS expired
+            FROM media_upload_sessions
             WHERE state IN ('reserved', 'uploading')
               AND (expires_at < clock_timestamp()
-                   OR created_at < clock_timestamp() - make_interval(secs => :stale))
+                   OR {LAST_ACTIVITY} < clock_timestamp() - make_interval(secs => :stale))
+              AND NOT (id = ANY(:failed))
             ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT 1
-        """), {"stale": storage.config.media_upload_stale_seconds})).first()
+        """), {"stale": stale, "failed": failed})).first()
         if row is None:
             await db.rollback()
             break
+        upload = {"uploadId": row.upload_id, "video_path": row.video_path}
         try:
+            if row.upload_id and not row.expired:
+                try:
+                    latest = await run_in_thread(storage.latest_part_time, row.user_id, upload)
+                except ClientError as exc:
+                    if exc.response["Error"]["Code"] != "NoSuchUpload":
+                        raise
+                    latest = None
+                if latest is not None:
+                    alive = (await db.execute(text("""
+                        UPDATE media_upload_sessions SET last_activity_at = :latest
+                        WHERE id = :id AND :latest > clock_timestamp() - make_interval(secs => :stale)
+                        RETURNING id
+                    """), {"id": row.id, "latest": latest, "stale": stale})).first()
+                    if alive is not None:
+                        await db.commit()
+                        continue
             if row.upload_id:
                 try:
-                    await run_in_thread(storage.abort_upload, row.user_id,
-                        {"uploadId": row.upload_id, "video_path": row.video_path})
+                    await run_in_thread(storage.abort_upload, row.user_id, upload)
                 except ClientError as exc:
                     if exc.response["Error"]["Code"] != "NoSuchUpload":
                         raise
             await db.execute(text("UPDATE media_upload_sessions SET state = 'aborted' WHERE id = :id"), {"id": row.id})
             await db.commit()
-        except STORAGE_ERRORS:
+        except (*STORAGE_ERRORS, ValueError) as exc:
             await db.rollback()
-            logger.warning("Expired multipart upload retained for abort retry")
-            break
+            failed.append(row.id)
+            logger.warning("Open multipart upload %s retained for abort retry: %s", row.id, exc)
 
 
 async def queue_orphans(db, storage: MediaStorage, candidates) -> None:

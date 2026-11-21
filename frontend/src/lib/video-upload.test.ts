@@ -78,6 +78,29 @@ describe("S3 video uploads", () => {
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/abort")).toBe(false);
   });
 
+  it("reports finished parts at most once a minute so a slow upload is not taken for abandoned", async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/upload/authorization") return Response.json(authorization());
+      if (url.startsWith("https://s3.test/")) {
+        // Each part takes 45 seconds: the first finishes inside the minute, the second after it.
+        now += 45_000;
+        return new Response(null, { headers: { ETag: "etag" } });
+      }
+      if (url === "/api/upload/progress") return Response.json({ ok: true });
+      if (url === "/api/upload/complete") return Response.json({ video_path: authorization().video_path });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(uploadVideoFile(new File(["abcdef"], "video.mp4"))).resolves.toBe(authorization().video_path);
+    const reports = fetchMock.mock.calls.filter(([url]) => url === "/api/upload/progress");
+    expect(reports).toHaveLength(1);
+    expect(JSON.parse((reports[0] as unknown as [string, RequestInit])[1].body as string))
+      .toEqual({ video_path: authorization().video_path, uploadId: "upload" });
+    vi.restoreAllMocks();
+  });
+
   it("releases the upload with a keepalive abort when the page is closed", async () => {
     const pendingParts: ((response: Response) => void)[] = [];
     const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {

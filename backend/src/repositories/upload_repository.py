@@ -100,18 +100,39 @@ async def release_completion(db, session_id: str, digest: str):
     await db.commit()
 
 
+async def touch_upload(db, session_id: str, config) -> bool:
+    """Record that an open upload is still running.
+
+    A session that already went quiet for the stale window is not revived: its
+    slot may have been handed to another upload, and cleanup will abort it.
+    """
+    touched = (await db.execute(text(f"""
+        UPDATE media_upload_sessions SET last_activity_at = clock_timestamp()
+        WHERE id = :id AND state IN ('reserved', 'uploading')
+          AND {LAST_ACTIVITY} > clock_timestamp() - make_interval(secs => :stale)
+        RETURNING id
+    """), {"id": session_id, "stale": config.media_upload_stale_seconds})).first()
+    await db.commit()
+    return touched is not None
+
+
 async def finish_upload(db, session_id: str, state: str):
     await db.execute(text("UPDATE media_upload_sessions SET state = :state WHERE id = :id AND (:state != 'aborted' OR state != 'completed')"), {"id": session_id, "state": state})
     await db.commit()
 
 
+# An open session with no sign of life for the stale window was abandoned (a
+# closed tab never sends its abort). It stops holding a concurrency slot, and
+# the cleanup worker aborts it. Admission, touches and cleanup share this rule.
+LAST_ACTIVITY = "COALESCE(last_activity_at, created_at)"
+
+
 def _admission_counts():
-    # An open session older than the stale window was abandoned: it no longer
-    # holds a concurrency slot, though it still counts toward the daily limit.
-    return text("""
+    # Abandoned sessions still count toward the daily limit.
+    return text(f"""
         SELECT COUNT(*) FILTER (
                 WHERE state IN ('reserved', 'uploading')
-                  AND created_at > NOW() - make_interval(secs => :stale)
+                  AND {LAST_ACTIVITY} > NOW() - make_interval(secs => :stale)
             ) AS active,
             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') AS daily
         FROM media_upload_sessions WHERE user_id = :owner

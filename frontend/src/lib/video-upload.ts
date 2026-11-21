@@ -173,6 +173,8 @@ export async function uploadVideoFile(
   return uploadResult.video_path;
 }
 
+const PROGRESS_REPORT_MS = 60_000;
+
 async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorization): Promise<string> {
   const completedParts: { partNumber: number; etag: string }[] = [];
   const controller = new AbortController();
@@ -190,6 +192,18 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
     if (!event.persisted) void abortUpload();
   };
   window.addEventListener("pagehide", onPageHide);
+  // Finished parts tell the server the upload is alive. Without them, a session
+  // quiet for a few hours is treated as abandoned and aborted.
+  let lastReport = Date.now();
+  const reportProgress = () => {
+    if (Date.now() - lastReport < PROGRESS_REPORT_MS) return;
+    lastReport = Date.now();
+    void fetch("/api/upload/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => undefined);
+  };
   let nextPart = 0;
   let failure: unknown;
   const workers = Array.from({ length: Math.min(3, authorization.parts.length) }, async () => {
@@ -233,6 +247,7 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
           throw new Error("Video upload failed. Please try again.");
         }
         completedParts.push({ partNumber: part.partNumber, etag });
+        reportProgress();
       } catch (error) {
         failure ??= error;
         controller.abort();
