@@ -1371,6 +1371,93 @@ def _download_audio_attempt(
         raise
 
 
+def download_audio_section(
+    url: str,
+    video_id: str,
+    start: float,
+    end: float,
+    dest_stem: Path,
+    *,
+    task_id: Optional[str] = None,
+    budget: Optional[ByteBudget] = None,
+) -> tuple[Path, float, float]:
+    """Audio of one time window only, for a picked part of a long video.
+
+    Returns the file and its original-timeline bounds (whole HLS fragments,
+    so it may start a few seconds before ``start``). Formats without timed
+    fragments raise ``PartialDownloadUnavailable``.
+    """
+    counter = budget or ByteBudget(get_config().youtube_download_max_bytes)
+    return _with_proxy_retry(
+        lambda options: _download_audio_section_attempt(
+            url, video_id, start, end, dest_stem, task_id=task_id, budget=counter, options=options,
+        ),
+        task_id=task_id, video_id=video_id, budget=counter,
+        cleanup=lambda: _discard_output(dest_stem),
+    )
+
+
+def _download_audio_section_attempt(
+    url: str,
+    video_id: str,
+    start: float,
+    end: float,
+    dest_stem: Path,
+    *,
+    task_id: Optional[str],
+    budget: ByteBudget,
+    options: dict[str, Any],
+) -> tuple[Path, float, float]:
+    counter = budget
+    before = counter.snapshot()
+    try:
+        info = extract_video_info(url, options)
+        formats = info.get("formats") or []
+        source_language = _video_language(info)
+        fmt = pick_hls_audio_format(
+            formats,
+            source_language=source_language,
+            original_audio=_original_audio_resolution(formats, source_language),
+        )
+        if fmt is None:
+            raise PartialDownloadUnavailable("No HLS audio format is available for a section")
+        duration = info.get("duration") or 0
+        fmt = expand_hls_format(fmt, options, counter, duration)
+        window = select_window(fmt, start, min(end, float(duration)) if duration else end)
+        if not window:
+            raise PartialDownloadUnavailable(
+                "Audio format has no timed fragments; refusing an ffmpeg section download"
+            )
+        fragments, media_start, media_end = window
+        options["_youtube_section_clock"] = _SectionTransferClock(
+            deadline=min(options["_youtube_deadline"], time.monotonic() + _SECTION_IDLE_SECONDS),
+            hard_deadline=options["_youtube_overall_deadline"],
+        )
+        path = native_download_format(options, url, video_id, fmt, dest_stem, fragments)
+        path = contain_raw_aac(path)
+        nbytes = _account_file(path, counter, before)
+        log_youtube_attempt(
+            provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+            video_id=video_id,
+            kind="audio_section",
+            outcome="success",
+            nbytes=nbytes,
+            task_id=task_id,
+        )
+        return path, media_start, media_end
+    except Exception as exc:
+        log_youtube_attempt(
+            provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+            video_id=video_id,
+            kind="audio_section",
+            outcome="failure",
+            nbytes=max(0, counter.snapshot() - before),
+            task_id=task_id,
+            error=str(exc),
+        )
+        raise
+
+
 def download_section_file(
     url: str,
     video_id: str,
