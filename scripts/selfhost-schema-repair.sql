@@ -151,6 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_social_posts_clip_id ON social_posts (clip_id);
 CREATE INDEX IF NOT EXISTS idx_social_posts_status_scheduled ON social_posts (status, scheduled_for);
 CREATE INDEX IF NOT EXISTS idx_social_posts_task_id ON social_posts (task_id);
 CREATE INDEX IF NOT EXISTS idx_social_posts_user_id ON social_posts (user_id);
+ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS publish_notification_sent_at TIMESTAMP WITH TIME ZONE;
 
 CREATE TABLE IF NOT EXISTS social_post_metrics (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
@@ -191,6 +192,8 @@ CREATE TABLE IF NOT EXISTS team_members (
     team_id VARCHAR(36) NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+    monthly_minute_limit INTEGER CHECK (monthly_minute_limit IS NULL OR monthly_minute_limit >= 0),
+    monthly_ai_edit_limit INTEGER CHECK (monthly_ai_edit_limit IS NULL OR monthly_ai_edit_limit >= 0),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (team_id, user_id)
 );

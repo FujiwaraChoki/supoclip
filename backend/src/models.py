@@ -158,8 +158,12 @@ class RevenueCatWebhookEvent(Base):
     )
 
 
+# In production these three tables are created from the models (init_db runs
+# create_all before the SQL migrations), so the models carry the same checks
+# as migrations 20261120_0002 and 20261121_0003.
 class Team(Base):
     __tablename__ = "teams"
+    __table_args__ = (CheckConstraint("seat_limit >= 1"),)
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=generate_uuid_string
@@ -213,6 +217,11 @@ class Team(Base):
 
 class TeamMember(Base):
     __tablename__ = "team_members"
+    __table_args__ = (
+        CheckConstraint("role IN ('owner', 'admin', 'member')"),
+        CheckConstraint("monthly_minute_limit IS NULL OR monthly_minute_limit >= 0"),
+        CheckConstraint("monthly_ai_edit_limit IS NULL OR monthly_ai_edit_limit >= 0"),
+    )
 
     team_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
@@ -232,6 +241,7 @@ class TeamMember(Base):
 
 class TeamInvitation(Base):
     __tablename__ = "team_invitations"
+    __table_args__ = (CheckConstraint("role IN ('admin', 'member')"),)
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=generate_uuid_string

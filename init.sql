@@ -609,6 +609,7 @@ CREATE INDEX IF NOT EXISTS idx_social_posts_clip_id ON social_posts (clip_id);
 CREATE INDEX IF NOT EXISTS idx_social_posts_status_scheduled ON social_posts (status, scheduled_for);
 CREATE INDEX IF NOT EXISTS idx_social_posts_task_id ON social_posts (task_id);
 CREATE INDEX IF NOT EXISTS idx_social_posts_user_id ON social_posts (user_id);
+ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS publish_notification_sent_at TIMESTAMP WITH TIME ZONE;
 
 CREATE TABLE IF NOT EXISTS social_post_metrics (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
