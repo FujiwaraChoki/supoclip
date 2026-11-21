@@ -3,6 +3,7 @@ Task repository - handles all database operations for tasks.
 """
 
 from .edit_transaction import commit_unless_editing
+from .stale_plan import execute_read
 from .minute_usage_repository import charged_duration, record_minute_usage, refund_failed_minute_usage
 from .task_idempotency_repository import TaskIdempotencyReplay, claim_key
 from sqlalchemy.exc import DBAPIError
@@ -374,20 +375,21 @@ class TaskRepository:
     ) -> Optional[Dict[str, Any]]:
         """Get task by ID with source information."""
         try:
-            async with db.begin_nested():
-                result = await db.execute(
-                    text("""
+            result = await execute_read(
+                db,
+                text("""
                         SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url
                         FROM tasks t
                         LEFT JOIN sources s ON t.source_id = s.id
                         WHERE t.id = :task_id
                     """),
-                    {"task_id": task_id},
-                )
+                {"task_id": task_id},
+            )
         except DBAPIError as exc:
             if getattr(exc.orig, "sqlstate", None) != "42703":
                 raise
-            result = await db.execute(
+            result = await execute_read(
+                db,
                 text("""
                     SELECT t.*, s.title as source_title, s.type as source_type
                     FROM tasks t
@@ -676,11 +678,11 @@ class TaskRepository:
         """Get all tasks for a user."""
         params = {"user_id": user_id, "limit": limit}
         try:
-            async with db.begin_nested():
-                # Series, recap and trailer covers are the first output (Part 1),
-                # not the best-scored one: they have no scores.
-                result = await db.execute(
-                    text("""
+            # Series, recap and trailer covers are the first output (Part 1),
+            # not the best-scored one: they have no scores.
+            result = await execute_read(
+                db,
+                text("""
                         SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
                                (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
                                (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
@@ -694,12 +696,13 @@ class TaskRepository:
                         ORDER BY t.created_at DESC
                         LIMIT :limit
                     """),
-                    params,
-                )
+                params,
+            )
         except DBAPIError as exc:
             if getattr(exc.orig, "sqlstate", None) != "42703":
                 raise
-            result = await db.execute(
+            result = await execute_read(
+                db,
                 text("""
                     SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
                            (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,

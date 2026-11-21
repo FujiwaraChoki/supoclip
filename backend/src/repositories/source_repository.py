@@ -9,6 +9,8 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any  # Dict/Any kept for return type hints
 import logging
 
+from .stale_plan import execute_read
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +68,8 @@ class SourceRepository:
         db: AsyncSession, source_id: str
     ) -> Optional[Dict[str, Any]]:
         """Get source by ID."""
-        result = await db.execute(
+        result = await execute_read(
+            db,
             text("SELECT * FROM sources WHERE id = :source_id"),
             {"source_id": source_id},
         )

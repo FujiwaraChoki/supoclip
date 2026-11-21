@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .media_repository import queue_delete
+from .stale_plan import execute_read
 
 LIVE_STATUSES = ("queued", "running", "succeeded")
 ACTIVE_STATUSES = ("queued", "running")
@@ -28,7 +29,8 @@ class ClipExportRepository:
 
     @staticmethod
     async def get(db: AsyncSession, export_id: str) -> Optional[Dict[str, Any]]:
-        result = await db.execute(
+        result = await execute_read(
+            db,
             text("SELECT * FROM clip_exports WHERE id = :id"),
             {"id": export_id},
         )
@@ -38,7 +40,8 @@ class ClipExportRepository:
     async def get_for_task_clip(
         db: AsyncSession, export_id: str, task_id: str, clip_id: str
     ) -> Optional[Dict[str, Any]]:
-        result = await db.execute(
+        result = await execute_read(
+            db,
             text(
                 """
                 SELECT * FROM clip_exports
@@ -54,7 +57,8 @@ class ClipExportRepository:
         db: AsyncSession, clip_id: str, options_hash: str, *, for_update: bool = False
     ) -> Optional[Dict[str, Any]]:
         lock = " FOR UPDATE" if for_update else ""
-        result = await db.execute(
+        result = await execute_read(
+            db,
             text(
                 f"""
                 SELECT * FROM clip_exports
