@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 import json
 from arq import Retry
 from arq.worker import func
+from ..repositories.edit_transaction import TaskCancelled
 from ..repositories.task_run_guard import TaskRunBusy
 from ..youtube_proxy_trial import run_trial_job
 
@@ -174,6 +175,12 @@ async def process_video_task(
             # Retry without rewriting task state or creating a dead-letter entry.
             raise Retry(defer=2)
         except Exception as e:
+            if isinstance(e, TaskCancelled) or str(e) == "Task cancelled":
+                # The user stopped it: process_task already recorded the cancel
+                # (and billing refunded it). Not a failure, so no traceback,
+                # no dead letter, and no arq failure log (which reaches PostHog).
+                logger.info("Task %s cancelled", task_id)
+                return {"task_id": task_id, "status": "cancelled"}
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
             try:
                 job_try = int(ctx.get("job_try", 1))
