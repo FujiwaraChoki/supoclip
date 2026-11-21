@@ -8,6 +8,9 @@ import threading
 import time
 
 
+CANCELLED_MESSAGE = "Stream download cancelled"
+
+
 class TransferStopped(RuntimeError):
     pass
 
@@ -72,7 +75,7 @@ class Transfer:
     def check(self):
         self.budget.check()
         if self.cancelled is not None and self.cancelled.is_set():
-            self.budget.failure = "Stream download cancelled"
+            self.budget.failure = CANCELLED_MESSAGE
         elif time.monotonic() >= self.deadline:
             self.budget.failure = "Stream download timed out"
         self.budget.check()
