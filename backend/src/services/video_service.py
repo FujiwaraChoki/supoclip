@@ -35,6 +35,7 @@ from ..youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    ProxyCapacityExhausted,
     YouTubeAgeRestrictedError,
     YouTubeGeoRestrictedError,
     proxy_configured,
@@ -1128,7 +1129,7 @@ class VideoService:
                         budget=job_budget,
                         quality=quality,
                     )
-                except DownloadBudgetExceeded:
+                except (DownloadBudgetExceeded, ProxyCapacityExhausted):
                     raise
                 except Exception as exc:
                     section_error = exc
@@ -2308,6 +2309,10 @@ class VideoService:
                         )
                 except DownloadBudgetExceeded as exc:
                     raise Exception(str(exc)) from exc
+                except ProxyCapacityExhausted:
+                    # Temporary proxy limit, not a video problem: the full-file
+                    # chain would only reach the paid providers.
+                    raise
                 except Exception as exc:
                     if source_type in {"twitch", "kick"} and isinstance(exc, StreamSourceError):
                         raise

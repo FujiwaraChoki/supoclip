@@ -27,6 +27,7 @@ from .youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    ProxyCapacityExhausted,
     YouTubeDownloadError,
     YouTubeGeoRestrictedError,
     is_geo_restricted_error,
@@ -996,7 +997,7 @@ def download_analysis_source(
     try_sections = False
     try:
         return download_audio_for_job(url, video_id, task_id=task_id, budget=budget), True
-    except DownloadBudgetExceeded:
+    except (DownloadBudgetExceeded, ProxyCapacityExhausted):
         raise
     except AudioDownloadForbidden as exc:
         failure = exc
@@ -1010,7 +1011,7 @@ def download_analysis_source(
             return _full_timeline_via_sections(
                 url, video_id, duration, task_id=task_id, budget=budget,
             ), False
-        except DownloadBudgetExceeded:
+        except (DownloadBudgetExceeded, ProxyCapacityExhausted):
             raise
         except Exception as exc:
             failure = exc

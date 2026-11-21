@@ -788,7 +788,11 @@ async def _download_editor_source(service, task_id: str, task: dict, ranges: lis
     """Fetch the source for this clip into a directory owned by this job."""
     source_url, source_type = task.get("source_url"), task.get("source_type")
     if source_type == "youtube":
-        from ..youtube_proxy import DownloadBudgetExceeded, YouTubeGeoRestrictedError
+        from ..youtube_proxy import (
+            DownloadBudgetExceeded,
+            ProxyCapacityExhausted,
+            YouTubeGeoRestrictedError,
+        )
 
         # Reuses the YouTube source cache when it still covers the clip.
         download_errors: list[str] = []
@@ -804,7 +808,7 @@ async def _download_editor_source(service, task_id: str, task: dict, ranges: lis
             raise EditorPrepareError(
                 "The source video is larger than the download limit, so it cannot be prepared for editing."
             ) from exc
-        except YouTubeGeoRestrictedError as exc:
+        except (YouTubeGeoRestrictedError, ProxyCapacityExhausted) as exc:
             raise EditorPrepareError(str(exc)) from exc
         if not downloaded:
             logging.getLogger(__name__).warning(

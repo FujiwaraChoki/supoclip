@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
+import random
 import re
 import secrets
 import shutil
@@ -142,6 +143,19 @@ class DownloadDeadlineExceeded(YouTubeDownloadError):
     """One proxy attempt expired; independent providers may still be tried."""
 
 
+class ProxyCapacityExhausted(YouTubeDownloadError):
+    """The residential proxy account is at its limit (HTTP 466 on CONNECT).
+
+    It says nothing about the video, so no other provider is tried: the paid
+    fallbacks would be charged for a temporary account limit.
+    """
+
+    def __init__(self):
+        super().__init__(
+            "Our video download service is busy right now. Try again in a few minutes."
+        )
+
+
 class AudioDownloadForbidden(YouTubeDownloadError):
     """Direct audio was forbidden and the HLS audio retry did not produce a file."""
 
@@ -192,12 +206,34 @@ def _proxy_client(options: dict):
         _check_deadline(options)
 
 
+# A proxy at capacity is waited out, never handed to the paid fallbacks. Each
+# proxy operation waits at most twice, 30-120s with jitter, and one job sleeps
+# at most PROXY_CAPACITY_JOB_WAIT_SECONDS in total across all its operations.
+PROXY_CAPACITY_WAIT_RANGE = (30.0, 120.0)
+PROXY_CAPACITY_MAX_WAITS = 2
+PROXY_CAPACITY_JOB_WAIT_SECONDS = 240.0
+_PROXY_CAPACITY = re.compile(r"tunnel connection failed:\s*466\b|\b466\b.{0,40}limit reached", re.I)
+_capacity_sleep = time.sleep
+
+
+def is_proxy_capacity_error(exc: BaseException) -> bool:
+    """True when the proxy refused the tunnel because the account hit its limit."""
+    for error in _exception_chain(exc):
+        if isinstance(error, ProxyCapacityExhausted):
+            return True
+        if _PROXY_CAPACITY.search(str(error)):
+            return True
+    return False
+
+
 class ByteBudget:
     """Shared byte counter for one job (audio, sections, and fallbacks)."""
 
     def __init__(self, limit: int):
         self.limit = max(0, int(limit))
         self.total = 0
+        # Seconds this job may still sleep waiting for proxy capacity.
+        self.capacity_wait_left = PROXY_CAPACITY_JOB_WAIT_SECONDS
         self._lock = threading.Lock()
         # Recovery belongs to this job, never to the process-wide configuration.
         self._proxy_routes: dict[tuple[Optional[str], str], tuple[str, str]] = {}
@@ -216,6 +252,13 @@ class ByteBudget:
     def snapshot(self) -> int:
         with self._lock:
             return self.total
+
+    def take_capacity_wait(self, seconds: float) -> float:
+        """Reserve up to ``seconds`` of this job's proxy-capacity wait."""
+        with self._lock:
+            granted = max(0.0, min(float(seconds), self.capacity_wait_left))
+            self.capacity_wait_left -= granted
+            return granted
 
     def proxy_route(self, task_id: Optional[str], video_id: str) -> Optional[tuple[str, str]]:
         with self._lock:
@@ -471,6 +514,9 @@ def download_options(
 
 def is_transient_proxy_error(exc: BaseException) -> bool:
     """Only transport failures merit a new residential session, never bad media."""
+    if is_proxy_capacity_error(exc):
+        # A new session hits the same account limit; _with_proxy_retry waits instead.
+        return False
     transient = False
     for error in _exception_chain(exc):
         if isinstance(error, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
@@ -510,8 +556,13 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
     session = route[1] if route else sticky_session_id(task_id, video_id)
     geo_retry = False
     transport_retry = False
+    capacity_waits = 0
     retry_deadline = None
-    for attempt in range(3):
+    # Every retry below sets a flag or counter, so this ends after at most
+    # 1 + 1 (region) + 1 (transport) + PROXY_CAPACITY_MAX_WAITS attempts.
+    attempt = -1
+    while True:
+        attempt += 1
         options = download_options(
             task_id, video_id, budget,
             session_id=session, country=country,
@@ -532,6 +583,34 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
             cleanup()
             if isinstance(exc, DownloadBudgetExceeded):
                 raise
+            if is_proxy_capacity_error(exc):
+                if isinstance(exc, ProxyCapacityExhausted):
+                    raise
+                wait = 0.0
+                if capacity_waits < PROXY_CAPACITY_MAX_WAITS:
+                    wait = random.uniform(*PROXY_CAPACITY_WAIT_RANGE)
+                    if deadline is not None:
+                        wait = min(wait, deadline - time.monotonic() - 1)
+                    wait = budget.take_capacity_wait(wait) if wait > 0 else 0.0
+                if wait <= 0:
+                    logger.warning(
+                        "youtube_proxy_capacity_exhausted video_id=%s task_id=%s waits=%s",
+                        video_id, task_id or "-", capacity_waits,
+                    )
+                    raise ProxyCapacityExhausted() from exc
+                capacity_waits += 1
+                logger.warning(
+                    "youtube_proxy_capacity_wait seconds=%.0f wait=%s video_id=%s task_id=%s",
+                    wait, capacity_waits, video_id, task_id or "-",
+                )
+                report_download_recovery(DownloadRecovery.CONNECTION)
+                _capacity_sleep(wait)
+                # Nothing was transferred: the wait does not eat the download's time.
+                overall_deadline += wait
+                if deadline is not None:
+                    overall_deadline = min(overall_deadline, deadline)
+                retry_deadline = overall_deadline
+                continue
             is_geo = is_geo_restricted_error(exc)
             now = time.monotonic()
             allowed = [value for value in _allowed_geo_countries(exc) if value != country] if is_geo else []

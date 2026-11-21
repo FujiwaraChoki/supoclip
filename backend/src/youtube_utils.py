@@ -26,6 +26,7 @@ from .youtube_proxy import (
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
     ByteBudget,
     DownloadBudgetExceeded,
+    ProxyCapacityExhausted,
     base_proxy_params,
     download_full_with_proxy,
     extract_video_info_with_proxy,
@@ -815,8 +816,12 @@ def download_youtube_video(
                 downloaded_path = _download_youtube_video_with_ytdlp(url, max_retries, task_id, quality)
             else:
                 downloaded_path = download_youtube_video_with_apify(url, video_id, quality)
-        except DownloadBudgetExceeded as exc:
+        except (DownloadBudgetExceeded, ProxyCapacityExhausted) as exc:
+            # A full proxy account is temporary. The paid providers must not
+            # be charged for it, and direct yt-dlp only meets the bot check.
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            if errors is not None and isinstance(exc, ProxyCapacityExhausted):
+                errors.append(public_download_error(exc))
             raise
         except ApifyDownloadError as exc:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
