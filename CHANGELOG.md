@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
+- **Fixed:** The title at the start of a clip no longer lies across a face when the clip opens on one person and cuts to a split screen a moment later. It sits between the two halves only when the split screen fills most of the time the title is shown, and at the top otherwise. ([#548](https://github.com/FujiwaraChoki/supoclip/pull/548))
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))
 - **Fixed:** Clips from very long YouTube videos (six hours and up, including day-long streams) no longer fail on every try. SupoClip now downloads just the parts it needs from them instead of falling back to the whole video, and a video too large to download in full now fails right away with a clear message instead of after a long wait. ([#544](https://github.com/FujiwaraChoki/supoclip/pull/544))
 - **Improved:** The pricing modal shows the full Self-hosted card again, with what self-hosting includes and a direct link to the self-hosting guide alongside the hosted plans. ([#532](https://github.com/FujiwaraChoki/supoclip/pull/532))
