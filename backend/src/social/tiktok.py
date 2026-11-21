@@ -62,9 +62,12 @@ PRIVACY_LABELS = {
 }
 
 TITLE_MAX_LENGTH = 2200
-# TikTok accepts 5 MB - 64 MB chunks (the final chunk may be larger). A single
-# chunk is allowed when the whole file fits in 64 MB.
-SINGLE_CHUNK_LIMIT = 64 * 1024 * 1024
+# TikTok's media transfer rules: every chunk is 5-64 MB except the final one,
+# which takes the trailing bytes (up to 128 MB); total_chunk_count is
+# floor(video_size / chunk_size); a file under 5 MB goes up whole and a file
+# over 64 MB must be split. TikTok doesn't say whether MB is 10^6 or 2^20, so
+# the limits below hold under both readings.
+SINGLE_CHUNK_LIMIT = 64_000_000
 CHUNK_SIZE = 50 * 1024 * 1024
 
 TERMINAL_FAILURE_STATUSES = {"FAILED"}
@@ -84,6 +87,30 @@ TOO_MANY_POSTS_MESSAGE = (
     "This TikTok account has reached TikTok's daily posting limit. "
     "Wait until tomorrow and retry this post."
 )
+
+
+def chunk_plan(file_size: int) -> tuple[int, int]:
+    """Return ``(chunk_size, total_chunk_count)`` for TikTok's upload init.
+
+    A file up to 64 MB goes up in one piece. A larger one is split into
+    equal chunks of at most ``CHUNK_SIZE`` (always at least two), and the
+    few bytes left by the division ride on the final chunk, so
+    ``file_size // chunk_size == total_chunk_count`` holds exactly.
+    """
+    if file_size <= SINGLE_CHUNK_LIMIT:
+        return file_size, 1
+    total_chunks = max(2, math.ceil(file_size / CHUNK_SIZE))
+    return file_size // total_chunks, total_chunks
+
+
+def chunk_ranges(file_size: int, chunk_size: int, total_chunks: int) -> list[tuple[int, int]]:
+    """Inclusive byte ranges for each PUT; the final chunk ends at the last byte."""
+    ranges = []
+    for index in range(total_chunks):
+        start = index * chunk_size
+        end = file_size - 1 if index == total_chunks - 1 else start + chunk_size - 1
+        ranges.append((start, end))
+    return ranges
 
 
 class TikTokProvider(SocialProvider):
@@ -283,12 +310,7 @@ class TikTokProvider(SocialProvider):
             TITLE_MAX_LENGTH,
         )
         file_size = os.path.getsize(request.file_path)
-        if file_size <= SINGLE_CHUNK_LIMIT:
-            chunk_size = file_size
-            total_chunks = 1
-        else:
-            chunk_size = CHUNK_SIZE
-            total_chunks = max(1, math.floor(file_size / chunk_size))
+        chunk_size, total_chunks = chunk_plan(file_size)
 
         init_body = {
             "post_info": {
@@ -342,11 +364,10 @@ class TikTokProvider(SocialProvider):
         chunk_size: int,
         total_chunks: int,
     ) -> None:
+        ranges = chunk_ranges(file_size, chunk_size, total_chunks)
         with open(file_path, "rb") as handle:
-            for index in range(total_chunks):
-                start = index * chunk_size
+            for index, (start, end) in enumerate(ranges):
                 is_last = index == total_chunks - 1
-                end = file_size - 1 if is_last else start + chunk_size - 1
                 handle.seek(start)
                 blob = handle.read(end - start + 1)
                 # TikTok publishes once the final chunk lands, even if its
