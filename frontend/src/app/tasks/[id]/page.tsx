@@ -10,6 +10,7 @@ import { useTaskProgress } from "@/hooks/use-task-progress";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
 import { getClipUrl, requestAction, EXPORT_PRESETS } from "@/lib/clip-actions";
 import { clipExportFilePath, pollClipExport, triggerFileDownload } from "@/lib/clip-export";
+import { followClipJob } from "@/lib/clip-job";
 import { downloadAllClips } from "@/lib/clip-archive";
 import { trackClipExport } from "@/lib/clip-export-tracking";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -127,8 +128,15 @@ interface Clip extends WorkflowClipFields {
 type ClipFxMeta = { fx_level?: string | null; timing?: string | null; intensity?: string | null; template?: string | null };
 
 /** A clip edit running on the video worker (202 from settings, captions, trim, split or merge). */
-type ClipJob = { id: string; kind: string; clipIds: string[] | "all"; progress: number; error?: string | null };
-const CLIP_JOB_POLL_MS = 2000;
+type ClipJob = {
+  id: string; kind: string; clipIds: string[] | "all"; progress: number;
+  /** The settings body that queued it, resent as it is by "Try again". */
+  request?: string;
+  /** The sentence shown once following ended badly. */
+  error?: string | null;
+  /** What "Try again" does: follow the job again (its status could not be read) or send `request` again. */
+  retry?: "resume" | "resend";
+};
 /** The edit toggles the restyle sheet offers (the create screen has the full set). */
 const SHEET_FX_TOGGLES = ["sfx", "music", "zooms", "transitions", "progress_bar"] as const satisfies readonly (keyof EditStyle)[];
 const clipJobStorageKey = (taskId: string) => `supoclip.clipJob.${taskId}`;
@@ -137,7 +145,10 @@ function readStoredClipJob(taskId: string): ClipJob | null {
   try {
     const parsed = JSON.parse(window.sessionStorage.getItem(clipJobStorageKey(taskId)) ?? "null");
     return parsed && typeof parsed.id === "string" && /^[0-9a-f]{32}$/.test(parsed.id)
-      ? { id: parsed.id, kind: String(parsed.kind ?? "settings"), clipIds: Array.isArray(parsed.clipIds) ? parsed.clipIds : "all", progress: 0 }
+      ? {
+          id: parsed.id, kind: String(parsed.kind ?? "settings"), clipIds: Array.isArray(parsed.clipIds) ? parsed.clipIds : "all", progress: 0,
+          request: typeof parsed.request === "string" ? parsed.request : undefined,
+        }
       : null;
   } catch {
     return null;
@@ -146,7 +157,7 @@ function readStoredClipJob(taskId: string): ClipJob | null {
 
 function storeClipJob(taskId: string, job: ClipJob | null) {
   try {
-    if (job) window.sessionStorage.setItem(clipJobStorageKey(taskId), JSON.stringify({ id: job.id, kind: job.kind, clipIds: job.clipIds }));
+    if (job) window.sessionStorage.setItem(clipJobStorageKey(taskId), JSON.stringify({ id: job.id, kind: job.kind, clipIds: job.clipIds, request: job.request }));
     else window.sessionStorage.removeItem(clipJobStorageKey(taskId));
   } catch { /* storage blocked: polling still works for this visit */ }
 }
@@ -606,6 +617,9 @@ export default function TaskPage() {
     }
   };
 
+  /** A clip job is queued or running: its clips are locked and no second re-render can be queued. */
+  const clipJobActive = Boolean(clipJob && !clipJob.error);
+
   const handleApplyProjectSettings = async () => {
     if (!session?.user?.id || !params.id) return;
     const fontOptions = buildFontOptionsPayload(projectFontFamily, projectFontSize, projectFontColor);
@@ -622,6 +636,24 @@ export default function TaskPage() {
     const nextStyle = editStyleToJson(projectEditStyle);
     const styleChanged = JSON.stringify(nextStyle) !== JSON.stringify(editStyleToJson(storedEditStyle));
 
+    await submitProjectSettings(JSON.stringify({
+      ...fontOptions,
+      caption_template: projectCaptionTemplate,
+      cut_long_pauses: projectCutLongPauses,
+      pause_threshold_ms: safePauseThreshold,
+      remove_filler_words: projectRemoveFillerWords,
+      // Omitted when B-roll isn't offered, so the task keeps its setting.
+      ...(brollAvailable ? { include_broll: projectIncludeBroll } : {}),
+      filtered_words: normalizedFilteredWords,
+      ...(styleChanged ? { edit_style: nextStyle } : {}),
+      apply_to_existing: true,
+    }), projectEditStyle);
+  };
+
+  /** Sends a settings body. "Try again" passes the failed job's own body, without `style` (it is stored already). */
+  const submitProjectSettings = async (body: string, style?: EditStyle) => {
+    // One re-render at a time: a second request would queue every clip again.
+    if (!params.id || isApplyingSettings || clipJobActive) return;
     setIsApplyingSettings(true);
     try {
       const response = await fetch(`${taskApiUrl}/${params.id}/settings`, {
@@ -629,18 +661,7 @@ export default function TaskPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...fontOptions,
-          caption_template: projectCaptionTemplate,
-          cut_long_pauses: projectCutLongPauses,
-          pause_threshold_ms: safePauseThreshold,
-          remove_filler_words: projectRemoveFillerWords,
-          // Omitted when B-roll isn't offered, so the task keeps its setting.
-          ...(brollAvailable ? { include_broll: projectIncludeBroll } : {}),
-          filtered_words: normalizedFilteredWords,
-          ...(styleChanged ? { edit_style: nextStyle } : {}),
-          apply_to_existing: true,
-        }),
+        body,
       });
       if (!response.ok) {
         toast.error(await buildSupportError(response, t("errors.applySettings")));
@@ -649,8 +670,8 @@ export default function TaskPage() {
       if (response.status === 202) {
         // Clips with dynamic edits re-render on the video worker: mark them and poll the job.
         const queued = (await response.json()) as { job_id?: string; kind?: string };
-        if (queued.job_id) startClipJob({ id: queued.job_id, kind: queued.kind ?? "settings", clipIds: "all", progress: 0 });
-        setStoredEditStyle(projectEditStyle);
+        if (queued.job_id) startClipJob({ id: queued.job_id, kind: queued.kind ?? "settings", clipIds: "all", progress: 0, request: body });
+        if (style) setStoredEditStyle(style);
         setSettingsSheetOpen(false);
         toast.success(t("fx.queued"));
         return;
@@ -681,45 +702,39 @@ export default function TaskPage() {
   useEffect(() => {
     if (!clipJobId || !params.id) return;
     const taskId = String(params.id);
-    let cancelled = false;
-    let timer = 0;
-    const finish = (job: ClipJob | null) => {
-      storeClipJob(taskId, null);
-      setClipJob(job);
-    };
-    const poll = async () => {
-      try {
-        const response = await fetch(`${taskApiUrl}/${taskId}/clip-jobs/${clipJobId}`, { cache: "no-store" });
-        if (cancelled) return;
-        if (response.status === 404) {
-          finish(null);
-          await fetchTaskStatus(0, 0, true);
-          return;
+    const fail = (error: string, retry?: (job: ClipJob) => ClipJob["retry"]) =>
+      setClipJob((current) => current && current.id === clipJobId ? { ...current, error, retry: retry?.(current) } : current);
+    return followClipJob(`${taskApiUrl}/${taskId}/clip-jobs/${clipJobId}`, {
+      onProgress: (progress) => setClipJob((current) => current && current.id === clipJobId ? { ...current, progress } : current),
+      onEnd: (end) => {
+        // Its status could not be read, but the job may still be running: it stays stored and can be followed again.
+        if (end.status === "unreachable") return fail(t("fx.jobUnreachable"), () => "resume");
+        storeClipJob(taskId, null);
+        if (end.status === "denied") return fail(t("fx.jobDenied"));
+        if (end.status === "failed") {
+          const known = end.code && t.has(`fx.jobErrors.${end.code}`) ? t(`fx.jobErrors.${end.code}`) : null;
+          return fail(t("fx.jobFailed", { message: known ?? (end.message || t("errors.applySettings")) }), (job) => (job.request ? "resend" : undefined));
         }
-        if (response.ok) {
-          const state = (await response.json()) as { status?: string; progress?: number; error?: { message?: string } };
-          if (cancelled) return;
-          if (state.status === "done") {
-            finish(null);
-            await fetchTaskStatus(0, 0, true);
-            toast.success(t("fx.applied"));
-            return;
-          }
-          if (state.status === "failed") {
-            storeClipJob(taskId, null);
-            setClipJob((current) => current && { ...current, error: state.error?.message || t("errors.applySettings") });
-            return;
-          }
-          setClipJob((current) => current && current.id === clipJobId ? { ...current, progress: Number(state.progress) || 0 } : current);
-        }
-      } catch {
-        // A blip (or Redis down: 503) is retried on the next tick.
-      }
-      if (!cancelled) timer = window.setTimeout(() => void poll(), CLIP_JOB_POLL_MS);
-    };
-    timer = window.setTimeout(() => void poll(), CLIP_JOB_POLL_MS);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+        setClipJob(null);
+        void fetchTaskStatus(0, 0, true).then(() => { if (end.status === "done") toast.success(t("fx.applied")); });
+      },
+    });
   }, [clipJobId, params.id, taskApiUrl, fetchTaskStatus, t]);
+
+  const dismissClipJob = () => {
+    if (params.id) storeClipJob(String(params.id), null);
+    setClipJob(null);
+  };
+  const retryClipJob = () => {
+    if (!clipJob?.error) return;
+    if (clipJob.retry === "resume") {
+      setClipJob({ ...clipJob, error: null, retry: undefined });
+    } else if (clipJob.retry === "resend" && clipJob.request) {
+      const { request } = clipJob;
+      setClipJob(null);
+      void submitProjectSettings(request);
+    }
+  };
 
   const handleDeleteFont = async (font: FontOption) => {
     if (font.scope !== "user" || deletingFontName) return;
@@ -979,7 +994,10 @@ export default function TaskPage() {
     </div>
   );
 
-  const publishButton = (clip: Clip) => task?.status === "completed" ? (
+  // One lock for every view: a clip being re-rendered can't be edited, deleted, published or opened in the studio.
+  const renderingClip = (clip: Clip) => Boolean(clipJob && clipJobActive && (clipJob.clipIds === "all" || clipJob.clipIds.includes(clip.id)));
+
+  const publishButton = (clip: Clip) => task?.status === "completed" && !renderingClip(clip) ? (
     <ClipPublishButton
       taskId={task.id}
       clip={clip}
@@ -989,7 +1007,7 @@ export default function TaskPage() {
     />
   ) : null;
 
-  const renderingClip = (clip: Clip) => Boolean(clipJob && !clipJob.error && (clipJob.clipIds === "all" || clipJob.clipIds.includes(clip.id)));
+  const focusedRendering = focusedClip ? renderingClip(focusedClip) : false;
   const renderTile = (clip: Clip, index: number) => renderingClip(clip) ? (
     <div key={clip.id} className="relative" aria-busy="true">
       <ClipTile
@@ -1145,7 +1163,7 @@ export default function TaskPage() {
               <DropdownMenuContent align="end">
                 {hasClips && (
                   <>
-                    <DropdownMenuItem onSelect={() => setSettingsSheetOpen(true)}>
+                    <DropdownMenuItem onSelect={() => setSettingsSheetOpen(true)} disabled={clipJobActive}>
                       <Settings2 />{t("restyle")}
                     </DropdownMenuItem>
                     {task.share_enabled && (
@@ -1174,12 +1192,14 @@ export default function TaskPage() {
         {clipJob && (
           clipJob.error ? (
             <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-              <p className="text-sm">{t("fx.jobFailed", { message: clipJob.error })}</p>
+              <p className="text-sm">{clipJob.error}</p>
               <span className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setClipJob(null)}>{t("cancel")}</Button>
-                <Button size="sm" onClick={() => { setClipJob(null); void handleApplyProjectSettings(); }} disabled={isApplyingSettings}>
-                  <RotateCcw className="size-4" />{t("fx.retry")}
-                </Button>
+                <Button size="sm" variant="ghost" onClick={dismissClipJob}>{t("cancel")}</Button>
+                {clipJob.retry && (
+                  <Button size="sm" onClick={retryClipJob} disabled={isApplyingSettings || clipJobActive}>
+                    <RotateCcw className="size-4" />{t("fx.retry")}
+                  </Button>
+                )}
               </span>
             </div>
           ) : (
@@ -1235,6 +1255,7 @@ export default function TaskPage() {
             taskId={task.id}
             status={task.status}
             editable={task.status === "completed" && !readOnly}
+            locked={renderingClip}
             busyId={pendingAction}
             downloadingAll={isDownloadingAll}
             toolbar={formatSelect}
@@ -1253,8 +1274,8 @@ export default function TaskPage() {
               clip={heroClip}
               plan={plan}
               taskId={task.id}
-              editable={task.status === "completed" && !readOnly}
-              busy={pendingAction === heroClip.id}
+              editable={task.status === "completed" && !readOnly && !renderingClip(heroClip)}
+              busy={pendingAction === heroClip.id || renderingClip(heroClip)}
               onDownload={() => handleDownloadClip(heroClip)}
               actions={publishButton(heroClip)}
             />
@@ -1303,12 +1324,12 @@ export default function TaskPage() {
         taskId={task?.id ?? String(params.id)}
         index={focusIndex ?? 0}
         total={sortedClips.length}
-        busy={focusedClip ? pendingAction === focusedClip.id : false}
-        editable={task?.status === "completed" && !readOnly}
+        busy={focusedClip ? pendingAction === focusedClip.id || focusedRendering : false}
+        editable={task?.status === "completed" && !readOnly && !focusedRendering}
         onNavigate={(delta) => setFocusIndex((i) => (i === null ? i : (i + delta + sortedClips.length) % sortedClips.length))}
         onClose={() => setFocusIndex(null)}
         onDownload={() => focusedClip && handleDownloadClip(focusedClip)}
-        onDelete={readOnly ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
+        onDelete={readOnly || focusedRendering ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
         hookTypeLabel={getHookTypeLabel}
         actions={focusedClip ? publishButton(focusedClip) : null}
       >
@@ -1518,7 +1539,7 @@ export default function TaskPage() {
               <Button
                 className="w-full"
                 onClick={handleApplyProjectSettings}
-                disabled={isApplyingSettings}
+                disabled={isApplyingSettings || clipJobActive}
               >
                 {isApplyingSettings ? t("applying") : t("apply")}
               </Button>

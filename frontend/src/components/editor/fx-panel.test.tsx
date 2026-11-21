@@ -41,7 +41,7 @@ function Harness({ initial, cueId, onUpdate }: { initial: EditDocument; cueId?: 
   const editor = useFxEditor({ endpoint: "/editor", doc, update });
   return (
     <>
-      <FxPanel doc={doc} asset={asset} endpoint="/editor" update={update} seek={vi.fn()} editor={editor} info={info} cueId={cueId} />
+      <FxPanel doc={doc} asset={asset} update={update} seek={vi.fn()} editor={editor} info={info} cueId={cueId} />
       <FxLookControls doc={doc} update={update} editor={editor} />
       <output data-testid="doc">{JSON.stringify(doc)}</output>
     </>

@@ -338,6 +338,29 @@ describe("createPreviewFxAudio (the preview's fxAudio factory)", () => {
     expect(voice.outputs).toEqual([ctx.destination]);
   });
 
+  it("asks for the manifest again after a failed request", async () => {
+    const ctx = new FakeContext();
+    const voice = new FakeGain();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const manifestLoader = vi.fn<() => Promise<FxAssetManifest>>().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(manifest);
+    const sfxCue: FxCue = { ...base, id: "s", kind: "sfx", start: 1, end: 1, sound: "impact", variant: 0, gain_db: 0 };
+    const controller = createPreviewFxAudio(
+      { context: ctx as unknown as AudioContext, destination: ctx.destination as unknown as AudioNode, voice: voice as unknown as GainNode },
+      doc([sfxCue]), { manifest: manifestLoader, decode: async () => fakeBuffer(0.4), schedule: () => () => {} },
+    );
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(manifestLoader).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+    // The next change to the draft retries, and the sound plays once the manifest is in.
+    controller.setDocument(doc([sfxCue]));
+    expect(manifestLoader).toHaveBeenCalledTimes(2);
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    controller.start(0, 1);
+    expect(ctx.sources.some((s) => s.started && !s.loop)).toBe(true);
+    controller.dispose();
+    warn.mockRestore();
+  });
+
   it("plays nothing for a draft without dynamic edits", () => {
     const ctx = new FakeContext();
     const voice = new FakeGain();

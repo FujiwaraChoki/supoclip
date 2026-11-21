@@ -416,7 +416,11 @@ export function createPreviewFxAudio(
           manifest = loaded;
           update();
         },
-        (error) => console.warn("fx_preview_manifest_unavailable", error),
+        (error) => {
+          // Not asked again by itself: the next document change retries.
+          requested = false;
+          console.warn("fx_preview_manifest_unavailable", error);
+        },
       );
     }
     preview.setProgram(input ? fxAudioProgram(input, manifest) : null);

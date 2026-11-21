@@ -276,7 +276,7 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
   const indexRef = useRef(index);
   useEffect(() => { runningRef.current = running; indexRef.current = index; }, [running, index]);
 
-  // Marks the page while a tour runs, so menus it opens stay open between and during its steps (composer-settings).
+  // Marks the page while a tour runs.
   useEffect(() => {
     if (!running) return;
     document.body.setAttribute("data-feature-tour", running.tour.id);
@@ -368,9 +368,11 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
         if (!here.some((step) => !step.intro)) continue;
         // Without its opening there's no feature to introduce yet: save it, don't spend it on the leftovers.
         if (tour.steps.some((step) => step.intro) && !here.some((step) => step.intro)) continue;
-        started.current = true;
         // A tour across pages keeps the steps for other pages: those are looked for when it gets there.
         const steps = crossesPages(tour) ? tour.steps.filter((step) => (!onPage(step, pathname) || here.includes(step)) && requirementMet(step)) : here;
+        // An opener only promises a later step; the first one must be on the page, or the tour would be spent showing nothing.
+        if (!steps[0] || (onPage(steps[0], pathname) && !targetOf(steps[0]))) continue;
+        started.current = true;
         setRunning({ tour, steps, preview: Boolean(preview) });
         setIndex(0);
         if (!preview) {
@@ -404,6 +406,14 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
   }, [pathname, end]);
 
   const step = running?.steps[index];
+  // While a step points into the settings menu, the menu stays open under it (composer-settings). Other steps and
+  // other tours leave it alone: a click outside closes it as always.
+  const inSettingsMenu = Boolean(step?.settingsSection);
+  useEffect(() => {
+    if (!inSettingsMenu) return;
+    document.body.setAttribute("data-feature-tour-settings", "");
+    return () => document.body.removeAttribute("data-feature-tour-settings");
+  }, [inSettingsMenu]);
   useEffect(() => {
     if (step?.workflow) onWorkflow?.(step.workflow);
   }, [step, onWorkflow]);

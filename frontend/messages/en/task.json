@@ -294,6 +294,13 @@
     "queued": "Re-rendering your clips. This can take a few minutes; you can leave this page.",
     "applied": "Edits applied",
     "jobFailed": "The edits couldn't be applied: {message}",
+    "jobErrors": {
+      "WORKER_UNAVAILABLE": "no renderer picked the job up. Try again in a few minutes.",
+      "WORKER_STOPPED": "the renderer stopped before the edits finished.",
+      "CLIP_JOB_TIMEOUT": "rendering took too long."
+    },
+    "jobUnreachable": "We lost track of the re-render. It may still be running.",
+    "jobDenied": "You no longer have access to this re-render. Sign in again and reload the page.",
     "retry": "Try again",
     "approxTiming": "This video had no word timing, so captions and effects follow approximate timing.",
     "simplified": "Some effects were simplified for this clip."

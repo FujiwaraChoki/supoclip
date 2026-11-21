@@ -211,14 +211,19 @@ describe("exportAudioProgram", () => {
     expect(program.sfx.map((e) => [e.id, e.at, e.asset.id])).toEqual([["s", 1.5, "impact_0"]]);
   });
 
-  it("keeps bleeps when the manifest cannot be loaded", async () => {
+  it("fails with the background-export message when the manifest cannot be loaded", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const program = (await exportAudioProgram(withFx({ cues: [cue.sfx("s", 1), cue.bleep("b", 2, 2.5)] }),
-      async () => { throw new Error("offline"); }))!;
-    expect(program.sfx).toEqual([]);
-    expect(program.mutes).toEqual([[2, 2.5]]);
+    await expect(exportAudioProgram(withFx({ cues: [cue.sfx("s", 1), cue.bleep("b", 2, 2.5)] }),
+      async () => { throw new Error("offline"); })).rejects.toThrow("Could not load the edit sounds. Use background export.");
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("needs no manifest for bleeps alone", async () => {
+    const manifest = vi.fn(async () => { throw new Error("offline"); });
+    const program = (await exportAudioProgram(withFx({ cues: [cue.bleep("b", 2, 2.5)] }), manifest))!;
+    expect(manifest).not.toHaveBeenCalled();
+    expect(program.mutes).toEqual([[2, 2.5]]);
   });
 });
 

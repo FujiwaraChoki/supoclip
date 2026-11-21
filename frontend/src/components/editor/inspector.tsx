@@ -220,21 +220,23 @@ export function Inspector({
         </div>
         <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <TabsContent value="captions" className="space-y-6 p-4">
-            <Section
-              title={t("captionTemplates.title")}
-              description={t("captionTemplates.description")}
-            >
-              <CaptionTemplatePicker
-                value={doc.captions.template}
-                looks={asset.captionLooks}
-                offered={offeredFxTemplates(editStyles)}
-                onChange={changeTemplate}
-                disabled={fxEditor.busy === "plan"}
-              />
-              {fxEditor.error && shownTab === "captions" && (
-                <p className="text-xs text-destructive" role="alert">{fxEditor.error}</p>
-              )}
-            </Section>
+            {fxAvailable && (
+              <Section
+                title={t("captionTemplates.title")}
+                description={t("captionTemplates.description")}
+              >
+                <CaptionTemplatePicker
+                  value={doc.captions.template}
+                  looks={asset.captionLooks}
+                  offered={offeredFxTemplates(editStyles)}
+                  onChange={changeTemplate}
+                  disabled={fxEditor.busy === "plan"}
+                />
+                {fxEditor.error && shownTab === "captions" && (
+                  <p className="text-xs text-destructive" role="alert">{fxEditor.error}</p>
+                )}
+              </Section>
+            )}
             <Section
               title={t("captions.styleTitle")}
               description={t("captions.styleDescription")}
@@ -934,7 +936,6 @@ export function Inspector({
               <FxPanel
                 doc={doc}
                 asset={asset}
-                endpoint={endpoint}
                 update={update}
                 seek={seek}
                 editor={fxEditor}

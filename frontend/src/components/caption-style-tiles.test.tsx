@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { recordingContext } from "@/lib/fx/core/test-utils/fake-host";
@@ -82,7 +82,8 @@ describe("CaptionStyleTiles", () => {
     stubMotion(true);
     const raf = vi.spyOn(window, "requestAnimationFrame");
     render(<CaptionStyleTiles options={OPTIONS} value="slam" onChange={() => {}} />);
-    await act(async () => {});
+    // The animated tiles (and the renderer) load on demand.
+    await waitFor(() => expect(document.querySelectorAll("canvas[data-motion]")).toHaveLength(3));
     for (const canvas of document.querySelectorAll("canvas")) expect(canvas).toHaveAttribute("data-motion", "static");
     expect(raf).not.toHaveBeenCalled();
     expect(new Set(rendered.calls.map((call) => call.template))).toEqual(new Set(["slam", "behind_head", "stat_counter"]));
@@ -94,7 +95,8 @@ describe("CaptionStyleTiles", () => {
     const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
     const { unmount } = render(<CaptionStyleTiles options={OPTIONS} value="slam" onChange={() => {}} />);
-    await act(async () => {});
+    // The animated tiles (and the renderer) load on demand.
+    await waitFor(() => expect(document.querySelectorAll("canvas[data-motion]")).toHaveLength(3));
     for (const canvas of document.querySelectorAll("canvas")) expect(canvas).toHaveAttribute("data-motion", "animated");
     // One frame request drives every tile.
     expect(raf).toHaveBeenCalledTimes(1);

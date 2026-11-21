@@ -294,6 +294,13 @@
     "queued": "Merender ulang klipmu. Ini bisa makan beberapa menit; kamu boleh meninggalkan halaman ini.",
     "applied": "Editan diterapkan",
     "jobFailed": "Editan tidak bisa diterapkan: {message}",
+    "jobErrors": {
+      "WORKER_UNAVAILABLE": "tidak ada perender yang mengambil pekerjaan ini. Coba lagi beberapa menit lagi.",
+      "WORKER_STOPPED": "perender berhenti sebelum editan selesai.",
+      "CLIP_JOB_TIMEOUT": "proses render terlalu lama."
+    },
+    "jobUnreachable": "Kami kehilangan kontak dengan proses render. Mungkin masih berjalan.",
+    "jobDenied": "Kamu tidak lagi punya akses ke proses render ini. Masuk lagi lalu muat ulang halaman.",
     "retry": "Coba lagi",
     "approxTiming": "Video ini tidak punya waktu per kata, jadi teks dan efek mengikuti waktu perkiraan.",
     "simplified": "Beberapa efek disederhanakan untuk klip ini."

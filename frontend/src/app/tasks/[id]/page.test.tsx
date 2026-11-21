@@ -441,6 +441,39 @@ describe("task page dynamic edits", () => {
     await waitFor(() => expect(settingsBodies).toHaveLength(2));
   }, 10000);
 
+  it("allows no second re-render while one runs, and retries with the body that was submitted", async () => {
+    jobStates = [
+      { status: "running", kind: "settings", progress: 0.2 },
+      { status: "failed", kind: "settings", progress: 0, error: { code: "WORKER_STOPPED", message: "The worker stopped before the edit finished. Try again." } },
+    ];
+    serveFx(task({ edit_style: { intensity: "bold" } }), [clip(1)]);
+    renderPage();
+    let sheet = await openRestyle();
+    fireEvent.click(within(sheet).getByRole("switch", { name: "Music" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
+    await waitFor(() => expect(settingsBodies).toHaveLength(1));
+    await screen.findAllByText("Rendering edits…");
+
+    // While the job runs, the sheet (and its Apply) can't be opened again.
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
+    const restyle = await screen.findByRole("menuitem", { name: "Restyle" });
+    expect(restyle).toHaveAttribute("aria-disabled", "true");
+    fireEvent.keyDown(restyle, { key: "Escape" });
+
+    // A known error code reads in the user's language, not the server's sentence.
+    const alert = await screen.findByRole("alert", undefined, { timeout: 8000 });
+    expect(alert).toHaveTextContent("The edits couldn't be applied: the renderer stopped before the edits finished.");
+
+    // The sheet changes afterwards; "Try again" still sends what failed.
+    sheet = await openRestyle();
+    fireEvent.click(within(sheet).getByRole("switch", { name: "Music" }));
+    fireEvent.keyDown(sheet, { key: "Escape" });
+    fireEvent.click(within(await screen.findByRole("alert")).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(settingsBodies).toHaveLength(2));
+    expect(settingsBodies[1]).toEqual(settingsBodies[0]);
+    expect(settingsBodies[1]).toMatchObject({ edit_style: { intensity: "bold", music: false } });
+  }, 15000);
+
   it("follows a job queued before a reload", async () => {
     window.sessionStorage.setItem("supoclip.clipJob.task-1", JSON.stringify({ id: JOB, kind: "settings", clipIds: "all" }));
     jobStates = [{ status: "done", kind: "settings", progress: 1 }];

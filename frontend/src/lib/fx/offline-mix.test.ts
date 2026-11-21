@@ -422,15 +422,13 @@ describe("renderOfflineMix", () => {
     expect(rms(mix.channels[0], 1, 1.5)).toBeCloseTo(0.3 * dbToGain(-1), 4);
   });
 
-  it("skips an asset that fails to decode and still mixes the rest", async () => {
+  it("fails with the background-export message when an asset cannot be decoded", async () => {
     const { factory } = fakeOffline();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const mix = await renderOfflineMix(program(), null, {
+    await expect(renderOfflineMix(program(), null, {
       createContext: factory, decode: async () => { throw new Error("404"); },
-    });
+    })).rejects.toThrow("Could not load the edit sounds. Use background export.");
     expect(warn).toHaveBeenCalled();
-    expect(rms(mix.channels[0], 1, 1.5)).toBe(0);
-    expect(rms(mix.channels[0], 2.01, 2.49)).toBeGreaterThan(0.1);
     warn.mockRestore();
   });
 

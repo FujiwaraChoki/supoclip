@@ -19,7 +19,7 @@ export type SettingsSection = {
 };
 
 function tourOnScreen(): boolean {
-  return typeof document !== "undefined" && document.querySelector("[data-feature-tour]") !== null;
+  return typeof document !== "undefined" && document.querySelector("[data-feature-tour-settings]") !== null;
 }
 
 /** The composer's one settings menu: sections on the left, the open section on the right, tabs across the top on phones. */
@@ -42,7 +42,7 @@ export function ComposerSettings({ trigger, sections, label, footer }: { trigger
         align="center"
         collisionPadding={12}
         className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(94vw,720px)] flex-col overflow-hidden rounded-2xl p-0 sm:h-[560px] sm:flex-row"
-        // A feature tour walking through this menu keeps it open: its own card, the focus coming back from its opening
+        // A feature tour step that points into this menu keeps it open: its own card, the focus coming back from its opening
         // dialog and clicks on the dimmed page would otherwise close the menu under the step that points into it.
         onInteractOutside={(event) => { if (tourOnScreen()) event.preventDefault(); }}
       >

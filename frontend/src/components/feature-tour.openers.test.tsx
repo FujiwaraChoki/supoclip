@@ -135,10 +135,44 @@ describe("FeatureTourHost: flags and hidden targets", () => {
 
   it("opens the inspector tab a step needs", async () => {
     const onTab = vi.fn();
+    tours.list = [tour({
+      steps: [
+        { target: "composer-settings", message: "settings" },
+        { target: "studio-edits-tab", message: "settings", inspectorTab: "edits" },
+      ],
+    })];
+    render(<Page onTab={onTab} />);
+    await screen.findByText("1 of 2", undefined, { timeout: 2500 });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(onTab).toHaveBeenCalledWith("edits");
+    expect(await screen.findByText("2 of 2")).toBeInTheDocument();
+  });
+
+  it("doesn't start (or record) a tour whose first target isn't on the page, opener or not", async () => {
+    const onTab = vi.fn();
     tours.list = [tour({ steps: [{ target: "studio-edits-tab", message: "settings", inspectorTab: "edits" }] })];
     render(<Page onTab={onTab} />);
-    expect(await screen.findByText(STEP_TITLE, undefined, { timeout: 2500 })).toBeInTheDocument();
-    expect(onTab).toHaveBeenCalledWith("edits");
+    await wait();
+    expect(screen.queryByText(STEP_TITLE)).not.toBeInTheDocument();
+    expect(onTab).not.toHaveBeenCalled();
+    expect(document.body).not.toHaveAttribute("data-feature-tour");
+    const posted = vi.mocked(fetch).mock.calls.filter(([input, init]) => String(input).includes("/api/feature-tours") && init?.method === "POST");
+    expect(posted).toEqual([]);
+  });
+
+  it("marks the page only while a step points into the settings menu", async () => {
+    tours.list = [tour({
+      steps: [
+        { target: "composer-settings", message: "settings", side: "top" },
+        { target: "edit-intensity", message: "settings", side: "top", settingsSection: "edits" },
+      ],
+    })];
+    render(<Page onSection={() => {}} />);
+    await screen.findByText("1 of 2", undefined, { timeout: 2500 });
+    expect(document.body).not.toHaveAttribute("data-feature-tour-settings");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("2 of 2");
+    expect(document.body).toHaveAttribute("data-feature-tour-settings");
   });
 
   it("skips a step the page can't open, and leaves out steps nothing can reach", async () => {

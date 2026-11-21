@@ -396,9 +396,12 @@ export function softClip(channels: readonly Float32Array[]): void {
 export const programUrls = (program: FxAudioProgram): string[] =>
   [...new Set([...program.sfx.map((e) => e.asset.url), ...(program.music ? [program.music.asset.url] : [])])];
 
+/** Shown when the export cannot load its music or sound effects (as for the edit fonts). */
+export const FX_AUDIO_UNAVAILABLE_MESSAGE = "Could not load the edit sounds. Use background export.";
+
 /**
- * Decode every asset of the program on `context` (cached per context). A file that fails to load is skipped with a
- * console warning, like the server skips a missing asset: decorative audio never costs the export.
+ * Decode every asset of the program on `context` (cached per context). A file that fails to load fails the export
+ * with the background-export message: it never ships silently without its music or sound effects.
  */
 export async function decodeProgram(context: BaseAudioContext, program: FxAudioProgram,
   decode: (context: BaseAudioContext, url: string) => Promise<AudioBuffer> = decodeFxAudio): Promise<Map<string, AudioBuffer>> {
@@ -407,7 +410,8 @@ export async function decodeProgram(context: BaseAudioContext, program: FxAudioP
     try {
       buffers.set(url, await decode(context, url));
     } catch (error) {
-      console.warn("fx_audio_asset_skipped", url, error);
+      console.warn("fx_audio_asset_unavailable", url, error);
+      throw new Error(FX_AUDIO_UNAVAILABLE_MESSAGE);
     }
   }));
   return buffers;

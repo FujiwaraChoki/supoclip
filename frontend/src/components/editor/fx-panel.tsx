@@ -142,7 +142,13 @@ export interface FxEditor {
   plan: (style?: EditStyle) => Promise<void>;
   cancel: () => void;
   dismiss: () => void;
+  /** Face analysis for this clip. It lives here, not in the Edits tab, so leaving the tab doesn't drop the result. */
+  analysis: AnalysisState;
+  /** Queue the analysis for this render base and wait for it; `onReady` runs once it is done. */
+  analyze: (base: string, onReady?: () => void) => Promise<void>;
 }
+
+type AnalysisState = "idle" | "running" | "done" | "failed";
 
 /** State and requests behind the Edits tab, shared with the caption template picker (template changes resolve too). */
 export function useFxEditor({ endpoint, doc, update }: {
@@ -158,6 +164,8 @@ export function useFxEditor({ endpoint, doc, update }: {
   const [busy, setBusy] = useState<FxEditor["busy"]>(null);
   const [error, setError] = useState<string | null>(null);
   const active = useRef<AbortController | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisState>("idle");
+  const analysisControl = useRef<AbortController | null>(null);
 
   // Another clip is another draft: drop whatever was in flight for the previous one.
   useEffect(() => {
@@ -165,7 +173,38 @@ export function useFxEditor({ endpoint, doc, update }: {
     setNeedsPlan(null);
     setBusy(null);
     setError(null);
-    return () => active.current?.abort();
+    setAnalysis("idle");
+    return () => {
+      active.current?.abort();
+      analysisControl.current?.abort();
+    };
+  }, [endpoint]);
+
+  const analyze = useCallback<FxEditor["analyze"]>(async (base, onReady) => {
+    analysisControl.current?.abort();
+    const control = new AbortController();
+    analysisControl.current = control;
+    setAnalysis("running");
+    const started = Date.now();
+    try {
+      const { status } = await editorRequest<{ status: "queued" | "ready" }>(`${endpoint}/fx/analysis`, "POST", {}, control.signal);
+      if (status !== "ready") {
+        for (;;) {
+          await new Promise((resolve) => setTimeout(resolve, ANALYSIS_POLL_MS));
+          control.signal.throwIfAborted();
+          if (Date.now() - started > ANALYSIS_GIVE_UP_MS) throw new Error("timeout");
+          const latest = await editorRequest<{ fxAnalysis?: { status?: string; base?: string } }>(endpoint, "GET", undefined, control.signal);
+          const job = latest.fxAnalysis;
+          if (job?.base === base && job.status === "failed") throw new Error("failed");
+          if (job?.base === base && job.status === "done") break;
+        }
+      }
+      if (control.signal.aborted) return;
+      setAnalysis("done");
+      onReady?.();
+    } catch {
+      if (!control.signal.aborted) setAnalysis("failed");
+    }
   }, [endpoint]);
 
   const begin = () => {
@@ -311,6 +350,8 @@ export function useFxEditor({ endpoint, doc, update }: {
     plan,
     cancel,
     dismiss: () => setError(null),
+    analysis,
+    analyze,
   };
 }
 
@@ -548,8 +589,6 @@ function CueEditor({ doc, cue, update, seek, onClose }: {
 
 // ------------------------------------------------------------------------------------------------ face analysis
 
-type AnalysisState = "idle" | "running" | "done" | "failed";
-
 /** True when something in the draft follows the speaker's face (zooms, doodles, mouth covers, behind text). */
 function needsFace(doc: EditDocument, cues: readonly FxCue[]): boolean {
   if (isFxTemplate(doc.captions.template) && FX_NEEDS_FACE.has(doc.captions.template)) return true;
@@ -561,20 +600,14 @@ function needsFace(doc: EditDocument, cues: readonly FxCue[]): boolean {
 const renderBase = (doc: EditDocument, asset: EditorState) =>
   asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? "layout" : "clean";
 
-function FaceAnalysis({ doc, asset, endpoint, onReady }: {
+function FaceAnalysis({ doc, asset, editor, onReady }: {
   doc: EditDocument;
   asset: EditorState;
-  endpoint: string;
+  editor: FxEditor;
   onReady?: () => void;
 }) {
   const t = useTranslations("editor");
-  const [state, setState] = useState<AnalysisState>("idle");
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  useEffect(() => {
-    controller.current?.abort();
-    setState("idle");
-  }, [endpoint]);
+  const state = editor.analysis;
   const base = renderBase(doc, asset);
   const cues = mappedFx(doc);
   // Text behind the speaker also needs the person matte, made by the same analysis.
@@ -582,31 +615,7 @@ function FaceAnalysis({ doc, asset, endpoint, onReady }: {
     || (cues.some((c) => c.kind === "accent" && c.variant === "behind") && !asset.matteVersion);
   if (!missing && state !== "done") return null;
 
-  const run = async () => {
-    controller.current?.abort();
-    const control = new AbortController();
-    controller.current = control;
-    setState("running");
-    const started = Date.now();
-    try {
-      const { status } = await editorRequest<{ status: "queued" | "ready" }>(`${endpoint}/fx/analysis`, "POST", {}, control.signal);
-      if (status !== "ready") {
-        for (;;) {
-          await new Promise((resolve) => setTimeout(resolve, ANALYSIS_POLL_MS));
-          control.signal.throwIfAborted();
-          if (Date.now() - started > ANALYSIS_GIVE_UP_MS) throw new Error("timeout");
-          const latest = await editorRequest<{ fxAnalysis?: { status?: string; base?: string } }>(endpoint, "GET", undefined, control.signal);
-          const job = latest.fxAnalysis;
-          if (job?.base === base && job.status === "failed") throw new Error("failed");
-          if (job?.base === base && job.status === "done") break;
-        }
-      }
-      setState("done");
-      onReady?.();
-    } catch {
-      if (!control.signal.aborted) setState("failed");
-    }
-  };
+  const run = () => editor.analyze(base, onReady);
 
   return (
     <Section title={t("fx.face.title")} description={t("fx.face.body")}>
@@ -630,7 +639,6 @@ function FaceAnalysis({ doc, asset, endpoint, onReady }: {
 interface PanelProps {
   doc: EditDocument;
   asset: EditorState;
-  endpoint: string;
   update: Update;
   /** Seek on the source (clean.mp4) timeline. */
   seek: (time: number) => void;
@@ -644,7 +652,7 @@ interface PanelProps {
 }
 
 /** The Edits tab: intensity, what the edits may use, the beats they land on, the selected edit, and removal. */
-export function FxPanel({ doc, asset, endpoint, update, seek, editor, info, cueId, selectCue, onAnalysisReady }: PanelProps) {
+export function FxPanel({ doc, asset, update, seek, editor, info, cueId, selectCue, onAnalysisReady }: PanelProps) {
   const t = useTranslations("editor");
   const { style, busy } = editor;
   const fx = doc.fx;
@@ -818,7 +826,7 @@ export function FxPanel({ doc, asset, endpoint, update, seek, editor, info, cueI
         </Section>
       )}
 
-      <FaceAnalysis doc={doc} asset={asset} endpoint={endpoint} onReady={onAnalysisReady} />
+      <FaceAnalysis doc={doc} asset={asset} editor={editor} onReady={onAnalysisReady} />
 
       {fx && (fx.cues.length > 0 || fx.beats.length > 0 || fx.music || fx.grade !== "none" || fx.grain > 0 || fx.style.intensity !== "off") && (
         <div className="space-y-1.5 border-t pt-4">

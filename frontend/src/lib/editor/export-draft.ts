@@ -4,6 +4,7 @@ import {
   BROWSER_EXPORT_REFUSAL_MESSAGES,
   browserExportRefusal,
   documentAudioInput,
+  FX_AUDIO_UNAVAILABLE_MESSAGE,
   fxAudioProgram,
   hasFxAudio,
   renderOfflineMix,
@@ -43,7 +44,7 @@ export function assertBrowserExportable(doc: EditDocument) {
 
 /**
  * The document's dynamic-edit audio program for the export, or null when it changes nothing audible. A manifest that
- * cannot be loaded drops the SFX and music (with a warning) but keeps bleeps, as the server skips a missing asset.
+ * cannot be loaded fails the export like missing fonts do: a file without its music and sound effects is not the edit.
  */
 export async function exportAudioProgram(
   doc: EditDocument,
@@ -58,6 +59,7 @@ export async function exportAudioProgram(
       loaded = await manifest();
     } catch (error) {
       console.warn("fx_export_manifest_unavailable", error);
+      throw new Error(FX_AUDIO_UNAVAILABLE_MESSAGE);
     }
   }
   const program = fxAudioProgram(input, loaded);
