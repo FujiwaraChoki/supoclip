@@ -4,11 +4,13 @@ import { useEffect } from "react";
 import posthog from "posthog-js";
 
 import { PageError } from "@/components/app/page-state";
+import { reloadOnceForChunkError } from "@/lib/chunk-reload";
 import { isPostHogEnabled } from "@/lib/posthog";
 
 export default function ErrorPage({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     if (isPostHogEnabled) posthog.captureException(error);
+    reloadOnceForChunkError(error);
   }, [error]);
 
   // Reload rather than reset(): re-rendering in place over a DOM that broke the page (for example

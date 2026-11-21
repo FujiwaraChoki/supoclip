@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import posthog from "posthog-js";
 
 import "./globals.css";
+import { reloadOnceForChunkError } from "@/lib/chunk-reload";
 import { isPostHogEnabled } from "@/lib/posthog";
 
 // Replaces the root layout when it crashes, so it can't rely on the intl provider or app chrome.
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     if (isPostHogEnabled) posthog.captureException(error);
+    reloadOnceForChunkError(error);
   }, [error]);
 
   return (
