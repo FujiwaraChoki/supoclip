@@ -132,118 +132,67 @@ class SocialRepository:
         metadata: Dict[str, Any],
         team_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        params = {
-            "id": str(uuid4()),
-            "user_id": user_id,
-            "team_id": team_id,
-            "provider": provider,
-            "external_account_id": external_account_id,
-            "display_name": display_name,
-            "username": username,
-            "avatar_url": avatar_url,
-            "access_token_encrypted": access_token_encrypted,
-            "refresh_token_encrypted": refresh_token_encrypted,
-            "token_expires_at": token_expires_at,
-            "scopes": scopes,
-            "metadata": json.dumps(metadata or {}),
-        }
+        # A team's account belongs to the team: its user_id is NULL, so it never
+        # collides with (or is overwritten by) the same person's personal
+        # connection to the same channel. Each scope upserts on its own index.
         if team_id:
-            existing = await db.execute(
-                text(
-                    """
-                    SELECT id FROM social_accounts
-                    WHERE team_id = :team_id AND provider = :provider
-                      AND external_account_id = :external_account_id
-                    LIMIT 1
-                    """
-                ),
-                params,
+            owner_columns = "NULL, :team_id"
+            conflict_target = (
+                "(team_id, provider, external_account_id) WHERE team_id IS NOT NULL"
             )
-            existing_row = existing.fetchone()
-            if existing_row:
-                result = await db.execute(
-                    text(
-                        f"""
-                        UPDATE social_accounts
-                        SET user_id = :user_id,
-                            display_name = :display_name,
-                            username = :username,
-                            avatar_url = :avatar_url,
-                            access_token_encrypted = :access_token_encrypted,
-                            refresh_token_encrypted = COALESCE(
-                                :refresh_token_encrypted, refresh_token_encrypted
-                            ),
-                            token_expires_at = :token_expires_at,
-                            scopes = :scopes,
-                            metadata = metadata || CAST(:metadata AS jsonb),
-                            status = 'active',
-                            last_error = NULL,
-                            revoked_at = NULL,
-                            updated_at = NOW()
-                        WHERE id = :existing_id
-                        RETURNING {_ACCOUNT_PUBLIC_COLUMNS}
-                        """
-                    ),
-                    {**params, "existing_id": existing_row.id},
-                )
-            else:
-                result = await db.execute(
-                    text(
-                        f"""
-                        INSERT INTO social_accounts (
-                            id, user_id, team_id, provider, external_account_id, display_name, username,
-                            avatar_url, access_token_encrypted, refresh_token_encrypted,
-                            token_expires_at, scopes, metadata, status, last_error,
-                            created_at, updated_at, revoked_at
-                        )
-                        VALUES (
-                            :id, :user_id, :team_id, :provider, :external_account_id, :display_name, :username,
-                            :avatar_url, :access_token_encrypted, :refresh_token_encrypted,
-                            :token_expires_at, :scopes, CAST(:metadata AS jsonb), 'active', NULL,
-                            NOW(), NOW(), NULL
-                        )
-                        RETURNING {_ACCOUNT_PUBLIC_COLUMNS}
-                        """
-                    ),
-                    params,
-                )
         else:
-            result = await db.execute(
-                text(
-                    f"""
-                    INSERT INTO social_accounts (
-                        id, user_id, team_id, provider, external_account_id, display_name, username,
-                        avatar_url, access_token_encrypted, refresh_token_encrypted,
-                        token_expires_at, scopes, metadata, status, last_error,
-                        created_at, updated_at, revoked_at
-                    )
-                    VALUES (
-                        :id, :user_id, NULL, :provider, :external_account_id, :display_name, :username,
-                        :avatar_url, :access_token_encrypted, :refresh_token_encrypted,
-                        :token_expires_at, :scopes, CAST(:metadata AS jsonb), 'active', NULL,
-                        NOW(), NOW(), NULL
-                    )
-                    ON CONFLICT (user_id, provider, external_account_id)
-                    DO UPDATE SET
-                        display_name = EXCLUDED.display_name,
-                        username = EXCLUDED.username,
-                        avatar_url = EXCLUDED.avatar_url,
-                        access_token_encrypted = EXCLUDED.access_token_encrypted,
-                        refresh_token_encrypted = COALESCE(
-                            EXCLUDED.refresh_token_encrypted, social_accounts.refresh_token_encrypted
-                        ),
-                        token_expires_at = EXCLUDED.token_expires_at,
-                        scopes = EXCLUDED.scopes,
-                        metadata = social_accounts.metadata || EXCLUDED.metadata,
-                        status = 'active',
-                        last_error = NULL,
-                        revoked_at = NULL,
-                        updated_at = NOW()
-                    RETURNING {_ACCOUNT_PUBLIC_COLUMNS}
-                    """
-                ),
-                params,
-            )
+            owner_columns = ":user_id, NULL"
+            conflict_target = "(user_id, provider, external_account_id)"
+        result = await db.execute(
+            text(
+                f"""
+                INSERT INTO social_accounts (
+                    id, user_id, team_id, provider, external_account_id, display_name, username,
+                    avatar_url, access_token_encrypted, refresh_token_encrypted,
+                    token_expires_at, scopes, metadata, status, last_error,
+                    created_at, updated_at, revoked_at
+                )
+                VALUES (
+                    :id, {owner_columns}, :provider, :external_account_id, :display_name, :username,
+                    :avatar_url, :access_token_encrypted, :refresh_token_encrypted,
+                    :token_expires_at, :scopes, CAST(:metadata AS jsonb), 'active', NULL,
+                    NOW(), NOW(), NULL
+                )
+                ON CONFLICT {conflict_target}
+                DO UPDATE SET
+                    display_name = EXCLUDED.display_name,
+                    username = EXCLUDED.username,
+                    avatar_url = EXCLUDED.avatar_url,
+                    access_token_encrypted = EXCLUDED.access_token_encrypted,
+                    refresh_token_encrypted = COALESCE(
+                        EXCLUDED.refresh_token_encrypted, social_accounts.refresh_token_encrypted
+                    ),
+                    token_expires_at = EXCLUDED.token_expires_at,
+                    scopes = EXCLUDED.scopes,
+                    metadata = social_accounts.metadata || EXCLUDED.metadata,
+                    status = 'active',
+                    last_error = NULL,
+                    revoked_at = NULL,
+                    updated_at = NOW()
+                RETURNING {_ACCOUNT_PUBLIC_COLUMNS}
+                """
+            ),
+            {
+                "id": str(uuid4()),
+                "user_id": user_id,
+                "team_id": team_id,
+                "provider": provider,
+                "external_account_id": external_account_id,
+                "display_name": display_name,
+                "username": username,
+                "avatar_url": avatar_url,
+                "access_token_encrypted": access_token_encrypted,
+                "refresh_token_encrypted": refresh_token_encrypted,
+                "token_expires_at": token_expires_at,
+                "scopes": scopes,
+                "metadata": json.dumps(metadata or {}),
+            },
+        )
         row = result.fetchone()
         await db.commit()
         return SocialRepository.serialize_account(row)

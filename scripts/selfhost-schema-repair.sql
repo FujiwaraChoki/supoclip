@@ -79,7 +79,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS stripe_account_migrations_destination_account_
 
 CREATE TABLE IF NOT EXISTS social_accounts (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id VARCHAR(36) REFERENCES users(id) ON DELETE CASCADE,
     provider VARCHAR(20) NOT NULL,
     external_account_id VARCHAR(255) NOT NULL,
     display_name VARCHAR(255),
@@ -227,6 +227,7 @@ CREATE INDEX IF NOT EXISTS ix_ai_edit_usage_events_team_created ON ai_edit_usage
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS team_id VARCHAR(36) REFERENCES teams(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_social_accounts_team_id ON social_accounts (team_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_social_accounts_team_unique ON social_accounts (team_id, provider, external_account_id) WHERE team_id IS NOT NULL;
+ALTER TABLE social_accounts ALTER COLUMN user_id DROP NOT NULL;
 
 ALTER TABLE social_oauth_states ADD COLUMN IF NOT EXISTS team_id VARCHAR(36) REFERENCES teams(id) ON DELETE CASCADE;
 

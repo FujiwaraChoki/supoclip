@@ -30,6 +30,12 @@ describe("teams schema, migrations, constraints & pooled SQL (real Postgres)", (
     // Re-running both Prisma and backend migrations + repair must be 100% idempotent.
     await db.exec(read("../../prisma/migrations/20261120180000_add_teams/migration.sql"));
     await db.exec(read("../../../backend/src/migrations/sql/20261120_0002_teams.sql"));
+    await db.exec(read("../../prisma/migrations/20261121020000_team_member_limits/migration.sql"));
+    await db.exec(read("../../../backend/src/migrations/sql/20261121_0003_team_member_limits.sql"));
+    // A database from before team-owned social accounts: its column is still NOT NULL.
+    await db.exec("ALTER TABLE social_accounts ALTER COLUMN user_id SET NOT NULL");
+    await db.exec(read("../../prisma/migrations/20261121100000_team_social_account_owner/migration.sql"));
+    await db.exec(read("../../../backend/src/migrations/sql/20261121_0004_team_social_account_owner.sql"));
     await db.exec(read("../../../scripts/selfhost-schema-repair.sql"));
   });
 
@@ -57,6 +63,47 @@ describe("teams schema, migrations, constraints & pooled SQL (real Postgres)", (
         ('u-member', 'Member', 'member@example.com'),
         ('u-outsider', 'Outsider', 'outsider@example.com');
     `);
+  });
+
+  it("keeps a channel connected personally and in a team as two accounts", async () => {
+    await db.exec(`INSERT INTO teams (id, name, slug, owner_id) VALUES ('t1', 'Alpha Crew', 'alpha-crew', 'u-owner')`);
+    // What the previous release runs while it is still serving: its conflict target
+    // needs the unique index on (user_id, provider, external_account_id) unchanged.
+    const personalUpsert = `
+      INSERT INTO social_accounts (id, user_id, provider, external_account_id, access_token_encrypted)
+      VALUES ($1, 'u-owner', 'youtube', 'channel-1', $2)
+      ON CONFLICT (user_id, provider, external_account_id)
+      DO UPDATE SET access_token_encrypted = EXCLUDED.access_token_encrypted
+      RETURNING id`;
+    const teamUpsert = `
+      INSERT INTO social_accounts (id, user_id, team_id, provider, external_account_id, access_token_encrypted)
+      VALUES ($1, NULL, 't1', 'youtube', 'channel-1', $2)
+      ON CONFLICT (team_id, provider, external_account_id) WHERE team_id IS NOT NULL
+      DO UPDATE SET access_token_encrypted = EXCLUDED.access_token_encrypted
+      RETURNING id`;
+
+    const personal = (await db.query<{ id: string }>(personalUpsert, ["acc-personal", "personal-1"])).rows[0].id;
+    const team = (await db.query<{ id: string }>(teamUpsert, ["acc-team", "team-1"])).rows[0].id;
+    expect([personal, team]).toEqual(["acc-personal", "acc-team"]);
+
+    // Reconnecting in one workspace never touches the other's row.
+    expect((await db.query<{ id: string }>(personalUpsert, ["acc-other", "personal-2"])).rows[0].id).toBe("acc-personal");
+    expect((await db.query<{ id: string }>(teamUpsert, ["acc-other", "team-2"])).rows[0].id).toBe("acc-team");
+    const rows = (
+      await db.query<{ id: string; user_id: string | null; team_id: string | null; access_token_encrypted: string }>(
+        "SELECT id, user_id, team_id, access_token_encrypted FROM social_accounts ORDER BY id",
+      )
+    ).rows;
+    expect(rows).toEqual([
+      { id: "acc-personal", user_id: "u-owner", team_id: null, access_token_encrypted: "personal-2" },
+      { id: "acc-team", user_id: null, team_id: "t1", access_token_encrypted: "team-2" },
+    ]);
+
+    // The team's account outlives the member who connected it and goes with the team.
+    await db.exec("UPDATE teams SET owner_id = 'u-admin' WHERE id = 't1'; DELETE FROM users WHERE id = 'u-owner'");
+    expect((await db.query("SELECT id FROM social_accounts")).rows).toEqual([{ id: "acc-team" }]);
+    await db.exec("DELETE FROM teams WHERE id = 't1'");
+    expect((await db.query("SELECT id FROM social_accounts")).rows).toEqual([]);
   });
 
   it("enforces unique slugs, unique memberships, unique token hashes, and Stripe IDs", async () => {

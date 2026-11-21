@@ -411,7 +411,8 @@ model Task {
 // backend key); mirrored here so both migration runners create the same tables.
 model SocialAccount {
   id                      String    @id @default(dbgenerated("(uuid_generate_v4())::text")) @db.VarChar(36)
-  user_id                 String    @db.VarChar(36)
+  // NULL for an account connected in a team workspace: the team owns it (team_id).
+  user_id                 String?   @db.VarChar(36)
   team_id                 String?   @db.VarChar(36)
   provider                String    @db.VarChar(20)
   external_account_id     String    @db.VarChar(255)
@@ -429,7 +430,7 @@ model SocialAccount {
   updated_at              DateTime? @default(now()) @db.Timestamptz
   revoked_at              DateTime? @db.Timestamptz
 
-  user  User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user  User?        @relation(fields: [user_id], references: [id], onDelete: Cascade)
   team  Team?        @relation(fields: [team_id], references: [id], onDelete: Cascade)
   posts SocialPost[]
 
