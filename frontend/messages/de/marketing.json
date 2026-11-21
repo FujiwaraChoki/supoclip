@@ -512,6 +512,10 @@
         "roles": "Eigentümer-, Admin- & Mitgliedsrollen + höhere Parallelität",
         "aiEdits": "{aiEdits} gemeinsame KI-Edits/Monat"
       }
+    },
+    "limits": {
+      "monthly": "Video pro Monat",
+      "perVideo": "Max. Länge pro Video"
     }
   },
   "faq": {

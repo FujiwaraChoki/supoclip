@@ -512,6 +512,10 @@
         "roles": "所有者、管理员与成员权限 + 更高并发处理",
         "aiEdits": "每月 {aiEdits} 次共享 AI 编辑"
       }
+    },
+    "limits": {
+      "monthly": "每月视频时长",
+      "perVideo": "单个视频最长"
     }
   },
   "faq": {

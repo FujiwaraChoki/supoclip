@@ -516,7 +516,18 @@
     "bodyUpgrade": "Escolha uma parte de até {minutes} minutos e cortamos só ela, ou mude para o {plan} para vídeos de até {nextMinutes} minutos. Só a parte escolhida conta nos seus minutos.",
     "submit": "Cortar esta parte",
     "cancel": "Escolher outro vídeo",
-    "upgradeLink": "Comparar planos",
-    "label": "Parte do vídeo para cortar"
+    "label": "Parte do vídeo para cortar",
+    "upgradeTo": "Mude para o {plan} (até {minutes} min por vídeo)",
+    "checkoutFailed": "O checkout não abriu. Tente de novo em instantes."
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "Não conseguimos ler a duração deste vídeo",
+      "body": "Se for uma live que ainda está rolando, espere terminar e cole a gravação final. Se já terminou, tente de novo em um minuto. Nenhum minuto foi usado."
+    },
+    "tooLongNoRange": {
+      "title": "Este vídeo passa do seu limite de {minutes} minutos",
+      "body": "Ele é mais longo do que seu plano permite e não dá para escolher uma parte aqui. Use a gravação final ou um vídeo mais curto. Nenhum minuto foi usado."
+    }
   }
 }

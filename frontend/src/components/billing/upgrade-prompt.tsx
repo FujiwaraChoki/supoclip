@@ -173,17 +173,20 @@ export function useBillingPlanText() {
     return rest ? t("runtime.hoursMinutes", { hours, minutes: rest }) : t("runtime.hours", { count: hours });
   };
   const planName = (plan: string | null | undefined) => common(`plans.${billingPlanMessageKey(plan)}`);
+  const monthly = (plan: PublicBillingPlan) => t("highlights.minutes", { length: formatMinutes(plan.minuteLimit) });
+  const perVideo = (plan: PublicBillingPlan) => t("highlights.youtube", { length: formatMinutes(plan.youtubeMaxMinutes) });
+  // The two limits people run into come first: video a month, then the longest single video.
   const highlights = (plan: PublicBillingPlan) => [
-    t("highlights.minutes", { length: formatMinutes(plan.minuteLimit) }),
+    monthly(plan),
+    perVideo(plan),
     plan.resolution === "1080p" ? t("highlights.fullHd") : t("highlights.hd"),
-    t("highlights.youtube", { length: formatMinutes(plan.youtubeMaxMinutes) }),
     ...(plan.scheduling && socialPublishingStage() === "live" ? [t("highlights.scheduling")] : []),
     plan.id === "pro" ? t("highlights.fonts") : t("highlights.priority"),
   ];
   // Shown apart from the highlights with a "Coming soon" tag until publishing launches.
   const comingSoon = (plan: PublicBillingPlan) =>
     plan.scheduling && socialPublishingStage() === "soon" ? t("highlights.scheduling") : null;
-  return { t, common, formatMinutes, formatRuntime, planName, highlights, comingSoon };
+  return { t, common, formatMinutes, formatRuntime, planName, monthly, perVideo, highlights, comingSoon };
 }
 
 function copyFor(
