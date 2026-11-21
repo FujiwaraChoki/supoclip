@@ -340,9 +340,29 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_TEAM_SEAT_ANNUAL_PRICE_ID` | Yearly per-seat add-on price identifier for extra Team seats |
 | `STRIPE_PRO_LEGACY_PRICE_IDS` | Comma-separated earlier Pro prices existing subscribers still pay; they stay Pro and keep 1080p |
 | `STRIPE_SCALE_LEGACY_PRICE_IDS` | Comma-separated earlier Creator prices that still map to Creator |
+| `STRIPE_TEAM_LEGACY_PRICE_IDS` | Comma-separated earlier Team base prices; teams on them keep the Team plan |
+| `STRIPE_TEAM_SEAT_LEGACY_PRICE_IDS` | Comma-separated earlier Team seat prices; their quantities still count as seats |
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
+
+#### Team plan
+
+A team's subscription is one Team base price plus, above the included seats, one per-seat price with the
+number of extra seats as its quantity. Each team has its own Stripe customer, separate from its members'
+personal subscriptions.
+
+- **Switching it on:** on a hosted install (`SELF_HOST=false`) team workspaces cannot be created until
+  `STRIPE_TEAM_PRICE_ID` (or the yearly price) is set, so a release can ship before its prices exist. Set the
+  prices once the previous release has stopped serving: its webhook handler does not know team subscriptions.
+- **Entitlement:** a team has the Team plan only while its subscription carries a Team base price (current or
+  listed in `STRIPE_TEAM_LEGACY_PRICE_IDS`). A subscription moved to another product in the billing portal or
+  the dashboard does not keep the pooled allowance, so keep plan switching off for team customers in the
+  portal configuration.
+- **Seats:** seats are changed in Team settings, not in the portal. Added seats are invoiced and charged
+  immediately for the rest of the period, and nothing changes if the charge fails. Removed seats take effect
+  at once and are not credited, because the minutes a seat adds can be used the moment it exists.
+- **Invitations:** only a subscribed team sends invitation emails, at most 50 a day.
 
 ## Email and Feedback Settings
 
