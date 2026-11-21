@@ -190,6 +190,8 @@ async def test_quiet_session_is_not_revived_by_a_late_report(db_session, media_b
     fresh, _ = await _open_upload(db_session, storage.config, owner, "fresh", activity="2 hours")
     assert await touch_upload(db_session, stale, storage.config) is False
     assert await touch_upload(db_session, fresh, storage.config) is True
+    await db_session.execute(text("DELETE FROM media_upload_sessions WHERE user_id = :owner"), {"owner": owner["id"]})
+    await db_session.commit()
 
 
 async def test_cleanup_keeps_a_stale_session_whose_parts_are_still_arriving(db_session, media_backend):

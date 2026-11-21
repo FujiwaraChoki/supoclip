@@ -20,6 +20,7 @@ from botocore.exceptions import ClientError
 from ..editor_document import editor_dir
 from ..local_volume import volume_id
 from ..repositories.media_repository import source_guard, queue_delete
+from ..repositories.upload_repository import LAST_ACTIVITY
 from ..youtube_utils import get_youtube_video_id
 from ..utils.async_helpers import run_in_thread
 
@@ -474,8 +475,6 @@ async def _abort_expired_multipart_uploads(db, storage):
     loaded before activity reports existed, or another client), so it is
     marked active instead. A storage error skips only its own row.
     """
-    from ..repositories.upload_repository import LAST_ACTIVITY
-
     stale = storage.config.media_upload_stale_seconds
     failed: list[str] = []
     for _ in range(100):

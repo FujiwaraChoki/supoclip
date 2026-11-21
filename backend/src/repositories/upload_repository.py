@@ -100,6 +100,12 @@ async def release_completion(db, session_id: str, digest: str):
     await db.commit()
 
 
+# An open session with no sign of life for the stale window was abandoned (a
+# closed tab never sends its abort). It stops holding a concurrency slot, and
+# the cleanup worker aborts it. Admission, touches and cleanup share this rule.
+LAST_ACTIVITY = "COALESCE(last_activity_at, created_at)"
+
+
 async def touch_upload(db, session_id: str, config) -> bool:
     """Record that an open upload is still running.
 
@@ -119,12 +125,6 @@ async def touch_upload(db, session_id: str, config) -> bool:
 async def finish_upload(db, session_id: str, state: str):
     await db.execute(text("UPDATE media_upload_sessions SET state = :state WHERE id = :id AND (:state != 'aborted' OR state != 'completed')"), {"id": session_id, "state": state})
     await db.commit()
-
-
-# An open session with no sign of life for the stale window was abandoned (a
-# closed tab never sends its abort). It stops holding a concurrency slot, and
-# the cleanup worker aborts it. Admission, touches and cleanup share this rule.
-LAST_ACTIVITY = "COALESCE(last_activity_at, created_at)"
 
 
 def _admission_counts():
