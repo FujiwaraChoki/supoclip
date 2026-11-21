@@ -1429,7 +1429,12 @@ def plan_interview_layout(
         "face_bottom": lowest,
     }
     # The hook title sits in the top safe area, which in a stacked two-shot is
-    # the top person's face. Opening on a pair, put it on the panel seam.
-    if any(s.kind == "pair" and s.start < HOOK_TITLE_SECONDS for s in segments):
+    # the top person's face. Opening on a pair, put it on the panel seam. The
+    # title keeps one row for as long as it shows, and in a frame-filling crop
+    # the seam is the face or chest of the person in it: the seam is used when
+    # the two-shot fills most of the title's time, the top otherwise.
+    shown = min(duration, HOOK_TITLE_SECONDS)
+    paired = sum(min(s.end, shown) - s.start for s in segments if s.kind == "pair" and s.start < shown)
+    if paired > shown / 2:
         result["hook_center_y"] = PAIR_SEAM_Y
     return result
