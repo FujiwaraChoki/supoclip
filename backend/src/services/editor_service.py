@@ -34,6 +34,7 @@ from ..editor_state import (
 from ..stream_transfer import run_stream_download
 from ..utils.async_helpers import run_in_thread
 from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
+from ..source_range import media_duration, range_transcript, transcript_on_media
 from ..stream_source import download_stream_sections
 
 
@@ -979,6 +980,10 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             broll_placements = load_clip_broll(caption_path)
             # Dynamic edits the clip was generated with: they seed the draft (§14.1).
             fx_sidecar = load_clip_edit_fx(caption_path)
+            part_words = await range_transcript(db, task_id, source_settings)
+            if part_words is not None or source_settings.get("source_range"):
+                # A picked part's task stores (and was charged) the part; downloads need the VOD's length.
+                task = {**task, "source_duration_seconds": media_duration(task, source_settings)}
             await db.close()
             source, downloaded_source, local_ranges = await _editor_source(
                 service, storage, task_id, task, cached_source, ranges, download_quality
@@ -1045,6 +1050,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             # baseline pushes over it (AR-M9).
             metadata["layoutHasZoompan"] = bool(layout_report.get("zoompan"))
             transcript = load_cached_transcript_data(source)
+            if not (transcript or {}).get("words") and part_words:
+                # A picked part's timings live in the task's checkpoint, not beside the source.
+                transcript = transcript_on_media(part_words, source)
             timed = get_words_for_keep_ranges(transcript, local_ranges, source_offsets) if transcript else []
             words = _caption_words_with_timings(
                 caption_tokens(clip.get("text") or "", timed), timed, metadata["duration"]

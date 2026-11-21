@@ -61,6 +61,7 @@ from ..youtube_source import (
 )
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip_duration
 from ..media.render_ranges import burned_hook_title, point_labels_for
+from ..source_range import METADATA_KEY as SOURCE_RANGE_KEY, SourceRange, media_duration
 from ..stream_source import download_stream_sections
 from .video_service import fx_lines_for_ranges, fx_words_for_ranges, resolve_upload_for_edit
 from ..config import get_config
@@ -1126,7 +1127,7 @@ class ClipEditingMixin:
             # any other edit of this task.
             video_path = await run_stream_download(
                 download_stream_sections, source_url, segments,
-                task.get("source_duration_seconds"), task_id,
+                await self._source_media_duration(task_id, task), task_id,
             )
         else:
             video_path = await resolve_upload_for_edit(self.video_service, source_url)
@@ -2198,7 +2199,7 @@ class ClipEditingMixin:
                 transcript_video_path = await run_stream_download(
                     download_stream_sections, source_url,
                     [{"start_time": start, "end_time": end} for start, end in source_ranges],
-                    task.get("source_duration_seconds"), task_id,
+                    await self._source_media_duration(task_id, task), task_id,
                 )
                 downloaded_source = transcript_video_path
             elif source_url:
@@ -2272,6 +2273,14 @@ class ClipEditingMixin:
         return [(start_seconds, end_seconds)]
 
 
+    async def _source_media_duration(self, task_id: str, task: Dict[str, Any]) -> Optional[float]:
+        """The whole VOD's length; a picked part's task is charged (and stores) the part."""
+        metadata = (
+            await self.task_repo.load_source_metadata(self.db, task_id)
+            if self.db is not None else {}
+        )
+        return media_duration(task, metadata)
+
     async def _load_task_source_settings(self, task_id: str) -> Dict[str, Any]:
         defaults = {
             "output_format": "vertical",
@@ -2331,4 +2340,6 @@ class ClipEditingMixin:
                 parsed.get("remove_filler_words"),
                 parsed.get("filtered_words"),
             ),
+            # Only a task made from a picked part of its video carries this.
+            **({SOURCE_RANGE_KEY: parsed[SOURCE_RANGE_KEY]} if SourceRange.from_metadata(parsed) else {}),
         }
