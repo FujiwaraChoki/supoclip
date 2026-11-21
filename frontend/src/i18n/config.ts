@@ -28,6 +28,7 @@ export const NAMESPACES = [
   "changelog",
   "admin",
   "affiliate",
+  "examples",
   "status",
   "share",
   "legal",

@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "FAQ"
+    },
+    "examples": {
+      "label": "Contoh klip"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "Buka aplikasi yang di-host",
     "toggleMenu": "Buka atau tutup menu",
     "publishing": "Publikasi",
-    "faq": "FAQ"
+    "faq": "FAQ",
+    "examples": "Contoh"
   },
   "hero": {
     "badge": "Open source dan bisa di-host sendiri. Juga tersedia di iPhone.",

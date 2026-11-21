@@ -69,6 +69,7 @@ const NAV_LINKS = [
   { href: "#publish", key: "publishing" },
   { href: "#pricing", key: "pricing" },
   { href: "#open-source", key: "openSource" },
+  { href: "/examples", key: "examples" },
   { href: "/faq", key: "faq" },
   { href: "/blog", key: "blog" },
   { href: "/affiliate", key: "affiliate" },
