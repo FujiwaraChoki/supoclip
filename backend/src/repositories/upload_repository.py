@@ -29,11 +29,7 @@ async def reserve_upload(db, user_id: str, size: int, config):
     if size > config.max_video_upload_bytes:
         raise ValueError(upload_too_large_detail(config.max_video_upload_bytes))
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 113463))"), {"owner": user_id})
-    counts = (await db.execute(text("""
-        SELECT COUNT(*) FILTER (WHERE state IN ('reserved', 'uploading')) AS active,
-            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') AS daily
-        FROM media_upload_sessions WHERE user_id = :owner
-    """), {"owner": user_id})).one()
+    counts = (await db.execute(_admission_counts(), _admission_params(user_id, config))).one()
     if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:
         await db.rollback()
         raise UploadLimitReached("Upload limit reached. Finish existing uploads or try again later.")
@@ -110,11 +106,20 @@ async def finish_upload(db, session_id: str, state: str):
 
 
 def _admission_counts():
+    # An open session older than the stale window was abandoned: it no longer
+    # holds a concurrency slot, though it still counts toward the daily limit.
     return text("""
-        SELECT COUNT(*) FILTER (WHERE state IN ('reserved', 'uploading')) AS active,
+        SELECT COUNT(*) FILTER (
+                WHERE state IN ('reserved', 'uploading')
+                  AND created_at > NOW() - make_interval(secs => :stale)
+            ) AS active,
             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 day') AS daily
         FROM media_upload_sessions WHERE user_id = :owner
     """)
+
+
+def _admission_params(user_id: str, config):
+    return {"owner": user_id, "stale": config.media_upload_stale_seconds}
 
 
 _COMPLETED_KEY_LOOKUP = text("""
@@ -268,7 +273,7 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
     if existing is not None:
         return await _reuse_completed_upload(db, user_id, existing, idempotency_key, video_path)
 
-    counts = (await db.execute(_admission_counts(), {"owner": user_id})).one()
+    counts = (await db.execute(_admission_counts(), _admission_params(user_id, config))).one()
     if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:
         await db.rollback()
         raise UploadLimitReached("Upload limit reached. Finish existing uploads or try again later.")

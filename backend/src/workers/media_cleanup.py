@@ -455,12 +455,19 @@ async def cleanup_upload_sessions(db, storage):
 
 
 async def _abort_expired_multipart_uploads(db, storage):
+    """Abort open multipart uploads that expired or were abandoned.
+
+    A closed tab never sends its abort, so a session older than
+    ``media_upload_stale_seconds`` is treated as abandoned.
+    """
     for _ in range(100):
         row = (await db.execute(text("""
             SELECT id, user_id, upload_id, video_path FROM media_upload_sessions
-            WHERE expires_at < clock_timestamp() AND state IN ('reserved', 'uploading')
+            WHERE state IN ('reserved', 'uploading')
+              AND (expires_at < clock_timestamp()
+                   OR created_at < clock_timestamp() - make_interval(secs => :stale))
             ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT 1
-        """))).first()
+        """), {"stale": storage.config.media_upload_stale_seconds})).first()
         if row is None:
             await db.rollback()
             break

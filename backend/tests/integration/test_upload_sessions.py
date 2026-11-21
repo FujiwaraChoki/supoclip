@@ -79,6 +79,41 @@ async def test_failed_abort_retains_expired_capacity_until_cleanup_succeeds(db_s
     assert await reserve_upload(db_session, owner["id"], 1, storage.config)
 
 
+async def test_abandoned_sessions_stop_holding_upload_slots(db_session, media_backend):
+    """A closed tab never sends its abort; its session must not block new uploads for a day."""
+    storage = media_backend
+    storage.config.media_upload_concurrency = 3
+    storage.config.media_upload_stale_seconds = 3 * 3600
+    owner = await create_user(db_session)
+    await db_session.commit()
+    abandoned = []
+    for number in range(3):
+        session = await reserve_upload(db_session, owner["id"], 1, storage.config)
+        await bind_upload(db_session, session, {
+            "uploadId": uuid.uuid4().hex,
+            "video_path": f"upload://s3/{owner_key(owner['id'])}/abandoned-{number}/video.mp4",
+        })
+        abandoned.append(session)
+    with pytest.raises(UploadLimitReached):
+        await reserve_upload(db_session, owner["id"], 1, storage.config)
+    # Past the stale window but well inside the one-day expiry.
+    await db_session.execute(text("""
+        UPDATE media_upload_sessions SET created_at = NOW() - INTERVAL '4 hours'
+        WHERE id = ANY(:ids)
+    """), {"ids": abandoned})
+    await db_session.commit()
+    fresh = await reserve_upload(db_session, owner["id"], 1, storage.config)
+
+    storage.client.abort_multipart_upload = Mock()
+    await cleanup_upload_sessions(db_session, storage)
+    assert storage.client.abort_multipart_upload.call_count == 3
+    states = dict((await db_session.execute(text(
+        "SELECT id, state FROM media_upload_sessions WHERE user_id = :owner"
+    ), {"owner": owner["id"]})).all())
+    assert {states[session] for session in abandoned} == {"aborted"}
+    assert states[fresh] == "reserved"
+
+
 async def test_daily_limit_cannot_be_reset_by_aborting_sessions(db_session, media_backend):
     owner = await create_user(db_session)
     await db_session.commit()

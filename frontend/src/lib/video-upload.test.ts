@@ -78,6 +78,37 @@ describe("S3 video uploads", () => {
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/abort")).toBe(false);
   });
 
+  it("releases the upload with a keepalive abort when the page is closed", async () => {
+    const pendingParts: ((response: Response) => void)[] = [];
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
+      if (url === "/api/upload/authorization") return Response.json(authorization());
+      if (url.startsWith("https://s3.test/")) return new Promise<Response>((resolve) => { pendingParts.push(resolve); });
+      if (url === "/api/upload/abort") return Response.json({ message: "cancelled" });
+      if (url === "/api/upload/complete") return Response.json({ video_path: authorization().video_path });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const upload = uploadVideoFile(new File(["abcdef"], "video.mp4"));
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.startsWith("https://s3.test/"))).toBe(true));
+    const aborts = () => fetchMock.mock.calls.filter(([url]) => url === "/api/upload/abort");
+
+    // Entering the back/forward cache keeps the upload alive.
+    window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+    expect(aborts()).toHaveLength(0);
+
+    window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
+    expect(aborts()).toHaveLength(1);
+    expect(aborts()[0][1]).toMatchObject({ method: "POST", keepalive: true });
+    expect(JSON.parse(aborts()[0][1]?.body as string)).toEqual({ video_path: authorization().video_path, uploadId: "upload" });
+
+    expect(pendingParts).toHaveLength(2);
+    pendingParts.forEach((resolve) => resolve(new Response(null, { headers: { ETag: "etag" } })));
+    await upload;
+    // Once the upload settles the listener is gone.
+    window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
+    expect(aborts()).toHaveLength(1);
+  });
+
 });
 
 describe("supported video source URLs", () => {

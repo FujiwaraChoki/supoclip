@@ -177,6 +177,19 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
   const completedParts: { partNumber: number; etag: string }[] = [];
   const controller = new AbortController();
   const payload = { video_path: authorization.video_path, uploadId: authorization.uploadId };
+  const abortUpload = () =>
+    fetch("/api/upload/abort", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      // Outlives the page, so a closed tab still releases its upload slot.
+      keepalive: true,
+    }).catch(() => undefined);
+  const onPageHide = (event: PageTransitionEvent) => {
+    // A page kept in the back/forward cache may resume the upload.
+    if (!event.persisted) void abortUpload();
+  };
+  window.addEventListener("pagehide", onPageHide);
   let nextPart = 0;
   let failure: unknown;
   const workers = Array.from({ length: Math.min(3, authorization.parts.length) }, async () => {
@@ -226,8 +239,8 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
       }
     }
   });
-  await Promise.all(workers);
   try {
+    await Promise.all(workers);
     if (failure) throw failure;
     let response: Response | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -252,12 +265,10 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
     }
     return result.video_path;
   } catch (error) {
-    await fetch("/api/upload/abort", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => undefined);
+    await abortUpload();
     throw error;
+  } finally {
+    window.removeEventListener("pagehide", onPageHide);
   }
 }
 
