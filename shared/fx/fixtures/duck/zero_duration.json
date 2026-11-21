@@ -1,0 +1,44 @@
+{
+  "family": "duck",
+  "case": "zero_duration",
+  "fn": "duck_envelope",
+  "input": {
+    "words_final": [
+      [
+        0.0,
+        1.0
+      ]
+    ],
+    "merge_gap": 0.35,
+    "params": {
+      "gain_db": -20.0,
+      "duck_db": -12.0,
+      "attack": 0.08,
+      "release": 0.35,
+      "fade_in": 0.5,
+      "fade_out": 0.8,
+      "out_duration": 0.0,
+      "floor_db": -60.0
+    },
+    "probes": [
+      -0.0
+    ]
+  },
+  "expected": {
+    "spans": [
+      [
+        0.0,
+        1.0
+      ]
+    ],
+    "points": [
+      [
+        0.0,
+        -60.0
+      ]
+    ],
+    "at": [
+      -60.0
+    ]
+  }
+}

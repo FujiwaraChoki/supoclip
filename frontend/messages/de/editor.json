@@ -49,7 +49,8 @@
     "framing": "Bildausschnitt",
     "broll": "B-Roll",
     "audio": "Audio",
-    "effects": "Effekte"
+    "effects": "Effekte",
+    "edits": "Edits"
   },
   "inspector": {
     "tools": "Editor-Werkzeuge"
@@ -257,7 +258,13 @@
     "jobProgress": "Exportfortschritt von {label}",
     "download": "Herunterladen",
     "cancelJob": "Export von {label} abbrechen",
-    "cancellationRequested": "Abbruch angefordert"
+    "cancellationRequested": "Abbruch angefordert",
+    "refusal": {
+      "warp": "Tempowechsel und Standbilder werden auf dem Server gerendert. Nutze den Hintergrund-Export.",
+      "reaction": "Reaktions-GIFs werden auf dem Server gerendert. Nutze den Hintergrund-Export.",
+      "behind": "Text hinter der Person wird auf dem Server gerendert. Nutze den Hintergrund-Export."
+    },
+    "editAudio": "Soundeffekte und Musik"
   },
   "workspace": {
     "keepLocal": "Dein Entwurf bleibt lokal. Speichere ihn, bevor du den Clip wechselst.",
@@ -311,7 +318,7 @@
     "setIn": "In-Punkt setzen",
     "setOut": "Out-Punkt setzen",
     "split": "An Abspielposition teilen",
-    "removeBroll": "Ausgewähltes B-Roll entfernen",
+    "removeSelection": "Ausgewähltes B-Roll oder Edit entfernen",
     "undo": "Rückgängig",
     "redo": "Wiederholen",
     "save": "Entwurf speichern",
@@ -402,5 +409,302 @@
     "backupsNothing": "Nichts zu entfernen. Nicht gespeicherte Änderungen bleiben, bis sie in deinem Konto sind.",
     "backupsBrowserNote": "Wenn du die Websitedaten von SupoClip in diesem Browser löschst, werden auch diese Kopien entfernt und du wirst abgemeldet. Tu das erst, wenn jeder offene Clip „Alle Änderungen gespeichert“ anzeigt.",
     "done": "Fertig"
+  },
+  "captionTemplates": {
+    "title": "Vorlage",
+    "description": "Bestimmt, wie sich Untertitel bewegen. Schrift und Farben unten gelten weiterhin.",
+    "classic": "Klassisch",
+    "animated": "Animiert",
+    "animatedHint": "Bild für Bild gezeichnet. Akzente sitzen auf den Momenten, die zählen.",
+    "names": {
+      "default": "Standard",
+      "hormozi": "Hormozi",
+      "mrbeast": "MrBeast",
+      "minimal": "Minimal",
+      "tiktok": "TikTok",
+      "neon": "Neon",
+      "podcast": "Podcast"
+    }
+  },
+  "fx": {
+    "title": "Dynamische Edits",
+    "description": "Die KI markiert die Momente, die zählen. Die Intensität bestimmt, wie hart jeder einschlägt.",
+    "count": "{count, plural, one {# Edit} other {# Edits}}",
+    "dismiss": "Schließen",
+    "applying": "Wird angewendet…",
+    "planning": "Transkript wird gelesen…",
+    "cancel": "Abbrechen",
+    "replan": "Mit KI neu planen",
+    "musicMood": "Stimmung",
+    "musicVolume": "Musiklautstärke",
+    "duckDepth": "Absenkung beim Sprechen",
+    "noMusicBed": "Für diese Stimmung gibt es noch keinen Track. Probier eine andere.",
+    "intensity": {
+      "label": "Edit-Intensität",
+      "off": "Aus",
+      "subtle": "Dezent",
+      "bold": "Kräftig",
+      "max": "Maximal"
+    },
+    "intensityHint": {
+      "off": "Keine automatischen Edits. Deine eigenen bleiben.",
+      "subtle": "Ab und zu neu geschnitten, leise Musik darunter.",
+      "bold": "Punch-ins an den wichtigen Stellen, Schläge auf manchen Schnitten.",
+      "max": "Schnelle Reframes, lautere Schläge und Musik."
+    },
+    "needsPlan": {
+      "title": "Plane diesen Clip zuerst",
+      "body": "Die KI liest das Transkript und markiert die Beats, auf denen die Edits landen. Das dauert ein paar Sekunden und verbraucht eine deiner heutigen Planungen.",
+      "action": "Edits planen"
+    },
+    "errors": {
+      "notAvailable": "Dynamische Edits sind für dein Konto noch nicht verfügbar.",
+      "planLimit": "Du hast heute so oft wie möglich Edits geplant. Versuch es morgen wieder.",
+      "planFailed": "Die Planung ist fehlgeschlagen. Versuch es noch einmal.",
+      "workerUnavailable": "Der KI-Dienst hat nicht geantwortet. Plane noch einmal.",
+      "invalidStyle": "Diese Kombination von Einstellungen wird nicht unterstützt.",
+      "resolveFailed": "Die Edits konnten nicht angewendet werden. Versuch es noch einmal.",
+      "timeout": "Die Planung hat zu lange gedauert. Versuch es noch einmal.",
+      "changedMeanwhile": "Der Entwurf hat sich weiter geändert, deshalb wurden die Edits nicht angewendet. Versuch es noch einmal."
+    },
+    "groups": {
+      "sound": "Sound",
+      "music": "Musik",
+      "motion": "Bewegung",
+      "retention": "Dranbleiben lassen"
+    },
+    "beats": {
+      "title": "Beats",
+      "description": "Die Momente, die die KI markiert hat. Spring zu einem, ändere seine Art oder lösche ihn, und die Edits ziehen mit.",
+      "jump": "Zum Beat bei {time} springen",
+      "kind": "Art des Beats bei {time}",
+      "delete": "Beat bei {time} löschen",
+      "kinds": {
+        "hook": "Hook",
+        "emphasis": "Betonung",
+        "number": "Zahl",
+        "punchline": "Pointe",
+        "swear": "Schimpfwort",
+        "emotional_turn": "Emotionale Wende",
+        "payoff": "Auflösung",
+        "build": "Aufbau"
+      }
+    },
+    "cue": {
+      "title": "Ausgewählter Edit",
+      "at": "Bei {time}",
+      "user": "Von dir hinzugefügt",
+      "auto": "Von der KI hinzugefügt",
+      "jump": "Zu diesem Edit springen",
+      "delete": "Edit löschen",
+      "close": "Schließen",
+      "editHint": "Änderst du einen KI-Edit, gehört er dir und bleibt beim Neuplanen erhalten.",
+      "variant": "Look",
+      "text": "Text",
+      "mode": "Bewegung",
+      "scale": "Zoom",
+      "anchor": "Zentrieren auf",
+      "amount": "Stärke",
+      "style": "Stil",
+      "sound": "Sound",
+      "gain": "Lautstärke",
+      "tone": "Piepton",
+      "cover": "Mund abdecken",
+      "rate": "Tempo",
+      "hold": "Dauer",
+      "holdBudget": "Standbilder dürfen in diesem Clip insgesamt {seconds} s halten.",
+      "label": "Beschriftung",
+      "waitForIt": "Zeigt vor der Auflösung einen „Wart's ab“-Sticker.",
+      "query": "Reaktion: {query}",
+      "modes": {
+        "punch": "Punch",
+        "push": "Reinzoomen",
+        "pull": "Rauszoomen"
+      },
+      "anchors": {
+        "face": "Gesicht",
+        "center": "Mitte"
+      },
+      "covers": {
+        "none": "Keine Abdeckung",
+        "bar": "Balken",
+        "pixelate": "Verpixeln"
+      }
+    },
+    "variants": {
+      "circle": "Kreis",
+      "underline": "Unterstreichen",
+      "strike": "Durchstreichen",
+      "arrow": "Pfeil",
+      "highlight": "Markieren",
+      "emoji": "Emoji",
+      "emoji_burst": "Emoji-Regen",
+      "slam": "Einschlag",
+      "behind": "Hinter der Person",
+      "counter": "Zähler",
+      "sticker": "Sticker",
+      "decode": "Entschlüsseln",
+      "kinetic": "Kinetisch",
+      "doodle": "Kritzelei"
+    },
+    "transitions": {
+      "whip": "Wischer",
+      "flash": "Blitz",
+      "glitch": "Glitch",
+      "zoom_through": "Durchzoomen",
+      "spin": "Drehung",
+      "light_leak": "Lichtleck"
+    },
+    "sounds": {
+      "whoosh": "Whoosh",
+      "impact": "Einschlag",
+      "pop": "Pop",
+      "riser": "Riser",
+      "record_scratch": "Plattenkratzer",
+      "boom": "Boom",
+      "cash_register": "Kasse",
+      "ticker": "Ticken",
+      "slap": "Klatscher",
+      "stamp": "Stempel",
+      "glitch": "Glitch",
+      "tape_stop": "Bandstopp"
+    },
+    "kinds": {
+      "accent": "Untertitel-Akzent",
+      "zoom": "Zoom",
+      "shake": "Wackeln",
+      "flash": "Blitz",
+      "glitch": "Glitch",
+      "desaturate": "Entsättigen",
+      "transition": "Übergang",
+      "sfx": "Soundeffekt",
+      "bleep": "Piepen",
+      "speed": "Tempowechsel",
+      "freeze": "Standbild",
+      "sticker": "Sticker",
+      "reaction": "Reaktion"
+    },
+    "face": {
+      "title": "Gesichtserkennung",
+      "body": "Zooms, Kritzeleien und Mundabdeckungen folgen dem Gesicht der sprechenden Person. Analysiere den Clip einmal, damit sie richtig sitzen.",
+      "action": "Gesicht analysieren",
+      "running": "Wird analysiert… etwa eine Minute",
+      "ready": "Die Gesichtserkennung ist bereit.",
+      "readyReopen": "Die Gesichtserkennung ist bereit. Exporte nutzen sie schon; öffne den Clip neu, um sie in der Vorschau zu sehen.",
+      "failed": "Die Analyse ist fehlgeschlagen. Versuch es noch einmal."
+    },
+    "remove": {
+      "action": "Alle Edits entfernen",
+      "hint": "Entfernt alle Edits, Beats, Musik und das Grading dieses Clips. Rückgängig holt sie zurück.",
+      "done": "Edits entfernt. Rückgängig holt sie zurück."
+    },
+    "look": {
+      "title": "Look",
+      "description": "Ein Farb-Grading und Filmkorn über den ganzen Clip.",
+      "grade": "Farb-Grading",
+      "grain": "Filmkorn",
+      "grades": {
+        "auto": "Automatisch",
+        "none": "Keins",
+        "punchy": "Knackig",
+        "warm": "Warm",
+        "teal_orange": "Petrol und Orange",
+        "noir": "Noir",
+        "vhs": "VHS",
+        "dream": "Traum"
+      }
+    },
+    "options": {
+      "sfx": {
+        "label": "Soundeffekte",
+        "hint": "Kurze Schläge und Pops auf Schnitten und Grafiken"
+      },
+      "music": {
+        "label": "Musik",
+        "hint": "Ein Musikbett, das unter der Stimme leiser wird"
+      },
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reframes und kurze Zooms an den wichtigen Stellen"
+      },
+      "shake": {
+        "label": "Kamerawackler",
+        "hint": "Ein Ruck bei den härtesten Momenten"
+      },
+      "transitions": {
+        "label": "Übergänge",
+        "hint": "Selten ein Blitz, wo der Clip schneidet"
+      },
+      "speed": {
+        "label": "Tempowechsel und Standbilder",
+        "hint": "Aufbau beschleunigen, vor der Pointe einfrieren"
+      },
+      "censor": {
+        "label": "Fluchen",
+        "hint": "Wie Schimpfwörter verdeckt werden"
+      },
+      "wait_for_it": {
+        "label": "„Warte ab“-Sticker",
+        "hint": "Kündigt eine Pointe an, die noch kommt"
+      },
+      "progress_bar": {
+        "label": "Fortschrittsbalken",
+        "hint": "Ein dünner Balken am unteren Rand"
+      },
+      "loop_ending": {
+        "label": "Loop-Ende",
+        "hint": "Blendet das Ende in den Anfang, damit es nahtlos wiederholt"
+      },
+      "reactions": {
+        "label": "GIF-Reaktionen",
+        "hint": "Ein Reaktions-GIF bei den lustigsten Momenten"
+      }
+    },
+    "censor": {
+      "off": "Unverändert lassen",
+      "bleep": "Piepen",
+      "bleep_bar": "Piepen und Mund abdecken",
+      "bleep_pixelate": "Piepen und Mund verpixeln"
+    },
+    "moods": {
+      "auto": "Passend zum Video",
+      "hype": "Energisch",
+      "chill": "Entspannt",
+      "dramatic": "Dramatisch",
+      "funny": "Lustig",
+      "inspiring": "Inspirierend",
+      "dark": "Düster",
+      "aggressive": "Aggressiv"
+    }
+  },
+  "fxTimeline": {
+    "fxLane": "Edits",
+    "fxLaneAria": "Spur für dynamische Edits",
+    "musicLane": "Musik",
+    "musicLaneAria": "Musikbett und Absenkung",
+    "cueAria": "{kind} bei {time}",
+    "suppressedCueAria": "{kind} bei {time}, entfernt",
+    "suppressed": "Entfernter Auto-Edit",
+    "suppressedHint": "Auto-Edits, die du löschst, bleiben beim Neuplanen weg",
+    "deleteCue": "Edit löschen",
+    "deleteCueHint": "Drück Entf oder Rücktaste, um den ausgewählten Edit zu entfernen",
+    "dragHint": "Zum Verschieben ziehen",
+    "openHint": "Zum Öffnen doppelklicken",
+    "cueTitle": "{kind} · {time}. Zum Verschieben ziehen, zum Öffnen doppelklicken.",
+    "addSound": "Sound hinzufügen",
+    "addSoundHint": "Doppelklick auf die Spur fügt einen Sound am Abspielkopf hinzu",
+    "pickSound": "Sound auswählen",
+    "hold": "{seconds} s halten",
+    "speed": "{rate}×",
+    "finalDuration": "Final {duration}",
+    "finalDurationHint": "Länge nach Tempowechseln und Standbildern",
+    "duck": "Musik wird beim Sprechen um {db} dB abgesenkt",
+    "noMusic": "Keine Musik",
+    "families": {
+      "sound": "Sound",
+      "picture": "Bild",
+      "overlay": "Overlay",
+      "time": "Zeit"
+    }
   }
 }

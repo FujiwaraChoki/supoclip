@@ -1,0 +1,34 @@
+{
+  "family": "mapping",
+  "case": "custom_min_piece",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        0.0,
+        2.0
+      ],
+      [
+        "s1",
+        4.0,
+        6.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "b0.flash",
+        "start": 1.9,
+        "end": 4.2,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "flash",
+        "color": "#FFFFFF",
+        "peak": 0.85
+      }
+    ],
+    "min_piece": 0.25
+  },
+  "expected": []
+}

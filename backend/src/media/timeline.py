@@ -46,15 +46,24 @@ def word_ends_sentence(text: str) -> bool:
     return bool(SENTENCE_END_RE.search((text or "").strip()))
 
 
-def _next_word_start(transcript_data: Optional[Dict], word_start: float) -> Optional[float]:
-    """Source time where the first word after the one starting at ``word_start`` begins."""
+def _next_word(transcript_data: Optional[Dict], word_start: float) -> Optional[Tuple[float, float]]:
+    """(start, end) of the first word after the one starting at ``word_start``."""
     word_start_ms = int(round(word_start * 1000))
-    starts = [
-        int(word["start"])
+    following = [
+        word
         for word in (transcript_data or {}).get("words") or []
         if int(word["start"]) > word_start_ms
     ]
-    return min(starts) / 1000.0 if starts else None
+    if not following:
+        return None
+    word = min(following, key=lambda item: int(item["start"]))
+    return int(word["start"]) / 1000.0, int(word["end"]) / 1000.0
+
+
+def _next_word_start(transcript_data: Optional[Dict], word_start: float) -> Optional[float]:
+    """Source time where the first word after the one starting at ``word_start`` begins."""
+    following = _next_word(transcript_data, word_start)
+    return following[0] if following else None
 
 
 def _padded_clip_end(
@@ -72,6 +81,7 @@ def _padded_clip_end(
     if next_word_start is not None:
         end = min(end, max(word_end, next_word_start - CLIP_END_NEXT_WORD_GUARD_SECONDS))
     return end
+
 
 
 def extend_keep_ranges_to_sentence_boundary(
@@ -112,6 +122,21 @@ def extend_keep_ranges_to_sentence_boundary(
     boundary_words = [
         word for word in nearby_words if float(word["start"]) <= last_end + 0.05
     ]
+    if (
+        len(boundary_words) >= 2
+        and float(boundary_words[-1]["start"]) >= last_end - 0.005
+        and word_ends_sentence(str(boundary_words[-2].get("text", "")))
+        and float(boundary_words[-2]["end"]) - 0.005
+        <= last_end
+        <= _padded_clip_end(
+            float(boundary_words[-2]["end"]), float(boundary_words[-1]["start"]), padding_seconds
+        )
+        + 0.005
+    ):
+        # The end was held back just before the next sentence (by the padding
+        # guard, on an earlier pass), so that sentence is not in the clip. A
+        # clip extended again keeps its end instead of growing by a sentence.
+        boundary_words = boundary_words[:-1]
     last_boundary_word = boundary_words[-1] if boundary_words else None
     if (
         last_boundary_word

@@ -1,0 +1,1058 @@
+{
+ "name": "talking_head",
+ "seed": 2816310017,
+ "sfx_variants": {
+  "whoosh": 6,
+  "impact": 7,
+  "pop": 6,
+  "riser": 8,
+  "record_scratch": 6,
+  "boom": 6,
+  "cash_register": 5,
+  "ticker": 6,
+  "slap": 6,
+  "stamp": 6,
+  "glitch": 6,
+  "tape_stop": 6
+ },
+ "beds": {
+  "aggressive": [
+   "aggressive-all-money-talk",
+   "aggressive-dragon",
+   "aggressive-goat-drill",
+   "aggressive-hard-mode",
+   "aggressive-its-a-trap",
+   "aggressive-putrid",
+   "aggressive-random",
+   "aggressive-tlc"
+  ],
+  "chill": [
+   "chill-keeping-cool",
+   "chill-lofi-keys-loop",
+   "chill-making-up",
+   "chill-night-club-chill",
+   "chill-rainy-forest",
+   "chill-sense-of-purpose",
+   "chill-something-in-the-air",
+   "chill-unwind"
+  ],
+  "dark": [
+   "dark-abducted",
+   "dark-cinematic-dread",
+   "dark-dark-shrine",
+   "dark-edge-of-space",
+   "dark-ghost-house",
+   "dark-machine",
+   "dark-not-to-notice"
+  ],
+  "dramatic": [
+   "dramatic-ai-fight",
+   "dramatic-crime",
+   "dramatic-end-of-hope",
+   "dramatic-moonlight-cyberpunk",
+   "dramatic-night-prowler",
+   "dramatic-space-chase",
+   "dramatic-war-room"
+  ],
+  "funny": [
+   "funny-bouncy-hamster",
+   "funny-happy-band",
+   "funny-in-the-restaurant",
+   "funny-quirky-march",
+   "funny-quirky-pizzicato",
+   "funny-ragtime-getdown",
+   "funny-ukulele",
+   "funny-whistle"
+  ],
+  "hype": [
+   "hype-last-energy",
+   "hype-live-4-me",
+   "hype-love-love-love",
+   "hype-mirror-of-the-week",
+   "hype-platinum-trap",
+   "hype-tent",
+   "hype-tribal-bass",
+   "hype-ultimate-rainbow"
+  ],
+  "inspiring": [
+   "inspiring-drops",
+   "inspiring-emotional-piano",
+   "inspiring-finding-yourself",
+   "inspiring-hope-on-repeat",
+   "inspiring-perspire",
+   "inspiring-sweet-sun",
+   "inspiring-timelines"
+  ]
+ },
+ "bed_lengths": {
+  "aggressive-all-money-talk": 24.0,
+  "aggressive-dragon": 23.272729,
+  "aggressive-goat-drill": 27.042271,
+  "aggressive-hard-mode": 102.4,
+  "aggressive-its-a-trap": 51.692312,
+  "aggressive-putrid": 25.6,
+  "aggressive-random": 27.428729,
+  "aggressive-tlc": 25.6,
+  "chill-keeping-cool": 67.761104,
+  "chill-lofi-keys-loop": 97.216063,
+  "chill-making-up": 82.285729,
+  "chill-night-club-chill": 64.799979,
+  "chill-rainy-forest": 57.600083,
+  "chill-sense-of-purpose": 72.0,
+  "chill-something-in-the-air": 60.0,
+  "chill-unwind": 80.842104,
+  "dark-abducted": 121.263146,
+  "dark-cinematic-dread": 53.0,
+  "dark-dark-shrine": 44.5,
+  "dark-edge-of-space": 99.75,
+  "dark-ghost-house": 82.25,
+  "dark-machine": 63.850229,
+  "dark-not-to-notice": 71.0,
+  "dramatic-ai-fight": 128.000188,
+  "dramatic-crime": 76.798187,
+  "dramatic-end-of-hope": 72.0,
+  "dramatic-moonlight-cyberpunk": 106.666479,
+  "dramatic-night-prowler": 87.270771,
+  "dramatic-space-chase": 143.999542,
+  "dramatic-war-room": 88.615375,
+  "funny-bouncy-hamster": 44.538396,
+  "funny-happy-band": 63.999563,
+  "funny-in-the-restaurant": 117.333333,
+  "funny-quirky-march": 64.031188,
+  "funny-quirky-pizzicato": 118.165583,
+  "funny-ragtime-getdown": 58.181812,
+  "funny-ukulele": 61.345208,
+  "funny-whistle": 63.997604,
+  "hype-last-energy": 114.285583,
+  "hype-live-4-me": 25.600021,
+  "hype-love-love-love": 133.565208,
+  "hype-mirror-of-the-week": 122.88,
+  "hype-platinum-trap": 22.588229,
+  "hype-tent": 107.520021,
+  "hype-tribal-bass": 44.305854,
+  "hype-ultimate-rainbow": 63.997479,
+  "inspiring-drops": 68.571271,
+  "inspiring-emotional-piano": 27.835146,
+  "inspiring-finding-yourself": 141.473688,
+  "inspiring-hope-on-repeat": 135.529417,
+  "inspiring-perspire": 31.998396,
+  "inspiring-sweet-sun": 69.81825,
+  "inspiring-timelines": 128.0
+ },
+ "reactions_available": true,
+ "max_clip_seconds": 90.0,
+ "broll_windows": [
+  [
+   19.759,
+   22.159
+  ]
+ ],
+ "user_cues": [],
+ "suppressed": [],
+ "words": [
+  {
+   "id": "w0",
+   "start": 0.1,
+   "end": 0.44,
+   "text": "Most",
+   "src_start": 120.0,
+   "src_end": 120.34
+  },
+  {
+   "id": "w1",
+   "start": 0.52,
+   "end": 0.93,
+   "text": "people",
+   "src_start": 120.42,
+   "src_end": 120.83
+  },
+  {
+   "id": "w2",
+   "start": 1.01,
+   "end": 1.35,
+   "text": "will",
+   "src_start": 120.91,
+   "src_end": 121.25
+  },
+  {
+   "id": "w3",
+   "start": 1.43,
+   "end": 1.805,
+   "text": "never",
+   "src_start": 121.33,
+   "src_end": 121.705
+  },
+  {
+   "id": "w4",
+   "start": 1.885,
+   "end": 2.225,
+   "text": "make",
+   "src_start": 121.785,
+   "src_end": 122.125
+  },
+  {
+   "id": "w5",
+   "start": 2.305,
+   "end": 2.54,
+   "text": "a",
+   "src_start": 122.205,
+   "src_end": 122.44
+  },
+  {
+   "id": "w6",
+   "start": 2.62,
+   "end": 3.065,
+   "text": "hundred",
+   "src_start": 122.52,
+   "src_end": 122.965
+  },
+  {
+   "id": "w7",
+   "start": 3.145,
+   "end": 3.555,
+   "text": "grand.",
+   "src_start": 123.045,
+   "src_end": 123.455
+  },
+  {
+   "id": "w8",
+   "start": 3.905,
+   "end": 4.21,
+   "text": "Not",
+   "src_start": 123.805,
+   "src_end": 124.11
+  },
+  {
+   "id": "w9",
+   "start": 4.29,
+   "end": 4.735,
+   "text": "because",
+   "src_start": 124.19,
+   "src_end": 124.635
+  },
+  {
+   "id": "w10",
+   "start": 4.815,
+   "end": 5.26,
+   "text": "they're",
+   "src_start": 124.715,
+   "src_end": 125.16
+  },
+  {
+   "id": "w11",
+   "start": 5.34,
+   "end": 5.715,
+   "text": "lazy.",
+   "src_start": 125.24,
+   "src_end": 125.615
+  },
+  {
+   "id": "w12",
+   "start": 6.065,
+   "end": 6.51,
+   "text": "Because",
+   "src_start": 125.965,
+   "src_end": 126.41
+  },
+  {
+   "id": "w13",
+   "start": 6.59,
+   "end": 7.0,
+   "text": "nobody",
+   "src_start": 126.49,
+   "src_end": 126.9
+  },
+  {
+   "id": "w14",
+   "start": 7.08,
+   "end": 7.42,
+   "text": "told",
+   "src_start": 126.98,
+   "src_end": 127.32
+  },
+  {
+   "id": "w15",
+   "start": 7.5,
+   "end": 7.84,
+   "text": "them",
+   "src_start": 127.4,
+   "src_end": 127.74
+  },
+  {
+   "id": "w16",
+   "start": 7.92,
+   "end": 8.295,
+   "text": "this.",
+   "src_start": 127.82,
+   "src_end": 128.195
+  },
+  {
+   "id": "w17",
+   "start": 8.895,
+   "end": 9.13,
+   "text": "I",
+   "src_start": 128.795,
+   "src_end": 129.03
+  },
+  {
+   "id": "w18",
+   "start": 9.21,
+   "end": 9.55,
+   "text": "went",
+   "src_start": 129.11,
+   "src_end": 129.45
+  },
+  {
+   "id": "w19",
+   "start": 9.63,
+   "end": 9.97,
+   "text": "from",
+   "src_start": 129.53,
+   "src_end": 129.87
+  },
+  {
+   "id": "w20",
+   "start": 10.05,
+   "end": 10.495,
+   "text": "$40,000",
+   "src_start": 129.95,
+   "src_end": 130.395
+  },
+  {
+   "id": "w21",
+   "start": 10.575,
+   "end": 10.81,
+   "text": "a",
+   "src_start": 130.475,
+   "src_end": 130.71
+  },
+  {
+   "id": "w22",
+   "start": 10.89,
+   "end": 11.23,
+   "text": "year",
+   "src_start": 130.79,
+   "src_end": 131.13
+  },
+  {
+   "id": "w23",
+   "start": 11.31,
+   "end": 11.58,
+   "text": "to",
+   "src_start": 131.21,
+   "src_end": 131.48
+  },
+  {
+   "id": "w24",
+   "start": 11.66,
+   "end": 12.035,
+   "text": "$2.5M",
+   "src_start": 131.56,
+   "src_end": 131.935
+  },
+  {
+   "id": "w25",
+   "start": 12.115,
+   "end": 12.385,
+   "text": "in",
+   "src_start": 132.015,
+   "src_end": 132.285
+  },
+  {
+   "id": "w26",
+   "start": 12.465,
+   "end": 12.84,
+   "text": "three",
+   "src_start": 132.365,
+   "src_end": 132.74
+  },
+  {
+   "id": "w27",
+   "start": 12.92,
+   "end": 13.33,
+   "text": "years.",
+   "src_start": 132.82,
+   "src_end": 133.23
+  },
+  {
+   "id": "w28",
+   "start": 13.61,
+   "end": 13.915,
+   "text": "And",
+   "src_start": 133.93,
+   "src_end": 134.235
+  },
+  {
+   "id": "w29",
+   "start": 13.995,
+   "end": 14.3,
+   "text": "the",
+   "src_start": 134.315,
+   "src_end": 134.62
+  },
+  {
+   "id": "w30",
+   "start": 14.38,
+   "end": 14.72,
+   "text": "shit",
+   "src_start": 134.7,
+   "src_end": 135.04
+  },
+  {
+   "id": "w31",
+   "start": 14.8,
+   "end": 15.175,
+   "text": "part?",
+   "src_start": 135.12,
+   "src_end": 135.495
+  },
+  {
+   "id": "w32",
+   "start": 15.525,
+   "end": 15.76,
+   "text": "I",
+   "src_start": 135.845,
+   "src_end": 136.08
+  },
+  {
+   "id": "w33",
+   "start": 15.84,
+   "end": 16.25,
+   "text": "almost",
+   "src_start": 136.16,
+   "src_end": 136.57
+  },
+  {
+   "id": "w34",
+   "start": 16.33,
+   "end": 16.67,
+   "text": "quit",
+   "src_start": 136.65,
+   "src_end": 136.99
+  },
+  {
+   "id": "w35",
+   "start": 16.75,
+   "end": 17.16,
+   "text": "twice.",
+   "src_start": 137.07,
+   "src_end": 137.48
+  },
+  {
+   "id": "w36",
+   "start": 17.56,
+   "end": 17.97,
+   "text": "Here's",
+   "src_start": 138.98,
+   "src_end": 139.39
+  },
+  {
+   "id": "w37",
+   "start": 18.05,
+   "end": 18.355,
+   "text": "the",
+   "src_start": 139.47,
+   "src_end": 139.775
+  },
+  {
+   "id": "w38",
+   "start": 18.435,
+   "end": 18.845,
+   "text": "trick.",
+   "src_start": 139.855,
+   "src_end": 140.265
+  },
+  {
+   "id": "w39",
+   "start": 19.195,
+   "end": 19.535,
+   "text": "Stop",
+   "src_start": 140.615,
+   "src_end": 140.955
+  },
+  {
+   "id": "w40",
+   "start": 19.615,
+   "end": 20.06,
+   "text": "trading",
+   "src_start": 141.035,
+   "src_end": 141.48
+  },
+  {
+   "id": "w41",
+   "start": 20.14,
+   "end": 20.515,
+   "text": "hours",
+   "src_start": 141.56,
+   "src_end": 141.935
+  },
+  {
+   "id": "w42",
+   "start": 20.595,
+   "end": 20.9,
+   "text": "for",
+   "src_start": 142.015,
+   "src_end": 142.32
+  },
+  {
+   "id": "w43",
+   "start": 20.98,
+   "end": 21.39,
+   "text": "money.",
+   "src_start": 142.4,
+   "src_end": 142.81
+  },
+  {
+   "id": "w44",
+   "start": 22.29,
+   "end": 22.665,
+   "text": "Build",
+   "src_start": 143.71,
+   "src_end": 144.085
+  },
+  {
+   "id": "w45",
+   "start": 22.745,
+   "end": 23.05,
+   "text": "one",
+   "src_start": 144.165,
+   "src_end": 144.47
+  },
+  {
+   "id": "w46",
+   "start": 23.13,
+   "end": 23.505,
+   "text": "thing",
+   "src_start": 144.55,
+   "src_end": 144.925
+  },
+  {
+   "id": "w47",
+   "start": 23.585,
+   "end": 23.925,
+   "text": "that",
+   "src_start": 145.005,
+   "src_end": 145.345
+  },
+  {
+   "id": "w48",
+   "start": 24.005,
+   "end": 24.38,
+   "text": "sells",
+   "src_start": 145.425,
+   "src_end": 145.8
+  },
+  {
+   "id": "w49",
+   "start": 24.46,
+   "end": 24.835,
+   "text": "while",
+   "src_start": 145.88,
+   "src_end": 146.255
+  },
+  {
+   "id": "w50",
+   "start": 24.915,
+   "end": 25.22,
+   "text": "you",
+   "src_start": 146.335,
+   "src_end": 146.64
+  },
+  {
+   "id": "w51",
+   "start": 25.3,
+   "end": 25.71,
+   "text": "sleep.",
+   "src_start": 146.72,
+   "src_end": 147.13
+  },
+  {
+   "id": "w52",
+   "start": 26.41,
+   "end": 26.82,
+   "text": "That's",
+   "src_start": 147.83,
+   "src_end": 148.24
+  },
+  {
+   "id": "w53",
+   "start": 26.9,
+   "end": 27.205,
+   "text": "it!",
+   "src_start": 148.32,
+   "src_end": 148.625
+  },
+  {
+   "id": "w54",
+   "start": 28.005,
+   "end": 28.485,
+   "text": "Honestly",
+   "src_start": 149.425,
+   "src_end": 149.905
+  },
+  {
+   "id": "w55",
+   "start": 28.565,
+   "end": 28.835,
+   "text": "it",
+   "src_start": 149.985,
+   "src_end": 150.255
+  },
+  {
+   "id": "w56",
+   "start": 28.915,
+   "end": 29.325,
+   "text": "sounds",
+   "src_start": 150.335,
+   "src_end": 150.745
+  },
+  {
+   "id": "w57",
+   "start": 29.405,
+   "end": 29.85,
+   "text": "stupid,",
+   "src_start": 150.825,
+   "src_end": 151.27
+  },
+  {
+   "id": "w58",
+   "start": 29.93,
+   "end": 30.235,
+   "text": "but",
+   "src_start": 151.35,
+   "src_end": 151.655
+  },
+  {
+   "id": "w59",
+   "start": 30.315,
+   "end": 30.585,
+   "text": "it",
+   "src_start": 151.735,
+   "src_end": 152.005
+  },
+  {
+   "id": "w60",
+   "start": 30.665,
+   "end": 31.11,
+   "text": "fucking",
+   "src_start": 152.085,
+   "src_end": 152.53
+  },
+  {
+   "id": "w61",
+   "start": 31.19,
+   "end": 31.6,
+   "text": "works.",
+   "src_start": 152.61,
+   "src_end": 153.02
+  },
+  {
+   "id": "w62",
+   "start": 32.0,
+   "end": 32.27,
+   "text": "Do",
+   "src_start": 154.62,
+   "src_end": 154.89
+  },
+  {
+   "id": "w63",
+   "start": 32.35,
+   "end": 32.69,
+   "text": "this",
+   "src_start": 154.97,
+   "src_end": 155.31
+  },
+  {
+   "id": "w64",
+   "start": 32.77,
+   "end": 33.075,
+   "text": "for",
+   "src_start": 155.39,
+   "src_end": 155.695
+  },
+  {
+   "id": "w65",
+   "start": 33.155,
+   "end": 33.425,
+   "text": "90",
+   "src_start": 155.775,
+   "src_end": 156.045
+  },
+  {
+   "id": "w66",
+   "start": 33.505,
+   "end": 33.845,
+   "text": "days",
+   "src_start": 156.125,
+   "src_end": 156.465
+  },
+  {
+   "id": "w67",
+   "start": 33.925,
+   "end": 34.23,
+   "text": "and",
+   "src_start": 156.545,
+   "src_end": 156.85
+  },
+  {
+   "id": "w68",
+   "start": 34.31,
+   "end": 34.685,
+   "text": "thank",
+   "src_start": 156.93,
+   "src_end": 157.305
+  },
+  {
+   "id": "w69",
+   "start": 34.765,
+   "end": 35.035,
+   "text": "me",
+   "src_start": 157.385,
+   "src_end": 157.655
+  },
+  {
+   "id": "w70",
+   "start": 35.115,
+   "end": 35.525,
+   "text": "later.",
+   "src_start": 157.735,
+   "src_end": 158.145
+  }
+ ],
+ "duration": 35.925,
+ "cuts": [
+  13.605,
+  17.36,
+  31.8
+ ],
+ "passage_breaks": [],
+ "keep_ranges": [
+  [
+   119.9,
+   133.58
+  ],
+  [
+   133.85,
+   137.755
+  ],
+  [
+   138.70499999999998,
+   153.29500000000002
+  ],
+  [
+   154.345,
+   158.54500000000002
+  ]
+ ],
+ "output_offsets": [
+  0.0,
+  13.53,
+  17.285,
+  31.725
+ ],
+ "beats": {
+  "version": "beats-v1",
+  "words_hash": "6b8f006f83b5a464552e8fb481e6b5bf516ac06abb9650e4e37718526a8411d0",
+  "timeline_hash": "",
+  "model": "fixture:hand",
+  "source": "llm",
+  "mood": "hype",
+  "sensitivity": "normal",
+  "timing": "word",
+  "hook_end": 3.555,
+  "beats": [
+   {
+    "kind": "hook",
+    "start": 0.1,
+    "end": 3.555,
+    "text": "Most people will never make a hundred grand.",
+    "strength": 3,
+    "tone": "shocked",
+    "source": "llm",
+    "src_start": 120.0,
+    "src_end": 123.455,
+    "words": [
+     "most",
+     "people",
+     "will",
+     "never",
+     "make",
+     "a",
+     "hundred",
+     "grand"
+    ],
+    "id": "b0"
+   },
+   {
+    "kind": "number",
+    "start": 2.305,
+    "end": 3.555,
+    "text": "a hundred grand.",
+    "strength": 2,
+    "tone": "hype",
+    "source": "llm",
+    "src_start": 122.205,
+    "src_end": 123.455,
+    "words": [
+     "a",
+     "hundred",
+     "grand"
+    ],
+    "value": 100000.0,
+    "prefix": "$",
+    "id": "b1"
+   },
+   {
+    "kind": "emphasis",
+    "start": 5.34,
+    "end": 5.715,
+    "text": "lazy.",
+    "strength": 1,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 125.24,
+    "src_end": 125.615,
+    "words": [
+     "lazy"
+    ],
+    "id": "b2"
+   },
+   {
+    "kind": "build",
+    "start": 6.065,
+    "end": 8.295,
+    "text": "Because nobody told them this.",
+    "strength": 2,
+    "tone": "suspense",
+    "source": "llm",
+    "src_start": 125.965,
+    "src_end": 128.195,
+    "words": [
+     "because",
+     "nobody",
+     "told",
+     "them",
+     "this"
+    ],
+    "id": "b3"
+   },
+   {
+    "kind": "number",
+    "start": 10.05,
+    "end": 10.495,
+    "text": "$40,000",
+    "strength": 2,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 129.95,
+    "src_end": 130.395,
+    "words": [
+     "$40000"
+    ],
+    "value": 40000.0,
+    "prefix": "$",
+    "id": "b4"
+   },
+   {
+    "kind": "number",
+    "start": 11.66,
+    "end": 12.035,
+    "text": "$2.5M",
+    "strength": 3,
+    "tone": "hype",
+    "source": "llm",
+    "src_start": 131.56,
+    "src_end": 131.935,
+    "words": [
+     "$25m"
+    ],
+    "value": 2.5,
+    "prefix": "$",
+    "suffix": "M",
+    "emoji": "💰",
+    "id": "b5"
+   },
+   {
+    "kind": "number",
+    "start": 12.465,
+    "end": 13.33,
+    "text": "three years.",
+    "strength": 1,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 132.365,
+    "src_end": 133.23,
+    "words": [
+     "three",
+     "years"
+    ],
+    "value": 3.0,
+    "id": "b6"
+   },
+   {
+    "kind": "swear",
+    "start": 14.38,
+    "end": 14.72,
+    "text": "shit",
+    "strength": 2,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 134.7,
+    "src_end": 135.04,
+    "words": [
+     "shit"
+    ],
+    "id": "b7"
+   },
+   {
+    "kind": "punchline",
+    "start": 15.525,
+    "end": 17.16,
+    "text": "I almost quit twice.",
+    "strength": 3,
+    "tone": "funny",
+    "source": "llm",
+    "src_start": 135.845,
+    "src_end": 137.48,
+    "words": [
+     "i",
+     "almost",
+     "quit",
+     "twice"
+    ],
+    "label": "ALMOST",
+    "id": "b8"
+   },
+   {
+    "kind": "emphasis",
+    "start": 19.195,
+    "end": 21.39,
+    "text": "Stop trading hours for money.",
+    "strength": 2,
+    "tone": "angry",
+    "source": "llm",
+    "src_start": 140.615,
+    "src_end": 142.81,
+    "words": [
+     "stop",
+     "trading",
+     "hours",
+     "for",
+     "money"
+    ],
+    "id": "b9"
+   },
+   {
+    "kind": "payoff",
+    "start": 22.29,
+    "end": 25.71,
+    "text": "Build one thing that sells while you sleep.",
+    "strength": 3,
+    "tone": "hype",
+    "source": "llm",
+    "src_start": 143.71,
+    "src_end": 147.13,
+    "words": [
+     "build",
+     "one",
+     "thing",
+     "that",
+     "sells",
+     "while",
+     "you",
+     "sleep"
+    ],
+    "label": "THE TRICK",
+    "id": "b10"
+   },
+   {
+    "kind": "emphasis",
+    "start": 26.41,
+    "end": 27.205,
+    "text": "That's it!",
+    "strength": 2,
+    "tone": "smug",
+    "source": "llm",
+    "src_start": 147.83,
+    "src_end": 148.625,
+    "words": [
+     "that's",
+     "it"
+    ],
+    "id": "b11"
+   },
+   {
+    "kind": "emphasis",
+    "start": 29.405,
+    "end": 29.85,
+    "text": "stupid,",
+    "strength": 1,
+    "tone": "awkward",
+    "source": "llm",
+    "src_start": 150.825,
+    "src_end": 151.27,
+    "words": [
+     "stupid"
+    ],
+    "id": "b12"
+   },
+   {
+    "kind": "swear",
+    "start": 30.665,
+    "end": 31.11,
+    "text": "fucking",
+    "strength": 2,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 152.085,
+    "src_end": 152.53,
+    "words": [
+     "fucking"
+    ],
+    "id": "b13"
+   },
+   {
+    "kind": "emphasis",
+    "start": 31.19,
+    "end": 31.6,
+    "text": "works.",
+    "strength": 2,
+    "tone": "hype",
+    "source": "llm",
+    "src_start": 152.61,
+    "src_end": 153.02,
+    "words": [
+     "works"
+    ],
+    "id": "b14"
+   },
+   {
+    "kind": "number",
+    "start": 33.155,
+    "end": 33.845,
+    "text": "90 days",
+    "strength": 2,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 155.775,
+    "src_end": 156.465,
+    "words": [
+     "90",
+     "days"
+    ],
+    "value": 90.0,
+    "id": "b15"
+   }
+  ],
+  "reactions": [
+   {
+    "at": 16.75,
+    "query": "phew close call"
+   }
+  ]
+ },
+ "hook_window": [
+  0.12,
+  4.0
+ ]
+}

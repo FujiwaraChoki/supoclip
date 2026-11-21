@@ -6,6 +6,9 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
+- **New:** Dynamic edits. Pick an edit intensity and your clips are edited the way short-form editors do it: Subtle adds outlined subtitles and a quiet music bed, Bold adds Hormozi-style captions on a dark pill, word by word with the key word boxed, and punch-ins that hold, and Max adds heavy outlined caps, a reframe on almost every line, louder hits and the odd flash at a cut. Sound effects land only on cuts and on-screen moments, the music comes from 53 free-to-use tracks in seven moods (the AI picks one, or you do), and swear words are bleeped and shown as f*** in the captions. The clip's title is drawn to match the caption style you picked (a white label that hugs each line for the clean styles, big outlined type in the style's own colours for the loud ones), with the number or key word marked, sized to its length, at the top of the clip or just under a head it would otherwise cover. Three animated caption styles come with it (Highlighter, Emoji Drop and Behind Head); change the intensity of clips you already have on the results page, or fine-tune single effects in the clip studio. ([#479](https://github.com/FujiwaraChoki/supoclip/pull/479))
+- **Fixed:** Clip titles keep the sign that belongs to a number (90%, $40) and all titles of one video use the same capitalisation. ([#479](https://github.com/FujiwaraChoki/supoclip/pull/479))
+- **Improved:** The homepage has a Dynamic edits section: play one clip at Off, Subtle, Bold and Max and switch between them while it plays. ([#479](https://github.com/FujiwaraChoki/supoclip/pull/479))
 - **Fixed:** Gaming clips from streams where the camera sits in a circle now get the camera on top and the game below. Before, a calm scene could be cropped onto the streamer's face, hiding the game. ([#501](https://github.com/FujiwaraChoki/supoclip/pull/501))
 - **Fixed:** In gaming clips where the game's own subtitles are left without captions, one or two leftover words no longer stay frozen on screen for many seconds, and stray scraps of a subtitled line are no longer captioned on their own. ([#499](https://github.com/FujiwaraChoki/supoclip/pull/499))
 
@@ -73,6 +76,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-15
 
+- **Fixed:** Changing a project's settings no longer adds the next sentence to the end of a clip that stopped right before it. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
+- **Fixed:** Every clip's sound now fades out over its last fraction of a second, so the end never clicks. The same goes for trimmed and split clips and for studio exports. ([#401](https://github.com/FujiwaraChoki/supoclip/pull/401))
 - **Improved:** A host or presenter talking to the camera on their own is framed as a tight crop on their face and shoulders, with the eyes near the top third, instead of the whole picture shrunk into a band with a blurred fill below. Their hand gestures no longer make the clip fall back to the full frame. Only a face too small or too low to crop sharply still gets the full picture. ([#402](https://github.com/FujiwaraChoki/supoclip/pull/402))
 - **Fixed:** Long videos processed with Claude Haiku have more room for their outlines, reducing incomplete outlines in series, topic, recap and trailer runs. ([#396](https://github.com/FujiwaraChoki/supoclip/pull/396))
 

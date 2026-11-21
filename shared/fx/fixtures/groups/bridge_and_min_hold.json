@@ -1,0 +1,48 @@
+{
+  "family": "groups",
+  "case": "bridge_and_min_hold",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.35,
+        "text": "a"
+      },
+      {
+        "start": 0.85,
+        "end": 1.0,
+        "text": "b"
+      },
+      {
+        "start": 1.1,
+        "end": 1.25,
+        "text": "c"
+      }
+    ],
+    "max_words": 1
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 0,
+      "start": 0.2,
+      "end": 0.6000000000000001,
+      "text": "a"
+    },
+    {
+      "first": 1,
+      "last": 1,
+      "start": 0.85,
+      "end": 1.1,
+      "text": "b"
+    },
+    {
+      "first": 2,
+      "last": 2,
+      "start": 1.1,
+      "end": 1.5,
+      "text": "c"
+    }
+  ]
+}

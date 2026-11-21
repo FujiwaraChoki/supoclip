@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,6 +30,15 @@ vi.mock("@/lib/video-upload", async (importOriginal) => ({
 
 vi.mock("@/lib/datafast", () => ({ track: analytics.track }));
 
+// The tour host's own behaviour is tested in feature-tour.test.tsx; here we only need what the page hands it.
+const tour = vi.hoisted(() => ({ props: null as null | { onSettingsSection?: (id: string) => void; onEnd?: () => void } }));
+vi.mock("@/components/feature-tour", () => ({
+  FeatureTourHost: (props: { onSettingsSection?: (id: string) => void; onEnd?: () => void }) => {
+    tour.props = props;
+    return null;
+  },
+}));
+
 const billingSummary = {
   monetization_enabled: true,
   plan: "pro",
@@ -59,6 +68,22 @@ const workflowsInfo = {
   instructions_max_chars: 500,
 };
 
+const editStylesInfo = {
+  enabled: true,
+  intensities: ["off", "subtle", "bold", "max"],
+  defaults: { sfx: true, music: true, music_mood: "auto", zooms: true, shake: true, transitions: true, speed: true, censor: "bleep_bar", grade: "auto", grain: false, progress_bar: false, loop_ending: false, wait_for_it: true, reactions: false },
+  settings: [],
+  music_moods: ["hype", "chill", "dramatic", "funny", "inspiring", "dark"],
+  grades: ["none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream"],
+  templates: ["marker_circle", "emoji_drop", "slam", "behind_head", "stat_counter", "kinetic_stack", "decode_glitch", "highlighter_swipe", "face_doodles"],
+  reactions_available: false,
+};
+const legacyTemplates = [
+  { id: "default", name: "Default", description: "Punchy", animation: "karaoke", font_color: "#FFFFFF" },
+  { id: "mrbeast", name: "MrBeast", description: "Bold", animation: "pop", font_color: "#FFFFFF" },
+];
+const fxTemplates = editStylesInfo.templates.map((id) => ({ id, name: id, description: "", animation: "pop", fx: true, requires: [] }));
+
 const LINK = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 // Exactly what the create screen sent before workflows existed.
 const LEGACY_KEYS = [
@@ -67,6 +92,8 @@ const LEGACY_KEYS = [
 ];
 
 let workflowsResponse: () => Response | Promise<Response>;
+let editStylesResponse: () => Response | Promise<Response>;
+let templateRequests: string[];
 let createResponse: () => Response;
 let savedClipLength: string;
 let created: Record<string, unknown>[];
@@ -82,6 +109,8 @@ beforeEach(() => {
   durations.seconds = null;
   analytics.track.mockReset();
   workflowsResponse = () => Response.json(workflowsInfo);
+  editStylesResponse = () => Response.json({ ...editStylesInfo, enabled: false });
+  templateRequests = [];
   createResponse = () => Response.json({ task_id: "task-1" });
   savedClipLength = "medium";
   created = [];
@@ -99,6 +128,7 @@ beforeEach(() => {
     const url = String(input);
     if (url.includes("billing-summary")) return Response.json(billingSummary);
     if (url.includes("/api/tasks/workflows")) return workflowsResponse();
+    if (url.includes("/api/tasks/edit-styles")) return editStylesResponse();
     if (url.includes("/api/tasks/create")) {
       created.push(JSON.parse(String(init?.body)));
       return createResponse();
@@ -112,7 +142,10 @@ beforeEach(() => {
     }
     if (url.includes("/api/tasks")) return Response.json({ tasks: [] });
     if (url.includes("/api/fonts")) return Response.json({ fonts: [] });
-    if (url.includes("caption-templates")) return Response.json({ templates: [] });
+    if (url.includes("caption-templates")) {
+      templateRequests.push(url);
+      return Response.json({ templates: url.includes("include=fx") ? [...legacyTemplates, ...fxTemplates] : legacyTemplates });
+    }
     if (url.includes("announcements")) return Response.json({ announcements: [] });
     if (url.includes("social")) return Response.json({ enabled: false });
     if (url.includes("service-status")) return Response.json({ status: "operational" });
@@ -800,5 +833,165 @@ describe("remembering settings between videos", () => {
     const last = settingsSaves[settingsSaves.length - 1];
     expect(last.createSettings).toMatchObject({ captionTemplate: "default", includeBroll: false, advanced: {} });
     expect(last.fontFamily).toBe("TikTokSans-Regular");
+  });
+});
+
+describe("dynamic edits", () => {
+  beforeEach(() => {
+    // jsdom has no canvas; the tiles just don't draw.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  });
+
+  const enable = () => { editStylesResponse = () => Response.json(editStylesInfo); };
+
+  async function renderWithEdits() {
+    enable();
+    await renderHome();
+    await waitFor(() => expect(templateRequests).toContain("/api/caption-templates?include=fx"));
+  }
+
+  it("adds exactly edit_style for a bold request", async () => {
+    await renderWithEdits();
+    openSection(/Edits/);
+    const group = screen.getByRole("radiogroup", { name: "Edit intensity" });
+    expect(group).toHaveAttribute("data-tour", "edit-intensity");
+    expect(within(group).getByRole("radio", { name: /Off/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("switch", { name: "Sound effects" })).not.toBeInTheDocument();
+    pick(/Bold/);
+    fireEvent.click(screen.getByRole("button", { name: "Fine-tune" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Music" }));
+    expect(settingsChip()).toHaveAccessibleName(/Bold/);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(Object.keys(body)).toEqual([...LEGACY_KEYS, "edit_style"]);
+    expect(body.edit_style).toEqual({ intensity: "bold", music: false });
+    expect(body.caption_template).toBe("default");
+  });
+
+  it("sends today's request with edits off, even with the feature on", async () => {
+    await renderWithEdits();
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+  });
+
+  it("offers animated caption styles as live tiles, and sends the one picked", async () => {
+    await renderWithEdits();
+    openSection(/Captions/);
+    // One list: the classic styles first, then the animated ones.
+    const tiles = screen.getByRole("radiogroup", { name: "Caption style" });
+    expect(tiles).toHaveAttribute("data-tour", "caption-styles");
+    const names = within(tiles).getAllByRole("radio").map((radio) => radio.getAttribute("aria-label"));
+    expect(names).toHaveLength(11);
+    expect(names.slice(0, 2)).toEqual(["Default", "MrBeast"]);
+    expect(screen.getAllByRole("radiogroup", { name: "Caption style" })).toHaveLength(1);
+    // Font and colour stay folded away until asked for.
+    expect(screen.queryByText("Color")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    expect(screen.getByText("Color")).toBeInTheDocument();
+    fireEvent.click(within(tiles).getByRole("radio", { name: "Slam" }));
+    expect(within(tiles).getByRole("radio", { name: "Slam" })).toHaveAttribute("aria-checked", "true");
+    expect(settingsChip()).toHaveAccessibleName(/Slam/);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    // Style only: the template carries it, intensity off adds nothing.
+    expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+    expect(body.caption_template).toBe("slam");
+  });
+
+  it("hides everything and never asks for animated templates while the feature is off", async () => {
+    savedCreateSettings = { captionTemplate: "slam", editStyle: { intensity: "bold" } };
+    await renderHome();
+    await waitFor(() => expect(templateRequests.length).toBeGreaterThan(0));
+    openSettings();
+    expect(screen.queryByRole("tab", { name: /Edits/ })).not.toBeInTheDocument();
+    openSection(/Captions/);
+    expect(within(screen.getByRole("radiogroup", { name: "Caption style" })).queryByRole("radio", { name: "Slam" })).not.toBeInTheDocument();
+    expect(templateRequests.every((url) => !url.includes("include"))).toBe(true);
+  });
+
+  for (const [label, response] of [
+    ["the flag is off", () => Response.json({ ...editStylesInfo, enabled: false })],
+    ["the fetch fails", () => Promise.reject(new TypeError("offline"))],
+    ["an older backend answers 404", () => new Response("Not found", { status: 404 })],
+  ] as const) {
+    it(`drops a stored bold style and animated template when ${label}, but keeps them saved`, async () => {
+      editStylesResponse = response;
+      savedCreateSettings = { captionTemplate: "slam", editStyle: { intensity: "bold", music: false } };
+      await renderHome();
+      // A save still carries the stored choice, for when the flag comes back.
+      openSection(/Cleanup/);
+      fireEvent.click(screen.getByRole("switch", { name: /Remove filler words/ }));
+      await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
+      expect(settingsSaves[settingsSaves.length - 1].createSettings).toMatchObject({
+        captionTemplate: "slam", editStyle: { intensity: "bold", music: false },
+      });
+
+      fireEvent.change(urlInput(), { target: { value: LINK } });
+      const body = await submit("Generate clips");
+      expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+      expect(body.caption_template).toBe("mrbeast");
+    });
+  }
+
+  it("keeps the two cleanup switches up front and the fine print behind More options", async () => {
+    await renderWithEdits();
+    openSection(/Cleanup/);
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    expect(screen.queryByLabelText("Pause threshold (ms)")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    fireEvent.change(screen.getByLabelText("Pause threshold (ms)"), { target: { value: "800" } });
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(body.pause_threshold_ms).toBe(800);
+  });
+
+  it("saves the edit style and brings it back", async () => {
+    await renderWithEdits();
+    openSection(/Edits/);
+    pick(/Max/);
+    fireEvent.click(screen.getByRole("button", { name: "Fine-tune" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Sound effects" }));
+    await waitFor(() => expect(settingsSaves.length).toBeGreaterThan(0), { timeout: 2000 });
+    expect(settingsSaves[settingsSaves.length - 1].createSettings.editStyle).toEqual({ intensity: "max", sfx: false });
+
+    cleanup();
+    settingsSaves = [];
+    created = [];
+    savedCreateSettings = { editStyle: { intensity: "subtle", progress_bar: true } };
+    await renderWithEdits();
+    openSection(/Edits/);
+    expect(screen.getByRole("radio", { name: /Subtle/ })).toHaveAttribute("aria-checked", "true");
+    // The folded row says one thing is changed; opened, it is the progress bar.
+    expect(screen.getByRole("button", { name: /Fine-tune/ })).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("button", { name: /Fine-tune/ }));
+    expect(screen.getByRole("switch", { name: "Progress bar" })).toBeChecked();
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "subtle", progress_bar: true });
+  });
+
+  it("holds Generate until it knows whether saved edits can be sent", async () => {
+    let settle: (response: Response) => void = () => {};
+    editStylesResponse = () => new Promise<Response>((resolve) => { settle = resolve; });
+    savedCreateSettings = { editStyle: { intensity: "bold" } };
+    await renderHome();
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    expect(screen.getByRole("button", { name: "Generate clips" })).toBeDisabled();
+    await act(async () => { settle(Response.json(editStylesInfo)); });
+    expect((await submit("Generate clips")).edit_style).toEqual({ intensity: "bold" });
+  });
+
+  it("opens the settings menu on the section a tour step talks about, and closes it after", async () => {
+    await renderWithEdits();
+    expect(screen.queryByRole("tablist", { name: "Settings" })).not.toBeInTheDocument();
+    act(() => tour.props?.onSettingsSection?.("edits"));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Edits/ })).toHaveAttribute("aria-selected", "true"));
+    expect(document.querySelector('[data-tour="edit-intensity"]')).not.toBeNull();
+    // Idempotent: asking again for another section keeps the menu open and switches.
+    act(() => tour.props?.onSettingsSection?.("captions"));
+    await waitFor(() => expect(document.querySelector('[data-tour="caption-styles"]')).not.toBeNull());
+    act(() => tour.props?.onEnd?.());
+    await waitFor(() => expect(screen.queryByRole("tablist", { name: "Settings" })).not.toBeInTheDocument());
   });
 });

@@ -94,3 +94,25 @@ it("rejects a malformed storage redirect", async () => {
   vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: "file:///private" } }));
   expect((await GET(new Request("https://app.example/"), context())).status).toBe(502);
 });
+
+it("streams the dynamic-edit matte same-origin, so the preview can read its pixels", async () => {
+  const matte = ["task", "clips", "clip", "editor", "media", "matte.mp4"];
+  vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: signed } }));
+  const storageFetch = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2]), { status: 200, headers: { "Content-Type": "video/mp4" } }));
+  vi.stubGlobal("fetch", storageFetch);
+  const request = new Request("https://app.example/api/tasks/" + matte.join("/") + "?v=m1");
+  const response = await GET(request, context(matte));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("location")).toBeNull();
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  expect(storageFetch).toHaveBeenCalledWith(signed, expect.objectContaining({ credentials: "omit" }));
+  expect(vi.mocked(fetchBackend).mock.calls[0][0]).toBe("/tasks/" + matte.join("/") + "?v=m1");
+});
+
+it("keeps redirects for editor files outside the media allowlist", async () => {
+  vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 307, headers: { Location: signed } }));
+  const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+  const response = await GET(new Request("https://app.example/"), context(["task", "clips", "clip", "editor", "media", "other.mp4"]));
+  expect(response.status).toBe(307);
+  expect(fetch).not.toHaveBeenCalled();
+});

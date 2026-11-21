@@ -1,0 +1,51 @@
+{
+  "family": "groups",
+  "case": "pause_just_under",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.38,
+        "text": "we"
+      },
+      {
+        "start": 0.46,
+        "end": 0.7,
+        "text": "went"
+      },
+      {
+        "start": 0.94,
+        "end": 1.12,
+        "text": "to"
+      },
+      {
+        "start": 1.2,
+        "end": 1.41,
+        "text": "the"
+      },
+      {
+        "start": 1.49,
+        "end": 1.79,
+        "text": "market"
+      }
+    ],
+    "max_words": 4
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 3,
+      "start": 0.2,
+      "end": 1.49,
+      "text": "we went to the"
+    },
+    {
+      "first": 4,
+      "last": 4,
+      "start": 1.49,
+      "end": 1.8900000000000001,
+      "text": "market"
+    }
+  ]
+}

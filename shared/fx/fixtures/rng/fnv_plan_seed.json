@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_plan_seed",
+  "fn": "fnv1a32",
+  "input": {
+    "text": "task-123|4|fx-v1"
+  },
+  "expected": 1588327881
+}

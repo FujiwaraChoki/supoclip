@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_empty",
+  "fn": "censor_text",
+  "input": {
+    "text": ""
+  },
+  "expected": ""
+}

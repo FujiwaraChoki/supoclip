@@ -17,6 +17,10 @@ If you are new to the project, start here:
   - Local development commands
   - First-run checklist
   - Production-minded setup notes
+- [Dynamic edits](./dynamic-edits.md)
+  - Animated caption styles, sound effects, music, zooms and the rest
+  - Intensity budgets, settings, the FX render chain, assets and drop-ins
+  - Rollout, fallbacks and troubleshooting
 - [Video workers on other machines](./render-worker.md)
 - [Autoscaling render workers](./autoscaling.md)
   - What is shared (PostgreSQL, Redis, the bucket) and what is local scratch

@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "片段清理",
   "cleanupBody": "渲染时收紧空白，并切掉填充音。",
+  "cleanupMore": "更多选项",
   "shortenPauses": "缩短长停顿",
   "shortenPausesHint": "把长于这个时间的静音剪到一次短呼吸",
   "pauseThreshold": "停顿阈值（毫秒）",
-  "milliseconds": "毫秒",
   "removeFillers": "移除填充词",
   "removeFillersHint": "“嗯”、“呃”、“啊”和类似的声音",
   "extraWords": "额外要剪掉的词或短语",
@@ -344,6 +344,143 @@
       "strict": "只要完全相符的主题",
       "relaxed": "允许",
       "question": "一个问题"
+    }
+  },
+  "edits": {
+    "section": "剪辑",
+    "title": "剪辑强度",
+    "body": "AI 标出关键时刻，你决定每一下有多猛。",
+    "intensity": {
+      "off": {
+        "label": "关闭",
+        "hint": "干净剪切，不加任何东西"
+      },
+      "subtle": {
+        "label": "轻微",
+        "hint": "偶尔重新取景，轻柔背景音乐"
+      },
+      "bold": {
+        "label": "强烈",
+        "hint": "关键时刻推近，切点配重击"
+      },
+      "max": {
+        "label": "极致",
+        "hint": "快速重新取景，更响的重击和音乐"
+      }
+    },
+    "offHint": "开启剪辑效果，在重要时刻加入重新取景、音效和音乐。",
+    "groups": {
+      "sound": "声音",
+      "motion": "动态",
+      "retention": "留住观众"
+    },
+    "options": {
+      "sfx": {
+        "label": "音效",
+        "hint": "切点和图形出现时的短促重击和弹出声"
+      },
+      "music": {
+        "label": "音乐",
+        "hint": "人声出现时自动压低的背景音乐"
+      },
+      "musicMood": "音乐风格",
+      "zooms": {
+        "label": "缩放",
+        "hint": "关键时刻重新取景和短推近"
+      },
+      "shake": {
+        "label": "镜头抖动",
+        "hint": "在最猛的时刻震一下"
+      },
+      "transitions": {
+        "label": "转场",
+        "hint": "片段切换处偶尔一闪"
+      },
+      "speed": {
+        "label": "变速和定格",
+        "hint": "铺垫加速，揭晓前定格"
+      },
+      "censor": {
+        "label": "脏话",
+        "hint": "如何遮盖脏话"
+      },
+      "wait_for_it": {
+        "label": "“等一下”贴纸",
+        "hint": "预告即将到来的高潮"
+      },
+      "progress_bar": {
+        "label": "进度条",
+        "hint": "底部的一条细进度条"
+      },
+      "loop_ending": {
+        "label": "循环结尾",
+        "hint": "结尾渐变回开头，循环播放更顺滑"
+      },
+      "reactions": {
+        "label": "GIF 反应",
+        "hint": "在最好笑的时刻加一个反应 GIF"
+      }
+    },
+    "moods": {
+      "auto": "匹配视频",
+      "hype": "燃",
+      "chill": "轻松",
+      "dramatic": "戏剧",
+      "funny": "搞笑",
+      "inspiring": "励志",
+      "dark": "暗黑",
+      "aggressive": "激烈"
+    },
+    "censor": {
+      "off": "保持原样",
+      "bleep": "哔声",
+      "bleep_bar": "哔声并遮住嘴",
+      "bleep_pixelate": "哔声并给嘴打码"
+    },
+    "fineTune": "微调"
+  },
+  "animatedCaptions": {
+    "title": "动画",
+    "demoLine": "我们的 收入 在 短短 一年 里 增长了 300%",
+    "demoSticker": "不会吧！",
+    "needsFace": "画面中有人脸时效果最好",
+    "templates": {
+      "marker_circle": {
+        "name": "记号笔圈",
+        "description": "在关键词上手绘圆圈、下划线和箭头"
+      },
+      "emoji_drop": {
+        "name": "表情掉落",
+        "description": "文字随说话逐词出现，重要时刻下方出现表情"
+      },
+      "slam": {
+        "name": "重击",
+        "description": "巨大的关键词砸到屏幕上"
+      },
+      "behind_head": {
+        "name": "头后文字",
+        "description": "说话人身后出现一个巨大的词"
+      },
+      "stat_counter": {
+        "name": "数字计数",
+        "description": "说出的数字向上计数并盖章定格"
+      },
+      "kinetic_stack": {
+        "name": "动态堆叠",
+        "description": "开场钩子以粗体逐行堆叠"
+      },
+      "decode_glitch": {
+        "name": "解码故障",
+        "description": "字母乱码后逐个锁定"
+      },
+      "highlighter_swipe": {
+        "name": "荧光笔",
+        "description": "文字随说话逐词出现，关键词放进实色方框"
+      },
+      "face_doodles": {
+        "name": "脸部涂鸦",
+        "description": "跟随说话人脸部的闪光、恶魔角和箭头"
+      }
     }
   }
 }

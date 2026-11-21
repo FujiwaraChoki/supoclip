@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Clip-Bereinigung",
   "cleanupBody": "Kürzt Leerlauf und schneidet Fülllaute beim Rendern heraus.",
+  "cleanupMore": "Weitere Optionen",
   "shortenPauses": "Lange Pausen kürzen",
   "shortenPausesHint": "Kürzt Stille, die länger ist als das, auf einen kurzen Atemzug",
   "pauseThreshold": "Pausenschwelle (ms)",
-  "milliseconds": "Millisekunden",
   "removeFillers": "Füllwörter entfernen",
   "removeFillersHint": "„ähm“, „äh“, „hm“ und ähnliche Laute",
   "extraWords": "Weitere Wörter oder Sätze zum Schneiden",
@@ -344,6 +344,143 @@
       "strict": "Nur das genaue Thema",
       "relaxed": "Erlaubt",
       "question": "Eine Frage"
+    }
+  },
+  "edits": {
+    "section": "Schnitt",
+    "title": "Schnittintensität",
+    "body": "Die KI markiert die Momente, die zählen. Du bestimmst, wie hart jeder einschlägt.",
+    "intensity": {
+      "off": {
+        "label": "Aus",
+        "hint": "Saubere Schnitte, nichts dazu"
+      },
+      "subtle": {
+        "label": "Dezent",
+        "hint": "Ab und zu neu geschnitten, leise Musik"
+      },
+      "bold": {
+        "label": "Kräftig",
+        "hint": "Punch-ins an den wichtigen Stellen, Schläge auf Schnitten"
+      },
+      "max": {
+        "label": "Maximal",
+        "hint": "Schnelle Reframes, lautere Schläge und Musik"
+      }
+    },
+    "offHint": "Schalte Edits ein, um Reframes, Soundeffekte und Musik an den wichtigen Stellen hinzuzufügen.",
+    "groups": {
+      "sound": "Ton",
+      "motion": "Bewegung",
+      "retention": "Dranbleiben"
+    },
+    "options": {
+      "sfx": {
+        "label": "Soundeffekte",
+        "hint": "Kurze Schläge und Pops auf Schnitten und Grafiken"
+      },
+      "music": {
+        "label": "Musik",
+        "hint": "Ein Musikbett, das unter der Stimme leiser wird"
+      },
+      "musicMood": "Musikstimmung",
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reframes und kurze Zooms an den wichtigen Stellen"
+      },
+      "shake": {
+        "label": "Kamerawackler",
+        "hint": "Ein Ruck bei den härtesten Momenten"
+      },
+      "transitions": {
+        "label": "Übergänge",
+        "hint": "Selten ein Blitz, wo der Clip schneidet"
+      },
+      "speed": {
+        "label": "Tempowechsel und Standbilder",
+        "hint": "Aufbau beschleunigen, vor der Pointe einfrieren"
+      },
+      "censor": {
+        "label": "Fluchen",
+        "hint": "Wie Schimpfwörter verdeckt werden"
+      },
+      "wait_for_it": {
+        "label": "„Warte ab“-Sticker",
+        "hint": "Kündigt eine Pointe an, die noch kommt"
+      },
+      "progress_bar": {
+        "label": "Fortschrittsbalken",
+        "hint": "Ein dünner Balken am unteren Rand"
+      },
+      "loop_ending": {
+        "label": "Loop-Ende",
+        "hint": "Blendet das Ende in den Anfang, damit es nahtlos wiederholt"
+      },
+      "reactions": {
+        "label": "GIF-Reaktionen",
+        "hint": "Ein Reaktions-GIF bei den lustigsten Momenten"
+      }
+    },
+    "moods": {
+      "auto": "Passend zum Video",
+      "hype": "Energisch",
+      "chill": "Entspannt",
+      "dramatic": "Dramatisch",
+      "funny": "Lustig",
+      "inspiring": "Inspirierend",
+      "dark": "Düster",
+      "aggressive": "Aggressiv"
+    },
+    "censor": {
+      "off": "Unverändert lassen",
+      "bleep": "Piepen",
+      "bleep_bar": "Piepen und Mund abdecken",
+      "bleep_pixelate": "Piepen und Mund verpixeln"
+    },
+    "fineTune": "Feinabstimmung"
+  },
+  "animatedCaptions": {
+    "title": "Animiert",
+    "demoLine": "Unser Umsatz wuchs in nur einem Jahr um 300%",
+    "demoSticker": "Krass!",
+    "needsFace": "Am besten mit einem Gesicht vor der Kamera",
+    "templates": {
+      "marker_circle": {
+        "name": "Markerkreis",
+        "description": "Handgezeichnete Kreise, Unterstreichungen und Pfeile an den Schlüsselwörtern"
+      },
+      "emoji_drop": {
+        "name": "Emoji Drop",
+        "description": "Wörter erscheinen beim Sprechen, mit einem Emoji unter den großen Momenten"
+      },
+      "slam": {
+        "name": "Slam",
+        "description": "Riesige Schlüsselwörter knallen auf den Bildschirm"
+      },
+      "behind_head": {
+        "name": "Hinter dem Kopf",
+        "description": "Ein riesiges Wort erscheint hinter der sprechenden Person"
+      },
+      "stat_counter": {
+        "name": "Zähler",
+        "description": "Gesprochene Zahlen zählen hoch und rasten ein"
+      },
+      "kinetic_stack": {
+        "name": "Kinetischer Stapel",
+        "description": "Der Hook stapelt sich in fetten Zeilen"
+      },
+      "decode_glitch": {
+        "name": "Decode-Glitch",
+        "description": "Buchstaben mischen sich und rasten ein"
+      },
+      "highlighter_swipe": {
+        "name": "Textmarker",
+        "description": "Wörter erscheinen beim Sprechen; das Schlüsselwort steht in einem farbigen Kasten"
+      },
+      "face_doodles": {
+        "name": "Gesichtskritzeleien",
+        "description": "Funkeln, Hörner und Pfeile, die dem Gesicht folgen"
+      }
     }
   }
 }

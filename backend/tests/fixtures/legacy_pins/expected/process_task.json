@@ -1,0 +1,98 @@
+{
+  "create_single_clip|broll": {
+    "args": [
+      "/tmp/source.mp4",
+      {
+        "end": 10,
+        "start": 0
+      },
+      0,
+      "<CLIPS_DIR>",
+      "Poppins-ExtraBold",
+      40,
+      "#FFEEDD",
+      "hormozi",
+      "vertical",
+      true,
+      {
+        "cut_long_pauses": false,
+        "filtered_words": [],
+        "pause_threshold_ms": 1200,
+        "remove_filler_words": false
+      }
+    ],
+    "create_clip_kwargs": [
+      "clip_order",
+      "duration",
+      "end_time",
+      "engagement_score",
+      "file_path",
+      "filename",
+      "hook_score",
+      "hook_title",
+      "hook_type",
+      "reasoning",
+      "relevance_score",
+      "shareability_score",
+      "start_time",
+      "task_id",
+      "text",
+      "value_score",
+      "virality_score"
+    ],
+    "kwargs": {
+      "broll_session": "<BRollSession>",
+      "include_broll": true,
+      "max_clip_seconds": 60,
+      "max_short_side": null
+    }
+  },
+  "create_single_clip|plain": {
+    "args": [
+      "/tmp/source.mp4",
+      {
+        "end": 10,
+        "start": 0
+      },
+      0,
+      "<CLIPS_DIR>",
+      "Poppins-ExtraBold",
+      40,
+      "#FFEEDD",
+      "hormozi",
+      "vertical",
+      true,
+      {
+        "cut_long_pauses": false,
+        "filtered_words": [],
+        "pause_threshold_ms": 1200,
+        "remove_filler_words": false
+      }
+    ],
+    "create_clip_kwargs": [
+      "clip_order",
+      "duration",
+      "end_time",
+      "engagement_score",
+      "file_path",
+      "filename",
+      "hook_score",
+      "hook_title",
+      "hook_type",
+      "reasoning",
+      "relevance_score",
+      "shareability_score",
+      "start_time",
+      "task_id",
+      "text",
+      "value_score",
+      "virality_score"
+    ],
+    "kwargs": {
+      "broll_session": "<BRollSession>",
+      "include_broll": false,
+      "max_clip_seconds": 60,
+      "max_short_side": null
+    }
+  }
+}

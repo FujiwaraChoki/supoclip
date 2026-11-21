@@ -97,5 +97,37 @@
       "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Neu: Dynamische Edits",
+      "body": "Deine Clips lassen sich jetzt schneiden wie von den besten Kurzvideo-Editoren: animierte Untertitel, Reframes, Soundeffekte und Musik genau auf den Momenten, die zählen. Die KI findet diese Momente, du entscheidest, wie hart sie einschlagen."
+    },
+    "intensity": {
+      "title": "Wähle, wie stark es knallt",
+      "body": "<b>Dezent:</b> Untertitel mit Kontur, ab und zu ein Reframe und leise Musik, wie ein Podcast-Clip.\n<b>Kräftig:</b> Untertitel im Hormozi-Stil auf einer dunklen Pille, Wort für Wort, das Schlüsselwort in einer Box, dazu Zooms, die stehen bleiben.\n<b>Maximal:</b> fette Großbuchstaben mit Kontur, fast jede Zeile ein Reframe, lautere Schläge und ab und zu ein Blitz an einem Schnitt.\n<b>Aus</b> lässt Clips, wie sie sind."
+    },
+    "sound": {
+      "title": "Sound, Musik und Flüche",
+      "body": "Soundeffekte landen auf Schnitten und Momenten im Bild, nie auf bloßem Reden. Musik gibt es in sieben Stimmungen, von entspannt bis aggressiv: Lass sie auf „Passend zum Video“, dann wählt die KI eine passende, oder wähle selbst. Flüche werden überpiept und in den Untertiteln als f*** gezeigt. Sobald Edits an sind, gibt es für alles einen Schalter unter „Feinabstimmung“."
+    },
+    "captions": {
+      "title": "Animierte Untertitel-Stile",
+      "body": "Textmarker setzt das Schlüsselwort in eine Box, Emoji Drop zeigt ein Emoji unter dem, worüber gesprochen wird, und Hinter dem Kopf stellt ein riesiges Wort hinter die sprechende Person. Jeder Stil übernimmt den Look deiner Intensität und funktioniert auch allein, mit Edits aus."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Dynamische Edits im Studio",
+      "body": "Jeden Effekt eines Clips kannst du hier vor dem Export ändern, einzeln oder alle auf einmal."
+    },
+    "panel": {
+      "title": "Der Tab Edits",
+      "body": "Ändere Intensität, Musikstimmung oder Schalter für diesen Clip, lass die KI die Edits neu planen oder entferne alle. Die Liste zeigt jeden Moment, den die KI gewählt hat: Ein Klick springt dorthin. Jede Änderung lässt sich rückgängig machen."
+    },
+    "lane": {
+      "title": "Jeder Effekt auf der Timeline",
+      "body": "Jeder Zoom und jeder Sound ist hier ein Block, und die Musikspur zeigt die Musik unter der Stimme. Zieh einen Block, um ihn zu verschieben, doppelklicke, um ihn zu ändern, oder wähl ihn aus und drück Entf. Doppelklicke auf eine leere Stelle, um einen Sound hinzuzufügen."
+    }
+  },
   "skip": "Überspringen"
 }

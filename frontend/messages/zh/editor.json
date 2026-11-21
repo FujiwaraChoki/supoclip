@@ -49,7 +49,8 @@
     "framing": "构图",
     "broll": "B-roll",
     "audio": "音频",
-    "effects": "效果"
+    "effects": "效果",
+    "edits": "剪辑"
   },
   "inspector": {
     "tools": "编辑工具"
@@ -257,7 +258,13 @@
     "jobProgress": "{label}的导出进度",
     "download": "下载",
     "cancelJob": "取消{label}的导出",
-    "cancellationRequested": "已请求取消"
+    "cancellationRequested": "已请求取消",
+    "refusal": {
+      "warp": "变速和定格在服务器上渲染。请使用后台导出。",
+      "reaction": "反应 GIF 在服务器上渲染。请使用后台导出。",
+      "behind": "人物身后的文字在服务器上渲染。请使用后台导出。"
+    },
+    "editAudio": "音效和音乐"
   },
   "workspace": {
     "keepLocal": "草稿保留在本地。切换片段前请先保存。",
@@ -311,7 +318,7 @@
     "setIn": "设置入点",
     "setOut": "设置出点",
     "split": "在播放头处分割",
-    "removeBroll": "移除所选 B-roll",
+    "removeSelection": "移除所选 B-roll 或剪辑",
     "undo": "撤销",
     "redo": "重做",
     "save": "保存草稿",
@@ -402,5 +409,302 @@
     "backupsNothing": "没有可移除的内容。未保存的更改会保留到它们保存到你的账户为止。",
     "backupsBrowserNote": "清除此浏览器中 SupoClip 的网站数据也会删除这些副本并让你退出登录。请仅在所有打开的片段都显示“所有更改已保存”后再这样做。",
     "done": "完成"
+  },
+  "captionTemplates": {
+    "title": "模板",
+    "description": "决定字幕怎么动。下面的字体和颜色仍然生效。",
+    "classic": "经典",
+    "animated": "动态",
+    "animatedHint": "逐帧绘制，重点落在关键时刻。",
+    "names": {
+      "default": "默认",
+      "hormozi": "Hormozi",
+      "mrbeast": "MrBeast",
+      "minimal": "极简",
+      "tiktok": "TikTok",
+      "neon": "霓虹",
+      "podcast": "播客"
+    }
+  },
+  "fx": {
+    "title": "动态剪辑",
+    "description": "AI 标出关键时刻，强度决定每一下有多猛。",
+    "count": "{count, plural, other {# 处剪辑}}",
+    "dismiss": "关闭",
+    "applying": "正在应用…",
+    "planning": "正在阅读文字稿…",
+    "cancel": "取消",
+    "replan": "用 AI 重新规划",
+    "musicMood": "氛围",
+    "musicVolume": "音乐音量",
+    "duckDepth": "说话时压低",
+    "noMusicBed": "这个氛围暂时没有合适的曲目，换一个试试。",
+    "intensity": {
+      "label": "剪辑强度",
+      "off": "关闭",
+      "subtle": "轻微",
+      "bold": "强烈",
+      "max": "极致"
+    },
+    "intensityHint": {
+      "off": "不做自动剪辑。你自己加的剪辑会保留。",
+      "subtle": "偶尔重新取景，配轻柔背景音乐。",
+      "bold": "关键时刻推近，部分切点配重击。",
+      "max": "快速重新取景，更响的重击和音乐。"
+    },
+    "needsPlan": {
+      "title": "先规划这个片段",
+      "body": "AI 会阅读文字稿，标出剪辑落点的节拍。只需几秒，会用掉今天的一次规划。",
+      "action": "规划剪辑"
+    },
+    "errors": {
+      "notAvailable": "你的账户暂时还不能使用动态剪辑。",
+      "planLimit": "今天的规划次数已用完，明天再试。",
+      "planFailed": "规划失败，请重试。",
+      "workerUnavailable": "AI 服务没有响应，请重新规划。",
+      "invalidStyle": "不支持这种设置组合。",
+      "resolveFailed": "无法应用剪辑，请重试。",
+      "timeout": "规划用时太长，请重试。",
+      "changedMeanwhile": "草稿一直在变化，所以没有应用剪辑。请重试。"
+    },
+    "groups": {
+      "sound": "声音",
+      "music": "音乐",
+      "motion": "动作",
+      "retention": "留住观众"
+    },
+    "beats": {
+      "title": "节拍",
+      "description": "AI 标出的时刻。可以跳转、修改类型或删除，剪辑会随之调整。",
+      "jump": "跳到 {time} 的节拍",
+      "kind": "{time} 节拍的类型",
+      "delete": "删除 {time} 的节拍",
+      "kinds": {
+        "hook": "开场钩子",
+        "emphasis": "强调",
+        "number": "数字",
+        "punchline": "笑点",
+        "swear": "脏话",
+        "emotional_turn": "情绪转折",
+        "payoff": "揭晓",
+        "build": "铺垫"
+      }
+    },
+    "cue": {
+      "title": "选中的剪辑",
+      "at": "位于 {time}",
+      "user": "你添加的",
+      "auto": "AI 添加的",
+      "jump": "跳到这处剪辑",
+      "delete": "删除剪辑",
+      "close": "关闭",
+      "editHint": "修改 AI 的剪辑后，它就归你所有，重新规划时会保留。",
+      "variant": "样式",
+      "text": "文字",
+      "mode": "动作",
+      "scale": "缩放",
+      "anchor": "居中于",
+      "amount": "强度",
+      "style": "风格",
+      "sound": "声音",
+      "gain": "音量",
+      "tone": "哔声",
+      "cover": "遮住嘴",
+      "rate": "速度",
+      "hold": "时长",
+      "holdBudget": "这个片段的定格总共最多 {seconds} 秒。",
+      "label": "标签",
+      "waitForIt": "在揭晓前显示“等着看”贴纸。",
+      "query": "反应：{query}",
+      "modes": {
+        "punch": "急推",
+        "push": "推近",
+        "pull": "拉远"
+      },
+      "anchors": {
+        "face": "人脸",
+        "center": "画面中心"
+      },
+      "covers": {
+        "none": "不遮挡",
+        "bar": "黑条",
+        "pixelate": "打码"
+      }
+    },
+    "variants": {
+      "circle": "圈出",
+      "underline": "下划线",
+      "strike": "删除线",
+      "arrow": "箭头",
+      "highlight": "高亮",
+      "emoji": "表情",
+      "emoji_burst": "表情雨",
+      "slam": "重击",
+      "behind": "人物身后",
+      "counter": "计数器",
+      "sticker": "贴纸",
+      "decode": "解码",
+      "kinetic": "动感",
+      "doodle": "涂鸦"
+    },
+    "transitions": {
+      "whip": "甩镜",
+      "flash": "闪白",
+      "glitch": "故障",
+      "zoom_through": "穿越缩放",
+      "spin": "旋转",
+      "light_leak": "漏光"
+    },
+    "sounds": {
+      "whoosh": "嗖",
+      "impact": "撞击",
+      "pop": "啵",
+      "riser": "上升音",
+      "record_scratch": "唱片刮擦",
+      "boom": "轰",
+      "cash_register": "收银机",
+      "ticker": "滴答",
+      "slap": "拍打",
+      "stamp": "盖章",
+      "glitch": "故障音",
+      "tape_stop": "磁带停转"
+    },
+    "kinds": {
+      "accent": "字幕重点",
+      "zoom": "缩放",
+      "shake": "抖动",
+      "flash": "闪光",
+      "glitch": "故障",
+      "desaturate": "去色",
+      "transition": "转场",
+      "sfx": "音效",
+      "bleep": "哔声",
+      "speed": "变速",
+      "freeze": "定格",
+      "sticker": "贴纸",
+      "reaction": "反应图"
+    },
+    "face": {
+      "title": "人脸追踪",
+      "body": "缩放、涂鸦和嘴部遮挡会跟随说话人的脸。分析一次片段，它们就能落在正确位置。",
+      "action": "分析人脸",
+      "running": "分析中… 大约一分钟",
+      "ready": "人脸追踪已就绪。",
+      "readyReopen": "人脸追踪已就绪。导出已经在用；重新打开片段即可在预览中看到。",
+      "failed": "分析失败，请重试。"
+    },
+    "remove": {
+      "action": "移除所有剪辑",
+      "hint": "清除这个片段的所有剪辑、节拍、音乐和调色。撤销可以恢复。",
+      "done": "已移除剪辑。撤销可以恢复。"
+    },
+    "look": {
+      "title": "画面风格",
+      "description": "为整个片段加上调色和胶片颗粒。",
+      "grade": "调色",
+      "grain": "胶片颗粒",
+      "grades": {
+        "auto": "自动",
+        "none": "无",
+        "punchy": "浓烈",
+        "warm": "暖调",
+        "teal_orange": "青橙",
+        "noir": "黑白电影",
+        "vhs": "VHS",
+        "dream": "梦幻"
+      }
+    },
+    "options": {
+      "sfx": {
+        "label": "音效",
+        "hint": "切点和图形出现时的短促重击和弹出声"
+      },
+      "music": {
+        "label": "音乐",
+        "hint": "人声出现时自动压低的背景音乐"
+      },
+      "zooms": {
+        "label": "缩放",
+        "hint": "关键时刻重新取景和短推近"
+      },
+      "shake": {
+        "label": "镜头抖动",
+        "hint": "在最猛的时刻震一下"
+      },
+      "transitions": {
+        "label": "转场",
+        "hint": "片段切换处偶尔一闪"
+      },
+      "speed": {
+        "label": "变速和定格",
+        "hint": "铺垫加速，揭晓前定格"
+      },
+      "censor": {
+        "label": "脏话",
+        "hint": "如何遮盖脏话"
+      },
+      "wait_for_it": {
+        "label": "“等一下”贴纸",
+        "hint": "预告即将到来的高潮"
+      },
+      "progress_bar": {
+        "label": "进度条",
+        "hint": "底部的一条细进度条"
+      },
+      "loop_ending": {
+        "label": "循环结尾",
+        "hint": "结尾渐变回开头，循环播放更顺滑"
+      },
+      "reactions": {
+        "label": "GIF 反应",
+        "hint": "在最好笑的时刻加一个反应 GIF"
+      }
+    },
+    "censor": {
+      "off": "保持原样",
+      "bleep": "哔声",
+      "bleep_bar": "哔声并遮住嘴",
+      "bleep_pixelate": "哔声并给嘴打码"
+    },
+    "moods": {
+      "auto": "匹配视频",
+      "hype": "燃",
+      "chill": "轻松",
+      "dramatic": "戏剧",
+      "funny": "搞笑",
+      "inspiring": "励志",
+      "dark": "暗黑",
+      "aggressive": "激烈"
+    }
+  },
+  "fxTimeline": {
+    "fxLane": "剪辑",
+    "fxLaneAria": "动态剪辑轨道",
+    "musicLane": "音乐",
+    "musicLaneAria": "背景音乐和闪避",
+    "cueAria": "{time} 的{kind}",
+    "suppressedCueAria": "{time} 的{kind}，已移除",
+    "suppressed": "已移除的自动剪辑",
+    "suppressedHint": "你删除的自动剪辑在重新规划时不会回来",
+    "deleteCue": "删除剪辑",
+    "deleteCueHint": "按 Delete 或退格键移除选中的剪辑",
+    "dragHint": "拖动以移动",
+    "openHint": "双击打开",
+    "cueTitle": "{kind} · {time}。拖动以移动，双击打开。",
+    "addSound": "添加音效",
+    "addSoundHint": "双击轨道，在播放头处添加音效",
+    "pickSound": "选择音效",
+    "hold": "定格 {seconds} 秒",
+    "speed": "{rate}×",
+    "finalDuration": "成片 {duration}",
+    "finalDurationHint": "变速和定格之后的时长",
+    "duck": "说话时音乐压低 {db} dB",
+    "noMusic": "无音乐",
+    "families": {
+      "sound": "声音",
+      "picture": "画面",
+      "overlay": "叠加",
+      "time": "时间"
+    }
   }
 }

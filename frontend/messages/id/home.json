@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Pembersihan clip",
   "cleanupBody": "Rapatkan jeda kosong dan potong suara pengisi saat render.",
+  "cleanupMore": "Opsi lainnya",
   "shortenPauses": "Perpendek jeda panjang",
   "shortenPausesHint": "Potong keheningan yang lebih lama dari ini jadi napas pendek",
   "pauseThreshold": "Ambang jeda (md)",
-  "milliseconds": "milidetik",
   "removeFillers": "Hapus kata pengisi",
   "removeFillersHint": "“um”, “uh”, “erm”, dan suara serupa",
   "extraWords": "Kata atau frasa tambahan untuk dipotong",
@@ -344,6 +344,143 @@
       "strict": "Hanya topik yang persis",
       "relaxed": "Diizinkan",
       "question": "Sebuah pertanyaan"
+    }
+  },
+  "edits": {
+    "section": "Editan",
+    "title": "Intensitas editan",
+    "body": "AI menandai momen yang penting. Kamu yang pilih seberapa keras tiap momen menghantam.",
+    "intensity": {
+      "off": {
+        "label": "Mati",
+        "hint": "Potongan bersih, tanpa tambahan"
+      },
+      "subtle": {
+        "label": "Halus",
+        "hint": "Sesekali bingkai ulang, musik pelan"
+      },
+      "bold": {
+        "label": "Tegas",
+        "hint": "Punch-in di momen penting, hentakan di potongan"
+      },
+      "max": {
+        "label": "Maksimal",
+        "hint": "Bingkai ulang cepat, hentakan dan musik lebih keras"
+      }
+    },
+    "offHint": "Aktifkan edit untuk menambahkan bingkai ulang, efek suara, dan musik di momen yang penting.",
+    "groups": {
+      "sound": "Suara",
+      "motion": "Gerakan",
+      "retention": "Bikin terus menonton"
+    },
+    "options": {
+      "sfx": {
+        "label": "Efek suara",
+        "hint": "Hentakan dan pop singkat di potongan dan grafis"
+      },
+      "music": {
+        "label": "Musik",
+        "hint": "Musik latar yang mengecil saat suara bicara"
+      },
+      "musicMood": "Suasana musik",
+      "zooms": {
+        "label": "Zoom",
+        "hint": "Bingkai ulang dan zoom singkat di momen penting"
+      },
+      "shake": {
+        "label": "Guncangan kamera",
+        "hint": "Sentakan di momen paling keras"
+      },
+      "transitions": {
+        "label": "Transisi",
+        "hint": "Kilatan sesekali di tempat klip dipotong"
+      },
+      "speed": {
+        "label": "Ramp kecepatan dan freeze",
+        "hint": "Percepat bagian awal, bekukan sebelum klimaks"
+      },
+      "censor": {
+        "label": "Kata kasar",
+        "hint": "Cara kata kasar ditutupi"
+      },
+      "wait_for_it": {
+        "label": "Stiker “Tunggu dulu”",
+        "hint": "Memancing klimaks yang akan datang"
+      },
+      "progress_bar": {
+        "label": "Bilah progres",
+        "hint": "Bilah tipis di tepi bawah"
+      },
+      "loop_ending": {
+        "label": "Akhir berulang",
+        "hint": "Memudarkan akhir ke awal agar terulang mulus"
+      },
+      "reactions": {
+        "label": "Reaksi GIF",
+        "hint": "GIF reaksi di momen paling lucu"
+      }
+    },
+    "moods": {
+      "auto": "Sesuai video",
+      "hype": "Semangat",
+      "chill": "Santai",
+      "dramatic": "Dramatis",
+      "funny": "Lucu",
+      "inspiring": "Inspiratif",
+      "dark": "Gelap",
+      "aggressive": "Agresif"
+    },
+    "censor": {
+      "off": "Biarkan apa adanya",
+      "bleep": "Bip",
+      "bleep_bar": "Bip dan tutup mulut",
+      "bleep_pixelate": "Bip dan piksel mulut"
+    },
+    "fineTune": "Atur detail"
+  },
+  "animatedCaptions": {
+    "title": "Animasi",
+    "demoLine": "Seluruh omzet kami naik 300% hanya dalam setahun",
+    "demoSticker": "Masa sih!",
+    "needsFace": "Paling bagus dengan wajah di kamera",
+    "templates": {
+      "marker_circle": {
+        "name": "Lingkaran Spidol",
+        "description": "Lingkaran, garis bawah, dan panah coretan tangan di kata kunci"
+      },
+      "emoji_drop": {
+        "name": "Emoji Drop",
+        "description": "Kata muncul saat diucapkan, dengan emoji di bawah momen besar"
+      },
+      "slam": {
+        "name": "Hantam",
+        "description": "Kata kunci raksasa menghantam layar"
+      },
+      "behind_head": {
+        "name": "Di Belakang Kepala",
+        "description": "Satu kata raksasa muncul di belakang pembicara"
+      },
+      "stat_counter": {
+        "name": "Penghitung Angka",
+        "description": "Angka yang diucapkan naik lalu tercap di tempatnya"
+      },
+      "kinetic_stack": {
+        "name": "Tumpukan Kinetik",
+        "description": "Hook menumpuk di layar dalam baris tebal"
+      },
+      "decode_glitch": {
+        "name": "Glitch Dekode",
+        "description": "Huruf teracak lalu terkunci di tempatnya"
+      },
+      "highlighter_swipe": {
+        "name": "Stabilo",
+        "description": "Kata muncul saat diucapkan; kata kunci masuk ke kotak berwarna"
+      },
+      "face_doodles": {
+        "name": "Coretan Wajah",
+        "description": "Kilau, tanduk, dan panah yang mengikuti wajah pembicara"
+      }
     }
   }
 }

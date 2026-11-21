@@ -16,11 +16,13 @@ from arq.worker import func  # noqa: E402
 
 from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
+from ..edit_fx.env import edit_plan_timeout  # noqa: E402
 from .redis_settings import arq_redis_settings, on_arq_startup  # noqa: E402
 from ..services.ai_edit_service import (  # noqa: E402
     AI_EDIT_QUEUE,
     AI_EDIT_TIMEOUT_SECONDS,
     ai_edit_job,
+    edit_fx_plan_job,
 )
 
 configure_logging()
@@ -29,7 +31,12 @@ configure_logging()
 class AIWorkerSettings:
     config = Config()
     # One try: the browser shows the failure and the creator can resend.
-    functions = [func(ai_edit_job, timeout=AI_EDIT_TIMEOUT_SECONDS * 3, max_tries=1, keep_result=0)]
+    functions = [
+        func(ai_edit_job, timeout=AI_EDIT_TIMEOUT_SECONDS * 3, max_tries=1, keep_result=0),
+        # Dynamic edits: beat tagging for the studio. plan_beats bounds its own LLM call by
+        # EDIT_PLAN_TIMEOUT_SECONDS and falls back to heuristics, so this only guards a stuck job.
+        func(edit_fx_plan_job, timeout=edit_plan_timeout() * 2 + 30, max_tries=1, keep_result=0),
+    ]
     queue_name = AI_EDIT_QUEUE
     redis_settings = arq_redis_settings(config)
     on_startup = on_arq_startup

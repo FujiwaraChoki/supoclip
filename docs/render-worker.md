@@ -157,6 +157,66 @@ each machine's worker log to see what it processed.
 `GET /health/worker` reports that at least one video worker is alive; it does
 not say which.
 
+## Dynamic edits renderer (deno)
+
+Clips with dynamic edits are drawn by `src/fx_runtime/main.ts`, a deno program that
+sits between two ffmpeg processes. The image carries everything it needs:
+
+- **deno 2.9.8**, pinned by `ARG DENO_VERSION` in `backend/Dockerfile`. yt-dlp
+  uses the same binary.
+- **`@napi-rs/canvas` 0.1.80**, pinned by `src/fx_runtime/deno.lock` and
+  downloaded into `DENO_DIR` (`/root/.deno`) when the image is built. Renders
+  run with `--cached-only --frozen`, so a worker needs no network access to
+  draw. A machine running from a source checkout instead of the image runs
+  `cd backend/src/fx_runtime && deno install --frozen` once.
+- **The same `fx_library/` on every machine** when you add your own sounds or
+  music (`FX_LIBRARY_DIR`). The plan never depends on them, but the mix does:
+  machines with different libraries make the same clip sound different. Each
+  render logs a library fingerprint.
+
+Check a machine with:
+
+```sh
+docker compose -f deploy/render-worker/compose.yml exec worker \
+  sh -c 'cd src/fx_runtime && deno task selftest'
+```
+
+It prints one JSON line ending in `"ok":true` and exits 0. It needs no input
+and no network.
+
+The renderer's permissions are narrow. Besides the job's scratch directory,
+`src/fx_assets`, the fonts, `/usr/share/fonts` and `DENO_DIR`, it may read
+`/usr/bin/ldd` and the environment variables `NAPI_RS_NATIVE_LIBRARY_PATH`,
+`NAPI_RS_FORCE_WASI` and `DISABLE_SYSTEM_FONTS_LOAD`, and ask for the home
+directory: `@napi-rs/canvas` uses them to pick its native library and load the
+system fonts.
+
+`FX_RUNTIME=off` turns the deno stage off on a machine. Clips still render,
+with captions, sound effects, music and bleeps but without the drawn effects.
+
+Settings for a render worker:
+
+- Put the dynamic-edits variables (`FX_RUNTIME`, `FX_DENO_BIN`, `FX_WARP`,
+  `FX_RENDER_TIMEOUT_SECONDS`, `FX_LOUDNORM`, `FX_CHAIN_MODE`, `EDIT_PLAN_LLM`,
+  `EDIT_PLAN_TIMEOUT_SECONDS`, `EDIT_PLAN_DAILY_LIMIT`, `REACTIONS_PROVIDER`,
+  `GIPHY_API_KEY`) in the file `WORKER_ENV_FILE` names, with the API's values.
+  `deploy/render-worker/compose.yml` sets only `FX_LIBRARY_DIR`, so the file
+  stays in charge of the rest. See [configuration](configuration.md#dynamic-edits).
+- `WORKER_FX_LIBRARY_PATH` points the read-only `/app/fx_library` mount at this
+  machine's copy of the drop-in library (default `./fx_library`, empty is fine).
+  Keep it identical to the application host's `backend/fx_library`, for example
+  with rsync on deploy.
+- Each render runs three processes (ffmpeg, deno, ffmpeg); the worker's
+  `max_jobs` bounds how many run at once, still within the per-account render
+  slots.
+
+When dynamic edits ship, deploy in this order: the migration, then every video
+worker, render worker and the AI worker on the new image, then the API, then
+the frontend, and only then open the `dynamic_edits` flag. An older worker
+cannot run the new jobs (`fx_clip_job`, `editor_fx_analysis`,
+`edit_fx_plan_job`). Roll back flag first. More in
+[dynamic-edits.md](dynamic-edits.md#rollout).
+
 ## Per-account capacity on the hosted render server
 
 The hosted render server runs eight video-worker slots. Its production environment sets

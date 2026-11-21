@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_digits_first",
+  "fn": "censor_text",
+  "input": {
+    "text": "123abc"
+  },
+  "expected": "123a**"
+}

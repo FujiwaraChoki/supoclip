@@ -135,6 +135,8 @@ services:
       - clips:/app/clips
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
+      # Drop-in SFX and music beds (FX_LIBRARY_DIR); every render machine mounts the same library.
+      - ./backend/fx_library:/app/fx_library
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -278,6 +280,19 @@ services:
       - WORKFLOW_TOPIC_MAX_CLIPS=${WORKFLOW_TOPIC_MAX_CLIPS:-15}
       - WORKFLOW_PLAN_TIMEOUT_SECONDS=${WORKFLOW_PLAN_TIMEOUT_SECONDS:-1800}
       - WORKFLOW_FULL_CONTEXT_MAX_WORDS=${WORKFLOW_FULL_CONTEXT_MAX_WORDS:-}
+      # Dynamic edits (edit_fx/env.py is the only reader). FX_RUNTIME=off is the kill switch (FX render at level safe).
+      - EDIT_PLAN_LLM=${EDIT_PLAN_LLM:-}
+      - EDIT_PLAN_TIMEOUT_SECONDS=${EDIT_PLAN_TIMEOUT_SECONDS:-45}
+      - EDIT_PLAN_DAILY_LIMIT=${EDIT_PLAN_DAILY_LIMIT:-100}
+      - FX_RUNTIME=${FX_RUNTIME:-deno}
+      - FX_DENO_BIN=${FX_DENO_BIN:-deno}
+      - FX_WARP=${FX_WARP:-on}
+      - FX_RENDER_TIMEOUT_SECONDS=${FX_RENDER_TIMEOUT_SECONDS:-}
+      - FX_LIBRARY_DIR=${FX_LIBRARY_DIR:-/app/fx_library}
+      - FX_LOUDNORM=${FX_LOUDNORM:-static}
+      - FX_CHAIN_MODE=${FX_CHAIN_MODE:-pipe}
+      - REACTIONS_PROVIDER=${REACTIONS_PROVIDER:-off}
+      - GIPHY_API_KEY=${GIPHY_API_KEY:-}
       - DISCORD_SALES_WEBHOOK_URL=${DISCORD_SALES_WEBHOOK_URL}
     restart: unless-stopped
     extra_hosts:
@@ -345,6 +360,8 @@ services:
       - clips:/app/clips
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
+      # Drop-in SFX and music beds (FX_LIBRARY_DIR); every render machine mounts the same library.
+      - ./backend/fx_library:/app/fx_library
     environment: &worker-environment
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -485,6 +502,19 @@ services:
       - WORKFLOW_TOPIC_MAX_CLIPS=${WORKFLOW_TOPIC_MAX_CLIPS:-15}
       - WORKFLOW_PLAN_TIMEOUT_SECONDS=${WORKFLOW_PLAN_TIMEOUT_SECONDS:-1800}
       - WORKFLOW_FULL_CONTEXT_MAX_WORDS=${WORKFLOW_FULL_CONTEXT_MAX_WORDS:-}
+      # Dynamic edits (edit_fx/env.py is the only reader). FX_RUNTIME=off is the kill switch (FX render at level safe).
+      - EDIT_PLAN_LLM=${EDIT_PLAN_LLM:-}
+      - EDIT_PLAN_TIMEOUT_SECONDS=${EDIT_PLAN_TIMEOUT_SECONDS:-45}
+      - EDIT_PLAN_DAILY_LIMIT=${EDIT_PLAN_DAILY_LIMIT:-100}
+      - FX_RUNTIME=${FX_RUNTIME:-deno}
+      - FX_DENO_BIN=${FX_DENO_BIN:-deno}
+      - FX_WARP=${FX_WARP:-on}
+      - FX_RENDER_TIMEOUT_SECONDS=${FX_RENDER_TIMEOUT_SECONDS:-}
+      - FX_LIBRARY_DIR=${FX_LIBRARY_DIR:-/app/fx_library}
+      - FX_LOUDNORM=${FX_LOUDNORM:-static}
+      - FX_CHAIN_MODE=${FX_CHAIN_MODE:-pipe}
+      - REACTIONS_PROVIDER=${REACTIONS_PROVIDER:-off}
+      - GIPHY_API_KEY=${GIPHY_API_KEY:-}
       - VIDEO_JOB_USER_CONCURRENCY=${VIDEO_JOB_USER_CONCURRENCY:-1}
       - VIDEO_JOB_DEFER_SECONDS=${VIDEO_JOB_DEFER_SECONDS:-20}
       - UPLOAD_COPY_WAIT_SECONDS=${UPLOAD_COPY_WAIT_SECONDS:-1800}
@@ -530,6 +560,8 @@ services:
       - clips:/app/clips
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
+      # Drop-in SFX and music beds (FX_LIBRARY_DIR); every render machine mounts the same library.
+      - ./backend/fx_library:/app/fx_library
     environment: *worker-environment
     restart: unless-stopped
     depends_on:

@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_cyrillic",
+  "fn": "censor_text",
+  "input": {
+    "text": "блядь"
+  },
+  "expected": "б****"
+}

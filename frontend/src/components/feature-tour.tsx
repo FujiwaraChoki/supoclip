@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { celebrate } from "@/lib/confetti";
 import { track } from "@/lib/datafast";
-import { crossesPages, dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourStep } from "@/lib/feature-tours";
+import { crossesPages, dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourFlag, type TourStep } from "@/lib/feature-tours";
 import type { Workflow } from "@/lib/workflows";
 import { WorkflowGlyph } from "@/components/workflow-picker";
 
@@ -111,6 +111,20 @@ function seenOnDevice(): string[] {
 
 function record(id: string, event: "shown" | "completed" | "dismissed", step?: number) {
   void fetch("/api/feature-tours", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, event, step }), keepalive: true }).catch(() => {});
+}
+
+const richText = { b: (chunks: ReactNode) => <strong className="font-semibold text-foreground">{chunks}</strong> };
+
+/** Ways the page can bring a hidden target on screen (a closed settings menu, another inspector tab). */
+type Openers = {
+  onSettingsSection?: (id: string) => void;
+  onInspectorTab?: (id: string) => void;
+};
+
+/** A step the tour can show: its target is on the page, or the page can open where it lives. */
+function reachable(step: TourStep, openers: Openers): boolean {
+  if (targetOf(step)) return true;
+  return Boolean((step.settingsSection && openers.onSettingsSection) || (step.inspectorTab && openers.onInspectorTab));
 }
 
 /** The first visible, enabled element for this step: the sidebar and the mobile tab bar can carry the same target. */
@@ -219,7 +233,7 @@ function AnnouncementMedia({ media, variantsUrl }: { media: Media; /** Previews 
  * Mounted by the app shell on every signed-in page. A tour only starts on the create screen; a tour
  * that crosses pages hands itself to the next page's host through session storage.
  */
-export function FeatureTourHost({ enabled, pathname, navigate, canStart = false, busy = false, onWorkflow, onEnd }: {
+export function FeatureTourHost({ enabled, pathname, navigate, canStart = false, busy = false, onWorkflow, onEnd, onSettingsSection, onInspectorTab }: {
   enabled: boolean;
   /** The page this host is on. */
   pathname: string;
@@ -233,9 +247,17 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
   onWorkflow?: (workflow: Workflow) => void;
   /** The tour is over: put back what it changed. */
   onEnd?: () => void;
+  /** Open this settings section (a step's `settingsSection`) before its target is measured. Must be idempotent. */
+  onSettingsSection?: (id: string) => void;
+  /** Open this inspector tab (a step's `inspectorTab`) before its target is measured. Must be idempotent. */
+  onInspectorTab?: (id: string) => void;
 }) {
   const t = useTranslations("tours");
   const [account, setAccount] = useState<{ createdAt: string; seen: string[] } | null>(null);
+  // Flags a tour can wait for; null until asked (a failure reads as every flag off).
+  const [flags, setFlags] = useState<Partial<Record<TourFlag, boolean>> | null>(null);
+  const openers = useRef<Openers>({ onSettingsSection, onInspectorTab });
+  useEffect(() => { openers.current = { onSettingsSection, onInspectorTab }; }, [onSettingsSection, onInspectorTab]);
   const [running, setRunning] = useState<Running | null>(null);
   const [index, setIndex] = useState(0);
   const [target, setTarget] = useState<HTMLElement | null>(null);
@@ -253,6 +275,13 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
   const runningRef = useRef(running);
   const indexRef = useRef(index);
   useEffect(() => { runningRef.current = running; indexRef.current = index; }, [running, index]);
+
+  // Marks the page while a tour runs.
+  useEffect(() => {
+    if (!running) return;
+    document.body.setAttribute("data-feature-tour", running.tour.id);
+    return () => document.body.removeAttribute("data-feature-tour");
+  }, [running]);
 
   const end = useCallback((how: "completed" | "dismissed", restore = true) => {
     const current = runningRef.current;
@@ -308,26 +337,42 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => { if (!cancelled && data) setAccount({ createdAt: data.createdAt, seen: Array.isArray(data.seen) ? data.seen : [] }); })
       .catch(() => {});
+    void fetch("/api/feature-flags", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        // `{"platform", "flags": {key: bool}}`: only an explicit true turns a flag on.
+        const source: unknown = data?.flags;
+        const known: Partial<Record<TourFlag, boolean>> = {};
+        if (source && typeof source === "object") for (const [key, value] of Object.entries(source)) if (value === true) known[key as TourFlag] = true;
+        setFlags(known);
+      })
+      .catch(() => { if (!cancelled) setFlags({}); });
     return () => { cancelled = true; };
   }, [enabled, canStart]);
 
   useEffect(() => {
-    if (!account || !canStart || busy || started.current) return;
+    if (!account || !flags || !canStart || busy || started.current) return;
     const timer = setTimeout(() => {
       if (started.current) return;
       const preview = requestedTour();
       const recent = Date.now() - Number(readLocal(LAST_SHOWN_KEY) ?? 0) < TOUR_COOLDOWN_MS;
       if (!preview && recent) return;
-      const candidates = preview ? [preview] : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]);
+      const candidates = preview
+        ? [preview]
+        // A gated feature's tour waits until the feature is on for this account.
+        : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]).filter((tour) => !tour.requiresFlag || flags[tour.requiresFlag] === true);
       // A tour with nothing to show waits: its feature may not be open to this account yet.
       for (const tour of candidates) {
-        const here = tour.steps.filter((step) => onPage(step, pathname) && targetOf(step));
+        const here = tour.steps.filter((step) => onPage(step, pathname) && reachable(step, openers.current));
         if (!here.some((step) => !step.intro)) continue;
         // Without its opening there's no feature to introduce yet: save it, don't spend it on the leftovers.
         if (tour.steps.some((step) => step.intro) && !here.some((step) => step.intro)) continue;
-        started.current = true;
         // A tour across pages keeps the steps for other pages: those are looked for when it gets there.
         const steps = crossesPages(tour) ? tour.steps.filter((step) => (!onPage(step, pathname) || here.includes(step)) && requirementMet(step)) : here;
+        // An opener only promises a later step; the first one must be on the page, or the tour would be spent showing nothing.
+        if (!steps[0] || (onPage(steps[0], pathname) && !targetOf(steps[0]))) continue;
+        started.current = true;
         setRunning({ tour, steps, preview: Boolean(preview) });
         setIndex(0);
         if (!preview) {
@@ -340,7 +385,7 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
       }
     }, START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [account, busy, canStart, pathname]);
+  }, [account, flags, busy, canStart, pathname]);
 
   useEffect(() => {
     // They started working: keep what they have selected.
@@ -361,6 +406,14 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
   }, [pathname, end]);
 
   const step = running?.steps[index];
+  // While a step points into the settings menu, the menu stays open under it (composer-settings). Other steps and
+  // other tours leave it alone: a click outside closes it as always.
+  const inSettingsMenu = Boolean(step?.settingsSection);
+  useEffect(() => {
+    if (!inSettingsMenu) return;
+    document.body.setAttribute("data-feature-tour-settings", "");
+    return () => document.body.removeAttribute("data-feature-tour-settings");
+  }, [inSettingsMenu]);
   useEffect(() => {
     if (step?.workflow) onWorkflow?.(step.workflow);
   }, [step, onWorkflow]);
@@ -393,12 +446,29 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
     // Pages load their content after they appear: give the target a moment.
     const waitUntil = arrivedAt.current + TARGET_WAIT_MS;
     let timer: ReturnType<typeof setTimeout>;
+    // A target in a closed settings menu or another inspector tab: ask the page to open it (idempotent), and again
+    // while it is missing. A menu can close under the tour; then the card hides and the target is looked for anew.
+    const open = () => {
+      if (step.settingsSection) openers.current.onSettingsSection?.(step.settingsSection);
+      if (step.inspectorTab) openers.current.onInspectorTab?.(step.inspectorTab);
+    };
+    const opens = Boolean(step.settingsSection || step.inspectorTab);
+    let lostAt: number | null = null;
     const look = () => {
       const found = targetOf(step);
-      if (found) { setTarget(found); return; }
-      if (Date.now() >= waitUntil) { pass(); return; }
+      if (found) {
+        lostAt = null;
+        setTarget((current) => (current === found ? current : found));
+        if (opens) timer = setTimeout(look, 250);
+        return;
+      }
+      setTarget(null);
+      if (opens) open();
+      lostAt ??= Date.now();
+      if (Date.now() >= Math.max(waitUntil, lostAt + TARGET_WAIT_MS)) { pass(); return; }
       timer = setTimeout(look, 120);
     };
+    if (opens && !step.intro) open();
     look();
     return () => clearTimeout(timer);
   }, [running, step, index, pathname, navigate, pass]);
@@ -472,7 +542,8 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
         >
           {step.workflow && <WorkflowGlyph id={step.workflow} className="mb-3" />}
           <p className="text-sm font-semibold">{t(`${keys}.title`)}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t(`${keys}.body`)}</p>
+          {/* Copy may set terms in <b> and put items on their own lines. */}
+          <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{t.rich(`${keys}.body`, richText)}</p>
           <div className="mt-3 flex items-center justify-between gap-2">
               {/* Always a quiet way out, without competing with Next. */}
               <button type="button" onClick={() => end("dismissed")} className="-ml-1 rounded-md px-1 py-1 text-xs text-muted-foreground/70 transition-colors hover:text-foreground">{t("skip")}</button>

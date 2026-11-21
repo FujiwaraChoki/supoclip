@@ -285,5 +285,25 @@
       "bumps": "路上有点小颠簸，我们正在处理，再给我们一点时间。",
       "slower": "这次的节奏比平时慢一点，我们还在继续努力。"
     }
+  },
+  "fx": {
+    "title": "剪辑",
+    "intensity": "剪辑强度",
+    "intensityHint": "剪辑效果有多猛。修改后会重新渲染所有片段。",
+    "rendering": "正在渲染剪辑…",
+    "queued": "正在重新渲染你的片段，可能需要几分钟；你可以离开此页面。",
+    "applied": "剪辑已应用",
+    "jobFailed": "无法应用剪辑：{message}",
+    "jobErrors": {
+      "WORKER_UNAVAILABLE": "没有渲染器接手这项任务，请过几分钟再试。",
+      "WORKER_STOPPED": "渲染器在剪辑完成前停止了。",
+      "CLIP_JOB_TIMEOUT": "渲染耗时过长。"
+    },
+    "jobInProgress": "重新渲染已在进行中，完成后你的剪辑会自动更新。",
+    "jobUnreachable": "无法获取重新渲染的状态，它可能仍在进行。",
+    "jobDenied": "你已无权查看这次重新渲染。请重新登录并刷新页面。",
+    "retry": "重试",
+    "approxTiming": "该视频没有逐字时间，字幕和效果使用近似时间。",
+    "simplified": "此片段的部分效果已简化。"
   }
 }

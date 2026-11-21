@@ -1,0 +1,1315 @@
+{
+ "name": "story",
+ "seed": 1407221113,
+ "sfx_variants": {
+  "whoosh": 6,
+  "impact": 7,
+  "pop": 6,
+  "riser": 8,
+  "record_scratch": 6,
+  "boom": 6,
+  "cash_register": 5,
+  "ticker": 6,
+  "slap": 6,
+  "stamp": 6,
+  "glitch": 6,
+  "tape_stop": 6
+ },
+ "beds": {
+  "aggressive": [
+   "aggressive-all-money-talk",
+   "aggressive-dragon",
+   "aggressive-goat-drill",
+   "aggressive-hard-mode",
+   "aggressive-its-a-trap",
+   "aggressive-putrid",
+   "aggressive-random",
+   "aggressive-tlc"
+  ],
+  "chill": [
+   "chill-keeping-cool",
+   "chill-lofi-keys-loop",
+   "chill-making-up",
+   "chill-night-club-chill",
+   "chill-rainy-forest",
+   "chill-sense-of-purpose",
+   "chill-something-in-the-air",
+   "chill-unwind"
+  ],
+  "dark": [
+   "dark-abducted",
+   "dark-cinematic-dread",
+   "dark-dark-shrine",
+   "dark-edge-of-space",
+   "dark-ghost-house",
+   "dark-machine",
+   "dark-not-to-notice"
+  ],
+  "dramatic": [
+   "dramatic-ai-fight",
+   "dramatic-crime",
+   "dramatic-end-of-hope",
+   "dramatic-moonlight-cyberpunk",
+   "dramatic-night-prowler",
+   "dramatic-space-chase",
+   "dramatic-war-room"
+  ],
+  "funny": [
+   "funny-bouncy-hamster",
+   "funny-happy-band",
+   "funny-in-the-restaurant",
+   "funny-quirky-march",
+   "funny-quirky-pizzicato",
+   "funny-ragtime-getdown",
+   "funny-ukulele",
+   "funny-whistle"
+  ],
+  "hype": [
+   "hype-last-energy",
+   "hype-live-4-me",
+   "hype-love-love-love",
+   "hype-mirror-of-the-week",
+   "hype-platinum-trap",
+   "hype-tent",
+   "hype-tribal-bass",
+   "hype-ultimate-rainbow"
+  ],
+  "inspiring": [
+   "inspiring-drops",
+   "inspiring-emotional-piano",
+   "inspiring-finding-yourself",
+   "inspiring-hope-on-repeat",
+   "inspiring-perspire",
+   "inspiring-sweet-sun",
+   "inspiring-timelines"
+  ]
+ },
+ "bed_lengths": {
+  "aggressive-all-money-talk": 24.0,
+  "aggressive-dragon": 23.272729,
+  "aggressive-goat-drill": 27.042271,
+  "aggressive-hard-mode": 102.4,
+  "aggressive-its-a-trap": 51.692312,
+  "aggressive-putrid": 25.6,
+  "aggressive-random": 27.428729,
+  "aggressive-tlc": 25.6,
+  "chill-keeping-cool": 67.761104,
+  "chill-lofi-keys-loop": 97.216063,
+  "chill-making-up": 82.285729,
+  "chill-night-club-chill": 64.799979,
+  "chill-rainy-forest": 57.600083,
+  "chill-sense-of-purpose": 72.0,
+  "chill-something-in-the-air": 60.0,
+  "chill-unwind": 80.842104,
+  "dark-abducted": 121.263146,
+  "dark-cinematic-dread": 53.0,
+  "dark-dark-shrine": 44.5,
+  "dark-edge-of-space": 99.75,
+  "dark-ghost-house": 82.25,
+  "dark-machine": 63.850229,
+  "dark-not-to-notice": 71.0,
+  "dramatic-ai-fight": 128.000188,
+  "dramatic-crime": 76.798187,
+  "dramatic-end-of-hope": 72.0,
+  "dramatic-moonlight-cyberpunk": 106.666479,
+  "dramatic-night-prowler": 87.270771,
+  "dramatic-space-chase": 143.999542,
+  "dramatic-war-room": 88.615375,
+  "funny-bouncy-hamster": 44.538396,
+  "funny-happy-band": 63.999563,
+  "funny-in-the-restaurant": 117.333333,
+  "funny-quirky-march": 64.031188,
+  "funny-quirky-pizzicato": 118.165583,
+  "funny-ragtime-getdown": 58.181812,
+  "funny-ukulele": 61.345208,
+  "funny-whistle": 63.997604,
+  "hype-last-energy": 114.285583,
+  "hype-live-4-me": 25.600021,
+  "hype-love-love-love": 133.565208,
+  "hype-mirror-of-the-week": 122.88,
+  "hype-platinum-trap": 22.588229,
+  "hype-tent": 107.520021,
+  "hype-tribal-bass": 44.305854,
+  "hype-ultimate-rainbow": 63.997479,
+  "inspiring-drops": 68.571271,
+  "inspiring-emotional-piano": 27.835146,
+  "inspiring-finding-yourself": 141.473688,
+  "inspiring-hope-on-repeat": 135.529417,
+  "inspiring-perspire": 31.998396,
+  "inspiring-sweet-sun": 69.81825,
+  "inspiring-timelines": 128.0
+ },
+ "reactions_available": true,
+ "max_clip_seconds": 90.0,
+ "broll_windows": [],
+ "user_cues": [],
+ "suppressed": [],
+ "words": [
+  {
+   "id": "w0",
+   "start": 0.2,
+   "end": 0.435,
+   "text": "I",
+   "src_start": 3600.0,
+   "src_end": 3600.235
+  },
+  {
+   "id": "w1",
+   "start": 0.515,
+   "end": 0.82,
+   "text": "was",
+   "src_start": 3600.315,
+   "src_end": 3600.62
+  },
+  {
+   "id": "w2",
+   "start": 0.9,
+   "end": 1.345,
+   "text": "sixteen",
+   "src_start": 3600.7,
+   "src_end": 3601.145
+  },
+  {
+   "id": "w3",
+   "start": 1.425,
+   "end": 1.765,
+   "text": "when",
+   "src_start": 3601.225,
+   "src_end": 3601.565
+  },
+  {
+   "id": "w4",
+   "start": 1.845,
+   "end": 2.115,
+   "text": "my",
+   "src_start": 3601.645,
+   "src_end": 3601.915
+  },
+  {
+   "id": "w5",
+   "start": 2.195,
+   "end": 2.5,
+   "text": "dad",
+   "src_start": 3601.995,
+   "src_end": 3602.3
+  },
+  {
+   "id": "w6",
+   "start": 2.58,
+   "end": 2.955,
+   "text": "left.",
+   "src_start": 3602.38,
+   "src_end": 3602.755
+  },
+  {
+   "id": "w7",
+   "start": 3.355,
+   "end": 3.625,
+   "text": "No",
+   "src_start": 3604.055,
+   "src_end": 3604.325
+  },
+  {
+   "id": "w8",
+   "start": 3.705,
+   "end": 4.08,
+   "text": "note,",
+   "src_start": 3604.405,
+   "src_end": 3604.78
+  },
+  {
+   "id": "w9",
+   "start": 4.16,
+   "end": 4.43,
+   "text": "no",
+   "src_start": 3604.86,
+   "src_end": 3605.13
+  },
+  {
+   "id": "w10",
+   "start": 4.51,
+   "end": 4.885,
+   "text": "call,",
+   "src_start": 3605.21,
+   "src_end": 3605.585
+  },
+  {
+   "id": "w11",
+   "start": 4.965,
+   "end": 5.445,
+   "text": "nothing.",
+   "src_start": 3605.665,
+   "src_end": 3606.145
+  },
+  {
+   "id": "w12",
+   "start": 6.345,
+   "end": 6.65,
+   "text": "For",
+   "src_start": 3607.045,
+   "src_end": 3607.35
+  },
+  {
+   "id": "w13",
+   "start": 6.73,
+   "end": 7.035,
+   "text": "ten",
+   "src_start": 3607.43,
+   "src_end": 3607.735
+  },
+  {
+   "id": "w14",
+   "start": 7.115,
+   "end": 7.49,
+   "text": "years",
+   "src_start": 3607.815,
+   "src_end": 3608.19
+  },
+  {
+   "id": "w15",
+   "start": 7.57,
+   "end": 7.805,
+   "text": "I",
+   "src_start": 3608.27,
+   "src_end": 3608.505
+  },
+  {
+   "id": "w16",
+   "start": 7.885,
+   "end": 8.225,
+   "text": "told",
+   "src_start": 3608.585,
+   "src_end": 3608.925
+  },
+  {
+   "id": "w17",
+   "start": 8.305,
+   "end": 8.715,
+   "text": "myself",
+   "src_start": 3609.005,
+   "src_end": 3609.415
+  },
+  {
+   "id": "w18",
+   "start": 8.795,
+   "end": 9.03,
+   "text": "I",
+   "src_start": 3609.495,
+   "src_end": 3609.73
+  },
+  {
+   "id": "w19",
+   "start": 9.11,
+   "end": 9.52,
+   "text": "didn't",
+   "src_start": 3609.81,
+   "src_end": 3610.22
+  },
+  {
+   "id": "w20",
+   "start": 9.6,
+   "end": 9.975,
+   "text": "care.",
+   "src_start": 3610.3,
+   "src_end": 3610.675
+  },
+  {
+   "id": "w21",
+   "start": 10.405,
+   "end": 10.71,
+   "text": "But",
+   "src_start": 3611.525,
+   "src_end": 3611.83
+  },
+  {
+   "id": "w22",
+   "start": 10.79,
+   "end": 11.165,
+   "text": "every",
+   "src_start": 3611.91,
+   "src_end": 3612.285
+  },
+  {
+   "id": "w23",
+   "start": 11.245,
+   "end": 11.725,
+   "text": "birthday",
+   "src_start": 3612.365,
+   "src_end": 3612.845
+  },
+  {
+   "id": "w24",
+   "start": 11.805,
+   "end": 12.04,
+   "text": "I",
+   "src_start": 3612.925,
+   "src_end": 3613.16
+  },
+  {
+   "id": "w25",
+   "start": 12.12,
+   "end": 12.565,
+   "text": "checked",
+   "src_start": 3613.24,
+   "src_end": 3613.685
+  },
+  {
+   "id": "w26",
+   "start": 12.645,
+   "end": 12.95,
+   "text": "the",
+   "src_start": 3613.765,
+   "src_end": 3614.07
+  },
+  {
+   "id": "w27",
+   "start": 13.03,
+   "end": 13.51,
+   "text": "mailbox.",
+   "src_start": 3614.15,
+   "src_end": 3614.63
+  },
+  {
+   "id": "w28",
+   "start": 13.91,
+   "end": 14.25,
+   "text": "Then",
+   "src_start": 3618.23,
+   "src_end": 3618.57
+  },
+  {
+   "id": "w29",
+   "start": 14.33,
+   "end": 14.67,
+   "text": "last",
+   "src_start": 3618.65,
+   "src_end": 3618.99
+  },
+  {
+   "id": "w30",
+   "start": 14.75,
+   "end": 15.125,
+   "text": "month",
+   "src_start": 3619.07,
+   "src_end": 3619.445
+  },
+  {
+   "id": "w31",
+   "start": 15.205,
+   "end": 15.44,
+   "text": "a",
+   "src_start": 3619.525,
+   "src_end": 3619.76
+  },
+  {
+   "id": "w32",
+   "start": 15.52,
+   "end": 15.93,
+   "text": "letter",
+   "src_start": 3619.84,
+   "src_end": 3620.25
+  },
+  {
+   "id": "w33",
+   "start": 16.01,
+   "end": 16.42,
+   "text": "showed",
+   "src_start": 3620.33,
+   "src_end": 3620.74
+  },
+  {
+   "id": "w34",
+   "start": 16.5,
+   "end": 16.805,
+   "text": "up.",
+   "src_start": 3620.82,
+   "src_end": 3621.125
+  },
+  {
+   "id": "w35",
+   "start": 17.155,
+   "end": 17.425,
+   "text": "My",
+   "src_start": 3621.475,
+   "src_end": 3621.745
+  },
+  {
+   "id": "w36",
+   "start": 17.505,
+   "end": 17.88,
+   "text": "hands",
+   "src_start": 3621.825,
+   "src_end": 3622.2
+  },
+  {
+   "id": "w37",
+   "start": 17.96,
+   "end": 18.3,
+   "text": "were",
+   "src_start": 3622.28,
+   "src_end": 3622.62
+  },
+  {
+   "id": "w38",
+   "start": 18.38,
+   "end": 18.86,
+   "text": "shaking.",
+   "src_start": 3622.7,
+   "src_end": 3623.18
+  },
+  {
+   "id": "w39",
+   "start": 19.56,
+   "end": 19.795,
+   "text": "I",
+   "src_start": 3623.88,
+   "src_end": 3624.115
+  },
+  {
+   "id": "w40",
+   "start": 19.875,
+   "end": 20.285,
+   "text": "opened",
+   "src_start": 3624.195,
+   "src_end": 3624.605
+  },
+  {
+   "id": "w41",
+   "start": 20.365,
+   "end": 20.67,
+   "text": "it,",
+   "src_start": 3624.685,
+   "src_end": 3624.99
+  },
+  {
+   "id": "w42",
+   "start": 20.75,
+   "end": 21.055,
+   "text": "and",
+   "src_start": 3625.07,
+   "src_end": 3625.375
+  },
+  {
+   "id": "w43",
+   "start": 21.135,
+   "end": 21.405,
+   "text": "it",
+   "src_start": 3625.455,
+   "src_end": 3625.725
+  },
+  {
+   "id": "w44",
+   "start": 21.485,
+   "end": 21.79,
+   "text": "was",
+   "src_start": 3625.805,
+   "src_end": 3626.11
+  },
+  {
+   "id": "w45",
+   "start": 21.87,
+   "end": 22.105,
+   "text": "a",
+   "src_start": 3626.19,
+   "src_end": 3626.425
+  },
+  {
+   "id": "w46",
+   "start": 22.185,
+   "end": 22.595,
+   "text": "photo.",
+   "src_start": 3626.505,
+   "src_end": 3626.915
+  },
+  {
+   "id": "w47",
+   "start": 23.795,
+   "end": 24.1,
+   "text": "Me,",
+   "src_start": 3628.115,
+   "src_end": 3628.42
+  },
+  {
+   "id": "w48",
+   "start": 24.18,
+   "end": 24.45,
+   "text": "at",
+   "src_start": 3628.5,
+   "src_end": 3628.77
+  },
+  {
+   "id": "w49",
+   "start": 24.53,
+   "end": 24.87,
+   "text": "six,",
+   "src_start": 3628.85,
+   "src_end": 3629.19
+  },
+  {
+   "id": "w50",
+   "start": 24.95,
+   "end": 25.22,
+   "text": "on",
+   "src_start": 3629.27,
+   "src_end": 3629.54
+  },
+  {
+   "id": "w51",
+   "start": 25.3,
+   "end": 25.605,
+   "text": "his",
+   "src_start": 3629.62,
+   "src_end": 3629.925
+  },
+  {
+   "id": "w52",
+   "start": 25.685,
+   "end": 26.235,
+   "text": "shoulders.",
+   "src_start": 3630.005,
+   "src_end": 3630.555
+  },
+  {
+   "id": "w53",
+   "start": 26.835,
+   "end": 27.105,
+   "text": "On",
+   "src_start": 3631.155,
+   "src_end": 3631.425
+  },
+  {
+   "id": "w54",
+   "start": 27.185,
+   "end": 27.49,
+   "text": "the",
+   "src_start": 3631.505,
+   "src_end": 3631.81
+  },
+  {
+   "id": "w55",
+   "start": 27.57,
+   "end": 27.91,
+   "text": "back",
+   "src_start": 3631.89,
+   "src_end": 3632.23
+  },
+  {
+   "id": "w56",
+   "start": 27.99,
+   "end": 28.26,
+   "text": "he",
+   "src_start": 3632.31,
+   "src_end": 3632.58
+  },
+  {
+   "id": "w57",
+   "start": 28.34,
+   "end": 28.75,
+   "text": "wrote:",
+   "src_start": 3632.66,
+   "src_end": 3633.07
+  },
+  {
+   "id": "w58",
+   "start": 28.83,
+   "end": 29.065,
+   "text": "I",
+   "src_start": 3633.15,
+   "src_end": 3633.385
+  },
+  {
+   "id": "w59",
+   "start": 29.145,
+   "end": 29.52,
+   "text": "never",
+   "src_start": 3633.465,
+   "src_end": 3633.84
+  },
+  {
+   "id": "w60",
+   "start": 29.6,
+   "end": 30.045,
+   "text": "stopped",
+   "src_start": 3633.92,
+   "src_end": 3634.365
+  },
+  {
+   "id": "w61",
+   "start": 30.125,
+   "end": 30.64,
+   "text": "watching.",
+   "src_start": 3634.445,
+   "src_end": 3634.96
+  },
+  {
+   "id": "w62",
+   "start": 31.04,
+   "end": 31.275,
+   "text": "I",
+   "src_start": 3636.76,
+   "src_end": 3636.995
+  },
+  {
+   "id": "w63",
+   "start": 31.355,
+   "end": 31.765,
+   "text": "called",
+   "src_start": 3637.075,
+   "src_end": 3637.485
+  },
+  {
+   "id": "w64",
+   "start": 31.845,
+   "end": 32.15,
+   "text": "him",
+   "src_start": 3637.565,
+   "src_end": 3637.87
+  },
+  {
+   "id": "w65",
+   "start": 32.23,
+   "end": 32.57,
+   "text": "that",
+   "src_start": 3637.95,
+   "src_end": 3638.29
+  },
+  {
+   "id": "w66",
+   "start": 32.65,
+   "end": 33.06,
+   "text": "night.",
+   "src_start": 3638.37,
+   "src_end": 3638.78
+  },
+  {
+   "id": "w67",
+   "start": 33.41,
+   "end": 33.68,
+   "text": "We",
+   "src_start": 3639.13,
+   "src_end": 3639.4
+  },
+  {
+   "id": "w68",
+   "start": 33.76,
+   "end": 34.17,
+   "text": "talked",
+   "src_start": 3639.48,
+   "src_end": 3639.89
+  },
+  {
+   "id": "w69",
+   "start": 34.25,
+   "end": 34.555,
+   "text": "for",
+   "src_start": 3639.97,
+   "src_end": 3640.275
+  },
+  {
+   "id": "w70",
+   "start": 34.635,
+   "end": 34.975,
+   "text": "four",
+   "src_start": 3640.355,
+   "src_end": 3640.695
+  },
+  {
+   "id": "w71",
+   "start": 35.055,
+   "end": 35.465,
+   "text": "hours.",
+   "src_start": 3640.775,
+   "src_end": 3641.185
+  },
+  {
+   "id": "w72",
+   "start": 36.365,
+   "end": 36.74,
+   "text": "Turns",
+   "src_start": 3642.085,
+   "src_end": 3642.46
+  },
+  {
+   "id": "w73",
+   "start": 36.82,
+   "end": 37.125,
+   "text": "out",
+   "src_start": 3642.54,
+   "src_end": 3642.845
+  },
+  {
+   "id": "w74",
+   "start": 37.205,
+   "end": 37.545,
+   "text": "he'd",
+   "src_start": 3642.925,
+   "src_end": 3643.265
+  },
+  {
+   "id": "w75",
+   "start": 37.625,
+   "end": 37.965,
+   "text": "been",
+   "src_start": 3643.345,
+   "src_end": 3643.685
+  },
+  {
+   "id": "w76",
+   "start": 38.045,
+   "end": 38.42,
+   "text": "sober",
+   "src_start": 3643.765,
+   "src_end": 3644.14
+  },
+  {
+   "id": "w77",
+   "start": 38.5,
+   "end": 38.805,
+   "text": "for",
+   "src_start": 3644.22,
+   "src_end": 3644.525
+  },
+  {
+   "id": "w78",
+   "start": 38.885,
+   "end": 39.225,
+   "text": "nine",
+   "src_start": 3644.605,
+   "src_end": 3644.945
+  },
+  {
+   "id": "w79",
+   "start": 39.305,
+   "end": 39.715,
+   "text": "years.",
+   "src_start": 3645.025,
+   "src_end": 3645.435
+  },
+  {
+   "id": "w80",
+   "start": 40.115,
+   "end": 40.385,
+   "text": "He",
+   "src_start": 3646.835,
+   "src_end": 3647.105
+  },
+  {
+   "id": "w81",
+   "start": 40.465,
+   "end": 40.805,
+   "text": "just",
+   "src_start": 3647.185,
+   "src_end": 3647.525
+  },
+  {
+   "id": "w82",
+   "start": 40.885,
+   "end": 41.295,
+   "text": "didn't",
+   "src_start": 3647.605,
+   "src_end": 3648.015
+  },
+  {
+   "id": "w83",
+   "start": 41.375,
+   "end": 41.75,
+   "text": "think",
+   "src_start": 3648.095,
+   "src_end": 3648.47
+  },
+  {
+   "id": "w84",
+   "start": 41.83,
+   "end": 42.1,
+   "text": "he",
+   "src_start": 3648.55,
+   "src_end": 3648.82
+  },
+  {
+   "id": "w85",
+   "start": 42.18,
+   "end": 42.66,
+   "text": "deserved",
+   "src_start": 3648.9,
+   "src_end": 3649.38
+  },
+  {
+   "id": "w86",
+   "start": 42.74,
+   "end": 43.01,
+   "text": "to",
+   "src_start": 3649.46,
+   "src_end": 3649.73
+  },
+  {
+   "id": "w87",
+   "start": 43.09,
+   "end": 43.43,
+   "text": "come",
+   "src_start": 3649.81,
+   "src_end": 3650.15
+  },
+  {
+   "id": "w88",
+   "start": 43.51,
+   "end": 43.885,
+   "text": "back.",
+   "src_start": 3650.23,
+   "src_end": 3650.605
+  },
+  {
+   "id": "w89",
+   "start": 44.785,
+   "end": 45.055,
+   "text": "So",
+   "src_start": 3651.505,
+   "src_end": 3651.775
+  },
+  {
+   "id": "w90",
+   "start": 45.135,
+   "end": 45.37,
+   "text": "I",
+   "src_start": 3651.855,
+   "src_end": 3652.09
+  },
+  {
+   "id": "w91",
+   "start": 45.45,
+   "end": 45.79,
+   "text": "told",
+   "src_start": 3652.17,
+   "src_end": 3652.51
+  },
+  {
+   "id": "w92",
+   "start": 45.87,
+   "end": 46.175,
+   "text": "him",
+   "src_start": 3652.59,
+   "src_end": 3652.895
+  },
+  {
+   "id": "w93",
+   "start": 46.255,
+   "end": 46.56,
+   "text": "the",
+   "src_start": 3652.975,
+   "src_end": 3653.28
+  },
+  {
+   "id": "w94",
+   "start": 46.64,
+   "end": 47.05,
+   "text": "truth.",
+   "src_start": 3653.36,
+   "src_end": 3653.77
+  },
+  {
+   "id": "w95",
+   "start": 47.4,
+   "end": 47.705,
+   "text": "You",
+   "src_start": 3654.12,
+   "src_end": 3654.425
+  },
+  {
+   "id": "w96",
+   "start": 47.785,
+   "end": 48.16,
+   "text": "don't",
+   "src_start": 3654.505,
+   "src_end": 3654.88
+  },
+  {
+   "id": "w97",
+   "start": 48.24,
+   "end": 48.545,
+   "text": "get",
+   "src_start": 3654.96,
+   "src_end": 3655.265
+  },
+  {
+   "id": "w98",
+   "start": 48.625,
+   "end": 48.895,
+   "text": "to",
+   "src_start": 3655.345,
+   "src_end": 3655.615
+  },
+  {
+   "id": "w99",
+   "start": 48.975,
+   "end": 49.385,
+   "text": "decide",
+   "src_start": 3655.695,
+   "src_end": 3656.105
+  },
+  {
+   "id": "w100",
+   "start": 49.465,
+   "end": 49.84,
+   "text": "that.",
+   "src_start": 3656.185,
+   "src_end": 3656.56
+  },
+  {
+   "id": "w101",
+   "start": 50.24,
+   "end": 50.58,
+   "text": "Dad.",
+   "src_start": 3656.96,
+   "src_end": 3657.3
+  },
+  {
+   "id": "w102",
+   "start": 51.58,
+   "end": 51.92,
+   "text": "He's",
+   "src_start": 3658.3,
+   "src_end": 3658.64
+  },
+  {
+   "id": "w103",
+   "start": 52.0,
+   "end": 52.41,
+   "text": "coming",
+   "src_start": 3658.72,
+   "src_end": 3659.13
+  },
+  {
+   "id": "w104",
+   "start": 52.49,
+   "end": 52.76,
+   "text": "to",
+   "src_start": 3659.21,
+   "src_end": 3659.48
+  },
+  {
+   "id": "w105",
+   "start": 52.84,
+   "end": 53.11,
+   "text": "my",
+   "src_start": 3659.56,
+   "src_end": 3659.83
+  },
+  {
+   "id": "w106",
+   "start": 53.19,
+   "end": 53.635,
+   "text": "wedding",
+   "src_start": 3659.91,
+   "src_end": 3660.355
+  },
+  {
+   "id": "w107",
+   "start": 53.715,
+   "end": 53.985,
+   "text": "in",
+   "src_start": 3660.435,
+   "src_end": 3660.705
+  },
+  {
+   "id": "w108",
+   "start": 54.065,
+   "end": 54.44,
+   "text": "June.",
+   "src_start": 3660.785,
+   "src_end": 3661.16
+  }
+ ],
+ "duration": 55.04,
+ "cuts": [
+  3.155,
+  10.4,
+  13.71,
+  30.84,
+  39.915
+ ],
+ "passage_breaks": [
+  13.71
+ ],
+ "keep_ranges": [
+  [
+   3599.8,
+   3603.03
+  ],
+  [
+   3603.7799999999997,
+   3611.175
+  ],
+  [
+   3611.445,
+   3614.905
+  ],
+  [
+   3617.955,
+   3635.235
+  ],
+  [
+   3636.485,
+   3645.71
+  ],
+  [
+   3646.56,
+   3661.7599999999998
+  ]
+ ],
+ "output_offsets": [
+  0.0,
+  3.08,
+  10.325,
+  13.635,
+  30.765,
+  39.84
+ ],
+ "beats": {
+  "version": "beats-v1",
+  "words_hash": "dd38a90d87263332e2b6952d406973ac46cf7d3d0358238aed5f8eb9cf593bef",
+  "timeline_hash": "",
+  "model": "fixture:hand",
+  "source": "llm",
+  "mood": "dramatic",
+  "sensitivity": "normal",
+  "timing": "word",
+  "hook_end": 2.955,
+  "beats": [
+   {
+    "kind": "hook",
+    "start": 0.2,
+    "end": 2.955,
+    "text": "I was sixteen when my dad left.",
+    "strength": 3,
+    "tone": "sad",
+    "source": "llm",
+    "src_start": 3600.0,
+    "src_end": 3602.755,
+    "words": [
+     "i",
+     "was",
+     "sixteen",
+     "when",
+     "my",
+     "dad",
+     "left"
+    ],
+    "id": "b0"
+   },
+   {
+    "kind": "number",
+    "start": 0.9,
+    "end": 1.345,
+    "text": "sixteen",
+    "strength": 1,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 3600.7,
+    "src_end": 3601.145,
+    "words": [
+     "sixteen"
+    ],
+    "value": 16.0,
+    "id": "b1"
+   },
+   {
+    "kind": "emphasis",
+    "start": 4.965,
+    "end": 5.445,
+    "text": "nothing.",
+    "strength": 2,
+    "tone": "sad",
+    "source": "llm",
+    "src_start": 3605.665,
+    "src_end": 3606.145,
+    "words": [
+     "nothing"
+    ],
+    "id": "b2"
+   },
+   {
+    "kind": "number",
+    "start": 6.73,
+    "end": 7.49,
+    "text": "ten years",
+    "strength": 1,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 3607.43,
+    "src_end": 3608.19,
+    "words": [
+     "ten",
+     "years"
+    ],
+    "value": 10.0,
+    "id": "b3"
+   },
+   {
+    "kind": "build",
+    "start": 13.91,
+    "end": 16.805,
+    "text": "Then last month a letter showed up.",
+    "strength": 2,
+    "tone": "suspense",
+    "source": "llm",
+    "src_start": 3618.23,
+    "src_end": 3621.125,
+    "words": [
+     "then",
+     "last",
+     "month",
+     "a",
+     "letter",
+     "showed",
+     "up"
+    ],
+    "id": "b4"
+   },
+   {
+    "kind": "build",
+    "start": 19.56,
+    "end": 22.595,
+    "text": "I opened it, and it was a photo.",
+    "strength": 3,
+    "tone": "suspense",
+    "source": "llm",
+    "src_start": 3623.88,
+    "src_end": 3626.915,
+    "words": [
+     "i",
+     "opened",
+     "it",
+     "and",
+     "it",
+     "was",
+     "a",
+     "photo"
+    ],
+    "id": "b5"
+   },
+   {
+    "kind": "payoff",
+    "start": 23.795,
+    "end": 26.235,
+    "text": "Me, at six, on his shoulders.",
+    "strength": 3,
+    "tone": "wholesome",
+    "source": "llm",
+    "src_start": 3628.115,
+    "src_end": 3630.555,
+    "words": [
+     "me",
+     "at",
+     "six",
+     "on",
+     "his",
+     "shoulders"
+    ],
+    "label": "NO WAY",
+    "id": "b6"
+   },
+   {
+    "kind": "emotional_turn",
+    "start": 28.83,
+    "end": 30.64,
+    "text": "I never stopped watching.",
+    "strength": 3,
+    "tone": "sad",
+    "source": "llm",
+    "src_start": 3633.15,
+    "src_end": 3634.96,
+    "words": [
+     "i",
+     "never",
+     "stopped",
+     "watching"
+    ],
+    "id": "b7"
+   },
+   {
+    "kind": "number",
+    "start": 34.635,
+    "end": 35.465,
+    "text": "four hours.",
+    "strength": 1,
+    "tone": "neutral",
+    "source": "llm",
+    "src_start": 3640.355,
+    "src_end": 3641.185,
+    "words": [
+     "four",
+     "hours"
+    ],
+    "value": 4.0,
+    "id": "b8"
+   },
+   {
+    "kind": "emphasis",
+    "start": 38.045,
+    "end": 38.42,
+    "text": "sober",
+    "strength": 2,
+    "tone": "shocked",
+    "source": "llm",
+    "src_start": 3643.765,
+    "src_end": 3644.14,
+    "words": [
+     "sober"
+    ],
+    "id": "b9"
+   },
+   {
+    "kind": "punchline",
+    "start": 47.4,
+    "end": 49.84,
+    "text": "You don't get to decide that.",
+    "strength": 3,
+    "tone": "smug",
+    "source": "llm",
+    "src_start": 3654.12,
+    "src_end": 3656.56,
+    "words": [
+     "you",
+     "don't",
+     "get",
+     "to",
+     "decide",
+     "that"
+    ],
+    "label": "TOLD HIM",
+    "id": "b10"
+   },
+   {
+    "kind": "payoff",
+    "start": 51.58,
+    "end": 54.44,
+    "text": "He's coming to my wedding in June.",
+    "strength": 3,
+    "tone": "wholesome",
+    "source": "llm",
+    "src_start": 3658.3,
+    "src_end": 3661.16,
+    "words": [
+     "he's",
+     "coming",
+     "to",
+     "my",
+     "wedding",
+     "in",
+     "june"
+    ],
+    "label": "WEDDING",
+    "id": "b11"
+   }
+  ],
+  "reactions": [
+   {
+    "at": 53.19,
+    "query": "happy tears"
+   }
+  ]
+ },
+ "hook_window": [
+  0.12,
+  4.0
+ ]
+}

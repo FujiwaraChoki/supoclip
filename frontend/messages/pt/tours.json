@@ -97,5 +97,37 @@
       "body": "Duração, legendas, enquadramento, limpeza e B-roll agora ficam em um só menu. Lembramos suas escolhas, então você só configura uma vez."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Chegaram as edições dinâmicas",
+      "body": "Agora seus clipes podem ser editados como fazem os melhores editores de vídeo curto: legendas animadas, reenquadres, efeitos sonoros e música nos momentos que importam. A IA encontra esses momentos; você escolhe com que força eles batem."
+    },
+    "intensity": {
+      "title": "Escolha com que força bate",
+      "body": "<b>Sutil:</b> legendas com contorno, um reenquadre de vez em quando e música baixa, como um corte de podcast.\n<b>Forte:</b> legendas no estilo Hormozi sobre uma pílula escura, palavra por palavra com a palavra-chave numa caixa, e zooms que se mantêm.\n<b>Máxima:</b> maiúsculas grossas com contorno, um reenquadre em quase toda frase, batidas mais altas e um flash ocasional num corte.\n<b>Desligada</b> deixa os clipes como estão."
+    },
+    "sound": {
+      "title": "Som, música e palavrões",
+      "body": "Os efeitos sonoros caem nos cortes e no que acontece na tela, nunca em cima de conversa comum. A música vem em sete climas, do tranquilo ao agressivo: deixe em “Combinar com o vídeo” e a IA escolhe um que combine, ou escolha você. Palavrões ganham um bipe e aparecem como f*** nas legendas. Com a edição ligada, cada coisa tem seu interruptor em “Ajuste fino”."
+    },
+    "captions": {
+      "title": "Estilos de legenda animada",
+      "body": "Marca-texto põe a palavra-chave numa caixa, Emoji Drop coloca um emoji sob aquilo de que se fala e Atrás da Cabeça põe uma palavra gigante atrás de quem fala. Cada um assume o visual da sua intensidade e também funciona sozinho, com a edição desligada."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Edições dinâmicas no estúdio",
+      "body": "Aqui você muda cada efeito de um clipe antes de exportar, um de cada vez ou todos de uma vez."
+    },
+    "panel": {
+      "title": "A aba Edições",
+      "body": "Mude a intensidade, o clima da música ou os interruptores deste clipe, peça à IA para planejar de novo ou remova tudo. A lista mostra cada momento que a IA escolheu: clique em um para ir até ele. Toda mudança pode ser desfeita."
+    },
+    "lane": {
+      "title": "Cada efeito na linha do tempo",
+      "body": "Cada zoom e cada som é um bloco aqui, e a faixa de música mostra a trilha sob a voz. Arraste um bloco para movê-lo, clique duas vezes para mudá-lo, ou selecione e pressione Delete. Clique duas vezes num espaço vazio para adicionar um som."
+    }
+  },
   "skip": "Pular"
 }

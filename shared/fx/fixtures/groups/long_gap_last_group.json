@@ -1,0 +1,46 @@
+{
+  "family": "groups",
+  "case": "long_gap_last_group",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.47,
+        "text": "first"
+      },
+      {
+        "start": 0.55,
+        "end": 0.82,
+        "text": "group"
+      },
+      {
+        "start": 0.9,
+        "end": 1.14,
+        "text": "here"
+      },
+      {
+        "start": 3.14,
+        "end": 3.38,
+        "text": "last"
+      }
+    ],
+    "max_words": 3
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 2,
+      "start": 0.2,
+      "end": 1.14,
+      "text": "first group here"
+    },
+    {
+      "first": 3,
+      "last": 3,
+      "start": 3.14,
+      "end": 3.54,
+      "text": "last"
+    }
+  ]
+}

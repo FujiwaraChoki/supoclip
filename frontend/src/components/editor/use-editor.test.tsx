@@ -245,3 +245,94 @@ it("rebuilds the editing copy with the revision it shows and loads the fresh dra
   expect(result.current.canUndo).toBe(false);
   expect(JSON.parse(storage.get("supoclip-editor:/test/editor")!).history.present.volume).toBe(0.75);
 });
+
+const seededFx = {
+  version: "fx-v1" as const,
+  style: {
+    intensity: "bold" as const, sfx: true, music: true, music_mood: "auto" as const, zooms: true, shake: true,
+    transitions: true, speed: true, censor: "bleep_bar" as const, grade: "auto" as const, grain: false,
+    progress_bar: false, loop_ending: false, wait_for_it: true, reactions: false,
+  },
+  seed: 7, mood: "hype" as const, sensitivity: "normal" as const, timing: "word" as const, beats: [],
+  cues: [{ id: "b0.flash", kind: "flash" as const, start: 1, end: 1.2, seed: 1, beat: "b0", origin: "auto" as const, color: "#FFFFFF", peak: 0.8 }],
+  suppressed: [], disabled: [], music: null, grade: "punchy" as const, grain: 0, progressBar: false,
+  progressColor: "#FF7A1A", loopEnding: "none" as const, hookTitleSuppressed: false,
+};
+
+it("gives a cached draft that predates dynamic edits the server's seeded fx, in its undo history too", async () => {
+  const { requests } = cachedEditor({ ...draft, volume: 0.25 }, 0, 0, { fx: seededFx });
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document?.volume).toBe(0.25));
+  expect(result.current.document?.fx).toEqual(seededFx);
+  act(() => result.current.undo());
+  expect(result.current.document?.fx).toEqual(seededFx);
+  act(() => result.current.redo());
+  await act(async () => result.current.save());
+  expect(requests.at(-1)?.document.fx).toEqual(seededFx);
+});
+
+it("reads a cached fx: null like a missing key and never writes null", async () => {
+  const { requests } = cachedEditor({ ...draft, volume: 0.25, fx: null });
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document?.volume).toBe(0.25));
+  expect(result.current.document).not.toHaveProperty("fx");
+  await act(async () => result.current.save());
+  expect(requests.at(-1)?.document).not.toHaveProperty("fx");
+
+  vi.unstubAllGlobals();
+  cachedEditor({ ...draft, volume: 0.5, fx: null }, 0, 0, { fx: seededFx });
+  const second = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(second.result.current.document?.volume).toBe(0.5));
+  expect(second.result.current.document?.fx).toEqual(seededFx);
+});
+
+it("keeps a cached removal of dynamic edits (the inert fx) over the server's", async () => {
+  const removed = { ...seededFx, style: { ...seededFx.style, intensity: "off" as const }, cues: [], grade: "none" as const,
+    disabled: ["accent", "zoom"] as ("accent" | "zoom")[] };
+  cachedEditor({ ...draft, volume: 0.25, fx: removed }, 0, 0, { fx: seededFx });
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document?.volume).toBe(0.25));
+  expect(result.current.document?.fx).toEqual(removed);
+});
+
+it("refreshes the session's face track and matte without touching the draft or its history", async () => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+  });
+  let session: Record<string, unknown> = {};
+  let basis = "clip.mp4";
+  const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+    if (init.method === "GET") return new Response(JSON.stringify({
+      status: "ready", basis, original: draft,
+      draft: { revision: 7, document: { ...draft, volume: 0.1 } }, ...session,
+    }));
+    const body = JSON.parse(init.body as string);
+    return new Response(JSON.stringify({ revision: body.revision + 1 }));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document).not.toBeNull());
+  act(() => result.current.update((d) => ({ ...d, volume: 0.5 })));
+  expect(result.current.asset?.faceTrack ?? null).toBeNull();
+
+  const faceTrack = { base: "clean", track: { fps: 6, boxes: [] } };
+  session = { faceTrack, matteVersion: "m2" };
+  let refreshed = false;
+  await act(async () => { refreshed = await result.current.refreshAsset(); });
+  expect(refreshed).toBe(true);
+  expect(result.current.asset?.faceTrack).toEqual(faceTrack);
+  expect(result.current.asset?.matteVersion).toBe("m2");
+  // The unsaved edit and its undo step survive; the server's (older) draft is not adopted.
+  expect(result.current.document?.volume).toBe(0.5);
+  expect(result.current.canUndo).toBe(true);
+
+  // A session rebuilt meanwhile (new basis) is not adopted.
+  basis = "rebuilt.mp4";
+  session = { faceTrack: null, matteVersion: null };
+  await act(async () => { refreshed = await result.current.refreshAsset(); });
+  expect(refreshed).toBe(false);
+  expect(result.current.asset?.matteVersion).toBe("m2");
+});

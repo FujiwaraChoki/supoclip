@@ -29,12 +29,20 @@ services:
       REDIS_HOST: ${WORKER_REDIS_HOST:-127.0.0.1}
       REDIS_PORT: ${WORKER_REDIS_PORT:-6379}
       EMBED_CRON_WORKER: "0"
+      # Dynamic edits: drop-in SFX and music are read from the bind mount below. The other settings
+      # (FX_RUNTIME, FX_DENO_BIN, FX_WARP, FX_RENDER_TIMEOUT_SECONDS, FX_LOUDNORM, FX_CHAIN_MODE,
+      # EDIT_PLAN_LLM, EDIT_PLAN_TIMEOUT_SECONDS, EDIT_PLAN_DAILY_LIMIT, REACTIONS_PROVIDER,
+      # GIPHY_API_KEY) belong in WORKER_ENV_FILE with the API's values: entries here would override it.
+      FX_LIBRARY_DIR: /app/fx_library
     volumes:
       # Downloads, caches and renders in progress. Safe to lose: anything
       # durable is in the bucket or the database before a job reports it.
       - type: bind
         source: ${WORKER_SCRATCH_PATH:?Set WORKER_SCRATCH_PATH to a directory on the local disk}
         target: /app/uploads
+      # The same drop-in library as the application host (FX_LIBRARY_DIR); renders log its
+      # fingerprint, so a machine with a different copy is visible. Empty = built-in sounds only.
+      - ${WORKER_FX_LIBRARY_PATH:-./fx_library}:/app/fx_library:ro
     restart: unless-stopped
     # A render that is cut off is retried by the queue; give running ones time to finish.
     stop_grace_period: 3h

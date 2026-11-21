@@ -5,9 +5,10 @@ Helpers for persisting a clip's mapping back to source-video time ranges.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, TypedDict
 import json
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -266,14 +267,17 @@ def save_clip_vertical_layout(clip_path: Path, layout: dict | None) -> None:
 
     ``layout`` holds ``kind``, ``video_filter`` and ``mode`` from
     ``describe_vertical_layout``, plus the ``width``, ``height`` and
-    ``duration`` of the trimmed source the filter was planned on.
+    ``duration`` of the trimmed source the filter was planned on. An
+    interview layout may add its per-shot ``segments`` (start, end, kind)
+    and the burned-in source ``caption_band`` (top, bottom), from which the
+    studio derives the caption rows (``edit_fx.caption_rows``).
     """
     path = clip_source_map_path(clip_path)
     if not layout and not path.exists():
         return
     payload = _read_payload(path) or {"version": SOURCE_MAP_VERSION}
     if layout:
-        payload["vertical_layout"] = {
+        stored = {
             "kind": str(layout["kind"]),
             "video_filter": str(layout["video_filter"]),
             "mode": str(layout["mode"]),
@@ -281,6 +285,13 @@ def save_clip_vertical_layout(clip_path: Path, layout: dict | None) -> None:
             "height": int(layout["height"]),
             "duration": round(float(layout["duration"]), 3),
         }
+        segments = _layout_segments(layout.get("segments"))
+        if segments:
+            stored["segments"] = segments
+        band = _layout_band(layout.get("caption_band"))
+        if band is not None:
+            stored["caption_band"] = band
+        payload["vertical_layout"] = stored
     else:
         payload.pop("vertical_layout", None)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -312,4 +323,231 @@ def load_clip_vertical_layout(clip_path: Path) -> dict | None:
         or plan["height"] <= 0
     ):
         return None
+    # Optional caption-row facts: dropped (never the whole plan) when unreadable.
+    segments = _layout_segments(layout.get("segments"))
+    if segments:
+        plan["segments"] = segments
+    band = _layout_band(layout.get("caption_band"))
+    if band is not None:
+        plan["caption_band"] = band
     return plan
+
+
+MAX_LAYOUT_SEGMENTS = 500
+LAYOUT_SEGMENT_KINDS = frozenset({"pair", "single", "fit"})
+
+
+def _layout_segments(raw) -> list[dict] | None:
+    """An interview layout's shots as ``[{start, end, kind}]`` (finite, ordered, known kinds), or None when absent
+    or unreadable."""
+    if not isinstance(raw, list) or not raw or len(raw) > MAX_LAYOUT_SEGMENTS:
+        return None
+    out = []
+    for item in raw:
+        if not isinstance(item, dict) or item.get("kind") not in LAYOUT_SEGMENT_KINDS:
+            return None
+        try:
+            start, end = float(item["start"]), float(item["end"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not (math.isfinite(start) and math.isfinite(end)) or start < 0 or end <= start:
+            return None
+        out.append({"start": round(start, 3), "end": round(end, 3), "kind": str(item["kind"])})
+    return out
+
+
+def _layout_band(raw) -> list[float] | None:
+    if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+        return None
+    try:
+        top, bottom = float(raw[0]), float(raw[1])
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(top) and math.isfinite(bottom)) or not 0 <= top < bottom <= 1:
+        return None
+    return [round(top, 4), round(bottom, 4)]
+
+
+# --- dynamic edits (FX path only; §3.3) ------------------------------------------------------------------------------
+# A legacy clip's sidecar never gets these keys: they are written only by the FX render path and removed only by an
+# explicit switch back to off + a legacy template.
+FX_SIDECAR_KEYS = ("edit_style", "edit_beats", "edit_fx", "face_track", "fx_level", "edit_fx_warp")
+FX_LEVELS = ("full", "safe", "none")
+FACE_TRACK_MAX_FPS = 6.0
+FACE_TRACK_DECIMALS = 3
+
+
+class EditFxSidecar(TypedDict):
+    style: dict; beats: dict | None; plan: dict | None; face_track: dict | None; fx_level: str | None
+    applied_warp: list[dict]          # [] when the key is missing (identity)
+
+
+def _compact_face_track(track: dict | None) -> dict | None:
+    """Decimate to at most 6 fps and round to 3 decimals: keeps the sidecar inside its 150 KB budget.
+
+    A malformed track is dropped (logged), never raised: the face track is decorative and must not cost the clip.
+    """
+    if not isinstance(track, dict):
+        return None
+    try:
+        fps = float(track.get("fps", FACE_TRACK_MAX_FPS) or FACE_TRACK_MAX_FPS)
+        if not math.isfinite(fps) or fps <= 0:
+            raise ValueError(f"bad fps {fps!r}")
+        samples = list(track.get("samples") or ())
+        step = 1
+        if fps > FACE_TRACK_MAX_FPS + 1e-9:
+            # ceil, not round: 15 fps must become 5 fps (step 3), never 7.5 fps (step 2).
+            step = math.ceil(fps / FACE_TRACK_MAX_FPS - 1e-9)
+            fps = fps / step
+        compact = []
+        for t, faces in samples[::step]:
+            compact.append([
+                round(float(t), FACE_TRACK_DECIMALS),
+                [[round(float(v), FACE_TRACK_DECIMALS) for v in face] for face in faces],
+            ])
+    except (TypeError, ValueError) as exc:
+        logger.warning("fx_face_track_unsavable error=%s", exc)
+        return None
+    return {**track, "fps": fps, "samples": compact}
+
+
+def save_clip_edit_fx(clip_path: Path, *, style: dict, beats: dict | None, plan: dict,
+                      face_track: dict | None, fx_level: str, applied_warp: list[dict]) -> None:
+    """Record how an FX clip was made (style, beats, the plan as rendered, face track, level, applied warp).
+
+    Other keys of the sidecar (source ranges, caption settings, B-roll, vertical layout) are kept. A missing
+    ``beats`` or ``face_track`` removes a stale one, so the sidecar always describes this render.
+    """
+    if fx_level not in FX_LEVELS:
+        raise ValueError(f"fx_level must be one of {FX_LEVELS}, not {fx_level!r}")
+    path = clip_source_map_path(clip_path)
+    payload = _read_payload(path) or {"version": SOURCE_MAP_VERSION}
+    payload["edit_style"] = dict(style or {})
+    payload["edit_fx"] = plan
+    payload["fx_level"] = fx_level
+    payload["edit_fx_warp"] = list(applied_warp or [])
+    if beats is not None:
+        payload["edit_beats"] = beats
+    else:
+        payload.pop("edit_beats", None)
+    compact_track = _compact_face_track(face_track)
+    if compact_track is not None:
+        payload["face_track"] = compact_track
+    else:
+        payload.pop("face_track", None)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def clear_clip_edit_fx(clip_path: Path) -> None:
+    """Remove the FX keys (explicit off + legacy template only, §13.1). Never creates a sidecar."""
+    path = clip_source_map_path(clip_path)
+    if not path.exists():
+        return
+    payload = _read_payload(path)
+    if not any(key in payload for key in FX_SIDECAR_KEYS):
+        return
+    for key in FX_SIDECAR_KEYS:
+        payload.pop(key, None)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _corrupt(clip_path: Path, field: str, exc: Exception | str) -> None:
+    logger.warning("fx_sidecar_corrupt clip=%s field=%s error=%s", clip_path.name, field, exc)
+
+
+def _lenient_model(clip_path: Path, field: str, model_cls, raw) -> dict | None:
+    from pydantic import ValidationError
+
+    from .edit_fx.compat import known_fields, log_dropped
+
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        _corrupt(clip_path, field, "not an object")
+        return None
+    clean, dropped = known_fields(model_cls, raw)
+    log_dropped(f"sidecar.{field}", dropped)
+    try:
+        return model_cls.model_validate(clean).model_dump(mode="json")
+    except ValidationError as exc:
+        if isinstance(clean.get("cues"), list):
+            # One cue a newer deploy wrote with a value this reader does not know (a new accent variant, a new
+            # sound) costs that cue, not the whole plan: drop the cues that fail on their own and retry once.
+            salvaged = _valid_cues(clean["cues"])
+            if len(salvaged) < len(clean["cues"]):
+                try:
+                    plan = model_cls.model_validate({**clean, "cues": salvaged}).model_dump(mode="json")
+                except ValidationError:
+                    pass
+                else:
+                    _corrupt(clip_path, f"{field}.cues", f"{len(clean['cues']) - len(salvaged)} unreadable cues dropped")
+                    return plan
+        _corrupt(clip_path, field, f"{exc.error_count()} validation errors")
+        return None
+
+
+def _valid_cues(cues: list) -> list:
+    from pydantic import TypeAdapter, ValidationError
+
+    from .edit_fx.contracts import FxCue
+
+    adapter = TypeAdapter(FxCue)
+    valid = []
+    for cue in cues:
+        try:
+            adapter.validate_python(cue)
+        except ValidationError:
+            continue
+        valid.append(cue)
+    return valid
+
+
+def load_clip_edit_fx(clip_path: Path) -> EditFxSidecar | None:
+    """The FX keys of a clip's sidecar, or None when it has no ``edit_fx`` key (a legacy clip).
+
+    Lenient (AI-M9): unknown keys are dropped via ``compat.known_fields``; a corrupt field reads as None (``style``
+    as ``{}``, ``applied_warp`` as ``[]``) with a logged ``fx_sidecar_corrupt`` event. Nothing is ever deleted here.
+    """
+    from .edit_fx.compat import known_fields
+    from .edit_fx.contracts import EditBeats, FaceTrack, FxPlan, WarpPieceJson
+    from .edit_fx.settings import read_edit_style
+    from .edit_fx.warp import warp_from_json
+
+    payload = _read_payload(clip_source_map_path(clip_path))
+    if "edit_fx" not in payload:
+        return None
+
+    raw_style = payload.get("edit_style")
+    if raw_style is not None and not isinstance(raw_style, dict):
+        _corrupt(clip_path, "edit_style", "not an object")
+    style = read_edit_style(raw_style).to_json() if isinstance(raw_style, dict) else {}
+
+    fx_level = payload.get("fx_level")
+    if fx_level is not None and fx_level not in FX_LEVELS:
+        _corrupt(clip_path, "fx_level", repr(fx_level)[:40])
+        fx_level = None
+
+    applied_warp: list[dict] = []
+    raw_warp = payload.get("edit_fx_warp")
+    if raw_warp:
+        try:
+            if not isinstance(raw_warp, list):
+                raise ValueError("not a list")
+            pieces = [
+                WarpPieceJson.model_validate(known_fields(WarpPieceJson, piece)[0]).model_dump(mode="json")
+                for piece in raw_warp
+            ]
+            if not warp_from_json(pieces).nontrivial:
+                raise ValueError("unreadable pieces")
+            applied_warp = pieces
+        except Exception as exc:   # pydantic ValidationError, ValueError, TypeError
+            _corrupt(clip_path, "edit_fx_warp", exc)
+
+    return EditFxSidecar(
+        style=style,
+        beats=_lenient_model(clip_path, "edit_beats", EditBeats, payload.get("edit_beats")),
+        plan=_lenient_model(clip_path, "edit_fx", FxPlan, payload.get("edit_fx")),
+        face_track=_lenient_model(clip_path, "face_track", FaceTrack, payload.get("face_track")),
+        fx_level=fx_level,
+        applied_warp=applied_warp,
+    )

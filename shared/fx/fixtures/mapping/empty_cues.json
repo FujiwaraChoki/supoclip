@@ -1,0 +1,17 @@
+{
+  "family": "mapping",
+  "case": "empty_cues",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        0.0,
+        6.0
+      ]
+    ],
+    "cues": [],
+    "min_piece": 0.04
+  },
+  "expected": []
+}

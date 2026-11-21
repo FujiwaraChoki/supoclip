@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_emoji_prefix",
+  "fn": "censor_text",
+  "input": {
+    "text": "💩shit"
+  },
+  "expected": "💩s***"
+}

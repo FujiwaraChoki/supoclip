@@ -1,3 +1,22 @@
+import { censoredWords } from "@/lib/fx/core/censor";
+import { mappedBeats, mappedCues } from "@/lib/fx/core/mapping";
+import {
+  DEFAULT_EDIT_STYLE,
+  isFxTemplate,
+  type Beat,
+  type EditStyle,
+  type FaceTrack,
+  type FxCaptionTemplate,
+  type FxCue,
+  type FxKind,
+  type GradeId,
+  type Mood,
+  type MusicBed,
+  type Sensitivity,
+  type Timing,
+} from "@/lib/fx/core/types";
+import { buildWarp, type Warp } from "@/lib/fx/core/warp";
+
 export interface Segment {
   id: string;
   start: number;
@@ -42,6 +61,9 @@ export interface CaptionLook {
   shadow: boolean;
   glow: boolean;
   backgroundColor: string | null;
+  /** An FX caption template (drawn by fx-core, not by the legacy caption renderer). */
+  fx?: boolean;
+  fxStyle?: FxCaptionTemplate | null;
 }
 export interface Framing {
   aspect: "vertical" | "square" | "original";
@@ -105,6 +127,53 @@ export interface EditDocument {
   captionTransforms?: Record<string, CaptionTransform>;
   /** Absent on drafts cached before the editor had B-roll. */
   broll?: BRollClip[];
+  /** Dynamic edits. Absent (never null on the wire) when the clip has none; see DocFx. */
+  fx?: DocFx | null;
+  /** Interview caption rows (source seconds), seeded with the session; absent on other clips. See CaptionRows. */
+  captionRows?: CaptionRows | null;
+}
+/**
+ * Per-shot caption rows of an interview clip (mirror of `editor_document.CaptionRows`): the look captions sit on the
+ * row of the shot they start in while they keep their automatic position (`captions.y` still `y`, the caption layer
+ * not moved vertically, the full vertical frame); a caption's own transform pins that caption. See studioCaptionRows.
+ */
+export interface CaptionRows {
+  y: number;
+  rows: { start: number; end: number; y: number }[];
+}
+/**
+ * Dynamic edits of one draft (mirror of `editor_document.DocFx`). Beats and cues are on the source (clean.mp4, S)
+ * timeline like B-roll, so they follow cuts; `mappedFx` puts them on the edit (E) timeline. Nested contract objects
+ * keep their snake_case because they are shared with the clip sidecar.
+ */
+export interface DocFx {
+  version: "fx-v1";
+  style: EditStyle;
+  seed: number;
+  mood: Mood | null;
+  sensitivity: Sensitivity;
+  timing: Timing;
+  beats: Beat[];
+  cues: FxCue[];
+  /** Auto cue ids the user deleted; the resolver never brings them back. */
+  suppressed: string[];
+  /** Kinds switched off by the toggles; their cues stay stored but are not drawn or heard. */
+  disabled: FxKind[];
+  /** Global, anchored to the final (F) timeline. */
+  music: MusicBed | null;
+  grade: GradeId;
+  grain: number;
+  progressBar: boolean;
+  progressColor: string;
+  loopEnding: "none" | "crossfade";
+  hookTitleSuppressed: boolean;
+}
+export const FX_KINDS: readonly FxKind[] = ["accent", "zoom", "shake", "flash", "glitch", "desaturate", "transition",
+  "sfx", "bleep", "speed", "freeze", "sticker", "reaction"];
+/** The studio session's face track: normalised to the base video it was measured on, on its S clock. */
+export interface SessionFaceTrack {
+  base: "layout" | "clean";
+  track: FaceTrack;
 }
 export type TextLayer = "hook" | "captions";
 export interface TextTransform { x: number; y: number; scale: number }
@@ -158,6 +227,12 @@ export interface EditorState {
   sourceIncomplete?: { duration: number; expected: number };
   /** The draft a rebuild replaced, kept on the server for download. */
   draftBackup?: { revision: number; duration: number | null; savedAt: string };
+  /** Face boxes of the session's base video (from the clip or "Analyse face"). */
+  faceTrack?: SessionFaceTrack | null;
+  /** Set once the person matte (matte.mp4) is in storage; changes when it is rebuilt. */
+  matteVersion?: string | null;
+  /** The prepared layout bakes a Ken Burns zoom (no baseline pushes are added on top). */
+  layoutHasZoompan?: boolean;
 }
 export const DEFAULT_EFFECTS: Effects = {
   brightness: 100,
@@ -618,3 +693,127 @@ export function locate(doc: EditDocument, time: number) {
   const item = items.find((i) => at >= i.start && at < i.end) ?? items[items.length - 1];
   return { index: item.index, source: item.segment.start + at - item.start };
 }
+
+// ------------------------------------------------------------------------------------------- dynamic edits (fx)
+
+/**
+ * "The user removed dynamic edits": intensity off, no cues or beats, every kind disabled. Written by "Remove all
+ * edits"; blocks re-seeding from the clip (an absent `fx` would be seeded again).
+ */
+export function inertDocFx(previous?: DocFx | null): DocFx {
+  return {
+    version: "fx-v1",
+    style: { ...(previous?.style ?? DEFAULT_DOC_FX.style), intensity: "off" },
+    seed: previous?.seed ?? 0,
+    mood: null,
+    sensitivity: "normal",
+    timing: previous?.timing ?? "word",
+    beats: [],
+    cues: [],
+    suppressed: [],
+    disabled: [...FX_KINDS],
+    music: null,
+    grade: "none",
+    grain: 0,
+    progressBar: false,
+    progressColor: previous?.progressColor ?? DEFAULT_DOC_FX.progressColor,
+    loopEnding: "none",
+    hookTitleSuppressed: false,
+  };
+}
+export const DEFAULT_DOC_FX: DocFx = {
+  version: "fx-v1",
+  style: DEFAULT_EDIT_STYLE,
+  seed: 0,
+  mood: null,
+  sensitivity: "normal",
+  timing: "word",
+  beats: [],
+  cues: [],
+  suppressed: [],
+  disabled: [],
+  music: null,
+  grade: "none",
+  grain: 0,
+  progressBar: false,
+  progressColor: "#FF7A1A",
+  loopEnding: "none",
+  hookTitleSuppressed: false,
+};
+
+/** Segments with source-continuous splits merged (== editor_document.continuous_segments). */
+export const continuousSegments = renderSegments;
+
+/** Cues of enabled kinds on the edit (E) timeline, sorted by (start, id) (== editor_document.mapped_fx). */
+export function mappedFx(doc: EditDocument): FxCue[] {
+  const fx = doc.fx;
+  if (!fx?.cues.length) return [];
+  const disabled = new Set(fx.disabled);
+  return mappedCues(continuousSegments(doc.segments), fx.cues.filter((cue) => !disabled.has(cue.kind)));
+}
+
+/** Beats on the edit (E) timeline (timeline lanes, beat list). */
+export function mappedFxBeats(doc: EditDocument): Beat[] {
+  return doc.fx?.beats.length ? mappedBeats(continuousSegments(doc.segments), doc.fx.beats) : [];
+}
+
+/**
+ * True when rendering this draft needs fx-core (== editor_document.document_needs_fx): an FX caption template, or
+ * dynamic edits that draw or sound (cues of enabled kinds, music, a grade, grain, the progress bar or a loop ending).
+ */
+export function documentNeedsFx(doc: EditDocument): boolean {
+  if (isFxTemplate(doc.captions.template)) return true;
+  const fx = doc.fx;
+  if (!fx) return false;
+  if (fx.music !== null || fx.grade !== "none" || fx.grain > 0 || fx.progressBar || fx.loopEnding !== "none") return true;
+  // Like the server, only cues that survive the cuts count: a draft whose cues were all cut away renders the legacy way.
+  return planCues(doc).length > 0;
+}
+
+/** == editor_fx_render.MAX_PLAN_CUES (FxPlan.cues max_length). */
+const MAX_PLAN_CUES = 400;
+const planCueCache = new WeakMap<EditDocument, FxCue[]>();
+/** The cues a render draws: `mappedFx`, capped like the server's plan (== editor_fx_render.studio_plan). Memoised. */
+function planCues(doc: EditDocument): FxCue[] {
+  let cues = planCueCache.get(doc);
+  if (!cues) {
+    cues = mappedFx(doc).slice(0, MAX_PLAN_CUES);
+    planCueCache.set(doc, cues);
+  }
+  return cues;
+}
+
+const warpCache = new WeakMap<EditDocument, Warp>();
+/** The speed ramps and freezes of the draft (E → F), == studio_scene's warp. Identity when it has none. */
+export function fxWarp(doc: EditDocument): Warp {
+  let warp = warpCache.get(doc);
+  if (!warp) {
+    warp = buildWarp(planCues(doc), Math.max(1 / 30, editDuration(doc)));
+    warpCache.set(doc, warp);
+  }
+  return warp;
+}
+
+/** Length of the finished clip in final (F) seconds: the edit duration after freezes and speed ramps. */
+export const finalDuration = (doc: EditDocument): number => fxWarp(doc).outDuration;
+
+/** Bleep spans on the edit timeline, used to censor caption text (word timing only, like the server). */
+export function mappedBleepSpans(doc: EditDocument): [number, number][] {
+  if (!doc.fx || doc.fx.timing !== "word") return [];
+  return planCues(doc).filter((cue) => cue.kind === "bleep" && cue.end > cue.start).map((cue) => [cue.start, cue.end]);
+}
+
+/** Mapped words with bleeped words censored ("f***"), as the server's ASS and fx-core captions draw them. */
+export function censoredMappedWords(doc: EditDocument): CaptionWord[] {
+  const words = mappedWords(doc);
+  const spans = mappedBleepSpans(doc);
+  return spans.length ? censoredWords(words, spans) : words;
+}
+
+/**
+ * The hook title is hidden when a full-width caption style owns the top band (resolver hook_title_suppressed). Only
+ * an FX render honours the flag: a draft that renders the legacy way keeps its title, as on the server.
+ */
+export const hookTitleSuppressed = (doc: EditDocument): boolean => !!doc.fx?.hookTitleSuppressed && documentNeedsFx(doc);
+
+export { studioScene, type StudioSceneOptions } from "@/lib/fx/studio-scene";

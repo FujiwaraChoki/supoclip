@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_emoji",
+  "fn": "fnv1a32",
+  "input": {
+    "text": "🔥💀"
+  },
+  "expected": 1539024712
+}

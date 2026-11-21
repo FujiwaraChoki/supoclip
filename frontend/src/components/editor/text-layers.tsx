@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { captionGroups, captionKey, hookRange, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
-import { drawEditorTextLayer, formatHookEditorText, loadEditorFont, prepareTextDraft, textEditorLayout, textLayerBounds, type TextBounds, type TextDraft, type TextEditorLayout } from "@/lib/editor/render";
+import { captionGroups, captionKey, hookRange, hookTitleSuppressed, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
+import { drawEditorTextLayer, formatHookEditorText, fxCaptionRowShift, loadEditorFont, onEditorFxResources, prepareTextDraft, textEditorLayout, textLayerBounds, type EditorFxSession, type HookFx, type TextBounds, type TextDraft, type TextEditorLayout } from "@/lib/editor/render";
 import { TransformableText } from "./transformable-text";
 
 /** Titles and subtitles remain independent of the decoded picture in the editor. */
-export function TextLayers({ doc, asset, time, index, videoRef, update, resolution, timelineDraft }: {
+export function TextLayers({ doc, asset, time, index, videoRef, update, resolution, timelineDraft, fxSession }: {
   doc: EditDocument;
   asset: EditorState;
   time: number;
@@ -15,6 +15,8 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   resolution: { width: number; height: number };
   timelineDraft?: TextDraft;
+  /** What the session knows about its media: the hook title card is placed clear of the tracked faces. */
+  fxSession?: EditorFxSession;
 }) {
   const t = useTranslations("editor");
   const hookCanvas = useRef<HTMLCanvasElement>(null);
@@ -24,14 +26,19 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
   const [previewDraft, setPreviewDraft] = useState<TextDraft>();
   const draft = previewDraft ?? timelineDraft;
   const [layouts, setLayouts] = useState<Partial<Record<TextLayer, TextEditorLayout>>>({});
+  // FX-template captions are laid out by fx-core with its own fonts: measure again once they load.
+  const [fxResources, setFxResources] = useState(0);
+  useEffect(() => onEditorFxResources(() => setFxResources((value) => value + 1)), []);
   const size = outputSize(doc, asset.width, asset.height);
   const at = outputTime(doc, Math.min(index, doc.segments.length - 1), time);
   const range = hookRange(doc);
   const group = captionGroups(mappedWords(doc), doc.captions.wordsPerLine)
     .find(words => at >= words[0].start && at < words[words.length - 1].end);
+  const hookFx = useMemo<HookFx>(() => ({ session: fxSession, sourceWidth: asset.width, sourceHeight: asset.height, looks: asset.captionLooks }),
+    [fxSession, asset.width, asset.height, asset.captionLooks]);
   const measure = (document: EditDocument, layer: TextLayer) => {
     const ctx = hookCanvas.current?.getContext("2d");
-    return ctx ? textLayerBounds(ctx, document, size.width, size.height, at, layer, asset.captionLooks) : null;
+    return ctx ? textLayerBounds(ctx, document, size.width, size.height, at, layer, asset.captionLooks, undefined, hookFx) : null;
   };
   const editDraft = (layer: TextLayer, text: string | null) => {
     const ctx = hookCanvas.current?.getContext("2d");
@@ -42,44 +49,45 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
     const refresh = () => {
       const ctx = hookCanvas.current?.getContext("2d");
       if (!ctx || cancelled) return;
-      const hook = textLayerBounds(ctx, doc, size.width, size.height, at, "hook", asset.captionLooks, draft);
+      const hook = textLayerBounds(ctx, doc, size.width, size.height, at, "hook", asset.captionLooks, draft, hookFx);
       const captions = textLayerBounds(ctx, doc, size.width, size.height, at, "captions", asset.captionLooks, draft)
         ?? textLayerBounds(ctx, doc, size.width, size.height, at, "captions", asset.captionLooks);
       setBounds({ ...(hook ? { hook } : {}), ...(captions ? { captions } : {}) });
-      setLayouts({ hook: textEditorLayout(ctx, doc, size.width, size.height, at, "hook", draft), captions: textEditorLayout(ctx, doc, size.width, size.height, at, "captions", draft) });
+      setLayouts({ hook: textEditorLayout(ctx, doc, size.width, size.height, at, "hook", draft, hookFx), captions: textEditorLayout(ctx, doc, size.width, size.height, at, "captions", draft) });
     };
     refresh();
     void loadEditorFont(doc.captions.font).then(refresh).catch(() => {});
     return () => { cancelled = true; };
-  }, [doc, at, size.width, size.height, asset.captionLooks, draft]);
+  }, [doc, at, size.width, size.height, asset.captionLooks, draft, fxResources, hookFx]);
   useEffect(() => {
     let frame: number;
     const draw = () => {
       const at = outputTime(doc, Math.min(index, doc.segments.length - 1), videoRef.current?.currentTime ?? time);
       for (const [canvas, layer] of [[hookCanvas.current, "hook"], [captionCanvas.current, "captions"]] as const) {
         const ctx = canvas?.getContext("2d");
-        if (ctx) drawEditorTextLayer(ctx, doc, asset.width, asset.height, at, asset.captionLooks, layer, true, draft);
+        if (ctx) drawEditorTextLayer(ctx, doc, asset.width, asset.height, at, asset.captionLooks, layer, true, draft, fxSession);
       }
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [doc, asset, index, time, videoRef, draft]);
+  }, [doc, asset, index, time, videoRef, draft, fxSession]);
   const shared = { doc, asset, width: size.width, height: size.height, frame: frameRef, pause: () => videoRef.current?.pause(), update };
   return <div ref={frameRef} className="pointer-events-none absolute inset-0">
     <canvas ref={hookCanvas} aria-label={t("captions.hookTitle")} width={resolution.width} height={resolution.height} className="absolute inset-0 h-full w-full" />
     <canvas ref={captionCanvas} aria-label={t("timeline.tracks.captions")} width={resolution.width} height={resolution.height} className="absolute inset-0 h-full w-full" />
-    {doc.hookTitle?.trim() && bounds.hook && (at >= range.start && at < range.end) && <TransformableText
+    {doc.hookTitle?.trim() && !hookTitleSuppressed(doc) && bounds.hook && (at >= range.start && at < range.end) && <TransformableText
       {...shared} layer="hook" label={t("captions.hookTitle")} value={doc.hookTitle} bounds={bounds.hook}
       buttonLabel={`${t("preview.region")}: ${t("captions.hookTitle")}: ${doc.hookTitle}`}
       measure={document => measure(document, "hook")}
       editorLayout={layouts.hook}
-      formatValue={text => formatHookEditorText(doc, size.width, size.height, text)}
+      formatValue={text => formatHookEditorText(doc, size.width, size.height, text, hookFx)}
       onDraft={text => editDraft("hook", text)}
       onCommit={hookTitle => update(current => ({ ...current, hookTitle }))}
     />}
     {doc.captions.enabled && group && bounds.captions && <TransformableText
       {...shared} key={captionKey(doc, group)} captionId={captionKey(doc, group)} layer="captions" label={t("timeline.tracks.captions")}
+      rowShift={fxCaptionRowShift(doc, size.width, size.height, at, asset.captionLooks)}
       value={group.map(word => word.text).join(" ")} bounds={bounds.captions}
       buttonLabel={`${t("preview.region")}: ${group.map(word => word.text).join(" ")}`}
       measure={document => measure(document, "captions")}

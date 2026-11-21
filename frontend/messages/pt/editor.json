@@ -49,7 +49,8 @@
     "framing": "Enquadramento",
     "broll": "B-roll",
     "audio": "Áudio",
-    "effects": "Efeitos"
+    "effects": "Efeitos",
+    "edits": "Edições"
   },
   "inspector": {
     "tools": "Ferramentas do editor"
@@ -257,7 +258,13 @@
     "jobProgress": "Progresso da exportação de {label}",
     "download": "Baixar",
     "cancelJob": "Cancelar a exportação de {label}",
-    "cancellationRequested": "Cancelamento solicitado"
+    "cancellationRequested": "Cancelamento solicitado",
+    "refusal": {
+      "warp": "Rampas de velocidade e congelamentos são renderizados no servidor. Use a exportação em segundo plano.",
+      "reaction": "GIFs de reação são renderizados no servidor. Use a exportação em segundo plano.",
+      "behind": "Texto atrás da pessoa é renderizado no servidor. Use a exportação em segundo plano."
+    },
+    "editAudio": "Efeitos sonoros e música"
   },
   "workspace": {
     "keepLocal": "Seu rascunho ficou neste dispositivo. Salve antes de trocar de clipe.",
@@ -311,7 +318,7 @@
     "setIn": "Marcar ponto de entrada",
     "setOut": "Marcar ponto de saída",
     "split": "Dividir no cursor",
-    "removeBroll": "Remover o B-roll selecionado",
+    "removeSelection": "Remover o B-roll ou a edição selecionada",
     "undo": "Desfazer",
     "redo": "Refazer",
     "save": "Salvar rascunho",
@@ -402,5 +409,302 @@
     "backupsNothing": "Nada para remover. As alterações não salvas ficam até chegarem à sua conta.",
     "backupsBrowserNote": "Limpar os dados do site do SupoClip neste navegador também remove essas cópias e encerra sua sessão. Faça isso só quando todos os clipes abertos mostrarem “Todas as alterações salvas”.",
     "done": "Pronto"
+  },
+  "captionTemplates": {
+    "title": "Modelo",
+    "description": "Define como as legendas se movem. A fonte e as cores abaixo continuam valendo.",
+    "classic": "Clássicos",
+    "animated": "Animados",
+    "animatedHint": "Desenhados quadro a quadro. Os destaques caem nos momentos que importam.",
+    "names": {
+      "default": "Padrão",
+      "hormozi": "Hormozi",
+      "mrbeast": "MrBeast",
+      "minimal": "Minimalista",
+      "tiktok": "TikTok",
+      "neon": "Neon",
+      "podcast": "Podcast"
+    }
+  },
+  "fx": {
+    "title": "Edições dinâmicas",
+    "description": "A IA marca os momentos que importam. A intensidade define com que força cada um bate.",
+    "count": "{count, plural, one {# edição} other {# edições}}",
+    "dismiss": "Dispensar",
+    "applying": "Aplicando…",
+    "planning": "Lendo a transcrição…",
+    "cancel": "Cancelar",
+    "replan": "Planejar de novo com IA",
+    "musicMood": "Clima",
+    "musicVolume": "Volume da música",
+    "duckDepth": "Abaixar sob a fala",
+    "noMusicBed": "Ainda não há trilha para esse clima. Tente outro.",
+    "intensity": {
+      "label": "Intensidade da edição",
+      "off": "Desligada",
+      "subtle": "Sutil",
+      "bold": "Forte",
+      "max": "Máxima"
+    },
+    "intensityHint": {
+      "off": "Sem edições automáticas. As que você adicionou ficam.",
+      "subtle": "Reenquadra de vez em quando, com música baixa.",
+      "bold": "Aproximações nos momentos-chave, impactos em alguns cortes.",
+      "max": "Reenquadres rápidos, impactos e música mais altos."
+    },
+    "needsPlan": {
+      "title": "Planeje este clipe primeiro",
+      "body": "A IA lê a transcrição e marca os momentos onde as edições entram. Leva alguns segundos e usa um dos planejamentos de hoje.",
+      "action": "Planejar edições"
+    },
+    "errors": {
+      "notAvailable": "As edições dinâmicas ainda não estão disponíveis na sua conta.",
+      "planLimit": "Você já planejou edições o máximo de vezes hoje. Tente de novo amanhã.",
+      "planFailed": "O planejamento falhou. Tente de novo.",
+      "workerUnavailable": "O serviço de IA não respondeu. Planeje de novo.",
+      "invalidStyle": "Essa combinação de ajustes não é compatível.",
+      "resolveFailed": "Não foi possível aplicar as edições. Tente de novo.",
+      "timeout": "O planejamento demorou demais. Tente de novo.",
+      "changedMeanwhile": "O rascunho continuou mudando, então as edições não foram aplicadas. Tente de novo."
+    },
+    "groups": {
+      "sound": "Som",
+      "music": "Música",
+      "motion": "Movimento",
+      "retention": "Prenda a atenção"
+    },
+    "beats": {
+      "title": "Momentos",
+      "description": "Os momentos que a IA marcou. Vá até um, mude o tipo ou apague, e as edições acompanham.",
+      "jump": "Ir para o momento em {time}",
+      "kind": "Tipo do momento em {time}",
+      "delete": "Apagar o momento em {time}",
+      "kinds": {
+        "hook": "Gancho",
+        "emphasis": "Ênfase",
+        "number": "Número",
+        "punchline": "Punchline",
+        "swear": "Palavrão",
+        "emotional_turn": "Virada emocional",
+        "payoff": "Desfecho",
+        "build": "Construção"
+      }
+    },
+    "cue": {
+      "title": "Edição selecionada",
+      "at": "Em {time}",
+      "user": "Adicionada por você",
+      "auto": "Adicionada pela IA",
+      "jump": "Ir para esta edição",
+      "delete": "Apagar edição",
+      "close": "Fechar",
+      "editHint": "Ao mudar uma edição da IA ela passa a ser sua, então planejar de novo a mantém.",
+      "variant": "Visual",
+      "text": "Texto",
+      "mode": "Movimento",
+      "scale": "Zoom",
+      "anchor": "Centralizar em",
+      "amount": "Intensidade",
+      "style": "Estilo",
+      "sound": "Som",
+      "gain": "Volume",
+      "tone": "Tom do bipe",
+      "cover": "Cobrir a boca",
+      "rate": "Velocidade",
+      "hold": "Duração",
+      "holdBudget": "Os congelamentos podem somar {seconds} s neste clipe.",
+      "label": "Rótulo",
+      "waitForIt": "Mostra um adesivo “Espera só” antes do desfecho.",
+      "query": "Reação: {query}",
+      "modes": {
+        "punch": "Corte seco",
+        "push": "Aproximar",
+        "pull": "Afastar"
+      },
+      "anchors": {
+        "face": "Rosto",
+        "center": "Centro"
+      },
+      "covers": {
+        "none": "Sem cobrir",
+        "bar": "Barra",
+        "pixelate": "Pixelar"
+      }
+    },
+    "variants": {
+      "circle": "Círculo",
+      "underline": "Sublinhado",
+      "strike": "Riscado",
+      "arrow": "Seta",
+      "highlight": "Marca-texto",
+      "emoji": "Emoji",
+      "emoji_burst": "Chuva de emojis",
+      "slam": "Impacto",
+      "behind": "Atrás da pessoa",
+      "counter": "Contador",
+      "sticker": "Adesivo",
+      "decode": "Decodificar",
+      "kinetic": "Cinético",
+      "doodle": "Rabisco"
+    },
+    "transitions": {
+      "whip": "Chicote",
+      "flash": "Clarão",
+      "glitch": "Glitch",
+      "zoom_through": "Zoom através",
+      "spin": "Giro",
+      "light_leak": "Vazamento de luz"
+    },
+    "sounds": {
+      "whoosh": "Whoosh",
+      "impact": "Impacto",
+      "pop": "Pop",
+      "riser": "Subida",
+      "record_scratch": "Arranhão de disco",
+      "boom": "Bum",
+      "cash_register": "Caixa registradora",
+      "ticker": "Tique-taque",
+      "slap": "Tapa",
+      "stamp": "Carimbo",
+      "glitch": "Glitch",
+      "tape_stop": "Fita parando"
+    },
+    "kinds": {
+      "accent": "Destaque de legenda",
+      "zoom": "Zoom",
+      "shake": "Tremida",
+      "flash": "Clarão",
+      "glitch": "Glitch",
+      "desaturate": "Dessaturar",
+      "transition": "Transição",
+      "sfx": "Efeito sonoro",
+      "bleep": "Bipe",
+      "speed": "Rampa de velocidade",
+      "freeze": "Congelamento",
+      "sticker": "Adesivo",
+      "reaction": "Reação"
+    },
+    "face": {
+      "title": "Rastreamento de rosto",
+      "body": "Zooms, rabiscos e coberturas de boca seguem o rosto de quem fala. Analise o clipe uma vez para que caiam no lugar certo.",
+      "action": "Analisar rosto",
+      "running": "Analisando… cerca de um minuto",
+      "ready": "O rastreamento de rosto está pronto.",
+      "readyReopen": "O rastreamento de rosto está pronto. As exportações já usam; reabra o clipe para ver na prévia.",
+      "failed": "A análise falhou. Tente de novo."
+    },
+    "remove": {
+      "action": "Remover todas as edições",
+      "hint": "Apaga todas as edições, momentos, música e gradação deste clipe. Desfazer traz tudo de volta.",
+      "done": "Edições removidas. Desfazer traz tudo de volta."
+    },
+    "look": {
+      "title": "Visual",
+      "description": "Uma gradação de cor e granulação de filme no clipe inteiro.",
+      "grade": "Gradação de cor",
+      "grain": "Granulação de filme",
+      "grades": {
+        "auto": "Automática",
+        "none": "Nenhuma",
+        "punchy": "Vibrante",
+        "warm": "Quente",
+        "teal_orange": "Azul-petróleo e laranja",
+        "noir": "Noir",
+        "vhs": "VHS",
+        "dream": "Sonho"
+      }
+    },
+    "options": {
+      "sfx": {
+        "label": "Efeitos sonoros",
+        "hint": "Impactos e pops curtos em cortes e gráficos"
+      },
+      "music": {
+        "label": "Música",
+        "hint": "Uma trilha que abaixa quando a voz fala"
+      },
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reenquadres e aproximações curtas nos momentos-chave"
+      },
+      "shake": {
+        "label": "Tremida de câmera",
+        "hint": "Um tranco nos momentos mais fortes"
+      },
+      "transitions": {
+        "label": "Transições",
+        "hint": "Um flash ocasional onde o clipe corta"
+      },
+      "speed": {
+        "label": "Rampas de velocidade e congelamentos",
+        "hint": "Acelera a preparação e congela antes do desfecho"
+      },
+      "censor": {
+        "label": "Palavrões",
+        "hint": "Como os palavrões são cobertos"
+      },
+      "wait_for_it": {
+        "label": "Sticker “Espera…”",
+        "hint": "Antecipa um desfecho que está chegando"
+      },
+      "progress_bar": {
+        "label": "Barra de progresso",
+        "hint": "Uma barra fina na borda inferior"
+      },
+      "loop_ending": {
+        "label": "Final em loop",
+        "hint": "Funde o fim com o começo para repetir sem corte"
+      },
+      "reactions": {
+        "label": "Reações em GIF",
+        "hint": "Um GIF de reação nos momentos mais engraçados"
+      }
+    },
+    "censor": {
+      "off": "Deixar como está",
+      "bleep": "Bipe",
+      "bleep_bar": "Bipe e cobrir a boca",
+      "bleep_pixelate": "Bipe e pixelar a boca"
+    },
+    "moods": {
+      "auto": "Combinar com o vídeo",
+      "hype": "Empolgante",
+      "chill": "Tranquila",
+      "dramatic": "Dramática",
+      "funny": "Divertida",
+      "inspiring": "Inspiradora",
+      "dark": "Sombria",
+      "aggressive": "Agressiva"
+    }
+  },
+  "fxTimeline": {
+    "fxLane": "Edições",
+    "fxLaneAria": "Faixa de edições dinâmicas",
+    "musicLane": "Música",
+    "musicLaneAria": "Trilha de fundo e atenuação",
+    "cueAria": "{kind} em {time}",
+    "suppressedCueAria": "{kind} em {time}, removida",
+    "suppressed": "Edição automática removida",
+    "suppressedHint": "Edições automáticas que você apaga não voltam ao planejar de novo",
+    "deleteCue": "Apagar edição",
+    "deleteCueHint": "Pressione Delete ou Backspace para remover a edição selecionada",
+    "dragHint": "Arraste para mover",
+    "openHint": "Clique duas vezes para abrir",
+    "cueTitle": "{kind} · {time}. Arraste para mover, clique duas vezes para abrir.",
+    "addSound": "Adicionar som",
+    "addSoundHint": "Clique duas vezes na faixa para adicionar um som no cursor",
+    "pickSound": "Escolha um som",
+    "hold": "Congela {seconds} s",
+    "speed": "{rate}×",
+    "finalDuration": "Final {duration}",
+    "finalDurationHint": "Duração após rampas de velocidade e congelamentos",
+    "duck": "A música abaixa {db} dB sob a fala",
+    "noMusic": "Sem música",
+    "families": {
+      "sound": "Som",
+      "picture": "Imagem",
+      "overlay": "Sobreposição",
+      "time": "Tempo"
+    }
   }
 }

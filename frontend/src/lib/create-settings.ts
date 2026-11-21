@@ -1,5 +1,7 @@
 import { isClipLength, type ClipLength } from "@/lib/clip-duration";
 import { isWorkflow, type Workflow, type WorkflowSettingValue } from "@/lib/workflows";
+import { parseEditStylePreference } from "@/lib/fx/edit-style-request";
+import type { EditStyle } from "@/lib/fx/core/types";
 
 export const OUTPUT_FORMATS = ["vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
@@ -19,6 +21,8 @@ export type CreateSettings = {
   filteredWords?: string;
   lengths?: Partial<Record<LengthWorkflow, ClipLength>>;
   advanced?: Partial<Record<Workflow, Record<string, WorkflowSettingValue>>>;
+  /** Dynamic edits: the choices that differ from the defaults (intensity included when off), see `editStylePreference`. */
+  editStyle?: Partial<EditStyle>;
 };
 
 const MAX_ADVANCED_SETTINGS = 40;
@@ -62,5 +66,7 @@ export function parseCreateSettings(value: unknown): CreateSettings {
     }
     if (Object.keys(advanced).length) parsed.advanced = advanced;
   }
+  const editStyle = parseEditStylePreference(value.editStyle);
+  if (editStyle) parsed.editStyle = editStyle;
   return parsed;
 }

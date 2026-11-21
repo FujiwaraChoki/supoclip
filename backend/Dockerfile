@@ -17,8 +17,10 @@ RUN apt-get update && apt-get install -y \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
-# Install deno (required by yt-dlp for YouTube JS challenge solving)
-RUN curl -fsSL https://deno.land/install.sh | sh
+# Install deno, pinned: yt-dlp uses it for YouTube JS challenges, and the dynamic-edits renderer (src/fx_runtime)
+# runs fx-core on @napi-rs/canvas under it. The npm cache is baked below so renders work offline.
+ARG DENO_VERSION=2.9.8
+RUN curl -fsSL https://deno.land/install.sh | sh -s v${DENO_VERSION}
 ENV DENO_DIR=/root/.deno
 ENV PATH="/root/.deno/bin:${PATH}"
 
@@ -42,6 +44,11 @@ RUN uv venv .venv && \
 
 # yt-dlp and its PO-token plugin are installed from uv.lock above.
 
+# Bake the fx runtime's pinned npm/jsr cache into DENO_DIR before the source (layer cached on the lockfile).
+# At runtime main.ts runs with --cached-only --frozen and never touches the network.
+COPY src/fx_runtime/deno.json src/fx_runtime/deno.lock ./src/fx_runtime/
+RUN cd src/fx_runtime && deno install --frozen
+
 # Copy source code
 COPY src/ ./src/
 COPY LICENSE ./
@@ -49,6 +56,9 @@ COPY LICENSE ./
 # Copy fonts and transitions directories
 COPY fonts/ ./fonts/
 COPY transitions/ ./transitions/
+
+# Self-hoster drop-in sounds and music beds for dynamic edits (FX_LIBRARY_DIR), like fonts/
+COPY fx_library/ ./fx_library/
 
 # Create necessary directories for video processing
 RUN mkdir -p /app/uploads /app/clips /app/logs /tmp

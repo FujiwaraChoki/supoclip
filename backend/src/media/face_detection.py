@@ -28,6 +28,12 @@ YUNET_MAX_INPUT_WIDTH = 960
 
 FaceBox = Tuple[float, float, float, float, float]  # (x, y, w, h, score) in px
 
+# (x, y, w, h, score, rex, rey, lex, ley, nx, ny, rmx, rmy, lmx, lmy) in px: the
+# box plus YuNet's five landmarks (right eye, left eye, nose tip, right and left
+# mouth corner, from the subject's point of view), as ``detect(landmarks=True)``
+# returns them.
+FaceLandmarks = Tuple[float, ...]
+
 
 class YuNetFaceDetector:
     """Thin stateful wrapper that resizes YuNet's input per frame size."""
@@ -48,8 +54,13 @@ class YuNetFaceDetector:
         self._input_size: Optional[Tuple[int, int]] = None
         self._max_input_width = max(64, int(max_input_width))
 
-    def detect(self, frame_bgr: np.ndarray) -> List[FaceBox]:
-        """Return face boxes in the frame's own pixel coordinates."""
+    def detect(self, frame_bgr: np.ndarray, landmarks: bool = False) -> List[FaceBox]:
+        """Return face boxes in the frame's own pixel coordinates.
+
+        With ``landmarks=True`` each entry is a ``FaceLandmarks`` row: the same
+        clipped box and score followed by the five landmark points, each
+        clamped into the frame.
+        """
         height, width = frame_bgr.shape[:2]
         if width <= 0 or height <= 0:
             return []
@@ -80,7 +91,14 @@ class YuNetFaceDetector:
             x0, y0 = max(0.0, x), max(0.0, y)
             x1, y1 = min(float(width), x + w), min(float(height), y + h)
             if x1 - x0 > 1 and y1 - y0 > 1:
-                boxes.append((x0, y0, x1 - x0, y1 - y0, score))
+                if not landmarks:
+                    boxes.append((x0, y0, x1 - x0, y1 - y0, score))
+                    continue
+                points = []
+                for index, value in enumerate(face[4:14]):
+                    limit = float(width if index % 2 == 0 else height)
+                    points.append(min(limit, max(0.0, float(value) / scale)))
+                boxes.append((x0, y0, x1 - x0, y1 - y0, score, *points))
         return boxes
 
     def process(self, frame_rgb: np.ndarray) -> SimpleNamespace:

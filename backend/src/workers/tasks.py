@@ -334,6 +334,8 @@ async def on_worker_shutdown(ctx: Dict[str, Any]) -> None:
 
 
 from ..services.editor_service import prepare_editor, export_editor, combine_editor
+from ..services.editor_fx_analysis import ANALYSIS_JOB_TIMEOUT_SECONDS, editor_fx_analysis
+from ..services.fx_clip_jobs import FX_CLIP_JOB_TIMEOUT_SECONDS, fx_clip_job
 from ..services.clip_export_service import (
     CLIP_EXPORT_JOB_TIMEOUT_SECONDS,
     export_clip_preset,
@@ -365,6 +367,11 @@ class WorkerSettings:
         prepare_editor,
         export_editor,
         combine_editor,
+        # Studio face track and person matte (dynamic edits). Idempotent per media version, so a retry is safe.
+        func(editor_fx_analysis, timeout=ANALYSIS_JOB_TIMEOUT_SECONDS, max_tries=2),
+        # Clip edits that re-render dynamic-edits clips (settings, captions, trim, split, merge; §13.0). One try:
+        # a retry would render the edit twice. The job keeps its own max(1800, 120 x clips) budget inside this cap.
+        func(fx_clip_job, timeout=FX_CLIP_JOB_TIMEOUT_SECONDS, max_tries=1),
         # One try: a lost running export is failed by the heartbeat sweep, and a
         # retry would start a second encode for the same row.
         func(

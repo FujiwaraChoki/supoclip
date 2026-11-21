@@ -144,6 +144,35 @@ describe("WorkflowFailure for a user with only some workflows", () => {
   });
 });
 
+describe("recreating a task with dynamic edits", () => {
+  const task = {
+    source_url: "https://youtu.be/x", source_type: "youtube", caption_template: "behind_head",
+    edit_style: { intensity: "bold", music: false, unknown_newer_key: 1 },
+    workflow: "topic" as const, workflow_options: { topic: "crypto" },
+  };
+
+  it("keeps the stored edit style and animated template while dynamic edits are on", () => {
+    const body = buildRecreateBody(task, { workflow: "highlights" }, true, { enabled: true });
+    expect(body.caption_template).toBe("behind_head");
+    expect(body.edit_style).toEqual({ intensity: "bold", music: false });
+    // A row stored as a JSON string reads the same.
+    expect(buildRecreateBody({ ...task, edit_style: JSON.stringify(task.edit_style) }, { workflow: "recap" }, true, { enabled: true }).edit_style)
+      .toEqual({ intensity: "bold", music: false });
+  });
+
+  it.each([["the flag off", { enabled: false }], ["no answer", null], ["not asked", undefined]])("drops them with %s", (_label, info) => {
+    const body = buildRecreateBody(task, { workflow: "highlights" }, true, info);
+    expect(body).not.toHaveProperty("edit_style");
+    expect(body.caption_template).toBe("minimal");
+  });
+
+  it("sends nothing new for a task without edits", () => {
+    const body = buildRecreateBody({ ...task, caption_template: "hormozi", edit_style: null }, { workflow: "highlights" }, true, { enabled: true });
+    expect(body).not.toHaveProperty("edit_style");
+    expect(body.caption_template).toBe("hormozi");
+  });
+});
+
 describe("failure helpers", () => {
   it("knows the worker codes", () => {
     expect(isWorkflowErrorCode("topic_not_found")).toBe(true);

@@ -1,0 +1,73 @@
+{
+  "apply_to_existing": {
+    "body": {
+      "message": "Task settings updated",
+      "task": {
+        "add_subtitles": true,
+        "caption_template": "neon",
+        "clips": [
+          {
+            "duration": 9.3,
+            "filename": "clip_1.mp4",
+            "hook_title": "I lost forty grand in one night",
+            "id": "clip-1"
+          }
+        ],
+        "font_color": "#FFFFFF",
+        "font_family": null,
+        "font_size": 30,
+        "id": "task-1",
+        "include_broll": true,
+        "output_format": "vertical",
+        "status": "completed"
+      }
+    },
+    "regenerate_all_clips_for_task": {
+      "args": [
+        "task-1",
+        null,
+        30,
+        "#FFFFFF",
+        "neon"
+      ],
+      "kwargs": {
+        "cleanup_settings": {
+          "cut_long_pauses": true,
+          "filtered_words": [],
+          "pause_threshold_ms": 700,
+          "remove_filler_words": false
+        }
+      }
+    },
+    "save_task_source_metadata": {
+      "args": [
+        "task-1",
+        {
+          "add_subtitles": true,
+          "cut_long_pauses": true,
+          "filtered_words": [],
+          "output_format": "vertical",
+          "pause_threshold_ms": 700,
+          "remove_filler_words": false,
+          "source_type": "youtube",
+          "url": "https://youtu.be/x"
+        }
+      ],
+      "kwargs": {
+        "db": null
+      }
+    },
+    "status": 200,
+    "update_task_settings": {
+      "args": [
+        "task-1",
+        null,
+        30,
+        "#FFFFFF",
+        "neon",
+        true
+      ],
+      "kwargs": {}
+    }
+  }
+}

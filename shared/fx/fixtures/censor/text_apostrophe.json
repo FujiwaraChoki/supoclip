@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_apostrophe",
+  "fn": "censor_text",
+  "input": {
+    "text": "shit's"
+  },
+  "expected": "s***'*"
+}

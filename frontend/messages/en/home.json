@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",
+  "cleanupMore": "More options",
   "shortenPauses": "Shorten long pauses",
   "shortenPausesHint": "Trim silences longer than this down to a short breath",
   "pauseThreshold": "Pause threshold (ms)",
-  "milliseconds": "milliseconds",
   "removeFillers": "Remove filler words",
   "removeFillersHint": "“um”, “uh”, “erm” and similar sounds",
   "extraWords": "Extra words or phrases to cut",
@@ -344,6 +344,143 @@
       "strict": "Exact topic only",
       "relaxed": "Allowed",
       "question": "A question"
+    }
+  },
+  "edits": {
+    "section": "Edits",
+    "title": "Edit intensity",
+    "body": "The AI tags the moments that matter. You pick how hard each one hits.",
+    "intensity": {
+      "off": {
+        "label": "Off",
+        "hint": "Clean cuts, nothing added"
+      },
+      "subtle": {
+        "label": "Subtle",
+        "hint": "Reframes now and then, a quiet music bed"
+      },
+      "bold": {
+        "label": "Bold",
+        "hint": "Punch-ins on the key moments, hits on cuts"
+      },
+      "max": {
+        "label": "Max",
+        "hint": "Fast reframes, louder hits and music"
+      }
+    },
+    "offHint": "Turn edits on to add reframes, sound effects and music on the moments that matter.",
+    "groups": {
+      "sound": "Sound",
+      "motion": "Motion",
+      "retention": "Keep them watching"
+    },
+    "options": {
+      "sfx": {
+        "label": "Sound effects",
+        "hint": "Short hits and pops on cuts and graphics"
+      },
+      "music": {
+        "label": "Music",
+        "hint": "A bed that ducks under the voice"
+      },
+      "musicMood": "Music mood",
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reframes and short pushes on the key moments"
+      },
+      "shake": {
+        "label": "Camera shake",
+        "hint": "A jolt on the hardest hits"
+      },
+      "transitions": {
+        "label": "Transitions",
+        "hint": "A rare flash where the clip cuts"
+      },
+      "speed": {
+        "label": "Speed ramps and freezes",
+        "hint": "Speed through set-ups, freeze before a payoff"
+      },
+      "censor": {
+        "label": "Swearing",
+        "hint": "How bad words are covered"
+      },
+      "wait_for_it": {
+        "label": "“Wait for it” sticker",
+        "hint": "Teases a payoff that's coming"
+      },
+      "progress_bar": {
+        "label": "Progress bar",
+        "hint": "A thin bar along the bottom edge"
+      },
+      "loop_ending": {
+        "label": "Loop ending",
+        "hint": "Fades the end into the start so it replays smoothly"
+      },
+      "reactions": {
+        "label": "GIF reactions",
+        "hint": "A reaction GIF on the funniest moments"
+      }
+    },
+    "moods": {
+      "auto": "Match the video",
+      "hype": "Hype",
+      "chill": "Chill",
+      "dramatic": "Dramatic",
+      "funny": "Funny",
+      "inspiring": "Inspiring",
+      "dark": "Dark",
+      "aggressive": "Aggressive"
+    },
+    "censor": {
+      "off": "Leave as is",
+      "bleep": "Bleep",
+      "bleep_bar": "Bleep and cover mouth",
+      "bleep_pixelate": "Bleep and pixelate mouth"
+    },
+    "fineTune": "Fine-tune"
+  },
+  "animatedCaptions": {
+    "title": "Animated",
+    "demoLine": "Our revenue grew 300% in just one year",
+    "demoSticker": "No way!",
+    "needsFace": "Best with a face on camera",
+    "templates": {
+      "marker_circle": {
+        "name": "Marker Circle",
+        "description": "Hand-drawn circles, underlines and arrows on the key words"
+      },
+      "emoji_drop": {
+        "name": "Emoji Drop",
+        "description": "Words appear as they’re spoken, with an emoji under the big moments"
+      },
+      "slam": {
+        "name": "Slam",
+        "description": "Huge keywords slam onto the screen"
+      },
+      "behind_head": {
+        "name": "Behind Head",
+        "description": "One giant word appears behind the speaker"
+      },
+      "stat_counter": {
+        "name": "Stat Counter",
+        "description": "Spoken numbers count up and stamp into place"
+      },
+      "kinetic_stack": {
+        "name": "Kinetic Stack",
+        "description": "The hook stacks up the screen in bold rows"
+      },
+      "decode_glitch": {
+        "name": "Decode Glitch",
+        "description": "Letters scramble and lock into place"
+      },
+      "highlighter_swipe": {
+        "name": "Highlighter",
+        "description": "Words appear as they’re spoken; the key word lands in a solid box"
+      },
+      "face_doodles": {
+        "name": "Face Doodles",
+        "description": "Sparkles, horns and arrows that follow the speaker's face"
+      }
     }
   }
 }

@@ -49,7 +49,8 @@
     "framing": "Framing",
     "broll": "B-roll",
     "audio": "Audio",
-    "effects": "Efek"
+    "effects": "Efek",
+    "edits": "Edit"
   },
   "inspector": {
     "tools": "Alat editor"
@@ -257,7 +258,13 @@
     "jobProgress": "Progres ekspor {label}",
     "download": "Unduh",
     "cancelJob": "Batalkan ekspor {label}",
-    "cancellationRequested": "Pembatalan diminta"
+    "cancellationRequested": "Pembatalan diminta",
+    "refusal": {
+      "warp": "Ramp kecepatan dan freeze frame dirender di server. Gunakan ekspor latar belakang.",
+      "reaction": "GIF reaksi dirender di server. Gunakan ekspor latar belakang.",
+      "behind": "Teks di belakang pembicara dirender di server. Gunakan ekspor latar belakang."
+    },
+    "editAudio": "Efek suara dan musik"
   },
   "workspace": {
     "keepLocal": "Drafmu disimpan secara lokal. Simpan sebelum beralih clip.",
@@ -311,7 +318,7 @@
     "setIn": "Set titik in",
     "setOut": "Set titik out",
     "split": "Pisah di playhead",
-    "removeBroll": "Hapus B-roll terpilih",
+    "removeSelection": "Hapus B-roll atau edit terpilih",
     "undo": "Urungkan",
     "redo": "Ulangi",
     "save": "Simpan draf",
@@ -402,5 +409,302 @@
     "backupsNothing": "Tidak ada yang bisa dihapus. Perubahan yang belum tersimpan tetap ada sampai masuk ke akunmu.",
     "backupsBrowserNote": "Menghapus data situs SupoClip di browser ini juga menghapus salinan ini dan membuatmu keluar. Lakukan hanya jika semua klip yang terbuka menampilkan “Semua perubahan tersimpan”.",
     "done": "Selesai"
+  },
+  "captionTemplates": {
+    "title": "Template",
+    "description": "Mengatur cara caption bergerak. Font dan warna di bawah tetap berlaku.",
+    "classic": "Klasik",
+    "animated": "Animasi",
+    "animatedHint": "Digambar per frame. Aksen jatuh di momen yang penting.",
+    "names": {
+      "default": "Default",
+      "hormozi": "Hormozi",
+      "mrbeast": "MrBeast",
+      "minimal": "Minimal",
+      "tiktok": "TikTok",
+      "neon": "Neon",
+      "podcast": "Podcast"
+    }
+  },
+  "fx": {
+    "title": "Edit dinamis",
+    "description": "AI menandai momen yang penting. Intensitas menentukan seberapa keras tiap momen menghantam.",
+    "count": "{count, plural, other {# edit}}",
+    "dismiss": "Tutup",
+    "applying": "Menerapkan…",
+    "planning": "Membaca transkrip…",
+    "cancel": "Batal",
+    "replan": "Rencanakan ulang dengan AI",
+    "musicMood": "Suasana",
+    "musicVolume": "Volume musik",
+    "duckDepth": "Turun saat bicara",
+    "noMusicBed": "Belum ada lagu untuk suasana ini. Coba yang lain.",
+    "intensity": {
+      "label": "Intensitas edit",
+      "off": "Mati",
+      "subtle": "Halus",
+      "bold": "Tegas",
+      "max": "Maksimal"
+    },
+    "intensityHint": {
+      "off": "Tanpa edit otomatis. Edit buatanmu tetap ada.",
+      "subtle": "Sesekali bingkai ulang dan musik pelan.",
+      "bold": "Punch-in di momen penting, hentakan di beberapa potongan.",
+      "max": "Bingkai ulang cepat, hentakan dan musik lebih keras."
+    },
+    "needsPlan": {
+      "title": "Rencanakan klip ini dulu",
+      "body": "AI membaca transkrip dan menandai beat tempat edit mendarat. Hanya beberapa detik dan memakai satu jatah rencana hari ini.",
+      "action": "Rencanakan edit"
+    },
+    "errors": {
+      "notAvailable": "Edit dinamis belum tersedia di akunmu.",
+      "planLimit": "Jatah rencana edit hari ini sudah habis. Coba lagi besok.",
+      "planFailed": "Perencanaan gagal. Coba lagi.",
+      "workerUnavailable": "Layanan AI tidak merespons. Rencanakan lagi.",
+      "invalidStyle": "Kombinasi pengaturan itu tidak didukung.",
+      "resolveFailed": "Edit tidak bisa diterapkan. Coba lagi.",
+      "timeout": "Perencanaan terlalu lama. Coba lagi.",
+      "changedMeanwhile": "Draf terus berubah, jadi edit tidak diterapkan. Coba lagi."
+    },
+    "groups": {
+      "sound": "Suara",
+      "music": "Musik",
+      "motion": "Gerakan",
+      "retention": "Bikin terus menonton"
+    },
+    "beats": {
+      "title": "Beat",
+      "description": "Momen yang ditandai AI. Lompat ke salah satunya, ubah jenisnya, atau hapus, dan edit ikut menyesuaikan.",
+      "jump": "Lompat ke beat di {time}",
+      "kind": "Jenis beat di {time}",
+      "delete": "Hapus beat di {time}",
+      "kinds": {
+        "hook": "Hook",
+        "emphasis": "Penekanan",
+        "number": "Angka",
+        "punchline": "Punchline",
+        "swear": "Umpatan",
+        "emotional_turn": "Perubahan emosi",
+        "payoff": "Klimaks",
+        "build": "Pembangunan"
+      }
+    },
+    "cue": {
+      "title": "Edit terpilih",
+      "at": "Di {time}",
+      "user": "Ditambahkan olehmu",
+      "auto": "Ditambahkan AI",
+      "jump": "Lompat ke edit ini",
+      "delete": "Hapus edit",
+      "close": "Tutup",
+      "editHint": "Mengubah edit AI menjadikannya milikmu, jadi tetap ada saat direncanakan ulang.",
+      "variant": "Tampilan",
+      "text": "Teks",
+      "mode": "Gerakan",
+      "scale": "Zoom",
+      "anchor": "Pusatkan pada",
+      "amount": "Kekuatan",
+      "style": "Gaya",
+      "sound": "Suara",
+      "gain": "Volume",
+      "tone": "Nada bip",
+      "cover": "Tutup mulut",
+      "rate": "Kecepatan",
+      "hold": "Durasi",
+      "holdBudget": "Total freeze di klip ini maksimal {seconds} dtk.",
+      "label": "Label",
+      "waitForIt": "Menampilkan stiker “Tunggu dulu” sebelum klimaks.",
+      "query": "Reaksi: {query}",
+      "modes": {
+        "punch": "Hentak",
+        "push": "Dekatkan",
+        "pull": "Jauhkan"
+      },
+      "anchors": {
+        "face": "Wajah",
+        "center": "Tengah"
+      },
+      "covers": {
+        "none": "Tanpa penutup",
+        "bar": "Bilah",
+        "pixelate": "Piksel"
+      }
+    },
+    "variants": {
+      "circle": "Lingkaran",
+      "underline": "Garis bawah",
+      "strike": "Coret",
+      "arrow": "Panah",
+      "highlight": "Stabilo",
+      "emoji": "Emoji",
+      "emoji_burst": "Hujan emoji",
+      "slam": "Hantam",
+      "behind": "Di belakang pembicara",
+      "counter": "Penghitung",
+      "sticker": "Stiker",
+      "decode": "Dekode",
+      "kinetic": "Kinetik",
+      "doodle": "Coretan"
+    },
+    "transitions": {
+      "whip": "Kibas",
+      "flash": "Kilat",
+      "glitch": "Glitch",
+      "zoom_through": "Zoom tembus",
+      "spin": "Putar",
+      "light_leak": "Bocoran cahaya"
+    },
+    "sounds": {
+      "whoosh": "Whoosh",
+      "impact": "Hantaman",
+      "pop": "Pop",
+      "riser": "Riser",
+      "record_scratch": "Goresan piringan",
+      "boom": "Bum",
+      "cash_register": "Mesin kasir",
+      "ticker": "Detak",
+      "slap": "Tamparan",
+      "stamp": "Stempel",
+      "glitch": "Glitch",
+      "tape_stop": "Kaset berhenti"
+    },
+    "kinds": {
+      "accent": "Aksen caption",
+      "zoom": "Zoom",
+      "shake": "Guncangan",
+      "flash": "Kilat",
+      "glitch": "Glitch",
+      "desaturate": "Pudarkan warna",
+      "transition": "Transisi",
+      "sfx": "Efek suara",
+      "bleep": "Bip",
+      "speed": "Ramp kecepatan",
+      "freeze": "Freeze frame",
+      "sticker": "Stiker",
+      "reaction": "Reaksi"
+    },
+    "face": {
+      "title": "Pelacakan wajah",
+      "body": "Zoom, coretan, dan penutup mulut mengikuti wajah pembicara. Analisis klip sekali agar posisinya tepat.",
+      "action": "Analisis wajah",
+      "running": "Menganalisis… sekitar satu menit",
+      "ready": "Pelacakan wajah siap.",
+      "readyReopen": "Pelacakan wajah siap. Ekspor sudah memakainya; buka ulang klip untuk melihatnya di pratinjau.",
+      "failed": "Analisis gagal. Coba lagi."
+    },
+    "remove": {
+      "action": "Hapus semua edit",
+      "hint": "Menghapus semua edit, beat, musik, dan grading di klip ini. Urungkan untuk mengembalikannya.",
+      "done": "Edit dihapus. Urungkan untuk mengembalikannya."
+    },
+    "look": {
+      "title": "Tampilan",
+      "description": "Color grading dan grain film di seluruh klip.",
+      "grade": "Color grading",
+      "grain": "Grain film",
+      "grades": {
+        "auto": "Otomatis",
+        "none": "Tidak ada",
+        "punchy": "Tajam",
+        "warm": "Hangat",
+        "teal_orange": "Teal dan oranye",
+        "noir": "Noir",
+        "vhs": "VHS",
+        "dream": "Mimpi"
+      }
+    },
+    "options": {
+      "sfx": {
+        "label": "Efek suara",
+        "hint": "Hentakan dan pop singkat di potongan dan grafis"
+      },
+      "music": {
+        "label": "Musik",
+        "hint": "Musik latar yang mengecil saat suara bicara"
+      },
+      "zooms": {
+        "label": "Zoom",
+        "hint": "Bingkai ulang dan zoom singkat di momen penting"
+      },
+      "shake": {
+        "label": "Guncangan kamera",
+        "hint": "Sentakan di momen paling keras"
+      },
+      "transitions": {
+        "label": "Transisi",
+        "hint": "Kilatan sesekali di tempat klip dipotong"
+      },
+      "speed": {
+        "label": "Ramp kecepatan dan freeze",
+        "hint": "Percepat bagian awal, bekukan sebelum klimaks"
+      },
+      "censor": {
+        "label": "Kata kasar",
+        "hint": "Cara kata kasar ditutupi"
+      },
+      "wait_for_it": {
+        "label": "Stiker “Tunggu dulu”",
+        "hint": "Memancing klimaks yang akan datang"
+      },
+      "progress_bar": {
+        "label": "Bilah progres",
+        "hint": "Bilah tipis di tepi bawah"
+      },
+      "loop_ending": {
+        "label": "Akhir berulang",
+        "hint": "Memudarkan akhir ke awal agar terulang mulus"
+      },
+      "reactions": {
+        "label": "Reaksi GIF",
+        "hint": "GIF reaksi di momen paling lucu"
+      }
+    },
+    "censor": {
+      "off": "Biarkan apa adanya",
+      "bleep": "Bip",
+      "bleep_bar": "Bip dan tutup mulut",
+      "bleep_pixelate": "Bip dan piksel mulut"
+    },
+    "moods": {
+      "auto": "Sesuai video",
+      "hype": "Semangat",
+      "chill": "Santai",
+      "dramatic": "Dramatis",
+      "funny": "Lucu",
+      "inspiring": "Inspiratif",
+      "dark": "Gelap",
+      "aggressive": "Agresif"
+    }
+  },
+  "fxTimeline": {
+    "fxLane": "Edit",
+    "fxLaneAria": "Jalur edit dinamis",
+    "musicLane": "Musik",
+    "musicLaneAria": "Musik latar dan ducking",
+    "cueAria": "{kind} di {time}",
+    "suppressedCueAria": "{kind} di {time}, dihapus",
+    "suppressed": "Edit otomatis dihapus",
+    "suppressedHint": "Edit otomatis yang kamu hapus tidak kembali saat direncanakan ulang",
+    "deleteCue": "Hapus edit",
+    "deleteCueHint": "Tekan Delete atau Backspace untuk menghapus edit terpilih",
+    "dragHint": "Seret untuk memindahkan",
+    "openHint": "Klik dua kali untuk membuka",
+    "cueTitle": "{kind} · {time}. Seret untuk memindahkan, klik dua kali untuk membuka.",
+    "addSound": "Tambah suara",
+    "addSoundHint": "Klik dua kali jalur untuk menambah suara di playhead",
+    "pickSound": "Pilih suara",
+    "hold": "Tahan {seconds} dtk",
+    "speed": "{rate}×",
+    "finalDuration": "Akhir {duration}",
+    "finalDurationHint": "Durasi setelah ramp kecepatan dan freeze",
+    "duck": "Musik turun {db} dB saat bicara",
+    "noMusic": "Tanpa musik",
+    "families": {
+      "sound": "Suara",
+      "picture": "Gambar",
+      "overlay": "Overlay",
+      "time": "Waktu"
+    }
   }
 }

@@ -317,6 +317,61 @@
       }
     }
   },
+  "dynamicEdits": {
+    "eyebrow": "Edições dinâmicas",
+    "title": "Clipes com cara de edição profissional",
+    "body": "Escolha uma intensidade de edição. A IA encontra os momentos que importam e os destaca com legendas, aproximações, efeitos sonoros e música. O mesmo clipe, quatro estilos: troque enquanto ele toca.",
+    "switcherLabel": "Intensidade de edição",
+    "intensity": {
+      "off": {
+        "label": "Desligada",
+        "description": "Cortes limpos e as legendas de sempre, sem nada a mais."
+      },
+      "subtle": {
+        "label": "Sutil",
+        "description": "Clima de clipe de podcast: um reenquadramento de vez em quando, sobre uma música suave."
+      },
+      "bold": {
+        "label": "Forte",
+        "description": "Aproximações no estilo Hormozi que se mantêm, legendas palavra por palavra com a palavra-chave em destaque e um impacto ocasional num corte."
+      },
+      "max": {
+        "label": "Máxima",
+        "description": "Legendas marcantes no estilo MrBeast, mais reenquadramentos e zooms, flashes nos cortes, efeitos sonoros e trilha de fundo."
+      }
+    },
+    "player": {
+      "label": "Clipe em {intensity}",
+      "play": "Reproduzir",
+      "pause": "Pausar",
+      "mute": "Silenciar",
+      "unmute": "Ativar som",
+      "tapForSound": "Toque para ouvir"
+    },
+    "broll": {
+      "title": "Na Máxima, com b-roll",
+      "caption": "As imagens de apoio do próprio episódio preenchem o formato vertical em vez de encolher numa faixa, com legendas, impactos e música por cima."
+    },
+    "points": {
+      "captions": {
+        "title": "Legendas que entram palavra por palavra",
+        "description": "Estilos animados colocam a palavra-chave numa caixa, soltam um emoji ou escondem uma palavra atrás da cabeça de quem fala. Palavrões levam bipe e aparecem como f***."
+      },
+      "motion": {
+        "title": "Aproximações e reenquadramentos no ritmo",
+        "description": "A IA escolhe as frases que importam, e a imagem se aproxima, corta mais perto ou pisca bem nelas."
+      },
+      "sound": {
+        "title": "Som e música sob a voz",
+        "description": "Impactos nos cortes e uma trilha no clima do clipe, de tranquila a agressiva, mixada sob cada palavra."
+      },
+      "studio": {
+        "title": "Tudo continua editável",
+        "description": "Mude a intensidade de clipes que você já tem ou ajuste um único efeito no estúdio de clipes."
+      }
+    },
+    "source": "Os dois clipes foram feitos pelo SupoClip a partir de <link>{title}</link>."
+  },
   "editor": {
     "eyebrow": "Editor",
     "title": "Um editor completo, já incluído",

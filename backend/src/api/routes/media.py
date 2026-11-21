@@ -350,11 +350,16 @@ async def get_available_transitions():
 
 
 @router.get("/caption-templates")
-async def get_caption_templates():
+async def get_caption_templates(include: str | None = None):
     """Get available caption templates.
 
     Returns a stable default list if optional template module is unavailable.
+    The default response lists the legacy templates only, so older clients
+    never see an id they can't render. ``?include=fx`` appends the animated
+    dynamic-edits templates (``fx: true`` and what they ``require``); clients ask
+    for them only when ``GET /tasks/edit-styles`` says dynamic edits are enabled.
     """
+    include_fx = "fx" in {part.strip().lower() for part in (include or "").split(",")}
     default_templates = [
         {
             "id": "default",
@@ -370,7 +375,7 @@ async def get_caption_templates():
     try:
         from ...caption_templates import get_template_info
 
-        templates = get_template_info()
+        templates = get_template_info(include_fx=True) if include_fx else get_template_info()
         return {"templates": templates or default_templates}
     except Exception:
         return {"templates": default_templates}

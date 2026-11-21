@@ -1,0 +1,363 @@
+{
+ "version": 2,
+ "words": [
+  {
+   "text": "So",
+   "start": 10000,
+   "end": 10228,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "I",
+   "start": 10288,
+   "end": 10492,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "lost",
+   "start": 10552,
+   "end": 10828,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "$40,000",
+   "start": 10888,
+   "end": 11116,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "in",
+   "start": 11176,
+   "end": 11404,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "one",
+   "start": 11464,
+   "end": 11716,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "night.",
+   "start": 11776,
+   "end": 11980,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "And",
+   "start": 12330,
+   "end": 12582,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "honestly?",
+   "start": 12642,
+   "end": 12918,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "It",
+   "start": 13268,
+   "end": 13496,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "was",
+   "start": 13556,
+   "end": 13808,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "the",
+   "start": 13868,
+   "end": 14120,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "BEST",
+   "start": 14180,
+   "end": 14456,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "thing",
+   "start": 14516,
+   "end": 14696,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "that",
+   "start": 14756,
+   "end": 15032,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "ever",
+   "start": 15092,
+   "end": 15368,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "happened",
+   "start": 15428,
+   "end": 15680,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "to",
+   "start": 15740,
+   "end": 15968,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "me,",
+   "start": 16028,
+   "end": 16280,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "because",
+   "start": 16340,
+   "end": 16568,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "it",
+   "start": 16628,
+   "end": 16856,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "forced",
+   "start": 16916,
+   "end": 17120,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "me",
+   "start": 17180,
+   "end": 17408,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "to",
+   "start": 17468,
+   "end": 17696,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "rethink",
+   "start": 17756,
+   "end": 17984,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "everything",
+   "start": 18044,
+   "end": 18224,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "about",
+   "start": 18284,
+   "end": 18464,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "money.",
+   "start": 18524,
+   "end": 18728,
+   "confidence": 0.97,
+   "speaker": "A"
+  },
+  {
+   "text": "Here's",
+   "start": 21000,
+   "end": 21197,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "the",
+   "start": 21257,
+   "end": 21501,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "secret",
+   "start": 21561,
+   "end": 21758,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "nobody",
+   "start": 21818,
+   "end": 22015,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "tells",
+   "start": 22075,
+   "end": 22249,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "you:",
+   "start": 22309,
+   "end": 22576,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "compound",
+   "start": 22926,
+   "end": 23170,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "growth",
+   "start": 23230,
+   "end": 23427,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "beats",
+   "start": 23487,
+   "end": 23661,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "motivation.",
+   "start": 23721,
+   "end": 23918,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "Every",
+   "start": 24268,
+   "end": 24442,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "single",
+   "start": 24502,
+   "end": 24699,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "day,",
+   "start": 24759,
+   "end": 25026,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "1%",
+   "start": 25086,
+   "end": 25306,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "better.",
+   "start": 25366,
+   "end": 25586,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "That's",
+   "start": 25936,
+   "end": 26133,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "it.",
+   "start": 26193,
+   "end": 26437,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "That's",
+   "start": 26787,
+   "end": 26984,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "the",
+   "start": 27044,
+   "end": 27288,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "whole",
+   "start": 27348,
+   "end": 27522,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "game,",
+   "start": 27582,
+   "end": 27756,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "caf\u00e9",
+   "start": 27816,
+   "end": 28083,
+   "confidence": 0.97,
+   "speaker": "B"
+  },
+  {
+   "text": "included.",
+   "start": 28143,
+   "end": 28410,
+   "confidence": 0.97,
+   "speaker": "B"
+  }
+ ],
+ "utterances": []
+}

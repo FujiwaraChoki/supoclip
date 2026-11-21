@@ -1,0 +1,38 @@
+{
+  "family": "rows",
+  "case": "identity",
+  "fn": "mapped_caption_rows",
+  "input": {
+    "segments": [
+      [
+        "clip",
+        0.0,
+        6.0
+      ]
+    ],
+    "rows": [
+      {
+        "start": 0.0,
+        "end": 2.0,
+        "y": 0.5
+      },
+      {
+        "start": 2.0,
+        "end": 6.0,
+        "y": 0.65
+      }
+    ]
+  },
+  "expected": [
+    {
+      "start": 0.0,
+      "end": 2.0,
+      "y": 0.5
+    },
+    {
+      "start": 2.0,
+      "end": 6.0,
+      "y": 0.65
+    }
+  ]
+}

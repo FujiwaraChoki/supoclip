@@ -49,7 +49,8 @@
     "framing": "Framing",
     "broll": "B-roll",
     "audio": "Audio",
-    "effects": "Effects"
+    "effects": "Effects",
+    "edits": "Edits"
   },
   "inspector": {
     "tools": "Editor tools"
@@ -257,7 +258,13 @@
     "jobProgress": "{label} export progress",
     "download": "Download",
     "cancelJob": "Cancel {label} export",
-    "cancellationRequested": "Cancellation requested"
+    "cancellationRequested": "Cancellation requested",
+    "refusal": {
+      "warp": "Speed ramps and freeze frames render on the server. Use background export.",
+      "reaction": "Reaction GIFs render on the server. Use background export.",
+      "behind": "Text behind the speaker renders on the server. Use background export."
+    },
+    "editAudio": "Sound effects and music"
   },
   "workspace": {
     "keepLocal": "Your draft is kept locally. Save it before switching clips.",
@@ -311,7 +318,7 @@
     "setIn": "Set in point",
     "setOut": "Set out point",
     "split": "Split at playhead",
-    "removeBroll": "Remove selected B-roll",
+    "removeSelection": "Remove the selected B-roll or edit",
     "undo": "Undo",
     "redo": "Redo",
     "save": "Save draft",
@@ -402,5 +409,302 @@
     "backupsNothing": "Nothing to remove. Unsaved changes stay until they reach your account.",
     "backupsBrowserNote": "Clearing this browser's site data for SupoClip also removes these copies and signs you out. Only do that once every open clip says “All changes saved”.",
     "done": "Done"
+  },
+  "captionTemplates": {
+    "title": "Template",
+    "description": "Sets how captions move. The font and colours below still apply.",
+    "classic": "Classic",
+    "animated": "Animated",
+    "animatedHint": "Drawn frame by frame. Accents land on the moments that matter.",
+    "names": {
+      "default": "Default",
+      "hormozi": "Hormozi",
+      "mrbeast": "MrBeast",
+      "minimal": "Minimal",
+      "tiktok": "TikTok",
+      "neon": "Neon",
+      "podcast": "Podcast"
+    }
+  },
+  "fx": {
+    "title": "Dynamic edits",
+    "description": "The AI marks the moments that matter. Intensity sets how hard each one hits.",
+    "count": "{count, plural, one {# edit} other {# edits}}",
+    "dismiss": "Dismiss",
+    "applying": "Applying…",
+    "planning": "Reading the transcript…",
+    "cancel": "Cancel",
+    "replan": "Re-plan with AI",
+    "musicMood": "Mood",
+    "musicVolume": "Music volume",
+    "duckDepth": "Dip under speech",
+    "noMusicBed": "No track fits this mood yet. Try another mood.",
+    "intensity": {
+      "label": "Edit intensity",
+      "off": "Off",
+      "subtle": "Subtle",
+      "bold": "Bold",
+      "max": "Max"
+    },
+    "intensityHint": {
+      "off": "No automatic edits. Edits you added yourself stay.",
+      "subtle": "Reframes now and then and a quiet music bed.",
+      "bold": "Punch-ins on the key moments, hits on some cuts.",
+      "max": "Fast reframes, louder hits and music."
+    },
+    "needsPlan": {
+      "title": "Plan this clip first",
+      "body": "The AI reads the transcript and marks the beats the edits land on. It takes a few seconds and uses one of today's plans.",
+      "action": "Plan edits"
+    },
+    "errors": {
+      "notAvailable": "Dynamic edits aren't available on your account yet.",
+      "planLimit": "You've planned edits as often as you can today. Try again tomorrow.",
+      "planFailed": "Planning failed. Try again.",
+      "workerUnavailable": "The AI service didn't answer. Try planning again.",
+      "invalidStyle": "That combination of settings isn't supported.",
+      "resolveFailed": "Couldn't apply the edits. Try again.",
+      "timeout": "Planning took too long. Try again.",
+      "changedMeanwhile": "The draft kept changing, so the edits weren't applied. Try again."
+    },
+    "groups": {
+      "sound": "Sound",
+      "music": "Music",
+      "motion": "Motion",
+      "retention": "Keep them watching"
+    },
+    "options": {
+      "sfx": {
+        "label": "Sound effects",
+        "hint": "Short hits and pops on cuts and graphics"
+      },
+      "music": {
+        "label": "Music",
+        "hint": "A bed that ducks under the voice"
+      },
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reframes and short pushes on the key moments"
+      },
+      "shake": {
+        "label": "Camera shake",
+        "hint": "A jolt on the hardest hits"
+      },
+      "transitions": {
+        "label": "Transitions",
+        "hint": "A rare flash where the clip cuts"
+      },
+      "speed": {
+        "label": "Speed ramps and freezes",
+        "hint": "Speed through set-ups, freeze before a payoff"
+      },
+      "censor": {
+        "label": "Swearing",
+        "hint": "How bad words are covered"
+      },
+      "wait_for_it": {
+        "label": "“Wait for it” sticker",
+        "hint": "Teases a payoff that's coming"
+      },
+      "progress_bar": {
+        "label": "Progress bar",
+        "hint": "A thin bar along the bottom edge"
+      },
+      "loop_ending": {
+        "label": "Loop ending",
+        "hint": "Fades the end into the start so it replays smoothly"
+      },
+      "reactions": {
+        "label": "GIF reactions",
+        "hint": "A reaction GIF on the funniest moments"
+      }
+    },
+    "censor": {
+      "off": "Leave as is",
+      "bleep": "Bleep",
+      "bleep_bar": "Bleep and cover mouth",
+      "bleep_pixelate": "Bleep and pixelate mouth"
+    },
+    "moods": {
+      "auto": "Match the video",
+      "hype": "Hype",
+      "chill": "Chill",
+      "dramatic": "Dramatic",
+      "funny": "Funny",
+      "inspiring": "Inspiring",
+      "dark": "Dark",
+      "aggressive": "Aggressive"
+    },
+    "beats": {
+      "title": "Beats",
+      "description": "The moments the AI tagged. Jump to one, change what it is or delete it, and the edits follow.",
+      "jump": "Jump to the beat at {time}",
+      "kind": "Type of the beat at {time}",
+      "delete": "Delete the beat at {time}",
+      "kinds": {
+        "hook": "Hook",
+        "emphasis": "Emphasis",
+        "number": "Number",
+        "punchline": "Punchline",
+        "swear": "Swear",
+        "emotional_turn": "Emotional turn",
+        "payoff": "Payoff",
+        "build": "Build-up"
+      }
+    },
+    "cue": {
+      "title": "Selected edit",
+      "at": "At {time}",
+      "user": "Added by you",
+      "auto": "Added by AI",
+      "jump": "Jump to this edit",
+      "delete": "Delete edit",
+      "close": "Close",
+      "editHint": "Changing an AI edit makes it yours, so re-planning keeps it.",
+      "variant": "Look",
+      "text": "Text",
+      "mode": "Motion",
+      "scale": "Zoom",
+      "anchor": "Centre on",
+      "amount": "Strength",
+      "style": "Style",
+      "sound": "Sound",
+      "gain": "Volume",
+      "tone": "Bleep tone",
+      "cover": "Cover the mouth",
+      "rate": "Speed",
+      "hold": "Hold",
+      "holdBudget": "Freezes can hold {seconds}s in total on this clip.",
+      "label": "Label",
+      "waitForIt": "Shows a “Wait for it” sticker before the payoff.",
+      "query": "Reaction: {query}",
+      "modes": {
+        "punch": "Punch",
+        "push": "Push in",
+        "pull": "Pull out"
+      },
+      "anchors": {
+        "face": "Face",
+        "center": "Centre"
+      },
+      "covers": {
+        "none": "No cover",
+        "bar": "Bar",
+        "pixelate": "Pixelate"
+      }
+    },
+    "variants": {
+      "circle": "Circle",
+      "underline": "Underline",
+      "strike": "Strike-through",
+      "arrow": "Arrow",
+      "highlight": "Highlight",
+      "emoji": "Emoji",
+      "emoji_burst": "Emoji burst",
+      "slam": "Slam",
+      "behind": "Behind the speaker",
+      "counter": "Counter",
+      "sticker": "Sticker",
+      "decode": "Decode",
+      "kinetic": "Kinetic",
+      "doodle": "Doodle"
+    },
+    "transitions": {
+      "whip": "Whip",
+      "flash": "Flash",
+      "glitch": "Glitch",
+      "zoom_through": "Zoom through",
+      "spin": "Spin",
+      "light_leak": "Light leak"
+    },
+    "sounds": {
+      "whoosh": "Whoosh",
+      "impact": "Impact",
+      "pop": "Pop",
+      "riser": "Riser",
+      "record_scratch": "Record scratch",
+      "boom": "Boom",
+      "cash_register": "Cash register",
+      "ticker": "Ticker",
+      "slap": "Slap",
+      "stamp": "Stamp",
+      "glitch": "Glitch",
+      "tape_stop": "Tape stop"
+    },
+    "kinds": {
+      "accent": "Caption accent",
+      "zoom": "Zoom",
+      "shake": "Shake",
+      "flash": "Flash",
+      "glitch": "Glitch",
+      "desaturate": "Desaturate",
+      "transition": "Transition",
+      "sfx": "Sound effect",
+      "bleep": "Bleep",
+      "speed": "Speed ramp",
+      "freeze": "Freeze frame",
+      "sticker": "Sticker",
+      "reaction": "Reaction"
+    },
+    "face": {
+      "title": "Face tracking",
+      "body": "Zooms, doodles and mouth covers follow the speaker's face. Analyse the clip once so they land in the right place.",
+      "action": "Analyse face",
+      "running": "Analysing… about a minute",
+      "ready": "Face tracking is ready.",
+      "readyReopen": "Face tracking is ready. Exports use it now; reopen the clip to see it in the preview.",
+      "failed": "The analysis failed. Try again."
+    },
+    "remove": {
+      "action": "Remove all edits",
+      "hint": "Clears every edit, beat, music bed and grade on this clip. Undo brings them back.",
+      "done": "Edits removed. Undo brings them back."
+    },
+    "look": {
+      "title": "Look",
+      "description": "A colour grade and film grain over the whole clip.",
+      "grade": "Colour grade",
+      "grain": "Film grain",
+      "grades": {
+        "auto": "Automatic",
+        "none": "None",
+        "punchy": "Punchy",
+        "warm": "Warm",
+        "teal_orange": "Teal and orange",
+        "noir": "Noir",
+        "vhs": "VHS",
+        "dream": "Dream"
+      }
+    }
+  },
+  "fxTimeline": {
+    "fxLane": "Edits",
+    "fxLaneAria": "Dynamic edits lane",
+    "musicLane": "Music",
+    "musicLaneAria": "Music bed and ducking",
+    "cueAria": "{kind} at {time}",
+    "suppressedCueAria": "{kind} at {time}, removed",
+    "suppressed": "Removed auto edit",
+    "suppressedHint": "Auto edits you delete stay off when the edits are re-planned",
+    "deleteCue": "Delete edit",
+    "deleteCueHint": "Press Delete or Backspace to remove the selected edit",
+    "dragHint": "Drag to move",
+    "openHint": "Double-click to open",
+    "cueTitle": "{kind} · {time}. Drag to move, double-click to open.",
+    "addSound": "Add sound",
+    "addSoundHint": "Double-click the lane to add a sound at the playhead",
+    "pickSound": "Pick a sound",
+    "hold": "Hold {seconds}s",
+    "speed": "{rate}×",
+    "finalDuration": "Final {duration}",
+    "finalDurationHint": "Length after speed ramps and freezes",
+    "duck": "Music dips {db} dB under speech",
+    "noMusic": "No music",
+    "families": {
+      "sound": "Sound",
+      "picture": "Picture",
+      "overlay": "Overlay",
+      "time": "Time"
+    }
   }
 }

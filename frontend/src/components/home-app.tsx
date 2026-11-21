@@ -6,10 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo, SlidersHorizontal,
-  Info, ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X,
+  Info, ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X, Zap,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { ComposerSettings } from "@/components/composer-settings";
+import { Disclosure } from "@/components/disclosure";
+import { CaptionStyleCanvas, CaptionStyleTiles, type CaptionStyleOption } from "@/components/caption-style-tiles";
+import { EditIntensity, useEditStylesInfo } from "@/components/edit-intensity";
 import { OUTPUT_FORMATS, parseCreateSettings, type CreateSettings, type LengthWorkflow, type OutputFormat } from "@/lib/create-settings";
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
@@ -49,6 +52,8 @@ import {
 import { detectWorkflowIntent, looksLikeInstruction, splitSourceAndInstructions, type WorkflowIntent } from "@/lib/workflow-intent";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
+import { DEFAULT_EDIT_STYLE, isFxTemplate, type EditStyle } from "@/lib/fx/core/types";
+import { editStylePreference, fxCreateFields, offeredFxTemplates, sendableCaptionTemplate } from "@/lib/fx/edit-style-request";
 
 interface CaptionTemplate {
   id: string;
@@ -58,6 +63,9 @@ interface CaptionTemplate {
   font_family?: string;
   font_size?: number;
   font_color?: string;
+  highlight_color?: string;
+  /** Animated (dynamic edits) templates, listed only with `?include=fx`. */
+  fx?: boolean;
 }
 
 
@@ -161,6 +169,10 @@ export default function HomeApp() {
 
   const [captionTemplate, setCaptionTemplate] = useState("default");
   const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
+  // Dynamic edits: offered only when the server says the flag is on for this user (`enabled === true`).
+  const editStylesInfo = useEditStylesInfo(Boolean(session?.user?.id));
+  const fxEnabled = editStylesInfo?.enabled === true;
+  const [editStyle, setEditStyle] = useState<EditStyle>(DEFAULT_EDIT_STYLE);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
   const [clipLength, setClipLength] = useState<ClipLength>("auto");
   const [clipLengthSaveError, setClipLengthSaveError] = useState(false);
@@ -191,6 +203,9 @@ export default function HomeApp() {
   const [workflowLengths, setWorkflowLengths] = useState<Partial<Record<LengthWorkflow, ClipLength>>>({});
   const [instructions, setInstructions] = useState("");
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  // The less-used settings stay folded away; null = closed unless something in them is already set.
+  const [customizeOpen, setCustomizeOpen] = useState<boolean | null>(null);
+  const [cleanupMoreOpen, setCleanupMoreOpen] = useState<boolean | null>(null);
   // Per workflow: settings mean different things in each, and switching back keeps them.
   const [advancedByWorkflow, setAdvancedByWorkflow] = useState<Partial<Record<Workflow, AdvancedValues>>>({});
   const [sourceSeconds, setSourceSeconds] = useState<number | null>(null);
@@ -302,6 +317,7 @@ export default function HomeApp() {
     unlessChanged(setPauseThresholdMs, "1200", saved.pauseThresholdMs === undefined ? undefined : String(saved.pauseThresholdMs));
     unlessChanged(setRemoveFillerWords, true, saved.removeFillerWords);
     unlessChanged(setFilteredWords, "", saved.filteredWords);
+    unlessChanged<EditStyle>(setEditStyle, DEFAULT_EDIT_STYLE, saved.editStyle && { ...DEFAULT_EDIT_STYLE, ...saved.editStyle });
     if (saved.lengths) setWorkflowLengths((current) => ({ ...saved.lengths, ...current }));
     if (saved.advanced) setAdvancedByWorkflow((current) => ({ ...saved.advanced, ...current }));
     setSettingsLoaded(true);
@@ -320,6 +336,7 @@ export default function HomeApp() {
     setPauseThresholdMs("1200");
     setRemoveFillerWords(true);
     setFilteredWords("");
+    setEditStyle(DEFAULT_EDIT_STYLE);
     setWorkflowLengths({});
     setAdvancedByWorkflow({});
   }
@@ -373,10 +390,16 @@ export default function HomeApp() {
   useEffect(() => { void refreshFonts(); }, [refreshFonts]);
 
   useEffect(() => {
-    fetch("/api/caption-templates")
+    // Animated templates are asked for only once dynamic edits are on, so nobody else ever sees their ids.
+    let cancelled = false;
+    fetch(fxEnabled ? "/api/caption-templates?include=fx" : "/api/caption-templates")
       .then((response) => (response.ok ? response.json() : null))
-      .then((data) => { if (data) setAvailableTemplates(data.templates || []); })
+      .then((data) => { if (data && !cancelled) setAvailableTemplates(data.templates || []); })
       .catch((error) => console.error("Failed to load caption templates:", error));
+    return () => { cancelled = true; };
+  }, [fxEnabled]);
+
+  useEffect(() => {
     // B-roll is only offered when the server has a stock footage provider.
     fetch("/api/broll/status")
       .then((response) => (response.ok ? response.json() : null))
@@ -430,6 +453,35 @@ export default function HomeApp() {
     if (workflowBeforeTour.current) setWorkflow(workflowBeforeTour.current);
     workflowBeforeTour.current = null;
   }, []);
+  // A tour step about something inside the settings menu opens it on that section (idempotent: an open menu stays
+  // open). The menu is the composer's own popover, driven through its trigger and tabs.
+  const settingsOpenedByTour = useRef(false);
+  const openSettingsSection = useCallback((id: string) => {
+    const trigger = document.querySelector<HTMLElement>('[data-tour="composer-settings"]');
+    if (!trigger) return;
+    // The popover's tabs mount a frame or two after the trigger opens it: keep looking briefly.
+    const select = (attempts: number) => {
+      const tab = document.getElementById(`composer-settings-tab-${id}`);
+      if (!tab) {
+        if (attempts > 0) requestAnimationFrame(() => select(attempts - 1));
+        return;
+      }
+      if (tab.getAttribute("aria-selected") !== "true") tab.click();
+    };
+    if (trigger.getAttribute("aria-expanded") === "true") {
+      select(20);
+      return;
+    }
+    settingsOpenedByTour.current = true;
+    trigger.click();
+    requestAnimationFrame(() => select(20));
+  }, []);
+  const endTour = useCallback(() => {
+    endWorkflowPreview();
+    const trigger = document.querySelector<HTMLElement>('[data-tour="composer-settings"]');
+    if (settingsOpenedByTour.current && trigger?.getAttribute("aria-expanded") === "true") trigger.click();
+    settingsOpenedByTour.current = false;
+  }, [endWorkflowPreview]);
 
   const chooseWorkflow = (next: Workflow) => {
     setWorkflow(next);
@@ -603,7 +655,25 @@ export default function HomeApp() {
     hasPaidAccess(billingSummary.plan, billingSummary.subscription_status, billingSummary.subscription_provider);
 
   // Effective values for the live preview only — the submitted payload keeps nulls.
-  const selectedTemplate = availableTemplates.find((template) => template.id === captionTemplate);
+  // A stored animated template while dynamic edits are off shows (and sends) its legacy fallback; the choice is kept.
+  const shownTemplate = sendableCaptionTemplate(captionTemplate, fxEnabled);
+  const legacyTemplates = availableTemplates.filter((template) => !template.fx && !isFxTemplate(template.id));
+  const fxOffered = new Set(offeredFxTemplates(editStylesInfo));
+  const fxTemplateOptions: CaptionStyleOption[] = availableTemplates.flatMap((template) =>
+    isFxTemplate(template.id) && fxOffered.has(template.id) ? [{ id: template.id, name: template.name, description: template.description }] : []);
+  const fxTemplateSelected = fxEnabled && isFxTemplate(shownTemplate);
+  // One list: the classic styles from their own font and colours, then the animated ones drawn live.
+  const captionOptions: CaptionStyleOption[] = [
+    ...(legacyTemplates.length ? legacyTemplates : [{ id: "default", name: t("defaultTemplate"), description: t("defaultTemplateDescription"), animation: "" } as CaptionTemplate]).map((template) => ({
+      id: template.id, name: template.name, description: template.description,
+      classic: {
+        font: template.font_family ?? "THEBOLDFONT", size: template.font_size ?? 32,
+        color: template.font_color ?? "#FFFFFF", highlight: template.highlight_color ?? "#FFE000",
+      },
+    })),
+    ...(fxEnabled ? fxTemplateOptions : []),
+  ];
+  const selectedTemplate = availableTemplates.find((template) => template.id === shownTemplate);
   const previewFontFamily = fontFamily ?? selectedTemplate?.font_family ?? "TikTokSans-Regular";
   const previewFontSize = fontSize ?? selectedTemplate?.font_size ?? 24;
   const previewFontColor = fontColor ?? selectedTemplate?.font_color ?? "#FFFFFF";
@@ -634,15 +704,36 @@ export default function HomeApp() {
     ? ["auto", ...[...PART_COUNT_OPTIONS.filter((value): value is Exclude<typeof value, "auto"> => value !== "auto"), partCount].sort((a, b) => a - b)]
     : [...PART_COUNT_OPTIONS];
   const partLabel = partCount === "auto" ? t("parts.auto") : String(partCount);
-  const captionSummary = addSubtitles ? selectedTemplate?.name || t("defaultTemplate") : t("noCaptions");
+  const fxTemplateName = fxTemplateSelected && t.has(`animatedCaptions.templates.${shownTemplate}.name`) ? t(`animatedCaptions.templates.${shownTemplate}.name`) : null;
+  const captionSummary = addSubtitles ? fxTemplateName || selectedTemplate?.name || t("defaultTemplate") : t("noCaptions");
+  const editsActive = fxEnabled && editStyle.intensity !== "off";
+  const customCount = [fontFamily, fontSize, fontColor].filter((value) => value !== null).length;
+  const captionDescription = fxTemplateSelected && t.has(`animatedCaptions.templates.${shownTemplate}.description`)
+    ? t(`animatedCaptions.templates.${shownTemplate}.description`)
+    : selectedTemplate?.description ?? "";
+  const cleanupTuned = (pauseThresholdMs !== "1200" ? 1 : 0) + (filteredWords.trim() ? 1 : 0);
+  // B-roll sits with the edits when they are offered, and keeps its own section otherwise.
+  const brollInEdits = fxEnabled && editStylesInfo !== null;
+  const brollRow = (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <label htmlFor="include-broll" className="text-sm font-medium">{t("broll")}</label>
+        <p className="text-xs text-muted-foreground">{t("brollHint")}</p>
+      </div>
+      <Switch id="include-broll" checked={includeBroll} onCheckedChange={setIncludeBroll} disabled={controlsDisabled} />
+    </div>
+  );
+  // Saved edits wait for the server's answer, like a saved workflow: sending them early would drop them.
+  const awaitingEditStyles = editStylesInfo === null && (editStyle.intensity !== "off" || isFxTemplate(captionTemplate));
   const settingsSummary = [
     lengthText(selectedLength),
     ...(activeWorkflow === "series" ? [t("parts.picker", { value: partLabel })] : []),
     addSubtitles ? `${t("captions")}: ${captionSummary}` : captionSummary,
     t(`framingOptions.${outputFormat}.label`),
+    ...(editsActive ? [t(`edits.intensity.${editStyle.intensity}.label`)] : []),
   ].join(" · ");
   // Cleanup is on by default, so it isn't counted as a change here; its own section shows what's on.
-  const changedCount = advancedCount + (includeBroll ? 1 : 0);
+  const changedCount = advancedCount + (includeBroll ? 1 : 0) + (editsActive ? 1 : 0);
   const settingsChanged = changedCount > 0 || selectedLength !== "auto" || partCount !== "auto" || customized || !addSubtitles;
 
   // Only what is valid is remembered, so a half-typed number never comes back to block the form.
@@ -661,6 +752,8 @@ export default function HomeApp() {
         const schema = workflowsInfo?.workflows.find((entry) => entry.id === id)?.settings;
         return [id, schema?.length ? changedSettings(schema, values) : values];
       })),
+      // Kept while the feature is off for this account, so it comes back when the flag does.
+      ...(Object.keys(editStylePreference(editStyle)).length ? { editStyle: editStylePreference(editStyle) } : {}),
       ...(Number.isInteger(Number(pauseThresholdMs)) && Number(pauseThresholdMs) >= 250 && Number(pauseThresholdMs) <= 3000 ? { pauseThresholdMs: Number(pauseThresholdMs) } : {}),
     },
     // Back to the template's own look is stored as the stock defaults, which read back as "not customized".
@@ -711,7 +804,7 @@ export default function HomeApp() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!hasSource || isLoading || lengthLoading || !session?.user?.id || awaitingWorkflows) return;
+    if (!hasSource || isLoading || lengthLoading || !session?.user?.id || awaitingWorkflows || awaitingEditStyles) return;
     // Clicking Generate first blurs the link box; if that blur just held a request back, let the user see it.
     if (heldAt.current > 0 && performance.now() - heldAt.current < 800) return;
     let sourceUrl = url;
@@ -757,6 +850,8 @@ export default function HomeApp() {
     setStatusMessage("");
 
     const fontOptions = buildFontOptionsPayload(fontFamily, fontSize, fontColor);
+    // Sanitised at send time (§15): no edit_style and no animated template unless the flag said enabled === true.
+    const fxFields = fxCreateFields({ editStyle, captionTemplate }, editStylesInfo);
 
     try {
       let videoUrl = sourceUrl.trim();
@@ -773,7 +868,7 @@ export default function HomeApp() {
       const request: Record<string, unknown> = {
         source: { url: videoUrl, title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null },
         font_options: fontOptions,
-        caption_template: captionTemplate,
+        caption_template: fxFields.caption_template,
         processing_mode: "fast",
         output_format: outputFormat,
         clip_length: selectedLength,
@@ -783,6 +878,8 @@ export default function HomeApp() {
         pause_threshold_ms: normalizedPauseThreshold,
         remove_filler_words: removeFillerWords,
         filtered_words: normalizedFilteredWords,
+        // Only when intensity isn't off: an off request stays exactly today's.
+        ...(fxFields.edit_style ? { edit_style: fxFields.edit_style } : {}),
       };
       // Plain highlights without instructions sends exactly the request it always has.
       const options: WorkflowOptions = {};
@@ -824,7 +921,7 @@ export default function HomeApp() {
           part_count: activeWorkflow === "series" ? partCount : null,
         } : {}),
         source_type: sourceType,
-        caption_template: captionTemplate,
+        caption_template: fxFields.caption_template,
         output_format: outputFormat,
         add_subtitles: addSubtitles,
         include_broll: brollAvailable && includeBroll,
@@ -862,7 +959,7 @@ export default function HomeApp() {
     : null;
 
   return (
-    <AppShell tour={{ busy: hasSource || isLoading || upgradeReason !== null, onWorkflow: previewWorkflow, onEnd: endWorkflowPreview }}>
+    <AppShell tour={{ busy: hasSource || isLoading || upgradeReason !== null, onWorkflow: previewWorkflow, onEnd: endTour, onSettingsSection: openSettingsSection }}>
       <main className="mx-auto w-full max-w-5xl px-4 pb-20 pt-10 sm:px-8 md:pt-[12vh]">
         {billingSummary?.cancel_at && billingSummary.subscription_provider === "stripe" && (
           <SubscriptionCancelBanner
@@ -1155,45 +1252,18 @@ export default function HomeApp() {
                     <p className="mt-2 text-xs text-muted-foreground">{t("parts.autoHint")}</p>
                     </>
                   ) }] : []),
-                  { id: "captions", label: t("captions"), icon: addSubtitles ? <Captions /> : <CaptionsOff />, value: captionSummary, flush: true, content: (
-                  <div className="grid gap-0 sm:h-full sm:grid-cols-[minmax(0,1fr)_180px]">
-                    <div className="min-w-0 space-y-4 overflow-y-auto p-4">
-                      <div className="flex items-center justify-between gap-4 border-b pb-4">
+                  { id: "captions", label: t("captions"), icon: addSubtitles ? <Captions /> : <CaptionsOff />, value: captionSummary, content: (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-4">
                         <label htmlFor="add-captions" className="text-sm font-medium">{t("captions")}</label>
                         <Switch id="add-captions" checked={addSubtitles} onCheckedChange={setAddSubtitles} disabled={controlsDisabled} />
                       </div>
-                      <div className={cn(!addSubtitles && "pointer-events-none opacity-50")} inert={!addSubtitles}>
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("captionStyle")}</p>
-                        <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("captionStyle")}>
-                          {(availableTemplates.length ? availableTemplates : [{ id: "default", name: t("defaultTemplate"), description: t("defaultTemplateDescription"), animation: "" } as CaptionTemplate]).map((template) => (
-                            <button
-                              key={template.id}
-                              type="button"
-                              role="radio"
-                              aria-checked={captionTemplate === template.id}
-                              onClick={() => setCaptionTemplate(template.id)}
-                              className={cn("flex w-full min-w-0 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent", captionTemplate === template.id && "bg-accent")}
-                            >
-                              <span className="size-3 shrink-0 rounded-full border" style={{ backgroundColor: template.font_color || "#fff" }} />
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-medium">{template.name}</span>
-                                <span className="block truncate text-xs text-muted-foreground">{template.description}</span>
-                              </span>
-                              {captionTemplate === template.id && <Check className="size-4" />}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className={cn("space-y-3 border-t pt-4", !addSubtitles && "pointer-events-none opacity-50")} inert={!addSubtitles}>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("customize")}</p>
-                          {customized && (
-                            <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setFontFamily(null); setFontSize(null); setFontColor(null); }}>
-                              {t("resetTemplate")}
-                            </button>
-                          )}
-                        </div>
+                      <div className={cn("space-y-3", !addSubtitles && "pointer-events-none opacity-50")} inert={!addSubtitles}>
+                        <CaptionStyleTiles options={captionOptions} value={shownTemplate} onChange={setCaptionTemplate} disabled={controlsDisabled} />
+                        {captionDescription && <p className="text-xs text-muted-foreground">{captionDescription}</p>}
+                        <Disclosure label={t("customize")} count={customCount} open={customizeOpen ?? customized} onOpenChange={setCustomizeOpen} className="border-t pt-2">
+                          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
+                            <div className="min-w-0 space-y-3">
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-2">
                             <label className="text-sm">{t("font")}</label>
@@ -1238,20 +1308,37 @@ export default function HomeApp() {
                             </label>
                           </div>
                         </div>
+                              {customized && (
+                                <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setFontFamily(null); setFontSize(null); setFontColor(null); }}>
+                                  {t("resetTemplate")}
+                                </button>
+                              )}
+                            </div>
+                            <div className="hidden sm:block">
+                      {fxTemplateSelected && isFxTemplate(shownTemplate) ? (
+                        <div className="overflow-hidden rounded-xl shadow-inner">
+                          <CaptionStyleCanvas template={shownTemplate} line={t("animatedCaptions.demoLine")} sticker={t("animatedCaptions.demoSticker")} />
+                        </div>
+                      ) : (
+                        <CaptionPreview
+                          thumbnail={youtubeThumbnailUrl}
+                          fontFamily={previewFontFamily}
+                          fontSize={previewFontSize}
+                          color={previewFontColor}
+                        />
+                      )}
+                              <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("livePreview")}</p>
+                            </div>
+                          </div>
+                        </Disclosure>
                       </div>
                     </div>
-
-                    <div className="hidden border-l bg-muted/40 p-4 sm:block">
-                      <CaptionPreview
-                        thumbnail={youtubeThumbnailUrl}
-                        fontFamily={previewFontFamily}
-                        fontSize={previewFontSize}
-                        color={previewFontColor}
-                      />
-                      <p className="mt-3 text-center text-[11px] text-muted-foreground">{t("livePreview")}</p>
-                    </div>
-                  </div>
                   ) },
+                  ...(fxEnabled && editStylesInfo ? [{ id: "edits", label: t("edits.section"), icon: <Zap />, value: t(`edits.intensity.${editStyle.intensity}.label`), count: (editsActive ? 1 : 0) + (brollAvailable && includeBroll ? 1 : 0), content: (
+                    <EditIntensity value={editStyle} onChange={setEditStyle} info={editStylesInfo} disabled={controlsDisabled}>
+                      {brollAvailable && brollRow}
+                    </EditIntensity>
+                  ) }] : []),
                   { id: "framing", label: t("framing"), icon: <Crop />, value: t(`framingOptions.${outputFormat}.label`), content: (
                     <>
                   <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("framing")}</p>
@@ -1286,10 +1373,6 @@ export default function HomeApp() {
                     </div>
                     <Switch id="cut-pauses" checked={cutLongPauses} onCheckedChange={setCutLongPauses} />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Input type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} aria-label={t("pauseThreshold")} className="h-8 w-24" />
-                    <span className="text-xs text-muted-foreground">{t("milliseconds")}</span>
-                  </div>
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <label htmlFor="filler-words" className="text-sm font-medium">{t("removeFillers")}</label>
@@ -1297,21 +1380,21 @@ export default function HomeApp() {
                     </div>
                     <Switch id="filler-words" checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} />
                   </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">{t("extraWords")}</label>
-                    <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder={t("extraWordsPlaceholder")} className="h-8" />
-                  </div>
+                  <Disclosure label={t("cleanupMore")} count={cleanupTuned} open={cleanupMoreOpen ?? cleanupTuned > 0} onOpenChange={setCleanupMoreOpen} className="border-t pt-2">
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label htmlFor="pause-threshold" className="text-xs font-medium text-muted-foreground">{t("pauseThreshold")}</label>
+                        <Input id="pause-threshold" type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} className="h-8 w-28" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">{t("extraWords")}</label>
+                        <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder={t("extraWordsPlaceholder")} className="h-8" />
+                      </div>
+                    </div>
+                  </Disclosure>
                     </div>
                   ) },
-                  ...(brollAvailable ? [{ id: "broll", label: t("broll"), icon: <Clapperboard />, value: includeBroll ? t("composerSettings.on") : t("composerSettings.off"), content: (
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <label htmlFor="include-broll" className="text-sm font-medium">{t("broll")}</label>
-                        <p className="text-xs text-muted-foreground">{t("brollHint")}</p>
-                      </div>
-                      <Switch id="include-broll" checked={includeBroll} onCheckedChange={setIncludeBroll} disabled={controlsDisabled} />
-                    </div>
-                  ) }] : []),
+                  ...(brollAvailable && !brollInEdits ? [{ id: "broll", label: t("broll"), icon: <Clapperboard />, value: includeBroll ? t("composerSettings.on") : t("composerSettings.off"), content: brollRow }] : []),
                   ...(workflowsEnabled && advancedSchema.length > 0 ? [{ id: "advanced", label: t("advanced.chip"), icon: <SlidersHorizontal />, count: advancedCount, content: (
                     <WorkflowAdvancedSettings
                       schema={advancedSchema}
@@ -1360,7 +1443,7 @@ export default function HomeApp() {
                   type="submit"
                   size="icon"
                   aria-label={t(`generateByWorkflow.${activeWorkflow}`)}
-                  disabled={!hasSource || isLoading || lengthLoading || awaitingWorkflows || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
+                  disabled={!hasSource || isLoading || lengthLoading || awaitingWorkflows || awaitingEditStyles || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
                   {isLoading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}

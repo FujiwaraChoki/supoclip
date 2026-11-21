@@ -317,6 +317,61 @@
       }
     }
   },
+  "dynamicEdits": {
+    "eyebrow": "Dynamische Edits",
+    "title": "Clips, die aussehen wie von Profis geschnitten",
+    "body": "Wähle eine Edit-Intensität. Die KI findet die Momente, auf die es ankommt, und setzt dort Untertitel, Punch-ins, Sound und Musik. Derselbe Clip in vier Looks: Wechsle einfach, während er läuft.",
+    "switcherLabel": "Edit-Intensität",
+    "intensity": {
+      "off": {
+        "label": "Aus",
+        "description": "Saubere Schnitte und deine gewohnten Untertitel, nichts dazu."
+      },
+      "subtle": {
+        "label": "Dezent",
+        "description": "Wie ein Podcast-Clip: ab und zu ein neuer Bildausschnitt, darunter leise Musik."
+      },
+      "bold": {
+        "label": "Kräftig",
+        "description": "Punch-ins im Hormozi-Stil, die stehen bleiben, Untertitel Wort für Wort mit hervorgehobenem Schlüsselwort und ab und zu ein Schlag auf einem Schnitt."
+      },
+      "max": {
+        "label": "Maximal",
+        "description": "Fette Untertitel im MrBeast-Stil, mehr Reframes und Zooms, Blitze an Schnitten, Soundeffekte und Musik."
+      }
+    },
+    "player": {
+      "label": "Clip mit {intensity}",
+      "play": "Abspielen",
+      "pause": "Pausieren",
+      "mute": "Stumm schalten",
+      "unmute": "Ton einschalten",
+      "tapForSound": "Für Ton tippen"
+    },
+    "broll": {
+      "title": "Maximal, mit B-Roll",
+      "caption": "Die eigenen Zwischenschnitte der Folge füllen das Hochformat, statt zu einem Streifen zu schrumpfen, und Untertitel, Effekte und Musik laufen darüber weiter."
+    },
+    "points": {
+      "captions": {
+        "title": "Untertitel, die Wort für Wort sitzen",
+        "description": "Animierte Stile setzen das Schlüsselwort in eine Box, lassen ein Emoji fallen oder stellen ein Wort hinter den Kopf der Person. Flüche werden überpiept und als f*** angezeigt."
+      },
+      "motion": {
+        "title": "Punch-ins und Reframes im Takt",
+        "description": "Die KI wählt die Sätze, auf die es ankommt, und genau dort zoomt das Bild hinein, schneidet näher heran oder blitzt auf."
+      },
+      "sound": {
+        "title": "Sound und Musik unter der Stimme",
+        "description": "Schläge auf den Schnitten und Musik in der Stimmung des Clips, von entspannt bis aggressiv, unter jedes Wort gemischt."
+      },
+      "studio": {
+        "title": "Alles bleibt bearbeitbar",
+        "description": "Ändere die Intensität bestehender Clips oder justiere einzelne Effekte im Clip-Studio."
+      }
+    },
+    "source": "Beide Clips hat SupoClip aus <link>{title}</link> erstellt."
+  },
   "editor": {
     "eyebrow": "Editor",
     "title": "Ein kompletter Editor, direkt eingebaut",

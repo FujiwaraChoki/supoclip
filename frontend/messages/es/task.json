@@ -285,5 +285,25 @@
       "bumps": "Hay algunos baches en el camino. Los estamos superando—solo necesitamos un poco más de tiempo.",
       "slower": "Las cosas van un poco más despacio de lo habitual. Seguimos en ello."
     }
+  },
+  "fx": {
+    "title": "Edición",
+    "intensity": "Intensidad de edición",
+    "intensityHint": "Con cuánta fuerza golpea la edición. Cambiarla vuelve a renderizar todos los clips.",
+    "rendering": "Renderizando la edición…",
+    "queued": "Volviendo a renderizar tus clips. Puede tardar unos minutos; puedes salir de esta página.",
+    "applied": "Edición aplicada",
+    "jobFailed": "No se pudo aplicar la edición: {message}",
+    "jobErrors": {
+      "WORKER_UNAVAILABLE": "ningún renderizador tomó el trabajo. Inténtalo de nuevo en unos minutos.",
+      "WORKER_STOPPED": "el renderizador se detuvo antes de terminar la edición.",
+      "CLIP_JOB_TIMEOUT": "el renderizado tardó demasiado."
+    },
+    "jobInProgress": "Ya hay un nuevo renderizado en curso. Tus clips se actualizarán cuando termine.",
+    "jobUnreachable": "Perdimos el contacto con el renderizado. Puede que siga en marcha.",
+    "jobDenied": "Ya no tienes acceso a este renderizado. Inicia sesión de nuevo y recarga la página.",
+    "retry": "Reintentar",
+    "approxTiming": "Este video no tenía tiempos por palabra, así que los subtítulos y efectos siguen tiempos aproximados.",
+    "simplified": "Algunos efectos se simplificaron en este clip."
   }
 }

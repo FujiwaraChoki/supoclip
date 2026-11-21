@@ -97,5 +97,37 @@
       "body": "Duración, subtítulos, encuadre, limpieza y B-roll ahora están en un solo menú. Recordamos tus elecciones, así que solo las configuras una vez."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Llegan las ediciones dinámicas",
+      "body": "Ahora tus clips se pueden editar como lo hacen los mejores editores de vídeo corto: subtítulos animados, reencuadres, efectos de sonido y música en los momentos que importan. La IA encuentra esos momentos; tú eliges con cuánta fuerza golpean."
+    },
+    "intensity": {
+      "title": "Elige con cuánta fuerza golpea",
+      "body": "<b>Sutil:</b> subtítulos con contorno, un reencuadre de vez en cuando y música suave, como un clip de pódcast.\n<b>Marcada:</b> subtítulos al estilo Hormozi sobre una píldora oscura, palabra a palabra con la palabra clave en un recuadro, y zooms que se mantienen.\n<b>Máxima:</b> mayúsculas gruesas con contorno, un reencuadre en casi cada frase, golpes más fuertes y algún destello en un corte.\n<b>Desactivada</b> deja los clips como están."
+    },
+    "sound": {
+      "title": "Sonido, música y palabrotas",
+      "body": "Los efectos de sonido caen en los cortes y en lo que pasa en pantalla, nunca sobre la charla sin más. La música tiene siete estados de ánimo, de relajado a agresivo: déjala en «Según el video» y la IA elige uno que encaje, o elígelo tú. Las palabrotas se tapan con un pitido y se muestran como f*** en los subtítulos. Con la edición activada, cada cosa tiene su interruptor en «Ajuste fino»."
+    },
+    "captions": {
+      "title": "Estilos de subtítulos animados",
+      "body": "Subrayador pone la palabra clave en un recuadro, Emoji Drop coloca un emoji bajo aquello de lo que se habla y Detrás de la cabeza pone una palabra gigante detrás de quien habla. Cada uno toma el aspecto de tu intensidad y también funciona solo, con la edición desactivada."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Ediciones dinámicas en el estudio",
+      "body": "Aquí puedes cambiar cada efecto de un clip antes de exportarlo, uno a uno o todos a la vez."
+    },
+    "panel": {
+      "title": "La pestaña Ediciones",
+      "body": "Cambia la intensidad, el estado de ánimo de la música o los interruptores de este clip, pide a la IA que planifique de nuevo o quítalo todo. La lista muestra cada momento que eligió la IA: haz clic en uno para ir a él. Todo cambio se puede deshacer."
+    },
+    "lane": {
+      "title": "Cada efecto en la línea de tiempo",
+      "body": "Cada zoom y cada sonido es un bloque aquí, y la pista de música muestra la base bajo la voz. Arrastra un bloque para moverlo, haz doble clic para cambiarlo, o selecciónalo y pulsa Supr. Haz doble clic en un hueco vacío para añadir un sonido."
+    }
+  },
   "skip": "Omitir"
 }

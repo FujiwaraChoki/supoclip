@@ -1455,6 +1455,7 @@ def build_vertical_filter_plan(
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
     report: Optional[Dict[str, Any]] = None,
+    allow_kenburns: bool = True,
 ) -> Tuple[str, str, Optional[float]]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
@@ -1462,14 +1463,27 @@ def build_vertical_filter_plan(
     'complex' is a filter_complex producing [vout]. caption_y is a 0-1 output
     fraction that keeps captions off the detected face, or None to keep the
     template default. ``report["kind"]`` receives the layout kind.
+
+    ``allow_kenburns=False`` (the dynamic-edits render path) leaves the slow
+    punch-in out of the plan: fx-core draws an editable push instead, so a clip
+    has exactly one zoom source. ``report["kenburns_eligible"]`` then says
+    whether the legacy plan would have used it.
     """
     described = describe_vertical_layout(
-        input_path, width, height, speaker_turns, speaker_words
+        input_path, width, height, speaker_turns, speaker_words,
+        **({} if allow_kenburns else {"allow_kenburns": False}),
     )
     if report is not None:
         report["kind"] = described["kind"]
+        if "kenburns_eligible" in described:
+            report["kenburns_eligible"] = described["kenburns_eligible"]
         if described.get("hook_center_y") is not None:
             report["hook_center_y"] = described["hook_center_y"]
+        if described.get("panel_windows"):
+            report["panel_windows"] = described["panel_windows"]
+        if described.get("interview_segments"):
+            # Per-shot kinds (pair / single / fit, stage-1 seconds): the dynamic-edits caption rows, and the studio's.
+            report["interview_segments"] = described["interview_segments"]
         if described.get("gaming"):
             report["gaming"] = described["gaming"]
     return described["video_filter"], described["mode"], described["caption_y"]
@@ -1481,8 +1495,13 @@ def describe_vertical_layout(
     height: int,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
+    allow_kenburns: bool = True,
 ) -> Dict[str, Any]:
     """Same plan as ``build_vertical_filter_plan``, plus a layout ``kind``.
+
+    With ``allow_kenburns=False`` the two Ken Burns sites keep the plain chain
+    and the result gains ``kenburns_eligible`` (True where the punch-in would
+    have been used). The default leaves the plan and its keys unchanged.
 
     Kinds the editor keeps whole are ``reaction`` (reactor above the source),
     ``stack`` (side-by-side call tiles), ``overlap`` (two speakers at once)
@@ -1508,6 +1527,13 @@ def describe_vertical_layout(
     crop_w, crop_h = compute_vertical_crop_dims(width, height)
     duration = ffprobe_duration(input_path)
 
+    def described(kind: str, video_filter: str, mode: str, caption_y: Optional[float],
+                  eligible: bool = False) -> Dict[str, Any]:
+        result = _described(kind, video_filter, mode, caption_y)
+        if not allow_kenburns:
+            result["kenburns_eligible"] = eligible
+        return result
+
     def bleed_caption(samples) -> Optional[float]:
         bottom = dominant_face_bottom(samples, height)
         if bottom is None:
@@ -1519,7 +1545,12 @@ def describe_vertical_layout(
     # slow punch-in so the frame still breathes.
     if crop_w >= width:
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
-        tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
+        zoom = kenburns_zoom_fragment(duration)
+        if not allow_kenburns:
+            return described(
+                "crop", f"crop={sw}:{sh}:{sx}:{sy},{VERTICAL_SCALE_CHAIN}", "vf", None, zoom is not None
+            )
+        tail = zoom or VERTICAL_SCALE_CHAIN
         return _described("crop", f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf", None)
 
     # --- Gaming mode (GAMING_LAYOUT=auto; off by default): media/gaming_layout.py, docs/gaming-mode.md ---
@@ -1527,7 +1558,7 @@ def describe_vertical_layout(
 
     gaming = choose_gaming_layout(input_path, width, height, duration)
     if gaming:
-        result = _described("gaming", gaming["video_filter"], "complex", gaming["caption_y"])
+        result = described("gaming", gaming["video_filter"], "complex", gaming["caption_y"])
         if gaming.get("hook_center_y") is not None:
             result["hook_center_y"] = gaming["hook_center_y"]
         result["gaming"] = gaming["gaming"]
@@ -1562,6 +1593,17 @@ def describe_vertical_layout(
     if fit_windows:
         logger.info("Readable fit windows (start, end, crop_w, x): %s", fit_windows)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] in ("fit", "cover")]
+
+    def with_shots(result: Dict[str, Any]) -> Dict[str, Any]:
+        # A clip that switches between frame-filling crops and fitted content gets its shots, in the interview
+        # layout's terms (crop or cover = "single", fit = "fit"), so the look captions sit at mid-chest on a crop
+        # and below the picture of a fitted graphic instead of across it (edit_fx.caption_rows).
+        if any(s["kind"] == "fit" for s in plan) and any(s["kind"] != "fit" for s in plan):
+            result["interview_segments"] = [
+                {"start": float(s["start"]), "end": float(s["end"]), "kind": "fit" if s["kind"] == "fit" else "single"}
+                for s in plan
+            ]
+        return result
     # Two people who cannot share a 9:16 crop are not slide or sports content.
     # Call/stage layouts and speaker framing still apply; if both decline, that
     # shot keeps the full frame instead of a dominant-face crop.
@@ -1601,7 +1643,7 @@ def describe_vertical_layout(
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
-        return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
+        return described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
 
     # A sit-down interview (a two-shot, usually cut with close-ups) is composed
     # shot by shot: both people stacked, one person cropped tight, graphics
@@ -1615,19 +1657,26 @@ def describe_vertical_layout(
         logger.warning("Interview layout failed (%s); using the generic layout", exc)
         interview = None
     if interview:
-        result = _described(
+        result = described(
             "interview", interview["video_filter"], "complex",
             caption_y_below_subject(interview["face_bottom"]),
         )
         if interview.get("hook_center_y") is not None:
             result["hook_center_y"] = interview["hook_center_y"]
+        pairs = [(s["start"], s["end"]) for s in interview.get("segments", ()) if s["kind"] == "pair"]
+        if pairs:
+            result["panel_windows"] = pairs
+        if interview.get("segments"):
+            result["interview_segments"] = [dict(s) for s in interview["segments"]]
         return result
 
     if all(s["kind"] in ("fit", "cover") for s in plan) and content_fits:
         if all(s["kind"] == "cover" for s in plan):
-            return _described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None)
-        kind = "compositor" if covers else "fit"
-        return _described(kind, build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+            return described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None)
+        if covers:
+            return with_shots(described(
+                "compositor", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80))
+        return described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
@@ -1656,17 +1705,17 @@ def describe_vertical_layout(
                 # like a call. Put captions between the two faces.
                 caption_y = 0.5 if speaker_mode == "complex" else bleed_caption(face_samples)
                 kind = "overlap" if speaker_mode == "complex" else "speaker"
-                return _described(kind, speaker_filter, speaker_mode, caption_y)
+                return described(kind, speaker_filter, speaker_mode, caption_y)
     if talking:
         logger.info(
             "Face-aware vertical layout: %s (upscale %.2fx, caption_y %.2f)",
             talking["kind"], talking["upscale"], talking["caption_y"],
         )
-        return _described(
+        return described(
             talking["kind"], talking["video_filter"], "complex", talking["caption_y"]
         )
     if all(s["kind"] == "fit" for s in plan):
-        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
+        return described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     keys = build_crop_trajectory(track, width, crop_w) if track else []
     # A cut by itself is not camera motion. Ken Burns stays available unless
@@ -1695,28 +1744,30 @@ def describe_vertical_layout(
         # already have motion, and zoompan's re-timing would fight overlays.)
         if not moving:
             zoom = kenburns_zoom_fragment(duration)
+            if not allow_kenburns:
+                return described("crop", crop_chain, "vf", bleed_caption(face_samples), zoom is not None)
             if zoom:
-                return _described(
+                return described(
                     "crop",
                     f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}",
                     "vf",
                     bleed_caption(face_samples),
                 )
-        return _described("crop", crop_chain, "vf", bleed_caption(face_samples))
+        return described("crop", crop_chain, "vf", bleed_caption(face_samples))
 
     face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]
     logger.info(
         "Scene-aware vertical layout: %d face shot(s), %d content shot(s)",
         len(face_intervals), len(fit_intervals),
     )
-    return _described(
+    return with_shots(described(
         "compositor",
         build_vertical_compositor_filter(
             crop_chain, face_intervals, fit_intervals, fit_windows=fit_windows
         ),
         "complex",
         bleed_caption(face_samples),
-    )
+    ))
 
 
 def render_reframed_clip_ffmpeg(
@@ -1730,6 +1781,8 @@ def render_reframed_clip_ffmpeg(
     vertical_plan: Optional[Tuple[str, str]] = None,
     speaker_plan: Optional[Dict[str, Any]] = None,
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
+    fx_request: Optional[Any] = None,
+    fx_report: Optional[Dict[str, Any]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -1738,12 +1791,19 @@ def render_reframed_clip_ffmpeg(
     output and loudness-normalised audio. ``broll_overlays`` (path, start and
     duration on the clip timeline) are composited over the framed picture and
     under the captions.
+
+    ``fx_request`` (a ``media.fx_chain.FxRequest``) renders the clip through the
+    dynamic-edits chain instead: every branch goes through ``composited()``, whose
+    framing head (without subtitles) becomes the chain's P1 head and whose
+    encode args become P3's. ``fx_report`` carries the chain options in
+    (``mode``: "full" | "safe", ``should_cancel``) and the ``FxResult`` out
+    (``result``).
     """
     width, height = ffprobe_video_size(input_path)
     has_audio = ffprobe_has_audio(input_path)
     subs = (
         subtitles_filter_fragment(subtitle_ass_path, fonts_dir)
-        if subtitle_ass_path
+        if subtitle_ass_path and fx_request is None
         else None
     )
     audio_args = build_audio_output_args(has_audio)
@@ -1754,6 +1814,14 @@ def render_reframed_clip_ffmpeg(
     )
 
     def composited(head: str, head_label: str, out_w: int, out_h: int, tail: str = "", **encode) -> bool:
+        if fx_request is not None:
+            # P3 burns the ASS above the effects, so the head carries no subtitles
+            # (otherwise the hook title would also be burned under P2's zoom).
+            return _render_fx_chain(
+                input_path, output_path, head, head_label, out_w, out_h, overlays,
+                subtitle_ass_path, fonts_dir, fx_request, fx_report, tail=tail,
+                encode_args=build_final_video_encode_args(**encode), has_audio=has_audio,
+            )
         graph, label = broll_overlay_graph(head_label, overlays, out_w, out_h)
         post = ",".join(part for part in (subs, tail) if part)
         if post:
@@ -1780,7 +1848,7 @@ def render_reframed_clip_ffmpeg(
         needs_scale = (capped_width, capped_height) != (display_width, display_height)
         needs_fps = source_fps is not None and source_fps > MAX_OUTPUT_FPS + FPS_EPSILON
         out_w, out_h = round_to_even(capped_width), round_to_even(capped_height)
-        if overlays:
+        if overlays or fx_request is not None:
             # Always scale to the display size: on a non-square-pixel source
             # the coded frame is not the size the overlay is built for.
             ok = composited(
@@ -1846,7 +1914,7 @@ def render_reframed_clip_ffmpeg(
             f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[rv];"
             f"[lv][rv]vstack,setsar=1"
         )
-        if overlays:
+        if overlays or fx_request is not None:
             return composited(f"{stacked}[base]", "[base]", 1080, 1920), 1080, 1920
         video_filter = f"{stacked}{vstack_tail}[v]"
         command = [
@@ -1865,7 +1933,7 @@ def render_reframed_clip_ffmpeg(
             f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
             f"{VERTICAL_SCALE_CHAIN}"
         )
-        if overlays:
+        if overlays or fx_request is not None:
             return composited(f"[0:v]{video_filter}[base]", "[base]", 1080, 1920), 1080, 1920
         if subs:
             video_filter = f"{video_filter},{subs}"
@@ -1887,9 +1955,11 @@ def render_reframed_clip_ffmpeg(
         video_filter, mode = vertical_plan
     else:
         video_filter, mode, _caption_y = build_vertical_filter_plan(
-            input_path, width, height, speaker_turns, speaker_words
+            input_path, width, height, speaker_turns, speaker_words,
+            # The chain's analysis decodes the head at 6 fps: no zoompan on the FX path.
+            **({"allow_kenburns": False} if fx_request is not None else {}),
         )
-    if overlays:
+    if overlays or fx_request is not None:
         if mode == "complex":
             return composited(video_filter, "[vout]", 1080, 1920), 1080, 1920
         return composited(f"[0:v]{video_filter}[base]", "[base]", 1080, 1920), 1080, 1920
@@ -1922,6 +1992,50 @@ def render_reframed_clip_ffmpeg(
         str(output_path),
     ]
     return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+
+
+def _render_fx_chain(
+    input_path: Path,
+    output_path: Path,
+    head: str,
+    head_label: str,
+    out_w: int,
+    out_h: int,
+    overlays: List[Dict[str, Any]],
+    subtitle_ass_path: Optional[Path],
+    fonts_dir: Optional[Path],
+    fx_request: Any,
+    fx_report: Optional[Dict[str, Any]],
+    *,
+    tail: str,
+    encode_args: List[str],
+    has_audio: bool,
+) -> bool:
+    """One ``run_fx_chain`` render of a ``composited()`` branch. Per-render files go next to the output."""
+    from .fx_chain import run_fx_chain
+
+    options = fx_report if fx_report is not None else {}
+    result = run_fx_chain(
+        input_path=input_path,
+        output_path=output_path,
+        head=head,
+        head_label=head_label,
+        out_w=out_w,
+        out_h=out_h,
+        broll_overlays=overlays,
+        broll_inputs=broll_input_args(overlays),
+        subtitle_ass_path=subtitle_ass_path,
+        fonts_dir=fonts_dir,
+        request=fx_request,
+        mode=options.get("mode") or "full",
+        scratch_dir=Path(output_path).parent,
+        tail=tail,
+        encode_args=encode_args,
+        has_audio=has_audio,
+        should_cancel=options.get("should_cancel"),
+    )
+    options["result"] = result
+    return bool(result.ok)
 
 
 def caption_probe_plan(input_path: Path, output_format: str, vertical_plan=None) -> Tuple[str, str]:

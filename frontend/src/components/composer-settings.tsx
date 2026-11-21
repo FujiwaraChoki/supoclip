@@ -18,6 +18,10 @@ export type SettingsSection = {
   content: ReactNode;
 };
 
+function tourOnScreen(): boolean {
+  return typeof document !== "undefined" && document.querySelector("[data-feature-tour-settings]") !== null;
+}
+
 /** The composer's one settings menu: sections on the left, the open section on the right, tabs across the top on phones. */
 export function ComposerSettings({ trigger, sections, label, footer }: { trigger: ReactElement; sections: readonly SettingsSection[]; label: string; footer?: ReactNode }) {
   const [selected, setSelected] = useState(sections[0]?.id);
@@ -37,7 +41,10 @@ export function ComposerSettings({ trigger, sections, label, footer }: { trigger
       <PopoverContent
         align="center"
         collisionPadding={12}
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(94vw,720px)] flex-col overflow-hidden rounded-2xl p-0 sm:h-[460px] sm:flex-row"
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(94vw,720px)] flex-col overflow-hidden rounded-2xl p-0 sm:h-[560px] sm:flex-row"
+        // A feature tour step that points into this menu keeps it open: its own card, the focus coming back from its opening
+        // dialog and clicks on the dimmed page would otherwise close the menu under the step that points into it.
+        onInteractOutside={(event) => { if (tourOnScreen()) event.preventDefault(); }}
       >
         <div className="flex min-h-0 shrink-0 flex-col border-b sm:w-44 sm:border-b-0 sm:border-r">
         <div role="tablist" aria-label={label} aria-orientation="vertical" className="flex min-h-0 flex-1 gap-1 overflow-x-auto p-2 sm:flex-col sm:overflow-y-auto">

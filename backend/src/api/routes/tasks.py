@@ -4,7 +4,7 @@ Task API routes using refactored architecture.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from ...media_storage import MediaStorage, STORAGE_ERRORS, is_s3, media_work
 from sqlalchemy.exc import TimeoutError as PoolTimeout
@@ -39,13 +39,32 @@ from ...repositories.task_idempotency_repository import (
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
+from ...services.fx_clip_jobs import stale_job_error
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
-from ...feature_flags import client_platform
+from ...feature_flags import DYNAMIC_EDITS, client_platform, is_enabled as feature_enabled
+from ...edit_fx.contracts import EditStyle, GRADES, INTENSITIES, LISTED_FX_CAPTION_TEMPLATES, MOODS, is_fx_template
+from ...edit_fx.jobs import fx_active
+from ...edit_fx.settings import EditStyleError, edit_style_schema, parse_edit_style, read_edit_style
+from ...services.clip_service import (
+    FX_CLIP_JOB_STATUSES,
+    FxClipJobInProgress,
+    FxClipJobQueueError,
+    FxClipJobRequest,
+    QueuedClipJob,
+    clip_has_fx,
+    FX_CLIP_JOB_CLOSED,
+    FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS,
+    claim_fx_clip_job,
+    enqueue_fx_clip_job,
+    release_fx_clip_job_marker,
+    write_fx_clip_job_state,
+    read_fx_clip_job_state,
+)
 from ...source_identity import (
     duplicate_source_response,
     source_admission_lock,
@@ -88,6 +107,32 @@ from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+DYNAMIC_EDITS_NOT_AVAILABLE_MESSAGE = "Dynamic edits aren't available on your account yet."
+
+
+def _invalid_edit_style(exc: EditStyleError) -> HTTPException:
+    """422 ``INVALID_EDIT_STYLE``, raised before any charge (same envelope as ``WORKFLOW_NOT_AVAILABLE``)."""
+    return HTTPException(status_code=422, detail={"code": "INVALID_EDIT_STYLE", "message": str(exc)})
+
+
+def _dynamic_edits_not_available() -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail={"code": "DYNAMIC_EDITS_NOT_AVAILABLE", "message": DYNAMIC_EDITS_NOT_AVAILABLE_MESSAGE},
+    )
+
+
+async def _dynamic_edits_enabled(db, request: Request, user_id: str) -> bool:
+    return await feature_enabled(db, DYNAMIC_EDITS, platform=client_platform(request), user_id=user_id)
+
+
+def _reactions_available() -> bool:
+    """GIF/meme inserts can be offered: a provider and its key are configured."""
+    from ...edit_fx.reactions import reactions_available
+
+    return reactions_available()
 
 
 class _DurationUnavailable(Exception):
@@ -698,6 +743,21 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     ):
         error = workflow_not_available()
         raise HTTPException(status_code=error.status, detail=error.to_detail())
+    # Dynamic edits are render-side, so any workflow takes them. A bad value is a
+    # 422 and a locked feature a 403, both before any charge. The stored form is
+    # to_json(): {} (stored as NULL) when the intensity is off.
+    try:
+        edit_style = parse_edit_style(data.get("edit_style"))
+    except EditStyleError as exc:
+        raise _invalid_edit_style(exc) from None
+    edit_style_json = edit_style.to_json()
+    fx_requested = fx_active(edit_style, caption_template)
+    if fx_requested and not await _dynamic_edits_enabled(db, request, user_id):
+        raise _dynamic_edits_not_available()
+    # With dynamic edits, an in-flight task for the same video is the same job only
+    # if it was made with the same style and caption template. Without them, an
+    # in-flight task that renders dynamic edits is never the same job (the lookup skips it).
+    edit_identity = {"edit_identity": (edit_style_json, caption_template or "default")} if fx_requested else {}
     workflow_options = workflow_spec.options.to_json()
     cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
@@ -721,6 +781,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         # and instructions never leave the process.
         upload_options["workflow"] = workflow_spec.workflow
         upload_options["workflow_options"] = workflow_options
+    if edit_style_json:
+        upload_options["edit_style"] = edit_style_json
     upload_request_key = _upload_request_key(request, raw_source["url"], upload_options)
     # A keyed request answers with the task the key made, however long ago
     # within retention. Unkeyed upload retries keep the short-window dedupe.
@@ -744,7 +806,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     if db is not None:
         source_key = await source_key_for_url(db, user_id, raw_source["url"].strip())
         if source_key:
-            existing = await TaskRepository.find_active_source_task(db, user_id, source_key)
+            existing = await TaskRepository.find_active_source_task(
+                db, user_id, source_key, **edit_identity
+            )
             if existing is not None:
                 return await _bind_existing_task(
                     db, user_id, idempotency,
@@ -806,7 +870,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             async with source_admission_lock(db, user_id, source_key):
                 if source_key:
                     existing = await TaskRepository.find_active_source_task(
-                        db, user_id, source_key
+                        db, user_id, source_key, **edit_identity
                     )
                     if existing is not None:
                         return await _bind_existing_task(
@@ -828,6 +892,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         upload_request_key=upload_request_key,
                         workflow=workflow_spec.workflow,
                         workflow_options=workflow_options,
+                        **({"edit_style": edit_style_json} if edit_style_json else {}),
                         **({"idempotency": idempotency} if idempotency else {}),
                     )
                 except TaskIdempotencyReplay:
@@ -908,6 +973,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                     "processing_mode": processing_mode,
                     "output_format": output_format,
                     "clip_length": clip_length,
+                    **({"edit_intensity": edit_style.intensity} if edit_style.active else {}),
                 },
             )
 
@@ -965,6 +1031,30 @@ async def get_workflows(request: Request, db: AsyncSession = Depends(get_db)):
     """What the authenticated user can make on this platform, with each workflow's limits."""
     user_id = await _get_user_id_from_headers(request, db)
     return workflows_info(await allowed_workflows(db, user_id, platform=client_platform(request)))
+
+
+# Declared before "/{task_id}", which would otherwise capture "edit-styles" as a task id.
+@router.get("/edit-styles")
+async def get_edit_styles(request: Request, db: AsyncSession = Depends(get_db)):
+    """Dynamic edits for the authenticated user on this platform: whether they are on, and the choices.
+
+    Clients show intensity, the edit toggles and the animated caption styles only when ``enabled`` is true, and
+    ask ``/caption-templates?include=fx`` only then.
+    """
+    user_id = await _get_user_id_from_headers(request, db)
+    defaults = EditStyle().model_dump()
+    defaults.pop("intensity")
+    return {
+        "enabled": await _dynamic_edits_enabled(db, request, user_id),
+        "intensities": list(INTENSITIES),
+        "defaults": defaults,
+        "settings": edit_style_schema(),
+        "music_moods": list(MOODS),
+        "grades": list(GRADES),
+        # Only the listed animated styles are offered; unlisted ids stay valid for stored tasks and API callers.
+        "templates": list(LISTED_FX_CAPTION_TEMPLATES),
+        "reactions_available": _reactions_available(),
+    }
 
 
 @router.get("/shared/{share_token}")
@@ -1380,6 +1470,73 @@ async def download_clip_archive(
     )
 
 
+async def _fx_clip_edit(
+    request: Request,
+    task_service: TaskService,
+    db: AsyncSession,
+    task: Dict[str, Any],
+    task_id: str,
+    clip_ids: list[str],
+) -> Optional[FxClipJobRequest]:
+    """The go-ahead to queue an edit on the video worker when any of ``clip_ids`` has dynamic edits (§13.0).
+
+    Legacy clips get None and keep the synchronous path byte for byte. Route unit tests without a database skip the
+    lookup.
+    """
+    if db is None:
+        return None
+    for clip_id in clip_ids:
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if clip and clip.get("task_id") == task_id and clip_has_fx(clip):
+            return FxClipJobRequest(
+                user_id=task["user_id"],
+                queue=getattr(request.app.state, "queue_adapter", None),
+            )
+    return None
+
+
+async def _queue_fx_clip_edit(
+    fx_job: FxClipJobRequest,
+    task: Dict[str, Any],
+    task_id: str,
+    kind: str,
+    args: Dict[str, Any],
+    clip_ids: list[str],
+) -> JSONResponse:
+    """Queue ``fx_clip_job`` and answer 202 ``{"status": "queued", "job_id", "kind", "clip_ids"}``.
+
+    Poll ``GET /tasks/{task_id}/clip-jobs/{job_id}``; ``result`` there is this route's synchronous body.
+    While another clip job of the task is queued or running: 409 ``CLIP_JOB_IN_PROGRESS`` with its ``job_id``.
+    """
+    if task.get("status") in {"queued", "processing"}:
+        raise ValueError("Wait for processing to finish before editing this task")
+    try:
+        queued = await enqueue_fx_clip_job(
+            task_id=task_id,
+            user_id=fx_job.user_id,
+            kind=kind,
+            args=args,
+            queue=fx_job.queue,
+            clip_ids=clip_ids,
+        )
+    except FxClipJobInProgress as exc:
+        raise HTTPException(status_code=409, detail=exc.detail()) from None
+    except Exception as exc:
+        logger.warning("Could not queue the %s edit for task %s: %s", kind, task_id, exc)
+        raise FxClipJobQueueError("The edit could not be queued") from exc
+    return JSONResponse(status_code=202, content=queued.body())
+
+
+def _clip_edit_queue_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": "QUEUE_UNAVAILABLE",
+            "message": "The edit couldn't be queued for rendering. Nothing was changed; try again.",
+        },
+    )
+
+
 @router.patch("/{task_id}/clips/{clip_id}")
 async def trim_clip(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
@@ -1394,11 +1551,19 @@ async def trim_clip(
             raise HTTPException(status_code=400, detail="Offsets must be non-negative")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        fx_job = await _fx_clip_edit(request, task_service, db, task, task_id, [clip_id])
+        if fx_job is not None:
+            return await _queue_fx_clip_edit(
+                fx_job, task, task_id, "trim",
+                {"clip_id": clip_id, "start_offset": start_offset, "end_offset": end_offset}, [clip_id],
+            )
         updated_clip = await task_service.trim_clip(
             task_id, clip_id, start_offset, end_offset
         )
         return {"clip": updated_clip}
+    except FxClipJobQueueError:
+        raise _clip_edit_queue_unavailable() from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -1422,9 +1587,16 @@ async def split_clip(
             )
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        fx_job = await _fx_clip_edit(request, task_service, db, task, task_id, [clip_id])
+        if fx_job is not None:
+            return await _queue_fx_clip_edit(
+                fx_job, task, task_id, "split", {"clip_id": clip_id, "split_time": split_time}, [clip_id],
+            )
         result = await task_service.split_clip(task_id, clip_id, split_time)
         return result
+    except FxClipJobQueueError:
+        raise _clip_edit_queue_unavailable() from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -1446,9 +1618,18 @@ async def merge_clips(
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        fx_job = await _fx_clip_edit(request, task_service, db, task, task_id, clip_ids)
+        if fx_job is not None:
+            if len(clip_ids) < 2 or len(set(clip_ids)) != len(clip_ids):
+                raise ValueError("At least two distinct clips are required to merge")
+            return await _queue_fx_clip_edit(
+                fx_job, task, task_id, "merge", {"clip_ids": list(clip_ids)}, list(clip_ids),
+            )
         result = await task_service.merge_clips(task_id, clip_ids)
         return result
+    except FxClipJobQueueError:
+        raise _clip_edit_queue_unavailable() from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -1488,7 +1669,21 @@ async def update_clip_captions(
             raise ValueError("Invalid caption position")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        fx_job = await _fx_clip_edit(request, task_service, db, task, task_id, [clip_id])
+        if fx_job is not None:
+            return await _queue_fx_clip_edit(
+                fx_job, task, task_id, "captions",
+                {
+                    "clip_id": clip_id,
+                    "caption_text": caption_text,
+                    "position": position,
+                    "highlight_words": [str(word) for word in highlight_words],
+                    "font_size": font_size,
+                    "position_y": position_y,
+                },
+                [clip_id],
+            )
         updated_clip = await task_service.update_clip_captions(
             task_id,
             clip_id,
@@ -1499,6 +1694,8 @@ async def update_clip_captions(
             position_y=position_y,
         )
         return {"clip": updated_clip}
+    except FxClipJobQueueError:
+        raise _clip_edit_queue_unavailable() from None
     except YouTubeGeoRestrictedError as exc:
         raise HTTPException(
             status_code=422,
@@ -1526,11 +1723,19 @@ async def regenerate_clip(
         end_offset = _finite_number(payload.get("end_offset", 0), "end_offset")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        fx_job = await _fx_clip_edit(request, task_service, db, task, task_id, [clip_id])
+        if fx_job is not None:
+            return await _queue_fx_clip_edit(
+                fx_job, task, task_id, "trim",
+                {"clip_id": clip_id, "start_offset": start_offset, "end_offset": end_offset}, [clip_id],
+            )
         updated_clip = await task_service.trim_clip(
             task_id, clip_id, start_offset, end_offset
         )
         return {"clip": updated_clip, "message": "Clip regenerated successfully"}
+    except FxClipJobQueueError:
+        raise _clip_edit_queue_unavailable() from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -1546,7 +1751,12 @@ async def regenerate_clip(
 async def apply_task_settings(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    """Update task-level styling settings and optionally apply to all existing clips."""
+    """Update task-level styling settings and optionally apply to all existing clips.
+
+    ``edit_style`` omitted (or null) keeps the stored style. An omitted ``caption_template`` keeps a stored
+    animated template (legacy tasks still fall back to "default"). Only turning dynamic edits on is flag-gated.
+    Re-rendering clips with dynamic edits, or into them, runs on the video worker: 202 with a pollable job.
+    """
     try:
         payload = await _read_json_object(request)
         font_family = _normalize_font_family(payload.get("font_family"))
@@ -1554,12 +1764,42 @@ async def apply_task_settings(
         font_color = _normalize_font_color(payload.get("font_color"))
         caption_template = payload.get("caption_template", "default")
         apply_to_existing = bool(payload.get("apply_to_existing", False))
+        try:
+            requested_style = (
+                parse_edit_style(payload["edit_style"]) if payload.get("edit_style") is not None else None
+            )
+        except EditStyleError as exc:
+            raise _invalid_edit_style(exc) from None
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
         task_record = await task_service.task_repo.get_task_by_id(db, task_id)
         if not task_record:
             raise HTTPException(status_code=404, detail="Task not found")
+
+        stored_template = task_record.get("caption_template")
+        if "caption_template" not in payload and is_fx_template(stored_template):
+            caption_template = stored_template
+        stored_style = read_edit_style(task_record.get("edit_style"))
+        target_style = requested_style if requested_style is not None else stored_style
+        # Gate only a transition to FX (style off -> on, template legacy -> FX), so
+        # the kill switch never blocks turning edits off or a font change.
+        turns_fx_on = (target_style.active and not stored_style.active) or (
+            is_fx_template(caption_template) and not is_fx_template(stored_template)
+        )
+        if turns_fx_on and not await _dynamic_edits_enabled(db, request, task_record["user_id"]):
+            raise _dynamic_edits_not_available()
+        # Clips that already carry dynamic edits re-render on the worker too, even
+        # into a legacy look. Route unit tests without a database skip the lookup.
+        fx_job = None
+        if apply_to_existing and (
+            fx_active(target_style, caption_template)
+            or (db is not None and await task_service.task_repo.has_fx_clips(db, task_id))
+        ):
+            fx_job = FxClipJobRequest(
+                user_id=task_record["user_id"],
+                queue=getattr(request.app.state, "queue_adapter", None),
+            )
         # Like cleanup below: an omitted flag keeps the task's B-roll setting,
         # so a styling-only update doesn't strip B-roll from every clip.
         include_broll = (
@@ -1587,7 +1827,13 @@ async def apply_task_settings(
             include_broll,
             apply_to_existing,
             cleanup_settings,
+            **({"edit_style": target_style.to_json()} if requested_style is not None else {}),
+            **({"fx_job": fx_job} if fx_job is not None else {}),
         )
+        if isinstance(task, QueuedClipJob):
+            # The job re-renders and then stores the cleanup settings, like the
+            # synchronous path does after its regeneration (§13.0).
+            return JSONResponse(status_code=202, content=task.body())
         # Settings edits must not write the job ID captured before a lengthy
         # regeneration: a concurrent resume may have reserved a newer attempt.
         metadata.pop("processing_job_id", None)
@@ -1613,6 +1859,16 @@ async def apply_task_settings(
             status_code=422,
             detail={"code": "YOUTUBE_GEO_RESTRICTED", "message": str(exc)},
         ) from None
+    except FxClipJobInProgress as exc:
+        raise HTTPException(status_code=409, detail=exc.detail()) from None
+    except FxClipJobQueueError:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "QUEUE_UNAVAILABLE",
+                "message": "Your settings were saved, but the clips couldn't be queued for re-rendering. Try again.",
+            },
+        ) from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -1622,6 +1878,87 @@ async def apply_task_settings(
         raise HTTPException(
             status_code=500, detail=f"Error updating task settings: {str(e)}"
         )
+
+
+async def _close_queued_clip_job(job_id: str, state: Dict[str, Any], error: Dict[str, str]) -> bool:
+    """Give up on a clip job no worker has started, so that none starts it later. False if a worker has it.
+
+    The user is told to try again, and a retry would otherwise run next to the first job once the queue
+    clears (two trims or splits of one clip). Unreachable Redis is False too: the job may still run.
+    """
+    try:
+        if await claim_fx_clip_job(job_id, FX_CLIP_JOB_CLOSED) != FX_CLIP_JOB_CLOSED:
+            return False
+        await write_fx_clip_job_state(job_id, {**state, "status": "failed", "progress": 0.0, "error": error})
+        await release_fx_clip_job_marker(str(state.get("task_id") or ""), job_id)
+        return True
+    except Exception as exc:  # noqa: BLE001 - not closed, so not reported as failed
+        logger.warning("Could not close queued clip job %s: %s", job_id, exc)
+        return False
+
+
+@router.get("/{task_id}/clip-jobs/{job_id}")
+async def get_clip_job(
+    task_id: str, job_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Status of a clip edit queued on the video worker (202 from settings, captions, trim, split or merge).
+
+    ``{"status": "queued"|"running"|"done"|"failed", "kind", "progress": 0-1, "error"?: {code, message},
+    "result"?: the body the synchronous route would have returned}``. Clients poll every 2 s.
+    A job queued for 15 minutes is ``WORKER_UNAVAILABLE``; a running job without a heartbeat for 2 minutes, or one
+    older than its budget, is ``WORKER_STOPPED`` (``fx_clip_jobs.stale_job_error``).
+    """
+    task_service = TaskService(db)
+    await _require_task_owner(request, task_service, db, task_id)
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id or ""):
+        raise HTTPException(status_code=404, detail="Clip job not found")
+    try:
+        state = await read_fx_clip_job_state(job_id)
+    except Exception as exc:  # noqa: BLE001 - Redis down is a retryable 503, not a failed job
+        logger.warning("Could not read clip job %s: %s", job_id, exc)
+        raise HTTPException(status_code=503, detail="Clip job status is unavailable. Try again.") from None
+    if not state or state.get("task_id") != task_id:
+        raise HTTPException(status_code=404, detail="Clip job not found")
+
+    status = state.get("status") if state.get("status") in FX_CLIP_JOB_STATUSES else "queued"
+    try:
+        progress = min(1.0, max(0.0, float(state.get("progress") or 0.0)))
+    except (TypeError, ValueError):
+        progress = 0.0
+    body: Dict[str, Any] = {"status": status, "kind": state.get("kind"), "progress": progress}
+    try:
+        queued_at = float(state.get("queued_at") or 0.0)
+    except (TypeError, ValueError):
+        queued_at = 0.0
+    if status == "queued" and queued_at and time.time() - queued_at > FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS:
+        error = {
+            "code": "WORKER_UNAVAILABLE",
+            "message": "No worker picked up this edit. Please try again.",
+        }
+        # Failed only once no worker can run it any more; a job a worker has just taken stays queued here.
+        if await _close_queued_clip_job(job_id, state, error):
+            body["status"] = "failed"
+            body["error"] = error
+        return body
+    stale = stale_job_error({**state, "status": status})
+    if stale and status == "queued" and not await _close_queued_clip_job(job_id, state, stale):
+        return body
+    if stale:
+        # The worker died mid-job (no heartbeat) or the job outlived its budget: nothing will finish it.
+        body["status"] = "failed"
+        body["error"] = stale
+        return body
+    if status == "done":
+        body["progress"] = 1.0
+        if "result" in state:
+            body["result"] = state["result"]
+    if status == "failed":
+        error = state.get("error") if isinstance(state.get("error"), dict) else {}
+        body["error"] = {
+            "code": str(error.get("code") or "CLIP_JOB_FAILED"),
+            "message": str(error.get("message") or "The edit could not be rendered."),
+        }
+    return body
 
 
 @router.get("/{task_id}/clips/{clip_id}/export")

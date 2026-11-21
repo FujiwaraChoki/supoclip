@@ -317,6 +317,61 @@
       }
     }
   },
+  "dynamicEdits": {
+    "eyebrow": "动态剪辑",
+    "title": "像专业剪辑师剪出来的片段",
+    "body": "选择剪辑强度，AI 会找出关键时刻，并配上字幕、推近镜头、音效和音乐。同一个片段，四种效果：播放时随时切换。",
+    "switcherLabel": "剪辑强度",
+    "intensity": {
+      "off": {
+        "label": "关闭",
+        "description": "干净的剪辑和你常用的字幕，不加任何效果。"
+      },
+      "subtle": {
+        "label": "轻微",
+        "description": "播客切片的感觉：偶尔换一下构图，底下垫着轻柔的音乐。"
+      },
+      "bold": {
+        "label": "强烈",
+        "description": "Hormozi 风格的推近镜头并保持住，逐字字幕把关键词放进色块，偶尔在剪切点加一下音效。"
+      },
+      "max": {
+        "label": "极致",
+        "description": "MrBeast 风格的醒目字幕，更多的重新构图和推镜，剪切点闪白，加上音效和背景音乐。"
+      }
+    },
+    "player": {
+      "label": "{intensity}强度的片段",
+      "play": "播放",
+      "pause": "暂停",
+      "mute": "静音",
+      "unmute": "打开声音",
+      "tapForSound": "点击开启声音"
+    },
+    "broll": {
+      "title": "极致强度，加 B-roll 素材",
+      "caption": "节目自带的空镜画面铺满竖屏，不再缩成一条细带，字幕、音效和音乐照常叠在上面。"
+    },
+    "points": {
+      "captions": {
+        "title": "逐字出现的字幕",
+        "description": "动画字幕样式可以把关键词放进色块、掉落一个表情符号，或者把一个词藏到说话人头部后面。脏话会被哔掉，并显示为 f***。"
+      },
+      "motion": {
+        "title": "踩着节奏推近和换构图",
+        "description": "AI 挑出关键的句子，画面就在那一刻推近、切到更近的景别或闪白。"
+      },
+      "sound": {
+        "title": "垫在人声下面的音效和音乐",
+        "description": "剪切点上的音效，加上贴合片段情绪的背景音乐，从舒缓到激烈，混在每个字的下面。"
+      },
+      "studio": {
+        "title": "一切都能再改",
+        "description": "可以修改已有片段的剪辑强度，也可以在剪辑工作室里微调单个效果。"
+      }
+    },
+    "source": "两段片段均由 SupoClip 根据 <link>{title}</link> 生成。"
+  },
   "editor": {
     "eyebrow": "编辑器",
     "title": "内置完整的编辑器",

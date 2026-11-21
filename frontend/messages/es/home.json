@@ -86,10 +86,10 @@
   },
   "cleanupTitle": "Limpieza del clip",
   "cleanupBody": "Reduce los silencios y corta sonidos de relleno al renderizar.",
+  "cleanupMore": "Más opciones",
   "shortenPauses": "Acortar pausas largas",
   "shortenPausesHint": "Recorta los silencios más largos que esto hasta dejar una respiración breve",
   "pauseThreshold": "Umbral de pausa (ms)",
-  "milliseconds": "milisegundos",
   "removeFillers": "Quitar muletillas",
   "removeFillersHint": "“um”, “uh”, “erm” y sonidos parecidos",
   "extraWords": "Palabras o frases extra para cortar",
@@ -344,6 +344,143 @@
       "strict": "Solo el tema exacto",
       "relaxed": "Permitidos",
       "question": "Una pregunta"
+    }
+  },
+  "edits": {
+    "section": "Edición",
+    "title": "Intensidad de edición",
+    "body": "La IA marca los momentos que importan. Tú eliges con cuánta fuerza golpea cada uno.",
+    "intensity": {
+      "off": {
+        "label": "Desactivada",
+        "hint": "Cortes limpios, sin añadidos"
+      },
+      "subtle": {
+        "label": "Sutil",
+        "hint": "Reencuadres de vez en cuando, música suave"
+      },
+      "bold": {
+        "label": "Marcada",
+        "hint": "Acercamientos en los momentos clave, golpes en los cortes"
+      },
+      "max": {
+        "label": "Máxima",
+        "hint": "Reencuadres rápidos, golpes y música más fuertes"
+      }
+    },
+    "offHint": "Activa las ediciones para añadir reencuadres, efectos de sonido y música en los momentos que importan.",
+    "groups": {
+      "sound": "Sonido",
+      "motion": "Movimiento",
+      "retention": "Que sigan mirando"
+    },
+    "options": {
+      "sfx": {
+        "label": "Efectos de sonido",
+        "hint": "Golpes cortos y pops en cortes y gráficos"
+      },
+      "music": {
+        "label": "Música",
+        "hint": "Una base que baja cuando habla la voz"
+      },
+      "musicMood": "Estilo de música",
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reencuadres y acercamientos cortos en los momentos clave"
+      },
+      "shake": {
+        "label": "Sacudida de cámara",
+        "hint": "Un golpe en los momentos más fuertes"
+      },
+      "transitions": {
+        "label": "Transiciones",
+        "hint": "Un destello ocasional donde el clip corta"
+      },
+      "speed": {
+        "label": "Rampas de velocidad y congelados",
+        "hint": "Acelera la preparación y congela antes del remate"
+      },
+      "censor": {
+        "label": "Palabrotas",
+        "hint": "Cómo se tapan las malas palabras"
+      },
+      "wait_for_it": {
+        "label": "Sticker «Espera…»",
+        "hint": "Anticipa un remate que está por llegar"
+      },
+      "progress_bar": {
+        "label": "Barra de progreso",
+        "hint": "Una barra fina en el borde inferior"
+      },
+      "loop_ending": {
+        "label": "Final en bucle",
+        "hint": "Funde el final con el inicio para que se repita sin cortes"
+      },
+      "reactions": {
+        "label": "Reacciones GIF",
+        "hint": "Un GIF de reacción en los momentos más graciosos"
+      }
+    },
+    "moods": {
+      "auto": "Según el video",
+      "hype": "Energética",
+      "chill": "Relajada",
+      "dramatic": "Dramática",
+      "funny": "Divertida",
+      "inspiring": "Inspiradora",
+      "dark": "Oscura",
+      "aggressive": "Agresiva"
+    },
+    "censor": {
+      "off": "Dejar tal cual",
+      "bleep": "Pitido",
+      "bleep_bar": "Pitido y tapar la boca",
+      "bleep_pixelate": "Pitido y pixelar la boca"
+    },
+    "fineTune": "Ajuste fino"
+  },
+  "animatedCaptions": {
+    "title": "Animados",
+    "demoLine": "Nuestros ingresos crecieron un 300% en solo un año",
+    "demoSticker": "¡No puede ser!",
+    "needsFace": "Mejor con una cara a cámara",
+    "templates": {
+      "marker_circle": {
+        "name": "Círculo de rotulador",
+        "description": "Círculos, subrayados y flechas a mano en las palabras clave"
+      },
+      "emoji_drop": {
+        "name": "Emoji Drop",
+        "description": "Las palabras aparecen al decirse, con un emoji bajo los grandes momentos"
+      },
+      "slam": {
+        "name": "Impacto",
+        "description": "Palabras clave enormes que golpean la pantalla"
+      },
+      "behind_head": {
+        "name": "Detrás de la cabeza",
+        "description": "Una palabra gigante aparece detrás de quien habla"
+      },
+      "stat_counter": {
+        "name": "Contador",
+        "description": "Las cifras dichas suben y se estampan en su sitio"
+      },
+      "kinetic_stack": {
+        "name": "Pila cinética",
+        "description": "El gancho se apila en filas gruesas"
+      },
+      "decode_glitch": {
+        "name": "Glitch decodificado",
+        "description": "Las letras se mezclan y encajan en su sitio"
+      },
+      "highlighter_swipe": {
+        "name": "Subrayador",
+        "description": "Las palabras aparecen al decirse; la palabra clave va en un recuadro de color"
+      },
+      "face_doodles": {
+        "name": "Garabatos en la cara",
+        "description": "Destellos, cuernos y flechas que siguen la cara de quien habla"
+      }
     }
   }
 }

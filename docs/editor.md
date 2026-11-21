@@ -33,6 +33,34 @@ Shortcuts: Space plays/pauses; arrows step frames; Shift+arrows jump one second;
 I/O set boundaries; S splits; Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z redoes;
 Ctrl/Cmd+S saves. Shortcuts are inactive in text fields and dialogs.
 
+## Dynamic edits
+
+When dynamic edits are on for the account ([dynamic-edits.md](dynamic-edits.md)),
+a clip's draft carries its effects in `document.fx`: the style, the beats, the
+cues (S time) and what you removed. Clips generated with effects open with them.
+
+- **Edits** tab: intensity (Off, Subtle, Bold, Max), the switches, music mood,
+  bed volume and duck depth, retention options and reactions. Changing them
+  re-resolves on the server (`/fx/resolve`, pure and fast) and lands as one
+  undoable change. A clip without beats offers **Plan edits**, which asks the AI
+  worker for them (counts against `EDIT_PLAN_DAILY_LIMIT`); **Re-plan with AI**
+  asks again. The beat list seeks, deletes and re-kinds beats. **Remove all
+  edits** clears the effects. **Analyse face** appears when face-anchored effects
+  need a face track the clip doesn't have yet (combined clips, for example).
+- **Effects** tab: grade and grain, next to brightness, contrast and saturation.
+- **Captions** tab: the three animated styles (Highlighter, Emoji Drop, Behind Head) appear in the template
+  picker; a draft that already uses an older animated style keeps it.
+- **Timeline**: the FX lane shows each effect, coloured by family (sound,
+  picture, overlay, time). Click selects, drag moves (the effect becomes yours and
+  survives a re-resolve), double-click opens it, Delete removes it (an automatic
+  one is remembered as removed), and double-clicking an empty spot adds a sound.
+  The Music lane shows the duck envelope. Durations show the final length after
+  speed ramps and freezes.
+
+The preview draws effects with the same renderer the server uses, through the
+time warp, with sound. Safari and Firefox measure text slightly differently from
+the server, so the preview is approximate there.
+
 ## Export
 
 The export dialog shows dimensions, edited duration, audio state, and approximate
@@ -55,11 +83,18 @@ framing, audio, and effects document. Font rasterization and color filtering can
 differ slightly between rendering engines, and power-word emphasis and emojis are
 only drawn by the server export.
 
+With dynamic edits, the background export renders `document.fx` through the
+same three-process chain as generation (ffmpeg, the deno compositor, ffmpeg).
+The browser export draws effects too, but refuses documents with a time warp,
+reactions or behind-the-head accents (the export panel says why); those need the
+background export. The browser export has no loudness stage or 720p cap.
+
 ## Persistence and operation
 
 No additional service is required. Deploy the frontend, API, and worker together
 and restart the worker so it registers `prepare_editor`, `export_editor`, and
-`combine_editor`.
+`combine_editor` (and, for dynamic edits, `editor_fx_analysis` on the video
+worker and `edit_fx_plan_job` on the AI worker).
 
 Editor state is in PostgreSQL, one session per task, clip and clip filename:
 
@@ -101,6 +136,14 @@ All routes require ownership of both the task and clip.
 | `/exports` | POST | Queue an immutable `{basis, preset, document}` snapshot |
 | `/exports/{job}` | GET / DELETE | Poll / request cancellation |
 | `/exports/{job}/file` | GET | Download a completed export |
+| `/fx/resolve` | POST | `{document, style}` → `{document}`: re-resolve effects (sync, no media work). 409 `NEEDS_PLAN` when the clip has no beats |
+| `/fx/plan` | POST | Queue beat tagging on the AI worker → `{job_id}` (202) |
+| `/fx/plan/{job}` | GET | `{status, beats?, error?}`; a request with no answer after 3 × `EDIT_PLAN_TIMEOUT_SECONDS` reports `WORKER_UNAVAILABLE` and is refunded |
+| `/fx/analysis` | POST | Queue face tracking and the person matte for the session (202) |
+| `/media/matte.mp4` | GET | The person matte for behind-the-head previews |
+| `/fx/reaction/{cue}` | GET | A reaction GIF clip for the preview; 404 when unavailable |
+
+Effects routes need the `dynamic_edits` flag only when they turn effects on.
 
 `POST /tasks/{task}/editor/combine` takes ordered `clip_ids` and returns a background
 job ID plus its anchor clip ID. Completion includes the new `clip_id`.

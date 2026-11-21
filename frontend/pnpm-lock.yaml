@@ -35,7 +35,7 @@ importers:
     dependencies:
       '@posthog/nextjs-config':
         specifier: ^1.11.3
-        version: 1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(lightningcss@1.32.0))
+        version: 1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
       '@prisma/client':
         specifier: ^6.19.2
         version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
@@ -130,6 +130,9 @@ importers:
       '@eslint/eslintrc':
         specifier: ^3.3.4
         version: 3.3.5
+      '@napi-rs/canvas':
+        specifier: 0.1.80
+        version: 0.1.80
       '@playwright/test':
         specifier: ^1.55.0
         version: 1.59.1
@@ -148,6 +151,9 @@ importers:
       '@types/node':
         specifier: ^20.19.35
         version: 20.19.39
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
@@ -160,6 +166,12 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.12
         version: 4.1.12(vitest@4.1.12)
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       eslint:
         specifier: ^9.39.3
         version: 9.39.4(jiti@2.6.1)
@@ -172,6 +184,12 @@ importers:
       msw:
         specifier: ^2.11.2
         version: 2.14.2(@types/node@20.19.39)(typescript@5.9.3)
+      pixelmatch:
+        specifier: ^8.0.0
+        version: 8.0.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       tailwindcss:
         specifier: ^4.2.1
         version: 4.2.4
@@ -942,6 +960,70 @@ packages:
   '@mswjs/interceptors@0.41.8':
     resolution: {integrity: sha512-pRLMNKTSGRoLq+KnEB/7OY5vijw1XmcheAAOiv6pj7W1FG32kAGqj1C/RK/cqxRGr1Fh+zBi8sDur8kj3EQv6A==}
     engines: {node: '>=18'}
+
+  '@napi-rs/canvas-android-arm64@0.1.80':
+    resolution: {integrity: sha512-sk7xhN/MoXeuExlggf91pNziBxLPVUqF2CAVnB57KLG/pz7+U5TKG8eXdc3pm0d7Od0WreB6ZKLj37sX9muGOQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@napi-rs/canvas-darwin-arm64@0.1.80':
+    resolution: {integrity: sha512-O64APRTXRUiAz0P8gErkfEr3lipLJgM6pjATwavZ22ebhjYl/SUbpgM0xcWPQBNMP1n29afAC/Us5PX1vg+JNQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@napi-rs/canvas-darwin-x64@0.1.80':
+    resolution: {integrity: sha512-FqqSU7qFce0Cp3pwnTjVkKjjOtxMqRe6lmINxpIZYaZNnVI0H5FtsaraZJ36SiTHNjZlUB69/HhxNDT1Aaa9vA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@0.1.80':
+    resolution: {integrity: sha512-eyWz0ddBDQc7/JbAtY4OtZ5SpK8tR4JsCYEZjCE3dI8pqoWUC8oMwYSBGCYfsx2w47cQgQCgMVRVTFiiO38hHQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-arm64-gnu@0.1.80':
+    resolution: {integrity: sha512-qwA63t8A86bnxhuA/GwOkK3jvb+XTQaTiVML0vAWoHyoZYTjNs7BzoOONDgTnNtr8/yHrq64XXzUoLqDzU+Uuw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-arm64-musl@0.1.80':
+    resolution: {integrity: sha512-1XbCOz/ymhj24lFaIXtWnwv/6eFHXDrjP0jYkc6iHQ9q8oXKzUX1Lc6bu+wuGiLhGh2GS/2JlfORC5ZcXimRcg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-riscv64-gnu@0.1.80':
+    resolution: {integrity: sha512-XTzR125w5ZMs0lJcxRlS1K3P5RaZ9RmUsPtd1uGt+EfDyYMu4c6SEROYsxyatbbu/2+lPe7MPHOO/0a0x7L/gw==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-x64-gnu@0.1.80':
+    resolution: {integrity: sha512-BeXAmhKg1kX3UCrJsYbdQd3hIMDH/K6HnP/pG2LuITaXhXBiNdh//TVVVVCBbJzVQaV5gK/4ZOCMrQW9mvuTqA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-x64-musl@0.1.80':
+    resolution: {integrity: sha512-x0XvZWdHbkgdgucJsRxprX/4o4sEed7qo9rCQA9ugiS9qE2QvP0RIiEugtZhfLH3cyI+jIRFJHV4Fuz+1BHHMg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@napi-rs/canvas-win32-x64-msvc@0.1.80':
+    resolution: {integrity: sha512-Z8jPsM6df5V8B1HrCHB05+bDiCxjE9QA//3YrkKIdVDEwn5RKaqOxCJDRJkl48cJbylcrJbW4HxZbTte8juuPg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@napi-rs/canvas@0.1.80':
+    resolution: {integrity: sha512-DxuT1ClnIPts1kQx8FBmkk4BQDTfI5kIzywAaMjQSXfNnra5UFU9PwurXrl+Je3bJ6BGsp/zmshVVFbCmyI+ww==}
+    engines: {node: '>= 10'}
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
@@ -2353,6 +2435,9 @@ packages:
 
   '@types/node@20.19.43':
     resolution: {integrity: sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA==}
+
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -4184,6 +4269,10 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
+  pixelmatch@8.0.0:
+    resolution: {integrity: sha512-cIqOLfh5k52us715qf3B3+kTOxZv+WDv77HN7xokLScYQGYQHi4m/ynoDIPpvF2LvCyUJGyvzY64i0QCXtzu1g==}
+    hasBin: true
+
   pkg-types@2.3.1:
     resolution: {integrity: sha512-y+ichcgc2LrADuhLNAx8DFjVfgz91pRxfZdI3UDhxHvcVEZsenLO+7XaU5vOp0u/7V/wZ+plyuQxtrDlZJ+yeg==}
 
@@ -4196,6 +4285,10 @@ packages:
     resolution: {integrity: sha512-C8oWjPR3F81yljW9o5OxcWzfh6avkVwDD2VYdwIGqTkl+OGFISgypqzfu7dOe4QNLL2aqcWBmI3PMtLIK233lw==}
     engines: {node: '>=18'}
     hasBin: true
+
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
 
   po-parser@2.2.0:
     resolution: {integrity: sha512-NdTrKgh0oO7+y+RFX8KKhOB438x/j94UGXEFzl/7pHH0JjWSn42iJ9tgmPksIO6n1JKDHmNDcejPJfKspljB9g==}
@@ -5621,6 +5714,49 @@ snapshots:
       outvariant: 1.4.3
       strict-event-emitter: 0.5.1
 
+  '@napi-rs/canvas-android-arm64@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-darwin-arm64@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-darwin-x64@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-gnu@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-musl@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-riscv64-gnu@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-gnu@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-musl@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-win32-x64-msvc@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas@0.1.80':
+    optionalDependencies:
+      '@napi-rs/canvas-android-arm64': 0.1.80
+      '@napi-rs/canvas-darwin-arm64': 0.1.80
+      '@napi-rs/canvas-darwin-x64': 0.1.80
+      '@napi-rs/canvas-linux-arm-gnueabihf': 0.1.80
+      '@napi-rs/canvas-linux-arm64-gnu': 0.1.80
+      '@napi-rs/canvas-linux-arm64-musl': 0.1.80
+      '@napi-rs/canvas-linux-riscv64-gnu': 0.1.80
+      '@napi-rs/canvas-linux-x64-gnu': 0.1.80
+      '@napi-rs/canvas-linux-x64-musl': 0.1.80
+      '@napi-rs/canvas-win32-x64-msvc': 0.1.80
+
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
       '@emnapi/core': 1.10.0
@@ -5764,11 +5900,11 @@ snapshots:
     dependencies:
       '@posthog/types': 1.416.0
 
-  '@posthog/nextjs-config@1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(lightningcss@1.32.0))':
+  '@posthog/nextjs-config@1.11.3(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(posthog-js@1.438.13(@types/react@19.2.14)(react@19.1.10))(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))':
     dependencies:
       '@posthog/cli': 0.18.11
       '@posthog/plugin-utils': 2.0.1
-      '@posthog/webpack-plugin': 1.7.1(webpack@5.112.0(lightningcss@1.32.0))
+      '@posthog/webpack-plugin': 1.7.1(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
       next: 15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10)
       posthog-js: 1.438.13(@types/react@19.2.14)(react@19.1.10)
       semver: 7.8.5
@@ -5781,12 +5917,12 @@ snapshots:
 
   '@posthog/types@1.416.0': {}
 
-  '@posthog/webpack-plugin@1.7.1(webpack@5.112.0(lightningcss@1.32.0))':
+  '@posthog/webpack-plugin@1.7.1(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))':
     dependencies:
       '@posthog/cli': 0.16.2
       '@posthog/core': 1.59.1
       '@posthog/plugin-utils': 2.0.1
-      webpack: 5.112.0(lightningcss@1.32.0)
+      webpack: 5.112.0(esbuild@0.28.1)(lightningcss@1.32.0)
 
   '@prisma/client@6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)':
     optionalDependencies:
@@ -6944,6 +7080,10 @@ snapshots:
   '@types/node@20.19.43':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 20.19.43
 
   '@types/react-dom@19.2.3(@types/react@19.2.14)':
     dependencies:
@@ -8693,13 +8833,14 @@ snapshots:
 
   minimist@1.2.8: {}
 
-  minimizer-webpack-plugin@5.14.0(lightningcss@1.32.0)(webpack@5.112.0(lightningcss@1.32.0)):
+  minimizer-webpack-plugin@5.14.0(esbuild@0.28.1)(lightningcss@1.32.0)(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0)):
     dependencies:
       jest-worker: 27.5.1
-      schema-utils: 4.8.2(webpack@5.112.0(lightningcss@1.32.0))
+      schema-utils: 4.8.2(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
       terser: 5.51.2
-      webpack: 5.112.0(lightningcss@1.32.0)
+      webpack: 5.112.0(esbuild@0.28.1)(lightningcss@1.32.0)
     optionalDependencies:
+      esbuild: 0.28.1
       lightningcss: 1.32.0
 
   motion-dom@14.0.0:
@@ -8924,6 +9065,10 @@ snapshots:
 
   picomatch@4.0.4: {}
 
+  pixelmatch@8.0.0:
+    dependencies:
+      pngjs: 7.0.0
+
   pkg-types@2.3.1:
     dependencies:
       confbox: 0.2.4
@@ -8937,6 +9082,8 @@ snapshots:
       playwright-core: 1.59.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  pngjs@7.0.0: {}
 
   po-parser@2.2.0: {}
 
@@ -9230,14 +9377,14 @@ snapshots:
 
   scheduler@0.26.0: {}
 
-  schema-utils@4.8.2(webpack@5.112.0(lightningcss@1.32.0)):
+  schema-utils@4.8.2(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0)):
     dependencies:
       '@types/json-schema': 7.0.15
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       ajv-keywords: 5.1.0(ajv@8.20.0)
     optionalDependencies:
-      webpack: 5.112.0(lightningcss@1.32.0)
+      webpack: 5.112.0(esbuild@0.28.1)(lightningcss@1.32.0)
 
   semver@6.3.2: {}
 
@@ -9725,7 +9872,7 @@ snapshots:
 
   webpack-sources@3.7.0: {}
 
-  webpack@5.112.0(lightningcss@1.32.0):
+  webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0):
     dependencies:
       '@types/estree': 1.0.10
       '@types/json-schema': 7.0.15
@@ -9739,8 +9886,8 @@ snapshots:
       events: 3.3.0
       graceful-fs: 4.2.11
       mime-db: 1.54.0
-      minimizer-webpack-plugin: 5.14.0(lightningcss@1.32.0)(webpack@5.112.0(lightningcss@1.32.0))
-      schema-utils: 4.8.2(webpack@5.112.0(lightningcss@1.32.0))
+      minimizer-webpack-plugin: 5.14.0(esbuild@0.28.1)(lightningcss@1.32.0)(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
+      schema-utils: 4.8.2(webpack@5.112.0(esbuild@0.28.1)(lightningcss@1.32.0))
       tapable: 2.3.3
       watchpack: 2.6.3
       webpack-sources: 3.7.0

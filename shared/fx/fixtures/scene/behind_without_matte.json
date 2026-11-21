@@ -1,0 +1,342 @@
+{
+  "family": "scene",
+  "case": "behind_without_matte",
+  "fn": "studio_scene",
+  "input": {
+    "document": {
+      "version": 1,
+      "segments": [
+        {
+          "id": "a",
+          "start": 0.0,
+          "end": 2.6
+        }
+      ],
+      "words": [
+        {
+          "id": "w0",
+          "start": 0.1,
+          "end": 0.45,
+          "text": "This",
+          "highlight": false
+        },
+        {
+          "id": "w1",
+          "start": 0.45,
+          "end": 0.9,
+          "text": "changed",
+          "highlight": true
+        },
+        {
+          "id": "w2",
+          "start": 0.9,
+          "end": 1.4,
+          "text": "everything",
+          "highlight": false
+        },
+        {
+          "id": "w3",
+          "start": 1.6,
+          "end": 2.0,
+          "text": "for",
+          "highlight": false
+        },
+        {
+          "id": "w4",
+          "start": 2.0,
+          "end": 2.5,
+          "text": "me,",
+          "highlight": false
+        },
+        {
+          "id": "w5",
+          "start": 2.7,
+          "end": 3.1,
+          "text": "damn",
+          "highlight": false
+        },
+        {
+          "id": "w6",
+          "start": 3.1,
+          "end": 3.6,
+          "text": "seriously",
+          "highlight": false
+        },
+        {
+          "id": "w7",
+          "start": 3.8,
+          "end": 4.4,
+          "text": "10x",
+          "highlight": false
+        },
+        {
+          "id": "w8",
+          "start": 4.4,
+          "end": 5.0,
+          "text": "faster.",
+          "highlight": false
+        }
+      ],
+      "captions": {
+        "enabled": true,
+        "font": "Poppins-ExtraBold",
+        "size": 54,
+        "color": "#FFFFFF",
+        "accent": "#FACC15",
+        "y": 0.78,
+        "background": true,
+        "wordsPerLine": 4,
+        "karaoke": false,
+        "uppercase": false,
+        "template": "behind_head"
+      },
+      "framing": {
+        "aspect": "vertical",
+        "fit": "cover",
+        "zoom": 1.0,
+        "x": 0.5,
+        "y": 0.5
+      },
+      "effects": {
+        "brightness": 100.0,
+        "contrast": 100.0,
+        "saturation": 100.0,
+        "blur": 0.0,
+        "hue": 0.0
+      },
+      "volume": 1.0,
+      "muted": false,
+      "hookTitle": "He tried it for 30 days",
+      "hookTiming": null,
+      "textTransforms": {},
+      "captionTransforms": {},
+      "broll": [],
+      "fx": {
+        "version": "fx-v1",
+        "style": {
+          "intensity": "bold",
+          "sfx": true,
+          "music": true,
+          "music_mood": "auto",
+          "zooms": true,
+          "shake": true,
+          "transitions": true,
+          "speed": true,
+          "censor": "bleep_bar",
+          "grade": "auto",
+          "grain": false,
+          "progress_bar": false,
+          "loop_ending": false,
+          "wait_for_it": true,
+          "reactions": false
+        },
+        "seed": 2961888143,
+        "mood": null,
+        "sensitivity": "normal",
+        "timing": "word",
+        "beats": [],
+        "cues": [
+          {
+            "id": "b6.behind",
+            "start": 1.6,
+            "end": 2.5,
+            "seed": 11,
+            "beat": "",
+            "origin": "auto",
+            "kind": "accent",
+            "variant": "behind",
+            "text": "FOR ME",
+            "emoji": "",
+            "doodle": "sparkles",
+            "value": null,
+            "prefix": "",
+            "suffix": ""
+          },
+          {
+            "id": "b7.doodle",
+            "start": 0.45,
+            "end": 1.4,
+            "seed": 11,
+            "beat": "",
+            "origin": "auto",
+            "kind": "accent",
+            "variant": "doodle",
+            "text": "",
+            "emoji": "",
+            "doodle": "horns",
+            "value": null,
+            "prefix": "",
+            "suffix": ""
+          }
+        ],
+        "suppressed": [],
+        "disabled": [],
+        "music": null,
+        "grade": "none",
+        "grain": 0.0,
+        "progressBar": false,
+        "progressColor": "#FF7A1A",
+        "loopEnding": "none",
+        "hookTitleSuppressed": false
+      }
+    },
+    "source": {
+      "width": 1080,
+      "height": 1920
+    },
+    "base": "clean",
+    "faceTrack": null,
+    "matte": false,
+    "broll": true,
+    "captionTemplate": {
+      "id": null,
+      "font_family": "TikTokSans-Bold",
+      "highlight_color": "#FFD54A",
+      "stroke_color": null,
+      "stroke_width": 0,
+      "shadow": true,
+      "background_color": null
+    }
+  },
+  "expected": {
+    "version": 1,
+    "width": 1080,
+    "height": 1920,
+    "edit_duration": 2.6,
+    "out_duration": 2.6,
+    "warp": [],
+    "template": "behind_head",
+    "cues": [
+      {
+        "id": "b7.doodle",
+        "start": 0.45,
+        "end": 1.4,
+        "seed": 11,
+        "beat": "",
+        "origin": "auto",
+        "kind": "accent",
+        "variant": "doodle",
+        "text": "",
+        "emoji": "",
+        "doodle": "horns",
+        "value": null,
+        "prefix": "",
+        "suffix": ""
+      },
+      {
+        "id": "b6.behind",
+        "start": 1.6,
+        "end": 2.5,
+        "seed": 11,
+        "beat": "",
+        "origin": "auto",
+        "kind": "accent",
+        "variant": "behind",
+        "text": "FOR ME",
+        "emoji": "",
+        "doodle": "sparkles",
+        "value": null,
+        "prefix": "",
+        "suffix": ""
+      }
+    ],
+    "words": [
+      {
+        "id": "w0",
+        "start": 0.1,
+        "end": 0.45,
+        "text": "This",
+        "highlight": false,
+        "run": "a"
+      },
+      {
+        "id": "w1",
+        "start": 0.45,
+        "end": 0.9,
+        "text": "changed",
+        "highlight": true,
+        "run": "a"
+      },
+      {
+        "id": "w2",
+        "start": 0.9,
+        "end": 1.4,
+        "text": "everything",
+        "highlight": false,
+        "run": "a"
+      },
+      {
+        "id": "w3",
+        "start": 1.6,
+        "end": 2.0,
+        "text": "for",
+        "highlight": false,
+        "run": "a"
+      },
+      {
+        "id": "w4",
+        "start": 2.0,
+        "end": 2.5,
+        "text": "me,",
+        "highlight": false,
+        "run": "a"
+      }
+    ],
+    "caption": {
+      "template": "behind_head",
+      "font": "Poppins-ExtraBold",
+      "size_px": 54.0,
+      "color": "#FFFFFF",
+      "accent": "#FACC15",
+      "stroke_color": null,
+      "stroke_px": 0.0,
+      "shadow": true,
+      "background": "#170904D9",
+      "y": 0.78,
+      "x": 0.0,
+      "words_per_line": 4,
+      "uppercase": false,
+      "enabled": true,
+      "placements": [],
+      "look": "bold",
+      "rows": []
+    },
+    "grade": "none",
+    "grain": 0.0,
+    "progress_bar": false,
+    "progress_color": "#FF7A1A",
+    "loop_ending": "none",
+    "hook_window": [
+      0.12,
+      2.35
+    ],
+    "hook_title_suppressed": false,
+    "hook": {
+      "text": "He tried it for 30 days",
+      "font": "Poppins-ExtraBold",
+      "accent": "#FACC15",
+      "look": "bold",
+      "template": "behind_head",
+      "start": 0.12,
+      "end": 2.35,
+      "x": 0.0,
+      "y": 0.0,
+      "scale": 1.0
+    },
+    "face_track": {
+      "version": 1,
+      "space": "output",
+      "fps": 6.0,
+      "samples": []
+    },
+    "broll_windows": [],
+    "matte_windows": [
+      {
+        "start": 1.6,
+        "end": 2.5,
+        "person": false
+      }
+    ],
+    "seed": 2961888143
+  }
+}

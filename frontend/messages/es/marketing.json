@@ -317,6 +317,61 @@
       }
     }
   },
+  "dynamicEdits": {
+    "eyebrow": "Ediciones dinámicas",
+    "title": "Clips que parecen editados por un profesional",
+    "body": "Elige una intensidad de edición. La IA encuentra los momentos que importan y los remata con subtítulos, acercamientos, sonido y música. El mismo clip, cuatro estilos: cambia mientras se reproduce.",
+    "switcherLabel": "Intensidad de edición",
+    "intensity": {
+      "off": {
+        "label": "Desactivada",
+        "description": "Cortes limpios y tus subtítulos de siempre, sin nada añadido."
+      },
+      "subtle": {
+        "label": "Sutil",
+        "description": "Un aire de clip de pódcast: un reencuadre de vez en cuando sobre una música suave."
+      },
+      "bold": {
+        "label": "Marcada",
+        "description": "Acercamientos al estilo Hormozi que se mantienen, subtítulos palabra por palabra con la palabra clave resaltada y algún golpe en un corte."
+      },
+      "max": {
+        "label": "Máxima",
+        "description": "Subtítulos contundentes al estilo MrBeast, más reencuadres y zooms, destellos en los cortes, efectos de sonido y música de fondo."
+      }
+    },
+    "player": {
+      "label": "Clip en {intensity}",
+      "play": "Reproducir",
+      "pause": "Pausar",
+      "mute": "Silenciar",
+      "unmute": "Activar sonido",
+      "tapForSound": "Toca para oír"
+    },
+    "broll": {
+      "title": "En Máxima, con b-roll",
+      "caption": "Los planos de recurso del propio episodio llenan el formato vertical en lugar de encogerse en una franja, con los subtítulos, los golpes y la música por encima."
+    },
+    "points": {
+      "captions": {
+        "title": "Subtítulos que caen palabra por palabra",
+        "description": "Los estilos animados enmarcan la palabra clave, sueltan un emoji o colocan una palabra detrás de la cabeza de quien habla. Las palabrotas se pitan y se muestran como f***."
+      },
+      "motion": {
+        "title": "Acercamientos y reencuadres al ritmo",
+        "description": "La IA elige las frases que importan y la imagen se acerca, corta más cerca o destella justo en ellas."
+      },
+      "sound": {
+        "title": "Sonido y música bajo la voz",
+        "description": "Golpes en los cortes y música de fondo según el tono del clip, de relajada a agresiva, mezclada bajo cada palabra."
+      },
+      "studio": {
+        "title": "Todo sigue siendo editable",
+        "description": "Cambia la intensidad de los clips que ya tienes o ajusta un solo efecto en el estudio de clips."
+      }
+    },
+    "source": "SupoClip creó ambos clips a partir de <link>{title}</link>."
+  },
   "editor": {
     "eyebrow": "Editor",
     "title": "Un editor completo, incluido",

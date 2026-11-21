@@ -1,0 +1,70 @@
+{
+  "family": "mapping",
+  "case": "instant_at_segment_end_noncontiguous",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        0.0,
+        2.0
+      ],
+      [
+        "s1",
+        4.0,
+        6.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "b0.sfx",
+        "start": 2.0,
+        "end": 2.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "impact",
+        "variant": 0,
+        "gain_db": 0.0
+      },
+      {
+        "id": "b0.freeze",
+        "start": 2.0,
+        "end": 2.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "freeze",
+        "hold": 0.5,
+        "label": ""
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "b0.freeze",
+      "start": 2.0,
+      "end": 2.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "freeze",
+      "hold": 0.5,
+      "label": ""
+    },
+    {
+      "id": "b0.sfx",
+      "start": 2.0,
+      "end": 2.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "sfx",
+      "sound": "impact",
+      "variant": 0,
+      "gain_db": 0.0
+    }
+  ]
+}

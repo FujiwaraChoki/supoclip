@@ -49,7 +49,8 @@
     "framing": "Encuadre",
     "broll": "B-roll",
     "audio": "Audio",
-    "effects": "Efectos"
+    "effects": "Efectos",
+    "edits": "Ediciones"
   },
   "inspector": {
     "tools": "Herramientas del editor"
@@ -257,7 +258,13 @@
     "jobProgress": "Progreso de exportación de {label}",
     "download": "Descargar",
     "cancelJob": "Cancelar la exportación de {label}",
-    "cancellationRequested": "Cancelación solicitada"
+    "cancellationRequested": "Cancelación solicitada",
+    "refusal": {
+      "warp": "Las rampas de velocidad y los congelados se renderizan en el servidor. Usa la exportación en segundo plano.",
+      "reaction": "Los GIF de reacción se renderizan en el servidor. Usa la exportación en segundo plano.",
+      "behind": "El texto detrás de la persona se renderiza en el servidor. Usa la exportación en segundo plano."
+    },
+    "editAudio": "Efectos de sonido y música"
   },
   "workspace": {
     "keepLocal": "Tu borrador se quedó en este dispositivo. Guárdalo antes de cambiar de clip.",
@@ -311,7 +318,7 @@
     "setIn": "Marcar punto de entrada",
     "setOut": "Marcar punto de salida",
     "split": "Dividir en el cursor",
-    "removeBroll": "Quitar el B-roll seleccionado",
+    "removeSelection": "Quitar el B-roll o la edición seleccionada",
     "undo": "Deshacer",
     "redo": "Rehacer",
     "save": "Guardar borrador",
@@ -402,5 +409,302 @@
     "backupsNothing": "No hay nada que quitar. Los cambios sin guardar se conservan hasta que lleguen a tu cuenta.",
     "backupsBrowserNote": "Borrar los datos del sitio de SupoClip en este navegador también elimina estas copias y cierra tu sesión. Hazlo solo cuando todos los clips abiertos digan “Todos los cambios guardados”.",
     "done": "Listo"
+  },
+  "captionTemplates": {
+    "title": "Plantilla",
+    "description": "Define cómo se mueven los subtítulos. La fuente y los colores de abajo siguen aplicándose.",
+    "classic": "Clásicas",
+    "animated": "Animadas",
+    "animatedHint": "Dibujadas fotograma a fotograma. Los acentos caen en los momentos que importan.",
+    "names": {
+      "default": "Predeterminada",
+      "hormozi": "Hormozi",
+      "mrbeast": "MrBeast",
+      "minimal": "Minimalista",
+      "tiktok": "TikTok",
+      "neon": "Neón",
+      "podcast": "Pódcast"
+    }
+  },
+  "fx": {
+    "title": "Ediciones dinámicas",
+    "description": "La IA marca los momentos que importan. La intensidad decide con cuánta fuerza golpea cada uno.",
+    "count": "{count, plural, one {# edición} other {# ediciones}}",
+    "dismiss": "Descartar",
+    "applying": "Aplicando…",
+    "planning": "Leyendo la transcripción…",
+    "cancel": "Cancelar",
+    "replan": "Volver a planificar con IA",
+    "musicMood": "Ambiente",
+    "musicVolume": "Volumen de la música",
+    "duckDepth": "Bajada bajo la voz",
+    "noMusicBed": "Aún no hay una pista para este ambiente. Prueba otro.",
+    "intensity": {
+      "label": "Intensidad de edición",
+      "off": "Desactivada",
+      "subtle": "Sutil",
+      "bold": "Marcada",
+      "max": "Máxima"
+    },
+    "intensityHint": {
+      "off": "Sin ediciones automáticas. Las que añadiste tú se quedan.",
+      "subtle": "Reencuadres de vez en cuando y música suave.",
+      "bold": "Acercamientos en los momentos clave y golpes en algunos cortes.",
+      "max": "Reencuadres rápidos, golpes y música más fuertes."
+    },
+    "needsPlan": {
+      "title": "Primero planifica este clip",
+      "body": "La IA lee la transcripción y marca los momentos donde caen las ediciones. Tarda unos segundos y usa una de las planificaciones de hoy.",
+      "action": "Planificar ediciones"
+    },
+    "errors": {
+      "notAvailable": "Las ediciones dinámicas aún no están disponibles en tu cuenta.",
+      "planLimit": "Ya planificaste ediciones todas las veces posibles hoy. Vuelve a intentarlo mañana.",
+      "planFailed": "La planificación falló. Inténtalo de nuevo.",
+      "workerUnavailable": "El servicio de IA no respondió. Vuelve a planificar.",
+      "invalidStyle": "Esa combinación de ajustes no es compatible.",
+      "resolveFailed": "No se pudieron aplicar las ediciones. Inténtalo de nuevo.",
+      "timeout": "La planificación tardó demasiado. Inténtalo de nuevo.",
+      "changedMeanwhile": "El borrador siguió cambiando, así que no se aplicaron las ediciones. Inténtalo de nuevo."
+    },
+    "groups": {
+      "sound": "Sonido",
+      "music": "Música",
+      "motion": "Movimiento",
+      "retention": "Que sigan mirando"
+    },
+    "beats": {
+      "title": "Momentos",
+      "description": "Los momentos que marcó la IA. Salta a uno, cambia su tipo o elimínalo, y las ediciones se ajustan.",
+      "jump": "Ir al momento en {time}",
+      "kind": "Tipo del momento en {time}",
+      "delete": "Eliminar el momento en {time}",
+      "kinds": {
+        "hook": "Gancho",
+        "emphasis": "Énfasis",
+        "number": "Número",
+        "punchline": "Remate",
+        "swear": "Palabrota",
+        "emotional_turn": "Giro emocional",
+        "payoff": "Desenlace",
+        "build": "Tensión"
+      }
+    },
+    "cue": {
+      "title": "Edición seleccionada",
+      "at": "En {time}",
+      "user": "Añadida por ti",
+      "auto": "Añadida por la IA",
+      "jump": "Ir a esta edición",
+      "delete": "Eliminar edición",
+      "close": "Cerrar",
+      "editHint": "Si cambias una edición de la IA pasa a ser tuya, así que al volver a planificar se conserva.",
+      "variant": "Estilo",
+      "text": "Texto",
+      "mode": "Movimiento",
+      "scale": "Zoom",
+      "anchor": "Centrar en",
+      "amount": "Intensidad",
+      "style": "Estilo",
+      "sound": "Sonido",
+      "gain": "Volumen",
+      "tone": "Tono de pitido",
+      "cover": "Tapar la boca",
+      "rate": "Velocidad",
+      "hold": "Duración",
+      "holdBudget": "Los congelados pueden sumar {seconds} s en este clip.",
+      "label": "Etiqueta",
+      "waitForIt": "Muestra un sticker de “Espera” antes del desenlace.",
+      "query": "Reacción: {query}",
+      "modes": {
+        "punch": "Golpe",
+        "push": "Acercar",
+        "pull": "Alejar"
+      },
+      "anchors": {
+        "face": "Cara",
+        "center": "Centro"
+      },
+      "covers": {
+        "none": "Sin tapar",
+        "bar": "Barra",
+        "pixelate": "Pixelar"
+      }
+    },
+    "variants": {
+      "circle": "Círculo",
+      "underline": "Subrayado",
+      "strike": "Tachado",
+      "arrow": "Flecha",
+      "highlight": "Resaltado",
+      "emoji": "Emoji",
+      "emoji_burst": "Lluvia de emojis",
+      "slam": "Impacto",
+      "behind": "Detrás de la persona",
+      "counter": "Contador",
+      "sticker": "Sticker",
+      "decode": "Decodificar",
+      "kinetic": "Cinético",
+      "doodle": "Garabato"
+    },
+    "transitions": {
+      "whip": "Barrido",
+      "flash": "Destello",
+      "glitch": "Glitch",
+      "zoom_through": "Zoom a través",
+      "spin": "Giro",
+      "light_leak": "Fuga de luz"
+    },
+    "sounds": {
+      "whoosh": "Whoosh",
+      "impact": "Impacto",
+      "pop": "Pop",
+      "riser": "Subida",
+      "record_scratch": "Rayado de disco",
+      "boom": "Boom",
+      "cash_register": "Caja registradora",
+      "ticker": "Tictac",
+      "slap": "Bofetada",
+      "stamp": "Sello",
+      "glitch": "Glitch",
+      "tape_stop": "Parada de cinta"
+    },
+    "kinds": {
+      "accent": "Acento de subtítulo",
+      "zoom": "Zoom",
+      "shake": "Sacudida",
+      "flash": "Destello",
+      "glitch": "Glitch",
+      "desaturate": "Desaturar",
+      "transition": "Transición",
+      "sfx": "Efecto de sonido",
+      "bleep": "Pitido",
+      "speed": "Rampa de velocidad",
+      "freeze": "Congelado",
+      "sticker": "Sticker",
+      "reaction": "Reacción"
+    },
+    "face": {
+      "title": "Seguimiento de cara",
+      "body": "Los zooms, garabatos y tapas de boca siguen la cara de quien habla. Analiza el clip una vez para que caigan en su sitio.",
+      "action": "Analizar cara",
+      "running": "Analizando… alrededor de un minuto",
+      "ready": "El seguimiento de cara está listo.",
+      "readyReopen": "El seguimiento de cara está listo. Las exportaciones ya lo usan; vuelve a abrir el clip para verlo en la vista previa.",
+      "failed": "El análisis falló. Inténtalo de nuevo."
+    },
+    "remove": {
+      "action": "Quitar todas las ediciones",
+      "hint": "Borra todas las ediciones, momentos, música y gradación de este clip. Deshacer las recupera.",
+      "done": "Ediciones quitadas. Deshacer las recupera."
+    },
+    "look": {
+      "title": "Aspecto",
+      "description": "Una gradación de color y grano de película en todo el clip.",
+      "grade": "Gradación de color",
+      "grain": "Grano de película",
+      "grades": {
+        "auto": "Automática",
+        "none": "Ninguna",
+        "punchy": "Intensa",
+        "warm": "Cálida",
+        "teal_orange": "Verde azulado y naranja",
+        "noir": "Noir",
+        "vhs": "VHS",
+        "dream": "Sueño"
+      }
+    },
+    "options": {
+      "sfx": {
+        "label": "Efectos de sonido",
+        "hint": "Golpes cortos y pops en cortes y gráficos"
+      },
+      "music": {
+        "label": "Música",
+        "hint": "Una base que baja cuando habla la voz"
+      },
+      "zooms": {
+        "label": "Zooms",
+        "hint": "Reencuadres y acercamientos cortos en los momentos clave"
+      },
+      "shake": {
+        "label": "Sacudida de cámara",
+        "hint": "Un golpe en los momentos más fuertes"
+      },
+      "transitions": {
+        "label": "Transiciones",
+        "hint": "Un destello ocasional donde el clip corta"
+      },
+      "speed": {
+        "label": "Rampas de velocidad y congelados",
+        "hint": "Acelera la preparación y congela antes del remate"
+      },
+      "censor": {
+        "label": "Palabrotas",
+        "hint": "Cómo se tapan las malas palabras"
+      },
+      "wait_for_it": {
+        "label": "Sticker «Espera…»",
+        "hint": "Anticipa un remate que está por llegar"
+      },
+      "progress_bar": {
+        "label": "Barra de progreso",
+        "hint": "Una barra fina en el borde inferior"
+      },
+      "loop_ending": {
+        "label": "Final en bucle",
+        "hint": "Funde el final con el inicio para que se repita sin cortes"
+      },
+      "reactions": {
+        "label": "Reacciones GIF",
+        "hint": "Un GIF de reacción en los momentos más graciosos"
+      }
+    },
+    "censor": {
+      "off": "Dejar tal cual",
+      "bleep": "Pitido",
+      "bleep_bar": "Pitido y tapar la boca",
+      "bleep_pixelate": "Pitido y pixelar la boca"
+    },
+    "moods": {
+      "auto": "Según el video",
+      "hype": "Energética",
+      "chill": "Relajada",
+      "dramatic": "Dramática",
+      "funny": "Divertida",
+      "inspiring": "Inspiradora",
+      "dark": "Oscura",
+      "aggressive": "Agresiva"
+    }
+  },
+  "fxTimeline": {
+    "fxLane": "Ediciones",
+    "fxLaneAria": "Pista de ediciones dinámicas",
+    "musicLane": "Música",
+    "musicLaneAria": "Música de fondo y atenuación",
+    "cueAria": "{kind} en {time}",
+    "suppressedCueAria": "{kind} en {time}, eliminada",
+    "suppressed": "Edición automática eliminada",
+    "suppressedHint": "Las ediciones automáticas que eliminas no vuelven al planificar de nuevo",
+    "deleteCue": "Eliminar edición",
+    "deleteCueHint": "Pulsa Supr o Retroceso para quitar la edición seleccionada",
+    "dragHint": "Arrastra para mover",
+    "openHint": "Doble clic para abrir",
+    "cueTitle": "{kind} · {time}. Arrastra para mover, doble clic para abrir.",
+    "addSound": "Añadir sonido",
+    "addSoundHint": "Haz doble clic en la pista para añadir un sonido en el cursor",
+    "pickSound": "Elige un sonido",
+    "hold": "Congelado {seconds} s",
+    "speed": "{rate}×",
+    "finalDuration": "Final {duration}",
+    "finalDurationHint": "Duración tras rampas de velocidad y congelados",
+    "duck": "La música baja {db} dB bajo la voz",
+    "noMusic": "Sin música",
+    "families": {
+      "sound": "Sonido",
+      "picture": "Imagen",
+      "overlay": "Superposición",
+      "time": "Tiempo"
+    }
   }
 }

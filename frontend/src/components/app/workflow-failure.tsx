@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { AlertCircle, ArrowLeft, Clapperboard, Loader2, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buildFontOptionsPayload } from "@/lib/font-options";
+import { fxCreateFields, readEditStyle, type EditStylesInfo } from "@/lib/fx/edit-style-request";
 import {
   MIN_SOURCE_SECONDS,
   normalizeTopic,
@@ -69,6 +70,8 @@ export type RecreatableTask = {
   filtered_words?: string[] | null;
   workflow?: Workflow | null;
   workflow_options?: WorkflowOptions | null;
+  /** Dynamic edits as stored on the task (`tasks.edit_style`: a dict, a JSON string or null). */
+  edit_style?: unknown;
 };
 
 // What `clip_length` measures: one clip, one series part, or the whole video.
@@ -85,12 +88,16 @@ const LENGTH_SCOPE: Record<Workflow, "clip" | "part" | "total"> = {
  * the same look (captions, font, framing, cleanup) and instructions. Highlights
  * omit `workflow`, exactly like the create form. The length carries over only
  * when it measures the same thing: a short recap is not a request for short clips.
+ * Dynamic edits (the stored `edit_style` and an animated template) go through the same send-time sanitiser as the
+ * create screen: they carry over only while `/tasks/edit-styles` says `enabled === true`.
  */
 export function buildRecreateBody(
   task: RecreatableTask,
   next: { workflow: Workflow; topic?: string },
   /** False when this user can make `next.workflow` but not customize it: the server would refuse both. */
   customizable = true,
+  /** `/tasks/edit-styles` for this user; anything but `enabled: true` drops the edits. */
+  editStyles?: Pick<EditStylesInfo, "enabled"> | null,
 ) {
   const instructions = customizable ? task.workflow_options?.instructions?.trim() : undefined;
   // A setting carries over when it means the same thing in the next workflow.
@@ -100,6 +107,7 @@ export function buildRecreateBody(
       ([key]) => customizable && (sameWorkflow || (next.workflow !== "highlights" && SHARED_SETTINGS.includes(key))),
     ),
   );
+  const fx = fxCreateFields({ editStyle: readEditStyle(task.edit_style), captionTemplate: task.caption_template }, editStyles);
   const options = {
     ...(next.workflow === "topic" && next.topic ? { topic: next.topic } : {}),
     ...(Object.keys(advanced).length > 0 ? { advanced } : {}),
@@ -110,7 +118,7 @@ export function buildRecreateBody(
       title: task.source_type === "upload" && task.source_title ? task.source_title.slice(0, 500) : null,
     },
     font_options: buildFontOptionsPayload(task.font_family ?? null, task.font_size ?? null, task.font_color ?? null),
-    caption_template: task.caption_template || "default",
+    caption_template: fx.caption_template,
     processing_mode: task.processing_mode || "fast",
     ...(task.output_format ? { output_format: task.output_format } : {}),
     ...(task.clip_length && LENGTH_SCOPE[task.workflow ?? "highlights"] === LENGTH_SCOPE[next.workflow]
@@ -122,6 +130,7 @@ export function buildRecreateBody(
     ...(typeof task.pause_threshold_ms === "number" ? { pause_threshold_ms: task.pause_threshold_ms } : {}),
     ...(typeof task.remove_filler_words === "boolean" ? { remove_filler_words: task.remove_filler_words } : {}),
     ...(Array.isArray(task.filtered_words) ? { filtered_words: task.filtered_words } : {}),
+    ...(fx.edit_style ? { edit_style: fx.edit_style } : {}),
     ...(next.workflow === "highlights" ? {} : { workflow: next.workflow }),
     ...(Object.keys(options).length > 0 ? { workflow_options: options } : {}),
     ...(instructions ? { instructions } : {}),
