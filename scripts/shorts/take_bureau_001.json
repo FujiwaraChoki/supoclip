@@ -1,0 +1,37 @@
+{
+  "url": "https://www.youtube.com/watch?v=b77XuGU52To",
+  "section": [7440, 7498],
+  "workdir": "/tmp/ttb",
+  "output": "/tmp/ttb/THE_TAKE_BUREAU_001.mp4",
+  "font": "Poppins ExtraBold",
+  "fontsdir": "/app/fonts",
+  "font_size": 128,
+  "caption_drop": [7466.28],
+  "caption_margin_v": 560,
+  "keywords": ["90%", "100%", "SUBTLE", "PROCRASTINATION", "SPICY", "TAKE", "CALENDAR", "SYSTEM",
+               "MORNING", "ROUTINE", "PRODUCTIVE", "UNCOMFORTABLE", "SCARY", "EMOTIONS", "RELIEVING",
+               "ALLEVIATING", "TECHNIQUES", "SYSTEMS", "GREAT"],
+  "shots": [
+    {"start": 7440.000, "end": 7441.293, "cx": 1340, "cy": 330, "zoom": 1.0,  "who": "mark-cu"},
+    {"start": 7441.293, "end": 7442.211, "cx": 720,  "cy": 330, "zoom": 1.12, "who": "guest-cu"},
+    {"start": 7442.211, "end": 7446.798, "cx": 1560, "cy": 390, "zoom": 1.45, "who": "wide-on-mark"},
+    {"start": 7446.798, "end": 7466.235, "cx": 1360, "cy": 330, "zoom": 1.0,  "who": "mark-cu"},
+    {"start": 7466.235, "end": 7467.819, "cx": 1570, "cy": 360, "zoom": 1.45, "who": "wide-on-mark"},
+    {"start": 7467.819, "end": 7472.157, "cx": 1330, "cy": 360, "zoom": 1.0,  "who": "mark-cu"},
+    {"start": 7472.157, "end": 7474.034, "cx": 720,  "cy": 330, "zoom": 1.12, "who": "guest-cu"},
+    {"start": 7474.034, "end": 7481.166, "cx": 1340, "cy": 350, "zoom": 1.0,  "who": "mark-cu"},
+    {"start": 7481.166, "end": 7487.256, "cx": 1575, "cy": 345, "zoom": 1.45, "who": "wide-on-mark"},
+    {"start": 7487.256, "end": 7489.883, "cx": 1310, "cy": 330, "zoom": 1.0,  "who": "mark-cu"},
+    {"start": 7489.883, "end": 7498.000, "cx": 720,  "cy": 330, "zoom": 1.12, "who": "guest-cu"}
+  ],
+  "pieces": [
+    [7467.92, 7472.14],
+    [7445.36, 7449.86],
+    [7450.84, 7464.76],
+    [7466.42, 7467.80],
+    [7472.20, 7473.07],
+    [7474.14, 7480.64],
+    [7481.36, 7486.38],
+    [7487.28, 7489.86]
+  ]
+}
