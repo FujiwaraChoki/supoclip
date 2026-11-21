@@ -389,6 +389,15 @@ model Task {
   font_color           String?   @default("#FFFFFF") @db.VarChar(7)
   caption_template     String?   @default("default") @db.VarChar(50)
   include_broll        Boolean?  @default(false)
+  processing_mode      String    @default("fast") @db.VarChar(20)
+  started_at           DateTime? @db.Timestamptz
+  completed_at         DateTime? @db.Timestamptz
+  cache_hit            Boolean   @default(false)
+  error_code           String?   @db.VarChar(80)
+  stage_timings_json   String?   @db.Text
+  workflow             String    @default("highlights") @db.VarChar(20)
+  workflow_options     Json      @default("{}") @db.JsonB
+  workflow_plan        Json?     @db.JsonB
 
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz

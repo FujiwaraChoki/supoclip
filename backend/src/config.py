@@ -31,7 +31,14 @@ class Config:
         self.transcription_language = self._normalize_transcription_language(
             os.getenv("TRANSCRIPTION_LANGUAGE")
         )
-        self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
+        raw_llm = self._get_runtime_setting("LLM")
+        if raw_llm:
+            raw_llm = raw_llm.strip()
+            if raw_llm.startswith("openrouter:google-gla:"):
+                raw_llm = raw_llm.replace("openrouter:", "", 1)
+            elif raw_llm.startswith("openrouter:") and not self.openrouter_api_key:
+                raw_llm = self._infer_default_llm()
+        self.llm = raw_llm or self._infer_default_llm()
         # Optional separate model for the cross-window candidate rerank pass.
         self.rerank_llm = self._get_optional_env("RERANK_LLM") or self.llm
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
