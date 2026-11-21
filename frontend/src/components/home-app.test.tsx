@@ -109,6 +109,9 @@ let teamsResponse: Record<string, unknown>;
 beforeEach(() => {
   summaryResponse = billingSummary;
   teamsResponse = {};
+  // The billing and workspace hooks keep their last answer for a few seconds. Nothing is
+  // mounted here, so this only forgets what the previous test's workspace left behind.
+  invalidateWorkspaces();
   navigation.params = new URLSearchParams();
   navigation.replace.mockReset();
   durations.seconds = null;
