@@ -69,6 +69,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { ManualAnalysisPanel } from "@/components/app/manual-analysis-panel";
 import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, sourceTimestamp } from "@/components/app/clip-wall";
 import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/components/app/series-view";
 import { HeroClipView } from "@/components/app/hero-clip-view";
@@ -1236,6 +1237,8 @@ export default function TaskPage() {
           </div>
         ) : !task ? (
           <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+        ) : task.status === "awaiting_analysis" ? (
+          <ManualAnalysisPanel taskId={task.id} readOnly={readOnly} onSubmitted={() => fetchTaskStatus()} />
         ) : task.status === "cancelled" && clips.length === 0 ? (
           <EmptyState icon={<PauseCircle className="size-7" />} title={t("cancelledTitle")} body={t("cancelledBody")} />
         ) : failureCode ? (

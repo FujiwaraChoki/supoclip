@@ -305,5 +305,32 @@
     "retry": "Try again",
     "approxTiming": "This video had no word timing, so captions and effects follow approximate timing.",
     "simplified": "Some effects were simplified for this clip."
+  },
+  "manualAnalysis": {
+    "title": "Your turn: pick the clips with an AI chat",
+    "body": "Transcription is done. No AI model is set up on this server, so use any AI chat (ChatGPT, Claude, Gemini and similar) to choose the best moments.",
+    "step1Title": "1. Get the prompt",
+    "step1Body": "Download it or copy it, then paste it into your AI chat. The chat answers with JSON.",
+    "download": "Download prompt",
+    "copy": "Copy prompt",
+    "downloaded": "Prompt downloaded",
+    "copied": "Prompt copied",
+    "step2Title": "2. Add the answer",
+    "step2Body": "Paste the chat's reply below, or upload it as a file. Code fences and extra words around the JSON are fine.",
+    "pasteLabel": "AI chat reply (JSON)",
+    "pastePlaceholder": "Paste the JSON here…",
+    "upload": "Upload JSON file",
+    "fileLoaded": "Loaded {name}",
+    "fileTooLarge": "That file is too large to be a clip analysis.",
+    "chars": "{count} characters",
+    "submit": "Generate clips",
+    "submitting": "Checking…",
+    "submitted": "Answer accepted. Generating your clips…",
+    "promptError": "Could not load the prompt. Please try again.",
+    "copyError": "Could not copy. Use Download instead.",
+    "submitError": "Could not submit the answer. Please try again.",
+    "readOnly": "Only the owner of this task can add the AI answer.",
+    "fileReadError": "Could not read that file.",
+    "step1Hint": "Chat says it is too long? Attach the downloaded file to your message instead of pasting."
   }
 }
