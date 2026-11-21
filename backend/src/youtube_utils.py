@@ -4,6 +4,7 @@ Optimized for free yt-dlp downloads with optional Apify fallback.
 """
 
 import asyncio
+import shutil
 from datetime import datetime
 import logging
 import math
@@ -107,6 +108,17 @@ class YouTubeDownloader:
             "age_limit": None,
         }
 
+        config = get_config()
+        extractor_args = {
+            "youtube": {"player_client": ["android", "ios", "web"]}
+        }
+        pot_url = (getattr(config, "youtube_pot_provider_url", "") or "").strip()
+        if pot_url:
+            extractor_args["youtubepot-bgutilhttp"] = {"base_url": [pot_url]}
+        opts["extractor_args"] = extractor_args
+        if shutil.which("deno"):
+            opts["js_runtimes"] = {"deno": {}}
+
         return opts
 
 
@@ -128,6 +140,17 @@ def _build_info_options(task_id: Optional[str] = None) -> Dict[str, Any]:
         },
         "nocheckcertificate": True,
     }
+    config = get_config()
+    extractor_args = {
+        "youtube": {"player_client": ["android", "ios", "web"]}
+    }
+    pot_url = (getattr(config, "youtube_pot_provider_url", "") or "").strip()
+    if pot_url:
+        extractor_args["youtubepot-bgutilhttp"] = {"base_url": [pot_url]}
+    ydl_opts["extractor_args"] = extractor_args
+    if shutil.which("deno"):
+        ydl_opts["js_runtimes"] = {"deno": {}}
+
     if proxy_configured():
         # Metadata must leave through the same proxy as the media, or YouTube
         # bot-checks the server IP before a download starts. No player client
