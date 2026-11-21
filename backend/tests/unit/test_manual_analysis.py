@@ -46,9 +46,25 @@ def test_the_prompt_bundle_carries_the_transcript_and_the_json_shape():
     assert "[00:10 - 00:20] line 010" in bundle
     assert "most_relevant_segments" in bundle and "virality" in bundle
     assert "ONE JSON object" in bundle
-    # The chat is told which hook types are allowed, not left to guess.
-    assert "JSON Schema" in bundle and '"statistic"' in bundle and '"contrast"' in bundle
     assert "Pick funny parts" in bundle
+    # The chat is told which hook types are allowed, not left to guess.
+    for hook_type in ("question", "statement", "statistic", "story", "contrast", "none"):
+        assert hook_type in bundle
+
+
+def test_the_prompt_is_compact_so_free_chats_accept_it():
+    # Free chats limit what can be pasted: the fixed part stays a few thousand characters.
+    assert len(manual_analysis.build_prompt_bundle("")) < 5000
+
+
+def test_the_prompt_states_the_clip_length_of_the_task():
+    short = manual_analysis.build_prompt_bundle(TRANSCRIPT, clip_length="short")
+    assert "15-30 seconds" in short
+    assert "60-120 seconds" in manual_analysis.build_prompt_bundle(TRANSCRIPT, clip_length="long")
+
+
+def test_the_allowed_hook_types_follow_the_model():
+    assert set(manual_analysis._HOOK_TYPES) == {"question", "statement", "statistic", "story", "contrast", "none"}
 
 
 def test_only_the_manual_value_is_manual():

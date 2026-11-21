@@ -14,7 +14,9 @@ from typing import Any, List, Optional
 from pydantic import ValidationError
 
 from . import ai
-from .ai import TranscriptAnalysis
+from .ai import TranscriptAnalysis, ViralityAnalysis
+from .clip_duration import clip_duration
+from .workflows.prompts import instructions_block
 
 MANUAL_LLM = "manual"
 AWAITING_ANALYSIS_STATUS = "awaiting_analysis"
@@ -48,6 +50,20 @@ _EXAMPLE = {
 }
 
 
+def _allowed_hook_types() -> tuple:
+    """The hook types the app accepts, read from the model so the prompt cannot drift."""
+    from typing import Literal, get_args, get_origin
+
+    annotation = ViralityAnalysis.model_fields["hook_type"].annotation
+    for candidate in (annotation, *get_args(annotation)):
+        if get_origin(candidate) is Literal:
+            return tuple(get_args(candidate))
+    return ("question", "statement", "statistic", "story", "contrast", "none")
+
+
+_HOOK_TYPES = _allowed_hook_types()
+
+
 def is_manual_llm(model_name: Optional[str]) -> bool:
     return (model_name or "").strip().lower() == MANUAL_LLM
 
@@ -63,32 +79,45 @@ class ManualAnalysisError(ValueError):
 def build_prompt_bundle(
     transcript: str,
     *,
-    clip_signals: Optional[str] = None,
-    performance_context: Optional[str] = None,
+    clip_signals: Optional[str] = None,  # noqa: ARG001 - kept so the call matches the model path
+    performance_context: Optional[str] = None,  # noqa: ARG001
     clip_length: str = "auto",
     instructions: Optional[str] = None,
 ) -> str:
-    """The text the user pastes into an AI chat."""
-    task = ai.build_transcript_analysis_prompt(
-        transcript=transcript,
-        clip_signals=clip_signals,
-        performance_context=performance_context,
-        clip_length=clip_length,
-        **({"instructions": instructions} if instructions else {}),
-    )
+    """The text the user pastes into an AI chat.
+
+    Deliberately compact (a few thousand characters before the transcript):
+    free chats limit how much can be pasted, so it keeps the rules that decide
+    whether an answer is accepted and drops the model path's long guidance.
+    """
+    bounds = clip_duration(clip_length)
+    steering = f"\n{instructions_block(instructions)}\n" if instructions else ""
+    hook_types = ", ".join(_HOOK_TYPES)
     return (
         "# SupoClip clip selection\n\n"
-        "You are the clip-selection model for a video clipping tool. Follow the instructions "
-        "below and reply with ONE JSON object only: no Markdown, no code fences, no commentary. "
-        "Copy timestamps exactly as they appear in the transcript.\n\n"
-        "## Instructions\n\n"
-        f"{ai.build_transcript_system_prompt(clip_length)}\n\n"
-        "## Task\n\n"
-        f"{task}\n\n"
-        "## Required JSON shape (example values)\n\n"
-        f"{json.dumps(_EXAMPLE, indent=2)}\n\n"
-        "## JSON Schema (allowed values and ranges; the answer is rejected if it does not match)\n\n"
-        f"{json.dumps(TranscriptAnalysis.model_json_schema(), indent=1)}\n"
+        "Pick the best short-form clips (TikTok, Reels, Shorts) from the transcript at the end. "
+        "Reply with ONE JSON object only: no Markdown, no code fences, no commentary.\n\n"
+        "## Rules\n\n"
+        f"- Choose 2-5 clips, fewer if the video is short. Each is one contiguous range of transcript "
+        f"lines, {bounds.minimum}-{bounds.maximum} seconds long (ideal {bounds.ideal_minimum}-{bounds.ideal_maximum}).\n"
+        '- Copy start_time and end_time exactly as they appear in the transcript ("MM:SS"). '
+        "A clip starts at a line's start and ends at a line's end.\n"
+        "- Pick complete thoughts with a strong opening and a payoff, never cut mid-sentence. "
+        "Prefer strong opinions, surprises, stories, useful tips and emotion. "
+        "Skip intros, sponsor reads, subscribe requests and filler.\n"
+        '- "text" is the transcript text of that range, copied verbatim. Do not paraphrase.\n'
+        "- hook_score, engagement_score, value_score and shareability_score are each 0-25; "
+        "total_score is their sum. relevance_score is 0.0-1.0.\n"
+        f"- hook_type must be one of: {hook_types}.\n"
+        "- hook_title: 3-9 words, punchy and true to the clip. No hashtags, emojis or quotes.\n"
+        '- "reasoning": one sentence on why it works. "summary": 1-2 sentences on the video. '
+        '"key_topics": up to 5 short topics.\n'
+        f"{steering}\n"
+        "## Output format\n\n"
+        f"{json.dumps(_EXAMPLE, indent=1)}\n\n"
+        "## Transcript\n\n"
+        "Each line is [start - end] spoken text.\n\n"
+        f"{transcript}\n"
     )
 
 
