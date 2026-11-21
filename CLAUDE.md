@@ -382,6 +382,9 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   access (unaudited, TikTok rejects posts from public accounts). Off, `/social/providers` reports TikTok `configured: false,
   paused: true` (the web shows a short notice; iOS hides it) and connect/options/publish/retry return 503. Self-hosters
   with their own audited TikTok app turn it on in /admin.
+- **`instagram_publishing`:** seeded off on web and iOS (admins bypass) until Meta App Review approves Instagram Reels
+  publishing. Off, `/social/providers` reports Instagram `configured: false` (Coming soon on web; hidden on iOS) and
+  connect/options/publish/retry return 503 for non-admins, while admins can connect and publish test Reels.
 - **`dynamic_edits`:** seeded off on web and iOS (admins bypass). Off, requests that turn effects on (active
   `edit_style` or an FX caption template) get 403 `DYNAMIC_EDITS_NOT_AVAILABLE` before any charge; stored FX clips keep working.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
