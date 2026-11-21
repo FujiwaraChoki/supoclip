@@ -1030,7 +1030,9 @@ export default function TeamSettingsPage() {
             <p className="mt-2 text-xs text-muted-foreground">
               {remainingMinutes !== null
                 ? t("overview.minutesRemaining", { remaining: remainingMinutes })
-                : t("overview.unlimited")}
+                : billingUsage
+                  ? t("overview.unlimited")
+                  : null /* usage did not load: that is not "unlimited" */}
             </p>
             {billingUsage?.member_minute_limit !== null &&
               billingUsage?.member_minute_limit !== undefined && (
