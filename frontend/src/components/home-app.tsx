@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useId } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -21,6 +21,7 @@ import { FONT_SEARCH_THRESHOLD, formatUploadLimit, getYouTubeThumbnailUrl, maxVi
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
 import { VideoDownloadStatus } from "@/components/app/video-download-status";
+import { SourceRangePicker } from "@/components/source-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +29,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { UpgradeDialog, UpgradeNudge, getUpgradeState, memberLimitReason, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
-import { getPublicBillingPlans } from "@/lib/billing-plans";
+import { getPublicBillingPlans, type PublicBillingPlan } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,6 +54,7 @@ import {
 } from "@/lib/workflows";
 import { detectWorkflowIntent, looksLikeInstruction, splitSourceAndInstructions, type WorkflowIntent } from "@/lib/workflow-intent";
 import { cn } from "@/lib/utils";
+import { DEFAULT_MIN_RANGE_SECONDS, defaultSourceRange, sourceRangeFields, sourceRangeProblem, tooLongRangeOffer, type SourceRange } from "@/lib/source-range";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { DEFAULT_EDIT_STYLE, isFxTemplate, type EditStyle } from "@/lib/fx/core/types";
 import { editStylePreference, fxCreateFields, offeredFxTemplates, sendableCaptionTemplate } from "@/lib/fx/edit-style-request";
@@ -261,6 +263,21 @@ export default function HomeApp() {
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
   // Brand mark of the pasted link; a neutral link icon until it is recognised.
   const urlSource = url.trim() ? validateVideoSourceUrl(url).source : undefined;
+  // A source over the plan's per-video limit: clip a part of it instead (see `tooLongPanel`).
+  // `uploadedUrl` keeps a file that was already uploaded, so picking a part doesn't upload it again.
+  const [rangeOffer, setRangeOffer] = useState<{ durationSeconds: number; maxSeconds: number; minSeconds: number; uploadedUrl?: string } | null>(null);
+  const [sourceRange, setSourceRange] = useState<SourceRange | null>(null);
+  const rangePanelRef = useRef<HTMLElement | null>(null);
+  const offerRange = useCallback((offer: NonNullable<typeof rangeOffer>) => {
+    setRangeOffer(offer);
+    setSourceRange(defaultSourceRange(offer));
+    requestAnimationFrame(() => rangePanelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+  }, []);
+  useEffect(() => {
+    // A different link or file starts over.
+    setRangeOffer(null);
+    setSourceRange(null);
+  }, [url, file]);
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
     : maxVideoUploadBytes();
@@ -698,6 +715,13 @@ export default function HomeApp() {
   const instructionsTooLong = instructionsUsed > INSTRUCTIONS_MAX_CHARS;
   const workflowInfo = workflowsInfo?.workflows.find((entry) => entry.id === activeWorkflow);
   const minSourceSeconds = workflowInfo?.min_source_seconds ?? MIN_SOURCE_SECONDS[activeWorkflow];
+  const uploadMaxSeconds = billingSummary?.max_upload_duration_seconds ?? null;
+  useEffect(() => {
+    if (sourceType !== "upload" || sourceSeconds === null || !uploadMaxSeconds || sourceSeconds <= uploadMaxSeconds) return;
+    if (rangeOffer) return;
+    offerRange({ durationSeconds: sourceSeconds, maxSeconds: uploadMaxSeconds, minSeconds: DEFAULT_MIN_RANGE_SECONDS });
+  }, [sourceType, sourceSeconds, uploadMaxSeconds, rangeOffer, offerRange]);
+  const rangeProblem = rangeOffer && sourceRange ? sourceRangeProblem(sourceRange, rangeOffer) : null;
   const sourceTooShort = activeWorkflow !== "highlights" && sourceType === "upload" && sourceSeconds !== null && sourceSeconds < minSourceSeconds;
   // An explicit part count needs room for every part at its shortest (backend: D ≥ N · min · 1.25).
   const partRange = workflowsInfo?.workflows.find((entry) => entry.id === "series")?.lengths?.[workflowLengths.series ?? "auto"];
@@ -811,6 +835,10 @@ export default function HomeApp() {
     if (!hasSource || isLoading || lengthLoading || !session?.user?.id || awaitingWorkflows || awaitingEditStyles) return;
     // Clicking Generate first blurs the link box; if that blur just held a request back, let the user see it.
     if (heldAt.current > 0 && performance.now() - heldAt.current < 800) return;
+    if (rangeOffer && rangeProblem) {
+      rangePanelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      return;
+    }
     let sourceUrl = url;
     let requestInstructions = instructions;
     if (sourceType !== "upload") {
@@ -866,12 +894,21 @@ export default function HomeApp() {
       const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
 
       if (sourceType === "upload" && file) {
-        setStatusMessage(t("status.uploading"));
-        videoUrl = await uploadVideoFile(file, uploadLimitBytes);
+        if (rangeOffer?.uploadedUrl) {
+          videoUrl = rangeOffer.uploadedUrl;
+        } else {
+          setStatusMessage(t("status.uploading"));
+          videoUrl = await uploadVideoFile(file, uploadLimitBytes);
+        }
       }
 
       const request: Record<string, unknown> = {
-        source: { url: videoUrl, title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null },
+        source: {
+          url: videoUrl,
+          title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null,
+          // Only once a part was picked: a whole-video request stays exactly as before.
+          ...sourceRangeFields(rangeOffer ? sourceRange : null),
+        },
         font_options: fontOptions,
         caption_template: fxFields.caption_template,
         processing_mode: "fast",
@@ -906,6 +943,13 @@ export default function HomeApp() {
 
       if (!startResponse.ok) {
         const info = await parseApiError(startResponse, t("errors.api", { status: startResponse.status }));
+        const tooLong = tooLongRangeOffer(info);
+        if (tooLong) {
+          offerRange({ ...tooLong, ...(sourceType === "upload" ? { uploadedUrl: videoUrl } : {}) });
+          setIsLoading(false);
+          setStatusMessage("");
+          return;
+        }
         const upgradeForError = upgradeReasonForError(info.code, info.detail, upgradeState?.nextPlan?.youtubeMaxMinutes);
         if (upgradeForError) {
           openUpgrade(upgradeForError);
@@ -1461,6 +1505,23 @@ export default function HomeApp() {
 
           {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
 
+          {rangeOffer && sourceRange && (
+            <TooLongPanel
+              ref={rangePanelRef}
+              offer={rangeOffer}
+              range={sourceRange}
+              onRangeChange={setSourceRange}
+              nextPlan={upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds ? upgradeState.nextPlan : null}
+              onUpgrade={(nextPlan) => nextPlan.youtubeMaxMinutes * 60 >= rangeOffer.durationSeconds
+                ? openUpgrade({ kind: "video_too_long", durationSeconds: rangeOffer.durationSeconds, maxSeconds: rangeOffer.maxSeconds })
+                : openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" })}
+              onSubmit={() => void handleSubmit()}
+              onCancel={() => { setUrl(""); attachFile(null); }}
+              busy={isLoading}
+              problem={rangeProblem}
+            />
+          )}
+
           {error && (
             <Alert className="mt-4 border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
               <AlertCircle className="h-4 w-4 text-red-500" />
@@ -1505,6 +1566,57 @@ export default function HomeApp() {
         source="home"
       />
     </AppShell>
+  );
+}
+
+/** Shown when a source is over the plan's per-video limit: pick a part of it to clip, or compare plans. */
+function TooLongPanel({ ref, offer, range, onRangeChange, nextPlan, onUpgrade, onSubmit, onCancel, busy, problem }: {
+  ref: React.Ref<HTMLElement>;
+  offer: { durationSeconds: number; maxSeconds: number; minSeconds: number };
+  range: SourceRange;
+  onRangeChange: (range: SourceRange) => void;
+  nextPlan: PublicBillingPlan | null;
+  onUpgrade: (plan: PublicBillingPlan) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  busy: boolean;
+  problem: string | null;
+}) {
+  const t = useTranslations("home.tooLongPanel");
+  const plans = useBillingPlanText();
+  const headingId = useId();
+  const values = {
+    runtime: plans.formatRuntime(offer.durationSeconds),
+    minutes: Math.round(offer.maxSeconds / 60),
+    plan: nextPlan ? plans.planName(nextPlan.id) : "",
+    nextMinutes: nextPlan?.youtubeMaxMinutes ?? 0,
+  };
+  return (
+    <section ref={ref} aria-labelledby={headingId} data-testid="source-range-panel" className="mt-4 rounded-2xl border bg-background p-4 shadow-sm sm:p-5">
+      <h2 id={headingId} className="font-display text-base font-bold tracking-tight">{t("title", values)}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {nextPlan ? t("bodyUpgrade", values) : t("body", values)}
+      </p>
+      <SourceRangePicker
+        className="mt-4"
+        durationSeconds={offer.durationSeconds}
+        maxSeconds={offer.maxSeconds}
+        minSeconds={offer.minSeconds}
+        value={range}
+        onChange={onRangeChange}
+        disabled={busy}
+      />
+      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={busy} className="sm:mr-auto">{t("cancel")}</Button>
+        {nextPlan && (
+          <Button type="button" variant="outline" onClick={() => onUpgrade(nextPlan)} disabled={busy}>{t("upgradeLink")}</Button>
+        )}
+        <Button type="button" onClick={onSubmit} disabled={busy || problem !== null} className="bg-brand text-brand-foreground hover:bg-brand/90">
+          {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+          {t("submit")}
+        </Button>
+      </div>
+    </section>
   );
 }
 

@@ -345,6 +345,21 @@ shorten the finished clips. For a series it sets each part's length (auto
 sets the total (recap: auto scales with the video, short ~45s, medium ~75s,
 long ~2 min; trailer: auto ~30s, short ~20s, medium ~40s, long ~1 min).
 
+### Part of a long video
+
+A video longer than your plan's per-video limit fails with `VIDEO_TOO_LONG`
+(the error includes `duration_seconds`, `max_duration_seconds` and
+`range_allowed`). Pass `start_seconds` and `end_seconds` to
+`supoclip_create_clip_task` to clip one part of it instead, for example the
+second and third hour of a stream: `start_seconds=3600, end_seconds=10800`.
+
+- Either may be left out: `start_seconds` defaults to 0, `end_seconds` to the
+  end of the video.
+- The part must be at least 60 seconds and at most the plan's per-video limit.
+  Only the part is downloaded and processed, and only its minutes are charged.
+- Highlights only. Clip timestamps stay on the full video's timeline.
+- An invalid part fails with `INVALID_SOURCE_RANGE`.
+
 ## Tests
 
 ```bash
