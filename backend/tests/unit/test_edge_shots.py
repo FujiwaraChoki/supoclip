@@ -10,7 +10,7 @@ import subprocess
 import numpy as np
 import pytest
 
-from src.media.edge_shots import hold_stray_edge_shots, single_cut, stray_edge_frames
+from src.media.edge_shots import dark_run, hold_stray_edge_shots, single_cut, stray_edge_frames
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
 
@@ -106,3 +106,34 @@ def test_single_cut_is_found_next_to_fast_motion_in_doubled_frames():
             frame = np.clip(rng.normal(120, 18, (90, 160)), 0, 255).astype(np.int16)
         moving.append(frame)
     assert single_cut(np.stack(before + moving)) == 9
+
+
+def test_black_frames_at_an_edge_are_held_over(tmp_path):
+    clip = tmp_path / "source.mp4"
+    # 6 black frames (the gap after the previous scene), the clip's shot, 5 black frames.
+    _clip(clip, [("black", 6 / FPS), ("blue", 4.0), ("black", 5 / FPS)])
+    before = _counts(clip)
+    assert hold_stray_edge_shots(clip) == (6, 5)
+    frames, audio = _counts(clip)
+    assert (frames, audio) == before
+    assert [_frame_colour(clip, i) for i in (0, 5, frames - 1)] == ["blue", "blue", "blue"]
+
+
+def test_dark_run_follows_a_fade_and_leaves_a_dark_scene_alone():
+    def frames(levels):
+        return np.stack([np.full((90, 160), level, dtype=np.int16) for level in levels])
+
+    # Black, a fade up over four frames, then the picture at 120: held until half of that is reached.
+    assert dark_run(frames([2, 4, 20, 45, 70, 100] + [120] * 18)) == 4
+    # Straight from black to the picture.
+    assert dark_run(frames([3] * 6 + [120] * 18)) == 6
+    # A night scene is dark throughout: not a fade.
+    assert dark_run(frames([10] * 24)) == 0
+    # A clip that starts on its picture.
+    assert dark_run(frames([120] * 24)) == 0
+
+
+def test_a_long_stretch_of_black_is_part_of_the_clip(tmp_path):
+    clip = tmp_path / "source.mp4"
+    _clip(clip, [("black", 0.7), ("blue", 4.0)])
+    assert hold_stray_edge_shots(clip) == (0, 0)

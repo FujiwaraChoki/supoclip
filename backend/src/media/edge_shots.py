@@ -2,9 +2,9 @@
 
 A clip is cut on speech: it starts a moment before its first word and ends a moment after its last.
 When the source changes shot inside that moment, the clip opens (or closes) on a few frames of a
-different scene: a flash of the previous shot before the speaker appears, or of the next chapter's
-title after the last word. Those frames are replaced by a hold of the nearest frame of the clip's own
-shot. The audio and the clip's length are untouched, so captions and every stored time stay valid.
+different scene: a flash of the previous shot before the speaker appears, of the next chapter's
+title after the last word, or the black between two scenes. Those frames are replaced by a hold of
+the nearest frame of the clip's own shot. The audio and the clip's length are untouched, so captions and every stored time stay valid.
 """
 
 from __future__ import annotations
@@ -31,6 +31,8 @@ CUT_SPIKE_RATIO = 3.0
 # Frames that repeat (30 fps footage in a 60 fps file) differ by less than this and carry no motion.
 DUPLICATE_FRAME_DIFF = 1.0
 PROBE_W, PROBE_H = 160, 90
+# A frame this dark on average (0-255) is black: the tail of a fade, or the gap between two scenes.
+BLACK_FRAME_MEAN = 16.0
 
 
 def _probe(path: Path) -> Optional[Tuple[int, float]]:
@@ -85,6 +87,27 @@ def single_cut(frames: np.ndarray) -> Optional[int]:
     return cut
 
 
+def dark_run(frames: np.ndarray) -> int:
+    """How many leading frames are black or still fading up from black, or 0.
+
+    The source faded out of the previous scene, or cut through black, a moment before the first
+    word. The run ends where the picture reaches half of the brightness it settles at. A scene that
+    is dark throughout is not a fade.
+    """
+    if len(frames) < 4:
+        return 0
+    means = frames.reshape(len(frames), -1).mean(axis=1)
+    if means[0] > BLACK_FRAME_MEAN:
+        return 0
+    settled = float(np.median(means[len(means) // 2:]))
+    if settled < 3 * BLACK_FRAME_MEAN:
+        return 0
+    run = 0
+    while run < len(means) and means[run] < 0.5 * settled:
+        run += 1
+    return run
+
+
 def stray_edge_frames(path: Path) -> Tuple[int, int, int]:
     """(stray frames at the start, stray frames at the end, total frames) of a rendered source cut."""
     probed = _probe(path)
@@ -94,11 +117,15 @@ def stray_edge_frames(path: Path) -> Tuple[int, int, int]:
     if total / fps < MIN_CLIP_SECONDS:
         return 0, 0, total
     limit = max(1, int(round(EDGE_SHOT_SECONDS * fps)))
-    head = single_cut(_frames(path, [], EDGE_PROBE_SECONDS))
+    head_frames = _frames(path, [], EDGE_PROBE_SECONDS)
+    head = single_cut(head_frames)
     tail_frames = _frames(path, ["-sseof", f"-{EDGE_PROBE_SECONDS:.3f}"], EDGE_PROBE_SECONDS + 1.0)
     tail_cut = single_cut(tail_frames)
     tail = len(tail_frames) - tail_cut if tail_cut is not None else 0
-    return (head if head is not None and head <= limit else 0), (tail if 0 < tail <= limit else 0), total
+    # Black frames, or a fade from or to black, at the very edge: the same sliver without a hard cut.
+    head = head if head is not None and head <= limit else dark_run(head_frames)
+    tail = tail if 0 < tail <= limit else dark_run(tail_frames[::-1])
+    return (head if 0 < head <= limit else 0), (tail if 0 < tail <= limit else 0), total
 
 
 def hold_stray_edge_shots(path: Path) -> Tuple[int, int]:
