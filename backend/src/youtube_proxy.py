@@ -1025,11 +1025,13 @@ def parse_hls_fragments(playlist: str, base_url: str, duration: float) -> list[d
     return fragments
 
 
-# A media playlist grows with its source (~600 bytes per few-second segment), so
-# its read cap scales with the duration between a floor and a hard ceiling.
+# A media playlist grows with its source: one signed segment URL (hundreds of
+# bytes up to ~2 KB) every few seconds. Multi-hour sources were seen above
+# 180 bytes per second, so the cap allows 1,000 (a 24 h source: ~86 MB) between
+# a floor that is also used when the duration is unknown and a hard ceiling.
 HLS_PLAYLIST_MIN_BYTES = 4_000_000
-HLS_PLAYLIST_BYTES_PER_SECOND = 300
-HLS_PLAYLIST_MAX_BYTES = 16_000_000
+HLS_PLAYLIST_BYTES_PER_SECOND = 1_000
+HLS_PLAYLIST_MAX_BYTES = 96_000_000
 
 
 def hls_playlist_byte_limit(duration: float | None) -> int:
@@ -1649,6 +1651,57 @@ def _account_failed_media(
                      "downloaded_bytes": int(incomplete.group(1))})
 
 
+# A full download is refused up front only when its estimate is clearly past
+# what the job has left: an exact size over it, or an estimate 1.5x over it.
+# Missing or unreadable sizes fall through to the download, which the byte
+# budget still stops.
+FULL_DOWNLOAD_ESTIMATE_MARGIN = 1.5
+
+
+def _positive(value) -> float:
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) and number > 0 else 0.0
+
+
+def estimate_download_bytes(info: dict) -> tuple[int, bool]:
+    """Expected bytes of the selected format(s) and whether every size was exact.
+
+    Returns ``(0, False)`` when any selected format has no usable estimate.
+    """
+    formats = info.get("requested_formats") or [info]
+    duration = _positive(info.get("duration"))
+    total = 0.0
+    exact = True
+    for fmt in formats:
+        size = _positive(fmt.get("filesize"))
+        if not size:
+            exact = False
+            size = _positive(fmt.get("filesize_approx"))
+        if not size and duration:
+            # tbr is in kbit/s.
+            size = _positive(fmt.get("tbr")) * 1000 / 8 * duration
+        if not size:
+            return 0, False
+        total += size
+    return int(total), exact
+
+
+def full_download_refusal(info: dict, budget: ByteBudget) -> Optional[str]:
+    if not budget.limit or not isinstance(info, dict):
+        return None
+    estimate, exact = estimate_download_bytes(info)
+    remaining = budget.limit - budget.snapshot()
+    if not estimate or estimate <= remaining * (1 if exact else FULL_DOWNLOAD_ESTIMATE_MARGIN):
+        return None
+    return (
+        f"This video is too large to download in full (about {estimate / 1e9:.1f} GB, "
+        f"over the {budget.limit / 1e9:.1f} GB download limit for one video)."
+    )
+
+
 def download_full_with_proxy(
     url: str,
     video_id: str,
@@ -1668,9 +1721,15 @@ def download_full_with_proxy(
         before = counter.snapshot()
         with tempfile.TemporaryDirectory(prefix="attempt-", dir=job_dir) as directory:
             stem = Path(directory) / video_id
+            refused: list[str] = []
 
-            def metadata_available(_info, *, incomplete=False):
+            def metadata_available(info, *, incomplete=False):
                 if not incomplete:
+                    # Called after format selection and before any media byte.
+                    refusal = full_download_refusal(info, counter)
+                    if refusal:
+                        refused.append(refusal)
+                        return refusal
                     _metadata_ready(options)
                 return None
 
@@ -1686,6 +1745,8 @@ def download_full_with_proxy(
             except Exception as exc:
                 _account_failed_media(options, stem, exc)
                 raise
+            if refused:
+                raise DownloadBudgetExceeded(refused[0])
             path = _find_download(stem)
             _account_file(path, counter, before)
             result = job_dir / (video_id + path.suffix)

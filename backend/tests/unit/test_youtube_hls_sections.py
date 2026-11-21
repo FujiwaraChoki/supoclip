@@ -129,14 +129,18 @@ def _serve_playlist(monkeypatch, payload: bytes):
     return response
 
 
-def test_long_source_playlist_over_four_megabytes_is_accepted(monkeypatch):
-    # A ~9.5 hour source legitimately has a media playlist larger than 4 MB.
-    payload, duration = _long_playlist(9.5 * 3600)
-    assert 4_000_000 < len(payload) < 9.5 * 3600 * 300
+@pytest.mark.parametrize('hours,segment_seconds,name_bytes', [
+    (9.5, 5.0, 700),     # ~5 MB, past the old fixed 4 MB cap
+    (6.1, 5.0, 1200),    # ~185 bytes per second of source
+    (23.7, 5.0, 2000),   # ~400 bytes per second over a whole day
+])
+def test_long_source_playlists_over_four_megabytes_are_accepted(monkeypatch, hours, segment_seconds, name_bytes):
+    payload, duration = _long_playlist(hours * 3600, segment_seconds, name_bytes)
+    assert len(payload) > 4_000_000
     _serve_playlist(monkeypatch, payload)
     budget = mod.ByteBudget(0)
     expanded = mod.expand_hls_format({'url': BASE, 'protocol': 'm3u8_native'}, {}, budget, duration)
-    assert len(expanded['fragments']) == int(duration // 5) + 1
+    assert len(expanded['fragments']) == int(duration // segment_seconds) + 1
     assert budget.snapshot() == len(payload)
 
 
@@ -149,18 +153,21 @@ def test_short_source_playlist_over_four_megabytes_is_rejected(monkeypatch):
 
 
 def test_playlist_over_the_hard_ceiling_is_rejected(monkeypatch):
-    response = _serve_playlist(monkeypatch, b"x" * 16_000_010)
+    response = _serve_playlist(monkeypatch, b'x' * (mod.HLS_PLAYLIST_MAX_BYTES + 1))
+    budget = mod.ByteBudget(0)
     with pytest.raises(mod.PartialDownloadUnavailable, match='size limit'):
-        mod.expand_hls_format({'url': BASE, 'protocol': 'm3u8_native'}, {}, mod.ByteBudget(0), 48 * 3600)
-    response.read.assert_called_once_with(16_000_001)
+        mod.expand_hls_format({'url': BASE, 'protocol': 'm3u8_native'}, {}, budget, 48 * 3600)
+    response.read.assert_called_once_with(mod.HLS_PLAYLIST_MAX_BYTES + 1)
+    assert budget.snapshot() == mod.HLS_PLAYLIST_MAX_BYTES + 1
 
 
 @pytest.mark.parametrize('duration,limit', [
     (None, 4_000_000), (0, 4_000_000), (float('nan'), 4_000_000), ('bad', 4_000_000),
-    (600, 4_000_000), (9.5 * 3600, 10_260_000), (48 * 3600, 16_000_000),
+    (600, 4_000_000), (9.5 * 3600, 34_200_000), (23.7 * 3600, 85_320_000), (48 * 3600, 96_000_000),
 ])
 def test_playlist_byte_limit_scales_with_duration(duration, limit):
     assert mod.hls_playlist_byte_limit(duration) == limit
+    assert mod.hls_playlist_byte_limit(24 * 3600) < mod.HLS_PLAYLIST_MAX_BYTES
 
 class Quiet:
     def debug(self, *args): pass
