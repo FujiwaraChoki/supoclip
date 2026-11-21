@@ -16,6 +16,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "ASSEMBLY_AI_API_KEY",
     "LLM",
     "OPENAI_API_KEY",
+    "NVIDIA_API_KEY",
     "OPENROUTER_API_KEY",
     "GOOGLE_API_KEY",
     "ANTHROPIC_API_KEY",
@@ -29,6 +30,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
 PROCESS_ENV_SETTING_KEYS = frozenset(
     {
         "OPENAI_API_KEY",
+        "NVIDIA_API_KEY",
         "OPENROUTER_API_KEY",
         "GOOGLE_API_KEY",
         "ANTHROPIC_API_KEY",
