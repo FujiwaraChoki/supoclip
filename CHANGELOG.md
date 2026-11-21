@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-21
+
+- **Fixed:** In gaming clips where the game's own subtitles are left without captions, one or two leftover words no longer stay frozen on screen for many seconds, and stray scraps of a subtitled line are no longer captioned on their own. ([#499](https://github.com/FujiwaraChoki/supoclip/pull/499))
+
 ## 2026-11-20
 
 - **Improved:** Captions no longer repeat what a game already writes on screen. When a game shows its own subtitles for a character's line, SupoClip leaves its captions off for that voice, and a stray sound heard as a word in a video without speech gets no caption either. What you say yourself is captioned as before. ([#493](https://github.com/FujiwaraChoki/supoclip/pull/493))
