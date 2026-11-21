@@ -726,12 +726,14 @@ export default function HomeApp() {
     offerRange({ durationSeconds: sourceSeconds, maxSeconds: uploadMaxSeconds, minSeconds: DEFAULT_MIN_RANGE_SECONDS });
   }, [sourceType, sourceSeconds, uploadMaxSeconds, rangeOffer, offerRange]);
   const rangeProblem = rangeOffer && sourceRange ? sourceRangeProblem(sourceRange, rangeOffer) : null;
-  const tooLongUpgradePlan = rangeOffer && upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds
+  // A team workspace's limits come from the team, so it never gets a personal plan offer.
+  const tooLongUpgradePlan = rangeOffer && !billingTeamId && upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds
     ? upgradeState.nextPlan
     : null;
   const analyticsSourceKind = () => (file ? "upload" as const : validateVideoSourceUrl(url).source ?? "unknown");
   useEffect(() => {
-    if (!rangeOffer && !lengthError) return;
+    // A video whose length can't be read wasn't refused for being too long.
+    if (!rangeOffer && lengthError?.kind !== "tooLongNoRange") return;
     trackEvent("video_too_long_shown", {
       source_kind: analyticsSourceKind(),
       plan: billingSummary?.plan ?? "unknown",
@@ -994,14 +996,14 @@ export default function HomeApp() {
       }
 
       const startResult = await startResponse.json();
-      if (rangeOffer && sourceRange) trackEvent("source_range_chosen", {
+      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
+      if (rangeOffer && sourceRange && !alreadyProcessing) trackEvent("source_range_chosen", {
         source_kind: analyticsSourceKind(),
         plan: billingSummary?.plan ?? "unknown",
         range_minutes: Math.ceil((sourceRange.end - sourceRange.start) / 60),
         start_minutes: Math.floor(sourceRange.start / 60),
         duration_minutes: Math.round(rangeOffer.durationSeconds / 60),
       });
-      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
       if (!alreadyProcessing) track("task_created", {
         // Analytics keeps ten fields, so workflow runs lead with theirs; plain highlights reports as before.
         ...(activeWorkflow !== "highlights" || sentInstructions ? {
