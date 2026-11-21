@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
+- **Fixed:** Gaming clips from streams where the camera sits in a circle now get the camera on top and the game below. Before, a calm scene could be cropped onto the streamer's face, hiding the game. ([#501](https://github.com/FujiwaraChoki/supoclip/pull/501))
 - **Fixed:** In gaming clips where the game's own subtitles are left without captions, one or two leftover words no longer stay frozen on screen for many seconds, and stray scraps of a subtitled line are no longer captioned on their own. ([#499](https://github.com/FujiwaraChoki/supoclip/pull/499))
 
 ## 2026-11-20
