@@ -104,7 +104,8 @@ def dark_run(frames: np.ndarray, reach: float = FADE_HALF) -> int:
     if means[0] > BLACK_FRAME_MEAN:
         return 0
     settled = float(np.median(means[len(means) // 2:]))
-    if settled < 3 * BLACK_FRAME_MEAN:
+    # The picture has to stand clear of the black: three times as bright as the first frame, and not black itself.
+    if settled < max(1.5 * BLACK_FRAME_MEAN, 3 * float(means[0])):
         return 0
     run = 0
     while run < len(means) and means[run] < reach * settled:
@@ -113,12 +114,30 @@ def dark_run(frames: np.ndarray, reach: float = FADE_HALF) -> int:
 
 
 def dark_edge(frames: np.ndarray, limit: int, fade_limit: int) -> int:
-    """Frames to hold over at an edge that starts on black: the whole fade when it is short, else its dark half."""
-    whole = dark_run(frames, FADE_DONE)
-    if 0 < whole <= fade_limit:
-        return whole
-    half = dark_run(frames)
-    return half if half <= limit else 0
+    """Frames to hold over at an edge that is black or runs through black, or 0.
+
+    The edge starts on black: the whole fade is held over when it is short, else its dark half. Or the
+    neighbouring scene is still fading when the clip starts and black follows within the sliver (a dip
+    to black): then everything up to the clip's own picture is held over, provided that picture is a
+    different one (a strobe inside one scene returns to the same picture and is left alone).
+    """
+    if len(frames) < 4:
+        return 0
+    means = frames.reshape(len(frames), -1).mean(axis=1)
+    start = 0
+    if means[0] > BLACK_FRAME_MEAN:
+        black = np.nonzero(means[:limit] <= BLACK_FRAME_MEAN)[0]
+        if not len(black):
+            return 0
+        start = int(black[0])
+    for reach, most in ((FADE_DONE, fade_limit), (FADE_HALF, limit)):
+        run = dark_run(frames[start:], reach)
+        if not 0 < run or start + run > most or start + run >= len(frames):
+            continue
+        if start and float(np.abs(frames[start + run] - frames[0]).mean()) < CUT_MIN_DIFF:
+            return 0
+        return start + run
+    return 0
 
 
 def stray_edge_frames(path: Path) -> Tuple[int, int, int]:

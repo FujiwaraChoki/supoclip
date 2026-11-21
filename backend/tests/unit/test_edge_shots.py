@@ -172,3 +172,23 @@ def test_a_fade_to_black_at_the_end_holds_the_last_bright_frame(tmp_path):
     assert _counts(clip) == before                              # same length, same audio
     last = _frame_colour(clip, before[0] - 1)
     assert last == "blue"                                       # the last frame is the picture, not a dimmed one
+
+
+def test_black_in_a_dark_scene_and_a_dip_to_black_are_held_over():
+    def frames(levels):
+        return np.stack([np.full((90, 160), level, dtype=np.int16) for level in levels])
+
+    # A night scene (30) that cuts to black for its last frames: seen from the end, black then the scene.
+    assert dark_edge(frames([0] * 7 + [30] * 35), limit=12, fade_limit=18) == 7
+    # The same scene with no black in it is left alone, and so is one that is black throughout.
+    assert dark_edge(frames([30] * 42), limit=12, fade_limit=18) == 0
+    assert dark_edge(frames([4] * 42), limit=12, fade_limit=18) == 0
+    # A dip to black: the neighbouring scene (bright, another picture) fades through black into the clip's own.
+    other = np.zeros((90, 160), dtype=np.int16)
+    other[:, :80] = 200                                         # another picture: half white, half black
+    dip = np.stack([other * 21 // 100, other * 12 // 100] + [np.full((90, 160), level, dtype=np.int16)
+                                                              for level in [3, 1, 0, 2, 30] + [61] * 35])
+    assert dark_edge(dip, limit=12, fade_limit=18) == 7        # held from the first frame of the clip's own picture
+    # A strobe inside one scene returns to the same picture: nothing is held.
+    strobe = frames([61, 61, 2, 2, 61] + [61] * 37)
+    assert dark_edge(strobe, limit=12, fade_limit=18) == 0
