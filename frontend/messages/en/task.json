@@ -305,5 +305,6 @@
     "retry": "Try again",
     "approxTiming": "This video had no word timing, so captions and effects follow approximate timing.",
     "simplified": "Some effects were simplified for this clip."
-  }
+  },
+  "sourceRange": "Part {start}–{end}"
 }

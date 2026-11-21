@@ -72,3 +72,18 @@ test("a part longer than the plan allows can't be sent", async ({ page }) => {
   await expect(panel.getByRole("alert")).toHaveText("Pick 120 minutes or less.");
   await expect(panel.getByRole("button", { name: "Clip this part" })).toBeDisabled();
 });
+
+test("the task page says which part was clipped and links to where it starts", async ({ page }) => {
+  await mockApp(page);
+  const task = {
+    id: "part", user_id: "user", source_title: "A long demo stream", source_type: "youtube",
+    source_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", status: "completed", clips_count: 0,
+    created_at: "2026-11-21T10:00:00Z", updated_at: "2026-11-21T10:00:00Z",
+    source_duration_seconds: 7200, source_start_seconds: 5400, source_end_seconds: 12600,
+  };
+  await page.route("**/api/tasks/part", (route) => route.fulfill({ json: task }));
+  await page.route("**/api/tasks/part/clips", (route) => route.fulfill({ json: { clips: [] } }));
+  await page.goto("/tasks/part");
+  await expect(page.getByTestId("source-range")).toHaveText("Part 1:30:00–3:30:00");
+  await expect(page.getByRole("link", { name: /YouTube/ }).first()).toHaveAttribute("href", /[?&]t=5400s/);
+});
