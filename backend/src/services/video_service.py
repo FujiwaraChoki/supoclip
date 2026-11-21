@@ -109,7 +109,7 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
-from ..source_range import SourceRange, cut_audio_range, shift_segment
+from ..source_range import SourceRange, cut_audio_range, private_link, shift_segment
 from ..media.mp4_fragments import fragmented_mp4_duration
 from ..media.ffmpeg import (
     cap_video_short_side,
@@ -544,23 +544,7 @@ async def resolve_upload_for_edit(video_service, url: str) -> Path:
     return await opener(url)
 
 
-def _private_link(source: Path, directory: Path) -> Path:
-    """This job's own name for a shared file, so its sidecars stay this job's.
-
-    A hard link when the file system allows one (the bytes are not copied),
-    else a symbolic link. Writing beside a cached download would hand one
-    part's word timings to every later job of the whole video.
-    """
-    import os
-
-    directory.mkdir(parents=True, exist_ok=True)
-    link = directory / f"render{Path(source).suffix or '.mp4'}"
-    link.unlink(missing_ok=True)
-    try:
-        os.link(source, link)
-    except OSError:
-        os.symlink(Path(source).resolve(), link)
-    return link
+_private_link = private_link
 
 
 def _sync_plan_ranges(plan: Dict[str, Any], segments: List[Dict[str, Any]]) -> None:

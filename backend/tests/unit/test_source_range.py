@@ -698,3 +698,99 @@ async def test_range_transcript_for_editing_comes_from_the_checkpoint(tmp_path):
     save_time_map(stitched, build_time_map([(3660.0, 3670.0)]))
     assert module.transcript_on_media(original, stitched)["words"][0]["start"] == 1000
     assert await module.range_transcript(db, "task-1", {}) is None
+
+
+# ---------------------------------------------------------------- clip edits on a part's task
+
+def _checkpoint_db(words):
+    return SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(
+        scalar_one_or_none=lambda: {"words": words, "utterances": []},
+    )))
+
+
+def test_part_words_go_on_a_private_link_never_beside_the_shared_file(tmp_path):
+    root = tmp_path / "source-ranges"
+    stitched = tmp_path / "youtube-cache" / "render.mp4"
+    stitched.parent.mkdir()
+    stitched.write_bytes(b"v")
+    save_time_map(stitched, build_time_map([(3660.0, 3670.0)]))
+    original = {"words": [{"text": "hi", "start": 3661000, "end": 3661500}], "utterances": []}
+
+    link = module.link_with_part_words(stitched, original, root)
+
+    assert link.samefile(stitched)
+    assert load_time_map(link).to_original(1.0) == 3661.0
+    assert json.loads(link.with_suffix(".transcript_cache.json").read_text())["words"][0]["start"] == 1000
+    assert not stitched.with_suffix(".transcript_cache.json").exists()
+    module.release_part_link(stitched, root)  # not a link: left alone
+    assert stitched.exists()
+    module.release_part_link(link, root)
+    assert not link.parent.exists() and stitched.exists()
+
+
+async def test_clip_edit_on_a_whole_video_task_is_unchanged(tmp_path):
+    service = TaskService.__new__(TaskService)
+    service.config = SimpleNamespace(temp_dir=str(tmp_path))
+    service.db = _checkpoint_db([{"text": "hi", "start": 1000, "end": 1500}])
+    service._load_task_source_settings = AsyncMock(return_value={"output_format": "vertical"})
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"v")
+    assert await service._with_part_words("task", source) == source
+    service.db.execute.assert_not_awaited()
+
+    # A file that already has word timings keeps them, part or not.
+    source.with_suffix(".transcript_cache.json").write_text(json.dumps({"words": [{"text": "x", "start": 0, "end": 1}]}))
+    service._load_task_source_settings = AsyncMock(
+        return_value={"source_range": SourceRange(3600, 4200.0).to_metadata()}
+    )
+    assert await service._with_part_words("task", source) == source
+
+
+async def test_regenerating_a_part_tasks_clips_keeps_subtitle_timings(isolated_clip_edits, pipeline_config, monkeypatch, tmp_path):
+    from src.services import clip_service
+
+    sections = []
+
+    def section_download(url, segments, duration, task_id, **kwargs):
+        sections.append(duration)
+        path = Path(pipeline_config.temp_dir) / "stream-work" / task_id / "edit-1" / "c" / "selected-segments.mkv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"v")
+        save_time_map(path, build_time_map([(3660.0, 3675.0)]))
+        return path
+
+    monkeypatch.setattr(clip_service, "download_stream_sections", section_download)
+    part = SourceRange(3600, 4200.0, EIGHT_HOURS)
+    clip = {"id": "clip", "task_id": "task", "file_path": str(tmp_path / "clip.mp4"),
+            "start_time": "61:00", "end_time": "61:10", "text": "hello"}
+    # Analysis words are on the part's own timeline: 61 s into the part is 3661 s into the VOD.
+    service = TaskService(db=_checkpoint_db([{"text": "hello", "start": 61000, "end": 61500}]), config=pipeline_config)
+    service.task_repo.get_task_by_id = AsyncMock(return_value={
+        "source_url": TWITCH_URL, "source_type": "twitch", "source_duration_seconds": 600,
+    })
+    service.task_repo.load_source_metadata = AsyncMock(return_value={"source_range": part.to_metadata()})
+    service.task_repo.update_task_clips = AsyncMock()
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[clip])
+    service.clip_repo.delete_clips_by_task = AsyncMock()
+    service.clip_repo.create_clip = AsyncMock(return_value="clip")
+    service._load_task_source_settings = AsyncMock(return_value={
+        "output_format": "vertical", "add_subtitles": True, "source_range": part.to_metadata(),
+    })
+    rendered = {}
+
+    async def render(video_path, segments, *args, **kwargs):
+        rendered["words"] = json.loads(Path(video_path).with_suffix(".transcript_cache.json").read_text())["words"]
+        rendered["path"] = Path(video_path)
+        return [{"clip_id": 1, "filename": "new.mp4", "path": "new.mp4",
+                 "start_time": "00:00", "end_time": "00:10", "duration": 10.0}]
+
+    service.video_service.create_video_clips = render
+
+    await service.regenerate_all_clips_for_task("task", None, None, None, "default")
+
+    # The VOD's length for the section download, and the words on the sections' timeline.
+    assert sections == [EIGHT_HOURS]
+    assert rendered["words"] == [{"text": "hello", "start": 1000, "end": 1500}]
+    # The private link and the stream download are both gone afterwards.
+    assert not rendered["path"].exists()
+    assert not (Path(pipeline_config.temp_dir) / "stream-work" / "task").exists()

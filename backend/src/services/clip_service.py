@@ -61,7 +61,14 @@ from ..youtube_source import (
 )
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip_duration
 from ..media.render_ranges import burned_hook_title, point_labels_for
-from ..source_range import METADATA_KEY as SOURCE_RANGE_KEY, SourceRange, media_duration
+from ..source_range import (
+    METADATA_KEY as SOURCE_RANGE_KEY,
+    SourceRange,
+    link_with_part_words,
+    media_duration,
+    range_transcript,
+    release_part_link,
+)
 from ..stream_source import download_stream_sections
 from .video_service import fx_lines_for_ranges, fx_words_for_ranges, resolve_upload_for_edit
 from ..config import get_config
@@ -1134,10 +1141,13 @@ class ClipEditingMixin:
             if not video_path.exists():
                 raise ValueError("Source video file no longer exists")
 
+        downloaded_path = video_path
         try:
             # Cap the working file before localizing timestamps. The path does
             # not change, so the timeline sidecar still applies.
             video_path = await self.video_service.prepare_source(video_path)
+            downloaded_path = video_path
+            video_path = await self._with_part_words(task_id, video_path)
             time_map = await run_in_thread(load_time_map, video_path)
             render_segments = [
                 localize_segment(segment, time_map) if time_map else segment
@@ -1171,8 +1181,9 @@ class ClipEditingMixin:
                             restore_clip_timeline, clip_info, time_map, segments[index]
                         )
         finally:
+            self._release_part_words(video_path)
             if source_type in {"youtube", "twitch", "kick"}:
-                self._cleanup_source_video(video_path, source_type, source_url)
+                self._cleanup_source_video(downloaded_path, source_type, source_url)
 
         rendered_indexes = {int(clip_info.get("clip_id") or 0) - 1 for clip_info in clips_info}
         missing_required = [
@@ -1578,6 +1589,7 @@ class ClipEditingMixin:
 
         try:
             transcript_video_path = await self.video_service.prepare_source(transcript_video_path)
+            transcript_video_path = await self._with_part_words(task_id, transcript_video_path)
             settings = await self._load_task_source_settings(task_id)
             local_ranges = await run_in_thread(
                 local_ranges_for, transcript_video_path, source_ranges
@@ -1638,6 +1650,7 @@ class ClipEditingMixin:
                     except Exception as e:
                         logger.warning(f"Keeping full-size caption edit for clip {clip_id}: {e}")
         finally:
+            self._release_part_words(transcript_video_path)
             if downloaded_source is not None:
                 self._cleanup_source_video(downloaded_source, source_type, source_url)
         save_clip_source_ranges(output_path, source_ranges, output_offsets)
@@ -1701,6 +1714,7 @@ class ClipEditingMixin:
         report: Dict[str, Any] = {}
         try:
             video_path = await self.video_service.prepare_source(video_path)
+            video_path = await self._with_part_words(task_id, video_path)
             settings = await self._load_task_source_settings(task_id)
             local_ranges, local_offsets = await run_in_thread(
                 _local_timeline, video_path, source_ranges, output_offsets
@@ -1759,6 +1773,7 @@ class ClipEditingMixin:
             output_path.unlink(missing_ok=True)
             raise
         finally:
+            self._release_part_words(video_path)
             if downloaded is not None:
                 self._cleanup_source_video(downloaded, task.get("source_type"), task.get("source_url"))
         if not report.get("broll_applied"):
@@ -2272,6 +2287,29 @@ class ClipEditingMixin:
             return planned
         return [(start_seconds, end_seconds)]
 
+
+    async def _with_part_words(self, task_id: str, video_path: Path) -> Path:
+        """The source to render from, with word timings when the task is a picked part.
+
+        A part's timings are kept in the task's checkpoint, never beside a shared
+        download or upload, so a file fetched for an edit has none. They go on a
+        private link instead (released with ``_release_part_words``). Any other
+        task, or a file that already has timings, is returned unchanged.
+        """
+        if (await run_in_thread(load_cached_transcript_data, video_path) or {}).get("words"):
+            return video_path
+        settings = await self._load_task_source_settings(task_id)
+        if not settings.get(SOURCE_RANGE_KEY) or self.db is None:
+            return video_path
+        original = await range_transcript(self.db, task_id, settings)
+        if not original:
+            return video_path
+        return await run_in_thread(
+            link_with_part_words, video_path, original, Path(self.config.temp_dir) / "source-ranges",
+        )
+
+    def _release_part_words(self, video_path: Optional[Path]) -> None:
+        release_part_link(video_path, Path(self.config.temp_dir) / "source-ranges")
 
     async def _source_media_duration(self, task_id: str, task: Dict[str, Any]) -> Optional[float]:
         """The whole VOD's length; a picked part's task is charged (and stores) the part."""

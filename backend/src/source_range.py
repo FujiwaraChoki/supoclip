@@ -325,3 +325,57 @@ def transcript_on_media(original: Dict[str, Any], media_path: Path) -> Dict[str,
 
     time_map = load_time_map(Path(media_path))
     return shift_transcript(original, time_map) if time_map is not None else original
+
+
+def private_link(source: Path, directory: Path) -> Path:
+    """This job's own name for a shared file, so its sidecars stay this job's.
+
+    A hard link when the file system allows one (the bytes are not copied),
+    else a symbolic link. Writing beside a cached download or a shared upload
+    would hand one part's word timings to every later job of the whole video.
+    """
+    import os
+
+    directory.mkdir(parents=True, exist_ok=True)
+    link = directory / f"render{Path(source).suffix or '.mp4'}"
+    link.unlink(missing_ok=True)
+    try:
+        os.link(source, link)
+    except OSError:
+        os.symlink(Path(source).resolve(), link)
+    return link
+
+
+EDIT_LINK_PREFIX = "edit-"
+
+
+def link_with_part_words(media_path: Path, original: Dict[str, Any], root: Path) -> Path:
+    """A private link to ``media_path`` carrying a part's word timings.
+
+    Its timeline sidecar is copied too, so the timings land on the file's own
+    (possibly stitched) timeline. ``release_part_link`` removes it.
+    """
+    import json
+    import shutil
+    import uuid
+
+    from .youtube_source import timeline_path
+
+    link = private_link(Path(media_path), Path(root) / f"{EDIT_LINK_PREFIX}{uuid.uuid4().hex[:12]}")
+    timeline = timeline_path(Path(media_path))
+    if timeline.exists():
+        shutil.copyfile(timeline, timeline_path(link))
+    payload = transcript_on_media(original, Path(media_path))
+    link.with_suffix(".transcript_cache.json").write_text(json.dumps(payload), encoding="utf-8")
+    return link
+
+
+def release_part_link(path: Optional[Path], root: Path) -> None:
+    """Remove a link made by ``link_with_part_words``; any other path is left alone."""
+    import shutil
+
+    if path is None:
+        return
+    parent = Path(path).parent
+    if parent.parent == Path(root) and parent.name.startswith(EDIT_LINK_PREFIX):
+        shutil.rmtree(parent, ignore_errors=True)
