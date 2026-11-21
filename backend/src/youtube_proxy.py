@@ -1025,6 +1025,24 @@ def parse_hls_fragments(playlist: str, base_url: str, duration: float) -> list[d
     return fragments
 
 
+# A media playlist grows with its source (~600 bytes per few-second segment), so
+# its read cap scales with the duration between a floor and a hard ceiling.
+HLS_PLAYLIST_MIN_BYTES = 4_000_000
+HLS_PLAYLIST_BYTES_PER_SECOND = 300
+HLS_PLAYLIST_MAX_BYTES = 16_000_000
+
+
+def hls_playlist_byte_limit(duration: float | None) -> int:
+    try:
+        seconds = float(duration or 0)
+    except (TypeError, ValueError):
+        return HLS_PLAYLIST_MIN_BYTES
+    if not math.isfinite(seconds) or seconds <= 0:
+        return HLS_PLAYLIST_MIN_BYTES
+    scaled = int(seconds * HLS_PLAYLIST_BYTES_PER_SECOND)
+    return min(HLS_PLAYLIST_MAX_BYTES, max(HLS_PLAYLIST_MIN_BYTES, scaled))
+
+
 def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: float) -> dict:
     if "m3u8" not in (fmt.get("protocol") or "") or _has_media_timing(fmt):
         return fmt
@@ -1032,16 +1050,17 @@ def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: fl
     from yt_dlp.networking import Request
 
     address = _hls_url(fmt["url"], fmt["url"])
+    limit = hls_playlist_byte_limit(duration)
     try:
         with _proxy_client(options) as ydl:
             response = ydl.urlopen(Request(address, headers=fmt.get("http_headers") or {}))
             try:
                 base_url = _hls_url(address, response.url)
-                payload = response.read(4_000_001)
+                payload = response.read(limit + 1)
             finally:
                 response.close()
         budget.add(len(payload))
-        if len(payload) > 4_000_000:
+        if len(payload) > limit:
             raise PartialDownloadUnavailable("HLS playlist exceeds its size limit")
         fragments = parse_hls_fragments(payload.decode("utf-8"), base_url, duration)
     except (DownloadBudgetExceeded, DownloadDeadlineExceeded, PartialDownloadUnavailable):

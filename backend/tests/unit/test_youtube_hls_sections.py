@@ -107,6 +107,61 @@ def test_playlist_size_and_shared_budget_are_bounded(monkeypatch, size, limit):
     response.close.assert_called_once()
 
 
+
+def _long_playlist(duration: float, segment_seconds: float = 5.0, name_bytes: int = 700) -> tuple[bytes, float]:
+    count = int(duration // segment_seconds)
+    lines = ['#EXTM3U', '#EXT-X-VERSION:7', f'#EXT-X-TARGETDURATION:{int(segment_seconds)}',
+             '#EXT-X-MEDIA-SEQUENCE:0', '#EXT-X-MAP:URI="init.mp4"']
+    for index in range(count):
+        lines += [f'#EXTINF:{segment_seconds},', f'sq/{index}/' + 'a' * name_bytes + '.m4s']
+    lines.append('#EXT-X-ENDLIST')
+    return ('\n'.join(lines) + '\n').encode(), count * segment_seconds
+
+
+def _serve_playlist(monkeypatch, payload: bytes):
+    response = Mock(url=BASE)
+    response.read.side_effect = lambda size=-1: payload if size < 0 else payload[:size]
+    client = Mock()
+    client.__enter__ = Mock(return_value=client)
+    client.__exit__ = Mock(return_value=False)
+    client.urlopen.return_value = response
+    monkeypatch.setattr('yt_dlp.YoutubeDL', Mock(return_value=client))
+    return response
+
+
+def test_long_source_playlist_over_four_megabytes_is_accepted(monkeypatch):
+    # A ~9.5 hour source legitimately has a media playlist larger than 4 MB.
+    payload, duration = _long_playlist(9.5 * 3600)
+    assert 4_000_000 < len(payload) < 9.5 * 3600 * 300
+    _serve_playlist(monkeypatch, payload)
+    budget = mod.ByteBudget(0)
+    expanded = mod.expand_hls_format({'url': BASE, 'protocol': 'm3u8_native'}, {}, budget, duration)
+    assert len(expanded['fragments']) == int(duration // 5) + 1
+    assert budget.snapshot() == len(payload)
+
+
+def test_short_source_playlist_over_four_megabytes_is_rejected(monkeypatch):
+    payload, _ = _long_playlist(9.5 * 3600)
+    response = _serve_playlist(monkeypatch, payload)
+    with pytest.raises(mod.PartialDownloadUnavailable, match='size limit'):
+        mod.expand_hls_format({'url': BASE, 'protocol': 'm3u8_native'}, {}, mod.ByteBudget(0), 600)
+    response.read.assert_called_once_with(4_000_001)
+
+
+def test_playlist_over_the_hard_ceiling_is_rejected(monkeypatch):
+    response = _serve_playlist(monkeypatch, b"x" * 16_000_010)
+    with pytest.raises(mod.PartialDownloadUnavailable, match='size limit'):
+        mod.expand_hls_format({'url': BASE, 'protocol': 'm3u8_native'}, {}, mod.ByteBudget(0), 48 * 3600)
+    response.read.assert_called_once_with(16_000_001)
+
+
+@pytest.mark.parametrize('duration,limit', [
+    (None, 4_000_000), (0, 4_000_000), (float('nan'), 4_000_000), ('bad', 4_000_000),
+    (600, 4_000_000), (9.5 * 3600, 10_260_000), (48 * 3600, 16_000_000),
+])
+def test_playlist_byte_limit_scales_with_duration(duration, limit):
+    assert mod.hls_playlist_byte_limit(duration) == limit
+
 class Quiet:
     def debug(self, *args): pass
     def warning(self, *args): pass
