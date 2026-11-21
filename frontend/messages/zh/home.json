@@ -494,5 +494,29 @@
         "description": "跟随说话人脸部的闪光、恶魔角和箭头"
       }
     }
+  },
+  "sourceRange": {
+    "start": "开始",
+    "end": "结束",
+    "format": "请使用 h:mm:ss 格式，例如 1:30:00",
+    "first": "前 {minutes} 分钟",
+    "last": "最后 {minutes} 分钟",
+    "selected": "将剪辑 {length}，消耗 {minutes} 分钟。",
+    "problems": {
+      "invalid": "请输入开始和结束时间。",
+      "order": "结束时间必须晚于开始时间。",
+      "outOfBounds": "请选择 0:00 到 {duration} 之间的时间。",
+      "tooShort": "至少选择 {min} 分钟。",
+      "tooLong": "最多选择 {max} 分钟。"
+    }
+  },
+  "tooLongPanel": {
+    "title": "这个 {runtime} 的视频超过了你 {minutes} 分钟的上限",
+    "body": "选择最长 {minutes} 分钟的一段，我们只剪辑这一段。只有这一段计入你的分钟数。",
+    "bodyUpgrade": "选择最长 {minutes} 分钟的一段，我们只剪辑这一段；或升级到 {plan}，单个视频最长 {nextMinutes} 分钟。只有你选的这一段计入分钟数。",
+    "submit": "剪辑这一段",
+    "cancel": "换一个视频",
+    "upgradeLink": "比较方案",
+    "label": "要剪辑的视频片段"
   }
 }

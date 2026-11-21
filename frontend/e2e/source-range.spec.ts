@@ -1,0 +1,74 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const pro = {
+  monetization_enabled: true, plan: "pro", subscription_status: "active", subscription_provider: "stripe",
+  usage_count: 4, usage_limit: null, remaining: null, usage_minutes: 120, minute_limit: 600, remaining_minutes: 480,
+  output_short_side: 720, legacy_hd: false, billing_interval: "month", can_create_task: true, upgrade_required: false,
+  reason: null, period_end: "2026-12-01T00:00:00Z", max_youtube_duration_seconds: 7200, max_upload_duration_seconds: 7200,
+};
+
+async function mockApp(page: Page) {
+  await page.route("**/api/auth/get-session**", (route) => route.fulfill({ json: { session: { id: "session", userId: "user", expiresAt: "2099-01-01T00:00:00Z" }, user: { id: "user", name: "Alex", email: "alex@example.com", emailVerified: true } } }));
+  await page.route("**/api/tasks/billing-summary", (route) => route.fulfill({ json: pro }));
+  await page.route("**/api/fonts", (route) => route.fulfill({ json: { fonts: [] } }));
+  await page.route("**/api/caption-templates", (route) => route.fulfill({ json: { templates: [{ id: "default", name: "Default", description: "Word captions" }] } }));
+  await page.route("**/api/preferences", (route) => route.fulfill({ json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true } }));
+  await page.route(/\/api\/tasks\/?(\?.*)?$/, (route) => route.fulfill({ json: { tasks: [] } }));
+}
+
+test("an 8-hour stream: pick two hours of it and clip just that part", async ({ page }) => {
+  await mockApp(page);
+  const bodies: Array<Record<string, unknown>> = [];
+  await page.route("**/api/tasks/create", async (route) => {
+    const body = route.request().postDataJSON();
+    bodies.push(body);
+    if (!body.source.start_seconds) {
+      await route.fulfill({ status: 422, json: { detail: {
+        code: "VIDEO_TOO_LONG", message: "This Twitch video is 480.0 minutes long.",
+        duration_seconds: 28800, max_duration_seconds: 7200, min_range_seconds: 60, range_allowed: true,
+      } } });
+      return;
+    }
+    await route.fulfill({ json: { task_id: "demo-task" } });
+  });
+  await page.route("**/tasks/demo-task**", (route) => route.fulfill({ contentType: "text/html", body: "Demo task page" }));
+
+  await page.goto("/");
+  await page.getByRole("textbox").first().fill("https://www.twitch.tv/videos/1234567890");
+  await page.getByRole("button", { name: "Generate clips" }).click();
+
+  const panel = page.getByTestId("source-range-panel");
+  await expect(panel.getByText("This 8 h video is over your 120-minute limit")).toBeVisible();
+  await expect(panel.getByRole("textbox", { name: "End" })).toHaveValue("2:00:00");
+
+  // Type an exact start; the part moves with it and keeps its two hours.
+  await panel.getByRole("textbox", { name: "Start" }).fill("1:30:00");
+  await panel.getByRole("textbox", { name: "Start" }).press("Enter");
+  await expect(panel.getByRole("textbox", { name: "End" })).toHaveValue("3:30:00");
+  await expect(panel.getByText("Clipping 2:00:00. Uses 120 minutes.")).toBeVisible();
+
+  // The keyboard moves a thumb a minute at a time.
+  await panel.getByRole("slider", { name: "End" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(panel.getByRole("textbox", { name: "End" })).toHaveValue("3:29:00");
+
+  await panel.getByRole("button", { name: "Clip this part" }).click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1].source).toMatchObject({ url: "https://www.twitch.tv/videos/1234567890", start_seconds: 5400, end_seconds: 12540 });
+  expect(bodies[0].source).not.toHaveProperty("start_seconds");
+});
+
+test("a part longer than the plan allows can't be sent", async ({ page }) => {
+  await mockApp(page);
+  await page.route("**/api/tasks/create", (route) => route.fulfill({ status: 422, json: { detail: {
+    code: "VIDEO_TOO_LONG", message: "Too long", duration_seconds: 28800, max_duration_seconds: 7200, range_allowed: true,
+  } } }));
+  await page.goto("/");
+  await page.getByRole("textbox").first().fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "Generate clips" }).click();
+  const panel = page.getByTestId("source-range-panel");
+  await panel.getByRole("textbox", { name: "End" }).fill("4:00:00");
+  await panel.getByRole("textbox", { name: "End" }).press("Enter");
+  await expect(panel.getByRole("alert")).toHaveText("Pick 120 minutes or less.");
+  await expect(panel.getByRole("button", { name: "Clip this part" })).toBeDisabled();
+});

@@ -494,5 +494,29 @@
         "description": "Funkeln, Hörner und Pfeile, die dem Gesicht folgen"
       }
     }
+  },
+  "sourceRange": {
+    "start": "Anfang",
+    "end": "Ende",
+    "format": "Format h:mm:ss, z. B. 1:30:00",
+    "first": "Erste {minutes} Min.",
+    "last": "Letzte {minutes} Min.",
+    "selected": "{length} werden geclippt. Verbraucht {minutes} Minuten.",
+    "problems": {
+      "invalid": "Gib eine Anfangs- und eine Endzeit ein.",
+      "order": "Das Ende muss nach dem Anfang liegen.",
+      "outOfBounds": "Wähle Zeiten zwischen 0:00 und {duration}.",
+      "tooShort": "Wähle mindestens {min} Minute.",
+      "tooLong": "Wähle höchstens {max} Minuten."
+    }
+  },
+  "tooLongPanel": {
+    "title": "Dieses {runtime}-Video ist länger als dein Limit von {minutes} Minuten",
+    "body": "Wähl einen Teil bis {minutes} Minuten, dann clippen wir nur den. Nur dieser Teil zählt für deine Minuten.",
+    "bodyUpgrade": "Wähl einen Teil bis {minutes} Minuten, dann clippen wir nur den, oder wechsle zu {plan} für Videos bis {nextMinutes} Minuten. Nur der gewählte Teil zählt für deine Minuten.",
+    "submit": "Diesen Teil clippen",
+    "cancel": "Anderes Video wählen",
+    "upgradeLink": "Tarife vergleichen",
+    "label": "Teil des Videos zum Clippen"
   }
 }

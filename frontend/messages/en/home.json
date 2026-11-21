@@ -494,5 +494,29 @@
         "description": "Sparkles, horns and arrows that follow the speaker's face"
       }
     }
+  },
+  "sourceRange": {
+    "start": "Start",
+    "end": "End",
+    "format": "Use h:mm:ss, like 1:30:00",
+    "first": "First {minutes} min",
+    "last": "Last {minutes} min",
+    "selected": "Clipping {length}. Uses {minutes} minutes.",
+    "problems": {
+      "invalid": "Enter a start and an end time.",
+      "order": "The end has to come after the start.",
+      "outOfBounds": "Pick times between 0:00 and {duration}.",
+      "tooShort": "Pick at least {min} minute.",
+      "tooLong": "Pick {max} minutes or less."
+    }
+  },
+  "tooLongPanel": {
+    "title": "This {runtime} video is over your {minutes}-minute limit",
+    "body": "Pick a part up to {minutes} minutes and we'll clip just that. Only that part counts toward your minutes.",
+    "bodyUpgrade": "Pick a part up to {minutes} minutes and we'll clip just that, or upgrade to {plan} for videos up to {nextMinutes} minutes. Only the part you pick counts toward your minutes.",
+    "submit": "Clip this part",
+    "cancel": "Choose another video",
+    "upgradeLink": "Compare plans",
+    "label": "Part of the video to clip"
   }
 }
