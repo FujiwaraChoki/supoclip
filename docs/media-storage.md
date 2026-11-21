@@ -149,7 +149,9 @@ buffering off, a phone that needs more than five minutes to send the file got a
 `node --require ./server-request-timeout.cjs server.js`, which raises the limit
 to one hour to match nginx. `SERVER_REQUEST_TIMEOUT_MS` overrides it (`0`
 disables it). It only counts while the request is still arriving, so response
-streams are unaffected, and the 60-second header limit stays. `next start` and
+streams are unaffected, and the 60-second header limit stays. The same preload
+keeps idle keep-alive connections open for 65 seconds, longer than nginx reuses
+them (`deploy/serving/README.md`, "Upstream keep-alive"). `next start` and
 `next dev` do not load it.
 
 Database `file_path` fields contain `s3://bucket/key`, never expiring signed URLs.

@@ -42,3 +42,9 @@ advisory-lock connections in the database budget (`docs/configuration.md`,
 ## Rehearsal
 
 On a Linux host with Python 3 and nginx, run `python3 deploy/serving/test_switch.py`. The rehearsal starts its own unprivileged nginx master and two frontend/API pairs on ephemeral loopback ports. It verifies readiness refusal, an upload and download spanning the switch, new traffic on both upstreams, drain timeout, byte integrity and rollback. It uses synthetic HTTP services and temporary configuration.
+
+## Upstream keep-alive
+
+Since 1.29.7 nginx keeps idle connections to every upstream open and reuses them for up to 60 seconds (`keepalive_timeout` in the `upstream` block), even without a `keepalive` line. The server behind it must keep an idle connection open longer than that. Otherwise it can close one just as nginx sends the next request on it: nginx logs "upstream prematurely closed connection while reading response header from upstream", retries a GET, and answers 502 to a POST or PATCH. The frontend image keeps idle connections for 65 seconds (`frontend/server-request-timeout.cjs`; Next's `KEEP_ALIVE_TIMEOUT` overrides it). If you raise the upstream `keepalive_timeout`, raise `KEEP_ALIVE_TIMEOUT` above it, or set the upstream `keepalive_timeout` below the server's idle limit instead.
+
+`python3 deploy/serving/keepalive_race.py --preload frontend/server-request-timeout.cjs` reproduces the race against the local nginx with synthetic services and prints the 502s it got. With `--preload ''` (Node's 5-second default) it usually reports a few within the default 40 rounds, since it is a race; with the image's preload it reports none.

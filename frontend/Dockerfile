@@ -148,7 +148,9 @@ COPY --from=builder --chown=nextjs:nodejs \
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
 
 # Raises Node's 300-second limit for receiving a request, which cut off slow
-# streamed uploads to /api/upload with a 408 (see the file).
+# streamed uploads to /api/upload with a 408, and keeps idle connections open
+# longer than nginx reuses them, so nginx never sends a request on a
+# connection Node is closing (502s on POSTs; see the file).
 COPY --chown=nextjs:nodejs frontend/server-request-timeout.cjs ./server-request-timeout.cjs
 
 USER nextjs
