@@ -38,13 +38,13 @@ RETRYABLE_POST_STATUSES = ("failed", "cancelled")
 ACTIVE_POST_STATUSES = ("queued", "publishing")
 
 _ACCOUNT_PUBLIC_COLUMNS = """
-    id, user_id, provider, external_account_id, display_name, username,
+    id, user_id, team_id, provider, external_account_id, display_name, username,
     avatar_url, token_expires_at, scopes, metadata, status, last_error,
     created_at, updated_at, revoked_at
 """
 
 _POST_COLUMNS = """
-    p.id, p.user_id, p.task_id, p.clip_id, p.social_account_id, p.provider,
+    p.id, p.user_id, p.team_id, p.task_id, p.clip_id, p.social_account_id, p.provider,
     p.status, p.scheduled_for, p.title, p.caption, p.hashtags, p.privacy_level,
     p.media_token, p.media_token_expires_at, p.source_file_path,
     p.pending_handle, p.external_post_id, p.external_url, p.error_message, p.attempts,
@@ -130,23 +130,35 @@ class SocialRepository:
         token_expires_at: Optional[datetime],
         scopes: Optional[str],
         metadata: Dict[str, Any],
+        team_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        # A team's account belongs to the team: its user_id is NULL, so it never
+        # collides with (or is overwritten by) the same person's personal
+        # connection to the same channel. Each scope upserts on its own index.
+        if team_id:
+            owner_columns = "NULL, :team_id"
+            conflict_target = (
+                "(team_id, provider, external_account_id) WHERE team_id IS NOT NULL"
+            )
+        else:
+            owner_columns = ":user_id, NULL"
+            conflict_target = "(user_id, provider, external_account_id)"
         result = await db.execute(
             text(
                 f"""
                 INSERT INTO social_accounts (
-                    id, user_id, provider, external_account_id, display_name, username,
+                    id, user_id, team_id, provider, external_account_id, display_name, username,
                     avatar_url, access_token_encrypted, refresh_token_encrypted,
                     token_expires_at, scopes, metadata, status, last_error,
                     created_at, updated_at, revoked_at
                 )
                 VALUES (
-                    :id, :user_id, :provider, :external_account_id, :display_name, :username,
+                    :id, {owner_columns}, :provider, :external_account_id, :display_name, :username,
                     :avatar_url, :access_token_encrypted, :refresh_token_encrypted,
                     :token_expires_at, :scopes, CAST(:metadata AS jsonb), 'active', NULL,
                     NOW(), NOW(), NULL
                 )
-                ON CONFLICT (user_id, provider, external_account_id)
+                ON CONFLICT {conflict_target}
                 DO UPDATE SET
                     display_name = EXCLUDED.display_name,
                     username = EXCLUDED.username,
@@ -168,6 +180,7 @@ class SocialRepository:
             {
                 "id": str(uuid4()),
                 "user_id": user_id,
+                "team_id": team_id,
                 "provider": provider,
                 "external_account_id": external_account_id,
                 "display_name": display_name,
@@ -186,19 +199,24 @@ class SocialRepository:
 
     @staticmethod
     async def list_accounts(
-        db: AsyncSession, user_id: str, include_revoked: bool = False
+        db: AsyncSession,
+        user_id: str,
+        include_revoked: bool = False,
+        *,
+        team_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         revoked_clause = "" if include_revoked else "AND revoked_at IS NULL"
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
         result = await db.execute(
             text(
                 f"""
                 SELECT {_ACCOUNT_PUBLIC_COLUMNS}
                 FROM social_accounts
-                WHERE user_id = :user_id {revoked_clause}
+                WHERE {scope} {revoked_clause}
                 ORDER BY provider ASC, created_at ASC
                 """
             ),
-            {"user_id": user_id},
+            {"user_id": user_id, "team_id": team_id},
         )
         return [SocialRepository.serialize_account(row) for row in result.fetchall()]
 
@@ -228,17 +246,22 @@ class SocialRepository:
 
     @staticmethod
     async def get_user_account(
-        db: AsyncSession, user_id: str, account_id: str
+        db: AsyncSession,
+        user_id: str,
+        account_id: str,
+        *,
+        team_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
         result = await db.execute(
             text(
                 f"""
                 SELECT {_ACCOUNT_PUBLIC_COLUMNS}
                 FROM social_accounts
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = :id AND {scope}
                 """
             ),
-            {"id": account_id, "user_id": user_id},
+            {"id": account_id, "user_id": user_id, "team_id": team_id},
         )
         row = result.fetchone()
         return SocialRepository.serialize_account(row) if row else None
@@ -295,21 +318,28 @@ class SocialRepository:
         await db.commit()
 
     @staticmethod
-    async def revoke_account(db: AsyncSession, user_id: str, account_id: str) -> bool:
+    async def revoke_account(
+        db: AsyncSession,
+        user_id: str,
+        account_id: str,
+        *,
+        team_id: Optional[str] = None,
+    ) -> bool:
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 UPDATE social_accounts
                 SET status = 'revoked',
                     revoked_at = NOW(),
                     access_token_encrypted = '',
                     refresh_token_encrypted = NULL,
                     updated_at = NOW()
-                WHERE id = :id AND user_id = :user_id AND revoked_at IS NULL
+                WHERE id = :id AND {scope} AND revoked_at IS NULL
                 RETURNING id
                 """
             ),
-            {"id": account_id, "user_id": user_id},
+            {"id": account_id, "user_id": user_id, "team_id": team_id},
         )
         row = result.fetchone()
         if row:
@@ -334,6 +364,7 @@ class SocialRepository:
         return {
             "id": row.id,
             "user_id": row.user_id,
+            "team_id": getattr(row, "team_id", None),
             "provider": row.provider,
             "external_account_id": row.external_account_id,
             "display_name": row.display_name,
@@ -362,20 +393,22 @@ class SocialRepository:
         code_verifier: Optional[str],
         redirect_uri: str,
         ttl_seconds: int = 600,
+        team_id: Optional[str] = None,
     ) -> None:
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
         await db.execute(
             text(
                 """
                 INSERT INTO social_oauth_states (
-                    state, user_id, provider, code_verifier, redirect_uri, created_at, expires_at
+                    state, user_id, team_id, provider, code_verifier, redirect_uri, created_at, expires_at
                 )
-                VALUES (:state, :user_id, :provider, :code_verifier, :redirect_uri, NOW(), :expires_at)
+                VALUES (:state, :user_id, :team_id, :provider, :code_verifier, :redirect_uri, NOW(), :expires_at)
                 """
             ),
             {
                 "state": state,
                 "user_id": user_id,
+                "team_id": team_id,
                 "provider": provider,
                 "code_verifier": code_verifier,
                 "redirect_uri": redirect_uri,
@@ -394,7 +427,7 @@ class SocialRepository:
                 """
                 DELETE FROM social_oauth_states
                 WHERE state = :state
-                RETURNING state, user_id, provider, code_verifier, redirect_uri, expires_at
+                RETURNING state, user_id, team_id, provider, code_verifier, redirect_uri, expires_at
                 """
             ),
             {"state": state},
@@ -411,6 +444,7 @@ class SocialRepository:
         return {
             "state": row.state,
             "user_id": row.user_id,
+            "team_id": getattr(row, "team_id", None),
             "provider": row.provider,
             "code_verifier": row.code_verifier,
             "redirect_uri": row.redirect_uri,
@@ -446,20 +480,21 @@ class SocialRepository:
         media_token: Optional[str],
         source_file_path: Optional[str],
         clip_snapshot: Dict[str, Any],
+        team_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         post_id = str(uuid4())
         await db.execute(
             text(
                 """
                 INSERT INTO social_posts (
-                    id, user_id, task_id, clip_id, social_account_id, provider, status,
+                    id, user_id, team_id, task_id, clip_id, social_account_id, provider, status,
                     scheduled_for, title, caption, hashtags, privacy_level, media_token,
                     source_file_path, hook_type, hook_title, virality_score, hook_score,
                     engagement_score, value_score, shareability_score, clip_duration,
                     created_at, updated_at
                 )
                 VALUES (
-                    :id, :user_id, :task_id, :clip_id, :social_account_id, :provider, :status,
+                    :id, :user_id, :team_id, :task_id, :clip_id, :social_account_id, :provider, :status,
                     :scheduled_for, :title, :caption, :hashtags, :privacy_level, :media_token,
                     :source_file_path, :hook_type, :hook_title, :virality_score, :hook_score,
                     :engagement_score, :value_score, :shareability_score, :clip_duration,
@@ -470,6 +505,7 @@ class SocialRepository:
             {
                 "id": post_id,
                 "user_id": user_id,
+                "team_id": team_id,
                 "task_id": task_id,
                 "clip_id": clip_id,
                 "social_account_id": social_account_id,
@@ -515,10 +551,18 @@ class SocialRepository:
 
     @staticmethod
     async def get_user_post(
-        db: AsyncSession, user_id: str, post_id: str
+        db: AsyncSession,
+        user_id: str,
+        post_id: str,
+        *,
+        team_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         post = await SocialRepository.get_post(db, post_id)
-        if not post or post.get("user_id") != user_id:
+        if not post:
+            return None
+        if team_id:
+            return post if post.get("team_id") == team_id else None
+        if post.get("team_id") is not None or post.get("user_id") != user_id:
             return None
         return post
 
@@ -549,9 +593,14 @@ class SocialRepository:
         clip_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
+        team_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        clauses = ["p.user_id = :user_id"]
-        params: Dict[str, Any] = {"user_id": user_id, "limit": max(1, min(limit, 500))}
+        clauses = ["p.team_id = :team_id"] if team_id else ["p.user_id = :user_id", "p.team_id IS NULL"]
+        params: Dict[str, Any] = {
+            "user_id": user_id,
+            "team_id": team_id,
+            "limit": max(1, min(limit, 500)),
+        }
         if task_id:
             clauses.append("p.task_id = :task_id")
             params["task_id"] = task_id
@@ -603,18 +652,25 @@ class SocialRepository:
         await db.commit()
 
     @staticmethod
-    async def delete_post(db: AsyncSession, user_id: str, post_id: str) -> bool:
+    async def delete_post(
+        db: AsyncSession,
+        user_id: str,
+        post_id: str,
+        *,
+        team_id: Optional[str] = None,
+    ) -> bool:
         """Delete a post the worker is not acting on; ``False`` otherwise."""
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 DELETE FROM social_posts
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = :id AND {scope}
                   AND status NOT IN ('queued', 'publishing')
                 RETURNING id
                 """
             ),
-            {"id": post_id, "user_id": user_id},
+            {"id": post_id, "user_id": user_id, "team_id": team_id},
         )
         row = result.fetchone()
         await db.commit()
@@ -701,19 +757,26 @@ class SocialRepository:
                 raise
 
     @staticmethod
-    async def cancel_post(db: AsyncSession, user_id: str, post_id: str) -> bool:
+    async def cancel_post(
+        db: AsyncSession,
+        user_id: str,
+        post_id: str,
+        *,
+        team_id: Optional[str] = None,
+    ) -> bool:
         """Cancel a post that has not been claimed yet; ``False`` if it moved on."""
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 UPDATE social_posts
                 SET status = 'cancelled', updated_at = NOW()
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = :id AND {scope}
                   AND status IN ('scheduled', 'queued')
                 RETURNING id
                 """
             ),
-            {"id": post_id, "user_id": user_id},
+            {"id": post_id, "user_id": user_id, "team_id": team_id},
         )
         row = result.fetchone()
         await db.commit()
@@ -721,7 +784,12 @@ class SocialRepository:
 
     @staticmethod
     async def requeue_post(
-        db: AsyncSession, user_id: str, post_id: str, *, media_token: str
+        db: AsyncSession,
+        user_id: str,
+        post_id: str,
+        *,
+        media_token: str,
+        team_id: Optional[str] = None,
     ) -> Optional[int]:
         """
         Move a failed or cancelled post back to ``queued``.
@@ -731,22 +799,23 @@ class SocialRepository:
         ``pending_handle`` is kept: an upload the platform accepted must only
         be polled again, never uploaded twice.
         """
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 UPDATE social_posts
                 SET status = 'queued',
                     error_message = NULL,
                     scheduled_for = NULL,
                     media_token = COALESCE(media_token, :media_token),
                     updated_at = NOW()
-                WHERE id = :id AND user_id = :user_id
+                WHERE id = :id AND {scope}
                   AND status IN ('failed', 'cancelled')
                   AND social_account_id IS NOT NULL
                 RETURNING attempts
                 """
             ),
-            {"id": post_id, "user_id": user_id, "media_token": media_token},
+            {"id": post_id, "user_id": user_id, "team_id": team_id, "media_token": media_token},
         )
         row = result.fetchone()
         await db.commit()
@@ -941,6 +1010,7 @@ class SocialRepository:
         return {
             "id": row.id,
             "user_id": row.user_id,
+            "team_id": getattr(row, "team_id", None),
             "task_id": row.task_id,
             "clip_id": row.clip_id,
             "social_account_id": row.social_account_id,
@@ -1056,11 +1126,12 @@ class SocialRepository:
     # ------------------------------------------------------------------
     @staticmethod
     async def get_performance_by_hook_type(
-        db: AsyncSession, user_id: str
+        db: AsyncSession, user_id: str, *, team_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        scope = "p.team_id = :team_id" if team_id else "p.user_id = :user_id AND p.team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 SELECT
                     COALESCE(NULLIF(p.hook_type, ''), 'none') AS hook_type,
                     COUNT(*) AS posts,
@@ -1085,7 +1156,7 @@ class SocialRepository:
                         END
                     ) AS avg_engagement_rate
                 FROM social_posts p
-                WHERE p.user_id = :user_id
+                WHERE {scope}
                   AND p.status = 'published'
                   AND p.metrics IS NOT NULL
                   AND (p.metrics->>'views') IS NOT NULL
@@ -1093,7 +1164,7 @@ class SocialRepository:
                 ORDER BY avg_views DESC NULLS LAST
                 """
             ),
-            {"user_id": user_id},
+            {"user_id": user_id, "team_id": team_id},
         )
         return [
             {
@@ -1113,11 +1184,12 @@ class SocialRepository:
 
     @staticmethod
     async def get_performance_by_provider(
-        db: AsyncSession, user_id: str
+        db: AsyncSession, user_id: str, *, team_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        scope = "p.team_id = :team_id" if team_id else "p.user_id = :user_id AND p.team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 SELECT
                     p.provider,
                     COUNT(*) AS posts,
@@ -1128,12 +1200,12 @@ class SocialRepository:
                     SUM((p.metrics->>'comments')::numeric) AS total_comments,
                     SUM((p.metrics->>'shares')::numeric) AS total_shares
                 FROM social_posts p
-                WHERE p.user_id = :user_id AND p.status = 'published'
+                WHERE {scope} AND p.status = 'published'
                 GROUP BY p.provider
                 ORDER BY total_views DESC NULLS LAST
                 """
             ),
-            {"user_id": user_id},
+            {"user_id": user_id, "team_id": team_id},
         )
         return [
             {
@@ -1151,7 +1223,7 @@ class SocialRepository:
 
     @staticmethod
     async def get_daily_new_views(
-        db: AsyncSession, user_id: str, *, days: int
+        db: AsyncSession, user_id: str, *, days: int, team_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Views gained per UTC day and platform over the last ``days`` days.
@@ -1161,16 +1233,17 @@ class SocialRepository:
         everything gained since publishing. Differences are computed over the
         full history before the window is applied.
         """
+        scope = "p.team_id = :team_id" if team_id else "p.user_id = :user_id AND p.team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 WITH daily AS (
                     SELECT m.post_id, p.provider,
                            (m.captured_at AT TIME ZONE 'UTC')::date AS day,
                            MAX(m.views) AS views
                     FROM social_post_metrics m
                     JOIN social_posts p ON p.id = m.post_id
-                    WHERE p.user_id = :user_id AND m.views IS NOT NULL
+                    WHERE {scope} AND m.views IS NOT NULL
                     GROUP BY m.post_id, p.provider, day
                 ), deltas AS (
                     SELECT provider, day,
@@ -1187,7 +1260,7 @@ class SocialRepository:
                 ORDER BY day, provider
                 """
             ),
-            {"user_id": user_id, "days": days},
+            {"user_id": user_id, "team_id": team_id, "days": days},
         )
         return [
             {"day": row.day, "provider": row.provider, "views": int(row.views or 0)}
@@ -1196,12 +1269,13 @@ class SocialRepository:
 
     @staticmethod
     async def get_duration_performance(
-        db: AsyncSession, user_id: str
+        db: AsyncSession, user_id: str, *, team_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Average views by clip-length bucket, to learn what length lands."""
+        scope = "p.team_id = :team_id" if team_id else "p.user_id = :user_id AND p.team_id IS NULL"
         result = await db.execute(
             text(
-                """
+                f"""
                 SELECT
                     CASE
                         WHEN p.clip_duration < 20 THEN 'under_20s'
@@ -1212,7 +1286,7 @@ class SocialRepository:
                     COUNT(*) AS posts,
                     AVG((p.metrics->>'views')::numeric) AS avg_views
                 FROM social_posts p
-                WHERE p.user_id = :user_id
+                WHERE {scope}
                   AND p.status = 'published'
                   AND p.clip_duration IS NOT NULL
                   AND (p.metrics->>'views') IS NOT NULL
@@ -1220,7 +1294,7 @@ class SocialRepository:
                 ORDER BY avg_views DESC NULLS LAST
                 """
             ),
-            {"user_id": user_id},
+            {"user_id": user_id, "team_id": team_id},
         )
         return [
             {
@@ -1233,22 +1307,23 @@ class SocialRepository:
 
     @staticmethod
     async def get_top_posts(
-        db: AsyncSession, user_id: str, limit: int = 5
+        db: AsyncSession, user_id: str, limit: int = 5, *, team_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        scope = "p.team_id = :team_id" if team_id else "p.user_id = :user_id AND p.team_id IS NULL"
         result = await db.execute(
             text(
                 f"""
                 SELECT {_POST_COLUMNS}
                 FROM social_posts p
                 LEFT JOIN social_accounts a ON a.id = p.social_account_id
-                WHERE p.user_id = :user_id
+                WHERE {scope}
                   AND p.status = 'published'
                   AND (p.metrics->>'views') IS NOT NULL
                 ORDER BY (p.metrics->>'views')::numeric DESC
                 LIMIT :limit
                 """
             ),
-            {"user_id": user_id, "limit": limit},
+            {"user_id": user_id, "team_id": team_id, "limit": limit},
         )
         return [SocialRepository.serialize_post(row) for row in result.fetchall()]
 

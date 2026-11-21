@@ -14,7 +14,8 @@
     "free": "Gratis",
     "pro": "Pro",
     "scale": "Creator",
-    "selfHost": "Host sendiri"
+    "selfHost": "Host sendiri",
+    "team": "Tim"
   },
   "duration": {
     "hours": "{count, plural, one {# jam} other {# jam}}",

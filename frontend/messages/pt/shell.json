@@ -25,7 +25,9 @@
     "social": "Contas sociais",
     "socialHint": "Conecte YouTube, TikTok e Instagram",
     "analyticsHint": "Como os seus clipes publicados performam",
-    "agentsHint": "Chaves de API e MCP"
+    "agentsHint": "Chaves de API e MCP",
+    "team": "Equipe e espaços",
+    "teamHint": "Gerencie membros, assentos e horas compartilhadas"
   },
   "usage": {
     "pickPlan": "Escolha um plano para começar a criar clipes",
@@ -35,7 +37,9 @@
     "minutesOf": "{used} / {limit} min",
     "minutes": "{used} min",
     "minutesLeft": "restam {count} min este mês",
-    "minutesThisMonth": "minutos de vídeo este mês"
+    "minutesThisMonth": "minutos de vídeo este mês",
+    "activateTeam": "Ativar plano Equipe",
+    "addTeamSeats": "Adicionar assentos ou gerenciar equipe"
   },
   "user": {
     "creator": "Criador",
@@ -66,5 +70,34 @@
     "success": "Feedback enviado — obrigado!",
     "failed": "Não foi possível enviar o feedback",
     "error": "Algo deu errado"
+  },
+  "workspace": {
+    "label": "Espaços de trabalho",
+    "switchAria": "Trocar espaço de trabalho",
+    "personal": "Pessoal",
+    "personalSubtitle": "Espaço pessoal",
+    "teamSettings": "Configurações da equipe",
+    "createTeam": "Criar uma equipe"
+  },
+  "account": {
+    "menu": "Menu da conta",
+    "minutesLeft": "restam {count} min",
+    "planMinutesLeft": "{plan} · restam {count} min",
+    "seatPaused": "Assento pausado",
+    "usage": "Uso",
+    "usageThisMonth": "Uso deste mês",
+    "current": "Atual",
+    "planLabel": "Plano {plan}",
+    "yourLimit": "Seu limite",
+    "teamPool": "Cota da equipe",
+    "teamPoolOf": "Cota da equipe {used} / {limit} min",
+    "teamPoolUsed": "Cota da equipe {used} min",
+    "seatPausedLong": "Seu assento foi pausado por um admin",
+    "askAdmin": "Peça mais a um admin",
+    "usageError": "Não foi possível carregar seus outros espaços de trabalho.",
+    "billing": "Cobrança e uso",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Escuro"
   }
 }

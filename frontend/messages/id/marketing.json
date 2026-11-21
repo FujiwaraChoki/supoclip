@@ -495,7 +495,24 @@
     },
     "publishPlatforms": "Publikasikan klip ke YouTube Shorts dan TikTok",
     "schedulingPlatforms": "Jadwalkan klip ke YouTube Shorts dan TikTok",
-    "schedulingSoon": "Penjadwalan ke Instagram"
+    "schedulingSoon": "Penjadwalan ke Instagram",
+    "team": {
+      "badge": "Tim & Agensi",
+      "description": "Untuk kru klip, agensi, dan kreator yang bekerja bersama editor.",
+      "seatAddon": "Termasuk {seats} kursi · +${price}/kursi ekstra (+{hours} jam)",
+      "seatsLabel": "{count} kursi",
+      "decreaseSeats": "Kurangi kursi",
+      "increaseSeats": "Tambah kursi",
+      "cta": "Mulai Tim",
+      "features": {
+        "pooledHours": "{hours} jam video bersama/bulan",
+        "seats": "{seats} kursi dengan perpustakaan klip bersama",
+        "quality": "Klip Full HD {resolution} · YouTube hingga {hours} jam",
+        "sharedWorkspace": "Penjadwalan sosial & {aiEdits} edit AI bersama/bln",
+        "roles": "Peran Pemilik, Admin & Anggota + konkurensi lebih tinggi",
+        "aiEdits": "{aiEdits} edit AI bersama/bln"
+      }
+    }
   },
   "faq": {
     "eyebrow": "FAQ",

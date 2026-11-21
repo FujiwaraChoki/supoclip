@@ -1,7 +1,62 @@
 import { createProxyResponse, fetchBackend } from "./backend-api";
 
 const incomingHeaders = vi.hoisted(() => ({ current: new Headers() }));
-vi.mock("next/headers", () => ({ headers: async () => incomingHeaders.current }));
+const workspaceCookie = vi.hoisted(() => ({ current: undefined as string | undefined }));
+const membership = vi.hoisted(() => ({ findUnique: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: async () => incomingHeaders.current,
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "supoclip_team_id" && workspaceCookie.current ? { name, value: workspaceCookie.current } : undefined,
+  }),
+}));
+vi.mock("@/server/prisma", () => ({ getPrismaClient: () => ({ teamMember: membership }) }));
+
+describe("active workspace", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    workspaceCookie.current = undefined;
+    membership.findUnique.mockReset();
+  });
+
+  const teamHeader = async (init: Parameters<typeof fetchBackend>[1]) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchBackend("/tasks/", init);
+    return fetchMock.mock.calls[0][1].headers["x-supoclip-team-id"];
+  };
+
+  it("sends the cookie's team while the caller is still a member", async () => {
+    workspaceCookie.current = "team-alpha-1";
+    membership.findUnique.mockResolvedValue({ team_id: "team-alpha-1" });
+    expect(await teamHeader({ userId: "member" })).toBe("team-alpha-1");
+    expect(membership.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { team_id_user_id: { team_id: "team-alpha-1", user_id: "member" } } }),
+    );
+  });
+
+  it("falls back to the personal workspace when the cookie outlived the membership", async () => {
+    // Removed from the team, team deleted, or another account on this browser.
+    workspaceCookie.current = "team-alpha-1";
+    membership.findUnique.mockResolvedValue(null);
+    expect(await teamHeader({ userId: "former-member" })).toBeUndefined();
+  });
+
+  it("never turns a failed membership lookup into a personal request", async () => {
+    workspaceCookie.current = "team-alpha-1";
+    membership.findUnique.mockRejectedValue(new Error("database unavailable"));
+    vi.stubGlobal("fetch", vi.fn());
+    await expect(fetchBackend("/tasks/", { userId: "member" })).rejects.toThrow("database unavailable");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("uses the workspace a caller names, and none for the personal one", async () => {
+    workspaceCookie.current = "team-alpha-1";
+    expect(await teamHeader({ userId: "member", teamId: null })).toBeUndefined();
+    expect(await teamHeader({ userId: "member", teamId: "team-beta-2" })).toBe("team-beta-2");
+    expect(membership.findUnique).not.toHaveBeenCalled();
+  });
+});
 
 describe("backend S3 redirects", () => {
   afterEach(() => vi.unstubAllGlobals());

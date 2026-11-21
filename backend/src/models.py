@@ -158,6 +158,120 @@ class RevenueCatWebhookEvent(Base):
     )
 
 
+# In production these three tables are created from the models (init_db runs
+# create_all before the SQL migrations), so the models carry the same checks
+# as migrations 20261120_0002 and 20261121_0003.
+class Team(Base):
+    __tablename__ = "teams"
+    __table_args__ = (CheckConstraint("seat_limit >= 1"),)
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid_string
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    plan: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=sql_text("'free'")
+    )
+    subscription_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=sql_text("'inactive'")
+    )
+    subscription_provider: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
+    stripe_account_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
+    seat_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=sql_text("'3'")
+    )
+    billing_period_start: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    billing_period_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    subscription_cancel_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pending_plan: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    pending_plan_invoice_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    __table_args__ = (
+        CheckConstraint("role IN ('owner', 'admin', 'member')"),
+        CheckConstraint("monthly_minute_limit IS NULL OR monthly_minute_limit >= 0"),
+        CheckConstraint("monthly_ai_edit_limit IS NULL OR monthly_ai_edit_limit >= 0"),
+    )
+
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=sql_text("'member'")
+    )
+    monthly_minute_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    monthly_ai_edit_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class TeamInvitation(Base):
+    __tablename__ = "team_invitations"
+    __table_args__ = (CheckConstraint("role IN ('admin', 'member')"),)
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid_string
+    )
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False
+    )
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=sql_text("'member'")
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    invited_by: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -166,6 +280,9 @@ class Task(Base):
     )
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    team_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=True
     )
     source_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("sources.id", ondelete="SET NULL"), nullable=True

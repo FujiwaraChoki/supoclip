@@ -1,52 +1,37 @@
-import {
-  buildBackendAuthHeaders,
-  getBackendAuthSecret,
-  hasSignedBackendAuth,
-} from "./backend-auth";
+import crypto from "crypto";
+import { afterEach, describe, expect, it } from "vitest";
+import { buildBackendAuthHeaders } from "./backend-auth";
 
 describe("buildBackendAuthHeaders", () => {
-  const originalSecret = process.env.BACKEND_AUTH_SECRET;
+  const env = process.env;
 
   afterEach(() => {
-    if (originalSecret === undefined) {
-      delete process.env.BACKEND_AUTH_SECRET;
-    } else {
-      process.env.BACKEND_AUTH_SECRET = originalSecret;
-    }
-    vi.restoreAllMocks();
+    process.env = env;
   });
 
-  it("falls back to unsigned headers when no secret is configured", () => {
-    delete process.env.BACKEND_AUTH_SECRET;
+  it("signs userId without teamId for personal workspace requests", () => {
+    process.env = { ...env, BACKEND_AUTH_SECRET: "test-secret" };
+    const headers = buildBackendAuthHeaders("user-123");
 
-    expect(buildBackendAuthHeaders("user-1")).toEqual({
-      "x-supoclip-user-id": "user-1",
-    });
-    expect(getBackendAuthSecret()).toBeNull();
-    expect(hasSignedBackendAuth()).toBe(false);
+    expect(headers["x-supoclip-user-id"]).toBe("user-123");
+    expect(headers["x-supoclip-team-id"]).toBeUndefined();
+    const expected = crypto
+      .createHmac("sha256", "test-secret")
+      .update(`user-123:${headers["x-supoclip-ts"]}`)
+      .digest("hex");
+    expect(headers["x-supoclip-signature"]).toBe(expected);
   });
 
-  it("treats blank secrets as unavailable", () => {
-    process.env.BACKEND_AUTH_SECRET = "   ";
+  it("includes and signs teamId when a team workspace is active", () => {
+    process.env = { ...env, BACKEND_AUTH_SECRET: "test-secret" };
+    const headers = buildBackendAuthHeaders("user-123", "team-456");
 
-    expect(buildBackendAuthHeaders("user-1")).toEqual({
-      "x-supoclip-user-id": "user-1",
-    });
-    expect(getBackendAuthSecret()).toBeNull();
-    expect(hasSignedBackendAuth()).toBe(false);
-  });
-
-  it("builds signed headers when a secret is configured", () => {
-    process.env.BACKEND_AUTH_SECRET = "secret";
-    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
-
-    expect(getBackendAuthSecret()).toBe("secret");
-    expect(hasSignedBackendAuth()).toBe(true);
-    expect(buildBackendAuthHeaders("user-1")).toEqual({
-      "x-supoclip-user-id": "user-1",
-      "x-supoclip-ts": "1700000000",
-      "x-supoclip-signature":
-        "cceb65b01012f5596122712d023d1def6663579f457362796a52133b3875c545",
-    });
+    expect(headers["x-supoclip-user-id"]).toBe("user-123");
+    expect(headers["x-supoclip-team-id"]).toBe("team-456");
+    const expected = crypto
+      .createHmac("sha256", "test-secret")
+      .update(`user-123:team-456:${headers["x-supoclip-ts"]}`)
+      .digest("hex");
+    expect(headers["x-supoclip-signature"]).toBe(expected);
   });
 });

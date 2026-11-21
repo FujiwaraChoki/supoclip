@@ -149,3 +149,41 @@ it("refreshes an open exhausted editor when its monthly allowance resets", async
   expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
   view.unmount();
 });
+
+const teamAllowance: AIEditUsage = {
+  plan: "team", limit: 300, used: 40, remaining: 260, resetsAt: "2026-12-05T00:00:00Z", allowed: true,
+  memberLimit: null, memberUsed: null, memberRemaining: null, memberLimitReached: false,
+};
+
+it("tells a team member at their own limit to ask an admin, with no plans link", () => {
+  const view = setup({ ...teamAllowance, allowed: false, memberLimit: 25, memberUsed: 25, memberRemaining: 0, memberLimitReached: true });
+  expect(screen.getByText(/You've used your 25 AI edits for this month\. Ask a team admin to raise your limit\./)).toHaveTextContent(/Resets Dec 5/);
+  expect(screen.queryByText(/of 300 AI edits left/)).toBeNull();
+  expect(screen.queryByRole("link")).toBeNull();
+  expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+  view.unmount();
+});
+
+it("says a paused seat is paused instead of counting the team's pool", () => {
+  const view = setup({ ...teamAllowance, allowed: false, memberLimit: 0, memberUsed: 0, memberRemaining: 0, memberLimitReached: true });
+  expect(screen.getByText("A team admin paused AI edits for your seat.")).toBeVisible();
+  expect(screen.queryByText(/Resets/)).toBeNull();
+  expect(screen.queryByRole("link")).toBeNull();
+  view.unmount();
+});
+
+it("counts down whichever runs out first: the member's limit or the team's pool", () => {
+  const member = setup({ ...teamAllowance, memberLimit: 25, memberUsed: 20, memberRemaining: 5 });
+  expect(screen.getByText(/5 of 25 AI edits left this month/)).toBeVisible();
+  member.unmount();
+  const pool = setup({ ...teamAllowance, used: 298, remaining: 2, memberLimit: 25, memberUsed: 20, memberRemaining: 5 });
+  expect(screen.getByText(/2 of 300 AI edits left this month/)).toBeVisible();
+  pool.unmount();
+});
+
+it("sends a team whose pool ran out to team settings, not to solo plans", () => {
+  const view = setup({ ...teamAllowance, used: 300, remaining: 0, allowed: false });
+  expect(screen.getByText(/0 of 300 AI edits left this month/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Team settings" })).toHaveAttribute("href", "/settings/team");
+  view.unmount();
+});

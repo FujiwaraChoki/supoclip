@@ -14,7 +14,8 @@
     "free": "Kostenlos",
     "pro": "Pro",
     "scale": "Creator",
-    "selfHost": "Selbst gehostet"
+    "selfHost": "Selbst gehostet",
+    "team": "Team"
   },
   "duration": {
     "hours": "{count, plural, one {# Stunde} other {# Stunden}}",

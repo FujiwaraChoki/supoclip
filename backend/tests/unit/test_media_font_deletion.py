@@ -133,6 +133,9 @@ def _font_upload(name="Brand.ttf", body=b"font bytes"):
 @pytest.fixture()
 def paid_user(monkeypatch):
     monkeypatch.setattr(media, "_get_authenticated_user_id", AsyncMock(return_value="user-1"))
+    monkeypatch.setattr(
+        media, "_get_auth_context", AsyncMock(return_value=media.AuthContext(user_id="user-1"))
+    )
     billing = AsyncMock()
     billing.get_usage_summary.return_value = {"monetization_enabled": False}
     monkeypatch.setattr(media, "BillingService", lambda _db: billing)

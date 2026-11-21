@@ -72,7 +72,14 @@
     "monthlyEquivalentYearly": "${price}/mo, billed yearly",
     "transferCancel": "Cancel subscription",
     "transferCancelConfirm": "Cancel your subscription’s future renewals? Your already paid period stays available.",
-    "transferCancelSuccess": "Future renewals cancelled."
+    "transferCancelSuccess": "Future renewals cancelled.",
+    "teamWorkspaceTitle": "Active workspace: {team}",
+    "teamWorkspaceBody": "Billing, pooled minutes, and seats for this workspace are managed in Team settings.",
+    "manageTeam": "Manage team & seats",
+    "teamPriceMonthly": "${price}/mo + ${extraPrice}/extra seat",
+    "teamPriceYearly": "${price}/yr + ${extraPrice}/extra seat",
+    "teamSummary": "Includes {seats} seats and {hours} pooled hours/mo. Each extra seat adds +{extraHours} hours.",
+    "createTeamCta": "Set up a team"
   },
   "links": {
     "agentsTitle": "Agents & API",
@@ -80,7 +87,9 @@
     "socialTitle": "Social accounts",
     "socialDescription": "Connect YouTube, TikTok and Instagram to publish clips and track performance",
     "creatorTitle": "Creator program",
-    "creatorDescription": "Make videos about SupoClip, get Pro free and a code for your audience"
+    "creatorDescription": "Make videos about SupoClip, get Pro free and a code for your audience",
+    "teamTitle": "Team & workspaces",
+    "teamDescription": "Pool monthly video hours, manage seats, and invite editors to a shared workspace"
   },
   "save": {
     "saved": "Preferences saved successfully!",
@@ -270,7 +279,9 @@
     "message": "Your last payment failed. Update your payment method to keep your plan.",
     "action": "Update payment method",
     "failed": "Unable to open the billing portal",
-    "paused": "Clipping is paused until this payment goes through."
+    "paused": "Clipping is paused until this payment goes through.",
+    "teamMessage": "Your team's last payment failed. Update the payment method to keep the Team plan.",
+    "teamAskOwner": "Ask the team owner to update the payment method."
   },
   "cancel": {
     "scheduled": "Your subscription is scheduled to cancel on <strong>{date}</strong>.",

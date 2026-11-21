@@ -384,7 +384,11 @@
     "resets": "Wird am {date} zurückgesetzt.",
     "subscriptionRequired": "KI-Bearbeitung erfordert Pro oder Creator.",
     "upgradeCreator": "Auf Creator upgraden",
-    "viewPlans": "Tarife ansehen"
+    "viewPlans": "Tarife ansehen",
+    "memberPaused": "Ein Team-Admin hat KI-Bearbeitungen für deinen Platz pausiert.",
+    "memberLimitReached": "Du hast deine {limit} KI-Bearbeitungen für diesen Monat genutzt. Bitte einen Team-Admin, dein Limit zu erhöhen.",
+    "teamPlanRequired": "KI-Bearbeitung erfordert einen aktiven Team-Tarif.",
+    "teamSettings": "Team-Einstellungen"
   },
   "partLabel": "Teil {n}",
   "partClipLabel": "Teil {n} · {title}",

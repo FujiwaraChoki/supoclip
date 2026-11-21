@@ -72,7 +72,14 @@
     "monthlyEquivalentYearly": "${price}/bln, ditagih tahunan",
     "transferCancel": "Batalkan langganan",
     "transferCancelConfirm": "Batalkan perpanjangan langganan berikutnya? Masa yang sudah dibayar tetap tersedia.",
-    "transferCancelSuccess": "Perpanjangan berikutnya dibatalkan."
+    "transferCancelSuccess": "Perpanjangan berikutnya dibatalkan.",
+    "teamWorkspaceTitle": "Ruang kerja aktif: {team}",
+    "teamWorkspaceBody": "Penagihan, menit bersama, dan kursi ruang kerja ini dikelola di Pengaturan tim.",
+    "manageTeam": "Kelola tim & kursi",
+    "teamPriceMonthly": "${price}/bln + ${extraPrice}/kursi tambahan",
+    "teamPriceYearly": "${price}/thn + ${extraPrice}/kursi tambahan",
+    "teamSummary": "Termasuk {seats} kursi dan {hours} jam bersama/bln. Tiap kursi tambahan menambah +{extraHours} jam.",
+    "createTeamCta": "Buat tim"
   },
   "links": {
     "agentsTitle": "Agen & API",
@@ -80,7 +87,9 @@
     "socialTitle": "Akun sosial",
     "socialDescription": "Hubungkan YouTube, TikTok, dan Instagram untuk memublikasikan clip dan melacak performa",
     "creatorTitle": "Program kreator",
-    "creatorDescription": "Buat video tentang SupoClip, dapatkan Pro gratis dan kode untuk audiensmu"
+    "creatorDescription": "Buat video tentang SupoClip, dapatkan Pro gratis dan kode untuk audiensmu",
+    "teamTitle": "Tim & ruang kerja",
+    "teamDescription": "Gabungkan jam video bulanan, kelola kursi, dan undang editor ke ruang kerja bersama"
   },
   "save": {
     "saved": "Preferensi berhasil disimpan!",
@@ -270,7 +279,9 @@
     "message": "Pembayaran terakhirmu gagal. Perbarui metode pembayaran agar paketmu tetap aktif.",
     "action": "Perbarui metode pembayaran",
     "failed": "Portal tagihan tidak bisa dibuka",
-    "paused": "Pembuatan clip dijeda sampai pembayaran ini berhasil."
+    "paused": "Pembuatan clip dijeda sampai pembayaran ini berhasil.",
+    "teamMessage": "Pembayaran terakhir timmu gagal. Perbarui metode pembayaran agar paket Tim tetap aktif.",
+    "teamAskOwner": "Minta pemilik tim untuk memperbarui metode pembayaran."
   },
   "cancel": {
     "scheduled": "Langgananmu dijadwalkan batal pada <strong>{date}</strong>.",

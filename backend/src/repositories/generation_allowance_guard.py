@@ -1,6 +1,7 @@
 """Serialize paid generation admissions across API processes and task retries."""
 
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -13,11 +14,19 @@ class GenerationAllowanceBusy(Exception):
 
 
 @asynccontextmanager
-async def generation_allowance_guard(db, user_id: str, *, enabled: bool):
-    """Keep ownership across commits; wait briefly without using the request pool."""
+async def generation_allowance_guard(
+    db, user_id: str, *, enabled: bool, team_id: Optional[str] = None
+):
+    """Keep ownership across commits; wait briefly without using the request pool.
+
+    When ``team_id`` is set, serializes all teammates drawing from that team's
+    pooled minute allowance.
+    """
     if not enabled:
         yield
         return
+
+    lock_key = f"team:{team_id}" if team_id else user_id
 
     # Admission starts after read-only authentication/source queries. Release
     # their connection before waiting for another admission to finish.
@@ -26,8 +35,8 @@ async def generation_allowance_guard(db, user_id: str, *, enabled: bool):
         await connection.execute(text("SET LOCAL lock_timeout = '5s'"))
         try:
             await connection.execute(
-                text("SELECT pg_advisory_lock(hashtextextended(:user_id, 913462))"),
-                {"user_id": user_id},
+                text("SELECT pg_advisory_lock(hashtextextended(:lock_key, 913462))"),
+                {"lock_key": lock_key},
             )
         except DBAPIError as exc:
             if getattr(exc.orig, "sqlstate", None) == "55P03":

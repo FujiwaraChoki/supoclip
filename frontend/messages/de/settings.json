@@ -72,7 +72,14 @@
     "monthlyEquivalentYearly": "${price}/Monat, jährlich abgerechnet",
     "transferCancel": "Abonnement kündigen",
     "transferCancelConfirm": "Künftige Verlängerungen deines Abonnements kündigen? Dein bereits bezahlter Zeitraum bleibt verfügbar.",
-    "transferCancelSuccess": "Künftige Verlängerungen wurden gekündigt."
+    "transferCancelSuccess": "Künftige Verlängerungen wurden gekündigt.",
+    "teamWorkspaceTitle": "Aktiver Workspace: {team}",
+    "teamWorkspaceBody": "Abrechnung, gemeinsame Minuten und Plätze dieses Workspaces werden in den Team-Einstellungen verwaltet.",
+    "manageTeam": "Team & Plätze verwalten",
+    "teamPriceMonthly": "${price}/Monat + ${extraPrice}/Zusatzplatz",
+    "teamPriceYearly": "${price}/Jahr + ${extraPrice}/Zusatzplatz",
+    "teamSummary": "Enthält {seats} Plätze und {hours} gemeinsame Stunden/Monat. Jeder Zusatzplatz fügt +{extraHours} Stunden hinzu.",
+    "createTeamCta": "Team einrichten"
   },
   "links": {
     "agentsTitle": "Agenten & API",
@@ -80,7 +87,9 @@
     "socialTitle": "Social-Konten",
     "socialDescription": "Verbinde YouTube, TikTok und Instagram, um Clips zu veröffentlichen und die Performance zu sehen",
     "creatorTitle": "Creator-Programm",
-    "creatorDescription": "Mach Videos über SupoClip, bekomm Pro kostenlos und einen Code für dein Publikum"
+    "creatorDescription": "Mach Videos über SupoClip, bekomm Pro kostenlos und einen Code für dein Publikum",
+    "teamTitle": "Team & Workspaces",
+    "teamDescription": "Teile monatliche Videostunden, verwalte Plätze und lade Editoren in einen Workspace ein"
   },
   "save": {
     "saved": "Einstellungen gespeichert!",
@@ -270,7 +279,9 @@
     "message": "Deine letzte Zahlung ist fehlgeschlagen. Aktualisiere deine Zahlungsmethode, damit dein Plan erhalten bleibt.",
     "action": "Zahlungsmethode aktualisieren",
     "failed": "Das Abrechnungsportal konnte nicht geöffnet werden",
-    "paused": "Das Clipping pausiert, bis diese Zahlung durch ist."
+    "paused": "Das Clipping pausiert, bis diese Zahlung durch ist.",
+    "teamMessage": "Die letzte Zahlung deines Teams ist fehlgeschlagen. Aktualisiere die Zahlungsmethode, damit der Team-Tarif erhalten bleibt.",
+    "teamAskOwner": "Bitte den Team-Eigentümer, die Zahlungsmethode zu aktualisieren."
   },
   "cancel": {
     "scheduled": "Dein Abo endet am <strong>{date}</strong>.",

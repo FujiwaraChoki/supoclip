@@ -71,6 +71,19 @@
       "title": "用 {plan} 做更多",
       "titleFallback": "适合每位创作者的方案",
       "body": "每月更多视频、全高清片段、更长的素材和优先处理。"
+    },
+    "member": {
+      "eyebrow": "你在 {team} 的额度",
+      "pausedTitle": "你的席位已暂停生成新视频",
+      "pausedBody": "团队管理员暂停了你的席位的视频生成。请联系他们重新开启。本次尝试未消耗分钟数。",
+      "title": "你本月的 {limit} 分钟已用完",
+      "titleShort": "这个视频需要 {required} 分钟，你的额度还剩 {remaining} 分钟",
+      "bodyRefresh": "团队管理员将你的额度设为每月 {limit} 分钟。额度将在 {date} 重置，你也可以请管理员提高额度。本次尝试未消耗分钟数。",
+      "bodyPeriod": "团队管理员将你的额度设为每月 {limit} 分钟。额度将在下个月重置，你也可以请管理员提高额度。本次尝试未消耗分钟数。"
+    },
+    "teamStart": {
+      "title": "{team} 需要开通团队套餐才能制作切片",
+      "body": "在这里制作的切片使用团队的共享时长，因此团队需要先开通团队套餐。"
     }
   },
   "illustration": {
@@ -104,5 +117,8 @@
     "yearly": "按年",
     "monthsFree": "免费 {count} 个月"
   },
-  "comingSoon": "即将推出"
+  "comingSoon": "即将推出",
+  "teamWorkspaceBody": "{team} 使用共享团队订阅。团队所有者可以开通套餐或增加席位以扩充每月共享时长。",
+  "manageTeamSeats": "管理团队与席位",
+  "teamAskOwner": "{team} 使用共享团队订阅。请联系团队所有者开通套餐或增加席位。"
 }

@@ -69,7 +69,9 @@ describe("init.sql matches the Prisma schema", () => {
   it("keeps the catch-up script safe to run twice", () => {
     const statements = repairSql.split(";").map((s) => s.replace(/--.*$/gm, "").trim()).filter(Boolean);
     for (const statement of statements) {
-      expect(statement).toMatch(/IF NOT EXISTS/);
+      // Dropping NOT NULL is the one statement with no IF NOT EXISTS form: it is a
+      // no-op on a column that is already nullable.
+      expect(statement).toMatch(/IF NOT EXISTS|^ALTER TABLE \w+ ALTER COLUMN \w+ DROP NOT NULL$/);
     }
   });
 });

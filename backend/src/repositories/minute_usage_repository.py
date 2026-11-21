@@ -1,6 +1,7 @@
 """Durable minute charges and failure refunds, independent of task deletion."""
 
 import math
+from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -18,21 +19,32 @@ def charged_duration(duration_seconds: float | None) -> int:
     return math.ceil(duration_seconds)
 
 
-async def record_minute_usage(db, user_id: str, task_id: str, duration_seconds: float) -> None:
+async def record_minute_usage(
+    db,
+    user_id: str,
+    task_id: str,
+    duration_seconds: float,
+    *,
+    team_id: Optional[str] = None,
+) -> None:
     """Insert once per task. Duplicate delivery must never undo a refund."""
     seconds = charged_duration(duration_seconds)
     await db.execute(
         text("""
             INSERT INTO minute_usage_events (
-                id, user_id, task_id, minutes, source_duration_seconds, created_at
+                id, user_id, team_id, task_id, minutes, source_duration_seconds, created_at
             ) VALUES (
-                :id, :user_id, :task_id, :minutes, :seconds, CURRENT_TIMESTAMP
+                :id, :user_id, :team_id, :task_id, :minutes, :seconds, CURRENT_TIMESTAMP
             )
             ON CONFLICT (task_id) DO NOTHING
         """),
         {
-            "id": str(uuid4()), "user_id": user_id, "task_id": task_id,
-            "minutes": (seconds + 59) // 60, "seconds": seconds,
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "team_id": team_id,
+            "task_id": task_id,
+            "minutes": (seconds + 59) // 60,
+            "seconds": seconds,
         },
     )
 
@@ -49,7 +61,12 @@ async def refund_failed_minute_usage(db, task_id: str) -> None:
             WHERE task_id = :task_id AND refunded_at IS NULL
               AND EXISTS (
                   SELECT 1 FROM tasks t
-                  WHERE t.id = :task_id AND t.user_id = minute_usage_events.user_id
+                  WHERE t.id = :task_id
+                    AND t.user_id = minute_usage_events.user_id
+                    AND (
+                        t.team_id = minute_usage_events.team_id
+                        OR (t.team_id IS NULL AND minute_usage_events.team_id IS NULL)
+                    )
                     AND t.status IN ('error', 'failed', 'cancelled', 'canceled')
                     AND NOT EXISTS (SELECT 1 FROM generated_clips c WHERE c.task_id = t.id)
               )
@@ -58,17 +75,30 @@ async def refund_failed_minute_usage(db, task_id: str) -> None:
     )
 
 
-async def reactivate_minute_usage(db, user_id: str, task_id: str) -> None:
+async def reactivate_minute_usage(
+    db, user_id: str, task_id: str, *, team_id: Optional[str] = None
+) -> None:
     """Re-charge one refunded row after a locked allowance check.
 
     The new charge belongs to the retry's current billing period, even if the
     original attempt was refunded in an earlier period.
     """
+    if team_id:
+        await db.execute(
+            text("""
+                UPDATE minute_usage_events
+                SET refunded_at = NULL, created_at = CURRENT_TIMESTAMP
+                WHERE task_id = :task_id AND team_id = :team_id AND refunded_at IS NOT NULL
+            """),
+            {"task_id": task_id, "team_id": team_id},
+        )
+        return
     await db.execute(
         text("""
             UPDATE minute_usage_events
             SET refunded_at = NULL, created_at = CURRENT_TIMESTAMP
-            WHERE task_id = :task_id AND user_id = :user_id AND refunded_at IS NOT NULL
+            WHERE task_id = :task_id AND user_id = :user_id AND team_id IS NULL
+              AND refunded_at IS NOT NULL
         """),
         {"task_id": task_id, "user_id": user_id},
     )

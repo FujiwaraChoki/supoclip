@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
-import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
+import { UpgradeDialog, UpgradeNudge, getUpgradeState, memberLimitReason, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,7 +35,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Kbd } from "@/components/ui/kbd";
 import { useSession } from "@/lib/auth-client";
-import { useBillingSummary } from "@/hooks/use-billing-summary";
+import { useBillingSummary, type BillingSummary } from "@/hooks/use-billing-summary";
+import { useTeamRole, type TeamRole } from "@/hooks/use-workspace";
+import { workspaceAllowance } from "@/lib/workspace-usage";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { trackEvent } from "@/lib/analytics";
@@ -679,6 +681,8 @@ export default function HomeApp() {
   const previewFontColor = fontColor ?? selectedTemplate?.font_color ?? "#FFFFFF";
   const generationRequiresUpgrade = Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
   const upgradeState = billingSummary?.monetization_enabled ? getUpgradeState(billingSummary) : null;
+  const billingTeamId = billingSummary?.workspace_type === "team" ? billingSummary.team_id : null;
+  const teamRole = useTeamRole(billingTeamId);
   // Users can explore every option; the plan prompt only appears when they hit Generate.
   const controlsDisabled = isLoading;
   const hasSource = sourceType === "upload" ? Boolean(file) : Boolean(url.trim());
@@ -837,7 +841,8 @@ export default function HomeApp() {
       blocked_by_upgrade: generationRequiresUpgrade,
     });
     if (generationRequiresUpgrade) {
-      openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" });
+      // A limit a team admin set for this member is not something a plan fixes.
+      openUpgrade(memberLimitReason(billingSummary) ?? { kind: upgradeState?.isPaid ? "limit" : "start" });
       return;
     }
     if (sourceType !== "upload") {
@@ -968,7 +973,7 @@ export default function HomeApp() {
             className="mb-8"
           />
         )}
-        {upgradeState?.needsPayment && <PaymentFailedBanner className="mb-8" />}
+        {upgradeState?.needsPayment && <PaymentFailedBanner className="mb-8" teamId={billingTeamId} />}
 
         <div className="mx-auto max-w-3xl animate-rise">
           <h1 className="text-center font-display text-3xl font-bold tracking-tight sm:text-[2.6rem] sm:leading-tight">
@@ -978,7 +983,9 @@ export default function HomeApp() {
             {t(`subtitleByWorkflow.${activeWorkflow}`)}
           </p>
 
-          {upgradeState && <PlanStatusNudge state={upgradeState} onUpgrade={openUpgrade} />}
+          {upgradeState && billingSummary && (billingTeamId
+            ? <TeamStatusNudge state={upgradeState} billing={billingSummary} teamRole={teamRole} />
+            : <PlanStatusNudge state={upgradeState} onUpgrade={openUpgrade} />)}
 
           <VideoDownloadStatus />
 
@@ -1617,6 +1624,81 @@ function PlanStatusNudge({
         description={nextPlan ? t("nudge.nearWithPlan", { refreshes, plan: nextPlanName, limit: formatMinutes(nextPlan.minuteLimit) }) : refreshes}
         action={nextPlan ? t("nudge.upgrade") : undefined}
         onAction={nextPlan ? () => onUpgrade({ kind: "explore" }) : undefined}
+      />
+    );
+  }
+
+  return null;
+}
+
+/**
+ * The same row in a team workspace, where the plan is the team's: the owner is sent to
+ * team settings, everyone else is told who can help. No solo plan is offered here.
+ */
+function TeamStatusNudge({
+  state,
+  billing,
+  teamRole,
+}: {
+  state: NonNullable<ReturnType<typeof getUpgradeState>>;
+  billing: BillingSummary;
+  teamRole: TeamRole | null;
+}) {
+  const t = useTranslations("home");
+  const tCommon = useTranslations("common");
+  const router = useRouter();
+  const { formatMinutes } = useBillingPlanText();
+  const refreshes = state.resetsOn ? t("nudge.refreshesOn", { date: state.resetsOn }) : t("nudge.refreshesNext");
+  // Only the owner starts the plan or adds seats. Until the role has loaded, keep the link.
+  const ownerAction = teamRole === null || teamRole === "owner" ? () => router.push("/settings/team") : undefined;
+
+  if (state.needsPayment) return null;
+
+  if (!state.isPaid) {
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title={t("nudge.teamStartTitle", { team: billing.team_name || tCommon("plans.team") })}
+        description={ownerAction ? t("nudge.teamStartOwner") : t("nudge.teamStartMember")}
+        action={ownerAction ? t("nudge.teamSettings") : undefined}
+        onAction={ownerAction}
+      />
+    );
+  }
+
+  const allowance = workspaceAllowance(billing);
+  if (allowance.paused) {
+    return <UpgradeNudge className="mt-6" title={t("nudge.memberPausedTitle")} description={t("nudge.memberPausedBody")} />;
+  }
+
+  if (state.atLimit) {
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title={state.limit ? t("nudge.limitTitle", { length: formatMinutes(state.limit) }) : t("nudge.limitTitleAll")}
+        description={ownerAction ? t("nudge.teamLimitOwner", { refreshes }) : t("nudge.teamLimitMember", { refreshes })}
+        action={ownerAction ? t("nudge.manageSeats") : undefined}
+        onAction={ownerAction}
+      />
+    );
+  }
+
+  if (billing.member_limit_reached && allowance.memberLimit !== null) {
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title={t("nudge.memberLimitTitle", { limit: allowance.memberLimit })}
+        description={t("nudge.memberLimitBody", { refreshes })}
+      />
+    );
+  }
+
+  if (allowance.low && allowance.left !== null && allowance.left > 0) {
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title={t("nudge.remaining", { count: allowance.left })}
+        description={allowance.binding === "member" && allowance.memberLimit !== null ? t("nudge.memberNearBody", { refreshes, limit: allowance.memberLimit }) : refreshes}
       />
     );
   }

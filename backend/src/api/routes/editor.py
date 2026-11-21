@@ -33,7 +33,7 @@ from ...services.ai_edit_allowance_service import (
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
 from ..pool_timeout import PoolTimeoutRoute
-from .tasks import _require_task_owner, _read_json_object
+from .tasks import _require_task_access, _require_task_owner, _read_json_object
 
 # A request holds at most one pooled connection at a time. The editor store
 # opens a short session per statement, so a route closes the request's
@@ -43,14 +43,40 @@ from .tasks import _require_task_owner, _read_json_object
 router = APIRouter(prefix="/tasks", tags=["editor"], route_class=PoolTimeoutRoute)
 
 
-async def owned_context(request, db, task_id, clip_id):
+def _ai_edit_payer(actor, task) -> str:
+    """Whose AI edit allowance a request draws on.
+
+    A personal task is always its owner's. In a team any member can open any
+    team clip, so the edit counts against the member who asked for it, not
+    the member who made the clip: per-member limits follow the person.
+    """
+    return actor.user_id if task.get("team_id") else task["user_id"]
+
+
+def _ai_limit_message(usage: dict) -> str:
+    if usage.get("memberLimitReached"):
+        if usage.get("memberLimit") == 0:
+            return "AI editing is paused for your seat. Ask a team admin to turn it back on."
+        return "You've used your AI edits for this month. Ask a team admin to raise your limit."
+    if usage["limit"]:
+        return "Your monthly AI edit allowance is used up."
+    return "AI editing requires an active Pro, Creator, or Team subscription."
+
+
+async def acting_context(request, db, task_id, clip_id):
+    """``owned_context`` plus the caller, for routes that meter per member."""
     service = TaskService(db)
-    task = await _require_task_owner(request, service, db, task_id)
+    actor, task = await _require_task_access(request, service, db, task_id)
     clip = await service.clip_repo.get_clip_by_id(db, clip_id)
     if not clip or clip["task_id"] != task_id:
         raise HTTPException(404, "Clip not found")
     await db.close()
     session = await open_session(service.config.temp_dir, task_id, clip)
+    return actor, task, clip, session
+
+
+async def owned_context(request, db, task_id, clip_id):
+    _, task, clip, session = await acting_context(request, db, task_id, clip_id)
     return task, clip, session
 
 
@@ -146,7 +172,7 @@ async def _stored_media(storage: MediaStorage, session, name: str, download_name
 async def get_editor(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    actor, task, clip, session = await acting_context(request, db, task_id, clip_id)
     state = await session.state()
     if state.get("status") == "ready":
         draft = state["draft"]
@@ -174,7 +200,9 @@ async def get_editor(
 
         state["aiEditing"] = ai_editing_configured()
         if state["aiEditing"]:
-            state["aiEditUsage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+            state["aiEditUsage"] = await AIEditAllowanceService(db).summary(
+                _ai_edit_payer(actor, task), team_id=task.get("team_id")
+            )
             # The allowance read reopened the request's session.
             await db.close()
     if state.get("status") == "ready":
@@ -689,11 +717,13 @@ async def ai_edit_usage(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     service = TaskService(db)
-    task = await _require_task_owner(request, service, db, task_id)
+    actor, task = await _require_task_access(request, service, db, task_id)
     clip = await service.clip_repo.get_clip_by_id(db, clip_id)
     if not clip or clip["task_id"] != task_id:
         raise HTTPException(404, "Clip not found")
-    return await AIEditAllowanceService(db).summary(task["user_id"])
+    return await AIEditAllowanceService(db).summary(
+        _ai_edit_payer(actor, task), team_id=task.get("team_id")
+    )
 
 
 @router.post("/{task_id}/clips/{clip_id}/editor/ai", status_code=202)
@@ -712,7 +742,7 @@ async def start_ai_edit(
     if not ai_editing_configured():
         raise HTTPException(503, "AI editing isn't set up on this server.")
     payload = await _read_json_object(request)
-    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    actor, task, clip, session = await acting_context(request, db, task_id, clip_id)
     state = await session.state()
     if state["status"] != "ready":
         raise HTTPException(409, "Wait for the editor preview to finish preparing")
@@ -763,11 +793,13 @@ async def start_ai_edit(
     pool = await JobQueue.get_pool()
     job_id = uuid.uuid4().hex
     try:
-        usage = await AIEditAllowanceService(db).reserve(task["user_id"], job_id)
+        usage = await AIEditAllowanceService(db).reserve(
+            _ai_edit_payer(actor, task), job_id, team_id=task.get("team_id")
+        )
     except AIEditLimitExceeded as exc:
         raise HTTPException(429 if exc.usage["limit"] else 402, {
             "code": "AI_EDIT_LIMIT_REACHED",
-            "message": "Your monthly AI edit allowance is used up." if exc.usage["limit"] else "AI editing requires an active Pro or Creator subscription.",
+            "message": _ai_limit_message(exc.usage),
             "usage": exc.usage,
         }) from None
     try:
@@ -815,7 +847,7 @@ async def ai_edit_status(
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(404, "AI edit not found")
     service = TaskService(db)
-    task = await _require_task_owner(request, service, db, task_id)
+    actor, task = await _require_task_access(request, service, db, task_id)
     await db.close()
     pool = await JobQueue.get_pool()
     owner = await pool.get(f"ai_edit:owner:{job_id}")
@@ -826,7 +858,9 @@ async def ai_edit_status(
         return {"id": job_id, "status": "queued"}
     payload = json.loads(result)
     if payload.get("status") in {"completed", "failed"}:
-        payload["usage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+        payload["usage"] = await AIEditAllowanceService(db).summary(
+            _ai_edit_payer(actor, task), team_id=task.get("team_id")
+        )
     return {"id": job_id, **payload}
 
 

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { invalidateWorkspaces } from "@/hooks/use-workspace";
 import { WORKFLOWS } from "@/lib/workflows";
 import HomeApp from "./home-app";
 
@@ -102,8 +103,15 @@ let settingsSaves: Array<{ createSettings: Record<string, unknown>; fontFamily?:
 let savedCreateSettings: unknown;
 let savedFontFamily: string;
 let storage: Map<string, string>;
+let summaryResponse: Record<string, unknown>;
+let teamsResponse: Record<string, unknown>;
 
 beforeEach(() => {
+  summaryResponse = billingSummary;
+  teamsResponse = {};
+  // The billing and workspace hooks keep their last answer for a few seconds. Nothing is
+  // mounted here, so this only forgets what the previous test's workspace left behind.
+  invalidateWorkspaces();
   navigation.params = new URLSearchParams();
   navigation.replace.mockReset();
   durations.seconds = null;
@@ -126,7 +134,8 @@ beforeEach(() => {
   });
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.includes("billing-summary")) return Response.json(billingSummary);
+    if (url.includes("billing-summary")) return Response.json(summaryResponse);
+    if (url.includes("/api/teams")) return Response.json(teamsResponse);
     if (url.includes("/api/tasks/workflows")) return workflowsResponse();
     if (url.includes("/api/tasks/edit-styles")) return editStylesResponse();
     if (url.includes("/api/tasks/create")) {
@@ -833,6 +842,83 @@ describe("remembering settings between videos", () => {
     const last = settingsSaves[settingsSaves.length - 1];
     expect(last.createSettings).toMatchObject({ captionTemplate: "default", includeBroll: false, advanced: {} });
     expect(last.fontFamily).toBe("TikTokSans-Regular");
+  });
+});
+
+describe("in a team workspace", () => {
+  const TEAM = {
+    id: "team_example_1", name: "Northwind Studio", slug: "northwind", ownerId: "user-9", role: "member",
+    plan: "team", subscriptionStatus: "active", seatLimit: 3, memberCount: 2, pendingInviteCount: 0, occupiedSeats: 2,
+  };
+  const teamSummary = {
+    ...billingSummary, plan: "team", subscription_provider: "stripe", workspace_type: "team", team_id: TEAM.id,
+    team_name: TEAM.name, seat_limit: 3, usage_minutes: 400, minute_limit: 3600, remaining_minutes: 3200,
+  };
+
+  async function renderTeamHome(summary: Record<string, unknown>, role = "member") {
+    summaryResponse = summary;
+    teamsResponse = { activeTeamId: TEAM.id, teams: [{ ...TEAM, role }] };
+    // Both hooks keep their last answer for a few seconds; these tests each start in another workspace state.
+    invalidateWorkspaces();
+    await renderHome();
+  }
+
+  afterEach(() => invalidateWorkspaces());
+
+  it("tells a member whose seat is paused to ask an admin, and sells them nothing", async () => {
+    await renderTeamHome({
+      ...teamSummary, can_create_task: false, upgrade_required: false,
+      member_minute_limit: 0, member_usage_minutes: 0, member_remaining_minutes: 0, member_limit_reached: true,
+    });
+    expect(await screen.findByText("Your seat is paused for new videos")).toBeVisible();
+
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate clips" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/A team admin paused video generation for your seat/)).toBeVisible();
+    expect(within(dialog).queryByRole("link")).toBeNull();
+    expect(within(dialog).queryByText(/60 hours|Manage team/)).toBeNull();
+    expect(created).toHaveLength(0);
+  });
+
+  it("shows a member their own limit when one video is longer than what they have left", async () => {
+    await renderTeamHome({
+      ...teamSummary, member_minute_limit: 600, member_usage_minutes: 588, member_remaining_minutes: 12, member_limit_reached: false,
+    });
+    createResponse = () => Response.json({
+      detail: {
+        code: "SUBSCRIPTION_REQUIRED",
+        message: "This video is 30 minutes long and you have 12 minutes left in your monthly team limit.",
+        billing: { ...teamSummary, required_minutes: 30, member_minute_limit: 600, member_remaining_minutes: 12, member_limit_reached: true },
+      },
+    }, { status: 402 });
+
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const button = screen.getByRole("button", { name: "Generate clips" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("This video needs 30 minutes, and you have 12 left in your limit")).toBeVisible();
+    expect(within(dialog).queryByText(/3200/)).toBeNull();
+    expect(within(dialog).queryByRole("link")).toBeNull();
+  });
+
+  it("points an unsubscribed team at team settings instead of solo plan prices", async () => {
+    const inactive = { ...teamSummary, plan: "free", subscription_status: "inactive", subscription_provider: null, can_create_task: false, upgrade_required: true };
+    await renderTeamHome(inactive, "owner");
+    expect(await screen.findByText("Northwind Studio doesn't have an active Team plan")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Team settings" })).toBeVisible();
+    expect(screen.queryByTestId("start-plan-card")).toBeNull();
+  });
+
+  it("tells a member of an unsubscribed team who can start the plan", async () => {
+    const inactive = { ...teamSummary, plan: "free", subscription_status: "inactive", subscription_provider: null, can_create_task: false, upgrade_required: true };
+    await renderTeamHome(inactive, "member");
+    expect(await screen.findByText("Ask the team owner to start the Team plan.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Team settings" })).toBeNull();
+    expect(screen.queryByTestId("start-plan-card")).toBeNull();
   });
 });
 

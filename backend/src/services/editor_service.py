@@ -53,7 +53,9 @@ async def cap_export_for_plan(task_id: str, path: Path) -> None:
             task = await TaskService(db).task_repo.get_task_by_id(db, task_id)
             if not task or not task.get("user_id"):
                 return
-            billing = await BillingService(db).get_usage_summary(task["user_id"])
+            billing = await BillingService(db).get_usage_summary(
+                task["user_id"], team_id=task.get("team_id")
+            )
         short_side = billing.get("output_short_side")
         if short_side and short_side < FULL_HD_SHORT_SIDE:
             await run_in_thread(cap_video_short_side, path, short_side)

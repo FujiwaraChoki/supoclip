@@ -14,6 +14,7 @@ export const NAMESPACES = [
   "shell",
   "auth",
   "settings",
+  "team",
   "billing",
   "home",
   "library",

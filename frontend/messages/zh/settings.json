@@ -72,7 +72,14 @@
     "monthlyEquivalentYearly": "${price}/月，按年计费",
     "transferCancel": "取消订阅",
     "transferCancelConfirm": "要取消订阅的后续续费吗？已付款的使用期限仍然有效。",
-    "transferCancelSuccess": "已取消后续续费。"
+    "transferCancelSuccess": "已取消后续续费。",
+    "teamWorkspaceTitle": "当前工作区：{team}",
+    "teamWorkspaceBody": "此工作区的账单、共享视频时长和席位请在团队设置中管理。",
+    "manageTeam": "管理团队与席位",
+    "teamPriceMonthly": "${price}/月 + ${extraPrice}/额外席位",
+    "teamPriceYearly": "${price}/年 + ${extraPrice}/额外席位",
+    "teamSummary": "含 {seats} 个席位和每月 {hours} 小时共享时长。每个额外席位增加 +{extraHours} 小时。",
+    "createTeamCta": "创建团队"
   },
   "links": {
     "agentsTitle": "智能体与 API",
@@ -80,7 +87,9 @@
     "socialTitle": "社交账号",
     "socialDescription": "连接 YouTube、TikTok 和 Instagram，发布短片并查看表现",
     "creatorTitle": "创作者计划",
-    "creatorDescription": "制作关于 SupoClip 的视频，免费获得 Pro，并给你的观众一个代码"
+    "creatorDescription": "制作关于 SupoClip 的视频，免费获得 Pro，并给你的观众一个代码",
+    "teamTitle": "团队与工作区",
+    "teamDescription": "共享每月视频时长、管理席位并邀请剪辑师协作"
   },
   "save": {
     "saved": "偏好已保存！",
@@ -270,7 +279,9 @@
     "message": "你的上次付款失败了。请更新付款方式以保留你的方案。",
     "action": "更新付款方式",
     "failed": "无法打开账单门户",
-    "paused": "在这笔付款完成之前，剪辑会暂停。"
+    "paused": "在这笔付款完成之前，剪辑会暂停。",
+    "teamMessage": "你的团队上次付款失败了。请更新付款方式以保留团队套餐。",
+    "teamAskOwner": "请联系团队所有者更新付款方式。"
   },
   "cancel": {
     "scheduled": "你的订阅将于 <strong>{date}</strong> 取消。",

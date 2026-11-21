@@ -71,6 +71,19 @@
       "title": "Mehr mit {plan}",
       "titleFallback": "Pläne für jeden Creator",
       "body": "Mehr Video pro Monat, Full-HD-Clips, längere Quellen und bevorzugte Verarbeitung."
+    },
+    "member": {
+      "eyebrow": "Dein Limit in {team}",
+      "pausedTitle": "Dein Platz ist für neue Videos pausiert",
+      "pausedBody": "Ein Team-Admin hat die Videogenerierung für deinen Platz pausiert. Bitte ihn, sie wieder zu aktivieren. Dieser Versuch hat keine Minuten verbraucht.",
+      "title": "Du hast deine {limit} Minuten für diesen Monat genutzt",
+      "titleShort": "Dieses Video braucht {required} Minuten, in deinem Limit sind noch {remaining}",
+      "bodyRefresh": "Ein Team-Admin hat dein Limit auf {limit} Minuten pro Monat gesetzt. Es wird am {date} erneuert, oder bitte einen Admin, es zu erhöhen. Dieser Versuch hat keine Minuten verbraucht.",
+      "bodyPeriod": "Ein Team-Admin hat dein Limit auf {limit} Minuten pro Monat gesetzt. Es wird nächsten Monat erneuert, oder bitte einen Admin, es zu erhöhen. Dieser Versuch hat keine Minuten verbraucht."
+    },
+    "teamStart": {
+      "title": "{team} braucht einen Team-Tarif, um Clips zu erstellen",
+      "body": "Clips hier nutzen die gemeinsamen Stunden des Teams. Dafür braucht das Team zuerst einen aktiven Team-Tarif."
     }
   },
   "illustration": {
@@ -104,5 +117,8 @@
     "yearly": "Jährlich",
     "monthsFree": "{count, plural, one {# Monat gratis} other {# Monate gratis}}"
   },
-  "comingSoon": "Demnächst"
+  "comingSoon": "Demnächst",
+  "teamWorkspaceBody": "{team} nutzt ein gemeinsames Team-Abo. Eigentümer können den Tarif aktivieren oder Plätze hinzufügen, um das Stundenkontingent zu erhöhen.",
+  "manageTeamSeats": "Team & Plätze verwalten",
+  "teamAskOwner": "{team} nutzt ein gemeinsames Team-Abo. Bitte den Team-Eigentümer, den Tarif zu starten oder Plätze hinzuzufügen."
 }

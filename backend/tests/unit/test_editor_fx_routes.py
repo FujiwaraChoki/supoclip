@@ -435,10 +435,10 @@ async def test_reaction_preview_streams_a_saved_cue(studio, monkeypatch, tmp_pat
 @pytest.fixture
 def ai_route(studio, monkeypatch):
     class Allowance:
-        async def summary(self, user_id):
+        async def summary(self, user_id, *, team_id=None):
             return {"plan": "pro", "limit": 10, "used": 0, "remaining": 10, "resetsAt": "x", "allowed": True}
 
-        async def reserve(self, user_id, job_id):
+        async def reserve(self, user_id, job_id, *, team_id=None):
             return await self.summary(user_id)
 
     monkeypatch.setattr(editor, "AIEditAllowanceService", lambda db: Allowance())

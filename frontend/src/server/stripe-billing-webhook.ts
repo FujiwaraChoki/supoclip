@@ -31,6 +31,15 @@ import {
   syncSubscriptionUpdate,
   upsertSubscriptionState,
 } from "@/server/stripe-subscription-sync";
+import {
+  handleTeamCheckoutCompleted,
+  handleTeamInvoicePaid,
+  handleTeamInvoicePaymentFailed,
+  handleTeamSubscriptionDeleted,
+  handleTeamSubscriptionUpdated,
+  isTeamCheckoutSession,
+  isTeamStripeSubscription,
+} from "@/server/stripe-team-billing";
 import Stripe from "stripe";
 
 type SubscriptionEmailEvent =
@@ -456,11 +465,24 @@ export async function dispatchBillingEvent(event: Stripe.Event, analytics?: Webh
   const stripe = getServerStripeClient();
   await handleOwnedBillingRisk(event);
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-    await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, analytics);
+    const checkoutSession = event.data.object as Stripe.Checkout.Session;
+    if (await handleTeamCheckoutCompleted(checkoutSession)) {
+      return;
+    }
+    if (isTeamCheckoutSession(checkoutSession)) {
+      return;
+    }
+    await handleCheckoutCompleted(checkoutSession, analytics);
   }
 
   if (event.type === "customer.subscription.updated") {
     const subscription = event.data.object as Stripe.Subscription;
+    if (await handleTeamSubscriptionUpdated(subscription)) {
+      return;
+    }
+    if (isTeamStripeSubscription(subscription)) {
+      return;
+    }
     if (
       isNewlyScheduledCancellation(subscription, event.data.previous_attributes)
     ) {
@@ -490,15 +512,30 @@ export async function dispatchBillingEvent(event: Stripe.Event, analytics?: Webh
     event.type === "invoice.paid" ||
     event.type === "invoice.payment_succeeded"
   ) {
-    await applyPaidUpgradeInvoice(event.data.object as Stripe.Invoice);
-    await noteSubscriptionRenewal(event.data.object as Stripe.Invoice, analytics);
+    const invoice = event.data.object as Stripe.Invoice;
+    if (await handleTeamInvoicePaid(invoice)) {
+      return;
+    }
+    await applyPaidUpgradeInvoice(invoice);
+    await noteSubscriptionRenewal(invoice, analytics);
   }
 
   if (event.type === "invoice.payment_failed") {
-    await noteUpgradePaymentFailed(event.data.object as Stripe.Invoice);
+    const invoice = event.data.object as Stripe.Invoice;
+    if (await handleTeamInvoicePaymentFailed(invoice)) {
+      return;
+    }
+    await noteUpgradePaymentFailed(invoice);
   }
 
   if (event.type === "customer.subscription.deleted") {
-    await handleSubscriptionDeleted(event.data.object as Stripe.Subscription, analytics);
+    const subscription = event.data.object as Stripe.Subscription;
+    if (await handleTeamSubscriptionDeleted(subscription)) {
+      return;
+    }
+    if (isTeamStripeSubscription(subscription)) {
+      return;
+    }
+    await handleSubscriptionDeleted(subscription, analytics);
   }
 }

@@ -29,6 +29,8 @@ async function signedIn(page: Page) {
 }
 
 const html = (page: Page) => page.locator("html");
+// The theme lives in the account menu at the bottom of the desktop sidebar.
+const accountMenu = (page: Page) => page.locator("aside").getByRole("button", { name: /alex@example\.com/ });
 
 test.use({ colorScheme: "dark", viewport: { width: 1440, height: 900 } });
 
@@ -52,8 +54,10 @@ test("the app starts light, switches to dark from the sidebar, and keeps it", as
   await expect(html(page)).toHaveClass(/\blight\b/);
   await shot(page, "library-light");
 
-  await page.getByRole("button", { name: "Switch light/dark theme" }).click();
+  await accountMenu(page).click();
+  await page.getByRole("menuitemradio", { name: "Dark" }).click();
   await expect(html(page)).toHaveClass(/\bdark\b/);
+  await page.keyboard.press("Escape");
   await page.mouse.move(700, 450);
   await shot(page, "library-dark");
 
@@ -62,7 +66,7 @@ test("the app starts light, switches to dark from the sidebar, and keeps it", as
   await shot(page, "library-dark-bulk-bar");
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Switch light/dark theme" })).toBeVisible();
+  await expect(accountMenu(page)).toBeVisible();
   await expect(html(page)).toHaveClass(/\bdark\b/);
   await shot(page, "create-dark");
 

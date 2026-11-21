@@ -25,7 +25,9 @@
     "social": "Cuentas sociales",
     "socialHint": "Conecta YouTube, TikTok e Instagram",
     "analyticsHint": "Cómo rinden tus clips publicados",
-    "agentsHint": "Claves de API y MCP"
+    "agentsHint": "Claves de API y MCP",
+    "team": "Equipo y espacios",
+    "teamHint": "Administra miembros, puestos y horas compartidas"
   },
   "usage": {
     "pickPlan": "Elige un plan para empezar a recortar",
@@ -35,7 +37,9 @@
     "minutesOf": "{used} / {limit} min",
     "minutes": "{used} min",
     "minutesLeft": "quedan {count} min este mes",
-    "minutesThisMonth": "minutos de vídeo este mes"
+    "minutesThisMonth": "minutos de vídeo este mes",
+    "activateTeam": "Activar plan de Equipo",
+    "addTeamSeats": "Agregar puestos o gestionar equipo"
   },
   "user": {
     "creator": "Creador",
@@ -66,5 +70,34 @@
     "success": "Comentario enviado — ¡gracias!",
     "failed": "No se pudo enviar el comentario",
     "error": "Algo salió mal"
+  },
+  "workspace": {
+    "label": "Espacios de trabajo",
+    "switchAria": "Cambiar espacio de trabajo",
+    "personal": "Personal",
+    "personalSubtitle": "Espacio personal",
+    "teamSettings": "Ajustes del equipo",
+    "createTeam": "Crear un equipo"
+  },
+  "account": {
+    "menu": "Menú de la cuenta",
+    "minutesLeft": "quedan {count} min",
+    "planMinutesLeft": "{plan} · quedan {count} min",
+    "seatPaused": "Puesto pausado",
+    "usage": "Uso",
+    "usageThisMonth": "Uso de este mes",
+    "current": "Actual",
+    "planLabel": "Plan {plan}",
+    "yourLimit": "Tu límite",
+    "teamPool": "Bolsa del equipo",
+    "teamPoolOf": "Bolsa del equipo {used} / {limit} min",
+    "teamPoolUsed": "Bolsa del equipo {used} min",
+    "seatPausedLong": "Un administrador pausó tu puesto",
+    "askAdmin": "Pide más a un administrador",
+    "usageError": "No se pudieron cargar tus otros espacios de trabajo.",
+    "billing": "Facturación y uso",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro"
   }
 }

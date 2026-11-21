@@ -17,11 +17,13 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
 import { useSocialAccess } from "@/hooks/use-social-access";
+import { useWorkspace } from "@/hooks/use-workspace";
 import {
   annualFullPrice,
   annualMonthlyEquivalent,
   annualMonthsFree,
   getPublicBillingPlans,
+  getTeamBillingConfig,
   isPaidBillingPlan,
   planPrice,
   type BillingInterval,
@@ -36,7 +38,7 @@ import { UpgradeThankYou } from "@/components/billing/upgrade-thank-you";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Info, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Info, Languages, Loader2, Mail, Megaphone, Share2, Type, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DEFAULT_SITE_URL, GITHUB_URL } from "@/lib/site";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
@@ -69,12 +71,15 @@ export default function SettingsPage() {
   const [celebration, setCelebration] = useState<"waiting" | "show" | null>(null);
   const { data: session, isPending, refetch: refetchSession } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
+  const { teams, teamsAvailable } = useWorkspace(Boolean(session?.user));
   const t = useTranslations("settings");
   const common = useTranslations("common");
   const tLang = useTranslations("language");
   const plans = useBillingPlanText();
 
   const paidPlans = getPublicBillingPlans();
+  const teamConfig = getTeamBillingConfig();
+  const isTeamWorkspace = billingSummary?.workspace_type === "team";
   const upgradeState = getUpgradeState(billingSummary);
   const paymentNeedsUpdate = upgradeState?.needsPayment ?? false;
   const currentPaidPlan = paidPlans.find((plan) => plan.id === billingSummary?.plan);
@@ -536,9 +541,25 @@ export default function SettingsPage() {
                 />
               )}
 
-              {paymentNeedsUpdate && <PaymentFailedBanner />}
+              {paymentNeedsUpdate && <PaymentFailedBanner teamId={isTeamWorkspace ? billingSummary.team_id : undefined} />}
 
-              {isPaidBillingPlan(billingSummary.plan) ? (
+              {isTeamWorkspace ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">
+                      {t("plan.teamWorkspaceTitle", {
+                        team: billingSummary.team_name || common("plans.team"),
+                      })}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t("plan.teamWorkspaceBody")}
+                    </p>
+                  </div>
+                  <Button asChild size="sm">
+                    <Link href="/settings/team">{t("plan.manageTeam")}</Link>
+                  </Button>
+                </div>
+              ) : isPaidBillingPlan(billingSummary.plan) ? (
                 billingSummary.subscription_provider === "apple" ? (
                   <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">{t("plan.appStore")}</p>
                 ) : (
@@ -646,12 +667,54 @@ export default function SettingsPage() {
                       </span>
                     </button>
                   ))}
+                  {teamsAvailable && <Link
+                    href="/settings/team"
+                    className="group flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 transition-colors hover:border-foreground/30 sm:col-span-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Users className="size-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold">{common("plans.team")}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {billingInterval === "year"
+                            ? t("plan.teamPriceYearly", {
+                                price: teamConfig.priceAnnual,
+                                extraPrice: teamConfig.seatPriceAnnual,
+                              })
+                            : t("plan.teamPriceMonthly", {
+                                price: teamConfig.priceMonthly,
+                                extraPrice: teamConfig.seatPriceMonthly,
+                              })}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t("plan.teamSummary", {
+                          seats: teamConfig.includedSeats,
+                          hours: Math.round(teamConfig.baseMinuteLimit / 60),
+                          extraHours: Math.round(teamConfig.extraSeatMinuteLimit / 60),
+                        })}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+                      {t("plan.createTeamCta")}
+                      <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </Link>}
                   <CreatorCodeField className="justify-self-start sm:col-span-2" />
                 </div>
               )}
             </div>
           </Section>
         )}
+
+        {(teamsAvailable || teams.length > 0) && <Link href="/settings/team" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Users className="size-4" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{t("links.teamTitle")}</span>
+            <span className="block text-xs text-muted-foreground">{t("links.teamDescription")}</span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>}
 
         <Link href="/settings/api-keys" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Bot className="size-4" /></span>

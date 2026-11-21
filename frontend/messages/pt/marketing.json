@@ -495,7 +495,24 @@
     },
     "publishPlatforms": "Publique clipes no YouTube Shorts e TikTok",
     "schedulingPlatforms": "Agende clipes no YouTube Shorts e TikTok",
-    "schedulingSoon": "Agendamento no Instagram"
+    "schedulingSoon": "Agendamento no Instagram",
+    "team": {
+      "badge": "Equipes e Agências",
+      "description": "Para times de cortes, agências e criadores com editores.",
+      "seatAddon": "Inclui {seats} assentos · +${price}/assento extra (+{hours}h)",
+      "seatsLabel": "{count} assentos",
+      "decreaseSeats": "Diminuir assentos",
+      "increaseSeats": "Aumentar assentos",
+      "cta": "Criar uma equipe",
+      "features": {
+        "pooledHours": "{hours} horas compartilhadas de vídeo/mês",
+        "seats": "{seats} assentos com biblioteca compartilhada",
+        "quality": "Clipes Full HD {resolution} · YouTube até {hours}h",
+        "sharedWorkspace": "Agendamento social e {aiEdits} edições de IA/mês",
+        "roles": "Funções de Proprietário, Admin e Membro + mais concorrência",
+        "aiEdits": "{aiEdits} edições de IA compartilhadas/mês"
+      }
+    }
   },
   "faq": {
     "eyebrow": "Perguntas frequentes",

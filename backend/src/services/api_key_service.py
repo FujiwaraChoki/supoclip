@@ -1,5 +1,5 @@
 """
-API key service - mints, lists and revokes per-user API keys.
+API key service - mints, lists and revokes personal and team-scoped API keys.
 
 Keys look like ``sk_<random>``. Only the SHA-256 hash is persisted, so the
 plaintext key returned by :func:`create_api_key` is the only time it can be
@@ -9,7 +9,7 @@ read; callers must surface it to the user immediately.
 from __future__ import annotations
 
 import secrets
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +24,7 @@ MAX_KEYS_PER_USER = 25
 
 
 class ApiKeyLimitExceeded(Exception):
-    """Raised when a user already has the maximum number of active keys."""
+    """Raised when a workspace already has the maximum number of active keys."""
 
 
 def _generate_key() -> str:
@@ -38,15 +38,11 @@ class ApiKeyService:
         self.db = db
         self.repo = ApiKeyRepository
 
-    async def create_api_key(self, user_id: str, name: str) -> Dict[str, Any]:
-        """
-        Create a new API key for the user.
-
-        Returns the key metadata plus a one-time ``key`` field holding the
-        plaintext secret. Raises :class:`ApiKeyLimitExceeded` if the user has
-        too many active keys.
-        """
-        existing = await self.repo.list_api_keys(self.db, user_id)
+    async def create_api_key(
+        self, user_id: str, name: str, *, team_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Create a new API key for the personal or team workspace."""
+        existing = await self.repo.list_api_keys(self.db, user_id, team_id=team_id)
         active = [key for key in existing if not key.get("revoked")]
         if len(active) >= MAX_KEYS_PER_USER:
             raise ApiKeyLimitExceeded(
@@ -62,14 +58,19 @@ class ApiKeyService:
             name=cleaned_name,
             key_hash=hash_api_key(raw_key),
             key_prefix=raw_key[:_PREFIX_LENGTH],
+            team_id=team_id,
         )
         # The plaintext key is only ever returned here.
         return {**record, "key": raw_key}
 
-    async def list_api_keys(self, user_id: str) -> List[Dict[str, Any]]:
-        """List the user's API keys (metadata only, never the secret)."""
-        return await self.repo.list_api_keys(self.db, user_id)
+    async def list_api_keys(
+        self, user_id: str, *, team_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """List workspace API keys (metadata only, never the secret)."""
+        return await self.repo.list_api_keys(self.db, user_id, team_id=team_id)
 
-    async def revoke_api_key(self, user_id: str, key_id: str) -> bool:
-        """Revoke a key owned by the user. Returns True if a key was revoked."""
-        return await self.repo.revoke_api_key(self.db, user_id, key_id)
+    async def revoke_api_key(
+        self, user_id: str, key_id: str, *, team_id: Optional[str] = None
+    ) -> bool:
+        """Revoke a key owned by the user or team. Returns True if revoked."""
+        return await self.repo.revoke_api_key(self.db, user_id, key_id, team_id=team_id)

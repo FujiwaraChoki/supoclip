@@ -44,7 +44,8 @@ from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
-from ...auth_headers import resolve_authenticated_user_id
+from ...auth_headers import AuthContext, resolve_auth_context, resolve_authenticated_user_id
+from ...repositories.team_repository import TeamRepository
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
 from ...feature_flags import DYNAMIC_EDITS, client_platform, is_enabled as feature_enabled
 from ...edit_fx.contracts import EditStyle, GRADES, INTENSITIES, LISTED_FX_CAPTION_TEMPLATES, MOODS, is_fx_template
@@ -367,10 +368,23 @@ def _finite_number(value: Any, name: str) -> float:
     return number
 
 
-async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
+async def _default_get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
     """Resolve the authenticated user ID from an API key or signed frontend headers."""
     config = get_config()
     return await resolve_authenticated_user_id(request, db, config)
+
+
+_get_user_id_from_headers = _default_get_user_id_from_headers
+
+
+async def _get_auth_context(request: Request, db: AsyncSession) -> AuthContext:
+    """Resolve authenticated user + verified team membership (if team header/key present)."""
+    # Preserve test monkeypatching of `_get_user_id_from_headers`.
+    if _get_user_id_from_headers is not _default_get_user_id_from_headers:
+        user_id = await _get_user_id_from_headers(request, db)
+        return AuthContext(user_id=user_id, team_id=None)
+    config = get_config()
+    return await resolve_auth_context(request, db, config)
 
 
 async def _load_task_source_metadata(task_id: str, db: AsyncSession | None = None) -> Dict[str, Any]:
@@ -459,37 +473,68 @@ ADMIN_READABLE_TASK_STATUSES = {"queued", "processing", "pending"}
 async def _load_task_for_user(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
-    user_id = await _get_user_id_from_headers(request, db)
+    auth_ctx = await _get_auth_context(request, db)
     task = await task_service.task_repo.get_task_by_id(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return user_id, task
+    return auth_ctx, task
+
+
+async def _can_access_task(
+    auth_ctx: AuthContext, db: AsyncSession, task: Dict[str, Any]
+) -> bool:
+    """Strict tenant isolation for personal and team-scoped tasks."""
+    task_team_id = task.get("team_id")
+    if task_team_id:
+        # A team-scoped API key may only access tasks in its own team.
+        if auth_ctx.via_api_key and auth_ctx.team_id != task_team_id:
+            return False
+        if auth_ctx.team_id == task_team_id:
+            return True
+        return await TeamRepository.is_member(db, task_team_id, auth_ctx.user_id)
+
+    # Personal task: never accessible via a team-scoped API key, and only by owner.
+    if auth_ctx.via_api_key and auth_ctx.team_id is not None:
+        return False
+    return task.get("user_id") == auth_ctx.user_id
+
+
+async def _require_task_access(
+    request: Request, task_service: TaskService, db: AsyncSession, task_id: str
+) -> tuple[AuthContext, Dict[str, Any]]:
+    """The caller and a task they own or reach through its team. Returns (caller, task).
+
+    In a team the caller is not always the task's creator; whatever is metered
+    per member is charged to the caller.
+    """
+    auth_ctx, task = await _load_task_for_user(request, task_service, db, task_id)
+
+    if not await _can_access_task(auth_ctx, db, task):
+        raise HTTPException(status_code=403, detail="Not authorized for this task")
+
+    return auth_ctx, task
 
 
 async def _require_task_owner(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
-    """Ensure authenticated user owns the task."""
-    user_id, task = await _load_task_for_user(request, task_service, db, task_id)
-
-    if task.get("user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized for this task")
-
+    """Ensure authenticated user owns the task or actively belongs to its team."""
+    _auth_ctx, task = await _require_task_access(request, task_service, db, task_id)
     return task
 
 
 async def _authorize_task_reader(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
-    """Owner, or an admin reading a task that is still active. Returns (user_id, task)."""
-    user_id, task = await _load_task_for_user(request, task_service, db, task_id)
+    """Owner/teammate, or an admin reading a task that is still active. Returns (user_id, task)."""
+    auth_ctx, task = await _load_task_for_user(request, task_service, db, task_id)
 
-    if task.get("user_id") == user_id:
-        return user_id, task
+    if await _can_access_task(auth_ctx, db, task):
+        return auth_ctx.user_id, task
     if task.get("status") in ADMIN_READABLE_TASK_STATUSES and await user_is_admin(
-        db, user_id
+        db, auth_ctx.user_id
     ):
-        return user_id, task
+        return auth_ctx.user_id, task
 
     raise HTTPException(status_code=403, detail="Not authorized for this task")
 
@@ -595,15 +640,17 @@ async def list_tasks(
     request: Request, db: AsyncSession = Depends(get_db), limit: int = 50
 ):
     """
-    Get all tasks for the authenticated user.
+    Get all tasks for the authenticated user's active workspace (personal or team).
     """
-    user_id = await _get_user_id_from_headers(request, db)
+    auth_ctx = await _get_auth_context(request, db)
 
     try:
         task_service = TaskService(db)
-        tasks = await task_service.get_user_tasks(user_id, limit)
+        tasks = await task_service.get_user_tasks(
+            auth_ctx.user_id, limit, team_id=auth_ctx.team_id
+        )
 
-        return {"tasks": tasks, "total": len(tasks)}
+        return {"tasks": tasks, "total": len(tasks), "team_id": auth_ctx.team_id}
 
     except Exception as e:
         logger.error(f"Error retrieving user tasks: {e}")
@@ -705,7 +752,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         attempt.note_url(raw_source.get("url"))
     if not isinstance(raw_source, dict) or not isinstance(raw_source.get("url"), str) or not raw_source["url"].strip():
         raise HTTPException(status_code=400, detail="Source URL is required")
-    user_id = await _get_user_id_from_headers(request, db)
+    auth_ctx = await _get_auth_context(request, db)
+    user_id = auth_ctx.user_id
+    team_id = auth_ctx.team_id
     attempt.note_user(user_id)
     attempt.note_workflow(data.get("workflow"))
 
@@ -792,7 +841,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         if replay is not None:
             return replay
     if upload_request_key and db is not None:
-        existing = await TaskRepository.find_recent_upload_task(db, user_id, upload_request_key)
+        existing = await TaskRepository.find_recent_upload_task(
+            db, user_id, upload_request_key, team_id=team_id
+        )
         if existing is not None:
             return await _bind_existing_task(
                 db, user_id, idempotency,
@@ -807,7 +858,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         source_key = await source_key_for_url(db, user_id, raw_source["url"].strip())
         if source_key:
             existing = await TaskRepository.find_active_source_task(
-                db, user_id, source_key, **edit_identity
+                db, user_id, source_key, team_id=team_id, **edit_identity
             )
             if existing is not None:
                 return await _bind_existing_task(
@@ -817,7 +868,11 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
 
     try:
         billing_service = BillingService(db)
-        billing = await billing_service.assert_can_create_task(user_id)
+        billing = (
+            await billing_service.assert_can_create_task(user_id, team_id=team_id)
+            if team_id
+            else await billing_service.assert_can_create_task(user_id)
+        )
 
         task_service = TaskService(db)
 
@@ -858,7 +913,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
 
         async with generation_allowance_guard(
-            db, user_id, enabled=runtime_config.monetization_enabled
+            db, user_id, enabled=runtime_config.monetization_enabled, team_id=team_id
         ):
             if idempotency:
                 # Admissions are serialized here. A retry that waited on the
@@ -866,11 +921,16 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 replay = await _replay_task(db, user_id, idempotency)
                 if replay is not None:
                     return replay
-            await billing_service.assert_can_create_task(user_id, duration_seconds)
-            async with source_admission_lock(db, user_id, source_key):
+            if team_id:
+                await billing_service.assert_can_create_task(
+                    user_id, duration_seconds, team_id=team_id
+                )
+            else:
+                await billing_service.assert_can_create_task(user_id, duration_seconds)
+            async with source_admission_lock(db, f"team:{team_id}" if team_id else user_id, source_key):
                 if source_key:
                     existing = await TaskRepository.find_active_source_task(
-                        db, user_id, source_key, **edit_identity
+                        db, user_id, source_key, team_id=team_id, **edit_identity
                     )
                     if existing is not None:
                         return await _bind_existing_task(
@@ -894,6 +954,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         workflow_options=workflow_options,
                         **({"edit_style": edit_style_json} if edit_style_json else {}),
                         **({"idempotency": idempotency} if idempotency else {}),
+                        **({"team_id": team_id} if team_id else {}),
                     )
                 except TaskIdempotencyReplay:
                     # A concurrent request with this key committed its task first
@@ -1009,12 +1070,14 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
 
 @router.get("/billing/summary")
 async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_db)):
-    """Get monetization status and current usage for authenticated user."""
-    user_id = await _get_user_id_from_headers(request, db)
+    """Get monetization status and current usage for authenticated workspace."""
+    auth_ctx = await _get_auth_context(request, db)
 
     try:
         billing_service = BillingService(db)
-        summary = await billing_service.get_usage_summary(user_id)
+        summary = await billing_service.get_usage_summary(
+            auth_ctx.user_id, team_id=auth_ctx.team_id
+        )
         return summary
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1283,18 +1346,11 @@ async def delete_task(
 ):
     """Delete a task and all its associated clips."""
     try:
-        user_id = await _get_user_id_from_headers(request, db)
         task_service = TaskService(db)
 
-        # Get task to verify ownership
-        task = await task_service.task_repo.get_task_by_id(db, task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        if task["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, detail="Not authorized to delete this task"
-            )
+        # The owner, or a current member of the task's team. A member removed
+        # from the team, or an API key bound to another workspace, is refused.
+        await _require_task_owner(request, task_service, db, task_id)
 
         # Delete clips and task
         await task_service.delete_task(task_id)
@@ -1316,18 +1372,9 @@ async def delete_clip(
 ):
     """Delete a specific clip."""
     try:
-        user_id = await _get_user_id_from_headers(request, db)
         task_service = TaskService(db)
 
-        # Verify task ownership
-        task = await task_service.task_repo.get_task_by_id(db, task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        if task["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, detail="Not authorized to delete this clip"
-            )
+        await _require_task_owner(request, task_service, db, task_id)
 
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip["task_id"] != task_id:
@@ -2125,10 +2172,21 @@ async def resume_task(
             if not source_url or not source_type:
                 raise HTTPException(status_code=400, detail="Task source URL is missing")
 
+            task_team_id = task.get("team_id")
             async with generation_allowance_guard(
-                db, task["user_id"], enabled=get_config().monetization_enabled
+                db,
+                task["user_id"],
+                enabled=get_config().monetization_enabled,
+                **({"team_id": task_team_id} if task_team_id else {}),
             ):
-                await BillingService(db).assert_can_resume_task(task["user_id"], task_id)
+                if task_team_id:
+                    await BillingService(db).assert_can_resume_task(
+                        task["user_id"], task_id, team_id=task_team_id
+                    )
+                else:
+                    await BillingService(db).assert_can_resume_task(
+                        task["user_id"], task_id
+                    )
 
                 try:
                     runtime_config = get_config()

@@ -129,7 +129,19 @@
     "remaining": "{count, plural, one {# menit video tersisa bulan ini} other {# menit video tersisa bulan ini}}",
     "nearWithPlan": "{refreshes} Butuh ruang lebih? {plan} memberi {limit} video sebulan.",
     "upgrade": "Upgrade",
-    "limitTitleAll": "Kamu sudah memakai menit video bulan ini"
+    "limitTitleAll": "Kamu sudah memakai menit video bulan ini",
+    "teamStartTitle": "{team} belum punya paket Tim yang aktif",
+    "teamStartOwner": "Aktifkan di pengaturan tim agar semua anggota bisa membuat klip.",
+    "teamStartMember": "Minta pemilik tim untuk mengaktifkan paket Tim.",
+    "teamSettings": "Pengaturan tim",
+    "memberPausedTitle": "Kursimu dijeda untuk video baru",
+    "memberPausedBody": "Admin tim menjeda pembuatan video untukmu. Minta mereka mengaktifkannya lagi.",
+    "teamLimitOwner": "{refreshes} Atau tambah kursi untuk jam bersama yang lebih banyak.",
+    "teamLimitMember": "{refreshes} Atau minta pemilik tim menambah kursi.",
+    "manageSeats": "Tambah kursi",
+    "memberLimitTitle": "Kamu sudah memakai {limit} menit jatahmu bulan ini",
+    "memberLimitBody": "{refreshes} Admin tim bisa menaikkan batasmu.",
+    "memberNearBody": "{refreshes} Admin tim menetapkan batasmu {limit} menit sebulan."
   },
   "clipLength": {
     "picker": "Durasi klip",

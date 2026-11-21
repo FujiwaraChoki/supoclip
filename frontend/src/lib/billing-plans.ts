@@ -1,5 +1,8 @@
 export type BillingPlanId = "pro" | "scale";
+export type AnyPaidBillingPlanId = BillingPlanId | "team";
 export type BillingInterval = "month" | "year";
+
+export const MAX_TEAM_SEATS = 100;
 
 export type PublicBillingPlan = {
   id: BillingPlanId;
@@ -19,10 +22,45 @@ export type PublicBillingPlan = {
   highlighted: boolean;
 };
 
+export type TeamBillingConfig = {
+  id: "team";
+  name: string;
+  priceMonthly: string;
+  priceAnnual: string;
+  seatPriceMonthly: string;
+  seatPriceAnnual: string;
+  includedSeats: number;
+  baseMinuteLimit: number;
+  extraSeatMinuteLimit: number;
+  youtubeMaxMinutes: number;
+  aiEditLimit: number;
+  resolution: string;
+  scheduling: boolean;
+};
+
+export type TeamPricingBreakdown = {
+  seats: number;
+  includedSeats: number;
+  extraSeats: number;
+  interval: BillingInterval;
+  basePrice: number;
+  seatPrice: number;
+  extraSeatsSubtotal: number;
+  totalPrice: number;
+  monthlyEquivalent: number;
+  annualFullPrice: number;
+  monthsFree: number;
+  totalMinutes: number;
+  totalHours: number;
+  aiEditLimit: number;
+};
+
 export const PAID_PLAN_IDS: BillingPlanId[] = ["pro", "scale"];
 
-export function billingPlanMessageKey(plan: string | null | undefined): "free" | "pro" | "scale" | "selfHost" {
-  if (plan === "pro" || plan === "scale") return plan;
+export function billingPlanMessageKey(
+  plan: string | null | undefined,
+): "free" | "pro" | "scale" | "team" | "selfHost" {
+  if (plan === "pro" || plan === "scale" || plan === "team") return plan;
   if (plan === "self_host") return "selfHost";
   return "free";
 }
@@ -34,20 +72,25 @@ export function formatBillingPlanName(plan: string | null | undefined): string {
   if (plan === "scale") {
     return "Creator";
   }
+  if (plan === "team") {
+    return "Team";
+  }
   if (plan === "self_host") {
     return "Self-Hosted";
   }
   return "Free";
 }
 
-export function isPaidBillingPlan(plan: string | null | undefined): plan is BillingPlanId {
-  return plan === "pro" || plan === "scale";
+export function isPaidBillingPlan(
+  plan: string | null | undefined,
+): plan is AnyPaidBillingPlanId {
+  return plan === "pro" || plan === "scale" || plan === "team";
 }
 
 export type SocialPublishingStage = "off" | "soon" | "live";
 
 /**
- * How plan pages present scheduled posting (a Creator feature):
+ * How plan pages present scheduled posting (a Creator/Team feature):
  * hidden ("off"), marked "Coming soon" (default, while platform reviews are
  * pending), or listed as a live feature ("live"). Set NEXT_PUBLIC_SOCIAL_PUBLISHING.
  */
@@ -60,6 +103,81 @@ export function socialPublishingStage(): SocialPublishingStage {
 
 export function isBillingInterval(value: unknown): value is BillingInterval {
   return value === "month" || value === "year";
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const parsed = parseInt(raw || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function getTeamBillingConfig(): TeamBillingConfig {
+  return {
+    id: "team",
+    name: "Team",
+    priceMonthly: process.env.NEXT_PUBLIC_TEAM_PRICE_MONTHLY || "69",
+    priceAnnual: process.env.NEXT_PUBLIC_TEAM_PRICE_ANNUAL || "690",
+    seatPriceMonthly: process.env.NEXT_PUBLIC_TEAM_SEAT_PRICE_MONTHLY || "15",
+    seatPriceAnnual: process.env.NEXT_PUBLIC_TEAM_SEAT_PRICE_ANNUAL || "150",
+    includedSeats: parsePositiveInt(process.env.NEXT_PUBLIC_TEAM_INCLUDED_SEATS, 3),
+    baseMinuteLimit: parsePositiveInt(process.env.NEXT_PUBLIC_TEAM_PLAN_MINUTE_LIMIT, 3600),
+    extraSeatMinuteLimit: parsePositiveInt(
+      process.env.NEXT_PUBLIC_TEAM_EXTRA_SEAT_MINUTE_LIMIT,
+      900,
+    ),
+    youtubeMaxMinutes: parsePositiveInt(process.env.NEXT_PUBLIC_TEAM_YOUTUBE_MAX_MINUTES, 180),
+    aiEditLimit: parsePositiveInt(process.env.NEXT_PUBLIC_TEAM_AI_EDIT_LIMIT, 300),
+    resolution: "1080p",
+    scheduling: true,
+  };
+}
+
+export function formatCurrencyAmount(amount: number): string {
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+}
+
+export function calculateTeamPricing(
+  requestedSeats: number,
+  interval: BillingInterval = "month",
+  config: TeamBillingConfig = getTeamBillingConfig(),
+): TeamPricingBreakdown {
+  const clampedSeats = Math.min(
+    MAX_TEAM_SEATS,
+    Math.max(config.includedSeats, Math.floor(Number.isFinite(requestedSeats) ? requestedSeats : config.includedSeats)),
+  );
+  const extraSeats = Math.max(0, clampedSeats - config.includedSeats);
+  const monthlyBase = Number(config.priceMonthly) || 69;
+  const annualBase = Number(config.priceAnnual) || 690;
+  const monthlySeat = Number(config.seatPriceMonthly) || 15;
+  const annualSeat = Number(config.seatPriceAnnual) || 150;
+
+  const basePrice = interval === "year" ? annualBase : monthlyBase;
+  const seatPrice = interval === "year" ? annualSeat : monthlySeat;
+  const extraSeatsSubtotal = extraSeats * seatPrice;
+  const totalPrice = basePrice + extraSeatsSubtotal;
+
+  const monthlyTotal = monthlyBase + extraSeats * monthlySeat;
+  const annualFullPrice = monthlyTotal * 12;
+  const annualTotal = annualBase + extraSeats * annualSeat;
+  const monthsFree = monthlyTotal > 0 ? Math.round(12 - annualTotal / monthlyTotal) : 0;
+  const monthlyEquivalent = interval === "year" ? totalPrice / 12 : totalPrice;
+  const totalMinutes = config.baseMinuteLimit + extraSeats * config.extraSeatMinuteLimit;
+
+  return {
+    seats: clampedSeats,
+    includedSeats: config.includedSeats,
+    extraSeats,
+    interval,
+    basePrice,
+    seatPrice,
+    extraSeatsSubtotal,
+    totalPrice,
+    monthlyEquivalent,
+    annualFullPrice,
+    monthsFree,
+    totalMinutes,
+    totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+    aiEditLimit: config.aiEditLimit,
+  };
 }
 
 export function getPublicBillingPlans(): PublicBillingPlan[] {
@@ -151,7 +269,7 @@ export function formatMinutes(minutes: number): string {
 /** The plan one step above `plan`, or null when there is nothing to upgrade to. */
 export function getNextBillingPlan(plan: string | null | undefined): PublicBillingPlan | null {
   const plans = getPublicBillingPlans();
-  if (plan === "scale" || plan === "self_host") return null;
+  if (plan === "scale" || plan === "team" || plan === "self_host") return null;
   if (plan === "pro") return plans.find((candidate) => candidate.id === "scale") ?? null;
   return plans.find((candidate) => candidate.id === "pro") ?? null;
 }

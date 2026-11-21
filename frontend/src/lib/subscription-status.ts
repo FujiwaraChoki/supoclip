@@ -36,7 +36,7 @@ export function hasPaidAccess(
   status: string | null | undefined,
   provider?: string | null,
 ): boolean {
-  if (plan !== "pro" && plan !== "scale") return false;
+  if (plan !== "pro" && plan !== "scale" && plan !== "team") return false;
   if (status === "active" || status === "trialing") return true;
   return status === "past_due" && provider === "stripe";
 }

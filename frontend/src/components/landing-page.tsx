@@ -13,6 +13,8 @@ import {
   Github,
   Info,
   Menu,
+  Minus,
+  Plus,
   Upload,
   X,
 } from "lucide-react";
@@ -40,7 +42,11 @@ import {
   annualMonthlyEquivalent,
   annualMonthsFree,
   billingPlanMessageKey,
+  calculateTeamPricing,
+  formatCurrencyAmount,
   getPublicBillingPlans,
+  getTeamBillingConfig,
+  MAX_TEAM_SEATS,
   planPrice,
   socialPublishingStage,
   type BillingInterval,
@@ -169,6 +175,9 @@ export default function LandingPage() {
   const tCommon = useTranslations("common");
   const planText = useBillingPlanText();
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
+  const teamConfig = getTeamBillingConfig();
+  const [teamSeats, setTeamSeats] = useState<number>(teamConfig.includedSeats);
+  const teamPricing = calculateTeamPricing(teamSeats, billingInterval, teamConfig);
   const plans = getPlans(t, tCommon, billingInterval, planText);
   const [scrolled, setScrolled] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -407,7 +416,7 @@ export default function LandingPage() {
             />
           </Reveal>
 
-          <div className="mx-auto mt-14 grid max-w-5xl items-stretch gap-4 md:grid-cols-3">
+          <div className="mx-auto mt-14 grid max-w-6xl items-stretch gap-4 md:grid-cols-2 lg:grid-cols-4">
             {plans.map((plan, i) => (
               <Reveal key={plan.id} delay={i * 0.08} className="h-full">
                 <div
@@ -523,6 +532,123 @@ export default function LandingPage() {
                 </div>
               </Reveal>
             ))}
+
+            {/* Team Plan card with interactive seat selector */}
+            <Reveal delay={plans.length * 0.08} className="h-full">
+              <div className="relative flex h-full flex-col rounded-[26px] border bg-card p-7">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-display text-xl font-bold tracking-tight">
+                    {tCommon("plans.team")}
+                  </h3>
+                  <span className="rounded-full border px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {t("pricing.team.badge")}
+                  </span>
+                </div>
+                <p className="mt-1.5 min-h-10 text-sm text-muted-foreground">
+                  {t("pricing.team.description")}
+                </p>
+
+                <div className="mt-7 @container">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    {billingInterval === "year" && teamPricing.monthsFree > 0 && (
+                      <span className="text-lg text-muted-foreground line-through">
+                        ${formatCurrencyAmount(teamPricing.annualFullPrice)}
+                      </span>
+                    )}
+                    <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight">
+                      ${formatCurrencyAmount(teamPricing.totalPrice)}
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
+                      {billingInterval === "year" ? t("pricing.period.year") : t("pricing.period.month")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {billingInterval === "year"
+                      ? t("pricing.billedYearly", { price: formatCurrencyAmount(Math.round(teamPricing.monthlyEquivalent * 100) / 100) })
+                      : t("pricing.team.seatAddon", {
+                          seats: teamConfig.includedSeats,
+                          price: teamConfig.seatPriceMonthly,
+                          hours: Math.round(teamConfig.extraSeatMinuteLimit / 60),
+                        })}
+                  </p>
+                </div>
+
+                {/* Seat selector */}
+                <div className="mt-4 flex items-center justify-between rounded-xl border bg-background px-3 py-2 text-xs">
+                  <span className="font-medium text-muted-foreground">
+                    {t("pricing.team.seatsLabel", { count: teamPricing.seats })}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label={t("pricing.team.decreaseSeats")}
+                      disabled={teamPricing.seats <= teamConfig.includedSeats}
+                      onClick={() => setTeamSeats((value) => Math.max(teamConfig.includedSeats, value - 1))}
+                      className="flex size-6 items-center justify-center rounded-md border text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                    >
+                      <Minus className="size-3" />
+                    </button>
+                    <span className="w-6 text-center font-semibold tabular-nums">
+                      {teamPricing.seats}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t("pricing.team.increaseSeats")}
+                      disabled={teamPricing.seats >= MAX_TEAM_SEATS}
+                      onClick={() => setTeamSeats((value) => Math.min(MAX_TEAM_SEATS, value + 1))}
+                      className="flex size-6 items-center justify-center rounded-md border text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                    >
+                      <Plus className="size-3" />
+                    </button>
+                  </div>
+                </div>
+
+                <ul className="mt-5 flex-1 space-y-3 border-t pt-5">
+                  <li className="flex items-start gap-3 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    {t("pricing.team.features.pooledHours", { hours: teamPricing.totalHours })}
+                  </li>
+                  <li className="flex items-start gap-3 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    {t("pricing.team.features.seats", { seats: teamPricing.seats })}
+                  </li>
+                  <li className="flex items-start gap-3 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    {t("pricing.team.features.quality", {
+                      resolution: teamConfig.resolution,
+                      hours: Math.round(teamConfig.youtubeMaxMinutes / 60),
+                    })}
+                  </li>
+                  <li className="flex items-start gap-3 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    {/* Scheduling is only promised where publishing is offered, as on the Creator card. */}
+                    {t(socialPublishingStage() === "off" ? "pricing.team.features.aiEdits" : "pricing.team.features.sharedWorkspace", { aiEdits: teamConfig.aiEditLimit })}
+                  </li>
+                  <li className="flex items-start gap-3 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    {t("pricing.team.features.roles")}
+                  </li>
+                </ul>
+
+                <div className="mt-6">
+                  {authEnabled ? (
+                    <Button asChild size="lg" variant="outline" className="h-11 w-full rounded-full text-sm">
+                      <Link href="/sign-up?next=/settings/team">
+                        {t("pricing.team.cta")}
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button asChild size="lg" variant="outline" className="h-11 w-full rounded-full text-sm">
+                      <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
+                        {t("hero.useHosted")}
+                        <ExternalLink className="size-4" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Reveal>
           </div>
 
           <Reveal>

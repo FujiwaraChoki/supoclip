@@ -1,4 +1,4 @@
-import { getUpgradeState, upgradeReasonForError } from "./upgrade-prompt";
+import { getUpgradeState, memberLimitReason, upgradeReasonForError } from "./upgrade-prompt";
 
 const base = {
   plan: "pro",
@@ -100,6 +100,41 @@ describe("upgradeReasonForError", () => {
     ).toEqual({ kind: "limit" });
   });
 
+  it("points a member at their own limit, never at the team pool or an upgrade", () => {
+    const team = { plan: "team", subscription_status: "active", subscription_provider: "stripe", remaining_minutes: 3200 };
+    // Used up: the summary says so.
+    expect(
+      upgradeReasonForError(
+        "SUBSCRIPTION_REQUIRED",
+        { billing: { ...team, member_minute_limit: 600, member_remaining_minutes: 0, member_limit_reached: true } },
+        undefined,
+      ),
+    ).toEqual({ kind: "member_limit", limit: 600, remaining: 0 });
+    // One video longer than what is left in the member's limit.
+    expect(
+      upgradeReasonForError(
+        "SUBSCRIPTION_REQUIRED",
+        { billing: { ...team, required_minutes: 30, member_minute_limit: 600, member_remaining_minutes: 12, member_limit_reached: true } },
+        undefined,
+      ),
+    ).toEqual({ kind: "member_limit", limit: 600, remaining: 12, requiredMinutes: 30 });
+  });
+
+  it("keeps the pool prompt when the member's limit is not what ran out", () => {
+    expect(
+      upgradeReasonForError(
+        "SUBSCRIPTION_REQUIRED",
+        {
+          billing: {
+            plan: "team", subscription_status: "active", required_minutes: 45, remaining_minutes: 20,
+            member_minute_limit: 600, member_remaining_minutes: 400, member_limit_reached: false,
+          },
+        },
+        undefined,
+      ),
+    ).toEqual({ kind: "limit", requiredMinutes: 45, remainingMinutes: 20 });
+  });
+
   it("maps a free user's 402 to the start prompt", () => {
     expect(upgradeReasonForError("SUBSCRIPTION_REQUIRED", { billing: { plan: "free" } }, undefined)).toEqual({ kind: "start" });
   });
@@ -118,5 +153,17 @@ describe("upgradeReasonForError", () => {
   it("ignores unrelated errors", () => {
     expect(upgradeReasonForError("VIDEO_METADATA_UNAVAILABLE", null, 180)).toBeNull();
     expect(upgradeReasonForError("VIDEO_METADATA_TIMEOUT", null, 180)).toBeNull();
+  });
+});
+
+describe("memberLimitReason", () => {
+  it("treats a limit of 0 as a paused seat even before the server flags it", () => {
+    expect(memberLimitReason({ member_minute_limit: 0 })).toEqual({ kind: "member_limit", limit: 0, remaining: 0 });
+  });
+
+  it("is silent without a member limit or with room left in it", () => {
+    expect(memberLimitReason(null)).toBeNull();
+    expect(memberLimitReason({ member_minute_limit: null, member_limit_reached: false })).toBeNull();
+    expect(memberLimitReason({ member_minute_limit: 600, member_remaining_minutes: 480, member_limit_reached: false })).toBeNull();
   });
 });

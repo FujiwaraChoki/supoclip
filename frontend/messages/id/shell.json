@@ -25,7 +25,9 @@
     "social": "Akun sosial",
     "socialHint": "Hubungkan YouTube, TikTok & Instagram",
     "analyticsHint": "Performa clip yang sudah kamu publikasikan",
-    "agentsHint": "Kunci API & MCP"
+    "agentsHint": "Kunci API & MCP",
+    "team": "Tim & ruang kerja",
+    "teamHint": "Kelola anggota, kursi & jam bersama"
   },
   "usage": {
     "pickPlan": "Pilih paket untuk mulai buat clip",
@@ -35,7 +37,9 @@
     "minutesOf": "{used} / {limit} mnt",
     "minutes": "{used} mnt",
     "minutesLeft": "{count} mnt tersisa bulan ini",
-    "minutesThisMonth": "menit video bulan ini"
+    "minutesThisMonth": "menit video bulan ini",
+    "activateTeam": "Aktifkan paket Tim",
+    "addTeamSeats": "Tambah kursi atau kelola tim"
   },
   "user": {
     "creator": "Kreator",
@@ -66,5 +70,34 @@
     "success": "Masukan terkirim — terima kasih!",
     "failed": "Masukan gagal dikirim",
     "error": "Ada yang tidak beres"
+  },
+  "workspace": {
+    "label": "Ruang kerja",
+    "switchAria": "Ganti ruang kerja",
+    "personal": "Pribadi",
+    "personalSubtitle": "Ruang kerja pribadi",
+    "teamSettings": "Pengaturan tim",
+    "createTeam": "Buat tim"
+  },
+  "account": {
+    "menu": "Menu akun",
+    "minutesLeft": "{count} mnt tersisa",
+    "planMinutesLeft": "{plan} · {count} mnt tersisa",
+    "seatPaused": "Kursi dijeda",
+    "usage": "Penggunaan",
+    "usageThisMonth": "Penggunaan bulan ini",
+    "current": "Saat ini",
+    "planLabel": "Paket {plan}",
+    "yourLimit": "Batas Anda",
+    "teamPool": "Kuota tim",
+    "teamPoolOf": "Kuota tim {used} / {limit} mnt",
+    "teamPoolUsed": "Kuota tim {used} mnt",
+    "seatPausedLong": "Kursi Anda dijeda oleh admin",
+    "askAdmin": "Minta tambahan ke admin",
+    "usageError": "Ruang kerja Anda yang lain tidak bisa dimuat.",
+    "billing": "Tagihan dan penggunaan",
+    "theme": "Tema",
+    "themeLight": "Terang",
+    "themeDark": "Gelap"
   }
 }

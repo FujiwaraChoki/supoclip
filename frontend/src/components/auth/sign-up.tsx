@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { signUp } from "../../lib/auth-client";
 import { trackEvent } from "@/lib/analytics";
@@ -18,6 +18,13 @@ export function SignUp() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    const invitedEmail = new URLSearchParams(window.location.search).get("email")?.trim();
+    if (invitedEmail) {
+      setEmail((current) => current || invitedEmail);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

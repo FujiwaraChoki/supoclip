@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { signIn } from "../../lib/auth-client";
 import { postAuthPath } from "@/lib/auth-redirect";
@@ -18,6 +18,13 @@ export function SignIn() {
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const invitedEmail = new URLSearchParams(window.location.search).get("email")?.trim();
+    if (invitedEmail) {
+      setEmail((current) => current || invitedEmail);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

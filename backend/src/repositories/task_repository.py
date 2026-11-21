@@ -51,6 +51,7 @@ class TaskRepository:
         workflow_options: Optional[Dict[str, Any]] = None,
         edit_style: Optional[Dict[str, Any]] = None,
         idempotency: Optional[tuple[str, str]] = None,
+        team_id: Optional[str] = None,
     ) -> str:
         """Create a new task and return its ID.
 
@@ -141,8 +142,17 @@ class TaskRepository:
             returned_id = result.scalar()
             if not returned_id:
                 raise RuntimeError("Failed to create task: no ID returned")
+            if team_id:
+                # The workspace is set in the same transaction, so the three INSERT
+                # shapes above stay exactly what a personal task has always used.
+                await db.execute(
+                    text("UPDATE tasks SET team_id = :team_id WHERE id = :task_id"),
+                    {"team_id": team_id, "task_id": task_id},
+                )
             if charge_minutes:
-                await record_minute_usage(db, user_id, task_id, source_duration_seconds)
+                await record_minute_usage(
+                    db, user_id, task_id, source_duration_seconds, team_id=team_id
+                )
             if idempotency and not await claim_key(db, user_id, idempotency[0], idempotency[1], task_id):
                 raise TaskIdempotencyReplay()
             # The task, its charge and its key become visible together, before enqueueing.
@@ -150,7 +160,7 @@ class TaskRepository:
         except Exception:
             await db.rollback()
             raise
-        logger.info(f"Created task {task_id} for user {user_id}")
+        logger.info(f"Created task {task_id} for user {user_id} (team={team_id})")
         return str(task_id)
 
     @staticmethod
@@ -210,15 +220,18 @@ class TaskRepository:
         return metadata if isinstance(metadata, dict) else {}
 
     @staticmethod
-    async def find_recent_upload_task(db: AsyncSession, user_id: str, key: str):
+    async def find_recent_upload_task(
+        db: AsyncSession, user_id: str, key: str, *, team_id: Optional[str] = None
+    ):
         """In-progress upload task for this request, or one completed in the last 2 minutes."""
         if not key:
             return None
+        scope = "t.team_id = :team_id" if team_id else "t.user_id = :user AND t.team_id IS NULL"
         result = await db.execute(
-            text("""
+            text(f"""
                 SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id
                 FROM tasks t
-                WHERE t.user_id = :user
+                WHERE {scope}
                   AND t.source_metadata->>'upload_request_key' = :key
                   AND (
                     t.status IN ('queued', 'processing', 'pending')
@@ -227,7 +240,7 @@ class TaskRepository:
                 ORDER BY t.created_at DESC
                 LIMIT 1
             """),
-            {"user": user_id, "key": key},
+            {"user": user_id, "team_id": team_id, "key": key},
         )
         return result.first()
 
@@ -238,8 +251,9 @@ class TaskRepository:
         source_key: str,
         *,
         edit_identity: Optional[tuple[Dict[str, Any], str]] = None,
+        team_id: Optional[str] = None,
     ):
-        """This account's queued or processing task for the same video, if any.
+        """This workspace's queued or processing task for the same video, if any.
 
         Tasks created before ``source_key`` was stored are matched by
         recomputing the key from the saved source URL.
@@ -254,21 +268,22 @@ class TaskRepository:
             return None
         if edit_identity is not None:
             return await TaskRepository._find_active_source_task_with_style(
-                db, user_id, source_key, edit_identity
+                db, user_id, source_key, edit_identity, team_id=team_id
             )
+        scope = TaskRepository._workspace_scope(team_id)
         direct = await db.execute(
             text(
-                """
+                f"""
                 SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id,
                        t.edit_style, t.caption_template
                 FROM tasks t
-                WHERE t.user_id = :user
+                WHERE {scope}
                   AND t.status IN ('queued', 'processing')
                   AND t.source_metadata->>'source_key' = :key
                 ORDER BY t.created_at ASC
                 """
             ),
-            {"user": user_id, "key": source_key},
+            {"user": user_id, "team_id": team_id, "key": source_key},
         )
         for found in direct.all():
             if not TaskRepository._renders_dynamic_edits(found):
@@ -278,18 +293,18 @@ class TaskRepository:
 
         rows = await db.execute(
             text(
-                """
+                f"""
                 SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id, s.url AS source_url,
                        t.edit_style, t.caption_template
                 FROM tasks t
                 JOIN sources s ON s.id = t.source_id
-                WHERE t.user_id = :user
+                WHERE {scope}
                   AND t.status IN ('queued', 'processing')
                   AND COALESCE(t.source_metadata->>'source_key', '') = ''
                 ORDER BY t.created_at ASC
                 """
             ),
-            {"user": user_id},
+            {"user": user_id, "team_id": team_id},
         )
         for row in rows:
             if TaskRepository._renders_dynamic_edits(row):
@@ -297,6 +312,11 @@ class TaskRepository:
             if await source_key_for_url(db, user_id, row.source_url or "") == source_key:
                 return row
         return None
+
+    @staticmethod
+    def _workspace_scope(team_id: Optional[str]) -> str:
+        """WHERE fragment for one workspace's tasks; binds ``:team_id`` or ``:user``."""
+        return "t.team_id = :team_id" if team_id else "t.user_id = :user AND t.team_id IS NULL"
 
     @staticmethod
     def _renders_dynamic_edits(row: Any) -> bool:
@@ -308,7 +328,12 @@ class TaskRepository:
 
     @staticmethod
     async def _find_active_source_task_with_style(
-        db: AsyncSession, user_id: str, source_key: str, edit_identity: tuple[Dict[str, Any], str]
+        db: AsyncSession,
+        user_id: str,
+        source_key: str,
+        edit_identity: tuple[Dict[str, Any], str],
+        *,
+        team_id: Optional[str] = None,
     ):
         from ..edit_fx.settings import read_edit_style
         from ..source_identity import source_key_for_url
@@ -316,18 +341,18 @@ class TaskRepository:
         style, template = edit_identity
         rows = await db.execute(
             text(
-                """
+                f"""
                 SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id,
                        COALESCE(t.source_metadata->>'source_key', '') AS stored_key,
                        t.edit_style, t.caption_template, s.url AS source_url
                 FROM tasks t
                 LEFT JOIN sources s ON s.id = t.source_id
-                WHERE t.user_id = :user
+                WHERE {TaskRepository._workspace_scope(team_id)}
                   AND t.status IN ('queued', 'processing')
                 ORDER BY t.created_at ASC
                 """
             ),
-            {"user": user_id},
+            {"user": user_id, "team_id": team_id},
         )
         for row in rows.all():
             if (row.caption_template or "default") != template:
@@ -404,6 +429,7 @@ class TaskRepository:
         return {
             "id": row.id,
             "user_id": row.user_id,
+            "team_id": getattr(row, "team_id", None),
             "source_id": row.source_id,
             "source_title": row.source_title,
             "source_type": row.source_type,
@@ -671,17 +697,27 @@ class TaskRepository:
 
     @staticmethod
     async def get_user_tasks(
-        db: AsyncSession, user_id: str, limit: int = 50
+        db: AsyncSession,
+        user_id: str,
+        limit: int = 50,
+        *,
+        team_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Get all tasks for a user."""
-        params = {"user_id": user_id, "limit": limit}
+        """Get all tasks for a personal workspace or a team workspace."""
+        params: Dict[str, Any] = {"user_id": user_id, "team_id": team_id, "limit": limit}
+        where_clause = (
+            "t.team_id = :team_id"
+            if team_id
+            else "t.user_id = :user_id AND t.team_id IS NULL"
+        )
         try:
             async with db.begin_nested():
                 # Series, recap and trailer covers are the first output (Part 1),
                 # not the best-scored one: they have no scores.
                 result = await db.execute(
-                    text("""
+                    text(f"""
                         SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
+                               u.name as created_by_name,
                                (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
                                (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
                                (SELECT id FROM generated_clips WHERE task_id = t.id
@@ -690,7 +726,8 @@ class TaskRepository:
                                 LIMIT 1) as cover_clip_id
                         FROM tasks t
                         LEFT JOIN sources s ON t.source_id = s.id
-                        WHERE t.user_id = :user_id
+                        LEFT JOIN users u ON t.user_id = u.id
+                        WHERE {where_clause}
                         ORDER BY t.created_at DESC
                         LIMIT :limit
                     """),
@@ -699,8 +736,9 @@ class TaskRepository:
         except DBAPIError as exc:
             if getattr(exc.orig, "sqlstate", None) != "42703":
                 raise
+            fallback_where = "t.team_id = :team_id" if team_id else "t.user_id = :user_id"
             result = await db.execute(
-                text("""
+                text(f"""
                     SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
                            (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
                            (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
@@ -708,7 +746,7 @@ class TaskRepository:
                             ORDER BY virality_score DESC NULLS LAST, clip_order ASC LIMIT 1) as cover_clip_id
                     FROM tasks t
                     LEFT JOIN sources s ON t.source_id = s.id
-                    WHERE t.user_id = :user_id
+                    WHERE {fallback_where}
                     ORDER BY t.created_at DESC
                     LIMIT :limit
                 """),
@@ -724,6 +762,8 @@ class TaskRepository:
                 {
                     "id": row.id,
                     "user_id": row.user_id,
+                    "team_id": getattr(row, "team_id", None),
+                    "created_by_name": getattr(row, "created_by_name", None),
                     "source_id": row.source_id,
                     "source_title": row.source_title,
                     "source_type": row.source_type,
