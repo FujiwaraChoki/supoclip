@@ -72,6 +72,7 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 | Variable | Required | Purpose |
 |---|---|---|
 | `ASSEMBLY_AI_API_KEY` | Yes | Enables word-level transcription used for clip extraction and subtitles |
+| `TRANSCRIPTION_PROVIDER` | No | `assemblyai` (default), `whisper`, `youtube_captions`, or `auto`. `auto` uses a YouTube video's own auto-captions when they carry per-word timing, and falls back to local Whisper for uploads, videos without captions, manual captions (no word timing), captions that don't match the downloaded file, or a refused caption download. No API key needed |
 
 ### LLM selection
 

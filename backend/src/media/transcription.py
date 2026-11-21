@@ -26,6 +26,7 @@ from .common import (
     logger,
 )
 from .ffmpeg import (
+    ffprobe_duration,
     run_ffmpeg_command,
     select_audio_stream_index,
 )
@@ -316,6 +317,188 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
                     pass
 
 
+# YouTube auto-captions arrive as one event per caption line, each word a
+# segment with its offset inside the line. Manual captions are one segment per
+# line, so they carry no word timing and cannot drive word-synced captions.
+YOUTUBE_CAPTION_MIN_WORD_TIMED_SHARE = 0.3
+# Captions longer than the file by more than this belong to another timeline
+# (a partial download, a different cut), so they are not used.
+YOUTUBE_CAPTION_DURATION_TOLERANCE_SECONDS = 5.0
+# Caption lines are merged into analysis segments up to this long, or until a gap.
+YOUTUBE_CAPTION_SEGMENT_MAX_SECONDS = 8.0
+YOUTUBE_CAPTION_SEGMENT_GAP_SECONDS = 1.5
+
+
+def youtube_json3_to_whisper_result(
+    payload: Dict[str, Any], language: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Convert a YouTube ``json3`` auto-caption payload to a Whisper-style result.
+
+    Returns ``None`` when the captions have no per-word timing (manual captions)
+    or no words at all, so the caller can fall back to speech recognition.
+    Timings in the result are seconds, like Whisper's, so the existing
+    formatter and transcript cache handle it unchanged.
+    """
+    events = [e for e in (payload or {}).get("events") or [] if e.get("segs")]
+    words: List[Dict[str, Any]] = []
+    timed_segs = 0
+    total_segs = 0
+
+    for event in events:
+        event_start = int(event.get("tStartMs") or 0)
+        event_end = event_start + int(event.get("dDurationMs") or 0)
+        line: List[Dict[str, Any]] = []
+        for seg in event["segs"]:
+            text = (seg.get("utf8") or "").replace("\n", " ").strip()
+            if not text:
+                continue
+            total_segs += 1
+            if "tOffsetMs" in seg:
+                timed_segs += 1
+            line.append({"text": text, "start": event_start + int(seg.get("tOffsetMs") or 0)})
+        for index, word in enumerate(line):
+            following = line[index + 1]["start"] if index + 1 < len(line) else event_end
+            end = max(word["start"], following)
+            words.append({"word": word["text"], "start": word["start"] / 1000.0,
+                          "end": end / 1000.0, "probability": 1.0})
+
+    if not words or timed_segs / max(total_segs, 1) < YOUTUBE_CAPTION_MIN_WORD_TIMED_SHARE:
+        return None
+
+    words.sort(key=lambda w: w["start"])
+    for previous, current in zip(words, words[1:]):
+        # Neighbouring caption lines can overlap; a word never outlasts the next.
+        if previous["end"] > current["start"]:
+            previous["end"] = current["start"]
+
+    segments: List[Dict[str, Any]] = []
+    current_words: List[Dict[str, Any]] = []
+    for word in words:
+        if current_words and (
+            word["start"] - current_words[-1]["end"] > YOUTUBE_CAPTION_SEGMENT_GAP_SECONDS
+            or word["end"] - current_words[0]["start"] > YOUTUBE_CAPTION_SEGMENT_MAX_SECONDS
+        ):
+            segments.append(_caption_segment(current_words))
+            current_words = []
+        current_words.append(word)
+    if current_words:
+        segments.append(_caption_segment(current_words))
+
+    return {
+        "text": " ".join(segment["text"] for segment in segments),
+        "segments": segments,
+        "language": language,
+    }
+
+
+def _caption_segment(words: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "start": words[0]["start"],
+        "end": words[-1]["end"],
+        "text": " ".join(word["word"] for word in words),
+        "words": list(words),
+    }
+
+
+def _pick_youtube_auto_caption_url(
+    info: Dict[str, Any], language: Optional[str]
+) -> Optional[str]:
+    """Pick the json3 URL of the video's own auto-caption track.
+
+    YouTube also lists machine translations of that track under other language
+    keys (their URLs carry ``tlang=``); those are never the spoken words.
+    """
+    tracks = info.get("automatic_captions") or {}
+
+    def original(key: str) -> Optional[str]:
+        for track in tracks.get(key) or []:
+            url = track.get("url") or ""
+            if track.get("ext") == "json3" and url and "tlang=" not in url:
+                return url
+        return None
+
+    # The track must be the language actually spoken in the original audio.
+    # Auto-dubbed videos also list a "-orig" track for every dubbed language, so
+    # an unmatched language never falls back to "whichever -orig comes first".
+    def base(code: str) -> str:
+        return code.replace("_", "-").split("-", 1)[0].lower()
+
+    spoken = str(info.get("language") or "")
+    wanted: List[str] = []
+    for code in (language or "", spoken):
+        for candidate in (code.replace("_", "-").lower(), base(code)):
+            if candidate and candidate not in wanted:
+                wanted.append(candidate)
+    if not wanted:
+        # No language is known: use the one "-orig" track only if it is unambiguous.
+        originals = [key for key in tracks if key.endswith("-orig")]
+        wanted = [key[: -len("-orig")] for key in originals] if len(originals) == 1 else []
+    for code in wanted:
+        for key in (f"{code}-orig", code):
+            url = original(key)
+            if url:
+                return url
+    return None
+
+
+def transcribe_with_youtube_word_captions(
+    video_url: str, language: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Fetch a YouTube video's auto-captions with per-word timing.
+
+    Returns a Whisper-style result dict, or ``None`` when the video has no
+    usable captions or YouTube refuses the request, so callers can fall back
+    to speech recognition. Never raises.
+    """
+    try:
+        import yt_dlp
+    except ImportError:
+        logger.warning("yt-dlp is not installed; YouTube captions are unavailable")
+        return None
+
+    try:
+        options = {"quiet": True, "no_warnings": True, "skip_download": True, "socket_timeout": 30}
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            url = _pick_youtube_auto_caption_url(info or {}, language)
+            if not url:
+                logger.info("No auto-captions for the video's own language")
+                return None
+            payload = json.loads(ydl.urlopen(url).read())
+        return youtube_json3_to_whisper_result(payload, language)
+    except Exception as error:  # noqa: BLE001 - any failure means "use Whisper"
+        logger.warning("YouTube caption fetch failed (%s); falling back", type(error).__name__)
+        return None
+
+
+def _get_transcript_with_auto(
+    video_path: Path, source_url: Optional[str], runtime_config
+) -> str:
+    """Use YouTube's word-timed captions when they exist, else local Whisper."""
+    language = runtime_config.transcription_language or None
+    result = (
+        transcribe_with_youtube_word_captions(source_url, language) if source_url else None
+    )
+    if result and result.get("segments"):
+        try:
+            captions_end = result["segments"][-1]["end"]
+            file_duration = ffprobe_duration(video_path)
+            if captions_end > file_duration + YOUTUBE_CAPTION_DURATION_TOLERANCE_SECONDS:
+                logger.info("YouTube captions outrun the downloaded file; using Whisper")
+                result = None
+        except (OSError, RuntimeError):
+            # An unreadable file will fail loudly in Whisper too; keep the captions.
+            pass
+    if not result or not result.get("segments"):
+        logger.info("Transcription provider auto: using Whisper")
+        return _get_transcript_with_whisper(video_path, runtime_config)
+
+    logger.info("Transcription provider auto: using YouTube word-timed captions")
+    formatted_lines = format_transcript_for_analysis(result)
+    cache_transcript_data(video_path, result)
+    return "\n".join(formatted_lines)
+
+
 def get_video_transcript(
     video_path: Path,
     speech_model: str = "universal",
@@ -323,9 +506,10 @@ def get_video_transcript(
 ) -> str:
     """Get a video transcript using the configured provider.
 
-    Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
-    ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
-    provider, which needs the original URL rather than a local file path.
+    Dispatches to AssemblyAI, local Whisper, YouTube captions, or ``auto``
+    (word-timed YouTube captions, else Whisper) based on
+    ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions and
+    auto providers, which need the original URL rather than a local file path.
     """
     logger.info(f"Getting transcript for: {video_path}")
     runtime_config = get_config()
@@ -333,6 +517,8 @@ def get_video_transcript(
 
     if provider == "whisper":
         return _get_transcript_with_whisper(video_path, runtime_config)
+    if provider == "auto":
+        return _get_transcript_with_auto(video_path, source_url, runtime_config)
     if provider == "youtube_captions":
         if not source_url:
             raise ValueError(
