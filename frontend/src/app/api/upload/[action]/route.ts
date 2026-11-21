@@ -6,7 +6,7 @@ import { backendTraceHeaders } from "@/server/backend-api";
 
 export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {
   const { action } = await context.params;
-  if (action !== "complete" && action !== "abort" && action !== "parts") {
+  if (action !== "complete" && action !== "abort" && action !== "parts" && action !== "progress") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const session = await auth.api.getSession({ headers: await headers() });
