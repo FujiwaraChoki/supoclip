@@ -47,6 +47,7 @@ interface UserPreferences {
   fontSize: number;
   fontColor: string;
   notifyOnCompletion: boolean;
+  notifyOnPublish: boolean;
 }
 
 export default function SettingsPage() {
@@ -54,6 +55,7 @@ export default function SettingsPage() {
   const [fontSize, setFontSize] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
   const [completionEmails, setCompletionEmails] = useState(true);
+  const [publishEmails, setPublishEmails] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -192,7 +194,16 @@ export default function SettingsPage() {
           setFontSize(data.fontSize);
           setFontColor(data.fontColor);
           setCompletionEmails(data.notifyOnCompletion ?? true);
-          setSavedSnapshot(JSON.stringify([data.fontFamily, data.fontSize, data.fontColor, data.notifyOnCompletion ?? true]));
+          setPublishEmails(data.notifyOnPublish ?? false);
+          setSavedSnapshot(
+            JSON.stringify([
+              data.fontFamily,
+              data.fontSize,
+              data.fontColor,
+              data.notifyOnCompletion ?? true,
+              data.notifyOnPublish ?? false,
+            ]),
+          );
         }
       } catch (error) {
         console.error('Failed to load preferences:', error);
@@ -305,6 +316,7 @@ export default function SettingsPage() {
           fontSize,
           fontColor,
           notifyOnCompletion: completionEmails,
+          notifyOnPublish: publishEmails,
         }),
       });
 
@@ -314,7 +326,7 @@ export default function SettingsPage() {
       }
 
       track("preferences_saved");
-      setSavedSnapshot(JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]));
+      setSavedSnapshot(JSON.stringify([fontFamily, fontSize, fontColor, completionEmails, publishEmails]));
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -348,7 +360,7 @@ export default function SettingsPage() {
     );
   }
 
-  const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]);
+  const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails, publishEmails]);
   // The save bar only appears once there's something to save (and briefly to confirm it).
   const showSaveBar = dirty || isLoading || success;
   const minuteLimit = billingSummary?.minute_limit ?? null;
@@ -451,12 +463,23 @@ export default function SettingsPage() {
         </Section>
 
         <Section icon={<Mail className="size-4" />} title={t("notifications.title")} description={t("notifications.description")}>
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="completion-emails" className="flex-col items-start gap-0.5">
-              <span className="text-sm font-medium">{t("notifications.emails")}</span>
-              <span className="text-xs font-normal text-muted-foreground">{t("notifications.emailsHint")}</span>
-            </Label>
-            <Switch id="completion-emails" checked={completionEmails} onCheckedChange={setCompletionEmails} disabled={isLoading} />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="completion-emails" className="flex-col items-start gap-0.5">
+                <span className="text-sm font-medium">{t("notifications.emails")}</span>
+                <span className="text-xs font-normal text-muted-foreground">{t("notifications.emailsHint")}</span>
+              </Label>
+              <Switch id="completion-emails" checked={completionEmails} onCheckedChange={setCompletionEmails} disabled={isLoading} />
+            </div>
+            {socialAccess === true && (
+              <div className="flex items-center justify-between gap-4 border-t pt-4">
+                <Label htmlFor="publish-emails" className="flex-col items-start gap-0.5">
+                  <span className="text-sm font-medium">{t("notifications.publishEmails")}</span>
+                  <span className="text-xs font-normal text-muted-foreground">{t("notifications.publishEmailsHint")}</span>
+                </Label>
+                <Switch id="publish-emails" checked={publishEmails} onCheckedChange={setPublishEmails} disabled={isLoading} />
+              </div>
+            )}
           </div>
         </Section>
 

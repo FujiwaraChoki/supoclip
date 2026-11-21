@@ -29,9 +29,11 @@
   },
   "notifications": {
     "title": "Notifikasi",
-    "description": "Cara kami memberi tahu bahwa clip-mu sudah siap.",
+    "description": "Cara kami memberi tahu tentang clip-mu.",
     "emails": "Email selesai",
-    "emailsHint": "Dapatkan email begitu sebuah generasi selesai."
+    "emailsHint": "Dapatkan email begitu sebuah generasi selesai.",
+    "publishEmails": "Email publikasi",
+    "publishEmailsHint": "Dapatkan email begitu sebuah clip dipublikasikan ke akun yang terhubung."
   },
   "plan": {
     "title": "Paket & tagihan",

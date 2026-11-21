@@ -74,6 +74,7 @@ model User {
   default_font_size   Int?      @default(24)
   default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
   notify_on_completion Boolean  @default(true)
+  notify_on_publish    Boolean  @default(false)
   default_clip_length  String   @default("auto") @db.VarChar(10)
   // What the create screen remembers between videos (lib/create-settings.ts).
   create_settings      Json     @default("{}") @db.JsonB
@@ -487,8 +488,9 @@ model SocialPost {
   value_score            Int?
   shareability_score     Int?
   clip_duration          Float?
-  published_at           DateTime? @db.Timestamptz
-  last_metrics_at        DateTime? @db.Timestamptz
+  published_at                 DateTime? @db.Timestamptz
+  publish_notification_sent_at DateTime? @db.Timestamptz
+  last_metrics_at              DateTime? @db.Timestamptz
   metrics                Json?     @db.JsonB
   created_at             DateTime? @default(now()) @db.Timestamptz
   updated_at             DateTime? @default(now()) @db.Timestamptz

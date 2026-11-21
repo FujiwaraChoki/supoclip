@@ -485,6 +485,8 @@ def create_optimized_clip(
                 position_y_override=caption_y,
                 avoid_band=source_caption_band,
                 caption_layout_report=layout_report,
+                # A game writes its characters' lines on the screen; captions would say them twice.
+                drop_screen_words=add_subtitles and plan_report.get("kind") == "gaming",
                 **offsets_kwargs,
                 **labels_kwargs,
                 # Only stacked interview openings move the hook title.

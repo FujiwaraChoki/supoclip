@@ -56,6 +56,14 @@ class FakeRepo:
         self.top_posts = []
         self.provider_rows = []
         self.clips = {}
+        self.users = {
+            "user-1": {
+                "email": "creator@example.com",
+                "name": "Ada Lovelace",
+                "first_name": "Ada",
+                "notify_on_publish": False,
+            }
+        }
 
     # accounts
     async def list_accounts(self, db, user_id, include_revoked=False):
@@ -117,6 +125,7 @@ class FakeRepo:
             "error_message": None,
             "metrics": None,
             "published_at": None,
+            "publish_notification_sent_at": None,
             "media_token_expires_at": None,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "hook_type": snapshot.get("hook_type"),
@@ -137,6 +146,36 @@ class FakeRepo:
     async def update_post(self, db, post_id, **fields):
         self.posts[post_id].update(fields)
         self.posts[post_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    async def get_post_notification_context(self, db, post_id):
+        post = self.posts.get(post_id)
+        if not post:
+            return None
+        user = self.users.get(post["user_id"], {})
+        account = self.accounts.get(post.get("social_account_id")) or {}
+        return {
+            "post_id": post["id"],
+            "task_id": post.get("task_id"),
+            "clip_id": post.get("clip_id"),
+            "provider": post["provider"],
+            "title": post.get("title"),
+            "hook_title": post.get("hook_title"),
+            "external_url": post.get("external_url"),
+            "publish_notification_sent_at": post.get("publish_notification_sent_at"),
+            "notify_on_publish": user.get("notify_on_publish", False),
+            "user_email": user.get("email"),
+            "user_name": user.get("name"),
+            "user_first_name": user.get("first_name"),
+            "account_display_name": account.get("display_name"),
+            "account_username": account.get("username"),
+        }
+
+    async def mark_publish_notification_sent(self, db, post_id):
+        post = self.posts.get(post_id)
+        if not post or post.get("publish_notification_sent_at") is not None:
+            return False
+        post["publish_notification_sent_at"] = datetime.now(timezone.utc).isoformat()
+        return True
 
     # The conditional transitions mirror the SQL WHERE clauses.
     async def claim_post(self, db, post_id, *, media_token_expires_at):
@@ -1607,3 +1646,132 @@ async def test_queued_tiktok_post_fails_readably_while_paused(service, tiktok_fl
     assert result["error_message"] == social_module.TIKTOK_PAUSED_MESSAGE
     # The worker has no platform: it asked about both before refusing.
     assert {platform for _, platform, _ in tiktok_flag["checks"][-2:]} == {"web", "ios"}
+
+
+# ----------------------------------------------------------------------
+# Publish email notifications
+# ----------------------------------------------------------------------
+def _stub_publish_email(monkeypatch, *, configured=True, error=None):
+    sent = []
+
+    class FakePublishEmailService:
+        def __init__(self, config):
+            self.config = config
+
+        @property
+        def is_configured(self):
+            return configured
+
+        async def send_clip_published_email(self, **kwargs):
+            if error is not None:
+                raise error
+            sent.append(kwargs)
+            return {"MessageId": f"msg-{len(sent)}"}
+
+    monkeypatch.setattr(
+        social_module, "SocialPublishEmailService", FakePublishEmailService
+    )
+    return sent
+
+
+@pytest.mark.asyncio
+async def test_publish_post_sends_notification_email_when_enabled(service, provider, monkeypatch):
+    sent = _stub_publish_email(monkeypatch)
+    service.repo.users["user-1"]["notify_on_publish"] = True
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="My Clip", caption="c", hashtags=[], privacy_level="public", scheduled_for=None,
+    )
+
+    published = await service.publish_post(post["id"])
+
+    assert published["status"] == "published"
+    assert len(sent) == 1
+    assert sent[0]["recipient"].email == "creator@example.com"
+    assert sent[0]["provider"] == "youtube"
+    assert sent[0]["title"] == "My Clip"
+    assert sent[0]["external_url"] == "https://www.youtube.com/shorts/ext-1"
+    assert sent[0]["task_id"] == "task-1"
+    assert service.repo.posts[post["id"]]["publish_notification_sent_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_resolve_pending_post_sends_notification_email_once_published(
+    service, provider, monkeypatch
+):
+    sent = _stub_publish_email(monkeypatch)
+    service.repo.users["user-1"]["notify_on_publish"] = True
+    provider.publish_result = PublishResult(
+        external_post_id=None, external_url=None, pending_handle="handle-1"
+    )
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="Async Clip", caption="c", hashtags=[], privacy_level="public", scheduled_for=None,
+    )
+
+    pending = await service.publish_post(post["id"])
+    assert pending["status"] == "publishing"
+    assert sent == []
+
+    provider.resolve_pending = lambda token, handle: PublishResult(
+        external_post_id="vid-9", external_url="https://www.youtube.com/shorts/vid-9"
+    )
+    resolved = await service.publish_post(post["id"])
+
+    assert resolved["status"] == "published"
+    assert len(sent) == 1
+    assert sent[0]["title"] == "Async Clip"
+    assert sent[0]["external_url"] == "https://www.youtube.com/shorts/vid-9"
+
+
+@pytest.mark.asyncio
+async def test_publish_post_skips_notification_email_when_disabled(service, provider, monkeypatch):
+    sent = _stub_publish_email(monkeypatch)
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="Silent Clip", caption="c", hashtags=[], privacy_level="public", scheduled_for=None,
+    )
+
+    published = await service.publish_post(post["id"])
+
+    assert published["status"] == "published"
+    assert sent == []
+    assert service.repo.posts[post["id"]]["publish_notification_sent_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_publish_post_skips_duplicate_notification_when_already_sent(
+    service, provider, monkeypatch
+):
+    sent = _stub_publish_email(monkeypatch)
+    service.repo.users["user-1"]["notify_on_publish"] = True
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="Already Notified", caption="c", hashtags=[], privacy_level="public", scheduled_for=None,
+    )
+    service.repo.posts[post["id"]]["publish_notification_sent_at"] = datetime.now(timezone.utc).isoformat()
+
+    published = await service.publish_post(post["id"])
+
+    assert published["status"] == "published"
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_publish_post_ignores_notification_email_failure(service, provider, monkeypatch):
+    _stub_publish_email(monkeypatch, error=RuntimeError("SES down"))
+    service.repo.users["user-1"]["notify_on_publish"] = True
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="Resilient Clip", caption="c", hashtags=[], privacy_level="public", scheduled_for=None,
+    )
+
+    published = await service.publish_post(post["id"])
+
+    assert published["status"] == "published"
+    assert service.repo.posts[post["id"]]["publish_notification_sent_at"] is None

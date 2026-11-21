@@ -530,6 +530,17 @@ def _passage_breaks(
     return breaks
 
 
+CAPTION_LINE_MAX_PAUSE_SECONDS = 1.0
+
+
+def _pause_breaks(words: List[Dict[str, Any]]) -> List[int]:
+    """Indices of words that follow a pause too long for one caption line to hold through."""
+    return [
+        index for index in range(1, len(words))
+        if float(words[index]["start"]) - float(words[index - 1]["end"]) > CAPTION_LINE_MAX_PAUSE_SECONDS
+    ]
+
+
 def _chunk_bounds(word_count: int, chunk_size: int, breaks: List[int]):
     """Caption lines of ``chunk_size`` words that never straddle a passage break.
 
@@ -574,6 +585,7 @@ def build_assemblyai_ass_subtitles(
     caption_layout_report: Optional[Dict[str, Any]] = None,
     output_offsets: Optional[List[float]] = None,
     point_labels: Optional[List[Dict[str, Any]]] = None,
+    drop_screen_words: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -594,6 +606,8 @@ def build_assemblyai_ass_subtitles(
     are a workflow clip's explicit range starts on the clip timeline (planned
     junction fades); without them the renderer's default crossfades apply.
     ``point_labels`` are a recap's on-screen points (``build_point_label_ass``).
+    ``drop_screen_words`` leaves out words the picture already shows (a game's own subtitles) and stray
+    sounds heard as words (``media/screen_words.py``).
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -611,12 +625,24 @@ def build_assemblyai_ass_subtitles(
         and transcript_data
         and transcript_data.get("words")
     ):
+        every_word = transcript_data
+        if drop_screen_words:
+            try:
+                from .screen_words import without_screen_words
+                transcript_data = without_screen_words(
+                    video_path, transcript_data, keep_ranges or [(clip_start, clip_end)])
+            except Exception as exc:  # noqa: BLE001 - captions for every word rather than none
+                logger.warning("Screen-word check failed (%s); captioning every word", exc)
         if keep_ranges:
             relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges, output_offsets)
             if output_offsets is not None:
                 passage_breaks = _passage_breaks(transcript_data, keep_ranges)
         else:
             relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
+        if transcript_data is not every_word:
+            # A caption line holds each word until the next one starts. Across a line that was left out that
+            # is many seconds of the same words, so a line ends where words were left out.
+            passage_breaks = sorted({*passage_breaks, *_pause_breaks(relevant_words)})
     if not relevant_words and not hook_title and not point_labels:
         logger.warning("No words or hook title available for ASS subtitles")
         return False

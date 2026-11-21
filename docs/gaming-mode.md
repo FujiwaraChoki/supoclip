@@ -155,14 +155,82 @@ the same choice in the studio's layout menu (beside "Auto layout"). Not built.
   game draws a HUD. Round cameras are not found.
 - A dark camera beside a dark, slow cutscene has no visible border and no calmer inside: it is still missed
   in that clip, which keeps the regular layout.
-- A picture that stands still beside a camera is shown whole under the camera, so it is no larger than in the
-  regular fit unless its detail sits in one part of the frame. Slides with a webcam get the same layout.
+- A picture that stands still beside a camera is fitted whole under the camera, as a strip, unless what
+  changes in it sits in one part of the frame. Slides with a webcam get the same layout.
+- A logo or avatar the gameplay crop still shows stays where it is, over the game.
+- A cutscene without a HUD in which one character's face stays in one place for 80 % of the clip, 1.4 times the
+  size of the streamer's, is still read as a person being filmed and keeps the regular layout.
+- A keyed-out streamer whose head is larger than 0.6 % of the frame and nowhere near its edge is not recognised.
 - The camera panel upscales a small inset (often 350-500 px wide in a 1080p source) to 1080 px: it is soft.
 - A sports broadcast with three or more persistent graphics and no detected faces would pass as gameplay.
 - Games without a HUD, cutscenes and menus are not recognised and keep today's layout.
 - The gameplay-only crop is as tight as today's 9:16 crop; wide-view games (MOBA, strategy) lose their flanks.
 - Hook title and captions are placed for the camera layout; on the gameplay-only layout the hook can cross a
   top-left cut-out for its four seconds.
+
+## What the first production day showed (2026-11-20)
+
+518 clips from one afternoon were checked against their logged decisions. Four mistakes came up more than once,
+and each has a rule now (the second and third shipped first, in #497):
+
+- **A face that never moves is a picture.** A channel logo with a face in it, or a drawn avatar, was taken for a
+  keyed-out streamer and filled the top panel. A head's own pixels change between samples; a picture's do not.
+  Over 30 samples or more (`FACE_MOTION_MIN_SAMPLES`), the share of the face box whose pixels changed in 5 % of
+  the sample pairs (`FACE_PIXEL_CHANGE_RATE`) measures 0.60-1.0 for a streamer sitting still and 0.0-0.13 for a
+  picture; the line is `MIN_FACE_MOTION` = 0.3. With fewer samples a calm moment cannot be told from a picture
+  and the face counts as a person, as before. A pictured face is no camera and is left out of the count of
+  people on screen. The clip then gets the game-only layout when the game draws three HUD elements, and the
+  regular layout otherwise.
+- **A keyed-out streamer sits small or at the edge.** A person filmed in the middle of the frame, with a sign
+  in view, passed as a keyed-out streamer over a HUD. A head larger than `KEYED_FREE_FACE_AREA` (0.6 % of the
+  frame) now only counts at the edge: the head-and-shoulders rectangle within `KEYED_EDGE_REACH` of a side, the
+  head nearly touching the top, or the body running out of the bottom. In the logged production rectangles,
+  every large keyed-out head sat at an edge.
+- **Game characters are not hosts.** The rule that rejects a small inset beside a larger, still face (a reaction
+  video, a podcast) fired on story games: the player's character seen from behind, a conversation, a cutscene.
+  It now needs the other face in `HOST_MIN_PRESENCE` (80 %) of the samples at `HOST_MIN_SIZE` (1.4) times the
+  camera's face, alive, and it does not apply while the game draws a HUD (two persistent elements or a
+  crosshair; one is a watermark).
+- **A pictured face becomes a sticker.** With no camera on screen, the logo or avatar is the channel's mark.
+  `sticker_region` finds it: the patch of pixels that never change, near persistent lines, that holds the face
+  (flat sky does not change either but has no lines). Its outline is kept as a small mask
+  (`STICKER_GRID` cells, joined into rectangles), drawn into the filter graph itself, so the layout needs no
+  file beside it and replays on any machine. The clip gets the game-only layout when one HUD element is found
+  beside the mark, and the mark is set at the top of the frame, on the side it came from, once the hook title
+  has gone (`STICKER_FROM_SECONDS`), clear of the HUD cut-outs. When the crop still shows the picture where it
+  is, no sticker is added: it cannot be taken out of the game.
+- **A still picture's subject fills the panel.** In a still picture every edge persists, so detail alone often
+  spans the frame and the picture was fitted as a thin strip between blurred bands. `still_focus` also looks at
+  the pixels that change at least twice (`STILL_ACTIVITY_RATE`), when they cover 0.4 % of the frame or more
+  (a clock or a counter does not count). If one window as wide as the panel shows at full height holds three
+  quarters of them (`STILL_SUBJECT_SHARE`) and its share of the picture's lines, that window is the subject
+  (`focus_fill`): `still_crop` crops to the panel around it, without blurred bands, and steps off the camera
+  sideways when the frame has the room, so the camera is not shown twice. A menu with chat on one side and a
+  counter on the other, or a blurred backdrop shimmering behind a menu, stays fitted whole.
+
+### Later the same day
+
+- **A HUD sits at the edge.** Without a camera, a sticker or a crosshair, two of the persistent elements have to
+  lie within `HUD_ANCHOR_REACH` (2 %) of the frame's edge (`MIN_ANCHORED_HUD_REGIONS`). Labels on a drawn map
+  panned across the screen were three "HUD elements" and the map was cropped as gameplay.
+- **A keyed-out streamer who leaves.** There is no rectangle to check, so the head itself says whether the
+  streamer is on screen: samples without a face in the drawn rectangle (median over seven) become fallback
+  spans. The gameplay crop also slides off a keyed-out head that sits at the side of the frame, and off a
+  pictured logo at the crop's edge, so neither shows twice or is cut in half.
+- **Stickers are small and whole.** A patch that runs out of the search window, or is larger than
+  `STICKER_MAX_FACE_AREAS` face boxes, is a HUD panel or a wordmark beside the picture, not the picture.
+- **The host rule** needs the other face in 90 % of the samples (`HOST_MIN_PRESENCE`).
+- **Captions and the game's own subtitles** are handled outside this module: `media/screen_words.py` reads the
+  lower part of the picture while somebody speaks and leaves out the captions of a voice whose words are
+  written there (words of five letters or more; shorter ones are on any screen with text). It runs for
+  gaming layouts only.
+- **Text a crop would cut** is the regular layout's business (`scene_context._cover_x`): a shot whose captions,
+  title card or labels the full-height crop would cut keeps the whole frame.
+
+Still open: a menu with content at both sides of the screen stays a strip under the camera (it cannot be
+shown larger without cutting one side); a logo in the middle of the gameplay crop stays where it is; a
+cutscene without a HUD where one character holds the frame for 90 % of the clip keeps the regular layout; in
+heavily edited videos a game character can be taken for a keyed-out streamer while the creators are off screen.
 
 ## Streams of story games (GTA 6)
 
@@ -217,7 +285,8 @@ Also changed after that review:
 - **Keyed-out streamers.** A small still head (at most 2 % of the frame) without a rectangle, over a game with a
   HUD and no other faces: the top panel shows head and shoulders (`virtual_camera_rect`).
 - **Not a camera:** a rectangle whose inside does not move (a channel logo, a drawn avatar), and an inset beside a
-  larger face that also sits still for half the clip (a reaction video, a podcast): `people_on_screen`.
+  larger face that also sits still for the clip (a reaction video, a podcast): `people_on_screen`. Both rules
+  were tightened after the first production day, see below.
 - **Side-by-side comparisons** (`split_screen`). A straight line down the middle of the screen covering 75 % of
   the height in a sample (`centre_line_score`: splits measure 0.8-1.0, gameplay at most 0.5), for 1.5 s or more
   and 20 % of the clip, with nobody on screen and no camera. While the screen is split the left picture is stacked

@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from subprocess import SubprocessError
 from typing import Dict, Any, Optional, Callable
+import math
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -877,6 +878,12 @@ class TaskService(ClipEditingMixin):
                         restore_clip_timeline, clip_info, time_map, segment
                     )
                 workflow_fields: Dict[str, Any] = {}
+                if segment.get("hook_type") == "fallback":
+                    # The segment spans the stretch the render looked in; the labels show what the clip plays.
+                    played = source_range_bounds(normalize_source_ranges(clip_info.get("keep_ranges")))
+                    if played:
+                        clip_info["start_time"] = seconds_to_mmss(math.floor(played[0]))
+                        clip_info["end_time"] = seconds_to_mmss(math.floor(played[1]))
                 if segment.get("planned"):
                     # Labels show the source span the clip plays, on the original timeline.
                     bounds = source_range_bounds(normalize_source_ranges(segment.get("source_ranges")))

@@ -29,9 +29,11 @@
   },
   "notifications": {
     "title": "Notifications",
-    "description": "How we let you know your clips are ready.",
+    "description": "How we let you know about your clips.",
     "emails": "Completion emails",
-    "emailsHint": "Get an email as soon as a generation finishes."
+    "emailsHint": "Get an email as soon as a generation finishes.",
+    "publishEmails": "Publish emails",
+    "publishEmailsHint": "Get an email as soon as a clip publishes to a connected account."
   },
   "plan": {
     "title": "Plan & billing",

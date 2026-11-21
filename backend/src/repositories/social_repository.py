@@ -984,6 +984,78 @@ class SocialRepository:
         return [SocialRepository.serialize_post(row) for row in result.fetchall()]
 
     @staticmethod
+    async def get_post_notification_context(
+        db: AsyncSession, post_id: str
+    ) -> Optional[Dict[str, Any]]:
+        result = await db.execute(
+            text(
+                """
+                SELECT
+                    p.id,
+                    p.task_id,
+                    p.clip_id,
+                    p.provider,
+                    p.title,
+                    p.hook_title,
+                    p.external_url,
+                    p.publish_notification_sent_at,
+                    u.notify_on_publish,
+                    u.email AS user_email,
+                    u.name AS user_name,
+                    u.first_name AS user_first_name,
+                    a.display_name AS account_display_name,
+                    a.username AS account_username
+                FROM social_posts p
+                JOIN users u ON u.id = p.user_id
+                LEFT JOIN social_accounts a ON a.id = p.social_account_id
+                WHERE p.id = :post_id
+                """
+            ),
+            {"post_id": post_id},
+        )
+        row = result.fetchone()
+        if not row:
+            return None
+        return {
+            "post_id": row.id,
+            "task_id": getattr(row, "task_id", None),
+            "clip_id": getattr(row, "clip_id", None),
+            "provider": row.provider,
+            "title": getattr(row, "title", None),
+            "hook_title": getattr(row, "hook_title", None),
+            "external_url": getattr(row, "external_url", None),
+            "publish_notification_sent_at": getattr(
+                row, "publish_notification_sent_at", None
+            ),
+            "notify_on_publish": getattr(row, "notify_on_publish", False),
+            "user_email": getattr(row, "user_email", None),
+            "user_name": getattr(row, "user_name", None),
+            "user_first_name": getattr(row, "user_first_name", None),
+            "account_display_name": getattr(row, "account_display_name", None),
+            "account_username": getattr(row, "account_username", None),
+        }
+
+    @staticmethod
+    async def mark_publish_notification_sent(
+        db: AsyncSession, post_id: str
+    ) -> bool:
+        result = await db.execute(
+            text(
+                """
+                UPDATE social_posts
+                SET publish_notification_sent_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = :post_id
+                  AND publish_notification_sent_at IS NULL
+                RETURNING publish_notification_sent_at
+                """
+            ),
+            {"post_id": post_id},
+        )
+        await db.commit()
+        return result.fetchone() is not None
+
+    @staticmethod
     def serialize_post(row: Any) -> Dict[str, Any]:
         metrics = _json_value(row.metrics)
         return {

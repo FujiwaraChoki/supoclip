@@ -80,6 +80,10 @@ ACTIVE_USER_CAP_MESSAGE = (
     "TikTok's daily limit of accounts posting through SupoClip has been reached. "
     "Retry this post tomorrow."
 )
+TOO_MANY_POSTS_MESSAGE = (
+    "This TikTok account has reached TikTok's daily posting limit. "
+    "Wait until tomorrow and retry this post."
+)
 
 
 class TikTokProvider(SocialProvider):
@@ -476,9 +480,10 @@ class TikTokProvider(SocialProvider):
             raise SocialProviderError(UNAUDITED_PRIVATE_ACCOUNT_MESSAGE)
         if code_text == "reached_active_user_cap":
             raise SocialProviderError(ACTIVE_USER_CAP_MESSAGE)
+        if code_text == "spam_risk_too_many_posts":
+            raise SocialProviderError(TOO_MANY_POSTS_MESSAGE)
         retryable = response.status_code >= 500 or code_text in {
             "rate_limit_exceeded",
-            "spam_risk_too_many_posts",
             "internal_error",
         }
         raise SocialProviderError(f"Failed to {action}: {message}", retryable=retryable)
