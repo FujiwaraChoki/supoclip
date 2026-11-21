@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_long",
+  "fn": "fnv1a32",
+  "input": {
+    "text": "kinetic_stackkinetic_stackkinetic_stackkinetic_stackkinetic_stackkinetic_stackkinetic_stackkinetic_stackkinetic_stack"
+  },
+  "expected": 1978355451
+}

@@ -1,0 +1,16 @@
+{
+  "family": "rows",
+  "case": "no_rows",
+  "fn": "mapped_caption_rows",
+  "input": {
+    "segments": [
+      [
+        "a",
+        0.0,
+        6.0
+      ]
+    ],
+    "rows": []
+  },
+  "expected": []
+}

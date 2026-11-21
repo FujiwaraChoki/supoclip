@@ -48,7 +48,7 @@ export function unfinishedSeries(
 }
 
 export function SeriesView<C extends WallClip>({
-  clips, plan, taskId, status, editable, busyId, downloadingAll, toolbar,
+  clips, plan, taskId, status, editable, locked, busyId, downloadingAll, toolbar,
   onOpen, onDownload, onDownloadAll, onResume, resumeDisabled, renderActions,
 }: {
   clips: C[];
@@ -56,6 +56,8 @@ export function SeriesView<C extends WallClip>({
   taskId: string;
   status: string;
   editable: boolean;
+  /** Parts being re-rendered: no download, no studio until the job ends. */
+  locked?: (clip: C) => boolean;
   /** The clip whose download or export is running. */
   busyId: string | null;
   downloadingAll: boolean;
@@ -101,8 +103,8 @@ export function SeriesView<C extends WallClip>({
             clip={clip}
             total={total}
             taskId={taskId}
-            editable={editable}
-            busy={busyId === clip.id}
+            editable={editable && !locked?.(clip)}
+            busy={busyId === clip.id || locked?.(clip) === true}
             onOpen={() => onOpen(clip)}
             onDownload={() => onDownload(clip)}
             actions={renderActions?.(clip)}

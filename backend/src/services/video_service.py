@@ -5,6 +5,8 @@ Video service - handles video processing business logic.
 import asyncio
 import copy
 import math
+import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
@@ -60,7 +62,30 @@ from ..video_utils import (
     keep_ranges_transcript_text,
     seconds_to_mmss,
     get_transcript_text_in_range,
+    get_absolute_words_in_range,
+    fx_broll_windows,
+    fx_junctions,
+    save_fx_render,
+    FX_HOOK_WINDOW_START,
 )
+from ..edit_fx import assets as fx_assets
+from ..edit_fx.beats import (
+    heuristic_beats,
+    reanchor_beats,
+    timeline_hash as beats_timeline_hash,
+    words_hash,
+    words_with_timing,
+)
+from ..edit_fx.beats_llm import plan_beats
+from ..edit_fx.compat import known_fields, log_dropped
+from ..edit_fx.contracts import EditBeats, EditStyle, FxPlan
+from ..edit_fx.jobs import FxJob, fx_active
+from ..edit_fx.reactions import attach_reactions, ensure_reaction_file, reactions_available
+from ..edit_fx.resolver import ResolveInput, resolve
+from ..edit_fx.rng import plan_seed
+from ..edit_fx.settings import read_edit_style
+from ..media.common import hook_title_window
+from ..media.fx_chain import FxRenderInput
 from ..broll import BRollSession, broll_configured, broll_overlays_for, plan_clip_broll
 from ..clip_source_map import (
     normalize_source_ranges,
@@ -87,6 +112,7 @@ from ..media.ffmpeg import (
     cap_video_short_side,
     ffprobe_duration,
     ffprobe_video_size,
+    output_offsets_for_ranges,
     rendered_clip_duration,
     rendered_ranges_duration,
 )
@@ -135,6 +161,371 @@ def _probe_stored_duration(signed_url: str, started: float) -> float:
         return duration
     remaining = UPLOAD_PROBE_TIMEOUT_SECONDS - (time.monotonic() - started)
     return ffprobe_duration(signed_url, timeout=max(1, remaining))
+
+
+# --------------------------------------------------------------------------- dynamic edits planning (FINAL §6.1, §13.1)
+
+
+@dataclass
+class _FxPlanned:
+    """A clip's resolved effects, ready for the (synchronous) renderer."""
+    plan: FxPlan
+    beats: Optional[EditBeats]
+    words: List[Dict[str, Any]]
+    timing: str
+    rule: str                                  # how it was decided (logs, tests): reuse|re-resolve|reanchor|llm|heuristic|cached
+    face_track: Optional[Dict[str, Any]] = None
+    reaction_files: Dict[str, Path] = field(default_factory=dict)
+
+
+def fx_words_for_ranges(
+    transcript_data: Optional[Dict[str, Any]],
+    keep_ranges: List[tuple],
+    output_offsets: Optional[List[float]] = None,
+) -> List[Dict[str, Any]]:
+    """Words on the clip (S == E) timeline, each also carrying its source (A) times ``src_start``/``src_end``.
+
+    The same projection as ``get_words_for_keep_ranges`` (crossfade offsets included); the A times let beats
+    follow their words when a later cleanup change moves them (§13.1 re-anchoring).
+    """
+    if not transcript_data or not transcript_data.get("words") or not keep_ranges:
+        return []
+    ranges = normalize_source_ranges(keep_ranges)
+    offsets = list(output_offsets) if output_offsets is not None else output_offsets_for_ranges(ranges)
+    words: List[Dict[str, Any]] = []
+    for (keep_start, keep_end), offset in zip(ranges, offsets):
+        for word in get_absolute_words_in_range(transcript_data, keep_start, keep_end):
+            words.append({
+                "text": word["text"],
+                "start": round(offset + (word["start"] - keep_start), 3),
+                "end": round(offset + (word["end"] - keep_start), 3),
+                "src_start": round(float(word["start"]), 3),
+                "src_end": round(float(word["end"]), 3),
+            })
+    return words
+
+
+def fx_lines_for_ranges(
+    transcript_data: Optional[Dict[str, Any]],
+    keep_ranges: List[tuple],
+    output_offsets: Optional[List[float]] = None,
+) -> List[Dict[str, Any]]:
+    """Caption lines ``[{start, end, text}]`` on the clip timeline from the cached utterances (ms).
+
+    Used for approximate word timing when a provider gave no usable word times (G12): an utterance belongs to the
+    kept range holding its midpoint and is clipped to it.
+    """
+    if not transcript_data or not keep_ranges:
+        return []
+    ranges = normalize_source_ranges(keep_ranges)
+    offsets = list(output_offsets) if output_offsets is not None else output_offsets_for_ranges(ranges)
+    lines: List[Dict[str, Any]] = []
+    for utterance in transcript_data.get("utterances") or []:
+        try:
+            start = float(utterance.get("start")) / 1000.0
+            end = float(utterance.get("end")) / 1000.0
+        except (TypeError, ValueError):
+            continue
+        text = str(utterance.get("text") or "").strip()
+        if not text or end <= start:
+            continue
+        middle = (start + end) / 2.0
+        for (keep_start, keep_end), offset in zip(ranges, offsets):
+            if keep_start <= middle < keep_end:
+                lines.append({
+                    "start": round(offset + max(start, keep_start) - keep_start, 3),
+                    "end": round(offset + min(end, keep_end) - keep_start, 3),
+                    "text": text,
+                    # A times of the clipped line: approximate words get A times too, so beats can re-anchor.
+                    "src_start": round(max(start, keep_start), 3),
+                    "src_end": round(min(end, keep_end), 3),
+                })
+                break
+    return lines
+
+
+def _with_original_source_times(items: List[Dict[str, Any]], time_map) -> List[Dict[str, Any]]:
+    """``src_start``/``src_end`` moved from a section download's local timeline to the original source.
+
+    A partial YouTube download is a concatenation of sections, so its transcript is shifted onto the local file.
+    Beats keep A times in the original video, so a later re-render (another download, the full source) re-anchors.
+    """
+    if time_map is None:
+        return items
+    out: List[Dict[str, Any]] = []
+    for item in items:
+        copied = dict(item)
+        for key in ("src_start", "src_end"):
+            if copied.get(key) is not None:
+                copied[key] = round(float(time_map.to_original(float(copied[key]))), 3)
+        out.append(copied)
+    return out
+
+
+def _fx_timeline_hash(keep_ranges: List[tuple], output_offsets: Optional[List[float]], words: List[Dict[str, Any]],
+                      time_map) -> str:
+    """§13.1 ``timeline_hash`` with the ranges in the original video's time.
+
+    A section download's ``keep_ranges`` are positions in that download, which another download of the same clip
+    (another padding, more sections, the full file) lays out differently. Hashing the original-source ranges lets
+    a settings re-render of such a clip reuse or re-resolve its plan (rules 2/3) instead of re-anchoring (rule 4).
+    Without a time map (uploads, full downloads) the ranges are already source time and the hash is unchanged.
+    """
+    ranges = keep_ranges
+    if time_map is not None:
+        ranges = []
+        for start, end in time_map.to_original_ranges([(float(a), float(b)) for a, b in keep_ranges]):
+            # A range that crosses a stitched-section boundary in one download and not in another is the same
+            # stretch of the original video: join pieces that touch there.
+            if ranges and abs(start - ranges[-1][1]) < 1e-3:
+                ranges[-1] = (ranges[-1][0], end)
+            else:
+                ranges.append((start, end))
+    return beats_timeline_hash(ranges, output_offsets, words)
+
+
+def _fx_clip_seconds(keep_ranges: List[tuple], output_offsets: Optional[List[float]]) -> float:
+    """E duration of the stage-1 render before the probe clamp (AR-M13)."""
+    if output_offsets is not None:
+        return rendered_duration(keep_ranges, output_offsets)
+    return rendered_ranges_duration(keep_ranges)
+
+
+def _beats_redis():
+    """An async Redis client for the beat cache (``fx_beats:*``), or None. The cache is an optimisation only."""
+    try:
+        import redis.asyncio as redis_asyncio
+
+        config = get_config()
+        return redis_asyncio.Redis(
+            host=config.redis_host, port=config.redis_port, password=config.redis_password,
+            socket_connect_timeout=2, socket_timeout=5,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Beat cache unavailable: %s", exc)
+        return None
+
+
+async def _close_redis(client) -> None:
+    if client is None:
+        return
+    try:
+        await client.aclose()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _read_beats(raw: Any) -> Optional[EditBeats]:
+    """Lenient read of stored beats (checkpoint, sidecar). None when unreadable (AI-M9: never fatal)."""
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, EditBeats):
+            return raw
+        clean, dropped = known_fields(EditBeats, dict(raw))
+        log_dropped("fx.edit_beats", dropped)
+        return EditBeats.model_validate(clean)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fx_beats_unreadable (%s); planning again", exc)
+        return None
+
+
+def _read_plan(raw: Any) -> Optional[FxPlan]:
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, FxPlan):
+            return raw
+        clean, dropped = known_fields(FxPlan, dict(raw))
+        log_dropped("fx.edit_fx", dropped)
+        return FxPlan.model_validate(clean)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fx_plan_unreadable (%s); resolving again", exc)
+        return None
+
+
+async def _llm_beats(words: List[Dict[str, Any]], clip_seconds: float, timing: str, language: Optional[str]) -> EditBeats:
+    redis_client = _beats_redis()
+    try:
+        return await plan_beats(words, clip_seconds, timing=timing, language=language, redis=redis_client)
+    finally:
+        await _close_redis(redis_client)
+
+
+def _resolve_fx(
+    *,
+    words: List[Dict[str, Any]],
+    beats: EditBeats,
+    style: EditStyle,
+    template: str,
+    seed: int,
+    keep_ranges: List[tuple],
+    output_offsets: Optional[List[float]],
+    group_output_starts: Optional[List[Optional[float]]],
+    broll_placements: Optional[List[Dict[str, Any]]],
+    hook_title: Optional[str],
+    max_clip_seconds: Optional[float],
+) -> FxPlan:
+    """``resolve`` with the generation inputs of FINAL §6.1.2.3 (cuts at junction centres, passage breaks, B-roll
+    windows, the hook band, the built-in asset manifest). Pure apart from reading the committed manifest."""
+    duration = _fx_clip_seconds(keep_ranges, output_offsets)
+    cuts, breaks = fx_junctions(keep_ranges, output_offsets, group_output_starts)
+    index = fx_assets.load_index()
+    return resolve(
+        ResolveInput(
+            words=tuple(words),
+            beats=beats,
+            duration=duration,
+            cuts=tuple(cuts),
+            passage_breaks=tuple(breaks),
+            broll_windows=tuple(fx_broll_windows(broll_placements)),
+            hook_window=(FX_HOOK_WINDOW_START, hook_title_window(duration)) if hook_title else None,
+            max_clip_seconds=max_clip_seconds,
+            sfx_variants=fx_assets.sfx_variants(),
+            beds=index.beds,
+            bed_lengths=index.bed_lengths,
+            reactions_available=reactions_available(),
+        ),
+        style,
+        template,
+        seed,
+    )
+
+
+async def _attach_reaction_files(plan: FxPlan, scratch: Path) -> tuple[FxPlan, Dict[str, Path]]:
+    """GIPHY reactions for the plan (when opted in and configured), downloaded into the render's ``scratch``.
+    A reaction whose file is unavailable is dropped from the plan, so the sidecar describes what rendered."""
+    if not any(c.kind == "reaction" for c in plan.cues):
+        return plan, {}
+    if plan.style.reactions and reactions_available():
+        plan = await attach_reactions(plan, rng_seed=plan.seed)
+    files: Dict[str, Path] = {}
+    for cue in plan.cues:
+        if cue.kind != "reaction":
+            continue
+        path = await ensure_reaction_file(cue, scratch)
+        if path is not None:
+            files[cue.id] = path
+    missing = {c.id for c in plan.cues if c.kind == "reaction" and c.id not in files}
+    if missing:
+        plan = plan.model_copy(update={"cues": tuple(c for c in plan.cues if c.id not in missing)})
+    return plan, files
+
+
+async def plan_clip_fx(
+    *,
+    video_path: Path,
+    keep_ranges: List[tuple],
+    output_offsets: Optional[List[float]],
+    group_output_starts: Optional[List[Optional[float]]],
+    style: EditStyle,
+    template: str,
+    task_id: str,
+    clip_index: int,
+    hook_title: Optional[str],
+    max_clip_seconds: Optional[float],
+    broll: Optional[Awaitable[List[Dict[str, Any]]]] = None,
+    cached_beats: Optional[Dict[str, Any]] = None,
+    stored: Optional[Dict[str, Any]] = None,
+    recompute_cleanup: bool = False,
+) -> tuple[_FxPlanned, List[Dict[str, Any]]]:
+    """Decide a clip's effects in the async worker code (beats, resolve), never inside the sync renderer.
+
+    ``broll`` is the clip's B-roll planning, awaited concurrently with the beat model (generation). ``stored`` holds
+    a re-render's sidecar data (``edit_fx``, ``edit_beats``, ``edit_style``, ``face_track``) and applies the §13.1
+    rules; ``cached_beats`` are this clip's checkpoint beats (generation retry/resume). Returns the planned effects
+    and the B-roll placements.
+    """
+    transcript = await run_in_thread(load_cached_transcript_data, video_path)
+    time_map = await run_in_thread(load_time_map, video_path)
+    raw_words = _with_original_source_times(fx_words_for_ranges(transcript, keep_ranges, output_offsets), time_map)
+    lines = _with_original_source_times(fx_lines_for_ranges(transcript, keep_ranges, output_offsets), time_map)
+    words, timing = words_with_timing(raw_words, lines)
+    language = (transcript or {}).get("language_code") if isinstance(transcript, dict) else None
+    current_hash = _fx_timeline_hash(keep_ranges, output_offsets, words, time_map)
+    clip_seconds = _fx_clip_seconds(keep_ranges, output_offsets)
+    stored = stored or {}
+    seed = plan_seed(task_id, clip_index)
+
+    stored_plan = _read_plan(stored.get("edit_fx"))
+    stored_beats = _read_beats(stored.get("edit_beats"))
+    stored_style = stored.get("edit_style")
+    current_style = style.to_json()
+    if stored_plan is not None:
+        seed = stored_plan.seed
+
+    rule = ""
+    beats: Optional[EditBeats] = None
+    reuse_plan: Optional[FxPlan] = None
+    face_track = None
+    same_timeline = stored_beats is not None and stored_beats.timeline_hash == current_hash and bool(current_hash)
+
+    # §13.1 rule 2: nothing that shapes the plan changed → reuse it verbatim.
+    if (
+        stored_plan is not None
+        and same_timeline
+        and not recompute_cleanup
+        and isinstance(stored_style, dict)
+        and read_edit_style(stored_style).to_json() == current_style
+        and stored_plan.template == template
+    ):
+        reuse_plan, beats, rule = stored_plan, stored_beats, "reuse"
+        face_track = stored.get("face_track") or None
+    elif same_timeline:
+        # Rule 3: same timeline, another style or template → re-resolve with the stored seed (no model call).
+        beats, rule = stored_beats, "re-resolve"
+        face_track = stored.get("face_track") or None
+    elif stored_beats is not None:
+        # Rule 4: the timeline moved → beats follow their source words (swears re-derived on the new words).
+        moved = reanchor_beats(stored_beats, words)
+        if moved is not None:
+            beats, rule = moved, "reanchor"
+
+    async def no_broll() -> List[Dict[str, Any]]:
+        return []
+
+    cached = _read_beats(cached_beats) if beats is None and reuse_plan is None else None
+    if cached is not None and cached.words_hash == words_hash(words):
+        beats, rule = cached, "cached"
+
+    if beats is None and reuse_plan is None:
+        if style.active:
+            # Rule 5: the beat model, concurrently with B-roll planning.
+            beats, placements = await _gather_beats(
+                _llm_beats(words, clip_seconds, timing, language), broll or no_broll()
+            )
+            rule = "llm"
+        else:
+            # Rule 6 / style only: deterministic beats, no model call.
+            beats, rule = heuristic_beats(words, timing=timing), "heuristic"
+            placements = await (broll or no_broll())
+    else:
+        placements = await (broll or no_broll())
+
+    if beats is not None:
+        beats = beats.model_copy(update={"timeline_hash": current_hash})
+    if reuse_plan is not None:
+        plan = reuse_plan
+    else:
+        plan = _resolve_fx(
+            words=words, beats=beats, style=style, template=template, seed=seed, keep_ranges=keep_ranges,
+            output_offsets=output_offsets, group_output_starts=group_output_starts, broll_placements=placements,
+            hook_title=hook_title, max_clip_seconds=max_clip_seconds,
+        )
+    logger.info(
+        "fx_plan clip=%s rule=%s timing=%s beats=%d cues=%d intensity=%s template=%s",
+        clip_index + 1, rule, timing, len(beats.beats) if beats else 0, len(plan.cues), style.intensity, template,
+    )
+    return _FxPlanned(plan=plan, beats=beats, words=words, timing=timing, rule=rule, face_track=face_track), placements
+
+
+async def _ready(value):
+    return value
+
+
+async def _gather_beats(beats_coro, broll_coro):
+    beats, placements = await asyncio.gather(beats_coro, broll_coro)
+    return beats, placements
 
 
 async def resolve_upload_for_edit(video_service, url: str) -> Path:
@@ -921,6 +1312,7 @@ class VideoService:
         max_short_side: Optional[int] = None,
         max_clip_seconds: float = 60.0,
         include_broll: bool = False,
+        fx_jobs: Optional[Dict[int, FxJob]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -930,7 +1322,42 @@ class VideoService:
         Runs in thread pool as video processing is CPU-intensive.
         output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
+
+        ``fx_jobs`` (dynamic edits re-render, segment index → job; passed only when
+        set) decides every segment's effects here, in async code, by the §13.1
+        rules (reuse the stored plan, re-resolve, re-anchor, or plan beats), and
+        stores the ready plan in ``segment["edit_fx"]``. The synchronous batch
+        renderer only consumes it.
         """
+        if fx_jobs:
+            with tempfile.TemporaryDirectory(prefix="supoclip_fx_") as fx_scratch:
+                return await VideoService._create_video_clips(
+                    video_path, segments, font_family, font_size, font_color, caption_template, output_format,
+                    add_subtitles, cleanup_settings, max_short_side, max_clip_seconds, include_broll,
+                    fx_jobs, Path(fx_scratch),
+                )
+        return await VideoService._create_video_clips(
+            video_path, segments, font_family, font_size, font_color, caption_template, output_format,
+            add_subtitles, cleanup_settings, max_short_side, max_clip_seconds, include_broll, None, None,
+        )
+
+    @staticmethod
+    async def _create_video_clips(
+        video_path: Path,
+        segments: List[Dict[str, Any]],
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
+        caption_template: str,
+        output_format: str,
+        add_subtitles: bool,
+        cleanup_settings: Optional[Dict[str, Any]],
+        max_short_side: Optional[int],
+        max_clip_seconds: float,
+        include_broll: bool,
+        fx_jobs: Optional[Dict[int, FxJob]],
+        fx_scratch: Optional[Path],
+    ) -> List[Dict[str, Any]]:
         logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
         clips_output_dir = Path(get_config().temp_dir) / "clips"
         clips_output_dir.mkdir(parents=True, exist_ok=True)
@@ -970,6 +1397,11 @@ class VideoService:
         else:
             segments = [{**segment, "broll": [], "broll_overlays": []} for segment in segments]
 
+        if fx_jobs:
+            segments = await VideoService._plan_segments_fx(
+                video_path, segments, fx_jobs, caption_template, cleanup_settings, max_clip_seconds, fx_scratch,
+            )
+
         clips_info = await run_in_thread(
             create_clips_with_transitions,
             video_path,
@@ -983,6 +1415,7 @@ class VideoService:
             add_subtitles,
             cleanup_settings,
             max_clip_seconds=max_clip_seconds,
+            **({"fx_enabled": True} if fx_jobs else {}),
         )
 
         if max_short_side:
@@ -1002,6 +1435,80 @@ class VideoService:
         return clips_info
 
     @staticmethod
+    async def _plan_segments_fx(
+        video_path: Path,
+        segments: List[Dict[str, Any]],
+        fx_jobs: Dict[int, FxJob],
+        caption_template: str,
+        cleanup_settings: Optional[Dict[str, Any]],
+        max_clip_seconds: float,
+        fx_scratch: Optional[Path],
+    ) -> List[Dict[str, Any]]:
+        """Resolve each segment's effects before the batch render (§6.1.3, §13.1).
+
+        Reads the segment's stored ``edit_fx``/``edit_beats``/``edit_style``/``face_track`` (loaded from the old
+        clip's sidecar) and writes the ready plan to ``edit_fx``, the beats to ``edit_beats``, the words to
+        ``fx_words``, downloaded reactions to ``fx_reaction_files``, and ``edit_style`` (the current style). A
+        segment whose job is missing or not FX-active renders legacy (rule 1) with its FX keys removed.
+        """
+        planned_segments: List[Dict[str, Any]] = []
+        for index, segment in enumerate(segments):
+            segment = dict(segment)
+            job = fx_jobs.get(index)
+            stored = {key: segment.pop(key, None) for key in ("edit_fx", "edit_beats", "edit_style", "face_track")}
+            segment.pop("edit_fx_warp", None)
+            for key in ("fx_words", "fx_reaction_files", "edit_style"):
+                segment.pop(key, None)
+            if job is None or not fx_active(job.style, caption_template):
+                # Rule 1: off + legacy template is checked first, so FX → legacy never resolves.
+                planned_segments.append(segment)
+                continue
+            try:
+                resolved = await run_in_thread(
+                    resolve_render_ranges,
+                    video_path,
+                    segment,
+                    cleanup_settings,
+                    float(segment.get("max_seconds") or max_clip_seconds),
+                )
+                planned, _ = await plan_clip_fx(
+                    video_path=video_path,
+                    keep_ranges=resolved.keep_ranges,
+                    output_offsets=resolved.output_offsets,
+                    group_output_starts=resolved.group_output_starts,
+                    style=job.style,
+                    template=caption_template,
+                    task_id=job.task_id,
+                    clip_index=job.clip_index,
+                    hook_title=burned_hook_title(segment),
+                    max_clip_seconds=float(segment.get("max_seconds") or max_clip_seconds),
+                    # Placements are already planned above; their windows keep cues off the cutaways.
+                    broll=_ready(list(segment.get("broll") or [])),
+                    stored=stored,
+                    cached_beats=job.cached_beats,
+                    recompute_cleanup=bool(segment.pop("fx_cleanup_recomputed", False)),
+                )
+                if planned.rule == "llm" and planned.beats is not None and job.on_beats is not None:
+                    try:
+                        await job.on_beats(job.clip_index, planned.beats.model_dump(mode="json"))
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Could not checkpoint the beats of clip %d: %s", index + 1, exc)
+                plan, files = await _attach_reaction_files(planned.plan, fx_scratch or Path(get_config().temp_dir))
+            except Exception as exc:  # noqa: BLE001 - decorative layers never cost the clip (§0.4.7)
+                logger.warning("fx_planning_failed clip=%d (%s); rendering without effects", index + 1, exc)
+                planned_segments.append(segment)
+                continue
+            segment["edit_fx"] = plan.model_dump(mode="json")
+            segment["edit_beats"] = planned.beats.model_dump(mode="json") if planned.beats is not None else None
+            segment["edit_style"] = job.style.to_json()
+            segment["fx_words"] = planned.words
+            segment["fx_reaction_files"] = {cue_id: str(path) for cue_id, path in files.items()}
+            if planned.face_track:
+                segment["face_track"] = planned.face_track
+            planned_segments.append(segment)
+        return planned_segments
+
+    @staticmethod
     async def create_single_clip(
         video_path: Path,
         segment: Dict[str, Any],
@@ -1018,13 +1525,52 @@ class VideoService:
         max_clip_seconds: float = 60.0,
         include_broll: bool = False,
         broll_session: Optional[BRollSession] = None,
+        fx: Optional[FxJob] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure.
 
         ``max_short_side`` downscales the finished clip for plans below 1080p.
         ``include_broll`` adds stock cutaways; ``broll_session`` keeps one
         task's clips from reusing the same footage.
+
+        ``fx`` (dynamic edits, passed only when active) plans the clip's beats
+        (checkpoint, beat model or heuristic) concurrently with B-roll, resolves
+        the effects here, renders them through the fx chain, and records the FX
+        sidecar keys; the returned ``clip_info`` then carries ``fx_meta``.
         """
+        if fx is not None:
+            with tempfile.TemporaryDirectory(prefix="supoclip_fx_") as fx_scratch:
+                return await VideoService._create_single_clip(
+                    video_path, segment, clip_index, output_dir, font_family, font_size, font_color,
+                    caption_template, output_format, add_subtitles, cleanup_settings, max_short_side,
+                    max_clip_seconds, include_broll, broll_session, fx, Path(fx_scratch),
+                )
+        return await VideoService._create_single_clip(
+            video_path, segment, clip_index, output_dir, font_family, font_size, font_color,
+            caption_template, output_format, add_subtitles, cleanup_settings, max_short_side,
+            max_clip_seconds, include_broll, broll_session, None, None,
+        )
+
+    @staticmethod
+    async def _create_single_clip(
+        video_path: Path,
+        segment: Dict[str, Any],
+        clip_index: int,
+        output_dir: Path,
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
+        caption_template: str,
+        output_format: str,
+        add_subtitles: bool,
+        cleanup_settings: Optional[Dict[str, Any]],
+        max_short_side: Optional[int],
+        max_clip_seconds: float,
+        include_broll: bool,
+        broll_session: Optional[BRollSession],
+        fx: Optional[FxJob],
+        fx_scratch: Optional[Path],
+    ) -> Optional[Dict[str, Any]]:
         try:
             start_seconds, end_seconds = segment_bounds(segment)
             duration = end_seconds - start_seconds
@@ -1052,7 +1598,46 @@ class VideoService:
             start_seconds, end_seconds = resolved.bounds
 
             broll_placements: List[Dict[str, Any]] = []
-            if include_broll:
+            planned_fx: Optional[_FxPlanned] = None
+            if fx is not None:
+                # B-roll planning runs as its own task, so a failed FX plan still gets its placements once.
+                broll_task = asyncio.ensure_future(VideoService.plan_broll(
+                    video_path, keep_ranges, output_format, max_short_side, broll_session,
+                    **({"output_offsets": output_offsets} if output_offsets is not None else {}),
+                )) if include_broll else None
+                try:
+                    planned_fx, broll_placements = await plan_clip_fx(
+                        video_path=video_path,
+                        keep_ranges=keep_ranges,
+                        output_offsets=output_offsets,
+                        group_output_starts=resolved.group_output_starts,
+                        style=fx.style,
+                        template=caption_template,
+                        task_id=fx.task_id,
+                        clip_index=fx.clip_index,
+                        hook_title=burned_hook_title(segment),
+                        max_clip_seconds=max_clip_seconds,
+                        broll=broll_task,
+                        cached_beats=fx.cached_beats,
+                    )
+                    if planned_fx.rule == "llm" and planned_fx.beats is not None and fx.on_beats is not None:
+                        try:
+                            await fx.on_beats(fx.clip_index, planned_fx.beats.model_dump(mode="json"))
+                        except Exception as exc:  # noqa: BLE001 - the checkpoint only saves a model call on retry
+                            logger.warning("Could not checkpoint the beats of clip %d: %s", clip_index + 1, exc)
+                    plan, reaction_files = await _attach_reaction_files(planned_fx.plan, fx_scratch)
+                    planned_fx.plan = plan
+                    planned_fx.reaction_files = reaction_files
+                except Exception as exc:  # noqa: BLE001 - decorative layers never cost the clip (§0.4.7)
+                    logger.warning("fx_planning_failed clip=%d (%s); rendering without effects", clip_index + 1, exc)
+                    planned_fx = None
+                    broll_placements = []
+                    if broll_task is not None:
+                        try:
+                            broll_placements = await broll_task
+                        except Exception as broll_exc:  # noqa: BLE001
+                            logger.warning("B-roll planning failed for clip %d: %s", clip_index + 1, broll_exc)
+            elif include_broll:
                 broll_placements = await VideoService.plan_broll(
                     video_path, keep_ranges, output_format, max_short_side, broll_session,
                     **({"output_offsets": output_offsets} if output_offsets is not None else {}),
@@ -1080,6 +1665,11 @@ class VideoService:
                 broll_overlays=broll_overlays,
                 **({"output_offsets": output_offsets} if output_offsets is not None else {}),
                 **({"point_labels": point_labels} if point_labels else {}),
+                **({"fx": FxRenderInput(
+                    plan=planned_fx.plan,
+                    words=planned_fx.words,
+                    reaction_files=planned_fx.reaction_files,
+                )} if planned_fx is not None else {}),
             )
 
             if not success:
@@ -1103,6 +1693,16 @@ class VideoService:
             if render_report.get("caption_y") is not None:
                 from ..clip_source_map import save_clip_caption_settings
                 save_clip_caption_settings(clip_path, {"position_y": render_report["caption_y"], "position_is_center": True})
+            fx_meta = None
+            if planned_fx is not None:
+                # After the 720p cap (§0.4.3): the sidecar records the render, not the resolution.
+                fx_meta = save_fx_render(
+                    clip_path,
+                    style=fx.style.to_json(),
+                    beats=planned_fx.beats.model_dump(mode="json") if planned_fx.beats is not None else None,
+                    report=render_report,
+                    template=caption_template,
+                )
             # Store what plays, after crossfades and the resolution cap.
             cleaned_duration = await run_in_thread(
                 rendered_clip_duration, clip_path, keep_ranges, output_offsets
@@ -1131,6 +1731,7 @@ class VideoService:
                 "keep_ranges": keep_ranges,
                 "output_offsets": output_offsets,
                 "group_output_starts": resolved.group_output_starts,
+                **({"fx_meta": fx_meta} if fx_meta is not None else {}),
             }
         except Exception as e:
             logger.error(f"Error creating clip {clip_index + 1}: {e}")

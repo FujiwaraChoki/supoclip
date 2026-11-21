@@ -25,7 +25,7 @@ import re
 import time
 import unicodedata
 from dataclasses import replace
-from typing import Annotated, Awaitable, Callable, Optional
+from typing import Annotated, Any, Awaitable, Callable, Optional
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -101,6 +101,18 @@ WORKFLOWS = ("highlights", "series", "topic", "recap", "trailer")
 TOPIC_MIN_CHARS, TOPIC_MAX_CHARS = 2, 120
 INSTRUCTIONS_MAX_CHARS = 500
 SERIES_MIN_PARTS, SERIES_MAX_PARTS = 2, 10
+# Dynamic edits: mirrors EditStyle in backend/src/edit_fx/contracts.py (defaults included) so a bad value fails
+# here with a clear message. The backend validates again and stays the authority.
+INTENSITIES = ("off", "subtle", "bold", "max")
+MUSIC_MOODS = ("auto", "hype", "chill", "dramatic", "funny", "inspiring", "dark", "aggressive")
+GRADES = ("auto", "none", "punchy", "warm", "teal_orange", "noir", "vhs", "dream")
+CENSORS = ("off", "bleep", "bleep_bar", "bleep_pixelate")
+EDIT_STYLE_DEFAULTS: dict = {
+    "intensity": "off", "sfx": True, "music": True, "music_mood": "auto", "zooms": True, "shake": True,
+    "transitions": True, "speed": True, "censor": "bleep_bar", "grade": "auto", "grain": False,
+    "progress_bar": False, "loop_ending": False, "wait_for_it": True, "reactions": False,
+}
+_EDIT_STYLE_CHOICES = {"intensity": INTENSITIES, "music_mood": MUSIC_MOODS, "grade": GRADES, "censor": CENSORS}
 # Invisible characters the backend strips before measuring (ZWJ/ZWNJ are kept).
 _INVISIBLE = re.compile("[\u00ad\u180e\u200b\u2060\ufeff\u202a-\u202e\u2066-\u2069]")
 _LINE_BREAKS = re.compile("\r\n|[\r\u2028\u2029\u0085\u000b\u000c]")
@@ -209,6 +221,51 @@ def _workflow_fields(workflow: str, topic: str, part_count: int, instructions: s
     return fields
 
 
+def _edit_style_field(intensity: str, edit_style: Optional[dict]) -> dict:
+    """The ``edit_style`` request field, or nothing.
+
+    ``edit_style`` passes the API's keys through (validated here and again by the server); ``intensity`` is a
+    shortcut for ``edit_style["intensity"]`` and wins when both are given. The body carries ``edit_style`` only when
+    the resulting intensity is not "off", so a plain request is exactly what it was before dynamic edits. Sent in the
+    API's canonical form: sorted, only the keys that differ from the defaults, ``intensity`` always present.
+    """
+    if edit_style is not None and not isinstance(edit_style, dict):
+        raise SupoClipError("edit_style must be an object, e.g. {\"intensity\": \"bold\", \"music\": false}.")
+    style = dict(EDIT_STYLE_DEFAULTS)
+    for key, value in (edit_style or {}).items():
+        if key not in EDIT_STYLE_DEFAULTS:
+            known = ", ".join(sorted(EDIT_STYLE_DEFAULTS))
+            raise SupoClipError(f"edit_style has no key '{key}'. Known keys: {known}.")
+        choices = _EDIT_STYLE_CHOICES.get(key)
+        if choices is not None:
+            if value not in choices:
+                raise SupoClipError(f"edit_style.{key} must be one of: {', '.join(choices)}.")
+        elif not isinstance(value, bool):
+            raise SupoClipError(f"edit_style.{key} must be true or false.")
+        style[key] = value
+    shortcut = (intensity or "").strip().lower()
+    if shortcut and shortcut != "off":
+        if shortcut not in INTENSITIES:
+            raise SupoClipError("intensity must be off, subtle, bold or max.")
+        style["intensity"] = shortcut
+    if style["intensity"] == "off":
+        return {}
+    return {
+        "edit_style": {
+            key: style[key] for key in sorted(style) if key == "intensity" or style[key] != EDIT_STYLE_DEFAULTS[key]
+        }
+    }
+
+
+async def _edit_styles_enabled(client: Any) -> bool:
+    """Whether dynamic edits are on for this account (``GET /tasks/edit-styles``). Unauthenticated or any error: no."""
+    try:
+        info = await client.request("GET", "/tasks/edit-styles")
+    except SupoClipError:
+        return False
+    return isinstance(info, dict) and info.get("enabled") is True
+
+
 def _safe_filename(name: str, default: str) -> str:
     """Reduce an arbitrary string to a safe ``.mp4`` basename (no path traversal)."""
     base = os.path.basename((name or "").strip()) or default
@@ -277,12 +334,20 @@ async def supoclip_list_caption_templates() -> str:
 
     Each template id (e.g. ``default``, ``hormozi``, ``mrbeast``) can be passed
     as ``caption_template`` to ``supoclip_create_clip_task``. No auth required.
+    When the configured account has dynamic edits (``supoclip_list_edit_styles``),
+    the list also holds the animated templates (``fx: true``: ``highlighter_swipe``,
+    ``emoji_drop``, ``behind_head``; ``requires`` says if one needs a face or a person matte).
 
     Returns:
         str: JSON ``{"templates": [{"id", "name", "description", "animation",
         "font_family", "font_size", "font_color", ...}]}``.
     """
-    data = await _client().request("GET", "/caption-templates", authenticated=False)
+    client = _client()
+    # Animated (dynamic edits) templates are listed only for accounts that may use them.
+    if await _edit_styles_enabled(client):
+        data = await client.request("GET", "/caption-templates", params={"include": "fx"}, authenticated=False)
+    else:
+        data = await client.request("GET", "/caption-templates", authenticated=False)
     return _json(data)
 
 
@@ -419,6 +484,8 @@ async def supoclip_create_clip_task(
     topic: str = "",
     part_count: int = 0,
     instructions: str = "",
+    intensity: str = "off",
+    edit_style: Optional[dict] = None,
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -440,6 +507,17 @@ async def supoclip_create_clip_task(
     videos of at least 2/3/3 minutes. instructions: optional free-text editorial
     guidance for any workflow (max 500 characters), e.g. "skip the sponsor read"
     or "focus on the hiring story".
+
+    Dynamic edits: ``intensity`` ("off", "subtle", "bold", "max") edits like
+    short-form editors do (subtle ≈ podcast clips, bold ≈ Hormozi, max ≈ MrBeast):
+    hard reframes that hold, short pushes, hits on cuts and graphics, a steady
+    music bed and the odd flash at a cut; ``edit_style`` fine-tunes them with the
+    API's keys (sfx, music, music_mood, zooms, transitions, censor, grade, grain,
+    progress_bar, loop_ending, reactions; shake, speed and wait_for_it are accepted
+    but never placed automatically). Animated caption templates
+    (``highlighter_swipe``, ``emoji_drop``, ``behind_head``) work with intensity off too.
+    Both need dynamic edits on for the account (403 DYNAMIC_EDITS_NOT_AVAILABLE);
+    ``supoclip_list_edit_styles`` tells you first.
 
     Workflows other than plain highlights may not be enabled for every account
     (403 WORKFLOW_NOT_AVAILABLE); ``supoclip_list_workflows`` tells you first.
@@ -468,6 +546,9 @@ async def supoclip_create_clip_task(
         topic: The subject to find (workflow='topic' only), max 120 characters.
         part_count: Series parts, 0 = auto or 2-10 (workflow='series' only).
         instructions: Optional editorial guidance for any workflow, max 500 characters.
+        intensity: Dynamic edits: 'off' (default) | 'subtle' | 'bold' | 'max'.
+        edit_style: Optional dynamic-edits settings, e.g. {"music": false, "censor": "bleep"};
+            "intensity" may be set here too (the intensity argument wins when not "off").
 
     Returns:
         str: JSON ``{"task_id": str, "job_id": str, "message": str}`` on success.
@@ -480,6 +561,7 @@ async def supoclip_create_clip_task(
         raise SupoClipError("clip_length must be auto, short, medium, or long")
 
     workflow_fields = _workflow_fields(workflow, topic, part_count, instructions)
+    edit_fields = _edit_style_field(intensity, edit_style)
 
     normalized_mode = processing_mode if processing_mode in {"fast", "balanced", "quality"} else "fast"
     normalized_format = output_format if output_format in VALID_OUTPUT_FORMATS else "vertical"
@@ -514,6 +596,7 @@ async def supoclip_create_clip_task(
     body["cut_long_pauses"] = bool(cut_long_pauses)
     body["remove_filler_words"] = bool(remove_filler_words)
     body.update(workflow_fields)
+    body.update(edit_fields)
 
     data = await _client().request("POST", "/tasks/", json_body=body)
     return _json(data)
@@ -569,6 +652,35 @@ async def supoclip_list_workflows() -> str:
         scales with the video).
     """
     data = await _client().request("GET", "/tasks/workflows")
+    return _json(data)
+
+
+@mcp.tool(
+    name="supoclip_list_edit_styles",
+    annotations={
+        "title": "List Edit Styles",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+@tool_errors
+async def supoclip_list_edit_styles() -> str:
+    """Whether this account has dynamic edits, and what they offer.
+
+    Call this before passing ``intensity``, ``edit_style`` or an animated
+    caption template to ``supoclip_create_clip_task``. When ``enabled`` is
+    false, use intensity "off" and a classic caption template. Requires
+    authentication.
+
+    Returns:
+        str: JSON ``{"enabled": bool, "intensities": [...], "defaults": {...},
+        "settings": [{"key", "type", "default", "choices"?}], "music_moods": [...],
+        "grades": [...], "templates": [animated caption template ids],
+        "reactions_available": bool}``.
+    """
+    data = await _client().request("GET", "/tasks/edit-styles")
     return _json(data)
 
 
@@ -658,6 +770,10 @@ async def supoclip_wait_for_task(
         int,
         Field(default=5, description="Seconds between status checks.", ge=2, le=60),
     ] = 5,
+    clip_job_id: Annotated[
+        str,
+        Field(default="", description="A clip edit's job_id (from a 202 response) to wait on instead of the task."),
+    ] = "",
     ctx: Optional[Context] = None,
 ) -> str:
     """Poll a task until it finishes (completed/error/cancelled) or times out.
@@ -665,15 +781,29 @@ async def supoclip_wait_for_task(
     Convenience wrapper around ``supoclip_get_task`` for the asynchronous
     pipeline. Reports progress while waiting. Requires authentication.
 
+    Edits to clips with dynamic edits (new task settings, captions, trim, split,
+    merge) run on the video worker: the API answers 202 with
+    ``{"status": "queued", "job_id", "kind"}``. Pass that ``job_id`` as
+    ``clip_job_id`` to wait for it; the task is fetched again once it is done.
+
     Args:
         task_id: The task id to wait on.
         timeout_seconds: Max seconds to wait (5-3600, default 600).
         poll_interval_seconds: Seconds between polls (2-60, default 5).
+        clip_job_id: Optional pending clip job to wait on.
 
     Returns:
         str: JSON ``{"status", "progress", "timed_out": bool, "task": {...}}``.
         When ``status`` is ``completed`` the ``task.clips`` array holds results.
+        With ``clip_job_id``: ``{"status": "done"|"failed"|..., "progress",
+        "timed_out", "job": {...}, "task"?: {...}}``.
     """
+    deadline = time.monotonic() + timeout_seconds
+    job_id = (clip_job_id or "").strip().lower()
+    if job_id:
+        if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+            raise SupoClipError("clip_job_id must be the 32-character job_id from a 202 response.")
+        return await _wait_for_clip_job(task_id, job_id, deadline, timeout_seconds, poll_interval_seconds, ctx)
     last: dict = {}
 
     async def poll_until_finished() -> None:
@@ -710,6 +840,38 @@ async def supoclip_wait_for_task(
     if timed_out:
         result["message"] = f"Still '{status}' after {timeout_seconds}s; poll again later."
     return _json(result)
+
+
+async def _wait_for_clip_job(
+    task_id: str, job_id: str, deadline: float, timeout_seconds: int, poll_interval_seconds: int, ctx: Optional[Context]
+) -> str:
+    """Poll ``GET /tasks/{id}/clip-jobs/{job_id}`` until the job is done or failed (the API polls every 2 s too)."""
+    path = f"/tasks/{task_id}/clip-jobs/{job_id}"
+    while True:
+        job = await _client().request("GET", path)
+        status = str(job.get("status", "unknown"))
+        progress = job.get("progress", 0)
+        if ctx is not None:
+            try:
+                await ctx.report_progress(progress=float(progress or 0), message=f"clip job {status}")
+            except Exception:
+                pass
+        if status == "done":
+            task = await _client().request("GET", f"/tasks/{task_id}")
+            return _json({"status": status, "progress": 1.0, "timed_out": False, "job": job, "task": task})
+        if status == "failed":
+            return _json({"status": status, "progress": progress, "timed_out": False, "job": job})
+        if time.monotonic() >= deadline:
+            return _json(
+                {
+                    "status": status,
+                    "progress": progress,
+                    "timed_out": True,
+                    "message": f"Clip job still '{status}' after {timeout_seconds}s; poll again later.",
+                    "job": job,
+                }
+            )
+        await asyncio.sleep(poll_interval_seconds)
 
 
 @mcp.tool(

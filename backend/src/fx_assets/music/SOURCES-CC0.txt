@@ -1,0 +1,65 @@
+SupoClip dynamic-edit music beds (music/*.mp3)
+==============================================
+
+License: CC0-1.0 (Creative Commons Zero 1.0 Universal, public domain dedication).
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Every bed was cut from a track its author released under CC0 1.0. The dedication was read on each
+track's own page on the date in beds.json. CC0 needs no attribution; authors are listed for provenance
+and thanks. Processing: a whole-bar loop cut from the track body, the seam crossfaded, 20 Hz high-pass,
+true-peak limited, set to -20 LUFS, MP3 128 kbit/s. The edits are also released under CC0 1.0.
+
+file | source page | author | original title
+music/aggressive-all-money-talk.mp3 | https://freesound.org/people/kontraamusic/sounds/787566/ | kontraamusic | All Money Talk | Trap Instrumental
+music/aggressive-dragon.mp3 | https://freesound.org/people/kontraamusic/sounds/790007/ | kontraamusic | Dragon | Trap Instrumental
+music/aggressive-goat-drill.mp3 | https://freesound.org/people/kontraamusic/sounds/790938/ | kontraamusic | Goat | UK Drill Instrumental
+music/aggressive-hard-mode.mp3 | https://freemusicarchive.org/music/holiznacc0/gamer-beats/hard-mode/ | HoliznaCC0 | Hard Mode
+music/aggressive-its-a-trap.mp3 | https://freemusicarchive.org/music/holiznacc0/after-dark/its-a-trap-1/ | HoliznaCC0 | ITS A TRAP
+music/aggressive-putrid.mp3 | https://freesound.org/people/kontraamusic/sounds/791243/ | kontraamusic | Putrid | Trap instrumental
+music/aggressive-random.mp3 | https://freesound.org/people/kontraamusic/sounds/788796/ | kontraamusic | Random | Hard Fast Trap Instrumental
+music/aggressive-tlc.mp3 | https://freesound.org/people/kontraamusic/sounds/788795/ | kontraamusic | TLC | Hard Fast Trap Instrumental
+music/chill-keeping-cool.mp3 | https://freemusicarchive.org/music/holiznacc0/busted-guitar-lofi-edit/keeping-cool/ | HoliznaCC0 | Keeping Cool
+music/chill-lofi-keys-loop.mp3 | https://opengameart.org/content/chill-lofi-inspired-loop-edit | qubodup | Chill lofi inspired [loop edit] / chilllofir-loop.ogg
+music/chill-making-up.mp3 | https://freesound.org/people/shortiefoeva2/sounds/412048/ | shortiefoeva2 | Making Up (soft Hip Hop)
+music/chill-night-club-chill.mp3 | https://opengameart.org/content/t-t-free-cyberpunk-pack-2 | tricksntraps | T & T Free Cyberpunk Pack 2 / night_club_chill_100bpm.ogg
+music/chill-rainy-forest.mp3 | https://opengameart.org/content/lofi-compilation | TAD | lofi Compilation / Rainy Forest_0.mp3
+music/chill-sense-of-purpose.mp3 | https://freemusicarchive.org/music/holiznacc0/spring-at-last-lofi-tape/sense-of-purpose/ | HoliznaCC0 | Sense Of Purpose
+music/chill-something-in-the-air.mp3 | https://freemusicarchive.org/music/holiznacc0/lo-fi-and-chill/something-in-the-air/ | HoliznaCC0 | Something In the Air
+music/chill-unwind.mp3 | https://freemusicarchive.org/music/holiznacc0/kick-it-laid-back-hiphop/unwind/ | HoliznaCC0 | Unwind
+music/dark-abducted.mp3 | https://freemusicarchive.org/music/holiznacc0/beats-from-the-crypt/abducted/ | HoliznaCC0 | Abducted
+music/dark-cinematic-dread.mp3 | https://freesound.org/people/metrostock99/sounds/345069/ | metrostock99 | CINEMATIC ATMOSPHERIC ELEMENT 26OA-QQ.wav
+music/dark-dark-shrine.mp3 | https://opengameart.org/content/dark-shrine-loop | qubodup | Dark Shrine Loop / qubodup-yd-DarkShrineLoop-OpenGameArt.flac
+music/dark-edge-of-space.mp3 | https://freesound.org/people/Andrewkn/sounds/482919/ | Andrewkn | Andrew kn- At The Edge Of Space (II)
+music/dark-ghost-house.mp3 | https://freesound.org/people/szegvari/sounds/560618/ | szegvari | Dark Ghost House
+music/dark-machine.mp3 | https://freemusicarchive.org/music/Komiku/Tale_on_the_Late/Komiku_-_Tale_on_the_Late_-_15_You_cant_beat_the_machine/ | Komiku | You can't beat the machine
+music/dark-not-to-notice.mp3 | https://freesound.org/people/Andrewkn/sounds/504540/ | Andrewkn | Not To Notice
+music/dramatic-ai-fight.mp3 | https://opengameart.org/content/t-t-free-cyberpunk-pack-2 | tricksntraps | T & T Free Cyberpunk Pack 2 / ai_fight_120bpm.ogg
+music/dramatic-crime.mp3 | https://freemusicarchive.org/music/holiznacc0/only-in-the-milky-way-part-3/crime-1/ | HoliznaCC0 | Crime
+music/dramatic-end-of-hope.mp3 | https://opengameart.org/content/at-the-end-of-hope | Emma_MA | At the end of hope / at_the_end_of_hope_loop.wav
+music/dramatic-moonlight-cyberpunk.mp3 | https://opengameart.org/content/cyberpunk-moonlight-sonata | Joth | Cyberpunk Moonlight Sonata / Cyberpunk Moonlight Sonata_0.mp3
+music/dramatic-night-prowler.mp3 | https://opengameart.org/content/night-prowler | section31 | Night Prowler / S31-Night Prowler.ogg
+music/dramatic-space-chase.mp3 | https://freesound.org/people/Romariogrande/sounds/370801/ | Romariogrande | Space Chase
+music/dramatic-war-room.mp3 | https://freemusicarchive.org/music/holiznacc0/war-game-commission/track-1/ | HoliznaCC0 | Track 1
+music/funny-bouncy-hamster.mp3 | https://opengameart.org/content/bouncy-hamster-dancing-menu-music | cynicmusic | Bouncy Hamster Dancing (Menu Music?) / AlexBouncyMaster.wav
+music/funny-happy-band.mp3 | https://freesound.org/people/szegvari/sounds/619557/ | szegvari | Cuban Ensemble Mood Style Happy Band Dance Cinematic Music.wav
+music/funny-in-the-restaurant.mp3 | https://freemusicarchive.org/music/Komiku/THE_GIRL_WITH_THE_BASEBALL_BAT/Komiku_-_THE_GIRL_WITH_THE_BASEBALL_BAT_-_03_In_the_restaurant/ | Komiku | In the restaurant
+music/funny-quirky-march.mp3 | https://freemusicarchive.org/music/Ondrosik/enchanted-valley/quirky-little-march/ | Ondrosik | Quirky Little March
+music/funny-quirky-pizzicato.mp3 | https://freesound.org/people/Daniel%20Prellball/sounds/701691/ | Daniel Prellball | Quirky cinematic song
+music/funny-ragtime-getdown.mp3 | https://freemusicarchive.org/music/holiznacc0/orphaned-media/ragtime-getdown/ | HoliznaCC0 | Ragtime Getdown
+music/funny-ukulele.mp3 | https://freesound.org/people/_steef/sounds/173122/ | _steef | ukulele.wav
+music/funny-whistle.mp3 | https://freemusicarchive.org/music/Ondrosik/enchanted-valley/enchanted-walley-whistle-extended-version/ | Ondrosik | Enchanted walley whistle extended version
+music/hype-last-energy.mp3 | https://freemusicarchive.org/music/Loyalty_Freak_Music/ROLLER_DISCO_DANCE_DANCE/Loyalty_Freak_Music_-_ROLLER_DISCO_DANCE_DANCE_-_08_Last_Energy_For_The_Day/ | Loyalty Freak Music | Last Energy For The Day
+music/hype-live-4-me.mp3 | https://freesound.org/people/kontraamusic/sounds/790948/ | kontraamusic | Live 4 Me | Trap Instrumental
+music/hype-love-love-love.mp3 | https://freemusicarchive.org/music/holiznacc0/power-pop/love-love-love/ | HoliznaCC0 | Love Love Love
+music/hype-mirror-of-the-week.mp3 | https://freemusicarchive.org/music/Ondrosik/burnout/mirror-of-the-week-music-bed-2/ | Ondrosik | Mirror of the week - music bed 2
+music/hype-platinum-trap.mp3 | https://freesound.org/people/kontraamusic/sounds/790928/ | kontraamusic | Platinum | Trap Instrumental
+music/hype-tent.mp3 | https://freemusicarchive.org/music/play-house/songs-1/tent-1/ | Play House | Tent
+music/hype-tribal-bass.mp3 | https://freesound.org/people/flowerdove2168/sounds/176624/ | flowerdove2168 | AmpedTrbalBassBit-2_C_130bpm.wav
+music/hype-ultimate-rainbow.mp3 | https://freemusicarchive.org/music/koi-discovery/ante-chrysalide/ultimate-rainbowmp3/ | Koi-discovery | Ultimate_Rainbow.mp3
+music/inspiring-drops.mp3 | https://freesound.org/people/Andrewkn/sounds/404460/ | Andrewkn | Drops
+music/inspiring-emotional-piano.mp3 | https://opengameart.org/content/emotional-piano-loop | extenz | Emotional piano loop / Piano Loop.wav
+music/inspiring-finding-yourself.mp3 | https://freemusicarchive.org/music/holiznacc0/be-happy-with-who-you-are/finding-yourself/ | HoliznaCC0 | Finding Yourself
+music/inspiring-hope-on-repeat.mp3 | https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/hope-on-repeat/ | HoliznaCC0 | Hope On Repeat
+music/inspiring-perspire.mp3 | https://freesound.org/people/JapanYoshiTheGamer/sounds/713517/ | JapanYoshiTheGamer | Perspire (Loop) - Corporate-style background music with echo pedal guitar and piano
+music/inspiring-sweet-sun.mp3 | https://freemusicarchive.org/music/Loyalty_Freak_Music/POSITIVE_ATTITUDE_/Loyalty_Freak_Music_-_POSITIVE_ATTITUDE__-_04_Sweet_Sun/ | Loyalty Freak Music | Sweet Sun
+music/inspiring-timelines.mp3 | https://freemusicarchive.org/music/holiznacc0/be-happy-with-who-you-are/timelines/ | HoliznaCC0 | Timelines

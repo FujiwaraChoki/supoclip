@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_plain",
+  "fn": "censor_text",
+  "input": {
+    "text": "fuck"
+  },
+  "expected": "f***"
+}

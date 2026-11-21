@@ -35,6 +35,10 @@ SIDECARS = (".source_map.json", ".transcript_cache.json")
 PART_BYTES = 64 * 1024 * 1024
 VIDEO_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".3gp", ".3g2", ".mts", ".m2ts", ".ts", ".mpg", ".mpeg", ".wmv", ".flv", ".ogv", ".vob", ".mxf", ".asf"}
 STORAGE_ERRORS = (Boto3Error, BotoCoreError, ClientError, OSError)
+# Studio media a session may gain after preparation (the FX analysis job publishes the person matte). Restored only
+# when the session names its version; see restore_editor_media(matte_version=...).
+EDITOR_OPTIONAL_MEDIA_NAMES = ("matte.mp4",)
+MATTE_VERSION_MARKER = ".matte-version"
 _workspace: ContextVar[dict | None] = ContextVar("media_workspace", default=None)
 
 
@@ -699,6 +703,34 @@ class MediaStorage:
                     self.upload_file(path, self.parse(self.editor_reference(directory, name)))
                     self._stamp_editor_file(directory, stamps, path)
 
+    def publish_editor_matte(self, directory: Path, path: Path, version: str) -> None:
+        """Install a freshly computed person matte (``path``, in ``directory``) as the session's ``matte.mp4``,
+        upload it, then mark this copy ``version``.
+
+        All three happen under the session's ``.sync`` lock, the one ``restore_editor_media`` takes: a restore
+        running on this machine for an older ``matteVersion`` can otherwise delete the new file before it is
+        uploaded, or put the old matte back in its place, and the bucket would then hold the wrong matte under
+        the version the analysis records next (AI-H7: a recorded version is always fetchable and right).
+        """
+        directory = Path(directory)
+        target = directory / "matte.mp4"
+        marker = directory / MATTE_VERSION_MARKER
+        with (directory / ".sync").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            # The marker describes the old file until the new one has been published.
+            marker.unlink(missing_ok=True)
+            Path(path).replace(target)
+            if self.enabled:
+                stamps = self._editor_stamps(directory)
+                self.upload_file(target, self.parse(self.editor_reference(directory, target.name)))
+                self._stamp_editor_file(directory, stamps, target)
+            temporary = marker.with_name(f".{marker.name}.{uuid.uuid4().hex}")
+            try:
+                temporary.write_text(version, encoding="utf-8")
+                temporary.replace(marker)
+            finally:
+                temporary.unlink(missing_ok=True)
+
     def persist_editor_export(self, directory: Path, job_id: str):
         if not self.enabled:
             return
@@ -708,7 +740,8 @@ class MediaStorage:
             self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
             self._stamp_editor_file(directory, self._editor_stamps(directory), path)
 
-    def restore_editor_media(self, directory: Path, *, has_layout=False, version: str | None = None):
+    def restore_editor_media(self, directory: Path, *, has_layout=False, version: str | None = None,
+                             matte_version: str | None = None):
         """Put the session's source video into this machine's scratch directory.
 
         The lease keeps the cache sweeper away until the surrounding render
@@ -716,6 +749,12 @@ class MediaStorage:
         same directory; another machine has its own copy. ``version`` is the
         session's ``mediaVersion``: a copy from an earlier preparation (the
         session was rebuilt since) is replaced with the stored one.
+
+        ``matte_version`` (the session's ``matteVersion``) also fetches the
+        optional ``matte.mp4`` the studio's FX analysis published. It has its
+        own ``.matte-version`` marker: the matte is published after the media,
+        so a matching ``.media-version`` says nothing about it. A missing matte
+        is not an error; the render then draws behind-the-person text in front.
         """
         directory.mkdir(parents=True, exist_ok=True)
         leases = _workspace.get()
@@ -728,19 +767,39 @@ class MediaStorage:
         (directory / ".access").touch()
         wanted = ["clean.mp4"] + (["layout.mp4"] if has_layout else [])
         marker = directory / ".media-version"
+        matte_marker = directory / MATTE_VERSION_MARKER
 
         def outdated() -> bool:
             return bool(version) and (not marker.exists() or marker.read_text(encoding="utf-8").strip() != version)
 
-        if not self.bucket or (not outdated() and all((directory / name).exists() for name in wanted)):
+        def matte_outdated() -> bool:
+            if not matte_version:
+                return False
+            return (
+                not (directory / "matte.mp4").exists()
+                or not matte_marker.exists()
+                or matte_marker.read_text(encoding="utf-8").strip() != matte_version
+            )
+
+        if not self.bucket or (
+            not outdated() and all((directory / name).exists() for name in wanted) and not matte_outdated()
+        ):
             return
         with (directory / ".sync").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             stamps = self._editor_stamps(directory)
             if outdated():
-                for name in ("clean.mp4", "layout.mp4", "layout.json", "thumbnails.jpg"):
+                for name in ("clean.mp4", "layout.mp4", "layout.json", "thumbnails.jpg", *EDITOR_OPTIONAL_MEDIA_NAMES):
                     (directory / name).unlink(missing_ok=True)
                     stamps.pop(name, None)
+                matte_marker.unlink(missing_ok=True)
+                atomic_json(directory / ".s3-manifest", stamps)
+            if matte_outdated():
+                # Published by a later analysis (or never fetched here): the marker goes first so a failed
+                # download never leaves an old matte that claims the new version.
+                matte_marker.unlink(missing_ok=True)
+                (directory / "matte.mp4").unlink(missing_ok=True)
+                stamps.pop("matte.mp4", None)
                 atomic_json(directory / ".s3-manifest", stamps)
             for name in wanted:
                 path = directory / name
@@ -750,6 +809,11 @@ class MediaStorage:
                     self._stamp_editor_file(directory, stamps, path)
             if version and all((directory / name).exists() for name in wanted):
                 marker.write_text(version, encoding="utf-8")
+            if matte_version and not (directory / "matte.mp4").exists():
+                path = directory / "matte.mp4"
+                if self._download(self.parse(self.editor_reference(directory, path.name)), path, optional=True):
+                    self._stamp_editor_file(directory, stamps, path)
+                    matte_marker.write_text(matte_version, encoding="utf-8")
 
     def restore_legacy_editor_state(self, directory: Path, *, s3_backed=False):
         """Fetch the JSON an earlier release kept beside the media in object storage.

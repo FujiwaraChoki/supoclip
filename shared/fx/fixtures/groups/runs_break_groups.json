@@ -1,0 +1,74 @@
+{
+  "family": "groups",
+  "case": "runs_break_groups",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.44,
+        "text": "this",
+        "run": "s1"
+      },
+      {
+        "start": 0.52,
+        "end": 0.7,
+        "text": "is",
+        "run": "s1"
+      },
+      {
+        "start": 0.78,
+        "end": 1.02,
+        "text": "part",
+        "run": "s1"
+      },
+      {
+        "start": 1.1,
+        "end": 1.31,
+        "text": "one",
+        "run": "s1"
+      },
+      {
+        "start": 1.36,
+        "end": 1.57,
+        "text": "and",
+        "run": "s2"
+      },
+      {
+        "start": 1.65,
+        "end": 1.89,
+        "text": "this",
+        "run": "s2"
+      },
+      {
+        "start": 1.97,
+        "end": 2.21,
+        "text": "part",
+        "run": "s2"
+      },
+      {
+        "start": 2.29,
+        "end": 2.5,
+        "text": "two",
+        "run": "s2"
+      }
+    ],
+    "max_words": 8
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 3,
+      "start": 0.2,
+      "end": 1.36,
+      "text": "this is part one"
+    },
+    {
+      "first": 4,
+      "last": 7,
+      "start": 1.36,
+      "end": 2.5,
+      "text": "and this part two"
+    }
+  ]
+}

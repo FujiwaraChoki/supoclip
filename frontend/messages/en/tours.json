@@ -97,5 +97,37 @@
       "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Introducing Dynamic edits",
+      "body": "Your clips can now be edited the way top short-form editors do it: animated captions, reframes, sound effects and music, placed on the moments that matter. The AI finds those moments; you choose how hard they hit."
+    },
+    "intensity": {
+      "title": "Pick how hard it hits",
+      "body": "<b>Subtle:</b> outlined subtitles, a reframe now and then and a quiet music bed, like a podcast clip.\n<b>Bold:</b> Hormozi-style captions on a dark pill, word by word with the key word boxed, and punch-ins that hold.\n<b>Max:</b> heavy outlined caps, a reframe on almost every line, louder hits and the odd flash at a cut.\n<b>Off</b> keeps clips as they are."
+    },
+    "sound": {
+      "title": "Sound, music and swearing",
+      "body": "Sound effects land on cuts and on-screen moments, never on plain talking. Music comes in seven moods, from chill to aggressive: leave it on “Match the video” and the AI picks one that fits, or choose it yourself. Swear words are bleeped and shown as f*** in the captions. Once edits are on, each has a switch under Fine-tune."
+    },
+    "captions": {
+      "title": "Animated caption styles",
+      "body": "Highlighter boxes the key word, Emoji Drop puts an emoji under the thing being talked about, and Behind Head sets one giant word behind the speaker. Each takes the look of your intensity, and works on its own with edits off."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Dynamic edits in the studio",
+      "body": "Every effect on a clip can be changed here before you export, one at a time or all at once."
+    },
+    "panel": {
+      "title": "The Edits tab",
+      "body": "Change this clip's intensity, music mood or switches, ask the AI to plan the edits again, or remove them all. The list shows each moment the AI picked: click one to jump to it. Every change can be undone."
+    },
+    "lane": {
+      "title": "Each effect on the timeline",
+      "body": "Every zoom and sound is a block here, and the music lane shows the bed under the voice. Drag a block to move it, double-click to change it, or select it and press Delete. Double-click an empty spot to add a sound."
+    }
+  },
   "skip": "Skip"
 }

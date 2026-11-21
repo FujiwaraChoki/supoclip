@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_german_eszett",
+  "fn": "censor_text",
+  "input": {
+    "text": "Scheiße"
+  },
+  "expected": "S******"
+}

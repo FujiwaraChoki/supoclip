@@ -22,6 +22,7 @@ import {
 import { Announcements } from "@/components/announcements";
 import { BillingIntervalToggle, ComingSoonTag, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import { FaqSection } from "@/components/landing/faq-section";
+import { DynamicEditsSection } from "@/components/landing/dynamic-edits-section";
 import { EditorSection } from "@/components/landing/editor-section";
 import { FeatureBento } from "@/components/landing/feature-bento";
 import { HeroStage, SourceStickers } from "@/components/landing/hero-stage";
@@ -391,6 +392,8 @@ export default function LandingPage() {
       </section>
 
       <FeatureBento />
+
+      <DynamicEditsSection />
 
       <EditorSection />
 

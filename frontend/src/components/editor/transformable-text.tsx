@@ -6,10 +6,12 @@ import type { TextBounds, TextEditorLayout } from "@/lib/editor/render";
 import { keepTextInFrame, resizeTextScale, TEXT_CORNERS, type TextCorner } from "@/lib/editor/text-transform";
 import { InlineText } from "./inline-text";
 
-export function TransformableText({ doc, layer, captionId, label, value, buttonLabel, bounds, width, height, frame, measure, pause, update, onDraft, editorLayout, formatValue, onCommit }: {
+export function TransformableText({ doc, layer, captionId, rowShift = 0, label, value, buttonLabel, bounds, width, height, frame, measure, pause, update, onDraft, editorLayout, formatValue, onCommit }: {
   doc: EditDocument;
   layer: TextLayer;
   captionId?: string;
+  /** A caption on a per-shot row: its offset from the caption style's y, where its own transform starts. */
+  rowShift?: number;
   label: string;
   value: string;
   buttonLabel: string;
@@ -28,7 +30,13 @@ export function TransformableText({ doc, layer, captionId, label, value, buttonL
   const t = useTranslations("editor");
   const [editing, setEditing] = useState(false);
   const drag = useRef<{ doc: EditDocument; bounds: TextBounds; group: string; sx: number; sy: number; corner?: TextCorner; x: number; y: number } | null>(null);
-  const placement = (document: EditDocument): CaptionTransform => (captionId ? document.captionTransforms?.[captionId] : undefined) ?? textTransform(document, layer);
+  const placement = (document: EditDocument): CaptionTransform => {
+    const own = captionId ? document.captionTransforms?.[captionId] : undefined;
+    if (own) return own;
+    const base = textTransform(document, layer);
+    // A caption shown on a per-shot row pins where it is shown, not at the style's y.
+    return captionId && rowShift ? { ...base, y: base.y + rowShift } : base;
+  };
   const begin = (corner?: TextCorner, x = 0, y = 0) => {
     pause();
     const rect = frame.current?.getBoundingClientRect();
@@ -75,7 +83,8 @@ export function TransformableText({ doc, layer, captionId, label, value, buttonL
       onDraft={onDraft}
       formatValue={formatValue}
       editorStyle={editorLayout ? {
-        color: "transparent", WebkitTextFillColor: "transparent", caretColor: doc.captions.color, textShadow: "none", borderColor: "transparent", boxShadow: "none",
+        color: "transparent", WebkitTextFillColor: "transparent", caretColor: editorLayout.caretColor ?? doc.captions.color, textShadow: "none", borderColor: "transparent", boxShadow: "none",
+        ...(editorLayout.fontFamily ? { fontFamily: `"${editorLayout.fontFamily}", sans-serif`, textTransform: "none" as const } : {}),
         fontSize: editorLayout.fontSize * scale, lineHeight: `${editorLayout.lineHeight * scale}px`,
         fontWeight: 400, fontStyle: "normal", fontKerning: "normal", letterSpacing: "normal",
         width: editorLayout.wrapWidth * scale, left: "50%", transform: "translateX(-50%)",

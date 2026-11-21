@@ -1,0 +1,126 @@
+{
+  "broll_square_muted": [
+    {
+      "argv": [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/clean.mp4",
+        "-t",
+        "5.200",
+        "-i",
+        "<TMP>/footage.mp4",
+        "-filter_complex",
+        "[0:v]trim=start=0.0:end=4.2,setpts=PTS-STARTPTS[v0];[0:a]atrim=start=0.0:end=4.2,asetpts=PTS-STARTPTS[a0];[0:v]trim=start=5.0:end=12.0,setpts=PTS-STARTPTS[v1];[0:a]atrim=start=5.0:end=12.0,asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[video][audio];[video]scale=728:1296,crop=728:1080:0.0:108.0,pad=1080:1080:158.4:0.0:black,setsar=1,lutrgb=r='clip(val*1.155+-12.800000000000011,0,255)':g='clip(val*1.155+-12.800000000000011,0,255)':b='clip(val*1.155+-12.800000000000011,0,255)',hue=h=-5.0:s=1.2[framed];[1:v]settb=AVTB,trim=start=1.500:duration=3.300,setpts=PTS-STARTPTS+4.400/TB,scale=1080:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1080,setsar=1,format=yuva420p,fade=t=in:st=4.400:d=0.200:alpha=1[broll0];[framed][broll0]overlay=0:0:eof_action=repeat:enable='between(t,4.400,7.600)'[withbroll0];[withbroll0]ass=<TMP>/captions-job-1.ass:fontsdir=<BACKEND>/fonts[outv];[outv]fps=30[finalv];[audio]volume=0,afade=t=out:st=11.175:d=0.025[outa]",
+        "-map",
+        "[finalv]",
+        "-map",
+        "[outa]",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "18",
+        "-maxrate",
+        "10M",
+        "-bufsize",
+        "24M",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-t",
+        "11.200000",
+        "<TMP>/.export-job-1.mp4"
+      ],
+      "duration": 11.2,
+      "kwargs": [
+        "on_progress",
+        "should_cancel"
+      ]
+    }
+  ],
+  "plain": [
+    {
+      "argv": [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/clean.mp4",
+        "-filter_complex",
+        "[0:v]trim=start=0.0:end=4.2,setpts=PTS-STARTPTS[v0];[0:a]atrim=start=0.0:end=4.2,asetpts=PTS-STARTPTS[a0];[0:v]trim=start=5.0:end=12.0,setpts=PTS-STARTPTS[v1];[0:a]atrim=start=5.0:end=12.0,asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[video][audio];[video]scale=1296:2304,crop=1080:1920:97.2:192.0,pad=1080:1920:0.0:0.0:black,setsar=1,lutrgb=r='clip(val*1.155+-12.800000000000011,0,255)':g='clip(val*1.155+-12.800000000000011,0,255)':b='clip(val*1.155+-12.800000000000011,0,255)',hue=h=-5.0:s=1.2,ass=<TMP>/captions-job-1.ass:fontsdir=<BACKEND>/fonts[outv];[outv]fps=30[finalv];[audio]volume=0.9,afade=t=out:st=11.175:d=0.025[outa]",
+        "-map",
+        "[finalv]",
+        "-map",
+        "[outa]",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "18",
+        "-maxrate",
+        "12M",
+        "-bufsize",
+        "24M",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-t",
+        "11.200000",
+        "<TMP>/.export-job-1.mp4"
+      ],
+      "duration": 11.2,
+      "kwargs": [
+        "on_progress",
+        "should_cancel"
+      ]
+    }
+  ],
+  "silent_layout": [
+    {
+      "argv": [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/layout.mp4",
+        "-filter_complex",
+        "[0:v]trim=start=0.0:end=4.2,setpts=PTS-STARTPTS[v0];[0:v]trim=start=5.0:end=12.0,setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1:a=0[video];[video]scale=1296:2304,crop=1080:1920:97.2:192.0,pad=1080:1920:0.0:0.0:black,setsar=1,lutrgb=r='clip(val*1.155+-12.800000000000011,0,255)':g='clip(val*1.155+-12.800000000000011,0,255)':b='clip(val*1.155+-12.800000000000011,0,255)',hue=h=-5.0:s=1.2,gblur=sigma=2.0,ass=<TMP>/captions-job-1.ass:fontsdir=<BACKEND>/fonts[outv];[outv]fps=30[finalv]",
+        "-map",
+        "[finalv]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "18",
+        "-maxrate",
+        "10M",
+        "-bufsize",
+        "24M",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-t",
+        "11.200000",
+        "<TMP>/.export-job-1.mp4"
+      ],
+      "duration": 11.2,
+      "kwargs": [
+        "on_progress",
+        "should_cancel"
+      ]
+    }
+  ]
+}

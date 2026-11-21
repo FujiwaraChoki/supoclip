@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_spanish_hyphen",
+  "fn": "censor_text",
+  "input": {
+    "text": "co-ño"
+  },
+  "expected": "c*-**"
+}

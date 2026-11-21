@@ -1,0 +1,78 @@
+{
+  "family": "groups",
+  "case": "conjunction_after_two",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.35,
+        "text": "I"
+      },
+      {
+        "start": 0.43,
+        "end": 0.7,
+        "text": "tried"
+      },
+      {
+        "start": 0.78,
+        "end": 0.96,
+        "text": "it"
+      },
+      {
+        "start": 1.04,
+        "end": 1.25,
+        "text": "but"
+      },
+      {
+        "start": 1.33,
+        "end": 1.51,
+        "text": "it"
+      },
+      {
+        "start": 1.59,
+        "end": 1.89,
+        "text": "failed"
+      },
+      {
+        "start": 1.97,
+        "end": 2.15,
+        "text": "so"
+      },
+      {
+        "start": 2.23,
+        "end": 2.38,
+        "text": "I"
+      },
+      {
+        "start": 2.46,
+        "end": 2.7,
+        "text": "quit"
+      }
+    ],
+    "max_words": 4
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 2,
+      "start": 0.2,
+      "end": 1.04,
+      "text": "I tried it"
+    },
+    {
+      "first": 3,
+      "last": 5,
+      "start": 1.04,
+      "end": 1.97,
+      "text": "but it failed"
+    },
+    {
+      "first": 6,
+      "last": 8,
+      "start": 1.97,
+      "end": 2.7,
+      "text": "so I quit"
+    }
+  ]
+}

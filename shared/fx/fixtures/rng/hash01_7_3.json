@@ -1,0 +1,10 @@
+{
+  "family": "rng",
+  "case": "hash01_7_3",
+  "fn": "hash01",
+  "input": {
+    "seed": 7,
+    "n": 3
+  },
+  "expected": 0.44320501177571714
+}

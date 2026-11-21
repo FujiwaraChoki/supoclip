@@ -1,0 +1,72 @@
+{
+  "family": "mapping",
+  "case": "span_follows_cut",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        0.0,
+        2.0
+      ],
+      [
+        "s1",
+        3.0,
+        6.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "b1.accent",
+        "start": 1.0,
+        "end": 4.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "accent",
+        "variant": "circle",
+        "text": "huge",
+        "emoji": "",
+        "doodle": "sparkles",
+        "value": null,
+        "prefix": "",
+        "suffix": ""
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "b1.accent",
+      "start": 1.0,
+      "end": 2.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "accent",
+      "variant": "circle",
+      "text": "huge",
+      "emoji": "",
+      "doodle": "sparkles",
+      "value": null,
+      "prefix": "",
+      "suffix": ""
+    },
+    {
+      "id": "b1.accent@1",
+      "start": 2.0,
+      "end": 3.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "accent",
+      "variant": "circle",
+      "text": "huge",
+      "emoji": "",
+      "doodle": "sparkles",
+      "value": null,
+      "prefix": "",
+      "suffix": ""
+    }
+  ]
+}

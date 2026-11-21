@@ -1,0 +1,35 @@
+{
+  "family": "mapping",
+  "case": "no_segments",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [],
+    "cues": [
+      {
+        "id": "b0.flash",
+        "start": 1.0,
+        "end": 1.2,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "flash",
+        "color": "#FFFFFF",
+        "peak": 0.85
+      },
+      {
+        "id": "b1.sfx",
+        "start": 1.0,
+        "end": 1.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "pop",
+        "variant": 0,
+        "gain_db": 0.0
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": []
+}

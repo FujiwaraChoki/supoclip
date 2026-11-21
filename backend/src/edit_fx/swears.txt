@@ -1,0 +1,229 @@
+# Deterministic swear list for dynamic edits (G7). edit_fx.beats.union_swears unions it with the LLM's swear tags,
+# so every word here is bleeped when the user's censor setting is on, even when the model missed it.
+#
+# Format: one entry per line, lowercase, accents kept. `#` starts a comment.
+#   word      matches a transcript word whose normalised form (lowercase, letters and digits only) is exactly `word`
+#   stem*     matches any normalised word that starts with `stem`
+#   two words matches that exact word sequence (each word normalised)
+#
+# Keep it to strong profanity and slurs. Mild words (damn, hell, crap) are not bleeped, and words that are
+# ordinary vocabulary in another listed language are left out on purpose (Spanish "con", Indonesian "anjing",
+# Malay "suka", Spanish "concha"/"polla"/"hostia") so a bleep never lands on an innocent word.
+
+# --- English -------------------------------------------------------------------------------------------------
+fuck*
+motherfuck*
+mothafuck*
+muthafuck*
+clusterfuck*
+mindfuck*
+fuk
+fuking
+fukin
+fck
+fcking
+fckin
+shit*
+bullshit*
+horseshit*
+dipshit*
+apeshit
+batshit
+chickenshit
+shithead*
+bitch*
+sonofabitch
+asshole*
+arsehole*
+dumbass
+jackass
+cunt*
+dickhead*
+cocksucker*
+bastard
+bastards
+wanker*
+twat*
+slut*
+whore*
+goddamn*
+goddam
+nigger*
+nigga*
+faggot*
+retard
+retards
+retarded
+tranny
+
+# --- Spanish -------------------------------------------------------------------------------------------------
+puta
+putas
+puto
+putos
+putita
+hijueputa
+hijoputa
+mierda
+mierdas
+joder
+jodido
+jodida
+jódete
+jodete
+coño
+cabrón
+cabron
+cabrona
+cabrones
+pendejo
+pendeja
+pendejos
+chingar
+chinga
+chingada
+chingado
+verga
+culero
+culera
+gilipollas
+malparido
+malparida
+maricón
+maricon
+
+# --- German --------------------------------------------------------------------------------------------------
+scheiße
+scheisse
+scheiß
+scheiss
+scheißegal
+arschloch*
+fotze
+wichser
+hurensohn
+hurensöhne
+fick
+ficken
+fickt
+fickst
+gefickt
+verfickt
+verfickte
+verfickter
+schlampe
+missgeburt
+spast
+schwuchtel
+
+# --- Portuguese ----------------------------------------------------------------------------------------------
+porra
+merda
+caralho
+caralhos
+foda
+fodase
+foder
+fodido
+fodida
+fodeu
+buceta
+cuzão
+cuzao
+arrombado
+arrombada
+viado
+filhodaputa
+vagabunda
+
+# --- Indonesian ----------------------------------------------------------------------------------------------
+kontol
+memek
+ngentot
+ngewe
+bangsat
+bajingan
+jancok
+jancuk
+jembut
+pepek
+perek
+
+# --- French --------------------------------------------------------------------------------------------------
+putain
+merde
+merdes
+connard
+connards
+connasse
+salope
+salopes
+enculé
+encule
+enculés
+enfoiré
+enfoire
+nique
+niquer
+niquez
+pute
+putes
+bâtard
+fdp
+ntm
+pédé
+
+# --- Italian -------------------------------------------------------------------------------------------------
+cazzo
+cazzi
+cazzata
+minchia
+stronzo
+stronza
+stronzi
+vaffanculo
+fanculo
+puttana
+puttane
+troia
+coglione
+coglioni
+figlio di puttana
+porco dio
+frocio
+
+# --- Common romanisations ------------------------------------------------------------------------------------
+# Hindi / Urdu
+chutiya
+chutiye
+madarchod
+maderchod
+behenchod
+bhenchod
+bhosdike
+bhosdi
+gaandu
+gandu
+# Tagalog
+putangina
+tangina
+# Russian
+blyat
+blyad
+pizdec
+pizdets
+pizda
+khuy
+nahui
+nahuy
+yebat
+ebat
+# Arabic
+sharmouta
+sharmuta
+kos omak
+kos ommak
+# Turkish
+orospu
+siktir
+amk

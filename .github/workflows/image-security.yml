@@ -36,6 +36,12 @@ jobs:
           docker build --pull ${{ matrix.options }}
           --tag supoclip-security:${{ matrix.service }}
           --file ${{ matrix.service }}/Dockerfile ${{ matrix.context }}
+      - name: Self-test the dynamic-edits renderer offline (ffmpeg 7.1 + baked deno cache)
+        if: matrix.service == 'backend'
+        run: >-
+          docker run --rm --network none
+          supoclip-security:backend
+          .venv/bin/python -m src.media.fx_selftest
       - name: Reject fixable critical vulnerabilities in the final image
         run: >-
           docker run --rm

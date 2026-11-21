@@ -1,0 +1,3282 @@
+{
+  "original_case|4k_no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "scale=1920:1080:flags=lanczos,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|4k_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "scale=1920:1080:flags=lanczos,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|60fps_no_subs": {
+    "argv": [],
+    "copied": true,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|60fps_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|anamorphic_broll": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]scale=1920:1080:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]setsar=1[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|no_geometry_no_subs": {
+    "argv": [],
+    "copied": true,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|no_geometry_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original_case|ntsc_no_subs": {
+    "argv": [],
+    "copied": true,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]scale=1920:1080:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]setsar=1[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]scale=1920:1080:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1920:1080:force_original_aspect_ratio=increase:flags=lanczos,crop=1920:1080,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts,setsar=1[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original|no_broll|no_subs": {
+    "argv": [],
+    "copied": true,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "original|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1920,
+      1080
+    ]
+  },
+  "self_planned|vertical_default_complex|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[vout][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_complex|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[vout][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_complex|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout]",
+        "-map",
+        "[vout]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_complex|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout];[vout]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_speaker_turns|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              },
+              {
+                "end": 18.4,
+                "speaker": "B",
+                "start": 9.3
+              }
+            ],
+            [
+              {
+                "end": 0.3,
+                "speaker": "A",
+                "start": 0.1,
+                "text": "So"
+              }
+            ]
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_speaker_turns|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              },
+              {
+                "end": 18.4,
+                "speaker": "B",
+                "start": 9.3
+              }
+            ],
+            [
+              {
+                "end": 0.3,
+                "speaker": "A",
+                "start": 0.1,
+                "text": "So"
+              }
+            ]
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_speaker_turns|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              },
+              {
+                "end": 18.4,
+                "speaker": "B",
+                "start": 9.3
+              }
+            ],
+            [
+              {
+                "end": 0.3,
+                "speaker": "A",
+                "start": 0.1,
+                "text": "So"
+              }
+            ]
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_speaker_turns|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            [
+              {
+                "end": 9.3,
+                "speaker": "A",
+                "start": 0.0
+              },
+              {
+                "end": 18.4,
+                "speaker": "B",
+                "start": 9.3
+              }
+            ],
+            [
+              {
+                "end": 0.3,
+                "speaker": "A",
+                "start": 0.1,
+                "text": "So"
+              }
+            ]
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_vf|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_vf|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_vf|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_default_vf|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_pan_detected|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_pan"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_pan_detected|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_pan"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_pan_detected|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_pan"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_pan_detected|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_pan"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_detected|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_detected|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_detected|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_detected|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_no_faces|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      },
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_no_faces|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      },
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_no_faces|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      },
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "self_planned|vertical_split_no_faces|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "planner_calls": [
+      {
+        "detected": {
+          "args": [
+            "<TMP>/source.mp4",
+            "vertical_split"
+          ],
+          "kwargs": {}
+        }
+      },
+      {
+        "built": {
+          "args": [
+            "<TMP>/source.mp4",
+            1920,
+            1080,
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      }
+    ],
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_complex|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[vout][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_complex|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[vout][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_complex|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout]",
+        "-map",
+        "[vout]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_complex|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20[b];[fg]scale=1080:-2[f];[b][f]overlay=0:(H-h)/2[vout];[vout]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_fit|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bgsrc][ftsrc];[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,gblur=sigma=14:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];[bg][fit]overlay=(W-w)/2:(H-h)/2[vout];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[vout][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_fit|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bgsrc][ftsrc];[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,gblur=sigma=14:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];[bg][fit]overlay=(W-w)/2:(H-h)/2[vout];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[vout][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_fit|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bgsrc][ftsrc];[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,gblur=sigma=14:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];[bg][fit]overlay=(W-w)/2:(H-h)/2[vout]",
+        "-map",
+        "[vout]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_fit|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[bgsrc][ftsrc];[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,gblur=sigma=14:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];[bg][fit]overlay=(W-w)/2:(H-h)/2[vout];[vout]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_pan|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_pan|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_pan|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_pan|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:x='if(lt(t,4),120,clip(640-(t-4)*40,0,1312))':y=0,scale=1080:1920:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_split|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_split|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_split|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_split|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-filter_complex",
+        "[0:v]split=2[l][r];[l]crop=540:480:100:60,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[lv];[r]crop=540:480:1180:64,scale=1080:960:flags=lanczos,unsharp=5:5:0.6:5:5:0.0,setsar=1[rv];[lv][rv]vstack,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_vf|broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1]",
+        "-map",
+        "[withbroll1]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_vf|broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-t",
+        "3.500",
+        "-i",
+        "<TMP>/broll_a.mp4",
+        "-t",
+        "4.250",
+        "-i",
+        "<TMP>/broll_b.mp4",
+        "-filter_complex",
+        "[0:v]crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1[base];[1:v]settb=AVTB,trim=start=0.000:duration=3.100,setpts=PTS-STARTPTS+1.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=in:st=1.000:d=0.250:alpha=1,fade=t=out:st=3.750:d=0.250:alpha=1[broll0];[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,1.000,4.000)'[withbroll0];[2:v]settb=AVTB,trim=start=1.250:duration=2.600,setpts=PTS-STARTPTS+8.000/TB,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,setsar=1,format=yuva420p,fade=t=out:st=10.250:d=0.250:alpha=1[broll1];[withbroll0][broll1]overlay=0:0:eof_action=repeat:enable='between(t,8.000,10.500)'[withbroll1];[withbroll1]subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts[v]",
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_vf|no_broll|no_subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_vf|no_broll|subs": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-af",
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "48000",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  },
+  "vertical_vf|silent": {
+    "argv": [
+      [
+        "ffmpeg",
+        "-y",
+        "-i",
+        "<TMP>/source.mp4",
+        "-vf",
+        "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1,subtitles=filename=<TMP>/captions.ass:fontsdir=<TMP>/fonts",
+        "-map_chapters",
+        "-1",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-r",
+        "30",
+        "-x264-params",
+        "keyint=120:min-keyint=30:scenecut=40",
+        "-an",
+        "-movflags",
+        "+faststart",
+        "<TMP>/final.mp4"
+      ]
+    ],
+    "copied": false,
+    "result": [
+      true,
+      1080,
+      1920
+    ]
+  }
+}

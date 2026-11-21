@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { createProxyResponse, fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
+/** Editor media served from this origin (canvas pixels must stay readable). */
+const EDITOR_MEDIA = ["clean.mp4", "layout.mp4", "thumbnails.jpg", "matte.mp4"];
+
 async function proxyTaskRequest(
   request: Request,
   { params }: { params: Promise<{ path: string[] }> }
@@ -43,13 +46,14 @@ async function proxyTaskRequest(
     cache: "no-store",
   });
 
-  // Canvas video needs a CORS-enabled response. Following a same-origin
+  // Canvas video needs a CORS-enabled response (the dynamic-edit matte is read
+  // back pixel by pixel, which a cross-origin frame would forbid). Following a same-origin
   // redirect to object storage can produce a request without Origin, so the
   // bucket returns usable bytes but no CORS header. Keep editor assets on this
   // authenticated origin; ordinary clip downloads still use signed redirects.
   const editorMedia = path.length === 6 && path[1] === "clips" &&
     path[3] === "editor" && path[4] === "media" &&
-    ["clean.mp4", "layout.mp4", "thumbnails.jpg"].includes(path[5]);
+    EDITOR_MEDIA.includes(path[5]);
   if (request.method === "GET" && editorMedia && upstream.status === 307) {
     const location = upstream.headers.get("location");
     let target: URL;

@@ -1,0 +1,98 @@
+{
+  "family": "mapping",
+  "case": "repeated_segment",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        3.0,
+        6.0
+      ],
+      [
+        "s1",
+        0.0,
+        3.0
+      ],
+      [
+        "s2",
+        0.0,
+        3.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "b1.shake",
+        "start": 1.0,
+        "end": 2.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "shake",
+        "amp": 12.0,
+        "freq": 18.0
+      },
+      {
+        "id": "b1.sfx",
+        "start": 1.0,
+        "end": 1.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "pop",
+        "variant": 0,
+        "gain_db": 0.0
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "b1.sfx",
+      "start": 4.0,
+      "end": 4.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "sfx",
+      "sound": "pop",
+      "variant": 0,
+      "gain_db": 0.0
+    },
+    {
+      "id": "b1.shake",
+      "start": 4.0,
+      "end": 5.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "shake",
+      "amp": 12.0,
+      "freq": 18.0
+    },
+    {
+      "id": "b1.sfx@1",
+      "start": 7.0,
+      "end": 7.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "sfx",
+      "sound": "pop",
+      "variant": 0,
+      "gain_db": 0.0
+    },
+    {
+      "id": "b1.shake@1",
+      "start": 7.0,
+      "end": 8.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "shake",
+      "amp": 12.0,
+      "freq": 18.0
+    }
+  ]
+}

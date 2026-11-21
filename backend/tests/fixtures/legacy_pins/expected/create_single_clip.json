@@ -1,0 +1,588 @@
+{
+  "highlight_broll_720p": {
+    "calls": {
+      "broll_overlays_for": [
+        [
+          {
+            "duration": 3.0,
+            "footage_offset": 0.5,
+            "pexels_id": 3943723,
+            "query": "stack of cash",
+            "start": 2.0
+          }
+        ]
+      ],
+      "cap_video_short_side": [
+        [
+          "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+          720
+        ]
+      ],
+      "create_optimized_clip": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            19,
+            "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+            true,
+            null,
+            null,
+            null,
+            "neon",
+            "vertical",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "I lost forty grand in one night"
+          ],
+          "kwargs": {
+            "broll_overlays": [
+              {
+                "duration": 3.0,
+                "offset": 0.5,
+                "path": "<TMP>/stock.mp4",
+                "start": 2.0
+              }
+            ],
+            "extend_to_sentence": false,
+            "layout_report": []
+          }
+        }
+      ],
+      "plan_broll": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "vertical",
+            720,
+            null
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "info": {
+      "clip_id": 1,
+      "duration": 9.1,
+      "end_time": "00:19",
+      "engagement_score": 20,
+      "filename": "clip_1_0010-0019_<UUID>.mp4",
+      "group_output_starts": [],
+      "hook_score": 22,
+      "hook_title": "I lost forty grand in one night",
+      "hook_type": "story",
+      "keep_ranges": [
+        [
+          9.9,
+          19.0
+        ]
+      ],
+      "output_offsets": null,
+      "path": "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+      "reasoning": "Strong hook",
+      "relevance_score": 0.91,
+      "shareability_score": 21,
+      "start_time": "00:10",
+      "text": "So I lost $40,000 in one night. And honestly? It was the BEST thing that ever happened to me, because it forced me to rethink everything about money.",
+      "value_score": 19,
+      "virality_score": 82
+    },
+    "sidecar": {
+      "broll": [
+        {
+          "duration": 3.0,
+          "footage_offset": 0.5,
+          "pexels_id": 3943723,
+          "query": "stack of cash",
+          "start": 2.0
+        }
+      ],
+      "caption_settings": {
+        "position_is_center": true,
+        "position_y": 0.7
+      },
+      "output_offsets": [
+        0.0
+      ],
+      "source_ranges": [
+        {
+          "end": 19.0,
+          "start": 9.9
+        }
+      ],
+      "version": 1
+    },
+    "sidecar_keys": [
+      "broll",
+      "caption_settings",
+      "output_offsets",
+      "source_ranges",
+      "version"
+    ]
+  },
+  "highlight_broll_not_applied": {
+    "calls": {
+      "broll_overlays_for": [
+        [
+          {
+            "duration": 3.0,
+            "footage_offset": 0.5,
+            "pexels_id": 3943723,
+            "query": "stack of cash",
+            "start": 2.0
+          }
+        ]
+      ],
+      "create_optimized_clip": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            19,
+            "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+            true,
+            null,
+            null,
+            null,
+            "default",
+            "vertical",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "I lost forty grand in one night"
+          ],
+          "kwargs": {
+            "broll_overlays": [
+              {
+                "duration": 3.0,
+                "offset": 0.5,
+                "path": "<TMP>/stock.mp4",
+                "start": 2.0
+              }
+            ],
+            "extend_to_sentence": false,
+            "layout_report": []
+          }
+        }
+      ],
+      "plan_broll": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "vertical",
+            null,
+            null
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    "info": {
+      "clip_id": 1,
+      "duration": 9.1,
+      "end_time": "00:19",
+      "engagement_score": 20,
+      "filename": "clip_1_0010-0019_<UUID>.mp4",
+      "group_output_starts": [],
+      "hook_score": 22,
+      "hook_title": "I lost forty grand in one night",
+      "hook_type": "story",
+      "keep_ranges": [
+        [
+          9.9,
+          19.0
+        ]
+      ],
+      "output_offsets": null,
+      "path": "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+      "reasoning": "Strong hook",
+      "relevance_score": 0.91,
+      "shareability_score": 21,
+      "start_time": "00:10",
+      "text": "So I lost $40,000 in one night. And honestly? It was the BEST thing that ever happened to me, because it forced me to rethink everything about money.",
+      "value_score": 19,
+      "virality_score": 82
+    },
+    "sidecar": {
+      "output_offsets": [
+        0.0
+      ],
+      "source_ranges": [
+        {
+          "end": 19.0,
+          "start": 9.9
+        }
+      ],
+      "version": 1
+    },
+    "sidecar_keys": [
+      "output_offsets",
+      "source_ranges",
+      "version"
+    ]
+  },
+  "highlight_plain": {
+    "calls": {
+      "broll_overlays_for": [
+        []
+      ],
+      "create_optimized_clip": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            19,
+            "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+            true,
+            null,
+            null,
+            null,
+            "default",
+            "vertical",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "I lost forty grand in one night"
+          ],
+          "kwargs": {
+            "broll_overlays": [],
+            "extend_to_sentence": false,
+            "layout_report": []
+          }
+        }
+      ]
+    },
+    "info": {
+      "clip_id": 1,
+      "duration": 9.1,
+      "end_time": "00:19",
+      "engagement_score": 20,
+      "filename": "clip_1_0010-0019_<UUID>.mp4",
+      "group_output_starts": [],
+      "hook_score": 22,
+      "hook_title": "I lost forty grand in one night",
+      "hook_type": "story",
+      "keep_ranges": [
+        [
+          9.9,
+          19.0
+        ]
+      ],
+      "output_offsets": null,
+      "path": "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+      "reasoning": "Strong hook",
+      "relevance_score": 0.91,
+      "shareability_score": 21,
+      "start_time": "00:10",
+      "text": "So I lost $40,000 in one night. And honestly? It was the BEST thing that ever happened to me, because it forced me to rethink everything about money.",
+      "value_score": 19,
+      "virality_score": 82
+    },
+    "sidecar": {
+      "output_offsets": [
+        0.0
+      ],
+      "source_ranges": [
+        {
+          "end": 19.0,
+          "start": 9.9
+        }
+      ],
+      "version": 1
+    },
+    "sidecar_keys": [
+      "output_offsets",
+      "source_ranges",
+      "version"
+    ]
+  },
+  "highlight_styled_caption_y": {
+    "calls": {
+      "broll_overlays_for": [
+        []
+      ],
+      "create_optimized_clip": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            19,
+            "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+            true,
+            "Poppins-ExtraBold",
+            40,
+            "#FFEEDD",
+            "hormozi",
+            "vertical",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "I lost forty grand in one night"
+          ],
+          "kwargs": {
+            "broll_overlays": [],
+            "extend_to_sentence": false,
+            "layout_report": []
+          }
+        }
+      ]
+    },
+    "info": {
+      "clip_id": 1,
+      "duration": 9.1,
+      "end_time": "00:19",
+      "engagement_score": 20,
+      "filename": "clip_1_0010-0019_<UUID>.mp4",
+      "group_output_starts": [],
+      "hook_score": 22,
+      "hook_title": "I lost forty grand in one night",
+      "hook_type": "story",
+      "keep_ranges": [
+        [
+          9.9,
+          19.0
+        ]
+      ],
+      "output_offsets": null,
+      "path": "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+      "reasoning": "Strong hook",
+      "relevance_score": 0.91,
+      "shareability_score": 21,
+      "start_time": "00:10",
+      "text": "So I lost $40,000 in one night. And honestly? It was the BEST thing that ever happened to me, because it forced me to rethink everything about money.",
+      "value_score": 19,
+      "virality_score": 82
+    },
+    "sidecar": {
+      "caption_settings": {
+        "position_is_center": true,
+        "position_y": 0.71
+      },
+      "output_offsets": [
+        0.0
+      ],
+      "source_ranges": [
+        {
+          "end": 19.0,
+          "start": 9.9
+        }
+      ],
+      "version": 1
+    },
+    "sidecar_keys": [
+      "caption_settings",
+      "output_offsets",
+      "source_ranges",
+      "version"
+    ]
+  },
+  "original_no_subtitles": {
+    "calls": {
+      "broll_overlays_for": [
+        []
+      ],
+      "create_optimized_clip": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            19,
+            "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+            false,
+            null,
+            null,
+            null,
+            "default",
+            "original",
+            [
+              [
+                9.9,
+                19.0
+              ]
+            ],
+            "I lost forty grand in one night"
+          ],
+          "kwargs": {
+            "broll_overlays": [],
+            "extend_to_sentence": false,
+            "layout_report": []
+          }
+        }
+      ]
+    },
+    "info": {
+      "clip_id": 1,
+      "duration": 9.1,
+      "end_time": "00:19",
+      "engagement_score": 20,
+      "filename": "clip_1_0010-0019_<UUID>.mp4",
+      "group_output_starts": [],
+      "hook_score": 22,
+      "hook_title": "I lost forty grand in one night",
+      "hook_type": "story",
+      "keep_ranges": [
+        [
+          9.9,
+          19.0
+        ]
+      ],
+      "output_offsets": null,
+      "path": "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
+      "reasoning": "Strong hook",
+      "relevance_score": 0.91,
+      "shareability_score": 21,
+      "start_time": "00:10",
+      "text": "So I lost $40,000 in one night. And honestly? It was the BEST thing that ever happened to me, because it forced me to rethink everything about money.",
+      "value_score": 19,
+      "virality_score": 82
+    },
+    "sidecar": {
+      "output_offsets": [
+        0.0
+      ],
+      "source_ranges": [
+        {
+          "end": 19.0,
+          "start": 9.9
+        }
+      ],
+      "version": 1
+    },
+    "sidecar_keys": [
+      "output_offsets",
+      "source_ranges",
+      "version"
+    ]
+  },
+  "recap_planned": {
+    "calls": {
+      "broll_overlays_for": [
+        []
+      ],
+      "create_optimized_clip": [
+        {
+          "args": [
+            "<TMP>/source.mp4",
+            9.9,
+            28.9,
+            "<TMP>/clips/clip_1_0009-0028_<UUID>.mp4",
+            true,
+            null,
+            null,
+            null,
+            "default",
+            "vertical",
+            [
+              [
+                9.9,
+                19.2
+              ],
+              [
+                20.9,
+                28.9
+              ]
+            ],
+            "The whole story"
+          ],
+          "kwargs": {
+            "broll_overlays": [],
+            "extend_to_sentence": false,
+            "layout_report": [],
+            "output_offsets": [
+              0.0,
+              9.26
+            ]
+          }
+        }
+      ]
+    },
+    "info": {
+      "clip_id": 1,
+      "duration": 17.259999999999998,
+      "end_time": "00:28",
+      "engagement_score": 0,
+      "filename": "clip_1_0009-0028_<UUID>.mp4",
+      "group_output_starts": [
+        0.0,
+        9.26
+      ],
+      "hook_score": 0,
+      "hook_title": "The whole story",
+      "hook_type": null,
+      "keep_ranges": [
+        [
+          9.9,
+          19.2
+        ],
+        [
+          20.9,
+          28.9
+        ]
+      ],
+      "output_offsets": [
+        0.0,
+        9.26
+      ],
+      "path": "<TMP>/clips/clip_1_0009-0028_<UUID>.mp4",
+      "reasoning": "",
+      "relevance_score": 1.0,
+      "shareability_score": 0,
+      "start_time": "00:09",
+      "text": "So I lost $40,000 in one night. And honestly? It was the BEST thing that ever happened to me, because it forced me to rethink everything about money. Here's the secret nobody tells you: compound growth beats motivation. Every single day, 1% better. That's it. That's the whole game, café included.",
+      "value_score": 0,
+      "virality_score": 0
+    },
+    "sidecar": {
+      "caption_settings": {
+        "position_is_center": true,
+        "position_y": 0.75
+      },
+      "output_offsets": [
+        0.0,
+        9.26
+      ],
+      "source_ranges": [
+        {
+          "end": 19.2,
+          "start": 9.9
+        },
+        {
+          "end": 28.9,
+          "start": 20.9
+        }
+      ],
+      "version": 1
+    },
+    "sidecar_keys": [
+      "caption_settings",
+      "output_offsets",
+      "source_ranges",
+      "version"
+    ]
+  }
+}

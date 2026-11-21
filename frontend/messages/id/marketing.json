@@ -317,6 +317,61 @@
       }
     }
   },
+  "dynamicEdits": {
+    "eyebrow": "Edit dinamis",
+    "title": "Klip yang terlihat seperti diedit profesional",
+    "body": "Pilih intensitas edit. AI menemukan momen yang penting lalu menghidupkannya dengan subtitle, punch-in, efek suara, dan musik. Satu klip, empat gaya: ganti saat sedang diputar.",
+    "switcherLabel": "Intensitas edit",
+    "intensity": {
+      "off": {
+        "label": "Mati",
+        "description": "Potongan bersih dan subtitle seperti biasa, tanpa tambahan apa pun."
+      },
+      "subtle": {
+        "label": "Halus",
+        "description": "Nuansa klip podcast: sesekali bingkai berganti, dengan musik pelan di bawahnya."
+      },
+      "bold": {
+        "label": "Tegas",
+        "description": "Punch-in ala Hormozi yang bertahan, subtitle kata demi kata dengan kata kunci dalam kotak, dan sesekali hentakan di potongan."
+      },
+      "max": {
+        "label": "Maksimal",
+        "description": "Subtitle tebal ala MrBeast, lebih banyak reframe dan zoom, kilatan di potongan, efek suara, dan musik latar."
+      }
+    },
+    "player": {
+      "label": "Klip dengan intensitas {intensity}",
+      "play": "Putar",
+      "pause": "Jeda",
+      "mute": "Bisukan",
+      "unmute": "Nyalakan suara",
+      "tapForSound": "Ketuk untuk suara"
+    },
+    "broll": {
+      "title": "Maksimal, dengan b-roll",
+      "caption": "Cuplikan sisipan dari episode itu sendiri memenuhi bingkai vertikal, bukan menyusut jadi strip, dengan teks, hentakan, dan musik tetap berjalan di atasnya."
+    },
+    "points": {
+      "captions": {
+        "title": "Subtitle yang muncul kata demi kata",
+        "description": "Gaya animasi menaruh kata kunci dalam kotak, menjatuhkan emoji, atau menyelipkan kata di belakang kepala pembicara. Kata kasar disensor dengan bunyi bip dan ditampilkan sebagai f***."
+      },
+      "motion": {
+        "title": "Punch-in dan reframe sesuai ketukan",
+        "description": "AI memilih kalimat yang penting, lalu gambar memperbesar, memotong lebih dekat, atau berkilat tepat di sana."
+      },
+      "sound": {
+        "title": "Suara dan musik di bawah suara pembicara",
+        "description": "Hentakan di setiap potongan dan musik latar sesuai suasana klip, dari santai sampai agresif, dicampur di bawah setiap kata."
+      },
+      "studio": {
+        "title": "Semuanya tetap bisa diedit",
+        "description": "Ubah intensitas klip yang sudah ada, atau sesuaikan satu efek di studio klip."
+      }
+    },
+    "source": "Kedua klip dibuat oleh SupoClip dari <link>{title}</link>."
+  },
   "editor": {
     "eyebrow": "Editor",
     "title": "Editor lengkap, sudah termasuk",

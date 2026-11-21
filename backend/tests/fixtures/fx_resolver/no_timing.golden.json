@@ -1,0 +1,365 @@
+{
+ "marker_circle/off": {
+  "sha256": "8f19da52475641ea91ccef069cc47ec0285f503aede7a1beee4a3b0d90012447",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "marker_circle/subtle": {
+  "sha256": "831ab40f21c63e8bc9402692e6c5f1a124d3a00ea4c4b2ad71a7c3522fc2d1d1",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "marker_circle/bold": {
+  "sha256": "b6aa8782a1e60b73b8341f0a66f13b16b3131d9a1f6a03dc1d02c45645ee4174",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "marker_circle/max": {
+  "sha256": "ed1cd344ca09148d5bc4c50437ba3f7b028d8fa471925722c2fb06dc1098d2e9",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "emoji_drop/off": {
+  "sha256": "a424005ab1c487eb29e060a58af7e3169f65faa5e4d8c1ce3742a1c249222959",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "emoji_drop/subtle": {
+  "sha256": "56e30df3b771794b6dda626c1558c641cad2bfeeb3b8dc7fd309941570e8c9cd",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "emoji_drop/bold": {
+  "sha256": "4ad00ed287488371974e71a2d4ba42d9d1dd9aa9dabf35ca7969b0876345c38f",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "emoji_drop/max": {
+  "sha256": "049d9189bfaf38dd1802e08f2d7b9ecf2c4fc8a39731dcd15dc0606b58e09a6b",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "slam/off": {
+  "sha256": "c043e669eeee0a641e26e45a20709993cd2edd4c902e3300e9cca36fa2c09f47",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "slam/subtle": {
+  "sha256": "a7e964c2424b9a40428cde33194ce7f4a011c8eba2e79ea5e4eec53174becb70",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "slam/bold": {
+  "sha256": "4e29b65e7cda1e4a0bc75b5a1adbecfa42925a5e309d021b2c543c02438b75d7",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "slam/max": {
+  "sha256": "bb5a913726cca3d076703d27ddd85606ea6d68201190f040bb737cccbd6ba285",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "behind_head/off": {
+  "sha256": "71b68a3c7092a0fea07f9f7189cc60d57fe35f96fcef0c60b3025abce723a970",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "behind_head/subtle": {
+  "sha256": "a0e0a4cd9b389ae824a6ce7297a85f034025486f08e23491645e984fd4ebaeef",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "behind_head/bold": {
+  "sha256": "c58c2fd82a8c36af39a1418a761ce829dacb693765ccba593e1fbcf1d6d7500a",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "behind_head/max": {
+  "sha256": "1e36839bdab53853f0c329706651d5bf247fc70af718b15b28509e112c015100",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "stat_counter/off": {
+  "sha256": "5a19422ec5485424edd623c8d6491385140d4191b00c82c1b6b0ef2f4f350ca2",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "stat_counter/subtle": {
+  "sha256": "fc41d8073b74c3d49bfa94da92df0853ea9fe69f553a5357d7ec5586d94ac991",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "stat_counter/bold": {
+  "sha256": "4a2862f2eda0e2046d86e19f2504467234a5aff8c2ccc74363780302a7b9399d",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "stat_counter/max": {
+  "sha256": "8248a38179f77e51dc781b6866cd55915acbf78244d3bfd808df34ff18e96076",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "kinetic_stack/off": {
+  "sha256": "19c390d8aac534d916e9b708100bcc35429b2c72de2fbfa77e66df976f369818",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": true,
+  "cues": []
+ },
+ "kinetic_stack/subtle": {
+  "sha256": "06328c313d20bc3dde11180ba311fb2e14b04ca64eabe0a1aec68fa41f41dac9",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": true,
+  "cues": []
+ },
+ "kinetic_stack/bold": {
+  "sha256": "12e6d9be17e7974c5f25ec4f6c199edc288e37d8aeccd53cbe8b366ae920ac7c",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": true,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "kinetic_stack/max": {
+  "sha256": "f7701e3f9b73ced208484f3f2707dd1ae7b6db90b78c430a7d41272328640614",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": true,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "decode_glitch/off": {
+  "sha256": "b7f5ba452fe4fcec5d73b9cc27d24425d268fb34257760b724f87f040443b229",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "decode_glitch/subtle": {
+  "sha256": "079844af8570b8295630c4737e4ef835ee7a3d673d60e7b9408ddabba392a754",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "decode_glitch/bold": {
+  "sha256": "d210fc2929d3d2fdf53a098d33cd28a43ff08ea058a54d93fff299b4b94f2e69",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "decode_glitch/max": {
+  "sha256": "be39091ddefa07c16d3d8ba16445cbe3d7f8765666185ac2bbd96fa67dbaa3f8",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "highlighter_swipe/off": {
+  "sha256": "fa9a0682b61651eabb85daa03f96d8f6b8d3fdc4b84b4bdc0a763073365ed9c9",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "highlighter_swipe/subtle": {
+  "sha256": "d0c61d199779ba3b5faa91ca499963ac95dd650d4c2f2afab8f4457be722013a",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "highlighter_swipe/bold": {
+  "sha256": "6ad80989ce0922188dfd6a3ce6362bbb9806b52f3df126f735c42670165a1405",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "highlighter_swipe/max": {
+  "sha256": "43ea409662718ddfc71a8ddaa701c89d3b837b20332b48a514230f3ceb9c473e",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "face_doodles/off": {
+  "sha256": "6ea04fac3a3351fe7420c02821d1d110cee299860fe881a7104e4224adc081c6",
+  "music": null,
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "face_doodles/subtle": {
+  "sha256": "419b39863bda1fbec83e01723002ee5304fa48697fa56ae25691366fa51cc774",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "face_doodles/bold": {
+  "sha256": "0d4d84ed7d37e1e2a20b3849ef64a21d5f15ab6f7d09f8755b89413978652cc6",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "face_doodles/max": {
+  "sha256": "0b2b178793c9b983eeb6a766e60a7606b4deaa24bfe0a0e269b0f55a38bc97e2",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "default/subtle": {
+  "sha256": "d15c6e2a334883849172b4fec63ad2f6fed6115f492b41e4be976fffef4424af",
+  "music": "hype-love-love-love -6.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": []
+ },
+ "default/bold": {
+  "sha256": "bacf4b9181cc1526c4e634b118b6062d6ce81f2308f0f99a6bc3f3f49930d479",
+  "music": "hype-love-love-love -13.0/0.0",
+  "grade": "none",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.767-  9.767 e294.sfx         sfx        impact#2 +0dB",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ },
+ "default/max": {
+  "sha256": "6ac7af0287b9fd51feddf6c6f7727d7b9bc3b63c7bd7c9b669b965731f854dff",
+  "music": "hype-love-love-love -2.0/0.0",
+  "grade": "punchy",
+  "hook_title_suppressed": false,
+  "cues": [
+   "  9.733-  9.733 t0.tr.sfx        sfx        whoosh#5 -2dB",
+   "  9.800-  9.800 t0.tr            transition flash",
+   " 21.333- 21.333 t1.tr.sfx        sfx        whoosh#0 -2dB",
+   " 21.400- 21.400 t1.tr            transition flash"
+  ]
+ }
+}

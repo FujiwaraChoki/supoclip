@@ -22,7 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  editDuration,
+  finalDuration,
+  mappedFx,
   outputSize,
   timecode,
   type EditDocument,
@@ -32,6 +33,11 @@ import {
 import { useSession } from "@/lib/auth-client";
 import { trackClipExport } from "@/lib/clip-export-tracking";
 import { exportDraft } from "@/lib/editor/export-draft";
+import {
+  BROWSER_EXPORT_REFUSAL_MESSAGES,
+  browserExportRefusal,
+  type BrowserExportRefusal,
+} from "@/lib/fx/offline-mix";
 import { singleFlight } from "@/lib/editor/single-flight";
 import { editorRequest } from "./use-editor";
 import { editorMessage } from "./studio-ui";
@@ -51,6 +57,12 @@ export interface ClipSummary {
   workflow_role?: string | null;
   workflow_meta?: WorkflowMeta;
 }
+/** The draft adds sound of its own (sound effects, bleeps or music) on top of the voice. */
+export function hasEditAudio(doc: EditDocument): boolean {
+  if (!doc.fx) return false;
+  return !!doc.fx.music || mappedFx(doc).some((cue) => cue.kind === "sfx" || cue.kind === "bleep");
+}
+
 interface Job extends ExportJob {
   endpoint: string;
   clipOrder: number;
@@ -112,7 +124,15 @@ export function ExportPanel({
   const controller = useRef<AbortController | null>(null);
   const endpoint = `/api/tasks/${taskId}/clips/${clip.id}/editor`;
   const size = outputSize(doc, asset.width, asset.height),
-    duration = editDuration(doc);
+    // Speed ramps and freeze frames change the length: show the finished clip's.
+    duration = finalDuration(doc);
+  // Dynamic edits only the server renders (speed ramps, freezes, reactions, text behind the speaker).
+  const refusal = browserExportRefusal(doc);
+  const refusalText = (reason: BrowserExportRefusal) => t(`export.refusal.${reason}`);
+  // A draft that only the server can render never stays on browser export.
+  useEffect(() => {
+    if (refusal && mode === "browser" && !busy) setMode("server");
+  }, [refusal, mode, busy]);
   useEffect(() => {
     if (!open) return;
     let stopped = false;
@@ -226,8 +246,11 @@ export function ExportPanel({
         );
       }
     } catch (e) {
-      if (!control.signal.aborted)
-        setError(e instanceof Error ? editorMessage(t, e.message) : t("errors.exportFailed"));
+      if (!control.signal.aborted) {
+        const reason = (Object.keys(BROWSER_EXPORT_REFUSAL_MESSAGES) as BrowserExportRefusal[])
+          .find((key) => e instanceof Error && e.message === BROWSER_EXPORT_REFUSAL_MESSAGES[key]);
+        setError(reason ? refusalText(reason) : e instanceof Error ? editorMessage(t, e.message) : t("errors.exportFailed"));
+      }
       else toast.info(t("export.cancelled"));
     } finally {
       setBusy(false);
@@ -236,17 +259,17 @@ export function ExportPanel({
       controller.current = null;
     }
   };
+  const voice = !asset.hasAudio
+    ? null
+    : doc.muted
+      ? t("export.muted")
+      : t("export.volume", { volume: Math.round(doc.volume * 100) });
+  const editAudio = hasEditAudio(doc) ? t("export.editAudio") : null;
+  const audioSummary = voice && editAudio ? `${voice} · ${editAudio}` : voice ?? editAudio ?? t("export.noAudio");
   const summary = [
     [t("export.resolution"), `${size.width} × ${size.height}`],
     [t("export.duration"), timecode(duration)],
-    [
-      t("export.audio"),
-      !asset.hasAudio
-        ? t("export.noAudio")
-        : doc.muted
-          ? t("export.muted")
-          : t("export.volume", { volume: Math.round(doc.volume * 100) }),
-    ],
+    [t("export.audio"), audioSummary],
     [
       t("export.estimatedSize"),
       t("export.sizeValue", {
@@ -266,10 +289,12 @@ export function ExportPanel({
       id: "browser",
       Icon: Monitor,
       title: t("export.onDevice"),
-      detail: browserSupport
-        ? t(`export.browser.${browserSupport.kind}`)
-        : t("export.checking"),
-      disabled: busy || !browserSupport?.supported,
+      detail: refusal
+        ? refusalText(refusal)
+        : browserSupport
+          ? t(`export.browser.${browserSupport.kind}`)
+          : t("export.checking"),
+      disabled: busy || !!refusal || !browserSupport?.supported,
     },
   ];
   return (
@@ -376,7 +401,7 @@ export function ExportPanel({
               </Button>
             )}
             <Button
-              disabled={mode === "browser" && !browserSupport?.supported}
+              disabled={mode === "browser" && (!!refusal || !browserSupport?.supported)}
               onClick={() => void start(false)}
               className="sm:flex-1"
             >

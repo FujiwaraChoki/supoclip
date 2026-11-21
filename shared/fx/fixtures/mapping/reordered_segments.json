@@ -1,0 +1,120 @@
+{
+  "family": "mapping",
+  "case": "reordered_segments",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        3.0,
+        6.0
+      ],
+      [
+        "s1",
+        0.0,
+        3.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "b1.accent",
+        "start": 1.0,
+        "end": 4.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "accent",
+        "variant": "circle",
+        "text": "huge",
+        "emoji": "",
+        "doodle": "sparkles",
+        "value": null,
+        "prefix": "",
+        "suffix": ""
+      },
+      {
+        "id": "b1.sfx",
+        "start": 1.0,
+        "end": 1.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "pop",
+        "variant": 0,
+        "gain_db": 0.0
+      },
+      {
+        "id": "b4.sfx",
+        "start": 4.0,
+        "end": 4.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "whoosh",
+        "variant": 0,
+        "gain_db": 0.0
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "b1.accent",
+      "start": 0.0,
+      "end": 1.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "accent",
+      "variant": "circle",
+      "text": "huge",
+      "emoji": "",
+      "doodle": "sparkles",
+      "value": null,
+      "prefix": "",
+      "suffix": ""
+    },
+    {
+      "id": "b4.sfx",
+      "start": 1.0,
+      "end": 1.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "sfx",
+      "sound": "whoosh",
+      "variant": 0,
+      "gain_db": 0.0
+    },
+    {
+      "id": "b1.accent@1",
+      "start": 4.0,
+      "end": 6.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "accent",
+      "variant": "circle",
+      "text": "huge",
+      "emoji": "",
+      "doodle": "sparkles",
+      "value": null,
+      "prefix": "",
+      "suffix": ""
+    },
+    {
+      "id": "b1.sfx",
+      "start": 4.0,
+      "end": 4.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "sfx",
+      "sound": "pop",
+      "variant": 0,
+      "gain_db": 0.0
+    }
+  ]
+}

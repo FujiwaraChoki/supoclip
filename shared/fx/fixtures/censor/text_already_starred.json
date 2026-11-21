@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_already_starred",
+  "fn": "censor_text",
+  "input": {
+    "text": "f*ck"
+  },
+  "expected": "f***"
+}

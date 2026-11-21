@@ -78,6 +78,10 @@ CLIP_END_PADDING_SECONDS = 0.35
 # sentence never picks up the first syllable of the next one.
 CLIP_END_NEXT_WORD_GUARD_SECONDS = 0.03
 
+# Every rendered clip's audio fades out over its last moment, so a cut never
+# clicks. Short enough that it never softens the last word's final consonant.
+CLIP_END_AUDIO_FADE_SECONDS = 0.025
+
 # When the duration cap lands mid-sentence, the end may back off this share of
 # the cap (at least 3s) to the previous sentence end instead of cutting mid-thought.
 CLIP_CAP_SENTENCE_BACKOFF_FRACTION = 0.25
@@ -118,6 +122,17 @@ SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
 HOOK_TITLE_SECONDS = 4.0
 
 HOOK_TITLE_MIN_SECONDS = 1.5
+
+
+def hook_title_window(output_duration: float) -> float:
+    """End (clip seconds) of the burned hook title, which shows from 0.12 s.
+
+    The one definition of the window: the ASS builder burns the title over it and
+    the dynamic-edits resolver keeps kinetic text out of the top band during it.
+    Clips no longer than ``HOOK_TITLE_MIN_SECONDS`` show the title over the whole
+    clip instead (``build_hook_title_ass``).
+    """
+    return min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
 
 HOOK_TITLE_SIDE_MARGIN_FRAC = 0.07
 

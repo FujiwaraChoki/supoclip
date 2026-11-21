@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_capital_punct",
+  "fn": "censor_text",
+  "input": {
+    "text": "Fuck!"
+  },
+  "expected": "F***!"
+}

@@ -1,0 +1,84 @@
+{
+  "family": "groups",
+  "case": "clause_punctuation",
+  "fn": "phrase_groups",
+  "input": {
+    "words": [
+      {
+        "start": 0.2,
+        "end": 0.47,
+        "text": "Wait,"
+      },
+      {
+        "start": 0.55,
+        "end": 0.82,
+        "text": "what?"
+      },
+      {
+        "start": 0.9,
+        "end": 1.23,
+        "text": "Really!"
+      },
+      {
+        "start": 1.31,
+        "end": 1.55,
+        "text": "Yes;"
+      },
+      {
+        "start": 1.63,
+        "end": 1.84,
+        "text": "no:"
+      },
+      {
+        "start": 1.92,
+        "end": 2.22,
+        "text": "maybe…"
+      }
+    ],
+    "max_words": 4
+  },
+  "expected": [
+    {
+      "first": 0,
+      "last": 0,
+      "start": 0.2,
+      "end": 0.55,
+      "text": "Wait,"
+    },
+    {
+      "first": 1,
+      "last": 1,
+      "start": 0.55,
+      "end": 0.9,
+      "text": "what?"
+    },
+    {
+      "first": 2,
+      "last": 2,
+      "start": 0.9,
+      "end": 1.31,
+      "text": "Really!"
+    },
+    {
+      "first": 3,
+      "last": 3,
+      "start": 1.31,
+      "end": 1.63,
+      "text": "Yes;"
+    },
+    {
+      "first": 4,
+      "last": 4,
+      "start": 1.63,
+      "end": 1.92,
+      "text": "no:"
+    },
+    {
+      "first": 5,
+      "last": 5,
+      "start": 1.92,
+      "end": 2.32,
+      "text": "maybe…"
+    }
+  ]
+}

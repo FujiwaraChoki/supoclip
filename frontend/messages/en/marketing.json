@@ -317,6 +317,61 @@
       }
     }
   },
+  "dynamicEdits": {
+    "eyebrow": "Dynamic edits",
+    "title": "Clips that look cut by a pro editor",
+    "body": "Pick an edit intensity. The AI finds the moments that matter and hits them with captions, punch-ins, sound and music. Same clip, four looks: switch while it plays.",
+    "switcherLabel": "Edit intensity",
+    "intensity": {
+      "off": {
+        "label": "Off",
+        "description": "Clean cuts and your usual captions, with nothing added."
+      },
+      "subtle": {
+        "label": "Subtle",
+        "description": "A podcast-clip feel: a reframe now and then, over a quiet music bed."
+      },
+      "bold": {
+        "label": "Bold",
+        "description": "Hormozi-style punch-ins that hold, word-by-word captions with a keyword box, and the occasional hit on a cut."
+      },
+      "max": {
+        "label": "Max",
+        "description": "MrBeast-style heavy captions, more reframes and pushes, flashes at cuts, sound effects and a music bed."
+      }
+    },
+    "player": {
+      "label": "Clip at {intensity}",
+      "play": "Play",
+      "pause": "Pause",
+      "mute": "Mute",
+      "unmute": "Turn sound on",
+      "tapForSound": "Tap for sound"
+    },
+    "broll": {
+      "title": "At Max, with b-roll",
+      "caption": "The episode's own cutaways fill the vertical frame instead of shrinking into a strip, with the captions, hits and music running on top."
+    },
+    "points": {
+      "captions": {
+        "title": "Captions that land word by word",
+        "description": "Animated styles put the key word in a box, drop in an emoji, or tuck a word behind the speaker's head. Swearing is bleeped and shown as f***."
+      },
+      "motion": {
+        "title": "Punch-ins and reframes on the beat",
+        "description": "The AI picks the lines that matter, and the frame pushes in, cuts closer or flashes right on them."
+      },
+      "sound": {
+        "title": "Sound and music under the voice",
+        "description": "Hits on the cuts and a music bed in the clip's mood, from chill to aggressive, mixed under every word."
+      },
+      "studio": {
+        "title": "Everything stays editable",
+        "description": "Change the intensity of clips you already have, or fine-tune a single effect in the clip studio."
+      }
+    },
+    "source": "Both clips were made by SupoClip from <link>{title}</link>."
+  },
   "editor": {
     "eyebrow": "Editor",
     "title": "A whole editor, built in",

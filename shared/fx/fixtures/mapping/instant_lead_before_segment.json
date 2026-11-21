@@ -1,0 +1,55 @@
+{
+  "family": "mapping",
+  "case": "instant_lead_before_segment",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        3.0,
+        6.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "b0.sfx",
+        "start": 2.97,
+        "end": 2.97,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "whoosh",
+        "variant": 0,
+        "gain_db": 0.0
+      },
+      {
+        "id": "b1.sfx",
+        "start": 2.9,
+        "end": 2.9,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "sfx",
+        "sound": "pop",
+        "variant": 0,
+        "gain_db": 0.0
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "b0.sfx",
+      "start": 0.0,
+      "end": 0.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "sfx",
+      "sound": "whoosh",
+      "variant": 0,
+      "gain_db": 0.0
+    }
+  ]
+}

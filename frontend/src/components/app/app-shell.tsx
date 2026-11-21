@@ -45,6 +45,8 @@ export type ShellTour = {
   busy: boolean;
   onWorkflow?: (workflow: Workflow) => void;
   onEnd?: () => void;
+  /** Open a section of the composer's settings menu for a step that points into it. */
+  onSettingsSection?: (id: string) => void;
 };
 
 /** Signed-in application chrome: sidebar on desktop, tab bar on mobile, ⌘K palette and feature tours everywhere. */
@@ -177,6 +179,7 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
         busy={tour?.busy}
         onWorkflow={tour?.onWorkflow}
         onEnd={tour?.onEnd}
+        onSettingsSection={tour?.onSettingsSection}
       />
     </div>
   );

@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_version",
+  "fn": "fnv1a32",
+  "input": {
+    "text": "fx-v1"
+  },
+  "expected": 2961888143
+}

@@ -97,5 +97,37 @@
       "body": "Durasi, teks, pembingkaian, pembersihan, dan B-roll kini ada dalam satu menu. Kami mengingat pilihanmu, jadi cukup diatur sekali."
     }
   },
+  "dynamic-edits": {
+    "intro": {
+      "title": "Kenalan dengan Edit dinamis",
+      "body": "Klipmu sekarang bisa diedit seperti editor video pendek terbaik: teks animasi, bingkai ulang, efek suara, dan musik tepat di momen yang penting. AI menemukan momen-momen itu; kamu yang pilih seberapa keras hantamannya."
+    },
+    "intensity": {
+      "title": "Pilih seberapa keras hantamannya",
+      "body": "<b>Halus:</b> subtitle bergaris tepi, sesekali bingkai ulang, dan musik pelan, seperti klip podcast.\n<b>Tegas:</b> teks gaya Hormozi di atas kapsul gelap, kata demi kata dengan kata kunci di dalam kotak, plus zoom yang bertahan.\n<b>Maksimal:</b> huruf kapital tebal bergaris tepi, bingkai ulang hampir di setiap kalimat, hantaman lebih keras, dan sesekali kilatan di potongan.\n<b>Mati</b> membiarkan klip apa adanya."
+    },
+    "sound": {
+      "title": "Suara, musik, dan kata kasar",
+      "body": "Efek suara jatuh di potongan dan momen di layar, tidak pernah di obrolan biasa. Musik hadir dalam tujuh suasana, dari santai sampai agresif: biarkan di “Sesuai video” dan AI memilih yang cocok, atau pilih sendiri. Kata kasar disensor dengan bunyi bip dan ditampilkan sebagai f*** di teks. Setelah edit aktif, semuanya punya sakelar di “Atur detail”."
+    },
+    "captions": {
+      "title": "Gaya teks animasi",
+      "body": "Stabilo memasukkan kata kunci ke kotak, Emoji Drop menaruh emoji di bawah hal yang sedang dibicarakan, dan Di Belakang Kepala menaruh satu kata raksasa di belakang pembicara. Masing-masing mengikuti tampilan intensitasmu, dan bisa dipakai sendiri saat edit mati."
+    }
+  },
+  "dynamic-edits-studio": {
+    "intro": {
+      "title": "Edit dinamis di studio",
+      "body": "Setiap efek di klip bisa diubah di sini sebelum diekspor, satu per satu atau sekaligus."
+    },
+    "panel": {
+      "title": "Tab Edit",
+      "body": "Ubah intensitas, suasana musik, atau sakelar klip ini, minta AI merencanakan ulang edit, atau hapus semuanya. Daftar menampilkan setiap momen yang dipilih AI: klik salah satunya untuk melompat ke sana. Setiap perubahan bisa dibatalkan."
+    },
+    "lane": {
+      "title": "Setiap efek di linimasa",
+      "body": "Setiap zoom dan suara adalah satu blok di sini, dan jalur musik menunjukkan musik di bawah suara. Seret blok untuk memindahkannya, klik dua kali untuk mengubahnya, atau pilih lalu tekan Delete. Klik dua kali di tempat kosong untuk menambah suara."
+    }
+  },
   "skip": "Lewati"
 }

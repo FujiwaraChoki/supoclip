@@ -210,25 +210,135 @@ def initial_caption_style(
         "karaoke": template.get("animation") == "karaoke",
         "uppercase": bool(template.get("uppercase")),
         "template": task.get("caption_template") or "default",
+    } | _look_caption_seed(task, caption_settings, width, height)
+
+
+def _look_caption_seed(task: dict, caption_settings: dict, width: int, height: int) -> dict:
+    """Listed animated templates draw an intensity look (font, size, case, keyword colour, pill): seed the editor
+    with the look the clip was generated with, so the studio opens on the same captions. {} for other templates."""
+    from ..edit_fx.caption_groups import LOOK_MAX_WORDS
+    from ..edit_fx.caption_style import LOOKS, look_accent, look_pill
+    from ..edit_fx.contracts import caption_look_for
+    from ..edit_fx.settings import parse_edit_style
+
+    template_id = task.get("caption_template") or "default"
+    raw = task.get("edit_style")
+    try:
+        intensity = parse_edit_style(json.loads(raw) if isinstance(raw, str) else raw).intensity
+    except Exception:  # noqa: BLE001 - an unreadable stored style is "off"
+        intensity = "off"
+    look = caption_look_for(template_id, intensity)
+    if look not in LOOKS:
+        return {}
+    spec = LOOKS[look]
+    position_y = caption_settings.get("position_y") if caption_settings.get("position_is_center") else None
+    return {
+        "font": spec["font"],
+        "size": max(20, min(132, int(spec["px"]))),
+        "y": max(0.1, min(0.9, float(position_y if position_y is not None else spec["y"]))),
+        "wordsPerLine": LOOK_MAX_WORDS[look],
+        "uppercase": bool(spec["uppercase"]),
+        "accent": look_accent(template_id, look),
+        "background": look_pill(template_id, look) is not None,
+        "karaoke": False,
     }
 
 
-def generated_emphasis(words: list[dict], task: dict) -> set[int]:
+def generated_emphasis(words: list[dict], task: dict, plan: dict | None = None) -> set[int]:
     """Words the generated clip accented (power words, numbers, emoji words).
 
     The editor seeds them as highlights so users see and can toggle them.
+    A clip drawn with an FX caption template accented its plan's accent cues
+    (``plan`` is the sidecar's ``edit_fx``); legacy templates burned the
+    heuristic emphasis into their ASS, so they keep it even with dynamic edits
+    on (AI-M3).
     """
     from ..caption_templates import get_template
+    from ..edit_fx.contracts import is_fx_template
     from ..emoji_captions import annotate_caption_words
     from ..media.captions import emoji_rendering_supported
 
-    template = get_template(task.get("caption_template") or "default")
+    template_id = task.get("caption_template") or "default"
+    if plan is not None and is_fx_template(template_id):
+        return plan_accent_words(words, plan)
+    template = get_template(template_id)
     _, emphasis = annotate_caption_words(
         words,
         enable_emoji=bool(template.get("emoji", True)) and emoji_rendering_supported(),
         enable_emphasis=template.get("animation", "karaoke") != "none",
     )
     return emphasis
+
+
+def plan_accent_words(words: list[dict], plan: dict) -> set[int]:
+    """Indices of the words an FX plan accents: a word whose middle falls inside an accent cue (clip S time)."""
+    spans = [
+        (float(cue.get("start", 0)), float(cue.get("end", 0)))
+        for cue in plan.get("cues") or []
+        if isinstance(cue, dict) and cue.get("kind") == "accent"
+    ]
+    return {
+        index
+        for index, word in enumerate(words)
+        if any(start - 1e-6 <= (word["start"] + word["end"]) / 2 <= end + 1e-6 for start, end in spans)
+    }
+
+
+def doc_fx_from_sidecar(sidecar: dict | None, duration: float) -> dict | None:
+    """The draft's ``fx`` for a clip generated with dynamic edits (§14.1): the sidecar plan and beats, as editable
+    cues on the clip's own timeline (clip S == clean.mp4 S, so times map one to one). None without a plan."""
+    from ..edit_fx.contracts import EditBeats, FxPlan
+    from ..editor_document import DocFx
+
+    plan_raw = (sidecar or {}).get("plan")
+    if not plan_raw:
+        return None
+    log = logging.getLogger(__name__)
+    try:
+        plan = FxPlan.model_validate(plan_raw)
+    except ValueError:
+        log.warning("fx_sidecar_corrupt field=edit_fx (studio seed)")
+        return None
+    beats: list = []
+    if sidecar.get("beats"):
+        try:
+            beats = list(EditBeats.model_validate(sidecar["beats"]).beats)
+        except ValueError:
+            log.warning("fx_sidecar_corrupt field=edit_beats (studio seed)")
+    limit = duration + 0.05
+    seen: set[str] = set()
+    cues = []
+    for cue in plan.cues:
+        if cue.end <= limit and cue.id not in seen:
+            seen.add(cue.id)
+            cues.append(cue)
+    beat_ids: set[str] = set()
+    kept_beats = []
+    for beat in beats:
+        if beat.end <= limit and beat.id not in beat_ids:
+            beat_ids.add(beat.id)
+            kept_beats.append(beat)
+    return DocFx(
+        style=plan.style,
+        seed=plan.seed,
+        mood=plan.mood,
+        sensitivity=plan.sensitivity,
+        timing=plan.timing,
+        beats=kept_beats[:200],
+        cues=cues[:400],
+        music=plan.music,
+        grade=plan.grade,
+        grain=plan.grain,
+        progressBar=plan.progress_bar,
+        loopEnding=plan.loop_ending,
+        hookTitleSuppressed=plan.hook_title_suppressed,
+    ).model_dump(mode="json")
+
+
+def layout_filter_has_zoompan(layout: dict | None) -> bool:
+    """The baked layout's filter zooms (Ken Burns). The studio then adds no baseline pushes (AR-M9)."""
+    plan = (layout or {}).get("vertical_plan")
+    return bool(plan) and "zoompan" in str(plan[0] if isinstance(plan, (tuple, list)) else plan)
 
 
 # Layouts that are a composed frame, not a crop the editor can rebuild.
@@ -288,6 +398,8 @@ def editor_preserved_layout(
         "landscape_recommended": described["kind"] in {"fit", "compositor"},
         "output_format": "vertical",
         "vertical_plan": (described["video_filter"], described["mode"]),
+        **({"segments": described["interview_segments"], "source_size": [width, height]}
+           if described.get("interview_segments") else {}),
     }
 
 
@@ -339,6 +451,8 @@ def stored_editor_layout(clean: Path, stored: dict | None) -> dict | None:
         "landscape_recommended": stored["kind"] in {"fit", "compositor"},
         "output_format": "vertical",
         "vertical_plan": (stored["video_filter"], stored["mode"]),
+        **({"segments": stored["segments"], "source_size": [width, height]} if stored.get("segments") else {}),
+        **({"caption_band": stored["caption_band"]} if stored.get("caption_band") else {}),
     }
 
 
@@ -349,6 +463,7 @@ def bake_editor_layout(
     ranges: list,
     preserve_content: bool = False,
     stored: dict | None = None,
+    report: dict | None = None,
 ) -> bool:
     """Compose the clip's generated layout for the editor.
 
@@ -356,6 +471,9 @@ def bake_editor_layout(
     (``load_clip_vertical_layout``). Replaying it shows exactly the framing
     of the generated clip, face tracking included. Without one (older clips,
     or a plan made on different media) the layout is detected again here.
+    ``report``, when given, receives ``zoompan``: whether the baked frame has
+    a Ken Burns zoom in it, and for an interview layout its ``kind``, shot
+    ``segments``, ``source_size`` and ``caption_band`` (the caption rows).
     """
     from ..config import get_config
     from ..media.speaker_framing import build_clip_speaker_turns
@@ -381,6 +499,12 @@ def bake_editor_layout(
         layout = editor_preserved_layout(clean, output_format, turns, words, include_content=preserve_content)
     if not layout:
         return False
+    if report is not None:
+        report["zoompan"] = layout_filter_has_zoompan(layout)
+        report["kind"] = layout["kind"]
+        for key in ("segments", "source_size", "caption_band"):
+            if layout.get(key):
+                report[key] = layout[key]
     if preserve_content and layout["kind"] not in PRESERVED_LAYOUT_KINDS:
         destination = clean.with_name("layout.mp4")
         if apply_editor_layout(clean, layout, destination):
@@ -388,6 +512,26 @@ def bake_editor_layout(
             return True
         return False
     return apply_editor_layout(clean, layout)
+
+
+def editor_caption_rows(layout: dict, captions: dict, duration: float) -> dict | None:
+    """The draft's ``captionRows`` for a baked interview layout (``bake_editor_layout``'s report): the per-shot rows
+    of the session's look captions on clean.mp4's clock, seeded with their automatic ``captions.y``. None for other
+    layouts, legacy or hidden templates (their drafts stay as they were) and layouts stored without their shots."""
+    from ..edit_fx.caption_rows import interview_caption_rows
+    from ..edit_fx.contracts import is_listed_fx_template
+
+    if not layout.get("baked") or layout.get("kind") not in ("interview", "compositor") or not layout.get("segments"):
+        return None
+    if not is_listed_fx_template(captions.get("template")):
+        return None
+    rows = interview_caption_rows(
+        layout["segments"], text_px=float(captions.get("size") or 54), width=1080, height=1920,
+        source_size=layout.get("source_size"), band=layout.get("caption_band"), duration=duration,
+    )
+    if not rows:
+        return None
+    return {"y": float(captions["y"]), "rows": [row.model_dump(mode="json") for row in rows]}
 
 
 def editor_broll_from_placements(placements: list, duration: float) -> list[dict]:
@@ -420,6 +564,25 @@ def rebased_broll(document: EditDocument, cursor: float = 0) -> list[dict]:
         }
         for piece in mapped_broll(document)
     ]
+
+
+def rebased_caption_rows(document: EditDocument, cursor: float = 0) -> list[dict]:
+    """A draft's interview caption rows on a combined source (like ``rebased_broll``): the rows that place its
+    captions (``studio_caption_rows``, E) moved by ``cursor``. [] when they don't apply to this draft."""
+    from ..editor_document import studio_caption_rows
+
+    return [
+        {"start": round(cursor + row.start, 4), "end": round(cursor + row.end, 4), "y": row.y}
+        for row in studio_caption_rows(document)
+    ]
+
+
+def combined_caption_rows(documents: list[dict], rows: list[dict]) -> dict | None:
+    """The combined draft's ``captionRows``: every part's rebased rows, seeded with the combined captions' ``y`` (the
+    first draft's), or None when no part has rows."""
+    if not rows:
+        return None
+    return {"y": float(documents[0].get("captions", {}).get("y", 0.78)), "rows": rows[:400]}
 
 
 def rebased_caption_transforms(document: EditDocument, words: list[dict]) -> dict:
@@ -458,13 +621,23 @@ def upgrade_document(
     task: dict,
     broll_placements: list | None = None,
     duration: float | None = None,
+    fx_sidecar: dict | None = None,
 ) -> dict:
     """Fill fields that drafts saved by older editor versions don't have.
 
     Missing keys would otherwise validate to defaults that drop the generated
-    clip's animation and hook title.
+    clip's animation and hook title. A draft without dynamic edits (no ``fx``
+    key, or null) of a clip generated with them (``fx_sidecar`` is the clip's
+    ``load_clip_edit_fx``) is seeded from its plan, the original included.
+    A draft whose ``fx`` the user set, even to the inert "removed" state, keeps it.
     """
     from ..caption_templates import get_template
+
+    if document.get("fx") is None:
+        seeded = doc_fx_from_sidecar(fx_sidecar, duration or 0.0) if fx_sidecar and duration else None
+        document = {key: value for key, value in document.items() if key != "fx"}
+        if seeded is not None:
+            document["fx"] = seeded
 
     captions = dict(document.get("captions") or {})
     if not {"template", "karaoke", "uppercase"} <= captions.keys():
@@ -487,13 +660,25 @@ def upgrade_document(
     }
 
 
+def caption_looks(include_fx: bool = False, keep: tuple[str, ...] = ()) -> dict:
+    """Template styling the editor preview draws on top of its own caption style.
+
+    Legacy templates only, unless ``include_fx`` (the caller is allowed dynamic
+    edits, §0.4.9) adds the listed FX templates; ``keep`` adds the FX templates a
+    stored draft already uses (unlisted ones included), so it always has its own look.
+    """
+    from ..edit_fx.contracts import FX_CAPTION_TEMPLATES, LISTED_FX_CAPTION_TEMPLATES
+
+    fx_ids = tuple(t for t in FX_CAPTION_TEMPLATES if (include_fx and t in LISTED_FX_CAPTION_TEMPLATES) or t in keep)
+    return _caption_looks(fx_ids)
+
+
 @functools.cache
-def caption_looks() -> dict:
-    """Template styling the editor preview draws on top of its own caption style."""
+def _caption_looks(fx_ids: tuple[str, ...] = ()) -> dict:
     from ..caption_templates import CAPTION_TEMPLATES, get_template
 
     looks = {}
-    for template_id in CAPTION_TEMPLATES:
+    for template_id in (*CAPTION_TEMPLATES, *fx_ids):
         template = get_template(template_id)
         looks[template_id] = {
             "animation": template.get("animation", "karaoke"),
@@ -508,6 +693,8 @@ def caption_looks() -> dict:
             "glow": bool(template.get("glow")),
             "backgroundColor": template.get("background_color"),
         }
+        if template_id in fx_ids:
+            looks[template_id].update(fx=True, fxStyle=template_id)
     return looks
 
 
@@ -787,9 +974,11 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             source_settings = await service._load_task_source_settings(task_id)
             caption_path = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
             caption_settings = load_clip_caption_settings(caption_path) or {}
-            from ..clip_source_map import load_clip_broll
+            from ..clip_source_map import load_clip_broll, load_clip_edit_fx
 
             broll_placements = load_clip_broll(caption_path)
+            # Dynamic edits the clip was generated with: they seed the draft (§14.1).
+            fx_sidecar = load_clip_edit_fx(caption_path)
             await db.close()
             source, downloaded_source, local_ranges = await _editor_source(
                 service, storage, task_id, task, cached_source, ranges, download_quality
@@ -829,12 +1018,13 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             # vertical or original crop. Bake that frame into the editor
             # source so preview and export show it. Other clips keep this
             # uncropped trim and the crop chosen below.
+            layout_report: dict = {}
             if output_format in {"vertical", "vertical_split", "vertical_fit"}:
                 from ..clip_source_map import load_clip_vertical_layout
 
-                await run_in_thread(
+                layout_report["baked"] = await run_in_thread(
                     bake_editor_layout, clean, output_format, source, local_ranges, True,
-                    load_clip_vertical_layout(metadata_path),
+                    load_clip_vertical_layout(metadata_path), layout_report,
                 )
             metadata = await run_in_thread(make_assets, directory)
             expected = expected_prepared_duration(ranges, source_offsets)
@@ -851,32 +1041,44 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             if (directory / "layout.mp4").exists():
                 metadata["hasLayout"] = True
                 metadata.update(json.loads((directory / "layout.json").read_text()))
+            # A baked Ken Burns zoom is the clip's only zoom source: the studio adds no
+            # baseline pushes over it (AR-M9).
+            metadata["layoutHasZoompan"] = bool(layout_report.get("zoompan"))
             transcript = load_cached_transcript_data(source)
             timed = get_words_for_keep_ranges(transcript, local_ranges, source_offsets) if transcript else []
             words = _caption_words_with_timings(
                 caption_tokens(clip.get("text") or "", timed), timed, metadata["duration"]
             )
             duration = metadata["duration"]
-            emphasis = generated_emphasis(words, task)
+            emphasis = generated_emphasis(words, task, (fx_sidecar or {}).get("plan"))
             original_format = output_format == "original"
+            seeded_fx = doc_fx_from_sidecar(fx_sidecar, duration)
+            face_track = (fx_sidecar or {}).get("face_track")
+            if seeded_fx is not None and face_track and metadata.get("hasLayout") and not original_format:
+                # The generated face track is relative to the framed picture, which
+                # layout.mp4 replays: it is valid on that base only.
+                metadata["faceTrack"] = {"base": "layout", "track": face_track}
             # Vertical clips are generated at 1080x1920; "original" keeps the source size.
             # A baked split or stack is already 1080x1920, so this vertical cover
             # shows that frame in full instead of cropping the source again.
             clip_width, clip_height = (
                 (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
             )
+            initial_captions = initial_caption_style(
+                task,
+                caption_settings,
+                source_settings.get("add_subtitles", True),
+                clip_width,
+                clip_height,
+            )
+            # Interview clips: the look captions keep a row per shot, as generated.
+            caption_rows = None if original_format else editor_caption_rows(layout_report, initial_captions, duration)
             initial = (
                 EditDocument.model_validate(
                     {
                         "segments": [{"id": "original", "start": 0, "end": duration}],
                         "framing": {"aspect": "original" if original_format else "vertical", "fit": "auto" if metadata.get("hasLayout") else "cover"},
-                        "captions": initial_caption_style(
-                            task,
-                            caption_settings,
-                            source_settings.get("add_subtitles", True),
-                            clip_width,
-                            clip_height,
-                        ),
+                        "captions": initial_captions,
                         "hookTitle": (burned_hook_title(clip) or "")[:200],
                         "broll": editor_broll_from_placements(broll_placements, duration),
                         "words": [
@@ -890,6 +1092,8 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             for i, w in enumerate(words)
                             if w["start"] < duration and w["end"] > 0
                         ],
+                        **({"fx": seeded_fx} if seeded_fx is not None else {}),
+                        **({"captionRows": caption_rows} if caption_rows is not None else {}),
                     }
                 )
                 .validate_duration(duration)
@@ -916,6 +1120,20 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 await run_in_thread(storage.save_source_metadata, source)
             except STORAGE_ERRORS:
                 logging.getLogger(__name__).warning("Source timings retained for upload retry")
+
+
+def fx_render_inputs(document: EditDocument, asset: dict | None, directory: Path, *, storage=None):
+    """The session's face track, verified matte and reaction GIFs bound around a dynamic-edits render
+    (``editor_fx_render.studio_fx_inputs``); nothing at all for any other draft."""
+    from contextlib import nullcontext
+
+    from ..editor_document import document_needs_fx
+
+    if not document_needs_fx(document):
+        return nullcontext()
+    from ..editor_fx_render import studio_fx_inputs
+
+    return studio_fx_inputs(document, asset or {}, directory, storage=storage)
 
 
 @media_work
@@ -952,16 +1170,17 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
                 version=session["asset"].get("mediaVersion"),
             )
             broll_files = await document_footage(document)
-            await run_in_thread(
-                render_document,
-                directory,
-                job_id,
-                document,
-                payload["preset"],
-                broll_files,
-                should_cancel=render.stop.is_set,
-                on_progress=render.report,
-            )
+            async with fx_render_inputs(document, session["asset"], directory, storage=storage):
+                await run_in_thread(
+                    render_document,
+                    directory,
+                    job_id,
+                    document,
+                    payload["preset"],
+                    broll_files,
+                    should_cancel=render.stop.is_set,
+                    on_progress=render.report,
+                )
             await cap_export_for_plan(task_id, output)
             await run_in_thread(storage.persist_editor_export, directory, job_id)
         finished = await store.finish_job(job_id, job["claim"], "completed")
@@ -988,6 +1207,118 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
             output.unlink(missing_ok=True)
 
 
+def _prefixed_id(value: str, prefix: str, limit: int) -> str:
+    """``prefix + value`` within the id limit; an over-long id keeps a hash of itself so it stays unique."""
+    from ..edit_fx.rng import fnv1a32
+
+    if len(prefix) + len(value) <= limit:
+        return prefix + value
+    tag = f"~{fnv1a32(value):08x}"
+    return prefix + value[: max(0, limit - len(prefix) - len(tag))] + tag
+
+
+def rebased_fx(document: EditDocument, cursor: float, index: int) -> dict:
+    """One draft's dynamic edits on a combined source (§14.1): beats and enabled cues mapped through the draft's
+    segments (S → its E, which is where it sits in the combined clean.mp4) and moved by ``cursor``, like
+    ``rebased_broll``. Ids get ``e{index}:``. The freeze hold budget is not applied (AR-M14)."""
+    from ..edit_fx.mapping import BEAT_ID_MAX, CUE_ID_MAX, mapped_beats
+    from ..editor_document import fx_segments, mapped_fx
+
+    if document.fx is None:
+        return {"beats": [], "cues": [], "suppressed": []}
+    prefix = f"e{index}:"
+    cues = []
+    for cue in mapped_fx(document):
+        data = cue.model_dump(mode="json")
+        data.update(
+            id=_prefixed_id(cue.id, prefix, CUE_ID_MAX),
+            beat=_prefixed_id(cue.beat, prefix, BEAT_ID_MAX) if cue.beat else "",
+            start=round(cursor + cue.start, 4),
+            end=round(cursor + cue.end, 4),
+        )
+        cues.append(data)
+    beats = []
+    for beat in mapped_beats(fx_segments(document), document.fx.beats):
+        data = beat.model_dump(mode="json")
+        data.update(
+            id=_prefixed_id(beat.id, prefix, BEAT_ID_MAX),
+            start=round(cursor + beat.start, 4),
+            end=round(cursor + beat.end, 4),
+        )
+        beats.append(data)
+    suppressed = [_prefixed_id(cue_id, prefix, CUE_ID_MAX) for cue_id in document.fx.suppressed]
+    return {"beats": beats, "cues": cues, "suppressed": suppressed}
+
+
+_TIMING_PRECISION = ("none", "approx", "word")
+
+
+def combined_fx(documents: list[EditDocument], parts: list[dict]) -> dict | None:
+    """The combined draft's ``fx``: globals (style, music, grade, …) from the first draft that has dynamic edits, a
+    container even when the first draft has none (AI-L4), every draft's rebased beats and cues. None when no draft
+    has dynamic edits, so a combination of legacy drafts stays byte-identical."""
+    from ..editor_document import DocFx
+
+    with_fx = [document.fx for document in documents if document.fx is not None]
+    if not with_fx:
+        return None
+    first = with_fx[0]
+    beats = sorted((b for part in parts for b in part["beats"]), key=lambda b: (b["start"], b["id"]))
+    cues = sorted((c for part in parts for c in part["cues"]), key=lambda c: (c["start"], c["id"]))
+    suppressed = [cue_id for part in parts for cue_id in part["suppressed"]]
+    return DocFx.model_validate({
+        **first.model_dump(mode="json"),
+        "sensitivity": "serious" if any(fx.sensitivity == "serious" for fx in with_fx) else "normal",
+        "timing": _TIMING_PRECISION[min(_TIMING_PRECISION.index(fx.timing) for fx in with_fx)],
+        "beats": beats[:200],
+        "cues": cues[:400],
+        "suppressed": suppressed[:400],
+        # Each draft's switched-off kinds were left out above; every kept cue plays.
+        "disabled": [],
+        # The combined clip has no hook title.
+        "hookTitleSuppressed": False,
+    }).model_dump(mode="json")
+
+
+def combined_fx_sidecar(document: EditDocument, words: list[dict], outcome) -> dict:
+    """``save_clip_edit_fx`` arguments for a combined clip with dynamic edits (AR-M14): its plan in combined-clean S,
+    the level and the warp the render applied, so later trims and re-renders can map F → E."""
+    from ..edit_fx.beats import words_hash
+    from ..edit_fx.contracts import EditBeats, FxPlan
+    from ..editor_document import edit_duration, fx_render_outcome, mapped_fx
+
+    fx = document.fx
+    level, applied_warp = fx_render_outcome(outcome)
+    plan = FxPlan(
+        style=fx.style,
+        template=document.captions.template,
+        seed=fx.seed,
+        edit_duration=edit_duration(document),
+        sensitivity=fx.sensitivity,
+        timing=fx.timing,
+        mood=fx.mood,
+        cues=tuple(mapped_fx(document)),
+        music=fx.music,
+        grade=fx.grade,
+        grain=fx.grain,
+        progress_bar=fx.progressBar,
+        loop_ending=fx.loopEnding,
+        hook_title_suppressed=fx.hookTitleSuppressed,
+    )
+    beats = EditBeats(
+        words_hash=words_hash(words), mood=fx.mood or "hype", sensitivity=fx.sensitivity, timing=fx.timing,
+        beats=tuple(fx.beats),
+    ) if fx.beats else None
+    return {
+        "style": fx.style.to_json(),
+        "beats": None if beats is None else beats.model_dump(mode="json"),
+        "plan": plan.model_dump(mode="json"),
+        "face_track": None,
+        "fx_level": level,
+        "applied_warp": applied_warp,
+    }
+
+
 @media_work
 async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: str):
     """Create a new clip from draft cuts, keeping every input clip and its draft."""
@@ -997,8 +1328,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
     from ..database import AsyncSessionLocal
     from ..repositories.edit_transaction import task_edit_transaction
     from ..broll import editor_piece_to_placement
-    from ..clip_source_map import save_clip_broll, save_clip_source_ranges, slice_source_timeline
-    from ..editor_document import mapped_broll, mapped_words, run_render
+    from ..clip_source_map import save_clip_broll, save_clip_edit_fx, save_clip_source_ranges, slice_source_timeline
+    from ..editor_document import document_needs_fx, mapped_broll, mapped_words, run_render
     from .task_service import TaskService
 
     job = await claim_job(task_id, clip_id, filename, job_id)
@@ -1029,6 +1360,9 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 raise InterruptedError()
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
         all_broll = []
+        all_caption_rows: list[dict] = []
+        drafts: list[EditDocument] = []
+        fx_parts: list[dict] = []
         combined_offsets = []
         all_caption_transforms = {}
         cursor = 0.0
@@ -1043,6 +1377,11 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
             all_broll += rebased_broll(document, cursor)
+            # And its interview caption rows, where they place its captions.
+            all_caption_rows += rebased_caption_rows(document, cursor)
+            # So do its dynamic edits, on the combined timeline.
+            drafts.append(document)
+            fx_parts.append(rebased_fx(document, cursor, i))
             entry_words = [
                 {
                     **w,
@@ -1088,7 +1427,16 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             # The first clip's headline doesn't describe the combination.
             "hookTitle": "",
         }
+        initial.pop("fx", None)
+        initial.pop("captionRows", None)
+        caption_rows = combined_caption_rows([entry["document"] for entry in entries], all_caption_rows)
+        if caption_rows is not None:
+            initial["captionRows"] = caption_rows
+        fx = combined_fx(drafts, fx_parts)
+        if fx is not None:
+            initial["fx"] = fx
         document = EditDocument.model_validate(initial).validate_duration(cursor)
+        fx_render = document_needs_fx(document)
         with tempfile.TemporaryDirectory(prefix="combine_", dir=directory) as temp:
             work = Path(temp)
             commands += [
@@ -1124,16 +1472,19 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 if render.stop.is_set():
                     raise InterruptedError()
                 broll_files = await document_footage(document)
-                await run_in_thread(
-                    render_document,
-                    work,
-                    job_id,
-                    document,
-                    "tiktok",
-                    broll_files,
-                    should_cancel=render.stop.is_set,
-                    on_progress=lambda percent: render.report(50 + percent // 2),
-                )
+                # The combined source has no face track or matte of its own yet (§14.1).
+                async with fx_render_inputs(document, {}, work, storage=storage):
+                    outcome = await run_in_thread(
+                        render_document,
+                        work,
+                        job_id,
+                        document,
+                        "tiktok",
+                        broll_files,
+                        should_cancel=render.stop.is_set,
+                        on_progress=lambda percent: render.report(50 + percent // 2),
+                    )
+                fx_sidecar = combined_fx_sidecar(document, all_words, outcome) if fx_render and document.fx is not None else None
                 await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
                 new_filename = f"combined_{uuid.uuid4().hex}.mp4"
                 clip_path = Path(get_config().temp_dir) / "clips" / new_filename
@@ -1145,6 +1496,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                     for piece in mapped_broll(document)
                     if piece["footage"].key in broll_files
                 ])
+                if fx_sidecar is not None:
+                    save_clip_edit_fx(clip_path, **fx_sidecar)
                 metadata = await run_in_thread(make_assets, work)
                 # Finish durable export delivery before committing the new clip.
                 # Cleanup may reclaim clip_path immediately after that commit.
@@ -1188,6 +1541,13 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                             "Combined in the clip editor",
                             max(c["clip_order"] for c in clips) + 1,
                             clip_id=new_id,
+                            # Every clip with dynamic edits in its sidecar carries fx_meta (§3.4).
+                            **({"fx_meta": {
+                                "fx_level": fx_sidecar["fx_level"],
+                                "timing": document.fx.timing,
+                                "intensity": document.fx.style.intensity,
+                                "template": document.captions.template,
+                            }} if fx_sidecar is not None else {}),
                         )
                         if reference != str(clip_path):
                             from ..repositories.media_repository import queue_delete

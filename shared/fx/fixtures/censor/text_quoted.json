@@ -1,0 +1,9 @@
+{
+  "family": "censor",
+  "case": "text_quoted",
+  "fn": "censor_text",
+  "input": {
+    "text": "'damn'"
+  },
+  "expected": "'d***'"
+}

@@ -1,0 +1,39 @@
+{
+  "family": "mapping",
+  "case": "instant_at_timeline_end",
+  "fn": "mapped_cues",
+  "input": {
+    "segments": [
+      [
+        "s0",
+        1.0,
+        3.0
+      ]
+    ],
+    "cues": [
+      {
+        "id": "g.transition",
+        "start": 3.0,
+        "end": 3.0,
+        "seed": 0,
+        "beat": "",
+        "origin": "auto",
+        "kind": "transition",
+        "style": "whip"
+      }
+    ],
+    "min_piece": 0.04
+  },
+  "expected": [
+    {
+      "id": "g.transition",
+      "start": 2.0,
+      "end": 2.0,
+      "seed": 0,
+      "beat": "",
+      "origin": "auto",
+      "kind": "transition",
+      "style": "whip"
+    }
+  ]
+}

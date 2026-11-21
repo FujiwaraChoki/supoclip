@@ -1,0 +1,1674 @@
+{
+  "$defs": {
+    "AccentCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "accent",
+          "default": "accent",
+          "title": "Kind",
+          "type": "string"
+        },
+        "variant": {
+          "enum": [
+            "circle",
+            "underline",
+            "strike",
+            "arrow",
+            "highlight",
+            "emoji",
+            "emoji_burst",
+            "slam",
+            "behind",
+            "counter",
+            "decode",
+            "kinetic",
+            "doodle"
+          ],
+          "title": "Variant",
+          "type": "string"
+        },
+        "text": {
+          "default": "",
+          "maxLength": 120,
+          "title": "Text",
+          "type": "string"
+        },
+        "emoji": {
+          "default": "",
+          "maxLength": 16,
+          "title": "Emoji",
+          "type": "string"
+        },
+        "doodle": {
+          "default": "sparkles",
+          "enum": [
+            "sparkles",
+            "arrows",
+            "sweat",
+            "horns",
+            "bang",
+            "heart",
+            "anger"
+          ],
+          "title": "Doodle",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "prefix": {
+          "default": "",
+          "maxLength": 4,
+          "title": "Prefix",
+          "type": "string"
+        },
+        "suffix": {
+          "default": "",
+          "maxLength": 8,
+          "title": "Suffix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "variant"
+      ],
+      "title": "AccentCue",
+      "type": "object"
+    },
+    "BleepCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "bleep",
+          "default": "bleep",
+          "title": "Kind",
+          "type": "string"
+        },
+        "tone": {
+          "default": true,
+          "title": "Tone",
+          "type": "boolean"
+        },
+        "cover": {
+          "default": "bar",
+          "enum": [
+            "none",
+            "bar",
+            "pixelate"
+          ],
+          "title": "Cover",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end"
+      ],
+      "title": "BleepCue",
+      "type": "object"
+    },
+    "CaptionPlacement": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 200,
+          "title": "Key",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "maximum": 4,
+          "title": "Scale",
+          "type": "number"
+        }
+      },
+      "required": [
+        "key",
+        "x",
+        "y"
+      ],
+      "title": "CaptionPlacement",
+      "type": "object"
+    },
+    "CaptionRow": {
+      "additionalProperties": false,
+      "description": "Where captions sit during one stretch of the clip (an interview shot): the caption centre ``y`` for every\ncaption group shown from ``[start, end)``. A change of ``y`` is a camera cut, and a cut ends the caption group on\nscreen (``caption_groups.phrase_groups(cuts=...)``). E seconds (S in a studio document's ``captionRows``).",
+      "properties": {
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "y"
+      ],
+      "title": "CaptionRow",
+      "type": "object"
+    },
+    "DesaturateCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "desaturate",
+          "default": "desaturate",
+          "title": "Kind",
+          "type": "string"
+        },
+        "amount": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Amount",
+          "type": "number"
+        },
+        "dim": {
+          "default": 0.0,
+          "maximum": 0.8,
+          "minimum": 0,
+          "title": "Dim",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "amount"
+      ],
+      "title": "DesaturateCue",
+      "type": "object"
+    },
+    "FaceTrack": {
+      "additionalProperties": false,
+      "description": "Normalised (0-1) face boxes at `fps`. space \"picture\" = relative to the base picture (generation: the framed\noutput frame; studio: layout.mp4 or clean.mp4 frame). Each face row is [x,y,w,h,score] or\n[x,y,w,h,score, rex,rey, lex,ley, nx,ny, rmx,rmy, lmx,lmy] (YuNet landmark order). Largest face first, ≤ 2 faces.",
+      "properties": {
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "space": {
+          "default": "picture",
+          "enum": [
+            "picture",
+            "output"
+          ],
+          "title": "Space",
+          "type": "string"
+        },
+        "fps": {
+          "default": 6,
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "title": "Fps",
+          "type": "number"
+        },
+        "samples": {
+          "default": [],
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Samples",
+          "type": "array"
+        }
+      },
+      "title": "FaceTrack",
+      "type": "object"
+    },
+    "FlashCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "flash",
+          "default": "flash",
+          "title": "Kind",
+          "type": "string"
+        },
+        "color": {
+          "default": "#FFFFFF",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Color",
+          "type": "string"
+        },
+        "peak": {
+          "default": 0.85,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Peak",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end"
+      ],
+      "title": "FlashCue",
+      "type": "object"
+    },
+    "FreezeCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "freeze",
+          "default": "freeze",
+          "title": "Kind",
+          "type": "string"
+        },
+        "hold": {
+          "maximum": 2.5,
+          "minimum": 0.2,
+          "title": "Hold",
+          "type": "number"
+        },
+        "label": {
+          "default": "",
+          "maxLength": 40,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "hold"
+      ],
+      "title": "FreezeCue",
+      "type": "object"
+    },
+    "FxCaptionStyle": {
+      "additionalProperties": false,
+      "description": "Resolved look for FX-template captions (drawn by fx-core, never by ASS).",
+      "properties": {
+        "template": {
+          "maxLength": 50,
+          "title": "Template",
+          "type": "string"
+        },
+        "font": {
+          "maxLength": 80,
+          "title": "Font",
+          "type": "string"
+        },
+        "size_px": {
+          "exclusiveMinimum": 0,
+          "maximum": 400,
+          "title": "Size Px",
+          "type": "number"
+        },
+        "color": {
+          "title": "Color",
+          "type": "string"
+        },
+        "accent": {
+          "title": "Accent",
+          "type": "string"
+        },
+        "stroke_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stroke Color"
+        },
+        "stroke_px": {
+          "default": 0,
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Stroke Px",
+          "type": "number"
+        },
+        "shadow": {
+          "default": false,
+          "title": "Shadow",
+          "type": "boolean"
+        },
+        "background": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Background"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        },
+        "x": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "X",
+          "type": "number"
+        },
+        "words_per_line": {
+          "default": 3,
+          "maximum": 8,
+          "minimum": 1,
+          "title": "Words Per Line",
+          "type": "integer"
+        },
+        "uppercase": {
+          "default": false,
+          "title": "Uppercase",
+          "type": "boolean"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "placements": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CaptionPlacement"
+          },
+          "title": "Placements",
+          "type": "array"
+        },
+        "look": {
+          "default": "template",
+          "enum": [
+            "template",
+            "subtle",
+            "bold",
+            "max"
+          ],
+          "title": "Look",
+          "type": "string"
+        },
+        "rows": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CaptionRow"
+          },
+          "maxItems": 400,
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "template",
+        "font",
+        "size_px",
+        "color",
+        "accent",
+        "y"
+      ],
+      "title": "FxCaptionStyle",
+      "type": "object"
+    },
+    "FxHookTitle": {
+      "additionalProperties": false,
+      "description": "The hook title drawn by fx-core (``hook.ts``): a white label hugging each line or big outlined type, by the\nclip's caption template, with the numbers and power words marked. fx-core lays it out and places it; see\n``edit_fx/hook_title.py``.",
+      "properties": {
+        "text": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "font": {
+          "maxLength": 80,
+          "title": "Font",
+          "type": "string"
+        },
+        "accent": {
+          "default": "#FFE45C",
+          "title": "Accent",
+          "type": "string"
+        },
+        "look": {
+          "default": "bold",
+          "enum": [
+            "subtle",
+            "bold",
+            "max"
+          ],
+          "title": "Look",
+          "type": "string"
+        },
+        "template": {
+          "default": "",
+          "maxLength": 40,
+          "title": "Template",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "x": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Y",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 0.2,
+          "title": "Scale",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text",
+        "font",
+        "start",
+        "end"
+      ],
+      "title": "FxHookTitle",
+      "type": "object"
+    },
+    "FxWord": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 40,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "text": {
+          "maxLength": 120,
+          "title": "Text",
+          "type": "string"
+        },
+        "highlight": {
+          "default": false,
+          "title": "Highlight",
+          "type": "boolean"
+        },
+        "run": {
+          "default": "clip",
+          "maxLength": 40,
+          "title": "Run",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "FxWord",
+      "type": "object"
+    },
+    "GlitchCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "glitch",
+          "default": "glitch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "amount": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Amount",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "amount"
+      ],
+      "title": "GlitchCue",
+      "type": "object"
+    },
+    "MatteWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "person": {
+          "title": "Person",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "person"
+      ],
+      "title": "MatteWindow",
+      "type": "object"
+    },
+    "ReactionCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "reaction",
+          "default": "reaction",
+          "title": "Kind",
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 60,
+          "title": "Query",
+          "type": "string"
+        },
+        "provider": {
+          "const": "giphy",
+          "default": "giphy",
+          "title": "Provider",
+          "type": "string"
+        },
+        "asset_id": {
+          "default": "",
+          "maxLength": 64,
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "maxLength": 600,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "query"
+      ],
+      "title": "ReactionCue",
+      "type": "object"
+    },
+    "SfxCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "sfx",
+          "default": "sfx",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sound": {
+          "enum": [
+            "whoosh",
+            "impact",
+            "pop",
+            "riser",
+            "record_scratch",
+            "boom",
+            "cash_register",
+            "ticker",
+            "slap",
+            "stamp",
+            "glitch",
+            "tape_stop"
+          ],
+          "title": "Sound",
+          "type": "string"
+        },
+        "variant": {
+          "default": 0,
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Variant",
+          "type": "integer"
+        },
+        "gain_db": {
+          "default": 0,
+          "maximum": 6,
+          "minimum": -30,
+          "title": "Gain Db",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "sound"
+      ],
+      "title": "SfxCue",
+      "type": "object"
+    },
+    "ShakeCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "shake",
+          "default": "shake",
+          "title": "Kind",
+          "type": "string"
+        },
+        "amp": {
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Amp",
+          "type": "number"
+        },
+        "freq": {
+          "default": 18,
+          "maximum": 30,
+          "minimum": 4,
+          "title": "Freq",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "amp"
+      ],
+      "title": "ShakeCue",
+      "type": "object"
+    },
+    "SpeedCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "speed",
+          "default": "speed",
+          "title": "Kind",
+          "type": "string"
+        },
+        "rate": {
+          "maximum": 4.0,
+          "minimum": 0.25,
+          "title": "Rate",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "rate"
+      ],
+      "title": "SpeedCue",
+      "type": "object"
+    },
+    "StickerCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "sticker",
+          "default": "sticker",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sticker": {
+          "enum": [
+            "wait_for_it",
+            "text"
+          ],
+          "title": "Sticker",
+          "type": "string"
+        },
+        "text": {
+          "default": "",
+          "maxLength": 40,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "sticker"
+      ],
+      "title": "StickerCue",
+      "type": "object"
+    },
+    "TransitionCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "transition",
+          "default": "transition",
+          "title": "Kind",
+          "type": "string"
+        },
+        "style": {
+          "enum": [
+            "whip",
+            "flash",
+            "glitch",
+            "zoom_through",
+            "spin",
+            "light_leak"
+          ],
+          "title": "Style",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "style"
+      ],
+      "title": "TransitionCue",
+      "type": "object"
+    },
+    "WarpPieceJson": {
+      "additionalProperties": false,
+      "properties": {
+        "e0": {
+          "title": "E0",
+          "type": "number"
+        },
+        "e1": {
+          "title": "E1",
+          "type": "number"
+        },
+        "o0": {
+          "title": "O0",
+          "type": "number"
+        },
+        "rate": {
+          "title": "Rate",
+          "type": "number"
+        },
+        "hold": {
+          "default": 0.0,
+          "title": "Hold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "e0",
+        "e1",
+        "o0",
+        "rate"
+      ],
+      "title": "WarpPieceJson",
+      "type": "object"
+    },
+    "ZoomCue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "beat": {
+          "default": "",
+          "maxLength": 24,
+          "title": "Beat",
+          "type": "string"
+        },
+        "origin": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "kind": {
+          "const": "zoom",
+          "default": "zoom",
+          "title": "Kind",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "punch",
+            "push",
+            "pull",
+            "nudge"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "scale": {
+          "maximum": 1.6,
+          "minimum": 1.0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "anchor": {
+          "default": "face",
+          "enum": [
+            "face",
+            "center"
+          ],
+          "title": "Anchor",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end",
+        "mode",
+        "scale"
+      ],
+      "title": "ZoomCue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything P2 (deno) or the browser needs to draw one render. E time unless stated.",
+  "properties": {
+    "version": {
+      "const": 1,
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "width": {
+      "title": "Width",
+      "type": "integer"
+    },
+    "height": {
+      "title": "Height",
+      "type": "integer"
+    },
+    "edit_duration": {
+      "title": "Edit Duration",
+      "type": "number"
+    },
+    "out_duration": {
+      "title": "Out Duration",
+      "type": "number"
+    },
+    "warp": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/WarpPieceJson"
+      },
+      "title": "Warp",
+      "type": "array"
+    },
+    "template": {
+      "title": "Template",
+      "type": "string"
+    },
+    "cues": {
+      "default": [],
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "accent": "#/$defs/AccentCue",
+            "bleep": "#/$defs/BleepCue",
+            "desaturate": "#/$defs/DesaturateCue",
+            "flash": "#/$defs/FlashCue",
+            "freeze": "#/$defs/FreezeCue",
+            "glitch": "#/$defs/GlitchCue",
+            "reaction": "#/$defs/ReactionCue",
+            "sfx": "#/$defs/SfxCue",
+            "shake": "#/$defs/ShakeCue",
+            "speed": "#/$defs/SpeedCue",
+            "sticker": "#/$defs/StickerCue",
+            "transition": "#/$defs/TransitionCue",
+            "zoom": "#/$defs/ZoomCue"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/AccentCue"
+          },
+          {
+            "$ref": "#/$defs/ZoomCue"
+          },
+          {
+            "$ref": "#/$defs/ShakeCue"
+          },
+          {
+            "$ref": "#/$defs/FlashCue"
+          },
+          {
+            "$ref": "#/$defs/GlitchCue"
+          },
+          {
+            "$ref": "#/$defs/DesaturateCue"
+          },
+          {
+            "$ref": "#/$defs/TransitionCue"
+          },
+          {
+            "$ref": "#/$defs/SfxCue"
+          },
+          {
+            "$ref": "#/$defs/BleepCue"
+          },
+          {
+            "$ref": "#/$defs/SpeedCue"
+          },
+          {
+            "$ref": "#/$defs/FreezeCue"
+          },
+          {
+            "$ref": "#/$defs/StickerCue"
+          },
+          {
+            "$ref": "#/$defs/ReactionCue"
+          }
+        ]
+      },
+      "title": "Cues",
+      "type": "array"
+    },
+    "words": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FxWord"
+      },
+      "title": "Words",
+      "type": "array"
+    },
+    "caption": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FxCaptionStyle"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "grade": {
+      "default": "none",
+      "enum": [
+        "none",
+        "punchy",
+        "warm",
+        "teal_orange",
+        "noir",
+        "vhs",
+        "dream"
+      ],
+      "title": "Grade",
+      "type": "string"
+    },
+    "grain": {
+      "default": 0,
+      "title": "Grain",
+      "type": "number"
+    },
+    "progress_bar": {
+      "default": false,
+      "title": "Progress Bar",
+      "type": "boolean"
+    },
+    "progress_color": {
+      "default": "#FF7A1A",
+      "title": "Progress Color",
+      "type": "string"
+    },
+    "loop_ending": {
+      "default": "none",
+      "enum": [
+        "none",
+        "crossfade"
+      ],
+      "title": "Loop Ending",
+      "type": "string"
+    },
+    "hook_window": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Hook Window"
+    },
+    "hook_title_suppressed": {
+      "default": false,
+      "title": "Hook Title Suppressed",
+      "type": "boolean"
+    },
+    "hook": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FxHookTitle"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "face_track": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FaceTrack"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "broll_windows": {
+      "default": [],
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Broll Windows",
+      "type": "array"
+    },
+    "matte_windows": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/MatteWindow"
+      },
+      "title": "Matte Windows",
+      "type": "array"
+    },
+    "seed": {
+      "default": 0,
+      "title": "Seed",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "width",
+    "height",
+    "edit_duration",
+    "out_duration",
+    "template"
+  ],
+  "title": "FxScene",
+  "type": "object",
+  "$id": "https://supoclip.com/schemas/fx/fx_scene.schema.json"
+}

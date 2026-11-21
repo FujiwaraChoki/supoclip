@@ -61,6 +61,8 @@ from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
 from ..stream_source import cleanup_stream_path, cleanup_stream_task, seed_stream_resolution
+from ..edit_fx.jobs import FxJob, fx_active
+from ..edit_fx.settings import read_edit_style
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -367,6 +369,7 @@ class TaskService(ClipEditingMixin):
         upload_request_key: Optional[str] = None,
         workflow: str = "highlights",
         workflow_options: Optional[Dict[str, Any]] = None,
+        edit_style: Optional[Dict[str, Any]] = None,
         idempotency: Optional[tuple[str, str]] = None,
         team_id: Optional[str] = None,
     ) -> str:
@@ -433,6 +436,7 @@ class TaskService(ClipEditingMixin):
                 charge_minutes=self.config.monetization_enabled,
                 workflow=workflow,
                 workflow_options=workflow_options,
+                **({"edit_style": edit_style} if edit_style else {}),
                 **({"idempotency": idempotency} if idempotency else {}),
                 **({"team_id": team_id} if team_id else {}),
             )
@@ -805,6 +809,19 @@ class TaskService(ClipEditingMixin):
             render_start = perf_counter()
             # Read from the task so queued jobs and resumes honour the setting.
             include_broll = bool(task_row.get("include_broll"))
+            # Dynamic edits: read from the row (create stores it; resumes and retries keep it).
+            edit_style = read_edit_style(task_row.get("edit_style"))
+            fx_on = fx_active(edit_style, caption_template)
+            if fx_on and user_id:
+                from ..observability import set_user_id
+
+                set_user_id(user_id)
+
+            async def _merge_beats(position: int, beats: Dict[str, Any]) -> None:
+                # Re-read so one clip's beats never replace another's (the checkpoint patch is a top-level replace).
+                merged = dict(checkpoint.get("edit_beats") or {})
+                merged[str(position)] = beats
+                await save_checkpoint({"edit_beats": merged})
             broll_session = BRollSession()
             wants_previews: Optional[bool] = None  # checked once a clip renders
             # (virality, render order, still) for each saved clip.
@@ -838,6 +855,18 @@ class TaskService(ClipEditingMixin):
                 )
 
                 async def render_clip():
+                    # Built per attempt: a retry reads the beats the first attempt checkpointed (no second model call).
+                    job = (
+                        FxJob(
+                            style=edit_style,
+                            task_id=task_id,
+                            clip_index=i,
+                            cached_beats=(checkpoint.get("edit_beats") or {}).get(str(i)),
+                            on_beats=_merge_beats,
+                        )
+                        if fx_on
+                        else None
+                    )
                     return await self.video_service.create_single_clip(
                         video_path,
                         render_segment,
@@ -854,6 +883,7 @@ class TaskService(ClipEditingMixin):
                         max_clip_seconds=max_clip_seconds,
                         include_broll=include_broll,
                         broll_session=broll_session,
+                        **({"fx": job} if job else {}),
                     )
 
                 clip_info = await render_clip()
@@ -933,6 +963,7 @@ class TaskService(ClipEditingMixin):
                         hook_type=clip_info.get("hook_type"),
                         hook_title=clip_info.get("hook_title"),
                         **workflow_fields,
+                        **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
                     )
 
                     # Update task's clip IDs array

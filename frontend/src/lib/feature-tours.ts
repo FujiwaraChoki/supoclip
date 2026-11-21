@@ -29,7 +29,17 @@ export type TourStep = {
   workflow?: Workflow;
   /** The opening step: offers "Show me" or "Not now" so nobody is walked through anything they didn't ask for. */
   intro?: boolean;
+  /**
+   * The target lives in a closed settings menu: the host asks the page to open this section first
+   * (`FeatureTourHost.onSettingsSection`), e.g. the create screen's `edits` or `captions`.
+   */
+  settingsSection?: string;
+  /** The target lives in an inspector tab (the clip studio): the host asks the page to open it first (`onInspectorTab`). */
+  inspectorTab?: string;
 };
+
+/** Feature flags a tour can wait for (`GET /api/feature-flags`). */
+export type TourFlag = "dynamic_edits";
 
 export type FeatureTour = {
   id: string;
@@ -43,7 +53,7 @@ export type FeatureTour = {
    * for onboarding, the day it shipped, so accounts from before it don't get a welcome.
    */
   releasedAt: string;
-  /** Looping video for the opening announcement, from `public/`: render it, don't screenshot it. */
+  /** Looping 2:1 video for the opening announcement, from `public/`: render it, don't screenshot it. */
   media?: {
     poster: string;
     videos: readonly { src: string; type: string }[];
@@ -52,6 +62,8 @@ export type FeatureTour = {
   };
   /** Other tours this one already explains, so nobody gets them again. */
   covers?: readonly string[];
+  /** Only for accounts with this feature flag on; the host checks `/api/feature-flags` once. */
+  requiresFlag?: TourFlag;
   steps: readonly TourStep[];
 };
 
@@ -122,6 +134,37 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
       { target: "workflow-trailer", message: "trailer", side: "bottom", workflow: "trailer" },
       { target: "instructions", message: "instructions", side: "top" },
       { target: "composer-settings", message: "settings", side: "top" },
+    ],
+  },
+  {
+    id: "dynamic-edits",
+    // Placeholder: set to the day the dynamic_edits flag opens on web (docs/dynamic-edits.md, "Rollout").
+    releasedAt: "2026-11-21T00:00:00Z",
+    requiresFlag: "dynamic_edits",
+    // Rendered by backend/scripts/fx/render_tour_media.py through the real FX chain.
+    media: {
+      poster: "/tours/dynamic-edits.webp",
+      videos: [
+        { src: "/tours/dynamic-edits.webm", type: "video/webm" },
+        { src: "/tours/dynamic-edits.mp4", type: "video/mp4" },
+      ],
+    },
+    covers: ["composer-settings"],
+    steps: [
+      { target: "composer-settings", message: "intro", side: "top", intro: true },
+      { target: "edit-intensity", message: "intensity", side: "right", settingsSection: "edits" },
+      { target: "edit-options", message: "sound", side: "right", settingsSection: "edits" },
+      { target: "caption-styles", message: "captions", side: "left", settingsSection: "captions" },
+    ],
+  },
+  {
+    id: "dynamic-edits-studio",
+    releasedAt: "2026-11-21T00:00:00Z",
+    requiresFlag: "dynamic_edits",
+    steps: [
+      { target: "studio-edits-tab", message: "intro", side: "left", intro: true, inspectorTab: "edits" },
+      { target: "studio-edits-tab", message: "panel", side: "left", inspectorTab: "edits" },
+      { target: "studio-fx-lane", message: "lane", side: "top" },
     ],
   },
   {

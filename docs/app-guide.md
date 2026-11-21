@@ -37,7 +37,10 @@ Available creation options on this screen include:
 - Font family
 - Font size
 - Font color
-- Caption template
+- Caption template, including the animated styles when dynamic edits are on
+- Edit intensity: Off, Subtle, Bold or Max, with switches for sound effects, music,
+  zooms, shake, transitions, speed ramps and freezes, swearing, and retention
+  overlays (when dynamic edits are on; see [Dynamic edits](#dynamic-edits))
 - Include B-roll
 - Output format
   - `vertical`
@@ -252,6 +255,27 @@ Custom font upload is also supported through the media API. In monetized setups,
 
 Caption templates are exposed by the backend and loaded into the frontend task creation and editing flows.
 
+### Dynamic edits
+
+When the `dynamic_edits` feature flag is on for the account, the composer's
+Settings menu gains an **Edits** tab, and the caption style grid gains the animated styles:
+
+- **Edit intensity** decides how much happens on the moments the AI tags. Subtle
+  adds a few zooms and soft sounds, Bold adds punch-ins, whooshes, transitions,
+  a music bed and the occasional freeze before a payoff, and Max adds everything,
+  more often. Off leaves clips as before.
+- **Animated caption styles** (Marker Circle, Emoji Drop, Slam, Behind Head, Stat
+  Counter, Kinetic Stack, Decode Glitch, Highlighter Swipe, Face
+  Doodles) are drawn frame by frame. They also work with intensity Off.
+- The results page's settings sheet changes intensity for existing clips; the
+  re-render runs in the background and the clips show "Rendering edits…".
+- The clip studio has an **Edits** tab and an FX lane on the timeline to change
+  or remove single effects.
+
+Swear words are bleeped by default (with a bar over the mouth); choose "Leave as
+is" to keep them. Details, budgets and operator settings:
+[dynamic-edits.md](./dynamic-edits.md).
+
 ### B-roll
 
 B-roll is optional and depends on `PEXELS_API_KEY`. The composer only shows the **B-roll** toggle when `GET /broll/status` reports it as configured.
@@ -279,6 +303,8 @@ generated clips are never overwritten.
   do (music, voiceover, transitions) are explained instead. Defaults to Sonnet with `ANTHROPIC_API_KEY`;
   for local editing set `AI_EDIT_MODEL=ollama:qwen3.8:27b` on the API and AI worker, using the existing
   `OLLAMA_BASE_URL` setting. Local requests do not fall back to a hosted model. Both modes are limited by `AI_EDIT_DAILY_LIMIT`.
+- **Dynamic edits:** an **Edits** tab (intensity, switches, beats, "Plan edits") and an FX lane on the timeline, when the
+  feature is on. See [editor.md](./editor.md#dynamic-edits).
 
 ### Output format
 

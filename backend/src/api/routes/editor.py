@@ -4,7 +4,9 @@ import logging
 import math
 import json
 import re
+import time
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -14,7 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...analytics import capture_clip_export
 from ...database import get_db
-from ...editor_document import EditDocument, RevisionConflict
+from ...editor_document import EditDocument, RevisionConflict, document_fx_on, turns_fx_on
+from ...feature_flags import DYNAMIC_EDITS, client_platform, is_enabled as feature_enabled
 from ...editor_state import (
     get_store,
     new_job_id,
@@ -92,6 +95,52 @@ def _clip_broll(clip: dict) -> list:
         return []
 
 
+def _clip_edit_fx(clip: dict) -> dict | None:
+    """The dynamic edits the clip was generated with (sidecar), or None. Never raises."""
+    from ...clip_source_map import load_clip_edit_fx
+
+    try:
+        return load_clip_edit_fx(MediaStorage().local_path(clip["file_path"], metadata_only=True))
+    except Exception:
+        logging.getLogger(__name__).warning("Could not read the clip's dynamic edits", exc_info=True)
+        return None
+
+
+def _needs_fx_seed(*documents: dict | None) -> bool:
+    return any(isinstance(d, dict) and d.get("fx") is None for d in documents)
+
+
+async def _fx_flag(db, request: Request, user_id: str) -> bool:
+    """The ``dynamic_edits`` flag for the caller and platform. Fails closed: only turning edits on needs it."""
+    try:
+        return await feature_enabled(db, DYNAMIC_EDITS, platform=client_platform(request), user_id=user_id)
+    except Exception:
+        logging.getLogger(__name__).warning("Could not evaluate the dynamic_edits flag", exc_info=True)
+        return False
+
+
+def _dynamic_edits_not_available() -> HTTPException:
+    return HTTPException(403, {
+        "code": "DYNAMIC_EDITS_NOT_AVAILABLE",
+        "message": "Dynamic edits aren't available on your account yet.",
+    })
+
+
+def _stored_document(state: dict, clip: dict | None = None, task: dict | None = None) -> EditDocument | None:
+    """The saved draft as a model (seeded like ``GET`` when it predates dynamic edits), or None when unreadable."""
+    draft = (state.get("draft") or {}).get("document")
+    if not isinstance(draft, dict):
+        return None
+    if clip is not None and task is not None and draft.get("fx") is None:
+        sidecar = _clip_edit_fx(clip)
+        if sidecar:
+            draft = upgrade_document(draft, clip, task, [], state.get("duration"), sidecar)
+    try:
+        return EditDocument.model_validate(draft)
+    except (ValueError, ValidationError):
+        return None
+
+
 async def _job(session, job_id: str) -> dict:
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(404, "Export not found")
@@ -130,9 +179,23 @@ async def get_editor(
         placements = []
         if "broll" not in draft["document"] or "broll" not in state["original"]:
             placements = await run_in_thread(_clip_broll, clip)
-        draft["document"] = upgrade_document(draft["document"], clip, task, placements, state["duration"])
-        state["original"] = upgrade_document(state["original"], clip, task, placements, state["duration"])
-        state["captionLooks"] = caption_looks()
+        # Drafts that predate dynamic edits are seeded from the clip's own plan.
+        fx_sidecar = (
+            await run_in_thread(_clip_edit_fx, clip) if _needs_fx_seed(draft["document"], state["original"]) else None
+        )
+        draft["document"] = upgrade_document(draft["document"], clip, task, placements, state["duration"], fx_sidecar)
+        state["original"] = upgrade_document(state["original"], clip, task, placements, state["duration"], fx_sidecar)
+        from ...edit_fx.contracts import is_fx_template
+
+        kept_looks = tuple(sorted({
+            template for template in (
+                (draft["document"].get("captions") or {}).get("template"),
+                (state["original"].get("captions") or {}).get("template"),
+            ) if is_fx_template(template)
+        }))
+        state["captionLooks"] = caption_looks(
+            include_fx=await _fx_flag(db, request, task["user_id"]), keep=kept_looks
+        )
         from ...services.ai_edit_service import ai_editing_configured
 
         state["aiEditing"] = ai_editing_configured()
@@ -270,7 +333,7 @@ async def save(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     service = TaskService(db)
-    await _require_task_owner(request, service, db, task_id)
+    task = await _require_task_owner(request, service, db, task_id)
     # Don't hold a connection while the body uploads; context() checks again.
     await db.close()
     payload = await _read_json_object(request)
@@ -294,8 +357,15 @@ async def save(
             or revision < 0
         ):
             raise ValueError("Invalid draft revision")
-        document = EditDocument.model_validate(payload.get("document"))
+        raw_document = payload.get("document")
+        stored = (state.get("draft") or {}).get("document") or {}
+        if isinstance(raw_document, dict) and raw_document.get("fx") is None and stored.get("fx") is not None:
+            # A client that does not know dynamic edits never drops them (tested on the raw JSON, AI-H1).
+            raw_document = {**raw_document, "fx": stored["fx"]}
+        document = EditDocument.model_validate(raw_document)
         document.validate_duration(state["duration"])
+        if document_fx_on(document):
+            await _check_fx_write(db, request, task, clip, state, document)
         saved = await get_store().save_draft(session.key, document.model_dump(), revision)
         if saved is None:
             raise RevisionConflict(
@@ -308,6 +378,25 @@ async def save(
         raise HTTPException(400, str(exc))
 
 
+async def _check_fx_write(db, request: Request, task: dict, clip: dict, state: dict, document: EditDocument) -> None:
+    """A saved draft with dynamic edits: 403 when it turns them on without the flag (§0.4.8), 422 when its freezes
+    hold longer than the budget and longer than the stored draft's (§5.1; a combined clip may already exceed it)."""
+    from ...editor_document import edit_duration, fx_hold_budget, mapped_hold_total
+
+    # Seeding an old draft reads the clip's sidecar, which may come from the bucket: keep it off the event loop.
+    before = await run_in_thread(_stored_document, state, clip, task)
+    if turns_fx_on(before, document) and not await _fx_flag(db, request, task["user_id"]):
+        raise _dynamic_edits_not_available()
+    held = mapped_hold_total(document)
+    if held > fx_hold_budget(edit_duration(document)) + 1e-6 and held > (
+        mapped_hold_total(before) if before is not None else 0.0
+    ) + 1e-6:
+        raise HTTPException(422, {
+            "code": "FX_HOLD_BUDGET",
+            "message": "Freeze frames can add at most 4% of the clip's length (1.6 s at most).",
+        })
+
+
 @router.get("/{task_id}/clips/{clip_id}/editor/media/{asset}")
 async def media(
     task_id: str,
@@ -317,7 +406,7 @@ async def media(
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     _, session = await context(request, db, task_id, clip_id)
-    if asset not in {"clean.mp4", "layout.mp4", "thumbnails.jpg"}:
+    if asset not in {"clean.mp4", "layout.mp4", "thumbnails.jpg", "matte.mp4"}:
         raise HTTPException(404, "Preview not ready")
     redirect = await _stored_media(MediaStorage(), session, asset, asset)
     if redirect is not None:
@@ -335,7 +424,7 @@ async def media(
 async def start_export(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    clip, session = await context(request, db, task_id, clip_id)
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
     payload = await _read_json_object(request)
     state = await session.state()
     if state["status"] != "ready":
@@ -351,6 +440,11 @@ async def start_export(
         ).validate_duration(state["duration"])
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    if document_fx_on(document):
+        # The job renders this document, not the saved draft: it may not turn edits on without the flag either.
+        stored = await run_in_thread(_stored_document, state, clip, task)
+        if turns_fx_on(stored, document) and not await _fx_flag(db, request, task["user_id"]):
+            raise _dynamic_edits_not_available()
     store = get_store()
     # A render whose worker died must not count against the limit.
     await reap_jobs(session.key)
@@ -461,6 +555,9 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
             await run_in_thread(_clip_broll, clip)
             if "broll" not in state["draft"]["document"] else []
         )
+        fx_sidecar = (
+            await run_in_thread(_clip_edit_fx, clip) if _needs_fx_seed(state["draft"]["document"]) else None
+        )
         from ...clip_source_map import load_clip_output_offsets
         source_ranges = await run_in_thread(service._get_clip_source_ranges, clip)
         source_offsets = load_clip_output_offsets(MediaStorage().local_path(clip["file_path"], metadata_only=True), source_ranges)
@@ -469,7 +566,7 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                 "id": clip_id,
                 "filename": clip["filename"],
                 "document": upgrade_document(
-                    state["draft"]["document"], clip, task, placements, state["duration"]
+                    state["draft"]["document"], clip, task, placements, state["duration"], fx_sidecar
                 ),
                 "state": {k: state[k] for k in ("width", "height", "hasAudio", "mediaVersion") if k in state},
                 "ranges": source_ranges,
@@ -672,6 +769,27 @@ async def start_ai_edit(
         # must not overflow float() and turn a harmless cursor hint into a 500.
         playhead = float(min(state["duration"], max(0, playhead)))
 
+    # Dynamic-edit operations are offered only to flagged callers, or on a draft that already has edits (§0.4.8);
+    # everyone else's request, prompt and grammar stay exactly as before. "Already has edits" is the saved draft,
+    # never the request's document, which the client controls.
+    fx_flag = await _fx_flag(db, request, task["user_id"])
+    stored = await run_in_thread(_stored_document, state, clip, task)
+    if not fx_flag and turns_fx_on(stored, document):
+        raise _dynamic_edits_not_available()
+    fx_request = {}
+    if fx_flag or document_fx_on(stored):
+        fx_request = {
+            "fx_allowed": True,
+            "fx_flag": fx_flag,
+            # What an unflagged caller's edit may not go beyond (ai_edit_service._turns_fx_on).
+            "fx_baseline": {
+                "template": stored.captions.template if stored is not None else "default",
+                "active": bool(stored is not None and stored.fx is not None and stored.fx.style.active),
+            },
+            "fx_seed": _draft_fx_seed(document, task_id, clip_id),
+            "layout_has_zoompan": _layout_has_zoompan(state, document),
+        }
+
     pool = await JobQueue.get_pool()
     job_id = uuid.uuid4().hex
     try:
@@ -695,6 +813,7 @@ async def start_ai_edit(
                     "duration": state["duration"],
                     "width": state.get("width"),
                     "height": state.get("height"),
+                    **fx_request,
                 }
             ),
             ex=600,
@@ -743,3 +862,295 @@ async def ai_edit_status(
             _ai_edit_payer(actor, task), team_id=task.get("team_id")
         )
     return {"id": job_id, **payload}
+
+
+# --------------------------------------------------------------------------
+# Dynamic edits (§5.5)
+# --------------------------------------------------------------------------
+
+FX_CUE_ID = re.compile(r"[A-Za-z0-9_.:@~-]{1,32}")
+
+
+def _layout_has_zoompan(state: dict, document: EditDocument) -> bool:
+    """The picture this draft renders from already zooms (Ken Burns baked into the layout, AR-M9).
+
+    Sessions prepared before the studio recorded it are assumed zoomed when they have a layout, so turning edits
+    on never stacks a second zoom on one.
+    """
+    has_layout = bool(state.get("hasLayout"))
+    if not state.get("layoutHasZoompan", has_layout):
+        return False
+    if not has_layout:
+        return True     # the composed frame replaced clean.mp4 itself
+    return document.framing.fit == "auto" and document.framing.aspect == "vertical"
+
+
+def _draft_fx_seed(document: EditDocument, task_id: str, clip_id: str) -> int:
+    """The draft's own seed, or this clip's studio seed when it has none yet. A container the browser created with
+    the default seed 0 also gets the clip's seed, so two clips never resolve to the same random choices."""
+    from ...editor_document import studio_fx_seed
+
+    if document.fx is not None and document.fx.seed:
+        return document.fx.seed
+    return studio_fx_seed(task_id, clip_id)
+
+
+def _current_base(state: dict, document: EditDocument | None) -> str:
+    uses_layout = (
+        bool(state.get("hasLayout")) and document is not None
+        and document.framing.fit == "auto" and document.framing.aspect == "vertical"
+    )
+    return "layout" if uses_layout else "clean"
+
+
+def _ready(state: dict) -> None:
+    if state.get("status") != "ready":
+        raise HTTPException(409, "Wait for the editor preview to finish preparing")
+
+
+def _payload_document(payload: dict, state: dict) -> EditDocument:
+    try:
+        return EditDocument.model_validate(payload.get("document")).validate_duration(state["duration"])
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(400, str(exc))
+
+
+def _with_style(document: EditDocument, style) -> EditDocument:
+    from ...editor_document import DocFx
+
+    return document.model_copy(update={"fx": (document.fx or DocFx()).model_copy(update={"style": style})})
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/fx/resolve")
+async def fx_resolve(task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Re-resolve the draft's automatic edits for an edit style, in edit time (§5.5). Nothing is saved: the studio
+    applies the returned draft as one undoable change and saves it like any edit."""
+    from ...edit_fx.settings import EditStyleError, parse_edit_style
+    from ...editor_document import NeedsPlan, resolve_document_fx
+
+    payload = await _read_json_object(request)
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    state = await session.state()
+    _ready(state)
+    document = _payload_document(payload, state)
+    try:
+        style = parse_edit_style(payload.get("style"))
+    except EditStyleError as exc:
+        raise HTTPException(422, {"code": "INVALID_EDIT_STYLE", "message": str(exc)}) from None
+    stored = await run_in_thread(_stored_document, state, clip, task)
+    if turns_fx_on(stored, _with_style(document, style)) and not await _fx_flag(db, request, task["user_id"]):
+        raise _dynamic_edits_not_available()
+    seed = _draft_fx_seed(document, task_id, clip_id)
+    try:
+        resolved = await run_in_thread(
+            resolve_document_fx, document, style, seed=seed,
+            layout_has_zoompan=_layout_has_zoompan(state, document),
+        )
+        resolved.validate_duration(state["duration"])
+    except NeedsPlan:
+        raise HTTPException(409, {
+            "code": "NEEDS_PLAN",
+            "message": "Plan edits for this clip first: they decide where the effects go.",
+        }) from None
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(400, str(exc))
+    return {"document": resolved.model_dump()}
+
+
+def _plan_words(document: EditDocument) -> list[dict]:
+    """The words the edit plays, in source (S) time and order: beats are stored in S."""
+    kept = [(s.start, s.end) for s in document.segments]
+    return [
+        {"id": w.id, "start": w.start, "end": w.end, "text": w.text}
+        for w in sorted(document.words, key=lambda w: (w.start, w.id))
+        if w.text.strip() and any(a < w.end and w.start < b for a, b in kept)
+    ]
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/fx/plan", status_code=202)
+async def fx_plan(task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Queue beat tagging for the draft on the AI worker (``edit_fx_plan_job``); counts against the daily limit."""
+    from ...edit_fx.env import edit_plan_daily_limit
+    from ...services.ai_edit_service import (
+        AI_EDIT_QUEUE,
+        FX_PLAN_TTL_SECONDS,
+        fx_plan_meta_key,
+        fx_plan_request_key,
+        refund_edit_plan,
+        reserve_edit_plan,
+    )
+
+    payload = await _read_json_object(request)
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    state = await session.state()
+    _ready(state)
+    document = _payload_document(payload, state)
+    stored = await run_in_thread(_stored_document, state, clip, task)
+    if not document_fx_on(stored) and not await _fx_flag(db, request, task["user_id"]):
+        raise _dynamic_edits_not_available()
+    pool = await JobQueue.get_pool()
+    job_id = uuid.uuid4().hex
+    daily_key = await reserve_edit_plan(pool, task["user_id"])
+    if daily_key is None:
+        raise HTTPException(429, {
+            "code": "EDIT_PLAN_LIMIT_REACHED",
+            "message": "You've planned edits as often as you can today. Try again tomorrow.",
+            "limit": edit_plan_daily_limit(),
+        })
+    meta = {"owner": f"{task_id}:{clip_id}", "queued_at": time.time(), "daily_key": daily_key}
+    try:
+        await pool.set(fx_plan_meta_key(job_id), json.dumps(meta), ex=FX_PLAN_TTL_SECONDS)
+        await pool.set(
+            fx_plan_request_key(job_id),
+            json.dumps({
+                "words": _plan_words(document),
+                "clip_seconds": round(sum(s.end - s.start for s in document.segments), 3),
+                "user_id": task["user_id"],
+                "task_id": task_id,
+            }),
+            ex=FX_PLAN_TTL_SECONDS,
+        )
+        await JobQueue.enqueue_job(
+            "edit_fx_plan_job", job_id, _queue_name=AI_EDIT_QUEUE, _job_id=f"edit_fx_plan_job:{job_id}"
+        )
+    except Exception:
+        try:
+            await refund_edit_plan(pool, job_id, daily_key)
+            await pool.delete(fx_plan_request_key(job_id))
+            await pool.delete(fx_plan_meta_key(job_id))
+        except Exception:
+            logging.getLogger(__name__).warning("Could not clean up failed plan request %s", job_id, exc_info=True)
+        raise HTTPException(503, "The AI service is unavailable. Your draft is safe.")
+    return {"job_id": job_id, "status": "queued"}
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/fx/plan/{job_id}")
+async def fx_plan_status(
+    task_id: str,
+    clip_id: str,
+    job_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """``queued | running | done | failed``; ``beats`` (S) when done. A request no worker answered within
+    3 × ``EDIT_PLAN_TIMEOUT_SECONDS`` fails with ``WORKER_UNAVAILABLE`` and its daily unit is refunded once (AI-M7)."""
+    from ...edit_fx.env import edit_plan_timeout
+    from ...services.ai_edit_service import (
+        FX_PLAN_TTL_SECONDS,
+        fx_plan_meta_key,
+        fx_plan_result_key,
+        refund_edit_plan,
+    )
+
+    if not re.fullmatch(r"[a-f0-9]{32}", job_id):
+        raise HTTPException(404, "Plan not found")
+    service = TaskService(db)
+    await _require_task_owner(request, service, db, task_id)
+    await db.close()
+    pool = await JobQueue.get_pool()
+    raw_meta = await pool.get(fx_plan_meta_key(job_id))
+    try:
+        meta = json.loads(raw_meta) if raw_meta else None
+    except ValueError:
+        meta = None
+    if not isinstance(meta, dict) or meta.get("owner") != f"{task_id}:{clip_id}":
+        raise HTTPException(404, "Plan not found")
+    raw = await pool.get(fx_plan_result_key(job_id))
+    try:
+        result = json.loads(raw) if raw else {"status": "queued"}
+    except ValueError:
+        result = {"status": "failed", "error": {"code": "PLAN_FAILED", "message": "Planning failed. Try again."}}
+    if result.get("status") in {"queued", "running"} and (
+        time.time() - float(meta.get("queued_at") or 0) > 3 * edit_plan_timeout()
+    ):
+        await refund_edit_plan(pool, job_id, meta.get("daily_key"))
+        result = {"status": "failed", "error": {
+            "code": "WORKER_UNAVAILABLE",
+            "message": "The AI service didn't answer. Try planning again.",
+        }}
+        await pool.set(fx_plan_result_key(job_id), json.dumps(result), ex=FX_PLAN_TTL_SECONDS)
+    return {"job_id": job_id, **result}
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/fx/analysis", status_code=202)
+async def fx_analysis(task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Queue the face track (and the matte for behind-the-person text) for the base video the draft renders from, on
+    the video worker (``editor_fx_analysis``). Idempotent per prepared media and base; ``ready`` when the session
+    already has what the draft needs."""
+    from ...services.editor_fx_analysis import (
+        ANALYSIS_JOB_TIMEOUT_SECONDS,
+        analysis_job_id,
+        analysis_needs,
+        session_base,
+    )
+
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
+    state = await session.state()
+    _ready(state)
+    draft = await run_in_thread(_stored_document, state, clip, task)
+    if not document_fx_on(draft) and not await _fx_flag(db, request, task["user_id"]):
+        raise _dynamic_edits_not_available()
+    raw = draft.model_dump(mode="json") if draft is not None else (state.get("draft") or {}).get("document")
+    _, needs_matte = analysis_needs(raw)
+    base = session_base(raw, state)
+    face = state.get("faceTrack")
+    has_face = isinstance(face, dict) and face.get("base") == base and isinstance(face.get("track"), dict)
+    has_matte = bool(state.get("matteVersion")) and (state.get("matteBase") or "clean") == base
+    if has_face and (not needs_matte or has_matte):
+        return {"status": "ready"}
+    job = f"{analysis_job_id(session.key, state.get('mediaVersion'), matte=needs_matte)}:{base}"
+    # ARQ keeps a finished job's result (keep_result) and ignores a new enqueue under the same id meanwhile. A run that
+    # failed, or whose worker died while "running" (tries exhausted), would then answer "queued" without running:
+    # retry those under a fresh id, at most once a minute.
+    run = state.get("fxAnalysis") if isinstance(state.get("fxAnalysis"), dict) else {}
+    started = run.get("startedAt")
+    stale = (run.get("status") == "running" and isinstance(started, (int, float))
+             and time.time() - started > 2 * ANALYSIS_JOB_TIMEOUT_SECONDS)
+    if run.get("base") == base and (run.get("status") == "failed" or stale):
+        job = f"{job}:r{int(time.time()) // 60}"
+    try:
+        await JobQueue.enqueue_job("editor_fx_analysis", task_id, clip_id, clip["filename"], _job_id=job)
+    except Exception:
+        raise HTTPException(503, "The rendering worker is unavailable. Try again shortly.")
+    return {"status": "queued"}
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/fx/reaction/{cue_id}")
+async def fx_reaction(
+    task_id: str,
+    clip_id: str,
+    cue_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Stream a saved reaction cue's GIF (mp4) for the preview. 404 when reactions are off or it is unavailable."""
+    import shutil
+    import tempfile
+
+    from starlette.background import BackgroundTask
+
+    from ...edit_fx.reactions import ensure_reaction_file
+
+    if not FX_CUE_ID.fullmatch(cue_id):
+        raise HTTPException(404, "Reaction not found")
+    _, session = await context(request, db, task_id, clip_id)
+    state = await session.state()
+    _ready(state)
+    draft = _stored_document(state)
+    cue = next(
+        (c for c in (draft.fx.cues if draft is not None and draft.fx else []) if c.id == cue_id and c.kind == "reaction"),
+        None,
+    )
+    if cue is None:
+        raise HTTPException(404, "Reaction not found")
+    scratch = Path(tempfile.mkdtemp(prefix="fx-reaction-"))
+    path = await ensure_reaction_file(cue, scratch)
+    if path is None or not path.exists():
+        shutil.rmtree(scratch, ignore_errors=True)
+        raise HTTPException(404, "Reaction not found")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        headers={"Cache-Control": "private, max-age=86400"},
+        background=BackgroundTask(shutil.rmtree, scratch, ignore_errors=True),
+    )

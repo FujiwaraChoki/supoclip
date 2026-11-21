@@ -1,0 +1,23 @@
+{
+  "family": "rows",
+  "case": "empty_words",
+  "fn": "group_rows",
+  "input": {
+    "words": [],
+    "max_words": 3,
+    "rows": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "y": 0.5
+      },
+      {
+        "start": 1.0,
+        "end": 9.0,
+        "y": 0.65
+      }
+    ],
+    "y": 0.5
+  },
+  "expected": []
+}

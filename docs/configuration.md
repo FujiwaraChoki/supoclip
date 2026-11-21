@@ -207,6 +207,33 @@ Fonts and transitions are configured by mounted files rather than environment va
 - Add `.ttf` or `.otf` files to `backend/fonts/`
 - Add transition `.mp4` files to `backend/transitions/`
 
+### Dynamic edits
+
+Animated caption styles, sound effects, music, zooms and the rest
+([dynamic-edits.md](dynamic-edits.md)). Set these on the API, the video worker,
+the AI worker and every [remote render worker](render-worker.md#dynamic-edits-renderer-deno);
+`docker-compose.yml` passes them to the API and, through `&worker-environment`,
+to every worker. `backend/src/edit_fx/env.py` is the only reader, and unknown
+values fall back to the default.
+
+The `dynamic_edits` feature flag (seeded off on web and iOS, admins bypass)
+decides who can turn effects on; switch it per platform in `/admin`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `EDIT_PLAN_LLM` | `LLM` | `provider:model` that tags beats (hooks, numbers, punchlines, swears, …) |
+| `EDIT_PLAN_TIMEOUT_SECONDS` | `45` | One beat-tagging call; past it the clip uses heuristic beats |
+| `EDIT_PLAN_DAILY_LIMIT` | `100` | Studio "Plan edits" requests per user per day |
+| `FX_RUNTIME` | `deno` | `off` is the kill switch: no drawing stage, clips keep captions, SFX, music and bleeps. `legacy` forces the legacy render for every clip with dynamic edits (no SFX, music or bleeps either) |
+| `FX_DENO_BIN` | `deno` | The deno binary (the image pins 2.9.8) |
+| `FX_WARP` | `on` | `off` disables speed ramps and freeze frames |
+| `FX_RENDER_TIMEOUT_SECONDS` | `max(900, 6 × clip seconds)` | Wall-clock limit for one FX render |
+| `FX_LIBRARY_DIR` | `/app/fx_library` | Drop-in sounds (`sfx/`) and music beds (`music/`); the same on every render machine |
+| `FX_LOUDNORM` | `static` | `static` measures the voice and applies one gain; `dynamic` is the old one-pass loudnorm |
+| `FX_CHAIN_MODE` | `pipe` | `file` makes the drawing stage write a file instead of a pipe |
+| `REACTIONS_PROVIDER` | `off` | `giphy` enables optional GIF reactions. Check GIPHY's terms for burned-in media first |
+| `GIPHY_API_KEY` | empty | Needed with `REACTIONS_PROVIDER=giphy` |
+
 ## Redis and Database Settings
 
 | Variable | Default | Purpose |

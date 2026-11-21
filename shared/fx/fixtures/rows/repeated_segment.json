@@ -1,0 +1,53 @@
+{
+  "family": "rows",
+  "case": "repeated_segment",
+  "fn": "mapped_caption_rows",
+  "input": {
+    "segments": [
+      [
+        "a",
+        0.0,
+        3.0
+      ],
+      [
+        "again",
+        1.0,
+        2.5
+      ]
+    ],
+    "rows": [
+      {
+        "start": 0.0,
+        "end": 2.0,
+        "y": 0.5
+      },
+      {
+        "start": 2.0,
+        "end": 6.0,
+        "y": 0.65
+      }
+    ]
+  },
+  "expected": [
+    {
+      "start": 0.0,
+      "end": 2.0,
+      "y": 0.5
+    },
+    {
+      "start": 2.0,
+      "end": 3.0,
+      "y": 0.65
+    },
+    {
+      "start": 3.0,
+      "end": 4.0,
+      "y": 0.5
+    },
+    {
+      "start": 4.0,
+      "end": 4.5,
+      "y": 0.65
+    }
+  ]
+}

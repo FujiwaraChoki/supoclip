@@ -15,7 +15,7 @@ import uuid
 
 from .caption_templates import get_template
 from .workflows.language import is_no_space
-from .media.ffmpeg import ffmpeg_escape_filter_path, ffprobe_video_size
+from .media.ffmpeg import audio_fade_out_filter, ffmpeg_escape_filter_path, ffprobe_video_size
 from .media.source_limits import FPS_EPSILON, MAX_OUTPUT_FPS, probe_video_geometry
 from .video_utils import (
     ass_fonts_dir,
@@ -152,6 +152,9 @@ def trim_clip_file(
             str(input_path),
             "-t",
             f"{end - start:.3f}",
+            # The new end is wherever the user cut; fade it so it cannot click.
+            "-af",
+            audio_fade_out_filter(end - start),
             *_encode_args(),
             str(output_path),
         ]
@@ -176,6 +179,8 @@ def split_clip_file(
             str(input_path),
             "-t",
             f"{split_at:.3f}",
+            "-af",
+            audio_fade_out_filter(split_at),
             *_encode_args(),
             str(first_path),
         ]
@@ -190,6 +195,8 @@ def split_clip_file(
             str(input_path),
             "-t",
             f"{duration - split_at:.3f}",
+            "-af",
+            audio_fade_out_filter(duration - split_at),
             *_encode_args(),
             str(second_path),
         ]
@@ -393,6 +400,37 @@ def _caption_words_with_timings(
         }
         for index, word in enumerate(words)
     ]
+
+
+def edited_caption_words(
+    caption_text: str,
+    transcript_video_path: Optional[Path],
+    source_ranges: Optional[List[tuple[float, float]]],
+    duration: float,
+    output_offsets: Optional[List[float]] = None,
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """The edited caption words on the clip timeline, timed like ``overlay_custom_captions`` times them.
+
+    Returns ``(edited, spoken)``: ``edited`` are ``{id, start, end, text}`` words for the single-pass caption edit of
+    a dynamic-edits clip (§13.3; ``[]`` for empty text); ``spoken`` are the transcript words of the same ranges.
+    """
+    transcript_data = load_cached_transcript_data(transcript_video_path) if transcript_video_path else None
+    spoken: List[Dict[str, Any]] = []
+    if transcript_data and transcript_data.get("words"):
+        if source_ranges:
+            spoken = get_words_for_keep_ranges(transcript_data, source_ranges, output_offsets)
+        else:
+            spoken = get_words_in_range(transcript_data, 0.0, duration)
+    if not caption_text.strip():
+        return [], spoken
+    tokens = caption_tokens(caption_text, spoken)
+    timed = _caption_words_with_timings(tokens, spoken, duration)
+    edited = [
+        {"id": f"w{index}", "start": float(word["start"]), "end": max(float(word["start"]), float(word["end"])),
+         "text": str(word["text"])}
+        for index, word in enumerate(timed)
+    ]
+    return edited, spoken
 
 
 class ExportCancelled(RuntimeError):

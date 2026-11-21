@@ -156,6 +156,8 @@ test("locked custom fonts open a font-specific prompt", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /^Settings:/ }).click();
   await page.getByRole("tab", { name: /Captions/ }).click();
+  // Font, size and colours sit under Customize, which starts closed.
+  await page.getByRole("button", { name: /^Customize/ }).click();
   await page.getByRole("button", { name: /Use your own fonts/ }).click();
   await expect(page.getByRole("dialog").getByText("Captions in your brand's own font")).toBeVisible();
   await page.waitForTimeout(2200);

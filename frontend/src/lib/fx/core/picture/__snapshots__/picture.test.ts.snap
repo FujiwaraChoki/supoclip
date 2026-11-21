@@ -1,0 +1,5674 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1920 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1920 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1920 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1920 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1080x1920 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1920x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1920x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1920x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1920x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "saturate(0.15) brightness(0.85)",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > desaturate > 1920x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -7.057,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -27.291,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -27.291,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 7.057,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -27.291,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      310.72,
+      1080,
+      45.956,
+    ],
+    "cutout": false,
+    "dx": -27.291,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -27.291,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      150.292,
+      1080,
+      52.717,
+    ],
+    "cutout": false,
+    "dx": -14.184,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -27.291,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      96.968,
+      1080,
+      92.268,
+    ],
+    "cutout": false,
+    "dx": 18.81,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -27.291,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -13.737,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 13.737,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      364.212,
+      1080,
+      49.997,
+    ],
+    "cutout": false,
+    "dx": 16.24,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      571.468,
+      1080,
+      41.977,
+    ],
+    "cutout": false,
+    "dx": 19.115,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      128.488,
+      1080,
+      51.583,
+    ],
+    "cutout": false,
+    "dx": -17.792,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      686.889,
+      1080,
+      113.525,
+    ],
+    "cutout": false,
+    "dx": 22.789,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      306.442,
+      1080,
+      26.795,
+    ],
+    "cutout": false,
+    "dx": -15.073,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -22.789,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1920 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1920 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -7.057,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -48.517,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -48.517,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 7.057,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -48.517,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      552.392,
+      1080,
+      81.699,
+    ],
+    "cutout": false,
+    "dx": -27.291,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -48.517,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      267.185,
+      1080,
+      93.719,
+    ],
+    "cutout": false,
+    "dx": -14.184,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -48.517,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      172.388,
+      1080,
+      164.033,
+    ],
+    "cutout": false,
+    "dx": 18.81,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.291,
+      -48.517,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1920 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -13.737,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 13.737,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      647.487,
+      1080,
+      88.884,
+    ],
+    "cutout": false,
+    "dx": 16.24,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1015.943,
+      1080,
+      74.626,
+    ],
+    "cutout": false,
+    "dx": 19.115,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      228.424,
+      1080,
+      91.704,
+    ],
+    "cutout": false,
+    "dx": -17.792,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1221.137,
+      1080,
+      201.822,
+    ],
+    "cutout": false,
+    "dx": 22.789,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      544.785,
+      1080,
+      47.636,
+    ],
+    "cutout": false,
+    "dx": -15.073,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.042,
+      0,
+      0,
+      1.042,
+      -22.789,
+      -40.514,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1920 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1080x1920 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1920x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1920x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -7.057,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -27.291,
+      -15.351,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -27.291,
+      -15.351,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 7.057,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -27.291,
+      -15.351,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      310.72,
+      1920,
+      45.956,
+    ],
+    "cutout": false,
+    "dx": -27.291,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -27.291,
+      -15.351,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      150.292,
+      1920,
+      52.717,
+    ],
+    "cutout": false,
+    "dx": -14.184,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -27.291,
+      -15.351,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      96.968,
+      1920,
+      92.268,
+    ],
+    "cutout": false,
+    "dx": 18.81,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -27.291,
+      -15.351,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1920x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -13.737,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 13.737,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      364.212,
+      1920,
+      49.997,
+    ],
+    "cutout": false,
+    "dx": 16.24,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      571.468,
+      1920,
+      41.977,
+    ],
+    "cutout": false,
+    "dx": 19.115,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      128.488,
+      1920,
+      51.583,
+    ],
+    "cutout": false,
+    "dx": -17.792,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      686.889,
+      1920,
+      113.525,
+    ],
+    "cutout": false,
+    "dx": 22.789,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      306.442,
+      1920,
+      26.795,
+    ],
+    "cutout": false,
+    "dx": -15.073,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.024,
+      0,
+      0,
+      1.024,
+      -22.789,
+      -12.819,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1920x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > glitch > 1920x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.144,
+      0,
+      0,
+      1.144,
+      -77.917,
+      -77.917,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.128,
+      0,
+      0,
+      1.128,
+      -69.138,
+      -69.138,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.124,
+      0,
+      0,
+      1.124,
+      -66.803,
+      -66.803,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.104,
+      0,
+      0,
+      1.104,
+      -55.999,
+      -55.999,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.046,
+      0,
+      0,
+      1.046,
+      -25.001,
+      -25.001,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1920 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.144,
+      0,
+      0,
+      1.144,
+      -77.917,
+      -138.519,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1920 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.128,
+      0,
+      0,
+      1.128,
+      -69.138,
+      -122.912,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1920 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.124,
+      0,
+      0,
+      1.124,
+      -66.803,
+      -118.76,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1920 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.104,
+      0,
+      0,
+      1.104,
+      -55.999,
+      -99.553,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1080x1920 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.046,
+      0,
+      0,
+      1.046,
+      -25.001,
+      -44.447,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1920x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.144,
+      0,
+      0,
+      1.144,
+      -138.519,
+      -77.917,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1920x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.128,
+      0,
+      0,
+      1.128,
+      -122.912,
+      -69.138,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1920x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.124,
+      0,
+      0,
+      1.124,
+      -118.76,
+      -66.803,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1920x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.104,
+      0,
+      0,
+      1.104,
+      -99.553,
+      -55.999,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > pull > 1920x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.046,
+      0,
+      0,
+      1.046,
+      -44.447,
+      -25.001,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -108,
+      -73.44,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -108,
+      -73.44,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -108,
+      -73.44,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1920 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1920 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -108,
+      -130.56,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1920 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -108,
+      -130.56,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1920 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -108,
+      -130.56,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1080x1920 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1920x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1920x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -192,
+      -73.44,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1920x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -192,
+      -73.44,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1920x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.2,
+      0,
+      0,
+      1.2,
+      -192,
+      -73.44,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > punch > 1920x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.003,
+      0,
+      0,
+      1.003,
+      -1.644,
+      -1.118,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.012,
+      0,
+      0,
+      1.012,
+      -6.326,
+      -4.302,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.014,
+      0,
+      0,
+      1.014,
+      -7.572,
+      -5.149,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.025,
+      0,
+      0,
+      1.025,
+      -13.334,
+      -9.067,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.055,
+      0,
+      0,
+      1.055,
+      -29.866,
+      -20.309,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1920 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.003,
+      0,
+      0,
+      1.003,
+      -1.644,
+      -1.988,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1920 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.012,
+      0,
+      0,
+      1.012,
+      -6.326,
+      -7.648,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1920 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.014,
+      0,
+      0,
+      1.014,
+      -7.572,
+      -9.154,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1920 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.025,
+      0,
+      0,
+      1.025,
+      -13.334,
+      -16.119,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1080x1920 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.055,
+      0,
+      0,
+      1.055,
+      -29.866,
+      -36.105,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1920x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.003,
+      0,
+      0,
+      1.003,
+      -2.923,
+      -1.118,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1920x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.012,
+      0,
+      0,
+      1.012,
+      -11.247,
+      -4.302,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1920x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.014,
+      0,
+      0,
+      1.014,
+      -13.461,
+      -5.149,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1920x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.025,
+      0,
+      0,
+      1.025,
+      -23.705,
+      -9.067,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > push > 1920x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.055,
+      0,
+      0,
+      1.055,
+      -53.095,
+      -20.309,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.011,
+      0,
+      0,
+      1.011,
+      -11.776,
+      -11.58,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.017,
+      0,
+      0,
+      1.017,
+      -3.942,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.001,
+      0,
+      0,
+      1.001,
+      -1.226,
+      -1.511,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1920 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1920 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.011,
+      0,
+      0,
+      1.011,
+      -11.776,
+      -16.159,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1920 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.01,
+      0,
+      0,
+      1.01,
+      0,
+      -0.226,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1920 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.001,
+      0,
+      0,
+      1.001,
+      -0.941,
+      -1.591,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1080x1920 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1920x1080 t=0.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1920x1080 t=1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.011,
+      0,
+      0,
+      1.011,
+      -16.007,
+      -11.384,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1920x1080 t=1.1 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.017,
+      0,
+      0,
+      1.017,
+      -11.175,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1920x1080 t=1.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.001,
+      0,
+      0,
+      1.001,
+      -1.813,
+      -1.511,
+    ],
+  },
+]
+`;
+
+exports[`frameOps snapshots per picture cue kind > shake > 1920x1080 t=2.5 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > flash p=-0.2 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.95,
+    "blend": "source-over",
+    "fill": "#FFFFFF",
+    "h": 1920,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 1080,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > flash p=-0.6 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.6,
+    "blend": "source-over",
+    "fill": "#FFFFFF",
+    "h": 1920,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 1080,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > flash p=0 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.95,
+    "blend": "source-over",
+    "fill": "#FFFFFF",
+    "h": 1920,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 1080,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > flash p=0.3 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.95,
+    "blend": "source-over",
+    "fill": "#FFFFFF",
+    "h": 1920,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 1080,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > flash p=0.8 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.3,
+    "blend": "source-over",
+    "fill": "#FFFFFF",
+    "h": 1920,
+    "op": "rect",
+    "radius": 0,
+    "stroke": null,
+    "strokePx": 0,
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+    "w": 1080,
+    "x": 0,
+    "y": 0,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > glitch p=-0.2 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -13.769,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 13.769,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1334.583,
+      1080,
+      143.286,
+    ],
+    "cutout": false,
+    "dx": -27.432,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1642.917,
+      1080,
+      109.833,
+    ],
+    "cutout": false,
+    "dx": 22.699,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      136.248,
+      1080,
+      80.869,
+    ],
+    "cutout": false,
+    "dx": -25.959,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > glitch p=-0.6 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -13.769,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 13.769,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1334.583,
+      1080,
+      143.286,
+    ],
+    "cutout": false,
+    "dx": -27.432,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1642.917,
+      1080,
+      109.833,
+    ],
+    "cutout": false,
+    "dx": 22.699,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      136.248,
+      1080,
+      80.869,
+    ],
+    "cutout": false,
+    "dx": -25.959,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.051,
+      0,
+      0,
+      1.051,
+      -27.432,
+      -48.768,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > glitch p=0 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -11.569,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 11.569,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1390.698,
+      1080,
+      113.33,
+    ],
+    "cutout": false,
+    "dx": 27.313,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      41.827,
+      1080,
+      38.967,
+    ],
+    "cutout": false,
+    "dx": 26.093,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1173.429,
+      1080,
+      92.673,
+    ],
+    "cutout": false,
+    "dx": 18.473,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      626.565,
+      1080,
+      75.803,
+    ],
+    "cutout": false,
+    "dx": -21.214,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      548.908,
+      1080,
+      153.998,
+    ],
+    "cutout": false,
+    "dx": 30.093,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1728.736,
+      1080,
+      63.087,
+    ],
+    "cutout": false,
+    "dx": 27.881,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > glitch p=0.3 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -11.569,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 11.569,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1390.698,
+      1080,
+      113.33,
+    ],
+    "cutout": false,
+    "dx": 27.313,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      41.827,
+      1080,
+      38.967,
+    ],
+    "cutout": false,
+    "dx": 26.093,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1173.429,
+      1080,
+      92.673,
+    ],
+    "cutout": false,
+    "dx": 18.473,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      626.565,
+      1080,
+      75.803,
+    ],
+    "cutout": false,
+    "dx": -21.214,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      548.908,
+      1080,
+      153.998,
+    ],
+    "cutout": false,
+    "dx": 30.093,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1728.736,
+      1080,
+      63.087,
+    ],
+    "cutout": false,
+    "dx": 27.881,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.056,
+      0,
+      0,
+      1.056,
+      -30.093,
+      -53.499,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > glitch p=0.8 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "r",
+    "clip": null,
+    "cutout": false,
+    "dx": -7.307,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "g",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "lighter",
+    "channel": "b",
+    "clip": null,
+    "cutout": false,
+    "dx": 7.307,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1307.98,
+      1080,
+      50.663,
+    ],
+    "cutout": false,
+    "dx": -28.7,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1216.118,
+      1080,
+      159.516,
+    ],
+    "cutout": false,
+    "dx": 26.533,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1769.416,
+      1080,
+      63.384,
+    ],
+    "cutout": false,
+    "dx": 23.871,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1491.497,
+      1080,
+      115.168,
+    ],
+    "cutout": false,
+    "dx": 27.424,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      1028.077,
+      1080,
+      157.754,
+    ],
+    "cutout": false,
+    "dx": 15.952,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": [
+      0,
+      99.365,
+      1080,
+      143.693,
+    ],
+    "cutout": false,
+    "dx": -15.667,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.053,
+      0,
+      0,
+      1.053,
+      -28.7,
+      -51.022,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > light_leak p=-0.2 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.85,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1344,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,179,71,1)",
+      ],
+      [
+        0.35,
+        "rgba(255,179,71,0.7)",
+      ],
+      [
+        1,
+        "rgba(255,179,71,0)",
+      ],
+    ],
+    "x0": 823.678,
+    "x1": 823.678,
+    "y0": 595.055,
+    "y1": 595.055,
+  },
+  {
+    "alpha": 0.722,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1056,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,106,61,1)",
+      ],
+      [
+        0.4,
+        "rgba(255,106,61,0.6)",
+      ],
+      [
+        1,
+        "rgba(255,106,61,0)",
+      ],
+    ],
+    "x0": 289.696,
+    "x1": 289.696,
+    "y0": 1368.375,
+    "y1": 1368.375,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > light_leak p=-0.6 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.68,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1344,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,179,71,1)",
+      ],
+      [
+        0.35,
+        "rgba(255,179,71,0.7)",
+      ],
+      [
+        1,
+        "rgba(255,179,71,0)",
+      ],
+    ],
+    "x0": 1282.678,
+    "x1": 1282.678,
+    "y0": 595.055,
+    "y1": 595.055,
+  },
+  {
+    "alpha": 0.578,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1056,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,106,61,1)",
+      ],
+      [
+        0.4,
+        "rgba(255,106,61,0.6)",
+      ],
+      [
+        1,
+        "rgba(255,106,61,0)",
+      ],
+    ],
+    "x0": -115.304,
+    "x1": -115.304,
+    "y0": 1368.375,
+    "y1": 1368.375,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > light_leak p=0 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.85,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1344,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,179,71,1)",
+      ],
+      [
+        0.35,
+        "rgba(255,179,71,0.7)",
+      ],
+      [
+        1,
+        "rgba(255,179,71,0)",
+      ],
+    ],
+    "x0": 540,
+    "x1": 540,
+    "y0": 595.055,
+    "y1": 595.055,
+  },
+  {
+    "alpha": 0.722,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1056,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,106,61,1)",
+      ],
+      [
+        0.4,
+        "rgba(255,106,61,0.6)",
+      ],
+      [
+        1,
+        "rgba(255,106,61,0)",
+      ],
+    ],
+    "x0": 540,
+    "x1": 540,
+    "y0": 1368.375,
+    "y1": 1368.375,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > light_leak p=0.3 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.85,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1344,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,179,71,1)",
+      ],
+      [
+        0.35,
+        "rgba(255,179,71,0.7)",
+      ],
+      [
+        1,
+        "rgba(255,179,71,0)",
+      ],
+    ],
+    "x0": 123.237,
+    "x1": 123.237,
+    "y0": 595.055,
+    "y1": 595.055,
+  },
+  {
+    "alpha": 0.722,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1056,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,106,61,1)",
+      ],
+      [
+        0.4,
+        "rgba(255,106,61,0.6)",
+      ],
+      [
+        1,
+        "rgba(255,106,61,0)",
+      ],
+    ],
+    "x0": 907.732,
+    "x1": 907.732,
+    "y0": 1368.375,
+    "y1": 1368.375,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > light_leak p=0.8 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  },
+  {
+    "alpha": 0.383,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1344,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,179,71,1)",
+      ],
+      [
+        0.35,
+        "rgba(255,179,71,0.7)",
+      ],
+      [
+        1,
+        "rgba(255,179,71,0)",
+      ],
+    ],
+    "x0": -333.07,
+    "x1": -333.07,
+    "y0": 595.055,
+    "y1": 595.055,
+  },
+  {
+    "alpha": 0.326,
+    "blend": "screen",
+    "kind": "radial",
+    "op": "gradient",
+    "r0": 0,
+    "r1": 1056,
+    "rect": [
+      0,
+      0,
+      1080,
+      1920,
+    ],
+    "stops": [
+      [
+        0,
+        "rgba(255,106,61,1)",
+      ],
+      [
+        0.4,
+        "rgba(255,106,61,0.6)",
+      ],
+      [
+        1,
+        "rgba(255,106,61,0)",
+      ],
+    ],
+    "x0": 1310.356,
+    "x1": 1310.356,
+    "y0": 1368.375,
+    "y1": 1368.375,
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > spin p=-0.2 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      -0.068,
+      -1.813,
+      1.813,
+      -0.068,
+      -1163.475,
+      2004.617,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > spin p=-0.6 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.308,
+      -0.267,
+      0.267,
+      1.308,
+      -422.25,
+      -151.724,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > spin p=0 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      -1,
+      0,
+      0,
+      -1,
+      1080,
+      1920,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > spin p=0.3 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      0.966,
+      1.796,
+      -1.796,
+      0.966,
+      1743.016,
+      -936.948,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > spin p=0.8 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.044,
+      0.026,
+      -0.026,
+      1.044,
+      1.419,
+      -56.441,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > whip p=-0.2 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+  {
+    "alpha": 0.5,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -9.216,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+  {
+    "alpha": 0.333,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 9.216,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -6.144,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+  {
+    "alpha": 0.2,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 6.144,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+  {
+    "alpha": 0.167,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -3.072,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+  {
+    "alpha": 0.143,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 3.072,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.15,
+      0,
+      0,
+      1.15,
+      -152.576,
+      -143.815,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > whip p=-0.6 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+  {
+    "alpha": 0.5,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -1.152,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+  {
+    "alpha": 0.333,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 1.152,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -0.768,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+  {
+    "alpha": 0.2,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0.768,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+  {
+    "alpha": 0.167,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -0.384,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+  {
+    "alpha": 0.143,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0.384,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.019,
+      0,
+      0,
+      1.019,
+      -19.072,
+      -17.977,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > whip p=0 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+  {
+    "alpha": 0.5,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -18,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+  {
+    "alpha": 0.333,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 18,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -12,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+  {
+    "alpha": 0.2,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 12,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+  {
+    "alpha": 0.167,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -6,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+  {
+    "alpha": 0.143,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 6,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.293,
+      0,
+      0,
+      1.293,
+      -18,
+      -280.889,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > whip p=0.3 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+  {
+    "alpha": 0.5,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -6.174,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+  {
+    "alpha": 0.333,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 6.174,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -4.116,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+  {
+    "alpha": 0.2,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 4.116,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+  {
+    "alpha": 0.167,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -2.058,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+  {
+    "alpha": 0.143,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 2.058,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.1,
+      0,
+      0,
+      1.1,
+      -6.174,
+      -96.345,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > whip p=0.8 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+  {
+    "alpha": 0.5,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -0.144,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+  {
+    "alpha": 0.333,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0.144,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -0.096,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+  {
+    "alpha": 0.2,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0.096,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+  {
+    "alpha": 0.167,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": -0.048,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+  {
+    "alpha": 0.143,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0.048,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.002,
+      0,
+      0,
+      1.002,
+      -0.144,
+      -2.247,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > zoom_through p=-0.2 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.179,
+      0,
+      0,
+      1.179,
+      -96.768,
+      -172.032,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.206,
+      0,
+      0,
+      1.206,
+      -111.439,
+      -198.114,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.234,
+      0,
+      0,
+      1.234,
+      -126.11,
+      -224.196,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.261,
+      0,
+      0,
+      1.261,
+      -140.781,
+      -250.278,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > zoom_through p=-0.6 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.022,
+      0,
+      0,
+      1.022,
+      -12.096,
+      -21.504,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.025,
+      0,
+      0,
+      1.025,
+      -13.686,
+      -24.331,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.028,
+      0,
+      0,
+      1.028,
+      -15.276,
+      -27.157,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.031,
+      0,
+      0,
+      1.031,
+      -16.866,
+      -29.984,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > zoom_through p=0 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.35,
+      0,
+      0,
+      1.35,
+      -189,
+      -336,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.411,
+      0,
+      0,
+      1.411,
+      -221.805,
+      -394.32,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.472,
+      0,
+      0,
+      1.472,
+      -254.61,
+      -452.64,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.532,
+      0,
+      0,
+      1.532,
+      -287.415,
+      -510.96,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > zoom_through p=0.3 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.12,
+      0,
+      0,
+      1.12,
+      -64.827,
+      -115.248,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.137,
+      0,
+      0,
+      1.137,
+      -74.163,
+      -131.844,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.155,
+      0,
+      0,
+      1.155,
+      -83.498,
+      -148.441,
+    ],
+  },
+  {
+    "alpha": 0.25,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.172,
+      0,
+      0,
+      1.172,
+      -92.834,
+      -165.037,
+    ],
+  },
+]
+`;
+
+exports[`transitions > frameOps snapshots per transition style through the cut > zoom_through p=0.8 1`] = `
+[
+  {
+    "alpha": 1,
+    "blend": "source-over",
+    "channel": "rgb",
+    "clip": null,
+    "cutout": false,
+    "dx": 0,
+    "dy": 0,
+    "filter": "",
+    "op": "picture",
+    "transform": [
+      1.003,
+      0,
+      0,
+      1.003,
+      -1.512,
+      -2.688,
+    ],
+  },
+]
+`;

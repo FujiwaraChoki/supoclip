@@ -2,6 +2,7 @@
 
 import unicodedata
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import Iterable
 from ..font_registry import FONTS_DIR
@@ -9,7 +10,9 @@ from typing import List
 from typing import Optional
 from ..emoji_captions import POWER_WORDS
 from pathlib import Path
+from typing import Sequence
 from typing import Tuple
+from ..edit_fx.censor import censored_words
 from ..emoji_captions import annotate_caption_words
 from ..font_registry import find_font_path
 from ..font_registry import get_font_advance_metrics
@@ -28,6 +31,7 @@ from .common import (
     HOOK_TITLE_SIDE_MARGIN_FRAC,
     HOOK_TITLE_TOP_MARGIN_FRAC,
     _EMOJI_SUPPORT_CACHE,
+    hook_title_window,
     logger,
 )
 from .ffmpeg import (
@@ -201,6 +205,10 @@ def emoji_rendering_supported() -> bool:
     return result
 
 
+# Maps an edit-time instant (seconds) to final time: the dynamic-edits time warp's ``to_output``.
+TimeMap = Callable[[float], float]
+
+
 def ass_timestamp(seconds: float) -> str:
     seconds = max(0.0, seconds)
     hours = int(seconds // 3600)
@@ -339,6 +347,23 @@ def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
     return best_lines
 
 
+# The hook title of a Dynamic edits clip rendered without the drawing stage (build_hook_title_ass heavy=True).
+HOOK_HEAVY_FONT = "Poppins-ExtraBold"
+# libass sizes a font by ascender + descender (1.4 em for Poppins): this is about 0.060 of the width in em.
+HOOK_HEAVY_SIZE_FRAC = 0.084
+
+
+def hook_heavy_accent(template: Dict[str, Any]) -> str:
+    """A bright accent for numbers and power words on video: the template's, unless it is dark or white."""
+    value = str(template.get("emphasis_color") or template.get("highlight_color") or "").lstrip("#")[:6]
+    try:
+        r, g, b = (int(value[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return "#FFE45C"
+    luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    return "#FFE45C" if luma < 0.45 or (luma > 0.9 and max(r, g, b) - min(r, g, b) < 64) else f"#{value.upper()}"
+
+
 # How long a recap's point stays on screen, and the least worth showing.
 POINT_LABEL_SECONDS = 3.0
 POINT_LABEL_MIN_SECONDS = 1.2
@@ -354,12 +379,14 @@ def build_point_label_ass(
     caption_font_px: int,
     position_y: Optional[float] = None,
     hook_end: float = 0.0,
+    time_map: Optional[TimeMap] = None,
 ) -> Tuple[str, List[str]]:
     """Text naming each point of a recap, on a dark backing, for about 3 s as the point starts.
 
     It sits where the hook title sits, the place the layouts keep clear of the
     captions and faces, so a label that would meet the title waits for it to go.
     ``labels`` are {"text", "start"} on the clip timeline, in play order.
+    ``time_map`` (edit → final seconds) moves each event onto a time-warped clip.
     """
     primary = hex_to_ass_color(template.get("font_color"), "#FFFFFF")
     base_px = min(64, max(34, int(round(caption_font_px * 0.8))))
@@ -392,6 +419,8 @@ def build_point_label_ass(
         size = f"\\fs{max(24, int(usable_width / (longest * 0.52)))}" if longest > max_chars else ""
         placement = f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})" if position_y is not None else ""
         body = "\\N".join(escape_ass_text(line) for line in lines)
+        if time_map is not None:
+            start, end = time_map(start), time_map(end)
         events.append(
             f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Point,,0,0,0,,"
             f"{{\\fad(120,160){placement}{size}}}{body}"
@@ -409,9 +438,15 @@ def build_hook_title_ass(
     caption_font_px: int,
     position_y: Optional[float] = None,
     editor_style: Optional[Dict[str, Any]] = None,
+    time_map: Optional[TimeMap] = None,
     center_y: Optional[float] = None,
+    heavy: bool = False,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
+
+    ``heavy`` is the title of a Dynamic edits clip rendered without the drawing
+    stage (fx-core draws the real one, a white card): heavy white type about
+    6 % of the width tall with a black outline and a soft shadow, never a box.
 
     ``center_y`` centres the title on that output fraction instead (the seam of
     a stacked interview two-shot); ``position_y`` anchors its bottom edge.
@@ -419,7 +454,8 @@ def build_hook_title_ass(
     The title sits in the top safe area (Alignment 8), styled off the caption
     template so it reads as part of the same design system: same font, an
     outline/backing for contrast, power words and numbers in the template's
-    highlight colour, and a quick fade+pop entrance.
+    highlight colour, and a quick fade+pop entrance. ``time_map`` (edit →
+    final seconds) moves the event onto a time-warped clip.
     """
     uppercase = bool(template.get("uppercase"))
     title_text = hook_title.upper() if uppercase else hook_title
@@ -436,7 +472,11 @@ def build_hook_title_ass(
     # still does not fit (a long compound word, or two long lines) shrinks
     # below the preferred size so it is not clipped at the frame edge.
     base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
-    if editor_style is not None:
+    if heavy:
+        base_px = max(30, int(round(min(video_width, video_height) * HOOK_HEAVY_SIZE_FRAC)))
+        font_name = ass_font_name(HOOK_HEAVY_FONT) if find_font_path(HOOK_HEAVY_FONT) else font_name
+        primary, uppercase, title_text = "&H00FFFFFF", False, hook_title
+    elif editor_style is not None:
         base_px = int(editor_style["base_px"])
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
@@ -460,9 +500,18 @@ def build_hook_title_ass(
     )
     if border_style == 3:
         outline_px = max(4, hook_px // 6)  # backing-box padding
+        if template.get("fx"):
+            # libass fills a BorderStyle-3 box with the OUTLINE colour: for animated templates use the template's
+            # box colour, so dark text on a light card (or white on a dark pill) stays readable. Legacy templates
+            # keep their exact look (black box).
+            outline = back_color
     elif outline_px == 0:
         outline_px = max(2, hook_px // 16)  # always keep contrast on video
     shadow_px = max(2, hook_px // 20) if template.get("shadow") else 0
+    if heavy:
+        border_style, outline, back_color = 1, "&H00000000", "&H80000000"
+        outline_px, shadow_px = max(3, round(hook_px * 0.065)), 0
+        highlight = hex_to_ass_color(hook_heavy_accent(template), "#FFE45C")
     margin_v = max(48, int(video_height * HOOK_TITLE_TOP_MARGIN_FRAC))
 
     style_line = (
@@ -483,7 +532,7 @@ def build_hook_title_ass(
     text = "\\N".join(rendered_lines)
 
     start = 0.12
-    end = min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
+    end = hook_title_window(output_duration)
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
     if editor_style is not None and "start" in editor_style:
@@ -502,10 +551,20 @@ def build_hook_title_ass(
         entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
         entrance += f"\\fscx90\\fscy90\\t(0,{round(fade_in * 1000)},\\fscx100\\fscy100)"
+    if time_map is not None:
+        start, end = time_map(start), time_map(end)
     events = [
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{{{entrance}}}{text}"
     ]
+    if heavy:
+        # libass has no soft shadow: a blurred, half-transparent black copy with a wider edge, under the crisp title.
+        plain = "\\N".join(escape_ass_text(line) for line in lines)
+        blur = max(4, round(hook_px * 0.09))
+        events.insert(0, (
+            f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
+            f"{{{entrance}\\1c&H000000&\\3c&H000000&\\alpha&H73&\\bord{outline_px * 2}\\blur{blur}}}{plain}"
+        ))
     return style_line, events
 
 
@@ -580,11 +639,15 @@ def build_assemblyai_ass_subtitles(
     center_x_override: Optional[int] = None,
     hook_editor_style: Optional[Dict[str, Any]] = None,
     hook_center_y: Optional[float] = None,
+    hook_position_y: Optional[float] = None,
+    hook_heavy: bool = False,
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
     output_offsets: Optional[List[float]] = None,
     point_labels: Optional[List[Dict[str, Any]]] = None,
+    time_map: Optional[TimeMap] = None,
+    censor_spans: Optional[Sequence[Tuple[float, float]]] = None,
     drop_screen_words: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
@@ -608,6 +671,11 @@ def build_assemblyai_ass_subtitles(
     ``point_labels`` are a recap's on-screen points (``build_point_label_ass``).
     ``drop_screen_words`` leaves out words the picture already shows (a game's own subtitles) and stray
     sounds heard as words (``media/screen_words.py``).
+
+    Dynamic edits only (both default to off, which leaves the output unchanged):
+    ``time_map`` maps every event's start and end from edit to final seconds
+    (the clip's time warp: freezes and speed ramps), and ``censor_spans`` are
+    bleeped edit-time spans whose words are masked (``edit_fx.censor``).
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -646,6 +714,8 @@ def build_assemblyai_ass_subtitles(
     if not relevant_words and not hook_title and not point_labels:
         logger.warning("No words or hook title available for ASS subtitles")
         return False
+    if censor_spans:
+        relevant_words = censored_words(relevant_words, censor_spans)
 
     effective_font_family, template = ensure_glyph_coverage(
         effective_font_family,
@@ -736,8 +806,11 @@ def build_assemblyai_ass_subtitles(
             font_px,
             # An upper-third caption seam belongs to a reaction stack. Keep
             # the headline below the source subject, off the reactor's face.
-            position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
+            position_y=hook_position_y if hook_position_y is not None else (
+                0.94 if position_y_override is not None and position_y_override < .4 else None),
             editor_style=hook_editor_style,
+            heavy=hook_heavy,
+            **({"time_map": time_map} if time_map is not None else {}),
             center_y=hook_center_y,
         )
         hook_style_block = f"{hook_style_line}\n"
@@ -752,6 +825,7 @@ def build_assemblyai_ass_subtitles(
             font_px,
             position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
             hook_end=min(HOOK_TITLE_SECONDS, output_duration) + 0.1 if hook_title else 0.0,
+            **({"time_map": time_map} if time_map is not None else {}),
         )
         hook_style_block += f"{point_style_line}\n"
         hook_events = hook_events + point_events
@@ -904,6 +978,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 )
                 if end <= start:
                     end = start + 0.05
+                if time_map is not None:
+                    start, end = time_map(start), time_map(end)
                 parts = []
                 for local_j, other in enumerate(chunk):
                     gj = indices[local_j]
@@ -921,6 +997,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             end = chunk_end
             if end <= start:
                 end = start + 0.05
+            if time_map is not None:
+                start, end = time_map(start), time_map(end)
             spans = []
             for local_j, word in enumerate(chunk):
                 gj = indices[local_j]

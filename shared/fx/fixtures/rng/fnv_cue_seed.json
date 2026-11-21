@@ -1,0 +1,9 @@
+{
+  "family": "rng",
+  "case": "fnv_cue_seed",
+  "fn": "fnv1a32",
+  "input": {
+    "text": "2961888143:b3:sfx"
+  },
+  "expected": 1572230849
+}

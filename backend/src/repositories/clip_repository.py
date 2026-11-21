@@ -44,25 +44,54 @@ def _workflow_meta(value: Any) -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _fx_meta(row: Any) -> Dict[str, Any]:
+    """``{"fx_meta": …}`` for a clip rendered with dynamic edits, else nothing: legacy payloads stay unchanged."""
+    value = getattr(row, "fx_meta", None)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            value = None
+    return {"fx_meta": value} if isinstance(value, dict) and value else {}
+
+
+def _with_fx_meta(statement: str) -> str:
+    """The newest clip INSERT with ``fx_meta`` added (column, value and upsert)."""
+    out = statement.replace(
+        "workflow_meta, created_at)", "workflow_meta, fx_meta, created_at)"
+    ).replace(
+        "CAST(:workflow_meta AS JSONB), NOW())", "CAST(:workflow_meta AS JSONB), CAST(:fx_meta AS JSONB), NOW())"
+    ).replace(
+        "workflow_meta = EXCLUDED.workflow_meta,", "workflow_meta = EXCLUDED.workflow_meta,\n                    fx_meta = EXCLUDED.fx_meta,"
+    )
+    if out.count("fx_meta") != 4:
+        raise RuntimeError("clip insert statement changed; cannot add fx_meta")
+    return out
+
+
 _CLIP_COLUMNS = """id, task_id, filename, file_path, start_time, end_time, duration,
        text, relevance_score, reasoning, clip_order, created_at"""
 _SCORE_COLUMNS = """virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
        hook_title"""
 _WORKFLOW_COLUMNS = "workflow_role, part_number, workflow_meta"
+_FX_COLUMNS = "fx_meta"
 
 
-def _clip_select(where: str, *, scores: bool, workflow: bool) -> str:
+def _clip_select(where: str, *, scores: bool, workflow: bool, fx: bool = False) -> str:
     columns = [_CLIP_COLUMNS]
     if scores:
         columns.append(_SCORE_COLUMNS)
     if workflow:
         columns.append(_WORKFLOW_COLUMNS)
+    if fx:
+        columns.append(_FX_COLUMNS)
     return f"SELECT {', '.join(columns)} FROM generated_clips WHERE {where}"
 
 
 def _clip_selects(where: str) -> List[str]:
-    """Newest schema first: workflow columns, then scores, then the base columns."""
+    """Newest schema first: dynamic-edits metadata, workflow columns, then scores, then the base columns."""
     return [
+        _clip_select(where, scores=True, workflow=True, fx=True),
         _clip_select(where, scores=True, workflow=True),
         _clip_select(where, scores=True, workflow=False),
         _clip_select(where, scores=False, workflow=False),
@@ -96,8 +125,13 @@ class ClipRepository:
         workflow_role: Optional[str] = None,
         part_number: Optional[int] = None,
         workflow_meta: Optional[Dict[str, Any]] = None,
+        fx_meta: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create a new clip record and return its ID."""
+        """Create a new clip record and return its ID.
+
+        ``fx_meta`` (dynamic edits: level, timing, intensity, template) is written
+        only when given; legacy clips keep the statements they always used.
+        """
         previous = await db.execute(sa_text(
             "SELECT id, task_id, filename, file_path FROM generated_clips "
             "WHERE task_id = :task_id AND clip_order = :clip_order"
@@ -129,7 +163,7 @@ class ClipRepository:
             "hook_type": hook_type,
             "hook_title": hook_title,
         }
-        result = await _execute_newest_supported(db, [
+        attempts = [
             (
                 """
                 INSERT INTO generated_clips
@@ -226,7 +260,11 @@ class ClipRepository:
                 """,
                 base_params,
             ),
-        ])
+        ]
+        if fx_meta:
+            statement, params = attempts[0]
+            attempts.insert(0, (_with_fx_meta(statement), {**params, "fx_meta": json.dumps(fx_meta)}))
+        result = await _execute_newest_supported(db, attempts)
         clip_id = result.scalar()
         if not clip_id:
             raise RuntimeError("Failed to create clip: no ID returned")
@@ -268,6 +306,7 @@ class ClipRepository:
                     "workflow_role": getattr(row, "workflow_role", None),
                     "part_number": getattr(row, "part_number", None),
                     "workflow_meta": _workflow_meta(getattr(row, "workflow_meta", None)),
+                    **_fx_meta(row),
                 }
             )
 
@@ -358,6 +397,7 @@ class ClipRepository:
             "workflow_meta": _workflow_meta(getattr(row, "workflow_meta", None)),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
+            **_fx_meta(row),
         }
 
     @staticmethod
@@ -371,11 +411,14 @@ class ClipRepository:
         duration: float,
         text: str,
         workflow_meta: Optional[Dict[str, Any]] = None,
+        fx_meta: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Update core clip metadata and file path.
 
         ``workflow_meta``, when given, replaces the clip's workflow metadata
         (a split narrows a planned clip's ranges to the half it kept).
+        ``fx_meta``, when given, replaces the clip's dynamic-edits metadata (an
+        edited FX clip keeps it non-null).
         """
         rows = await db.execute(sa_text(
             "SELECT id, task_id, filename, file_path FROM generated_clips WHERE id = :clip_id"
@@ -412,6 +455,18 @@ class ClipRepository:
                 statement.format(meta="\n                    workflow_meta = CAST(:workflow_meta AS JSONB),"),
                 {**params, "workflow_meta": json.dumps(workflow_meta)},
             ))
+        if fx_meta:
+            fx_fragment = "\n                    fx_meta = CAST(:fx_meta AS JSONB),"
+            fx_params = {**params, "fx_meta": json.dumps(fx_meta)}
+            if workflow_meta is not None:
+                attempts.insert(0, (
+                    statement.format(
+                        meta="\n                    workflow_meta = CAST(:workflow_meta AS JSONB)," + fx_fragment
+                    ),
+                    {**fx_params, "workflow_meta": json.dumps(workflow_meta)},
+                ))
+            else:
+                attempts.insert(0, (statement.format(meta=fx_fragment), fx_params))
         await _execute_newest_supported(db, attempts)
         await commit_unless_editing(db)
 
