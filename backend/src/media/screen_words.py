@@ -36,6 +36,7 @@ READ_EVERY_SECONDS = 1.25       # how often the picture is read while somebody s
 READ_REACH_SECONDS = 1.5        # a subtitle may come up this long before its word and stay as long after
 SUBTITLED_VOICE_SHARE = 0.4     # of a voice's content words found on screen: the game subtitles that voice ...
 SUBTITLED_VOICE_WORDS = 8       # ... judged on this many content words at least; then none of its words get a caption
+LEFTOVER_MAX_WORDS = 2          # this few words left next to a line that got no caption: a scrap of that line
 STRAY_MAX_WORDS = 2             # a "phrase" this short ...
 STRAY_SILENCE_SECONDS = 4.0     # ... with this much silence either side ...
 STRAY_MAX_CONFIDENCE = 0.5      # ... and this little confidence is a sound, not speech
@@ -106,6 +107,33 @@ def _read_moments(words: Sequence[Dict[str, Any]], groups: Sequence[Sequence[int
     return moments
 
 
+def _leftovers(words: Sequence[Dict[str, Any]], drop: set) -> set:
+    """Kept words that are a scrap of a line that got no caption: one or two words, right next to it, same voice.
+
+    The check keeps what it could not prove, so a subtitled line can leave "you" or "know how" behind. On its
+    own on the screen that reads as a broken caption.
+    """
+    scraps: set = set()
+    index = 0
+    while index < len(words):
+        if index in drop:
+            index += 1
+            continue
+        stop = index
+        while stop + 1 < len(words) and stop + 1 not in drop:
+            stop += 1
+        if stop - index + 1 <= LEFTOVER_MAX_WORDS:
+            for inside, outside in ((index, index - 1), (stop, stop + 1)):
+                if outside not in drop or not 0 <= outside < len(words):
+                    continue
+                first, second = sorted((inside, outside))
+                near = words[second]["start"] - words[first]["end"] < PHRASE_GAP_SECONDS
+                if near and words[inside].get("speaker") == words[outside].get("speaker"):
+                    scraps.update(range(index, stop + 1))
+        index = stop + 1
+    return scraps
+
+
 def spoken_caption_words(video_path: Path, words: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """``words`` (source seconds: text, start, end, confidence, speaker) without the ones that need no caption."""
     words = list(words)
@@ -168,6 +196,7 @@ def spoken_caption_words(video_path: Path, words: Sequence[Dict[str, Any]]) -> L
         content = [i for i in group if i in written]
         if len(content) >= PHRASE_MIN_CONTENT and sum(written[i] for i in content) >= SCREEN_MATCH_SHARE * len(content):
             drop.update(group)
+    drop.update(_leftovers(words, drop))
     if drop:
         logger.info("Captions: %d of %d words left out (shown on screen or not speech)", len(drop), len(words))
     return [word for index, word in enumerate(words) if index not in drop]

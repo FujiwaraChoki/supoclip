@@ -115,3 +115,32 @@ def test_the_transcript_is_filtered_for_captions_only(monkeypatch):
     assert filtered["words"] == [] and len(data["words"]) == 12
     _screen(monkeypatch, [])
     assert sw.without_screen_words(Path("clip.mp4"), data, [(0.0, 10.0)]) is data
+
+
+def test_a_scrap_left_beside_a_subtitled_line_goes_with_it(monkeypatch):
+    line = "Listen carefully because nobody leaves until every single dollar returns safely tonight"
+    # The streamer's own long stretch keeps its captions; "you know" right after the game's line is a scrap of it.
+    game = _words(line)
+    scrap = _words("you know", start=game[-1]["end"] + 0.2)
+    own = _words("honestly that whole cutscene looked incredible compared against anything rockstar released "
+                 "before, absolutely unbelievable lighting everywhere tonight", start=12.0)
+    _screen(monkeypatch, [(0.0, 6.0, line)])
+    kept = sw.spoken_caption_words(Path("clip.mp4"), game + scrap + own)
+    assert kept and all(word in own for word in kept)
+
+
+def test_a_short_reaction_by_another_voice_keeps_its_caption(monkeypatch):
+    line = "Listen carefully because nobody leaves until every single dollar returns safely tonight"
+    game = _words(line, speaker="A")
+    reaction = _words("no way", start=game[-1]["end"] + 0.2, speaker="B")
+    _screen(monkeypatch, [(0.0, 6.0, line)])
+    assert sw.spoken_caption_words(Path("clip.mp4"), game + reaction) == reaction
+
+
+def test_a_caption_line_does_not_hold_through_words_that_were_left_out():
+    from src.media.captions import _chunk_bounds, _pause_breaks
+
+    words = [{"start": 0.0, "end": 0.3}, {"start": 0.4, "end": 0.7}, {"start": 12.0, "end": 12.3},
+             {"start": 12.4, "end": 12.7}]
+    assert _pause_breaks(words) == [2]
+    assert list(_chunk_bounds(len(words), 3, _pause_breaks(words))) == [(0, 2), (2, 4)]
