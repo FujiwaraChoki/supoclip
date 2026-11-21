@@ -33,6 +33,10 @@ DUPLICATE_FRAME_DIFF = 1.0
 PROBE_W, PROBE_H = 160, 90
 # A frame this dark on average (0-255) is black: the tail of a fade, or the gap between two scenes.
 BLACK_FRAME_MEAN = 16.0
+# A fade from or to black is held over whole, up to this long, so the held frame is the picture at full
+# brightness. A longer fade is held over as far as EDGE_SHOT_SECONDS reaches (a dim frame, never a black one).
+EDGE_FADE_SECONDS = 0.6
+FADE_HALF, FADE_DONE = 0.5, 0.9
 
 
 def _probe(path: Path) -> Optional[Tuple[int, float]]:
@@ -87,12 +91,12 @@ def single_cut(frames: np.ndarray) -> Optional[int]:
     return cut
 
 
-def dark_run(frames: np.ndarray) -> int:
+def dark_run(frames: np.ndarray, reach: float = FADE_HALF) -> int:
     """How many leading frames are black or still fading up from black, or 0.
 
     The source faded out of the previous scene, or cut through black, a moment before the first
-    word. The run ends where the picture reaches half of the brightness it settles at. A scene that
-    is dark throughout is not a fade.
+    word. The run ends where the picture reaches ``reach`` of the brightness it settles at (half by
+    default; ``FADE_DONE`` for the whole fade). A scene that is dark throughout is not a fade.
     """
     if len(frames) < 4:
         return 0
@@ -103,9 +107,18 @@ def dark_run(frames: np.ndarray) -> int:
     if settled < 3 * BLACK_FRAME_MEAN:
         return 0
     run = 0
-    while run < len(means) and means[run] < 0.5 * settled:
+    while run < len(means) and means[run] < reach * settled:
         run += 1
     return run
+
+
+def dark_edge(frames: np.ndarray, limit: int, fade_limit: int) -> int:
+    """Frames to hold over at an edge that starts on black: the whole fade when it is short, else its dark half."""
+    whole = dark_run(frames, FADE_DONE)
+    if 0 < whole <= fade_limit:
+        return whole
+    half = dark_run(frames)
+    return half if half <= limit else 0
 
 
 def stray_edge_frames(path: Path) -> Tuple[int, int, int]:
@@ -117,15 +130,21 @@ def stray_edge_frames(path: Path) -> Tuple[int, int, int]:
     if total / fps < MIN_CLIP_SECONDS:
         return 0, 0, total
     limit = max(1, int(round(EDGE_SHOT_SECONDS * fps)))
-    head_frames = _frames(path, [], EDGE_PROBE_SECONDS)
+    fade_limit = max(limit, int(round(EDGE_FADE_SECONDS * fps)))
+    window = max(4, int(round(EDGE_PROBE_SECONDS * fps)))
+    # A fade is measured against the picture after it, so the look at black reaches past the longest fade.
+    # Cuts are looked for in the same window as before.
+    reach = EDGE_PROBE_SECONDS + EDGE_FADE_SECONDS
+    head_long = _frames(path, [], reach)
+    tail_long = _frames(path, ["-sseof", f"-{reach:.3f}"], reach + 1.0)
+    head_frames, tail_frames = head_long[:window], tail_long[-window:]
     head = single_cut(head_frames)
-    tail_frames = _frames(path, ["-sseof", f"-{EDGE_PROBE_SECONDS:.3f}"], EDGE_PROBE_SECONDS + 1.0)
     tail_cut = single_cut(tail_frames)
     tail = len(tail_frames) - tail_cut if tail_cut is not None else 0
     # Black frames, or a fade from or to black, at the very edge: the same sliver without a hard cut.
-    head = head if head is not None and head <= limit else dark_run(head_frames)
-    tail = tail if 0 < tail <= limit else dark_run(tail_frames[::-1])
-    return (head if 0 < head <= limit else 0), (tail if 0 < tail <= limit else 0), total
+    head = head if head is not None and 0 < head <= limit else dark_edge(head_long, limit, fade_limit)
+    tail = tail if 0 < tail <= limit else dark_edge(tail_long[::-1], limit, fade_limit)
+    return head, tail, total
 
 
 def hold_stray_edge_shots(path: Path) -> Tuple[int, int]:

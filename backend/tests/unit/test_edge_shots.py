@@ -10,7 +10,7 @@ import subprocess
 import numpy as np
 import pytest
 
-from src.media.edge_shots import dark_run, hold_stray_edge_shots, single_cut, stray_edge_frames
+from src.media.edge_shots import FADE_DONE, dark_edge, dark_run, hold_stray_edge_shots, single_cut, stray_edge_frames
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
 
@@ -137,3 +137,38 @@ def test_a_long_stretch_of_black_is_part_of_the_clip(tmp_path):
     clip = tmp_path / "source.mp4"
     _clip(clip, [("black", 0.7), ("blue", 4.0)])
     assert hold_stray_edge_shots(clip) == (0, 0)
+
+
+def test_a_short_fade_is_held_over_whole_so_the_held_frame_is_not_dim():
+    def frames(levels):
+        return np.stack([np.full((90, 160), level, dtype=np.int16) for level in levels])
+
+    # 30 fps: three black frames, then a fade up over twelve (0.5 s in all), then the picture at 120.
+    fade = [2, 2, 2] + [int(120 * step / 12) for step in range(1, 12)] + [120] * 28
+    clip = frames(fade)
+    assert dark_run(clip) == 8                                  # where half of the brightness is reached
+    whole = dark_run(clip, FADE_DONE)
+    assert fade[whole] >= 0.9 * 120 and whole == 13
+    assert dark_edge(clip, limit=12, fade_limit=18) == 13       # the frame held is the picture, not a dim one
+    # A fade of a second does not fit: the edge is left alone, since even its dark half is longer than a sliver.
+    slow = frames([2] * 3 + [int(120 * step / 30) for step in range(1, 30)] + [120] * 10)
+    assert dark_edge(slow, limit=12, fade_limit=18) == 0
+    # Black, then a fade too long to hold over whole, whose dark half is short: the dim frame is still not black.
+    medium = frames([2] * 2 + [int(120 * step / 20) for step in range(1, 20)] + [120] * 21)
+    assert dark_run(medium, FADE_DONE) > 18 and 0 < dark_edge(medium, limit=12, fade_limit=18) <= 12
+
+
+def test_a_fade_to_black_at_the_end_holds_the_last_bright_frame(tmp_path):
+    clip = tmp_path / "fade.mp4"
+    # Four seconds of picture that fade to black over the last 0.4 s.
+    subprocess.run([
+        "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x2060c0:s=320x180:r={FPS}:d=4",
+        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-vf", "fade=t=out:st=3.6:d=0.4",
+        "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(clip),
+    ], check=True)
+    before = _counts(clip)
+    head, tail = hold_stray_edge_shots(clip)
+    assert head == 0 and 10 <= tail <= 14
+    assert _counts(clip) == before                              # same length, same audio
+    last = _frame_colour(clip, before[0] - 1)
+    assert last == "blue"                                       # the last frame is the picture, not a dimmed one
