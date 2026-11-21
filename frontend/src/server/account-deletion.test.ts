@@ -19,14 +19,21 @@ vi.mock("@/server/backend-api", () => ({
   fetchBackend: vi.fn(),
 }));
 
-function mockPrisma(user: Record<string, unknown> | null, affiliate: Record<string, unknown> | null = null) {
+function mockPrisma(
+  user: Record<string, unknown> | null,
+  affiliate: Record<string, unknown> | null = null,
+  ownedTeams: Record<string, unknown>[] = [],
+) {
   const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
+  const executeRaw = vi.fn().mockResolvedValue(0);
   vi.mocked(getPrismaClient).mockReturnValue({
     user: { findUnique: vi.fn().mockResolvedValue(user) },
     affiliate: { findUnique: vi.fn().mockResolvedValue(affiliate) },
+    team: { findMany: vi.fn().mockResolvedValue(ownedTeams) },
+    $executeRaw: executeRaw,
     source: { deleteMany },
   } as never);
-  return { deleteMany };
+  return { deleteMany, executeRaw };
 }
 
 const stripeUser = {
@@ -105,13 +112,46 @@ describe("prepareAccountDeletion", () => {
     expect(deleteMany).toHaveBeenCalled();
   });
 
-  it("revokes connected social accounts before the account is deleted", async () => {
-    const { deleteMany } = mockPrisma(null);
+  it("leaves work done in someone else's team with that team", async () => {
+    const { executeRaw } = mockPrisma(null);
+
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+
+    const statements = executeRaw.mock.calls.map(([strings]) => (strings as string[]).join("?"));
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toContain("UPDATE tasks SET user_id = teams.owner_id");
+    expect(statements[1]).toContain("UPDATE social_posts SET user_id = teams.owner_id");
+  });
+
+  it("revokes the connections of a team that goes with its only member", async () => {
+    mockPrisma(null, null, [
+      {
+        id: "team-solo-1",
+        name: "Solo Studio",
+        stripe_subscription_id: null,
+        subscription_status: "inactive",
+        subscription_cancel_at: null,
+        _count: { members: 1 },
+      },
+    ]);
 
     await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
     expect(fetchBackend).toHaveBeenCalledWith("/social/connections", {
       method: "DELETE",
       userId: "user-1",
+      teamId: "team-solo-1",
+    });
+  });
+
+  it("revokes connected social accounts before the account is deleted", async () => {
+    const { deleteMany } = mockPrisma(null);
+
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+    // The personal workspace by name: the active workspace cookie may point at a team.
+    expect(fetchBackend).toHaveBeenCalledWith("/social/connections", {
+      method: "DELETE",
+      userId: "user-1",
+      teamId: null,
     });
     expect(deleteMany).toHaveBeenCalled();
   });

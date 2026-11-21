@@ -18,7 +18,8 @@ export const ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE =
  * charging them. Otherwise removes the user's video sources: `sources` has no
  * user column, so the `users -> tasks` cascade would leave them orphaned.
  * Tasks, generated clips, sessions, accounts, API keys and social accounts
- * cascade from `users`; feedback submissions are kept, anonymized.
+ * cascade from `users`; feedback submissions are kept, anonymized. Work done
+ * inside someone else's team stays with that team.
  */
 export async function prepareAccountDeletion(userId: string): Promise<void> {
   const prisma = getPrismaClient();
@@ -52,19 +53,17 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
   }
 
   // Prevent deleting an account that still owns a team with an active subscription or other members.
-  const ownedTeams = prisma.team?.findMany
-    ? await prisma.team.findMany({
-        where: { owner_id: userId },
-        select: {
-          id: true,
-          name: true,
-          stripe_subscription_id: true,
-          subscription_status: true,
-          subscription_cancel_at: true,
-          _count: { select: { members: true } },
-        },
-      })
-    : [];
+  const ownedTeams = await prisma.team.findMany({
+    where: { owner_id: userId },
+    select: {
+      id: true,
+      name: true,
+      stripe_subscription_id: true,
+      subscription_status: true,
+      subscription_cancel_at: true,
+      _count: { select: { members: true } },
+    },
+  });
   for (const team of ownedTeams) {
     if (
       monetizationEnabled &&
@@ -83,6 +82,16 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
     }
   }
 
+  // What this person made in a team they don't own belongs to that team. Hand
+  // it to the team's owner, or it would cascade away with the user and take
+  // the team's clips and scheduled posts with it. Usage records keep the id.
+  await prisma.$executeRaw`
+    UPDATE tasks SET user_id = teams.owner_id FROM teams
+    WHERE tasks.team_id = teams.id AND tasks.user_id = ${userId} AND teams.owner_id <> ${userId}`;
+  await prisma.$executeRaw`
+    UPDATE social_posts SET user_id = teams.owner_id FROM teams
+    WHERE social_posts.team_id = teams.id AND social_posts.user_id = ${userId} AND teams.owner_id <> ${userId}`;
+
   // The affiliates row cascades away with the user; free its code in Stripe so it can be reused.
   const affiliate = await prisma.affiliate.findUnique({
     where: { user_id: userId },
@@ -93,8 +102,14 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
   }
 
   // Social account rows cascade away with the user; revoke their grants at the
-  // platforms first, while the backend can still decrypt the tokens.
-  await revokeSocialConnections(userId);
+  // platforms first, while the backend can still decrypt the tokens. The
+  // personal workspace is named explicitly: the active workspace may be a team,
+  // whose connections must survive this person leaving. Teams this person owns
+  // alone go with the account, so theirs are revoked too.
+  await revokeSocialConnections(userId, null);
+  for (const team of ownedTeams) {
+    await revokeSocialConnections(userId, team.id);
+  }
 
   // PostgreSQL atomically anonymizes feedback snapshots when the user is deleted.
 
@@ -109,9 +124,9 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
   });
 }
 
-async function revokeSocialConnections(userId: string): Promise<void> {
+async function revokeSocialConnections(userId: string, teamId: string | null): Promise<void> {
   try {
-    const response = await fetchBackend("/social/connections", { method: "DELETE", userId });
+    const response = await fetchBackend("/social/connections", { method: "DELETE", userId, teamId });
     if (!response.ok) {
       console.error(`Failed to revoke social connections (HTTP ${response.status})`);
     }
