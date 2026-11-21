@@ -305,5 +305,6 @@
     "retry": "重试",
     "approxTiming": "该视频没有逐字时间，字幕和效果使用近似时间。",
     "simplified": "此片段的部分效果已简化。"
-  }
+  },
+  "sourceRange": "片段 {start}–{end}"
 }
