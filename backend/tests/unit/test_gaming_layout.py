@@ -996,3 +996,35 @@ def test_a_sticker_mask_is_fully_opaque_on_a_full_range_source(tmp_path):
         capture_output=True, text=True,
     )
     assert run.returncode == 0, run.stderr
+
+
+def _ring_evidence(draw):
+    """Evidence holding only persistent lines: what find_round_camera reads."""
+    persist = np.zeros((540, 960), np.float32)
+    draw(persist)
+    empty = np.zeros_like(persist)
+    return gl.FrameEvidence(persist=persist, persist_v=empty, persist_h=empty, change=empty,
+                            edges=np.zeros((1, 540, 960), bool), times=[0.0])
+
+
+def test_a_camera_in_a_circle_is_found_around_the_face():
+    evidence = _ring_evidence(lambda p: cv2.circle(p, (858, 149), 82, 1.0, 2))
+    cx, cy, radius = gl.find_round_camera(evidence, (822, 103, 66, 78))
+    assert abs(cx - 858) <= 2 and abs(cy - 149) <= 2 and abs(radius - 82) <= 2
+    rect = gl.round_camera_rect((cx, cy, radius), 960, 540)
+    # The panel's rectangle sits inside the circle (give or take its corners) and holds the face.
+    assert rect.x >= 858 - 82 and rect.x2 <= 858 + 82 and rect.y <= 110 and rect.y2 >= 181
+
+
+def test_a_circle_with_a_side_that_cannot_be_seen_still_counts():
+    # The camera's dark room against a dark scene: a third of the edge draws no line.
+    evidence = _ring_evidence(lambda p: cv2.ellipse(p, (858, 149), (82, 82), 0, 0, 240, 1.0, 2))
+    assert gl.find_round_camera(evidence, (822, 103, 66, 78)) is not None
+
+
+def test_lines_all_around_a_face_are_not_a_round_camera():
+    def shelves(p):
+        p[::9, :] = 1.0
+        p[:, ::11] = 1.0
+    assert gl.find_round_camera(_ring_evidence(shelves), (822, 103, 66, 78)) is None
+    assert gl.find_round_camera(_ring_evidence(lambda p: None), (822, 103, 66, 78)) is None

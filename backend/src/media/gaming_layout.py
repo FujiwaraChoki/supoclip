@@ -963,6 +963,116 @@ def sticker_region(
     return Rect(wx0 + x0, wy0 + y0, x1 - x0, y1 - y0), (cols, rows, cells)
 
 
+ROUND_CAMERA_LINE_PERSISTENCE = 0.35  # a dark camera edge beside a dark scene draws no line in many samples
+ROUND_CAMERA_MIN_RING = 0.55    # share of the circle that is such a line ...
+ROUND_CAMERA_MIN_ARC = 0.4      # ... with at least this share in ROUND_CAMERA_MIN_ARCS of its four quarters
+ROUND_CAMERA_MIN_ARCS = 3
+ROUND_CAMERA_MIN_INSIDE = 0.75  # share of the circle that has to lie inside the picture
+ROUND_CAMERA_RADII = (0.9, 4.0)  # in face heights
+ROUND_CAMERA_AROUND_STEPS = (-10, -8, -6, -5, 5, 6, 8, 10)  # proc pixels smaller and larger than the circle
+ROUND_CAMERA_MAX_BESIDE = 0.4    # share of those circles that may be lines (measured: camera 0.11-0.15, clutter 0.54-0.79)
+ROUND_CAMERA_MIN_STANDOUT = 0.3  # the circle's own share above theirs
+ROUND_CAMERA_FINE_LOOKS = 6     # rough finds looked at closely
+ROUND_CAMERA_MIN_RADIUS = 0.03  # of the picture's width: smaller rings are icons and buttons
+ROUND_CAMERA_PANEL_ASPECT = CANVAS_W / FACECAM_PANEL_MAX
+ROUND_CAMERA_PANEL_REACH = 1.06  # the panel's rectangle against the largest one inside the circle
+
+
+def find_round_camera(evidence: FrameEvidence, face: Box) -> Optional[Tuple[float, float, float]]:
+    """A camera shown in a circle around a fixed face: (centre x, centre y, radius) in proc pixels.
+
+    The circle's edge is a line in most samples, round most of the way, and the face sits inside it. Where the
+    camera's dark room meets a dark scene there is no line to see, so a part of the circle may be missing, but
+    not a whole side of it.
+    """
+    h, w = evidence.shape
+    fx, fy, fw, fh = face
+    fcx, fcy = fx + fw / 2, fy + fh / 2
+    r_min = max(int(ROUND_CAMERA_MIN_RADIUS * w), int(ROUND_CAMERA_RADII[0] * fh))
+    r_max = int(ROUND_CAMERA_RADII[1] * fh) + 1
+    if r_max < r_min:
+        return None
+    pad = r_max + 4
+    line = cv2.dilate((evidence.persist >= ROUND_CAMERA_LINE_PERSISTENCE).astype(np.uint8), np.ones((3, 3), np.uint8))
+    lines = np.pad(line.astype(bool), pad)
+    frame = np.pad(np.ones((h, w), bool), pad)
+    corners = [(fx, fy), (fx + fw, fy), (fx, fy + fh), (fx + fw, fy + fh)]
+
+    def look(xs: np.ndarray, ys: np.ndarray, radii: Sequence[int], points: int,
+             floor: Optional[float] = None) -> List[Tuple[float, float, float, float]]:
+        """The best circle for each of these radii, among these centres: (score, x, y, radius).
+
+        ``floor`` replaces every test with a bare minimum score: how much of any circle here is a line.
+        """
+        gy, gx = np.meshgrid(ys, xs, indexing="ij")
+        farthest = np.max([np.hypot(gx - px, gy - py) for px, py in corners], axis=0)
+        angles = np.linspace(0.0, 2 * np.pi, points, endpoint=False)
+        quarter = (np.arange(points) * 4) // points
+        found: List[Tuple[float, float, float, float]] = []
+        for radius in radii:
+            ox = np.rint(radius * np.cos(angles)).astype(np.int64)
+            oy = np.rint(radius * np.sin(angles)).astype(np.int64)
+            py_, px_ = gy[..., None] + oy + pad, gx[..., None] + ox + pad
+            on, seen = lines[py_, px_], frame[py_, px_]
+            inside = seen.sum(axis=-1)
+            score = (on & seen).sum(axis=-1) / np.maximum(inside, 1)
+            arcs = np.zeros(gy.shape, np.int64)
+            for q in range(4):
+                part = quarter == q
+                shown = seen[..., part].sum(axis=-1)
+                arcs += ((shown >= 0.5 * part.sum())
+                         & (on[..., part].sum(axis=-1) >= ROUND_CAMERA_MIN_ARC * np.maximum(shown, 1)))
+            ok = ((farthest <= radius * 0.98) & (inside >= ROUND_CAMERA_MIN_INSIDE * points)
+                  & (arcs >= ROUND_CAMERA_MIN_ARCS) & (score >= ROUND_CAMERA_MIN_RING))
+            if floor is not None:
+                ok = score >= floor
+            if not ok.any():
+                continue
+            masked = np.where(ok, score, -1.0)
+            iy, ix = np.unravel_index(int(np.argmax(masked)), masked.shape)
+            found.append((float(masked[iy, ix]), float(gx[iy, ix]), float(gy[iy, ix]), float(radius)))
+        return found
+
+    # Centres to try: around the face, a little below it (head room is above, shoulders below). A coarse look
+    # first, with a line map thick enough not to miss the circle between two steps, then a fine one around it.
+    xs = np.arange(max(0, int(fcx - 0.7 * fw)), min(w, int(fcx + 0.7 * fw) + 1), 2)
+    ys = np.arange(max(0, int(fcy - 0.4 * fh)), min(h, int(fcy + 1.6 * fh) + 1), 2)
+    if not len(xs) or not len(ys):
+        return None
+    fine_lines = lines
+    lines = np.pad(cv2.dilate(line, np.ones((5, 5), np.uint8)).astype(bool), pad)
+    rough = sorted(look(xs, ys, range(r_min, r_max + 1, 2), 64), reverse=True)[:ROUND_CAMERA_FINE_LOOKS]
+    lines = fine_lines
+    best: Optional[Tuple[float, float, float, float]] = None
+    for _, cx, cy, radius in rough:
+        fine = look(np.arange(max(0, int(cx) - 2), min(w, int(cx) + 3)),
+                    np.arange(max(0, int(cy) - 2), min(h, int(cy) + 3)),
+                    range(max(r_min, int(radius) - 2), int(radius) + 3), 128)
+        for score, fx_, fy_, fr in sorted(fine, reverse=True)[:1]:
+            # A drawn circle stands alone: a little smaller or larger there is no ring. A busy picture (shelves,
+            # a patterned wall) puts lines on every circle around the face.
+            around = []
+            for step in ROUND_CAMERA_AROUND_STEPS:
+                if fr + step >= 4:
+                    around += [c[0] for c in look(np.array([int(fx_)]), np.array([int(fy_)]), [int(fr + step)], 128, floor=0.0)]
+            beside = float(np.median(around)) if around else 0.0
+            if beside > ROUND_CAMERA_MAX_BESIDE or score - beside < ROUND_CAMERA_MIN_STANDOUT:
+                continue
+            if best is None or score > best[0]:
+                best = (score, fx_, fy_, fr)
+    return best[1:] if best else None
+
+
+def round_camera_rect(circle: Tuple[float, float, float], w: int, h: int) -> Rect:
+    """The part of a round camera the top panel shows: the widest panel-shaped rectangle inside the circle."""
+    cx, cy, radius = circle
+    half_w = radius * ROUND_CAMERA_PANEL_ASPECT / float(np.hypot(1.0, ROUND_CAMERA_PANEL_ASPECT)) * ROUND_CAMERA_PANEL_REACH
+    half_h = half_w / ROUND_CAMERA_PANEL_ASPECT
+    x0, y0 = int(max(0.0, cx - half_w)), int(max(0.0, cy - half_h))
+    x1, y1 = int(min(float(w), cx + half_w)), int(min(float(h), cy + half_h))
+    return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0))
+
+
 def virtual_camera_rect(face: Box, w: int, h: int) -> Rect:
     """A camera rectangle for a streamer shown without one (background keyed out): head and shoulders."""
     fx, fy, fw, fh = face
@@ -1060,6 +1170,21 @@ def classify_gaming(
         if facecam is not None:
             break
 
+    round_camera = False
+    if facecam is None:
+        # No rectangle: the camera may be shown in a circle.
+        for candidate in candidates + seldom:
+            if not alive(candidate.box):
+                continue
+            circle = find_round_camera(evidence, candidate.box)
+            if circle is None:
+                continue
+            rect = round_camera_rect(circle, w, h)
+            if not inner(rect).size or float((inner(rect) > MOVING_CHANGE_RATE).mean()) < MIN_CAMERA_MOTION:
+                continue
+            facecam, face_box, round_camera = rect, candidate.box, True
+            break
+
     regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
     keyed = [t for t in candidates if keyed_streamer(t.box)]
     if facecam is None and keyed and regions and float(hud_mask.sum()) / float(w * h) >= MIN_HUD_EDGE_FRACTION:
@@ -1127,7 +1252,9 @@ def classify_gaming(
             break
     outside_rate = outside / max(1, len(faces))
 
-    bordered = None if virtual else facecam
+    # A circle has no straight borders to look for in each sample; like a keyed-out head, the face says it is there.
+    unframed = virtual or round_camera
+    bordered = None if unframed else facecam
     host = None
     if facecam is not None and face_box is not None:
         for other in fixed_face_tracks(faces, w, h):
@@ -1157,7 +1284,7 @@ def classify_gaming(
                     break
         larger_outside = seen / max(1, len(faces))
     valid = layout_valid_samples(evidence, hud_mask, bordered)
-    if virtual and len(faces) == len(valid) and len(valid) >= 7:
+    if unframed and len(faces) == len(valid) and len(valid) >= 7:
         # No rectangle to check: the head itself says whether the streamer is on screen. Gone for a stretch
         # (an edit cuts to the game alone), the panel would show the game twice.
         seen = np.array([
