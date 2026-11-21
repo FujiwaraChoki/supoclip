@@ -23,6 +23,23 @@ describe("SignIn", () => {
     vi.clearAllMocks();
   });
 
+  it("tells an unverified new account that a fresh link is on its way", async () => {
+    vi.mocked(signIn.email).mockResolvedValue({
+      error: { status: 403, code: "EMAIL_NOT_VERIFIED", message: "Email not verified" },
+    } as never);
+    const user = userEvent.setup();
+
+    render(<SignIn />);
+
+    await user.type(screen.getByPlaceholderText("Email"), "new@example.com");
+    await user.type(screen.getByPlaceholderText("Password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+    expect(
+      await screen.findByText("Verify your email first. We sent a new link to new@example.com."),
+    ).toBeInTheDocument();
+  });
+
   it("shows an error message when sign in fails", async () => {
     vi.mocked(signIn.email).mockResolvedValue({
       error: { message: "Invalid credentials" },

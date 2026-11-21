@@ -37,6 +37,13 @@ export function SignIn() {
       password,
     });
 
+    if (response.error?.code === "EMAIL_NOT_VERIFIED") {
+      // The server has just sent a fresh link.
+      setMessage(t("signIn.notVerified", { email }));
+      setLoading(false);
+      return;
+    }
+
     if (response.error) {
       setMessage(response.error.message || t(response.error.status >= 500 ? "signIn.serverError" : "signIn.failed"));
       setLoading(false);

@@ -18,6 +18,7 @@ export function SignUp() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   useEffect(() => {
     const invitedEmail = new URLSearchParams(window.location.search).get("email")?.trim();
@@ -32,10 +33,13 @@ export function SignUp() {
     setMessage("");
     setOk(false);
 
+    const next = postAuthPath(window.location.search);
     const response = await signUp.email({
       email,
       password,
       name,
+      // Where the verification link lands, signed in, when the server requires one.
+      callbackURL: next,
     });
 
     if (response.error) {
@@ -49,15 +53,30 @@ export function SignUp() {
       ...attributionMetadata(getAnonymousAttribution()),
     });
     trackEvent("signup_completed", { method: "email" });
-    setOk(true);
-    setMessage(t("signUp.success"));
     setLoading(false);
 
-    // Automatically sign in after successful sign up
+    // No session means this server wants the address verified first.
+    if (!response.data?.token) {
+      setSentTo(email);
+      return;
+    }
+
+    setOk(true);
+    setMessage(t("signUp.success"));
     setTimeout(() => {
-      window.location.href = postAuthPath(window.location.search);
+      window.location.href = next;
     }, 1000);
   };
+
+  if (sentTo) {
+    return (
+      <div className="w-full">
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("signUp.verifyTitle")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("signUp.verifyBody", { email: sentTo })}</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t("signUp.verifyHint")}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
