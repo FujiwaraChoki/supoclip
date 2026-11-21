@@ -34,6 +34,19 @@ class TaskCheckpointRepository:
         return result.scalar_one_or_none() or {}
 
     @staticmethod
+    async def get_latest(db: AsyncSession, task_id: str) -> tuple[str, dict[str, Any]] | None:
+        """The task's stored checkpoint with its input key, whatever the key is.
+
+        Used by callers that act on a paused task (they hold no processing inputs).
+        """
+        result = await db.execute(text("""
+            SELECT input_key, payload FROM task_processing_checkpoints
+            WHERE task_id = :task_id
+        """), {"task_id": task_id})
+        row = result.first()
+        return (row[0], row[1] or {}) if row else None
+
+    @staticmethod
     async def save(db: AsyncSession, task_id: str, input_key: str,
                    patch: dict[str, Any]) -> None:
         result = await db.execute(text("""

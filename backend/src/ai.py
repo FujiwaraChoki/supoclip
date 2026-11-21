@@ -456,6 +456,13 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     """Return a clear configuration error when the selected LLM key is missing."""
     provider, provider_model_name = _split_llm_name(model_name)
 
+    if provider == "manual":
+        return (
+            "LLM=manual has no model: clip selection is done by pasting the task's prompt into "
+            "your own AI chat. This step (AI B-roll planning, workflows other than highlights) "
+            "needs a real model such as ollama:* or an API-key provider."
+        )
+
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "

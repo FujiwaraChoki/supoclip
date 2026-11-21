@@ -57,6 +57,7 @@ from ..media.timeline import seconds_to_mmss
 from ..workflows.boundaries import cleanup_key
 from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_from_task
 from ..workflows.errors import WorkflowError
+from ..manual_analysis import AWAITING_ANALYSIS_MESSAGE, AWAITING_ANALYSIS_STATUS, ManualAnalysisPending
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
@@ -1073,6 +1074,23 @@ class TaskService(ClipEditingMixin):
                 "key_topics": result.get("key_topics"),
             }
 
+        except ManualAnalysisPending:
+            # LLM=manual: the prompt is saved with the task; the user's AI chat
+            # answer resumes it. Not a failure, and nothing is refunded or retried.
+            await self.db.rollback()
+            paused = await self.task_repo.update_task_status(
+                self.db, task_id, AWAITING_ANALYSIS_STATUS, progress=50,
+                progress_message=AWAITING_ANALYSIS_MESSAGE,
+                expected_statuses=["queued", "processing"],
+            )
+            if paused is False:
+                # Cancelled in the meantime: the cancel already set the final state.
+                logger.info("Task %s was cancelled while waiting for analysis", task_id)
+                return {"task_id": task_id, "clips_count": 0, "awaiting_analysis": False}
+            if progress_callback:
+                await progress_callback(50, AWAITING_ANALYSIS_MESSAGE, AWAITING_ANALYSIS_STATUS)
+            logger.info("Task %s is waiting for the user's AI analysis", task_id)
+            return {"task_id": task_id, "clips_count": 0, "awaiting_analysis": True}
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {e}")
             # Clear failed writes before recording the terminal error state.
