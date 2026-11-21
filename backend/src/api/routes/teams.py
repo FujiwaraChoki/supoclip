@@ -93,10 +93,15 @@ async def get_team_usage(
     if auth_ctx.via_api_key and auth_ctx.team_id != team_id:
         raise HTTPException(status_code=403, detail="API key is not scoped to this team")
 
-    billing = await BillingService(db, config).get_usage_summary(
+    billing_service = BillingService(db, config)
+    billing = await billing_service.get_usage_summary(
         auth_ctx.user_id, team_id=team_id
     )
     ai_edits = await AIEditAllowanceService(db, config).summary(
         auth_ctx.user_id, team_id=team_id
     )
-    return {"billing": billing, "ai_edits": ai_edits}
+    member_usage = await billing_service.get_team_member_usage_map(
+        team_id,
+        only_user_id=None if role in TEAM_MANAGER_ROLES else auth_ctx.user_id,
+    )
+    return {"billing": billing, "ai_edits": ai_edits, "member_usage": member_usage}

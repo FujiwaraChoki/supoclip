@@ -43,7 +43,10 @@
     "aiEdits": "共享 AI 编辑",
     "editsOf": "{used} / {limit}",
     "pooledMonthly": "本月团队共享",
-    "seats": "席位"
+    "seats": "席位",
+    "yourLimitMinutes": "你的限额：{used} / {limit} 分钟",
+    "yourLimitPaused": "管理员已暂停你的席位",
+    "yourLimitAiEdits": "你的限额：{used} / {limit}"
   },
   "seats": {
     "shortCount": "{occupied} / {limit} 席位",
@@ -97,7 +100,30 @@
     "noPending": "暂无待接受的邀请。",
     "expiresOn": "过期时间：{date}",
     "resend": "重新发送",
-    "revoke": "撤销"
+    "revoke": "撤销",
+    "limitsButton": "限额",
+    "usageMinutesOnly": "已用 {used} 分钟",
+    "usageMinutesCap": "{used} / {limit} 分钟",
+    "usageMinutesPaused": "视频已暂停",
+    "usageAiOnly": "已用 {used} 次 AI 编辑",
+    "usageAiCap": "{used} / {limit} 次 AI 编辑",
+    "usageAiPaused": "AI 编辑已暂停",
+    "unlimitedCap": "不限",
+    "limitsDialogTitle": "成员生成限额",
+    "limitsDialogDescription": "为 {name} 设置在 {team} 共享额度内的月度上限。留空表示不限制。",
+    "limitsCurrentUsage": "本计费周期已用：{minutes} 分钟视频 · {aiEdits} 次 AI 编辑",
+    "minuteLimitLabel": "月度视频上限（分钟）",
+    "minuteLimitPlaceholder": "不限（共享团队额度）",
+    "minuteLimitHoursHint": "≈ {hours} 小时/月",
+    "minuteLimitPausedHint": "暂停该席位的新视频生成，而无需移出团队。",
+    "minuteLimitUnlimitedHint": "可使用团队剩余的全部共享分钟数。",
+    "aiLimitLabel": "月度 AI 编辑上限",
+    "aiLimitPlaceholder": "不限（共享团队额度）",
+    "aiLimitPausedHint": "暂停该席位的 AI 编辑器请求。",
+    "presetUnlimited": "不限",
+    "presetPause": "暂停 (0)",
+    "saveLimits": "保存限额",
+    "savingLimits": "正在保存…"
   },
   "general": {
     "title": "常规",
@@ -162,7 +188,8 @@
     "leftTeam": "你已退出团队。",
     "memberRemoved": "已移除成员。",
     "ownershipTransferred": "团队所有权已转让。",
-    "teamDeleted": "团队已删除。"
+    "teamDeleted": "团队已删除。",
+    "limitsUpdated": "成员限额已更新。"
   },
   "errors": {
     "nameTooShort": "团队名称至少需要 2 个字符。",
@@ -180,6 +207,7 @@
     "roleUpdateFailed": "更新成员角色失败。",
     "removeMemberFailed": "移除成员失败。",
     "transferFailed": "转让所有权失败。",
-    "deleteFailed": "删除团队失败。"
+    "deleteFailed": "删除团队失败。",
+    "limitsUpdateFailed": "更新成员限额失败。"
   }
 }

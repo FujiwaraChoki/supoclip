@@ -43,7 +43,10 @@
     "aiEdits": "Gemeinsame KI-Edits",
     "editsOf": "{used} / {limit}",
     "pooledMonthly": "Diesen Monat im Team geteilt",
-    "seats": "Plätze"
+    "seats": "Plätze",
+    "yourLimitMinutes": "Dein Limit: {used} / {limit} Min.",
+    "yourLimitPaused": "Dein Platz wurde von einem Admin pausiert",
+    "yourLimitAiEdits": "Dein Limit: {used} / {limit}"
   },
   "seats": {
     "shortCount": "{occupied} von {limit} Plätzen",
@@ -97,7 +100,30 @@
     "noPending": "Keine offenen Einladungen.",
     "expiresOn": "Läuft ab am {date}",
     "resend": "Erneut senden",
-    "revoke": "Widerrufen"
+    "revoke": "Widerrufen",
+    "limitsButton": "Limits",
+    "usageMinutesOnly": "{used} Min. genutzt",
+    "usageMinutesCap": "{used} / {limit} Min.",
+    "usageMinutesPaused": "Video pausiert",
+    "usageAiOnly": "{used} KI-Bearbeitungen",
+    "usageAiCap": "{used} / {limit} KI-Bearbeitungen",
+    "usageAiPaused": "KI-Bearbeitungen pausiert",
+    "unlimitedCap": "Unbegrenzt",
+    "limitsDialogTitle": "Generierungslimits pro Mitglied",
+    "limitsDialogDescription": "Lege optionale Monatslimits für {name} im gemeinsamen Kontingent von {team} fest. Leer lassen für unbegrenzt.",
+    "limitsCurrentUsage": "In diesem Abrechnungszeitraum genutzt: {minutes} Min. Video · {aiEdits} KI-Bearbeitungen",
+    "minuteLimitLabel": "Monatliches Videolimit (Minuten)",
+    "minuteLimitPlaceholder": "Unbegrenzt (nutzt Team-Kontingent)",
+    "minuteLimitHoursHint": "≈ {hours} Std./Monat",
+    "minuteLimitPausedHint": "Sperrt neue Videogenerierungen für diesen Platz, ohne ihn zu entfernen.",
+    "minuteLimitUnlimitedHint": "Kann alle verbleibenden Minuten im Team-Kontingent nutzen.",
+    "aiLimitLabel": "Monatliches Limit für KI-Bearbeitungen",
+    "aiLimitPlaceholder": "Unbegrenzt (nutzt Team-Kontingent)",
+    "aiLimitPausedHint": "Deaktiviert KI-Editor-Anfragen für diesen Platz.",
+    "presetUnlimited": "Unbegrenzt",
+    "presetPause": "Pausieren (0)",
+    "saveLimits": "Limits speichern",
+    "savingLimits": "Wird gespeichert…"
   },
   "general": {
     "title": "Allgemein",
@@ -162,7 +188,8 @@
     "leftTeam": "Du hast das Team verlassen.",
     "memberRemoved": "Mitglied aus dem Team entfernt.",
     "ownershipTransferred": "Eigentümerschaft übertragen.",
-    "teamDeleted": "Team gelöscht."
+    "teamDeleted": "Team gelöscht.",
+    "limitsUpdated": "Mitgliederlimits aktualisiert."
   },
   "errors": {
     "nameTooShort": "Der Teamname muss mindestens 2 Zeichen lang sein.",
@@ -180,6 +207,7 @@
     "roleUpdateFailed": "Mitgliedsrolle konnte nicht aktualisiert werden.",
     "removeMemberFailed": "Mitglied konnte nicht entfernt werden.",
     "transferFailed": "Eigentümerschaft konnte nicht übertragen werden.",
-    "deleteFailed": "Team konnte nicht gelöscht werden."
+    "deleteFailed": "Team konnte nicht gelöscht werden.",
+    "limitsUpdateFailed": "Mitgliederlimits konnten nicht aktualisiert werden."
   }
 }

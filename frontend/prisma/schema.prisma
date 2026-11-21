@@ -155,10 +155,12 @@ model Team {
 }
 
 model TeamMember {
-  team_id    String   @db.VarChar(36)
-  user_id    String   @db.VarChar(36)
-  role       String   @default("member") @db.VarChar(20)
-  created_at DateTime @default(now()) @db.Timestamptz
+  team_id               String   @db.VarChar(36)
+  user_id               String   @db.VarChar(36)
+  role                  String   @default("member") @db.VarChar(20)
+  monthly_minute_limit  Int?
+  monthly_ai_edit_limit Int?
+  created_at            DateTime @default(now()) @db.Timestamptz
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)

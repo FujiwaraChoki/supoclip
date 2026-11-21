@@ -43,7 +43,10 @@
     "aiEdits": "Edições de IA compartilhadas",
     "editsOf": "{used} / {limit}",
     "pooledMonthly": "Compartilhado pela equipe neste mês",
-    "seats": "Assentos"
+    "seats": "Assentos",
+    "yourLimitMinutes": "Seu limite: {used} / {limit} min",
+    "yourLimitPaused": "Seu assento foi pausado por um admin",
+    "yourLimitAiEdits": "Seu limite: {used} / {limit}"
   },
   "seats": {
     "shortCount": "{occupied} de {limit} assentos",
@@ -97,7 +100,30 @@
     "noPending": "Nenhum convite pendente.",
     "expiresOn": "Expira em {date}",
     "resend": "Reenviar",
-    "revoke": "Revogar"
+    "revoke": "Revogar",
+    "limitsButton": "Limites",
+    "usageMinutesOnly": "{used} min usados",
+    "usageMinutesCap": "{used} / {limit} min",
+    "usageMinutesPaused": "Vídeo pausado",
+    "usageAiOnly": "{used} edições IA",
+    "usageAiCap": "{used} / {limit} edições IA",
+    "usageAiPaused": "Edições IA pausadas",
+    "unlimitedCap": "Ilimitado",
+    "limitsDialogTitle": "Limites de geração do membro",
+    "limitsDialogDescription": "Defina limites mensais opcionais para {name} dentro da franquia compartilhada de {team}. Deixe em branco para ilimitado.",
+    "limitsCurrentUsage": "Usado neste período: {minutes} min de vídeo · {aiEdits} edições IA",
+    "minuteLimitLabel": "Limite mensal de vídeo (minutos)",
+    "minuteLimitPlaceholder": "Ilimitado (usa a franquia da equipe)",
+    "minuteLimitHoursHint": "≈ {hours} h/mês",
+    "minuteLimitPausedHint": "Bloqueia novas gerações de vídeo para este assento sem removê-lo.",
+    "minuteLimitUnlimitedHint": "Pode usar qualquer minuto restante da equipe.",
+    "aiLimitLabel": "Limite mensal de edições IA",
+    "aiLimitPlaceholder": "Ilimitado (usa a franquia da equipe)",
+    "aiLimitPausedHint": "Desativa solicitações do editor IA para este assento.",
+    "presetUnlimited": "Ilimitado",
+    "presetPause": "Pausar (0)",
+    "saveLimits": "Salvar limites",
+    "savingLimits": "Salvando…"
   },
   "general": {
     "title": "Geral",
@@ -162,7 +188,8 @@
     "leftTeam": "Você saiu da equipe.",
     "memberRemoved": "Membro removido da equipe.",
     "ownershipTransferred": "Propriedade da equipe transferida.",
-    "teamDeleted": "Equipe excluída."
+    "teamDeleted": "Equipe excluída.",
+    "limitsUpdated": "Limites do membro atualizados."
   },
   "errors": {
     "nameTooShort": "O nome da equipe deve ter pelo menos 2 caracteres.",
@@ -180,6 +207,7 @@
     "roleUpdateFailed": "Falha ao atualizar função do membro.",
     "removeMemberFailed": "Falha ao remover membro.",
     "transferFailed": "Falha ao transferir propriedade.",
-    "deleteFailed": "Falha ao excluir equipe."
+    "deleteFailed": "Falha ao excluir equipe.",
+    "limitsUpdateFailed": "Falha ao atualizar limites do membro."
   }
 }

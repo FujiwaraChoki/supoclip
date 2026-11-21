@@ -43,7 +43,10 @@
     "aiEdits": "Edit AI bersama",
     "editsOf": "{used} / {limit}",
     "pooledMonthly": "Dipakai bersama tim bulan ini",
-    "seats": "Kursi"
+    "seats": "Kursi",
+    "yourLimitMinutes": "Batas Anda: {used} / {limit} mnt",
+    "yourLimitPaused": "Kursi Anda dijeda oleh admin",
+    "yourLimitAiEdits": "Batas Anda: {used} / {limit}"
   },
   "seats": {
     "shortCount": "{occupied} dari {limit} kursi",
@@ -97,7 +100,30 @@
     "noPending": "Tidak ada undangan tertunda.",
     "expiresOn": "Kedaluwarsa {date}",
     "resend": "Kirim ulang",
-    "revoke": "Cabut"
+    "revoke": "Cabut",
+    "limitsButton": "Batas",
+    "usageMinutesOnly": "{used} mnt terpakai",
+    "usageMinutesCap": "{used} / {limit} mnt",
+    "usageMinutesPaused": "Video dijeda",
+    "usageAiOnly": "{used} edit AI",
+    "usageAiCap": "{used} / {limit} edit AI",
+    "usageAiPaused": "Edit AI dijeda",
+    "unlimitedCap": "Tak terbatas",
+    "limitsDialogTitle": "Batas pembuatan anggota",
+    "limitsDialogDescription": "Atur batas bulanan opsional untuk {name} dari kuota bersama {team}. Kosongkan jika tak terbatas.",
+    "limitsCurrentUsage": "Terpakai periode ini: {minutes} mnt video · {aiEdits} edit AI",
+    "minuteLimitLabel": "Batas video bulanan (menit)",
+    "minuteLimitPlaceholder": "Tak terbatas (pakai kuota tim)",
+    "minuteLimitHoursHint": "≈ {hours} jam/bulan",
+    "minuteLimitPausedHint": "Memblokir pembuatan video baru untuk kursi ini tanpa menghapusnya.",
+    "minuteLimitUnlimitedHint": "Dapat memakai sisa menit di kuota tim.",
+    "aiLimitLabel": "Batas edit AI bulanan",
+    "aiLimitPlaceholder": "Tak terbatas (pakai kuota tim)",
+    "aiLimitPausedHint": "Menonaktifkan permintaan editor AI untuk kursi ini.",
+    "presetUnlimited": "Tak terbatas",
+    "presetPause": "Jeda (0)",
+    "saveLimits": "Simpan batas",
+    "savingLimits": "Menyimpan…"
   },
   "general": {
     "title": "Umum",
@@ -162,7 +188,8 @@
     "leftTeam": "Anda telah keluar dari tim.",
     "memberRemoved": "Anggota dihapus dari tim.",
     "ownershipTransferred": "Kepemilikan tim dipindahkan.",
-    "teamDeleted": "Tim dihapus."
+    "teamDeleted": "Tim dihapus.",
+    "limitsUpdated": "Batas anggota diperbarui."
   },
   "errors": {
     "nameTooShort": "Nama tim minimal 2 karakter.",
@@ -180,6 +207,7 @@
     "roleUpdateFailed": "Gagal memperbarui peran anggota.",
     "removeMemberFailed": "Gagal menghapus anggota.",
     "transferFailed": "Gagal memindahkan kepemilikan.",
-    "deleteFailed": "Gagal menghapus tim."
+    "deleteFailed": "Gagal menghapus tim.",
+    "limitsUpdateFailed": "Gagal memperbarui batas anggota."
   }
 }

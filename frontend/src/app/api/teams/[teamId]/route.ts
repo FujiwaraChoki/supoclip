@@ -60,8 +60,12 @@ export async function GET(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  // Pull pooled video-minute and AI-edit usage from the backend (best effort).
-  let usage: { billing: unknown; ai_edits: unknown } | null = null;
+  // Pull pooled video-minute, AI-edit, and per-member usage from the backend (best effort).
+  let usage: {
+    billing: unknown;
+    ai_edits: unknown;
+    member_usage?: Record<string, { usage_minutes?: number; ai_edits_used?: number }>;
+  } | null = null;
   try {
     const upstream = await fetchBackend(`/teams/${encodeURIComponent(teamId)}/usage`, {
       method: "GET",
@@ -70,13 +74,18 @@ export async function GET(
       cache: "no-store",
     });
     if (upstream.ok) {
-      usage = (await upstream.json()) as { billing: unknown; ai_edits: unknown };
+      usage = (await upstream.json()) as {
+        billing: unknown;
+        ai_edits: unknown;
+        member_usage?: Record<string, { usage_minutes?: number; ai_edits_used?: number }>;
+      };
     }
   } catch (error) {
     console.warn("Could not load backend team usage summary", error);
   }
 
   const isManager = canManageMembers(membership.role);
+  const memberUsageMap = usage?.member_usage ?? {};
   return NextResponse.json(
     {
       team: {
@@ -107,14 +116,22 @@ export async function GET(
         pendingInvitations: team.invitations.length,
         occupied: team.members.length + team.invitations.length,
       },
-      members: team.members.map((member) => ({
-        userId: member.user.id,
-        name: member.user.name,
-        email: member.user.email,
-        image: member.user.image,
-        role: member.role,
-        joinedAt: member.created_at.toISOString(),
-      })),
+      members: team.members.map((member) => {
+        const canViewUsage = isManager || member.user.id === session.user.id;
+        const memberStats = canViewUsage ? memberUsageMap[member.user.id] : undefined;
+        return {
+          userId: member.user.id,
+          name: member.user.name,
+          email: member.user.email,
+          image: member.user.image,
+          role: member.role,
+          joinedAt: member.created_at.toISOString(),
+          monthlyMinuteLimit: canViewUsage ? (member.monthly_minute_limit ?? null) : null,
+          monthlyAiEditLimit: canViewUsage ? (member.monthly_ai_edit_limit ?? null) : null,
+          usageMinutes: canViewUsage ? (memberStats?.usage_minutes ?? 0) : null,
+          usageAiEdits: canViewUsage ? (memberStats?.ai_edits_used ?? 0) : null,
+        };
+      }),
       invitations: isManager
         ? team.invitations.map((invite) => ({
             id: invite.id,

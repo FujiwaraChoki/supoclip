@@ -420,3 +420,147 @@ def test_team_email_service_builds_invitation_email():
     assert "an admin" in content.html
     assert "https://supoclip.example.com/invite/sample-token" in content.html
     assert "https://supoclip.example.com/invite/sample-token" in content.text
+
+
+# ---------------------------------------------------------------------------
+# 6. Per-Member Generation Limits (Video Minutes & AI Edits)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_team_per_member_minute_limits_enforced_and_refunded(monkeypatch):
+    period_start = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    period_end = datetime(2026, 12, 1, tzinfo=timezone.utc)
+    created_at = period_start + timedelta(days=3)
+
+    engine = create_engine("sqlite://")
+    with engine.connect() as conn:
+        conn.connection.create_function("NOW", 0, lambda: created_at.isoformat(" "))
+        conn.execute(text("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT, team_id TEXT, status TEXT)"))
+        conn.execute(text("CREATE TABLE generated_clips (id TEXT PRIMARY KEY, task_id TEXT)"))
+        conn.execute(text("""
+            CREATE TABLE team_members (
+                team_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                monthly_minute_limit INTEGER,
+                monthly_ai_edit_limit INTEGER,
+                PRIMARY KEY (team_id, user_id)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE minute_usage_events (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                team_id TEXT,
+                task_id TEXT UNIQUE,
+                minutes INTEGER NOT NULL,
+                source_duration_seconds INTEGER NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                refunded_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE ai_edit_usage_events (
+                job_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                team_id TEXT,
+                created_at TIMESTAMP NOT NULL,
+                refunded_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("INSERT INTO team_members VALUES ('team-alpha', 'user-owner', 'owner', 10, 1)"))
+        conn.execute(text("INSERT INTO team_members VALUES ('team-alpha', 'user-editor', 'member', 100, 2)"))
+        conn.execute(text("INSERT INTO team_members VALUES ('team-alpha', 'user-paused', 'member', 0, 0)"))
+
+        db = _SqlSession(conn)
+        config = Config()
+        config.self_host = False
+        config.monetization_enabled = True
+        config.team_included_seats = 3
+        config.team_plan_minute_limit = 3600
+        config.team_extra_seat_minute_limit = 900
+        config.team_plan_ai_edit_limit = 300
+
+        service = BillingService(db, config)  # type: ignore[arg-type]
+        team_row = {
+            "name": "Clip Crew",
+            "plan": "team",
+            "subscription_status": "active",
+            "subscription_provider": "stripe",
+            "seat_limit": 3,
+            "billing_period_start": period_start,
+            "billing_period_end": period_end,
+            "subscription_cancel_at": None,
+        }
+        monkeypatch.setattr(service, "_load_team_billing_row", AsyncMock(return_value=team_row))
+
+        # Owner is never capped even if a limit column were somehow populated.
+        owner_summary = await service.get_usage_summary("user-owner", team_id="team-alpha")
+        assert owner_summary["member_minute_limit"] is None
+        assert owner_summary["can_create_task"] is True
+
+        # Editor uses 70 of their 100-minute personal cap while team pool has 3530 min left.
+        conn.execute(text("INSERT INTO tasks VALUES ('t-ed-1', 'user-editor', 'team-alpha', 'error')"))
+        await record_minute_usage(db, "user-editor", "t-ed-1", 70 * 60, team_id="team-alpha")
+        conn.execute(text("UPDATE minute_usage_events SET created_at = :ts"), {"ts": created_at})
+
+        editor_summary = await service.get_usage_summary("user-editor", team_id="team-alpha")
+        assert editor_summary["member_minute_limit"] == 100
+        assert editor_summary["member_usage_minutes"] == 70
+        assert editor_summary["member_remaining_minutes"] == 30
+        assert editor_summary["can_create_task"] is True
+
+        # 30-min video fits; 35-min video is blocked by member limit (NOT upgrade paywall).
+        await service.assert_can_create_task("user-editor", 30 * 60, team_id="team-alpha")
+        with pytest.raises(BillingLimitExceeded) as exc_info:
+            await service.assert_can_create_task("user-editor", 35 * 60, team_id="team-alpha")
+        assert exc_info.value.summary["member_limit_reached"] is True
+        assert exc_info.value.summary["upgrade_required"] is False
+        assert "monthly team limit" in (exc_info.value.summary["reason"] or "")
+
+        # Paused seat (0 min limit) is immediately blocked without upgrade prompt.
+        paused_summary = await service.get_usage_summary("user-paused", team_id="team-alpha")
+        assert paused_summary["can_create_task"] is False
+        assert paused_summary["member_limit_reached"] is True
+        assert paused_summary["upgrade_required"] is False
+        assert "paused" in (paused_summary["reason"] or "").lower()
+
+        # Refunding failed task restores editor's personal allowance.
+        await refund_failed_minute_usage(db, "t-ed-1")
+        await service.assert_can_create_task("user-editor", 90 * 60, team_id="team-alpha")
+
+        # Per-member AI edit limits are enforced alongside team pool.
+        ai_service = AIEditAllowanceService(db, config)  # type: ignore[arg-type]
+        monkeypatch.setattr(
+            "src.services.billing_service.BillingService._load_team_billing_row",
+            AsyncMock(return_value=team_row),
+        )
+        conn.execute(
+            text("INSERT INTO ai_edit_usage_events VALUES ('job-1', 'user-editor', 'team-alpha', :ts, NULL)"),
+            {"ts": created_at},
+        )
+        conn.execute(
+            text("INSERT INTO ai_edit_usage_events VALUES ('job-2', 'user-editor', 'team-alpha', :ts, NULL)"),
+            {"ts": created_at},
+        )
+        ai_editor = await ai_service.summary("user-editor", team_id="team-alpha")
+        assert ai_editor["used"] == 2
+        assert ai_editor["limit"] == 300
+        assert ai_editor["memberLimit"] == 2
+        assert ai_editor["memberUsed"] == 2
+        assert ai_editor["memberRemaining"] == 0
+        assert ai_editor["memberLimitReached"] is True
+        assert ai_editor["allowed"] is False
+
+        # Refunding one AI edit re-allows the member.
+        conn.execute(text("UPDATE ai_edit_usage_events SET refunded_at = :ts WHERE job_id = 'job-2'"), {"ts": created_at})
+        ai_editor_after = await ai_service.summary("user-editor", team_id="team-alpha")
+        assert ai_editor_after["memberUsed"] == 1
+        assert ai_editor_after["memberRemaining"] == 1
+        assert ai_editor_after["allowed"] is True
+
+        # Per-member usage aggregation map returns accurate counts.
+        usage_map = await service.get_team_member_usage_map("team-alpha")
+        assert usage_map["user-editor"]["ai_edits_used"] == 1
+    engine.dispose()

@@ -293,4 +293,49 @@ describe("Next.js Team API routes", () => {
     expect(accepted.status).toBe(200);
     expect(accepted.headers.get("set-cookie")).toContain("supoclip_team_id=t1");
   });
+
+  it("updates and clears per-member generation limits via PATCH member route", async () => {
+    // Reject empty payload
+    const emptyRes = await memberRoute.PATCH(
+      jsonReq({}),
+      ctx({ teamId: "t1", memberUserId: "u-member" }),
+    );
+    expect(emptyRes.status).toBe(400);
+
+    // Admin sets 600 min + 50 AI edits on a member
+    prismaMock.teamMember.findUnique
+      .mockResolvedValueOnce({ role: "admin" })
+      .mockResolvedValueOnce({ role: "member" });
+    prismaMock.teamMember.update.mockResolvedValueOnce({
+      team_id: "t1",
+      user_id: "u-member",
+      role: "member",
+      monthly_minute_limit: 600,
+      monthly_ai_edit_limit: 50,
+    });
+    const setRes = await memberRoute.PATCH(
+      jsonReq({ monthlyMinuteLimit: 600, monthlyAiEditLimit: 50 }),
+      ctx({ teamId: "t1", memberUserId: "u-member" }),
+    );
+    expect(setRes.status).toBe(200);
+    expect(await setRes.json()).toEqual({
+      member: {
+        teamId: "t1",
+        userId: "u-member",
+        role: "member",
+        monthlyMinuteLimit: 600,
+        monthlyAiEditLimit: 50,
+      },
+    });
+
+    // Member cannot edit limits (403)
+    prismaMock.teamMember.findUnique
+      .mockResolvedValueOnce({ role: "member" })
+      .mockResolvedValueOnce({ role: "member" });
+    const forbiddenRes = await memberRoute.PATCH(
+      jsonReq({ monthlyMinuteLimit: null }),
+      ctx({ teamId: "t1", memberUserId: "u-member-2" }),
+    );
+    expect(forbiddenRes.status).toBe(403);
+  });
 });

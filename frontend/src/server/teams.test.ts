@@ -34,6 +34,7 @@ vi.mock("@/server/prisma", () => ({
 import {
   acceptTeamInvitation,
   canManageBilling,
+  canManageMemberLimits,
   canManageMembers,
   canModifyMemberRole,
   canRemoveMember,
@@ -46,7 +47,9 @@ import {
   slugifyTeamName,
   TeamError,
   transferTeamOwnership,
+  updateTeamMemberLimits,
   updateTeamMemberRole,
+  validateMemberLimit,
   validateTeamName,
 } from "./teams";
 
@@ -336,5 +339,78 @@ describe("team lifecycle & seat cap enforcement", () => {
       where: { id: "team-1" },
       data: { owner_id: "user-admin" },
     });
+    expect(prismaMock.teamMember.update).toHaveBeenCalledWith({
+      where: { team_id_user_id: { team_id: "team-1", user_id: "user-admin" } },
+      data: {
+        role: "owner",
+        monthly_minute_limit: null,
+        monthly_ai_edit_limit: null,
+      },
+    });
+  });
+
+  it("validates and enforces RBAC for per-member generation limits", async () => {
+    expect(canManageMemberLimits("owner", "admin")).toBe(true);
+    expect(canManageMemberLimits("owner", "member")).toBe(true);
+    expect(canManageMemberLimits("owner", "owner")).toBe(false);
+    expect(canManageMemberLimits("admin", "member")).toBe(true);
+    expect(canManageMemberLimits("admin", "admin")).toBe(false);
+    expect(canManageMemberLimits("admin", "owner")).toBe(false);
+    expect(canManageMemberLimits("member", "member")).toBe(false);
+
+    expect(validateMemberLimit(null, "Video", 1000)).toBeNull();
+    expect(validateMemberLimit("", "Video", 1000)).toBeNull();
+    expect(validateMemberLimit(0, "Video", 1000)).toBe(0);
+    expect(validateMemberLimit(600, "Video", 1000)).toBe(600);
+    expect(() => validateMemberLimit(-1, "Video", 1000)).toThrow();
+    expect(() => validateMemberLimit(12.5, "Video", 1000)).toThrow();
+    expect(() => validateMemberLimit(1001, "Video", 1000)).toThrow();
+
+    // Admin can cap a regular member
+    prismaMock.teamMember.findUnique
+      .mockResolvedValueOnce({ role: "admin" })
+      .mockResolvedValueOnce({ role: "member" });
+    prismaMock.teamMember.update.mockResolvedValueOnce({
+      team_id: "team-1",
+      user_id: "user-member",
+      role: "member",
+      monthly_minute_limit: 300,
+      monthly_ai_edit_limit: 25,
+    });
+    const updated = await updateTeamMemberLimits({
+      teamId: "team-1",
+      actorUserId: "user-admin",
+      targetUserId: "user-member",
+      monthlyMinuteLimit: 300,
+      monthlyAiEditLimit: 25,
+    });
+    expect(updated.monthly_minute_limit).toBe(300);
+    expect(updated.monthly_ai_edit_limit).toBe(25);
+
+    // Admin cannot cap another admin or the owner
+    prismaMock.teamMember.findUnique
+      .mockResolvedValueOnce({ role: "admin" })
+      .mockResolvedValueOnce({ role: "admin" });
+    await expect(
+      updateTeamMemberLimits({
+        teamId: "team-1",
+        actorUserId: "user-admin",
+        targetUserId: "user-admin-2",
+        monthlyMinuteLimit: 120,
+      }),
+    ).rejects.toMatchObject({ code: "forbidden", status: 403 });
+
+    // Owner cannot cap themselves (owner role)
+    prismaMock.teamMember.findUnique
+      .mockResolvedValueOnce({ role: "owner" })
+      .mockResolvedValueOnce({ role: "owner" });
+    await expect(
+      updateTeamMemberLimits({
+        teamId: "team-1",
+        actorUserId: "user-owner",
+        targetUserId: "user-owner",
+        monthlyMinuteLimit: 120,
+      }),
+    ).rejects.toMatchObject({ code: "forbidden", status: 403 });
   });
 });

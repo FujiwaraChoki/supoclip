@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import TeamSettingsPage from "./page";
 import AcceptInvitePage from "@/app/invite/[token]/page";
 import LandingPage from "@/components/landing-page";
+import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() },
@@ -247,6 +248,109 @@ describe("TeamSettingsPage UI & role matrix", () => {
 
     fireEvent.change(screen.getByLabelText("Team name"), { target: { value: "New Agency" } });
     expect(screen.getByRole("button", { name: "Create team" })).not.toBeDisabled();
+  });
+
+  it("lets owner configure per-member generation limits via dialog presets and hides Limits from members", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PATCH" && url.includes("/members/u-2")) {
+        return new Response(
+          JSON.stringify({
+            member: {
+              teamId: "team-1",
+              userId: "u-2",
+              role: "member",
+              monthlyMinuteLimit: 600,
+              monthlyAiEditLimit: 50,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify(
+          makeTeamDetail({
+            members: [
+              {
+                userId: "u-owner",
+                name: "Alex Owner",
+                email: "owner@example.com",
+                image: null,
+                role: "owner",
+                joinedAt: "2026-11-01T00:00:00.000Z",
+                monthlyMinuteLimit: null,
+                monthlyAiEditLimit: null,
+                usageMinutes: 120,
+                usageAiEdits: 4,
+              },
+              {
+                userId: "u-2",
+                name: "Sam Editor",
+                email: "editor@example.com",
+                image: null,
+                role: "member",
+                joinedAt: "2026-11-02T00:00:00.000Z",
+                monthlyMinuteLimit: 300,
+                monthlyAiEditLimit: 25,
+                usageMinutes: 140,
+                usageAiEdits: 8,
+              },
+            ],
+          }),
+        ),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TeamSettingsPage />);
+    expect(await screen.findByText("140 / 300 min")).toBeInTheDocument();
+    expect(screen.getByText("8 / 25 AI edits")).toBeInTheDocument();
+
+    // Only non-owner gets a Limits button
+    const limitsButtons = screen.getAllByRole("button", { name: /Limits/ });
+    expect(limitsButtons).toHaveLength(1);
+    fireEvent.click(limitsButtons[0]);
+
+    expect(await screen.findByText("Member generation limits")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "10h (600m)" }));
+    fireEvent.click(screen.getByRole("button", { name: "50" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/teams/team-1/members/u-2",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ monthlyMinuteLimit: 600, monthlyAiEditLimit: 50 }),
+        }),
+      );
+    });
+  });
+
+  it("hides WorkspaceSwitcher for solo users with zero teams and renders it once they have a team", () => {
+    workspaceState.teams = [];
+    workspaceState.activeTeamId = null;
+    const { container, rerender } = render(<WorkspaceSwitcher />);
+    expect(container.firstChild).toBeNull();
+
+    workspaceState.teams = [
+      {
+        id: "team-1",
+        name: "Clip Crew",
+        slug: "clip-crew",
+        ownerId: "u-1",
+        role: "owner",
+        plan: "team",
+        subscriptionStatus: "active",
+        seatLimit: 5,
+        memberCount: 2,
+        pendingInviteCount: 1,
+        occupiedSeats: 3,
+      },
+    ];
+    workspaceState.activeTeamId = "team-1";
+    rerender(<WorkspaceSwitcher />);
+    expect(screen.getByRole("button", { name: "Switch workspace" })).toBeInTheDocument();
   });
 });
 

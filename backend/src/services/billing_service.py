@@ -260,6 +260,140 @@ class BillingService:
         minutes = getattr(row, "minutes", None)
         return total, int(minutes) if minutes is not None else 0
 
+    async def _load_member_limits(
+        self, team_id: str, user_id: str
+    ) -> tuple[int | None, int | None]:
+        """Return (monthly_minute_limit, monthly_ai_edit_limit) for a team member.
+
+        Owners are never subject to per-member caps.
+        """
+        try:
+            result = await self.db.execute(
+                text(
+                    """
+                    SELECT role, monthly_minute_limit, monthly_ai_edit_limit
+                    FROM team_members
+                    WHERE team_id = :team_id AND user_id = :user_id
+                    """
+                ),
+                {"team_id": team_id, "user_id": user_id},
+            )
+            row = result.fetchone()
+            if not row or (getattr(row, "role", None) or "").lower() == "owner":
+                return None, None
+            min_lim = getattr(row, "monthly_minute_limit", None)
+            ai_lim = getattr(row, "monthly_ai_edit_limit", None)
+            return (
+                int(min_lim) if min_lim is not None else None,
+                int(ai_lim) if ai_lim is not None else None,
+            )
+        except Exception:
+            return None, None
+
+    async def _count_member_usage(
+        self,
+        team_id: str,
+        user_id: str,
+        period_start: datetime,
+        period_end: datetime,
+    ) -> tuple[int, int]:
+        """Return durable task charges and minutes for one member inside a team."""
+        result = await self.db.execute(
+            text(
+                """
+                SELECT COUNT(*) AS total, COALESCE(SUM(minutes), 0) AS minutes
+                FROM minute_usage_events
+                WHERE team_id = :team_id
+                  AND user_id = :user_id
+                  AND created_at >= :period_start
+                  AND created_at <= :period_end
+                  AND refunded_at IS NULL
+                """
+            ),
+            {
+                "team_id": team_id,
+                "user_id": user_id,
+                "period_start": period_start,
+                "period_end": period_end,
+            },
+        )
+        row = result.fetchone()
+        if not row:
+            return 0, 0
+        total = int(row.total) if row.total is not None else 0
+        minutes = getattr(row, "minutes", None)
+        return total, int(minutes) if minutes is not None else 0
+
+    async def get_team_member_usage_map(
+        self, team_id: str, *, only_user_id: str | None = None
+    ) -> dict[str, dict[str, int]]:
+        """Return per-member current-period minutes and AI edits for a team."""
+        try:
+            row = await self._load_team_billing_row(team_id)
+        except Exception:
+            return {}
+        now = datetime.now(timezone.utc)
+        start, end = self._usage_window(
+            row.get("billing_period_start"), row.get("billing_period_end"), now
+        )
+        user_filter = " AND user_id = :only_user_id" if only_user_id else ""
+        params: dict[str, Any] = {
+            "team_id": team_id,
+            "period_start": start,
+            "period_end": end,
+        }
+        if only_user_id:
+            params["only_user_id"] = only_user_id
+
+        usage_map: dict[str, dict[str, int]] = {}
+        min_rows = (
+            await self.db.execute(
+                text(
+                    f"""
+                    SELECT user_id, COALESCE(SUM(minutes), 0) AS minutes
+                    FROM minute_usage_events
+                    WHERE team_id = :team_id
+                      AND created_at >= :period_start
+                      AND created_at <= :period_end
+                      AND refunded_at IS NULL
+                      {user_filter}
+                    GROUP BY user_id
+                    """
+                ),
+                params,
+            )
+        ).fetchall()
+        for r in min_rows:
+            uid = str(r.user_id)
+            usage_map[uid] = {
+                "usage_minutes": int(r.minutes or 0),
+                "ai_edits_used": 0,
+            }
+
+        ai_rows = (
+            await self.db.execute(
+                text(
+                    f"""
+                    SELECT user_id, COUNT(*) AS total
+                    FROM ai_edit_usage_events
+                    WHERE team_id = :team_id
+                      AND created_at >= :period_start
+                      AND created_at <= :period_end
+                      AND refunded_at IS NULL
+                      {user_filter}
+                    GROUP BY user_id
+                    """
+                ),
+                params,
+            )
+        ).fetchall()
+        for r in ai_rows:
+            uid = str(r.user_id)
+            entry = usage_map.setdefault(uid, {"usage_minutes": 0, "ai_edits_used": 0})
+            entry["ai_edits_used"] = int(r.total or 0)
+
+        return usage_map
+
     async def get_usage_summary(
         self, user_id: str, *, team_id: str | None = None
     ) -> dict[str, Any]:
@@ -372,7 +506,24 @@ class BillingService:
 
         unlimited = minute_limit <= 0
         remaining_minutes = None if unlimited else max(minute_limit - usage_minutes, 0)
-        can_create = unlimited or remaining_minutes > 0
+        team_exhausted = not unlimited and remaining_minutes <= 0
+
+        member_minute_limit: int | None = None
+        member_usage_minutes: int | None = None
+        member_remaining_minutes: int | None = None
+        member_limit_reached = False
+        if team_id:
+            member_minute_limit, _ = await self._load_member_limits(team_id, user_id)
+            if member_minute_limit is not None:
+                _, member_usage_minutes = await self._count_member_usage(
+                    team_id, user_id, start, end
+                )
+                member_remaining_minutes = max(
+                    member_minute_limit - member_usage_minutes, 0
+                )
+                member_limit_reached = member_remaining_minutes <= 0
+
+        can_create = (not team_exhausted) and (not member_limit_reached)
         billing_start = row.get("billing_period_start")
         billing_end = row.get("billing_period_end")
         billing_interval = (
@@ -390,8 +541,21 @@ class BillingService:
             if team_id
             else "You've used this month's video minutes."
         )
+        member_exhausted_reason = (
+            "Video generation is currently paused for your seat by a team admin."
+            if member_minute_limit == 0
+            else (
+                f"You've reached your monthly team limit of {member_minute_limit} minutes "
+                f"({member_usage_minutes} min used). Ask a team admin to raise your limit."
+            )
+        )
+        reason: str | None = None
+        if team_exhausted:
+            reason = exhausted_reason
+        elif member_limit_reached:
+            reason = member_exhausted_reason
 
-        return {
+        result_summary: dict[str, Any] = {
             **common,
             "billing_interval": billing_interval,
             # Allowances are measured in minutes; there is no per-task cap.
@@ -403,9 +567,15 @@ class BillingService:
             "legacy_hd": legacy_hd,
             "can_schedule_posts": plan in SCHEDULING_PLANS,
             "can_create_task": can_create,
-            "upgrade_required": not can_create,
-            "reason": None if can_create else exhausted_reason,
+            "upgrade_required": team_exhausted,
+            "reason": reason,
         }
+        if team_id:
+            result_summary["member_minute_limit"] = member_minute_limit
+            result_summary["member_usage_minutes"] = member_usage_minutes
+            result_summary["member_remaining_minutes"] = member_remaining_minutes
+            result_summary["member_limit_reached"] = member_limit_reached
+        return result_summary
 
     async def assert_can_create_task(
         self,
@@ -438,6 +608,23 @@ class BillingService:
                 {
                     **summary,
                     "upgrade_required": True,
+                    "required_minutes": needed,
+                    "reason": reason,
+                }
+            )
+        member_remaining = summary.get("member_remaining_minutes")
+        member_limit = summary.get("member_minute_limit")
+        if team_id and member_remaining is not None and needed > member_remaining:
+            reason = (
+                f"This video is {needed} minutes long and you have "
+                f"{member_remaining} minutes left in your monthly team limit "
+                f"({member_limit} min). Ask a team admin to raise your limit."
+            )
+            raise BillingLimitExceeded(
+                {
+                    **summary,
+                    "upgrade_required": False,
+                    "member_limit_reached": True,
                     "required_minutes": needed,
                     "reason": reason,
                 }

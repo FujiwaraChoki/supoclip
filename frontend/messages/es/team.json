@@ -43,7 +43,10 @@
     "aiEdits": "Ediciones IA compartidas",
     "editsOf": "{used} / {limit}",
     "pooledMonthly": "Compartido por todo el equipo este mes",
-    "seats": "Puestos"
+    "seats": "Puestos",
+    "yourLimitMinutes": "Tu límite: {used} / {limit} min",
+    "yourLimitPaused": "Un administrador pausó tu puesto",
+    "yourLimitAiEdits": "Tu límite: {used} / {limit}"
   },
   "seats": {
     "shortCount": "{occupied} de {limit} puestos",
@@ -97,7 +100,30 @@
     "noPending": "No hay invitaciones pendientes.",
     "expiresOn": "Expira el {date}",
     "resend": "Reenviar",
-    "revoke": "Revocar"
+    "revoke": "Revocar",
+    "limitsButton": "Límites",
+    "usageMinutesOnly": "{used} min usados",
+    "usageMinutesCap": "{used} / {limit} min",
+    "usageMinutesPaused": "Video en pausa",
+    "usageAiOnly": "{used} ediciones IA",
+    "usageAiCap": "{used} / {limit} ediciones IA",
+    "usageAiPaused": "Ediciones IA en pausa",
+    "unlimitedCap": "Ilimitado",
+    "limitsDialogTitle": "Límites de generación por miembro",
+    "limitsDialogDescription": "Establece límites mensuales opcionales para {name} dentro del saldo compartido de {team}. Déjalo vacío para sin límite.",
+    "limitsCurrentUsage": "Usado en este período: {minutes} min de video · {aiEdits} ediciones IA",
+    "minuteLimitLabel": "Límite mensual de video (minutos)",
+    "minuteLimitPlaceholder": "Ilimitado (usa el saldo del equipo)",
+    "minuteLimitHoursHint": "≈ {hours} h/mes",
+    "minuteLimitPausedHint": "Bloquea nuevas generaciones de video para este puesto sin eliminarlo.",
+    "minuteLimitUnlimitedHint": "Puede usar cualquier minuto disponible del equipo.",
+    "aiLimitLabel": "Límite mensual de ediciones IA",
+    "aiLimitPlaceholder": "Ilimitado (usa el saldo del equipo)",
+    "aiLimitPausedHint": "Desactiva las solicitudes del editor IA para este puesto.",
+    "presetUnlimited": "Ilimitado",
+    "presetPause": "Pausar (0)",
+    "saveLimits": "Guardar límites",
+    "savingLimits": "Guardando…"
   },
   "general": {
     "title": "General",
@@ -162,7 +188,8 @@
     "leftTeam": "Saliste del equipo.",
     "memberRemoved": "Miembro eliminado del equipo.",
     "ownershipTransferred": "Propiedad del equipo transferida.",
-    "teamDeleted": "Equipo eliminado."
+    "teamDeleted": "Equipo eliminado.",
+    "limitsUpdated": "Límites del miembro actualizados."
   },
   "errors": {
     "nameTooShort": "El nombre del equipo debe tener al menos 2 caracteres.",
@@ -180,6 +207,7 @@
     "roleUpdateFailed": "No se pudo actualizar el rol del miembro.",
     "removeMemberFailed": "No se pudo eliminar al miembro.",
     "transferFailed": "No se pudo transferir la propiedad.",
-    "deleteFailed": "No se pudo eliminar el equipo."
+    "deleteFailed": "No se pudo eliminar el equipo.",
+    "limitsUpdateFailed": "No se pudieron actualizar los límites del miembro."
   }
 }

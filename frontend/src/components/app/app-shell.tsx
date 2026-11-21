@@ -112,9 +112,7 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
           {!compact && "SupoClip"}
         </Link>
 
-        <div className="mb-3 w-full">
-          <WorkspaceSwitcher compact={compact} />
-        </div>
+        <WorkspaceSwitcher compact={compact} className="mb-3" />
 
         <SidebarLink compact={compact} href="/" label={t("nav.newGeneration")} shortcut="N" className="mb-4 bg-foreground text-background hover:bg-foreground/90 hover:text-background">
           <Plus className="size-4" />

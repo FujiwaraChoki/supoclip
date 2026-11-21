@@ -96,14 +96,48 @@ class AIEditAllowanceService:
                     )
                 ).scalar_one()
             )
-        return {
+        member_limit: int | None = None
+        member_used: int | None = None
+        member_remaining: int | None = None
+        member_limit_reached = False
+        if team_id and paid:
+            _, member_limit = await billing._load_member_limits(team_id, user_id)
+            if member_limit is not None:
+                member_used = int(
+                    (
+                        await self.db.execute(
+                            text("""
+                                SELECT COUNT(*) FROM ai_edit_usage_events
+                                WHERE team_id = :team_id AND user_id = :user_id
+                                  AND created_at >= :start AND created_at < :end
+                                  AND refunded_at IS NULL
+                            """),
+                            {
+                                "team_id": team_id,
+                                "user_id": user_id,
+                                "start": start,
+                                "end": end,
+                            },
+                        )
+                    ).scalar_one()
+                )
+                member_remaining = max(0, member_limit - member_used)
+                member_limit_reached = member_used >= member_limit
+
+        result: dict[str, Any] = {
             "plan": row["plan"],
             "limit": limit,
             "used": used,
             "remaining": max(0, limit - used),
             "resetsAt": end.isoformat(),
-            "allowed": paid and used < limit,
+            "allowed": paid and used < limit and not member_limit_reached,
         }
+        if team_id:
+            result["memberLimit"] = member_limit
+            result["memberUsed"] = member_used
+            result["memberRemaining"] = member_remaining
+            result["memberLimitReached"] = member_limit_reached
+        return result
 
     async def reserve(
         self, user_id: str, job_id: str, *, team_id: Optional[str] = None
@@ -131,12 +165,21 @@ class AIEditAllowanceService:
         except BaseException:
             await self.db.rollback()
             raise
-        return {
+        next_remaining = max(0, usage["remaining"] - 1)
+        next_summary = {
             **usage,
             "used": usage["used"] + 1,
-            "remaining": usage["remaining"] - 1,
-            "allowed": usage["remaining"] > 1,
+            "remaining": next_remaining,
+            "allowed": next_remaining > 0,
         }
+        if usage.get("memberLimit") is not None and usage.get("memberUsed") is not None:
+            next_member_used = usage["memberUsed"] + 1
+            next_member_remaining = max(0, usage["memberLimit"] - next_member_used)
+            next_summary["memberUsed"] = next_member_used
+            next_summary["memberRemaining"] = next_member_remaining
+            next_summary["memberLimitReached"] = next_member_remaining <= 0
+            next_summary["allowed"] = next_remaining > 0 and next_member_remaining > 0
+        return next_summary
 
 
 async def refund_ai_edit_usage(job_id: str) -> None:

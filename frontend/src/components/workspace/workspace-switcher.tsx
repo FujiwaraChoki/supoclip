@@ -53,6 +53,11 @@ export function WorkspaceSwitcher({
   const teamConfig = getTeamBillingConfig();
   const label = activeTeam ? activeTeam.name : t("workspace.personal");
 
+  // Keep solo users' navigation clean until they create or join a team.
+  if (teams.length === 0) {
+    return null;
+  }
+
   const handleSelect = async (teamId: string | null) => {
     if (teamId === activeTeamId || switching) return;
     setSwitching(true);

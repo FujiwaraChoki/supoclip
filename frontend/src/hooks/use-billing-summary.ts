@@ -37,6 +37,11 @@ export interface BillingSummary {
   team_name?: string | null;
   seat_limit?: number | null;
   included_seats?: number | null;
+  /** Optional per-member monthly generation cap configured by a team admin. */
+  member_minute_limit?: number | null;
+  member_usage_minutes?: number | null;
+  member_remaining_minutes?: number | null;
+  member_limit_reached?: boolean;
 }
 
 // One in-flight request shared by the shell and the page it wraps.

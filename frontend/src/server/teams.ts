@@ -9,6 +9,8 @@ export type InvitableTeamRole = "admin" | "member";
 export const INVITATION_TTL_DAYS = 7;
 export const TEAM_ROLES: readonly TeamRole[] = ["owner", "admin", "member"];
 export const INVITABLE_ROLES: readonly InvitableTeamRole[] = ["admin", "member"];
+export const MAX_MEMBER_MINUTE_LIMIT = 100_000;
+export const MAX_MEMBER_AI_EDIT_LIMIT = 10_000;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -58,6 +60,32 @@ export function canModifyMemberRole(
     return targetRole === "member" && newRole === "member";
   }
   return false;
+}
+
+export function canManageMemberLimits(
+  actorRole: TeamRole,
+  targetRole: TeamRole,
+): boolean {
+  if (targetRole === "owner") return false;
+  if (actorRole === "owner") return true;
+  if (actorRole === "admin") return targetRole === "member";
+  return false;
+}
+
+export function validateMemberLimit(
+  raw: unknown,
+  label: string,
+  max: number,
+): number | null {
+  if (raw === null || raw === "") return null;
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0 || raw > max) {
+    throw new TeamError(
+      `${label} must be an integer between 0 and ${max.toLocaleString()} (or empty for unlimited)`,
+      400,
+      "invalid_limit",
+    );
+  }
+  return raw;
 }
 
 export function canRemoveMember(
@@ -591,6 +619,72 @@ export async function updateTeamMemberRole(
   });
 }
 
+export async function updateTeamMemberLimits(
+  {
+    teamId,
+    actorUserId,
+    targetUserId,
+    monthlyMinuteLimit,
+    monthlyAiEditLimit,
+  }: {
+    teamId: string;
+    actorUserId: string;
+    targetUserId: string;
+    monthlyMinuteLimit?: unknown;
+    monthlyAiEditLimit?: unknown;
+  },
+  db: PrismaClient = getPrismaClient(),
+) {
+  const data: {
+    monthly_minute_limit?: number | null;
+    monthly_ai_edit_limit?: number | null;
+  } = {};
+
+  if (monthlyMinuteLimit !== undefined) {
+    data.monthly_minute_limit = validateMemberLimit(
+      monthlyMinuteLimit,
+      "Monthly video minute limit",
+      MAX_MEMBER_MINUTE_LIMIT,
+    );
+  }
+  if (monthlyAiEditLimit !== undefined) {
+    data.monthly_ai_edit_limit = validateMemberLimit(
+      monthlyAiEditLimit,
+      "Monthly AI edit limit",
+      MAX_MEMBER_AI_EDIT_LIMIT,
+    );
+  }
+  if (Object.keys(data).length === 0) {
+    throw new TeamError("Provide at least one limit to update", 400, "invalid_limit");
+  }
+
+  const [actor, target] = await Promise.all([
+    db.teamMember.findUnique({
+      where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
+    }),
+    db.teamMember.findUnique({
+      where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
+    }),
+  ]);
+  if (!actor || !isTeamRole(actor.role)) {
+    throw new TeamError("Not a member of this team", 403, "forbidden");
+  }
+  if (!target || !isTeamRole(target.role)) {
+    throw new TeamError("Member not found", 404, "member_not_found");
+  }
+  if (!canManageMemberLimits(actor.role, target.role)) {
+    throw new TeamError(
+      "You don't have permission to set limits for this member",
+      403,
+      "forbidden",
+    );
+  }
+  return db.teamMember.update({
+    where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
+    data,
+  });
+}
+
 export async function removeTeamMember(
   {
     teamId,
@@ -674,7 +768,11 @@ export async function transferTeamOwnership(
     });
     await tx.teamMember.update({
       where: { team_id_user_id: { team_id: teamId, user_id: newOwnerUserId } },
-      data: { role: "owner" },
+      data: {
+        role: "owner",
+        monthly_minute_limit: null,
+        monthly_ai_edit_limit: null,
+      },
     });
     await tx.teamMember.update({
       where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },

@@ -18,6 +18,7 @@ import {
   Plus,
   RefreshCw,
   Shield,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   UserMinus,
@@ -68,6 +69,10 @@ interface TeamMemberItem {
   image: string | null;
   role: TeamRole;
   joinedAt: string;
+  monthlyMinuteLimit?: number | null;
+  monthlyAiEditLimit?: number | null;
+  usageMinutes?: number | null;
+  usageAiEdits?: number | null;
 }
 
 interface TeamInvitationItem {
@@ -86,6 +91,8 @@ interface TeamUsageBilling {
   usage_minutes?: number;
   minute_limit?: number | null;
   remaining_minutes?: number | null;
+  member_minute_limit?: number | null;
+  member_usage_minutes?: number | null;
   output_short_side?: number | null;
   period_end?: string | null;
   monetization_enabled?: boolean;
@@ -95,6 +102,8 @@ interface TeamUsageAiEdits {
   used?: number;
   limit?: number | null;
   remaining?: number | null;
+  memberLimit?: number | null;
+  memberUsed?: number | null;
 }
 
 interface TeamDetailPayload {
@@ -195,6 +204,12 @@ export default function TeamSettingsPage() {
   // Row-level busy state
   const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+
+  // Per-member generation limits dialog state
+  const [limitsTarget, setLimitsTarget] = useState<TeamMemberItem | null>(null);
+  const [minuteLimitDraft, setMinuteLimitDraft] = useState("");
+  const [aiLimitDraft, setAiLimitDraft] = useState("");
+  const [savingLimits, setSavingLimits] = useState(false);
 
   // Transfer ownership & delete dialogs
   const [transferTargetId, setTransferTargetId] = useState<string>("");
@@ -514,6 +529,61 @@ export default function TeamSettingsPage() {
       toast.error(error instanceof Error ? error.message : t("errors.roleUpdateFailed"));
     } finally {
       setBusyMemberId(null);
+    }
+  };
+
+  const openLimitsDialog = (member: TeamMemberItem) => {
+    setLimitsTarget(member);
+    setMinuteLimitDraft(
+      member.monthlyMinuteLimit !== null && member.monthlyMinuteLimit !== undefined
+        ? String(member.monthlyMinuteLimit)
+        : "",
+    );
+    setAiLimitDraft(
+      member.monthlyAiEditLimit !== null && member.monthlyAiEditLimit !== undefined
+        ? String(member.monthlyAiEditLimit)
+        : "",
+    );
+  };
+
+  const handleSaveLimits = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!detail || !limitsTarget) return;
+
+    const parseOptionalLimit = (raw: string): number | null => {
+      const trimmed = raw.trim();
+      if (!trimmed) return null;
+      const parsed = Number(trimmed);
+      if (!Number.isInteger(parsed) || parsed < 0) return Number.NaN;
+      return parsed;
+    };
+
+    const monthlyMinuteLimit = parseOptionalLimit(minuteLimitDraft);
+    const monthlyAiEditLimit = parseOptionalLimit(aiLimitDraft);
+    if (Number.isNaN(monthlyMinuteLimit) || Number.isNaN(monthlyAiEditLimit)) {
+      toast.error(t("errors.limitsUpdateFailed"));
+      return;
+    }
+
+    setSavingLimits(true);
+    try {
+      const response = await fetch(
+        `/api/teams/${encodeURIComponent(detail.team.id)}/members/${encodeURIComponent(limitsTarget.userId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ monthlyMinuteLimit, monthlyAiEditLimit }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || t("errors.limitsUpdateFailed"));
+      toast.success(t("toasts.limitsUpdated"));
+      setLimitsTarget(null);
+      await loadDetail(detail.team.id, true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("errors.limitsUpdateFailed"));
+    } finally {
+      setSavingLimits(false);
     }
   };
 
@@ -889,6 +959,17 @@ export default function TeamSettingsPage() {
                 ? t("overview.minutesRemaining", { remaining: remainingMinutes })
                 : t("overview.unlimited")}
             </p>
+            {billingUsage?.member_minute_limit !== null &&
+              billingUsage?.member_minute_limit !== undefined && (
+                <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                  {billingUsage.member_minute_limit === 0
+                    ? t("overview.yourLimitPaused")
+                    : t("overview.yourLimitMinutes", {
+                        used: billingUsage.member_usage_minutes ?? 0,
+                        limit: billingUsage.member_minute_limit,
+                      })}
+                </p>
+              )}
           </div>
 
           <div className="rounded-2xl border bg-background p-4">
@@ -906,6 +987,14 @@ export default function TeamSettingsPage() {
               </div>
             )}
             <p className="mt-2 text-xs text-muted-foreground">{t("overview.pooledMonthly")}</p>
+            {aiUsage?.memberLimit !== null && aiUsage?.memberLimit !== undefined && (
+              <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                {t("overview.yourLimitAiEdits", {
+                  used: aiUsage.memberUsed ?? 0,
+                  limit: aiUsage.memberLimit,
+                })}
+              </p>
+            )}
           </div>
 
           <div className="rounded-2xl border bg-background p-4">
@@ -1235,11 +1324,31 @@ export default function TeamSettingsPage() {
                   const isSelf = member.userId === session.user.id;
                   const canEditRole =
                     detail.currentUserRole === "owner" && member.role !== "owner" && !isSelf;
+                  const canEditLimits =
+                    (detail.currentUserRole === "owner" && member.role !== "owner") ||
+                    (detail.currentUserRole === "admin" && member.role === "member");
                   const canRemove =
                     (isSelf && member.role !== "owner") ||
                     (detail.currentUserRole === "owner" && member.role !== "owner") ||
                     (detail.currentUserRole === "admin" && member.role === "member");
                   const busy = busyMemberId === member.userId;
+                  const hasMinuteCap =
+                    member.monthlyMinuteLimit !== null && member.monthlyMinuteLimit !== undefined;
+                  const hasAiCap =
+                    member.monthlyAiEditLimit !== null && member.monthlyAiEditLimit !== undefined;
+                  const hasCustomLimits = hasMinuteCap || hasAiCap;
+                  const memberMinutesUsed = member.usageMinutes ?? 0;
+                  const memberAiUsed = member.usageAiEdits ?? 0;
+                  const minuteCapHit =
+                    hasMinuteCap &&
+                    (member.monthlyMinuteLimit === 0 ||
+                      memberMinutesUsed >= (member.monthlyMinuteLimit ?? 0));
+                  const aiCapHit =
+                    hasAiCap &&
+                    (member.monthlyAiEditLimit === 0 ||
+                      memberAiUsed >= (member.monthlyAiEditLimit ?? 0));
+                  const showUsageRow =
+                    detail.permissions.canManageMembers || isSelf;
 
                   return (
                     <div
@@ -1260,10 +1369,77 @@ export default function TeamSettingsPage() {
                             )}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                          {showUsageRow && (hasCustomLimits || memberMinutesUsed > 0 || memberAiUsed > 0) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] tabular-nums">
+                              {hasMinuteCap ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded-md border px-1.5 py-0.5 font-medium",
+                                    minuteCapHit
+                                      ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                                      : "border-border bg-muted/50 text-foreground",
+                                  )}
+                                >
+                                  {member.monthlyMinuteLimit === 0
+                                    ? t("members.usageMinutesPaused")
+                                    : t("members.usageMinutesCap", {
+                                        used: memberMinutesUsed,
+                                        limit: member.monthlyMinuteLimit ?? 0,
+                                      })}
+                                </span>
+                              ) : memberMinutesUsed > 0 ? (
+                                <span className="text-muted-foreground">
+                                  {t("members.usageMinutesOnly", { used: memberMinutesUsed })}
+                                </span>
+                              ) : null}
+
+                              {hasAiCap ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded-md border px-1.5 py-0.5 font-medium",
+                                    aiCapHit
+                                      ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                                      : "border-border bg-muted/50 text-foreground",
+                                  )}
+                                >
+                                  {member.monthlyAiEditLimit === 0
+                                    ? t("members.usageAiPaused")
+                                    : t("members.usageAiCap", {
+                                        used: memberAiUsed,
+                                        limit: member.monthlyAiEditLimit ?? 0,
+                                      })}
+                                </span>
+                              ) : memberAiUsed > 0 ? (
+                                <span className="text-muted-foreground">
+                                  {t("members.usageAiOnly", { used: memberAiUsed })}
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {canEditLimits && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => openLimitsDialog(member)}
+                            className="h-8 gap-1.5 px-2.5 text-xs"
+                          >
+                            <SlidersHorizontal className="size-3.5" />
+                            <span>{t("members.limitsButton")}</span>
+                            {hasCustomLimits && (
+                              <span
+                                className="size-1.5 rounded-full bg-brand"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </Button>
+                        )}
+
                         {canEditRole ? (
                           <Select
                             value={member.role}
@@ -1482,6 +1658,159 @@ export default function TeamSettingsPage() {
           </section>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(limitsTarget)}
+        onOpenChange={(open) => {
+          if (!open && !savingLimits) setLimitsTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("members.limitsDialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {limitsTarget
+                ? t("members.limitsDialogDescription", {
+                    name: limitsTarget.name || limitsTarget.email,
+                    team: detail.team.name,
+                  })
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {limitsTarget && (
+            <form onSubmit={handleSaveLimits} className="space-y-5">
+              <div className="rounded-xl border bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground tabular-nums">
+                {t("members.limitsCurrentUsage", {
+                  minutes: limitsTarget.usageMinutes ?? 0,
+                  aiEdits: limitsTarget.usageAiEdits ?? 0,
+                })}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="member-minute-limit">{t("members.minuteLimitLabel")}</Label>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {minuteLimitDraft.trim() === ""
+                      ? t("members.presetUnlimited")
+                      : Number(minuteLimitDraft) === 0
+                        ? t("members.usageMinutesPaused")
+                        : Number.isFinite(Number(minuteLimitDraft)) && Number(minuteLimitDraft) > 0
+                          ? t("members.minuteLimitHoursHint", {
+                              hours: Number((Number(minuteLimitDraft) / 60).toFixed(1)),
+                            })
+                          : ""}
+                  </span>
+                </div>
+                <Input
+                  id="member-minute-limit"
+                  type="number"
+                  min={0}
+                  max={100000}
+                  step={1}
+                  value={minuteLimitDraft}
+                  onChange={(event) => setMinuteLimitDraft(event.target.value)}
+                  placeholder={t("members.minuteLimitPlaceholder")}
+                  disabled={savingLimits}
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: t("members.presetUnlimited"), value: "" },
+                    { label: "5h (300m)", value: "300" },
+                    { label: "10h (600m)", value: "600" },
+                    { label: "20h (1200m)", value: "1200" },
+                    { label: t("members.presetPause"), value: "0" },
+                  ].map((preset) => {
+                    const active = minuteLimitDraft.trim() === preset.value;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        disabled={savingLimits}
+                        onClick={() => setMinuteLimitDraft(preset.value)}
+                        className={cn(
+                          "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                          active
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {minuteLimitDraft.trim() === "0"
+                    ? t("members.minuteLimitPausedHint")
+                    : t("members.minuteLimitUnlimitedHint")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="member-ai-limit">{t("members.aiLimitLabel")}</Label>
+                <Input
+                  id="member-ai-limit"
+                  type="number"
+                  min={0}
+                  max={10000}
+                  step={1}
+                  value={aiLimitDraft}
+                  onChange={(event) => setAiLimitDraft(event.target.value)}
+                  placeholder={t("members.aiLimitPlaceholder")}
+                  disabled={savingLimits}
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: t("members.presetUnlimited"), value: "" },
+                    { label: "25", value: "25" },
+                    { label: "50", value: "50" },
+                    { label: "100", value: "100" },
+                    { label: t("members.presetPause"), value: "0" },
+                  ].map((preset) => {
+                    const active = aiLimitDraft.trim() === preset.value;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        disabled={savingLimits}
+                        onClick={() => setAiLimitDraft(preset.value)}
+                        className={cn(
+                          "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                          active
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {aiLimitDraft.trim() === "0" && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("members.aiLimitPausedHint")}
+                  </p>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setLimitsTarget(null)}
+                  disabled={savingLimits}
+                >
+                  {t("actions.cancel")}
+                </Button>
+                <Button type="submit" disabled={savingLimits}>
+                  {savingLimits && <Loader2 className="size-4 animate-spin" />}
+                  {savingLimits ? t("members.savingLimits") : t("members.saveLimits")}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">

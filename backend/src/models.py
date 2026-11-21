@@ -220,6 +220,8 @@ class TeamMember(Base):
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=sql_text("'member'")
     )
+    monthly_minute_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    monthly_ai_edit_limit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
