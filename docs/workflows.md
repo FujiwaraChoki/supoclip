@@ -154,6 +154,27 @@ Download and transcription are shared with highlights. After that:
 Highlights with instructions take the original pipeline with one extra block
 in the user prompt and a derived cache key.
 
+### Part of a long video
+
+Every workflow can run on one picked part of a video (`source.start_seconds` /
+`end_seconds`, see `source_range.py` and the API reference). The part is the
+source as far as planning goes:
+
+- Only the part is transcribed; planners see its word timings, its length
+  (`source_seconds`, so budgets, part counts and recap targets scale with the
+  part) and an outline cached under the part's own key. The source cache key
+  gets the part's suffix, so the outline, workflow plan and transcript rows of
+  one part are never read for another part or for the whole video.
+- The minimum source length (`MIN_SOURCE_SECONDS`) is checked against the part.
+- After planning, segments and the plan move onto the full video's timeline by
+  the part's start (`shift_segment`, `shift_plan`): series `parts`, recap
+  `points` and trailer `beats` ranges move with the segments, so static-range
+  syncing and output starts still match them. Unit ids stay positions in the
+  part's transcript. `workflow_final` freezes the moved cuts, so a retry never
+  moves them twice.
+- Spoiler checks, all-or-nothing failure and refunds are unchanged: the plan is
+  built on the part, and the charge (and so the refund) is the part's length.
+
 ## Failures, refunds, cancel and resume
 
 A workflow never pads its output. When it cannot deliver what it promised it

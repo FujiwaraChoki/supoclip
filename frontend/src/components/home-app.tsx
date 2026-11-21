@@ -721,12 +721,19 @@ export default function HomeApp() {
     if (rangeOffer) return;
     offerRange({ durationSeconds: sourceSeconds, maxSeconds: uploadMaxSeconds, minSeconds: DEFAULT_MIN_RANGE_SECONDS });
   }, [sourceType, sourceSeconds, uploadMaxSeconds, rangeOffer, offerRange]);
-  const rangeProblem = rangeOffer && sourceRange ? sourceRangeProblem(sourceRange, rangeOffer) : null;
-  const sourceTooShort = activeWorkflow !== "highlights" && sourceType === "upload" && sourceSeconds !== null && sourceSeconds < minSourceSeconds;
+  // A picked part has to be long enough for the workflow too (series 2 min, recap and trailer 3).
+  const rangeLimits = rangeOffer && activeWorkflow !== "highlights"
+    ? { ...rangeOffer, minSeconds: Math.max(rangeOffer.minSeconds, minSourceSeconds) }
+    : rangeOffer;
+  const rangeProblem = rangeLimits && sourceRange ? sourceRangeProblem(sourceRange, rangeLimits) : null;
+  // What the workflow will get: the picked part, or the whole upload.
+  const plannedSeconds = rangeOffer && sourceRange ? sourceRange.end - sourceRange.start : sourceType === "upload" ? sourceSeconds : null;
+  // With a part, the picker says when it's too short for the workflow.
+  const sourceTooShort = !rangeOffer && activeWorkflow !== "highlights" && sourceType === "upload" && sourceSeconds !== null && sourceSeconds < minSourceSeconds;
   // An explicit part count needs room for every part at its shortest (backend: D ≥ N · min · 1.25).
   const partRange = workflowsInfo?.workflows.find((entry) => entry.id === "series")?.lengths?.[workflowLengths.series ?? "auto"];
-  const maxPartsThatFit = activeWorkflow === "series" && sourceType === "upload" && sourceSeconds !== null && Array.isArray(partRange)
-    ? Math.floor(sourceSeconds / (partRange[0] * 1.25))
+  const maxPartsThatFit = activeWorkflow === "series" && plannedSeconds !== null && Array.isArray(partRange)
+    ? Math.floor(plannedSeconds / (partRange[0] * 1.25))
     : null;
   const partOptions: PartCount[] = typeof partCount === "number" && !(PART_COUNT_OPTIONS as readonly PartCount[]).includes(partCount)
     ? ["auto", ...[...PART_COUNT_OPTIONS.filter((value): value is Exclude<typeof value, "auto"> => value !== "auto"), partCount].sort((a, b) => a - b)]
@@ -1508,7 +1515,7 @@ export default function HomeApp() {
           {rangeOffer && sourceRange && (
             <TooLongPanel
               ref={rangePanelRef}
-              offer={rangeOffer}
+              offer={rangeLimits ?? rangeOffer}
               range={sourceRange}
               onRangeChange={setSourceRange}
               nextPlan={upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds ? upgradeState.nextPlan : null}

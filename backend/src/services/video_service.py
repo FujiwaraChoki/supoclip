@@ -109,7 +109,7 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
-from ..source_range import SourceRange, cut_audio_range, private_link, shift_segment
+from ..source_range import SourceRange, cut_audio_range, private_link, shift_plan, shift_segment
 from ..media.mp4_fragments import fragmented_mp4_duration
 from ..media.ffmpeg import (
     cap_video_short_side,
@@ -2348,6 +2348,8 @@ class VideoService:
                 # Analysis ran on the part's own timeline. Everything from here
                 # on (sections, render, stored clips) uses the source's.
                 segments_json = [shift_segment(segment, source_range.start) for segment in segments_json]
+                if workflow != "highlights":
+                    workflow_plan = shift_plan(workflow_plan, source_range.start)
             section_duration = (
                 source_range.source_duration if source_range is not None else file_duration
             )

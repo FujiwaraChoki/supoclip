@@ -506,7 +506,7 @@
       "invalid": "Informe um horário de início e um de fim.",
       "order": "O fim precisa vir depois do início.",
       "outOfBounds": "Escolha horários entre 0:00 e {duration}.",
-      "tooShort": "Escolha pelo menos {min} minuto.",
+      "tooShort": "Escolha pelo menos {min, plural, one {# minuto} other {# minutos}}.",
       "tooLong": "Escolha {max} minutos ou menos."
     }
   },

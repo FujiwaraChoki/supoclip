@@ -28,12 +28,13 @@ from typing import Any, Dict, Mapping, Optional
 logger = logging.getLogger(__name__)
 
 METADATA_KEY = "source_range"
-# Shortest part worth clipping. Highlights need room for several 15-60 s clips.
+# Shortest part worth clipping. Highlights need room for several 15-60 s clips;
+# other workflows also need their own minimum (``MIN_SOURCE_SECONDS``), checked
+# against the part's length like any source.
 MIN_SOURCE_RANGE_SECONDS = 60
 # A client that sends the probed length as `end` may be a fraction past it.
 END_TOLERANCE_SECONDS = 2.0
 INVALID_SOURCE_RANGE = "INVALID_SOURCE_RANGE"
-RANGE_WORKFLOWS = frozenset({"highlights"})
 
 
 class SourceRangeError(ValueError):
@@ -220,10 +221,6 @@ def video_too_long_detail(
     }
 
 
-def workflow_supports_range(workflow: str) -> bool:
-    return workflow in RANGE_WORKFLOWS
-
-
 def shift_segment(segment: Dict[str, Any], offset: float) -> Dict[str, Any]:
     """Move one selected segment from the range's timeline onto the source's."""
     from .media.timeline import seconds_to_mmss
@@ -244,6 +241,34 @@ def shift_segment(segment: Dict[str, Any], offset: float) -> Dict[str, Any]:
         ranges = segment.get(key)
         if ranges:
             shifted[key] = [[float(start) + offset, float(end) + offset] for start, end in ranges]
+    return shifted
+
+
+# Lists in a ``workflow_plan`` whose items carry ``ranges`` on the source timeline.
+_PLAN_RANGE_LISTS = ("parts", "points", "beats")
+
+
+def shift_plan(plan: Optional[Dict[str, Any]], offset: float) -> Optional[Dict[str, Any]]:
+    """Move a workflow plan from the range's timeline onto the source's.
+
+    Series parts, recap points and trailer beats name the ranges they play.
+    They are matched against the shifted segments afterwards (static checks,
+    output starts), so they move by the same offset. Unit ids, durations and
+    output starts are not source times and stay as they are.
+    """
+    if not plan or not offset:
+        return plan
+    shifted = dict(plan)
+    for key in _PLAN_RANGE_LISTS:
+        items = plan.get(key)
+        if not isinstance(items, list):
+            continue
+        moved = []
+        for item in items:
+            if isinstance(item, dict) and item.get("ranges"):
+                item = {**item, "ranges": [[round(float(a) + offset, 3), round(float(b) + offset, 3)] for a, b in item["ranges"]]}
+            moved.append(item)
+        shifted[key] = moved
     return shifted
 
 

@@ -87,3 +87,57 @@ test("the task page says which part was clipped and links to where it starts", a
   await expect(page.getByTestId("source-range")).toHaveText("Part 1:30:00–3:30:00");
   await expect(page.getByRole("link", { name: /YouTube/ }).first()).toHaveAttribute("href", /[?&]t=5400s/);
 });
+
+const workflowsInfo = {
+  enabled: true,
+  workflows: [
+    { id: "highlights", available: true, min_source_seconds: 0 },
+    { id: "series", available: true, min_source_seconds: 120, part_count: { min: 2, max: 10 }, lengths: { auto: [45, 150], short: [30, 60], medium: [45, 90], long: [90, 175] } },
+    { id: "topic", available: true, min_source_seconds: 60 },
+    { id: "recap", available: true, min_source_seconds: 180, lengths: { auto: null, short: 45, medium: 75, long: 120 } },
+    { id: "trailer", available: true, min_source_seconds: 180, lengths: { auto: 30, short: 20, medium: 40, long: 60 } },
+  ],
+  topic_max_chars: 120,
+  instructions_max_chars: 500,
+};
+
+for (const [workflow, button] of [["recap", "Make recap"], ["trailer", "Make trailer"], ["series", "Generate series"]] as const) {
+  test(`a ${workflow} of part of a long stream: the part must fit the ${workflow} too`, async ({ page }) => {
+    await mockApp(page);
+    await page.route("**/api/tasks/workflows", (route) => route.fulfill({ json: workflowsInfo }));
+    const bodies: Array<Record<string, any>> = [];
+    await page.route("**/api/tasks/create", async (route) => {
+      const body = route.request().postDataJSON();
+      bodies.push(body);
+      if (body.source.start_seconds === undefined) {
+        await route.fulfill({ status: 422, json: { detail: {
+          code: "VIDEO_TOO_LONG", message: "Too long", duration_seconds: 28800, max_duration_seconds: 7200, min_range_seconds: 60, range_allowed: true,
+        } } });
+        return;
+      }
+      await route.fulfill({ json: { task_id: "demo-task" } });
+    });
+    await page.route("**/tasks/demo-task**", (route) => route.fulfill({ contentType: "text/html", body: "Demo task page" }));
+
+    await page.goto("/");
+    await page.getByRole("radio", { name: new RegExp(workflow, "i") }).first().click();
+    await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill("https://www.twitch.tv/videos/1234567890");
+    await page.getByRole("button", { name: button, exact: true }).click();
+
+    const panel = page.getByTestId("source-range-panel");
+    await panel.getByRole("textbox", { name: "Start" }).fill("1:00:00");
+    await panel.getByRole("textbox", { name: "Start" }).press("Enter");
+    // Two minutes is enough for highlights; a series needs 2 and a recap or trailer 3.
+    await panel.getByRole("textbox", { name: "End" }).fill(workflow === "series" ? "1:01:30" : "1:02:00");
+    await panel.getByRole("textbox", { name: "End" }).press("Enter");
+    await expect(panel.getByRole("alert")).toHaveText(workflow === "series" ? "Pick at least 2 minutes." : "Pick at least 3 minutes.");
+    await expect(panel.getByRole("button", { name: "Clip this part" })).toBeDisabled();
+
+    await panel.getByRole("textbox", { name: "End" }).fill("1:30:00");
+    await panel.getByRole("textbox", { name: "End" }).press("Enter");
+    await panel.getByRole("button", { name: "Clip this part" }).click();
+    await expect.poll(() => bodies.length).toBe(2);
+    expect(bodies[1].workflow).toBe(workflow);
+    expect(bodies[1].source).toMatchObject({ start_seconds: 3600, end_seconds: 5400 });
+  });
+}

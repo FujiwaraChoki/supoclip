@@ -112,7 +112,6 @@ from ...source_range import (
     parse_requested_range,
     resolve_source_range,
     video_too_long_detail,
-    workflow_supports_range,
 )
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -780,10 +779,6 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         workflow_spec = parse_workflow_request(data, clip_length)
     except WorkflowRequestError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
-    if requested_range is not None and not workflow_supports_range(workflow_spec.workflow):
-        raise HTTPException(status_code=422, detail=SourceRangeError(
-            "Picking a part of a video works with highlights. Choose highlights, or a shorter video."
-        ).to_detail())
     if not workflow_spec.legacy and not await workflow_allowed_for(
         db, user_id, workflow_spec.workflow, platform=client_platform(request)
     ):

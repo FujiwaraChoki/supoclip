@@ -178,8 +178,13 @@ the video). Either may be left out: start defaults to 0, end to the video's end.
   start is rounded to a whole second. Otherwise 422 `INVALID_SOURCE_RANGE` with
   `message`, `duration_seconds`, `max_duration_seconds` and `min_range_seconds`,
   before any task or charge.
-- Highlights only (any `instructions` are fine). Another `workflow` with a range
-  is a 422 `INVALID_SOURCE_RANGE`.
+- Works with every `workflow` (highlights, series, topic, recap, trailer) and any
+  `instructions`. The part is treated as the source: a workflow's minimum length
+  is checked against the part (`SOURCE_TOO_SHORT_FOR_SERIES` under 2 minutes,
+  `..._RECAP`/`..._TRAILER` under 3, `..._TOPIC` under 1), series part counts and
+  recap lengths are sized from it, and its outline and plan are cached per part.
+  Planned ranges in `workflow_plan` (series `parts`, recap `points`, trailer
+  `beats`) are on the full video's timeline, like clip times.
 - Minutes charged (`source_duration_seconds`) are the part's length; a failed
   task refunds the same amount and a resume charges it again.
 - A range that covers the whole video is treated as no range.

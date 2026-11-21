@@ -186,7 +186,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 ## API Endpoints (routes in `api/routes/`)
 
 **Task lifecycle:**
-- `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`, `source.start_seconds`/`source.end_seconds` (clip one part of a video over the plan's per-video limit; `source_range.py`)
+- `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`, `source.start_seconds`/`source.end_seconds` (clip one part of a video over the plan's per-video limit, any workflow; `source_range.py`)
 - `GET /tasks/workflows` — What the user can make on this platform (workflows flag, env gate, limits)
 - `GET /feature-flags` — Feature flags evaluated for the caller and platform
 - `GET /tasks/` — List user tasks

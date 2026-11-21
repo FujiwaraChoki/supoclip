@@ -216,18 +216,6 @@ async def test_malformed_range_is_rejected_before_any_lookup(monkeypatch, creati
 
 
 @pytest.mark.asyncio
-async def test_range_only_works_with_highlights(monkeypatch, creation):
-    request, _service, _queue, _saved = creation
-    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": EIGHT_HOURS}))
-    with pytest.raises(HTTPException) as error:
-        await tasks.create_task(
-            request({"url": YOUTUBE_URL, "start_seconds": 0, "end_seconds": 3600}, workflow="recap"), db=None,
-        )
-    assert error.value.detail["code"] == "INVALID_SOURCE_RANGE"
-    assert "highlights" in error.value.detail["message"]
-
-
-@pytest.mark.asyncio
 async def test_twitch_part_uses_the_range_length(monkeypatch, creation):
     request, service, _queue, _saved = creation
     preflight = AsyncMock(return_value={"duration": EIGHT_HOURS, "title": "VOD"})

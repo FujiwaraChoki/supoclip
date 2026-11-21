@@ -506,7 +506,7 @@
       "invalid": "Enter a start and an end time.",
       "order": "The end has to come after the start.",
       "outOfBounds": "Pick times between 0:00 and {duration}.",
-      "tooShort": "Pick at least {min} minute.",
+      "tooShort": "Pick at least {min, plural, one {# minute} other {# minutes}}.",
       "tooLong": "Pick {max} minutes or less."
     }
   },

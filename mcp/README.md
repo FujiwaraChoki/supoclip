@@ -357,7 +357,9 @@ second and third hour of a stream: `start_seconds=3600, end_seconds=10800`.
   end of the video.
 - The part must be at least 60 seconds and at most the plan's per-video limit.
   Only the part is downloaded and processed, and only its minutes are charged.
-- Highlights only. Clip timestamps stay on the full video's timeline.
+- Works with every workflow; the part must also meet the workflow's own minimum
+  (2 minutes for a series, 3 for a recap or trailer). Clip timestamps and
+  `workflow_plan` ranges stay on the full video's timeline.
 - An invalid part fails with `INVALID_SOURCE_RANGE`.
 
 ## Tests

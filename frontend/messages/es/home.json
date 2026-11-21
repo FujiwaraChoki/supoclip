@@ -506,7 +506,7 @@
       "invalid": "Escribe una hora de inicio y una de fin.",
       "order": "El fin tiene que ir después del inicio.",
       "outOfBounds": "Elige tiempos entre 0:00 y {duration}.",
-      "tooShort": "Elige al menos {min} minuto.",
+      "tooShort": "Elige al menos {min, plural, one {# minuto} other {# minutos}}.",
       "tooLong": "Elige {max} minutos o menos."
     }
   },

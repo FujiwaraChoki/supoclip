@@ -46,3 +46,13 @@ def test_invalid_part_does_not_create_a_task(monkeypatch, kwargs, message):
     request, result = _create(monkeypatch, **kwargs)
     assert message in result
     request.assert_not_awaited()
+
+
+@pytest.mark.parametrize("workflow, extra", [
+    ("series", {}), ("topic", {"topic": "money"}), ("recap", {}), ("trailer", {}),
+])
+def test_a_part_goes_with_every_workflow(monkeypatch, workflow, extra):
+    request, _ = _create(monkeypatch, workflow=workflow, start_seconds=3600, end_seconds=5400, **extra)
+    body = request.await_args.kwargs["json_body"]
+    assert body["workflow"] == workflow
+    assert body["source"] == {"url": URL, "start_seconds": 3600, "end_seconds": 5400}

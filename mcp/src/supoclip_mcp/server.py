@@ -524,9 +524,9 @@ async def supoclip_create_clip_task(
     Long videos: a video longer than the plan's per-video limit fails with 422
     VIDEO_TOO_LONG (``detail.duration_seconds``, ``max_duration_seconds``,
     ``range_allowed``). Pass ``start_seconds``/``end_seconds`` to clip one part
-    of it instead (highlights only): the part may be up to the plan's limit and
-    at least 60 s, only the part is downloaded and processed, and only its
-    minutes are charged. Clip timestamps stay on the full video's timeline.
+    of it instead, with any workflow: the part may be up to the plan's limit
+    and at least 60 s (or the workflow's own minimum), only the part is
+    downloaded and processed, and only its minutes are charged. Clip timestamps stay on the full video's timeline.
     An invalid part fails with 422 INVALID_SOURCE_RANGE.
 
     Workflows other than plain highlights may not be enabled for every account
