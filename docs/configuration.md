@@ -380,8 +380,10 @@ number of extra seats as its quantity. Each team has its own Stripe customer, se
 personal subscriptions.
 
 - **Switching it on:** on a hosted install (`SELF_HOST=false`) team workspaces cannot be created until
-  `STRIPE_TEAM_PRICE_ID` (or the yearly price) is set, so a release can ship before its prices exist. Set the
-  prices once the previous release has stopped serving: its webhook handler does not know team subscriptions.
+  `STRIPE_TEAM_PRICE_ID` (or the yearly price) is set, so a release can ship before its prices exist. With two
+  Stripe accounts it is the price of the account new checkouts go to: `STRIPE_DESTINATION_TEAM_PRICE_ID` when
+  `STRIPE_CHECKOUT_ACCOUNT_ID` is the destination account. Set the prices once the previous release has stopped
+  serving: its webhook handler does not know team subscriptions.
 - **Entitlement:** a team has the Team plan only while its subscription carries a Team base price (current or
   listed in `STRIPE_TEAM_LEGACY_PRICE_IDS`). A subscription moved to another product in the billing portal or
   the dashboard does not keep the pooled allowance, so keep plan switching off for team customers in the

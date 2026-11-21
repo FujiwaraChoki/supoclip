@@ -1,6 +1,11 @@
 import type { BillingInterval, BillingPlanId } from "@/lib/billing-plans";
 import { getTeamBillingConfig } from "@/lib/billing-plans";
-import { stripePriceEnvPrefix } from "@/lib/stripe-accounts";
+import {
+  checkoutStripeAccountId,
+  stripeAccountRole,
+  stripeAccountsEnabled,
+  stripePriceEnvPrefix,
+} from "@/lib/stripe-accounts";
 import type Stripe from "stripe";
 
 export type ServerBillingPlan = {
@@ -44,8 +49,7 @@ export function getServerBillingPlans(): ServerBillingPlan[] {
   ];
 }
 
-export function getTeamStripePrices(): TeamStripePrices {
-  const prefix = stripePriceEnvPrefix();
+export function getTeamStripePrices(prefix: string = stripePriceEnvPrefix()): TeamStripePrices {
   return {
     base: {
       month: process.env[`${prefix}TEAM_PRICE_ID`] || null,
@@ -68,8 +72,27 @@ export function getTeamStripePrices(): TeamStripePrices {
  */
 export function teamPlanAvailable(monetizationEnabled: boolean): boolean {
   if (!monetizationEnabled) return true;
-  const { base } = getTeamStripePrices();
+  const { base } = getTeamStripePrices(checkoutPriceEnvPrefix());
   return Boolean(base.month || base.year);
+}
+
+/**
+ * The price variables of the Stripe account a new checkout goes to. Unlike
+ * `stripePriceEnvPrefix()`, this needs no request account scope: it answers
+ * "could a team subscribe here?" from routes that never talk to Stripe. With
+ * two accounts configured and checkout on the destination, those prices are
+ * the `STRIPE_DESTINATION_*` ones.
+ */
+function checkoutPriceEnvPrefix(): string {
+  if (!stripeAccountsEnabled()) return "STRIPE_";
+  try {
+    return stripeAccountRole(checkoutStripeAccountId()) === "destination"
+      ? "STRIPE_DESTINATION_"
+      : "STRIPE_";
+  } catch {
+    // Accounts are switched on but not configured: checkout would fail too.
+    return "STRIPE_UNCONFIGURED_";
+  }
 }
 
 export function isTeamBaseStripePrice(priceId: string | null | undefined): boolean {

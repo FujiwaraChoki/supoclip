@@ -134,6 +134,28 @@ describe("Next.js Team API routes", () => {
     expect(prismaMock.team.create).not.toHaveBeenCalled();
   });
 
+  it("opens team creation when only the checkout account's Team price is set", async () => {
+    // Two Stripe accounts with checkout on the destination: its prices are the
+    // STRIPE_DESTINATION_* ones, and this route runs outside any account scope.
+    vi.stubEnv("STRIPE_TEAM_PRICE_ID", "");
+    vi.stubEnv("STRIPE_ACCOUNT_MIGRATION_ENABLED", "true");
+    vi.stubEnv("STRIPE_SOURCE_ACCOUNT_ID", "acct_source1");
+    vi.stubEnv("STRIPE_DESTINATION_ACCOUNT_ID", "acct_destination1");
+    vi.stubEnv("STRIPE_CHECKOUT_ACCOUNT_ID", "acct_destination1");
+    vi.stubEnv("STRIPE_DESTINATION_TEAM_PRICE_ID", "price_dest_team_month");
+    prismaMock.team.findUnique.mockResolvedValue(null);
+    prismaMock.team.create.mockResolvedValue({
+      id: "team-new", name: "Clip Squad", slug: "clip-squad", owner_id: "u-owner",
+      plan: "free", subscription_status: "inactive", seat_limit: 3,
+    });
+    prismaMock.teamMember.create.mockResolvedValue({ id: "m1" });
+    prismaMock.teamMember.findMany.mockResolvedValue([]);
+    getVerifiedActiveTeamIdMock.mockResolvedValue(null);
+
+    expect((await (await teamsRoute.GET()).json()).available).toBe(true);
+    expect((await teamsRoute.POST(jsonReq({ name: "Clip Squad" }))).status).toBe(201);
+  });
+
   it("drops a workspace cookie the caller no longer has a membership for", async () => {
     const { cookies } = await import("next/headers");
     vi.mocked(cookies).mockResolvedValue({
