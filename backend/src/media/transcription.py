@@ -417,16 +417,27 @@ def _pick_youtube_auto_caption_url(
                 return url
         return None
 
-    wanted = [(language or "").split("_", 1)[0].lower(), str(info.get("language") or "").lower()]
-    candidates: List[str] = []
+    # The track must be the language actually spoken in the original audio.
+    # Auto-dubbed videos also list a "-orig" track for every dubbed language, so
+    # an unmatched language never falls back to "whichever -orig comes first".
+    def base(code: str) -> str:
+        return code.replace("_", "-").split("-", 1)[0].lower()
+
+    spoken = str(info.get("language") or "")
+    wanted: List[str] = []
+    for code in (language or "", spoken):
+        for candidate in (code.replace("_", "-").lower(), base(code)):
+            if candidate and candidate not in wanted:
+                wanted.append(candidate)
+    if not wanted:
+        # No language is known: use the one "-orig" track only if it is unambiguous.
+        originals = [key for key in tracks if key.endswith("-orig")]
+        wanted = [key[: -len("-orig")] for key in originals] if len(originals) == 1 else []
     for code in wanted:
-        if code:
-            candidates += [f"{code}-orig", code]
-    candidates += [key for key in tracks if key.endswith("-orig")] + ["en"]
-    for key in candidates:
-        url = original(key)
-        if url:
-            return url
+        for key in (f"{code}-orig", code):
+            url = original(key)
+            if url:
+                return url
     return None
 
 

@@ -218,3 +218,43 @@ def test_caption_fetch_failure_returns_none_instead_of_raising(monkeypatch):
 
     monkeypatch.setattr(yt_dlp, "YoutubeDL", Broken)
     assert transcription.transcribe_with_youtube_word_captions("https://youtu.be/aaaaaaaaaaa") is None
+
+
+def dubbed_info(spoken, keys):
+    def track(key):
+        return [{"ext": "json3", "url": f"https://example.com/timedtext?track={key}"}]
+
+    return {"language": spoken, "automatic_captions": {key: track(key) for key in keys}}
+
+
+def test_a_dubbed_video_uses_the_spoken_language_track_not_a_dub():
+    # Auto-dubbed videos list a "-orig" track per dubbed language; with the
+    # regional spoken language "en-US" the English track must still be chosen.
+    info = dubbed_info("en-US", ["ar-orig", "ar", "en-orig", "en", "hi-orig", "hi"])
+    assert transcription._pick_youtube_auto_caption_url(info, None) == (
+        "https://example.com/timedtext?track=en-orig"
+    )
+
+
+def test_never_falls_back_to_an_arbitrary_dub_track():
+    info = dubbed_info("en-US", ["ar-orig", "hi-orig"])
+    assert transcription._pick_youtube_auto_caption_url(info, None) is None
+
+
+def test_unknown_language_with_several_originals_is_ambiguous():
+    info = dubbed_info("", ["ar-orig", "en-orig"])
+    assert transcription._pick_youtube_auto_caption_url(info, None) is None
+
+
+def test_unknown_language_with_one_original_uses_it():
+    info = dubbed_info("", ["fr-orig", "fr"])
+    assert transcription._pick_youtube_auto_caption_url(info, None) == (
+        "https://example.com/timedtext?track=fr-orig"
+    )
+
+
+def test_a_configured_language_picks_its_own_track():
+    info = dubbed_info("en-US", ["en-orig", "es-orig"])
+    assert transcription._pick_youtube_auto_caption_url(info, "es") == (
+        "https://example.com/timedtext?track=es-orig"
+    )
