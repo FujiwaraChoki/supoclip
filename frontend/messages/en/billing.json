@@ -71,6 +71,19 @@
       "title": "Do more with {plan}",
       "titleFallback": "Plans for every creator",
       "body": "More video each month, Full HD clips, longer sources and priority processing."
+    },
+    "member": {
+      "eyebrow": "Your limit in {team}",
+      "pausedTitle": "Your seat is paused for new videos",
+      "pausedBody": "A team admin paused video generation for your seat. Ask them to turn it back on. This try didn't use any minutes.",
+      "title": "You've used your {limit} minutes for this month",
+      "titleShort": "This video needs {required} minutes, and you have {remaining} left in your limit",
+      "bodyRefresh": "A team admin set your limit to {limit} minutes a month. It resets on {date}, or ask an admin to raise it. This try didn't use any minutes.",
+      "bodyPeriod": "A team admin set your limit to {limit} minutes a month. It resets next month, or ask an admin to raise it. This try didn't use any minutes."
+    },
+    "teamStart": {
+      "title": "{team} needs a Team plan to make clips",
+      "body": "Clips made here use the team's shared hours, so the team needs an active Team plan first."
     }
   },
   "illustration": {
@@ -106,5 +119,6 @@
   },
   "comingSoon": "Coming soon",
   "teamWorkspaceBody": "{team} uses a pooled Team subscription. Owners can activate the plan or add seats to expand pooled monthly hours.",
-  "manageTeamSeats": "Manage team & seats"
+  "manageTeamSeats": "Manage team & seats",
+  "teamAskOwner": "{team} uses a pooled Team subscription. Ask the team owner to start the plan or add seats."
 }

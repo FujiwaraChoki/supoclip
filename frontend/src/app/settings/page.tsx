@@ -17,6 +17,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
 import { useSocialAccess } from "@/hooks/use-social-access";
+import { useWorkspace } from "@/hooks/use-workspace";
 import {
   annualFullPrice,
   annualMonthlyEquivalent,
@@ -70,6 +71,7 @@ export default function SettingsPage() {
   const [celebration, setCelebration] = useState<"waiting" | "show" | null>(null);
   const { data: session, isPending, refetch: refetchSession } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
+  const { teams, teamsAvailable } = useWorkspace(Boolean(session?.user));
   const t = useTranslations("settings");
   const common = useTranslations("common");
   const tLang = useTranslations("language");
@@ -539,7 +541,7 @@ export default function SettingsPage() {
                 />
               )}
 
-              {paymentNeedsUpdate && <PaymentFailedBanner />}
+              {paymentNeedsUpdate && <PaymentFailedBanner teamId={isTeamWorkspace ? billingSummary.team_id : undefined} />}
 
               {isTeamWorkspace ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 p-4">
@@ -665,7 +667,7 @@ export default function SettingsPage() {
                       </span>
                     </button>
                   ))}
-                  <Link
+                  {teamsAvailable && <Link
                     href="/settings/team"
                     className="group flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 transition-colors hover:border-foreground/30 sm:col-span-2"
                   >
@@ -697,7 +699,7 @@ export default function SettingsPage() {
                       {t("plan.createTeamCta")}
                       <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
                     </span>
-                  </Link>
+                  </Link>}
                   <CreatorCodeField className="justify-self-start sm:col-span-2" />
                 </div>
               )}
@@ -705,14 +707,14 @@ export default function SettingsPage() {
           </Section>
         )}
 
-        <Link href="/settings/team" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
+        {(teamsAvailable || teams.length > 0) && <Link href="/settings/team" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Users className="size-4" /></span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold">{t("links.teamTitle")}</span>
             <span className="block text-xs text-muted-foreground">{t("links.teamDescription")}</span>
           </span>
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-        </Link>
+        </Link>}
 
         <Link href="/settings/api-keys" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Bot className="size-4" /></span>

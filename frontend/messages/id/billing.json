@@ -71,6 +71,19 @@
       "title": "Lakukan lebih banyak dengan {plan}",
       "titleFallback": "Paket untuk setiap kreator",
       "body": "Lebih banyak video tiap bulan, clip Full HD, sumber yang lebih panjang, dan pemrosesan prioritas."
+    },
+    "member": {
+      "eyebrow": "Batasmu di {team}",
+      "pausedTitle": "Kursimu dijeda untuk video baru",
+      "pausedBody": "Admin tim menjeda pembuatan video untuk kursimu. Minta mereka mengaktifkannya lagi. Percobaan ini tidak memakai menit.",
+      "title": "Kamu sudah memakai {limit} menit jatahmu bulan ini",
+      "titleShort": "Video ini butuh {required} menit, dan batasmu tersisa {remaining}",
+      "bodyRefresh": "Admin tim menetapkan batasmu {limit} menit sebulan. Batas ini diperbarui pada {date}, atau minta admin menaikkannya. Percobaan ini tidak memakai menit.",
+      "bodyPeriod": "Admin tim menetapkan batasmu {limit} menit sebulan. Batas ini diperbarui bulan depan, atau minta admin menaikkannya. Percobaan ini tidak memakai menit."
+    },
+    "teamStart": {
+      "title": "{team} butuh paket Tim untuk membuat klip",
+      "body": "Klip yang dibuat di sini memakai jam bersama tim, jadi tim perlu paket Tim yang aktif lebih dulu."
     }
   },
   "illustration": {
@@ -106,5 +119,6 @@
   },
   "comingSoon": "Segera hadir",
   "teamWorkspaceBody": "{team} menggunakan langganan Tim bersama. Pemilik dapat mengaktifkan paket atau menambah kursi untuk memperluas jam bulanan.",
-  "manageTeamSeats": "Kelola tim & kursi"
+  "manageTeamSeats": "Kelola tim & kursi",
+  "teamAskOwner": "{team} menggunakan langganan Tim bersama. Minta pemilik tim untuk mengaktifkan paket atau menambah kursi."
 }

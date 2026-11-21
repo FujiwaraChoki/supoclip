@@ -32,7 +32,8 @@
     "nameLabel": "团队名称",
     "namePlaceholder": "例如：剪辑工作室",
     "creating": "正在创建…",
-    "submit": "创建团队"
+    "submit": "创建团队",
+    "unavailable": "团队工作区暂未开放。"
   },
   "overview": {
     "pooledVideo": "共享视频时长",
@@ -68,17 +69,18 @@
     "perMonth": "/月",
     "perYear": "/年",
     "baseLine": "团队基础版（{seats} 席位，{hours} 小时/月）",
-    "extraSeatsLine": "{count} 个额外席位（每个 ${price}，+{hours} 小时/月）",
+    "extraSeatsLine": "{count, plural, other {# 个额外席位}}（每个 ${price}，+{hours} 小时/月）",
     "totalLine": "合计（{seats} 席位 · {hours} 小时/月）",
     "includedFeatures": "包含 {resolution} 切片、最长 {youtubeHours} 小时 YouTube 视频、社交定时发布及每月 {aiEdits} 次共享 AI 编辑。",
     "openingCheckout": "正在打开结账页…",
     "startPlan": "订阅团队套餐",
     "managePortal": "管理账单",
-    "prorationNote": "Stripe 会在下一张账单中自动按比例折算席位变更费用。",
+    "prorationNote": "新增席位会立即按本计费周期的剩余时间收费。减少席位立即生效，且不予退款。",
     "ownerOnlyNotice": "仅团队所有者可开通订阅、调整席位或管理账单。",
     "paymentFailed": "团队上次付款失败。请更新付款方式以继续剪辑。",
     "updatePayment": "更新付款方式",
-    "cancelScheduled": "此团队订阅计划于 {date} 取消。"
+    "cancelScheduled": "此团队订阅计划于 {date} 取消。",
+    "includedFeaturesNoScheduling": "包含 {resolution} 切片、最长 {youtubeHours} 小时 YouTube 视频及每月 {aiEdits} 次共享 AI 编辑。"
   },
   "members": {
     "title": "成员与邀请",
@@ -123,7 +125,10 @@
     "presetUnlimited": "不限",
     "presetPause": "暂停 (0)",
     "saveLimits": "保存限额",
-    "savingLimits": "正在保存…"
+    "savingLimits": "正在保存…",
+    "roleFor": "{name} 的角色",
+    "presetHours": "{hours} 小时（{minutes} 分钟）",
+    "subscribeToInvite": "订阅团队套餐后即可邀请成员。"
   },
   "general": {
     "title": "常规",
@@ -208,6 +213,11 @@
     "removeMemberFailed": "移除成员失败。",
     "transferFailed": "转让所有权失败。",
     "deleteFailed": "删除团队失败。",
-    "limitsUpdateFailed": "更新成员限额失败。"
+    "limitsUpdateFailed": "更新成员限额失败。",
+    "teamsUnavailable": "团队工作区暂未开放。",
+    "subscriptionRequired": "请先订阅团队套餐。",
+    "inviteRateLimited": "短时间内邀请过多，请稍后再试。",
+    "seatPaymentFailed": "额外席位的付款未成功。请在“管理账单”中更新付款方式后重试。",
+    "teamLimitReached": "你拥有的团队数量已达上限。请先删除不再使用的团队。"
   }
 }

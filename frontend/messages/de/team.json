@@ -32,7 +32,8 @@
     "nameLabel": "Teamname",
     "namePlaceholder": "z. B. Studio Clips Crew",
     "creating": "Wird erstellt…",
-    "submit": "Team erstellen"
+    "submit": "Team erstellen",
+    "unavailable": "Team-Workspaces sind noch nicht verfügbar."
   },
   "overview": {
     "pooledVideo": "Gemeinsame Videozeit",
@@ -68,17 +69,18 @@
     "perMonth": "/Monat",
     "perYear": "/Jahr",
     "baseLine": "Team-Basis ({seats} Plätze, {hours} Std./Monat)",
-    "extraSeatsLine": "{count} Zusatzplätze (${price} je Platz, +{hours} Std./Monat)",
+    "extraSeatsLine": "{count, plural, one {# Zusatzplatz} other {# Zusatzplätze}} (${price} je Platz, +{hours} Std./Monat)",
     "totalLine": "Gesamt ({seats} Plätze · {hours} gemeinsame Std./Monat)",
     "includedFeatures": "Enthält {resolution}-Clips, YouTube bis {youtubeHours} Std., Social-Planung und {aiEdits} KI-Edits/Monat.",
     "openingCheckout": "Checkout wird geöffnet…",
     "startPlan": "Team-Tarif starten",
     "managePortal": "Abrechnung verwalten",
-    "prorationNote": "Stripe berechnet Platzänderungen automatisch anteilig auf der nächsten Rechnung.",
+    "prorationNote": "Zusätzliche Plätze werden sofort für den Rest des Abrechnungszeitraums berechnet. Entfernte Plätze entfallen sofort und werden nicht erstattet.",
     "ownerOnlyNotice": "Nur der Team-Eigentümer kann ein Abo starten, Plätze ändern oder die Abrechnung verwalten.",
     "paymentFailed": "Die letzte Zahlung des Teams ist fehlgeschlagen. Aktualisiere die Zahlungsmethode.",
     "updatePayment": "Zahlungsmethode aktualisieren",
-    "cancelScheduled": "Dieses Team-Abo wird am {date} gekündigt."
+    "cancelScheduled": "Dieses Team-Abo wird am {date} gekündigt.",
+    "includedFeaturesNoScheduling": "Enthält {resolution}-Clips, YouTube bis {youtubeHours} Std. und {aiEdits} KI-Edits/Monat."
   },
   "members": {
     "title": "Mitglieder & Einladungen",
@@ -123,7 +125,10 @@
     "presetUnlimited": "Unbegrenzt",
     "presetPause": "Pausieren (0)",
     "saveLimits": "Limits speichern",
-    "savingLimits": "Wird gespeichert…"
+    "savingLimits": "Wird gespeichert…",
+    "roleFor": "Rolle von {name}",
+    "presetHours": "{hours} Std. ({minutes} Min.)",
+    "subscribeToInvite": "Starte den Team-Tarif, um Teammitglieder einzuladen."
   },
   "general": {
     "title": "Allgemein",
@@ -208,6 +213,11 @@
     "removeMemberFailed": "Mitglied konnte nicht entfernt werden.",
     "transferFailed": "Eigentümerschaft konnte nicht übertragen werden.",
     "deleteFailed": "Team konnte nicht gelöscht werden.",
-    "limitsUpdateFailed": "Mitgliederlimits konnten nicht aktualisiert werden."
+    "limitsUpdateFailed": "Mitgliederlimits konnten nicht aktualisiert werden.",
+    "teamsUnavailable": "Team-Workspaces sind noch nicht verfügbar.",
+    "subscriptionRequired": "Starte zuerst den Team-Tarif.",
+    "inviteRateLimited": "Zu viele Einladungen in kurzer Zeit. Versuche es später erneut.",
+    "seatPaymentFailed": "Die Zahlung für die zusätzlichen Plätze ist fehlgeschlagen. Aktualisiere die Zahlungsmethode unter „Abrechnung verwalten“ und versuche es erneut.",
+    "teamLimitReached": "Du hast die Anzahl an Teams erreicht, die ein Konto besitzen kann. Lösche zuerst ein Team, das du nicht mehr brauchst."
   }
 }

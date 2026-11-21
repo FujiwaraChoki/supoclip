@@ -377,7 +377,11 @@
     "resets": "Resets {date}.",
     "subscriptionRequired": "AI editing requires Pro or Creator.",
     "upgradeCreator": "Upgrade to Creator",
-    "viewPlans": "View plans"
+    "viewPlans": "View plans",
+    "memberPaused": "A team admin paused AI edits for your seat.",
+    "memberLimitReached": "You've used your {limit} AI edits for this month. Ask a team admin to raise your limit.",
+    "teamPlanRequired": "AI editing requires an active Team plan.",
+    "teamSettings": "Team settings"
   },
   "partLabel": "Part {n}",
   "partClipLabel": "Part {n} · {title}",

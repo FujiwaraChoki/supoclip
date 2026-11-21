@@ -131,6 +131,14 @@ export interface AIEditUsage {
   remaining: number | null;
   resetsAt: string | null;
   allowed: boolean;
+  /**
+   * Team clips only: this member's own monthly limit, set by a team admin (null = none,
+   * 0 = paused). `limit`, `used` and `remaining` are the whole team's pool.
+   */
+  memberLimit?: number | null;
+  memberUsed?: number | null;
+  memberRemaining?: number | null;
+  memberLimitReached?: boolean;
 }
 
 export interface EditorState {

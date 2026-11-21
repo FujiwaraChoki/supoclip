@@ -22,24 +22,42 @@ export interface TeamSummary {
 export interface WorkspacePayload {
   activeTeamId: string | null;
   teams: TeamSummary[];
+  /** False on a hosted install that cannot sell the Team plan yet: no new teams there. */
+  available?: boolean;
+}
+
+/** A failed workspace request: the server's message (may be empty) and its error code. */
+export class WorkspaceRequestError extends Error {
+  code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "WorkspaceRequestError";
+    this.code = code;
+  }
 }
 
 let pendingWorkspace: Promise<WorkspacePayload | null> | null = null;
 let cachedWorkspace: WorkspacePayload | null = null;
 
+/**
+ * The last good answer stays until a newer one arrives: a request that fails on the way
+ * (a blip, a 500) must not hide the switcher or turn Team settings into "Create a team".
+ * Only a 401 forgets it, because then nobody is signed in.
+ */
 function loadWorkspaces(force = false): Promise<WorkspacePayload | null> {
-  if (force) {
-    pendingWorkspace = null;
-    cachedWorkspace = null;
-  }
+  if (force) pendingWorkspace = null;
   pendingWorkspace ??= fetch("/api/teams", { cache: "no-store" })
     .then(async (response) => {
-      if (!response.ok) return null;
-      const data = (await response.json()) as WorkspacePayload;
-      cachedWorkspace = data;
-      return data;
+      if (response.status === 401) {
+        cachedWorkspace = null;
+        return null;
+      }
+      if (!response.ok) return cachedWorkspace;
+      cachedWorkspace = (await response.json()) as WorkspacePayload;
+      return cachedWorkspace;
     })
-    .catch(() => null)
+    .catch(() => cachedWorkspace)
     .finally(() => {
       setTimeout(() => {
         pendingWorkspace = null;
@@ -50,33 +68,79 @@ function loadWorkspaces(force = false): Promise<WorkspacePayload | null> {
 
 export function invalidateWorkspaces() {
   pendingWorkspace = null;
-  cachedWorkspace = null;
   invalidateBillingSummary();
+}
+
+// The active workspace is a cookie, so it changes for every tab at once. Tell the other
+// tabs, or they keep showing one workspace while their next request acts in another.
+const WORKSPACE_SWITCH_CHANNEL = "supoclip:workspace-switch";
+let switchChannel: BroadcastChannel | null | undefined;
+
+function onSwitchedInOtherTab() {
+  // A task stays reachable from any workspace its owner or team allows, so an open task or
+  // editor is left alone (it may hold work in progress); only its shell catches up.
+  if (window.location.pathname.startsWith("/tasks/")) invalidateWorkspaces();
+  else window.location.reload();
+}
+
+/** One channel per tab: a channel never hears its own messages, so this tab is not told. */
+function workspaceSwitchChannel(): BroadcastChannel | null {
+  if (switchChannel !== undefined) return switchChannel;
+  if (typeof BroadcastChannel === "undefined") {
+    switchChannel = null;
+    // A `storage` event fires in every other tab of this origin.
+    window.addEventListener("storage", (event) => {
+      if (event.key === WORKSPACE_SWITCH_CHANNEL && event.newValue) onSwitchedInOtherTab();
+    });
+    return null;
+  }
+  switchChannel = new BroadcastChannel(WORKSPACE_SWITCH_CHANNEL);
+  switchChannel.addEventListener("message", onSwitchedInOtherTab);
+  return switchChannel;
+}
+
+/** Call after the workspace cookie changed (switch, new team, leaving or deleting the active team). */
+export function announceWorkspaceSwitch() {
+  try {
+    const channel = workspaceSwitchChannel();
+    if (channel) channel.postMessage("switched");
+    else window.localStorage.setItem(WORKSPACE_SWITCH_CHANNEL, String(Date.now()));
+  } catch {
+    // Storage can be blocked; this tab still switches.
+  }
+}
+
+/** The server's reason when it gave one. Callers fall back to their own translated message. */
+async function requestError(response: Response): Promise<WorkspaceRequestError> {
+  const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
+  return new WorkspaceRequestError(
+    typeof payload.error === "string" ? payload.error : "",
+    typeof payload.code === "string" ? payload.code : undefined,
+  );
 }
 
 export function useWorkspace(enabled: boolean) {
   const [data, setData] = useState<WorkspacePayload | null>(() => cachedWorkspace);
-  const [loading, setLoading] = useState<boolean>(enabled && !cachedWorkspace);
+  // True once a request has answered. Until then nothing is known, which is not "no teams".
+  const [settled, setSettled] = useState<boolean>(() => cachedWorkspace !== null);
 
   const refresh = useCallback(async () => {
     if (!enabled) return null;
     const next = await loadWorkspaces(true);
     setData(next);
-    setLoading(false);
+    setSettled(true);
     return next;
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled) {
-      setLoading(false);
-      return;
-    }
+    if (!enabled) return;
+    workspaceSwitchChannel();
     let cancelled = false;
     const run = (force = false) => {
       void loadWorkspaces(force).then((next) => {
         if (!cancelled) {
           setData(next);
-          setLoading(false);
+          setSettled(true);
         }
       });
     };
@@ -95,11 +159,9 @@ export function useWorkspace(enabled: boolean) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ teamId }),
     });
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(payload.error || "Could not switch workspace");
-    }
+    if (!response.ok) throw await requestError(response);
     invalidateWorkspaces();
+    announceWorkspaceSwitch();
     if (redirectTo) {
       window.location.assign(redirectTo);
       return;
@@ -117,14 +179,12 @@ export function useWorkspace(enabled: boolean) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    const payload = (await response.json().catch(() => ({}))) as {
-      team?: TeamSummary;
-      error?: string;
-    };
-    if (!response.ok || !payload.team) {
-      throw new Error(payload.error || "Could not create team");
-    }
+    if (!response.ok) throw await requestError(response);
+    const payload = (await response.json().catch(() => ({}))) as { team?: TeamSummary };
+    if (!payload.team) throw new WorkspaceRequestError("");
     invalidateWorkspaces();
+    // Creating a team makes it the active workspace.
+    announceWorkspaceSwitch();
     return payload.team;
   }, []);
 
@@ -136,9 +196,18 @@ export function useWorkspace(enabled: boolean) {
     activeTeamId,
     activeTeam,
     teams,
-    loading,
+    // Whether a new team can be created here; only an explicit "no" from the server hides it.
+    teamsAvailable: data?.available !== false,
+    // Derived, so it is already true on the render where `enabled` turns on.
+    loading: enabled && !settled,
     refresh,
     switchWorkspace,
     createTeam,
   };
+}
+
+/** The signed-in user's role in `teamId`; null when there is no team or the role is not known yet. */
+export function useTeamRole(teamId: string | null | undefined): TeamRole | null {
+  const { teams } = useWorkspace(Boolean(teamId));
+  return teamId ? teams.find((team) => team.id === teamId)?.role ?? null : null;
 }

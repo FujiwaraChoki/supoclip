@@ -454,7 +454,8 @@
         "seats": "{seats} seats with shared clip library",
         "quality": "Full HD {resolution} clips · YouTube up to {hours}h",
         "sharedWorkspace": "Social scheduling & {aiEdits} pooled AI edits/mo",
-        "roles": "Owner, Admin & Member roles + faster concurrency"
+        "roles": "Owner, Admin & Member roles + faster concurrency",
+        "aiEdits": "{aiEdits} pooled AI edits/mo"
       }
     }
   },

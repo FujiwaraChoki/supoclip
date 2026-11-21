@@ -32,7 +32,8 @@
     "nameLabel": "Nombre del equipo",
     "namePlaceholder": "ej. Estudio de Clips",
     "creating": "Creando…",
-    "submit": "Crear equipo"
+    "submit": "Crear equipo",
+    "unavailable": "Los espacios de equipo aún no están disponibles."
   },
   "overview": {
     "pooledVideo": "Video compartido",
@@ -68,17 +69,18 @@
     "perMonth": "/mes",
     "perYear": "/año",
     "baseLine": "Base de Equipo ({seats} puestos, {hours} h/mes)",
-    "extraSeatsLine": "{count} puestos adicionales (${price} c/u, +{hours} h/mes)",
+    "extraSeatsLine": "{count, plural, one {# puesto adicional} other {# puestos adicionales}} (${price} c/u, +{hours} h/mes)",
     "totalLine": "Total ({seats} puestos · {hours} h compartidas/mes)",
     "includedFeatures": "Incluye clips en {resolution}, YouTube de hasta {youtubeHours} h, programación social y {aiEdits} ediciones IA/mes.",
     "openingCheckout": "Abriendo pago…",
     "startPlan": "Activar Plan Equipo",
     "managePortal": "Administrar facturación",
-    "prorationNote": "Stripe prorratea los cambios de puestos automáticamente en tu próxima factura.",
+    "prorationNote": "Los puestos añadidos se cobran de inmediato por el resto del periodo de facturación. Quitar puestos tiene efecto inmediato y no se reembolsa.",
     "ownerOnlyNotice": "Solo el propietario del equipo puede activar la suscripción, cambiar puestos o administrar la facturación.",
     "paymentFailed": "El último pago del equipo falló. Actualiza el método de pago para seguir creando clips.",
     "updatePayment": "Actualizar método de pago",
-    "cancelScheduled": "La suscripción de este equipo se cancelará el {date}."
+    "cancelScheduled": "La suscripción de este equipo se cancelará el {date}.",
+    "includedFeaturesNoScheduling": "Incluye clips en {resolution}, YouTube de hasta {youtubeHours} h y {aiEdits} ediciones IA/mes."
   },
   "members": {
     "title": "Miembros e invitaciones",
@@ -123,7 +125,10 @@
     "presetUnlimited": "Ilimitado",
     "presetPause": "Pausar (0)",
     "saveLimits": "Guardar límites",
-    "savingLimits": "Guardando…"
+    "savingLimits": "Guardando…",
+    "roleFor": "Rol de {name}",
+    "presetHours": "{hours} h ({minutes} min)",
+    "subscribeToInvite": "Activa el Plan Equipo para invitar a compañeros."
   },
   "general": {
     "title": "General",
@@ -208,6 +213,11 @@
     "removeMemberFailed": "No se pudo eliminar al miembro.",
     "transferFailed": "No se pudo transferir la propiedad.",
     "deleteFailed": "No se pudo eliminar el equipo.",
-    "limitsUpdateFailed": "No se pudieron actualizar los límites del miembro."
+    "limitsUpdateFailed": "No se pudieron actualizar los límites del miembro.",
+    "teamsUnavailable": "Los espacios de equipo aún no están disponibles.",
+    "subscriptionRequired": "Primero activa el Plan Equipo.",
+    "inviteRateLimited": "Demasiadas invitaciones en poco tiempo. Inténtalo más tarde.",
+    "seatPaymentFailed": "No se pudo cobrar los puestos adicionales. Actualiza el método de pago en Administrar facturación e inténtalo de nuevo.",
+    "teamLimitReached": "Has alcanzado el número de equipos que puede tener una cuenta. Elimina primero uno que ya no uses."
   }
 }

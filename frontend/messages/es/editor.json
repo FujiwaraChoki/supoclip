@@ -377,7 +377,11 @@
     "resets": "Se renueva el {date}.",
     "subscriptionRequired": "La edición con IA requiere Pro o Creator.",
     "upgradeCreator": "Mejorar a Creator",
-    "viewPlans": "Ver planes"
+    "viewPlans": "Ver planes",
+    "memberPaused": "Un administrador del equipo pausó las ediciones con IA para tu puesto.",
+    "memberLimitReached": "Has usado tus {limit} ediciones con IA de este mes. Pide a un administrador del equipo que aumente tu límite.",
+    "teamPlanRequired": "La edición con IA requiere un plan Equipo activo.",
+    "teamSettings": "Ajustes del equipo"
   },
   "partLabel": "Parte {n}",
   "partClipLabel": "Parte {n} · {title}",

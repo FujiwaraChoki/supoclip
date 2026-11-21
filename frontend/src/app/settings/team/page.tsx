@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
@@ -34,10 +34,17 @@ import {
   getPublicBillingPlans,
   getTeamBillingConfig,
   MAX_TEAM_SEATS,
+  socialPublishingStage,
   type BillingInterval,
 } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
-import { invalidateWorkspaces, useWorkspace, type TeamRole } from "@/hooks/use-workspace";
+import {
+  announceWorkspaceSwitch,
+  invalidateWorkspaces,
+  useWorkspace,
+  WorkspaceRequestError,
+  type TeamRole,
+} from "@/hooks/use-workspace";
 import { BillingIntervalToggle } from "@/components/billing/upgrade-prompt";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -168,11 +175,14 @@ export default function TeamSettingsPage() {
     activeTeamId,
     teams,
     loading: workspaceLoading,
+    teamsAvailable,
     switchWorkspace,
     createTeam,
   } = useWorkspace(Boolean(session?.user));
 
   const [detail, setDetail] = useState<TeamDetailPayload | null>(null);
+  // The last loaded detail, to tell a draft the user changed from one still showing the server's value.
+  const loadedDetail = useRef<TeamDetailPayload | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
@@ -220,8 +230,10 @@ export default function TeamSettingsPage() {
 
   const loadDetail = useCallback(
     async (teamId: string, silent = false) => {
-      if (!silent) setLoadingDetail(true);
-      setDetailError(null);
+      if (!silent) {
+        setLoadingDetail(true);
+        setDetailError(null);
+      }
       try {
         const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
           cache: "no-store",
@@ -231,15 +243,25 @@ export default function TeamSettingsPage() {
           throw new Error(payload.error || t("errors.loadFailed"));
         }
         const payload = (await response.json()) as TeamDetailPayload;
+        const previous = loadedDetail.current;
+        loadedDetail.current = payload;
         setDetail(payload);
-        setTeamNameDraft(payload.team.name);
-        setDesiredSeats(Math.max(teamConfig.includedSeats, payload.seats.limit));
-        if (payload.usage?.billing?.billing_interval) {
-          setBillingInterval(payload.usage.billing.billing_interval);
+        setDetailError(null);
+        // A background refresh follows the server only where the user has not typed something else.
+        const fresh = !silent || !previous;
+        const seatsOf = (value: TeamDetailPayload) => Math.max(teamConfig.includedSeats, value.seats.limit);
+        setTeamNameDraft((draft) => (fresh || draft === previous.team.name ? payload.team.name : draft));
+        setDesiredSeats((draft) => (fresh || draft === seatsOf(previous) ? seatsOf(payload) : draft));
+        const interval = payload.usage?.billing?.billing_interval;
+        if (interval) {
+          setBillingInterval((draft) =>
+            fresh || draft === (previous.usage?.billing?.billing_interval ?? draft) ? interval : draft,
+          );
         }
         return payload;
       } catch (error) {
-        setDetailError(error instanceof Error ? error.message : t("errors.loadFailed"));
+        // What is on screen stays when a background refresh fails; the next one catches up.
+        if (!silent) setDetailError(error instanceof Error ? error.message : t("errors.loadFailed"));
         return null;
       } finally {
         if (!silent) setLoadingDetail(false);
@@ -250,6 +272,7 @@ export default function TeamSettingsPage() {
 
   useEffect(() => {
     if (!session?.user?.id || !activeTeamId) {
+      loadedDetail.current = null;
       setDetail(null);
       return;
     }
@@ -292,6 +315,19 @@ export default function TeamSettingsPage() {
     return () => window.clearInterval(timer);
   }, [activeTeamId, loadDetail, t]);
 
+  /** The server's reason in the reader's language where it has a code we know, else its own text. */
+  const serverMessage = (payload: { error?: string; code?: string }, fallback: string) => {
+    const known: Record<string, string> = {
+      seat_limit_reached: t("errors.seatLimitReached"),
+      subscription_required: t("errors.subscriptionRequired"),
+      invite_rate_limited: t("errors.inviteRateLimited"),
+      payment_failed: t("errors.seatPaymentFailed"),
+      team_limit_reached: t("errors.teamLimitReached"),
+      teams_unavailable: t("errors.teamsUnavailable"),
+    };
+    return (payload.code && known[payload.code]) || payload.error || fallback;
+  };
+
   const handleCreateTeam = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = newTeamName.trim();
@@ -305,8 +341,25 @@ export default function TeamSettingsPage() {
       setNewTeamName("");
       window.location.reload();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("errors.createFailed"));
+      toast.error(
+        error instanceof WorkspaceRequestError
+          ? serverMessage({ error: error.message, code: error.code }, t("errors.createFailed"))
+          : (error instanceof Error && error.message) || t("errors.createFailed"),
+      );
       setCreatingTeam(false);
+    }
+  };
+
+  const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
+  const openWorkspace = async (teamId: string | null, redirectTo: string) => {
+    if (switchingWorkspace) return;
+    setSwitchingWorkspace(true);
+    try {
+      // Navigates away on success.
+      await switchWorkspace(teamId, redirectTo);
+    } catch (error) {
+      toast.error((error instanceof Error && error.message) || t("errors.switchFailed"));
+      setSwitchingWorkspace(false);
     }
   };
 
@@ -372,9 +425,9 @@ export default function TeamSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seats: desiredSeats }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
       if (!response.ok) {
-        throw new Error(payload.error || t("errors.seatsUpdateFailed"));
+        throw new Error(serverMessage(payload, t("errors.seatsUpdateFailed")));
       }
       toast.success(t("toasts.seatsUpdated", { count: desiredSeats }));
       invalidateWorkspaces();
@@ -420,7 +473,7 @@ export default function TeamSettingsPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, role: inviteRole }),
+          body: JSON.stringify({ email, role: detail.currentUserRole === "owner" ? inviteRole : "member" }),
         },
       );
       const payload = (await response.json().catch(() => ({}))) as {
@@ -430,11 +483,7 @@ export default function TeamSettingsPage() {
         code?: string;
       };
       if (!response.ok) {
-        if (payload.code === "seat_limit_reached") {
-          toast.error(t("errors.seatLimitReached"));
-        } else {
-          toast.error(payload.error || t("errors.inviteFailed"));
-        }
+        toast.error(serverMessage(payload, t("errors.inviteFailed")));
         return;
       }
       setInviteEmail("");
@@ -470,8 +519,9 @@ export default function TeamSettingsPage() {
         inviteUrl?: string;
         emailSent?: boolean;
         error?: string;
+        code?: string;
       };
-      if (!response.ok) throw new Error(payload.error || t("errors.resendFailed"));
+      if (!response.ok) throw new Error(serverMessage(payload, t("errors.resendFailed")));
       if (payload.inviteUrl) {
         setCopiedLink(false);
         setLastInviteLink({
@@ -607,6 +657,7 @@ export default function TeamSettingsPage() {
       if (!response.ok) throw new Error(payload.error || t("errors.removeMemberFailed"));
       invalidateWorkspaces();
       if (isSelf) {
+        announceWorkspaceSwitch();
         toast.success(t("toasts.leftTeam"));
         window.location.assign("/settings/team");
         return;
@@ -664,6 +715,7 @@ export default function TeamSettingsPage() {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error || t("errors.deleteFailed"));
       invalidateWorkspaces();
+      announceWorkspaceSwitch();
       toast.success(t("toasts.teamDeleted"));
       window.location.assign("/settings/team");
     } catch (error) {
@@ -756,7 +808,8 @@ export default function TeamSettingsPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => void switchWorkspace(team.id, "/settings/team")}
+                      disabled={switchingWorkspace}
+                      onClick={() => void openWorkspace(team.id, "/settings/team")}
                     >
                       {t("yourTeams.open")}
                       <ArrowRight className="size-3.5" />
@@ -767,6 +820,11 @@ export default function TeamSettingsPage() {
             </section>
           )}
 
+          {!teamsAvailable ? (
+            <p className="rounded-2xl border bg-background px-5 py-4 text-sm text-muted-foreground">
+              {t("create.unavailable")}
+            </p>
+          ) : (
           <section className="rounded-2xl border bg-background">
             <div className="flex items-start gap-3 border-b px-5 py-4">
               <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand">
@@ -818,6 +876,7 @@ export default function TeamSettingsPage() {
               </form>
             </div>
           </section>
+          )}
         </div>
       </main>
     );
@@ -832,6 +891,17 @@ export default function TeamSettingsPage() {
             {detailError || t("errors.loadFailed")}
           </AlertDescription>
         </Alert>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          disabled={loadingDetail}
+          onClick={() => void loadDetail(activeTeamId)}
+        >
+          {loadingDetail && <Loader2 className="size-3.5 animate-spin" />}
+          {t("invite.retry")}
+        </Button>
       </main>
     );
   }
@@ -862,6 +932,8 @@ export default function TeamSettingsPage() {
     ? Math.min(100, (detail.seats.occupied / detail.seats.limit) * 100)
     : 0;
   const atSeatCap = detail.seats.occupied >= detail.seats.limit;
+  // On a hosted install invitations are sent by subscribed teams only.
+  const needsPlanToInvite = monetizationEnabled && !isSubscribed;
   const minAllowedSeats = isSubscribed
     ? Math.max(teamConfig.includedSeats, detail.seats.occupied)
     : teamConfig.includedSeats;
@@ -900,7 +972,8 @@ export default function TeamSettingsPage() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => void switchWorkspace(null, "/settings")}
+          disabled={switchingWorkspace}
+          onClick={() => void openWorkspace(null, "/settings")}
         >
           {t("switchToPersonal")}
         </Button>
@@ -1151,7 +1224,7 @@ export default function TeamSettingsPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {t("billing.includedFeatures", {
+                {t(socialPublishingStage() === "off" ? "billing.includedFeaturesNoScheduling" : "billing.includedFeatures", {
                   resolution: teamConfig.resolution,
                   youtubeHours: Math.round(teamConfig.youtubeMaxMinutes / 60),
                   aiEdits: pricing.aiEditLimit,
@@ -1225,7 +1298,14 @@ export default function TeamSettingsPage() {
           <div className="space-y-6 p-5">
             {detail.permissions.canManageMembers && (
               <div className="space-y-3">
-                {atSeatCap && (
+                {needsPlanToInvite && (
+                  <Alert>
+                    <AlertCircle className="size-4" />
+                    <AlertDescription className="text-xs">{t("members.subscribeToInvite")}</AlertDescription>
+                  </Alert>
+                )}
+
+                {atSeatCap && !needsPlanToInvite && (
                   <Alert className="border-amber-300 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/40">
                     <AlertCircle className="size-4 text-amber-600" />
                     <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200">
@@ -1258,26 +1338,29 @@ export default function TeamSettingsPage() {
                       onChange={(event) => setInviteEmail(event.target.value)}
                       placeholder={t("members.inviteEmailPlaceholder")}
                       required
-                      disabled={inviting || atSeatCap}
+                      disabled={inviting || atSeatCap || needsPlanToInvite}
                     />
                   </div>
-                  <div className="flex w-full flex-col gap-1.5 sm:w-36">
-                    <Label htmlFor="invite-member-role">{t("members.roleLabel")}</Label>
-                    <Select
-                      value={inviteRole}
-                      onValueChange={(value) => setInviteRole(value as "member" | "admin")}
-                      disabled={inviting || atSeatCap}
-                    >
-                      <SelectTrigger id="invite-member-role" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">{t("roles.member")}</SelectItem>
-                        <SelectItem value="admin">{t("roles.admin")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" disabled={inviting || atSeatCap || !inviteEmail.trim()}>
+                  {/* Admins invite members; only the owner can add another admin. */}
+                  {detail.currentUserRole === "owner" && (
+                    <div className="flex w-full flex-col gap-1.5 sm:w-36">
+                      <Label htmlFor="invite-member-role">{t("members.roleLabel")}</Label>
+                      <Select
+                        value={inviteRole}
+                        onValueChange={(value) => setInviteRole(value as "member" | "admin")}
+                        disabled={inviting || atSeatCap || needsPlanToInvite}
+                      >
+                        <SelectTrigger id="invite-member-role" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="member">{t("roles.member")}</SelectItem>
+                          <SelectItem value="admin">{t("roles.admin")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Button type="submit" disabled={inviting || atSeatCap || needsPlanToInvite || !inviteEmail.trim()}>
                     {inviting ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
@@ -1448,7 +1531,10 @@ export default function TeamSettingsPage() {
                             }
                             disabled={busy}
                           >
-                            <SelectTrigger className="h-8 w-28 text-xs">
+                            <SelectTrigger
+                              className="h-8 w-28 text-xs"
+                              aria-label={t("members.roleFor", { name: member.name || member.email })}
+                            >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1715,9 +1801,10 @@ export default function TeamSettingsPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { label: t("members.presetUnlimited"), value: "" },
-                    { label: "5h (300m)", value: "300" },
-                    { label: "10h (600m)", value: "600" },
-                    { label: "20h (1200m)", value: "1200" },
+                    ...[300, 600, 1200].map((minutes) => ({
+                      label: t("members.presetHours", { hours: minutes / 60, minutes }),
+                      value: String(minutes),
+                    })),
                     { label: t("members.presetPause"), value: "0" },
                   ].map((preset) => {
                     const active = minuteLimitDraft.trim() === preset.value;

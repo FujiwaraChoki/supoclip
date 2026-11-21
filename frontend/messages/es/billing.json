@@ -71,6 +71,19 @@
       "title": "Haz más con {plan}",
       "titleFallback": "Planes para cada creador",
       "body": "Más vídeo cada mes, clips en Full HD, fuentes más largas y procesamiento prioritario."
+    },
+    "member": {
+      "eyebrow": "Tu límite en {team}",
+      "pausedTitle": "Tu puesto está pausado para vídeos nuevos",
+      "pausedBody": "Un administrador del equipo pausó la generación de vídeo para tu puesto. Pídele que la reactive. Este intento no ha usado minutos.",
+      "title": "Has usado tus {limit} minutos de este mes",
+      "titleShort": "Este vídeo necesita {required} minutos y te quedan {remaining} en tu límite",
+      "bodyRefresh": "Un administrador del equipo fijó tu límite en {limit} minutos al mes. Se renueva el {date}, o pide a un administrador que lo aumente. Este intento no ha usado minutos.",
+      "bodyPeriod": "Un administrador del equipo fijó tu límite en {limit} minutos al mes. Se renueva el próximo mes, o pide a un administrador que lo aumente. Este intento no ha usado minutos."
+    },
+    "teamStart": {
+      "title": "{team} necesita un plan Equipo para crear clips",
+      "body": "Los clips creados aquí usan las horas compartidas del equipo, así que el equipo necesita primero un plan Equipo activo."
     }
   },
   "illustration": {
@@ -106,5 +119,6 @@
   },
   "comingSoon": "Próximamente",
   "teamWorkspaceBody": "{team} usa una suscripción compartida de Equipo. Los propietarios pueden activar el plan o agregar puestos para ampliar las horas mensuales.",
-  "manageTeamSeats": "Gestionar equipo y puestos"
+  "manageTeamSeats": "Gestionar equipo y puestos",
+  "teamAskOwner": "{team} usa una suscripción compartida de Equipo. Pide al propietario del equipo que active el plan o agregue puestos."
 }

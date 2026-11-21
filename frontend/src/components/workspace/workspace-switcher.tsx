@@ -33,7 +33,7 @@ export function WorkspaceSwitcher({
 }) {
   const t = useTranslations("shell");
   const tTeam = useTranslations("team");
-  const { activeTeam, activeTeamId, teams, switchWorkspace } = useWorkspace(true);
+  const { activeTeam, activeTeamId, teams, teamsAvailable, switchWorkspace } = useWorkspace(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
 
@@ -50,7 +50,7 @@ export function WorkspaceSwitcher({
     try {
       await switchWorkspace(teamId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : tTeam("errors.switchFailed"));
+      toast.error((error instanceof Error && error.message) || tTeam("errors.switchFailed"));
       setSwitching(false);
     }
   };
@@ -127,7 +127,7 @@ export function WorkspaceSwitcher({
               {activeTeamId === team.id && <Check className="size-4 shrink-0 text-foreground" />}
             </DropdownMenuItem>
           ))}
-          <DropdownMenuSeparator />
+          {(activeTeam || teamsAvailable) && <DropdownMenuSeparator />}
           {activeTeam && (
             <DropdownMenuItem asChild className="gap-2">
               <Link href="/settings/team">
@@ -136,10 +136,12 @@ export function WorkspaceSwitcher({
               </Link>
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => setCreateOpen(true)} className="gap-2">
-            <Plus className="size-4 text-muted-foreground" />
-            <span>{t("workspace.createTeam")}</span>
-          </DropdownMenuItem>
+          {teamsAvailable && (
+            <DropdownMenuItem onSelect={() => setCreateOpen(true)} className="gap-2">
+              <Plus className="size-4 text-muted-foreground" />
+              <span>{t("workspace.createTeam")}</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

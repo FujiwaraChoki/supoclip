@@ -279,7 +279,9 @@
     "message": "Seu último pagamento falhou. Atualize a forma de pagamento para manter seu plano.",
     "action": "Atualizar forma de pagamento",
     "failed": "Não foi possível abrir o portal de cobrança",
-    "paused": "Os clipes ficam pausados até este pagamento ser concluído."
+    "paused": "Os clipes ficam pausados até este pagamento ser concluído.",
+    "teamMessage": "O último pagamento da sua equipe falhou. Atualize a forma de pagamento para manter o plano Equipe.",
+    "teamAskOwner": "Peça ao proprietário da equipe para atualizar a forma de pagamento."
   },
   "cancel": {
     "scheduled": "Sua assinatura está programada para cancelar em <strong>{date}</strong>.",

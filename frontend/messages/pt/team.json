@@ -32,7 +32,8 @@
     "nameLabel": "Nome da equipe",
     "namePlaceholder": "ex. Estúdio de Clipes",
     "creating": "Criando…",
-    "submit": "Criar equipe"
+    "submit": "Criar equipe",
+    "unavailable": "Os espaços de equipe ainda não estão disponíveis."
   },
   "overview": {
     "pooledVideo": "Vídeo compartilhado",
@@ -68,17 +69,18 @@
     "perMonth": "/mês",
     "perYear": "/ano",
     "baseLine": "Base Equipe ({seats} assentos, {hours} h/mês)",
-    "extraSeatsLine": "{count} assentos extras (${price} cada, +{hours} h/mês)",
+    "extraSeatsLine": "{count, plural, one {# assento extra} other {# assentos extras}} (${price} cada, +{hours} h/mês)",
     "totalLine": "Total ({seats} assentos · {hours} h compartilhadas/mês)",
     "includedFeatures": "Inclui clipes em {resolution}, YouTube de até {youtubeHours}h, agendamento social e {aiEdits} edições de IA/mês.",
     "openingCheckout": "Abrindo checkout…",
     "startPlan": "Iniciar Plano Equipe",
     "managePortal": "Gerenciar cobrança",
-    "prorationNote": "O Stripe calcula automaticamente o valor proporcional na próxima fatura.",
+    "prorationNote": "Assentos adicionados são cobrados na hora pelo restante do período de cobrança. A remoção de assentos vale imediatamente e não é reembolsada.",
     "ownerOnlyNotice": "Apenas o proprietário da equipe pode iniciar uma assinatura, alterar assentos ou gerenciar a cobrança.",
     "paymentFailed": "O último pagamento da equipe falhou. Atualize o método de pagamento para continuar.",
     "updatePayment": "Atualizar forma de pagamento",
-    "cancelScheduled": "Esta assinatura de equipe está programada para cancelar em {date}."
+    "cancelScheduled": "Esta assinatura de equipe está programada para cancelar em {date}.",
+    "includedFeaturesNoScheduling": "Inclui clipes em {resolution}, YouTube de até {youtubeHours}h e {aiEdits} edições de IA/mês."
   },
   "members": {
     "title": "Membros e convites",
@@ -123,7 +125,10 @@
     "presetUnlimited": "Ilimitado",
     "presetPause": "Pausar (0)",
     "saveLimits": "Salvar limites",
-    "savingLimits": "Salvando…"
+    "savingLimits": "Salvando…",
+    "roleFor": "Função de {name}",
+    "presetHours": "{hours} h ({minutes} min)",
+    "subscribeToInvite": "Inicie o Plano Equipe para convidar colegas."
   },
   "general": {
     "title": "Geral",
@@ -208,6 +213,11 @@
     "removeMemberFailed": "Falha ao remover membro.",
     "transferFailed": "Falha ao transferir propriedade.",
     "deleteFailed": "Falha ao excluir equipe.",
-    "limitsUpdateFailed": "Falha ao atualizar limites do membro."
+    "limitsUpdateFailed": "Falha ao atualizar limites do membro.",
+    "teamsUnavailable": "Os espaços de equipe ainda não estão disponíveis.",
+    "subscriptionRequired": "Inicie primeiro o Plano Equipe.",
+    "inviteRateLimited": "Muitos convites em pouco tempo. Tente novamente mais tarde.",
+    "seatPaymentFailed": "O pagamento dos assentos extras não foi concluído. Atualize a forma de pagamento em Gerenciar cobrança e tente novamente.",
+    "teamLimitReached": "Você atingiu o número de equipes que uma conta pode ter. Exclua primeiro uma que não usa mais."
   }
 }

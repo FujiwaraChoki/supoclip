@@ -129,7 +129,19 @@
     "remaining": "本月剩余 {count} 分钟视频",
     "nearWithPlan": "{refreshes} 需要更多额度？{plan} 每月提供 {limit} 视频。",
     "upgrade": "升级",
-    "limitTitleAll": "你本月的视频分钟数已用完"
+    "limitTitleAll": "你本月的视频分钟数已用完",
+    "teamStartTitle": "{team} 尚未开通团队套餐",
+    "teamStartOwner": "在团队设置中开通后，团队所有成员都可以制作切片。",
+    "teamStartMember": "请联系团队所有者开通团队套餐。",
+    "teamSettings": "团队设置",
+    "memberPausedTitle": "你的席位已暂停生成新视频",
+    "memberPausedBody": "团队管理员暂停了你的视频生成。请联系他们重新开启。",
+    "teamLimitOwner": "{refreshes} 或者增加席位以获得更多共享时长。",
+    "teamLimitMember": "{refreshes} 或者请团队所有者增加席位。",
+    "manageSeats": "增加席位",
+    "memberLimitTitle": "你本月的 {limit} 分钟已用完",
+    "memberLimitBody": "{refreshes} 团队管理员可以提高你的额度。",
+    "memberNearBody": "{refreshes} 团队管理员将你的额度设为每月 {limit} 分钟。"
   },
   "clipLength": {
     "picker": "片段时长",

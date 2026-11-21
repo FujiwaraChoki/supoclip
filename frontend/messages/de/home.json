@@ -129,7 +129,19 @@
     "remaining": "{count, plural, one {Noch # Minute Video diesen Monat} other {Noch # Minuten Video diesen Monat}}",
     "nearWithPlan": "{refreshes} Brauchst du mehr Spielraum? {plan} gibt dir {limit} Video pro Monat.",
     "upgrade": "Upgrade",
-    "limitTitleAll": "Du hast die Videominuten dieses Monats genutzt"
+    "limitTitleAll": "Du hast die Videominuten dieses Monats genutzt",
+    "teamStartTitle": "{team} hat keinen aktiven Team-Tarif",
+    "teamStartOwner": "Starte ihn in den Team-Einstellungen, dann kann das ganze Team Clips erstellen.",
+    "teamStartMember": "Bitte den Team-Eigentümer, den Team-Tarif zu starten.",
+    "teamSettings": "Team-Einstellungen",
+    "memberPausedTitle": "Dein Platz ist für neue Videos pausiert",
+    "memberPausedBody": "Ein Team-Admin hat die Videogenerierung für dich pausiert. Bitte ihn, sie wieder zu aktivieren.",
+    "teamLimitOwner": "{refreshes} Oder füge Plätze für mehr gemeinsame Stunden hinzu.",
+    "teamLimitMember": "{refreshes} Oder bitte den Team-Eigentümer, Plätze hinzuzufügen.",
+    "manageSeats": "Plätze hinzufügen",
+    "memberLimitTitle": "Du hast deine {limit} Minuten für diesen Monat genutzt",
+    "memberLimitBody": "{refreshes} Ein Team-Admin kann dein Limit erhöhen.",
+    "memberNearBody": "{refreshes} Ein Team-Admin hat dein Limit auf {limit} Minuten pro Monat gesetzt."
   },
   "clipLength": {
     "picker": "Cliplänge",

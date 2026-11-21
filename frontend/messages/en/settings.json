@@ -279,7 +279,9 @@
     "message": "Your last payment failed. Update your payment method to keep your plan.",
     "action": "Update payment method",
     "failed": "Unable to open the billing portal",
-    "paused": "Clipping is paused until this payment goes through."
+    "paused": "Clipping is paused until this payment goes through.",
+    "teamMessage": "Your team's last payment failed. Update the payment method to keep the Team plan.",
+    "teamAskOwner": "Ask the team owner to update the payment method."
   },
   "cancel": {
     "scheduled": "Your subscription is scheduled to cancel on <strong>{date}</strong>.",

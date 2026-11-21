@@ -454,7 +454,8 @@
         "seats": "{seats} kursi dengan perpustakaan klip bersama",
         "quality": "Klip Full HD {resolution} · YouTube hingga {hours} jam",
         "sharedWorkspace": "Penjadwalan sosial & {aiEdits} edit AI bersama/bln",
-        "roles": "Peran Pemilik, Admin & Anggota + konkurensi lebih tinggi"
+        "roles": "Peran Pemilik, Admin & Anggota + konkurensi lebih tinggi",
+        "aiEdits": "{aiEdits} edit AI bersama/bln"
       }
     }
   },

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useWorkspace } from "@/hooks/use-workspace";
+import { useWorkspace, WorkspaceRequestError } from "@/hooks/use-workspace";
 import { getTeamBillingConfig } from "@/lib/billing-plans";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +40,11 @@ export function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpen
       setTeamName("");
       window.location.assign("/settings/team");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : tTeam("errors.createFailed"));
+      toast.error(
+        error instanceof WorkspaceRequestError && error.code === "teams_unavailable"
+          ? tTeam("errors.teamsUnavailable")
+          : (error instanceof Error && error.message) || tTeam("errors.createFailed"),
+      );
       setSubmitting(false);
     }
   };

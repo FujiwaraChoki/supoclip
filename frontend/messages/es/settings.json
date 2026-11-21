@@ -279,7 +279,9 @@
     "message": "Tu último pago falló. Actualiza tu método de pago para conservar tu plan.",
     "action": "Actualizar método de pago",
     "failed": "No se pudo abrir el portal de facturación",
-    "paused": "Los clips están en pausa hasta que se complete este pago."
+    "paused": "Los clips están en pausa hasta que se complete este pago.",
+    "teamMessage": "El último pago de tu equipo falló. Actualiza el método de pago para conservar el plan Equipo.",
+    "teamAskOwner": "Pide al propietario del equipo que actualice el método de pago."
   },
   "cancel": {
     "scheduled": "Tu suscripción está programada para cancelarse el <strong>{date}</strong>.",

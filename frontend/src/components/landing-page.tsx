@@ -618,7 +618,8 @@ export default function LandingPage() {
                   </li>
                   <li className="flex items-start gap-3 text-sm">
                     <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    {t("pricing.team.features.sharedWorkspace", { aiEdits: teamConfig.aiEditLimit })}
+                    {/* Scheduling is only promised where publishing is offered, as on the Creator card. */}
+                    {t(socialPublishingStage() === "off" ? "pricing.team.features.aiEdits" : "pricing.team.features.sharedWorkspace", { aiEdits: teamConfig.aiEditLimit })}
                   </li>
                   <li className="flex items-start gap-3 text-sm">
                     <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />

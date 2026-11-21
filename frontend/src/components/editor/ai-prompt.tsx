@@ -39,7 +39,6 @@ const GIVE_UP_MS = 180_000;
 /** Command field for AI edits, docked under the viewer. Edits arrive as one undoable change. */
 export function AIPrompt({ endpoint, basis, initialUsage, doc, playhead, update, undo }: Props) {
   const t = useTranslations("editor");
-  const format = useFormatter();
   const [usage, setUsage] = useState(initialUsage);
   const [text, setText] = useState("");
   const [running, setRunning] = useState(false);
@@ -210,21 +209,7 @@ export function AIPrompt({ endpoint, basis, initialUsage, doc, playhead, update,
           {t("ai.send")}
         </Button>
       </form>
-      {usage && usage.limit !== null && (
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-muted-foreground" aria-live="polite">
-          <span>
-            {usage.limit === 0 ? t("ai.subscriptionRequired") : t("ai.remaining", { remaining: usage.remaining ?? 0, limit: usage.limit })}
-            {usage.limit > 0 && usage.resetsAt && (
-              <> {t("ai.resets", { date: format.dateTime(new Date(usage.resetsAt), { month: "short", day: "numeric", timeZone: "UTC" }) })}</>
-            )}
-          </span>
-          {!usage.allowed && (
-            <Link href="/settings#plan" className="font-medium text-foreground underline underline-offset-2">
-              {usage.plan === "pro" && usage.limit > 0 ? t("ai.upgradeCreator") : t("ai.viewPlans")}
-            </Link>
-          )}
-        </div>
-      )}
+      {usage && usage.limit !== null && <AIUsageLine usage={usage} limit={usage.limit} />}
       {result && (
         <div role="status" className="mt-2 flex max-h-32 items-start gap-2 overflow-y-auto px-1 text-xs [overflow-wrap:anywhere]">
           <div className="min-w-0 flex-1 space-y-0.5">
@@ -276,6 +261,45 @@ export function AIPrompt({ endpoint, basis, initialUsage, doc, playhead, update,
             </Button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** What is left this month, and where to go when nothing is. */
+function AIUsageLine({ usage, limit }: { usage: AIEditUsage; limit: number }) {
+  const t = useTranslations("editor");
+  const format = useFormatter();
+  // Team clips report the member's own limit next to the team's pool.
+  const inTeam = usage.plan === "team" || usage.memberLimit !== undefined;
+  const memberLimit = usage.memberLimit ?? null;
+  // An admin's limit for this member: no plan lifts it, so no link is offered.
+  const memberBlocked = limit > 0 && memberLimit !== null && (memberLimit === 0 || usage.memberLimitReached === true);
+  const poolRemaining = usage.remaining ?? 0;
+  const memberRemaining = memberLimit === null ? null : usage.memberRemaining ?? 0;
+  // Whichever runs out first is what this person can still use.
+  const memberBinds = memberRemaining !== null && memberRemaining < poolRemaining;
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-muted-foreground" aria-live="polite">
+      <span>
+        {memberBlocked
+          ? memberLimit === 0
+            ? t("ai.memberPaused")
+            : t("ai.memberLimitReached", { limit: memberLimit })
+          : limit === 0
+            ? inTeam ? t("ai.teamPlanRequired") : t("ai.subscriptionRequired")
+            : memberBinds
+              ? t("ai.remaining", { remaining: memberRemaining, limit: memberLimit ?? 0 })
+              : t("ai.remaining", { remaining: poolRemaining, limit })}
+        {limit > 0 && memberLimit !== 0 && usage.resetsAt && (
+          <> {t("ai.resets", { date: format.dateTime(new Date(usage.resetsAt), { month: "short", day: "numeric", timeZone: "UTC" }) })}</>
+        )}
+      </span>
+      {!usage.allowed && !memberBlocked && (
+        <Link href={inTeam ? "/settings/team" : "/settings#plan"} className="font-medium text-foreground underline underline-offset-2">
+          {inTeam ? t("ai.teamSettings") : usage.plan === "pro" && limit > 0 ? t("ai.upgradeCreator") : t("ai.viewPlans")}
+        </Link>
       )}
     </div>
   );

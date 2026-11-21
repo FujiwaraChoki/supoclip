@@ -377,7 +377,11 @@
     "resets": "Direset pada {date}.",
     "subscriptionRequired": "Pengeditan AI memerlukan Pro atau Creator.",
     "upgradeCreator": "Tingkatkan ke Creator",
-    "viewPlans": "Lihat paket"
+    "viewPlans": "Lihat paket",
+    "memberPaused": "Admin tim menjeda edit AI untuk kursimu.",
+    "memberLimitReached": "Kamu sudah memakai {limit} edit AI jatahmu bulan ini. Minta admin tim menaikkan batasmu.",
+    "teamPlanRequired": "Pengeditan AI memerlukan paket Tim yang aktif.",
+    "teamSettings": "Pengaturan tim"
   },
   "partLabel": "Bagian {n}",
   "partClipLabel": "Bagian {n} · {title}",

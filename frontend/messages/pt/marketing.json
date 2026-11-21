@@ -454,7 +454,8 @@
         "seats": "{seats} assentos com biblioteca compartilhada",
         "quality": "Clipes Full HD {resolution} · YouTube até {hours}h",
         "sharedWorkspace": "Agendamento social e {aiEdits} edições de IA/mês",
-        "roles": "Funções de Proprietário, Admin e Membro + mais concorrência"
+        "roles": "Funções de Proprietário, Admin e Membro + mais concorrência",
+        "aiEdits": "{aiEdits} edições de IA compartilhadas/mês"
       }
     }
   },

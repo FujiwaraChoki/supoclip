@@ -32,7 +32,8 @@
     "nameLabel": "Nama tim",
     "namePlaceholder": "mis. Kru Klip Studio",
     "creating": "Membuat…",
-    "submit": "Buat tim"
+    "submit": "Buat tim",
+    "unavailable": "Ruang kerja tim belum tersedia."
   },
   "overview": {
     "pooledVideo": "Video bersama",
@@ -68,17 +69,18 @@
     "perMonth": "/bln",
     "perYear": "/thn",
     "baseLine": "Paket dasar Tim ({seats} kursi, {hours} jam/bln)",
-    "extraSeatsLine": "{count} kursi tambahan (${price} tiap kursi, +{hours} jam/bln)",
+    "extraSeatsLine": "{count, plural, other {# kursi tambahan}} (${price} tiap kursi, +{hours} jam/bln)",
     "totalLine": "Total ({seats} kursi · {hours} jam bersama/bln)",
     "includedFeatures": "Termasuk klip {resolution}, YouTube hingga {youtubeHours} jam, penjadwalan sosial, dan {aiEdits} edit AI bersama/bln.",
     "openingCheckout": "Membuka pembayaran…",
     "startPlan": "Mulai Paket Tim",
     "managePortal": "Kelola penagihan",
-    "prorationNote": "Stripe otomatis memprorata perubahan kursi pada tagihan berikutnya.",
+    "prorationNote": "Kursi tambahan langsung ditagih untuk sisa periode penagihan. Pengurangan kursi langsung berlaku dan tidak dikembalikan dananya.",
     "ownerOnlyNotice": "Hanya pemilik tim yang dapat memulai langganan, mengubah kursi, atau mengelola penagihan.",
     "paymentFailed": "Pembayaran terakhir tim gagal. Perbarui metode pembayaran agar tetap bisa membuat klip.",
     "updatePayment": "Perbarui metode pembayaran",
-    "cancelScheduled": "Langganan tim ini dijadwalkan batal pada {date}."
+    "cancelScheduled": "Langganan tim ini dijadwalkan batal pada {date}.",
+    "includedFeaturesNoScheduling": "Termasuk klip {resolution}, YouTube hingga {youtubeHours} jam, dan {aiEdits} edit AI bersama/bln."
   },
   "members": {
     "title": "Anggota & undangan",
@@ -123,7 +125,10 @@
     "presetUnlimited": "Tak terbatas",
     "presetPause": "Jeda (0)",
     "saveLimits": "Simpan batas",
-    "savingLimits": "Menyimpan…"
+    "savingLimits": "Menyimpan…",
+    "roleFor": "Peran {name}",
+    "presetHours": "{hours} jam ({minutes} mnt)",
+    "subscribeToInvite": "Mulai Paket Tim untuk mengundang rekan tim."
   },
   "general": {
     "title": "Umum",
@@ -208,6 +213,11 @@
     "removeMemberFailed": "Gagal menghapus anggota.",
     "transferFailed": "Gagal memindahkan kepemilikan.",
     "deleteFailed": "Gagal menghapus tim.",
-    "limitsUpdateFailed": "Gagal memperbarui batas anggota."
+    "limitsUpdateFailed": "Gagal memperbarui batas anggota.",
+    "teamsUnavailable": "Ruang kerja tim belum tersedia.",
+    "subscriptionRequired": "Mulai Paket Tim terlebih dahulu.",
+    "inviteRateLimited": "Terlalu banyak undangan dalam waktu singkat. Coba lagi nanti.",
+    "seatPaymentFailed": "Pembayaran untuk kursi tambahan gagal. Perbarui metode pembayaran di Kelola penagihan lalu coba lagi.",
+    "teamLimitReached": "Anda sudah mencapai jumlah tim yang dapat dimiliki satu akun. Hapus dulu tim yang tidak lagi digunakan."
   }
 }

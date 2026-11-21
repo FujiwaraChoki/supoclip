@@ -71,6 +71,19 @@
       "title": "Faça mais com {plan}",
       "titleFallback": "Planos para cada criador",
       "body": "Mais vídeo por mês, clipes em Full HD, fontes mais longas e processamento prioritário."
+    },
+    "member": {
+      "eyebrow": "Seu limite em {team}",
+      "pausedTitle": "Seu assento está pausado para novos vídeos",
+      "pausedBody": "Um administrador da equipe pausou a geração de vídeo para o seu assento. Peça para reativá-la. Esta tentativa não usou minutos.",
+      "title": "Você usou seus {limit} minutos deste mês",
+      "titleShort": "Este vídeo precisa de {required} minutos e restam {remaining} no seu limite",
+      "bodyRefresh": "Um administrador da equipe definiu seu limite em {limit} minutos por mês. Ele renova em {date}, ou peça a um administrador para aumentá-lo. Esta tentativa não usou minutos.",
+      "bodyPeriod": "Um administrador da equipe definiu seu limite em {limit} minutos por mês. Ele renova no próximo mês, ou peça a um administrador para aumentá-lo. Esta tentativa não usou minutos."
+    },
+    "teamStart": {
+      "title": "{team} precisa de um plano Equipe para criar clipes",
+      "body": "Os clipes criados aqui usam as horas compartilhadas da equipe, então a equipe precisa primeiro de um plano Equipe ativo."
     }
   },
   "illustration": {
@@ -106,5 +119,6 @@
   },
   "comingSoon": "Em breve",
   "teamWorkspaceBody": "{team} usa uma assinatura compartilhada de Equipe. Proprietários podem ativar o plano ou adicionar assentos para ampliar as horas mensais.",
-  "manageTeamSeats": "Gerenciar equipe e assentos"
+  "manageTeamSeats": "Gerenciar equipe e assentos",
+  "teamAskOwner": "{team} usa uma assinatura compartilhada de Equipe. Peça ao proprietário da equipe para ativar o plano ou adicionar assentos."
 }

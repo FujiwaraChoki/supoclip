@@ -129,7 +129,19 @@
     "remaining": "{count, plural, one {# minute of video left this month} other {# minutes of video left this month}}",
     "nearWithPlan": "{refreshes} Need more room? {plan} gives you {limit} of video a month.",
     "upgrade": "Upgrade",
-    "limitTitleAll": "You've used this month's video minutes"
+    "limitTitleAll": "You've used this month's video minutes",
+    "teamStartTitle": "{team} doesn't have an active Team plan",
+    "teamStartOwner": "Start it in team settings and everyone on the team can make clips.",
+    "teamStartMember": "Ask the team owner to start the Team plan.",
+    "teamSettings": "Team settings",
+    "memberPausedTitle": "Your seat is paused for new videos",
+    "memberPausedBody": "A team admin paused video generation for you. Ask them to turn it back on.",
+    "teamLimitOwner": "{refreshes} Or add seats for more shared hours.",
+    "teamLimitMember": "{refreshes} Or ask the team owner to add seats.",
+    "manageSeats": "Add seats",
+    "memberLimitTitle": "You've used your {limit} minutes for this month",
+    "memberLimitBody": "{refreshes} A team admin can raise your limit.",
+    "memberNearBody": "{refreshes} A team admin set your limit to {limit} minutes a month."
   },
   "clipLength": {
     "picker": "Clip length",

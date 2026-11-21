@@ -14,6 +14,7 @@ import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { Announcements } from "@/components/announcements";
 import { CreateTeamDialog } from "@/components/workspace/create-team-dialog";
+import { useWorkspace } from "@/hooks/use-workspace";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +51,7 @@ export function AccountMenu({ user, billing, compact }: {
   const { resolvedTheme, setTheme } = useTheme();
   const [createOpen, setCreateOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const { teamsAvailable } = useWorkspace(true);
 
   const metered = Boolean(billing?.monetization_enabled);
   const allowance = billing && metered ? workspaceAllowance(billing) : null;
@@ -135,9 +137,11 @@ export function AccountMenu({ user, billing, compact }: {
               <Link href="/settings/team"><Settings2 />{t("workspace.teamSettings")}</Link>
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => setCreateOpen(true)}>
-            <Plus />{t("workspace.createTeam")}
-          </DropdownMenuItem>
+          {teamsAvailable && (
+            <DropdownMenuItem onSelect={() => setCreateOpen(true)}>
+              <Plus />{t("workspace.createTeam")}
+            </DropdownMenuItem>
+          )}
           <div className="flex items-center gap-2 px-2 py-1 text-sm">
             {resolvedTheme === "dark" ? <Moon className="size-4 text-muted-foreground" /> : <Sun className="size-4 text-muted-foreground" />}
             <span className="flex-1">{t("account.theme")}</span>

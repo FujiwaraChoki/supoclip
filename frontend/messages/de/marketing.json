@@ -454,7 +454,8 @@
         "seats": "{seats} Plätze mit geteilter Clip-Mediathek",
         "quality": "Full-HD-{resolution}-Clips · YouTube bis {hours} Std.",
         "sharedWorkspace": "Social-Planung & {aiEdits} gemeinsame KI-Edits/Monat",
-        "roles": "Eigentümer-, Admin- & Mitgliedsrollen + höhere Parallelität"
+        "roles": "Eigentümer-, Admin- & Mitgliedsrollen + höhere Parallelität",
+        "aiEdits": "{aiEdits} gemeinsame KI-Edits/Monat"
       }
     }
   },

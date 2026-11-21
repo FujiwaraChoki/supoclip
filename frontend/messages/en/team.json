@@ -32,7 +32,8 @@
     "nameLabel": "Team name",
     "namePlaceholder": "e.g. Studio Clips Crew",
     "creating": "Creating…",
-    "submit": "Create team"
+    "submit": "Create team",
+    "unavailable": "Team workspaces aren't available yet."
   },
   "overview": {
     "pooledVideo": "Pooled video",
@@ -68,17 +69,18 @@
     "perMonth": "/mo",
     "perYear": "/yr",
     "baseLine": "Team base ({seats} seats, {hours} hrs/mo)",
-    "extraSeatsLine": "{count} extra seats (${price} each, +{hours} hrs/mo)",
+    "extraSeatsLine": "{count, plural, one {# extra seat} other {# extra seats}} (${price} each, +{hours} hrs/mo)",
     "totalLine": "Total ({seats} seats · {hours} pooled hrs/mo)",
     "includedFeatures": "Includes {resolution} clips, YouTube up to {youtubeHours}h, social scheduling, and {aiEdits} pooled AI edits/mo.",
     "openingCheckout": "Opening checkout…",
     "startPlan": "Start Team Plan",
     "managePortal": "Manage Billing",
-    "prorationNote": "Stripe prorates seat changes automatically on your next invoice.",
+    "prorationNote": "Added seats are charged right away for the rest of the billing period. Removing seats takes effect immediately and isn't refunded.",
     "ownerOnlyNotice": "Only the team owner can start a subscription, change seat counts, or manage billing.",
     "paymentFailed": "Your team's last payment failed. Update the payment method to keep clipping.",
     "updatePayment": "Update payment method",
-    "cancelScheduled": "This team subscription is scheduled to cancel on {date}."
+    "cancelScheduled": "This team subscription is scheduled to cancel on {date}.",
+    "includedFeaturesNoScheduling": "Includes {resolution} clips, YouTube up to {youtubeHours}h, and {aiEdits} pooled AI edits/mo."
   },
   "members": {
     "title": "Members & invitations",
@@ -123,7 +125,10 @@
     "presetUnlimited": "Unlimited",
     "presetPause": "Pause (0)",
     "saveLimits": "Save limits",
-    "savingLimits": "Saving…"
+    "savingLimits": "Saving…",
+    "roleFor": "Role for {name}",
+    "presetHours": "{hours} h ({minutes} min)",
+    "subscribeToInvite": "Start the Team subscription to invite teammates."
   },
   "general": {
     "title": "General",
@@ -208,6 +213,11 @@
     "limitsUpdateFailed": "Failed to update member limits.",
     "removeMemberFailed": "Failed to remove member.",
     "transferFailed": "Failed to transfer ownership.",
-    "deleteFailed": "Failed to delete team."
+    "deleteFailed": "Failed to delete team.",
+    "teamsUnavailable": "Team workspaces aren't available yet.",
+    "subscriptionRequired": "Start the Team subscription first.",
+    "inviteRateLimited": "Too many invitations in a short time. Try again later.",
+    "seatPaymentFailed": "The payment for the extra seats didn't go through. Update the payment method in Manage Billing and try again.",
+    "teamLimitReached": "You've reached the number of teams one account can own. Delete one you no longer use first."
   }
 }

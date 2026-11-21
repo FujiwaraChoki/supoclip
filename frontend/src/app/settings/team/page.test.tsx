@@ -36,6 +36,7 @@ const workspaceState = vi.hoisted(() => ({
       occupiedSeats: 3,
     },
   ],
+  teamsAvailable: true,
   switchWorkspace: vi.fn(),
   createTeam: vi.fn(),
 }));
@@ -53,11 +54,15 @@ vi.mock("@/hooks/use-workspace", () => ({
     activeTeamId: workspaceState.activeTeamId,
     activeTeam: workspaceState.teams.find((t) => t.id === workspaceState.activeTeamId) ?? null,
     teams: workspaceState.teams,
+    teamsAvailable: workspaceState.teamsAvailable,
     loading: false,
     refresh: vi.fn(),
     switchWorkspace: workspaceState.switchWorkspace,
     createTeam: workspaceState.createTeam,
   }),
+  useTeamRole: () => null,
+  WorkspaceRequestError: class WorkspaceRequestError extends Error {},
+  announceWorkspaceSwitch: vi.fn(),
   invalidateWorkspaces: vi.fn(),
 }));
 
@@ -126,6 +131,7 @@ describe("TeamSettingsPage UI & role matrix", () => {
     vi.unstubAllGlobals();
     sessionState.user = { id: "u-owner", email: "owner@example.com", name: "Owner" };
     workspaceState.activeTeamId = "team-1";
+    workspaceState.teamsAvailable = true;
     window.history.replaceState(null, "", "/settings/team");
   });
 
@@ -250,6 +256,75 @@ describe("TeamSettingsPage UI & role matrix", () => {
     expect(screen.getByRole("button", { name: "Create team" })).not.toBeDisabled();
   });
 
+  it("keeps existing teams but offers no new one where the Team plan cannot be sold yet", () => {
+    workspaceState.activeTeamId = null;
+    workspaceState.teamsAvailable = false;
+    render(<TeamSettingsPage />);
+
+    expect(screen.getByText("Clip Crew")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open team/ })).toBeInTheDocument();
+    expect(screen.getByText("Team workspaces aren't available yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create team" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Team name")).not.toBeInTheDocument();
+  });
+
+  it("lets an admin invite members only, without a role to choose", async () => {
+    sessionState.user = { id: "u-editor", email: "editor@example.com", name: "Editor" };
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/teams/team-1/invitations" && init?.method === "POST") {
+        return new Response(JSON.stringify({ inviteUrl: "https://supoclip.example.com/invite/tok456", emailSent: true }), { status: 201 });
+      }
+      return new Response(
+        JSON.stringify(makeTeamDetail({
+          currentUserRole: "admin",
+          permissions: { canManageMembers: true, canManageBilling: false, canDeleteTeam: false },
+        })),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TeamSettingsPage />);
+    fireEvent.change(await screen.findByLabelText("Teammate email"), { target: { value: "new@example.com" } });
+    expect(screen.queryByLabelText("Role")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === "POST")!;
+    expect(JSON.parse(String(init.body))).toEqual({ email: "new@example.com", role: "member" });
+  });
+
+  it("keeps the page and an unsaved name when a background refresh fails, and offers a retry when the first load does", async () => {
+    let failing = false;
+    const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return new Response(JSON.stringify({ seatLimit: 6 }), { status: 200 });
+      if (failing) return new Response(JSON.stringify({ error: "Service unavailable" }), { status: 503 });
+      return new Response(JSON.stringify(makeTeamDetail()), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(<TeamSettingsPage />);
+    expect(await screen.findByRole("heading", { name: "Clip Crew" })).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Clip Crew"), { target: { value: "Clip Crew Two" } });
+
+    // A seat change reloads the team in the background; that reload fails.
+    failing = true;
+    fireEvent.click(screen.getByRole("button", { name: "Increase seats" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update to 6 seats" }));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url, init]) => url === "/api/teams/team-1" && !init?.method).length).toBeGreaterThan(1));
+    expect(screen.getByRole("heading", { name: "Clip Crew" })).toBeInTheDocument();
+    expect(screen.queryByText("Service unavailable")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("Clip Crew Two")).toBeInTheDocument();
+    view.unmount();
+
+    // A first load that fails says so and can be tried again.
+    render(<TeamSettingsPage />);
+    expect(await screen.findByText("Service unavailable")).toBeInTheDocument();
+    failing = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: "Clip Crew" })).toBeInTheDocument();
+  });
+
   it("lets owner configure per-member generation limits via dialog presets and hides Limits from members", async () => {
     const fetchMock = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
       if (init?.method === "PATCH" && url.includes("/members/u-2")) {
@@ -312,7 +387,7 @@ describe("TeamSettingsPage UI & role matrix", () => {
     fireEvent.click(limitsButtons[0]);
 
     expect(await screen.findByText("Member generation limits")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "10h (600m)" }));
+    fireEvent.click(screen.getByRole("button", { name: "10 h (600 min)" }));
     fireEvent.click(screen.getByRole("button", { name: "50" }));
     fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
 
