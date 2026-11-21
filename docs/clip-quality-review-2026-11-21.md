@@ -108,6 +108,8 @@ What the re-renders on today's code still show, by issue:
 - #540: the hook title and the captions are placed over faces and the source's own text.
 - #541: in the gameplay layout the pasted minimap hides the game's subtitles on lines whose captions are
   left off.
+- #551: the gameplay layout on edited duo streams (the hook title over the pasted hour label, a game panel
+  shifted so the player's character is cut, a fallback crop that loses the creators).
 - #542: clip boundaries ignore scene changes and source transitions; clips end before the payoff.
 - #543: hook titles that describe what is not on screen; transcript errors burned in next to correct
   on-screen text.
