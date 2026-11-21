@@ -36,7 +36,7 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-API_VERSION = "v21.0"
+API_VERSION = "v26.0"
 AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize"
 SHORT_TOKEN_URL = "https://api.instagram.com/oauth/access_token"
 GRAPH_BASE = "https://graph.instagram.com"

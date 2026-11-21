@@ -438,7 +438,7 @@
       "li5": "<strong>Ubah kata sandi basis data.</strong> <code>docker-compose.yml</code> menuliskan <code>supoclip_password</code> di empat tempat: <code>POSTGRES_PASSWORD</code> di layanan <code>postgres</code> dan <code>DATABASE_URL</code> di layanan <code>frontend</code>, <code>backend</code>, dan <code>worker</code>. Mengedit <code>POSTGRES_PASSWORD</code> di <code>.env</code> saja tidak mengubah salah satunya. Timpa keempatnya, seperti ditunjukkan di bawah.",
       "li6": "<strong>Atur <code>REDIS_PASSWORD</code></strong>; kontainer Redis mengaktifkan AUTH saat nilainya tidak kosong.",
       "li7": "<strong>Tutup pendaftaran</strong> dengan <code>DISABLE_SIGN_UP=true</code> kalau instans hanya untuk timmu.",
-      "li8": "<strong>Tinjau batasnya:</strong> <code>MAX_VIDEO_DURATION</code> (default 5400 dtk, 90 menit) dan <code>MAX_VIDEO_UPLOAD_BYTES</code> (default 4 GB).",
+      "li8": "<strong>Tinjau batas ukuran unggahan:</strong> <code>MAX_VIDEO_UPLOAD_BYTES</code> (default 4 GB). Instalasi self-hosted tidak memiliki batas durasi video.",
       "labelReset": "docker-compose.override.yml (Compose v2.24+)",
       "passwordIntro": "Untuk kata sandi basis data, taruh nilai baru di <code>POSTGRES_PASSWORD</code> dalam <code>.env</code>. Buat dengan <code>openssl rand -hex 24</code>, karena hex tidak perlu di-escape di dalam URL. Lalu arahkan keempat pengaturan ke nilai itu di file override yang sama:",
       "labelPassword": "docker-compose.override.yml (gabungkan ke override yang sudah kamu punya)",

@@ -5,6 +5,7 @@ Video service - handles video processing business logic.
 import asyncio
 import copy
 import math
+import shutil
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,6 +47,7 @@ from ..youtube_source import (
     materialize_clip_source,
     resolve_full_youtube_download,
     copy_transcript_sidecar,
+    download_range_audio,
     load_time_map,
     local_ranges_for,
     persist_cache_sidecar,
@@ -107,6 +109,7 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
+from ..source_range import SourceRange, cut_audio_range, private_link, shift_segment
 from ..media.mp4_fragments import fragmented_mp4_duration
 from ..media.ffmpeg import (
     cap_video_short_side,
@@ -137,6 +140,7 @@ from ..stream_source import (
     StreamSourceError,
     detect_stream_source,
     download_stream_audio,
+    download_stream_range_audio,
     download_stream_sections,
     download_stream_video,
 )
@@ -538,6 +542,9 @@ async def resolve_upload_for_edit(video_service, url: str) -> Path:
     if opener is None:
         return await run_in_thread(video_service.resolve_local_video_path, url)
     return await opener(url)
+
+
+_private_link = private_link
 
 
 def _sync_plan_ranges(plan: Dict[str, Any], segments: List[Dict[str, Any]]) -> None:
@@ -2030,6 +2037,7 @@ class VideoService:
         plan_cache: Optional[PlanCache] = None,
         outline_cache_key: Optional[str] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        source_range: Optional[SourceRange] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -2043,10 +2051,19 @@ class VideoService:
 
         progress_callback: Optional function to call with progress updates
                           Signature: async def callback(progress: int, message: str, status: str)
+
+        ``source_range`` processes one picked part of the video. Only that
+        part's audio is transcribed and analysed (on its own timeline); the
+        selected segments are then moved onto the source's timeline, so every
+        clip carries original-video seconds. See ``source_range.py``.
         """
         video_path: Optional[Path] = None
         audio_first = False
         checkpoint = dict(checkpoint or {})
+        range_dir: Optional[Path] = None
+        if source_range is not None:
+            range_dir = Path(get_config().temp_dir) / "source-ranges" / f"{task_id or 'job'}-{uuid.uuid4().hex[:12]}"
+            range_dir.mkdir(parents=True, exist_ok=True)
 
         async def save_checkpoint(patch: Dict[str, Any]) -> None:
             if checkpoint_callback:
@@ -2055,11 +2072,20 @@ class VideoService:
 
         try:
             runtime_config = get_config()
-            duration_limit = (
-                runtime_config.max_video_duration
-                if max_video_duration is None
-                else max_video_duration
-            )
+            if max_video_duration is None:
+                configured = (
+                    runtime_config.max_video_duration
+                    if getattr(runtime_config, "monetization_enabled", True)
+                    else None
+                )
+                duration_limit = configured if configured and configured > 0 else None
+            else:
+                duration_limit = max_video_duration if max_video_duration > 0 else None
+            if source_range is not None and duration_limit and source_range.length > duration_limit + 1:
+                raise Exception(
+                    f"The selected part is too long ({int(source_range.length) // 60} min). "
+                    f"Maximum allowed duration is {duration_limit // 60} minutes."
+                )
             # Step 1: Get video path (download or use existing)
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -2093,7 +2119,7 @@ class VideoService:
                 if video_info:
                     duration = video_info.get("duration", 0)
                     source_duration = duration or None
-                    if duration and duration > duration_limit:
+                    if duration_limit and duration and duration > duration_limit and source_range is None:
                         mins = duration_limit // 60
                         raise Exception(
                             f"Video is too long ({duration // 60} min). "
@@ -2107,7 +2133,30 @@ class VideoService:
                 )
                 # Audio first only when a proxy is configured and we do not
                 # already have the full source cached. Uploads never reach here.
-                if proxy_configured(runtime_config) and video_id and not cached_full:
+                if source_range is not None and proxy_configured(runtime_config) and video_id and not cached_full:
+                    # Only the picked part's audio crosses the proxy. When it
+                    # can't be fetched, the full-file chain below is the fallback.
+                    try:
+                        video_path = await run_download_in_thread(
+                            download_range_audio, url, video_id, source_range,
+                            range_dir / "analysis.m4a", task_id=task_id, budget=job_budget,
+                            progress_callback=progress_callback,
+                        )
+                        audio_first = True
+                    except DownloadBudgetExceeded as exc:
+                        raise Exception(str(exc)) from exc
+                    except Exception as exc:
+                        logger.warning(
+                            "Audio of the selected part unavailable; downloading the full video: %s",
+                            public_download_error(exc),
+                        )
+                        report_download_recovery(DownloadRecovery.BACKUP)
+                        video_path = await VideoService.download_video(
+                            url, task_id=task_id, quality=download_quality, budget=job_budget,
+                            skip_proxy=True, progress_callback=progress_callback,
+                        )
+                        video_path = preserve_geo_restriction(video_path, exc if video_path is None else None)
+                elif proxy_configured(runtime_config) and video_id and not cached_full:
                     def _resolve_analysis():
                         def _download_full():
                             return resolve_full_youtube_download(
@@ -2151,11 +2200,17 @@ class VideoService:
                 # seeds that length), so no second metadata request is made here.
                 # Each provider checks the plan cap before downloading media.
                 try:
-                    video_path = await run_stream_download(
-                        download_stream_audio, url, None, task_id,
-                        max_duration=duration_limit, operation=PROCESSING_OPERATION,
-                            should_cancel=should_cancel,
-                    )
+                    if source_range is not None:
+                        video_path = await run_stream_download(
+                            download_stream_range_audio, url, source_range, task_id,
+                            operation=PROCESSING_OPERATION, should_cancel=should_cancel,
+                        )
+                    else:
+                        video_path = await run_stream_download(
+                            download_stream_audio, url, None, task_id,
+                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                                should_cancel=should_cancel,
+                        )
                     audio_first = True
                 except StreamSourceError:
                     # Too long, private, or every provider already failed: a
@@ -2164,8 +2219,10 @@ class VideoService:
                 except Exception as exc:
                     logger.warning("Stream audio download unavailable; using full video: %s", exc)
                     video_path = await run_stream_download(
-                        download_stream_video, url, None, task_id,
-                        max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                        download_stream_video, url,
+                        source_range.source_duration if source_range is not None else None, task_id,
+                        max_duration=None if source_range is not None else duration_limit,
+                        operation=PROCESSING_OPERATION,
                             should_cancel=should_cancel,
                     )
             else:
@@ -2179,8 +2236,10 @@ class VideoService:
                     raise Exception("Video file not found")
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
-            file_duration = VideoService._get_file_duration(video_path)
-            if file_duration and file_duration > duration_limit:
+            # A full file fetched for a picked part is checked once the part is cut from it.
+            full_for_range = source_range is not None and not audio_first
+            file_duration = None if full_for_range else VideoService._get_file_duration(video_path)
+            if duration_limit and file_duration and file_duration > duration_limit:
                 mins = duration_limit // 60
                 raise Exception(
                     f"Video is too long ({int(file_duration) // 60} min). "
@@ -2197,6 +2256,14 @@ class VideoService:
             if progress_callback:
                 await progress_callback(15, "Preparing video...", "processing")
             video_path = await VideoService.prepare_source(video_path)
+            # The full file a picked part was cut from; clips render from it.
+            range_render_source: Optional[Path] = None
+            if full_for_range:
+                range_render_source = video_path
+                video_path = await run_in_thread(
+                    cut_audio_range, video_path, range_dir / "analysis.m4a", source_range,
+                )
+                file_duration = VideoService._get_file_duration(video_path)
 
             # Step 2: Generate transcript
             if should_cancel and await should_cancel():
@@ -2228,7 +2295,8 @@ class VideoService:
                 transcript = await VideoService.generate_transcript(
                     video_path,
                     processing_mode=processing_mode,
-                    source_url=url if source_type == "youtube" else None,
+                    # YouTube's own captions cover the whole video, not the part.
+                    source_url=url if source_type == "youtube" and source_range is None else None,
                 )
                 if checkpoint.get("analysis") or checkpoint.get("workflow_final"):
                     # Never combine new word timings with an old clip plan.
@@ -2320,6 +2388,14 @@ class VideoService:
             if workflow == "highlights" and not final_plan:
                 await save_checkpoint({"candidates": segments_json})
 
+            if source_range is not None and not final_plan:
+                # Analysis ran on the part's own timeline. Everything from here
+                # on (sections, render, stored clips) uses the source's.
+                segments_json = [shift_segment(segment, source_range.start) for segment in segments_json]
+            section_duration = (
+                source_range.source_duration if source_range is not None else file_duration
+            )
+
             if audio_first:
                 audio_path = video_path
                 if progress_callback:
@@ -2330,8 +2406,9 @@ class VideoService:
                 try:
                     if source_type in {"twitch", "kick"}:
                         video_path = await run_stream_download(
-                            download_stream_sections, url, segments_json, file_duration, task_id,
-                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            download_stream_sections, url, segments_json, section_duration, task_id,
+                            max_duration=None if source_range is not None else duration_limit,
+                            operation=PROCESSING_OPERATION,
                             should_cancel=should_cancel,
                         )
                         # Shift word timings onto the stitched sections' timeline.
@@ -2342,7 +2419,7 @@ class VideoService:
                     else:
                         video_path = await run_download_in_thread(
                             materialize_clip_source, url, video_id, segments_json,
-                            task_id=task_id, budget=job_budget, duration=file_duration,
+                            task_id=task_id, budget=job_budget, duration=section_duration,
                             audio_path=audio_path, quality=download_quality,
                             progress_callback=progress_callback, progress=65,
                         )
@@ -2364,8 +2441,9 @@ class VideoService:
                     )
                     if source_type in {"twitch", "kick"}:
                         video_path = await run_stream_download(
-                            download_stream_video, url, file_duration, task_id,
-                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                            download_stream_video, url, section_duration, task_id,
+                            max_duration=None if source_range is not None else duration_limit,
+                            operation=PROCESSING_OPERATION,
                             should_cancel=should_cancel,
                         )
                     else:
@@ -2375,9 +2453,13 @@ class VideoService:
                             progress_callback=progress_callback, download_progress=65,
                         )
                         video_path = preserve_geo_restriction(video_path, section_error)
+                        if video_path and source_range is not None:
+                            # A shared full download never gets the part's word timings.
+                            video_path = await run_in_thread(_private_link, Path(video_path), range_dir)
                     if video_path and audio_path:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
-                        await run_in_thread(persist_cache_sidecar, video_path)
+                        if source_range is None:
+                            await run_in_thread(persist_cache_sidecar, video_path)
                 if not video_path:
                     raise Exception("Failed to download selected segments") from section_error
                 # Transcription used the audio download. The picture is only
@@ -2386,6 +2468,17 @@ class VideoService:
                 if should_cancel and await should_cancel():
                     raise Exception("Task cancelled")
                 video_path = await VideoService.prepare_source(video_path)
+            elif range_render_source is not None:
+                # Render from the full file, through a private link that carries
+                # the part's word timings on the source's timeline.
+                # A VOD download belongs to this job's stream operation and is
+                # cleaned with it, so it takes the timings directly.
+                analysis_path = video_path
+                video_path = (
+                    range_render_source if source_type in {"twitch", "kick"}
+                    else await run_in_thread(_private_link, range_render_source, range_dir)
+                )
+                await run_in_thread(copy_transcript_sidecar, analysis_path, video_path)
 
             # The picture is only available now when analysis ran on audio.
             if workflow in ("highlights", "topic"):
@@ -2437,6 +2530,7 @@ class VideoService:
                     "segments": segments_json,
                     "segments_to_render": segments_json,
                     "video_path": str(video_path),
+                    "source_range_dir": str(range_dir) if range_dir else None,
                     "clips": [],
                     "summary": workflow_final["summary"],
                     "key_topics": workflow_final["key_topics"],
@@ -2452,6 +2546,7 @@ class VideoService:
                 "segments": segments_json,
                 "segments_to_render": segments_json,
                 "video_path": str(video_path),
+                "source_range_dir": str(range_dir) if range_dir else None,
                 "clips": [],
                 "summary": relevant_parts.summary if relevant_parts else None,
                 "key_topics": relevant_parts.key_topics if relevant_parts else None,
@@ -2468,6 +2563,8 @@ class VideoService:
             }
 
         except (Exception, asyncio.CancelledError) as e:
+            if range_dir is not None:
+                shutil.rmtree(range_dir, ignore_errors=True)
             if source_type == "youtube" and video_path is not None:
                 video_id = get_youtube_video_id(url)
                 if video_id:

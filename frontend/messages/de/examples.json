@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "title": "SupoClip-Beispiele: echte KI-Clips aus Podcasts, Gaming und Vlogs",
+    "description": "Sieh dir vertikale Clips an, die SupoClip aus öffentlichen langen Videos gemacht hat: Interviews, Gaming-Streams und Vlogs, mit Untertiteln, Hook-Titeln und einem Viralitätswert pro Clip."
+  },
+  "badge": "Beispiele",
+  "heading": "Clips, die SupoClip aus echten Videos gemacht hat",
+  "intro": "{clips, plural, one {# Clip} other {# Clips}} aus {sources, plural, one {# öffentlichen Video} other {# öffentlichen Videos}}, erstellt mit derselben Pipeline, die du bekommst: Sie findet die Momente, schneidet sie auf 9:16, schreibt einen Hook-Titel und brennt wortgenaue Untertitel ein. Nichts wurde von Hand bearbeitet.",
+  "primaryNav": "Navigation Beispiele",
+  "filters": {
+    "label": "Nach Kategorie filtern",
+    "all": "Alle"
+  },
+  "groups": {
+    "interview": {
+      "label": "Podcasts & Interviews",
+      "description": "Lange Gespräche, gekürzt auf die Antwort, die geteilt wird."
+    },
+    "gaming": {
+      "label": "Gaming & Streams",
+      "description": "Gameplay mit Facecam im Bild, von Story-Playthroughs bis zu Live-Reaktionen."
+    },
+    "vlog": {
+      "label": "Vlogs",
+      "description": "Handgefilmtes IRL-Material als knappe Momente mit Untertiteln."
+    }
+  },
+  "card": {
+    "videoLabel": "Beispiel-Clip: {title}",
+    "play": "„{title}“ abspielen",
+    "lengthLabel": "Länge",
+    "viralityLabel": "Viralität",
+    "viralityHint": "Der KI-Viralitätswert von SupoClip, von 100",
+    "captionsLabel": "Untertitel",
+    "credit": "Von <strong>{channel}</strong>.",
+    "watchOriginal": "Original ansehen",
+    "originalLabel": "Originalvideo: {title}"
+  },
+  "videoDescription": "Vertikaler Clip, von SupoClip aus „{title}“ von {channel} erstellt.",
+  "note": "Diese Clips hat SupoClip aus öffentlichen YouTube-Videos erstellt, um zu zeigen, was das Produkt macht. Alle Rechte bleiben bei den ursprünglichen Creators: Jeder Clip nennt den Kanal und verlinkt das ganze Video. Das SupoClip-Wasserzeichen gibt es nur auf dieser Seite; deine eigenen Clips haben keins.",
+  "cta": {
+    "title": "Mach solche Clips aus deinen Videos",
+    "body": "Füge einen YouTube-Link ein oder lade eine Datei hoch. SupoClip findet die besten Momente und liefert dir in wenigen Minuten vertikale Clips mit Untertiteln.",
+    "signUp": "Jetzt clippen",
+    "pricing": "Preise"
+  }
+}

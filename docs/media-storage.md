@@ -23,6 +23,7 @@ Backend and worker need the same settings:
 | `MEDIA_CACHE_TTL_SECONDS` | `86400` | Expiry of unused local caches, at least four hours |
 | `MEDIA_ORPHAN_GRACE_SECONDS` | `86400` | Minimum age before reclaiming unreferenced objects, at least one day |
 | `MEDIA_UPLOAD_CONCURRENCY` | `3` | Maximum active upload sessions per user, shared across API workers |
+| `MEDIA_UPLOAD_STALE_SECONDS` | `10800` | An open upload session with no activity for this long (minimum 600) stops counting toward `MEDIA_UPLOAD_CONCURRENCY`, and the cleanup worker aborts it. Activity is a part URL refresh, a finished part the browser reports, or a recent part the cleanup worker finds in storage, so a slow upload that keeps sending parts is never cut off |
 | `MEDIA_UPLOAD_DAILY_LIMIT` | `20` | Maximum upload authorizations per user in a rolling day, including aborted attempts |
 
 When dedicated media keys are omitted, boto3 uses its standard credential chain,

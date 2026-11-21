@@ -400,8 +400,9 @@ class BillingService:
                 "workspace_type": "team" if team_id else "personal",
                 "team_id": team_id,
                 "plan": "self_host",
-                "max_youtube_duration_seconds": self.config.max_video_duration,
-                "max_upload_duration_seconds": self.config.max_video_duration,
+                # Self-hosted instances are not limited by video length.
+                "max_youtube_duration_seconds": None,
+                "max_upload_duration_seconds": None,
                 "max_upload_bytes": self.config.max_video_upload_bytes,
                 "subscription_status": "inactive",
                 "subscription_provider": None,
@@ -451,15 +452,15 @@ class BillingService:
         if team_id and plan != "team":
             is_paid = False
 
+        max_duration = self.config.max_youtube_video_duration_for_plan(plan, status, provider)
         common: dict[str, Any] = {
             "monetization_enabled": True,
             "workspace_type": "team" if team_id else "personal",
             "team_id": team_id,
             "plan": plan,
-            "max_youtube_duration_seconds": self.config.max_youtube_video_duration_for_plan(
-                plan, status, provider
-            ),
-            "max_upload_duration_seconds": self.config.max_video_duration,
+            "max_youtube_duration_seconds": max_duration,
+            # One per-video cap for links and uploads alike.
+            "max_upload_duration_seconds": max_duration,
             "max_upload_bytes": self.config.max_video_upload_bytes,
             "subscription_status": status,
             "subscription_provider": row.get("subscription_provider"),

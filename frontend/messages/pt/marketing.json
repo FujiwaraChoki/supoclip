@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "Perguntas frequentes"
+    },
+    "examples": {
+      "label": "Clipes de exemplo"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "Abrir o app hospedado",
     "toggleMenu": "Abrir ou fechar o menu",
     "publishing": "Publicação",
-    "faq": "Perguntas frequentes"
+    "faq": "Perguntas frequentes",
+    "examples": "Exemplos"
   },
   "hero": {
     "badge": "Código aberto e auto-hospedável. Também no iPhone.",
@@ -507,11 +511,15 @@
       "features": {
         "pooledHours": "{hours} horas compartilhadas de vídeo/mês",
         "seats": "{seats} assentos com biblioteca compartilhada",
-        "quality": "Clipes Full HD {resolution} · YouTube até {hours}h",
+        "quality": "Clipes Full HD {resolution} · vídeos de até {hours}h",
         "sharedWorkspace": "Agendamento social e {aiEdits} edições de IA/mês",
         "roles": "Funções de Proprietário, Admin e Membro + mais concorrência",
         "aiEdits": "{aiEdits} edições de IA compartilhadas/mês"
       }
+    },
+    "limits": {
+      "monthly": "Vídeo por mês",
+      "perVideo": "Duração máx. por vídeo"
     }
   },
   "faq": {
@@ -529,7 +537,7 @@
       },
       "minutes": {
         "question": "Como os minutos são contados?",
-        "answer": "Os planos são medidos em minutos de vídeo original, não em clipes. O Pro inclui {proHours} horas por mês e o Creator {creatorHours} horas. Um vídeo de 30 minutos usa 30 minutos, não importa quantos clipes saiam dele. O saldo renova todo mês, inclusive nos planos anuais."
+        "answer": "Os planos são medidos em minutos de vídeo original, não em clipes. O Pro inclui {proHours} horas por mês e o Creator {creatorHours} horas. Um vídeo de 30 minutos usa 30 minutos, não importa quantos clipes saiam dele. O saldo renova todo mês, inclusive nos planos anuais. Cada vídeo pode ter até {proMinutes} minutos no Pro e {creatorMinutes} minutos no Creator."
       },
       "publishing": {
         "question": "O SupoClip posta no TikTok e no Instagram?",

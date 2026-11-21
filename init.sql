@@ -434,6 +434,15 @@ VALUES (
     false,
     true
 );
+-- Instagram Reels publishing stays off on web and iOS until Meta App Review passes. Admins bypass the flag.
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'instagram_publishing',
+    'Instagram Reels connecting and publishing. Off hides Instagram as coming soon while letting admins test.',
+    false,
+    false,
+    true
+);
 
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);

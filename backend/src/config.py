@@ -103,11 +103,13 @@ class Config:
             os.getenv("APIFY_LONG_VIDEO_SECONDS", "1800")
         )
 
+        # Video duration limits apply only in hosted mode (SELF_HOST=false).
+        # Self-hosted instances are not limited by video length.
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
-        # YouTube sources can be longer on paid tiers. Uploads continue to use
-        # max_video_duration regardless of plan.
+        # Per-video length cap for paid tiers, for every source (YouTube,
+        # Twitch, Kick and uploads). The names predate uploads following it.
         self.pro_youtube_max_video_duration = int(
-            os.getenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", str(self.max_video_duration))
+            os.getenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", "7200")
         )
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
@@ -115,7 +117,7 @@ class Config:
         self.team_youtube_max_video_duration = int(
             os.getenv("TEAM_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
-        # 4 GB fits a full-length upload (the duration cap is 90 minutes) at a
+        # 4 GB fits a full-length upload (two hours on Pro) at a
         # normal 1080p bitrate. Larger files make transcription, storage, and
         # rendering slow and fragile.
         self.max_video_upload_bytes = int(
@@ -160,6 +162,11 @@ class Config:
         self.media_orphan_grace_seconds = max(86400, int(os.getenv("MEDIA_ORPHAN_GRACE_SECONDS", "86400")))
         self.media_upload_concurrency = max(1, int(os.getenv("MEDIA_UPLOAD_CONCURRENCY", "3")))
         self.media_upload_daily_limit = max(1, int(os.getenv("MEDIA_UPLOAD_DAILY_LIMIT", "20")))
+        # A multipart upload with no activity for this long was abandoned (a
+        # closed tab never sends its abort). It stops holding a concurrency
+        # slot, and the cleanup worker aborts it. Finished parts count as
+        # activity, so a slow upload that keeps going is never cut off.
+        self.media_upload_stale_seconds = max(600, int(os.getenv("MEDIA_UPLOAD_STALE_SECONDS", "10800")))
         if self.media_storage == "s3" and not self.media_s3_bucket:
             raise ValueError("MEDIA_S3_BUCKET is required with MEDIA_STORAGE=s3")
 
@@ -392,7 +399,7 @@ class Config:
         subscription_status: str | None,
         subscription_provider: str | None = None,
     ) -> int:
-        """Return the YouTube duration cap granted by an active entitlement."""
+        """Return the per-video duration cap (any source) granted by an active entitlement."""
         status = (subscription_status or "").lower()
         provider = (subscription_provider or "").lower()
         # past_due keeps the cap only while Stripe is still retrying the invoice.

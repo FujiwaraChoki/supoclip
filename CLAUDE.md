@@ -186,7 +186,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 ## API Endpoints (routes in `api/routes/`)
 
 **Task lifecycle:**
-- `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`
+- `POST /tasks/` — Create task, enqueue to worker (returns task_id); optional `workflow`, `workflow_options`, `instructions`, `source.start_seconds`/`source.end_seconds` (clip one part of a video over the plan's per-video limit; `source_range.py`)
 - `GET /tasks/workflows` — What the user can make on this platform (workflows flag, env gate, limits)
 - `GET /feature-flags` — Feature flags evaluated for the caller and platform
 - `GET /tasks/` — List user tasks
@@ -247,6 +247,9 @@ RevenueCat `...scale.monthly/annual` product IDs); only the display name changed
   600/1500). `tasks.source_duration_seconds` is recorded at task creation (YouTube
   preflight, ffprobe for uploads) and `BillingService` sums started minutes.
   Yearly subscriptions still reset monthly (`_usage_window`).
+- **Per-video length:** Pro 120 min, Creator/Team 180 min, for every source (YouTube, Twitch,
+  Kick, uploads) via `max_youtube_video_duration_for_plan` (`PRO_/SCALE_/TEAM_YOUTUBE_MAX_VIDEO_DURATION`;
+  the names predate uploads following them). No active plan or self-hosting: `MAX_VIDEO_DURATION` (90 min).
 - **Resolution:** Pro gets 720p via a final `cap_video_short_side` pass on generated
   clips and editor renders; Creator gets 1080p. Pro subscribers from before the
   change have `users.legacy_hd` (backfilled once) and keep 1080p until they cancel.
@@ -379,6 +382,9 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   access (unaudited, TikTok rejects posts from public accounts). Off, `/social/providers` reports TikTok `configured: false,
   paused: true` (the web shows a short notice; iOS hides it) and connect/options/publish/retry return 503. Self-hosters
   with their own audited TikTok app turn it on in /admin.
+- **`instagram_publishing`:** seeded off on web and iOS (admins bypass) until Meta App Review approves Instagram Reels
+  publishing. Off, `/social/providers` reports Instagram `configured: false` (Coming soon on web; hidden on iOS) and
+  connect/options/publish/retry return 503 for non-admins, while admins can connect and publish test Reels.
 - **`dynamic_edits`:** seeded off on web and iOS (admins bypass). Off, requests that turn effects on (active
   `edit_style` or an FX caption template) get 403 `DYNAMIC_EDITS_NOT_AVAILABLE` before any charge; stored FX clips keep working.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with

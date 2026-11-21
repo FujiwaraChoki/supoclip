@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} vídeos cortados por mês",
-    "youtube": "Vídeos do YouTube de até {length}",
+    "youtube": "Vídeos de até {length} cada",
     "fonts": "Fontes personalizadas, B-roll e modelos de legenda",
     "priority": "Processamento prioritário",
     "minutes": "{length} de vídeo por mês",
@@ -36,7 +36,11 @@
   "prorated": "Você confirma a mudança no Stripe e paga só a diferença proporcional.",
   "cancelAnytime": "Cancele quando quiser · Checkout seguro com Stripe",
   "appStore": "Sua assinatura é gerenciada pela App Store. Você pode mudar de plano no app SupoClip para iOS.",
-  "selfHostLink": "Ou auto-hospede",
+  "selfHosted": {
+    "title": "Auto-hospedado",
+    "body": "Rode o SupoClip no seu computador, sem assinatura nem limite mensal de vídeos. É preciso configurar; você fornece o hardware e os serviços de IA pagos que escolher.",
+    "guide": "Guia de auto-hospedagem"
+  },
   "upgrade": {
     "start": {
       "eyebrow": "Quando você quiser",
@@ -58,8 +62,8 @@
       "eyebrow": "Um longo",
       "title": "{plan} aceita este vídeo de {runtime}",
       "fallbackPlan": "Um plano maior",
-      "body": "O {plan} aceita vídeos do YouTube de até {length}. O {next} aceita até {nextLength}, então este passa direto. Esta tentativa não usou minutos.",
-      "bodyNoNext": "O {plan} aceita vídeos do YouTube de até {length}. Esta tentativa não usou minutos."
+      "body": "O {plan} aceita vídeos de até {length}. O {next} aceita até {nextLength}, então este passa direto. Esta tentativa não usou minutos.",
+      "bodyNoNext": "O {plan} aceita vídeos de até {length}. Esta tentativa não usou minutos."
     },
     "fonts": {
       "eyebrow": "Deixe com a sua cara",

@@ -95,7 +95,7 @@
   "extraWords": "额外要剪掉的词或短语",
   "extraWordsPlaceholder": "基本上、真的、说实话",
   "generate": "生成片段",
-  "limitNote": "{plan}：YouTube 视频最长 {minutes} 分钟。每个视频按时长消耗分钟数，开始前会先检查。",
+  "limitNote": "{plan}：单个视频最长 {minutes} 分钟，链接或上传均可。每个视频按时长消耗分钟数，开始前会先检查。",
   "uploadLimits": "上传上限为 {size}。超过 1080p 或 60 fps 的视频会自动缩小，并保持原始比例。",
   "completionEmails": "完成邮件会遵循你在<settings>设置</settings>中的偏好。",
   "recent": "最近",
@@ -493,6 +493,41 @@
         "name": "脸部涂鸦",
         "description": "跟随说话人脸部的闪光、恶魔角和箭头"
       }
+    }
+  },
+  "sourceRange": {
+    "start": "开始",
+    "end": "结束",
+    "format": "请使用 h:mm:ss 格式，例如 1:30:00",
+    "first": "前 {minutes} 分钟",
+    "last": "最后 {minutes} 分钟",
+    "selected": "将剪辑 {length}，消耗 {minutes} 分钟。",
+    "problems": {
+      "invalid": "请输入开始和结束时间。",
+      "order": "结束时间必须晚于开始时间。",
+      "outOfBounds": "请选择 0:00 到 {duration} 之间的时间。",
+      "tooShort": "至少选择 {min} 分钟。",
+      "tooLong": "最多选择 {max} 分钟。"
+    }
+  },
+  "tooLongPanel": {
+    "title": "这个 {runtime} 的视频超过了你 {minutes} 分钟的上限",
+    "body": "选择最长 {minutes} 分钟的一段，我们只剪辑这一段。只有这一段计入你的分钟数。",
+    "bodyUpgrade": "选择最长 {minutes} 分钟的一段，我们只剪辑这一段；或升级到 {plan}，单个视频最长 {nextMinutes} 分钟。只有你选的这一段计入分钟数。",
+    "submit": "剪辑这一段",
+    "cancel": "换一个视频",
+    "label": "要剪辑的视频片段",
+    "upgradeTo": "升级到 {plan}（单个视频最长 {minutes} 分钟）",
+    "checkoutFailed": "结账页面没有打开，请稍后再试。"
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "我们无法读取这个视频的时长",
+      "body": "如果是仍在进行的直播，请等直播结束后粘贴完整录像。如果已经结束，请一分钟后再试。未消耗分钟数。"
+    },
+    "tooLongNoRange": {
+      "title": "这个视频超过了你 {minutes} 分钟的上限",
+      "body": "它比你的方案允许的更长，并且这里无法选择其中一段。请使用完整录像或更短的视频。未消耗分钟数。"
     }
   }
 }

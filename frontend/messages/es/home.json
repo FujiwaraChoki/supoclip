@@ -95,7 +95,7 @@
   "extraWords": "Palabras o frases extra para cortar",
   "extraWordsPlaceholder": "básicamente, literalmente, la verdad",
   "generate": "Generar clips",
-  "limitNote": "{plan}: vídeos de YouTube de hasta {minutes} minutos. Cada vídeo usa su duración en minutos, comprobada antes de empezar.",
+  "limitNote": "{plan}: vídeos de hasta {minutes} minutos cada uno, enlazados o subidos. Cada vídeo usa su duración en minutos, comprobada antes de empezar.",
   "uploadLimits": "Subidas de hasta {size}. Los videos por encima de 1080p o 60 fps se reducen automáticamente, conservando la proporción.",
   "completionEmails": "Los correos de finalización siguen tu preferencia en <settings>Ajustes</settings>.",
   "recent": "Recientes",
@@ -493,6 +493,41 @@
         "name": "Garabatos en la cara",
         "description": "Destellos, cuernos y flechas que siguen la cara de quien habla"
       }
+    }
+  },
+  "sourceRange": {
+    "start": "Inicio",
+    "end": "Fin",
+    "format": "Usa h:mm:ss, por ejemplo 1:30:00",
+    "first": "Primeros {minutes} min",
+    "last": "Últimos {minutes} min",
+    "selected": "Se recortarán {length}. Usa {minutes} minutos.",
+    "problems": {
+      "invalid": "Escribe una hora de inicio y una de fin.",
+      "order": "El fin tiene que ir después del inicio.",
+      "outOfBounds": "Elige tiempos entre 0:00 y {duration}.",
+      "tooShort": "Elige al menos {min} minuto.",
+      "tooLong": "Elige {max} minutos o menos."
+    }
+  },
+  "tooLongPanel": {
+    "title": "Este video de {runtime} supera tu límite de {minutes} minutos",
+    "body": "Elige una parte de hasta {minutes} minutos y recortaremos solo esa. Solo esa parte cuenta para tus minutos.",
+    "bodyUpgrade": "Elige una parte de hasta {minutes} minutos y recortaremos solo esa, o pásate a {plan} para videos de hasta {nextMinutes} minutos. Solo la parte que elijas cuenta para tus minutos.",
+    "submit": "Recortar esta parte",
+    "cancel": "Elegir otro video",
+    "label": "Parte del video que quieres recortar",
+    "upgradeTo": "Pásate a {plan} (hasta {minutes} min por video)",
+    "checkoutFailed": "No se abrió el pago. Inténtalo de nuevo en un momento."
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "No pudimos leer la duración de este video",
+      "body": "Si es un directo que sigue en curso, espera a que termine y pega la grabación final. Si ya terminó, inténtalo de nuevo en un minuto. No se usaron minutos."
+    },
+    "tooLongNoRange": {
+      "title": "Este video supera tu límite de {minutes} minutos",
+      "body": "Dura más de lo que permite tu plan y aquí no se puede elegir una parte. Prueba con la grabación final o con un video más corto. No se usaron minutos."
     }
   }
 }
