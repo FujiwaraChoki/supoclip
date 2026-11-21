@@ -39,6 +39,38 @@ If a format cannot be sliced, the job tries a bounded full 1080p download throug
 
 Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline. One transport retry and one allowed-region retry are permitted, within an overall limit of the initial timeout plus 60 seconds. A region retry can use the remaining overall allowance; it is not limited to a new 60-second transfer. Once retries are exhausted, independent providers can take over. Full-file proxy attempts use private temporary directories so cleanup cannot remove another job's media or a saved transcript. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
 
+## Part of a long video
+
+A task with a picked part (`source.start_seconds`/`end_seconds`, see
+`docs/api-reference.md`) only pays for that part:
+
+1. **Audio of the part only.** With a proxy, the job reuses cached full-length
+   audio when another job left it; otherwise it selects an HLS audio rendition,
+   reads its timed playlist through the proxy and fetches only the fragments
+   under the part (`youtube_download_kind=audio_section`). The few seconds of the
+   first and last fragment outside the part are cut locally. Formats without
+   timed fragments fall back to the modest full audio (cached for later jobs),
+   cut locally. A 2-hour part of an 8-hour stream costs about 2 hours of audio.
+2. **Sections as usual.** Clips are chosen from the part, moved onto the
+   video's own timeline, and fetched as padded sections like any other job.
+3. **Fallback.** If neither audio path works, the full-file chain runs and the
+   part's audio is cut from the downloaded file. Apify actors cannot fetch a
+   time range, and the budget actor refuses videos longer than the largest plan
+   limit, so very long streams rely on the proxy path.
+4. **Twitch and Kick.** The audio-only HLS rendition (Kick: the smallest video
+   rendition) is fetched for the part's fragments only; a VOD that can't be
+   sliced is downloaded whole and cut locally.
+5. **Uploads.** The upload stays whole. The part's audio is cut from it before
+   transcription and clips render from the original file.
+
+The part's transcript is kept apart from the video's: it has its own
+processing-cache and checkpoint keys, is written only beside this job's own
+files (never beside a cached full download or a shared upload), and is never
+backed up as the video's canonical word timings. Its analysis is not cached,
+since the stored segments are already on the video's timeline. The clip
+studio reads a part's word timings from the task's checkpoint when the file
+it downloads for editing has none.
+
 ## Generation recovery
 
 `Retry generation` keeps existing clip IDs, edits, exports and scheduled posts. It renders only unfinished positions in the saved clip plan, appending new clips without changing the existing display order. Failed individual renders leave the generation retryable even when other clips succeeded. Queued or processing jobs cannot start an overlapping run; a cancelled worker must finish stopping first.

@@ -156,6 +156,41 @@ Deploy the `default_clip_length` user migration (through either migration runner
 before the frontend. Ship the API and worker together so the worker accepts the
 new optional job argument. No new environment variables are required.
 
+### Part of a long video
+
+A source longer than the plan's per-video limit is rejected with 422
+`VIDEO_TOO_LONG`. The detail always carries `duration_seconds`,
+`max_duration_seconds`, `range_allowed: true` and `min_range_seconds`, for
+YouTube, Twitch, Kick and uploads alike. A livestream that is still live, or a
+video whose length can't be read, fails with `VIDEO_DURATION_UNAVAILABLE`
+instead (no range can be picked without a length).
+
+Pick one part with `source.start_seconds` and `source.end_seconds` (seconds into
+the video). Either may be left out: start defaults to 0, end to the video's end.
+
+```json
+{"source": {"url": "https://www.twitch.tv/videos/123", "start_seconds": 3600, "end_seconds": 10800}}
+```
+
+- Checked on the server once the real duration is known: `0 <= start < end <=
+  duration` (an end up to 2 s past the probed length is clamped), at least
+  `min_range_seconds` (60) long, and at most the plan's per-video limit. The
+  start is rounded to a whole second. Otherwise 422 `INVALID_SOURCE_RANGE` with
+  `message`, `duration_seconds`, `max_duration_seconds` and `min_range_seconds`,
+  before any task or charge.
+- Highlights only (any `instructions` are fine). Another `workflow` with a range
+  is a 422 `INVALID_SOURCE_RANGE`.
+- Minutes charged (`source_duration_seconds`) are the part's length; a failed
+  task refunds the same amount and a resume charges it again.
+- A range that covers the whole video is treated as no range.
+- `GET /tasks/{id}` returns `source_start_seconds` and `source_end_seconds`
+  (both `null` for a whole video). Clip `start_time`/`end_time` stay on the
+  full video's timeline, so a clip 1:02:10 into a stream reads `62:10`; links
+  into the source need no offset.
+- Only the part is downloaded where the source allows it (see
+  `docs/youtube-download.md`), transcribed and analysed. Each part has its own
+  transcript cache entry; the whole video's cache keys are unchanged.
+
 ### Workflows
 
 A task makes one of five things. Omit `workflow` (or send `"highlights"`) for
