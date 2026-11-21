@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma";
 import { getTeamBillingConfig } from "@/lib/billing-plans";
+import { monetizationEnabled } from "@/lib/monetization";
 import { getPrismaClient } from "@/server/prisma";
 
 export type TeamRole = "owner" | "admin" | "member";
@@ -11,6 +12,14 @@ export const TEAM_ROLES: readonly TeamRole[] = ["owner", "admin", "member"];
 export const INVITABLE_ROLES: readonly InvitableTeamRole[] = ["admin", "member"];
 export const MAX_MEMBER_MINUTE_LIMIT = 100_000;
 export const MAX_MEMBER_AI_EDIT_LIMIT = 10_000;
+/** Teams one person may own. Creating a team is free, so it is bounded. */
+export const MAX_OWNED_TEAMS = 10;
+/** Invitation emails a team may send per day, counting ones since revoked. */
+export const MAX_INVITATIONS_PER_DAY = 50;
+/** Wait between two emails for the same invitation. */
+export const INVITATION_RESEND_COOLDOWN_MS = 60_000;
+
+const INVITING_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,6 +56,32 @@ export function canManageMembers(role: string | null | undefined): boolean {
 
 export function canManageBilling(role: string | null | undefined): boolean {
   return role === "owner";
+}
+
+/** Owners invite admins and members; admins only members (as with role changes). */
+export function canInviteRole(
+  actorRole: string | null | undefined,
+  role: InvitableTeamRole,
+): boolean {
+  if (actorRole === "owner") return true;
+  return actorRole === "admin" && role === "member";
+}
+
+/**
+ * Invitation emails carry the team's name to an address the inviter picks. On
+ * a hosted install only a subscribed team may send them: otherwise any free
+ * account could mail arbitrary text to arbitrary people from our domain.
+ */
+function assertTeamMayInvite(team: { plan: string; subscription_status: string }): void {
+  if (!monetizationEnabled) return;
+  if (team.plan === "team" && INVITING_SUBSCRIPTION_STATUSES.has(team.subscription_status)) {
+    return;
+  }
+  throw new TeamError(
+    "Start the Team subscription before inviting teammates.",
+    409,
+    "subscription_required",
+  );
 }
 
 export function canModifyMemberRole(
@@ -190,6 +225,14 @@ export async function createTeamForUser(
   const includedSeats = getTeamBillingConfig().includedSeats;
 
   return db.$transaction(async (tx) => {
+    const owned = await tx.team.count({ where: { owner_id: userId } });
+    if (owned >= MAX_OWNED_TEAMS) {
+      throw new TeamError(
+        `You can own up to ${MAX_OWNED_TEAMS} teams. Delete one you no longer use first.`,
+        409,
+        "team_limit_reached",
+      );
+    }
     const slug = await generateUniqueTeamSlug(tx, name);
     const team = await tx.team.create({
       data: {
@@ -252,13 +295,31 @@ export async function createTeamInvitation(
         "forbidden",
       );
     }
+    if (!canInviteRole(actor.role, role)) {
+      throw new TeamError("Only the team owner can invite an admin", 403, "forbidden");
+    }
 
     const team = await tx.team.findUnique({
       where: { id: teamId },
-      select: { id: true, name: true, seat_limit: true },
+      select: { id: true, name: true, seat_limit: true, plan: true, subscription_status: true },
     });
     if (!team) {
       throw new TeamError("Team not found", 404, "team_not_found");
+    }
+    assertTeamMayInvite(team);
+
+    const sentToday = await tx.teamInvitation.count({
+      where: {
+        team_id: teamId,
+        created_at: { gt: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+      },
+    });
+    if (sentToday >= MAX_INVITATIONS_PER_DAY) {
+      throw new TeamError(
+        "This team has sent too many invitations today. Try again tomorrow.",
+        429,
+        "invite_rate_limited",
+      );
     }
 
     // Check if the email already belongs to a member of this team.
@@ -361,10 +422,22 @@ export async function resendTeamInvitation(
 
     const invitation = await tx.teamInvitation.findFirst({
       where: { id: invitationId, team_id: teamId },
-      include: { team: { select: { id: true, name: true, seat_limit: true } } },
+      include: {
+        team: {
+          select: { id: true, name: true, seat_limit: true, plan: true, subscription_status: true },
+        },
+      },
     });
     if (!invitation || invitation.accepted_at || invitation.revoked_at) {
       throw new TeamError("Invitation not found", 404, "invitation_not_found");
+    }
+    assertTeamMayInvite(invitation.team);
+    if (now.getTime() - invitation.updated_at.getTime() < INVITATION_RESEND_COOLDOWN_MS) {
+      throw new TeamError(
+        "This invitation was just sent. Wait a minute before sending it again.",
+        429,
+        "invite_rate_limited",
+      );
     }
 
     // If the old invitation had expired, re-check seat capacity before reviving it.
@@ -405,30 +478,33 @@ export async function revokeTeamInvitation(
   },
   db: PrismaClient = getPrismaClient(),
 ) {
-  const actor = await db.teamMember.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
-    select: { role: true },
-  });
-  if (!actor || !canManageMembers(actor.role)) {
-    throw new TeamError(
-      "Only team owners and admins can revoke invitations",
-      403,
-      "forbidden",
-    );
-  }
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM teams WHERE id = ${teamId} FOR UPDATE`;
+    const actor = await tx.teamMember.findUnique({
+      where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
+      select: { role: true },
+    });
+    if (!actor || !canManageMembers(actor.role)) {
+      throw new TeamError(
+        "Only team owners and admins can revoke invitations",
+        403,
+        "forbidden",
+      );
+    }
 
-  const updated = await db.teamInvitation.updateMany({
-    where: {
-      id: invitationId,
-      team_id: teamId,
-      accepted_at: null,
-      revoked_at: null,
-    },
-    data: { revoked_at: new Date() },
+    const updated = await tx.teamInvitation.updateMany({
+      where: {
+        id: invitationId,
+        team_id: teamId,
+        accepted_at: null,
+        revoked_at: null,
+      },
+      data: { revoked_at: new Date() },
+    });
+    if (updated.count === 0) {
+      throw new TeamError("Invitation not found", 404, "invitation_not_found");
+    }
   });
-  if (updated.count === 0) {
-    throw new TeamError("Invitation not found", 404, "invitation_not_found");
-  }
 }
 
 export type InvitationLookupResult = {
@@ -491,6 +567,17 @@ export async function acceptTeamInvitation(
   const now = new Date();
 
   return db.$transaction(async (tx) => {
+    const found = await tx.teamInvitation.findUnique({
+      where: { token_hash: tokenHash },
+      select: { team_id: true },
+    });
+    if (!found) {
+      throw new TeamError("Invitation not found", 404, "invitation_not_found");
+    }
+
+    // Take the team lock first, then read the invitation: a revoke, a resend
+    // (new token) or another accept that ran meanwhile is seen here.
+    await tx.$queryRaw`SELECT id FROM teams WHERE id = ${found.team_id} FOR UPDATE`;
     const invitation = await tx.teamInvitation.findUnique({
       where: { token_hash: tokenHash },
       include: { team: { select: { id: true, name: true, seat_limit: true } } },
@@ -498,8 +585,6 @@ export async function acceptTeamInvitation(
     if (!invitation) {
       throw new TeamError("Invitation not found", 404, "invitation_not_found");
     }
-
-    await tx.$queryRaw`SELECT id FROM teams WHERE id = ${invitation.team_id} FOR UPDATE`;
 
     if (invitation.revoked_at) {
       throw new TeamError("This invitation was revoked", 410, "invitation_revoked");
@@ -592,30 +677,35 @@ export async function updateTeamMemberRole(
   if (!isInvitableTeamRole(newRole)) {
     throw new TeamError("Role must be admin or member", 400, "invalid_role");
   }
-  const [actor, target] = await Promise.all([
-    db.teamMember.findUnique({
-      where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
-    }),
-    db.teamMember.findUnique({
+  // Roles are read and written under the team lock, so a change cannot run
+  // against the roles from before a concurrent ownership transfer.
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM teams WHERE id = ${teamId} FOR UPDATE`;
+    const [actor, target] = await Promise.all([
+      tx.teamMember.findUnique({
+        where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
+      }),
+      tx.teamMember.findUnique({
+        where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
+      }),
+    ]);
+    if (!actor || !isTeamRole(actor.role)) {
+      throw new TeamError("Not a member of this team", 403, "forbidden");
+    }
+    if (!target || !isTeamRole(target.role)) {
+      throw new TeamError("Member not found", 404, "member_not_found");
+    }
+    if (!canModifyMemberRole(actor.role, target.role, newRole)) {
+      throw new TeamError(
+        "You don't have permission to change this member's role",
+        403,
+        "forbidden",
+      );
+    }
+    return tx.teamMember.update({
       where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
-    }),
-  ]);
-  if (!actor || !isTeamRole(actor.role)) {
-    throw new TeamError("Not a member of this team", 403, "forbidden");
-  }
-  if (!target || !isTeamRole(target.role)) {
-    throw new TeamError("Member not found", 404, "member_not_found");
-  }
-  if (!canModifyMemberRole(actor.role, target.role, newRole)) {
-    throw new TeamError(
-      "You don't have permission to change this member's role",
-      403,
-      "forbidden",
-    );
-  }
-  return db.teamMember.update({
-    where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
-    data: { role: newRole },
+      data: { role: newRole },
+    });
   });
 }
 
@@ -697,31 +787,36 @@ export async function removeTeamMember(
   },
   db: PrismaClient = getPrismaClient(),
 ) {
-  const [actor, target] = await Promise.all([
-    db.teamMember.findUnique({
-      where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
-    }),
-    db.teamMember.findUnique({
+  // Under the team lock: an owner cannot leave in the same instant ownership
+  // is being transferred to them, which would leave a team without its owner.
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM teams WHERE id = ${teamId} FOR UPDATE`;
+    const [actor, target] = await Promise.all([
+      tx.teamMember.findUnique({
+        where: { team_id_user_id: { team_id: teamId, user_id: actorUserId } },
+      }),
+      tx.teamMember.findUnique({
+        where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
+      }),
+    ]);
+    if (!actor || !isTeamRole(actor.role)) {
+      throw new TeamError("Not a member of this team", 403, "forbidden");
+    }
+    if (!target || !isTeamRole(target.role)) {
+      throw new TeamError("Member not found", 404, "member_not_found");
+    }
+    if (!canRemoveMember(actorUserId, actor.role, targetUserId, target.role)) {
+      throw new TeamError(
+        actorUserId === targetUserId
+          ? "Transfer team ownership or delete the team before leaving"
+          : "You don't have permission to remove this member",
+        403,
+        "forbidden",
+      );
+    }
+    await tx.teamMember.delete({
       where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
-    }),
-  ]);
-  if (!actor || !isTeamRole(actor.role)) {
-    throw new TeamError("Not a member of this team", 403, "forbidden");
-  }
-  if (!target || !isTeamRole(target.role)) {
-    throw new TeamError("Member not found", 404, "member_not_found");
-  }
-  if (!canRemoveMember(actorUserId, actor.role, targetUserId, target.role)) {
-    throw new TeamError(
-      actorUserId === targetUserId
-        ? "Transfer team ownership or delete the team before leaving"
-        : "You don't have permission to remove this member",
-      403,
-      "forbidden",
-    );
-  }
-  await db.teamMember.delete({
-    where: { team_id_user_id: { team_id: teamId, user_id: targetUserId } },
+    });
   });
 }
 

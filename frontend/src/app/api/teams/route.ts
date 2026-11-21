@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import { monetizationEnabled } from "@/lib/monetization";
+import { teamPlanAvailable } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
 import { createTeamForUser, TeamError } from "@/server/teams";
-import { getVerifiedActiveTeamId, WORKSPACE_COOKIE } from "@/server/workspace";
+import {
+  getActiveTeamIdFromCookies,
+  getVerifiedActiveTeamId,
+  WORKSPACE_COOKIE,
+} from "@/server/workspace";
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
@@ -52,10 +58,22 @@ export async function GET() {
       membership.team._count.members + membership.team.invitations.length,
   }));
 
-  return NextResponse.json(
-    { activeTeamId, teams },
+  const response = NextResponse.json(
+    { activeTeamId, teams, available: teamPlanAvailable(monetizationEnabled) },
     { headers: { "Cache-Control": "no-store" } },
   );
+  // A cookie left behind by a removed membership, a deleted team or another
+  // account on this browser is dropped, so it is not carried for a year.
+  if (!activeTeamId && (await getActiveTeamIdFromCookies())) {
+    response.cookies.set(WORKSPACE_COOKIE, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+  return response;
 }
 
 export async function POST(request: Request) {
@@ -69,6 +87,13 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!teamPlanAvailable(monetizationEnabled)) {
+    return NextResponse.json(
+      { error: "Team workspaces aren't available yet.", code: "teams_unavailable" },
+      { status: 503 },
+    );
   }
 
   try {

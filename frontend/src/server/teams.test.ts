@@ -4,6 +4,7 @@ const prismaMock = {
   team: {
     findUnique: vi.fn(),
     findUniqueOrThrow: vi.fn(),
+    count: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
@@ -31,6 +32,9 @@ vi.mock("@/server/prisma", () => ({
   getPrismaClient: () => prismaMock,
 }));
 
+// Hosted mode: inviting needs a subscribed team.
+vi.mock("@/lib/monetization", () => ({ monetizationEnabled: true }));
+
 import {
   acceptTeamInvitation,
   canManageBilling,
@@ -42,7 +46,10 @@ import {
   createTeamInvitation,
   hashInvitationToken,
   lookupTeamInvitation,
+  MAX_INVITATIONS_PER_DAY,
+  MAX_OWNED_TEAMS,
   removeTeamMember,
+  resendTeamInvitation,
   revokeTeamInvitation,
   slugifyTeamName,
   TeamError,
@@ -54,6 +61,7 @@ import {
 } from "./teams";
 
 const VALID_TOKEN = "a".repeat(32);
+const SUBSCRIBED = { plan: "team", subscription_status: "active" };
 
 describe("team permissions & helpers", () => {
   it("enforces role permission matrix", () => {
@@ -100,10 +108,21 @@ describe("team permissions & helpers", () => {
 
 describe("team lifecycle & seat cap enforcement", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) =>
       callback(prismaMock),
     );
+    prismaMock.team.count.mockResolvedValue(0);
+  });
+
+  it("stops one person from owning an unbounded number of teams", async () => {
+    prismaMock.team.count.mockResolvedValue(MAX_OWNED_TEAMS);
+
+    await expect(createTeamForUser("user-1", "One More")).rejects.toMatchObject({
+      code: "team_limit_reached",
+      status: 409,
+    });
+    expect(prismaMock.team.create).not.toHaveBeenCalled();
   });
 
   it("creates a team and assigns the creator as owner with included seats", async () => {
@@ -136,7 +155,7 @@ describe("team lifecycle & seat cap enforcement", () => {
 
   it("blocks inviting when occupied seats reach seat_limit", async () => {
     prismaMock.teamMember.findUnique.mockResolvedValue({ role: "owner" });
-    prismaMock.team.findUnique.mockResolvedValue({ id: "team-1", name: "Demo Studio", seat_limit: 3 });
+    prismaMock.team.findUnique.mockResolvedValue({ id: "team-1", name: "Demo Studio", seat_limit: 3, ...SUBSCRIBED });
     prismaMock.teamMember.findFirst.mockResolvedValue(null);
     prismaMock.teamInvitation.findFirst.mockResolvedValue(null);
     prismaMock.teamMember.count.mockResolvedValue(2);
@@ -153,6 +172,75 @@ describe("team lifecycle & seat cap enforcement", () => {
       code: "seat_limit_reached",
       status: 409,
     });
+  });
+
+  it("sends no invitation email for a team without a subscription", async () => {
+    prismaMock.teamMember.findUnique.mockResolvedValue({ role: "owner" });
+    prismaMock.team.findUnique.mockResolvedValue({
+      id: "team-1",
+      name: "Demo Studio",
+      seat_limit: 3,
+      plan: "free",
+      subscription_status: "inactive",
+    });
+
+    await expect(
+      createTeamInvitation({
+        teamId: "team-1",
+        inviterUserId: "user-1",
+        rawEmail: "new@example.com",
+        role: "member",
+      }),
+    ).rejects.toMatchObject({ code: "subscription_required", status: 409 });
+    expect(prismaMock.teamInvitation.create).not.toHaveBeenCalled();
+  });
+
+  it("caps the invitations a team can send in a day", async () => {
+    prismaMock.teamMember.findUnique.mockResolvedValue({ role: "owner" });
+    prismaMock.team.findUnique.mockResolvedValue({ id: "team-1", name: "Demo Studio", seat_limit: 100, ...SUBSCRIBED });
+    prismaMock.teamInvitation.count.mockResolvedValue(MAX_INVITATIONS_PER_DAY);
+
+    await expect(
+      createTeamInvitation({
+        teamId: "team-1",
+        inviterUserId: "user-1",
+        rawEmail: "new@example.com",
+        role: "member",
+      }),
+    ).rejects.toMatchObject({ code: "invite_rate_limited", status: 429 });
+    expect(prismaMock.teamInvitation.create).not.toHaveBeenCalled();
+  });
+
+  it("lets only the owner invite an admin", async () => {
+    prismaMock.teamMember.findUnique.mockResolvedValue({ role: "admin" });
+
+    await expect(
+      createTeamInvitation({
+        teamId: "team-1",
+        inviterUserId: "user-admin",
+        rawEmail: "new@example.com",
+        role: "admin",
+      }),
+    ).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    expect(prismaMock.teamInvitation.create).not.toHaveBeenCalled();
+  });
+
+  it("does not resend an invitation that was sent a moment ago", async () => {
+    prismaMock.teamMember.findUnique.mockResolvedValue({ role: "owner" });
+    prismaMock.teamInvitation.findFirst.mockResolvedValue({
+      id: "inv-1",
+      team_id: "team-1",
+      accepted_at: null,
+      revoked_at: null,
+      expires_at: new Date(Date.now() + 60_000),
+      updated_at: new Date(),
+      team: { id: "team-1", name: "Demo Studio", seat_limit: 5, ...SUBSCRIBED },
+    });
+
+    await expect(
+      resendTeamInvitation({ teamId: "team-1", invitationId: "inv-1", actorUserId: "user-1" }),
+    ).rejects.toMatchObject({ code: "invite_rate_limited", status: 429 });
+    expect(prismaMock.teamInvitation.update).not.toHaveBeenCalled();
   });
 
   it("blocks regular members from sending invitations", async () => {
@@ -173,7 +261,7 @@ describe("team lifecycle & seat cap enforcement", () => {
 
   it("creates an invitation with a hashed token when a seat is available", async () => {
     prismaMock.teamMember.findUnique.mockResolvedValue({ role: "admin" });
-    prismaMock.team.findUnique.mockResolvedValue({ id: "team-1", name: "Demo Studio", seat_limit: 5 });
+    prismaMock.team.findUnique.mockResolvedValue({ id: "team-1", name: "Demo Studio", seat_limit: 5, ...SUBSCRIBED });
     prismaMock.teamMember.findFirst.mockResolvedValue(null);
     prismaMock.teamInvitation.findFirst.mockResolvedValue(null);
     prismaMock.teamMember.count.mockResolvedValue(2);

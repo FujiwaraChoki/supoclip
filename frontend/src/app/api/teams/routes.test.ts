@@ -9,10 +9,12 @@ const prismaMock = {
   team: {
     findUnique: vi.fn(),
     findUniqueOrThrow: vi.fn(),
+    count: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   },
+  source: { deleteMany: vi.fn() },
   teamMember: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
@@ -38,9 +40,11 @@ const stripeTeamMocks = vi.hoisted(() => ({
   createTeamBillingPortalSession: vi.fn(),
   createTeamCheckoutSession: vi.fn(),
   updateTeamSeats: vi.fn(),
+  teamHasBillableStripeSubscription: vi.fn(),
   withTeamBillingAccount: vi.fn(async (_teamId: string, fn: () => unknown) => fn()),
 }));
 
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/server/session", () => ({ getServerSession: () => sessionMock() }));
 vi.mock("@/server/prisma", () => ({ getPrismaClient: () => prismaMock }));
 vi.mock("@/server/backend-api", () => ({ fetchBackend: (...args: unknown[]) => fetchBackendMock(...args) }));
@@ -76,8 +80,16 @@ const ctx = <T,>(params: T) => ({ params: Promise.resolve(params) });
 
 describe("Next.js Team API routes", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset, not clear: a queued `mockResolvedValueOnce` must not leak into the next test.
+    vi.resetAllMocks();
+    vi.unstubAllEnvs();
+    vi.stubEnv("STRIPE_TEAM_PRICE_ID", "price_team_month");
     prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => unknown) => fn(prismaMock));
+    prismaMock.team.count.mockResolvedValue(0);
+    stripeTeamMocks.withTeamBillingAccount.mockImplementation(
+      async (_teamId: string, fn: () => unknown) => fn(),
+    );
+    stripeTeamMocks.teamHasBillableStripeSubscription.mockResolvedValue(false);
     sessionMock.mockResolvedValue({
       user: { id: "u-owner", email: "owner@example.com", name: "Owner" },
     });
@@ -111,6 +123,29 @@ describe("Next.js Team API routes", () => {
     const body = await res.json();
     expect(body.team).toMatchObject({ id: "team-new", role: "owner", seatLimit: 3, occupiedSeats: 1 });
     expect(res.headers.get("set-cookie")).toContain("supoclip_team_id=team-new");
+  });
+
+  it("keeps team creation closed on a hosted install without Team prices", async () => {
+    vi.stubEnv("STRIPE_TEAM_PRICE_ID", "");
+
+    const res = await teamsRoute.POST(jsonReq({ name: "Clip Squad" }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe("teams_unavailable");
+    expect(prismaMock.team.create).not.toHaveBeenCalled();
+  });
+
+  it("drops a workspace cookie the caller no longer has a membership for", async () => {
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValue({
+      get: () => ({ name: "supoclip_team_id", value: "team-gone-1" }),
+    } as never);
+    prismaMock.teamMember.findMany.mockResolvedValue([]);
+    getVerifiedActiveTeamIdMock.mockResolvedValue(null);
+
+    const res = await teamsRoute.GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ activeTeamId: null, teams: [], available: true });
+    expect(res.headers.get("set-cookie")).toContain("supoclip_team_id=;");
   });
 
   it("prevents switching into a team the user does not belong to and clears cookie on Personal switch", async () => {
@@ -189,6 +224,18 @@ describe("Next.js Team API routes", () => {
     fetchBackendMock.mockResolvedValue(new Response("{}", { status: 200 }));
     prismaMock.team.delete.mockResolvedValue({});
 
+    // The row says nothing is subscribed, but Stripe still has a subscription that will charge.
+    stripeTeamMocks.teamHasBillableStripeSubscription.mockResolvedValueOnce(true);
+    const behind = await teamDetailRoute.DELETE(new Request("http://localhost", { method: "DELETE" }), ctx({ teamId: "t1" }));
+    expect(behind.status).toBe(409);
+    expect(prismaMock.team.delete).not.toHaveBeenCalled();
+
+    prismaMock.team.findUnique.mockResolvedValueOnce({
+      id: "t1",
+      stripe_subscription_id: null,
+      subscription_status: "inactive",
+      subscription_cancel_at: null,
+    });
     const deleted = await teamDetailRoute.DELETE(new Request("http://localhost", { method: "DELETE" }), ctx({ teamId: "t1" }));
     expect(deleted.status).toBe(200);
     expect(fetchBackendMock).toHaveBeenCalledWith(
@@ -200,7 +247,13 @@ describe("Next.js Team API routes", () => {
 
   it("creates invitation and returns inviteUrl even if SES email delivery fails", async () => {
     prismaMock.teamMember.findUnique.mockResolvedValue({ role: "owner" });
-    prismaMock.team.findUnique.mockResolvedValue({ id: "t1", name: "Clip Squad", seat_limit: 5 });
+    prismaMock.team.findUnique.mockResolvedValue({
+      id: "t1",
+      name: "Clip Squad",
+      seat_limit: 5,
+      plan: "team",
+      subscription_status: "active",
+    });
     prismaMock.teamMember.findFirst.mockResolvedValue(null);
     prismaMock.teamInvitation.findFirst.mockResolvedValue(null);
     prismaMock.teamMember.count.mockResolvedValue(1);
@@ -273,6 +326,8 @@ describe("Next.js Team API routes", () => {
 
     // Signed in with matching email accepts invite and switches active workspace cookie
     sessionMock.mockResolvedValueOnce({ user: { id: "u-editor", email: "Editor@Example.com" } });
+    // Read once to find the team to lock, then again under the lock.
+    prismaMock.teamInvitation.findUnique.mockResolvedValueOnce({ team_id: "t1" });
     prismaMock.teamInvitation.findUnique.mockResolvedValueOnce({
       id: "inv-1",
       team_id: "t1",

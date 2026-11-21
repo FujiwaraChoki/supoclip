@@ -4,6 +4,10 @@ import { fetchBackend } from "@/server/backend-api";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
 import {
+  teamHasBillableStripeSubscription,
+  withTeamBillingAccount,
+} from "@/server/stripe-team-billing";
+import {
   canManageBilling,
   canManageMembers,
   TeamError,
@@ -242,20 +246,37 @@ export async function DELETE(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
+  const activeSubscription = NextResponse.json(
+    {
+      error:
+        "Cancel the team subscription in Manage Billing before deleting this team.",
+      code: "active_subscription",
+    },
+    { status: 409 },
+  );
   if (
     monetizationEnabled &&
     team.stripe_subscription_id &&
     BILLABLE_STATUSES.has(team.subscription_status) &&
     !team.subscription_cancel_at
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Cancel the team subscription in Manage Billing before deleting this team.",
-        code: "active_subscription",
-      },
-      { status: 409 },
-    );
+    return activeSubscription;
+  }
+  if (monetizationEnabled) {
+    // The row can be behind Stripe (a webhook still on its way). Deleting the
+    // team would leave that subscription charging with nothing to cancel it from.
+    try {
+      const billable = await withTeamBillingAccount(teamId, () =>
+        teamHasBillableStripeSubscription(teamId),
+      );
+      if (billable) return activeSubscription;
+    } catch (error) {
+      console.error("Could not check the team's Stripe subscriptions before deletion", error);
+      return NextResponse.json(
+        { error: "Couldn't check this team's billing. Try again in a moment." },
+        { status: 503 },
+      );
+    }
   }
 
   // Revoke any team social tokens before deleting the team row.
@@ -264,6 +285,17 @@ export async function DELETE(
     userId: session.user.id,
     teamId,
   }).catch(() => {});
+
+  // `sources` has no team column: remove the ones only this team's tasks use,
+  // before the team's tasks cascade away with it.
+  await prisma.source.deleteMany({
+    where: {
+      tasks: {
+        some: { team_id: teamId },
+        none: { OR: [{ team_id: null }, { team_id: { not: teamId } }] },
+      },
+    },
+  });
 
   await prisma.team.delete({ where: { id: teamId } });
 
