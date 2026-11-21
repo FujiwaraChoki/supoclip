@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "Como os minutos são contados?",
-        "answer": "Os planos são medidos em minutos de vídeo original, não em clipes. O Pro inclui {proHours} horas por mês e o Creator {creatorHours} horas. Um vídeo de 30 minutos usa 30 minutos, não importa quantos clipes saiam dele. O saldo renova todo mês, inclusive nos planos anuais."
+        "answer": "Os planos são medidos em minutos de vídeo original, não em clipes. O Pro inclui {proHours} horas por mês e o Creator {creatorHours} horas. Um vídeo de 30 minutos usa 30 minutos, não importa quantos clipes saiam dele. O saldo renova todo mês, inclusive nos planos anuais. Cada vídeo pode ter até {proMinutes} minutos no Pro e {creatorMinutes} minutos no Creator."
       },
       "publishing": {
         "question": "O SupoClip posta no TikTok e no Instagram?",

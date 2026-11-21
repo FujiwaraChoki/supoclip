@@ -265,6 +265,31 @@ async def test_process_task_uses_scale_youtube_duration_allowance(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_process_task_applies_pro_limit_to_uploads(monkeypatch):
+    service = build_task_service()
+    service.config.max_video_duration = 5400
+    service.config.pro_youtube_max_video_duration = 7200
+
+    class FakeBillingService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def get_usage_summary(self, _user_id):
+            return {"plan": "pro", "subscription_status": "active"}
+
+    monkeypatch.setattr(task_service_module, "BillingService", FakeBillingService)
+
+    await service.process_task(
+        task_id="task-1",
+        url="/tmp/uploads/demo.mp4",
+        source_type="video_url",
+        user_id="pro-user",
+    )
+
+    assert service.video_service.process_video_complete.await_args.kwargs["max_video_duration"] == 7200
+
+
+@pytest.mark.asyncio
 async def test_process_task_sends_completion_email_when_enabled(monkeypatch):
     service = build_task_service()
     service.task_repo.get_task_notification_context = AsyncMock(

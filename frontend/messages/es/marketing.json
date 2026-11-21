@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "¿Cómo se cuentan los minutos?",
-        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales."
+        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales. Cada video puede durar hasta {proMinutes} minutos en Pro y {creatorMinutes} minutos en Creator."
       },
       "publishing": {
         "question": "¿SupoClip puede publicar en TikTok e Instagram?",

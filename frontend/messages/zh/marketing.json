@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "分钟数如何计算？",
-        "answer": "方案按处理的原视频分钟数计量，而不是按片段数。Pro 每月包含 {proHours} 小时，Creator 包含 {creatorHours} 小时。一个 30 分钟的视频消耗 30 分钟，无论剪出多少片段。额度每月重置，年付方案也一样。"
+        "answer": "方案按处理的原视频分钟数计量，而不是按片段数。Pro 每月包含 {proHours} 小时，Creator 包含 {creatorHours} 小时。一个 30 分钟的视频消耗 30 分钟，无论剪出多少片段。额度每月重置，年付方案也一样。单个视频在 Pro 上最长 {proMinutes} 分钟，在 Creator 上最长 {creatorMinutes} 分钟。"
       },
       "publishing": {
         "question": "SupoClip 能发布到 TikTok 和 Instagram 吗？",

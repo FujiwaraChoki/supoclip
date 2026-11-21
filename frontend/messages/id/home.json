@@ -95,7 +95,7 @@
   "extraWords": "Kata atau frasa tambahan untuk dipotong",
   "extraWordsPlaceholder": "intinya, jujur saja, sebenarnya",
   "generate": "Buat clip",
-  "limitNote": "{plan}: video YouTube, Twitch, dan Kick sampai {minutes} menit. Setiap video memakai durasinya dalam menit, dicek sebelum kami mulai.",
+  "limitNote": "{plan}: video sampai {minutes} menit per video, lewat tautan atau unggahan. Setiap video memakai durasinya dalam menit, dicek sebelum kami mulai.",
   "uploadLimits": "Unggahan sampai {size}. Video di atas 1080p atau 60 fps diturunkan otomatis, bentuknya tetap.",
   "completionEmails": "Email selesai mengikuti preferensimu di <settings>Pengaturan</settings>.",
   "recent": "Terbaru",

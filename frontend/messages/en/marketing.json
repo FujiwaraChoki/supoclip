@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "How are minutes counted?",
-        "answer": "Plans are measured in minutes of source video, not in clips. Pro includes {proHours} hours a month and Creator {creatorHours} hours. A 30-minute video uses 30 minutes, however many clips come out of it. Allowances reset every month, on yearly plans too."
+        "answer": "Plans are measured in minutes of source video, not in clips. Pro includes {proHours} hours a month and Creator {creatorHours} hours. A 30-minute video uses 30 minutes, however many clips come out of it. Allowances reset every month, on yearly plans too. Each video can be up to {proMinutes} minutes long on Pro and {creatorMinutes} minutes on Creator."
       },
       "publishing": {
         "question": "Can SupoClip post to TikTok and Instagram?",

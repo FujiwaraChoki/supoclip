@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "Bagaimana menit dihitung?",
-        "answer": "Paket dihitung dalam menit video sumber, bukan jumlah klip. Pro mencakup {proHours} jam per bulan dan Creator {creatorHours} jam. Video 30 menit memakai 30 menit, berapa pun klip yang dihasilkan. Kuota diatur ulang setiap bulan, termasuk pada paket tahunan."
+        "answer": "Paket dihitung dalam menit video sumber, bukan jumlah klip. Pro mencakup {proHours} jam per bulan dan Creator {creatorHours} jam. Video 30 menit memakai 30 menit, berapa pun klip yang dihasilkan. Kuota diatur ulang setiap bulan, termasuk pada paket tahunan. Setiap video bisa sampai {proMinutes} menit di Pro dan {creatorMinutes} menit di Creator."
       },
       "publishing": {
         "question": "Bisakah SupoClip memposting ke TikTok dan Instagram?",

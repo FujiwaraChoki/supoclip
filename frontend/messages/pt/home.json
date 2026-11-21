@@ -95,7 +95,7 @@
   "extraWords": "Palavras ou frases extras para cortar",
   "extraWordsPlaceholder": "basicamente, literalmente, sendo sincero",
   "generate": "Gerar clipes",
-  "limitNote": "{plan}: vídeos do YouTube de até {minutes} minutos. Cada vídeo usa sua duração em minutos, verificada antes de começar.",
+  "limitNote": "{plan}: vídeos de até {minutes} minutos cada, por link ou upload. Cada vídeo usa sua duração em minutos, verificada antes de começar.",
   "uploadLimits": "Envios de até {size}. Vídeos acima de 1080p ou 60 fps são reduzidos automaticamente, mantendo a proporção.",
   "completionEmails": "Os e-mails de conclusão seguem sua preferência em <settings>Configurações</settings>.",
   "recent": "Recentes",

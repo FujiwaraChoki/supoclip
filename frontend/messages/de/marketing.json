@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "Wie werden Minuten gezählt?",
-        "answer": "Tarife werden in Minuten Quellvideo gemessen, nicht in Clips. Pro enthält {proHours} Stunden im Monat, Creator {creatorHours} Stunden. Ein 30-Minuten-Video verbraucht 30 Minuten, egal wie viele Clips daraus entstehen. Das Kontingent wird jeden Monat zurückgesetzt, auch bei Jahrestarifen."
+        "answer": "Tarife werden in Minuten Quellvideo gemessen, nicht in Clips. Pro enthält {proHours} Stunden im Monat, Creator {creatorHours} Stunden. Ein 30-Minuten-Video verbraucht 30 Minuten, egal wie viele Clips daraus entstehen. Das Kontingent wird jeden Monat zurückgesetzt, auch bei Jahrestarifen. Ein einzelnes Video darf bei Pro bis {proMinutes} Minuten lang sein, bei Creator bis {creatorMinutes} Minuten."
       },
       "publishing": {
         "question": "Kann SupoClip auf TikTok und Instagram posten?",

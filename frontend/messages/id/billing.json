@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} video di-clip setiap bulan",
-    "youtube": "Video YouTube sampai {length}",
+    "youtube": "Video sampai {length} per video",
     "fonts": "Font kustom, B-roll, dan template caption",
     "priority": "Pemrosesan prioritas",
     "minutes": "{length} video setiap bulan",
@@ -58,8 +58,8 @@
       "eyebrow": "Yang panjang",
       "title": "{plan} bisa menerima video {runtime} ini",
       "fallbackPlan": "Paket yang lebih besar",
-      "body": "{plan} mencakup video YouTube sampai {length}. {next} menangani sampai {nextLength}, jadi yang ini langsung lolos. Percobaan ini tidak memakai menit.",
-      "bodyNoNext": "{plan} mencakup video YouTube sampai {length}. Percobaan ini tidak memakai menit."
+      "body": "{plan} menerima video sampai {length}. {next} menangani sampai {nextLength}, jadi yang ini langsung lolos. Percobaan ini tidak memakai menit.",
+      "bodyNoNext": "{plan} menerima video sampai {length}. Percobaan ini tidak memakai menit."
     },
     "fonts": {
       "eyebrow": "Jadikan milikmu",

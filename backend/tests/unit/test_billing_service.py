@@ -212,7 +212,7 @@ async def test_billing_summary_exposes_scheduled_cancellation():
 @pytest.mark.parametrize(
     "plan,status,provider,expected",
     [
-        ("pro", "active", None, 5400),
+        ("pro", "active", None, 7200),
         ("scale", "trialing", None, 10800),
         ("scale", "inactive", None, 5400),
         ("scale", "past_due", "stripe", 10800),
@@ -224,12 +224,13 @@ async def test_billing_summary_exposes_enforced_duration_limit(plan, status, pro
     service = BillingService(_FakeSession([_billing_row(plan, status, provider=provider), _usage_row(0)]))
     service.config.monetization_enabled = True
     service.config.max_video_duration = 5400
-    service.config.pro_youtube_max_video_duration = 5400
+    service.config.pro_youtube_max_video_duration = 7200
     service.config.scale_youtube_max_video_duration = 10800
     service.config.max_video_upload_bytes = 4_000_000_000
     summary = await service.get_usage_summary("user-1")
     assert summary["max_youtube_duration_seconds"] == expected
-    assert summary["max_upload_duration_seconds"] == 5400
+    # Uploads follow the same per-video cap as links.
+    assert summary["max_upload_duration_seconds"] == expected
     assert summary["max_upload_bytes"] == 4_000_000_000
 
 

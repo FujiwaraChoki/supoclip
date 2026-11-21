@@ -104,10 +104,10 @@ class Config:
         )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
-        # YouTube sources can be longer on paid tiers. Uploads continue to use
-        # max_video_duration regardless of plan.
+        # Per-video length cap for paid tiers, for every source (YouTube,
+        # Twitch, Kick and uploads). The names predate uploads following it.
         self.pro_youtube_max_video_duration = int(
-            os.getenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", str(self.max_video_duration))
+            os.getenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", "7200")
         )
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
@@ -115,7 +115,7 @@ class Config:
         self.team_youtube_max_video_duration = int(
             os.getenv("TEAM_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
-        # 4 GB fits a full-length upload (the duration cap is 90 minutes) at a
+        # 4 GB fits a full-length upload (two hours on Pro) at a
         # normal 1080p bitrate. Larger files make transcription, storage, and
         # rendering slow and fragile.
         self.max_video_upload_bytes = int(
@@ -392,7 +392,7 @@ class Config:
         subscription_status: str | None,
         subscription_provider: str | None = None,
     ) -> int:
-        """Return the YouTube duration cap granted by an active entitlement."""
+        """Return the per-video duration cap (any source) granted by an active entitlement."""
         status = (subscription_status or "").lower()
         provider = (subscription_provider or "").lower()
         # past_due keeps the cap only while Stripe is still retrying the invoice.
