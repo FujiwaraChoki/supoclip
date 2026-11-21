@@ -95,7 +95,7 @@
   "extraWords": "Extra words or phrases to cut",
   "extraWordsPlaceholder": "basically, literally, to be honest",
   "generate": "Generate clips",
-  "limitNote": "{plan}: YouTube, Twitch, and Kick videos up to {minutes} minutes. Each video uses its length in minutes, checked before we start.",
+  "limitNote": "{plan}: videos up to {minutes} minutes each, linked or uploaded. Each video uses its length in minutes, checked before we start.",
   "uploadLimits": "Uploads up to {size}. Videos above 1080p or 60 fps are scaled down automatically, keeping their shape.",
   "completionEmails": "Completion emails follow your preference in <settings>Settings</settings>.",
   "recent": "Recent",

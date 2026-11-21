@@ -54,7 +54,7 @@
     "upgrade": "Upgraden",
     "upgradeMultiplier": "{multiplier}× mehr Video mit {plan}",
     "upgradeMore": "Mehr mit {plan}",
-    "upgradeDescription": "${price}/Monat · {minutes} pro Monat · {resolution} · YouTube bis {length}",
+    "upgradeDescription": "${price}/Monat · {minutes} pro Monat · {resolution} · Videos bis {length}",
     "choose": "{name} wählen",
     "actionFailed": "Die Abrechnung konnte nicht geöffnet werden",
     "usageMinutesOf": "{used} / {limit} Min.",

@@ -95,7 +95,7 @@
   "extraWords": "Weitere Wörter oder Sätze zum Schneiden",
   "extraWordsPlaceholder": "im Grunde, wortwörtlich, ehrlich gesagt",
   "generate": "Clips erzeugen",
-  "limitNote": "{plan}: YouTube-Videos bis {minutes} Minuten. Jedes Video verbraucht seine Länge in Minuten, geprüft vor dem Start.",
+  "limitNote": "{plan}: Videos bis {minutes} Minuten, verlinkt oder hochgeladen. Jedes Video verbraucht seine Länge in Minuten, geprüft vor dem Start.",
   "uploadLimits": "Uploads bis {size}. Videos über 1080p oder 60 fps werden automatisch verkleinert, das Seitenverhältnis bleibt erhalten.",
   "completionEmails": "E-Mails zum Abschluss folgen deiner Einstellung unter <settings>Einstellungen</settings>.",
   "recent": "Zuletzt",

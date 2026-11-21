@@ -95,7 +95,7 @@
   "extraWords": "Palabras o frases extra para cortar",
   "extraWordsPlaceholder": "básicamente, literalmente, la verdad",
   "generate": "Generar clips",
-  "limitNote": "{plan}: vídeos de YouTube de hasta {minutes} minutos. Cada vídeo usa su duración en minutos, comprobada antes de empezar.",
+  "limitNote": "{plan}: vídeos de hasta {minutes} minutos cada uno, enlazados o subidos. Cada vídeo usa su duración en minutos, comprobada antes de empezar.",
   "uploadLimits": "Subidas de hasta {size}. Los videos por encima de 1080p o 60 fps se reducen automáticamente, conservando la proporción.",
   "completionEmails": "Los correos de finalización siguen tu preferencia en <settings>Ajustes</settings>.",
   "recent": "Recientes",

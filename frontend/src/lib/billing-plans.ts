@@ -188,8 +188,8 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
   // Mirrors the backend's PRO_/SCALE_PLAN_MINUTE_LIMIT defaults.
   const proMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT || "600", 10);
   const scaleMinutes = parseInt(process.env.NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT || "1500", 10);
-  // Mirrors the backend's PRO_/SCALE_YOUTUBE_MAX_VIDEO_DURATION defaults.
-  const proYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_YOUTUBE_MAX_MINUTES || "90", 10);
+  // Per-video length cap, any source. Mirrors the backend's PRO_/SCALE_YOUTUBE_MAX_VIDEO_DURATION defaults.
+  const proYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_YOUTUBE_MAX_MINUTES || "120", 10);
   const scaleYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_SCALE_YOUTUBE_MAX_MINUTES || "180", 10);
 
   return [
@@ -206,7 +206,7 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
       highlights: [
         `${formatMinutes(proMinutes)} of video every month`,
         "720p clips",
-        `YouTube videos up to ${formatMinutes(proYoutubeMinutes)}`,
+        `Videos up to ${formatMinutes(proYoutubeMinutes)} each`,
         "Custom fonts, B-roll and caption templates",
       ],
       cta: "Upgrade to Pro",
@@ -225,7 +225,7 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
       highlights: [
         `${formatMinutes(scaleMinutes)} of video every month`,
         "Full HD 1080p clips",
-        `YouTube videos up to ${formatMinutes(scaleYoutubeMinutes)}`,
+        `Videos up to ${formatMinutes(scaleYoutubeMinutes)} each`,
         "Priority processing",
       ],
       cta: "Upgrade to Creator",

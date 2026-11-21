@@ -507,7 +507,7 @@
       "features": {
         "pooledHours": "{hours} jam video bersama/bulan",
         "seats": "{seats} kursi dengan perpustakaan klip bersama",
-        "quality": "Klip Full HD {resolution} · YouTube hingga {hours} jam",
+        "quality": "Klip Full HD {resolution} · video hingga {hours} jam",
         "sharedWorkspace": "Penjadwalan sosial & {aiEdits} edit AI bersama/bln",
         "roles": "Peran Pemilik, Admin & Anggota + konkurensi lebih tinggi",
         "aiEdits": "{aiEdits} edit AI bersama/bln"
@@ -529,7 +529,7 @@
       },
       "minutes": {
         "question": "Bagaimana menit dihitung?",
-        "answer": "Paket dihitung dalam menit video sumber, bukan jumlah klip. Pro mencakup {proHours} jam per bulan dan Creator {creatorHours} jam. Video 30 menit memakai 30 menit, berapa pun klip yang dihasilkan. Kuota diatur ulang setiap bulan, termasuk pada paket tahunan."
+        "answer": "Paket dihitung dalam menit video sumber, bukan jumlah klip. Pro mencakup {proHours} jam per bulan dan Creator {creatorHours} jam. Video 30 menit memakai 30 menit, berapa pun klip yang dihasilkan. Kuota diatur ulang setiap bulan, termasuk pada paket tahunan. Setiap video bisa sampai {proMinutes} menit di Pro dan {creatorMinutes} menit di Creator."
       },
       "publishing": {
         "question": "Bisakah SupoClip memposting ke TikTok dan Instagram?",

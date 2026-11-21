@@ -54,7 +54,7 @@
     "upgrade": "Upgrade",
     "upgradeMultiplier": "Dapatkan {multiplier}× lebih banyak video dengan {plan}",
     "upgradeMore": "Lakukan lebih banyak dengan {plan}",
-    "upgradeDescription": "${price}/bln · {minutes} sebulan · {resolution} · YouTube sampai {length}",
+    "upgradeDescription": "${price}/bln · {minutes} sebulan · {resolution} · video sampai {length}",
     "choose": "Pilih {name}",
     "actionFailed": "Aksi tagihan gagal",
     "usageMinutesOf": "{used} / {limit} mnt",

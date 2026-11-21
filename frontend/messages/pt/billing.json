@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} vídeos cortados por mês",
-    "youtube": "Vídeos do YouTube de até {length}",
+    "youtube": "Vídeos de até {length} cada",
     "fonts": "Fontes personalizadas, B-roll e modelos de legenda",
     "priority": "Processamento prioritário",
     "minutes": "{length} de vídeo por mês",
@@ -58,8 +58,8 @@
       "eyebrow": "Um longo",
       "title": "{plan} aceita este vídeo de {runtime}",
       "fallbackPlan": "Um plano maior",
-      "body": "O {plan} aceita vídeos do YouTube de até {length}. O {next} aceita até {nextLength}, então este passa direto. Esta tentativa não usou minutos.",
-      "bodyNoNext": "O {plan} aceita vídeos do YouTube de até {length}. Esta tentativa não usou minutos."
+      "body": "O {plan} aceita vídeos de até {length}. O {next} aceita até {nextLength}, então este passa direto. Esta tentativa não usou minutos.",
+      "bodyNoNext": "O {plan} aceita vídeos de até {length}. Esta tentativa não usou minutos."
     },
     "fonts": {
       "eyebrow": "Deixe com a sua cara",
