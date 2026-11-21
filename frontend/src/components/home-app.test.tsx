@@ -9,6 +9,7 @@ import HomeApp from "./home-app";
 const navigation = vi.hoisted(() => ({ params: new URLSearchParams(), replace: vi.fn() }));
 const durations = vi.hoisted(() => ({ seconds: null as number | null }));
 const analytics = vi.hoisted(() => ({ track: vi.fn() }));
+const uploads = vi.hoisted(() => ({ files: [] as File[] }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -27,6 +28,10 @@ vi.mock("@/lib/auth-client", () => ({
 vi.mock("@/lib/video-upload", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/video-upload")>()),
   readVideoDuration: vi.fn(async () => durations.seconds),
+  uploadVideoFile: vi.fn(async (file: File) => {
+    uploads.files.push(file);
+    return `uploads/${file.name}`;
+  }),
 }));
 
 vi.mock("@/lib/datafast", () => ({ track: analytics.track }));
@@ -121,6 +126,7 @@ beforeEach(() => {
   navigation.replace.mockReset();
   durations.seconds = null;
   analytics.track.mockReset();
+  uploads.files = [];
   workflowsResponse = () => Response.json(workflowsInfo);
   editStylesResponse = () => Response.json({ ...editStylesInfo, enabled: false });
   templateRequests = [];
@@ -241,6 +247,53 @@ it("states the upload limit and rejects a file over it before upload", async () 
 
   await waitFor(() => expect(screen.getByText(/ready to upload/)).toBeInTheDocument());
   expect(screen.queryByText(/over the 2 GB upload limit/)).not.toBeInTheDocument();
+});
+
+it("queues several videos and creates one task for each", async () => {
+  durations.seconds = 600;
+  await renderHome();
+
+  fireEvent.change(document.getElementById("video-upload") as HTMLInputElement, {
+    target: { files: [videoFile("one.mp4", 1000), videoFile("two.mp4", 2000)] },
+  });
+
+  expect(await screen.findByText("one.mp4")).toBeInTheDocument();
+  expect(screen.getByText("two.mp4")).toBeInTheDocument();
+
+  const generate = screen.getByRole("button", { name: "Generate 2 videos" });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(created).toHaveLength(2));
+  expect(created.map((body) => (body.source as { title: string }).title)).toEqual(["one.mp4", "two.mp4"]);
+  expect(created.map((body) => (body.source as { url: string }).url)).toEqual(["uploads/one.mp4", "uploads/two.mp4"]);
+  expect(uploads.files.map((file) => file.name)).toEqual(["one.mp4", "two.mp4"]);
+});
+
+it("removes one queued video without clearing the rest", async () => {
+  await renderHome();
+
+  fireEvent.change(document.getElementById("video-upload") as HTMLInputElement, {
+    target: { files: [videoFile("one.mp4", 1000), videoFile("two.mp4", 2000)] },
+  });
+  await screen.findByText("one.mp4");
+  fireEvent.click(screen.getAllByRole("button", { name: "Remove file" })[0]);
+
+  expect(screen.queryByText("one.mp4")).not.toBeInTheDocument();
+  expect(screen.getByText("two.mp4")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Generate clips" })).toBeInTheDocument();
+});
+
+it("caps a batch at ten videos", async () => {
+  await renderHome();
+
+  fireEvent.change(document.getElementById("video-upload") as HTMLInputElement, {
+    target: { files: Array.from({ length: 11 }, (_, index) => videoFile(`v${index}.mp4`, 1000)) },
+  });
+
+  expect(await screen.findByText("You can add up to 10 videos at a time.")).toBeInTheDocument();
+  expect(screen.getByText("v9.mp4")).toBeInTheDocument();
+  expect(screen.queryByText("v10.mp4")).not.toBeInTheDocument();
 });
 
 it("sends the caption defaults saved in Settings with a new task", async () => {
