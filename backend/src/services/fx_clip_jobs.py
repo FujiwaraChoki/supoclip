@@ -17,6 +17,7 @@ import time
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from ..observability import set_trace_id, set_user_id
+from ..repositories.edit_transaction import allow_long_edit
 from .clip_service import (
     FX_CLIP_JOB_CLOSED,
     FX_CLIP_JOB_KINDS,
@@ -24,6 +25,7 @@ from .clip_service import (
     claim_fx_clip_job,
     _fx_clip_job_redis,
     read_fx_clip_job_state,
+    release_fx_clip_job_marker,
     write_fx_clip_job_state,
 )
 
@@ -237,7 +239,26 @@ async def run_fx_clip_job(
     session_factory: Callable[[], Any] = _session_factory,
     service_factory: Callable[[Any], Any] = _service_factory,
 ) -> Dict[str, Any]:
-    """Run one queued clip edit and record its outcome. Returns the final Redis record (tests read it)."""
+    """Run one queued clip edit and record its outcome. Returns the final Redis record (tests read it).
+
+    However it ends (done, failed, skipped, cancelled with the worker), the task may take its next clip job."""
+    try:
+        return await _run_fx_clip_job(job, session_factory=session_factory, service_factory=service_factory)
+    finally:
+        try:
+            await asyncio.shield(
+                release_fx_clip_job_marker(str(job.get("task_id") or ""), str(job.get("job_id") or ""))
+            )
+        except BaseException:  # noqa: BLE001 - cancelled again; the marker points at a failed record or expires
+            pass
+
+
+async def _run_fx_clip_job(
+    job: Dict[str, Any],
+    *,
+    session_factory: Callable[[], Any],
+    service_factory: Callable[[Any], Any],
+) -> Dict[str, Any]:
     job_id = str(job.get("job_id") or "")
     task_id = str(job.get("task_id") or "")
     kind = str(job.get("kind") or "")
@@ -288,6 +309,8 @@ async def run_fx_clip_job(
     final: Dict[str, Any]
     try:
         async with session_factory() as db:
+            # The edit holds its row lock, idle, for the whole render; this job's budget bounds it instead.
+            allow_long_edit(db)
             service = service_factory(db)
             clip_count = await _clip_count(service, task_id, kind, args)
             budget = job_budget_seconds(clip_count)

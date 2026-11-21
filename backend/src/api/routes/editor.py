@@ -396,7 +396,7 @@ async def media(
 async def start_export(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    clip, session = await context(request, db, task_id, clip_id)
+    task, clip, session = await owned_context(request, db, task_id, clip_id)
     payload = await _read_json_object(request)
     state = await session.state()
     if state["status"] != "ready":
@@ -412,6 +412,11 @@ async def start_export(
         ).validate_duration(state["duration"])
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    if document_fx_on(document):
+        # The job renders this document, not the saved draft: it may not turn edits on without the flag either.
+        stored = await run_in_thread(_stored_document, state, clip, task)
+        if turns_fx_on(stored, document) and not await _fx_flag(db, request, task["user_id"]):
+            raise _dynamic_edits_not_available()
     store = get_store()
     # A render whose worker died must not count against the limit.
     await reap_jobs(session.key)
@@ -735,13 +740,22 @@ async def start_ai_edit(
         playhead = float(min(state["duration"], max(0, playhead)))
 
     # Dynamic-edit operations are offered only to flagged callers, or on a draft that already has edits (§0.4.8);
-    # everyone else's request, prompt and grammar stay exactly as before.
+    # everyone else's request, prompt and grammar stay exactly as before. "Already has edits" is the saved draft,
+    # never the request's document, which the client controls.
     fx_flag = await _fx_flag(db, request, task["user_id"])
+    stored = await run_in_thread(_stored_document, state, clip, task)
+    if not fx_flag and turns_fx_on(stored, document):
+        raise _dynamic_edits_not_available()
     fx_request = {}
-    if fx_flag or document_fx_on(document):
+    if fx_flag or document_fx_on(stored):
         fx_request = {
             "fx_allowed": True,
             "fx_flag": fx_flag,
+            # What an unflagged caller's edit may not go beyond (ai_edit_service._turns_fx_on).
+            "fx_baseline": {
+                "template": stored.captions.template if stored is not None else "default",
+                "active": bool(stored is not None and stored.fx is not None and stored.fx.style.active),
+            },
             "fx_seed": _draft_fx_seed(document, task_id, clip_id),
             "layout_has_zoompan": _layout_has_zoompan(state, document),
         }
@@ -1040,6 +1054,8 @@ async def fx_analysis(task_id: str, clip_id: str, request: Request, db: AsyncSes
     state = await session.state()
     _ready(state)
     draft = await run_in_thread(_stored_document, state, clip, task)
+    if not document_fx_on(draft) and not await _fx_flag(db, request, task["user_id"]):
+        raise _dynamic_edits_not_available()
     raw = draft.model_dump(mode="json") if draft is not None else (state.get("draft") or {}).get("document")
     _, needs_matte = analysis_needs(raw)
     base = session_base(raw, state)

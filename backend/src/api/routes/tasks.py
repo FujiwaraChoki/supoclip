@@ -52,13 +52,16 @@ from ...edit_fx.jobs import fx_active
 from ...edit_fx.settings import EditStyleError, edit_style_schema, parse_edit_style, read_edit_style
 from ...services.clip_service import (
     FX_CLIP_JOB_STATUSES,
+    FxClipJobInProgress,
     FxClipJobQueueError,
     FxClipJobRequest,
     QueuedClipJob,
     clip_has_fx,
     FX_CLIP_JOB_CLOSED,
+    FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS,
     claim_fx_clip_job,
     enqueue_fx_clip_job,
+    release_fx_clip_job_marker,
     write_fx_clip_job_state,
     read_fx_clip_job_state,
 )
@@ -107,8 +110,6 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 DYNAMIC_EDITS_NOT_AVAILABLE_MESSAGE = "Dynamic edits aren't available on your account yet."
-# A clip job nobody picked up in this long has no worker that knows it (§5.2).
-FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS = 15 * 60
 
 
 def _invalid_edit_style(exc: EditStyleError) -> HTTPException:
@@ -1505,6 +1506,7 @@ async def _queue_fx_clip_edit(
     """Queue ``fx_clip_job`` and answer 202 ``{"status": "queued", "job_id", "kind", "clip_ids"}``.
 
     Poll ``GET /tasks/{task_id}/clip-jobs/{job_id}``; ``result`` there is this route's synchronous body.
+    While another clip job of the task is queued or running: 409 ``CLIP_JOB_IN_PROGRESS`` with its ``job_id``.
     """
     if task.get("status") in {"queued", "processing"}:
         raise ValueError("Wait for processing to finish before editing this task")
@@ -1517,6 +1519,8 @@ async def _queue_fx_clip_edit(
             queue=fx_job.queue,
             clip_ids=clip_ids,
         )
+    except FxClipJobInProgress as exc:
+        raise HTTPException(status_code=409, detail=exc.detail()) from None
     except Exception as exc:
         logger.warning("Could not queue the %s edit for task %s: %s", kind, task_id, exc)
         raise FxClipJobQueueError("The edit could not be queued") from exc
@@ -1855,6 +1859,8 @@ async def apply_task_settings(
             status_code=422,
             detail={"code": "YOUTUBE_GEO_RESTRICTED", "message": str(exc)},
         ) from None
+    except FxClipJobInProgress as exc:
+        raise HTTPException(status_code=409, detail=exc.detail()) from None
     except FxClipJobQueueError:
         raise HTTPException(
             status_code=503,
@@ -1884,6 +1890,7 @@ async def _close_queued_clip_job(job_id: str, state: Dict[str, Any], error: Dict
         if await claim_fx_clip_job(job_id, FX_CLIP_JOB_CLOSED) != FX_CLIP_JOB_CLOSED:
             return False
         await write_fx_clip_job_state(job_id, {**state, "status": "failed", "progress": 0.0, "error": error})
+        await release_fx_clip_job_marker(str(state.get("task_id") or ""), job_id)
         return True
     except Exception as exc:  # noqa: BLE001 - not closed, so not reported as failed
         logger.warning("Could not close queued clip job %s: %s", job_id, exc)

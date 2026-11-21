@@ -641,16 +641,17 @@ def _broll_target(aspect: str, width: int, height: int) -> tuple[str, int]:
     return "portrait", 1080
 
 
-def _turns_fx_on(original: EditDocument, doc: dict) -> bool:
-    """The edited ``doc`` turns dynamic edits on beyond the request's draft: a legacy -> FX caption template, or the
-    intensity from off to active (``editor_document.turns_fx_on``'s transitions for a draft that has edits)."""
+def _turns_fx_on(baseline: dict, doc: dict) -> bool:
+    """The edited ``doc`` turns dynamic edits on beyond ``baseline`` (the saved draft's ``{"template", "active"}``):
+    a legacy -> FX caption template, or the intensity from off to active (``editor_document.turns_fx_on``'s
+    transitions for a draft that has edits)."""
     from ..edit_fx.contracts import EditStyle, is_fx_template
 
     template = doc["captions"]["template"]
-    new_template = is_fx_template(template) and not is_fx_template(original.captions.template)
+    new_template = is_fx_template(template) and not is_fx_template(str(baseline.get("template") or ""))
     style = (doc.get("fx") or {}).get("style")
     active = bool(style) and EditStyle.model_validate(style).active
-    return new_template or (active and not (original.fx is not None and original.fx.style.active))
+    return new_template or (active and not baseline.get("active"))
 
 
 def _next_id(existing, prefix: str = "u") -> str:
@@ -833,6 +834,7 @@ async def apply_plan(
     fx_seed: int = 0,
     layout_has_zoompan: bool = False,
     fx_flag: bool = True,
+    fx_baseline: Optional[dict] = None,
 ) -> tuple[EditDocument, list[str]]:
     """Apply a plan to a draft. Returns the new draft and notes on skipped steps.
 
@@ -841,12 +843,18 @@ async def apply_plan(
     settings, effects and beats apply too, and any change to the edit style,
     the caption template or the beats re-resolves the automatic effects in E
     (§5.5) once, after every operation. Without ``fx_flag`` (an unflagged caller
-    whose draft already has edits) a setting that would turn more edits on is
+    whose draft already has edits) a setting that would turn more edits on
+    than ``fx_baseline`` (the saved draft; the given draft when omitted) is
     skipped with a note.
     """
     from ..broll import broll_configured, choose_video, footage_from_video, search_pexels_videos
 
     doc = document.model_dump()
+    if not isinstance(fx_baseline, dict):
+        fx_baseline = {
+            "template": document.captions.template,
+            "active": document.fx is not None and document.fx.style.active,
+        }
     words = {w["id"]: w for w in doc["words"]}
     ordered_words = sorted(doc["words"], key=lambda w: w["start"])
     notes: list[str] = []
@@ -905,7 +913,7 @@ async def apply_plan(
                 before = (doc["captions"]["template"], (doc.get("fx") or {}).get("style"))
                 undo = (doc["captions"]["template"], copy.deepcopy(doc.get("fx")), "fx" in doc)
                 note = _apply_setting(doc, op.setting, op.value, fx_allowed=True, fx_seed=fx_seed)
-                if not fx_flag and _turns_fx_on(document, doc):
+                if not fx_flag and _turns_fx_on(fx_baseline, doc):
                     # A draft that already has edits may keep or reduce them without the flag, never turn more on
                     # (a legacy -> FX template, or the intensity from off), exactly like saving it (§0.4.8).
                     doc["captions"]["template"] = undo[0]
@@ -1175,6 +1183,7 @@ async def ai_edit_job(ctx: dict, job_id: str) -> None:
                 fx_seed=int(request.get("fx_seed") or 0),
                 layout_has_zoompan=bool(request.get("layout_has_zoompan")),
                 fx_flag=bool(request.get("fx_flag", True)),
+                fx_baseline=request.get("fx_baseline"),
             )
         else:
             context = build_context(document, duration, request.get("playhead"), request["instruction"])

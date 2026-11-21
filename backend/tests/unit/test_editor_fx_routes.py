@@ -334,7 +334,33 @@ async def test_a_plan_no_worker_answers_fails_and_refunds_once(studio, monkeypat
 # --------------------------------------------------------------------------- analysis, reactions
 
 
+async def test_analysis_needs_the_flag_unless_the_draft_has_edits(studio):
+    assert (await studio.http.post(f"{BASE}/fx/analysis", json={})).status_code == 403
+    studio.enqueue.assert_not_awaited()
+    put(studio, document(captions={"template": "slam"}))
+    assert (await studio.http.post(f"{BASE}/fx/analysis", json={})).status_code == 202
+
+
+async def test_export_turning_dynamic_edits_on_needs_the_flag(studio):
+    """The export renders the request's document, so it is gated like saving it (§0.4.8)."""
+    styled = {"basis": "clip.mp4", "preset": "tiktok", "document": document(captions={"template": "slam"})}
+    response = await studio.http.post(f"{BASE}/exports", json=styled)
+    assert response.status_code == 403 and response.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
+    active = {**styled, "document": document(fx=planned_fx(style={"intensity": "bold"}))}
+    assert (await studio.http.post(f"{BASE}/exports", json=active)).status_code == 403
+    studio.enqueue.assert_not_awaited()
+    # Without edits, and with edits the saved draft already has, it exports as before.
+    plain = {**styled, "document": document()}
+    assert (await studio.http.post(f"{BASE}/exports", json=plain)).status_code == 202
+    put(studio, document(captions={"template": "slam"}))
+    assert (await studio.http.post(f"{BASE}/exports", json=styled)).status_code == 202
+    assert (await studio.http.post(f"{BASE}/exports", json=active)).status_code == 403   # style only -> active
+    studio.flag["on"] = True
+    assert (await studio.http.post(f"{BASE}/exports", json=active)).status_code == 202
+
+
 async def test_analysis_is_queued_once_per_media_and_need(studio):
+    studio.flag["on"] = True
     response = await studio.http.post(f"{BASE}/fx/analysis", json={})
     assert response.status_code == 202 and response.json() == {"status": "queued"}
     args, kwargs = studio.enqueue.await_args.args, studio.enqueue.await_args.kwargs
@@ -360,6 +386,7 @@ async def test_analysis_retries_a_failed_or_dead_run_under_a_fresh_job_id(studio
     from src.api.routes import editor as routes
 
     monkeypatch.setattr(routes.time, "time", lambda: 10_000_000.0)
+    studio.flag["on"] = True
     await studio.http.post(f"{BASE}/fx/analysis", json={})
     first = studio.enqueue.await_args.kwargs["_job_id"]
     assert first.endswith(":v1:face:clean")
@@ -431,8 +458,19 @@ async def test_ai_requests_carry_dynamic_edits_only_for_allowed_callers(ai_route
     request = json.loads(studio.pool.data[ai.request_key(job)])
     assert request["fx_allowed"] is True and request["fx_flag"] is True and isinstance(request["fx_seed"], int)
 
-    # A draft that already has edits keeps its AI edits working when the flag is switched off.
+    # Without the flag, edits that only the request's document has unlock nothing: the saved draft decides.
     studio.flag["on"] = False
     styled = {**body, "document": document(captions={"template": "slam"})}
+    response = await studio.http.post(f"{BASE}/ai", json=styled)
+    assert response.status_code == 403 and response.json()["detail"]["code"] == "DYNAMIC_EDITS_NOT_AVAILABLE"
+
+    # A draft that already has edits keeps its AI edits working when the flag is switched off, and the saved
+    # draft is the baseline the edit may not go beyond.
+    put(studio, document(captions={"template": "slam"}))
     job = (await studio.http.post(f"{BASE}/ai", json=styled)).json()["id"]
-    assert json.loads(studio.pool.data[ai.request_key(job)])["fx_allowed"] is True
+    request = json.loads(studio.pool.data[ai.request_key(job)])
+    assert request["fx_allowed"] is True and request["fx_flag"] is False
+    assert request["fx_baseline"] == {"template": "slam", "active": False}
+    # The request's document may hold less than the saved draft (an unsaved change): the baseline stays.
+    job = (await studio.http.post(f"{BASE}/ai", json=body)).json()["id"]
+    assert json.loads(studio.pool.data[ai.request_key(job)])["fx_baseline"] == {"template": "slam", "active": False}

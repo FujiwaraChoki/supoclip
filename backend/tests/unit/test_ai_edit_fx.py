@@ -223,6 +223,20 @@ async def test_without_the_flag_a_draft_with_edits_can_keep_or_reduce_them_but_n
     result, notes = await unflagged(bold, {"type": "set", "setting": "fx.intensity", "value": "off"})
     assert notes == [] and result.fx.style.intensity == "off"
 
+    # The baseline is the saved draft the route read, not the request's document: one that claims an active
+    # intensity the saved draft never had cannot be raised, and an unsaved "off" can go back to what is saved.
+    result, notes = await apply_plan(
+        bold, fx_plan({"type": "set", "setting": "fx.intensity", "value": "max"}), 20.0, fx_allowed=True,
+        fx_seed=99, fx_flag=False, fx_baseline={"template": "highlighter_swipe", "active": False},
+    )
+    assert result.fx.style.intensity == "bold" and "aren't available" in notes[0]
+    result, notes = await apply_plan(
+        styled, fx_plan({"type": "set", "setting": "fx.intensity", "value": "subtle"}), 20.0, fx_allowed=True,
+        fx_seed=99, layout_has_zoompan=True, fx_flag=False,
+        fx_baseline={"template": "highlighter_swipe", "active": True},
+    )
+    assert notes == [] and result.fx.style.intensity == "subtle"
+
 
 async def test_remove_effects_deletes_user_cues_and_suppresses_auto_ones():
     fx = {**planned(), "cues": [

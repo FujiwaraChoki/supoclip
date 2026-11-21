@@ -58,6 +58,26 @@ def test_a_capital_the_transcript_cannot_explain_is_lowered_only_in_a_title_case
     assert sentence_case_title("这是一个标题 没有大小写", "") == "这是一个标题 没有大小写"
 
 
+NAMES_OPEN_SENTENCES = (
+    "So here is the thing. Tesla did something nobody expected. Apple never saw it coming, "
+    "and what they did next shocked everyone. That was the day everything changed."
+)
+
+
+@pytest.mark.parametrize("title, expected", [
+    # A name the transcript only has at the start of a sentence is never seen in lower case: it stays.
+    ("What Tesla Did Next Shocked Apple", "What Tesla did next shocked Apple"),
+    ("What Tesla did next shocked Apple", "What Tesla did next shocked Apple"),
+    ("Nobody Expected Tesla's Next Move", "Nobody expected Tesla's next move"),
+    # Common words the transcript has in lower case still come down.
+    ("The Day Everything Changed", "The day everything changed"),
+    ("What They Did Next Shocked Everyone", "What they did next shocked everyone"),
+])
+def test_a_word_is_lowered_only_when_the_transcript_has_it_in_lower_case(title, expected):
+    assert sentence_case_title(title, NAMES_OPEN_SENTENCES) == expected
+    assert sanitize_hook_title(title, source_text=NAMES_OPEN_SENTENCES) == expected
+
+
 def test_sanitize_applies_both_only_with_the_transcript():
     raw = '"90 of Podcast Guests Become Real Friends."'
     assert sanitize_hook_title(raw) == "90 of Podcast Guests Become Real Friends"          # callers without a transcript

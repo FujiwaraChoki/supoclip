@@ -9,6 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..media_storage import media_work
 
 _EDIT_TASK = "supoclip_edit_task"
+_LONG_EDIT = "supoclip_long_edit"
+
+
+def allow_long_edit(db: AsyncSession) -> None:
+    """Let this session's edit transactions sit idle for as long as their render takes.
+
+    Every pooled session has ``idle_in_transaction_session_timeout`` (database.py), and an edit holds its row
+    lock with no statement while it downloads and renders. Only for a caller that enforces its own time budget
+    (``fx_clip_job``): ``task_edit_transaction`` then turns the timeout off for that one transaction.
+    """
+    info = getattr(db, "info", None)
+    if isinstance(info, dict):
+        info[_LONG_EDIT] = True
 
 
 async def commit_unless_editing(db: AsyncSession) -> None:
@@ -70,6 +83,10 @@ async def task_edit_transaction(db: AsyncSession, task_id: str, *, processing: b
             raise TaskCancelled()
         if not processing and status in {"queued", "processing"}:
             raise ValueError("Wait for processing to finish before editing this task")
+        if db.info.get(_LONG_EDIT) is True:
+            # SET LOCAL lasts until this transaction commits or rolls back, so the connection goes back to
+            # the pool with the engine's timeout whatever happens to the edit.
+            await db.execute(text("SET LOCAL idle_in_transaction_session_timeout = 0"))
         db.info[_EDIT_TASK] = task_id
         yield
         await db.commit()

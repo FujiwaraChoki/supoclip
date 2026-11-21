@@ -338,7 +338,9 @@ The re-render runs as `fx_clip_job` on the video worker. 503 `QUEUE_UNAVAILABLE`
 means the settings were saved but the job could not be queued: try again. Trims,
 splits, merges and caption edits of clips with effects answer the same 202 shape
 (`kind` `trim`, `split`, `merge` or `captions`); classic clips keep the synchronous
-answers.
+answers. A task runs one such job at a time: while one is queued or running, these
+routes answer **409** `{"detail": {"code": "CLIP_JOB_IN_PROGRESS", "job_id", "kind",
+"message"}}` and change nothing; poll that job, then try again.
 
 `GET /tasks/{task_id}/clip-jobs/{job_id}` (owner only; poll every 2 s):
 

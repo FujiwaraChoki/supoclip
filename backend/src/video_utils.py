@@ -800,8 +800,9 @@ def _av_mismatch(path: Path) -> bool:
     return abs(durations["video"] - durations["audio"]) > FX_AV_TOLERANCE_SECONDS
 
 
-# Vertical layouts made of separate panels (reactor over source, call tiles, two speakers at once): no frame zooms.
-FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap"})
+# Vertical layouts made of separate panels (reactor over source, call tiles, two speakers at once, a camera over
+# gameplay): no frame zooms. They report no ``panel_windows``: the panels are there for the whole clip.
+FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap", "gaming"})
 
 
 def _interview_hook_kwargs(plan_report: Dict[str, Any]) -> Dict[str, Any]:
@@ -1031,6 +1032,8 @@ def _render_fx_ladder(
        failure with cutaways, and full with an identity warp when a warped render's A/V disagree;
     2. safe: P1 → P3 with the ASS fallback captions, the original hook title and the audio FX;
     3. none: the legacy render, with Ken Burns restored and the original hook title.
+
+    ``FX_RUNTIME=legacy`` skips 1 and 2: every clip takes the legacy render.
     """
     from .edit_fx import env as fx_env
     from .edit_fx.contracts import is_fx_template
@@ -1139,8 +1142,9 @@ def _render_fx_ladder(
     broll_applied = False
     overlays = broll_overlays or None
 
+    runtime = fx_env.fx_runtime()
     # 1. full
-    if setup_error is None and fx_env.fx_runtime() != "off":
+    if setup_error is None and runtime == "deno":
         try:
             warp = build_warp(plan.cues if fx_env.fx_warp_enabled() else (), duration)
             # A plan that only adds sound needs no drawing stage (P1 → P3 renders all of it), unless the clip has a
@@ -1187,7 +1191,7 @@ def _render_fx_ladder(
 
     drawn_hook = None
     # 2. safe: no deno, no warp, no picture FX; the ASS fallback captions, the original hook title and the audio FX.
-    if level is None and setup_error is None:
+    if level is None and setup_error is None and runtime != "legacy":
         try:
             safe_ass = build_ass(add_subtitles, hook_title, template_override=fallback_template, censor_spans=bleeps)
             ok, result = chain("safe", plan, overlays, safe_ass, fallback_fonts)

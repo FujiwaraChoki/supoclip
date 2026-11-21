@@ -193,6 +193,19 @@ def test_fx_runtime_off_goes_straight_to_safe(ladder, monkeypatch):
     assert [r["fx_report"]["mode"] for r in fx_renders(ladder.calls)] == ["safe"]
 
 
+def test_fx_runtime_legacy_renders_every_clip_through_the_legacy_render(ladder, monkeypatch):
+    """The operator brake: no FX chain at all (not even the safe level's audio bus), Ken Burns restored, the FX
+    template's classic fallback burned, and the clip marked level none."""
+    monkeypatch.setenv("FX_RUNTIME", "legacy")
+    out = ladder.run(fx_plan())
+    assert out["ok"] and out["written"] and out["report"]["fx_level"] == "none"
+    assert not fx_renders(ladder.calls)
+    assert [r["vertical_plan"] for r in ladder.calls["render"]] == [(KB_CHAIN, "vf")]
+    legacy_ass = ladder.calls["ass"][-1]["kwargs"]
+    assert legacy_ass["template_override"] == get_template(get_template("marker_circle")["ass_fallback"])
+    assert not [event for event, _props in ladder.calls["events"] if event == "fx_render_failed"]
+
+
 def test_failing_safe_falls_back_to_the_legacy_render_with_ken_burns(ladder):
     ladder.state["chain_results"] = [result(False, error="p2: crash"), result(False, error="p3: exit 1")]
     out = ladder.run(fx_plan())
@@ -431,6 +444,21 @@ def test_interview_reframes_stay_off_the_stacked_two_shots(ladder):
     ladder.run(fx_plan(cues=zooms))
     sent = [c.id for c in fx_renders(ladder.calls)[0]["fx_request"].plan.cues if c.kind == "zoom"]
     assert sent == ["z1"]
+
+
+@pytest.mark.parametrize("kind", ["reaction", "stack", "overlap", "gaming"])
+def test_panel_layouts_get_no_automatic_reframes(ladder, kind):
+    """A camera over gameplay (``gaming``) is panels for the whole clip, like the others: a zoom of the frame
+    would cross the seam. Zooms made by hand and everything else stay."""
+    ladder.state.update(kind=kind)
+    ladder.state["chain_results"] = [result()]
+    cues = [ZoomCue(id="z0", start=1.0, end=2.0, mode="punch", scale=1.15),
+            ZoomCue(id="u0", start=4.0, end=5.0, mode="punch", scale=1.15, origin="user"),
+            {"kind": "sfx", "id": "e0.sfx", "start": 1.0, "end": 1.0, "sound": "pop"}]
+    ladder.run(fx_plan(intensity="bold", cues=cues))
+    sent = fx_renders(ladder.calls)[0]["fx_request"].plan.cues
+    assert [c.id for c in sent if c.kind == "zoom"] == ["u0"]
+    assert [c.id for c in sent if c.kind == "sfx"] == ["e0.sfx"]
 
 
 def test_the_libass_hook_title_of_a_stacked_opening_sits_on_the_seam():

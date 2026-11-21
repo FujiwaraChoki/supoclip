@@ -7,8 +7,16 @@ one TypeScript renderer draws every frame, in the browser and on the worker. Eve
 from a frame-level study of reference edits ([Reference edits](#reference-edits)).
 
 The feature is behind the `dynamic_edits` feature flag. With intensity **Off** and a classic caption template,
-nothing new runs: prompts, cache keys, job arguments and renders are byte-identical to before (pinned by
-`backend/tests/unit/test_dynamic_edits_legacy_pins.py` and the existing legacy pins).
+no effects code runs: cache keys, job arguments and the render path are the legacy ones (pinned by
+`backend/tests/unit/test_dynamic_edits_legacy_pins.py` and the existing legacy pins). Three changes that shipped
+with it do reach every clip, flag or not, so output is not byte-identical to before:
+
+- **Hook title text:** the selection prompt gained two lines (sentence case, keep a number's sign), and
+  `sanitize_hook_title` restores a dropped sign and brings a Title Case title to sentence case
+  ([Title text](#hook-title)). A capitalised word is lowered only when the transcript has it in lower case, or does
+  not have it at all in a Title Case title.
+- **Audio:** every render path fades the last 25 ms of a clip's audio.
+- **Clip end:** a settings re-render no longer extends a clip into the sentence that follows straight on.
 
 Contents: [For users](#for-users) · [Caption styles](#animated-caption-styles) · [Hook title](#hook-title) ·
 [Reference edits](#reference-edits) · [Effects](#effects) ·
@@ -231,8 +239,9 @@ position and a scale; its font and accent are the draft's caption font and accen
 
 **Title text.** `ai.sanitize_hook_title(raw, source_text=…)` gives a bare number back the sign the speaker used
 ("90 of guests" → "90% of guests", only when every mention in the clip's transcript carries it) and brings a Title
-Case headline to sentence case (names the transcript capitalises in mid-sentence keep their capital), so one task's
-titles read alike. The prompt asks for both.
+Case headline to sentence case, so one task's titles read alike. A capitalised word is lowered only when the
+transcript has it in lower case (or, in a Title Case title, does not have it at all); names the transcript
+capitalises in mid-sentence, and words it never shows in lower case, keep their capital. The prompt asks for both.
 
 ## Reference edits
 
@@ -258,7 +267,8 @@ What the resolver can place (cue kinds in `backend/src/edit_fx/contracts.py`, dr
 - **Reframes** (`zoom` mode `punch`): a hard step to 110–115 % (Subtle), 112–120 % (Bold) or 120–135 % (Max) about the
   face, held until the next reframe ("out", back to the base framing) or the next real cut. Placed on beat key words
   and sentence starts one frame early, at least 1.2 s (Bold) / 0.8 s (Max) apart; never across a stacked layout's
-  panels (`reaction`, `stack`, `overlap` layouts get none, and an interview's stacked two-shots drop theirs).
+  panels (`reaction`, `stack`, `overlap` and `gaming` layouts get none, and an interview's stacked two-shots drop
+  theirs).
 - **Nudges** (`zoom` mode `nudge`): +6–10 % over 11 frames, nearly linear with a soft landing, held; between two
   reframes they alternate with an 11-frame ease back out (`pull`), so they never stack. Slow baseline pushes
   (`kb<n>`) only at Subtle and style-only.
@@ -342,13 +352,13 @@ video worker, the AI worker and every [remote render worker](render-worker.md#dy
 | `EDIT_PLAN_LLM` | `LLM` | Model for beat tagging (`provider:model`) |
 | `EDIT_PLAN_TIMEOUT_SECONDS` | `45` | One beat-tagging call; past it the clip uses heuristic beats |
 | `EDIT_PLAN_DAILY_LIMIT` | `100` | Studio "Plan edits" requests per user per day (refunded on failure) |
-| `FX_RUNTIME` | `deno` | `off` is the kill switch: no drawing stage, clips render at level safe |
+| `FX_RUNTIME` | `deno` | `off` is the kill switch: no drawing stage, clips render at level safe (sound effects, music and bleeps stay). `legacy` is the operator brake: no FX chain at all, every FX render (generation, resume, re-renders, clip edits, studio export) takes the legacy render, level none |
 | `FX_DENO_BIN` | `deno` | The deno binary |
 | `FX_WARP` | `on` | `off` disables speed ramps and freezes everywhere |
 | `FX_RENDER_TIMEOUT_SECONDS` | `max(900, 6 × clip seconds)` | Wall-clock limit for one FX render |
 | `FX_LIBRARY_DIR` | `/app/fx_library` | Self-hoster drop-in sounds and music |
 | `FX_LOUDNORM` | `static` | `static` (measured voice gain) or `dynamic` (the old one-pass loudnorm) |
-| `FX_CHAIN_MODE` | `pipe` | `file` makes the drawing stage write a file instead of piping, if pipes prove flaky |
+| `FX_CHAIN_MODE` | `pipe` | `file` makes the drawing stage write a file instead of piping, if pipes prove flaky. The file is an intermediate in the render's scratch directory, about 11 GB per minute of clip at 1080×1920 with grain (measured), per render in flight |
 | `REACTIONS_PROVIDER` | `off` | `giphy` enables GIF reactions (hosted stays `off` until legal review) |
 | `GIPHY_API_KEY` | empty | Needed with `REACTIONS_PROVIDER=giphy` |
 
@@ -383,7 +393,11 @@ time after the time warp. Generation is S == E.
    actually rendered) and `vertical_layout`. Re-renders reuse the plan when nothing changed, re-resolve on a
    style change, and re-anchor beats after a cleanup change without calling the model.
 6. **Jobs**: generation renders FX clips in the video worker. Settings re-renders and FX clip edits run as
-   `fx_clip_job` (the API answers 202 and the client polls `GET /tasks/{id}/clip-jobs/{job_id}`). The studio's
+   `fx_clip_job` (the API answers 202 and the client polls `GET /tasks/{id}/clip-jobs/{job_id}`). One job per task
+   at a time: while one is queued or running, another edit answers 409 `CLIP_JOB_IN_PROGRESS` with that job's
+   `job_id` (Redis `fx_clip_job:task:{task_id}`, cleared when the job ends and ignored once the job is stale by
+   the status route's rules). The job holds the task's row lock for the whole render, so its edit transaction
+   turns `idle_in_transaction_session_timeout` off for itself (`SET LOCAL`); the job's own budget bounds it. The studio's
    "Plan edits" runs `edit_fx_plan_job` on the AI worker, its face/matte analysis `editor_fx_analysis` on the
    video worker, and its server export renders the document's `fx` through the same chain.
 
@@ -526,7 +540,8 @@ The migration `backend/src/migrations/sql/20261114_0001_dynamic_edits.sql` adds 
 1. Deploy order: migration → video workers, render workers and the AI worker (new image) → API → frontend.
    Roll back the other way, flag first.
 2. Dark: admins only. Watch `fx_render`, `fx_render_failed`, `edit_beats_fallback`. If more than 1 % of renders
-   fall back, set `FX_CHAIN_MODE=file`.
+   fall back, set `FX_CHAIN_MODE=file`. Check the scratch disk first: the file is about 11 GB per minute of clip at
+   1080×1920 with grain (measured), for every render in flight.
 3. Open on web in `/admin` → Feature Flags (`web_enabled`). Set the tours' `releasedAt` in
    `frontend/src/lib/feature-tours.ts` to that day.
 4. iOS: `ios_enabled` once an iOS build sends `edit_style`. Server-rendered clips already carry the effects for
@@ -534,7 +549,14 @@ The migration `backend/src/migrations/sql/20261114_0001_dynamic_edits.sql` adds 
 
 With the flag off, a request that turns effects on (an active intensity, or an animated template) returns 403
 `DYNAMIC_EDITS_NOT_AVAILABLE` before any charge. Clips that already have effects keep working: re-renders, font
-changes and studio exports. Feature tours: `dynamic-edits` (create screen) and `dynamic-edits-studio`, both
+changes and studio exports. In the studio "already has effects" always means the saved draft, never the document a
+request carries: saving, exporting, the AI edit, "Plan edits" and the face analysis all compare against it.
+
+**Operator brake.** Turning the flag off stops new effects, but tasks that already store an edit style still render
+through the FX chain on resume and re-render, and `FX_RUNTIME=off` only drops them to level safe. `FX_RUNTIME=legacy`
+on the workers forces the legacy render for everything (level none: classic captions from the template's fallback,
+the libass hook title, no sound effects, music or bleeps); clips show "Some effects were simplified". Stored styles
+and plans are kept, so removing it and re-rendering brings the effects back. Feature tours: `dynamic-edits` (create screen) and `dynamic-edits-studio`, both
 `requiresFlag: "dynamic_edits"`; the announcement loop is rendered by
 `backend/scripts/fx/render_tour_media.py` through the real chain.
 
@@ -577,7 +599,7 @@ when the feature branch was finished; repeat them if the code changes.
       entry. Reactions stay self-host only until the GIPHY legal review.
 - [ ] iOS: `ios_enabled` only once an iOS build that sends `edit_style` is approved.
 - [ ] Rollback drill known: flag off first, then the API, then workers; `FX_RUNTIME=off` is the kill switch
-      (clips render at level safe).
+      (clips render at level safe) and `FX_RUNTIME=legacy` the brake (every clip takes the legacy render).
 
 ## Fallbacks
 
@@ -588,7 +610,7 @@ Each FX render steps down a ladder and records `fx_level` (`create_optimized_cli
 2. **safe**: no drawing stage, no warp, no picture effects; animated captions are burned with their classic
    fallback and the hook title as heavy outlined type ([Hook title](#hook-title)); sound effects, music and bleeps
    stay. Also what `FX_RUNTIME=off` gives.
-3. **none**: the classic render, exactly as before.
+3. **none**: the classic render, exactly as before. Also what `FX_RUNTIME=legacy` gives, for every clip.
 
 A planning error renders the clip without effects rather than losing it. Transcripts without word timing get
 `timing="approx"` (no bleeps, fixed highlighter speed) or `"none"` (only music, grade, grain, progress bar, loop
@@ -608,7 +630,7 @@ ending and transitions).
 - The studio's caption timeline lists fixed word groups while look captions draw phrase groups (see Intensity looks).
 - The keyword per caption group and the emoji's end are planned on the resolver's copy of the phrase groups; a
   caption edit in the studio that changes the words is re-planned on the next re-resolve.
-- Generation drops automatic zooms on panel layouts (`reaction`, `stack`, `overlap`); the studio does not know the
+- Generation drops automatic zooms on panel layouts (`reaction`, `stack`, `overlap`, `gaming`); the studio does not know the
   layout kind yet, so a studio re-resolve of such a clip can add reframes across the panels (delete them, or turn
   Zooms off for that clip).
 - The hook title card's Chinese, Japanese and Korean text uses the system Noto fonts at regular weight, lighter than
@@ -628,6 +650,8 @@ ending and transitions).
 | 403 `DYNAMIC_EDITS_NOT_AVAILABLE` | The flag is off for this platform and the request turns effects on |
 | Clips render but say "simplified" | `fx_render_failed` in PostHog: its `stage` says where. `p2`/`setup` usually means deno or the napi cache: run `deno task selftest` on that machine |
 | Every render falls to safe | `FX_RUNTIME=off`, deno missing, or the image was built without the baked `DENO_DIR` cache |
+| Every render is level none | `FX_RUNTIME=legacy` is set on that worker |
+| 409 `CLIP_JOB_IN_PROGRESS` | Another edit of the same task's clips is queued or rendering; poll the `job_id` in the response, then retry |
 | Renders time out | `FX_RENDER_TIMEOUT_SECONDS`, CPU contention (each chain is three processes; `max_jobs` bounds them) |
 | Effects ignore the moments you'd expect | `edit_beats_fallback`: the beat model failed or has no key, so heuristic beats ran |
 | No speed ramps or freezes | Expected: they are never placed automatically. Hand-made ones need `FX_WARP=on` |

@@ -202,14 +202,45 @@ FX_CLIP_JOB_FUNCTION = "fx_clip_job"
 FX_CLIP_JOB_KINDS: tuple[str, ...] = ("settings", "captions", "trim", "split", "merge")
 FX_CLIP_JOB_TTL_SECONDS = 24 * 60 * 60
 FX_CLIP_JOB_STATUSES: tuple[str, ...] = ("queued", "running", "done", "failed")
+# A clip job nobody picked up in this long has no worker that knows it (§5.2).
+FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS = 15 * 60
+# One job per task at a time: ``fx_clip_job:task:{task_id}`` names the job in flight. It is cleared when the job
+# ends in any way; this TTL (longer than a job can wait and run) only collects one whose worker died.
+FX_CLIP_JOB_MARKER_TTL_SECONDS = 4 * 60 * 60
+_MARKER_RELEASE = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0"
+_MARKER_TAKE_OVER = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+    "redis.call('set', KEYS[1], ARGV[2], 'EX', ARGV[3]) return 1 end return 0"
+)
 
 
 def fx_clip_job_key(job_id: str) -> str:
     return f"fx_clip_job:{job_id}"
 
 
+def fx_clip_job_marker_key(task_id: str) -> str:
+    return f"fx_clip_job:task:{task_id}"
+
+
 class FxClipJobQueueError(RuntimeError):
     """The edit was stored, but its FX clip job could not be queued (Redis or the queue is down)."""
+
+
+class FxClipJobInProgress(RuntimeError):
+    """Another clip job is queued or running for this task; nothing was queued (the route answers 409)."""
+
+    def __init__(self, job_id: str, kind: Optional[str] = None):
+        super().__init__("Another edit of this project's clips is still rendering")
+        self.job_id = job_id
+        self.kind = kind
+
+    def detail(self) -> Dict[str, Any]:
+        return {
+            "code": "CLIP_JOB_IN_PROGRESS",
+            "message": "Another edit of this project's clips is still rendering. Wait for it to finish, then try again.",
+            "job_id": self.job_id,
+            **({"kind": self.kind} if self.kind else {}),
+        }
 
 
 @dataclass(frozen=True)
@@ -292,6 +323,96 @@ async def read_fx_clip_job_state(job_id: str) -> Optional[Dict[str, Any]]:
     return state if isinstance(state, dict) else None
 
 
+def _fx_clip_job_waiting(state: Optional[Dict[str, Any]], now: float) -> Optional[bool]:
+    """Whether the job behind a task's marker still blocks new edits, by the status route's own rules.
+
+    True: queued or running and not stale. False: finished, unknown, or a running job ``stale_job_error`` gives up
+    on. None: a queued job that waited past its limit; it stops blocking only once it is closed, so that no worker
+    starts it afterwards.
+    """
+    from .fx_clip_jobs import stale_job_error
+
+    if not state or state.get("status") not in ("queued", "running"):
+        return False
+    stale = stale_job_error(state, now)
+    if state["status"] == "running":
+        return stale is None
+    try:
+        queued_at = float(state.get("queued_at") or 0.0)
+    except (TypeError, ValueError):
+        queued_at = 0.0
+    if stale or (queued_at and now - queued_at > FX_CLIP_JOB_QUEUE_TIMEOUT_SECONDS):
+        return None
+    return True
+
+
+async def fx_clip_job_in_flight(task_id: str) -> Optional[Dict[str, Any]]:
+    """The record of the task's clip job that is queued or running, or None. Reads only; ``enqueue_fx_clip_job``
+    decides atomically. For a route that stores something before it queues."""
+    client = _fx_clip_job_redis()
+    try:
+        holder = await client.get(fx_clip_job_marker_key(task_id))
+    finally:
+        await client.aclose()
+    if not holder:
+        return None
+    state = await read_fx_clip_job_state(str(holder))
+    return state if _fx_clip_job_waiting(state, time.time()) else None
+
+
+async def release_fx_clip_job_marker(task_id: str, job_id: str) -> None:
+    """Let the task take its next clip job, if ``job_id`` still holds the marker. Best effort: a marker left
+    behind points at a finished or stale record, which the next enqueue replaces."""
+    if not task_id or not job_id:
+        return
+    try:
+        client = _fx_clip_job_redis()
+        try:
+            await client.eval(_MARKER_RELEASE, 1, fx_clip_job_marker_key(task_id), job_id)
+        finally:
+            await client.aclose()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not clear the clip job marker of task %s: %s", task_id, exc)
+
+
+async def _claim_task_for_fx_clip_job(task_id: str, job_id: str) -> None:
+    """Make ``job_id`` the task's one clip job in flight, or raise ``FxClipJobInProgress`` naming the other."""
+    key = fx_clip_job_marker_key(task_id)
+    holder = ""
+    for _attempt in range(3):
+        client = _fx_clip_job_redis()
+        try:
+            if await client.set(key, job_id, nx=True, ex=FX_CLIP_JOB_MARKER_TTL_SECONDS):
+                return
+            holder = str(await client.get(key) or "")
+        finally:
+            await client.aclose()
+        if not holder:
+            continue  # cleared between the two calls
+        state = await read_fx_clip_job_state(holder)
+        waiting = _fx_clip_job_waiting(state, time.time())
+        if waiting is None:
+            # Waited too long in the queue: close it like the status route does. A worker that took it meanwhile
+            # keeps it, and it blocks after all.
+            if await claim_fx_clip_job(holder, FX_CLIP_JOB_CLOSED) == FX_CLIP_JOB_CLOSED:
+                await write_fx_clip_job_state(holder, {
+                    **(state or {}), "status": "failed", "progress": 0.0,
+                    "error": {"code": "WORKER_UNAVAILABLE", "message": "No worker picked up this edit. Please try again."},
+                })
+                waiting = False
+            else:
+                waiting = True
+        if waiting:
+            raise FxClipJobInProgress(holder, (state or {}).get("kind"))
+        client = _fx_clip_job_redis()
+        try:
+            if await client.eval(_MARKER_TAKE_OVER, 1, key, holder, job_id, FX_CLIP_JOB_MARKER_TTL_SECONDS):
+                return
+        finally:
+            await client.aclose()
+    raise FxClipJobInProgress(holder)
+
+
 async def enqueue_fx_clip_job(
     *,
     task_id: str,
@@ -308,10 +429,14 @@ async def enqueue_fx_clip_job(
     job (services/fx_clip_jobs.py, registered in workers/tasks.py); until a worker picks it up the record stays
     ``queued`` and the status route reports ``WORKER_UNAVAILABLE`` after 15 minutes. ``clip_ids`` (clip edits) are
     the clips the job re-renders; they are kept in the record and echoed in the 202 body.
+
+    One job per task: while another is queued or running, nothing is queued and ``FxClipJobInProgress`` names it
+    (two jobs would each hold a worker slot, and a double-click would apply a trim twice).
     """
     if kind not in FX_CLIP_JOB_KINDS:
         raise ValueError(f"Unknown FX clip job kind: {kind}")
     job_id = uuid4().hex
+    await _claim_task_for_fx_clip_job(task_id, job_id)
     job = {"job_id": job_id, "task_id": task_id, "user_id": user_id, "kind": kind, "args": dict(args)}
     state = {
         "job_id": job_id,
@@ -323,7 +448,11 @@ async def enqueue_fx_clip_job(
         "queued_at": time.time(),
         **({"clip_ids": list(clip_ids)} if clip_ids else {}),
     }
-    await write_fx_clip_job_state(job_id, state)
+    try:
+        await write_fx_clip_job_state(job_id, state)
+    except BaseException:
+        await release_fx_clip_job_marker(task_id, job_id)
+        raise
     adapter = queue
     if adapter is None:
         from ..workers.job_queue import JobQueue
@@ -331,12 +460,15 @@ async def enqueue_fx_clip_job(
         adapter = JobQueue
     try:
         await adapter.enqueue_job(FX_CLIP_JOB_FUNCTION, job, _job_id=fx_clip_job_key(job_id))
-    except Exception:
-        await write_fx_clip_job_state(job_id, {
-            **state,
-            "status": "failed",
-            "error": {"code": "QUEUE_UNAVAILABLE", "message": "Could not queue the edit. Please try again."},
-        })
+    except BaseException:
+        try:
+            await write_fx_clip_job_state(job_id, {
+                **state,
+                "status": "failed",
+                "error": {"code": "QUEUE_UNAVAILABLE", "message": "Could not queue the edit. Please try again."},
+            })
+        finally:
+            await release_fx_clip_job_marker(task_id, job_id)
         raise
     logger.info("Queued FX clip job %s (%s) for task %s", job_id, kind, task_id)
     return QueuedClipJob(job_id=job_id, kind=kind, clip_ids=tuple(clip_ids or ()))
@@ -687,6 +819,15 @@ class ClipEditingMixin:
         instead of the task. Without it the legacy synchronous path runs unchanged.
         """
         if fx_job is not None and apply_to_existing:
+            # Before anything is stored: these settings would wait on the running job's lock and then be saved
+            # with no re-render behind them.
+            try:
+                in_flight = await fx_clip_job_in_flight(task_id)
+            except Exception as exc:  # noqa: BLE001 - Redis down: queueing below fails and answers as before
+                logger.warning("Could not check for a clip job in flight on task %s: %s", task_id, exc)
+                in_flight = None
+            if in_flight:
+                raise FxClipJobInProgress(str(in_flight.get("job_id") or ""), in_flight.get("kind"))
             await self._store_task_settings(
                 task_id, font_family, font_size, font_color, caption_template, include_broll,
                 edit_style=edit_style,
@@ -707,6 +848,8 @@ class ClipEditingMixin:
                     },
                     queue=fx_job.queue,
                 )
+            except FxClipJobInProgress:
+                raise
             except Exception as exc:
                 # The settings are already committed; only the re-render is missing. Retrying is safe.
                 logger.warning("Could not queue the settings re-render for task %s: %s", task_id, exc)

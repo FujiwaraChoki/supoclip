@@ -869,8 +869,12 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
             timings=timings, library_fingerprint=fingerprint, error=error,
         )
 
-    Path(scratch_dir).mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix="fxchain-", dir=str(scratch_dir)))
+    try:
+        Path(scratch_dir).mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="fxchain-", dir=str(scratch_dir)))
+    except OSError as exc:
+        # A full or read-only scratch disk is a failed render like any other: the caller drops a level.
+        return result(False, f"setup: scratch directory: {exc}")
     stages: list[_Stage] = []
     threads: list[threading.Thread] = []
     face_track = request.face_track

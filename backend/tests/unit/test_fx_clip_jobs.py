@@ -43,6 +43,19 @@ class FakeRedis:
     async def get(self, key):
         return type(self).store.get(key)
 
+    async def eval(self, script, _numkeys, key, *args):
+        """The two compare-and-act scripts of the task's job marker."""
+        store = type(self).store
+        if store.get(key) != args[0]:
+            return 0
+        if script == clip_service._MARKER_RELEASE:
+            del store[key]
+        elif script == clip_service._MARKER_TAKE_OVER:
+            store[key] = args[1]
+        else:
+            raise AssertionError(f"unexpected script: {script}")
+        return 1
+
     async def publish(self, channel, message):
         type(self).published.append((channel, json.loads(message)))
 
@@ -202,6 +215,134 @@ async def test_a_queue_failure_is_a_503_with_nothing_changed(route):
     route.service.split_clip.assert_not_awaited()
     (stored,) = [json.loads(value) for value in FakeRedis.store.values()]
     assert stored["status"] == "failed" and stored["error"]["code"] == "QUEUE_UNAVAILABLE"
+    # Nothing is in flight, so the retry is not refused.
+    route.queue = FakeQueue()
+    assert (await route.call("POST", "/tasks/task-1/clips/fx/split", {"split_time": 2.0})).status_code == 202
+
+
+# --------------------------------------------------------------------------- one job per task
+
+MARKER = clip_service.fx_clip_job_marker_key("task-1")
+
+
+async def test_a_second_edit_is_refused_while_a_job_is_queued_or_running(route):
+    """A double-click must not apply a trim twice, and two jobs of one task must not take two worker slots."""
+    first = await route.call("PATCH", "/tasks/task-1/clips/fx", {"start_offset": 1.0})
+    assert first.status_code == 202
+    job_id = first.json()["job_id"]
+    assert FakeRedis.store[MARKER] == job_id
+
+    for _status in ("queued", "running"):
+        second = await route.call("POST", "/tasks/task-1/clips/fx/split", {"split_time": 2.0})
+        assert second.status_code == 409, second.text
+        assert second.json()["detail"] == {
+            "code": "CLIP_JOB_IN_PROGRESS", "job_id": job_id, "kind": "trim",
+            "message": second.json()["detail"]["message"],
+        }
+        await clip_service.write_fx_clip_job_state(job_id, {**record(job_id), "status": "running"})
+    assert len(route.queue.jobs) == 1 and FakeRedis.store[MARKER] == job_id
+    assert not [key for key in FakeRedis.store if key not in (MARKER, clip_service.fx_clip_job_key(job_id))]
+    # Another task is not held up.
+    other = await clip_service.enqueue_fx_clip_job(task_id="task-2", user_id="user-1", kind="trim", args={},
+                                                   queue=FakeQueue())
+    assert other.job_id != job_id
+
+
+@pytest.mark.parametrize("outcome", ["done", "failed", "cancelled", "closed"])
+async def test_the_marker_is_cleared_however_the_job_ends(route, outcome):
+    job_id = (await route.call("PATCH", "/tasks/task-1/clips/fx", {"start_offset": 1.0})).json()["job_id"]
+    (_function, (job,), _kwargs) = route.queue.jobs[0]
+
+    async def trim(*_args):
+        if outcome == "failed":
+            raise RuntimeError("ffmpeg exited 1")
+        if outcome == "cancelled":
+            raise asyncio.CancelledError()
+        return {"id": "fx"}
+
+    if outcome == "closed":
+        # The status route gave up on it before a worker took it.
+        assert await tasks._close_queued_clip_job(job_id, record(job_id), {"code": "WORKER_UNAVAILABLE", "message": "x"})
+        assert MARKER not in FakeRedis.store
+        assert (await _run(job, SimpleNamespace(trim_clip=trim)))["status"] == "failed"      # never runs it
+    elif outcome == "cancelled":
+        with pytest.raises(asyncio.CancelledError):
+            await _run(job, SimpleNamespace(trim_clip=trim))
+    else:
+        assert (await _run(job, SimpleNamespace(trim_clip=trim)))["status"] == outcome
+    assert MARKER not in FakeRedis.store
+    assert (await route.call("PATCH", "/tasks/task-1/clips/fx", {"start_offset": 1.0})).status_code == 202
+
+
+async def test_a_finished_job_never_clears_a_later_jobs_marker(redis):
+    await clip_service.release_fx_clip_job_marker("task-1", "someone-else")      # nothing there: no error
+    FakeRedis.store[MARKER] = "later-job"
+    await clip_service.release_fx_clip_job_marker("task-1", JOB_ID)
+    assert FakeRedis.store[MARKER] == "later-job"
+
+
+@pytest.mark.parametrize("stale", ["no record", "finished", "dead worker", "over budget", "never picked up"])
+async def test_a_stale_marker_never_blocks_the_next_edit(route, stale, monkeypatch):
+    """The marker blocks exactly as long as the status route would call its job queued or running
+    (``stale_job_error`` and the 15 minute queue limit), whatever is left in Redis."""
+    now = 1_000_000.0
+    monkeypatch.setattr(clip_service.time, "time", lambda: now)
+    old = "f" * 32
+    FakeRedis.store[MARKER] = old
+    base = {"job_id": old, "task_id": "task-1", "kind": "settings"}
+    states = {
+        "finished": {**base, "status": "done", "queued_at": now - 50},
+        "dead worker": {**base, "status": "running", "queued_at": now - 400, "started_at": now - 390,
+                        "budget_seconds": 1800.0},
+        "over budget": {**base, "status": "running", "queued_at": now - 2300, "started_at": now - 2200,
+                        "budget_seconds": 1800.0},
+        "never picked up": {**base, "status": "queued", "queued_at": now - 15 * 60 - 5},
+    }
+    if stale in states:
+        FakeRedis.store[clip_service.fx_clip_job_key(old)] = json.dumps({
+            **states[stale],
+            # The last heartbeat: 3 minutes ago for the dead worker, just now for the one over its budget.
+            "updated_at": now - (180 if stale == "dead worker" else 1),
+        })
+
+    response = await route.call("PATCH", "/tasks/task-1/clips/fx", {"start_offset": 1.0})
+    assert response.status_code == 202, response.text
+    assert FakeRedis.store[MARKER] == response.json()["job_id"]
+    if stale == "never picked up":
+        # Closed like the status route closes it, so no worker runs it next to the new job.
+        assert FakeRedis.store[f"{clip_service.fx_clip_job_key(old)}:claim"] == "closed"
+        assert record(old)["status"] == "failed" and record(old)["error"]["code"] == "WORKER_UNAVAILABLE"
+
+
+async def test_a_job_a_worker_just_took_still_blocks_past_the_queue_limit(route, monkeypatch):
+    now = 1_000_000.0
+    monkeypatch.setattr(clip_service.time, "time", lambda: now)
+    old = "f" * 32
+    FakeRedis.store[MARKER] = old
+    FakeRedis.store[clip_service.fx_clip_job_key(old)] = json.dumps({
+        "job_id": old, "task_id": "task-1", "kind": "trim", "status": "queued", "queued_at": now - 16 * 60,
+    })
+    FakeRedis.store[f"{clip_service.fx_clip_job_key(old)}:claim"] = "started"
+    response = await route.call("PATCH", "/tasks/task-1/clips/fx", {"start_offset": 1.0})
+    assert response.status_code == 409 and response.json()["detail"]["job_id"] == old
+    assert route.queue.jobs == []
+
+
+async def test_settings_are_not_stored_while_a_job_is_in_flight(redis):
+    """The settings route stores before it queues: with a job in flight nothing is stored (no settings saved
+    without a re-render, no request waiting on the running job's row lock)."""
+    from src.services.clip_service import ClipEditingMixin, FxClipJobInProgress, FxClipJobRequest
+
+    await clip_service.enqueue_fx_clip_job(task_id="task-1", user_id="user-1", kind="trim", args={}, queue=FakeQueue())
+    service = ClipEditingMixin()
+    service._store_task_settings = AsyncMock()
+    with pytest.raises(FxClipJobInProgress) as refused:
+        await service.update_task_settings(
+            "task-1", None, None, None, "default", False, True,
+            fx_job=FxClipJobRequest(user_id="user-1", queue=FakeQueue()),
+        )
+    assert refused.value.detail()["code"] == "CLIP_JOB_IN_PROGRESS" and refused.value.job_id == FakeRedis.store[MARKER]
+    service._store_task_settings.assert_not_awaited()
 
 
 async def test_an_fx_edit_on_a_busy_task_is_refused_before_queueing(route):
@@ -440,6 +581,104 @@ async def test_rerender_task_settings_records_cleanup_under_the_lock(isolated_cl
     assert written == {"clip_length": "auto", "url": "upload://x", "source_type": "video_url",
                        "output_format": "vertical", "add_subtitles": True, "cut_long_pauses": True}
     service.task_repo.save_source_metadata.assert_awaited_once_with("db", "task-1", written)
+
+
+# --------------------------------------------------------------------------- the idle-in-transaction timeout
+
+
+class _RecordingDb:
+    """A session that records its statements; the task row reads as ``completed``."""
+
+    def __init__(self):
+        self.info: dict = {}
+        self.statements: list = []
+        self.ended: list = []
+
+    async def execute(self, statement, params=None):
+        self.statements.append(str(statement))
+        return SimpleNamespace(scalar_one_or_none=lambda: "completed")
+
+    async def commit(self):
+        self.ended.append("commit")
+
+    async def rollback(self):
+        self.ended.append("rollback")
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+async def test_the_job_turns_the_idle_timeout_off_for_its_edit_transaction_only(redis):
+    """A multi-clip re-render holds the task's row lock with no statement for longer than the engine's
+    ``idle_in_transaction_session_timeout``; the job's edit lifts it with SET LOCAL, which ends with the
+    transaction. Other sessions' edits (the API's synchronous ones) keep the timeout."""
+    from src.repositories.edit_transaction import task_edit_transaction
+
+    lift = "SET LOCAL idle_in_transaction_session_timeout = 0"
+    db = _RecordingDb()
+
+    class Service:
+        async def trim_clip(self, task_id, clip_id, start, end):
+            async with task_edit_transaction(db, task_id):
+                assert db.statements[-1] == lift          # after the row lock, before any render
+                assert "FOR UPDATE" in db.statements[-2]
+            return {"id": clip_id}
+
+    final = await fx_clip_jobs.run_fx_clip_job(
+        await _queued("trim", {"clip_id": "c1"}), session_factory=lambda: db, service_factory=lambda _db: Service(),
+    )
+    assert final["status"] == "done"
+    assert db.statements.count(lift) == 1 and db.ended == ["commit"]
+
+    plain = _RecordingDb()
+    async with task_edit_transaction(plain, "task-1"):
+        pass
+    assert lift not in plain.statements
+
+
+async def test_the_idle_timeout_is_back_once_the_edit_transaction_ends(initialized_database, db_session):
+    """PostgreSQL: the same connection reads 0 inside the job's edit and the engine's value after a commit and
+    after a rollback, so a pooled connection never keeps the lifted timeout."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from src.repositories.edit_transaction import allow_long_edit, task_edit_transaction
+    from tests.fixtures.factories import create_source, create_task, create_user
+
+    owner = await create_user(db_session)
+    source = await create_source(db_session, source_type="video_url", url="upload://input.mp4")
+    task = await create_task(db_session, user_id=owner["id"], source_id=source["id"], status="completed")
+    await db_session.commit()
+
+    engine = create_async_engine(
+        initialized_database.url, pool_size=1, max_overflow=0,
+        connect_args={"server_settings": {"idle_in_transaction_session_timeout": "300000"}},
+    )
+
+    async def read(db):
+        row = (await db.execute(text(
+            "SELECT pg_backend_pid(), current_setting('idle_in_transaction_session_timeout')"
+        ))).one()
+        return row[0], row[1]
+
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            allow_long_edit(db)
+            async with task_edit_transaction(db, task["id"]):
+                pid, inside = await read(db)
+            assert inside == "0"
+            assert await read(db) == (pid, "5min")
+            await db.rollback()
+            with pytest.raises(RuntimeError):
+                async with task_edit_transaction(db, task["id"]):
+                    assert (await read(db)) == (pid, "0")
+                    raise RuntimeError("render failed")
+            assert await read(db) == (pid, "5min")
+    finally:
+        await engine.dispose()
 
 
 # --------------------------------------------------------------------------- the lock (PostgreSQL)

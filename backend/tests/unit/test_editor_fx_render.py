@@ -522,6 +522,17 @@ def test_kill_switch_renders_at_level_safe(tmp_path, monkeypatch):
 
 
 @requires_ffmpeg
+def test_fx_runtime_legacy_exports_through_the_legacy_render(tmp_path, monkeypatch):
+    directory = session(tmp_path, duration=2.0)
+    monkeypatch.setenv("FX_RUNTIME", "legacy")
+    spy = ChainSpy([None])
+    monkeypatch.setattr(fx_chain, "run_fx_chain", spy)
+    outcome = render_document(directory, "job", doc([("a", 0.0, 1.0)], [cue("flash", "f", 0.2, 0.4)]), "tiktok")
+    assert outcome == {"level": "none", "applied_warp": []}
+    assert spy.calls == [] and (directory / "export-job.mp4").exists()
+
+
+@requires_ffmpeg
 def test_warped_render_with_av_mismatch_is_redone_with_an_identity_warp(tmp_path, monkeypatch):
     directory = session(tmp_path, duration=3.0)
     spy = ChainSpy([None, None])

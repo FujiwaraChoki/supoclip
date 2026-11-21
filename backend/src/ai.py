@@ -943,6 +943,11 @@ def restore_number_signs(title: str, source_text: Optional[str]) -> str:
 _WORD_EDGE = re.compile(r"^[^\w]+|[^\w]+$")
 
 
+def _bare_word(word: str) -> str:
+    """A word as the transcript is searched for it: lower case, without a possessive ending."""
+    return re.sub(r"['’]s$", "", word.lower())
+
+
 def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
     """Bring a Title Case headline to sentence case so one task's clips read alike.
 
@@ -951,7 +956,9 @@ def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
     that way in mid-sentence (a name), or when it has capitals inside (CEOs,
     iPhone) or is "I"; it is lowered when the transcript has it in lower case,
     and, when the transcript does not have it at all, only if the whole title
-    is in Title Case. The first word of each sentence stays capitalised.
+    is in Title Case. A word the transcript has but never in lower case (a
+    name that only opens sentences there) keeps its capital. The first word of
+    each sentence stays capitalised.
     """
     words = title.split()
     if len(words) < 3:
@@ -959,6 +966,7 @@ def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
     source = source_text or ""
     proper = set(re.findall(r"(?<=[\w,;:'\"”’)]\s)([A-ZÀ-Þ][\w'’-]*)", source))
     common = set(re.findall(r"\b([a-zß-ÿ][\w'’-]*)", source))
+    spoken = {_bare_word(found) for found in re.findall(r"[^\W\d_][\w'’-]*", source)}
 
     def simple_capital(core: str) -> bool:
         return len(core) > 1 and core[0].isupper() and core[1:] == core[1:].lower() and core[1:] != core[1:].upper()
@@ -979,7 +987,7 @@ def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
             out.append(word)
             continue
         lowered = core[0].lower() + core[1:]
-        if lowered in common or title_case:
+        if lowered in common or (title_case and _bare_word(core) not in spoken):
             word = word.replace(core, lowered, 1)
         out.append(word)
     return " ".join(out)

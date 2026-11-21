@@ -25,10 +25,16 @@ MIGRATION = BACKEND / "src/migrations/sql/20261114_0001_dynamic_edits.sql"
 INIT_SQL = BACKEND.parent / "init.sql"
 
 EXPECTED_STATEMENTS = [
+    # ALTER TABLE takes ACCESS EXCLUSIVE: behind a long edit transaction it would queue and block every query
+    # on tasks, so it gives up after 5 s instead (the feedback migrations' pattern).
+    "SET LOCAL lock_timeout = '5s'",
+    "SET LOCAL statement_timeout = '30s'",
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS edit_style JSONB",
     "ALTER TABLE generated_clips ADD COLUMN IF NOT EXISTS fx_meta JSONB",
     "INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass) VALUES ('dynamic_edits', "
     "'Edit intensity, SFX, music and animated caption styles', false, false, true) ON CONFLICT (key) DO NOTHING",
+    "SET LOCAL lock_timeout = DEFAULT",
+    "SET LOCAL statement_timeout = DEFAULT",
 ]
 
 
@@ -46,8 +52,12 @@ def _statements(sql: str) -> list[str]:
 # --------------------------------------------------------------------------- file shape (no database)
 
 
-def test_migration_is_the_three_statements_of_the_design():
+def test_migration_is_the_three_statements_of_the_design_under_a_lock_timeout():
     assert _statements(MIGRATION.read_text()) == EXPECTED_STATEMENTS
+    # The runner's own splitter sees the same statements, the timeouts first and reset last.
+    from src.sql_statements import split_sql_statements
+
+    assert _statements(";".join(split_sql_statements(MIGRATION.read_text()))) == EXPECTED_STATEMENTS
 
 
 def test_migration_runs_under_init_db_statement_splitting():
@@ -55,7 +65,7 @@ def test_migration_runs_under_init_db_statement_splitting():
     assert "DO $$" not in sql and "$$" not in sql   # init_db splits on ';' and cannot run DO blocks
     assert "updated_by" not in "".join(EXPECTED_STATEMENTS)
     raw_parts = [part.strip() for part in sql.split(";") if part.strip()]
-    assert len(raw_parts) == 3
+    assert len(raw_parts) == len(EXPECTED_STATEMENTS)
 
 
 def test_migration_sorts_after_every_earlier_migration():

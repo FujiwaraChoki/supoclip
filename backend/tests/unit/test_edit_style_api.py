@@ -604,7 +604,13 @@ def clip_job(monkeypatch):
 
     monkeypatch.setattr(tasks, "read_fx_clip_job_state", read)
     monkeypatch.setattr(tasks, "claim_fx_clip_job", claim)
+    state.released = []
+
+    async def release(task_id, job_id):
+        state.released.append((task_id, job_id))
+
     monkeypatch.setattr(tasks, "write_fx_clip_job_state", write)
+    monkeypatch.setattr(tasks, "release_fx_clip_job_marker", release)
     monkeypatch.setattr(tasks, "TaskService", lambda _db: SimpleNamespace())
     monkeypatch.setattr(tasks, "_require_task_owner", AsyncMock(return_value={"id": "task-1"}))
 
@@ -637,6 +643,8 @@ async def test_clip_job_still_queued_after_15_minutes_reports_worker_unavailable
     assert clip_job.holder == "closed"
     assert clip_job.written[-1]["status"] == "failed"
     assert clip_job.written[-1]["error"]["code"] == "WORKER_UNAVAILABLE"
+    # ... and the task may take its next clip job.
+    assert clip_job.released == [("task-1", JOB_ID)]
 
 
 async def test_clip_job_a_worker_took_after_15_minutes_is_not_reported_as_failed(clip_job):

@@ -186,6 +186,16 @@ def test_p3_forces_the_chain_rate_over_a_source_rate_encode(tmp_path):
     assert cmd[cmd.index("-level") + 1] == "4.2"
 
 
+def test_a_scratch_directory_that_cannot_be_made_is_a_failed_render_not_an_exception(tmp_path):
+    """The chain never raises for a failed render: with no scratch space the caller drops a level instead."""
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_bytes(b"")
+    outcome = run_chain(tmp_path / "in.mp4", tmp_path / "out.mp4", request(plan(duration=1.0)), mode="safe",
+                        scratch_dir=blocker / "scratch")
+    assert not outcome.ok and outcome.error.startswith("setup: scratch directory")
+    assert not (tmp_path / "out.mp4").exists()
+
+
 @requires_media
 def test_safe_mode_never_loops_the_voice(tmp_path, chain_deps, monkeypatch):
     """At level safe P2 does not draw the frame0 crossfade, so the audio graph gets no loop crossfade either."""

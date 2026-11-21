@@ -858,7 +858,8 @@ def render_document_fx(document, ctx) -> dict:
             )
 
         head, head_label, head_inputs = ctx.head, ctx.head_label, broll_inputs
-        if request is not None and fx_env.fx_runtime() != "off":
+        runtime = fx_env.fx_runtime()
+        if request is not None and runtime == "deno":
             result = _full_level(document, ctx, request, chain, head=head, head_label=head_label,
                                  inputs_args=head_inputs, failed=failed, rendered=temporary)
             if result is not None and result.ok:
@@ -875,8 +876,9 @@ def render_document_fx(document, ctx) -> dict:
                 if result is not None and result.ok:
                     level, applied_warp = "full", list(result.applied_warp)
 
-        if level == "none" and request is not None:
+        if level == "none" and request is not None and runtime != "legacy":
             # Safe: no deno and no warp; the bus (SFX, music, bleeps) stays, captions fall back to libass.
+            # ``FX_RUNTIME=legacy`` skips it too: the export takes the legacy render.
             try:
                 ass_safe = _fallback_ass(document, work / "safe.ass", out_w, out_h, censor=True)
             except Exception as exc:  # noqa: BLE001 - the legacy level writes its own

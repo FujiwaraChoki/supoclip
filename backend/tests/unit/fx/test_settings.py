@@ -136,6 +136,10 @@ def test_env_overrides_and_bad_values(monkeypatch, tmp_path):
     assert env.fx_library_dir() == tmp_path
     assert env.fx_loudnorm_mode() == "static" and env.reactions_provider() == "giphy"
     assert env.fx_chain_mode() == "file"
+    monkeypatch.setenv("FX_RUNTIME", " Legacy ")
+    assert env.fx_runtime() == "legacy"
+    monkeypatch.setenv("FX_RUNTIME", "none")
+    assert env.fx_runtime() == "deno"
 
 
 def test_edit_plan_model_falls_back_to_llm(monkeypatch):

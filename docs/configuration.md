@@ -224,7 +224,7 @@ decides who can turn effects on; switch it per platform in `/admin`.
 | `EDIT_PLAN_LLM` | `LLM` | `provider:model` that tags beats (hooks, numbers, punchlines, swears, …) |
 | `EDIT_PLAN_TIMEOUT_SECONDS` | `45` | One beat-tagging call; past it the clip uses heuristic beats |
 | `EDIT_PLAN_DAILY_LIMIT` | `100` | Studio "Plan edits" requests per user per day |
-| `FX_RUNTIME` | `deno` | `off` is the kill switch: no drawing stage, clips keep captions, SFX, music and bleeps |
+| `FX_RUNTIME` | `deno` | `off` is the kill switch: no drawing stage, clips keep captions, SFX, music and bleeps. `legacy` forces the legacy render for every clip with dynamic edits (no SFX, music or bleeps either) |
 | `FX_DENO_BIN` | `deno` | The deno binary (the image pins 2.9.8) |
 | `FX_WARP` | `on` | `off` disables speed ramps and freeze frames |
 | `FX_RENDER_TIMEOUT_SECONDS` | `max(900, 6 × clip seconds)` | Wall-clock limit for one FX render |

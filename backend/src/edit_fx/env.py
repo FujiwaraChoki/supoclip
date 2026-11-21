@@ -62,8 +62,9 @@ def edit_plan_daily_limit() -> int:
 
 
 def fx_runtime() -> str:
-    """``deno`` (default) or ``off``, the kill switch for the P2 drawing stage."""
-    return _choice("FX_RUNTIME", ("deno", "off"), "deno")
+    """``deno`` (default), ``off`` (the kill switch for the P2 drawing stage: renders at level safe) or
+    ``legacy`` (the operator brake: no FX chain at all, every FX render takes the legacy render, level none)."""
+    return _choice("FX_RUNTIME", ("deno", "off", "legacy"), "deno")
 
 
 def fx_deno_bin() -> str:
