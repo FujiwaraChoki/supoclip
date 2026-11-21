@@ -4,7 +4,7 @@ Task API routes using refactored architecture.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from ...media_storage import MediaStorage, STORAGE_ERRORS, is_s3, media_work
 from sqlalchemy.exc import TimeoutError as PoolTimeout
@@ -75,6 +75,14 @@ from ...workers.job_queue import JobQueue
 from ..pool_timeout import pool_busy
 from ...workers.progress import ProgressTracker
 from ...config import get_config
+from ...manual_analysis import (
+    AWAITING_ANALYSIS_STATUS,
+    ManualAnalysisError,
+    finalize_analysis,
+    parse_analysis,
+)
+from ...repositories.task_checkpoint_repository import TaskCheckpointRepository
+from pydantic import BaseModel
 from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url, has_verified_duration
 from ...youtube_proxy import YouTubeAgeRestrictedError, YouTubeGeoRestrictedError
 from ...stream_source import (
@@ -2119,6 +2127,75 @@ async def get_performance_metrics(
         raise HTTPException(status_code=500, detail=f"Error loading metrics: {str(e)}")
 
 
+class ManualAnalysisSubmission(BaseModel):
+    """The AI chat's answer: pasted text (``response``) or the decoded JSON (``analysis``)."""
+
+    response: str | None = None
+    analysis: dict | None = None
+
+
+async def _paused_task_checkpoint(db: AsyncSession, task_id: str) -> tuple[str, dict]:
+    stored = await TaskCheckpointRepository.get_latest(db, task_id)
+    if stored is None or not stored[1].get("manual_prompt"):
+        raise HTTPException(status_code=409, detail="This task has no analysis prompt waiting.")
+    return stored
+
+
+@router.get("/{task_id}/analysis-prompt")
+async def get_analysis_prompt(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """LLM=manual: the prompt to paste into an AI chat (Markdown text)."""
+    task_service = TaskService(db)
+    task = await _require_task_owner(request, task_service, db, task_id)
+    if task.get("status") != AWAITING_ANALYSIS_STATUS:
+        raise HTTPException(status_code=409, detail="This task is not waiting for an AI analysis.")
+    _key, payload = await _paused_task_checkpoint(db, task_id)
+    return Response(
+        content=payload["manual_prompt"],
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="supoclip-prompt-{task_id[:8]}.md"'},
+    )
+
+
+@router.post("/{task_id}/analysis")
+async def submit_analysis(
+    task_id: str,
+    body: ManualAnalysisSubmission,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """LLM=manual: validate the AI chat's answer, then resume the task with it."""
+    task_service = TaskService(db)
+    task = await _require_task_owner(request, task_service, db, task_id)
+    if task.get("status") != AWAITING_ANALYSIS_STATUS:
+        raise HTTPException(status_code=409, detail="This task is not waiting for an AI analysis.")
+    if body.response is None and body.analysis is None:
+        raise HTTPException(status_code=422, detail="Send the chat's answer as \"response\" or \"analysis\".")
+    input_key, payload = await _paused_task_checkpoint(db, task_id)
+    metadata = await _load_task_source_metadata(task_id, db=db)
+    try:
+        parsed = parse_analysis(body.response if body.response is not None else body.analysis)
+        analysis = finalize_analysis(
+            parsed,
+            payload.get("transcript") or "",
+            clip_length=normalize_clip_length(metadata.get("clip_length")),
+            max_clips=get_config().max_clips,
+        )
+    except ManualAnalysisError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+
+    await TaskCheckpointRepository.save(
+        db, task_id, input_key, {"analysis": analysis.model_dump(mode="json")}
+    )
+    queued = await resume_task(task_id, request, db)
+    return {
+        "message": "Analysis accepted; generating clips",
+        "segments": len(analysis.most_relevant_segments),
+        "job_id": queued.get("job_id") if isinstance(queued, dict) else None,
+    }
+
+
 @router.post("/{task_id}/resume")
 async def resume_task(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
@@ -2132,7 +2209,7 @@ async def resume_task(
             task = await task_service.task_repo.get_task_by_id(db, task_id)
             if task.get("status") == "queued":
                 return {"message": "Task already queued"}
-            if task.get("status") not in ["cancelled", "error"]:
+            if task.get("status") not in ["cancelled", "error", AWAITING_ANALYSIS_STATUS]:
                 raise HTTPException(
                     status_code=400,
                     detail="Only cancelled/error/queued tasks can be retried",

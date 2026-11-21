@@ -137,6 +137,10 @@ Source file:
   - Cancel an active task
 - `POST /{task_id}/resume`
   - Resume a cancelled or errored task
+- `GET /{task_id}/analysis-prompt`
+  - With `LLM=manual`: the prompt to paste into an AI chat (Markdown), for a task in `awaiting_analysis`
+- `POST /{task_id}/analysis`
+  - With `LLM=manual`: submit the chat's answer (`{"response": "<text>"}` or `{"analysis": {...}}`); it is validated, then the task resumes. See [manual analysis](manual-analysis.md)
 
 Task creation accepts an optional `clip_length`: `auto` (default, 15–60 seconds),
 `short` (15–30), `medium` (30–60), or `long` (60–120). Invalid values return 422

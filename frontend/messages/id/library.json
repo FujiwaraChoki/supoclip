@@ -4,7 +4,8 @@
     "processing": "Memproses",
     "queued": "Dalam antrean",
     "failed": "Gagal",
-    "cancelled": "Dibatalkan"
+    "cancelled": "Dibatalkan",
+    "awaitingAnalysis": "Menunggu Anda"
   },
   "loading": "Memuat",
   "loadingEllipsis": "Memuat…",

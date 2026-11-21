@@ -10,6 +10,7 @@ const styles: Record<string, string> = {
   completed: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   processing: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
   queued: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  awaiting_analysis: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
   error: "bg-red-500/10 text-red-700 dark:text-red-400",
   cancelled: "bg-stone-500/10 text-stone-600 dark:text-stone-400",
 };
@@ -19,6 +20,7 @@ export function StatusBadge({ status, className }: { status: string; className?:
   const label = status === "completed" ? t("status.completed")
     : status === "processing" ? t("status.processing")
     : status === "queued" ? t("status.queued")
+    : status === "awaiting_analysis" ? t("status.awaitingAnalysis")
     : status === "error" ? t("status.failed")
     : status === "cancelled" ? t("status.cancelled")
     : status;

@@ -68,6 +68,7 @@ from ..video_utils import (
     save_fx_render,
     FX_HOOK_WINDOW_START,
 )
+from ..manual_analysis import ManualAnalysisPending, build_prompt_bundle, is_manual_llm
 from ..edit_fx import assets as fx_assets
 from ..edit_fx.beats import (
     heuristic_beats,
@@ -1840,6 +1841,17 @@ class VideoService:
             except Exception as exc:
                 logger.warning("Clip signal extraction failed: %s", exc)
                 clip_signals = None
+            if is_manual_llm(getattr(runtime_config, "llm", None)):
+                # No model: park the prompt with the task and wait for the user's
+                # AI chat answer (submitted through the analysis endpoint).
+                await save_checkpoint({"manual_prompt": build_prompt_bundle(
+                    transcript,
+                    clip_signals=clip_signals,
+                    performance_context=performance_context,
+                    clip_length=clip_length,
+                    instructions=instructions,
+                )})
+                raise ManualAnalysisPending()
             relevant_parts = await VideoService.analyze_transcript(
                 transcript,
                 clip_signals=clip_signals,
@@ -2435,5 +2447,6 @@ class VideoService:
                         cleanup_downloaded_files(video_id, source_path=video_path)
                     except Exception:
                         logger.exception("Could not clean up failed YouTube download")
-            logger.error(f"Error in video processing pipeline: {e}")
+            if not isinstance(e, ManualAnalysisPending):  # a pause, not a failure
+                logger.error(f"Error in video processing pipeline: {e}")
             raise

@@ -77,7 +77,7 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview` |
+| `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview`. `manual` uses no model: the task pauses so you can run its prompt in your own AI chat and upload the answer ([manual analysis](manual-analysis.md)) |
 | `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` models |
 | `GOOGLE_API_KEY` | If using Google | Required for `google-gla:*` models |
 | `ANTHROPIC_API_KEY` | If using Anthropic | Required for `anthropic:*` models |

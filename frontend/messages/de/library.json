@@ -4,7 +4,8 @@
     "processing": "Wird verarbeitet",
     "queued": "In der Warteschlange",
     "failed": "Fehlgeschlagen",
-    "cancelled": "Abgebrochen"
+    "cancelled": "Abgebrochen",
+    "awaitingAnalysis": "Wartet auf Sie"
   },
   "loading": "Wird geladen",
   "loadingEllipsis": "Wird geladen…",

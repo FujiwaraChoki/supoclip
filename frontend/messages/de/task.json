@@ -305,5 +305,32 @@
     "retry": "Erneut versuchen",
     "approxTiming": "Dieses Video hatte keine Wort-Zeitmarken, daher folgen Untertitel und Effekte ungefähren Zeiten.",
     "simplified": "Einige Effekte wurden in diesem Clip vereinfacht."
+  },
+  "manualAnalysis": {
+    "title": "Sie sind dran: Clips mit einem KI-Chat auswählen",
+    "body": "Die Transkription ist fertig. Auf diesem Server ist kein KI-Modell eingerichtet. Nutzen Sie einen beliebigen KI-Chat (ChatGPT, Claude, Gemini und ähnliche), um die besten Momente auszuwählen.",
+    "step1Title": "1. Prompt holen",
+    "step1Body": "Laden Sie die Prompt-Datei herunter, hängen Sie sie an Ihren KI-Chat an und senden Sie die Nachricht unten dazu.",
+    "download": "Prompt herunterladen",
+    "downloaded": "Prompt heruntergeladen",
+    "step2Title": "2. Antwort hinzufügen",
+    "step2Body": "Fügen Sie die Antwort des Chats unten ein oder laden Sie sie als Datei hoch. Codeblöcke und zusätzliche Worte um das JSON sind in Ordnung.",
+    "pasteLabel": "Antwort des KI-Chats (JSON)",
+    "pastePlaceholder": "JSON hier einfügen…",
+    "upload": "JSON-Datei hochladen",
+    "fileLoaded": "{name} geladen",
+    "fileTooLarge": "Diese Datei ist zu groß für eine Clip-Analyse.",
+    "chars": "{count} Zeichen",
+    "submit": "Clips erstellen",
+    "submitting": "Wird geprüft…",
+    "submitted": "Antwort akzeptiert. Ihre Clips werden erstellt…",
+    "promptError": "Der Prompt konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
+    "copyError": "Kopieren nicht möglich. Markieren Sie die Nachricht und kopieren Sie sie manuell.",
+    "submitError": "Die Antwort konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+    "readOnly": "Nur der Besitzer dieser Aufgabe kann die KI-Antwort hinzufügen.",
+    "fileReadError": "Die Datei konnte nicht gelesen werden.",
+    "messageLabel": "Nachricht, die Sie mit der Datei senden",
+    "copyMessage": "Nachricht kopieren",
+    "messageCopied": "Nachricht kopiert"
   }
 }

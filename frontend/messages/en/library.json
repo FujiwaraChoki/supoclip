@@ -4,7 +4,8 @@
     "processing": "Processing",
     "queued": "Queued",
     "failed": "Failed",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "awaitingAnalysis": "Waiting for you"
   },
   "loading": "Loading",
   "loadingEllipsis": "Loading…",

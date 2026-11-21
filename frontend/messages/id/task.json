@@ -305,5 +305,32 @@
     "retry": "Coba lagi",
     "approxTiming": "Video ini tidak punya waktu per kata, jadi teks dan efek mengikuti waktu perkiraan.",
     "simplified": "Beberapa efek disederhanakan untuk klip ini."
+  },
+  "manualAnalysis": {
+    "title": "Giliran Anda: pilih klip dengan chat AI",
+    "body": "Transkripsi selesai. Server ini belum memiliki model AI, jadi gunakan chat AI apa pun (ChatGPT, Claude, Gemini, dan sejenisnya) untuk memilih momen terbaik.",
+    "step1Title": "1. Ambil prompt",
+    "step1Body": "Unduh file prompt, lampirkan ke chat AI Anda, dan kirim pesan di bawah bersamanya.",
+    "download": "Unduh prompt",
+    "downloaded": "Prompt diunduh",
+    "step2Title": "2. Tambahkan jawabannya",
+    "step2Body": "Tempelkan balasan chat di bawah, atau unggah sebagai file. Blok kode dan kata tambahan di sekitar JSON tidak masalah.",
+    "pasteLabel": "Balasan chat AI (JSON)",
+    "pastePlaceholder": "Tempel JSON di sini…",
+    "upload": "Unggah file JSON",
+    "fileLoaded": "{name} dimuat",
+    "fileTooLarge": "File itu terlalu besar untuk analisis klip.",
+    "chars": "{count} karakter",
+    "submit": "Buat klip",
+    "submitting": "Memeriksa…",
+    "submitted": "Jawaban diterima. Klip Anda sedang dibuat…",
+    "promptError": "Prompt tidak dapat dimuat. Silakan coba lagi.",
+    "copyError": "Tidak dapat menyalin. Pilih pesan lalu salin secara manual.",
+    "submitError": "Jawaban tidak dapat dikirim. Silakan coba lagi.",
+    "readOnly": "Hanya pemilik tugas ini yang dapat menambahkan jawaban AI.",
+    "fileReadError": "File itu tidak dapat dibaca.",
+    "messageLabel": "Pesan yang dikirim bersama file",
+    "copyMessage": "Salin pesan",
+    "messageCopied": "Pesan disalin"
   }
 }

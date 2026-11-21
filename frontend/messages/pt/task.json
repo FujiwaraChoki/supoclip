@@ -305,5 +305,32 @@
     "retry": "Tentar de novo",
     "approxTiming": "Este vídeo não tinha tempo por palavra, então legendas e efeitos seguem um tempo aproximado.",
     "simplified": "Alguns efeitos foram simplificados neste clipe."
+  },
+  "manualAnalysis": {
+    "title": "Sua vez: escolha os clipes com um chat de IA",
+    "body": "A transcrição está pronta. Este servidor não tem um modelo de IA configurado, então use qualquer chat de IA (ChatGPT, Claude, Gemini e similares) para escolher os melhores momentos.",
+    "step1Title": "1. Obtenha o prompt",
+    "step1Body": "Baixe o arquivo do prompt, anexe-o ao seu chat de IA e envie com ele a mensagem abaixo.",
+    "download": "Baixar prompt",
+    "downloaded": "Prompt baixado",
+    "step2Title": "2. Adicione a resposta",
+    "step2Body": "Cole abaixo a resposta do chat ou envie como arquivo. Blocos de código e palavras extras em volta do JSON não são problema.",
+    "pasteLabel": "Resposta do chat de IA (JSON)",
+    "pastePlaceholder": "Cole o JSON aqui…",
+    "upload": "Enviar arquivo JSON",
+    "fileLoaded": "{name} carregado",
+    "fileTooLarge": "Esse arquivo é grande demais para ser uma análise de clipes.",
+    "chars": "{count} caracteres",
+    "submit": "Gerar clipes",
+    "submitting": "Verificando…",
+    "submitted": "Resposta aceita. Gerando seus clipes…",
+    "promptError": "Não foi possível carregar o prompt. Tente novamente.",
+    "copyError": "Não foi possível copiar. Selecione a mensagem e copie manualmente.",
+    "submitError": "Não foi possível enviar a resposta. Tente novamente.",
+    "readOnly": "Somente o dono desta tarefa pode adicionar a resposta da IA.",
+    "fileReadError": "Não foi possível ler esse arquivo.",
+    "messageLabel": "Mensagem para enviar com o arquivo",
+    "copyMessage": "Copiar mensagem",
+    "messageCopied": "Mensagem copiada"
   }
 }
