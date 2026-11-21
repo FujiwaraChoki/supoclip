@@ -299,6 +299,7 @@
       "WORKER_STOPPED": "Der Renderer wurde beendet, bevor der Schnitt fertig war.",
       "CLIP_JOB_TIMEOUT": "Das Rendern hat zu lange gedauert."
     },
+    "jobInProgress": "Es läuft bereits ein neues Rendern. Deine Clips werden aktualisiert, sobald es fertig ist.",
     "jobUnreachable": "Wir haben den Kontakt zum Rendern verloren. Es läuft möglicherweise noch.",
     "jobDenied": "Du hast keinen Zugriff mehr auf diesen Rendervorgang. Melde dich erneut an und lade die Seite neu.",
     "retry": "Erneut versuchen",

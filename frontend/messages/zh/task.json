@@ -299,6 +299,7 @@
       "WORKER_STOPPED": "渲染器在剪辑完成前停止了。",
       "CLIP_JOB_TIMEOUT": "渲染耗时过长。"
     },
+    "jobInProgress": "重新渲染已在进行中，完成后你的剪辑会自动更新。",
     "jobUnreachable": "无法获取重新渲染的状态，它可能仍在进行。",
     "jobDenied": "你已无权查看这次重新渲染。请重新登录并刷新页面。",
     "retry": "重试",

@@ -299,6 +299,7 @@
       "WORKER_STOPPED": "the renderer stopped before the edits finished.",
       "CLIP_JOB_TIMEOUT": "rendering took too long."
     },
+    "jobInProgress": "A re-render is already running. Your clips will update when it finishes.",
     "jobUnreachable": "We lost track of the re-render. It may still be running.",
     "jobDenied": "You no longer have access to this re-render. Sign in again and reload the page.",
     "retry": "Try again",

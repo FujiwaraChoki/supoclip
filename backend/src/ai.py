@@ -941,6 +941,7 @@ def restore_number_signs(title: str, source_text: Optional[str]) -> str:
 
 
 _WORD_EDGE = re.compile(r"^[^\w]+|[^\w]+$")
+TITLE_CASE_WORD_LETTERS = 4  # shorter words (of, the, im) are lower case in Title Case too
 
 
 def _bare_word(word: str) -> str:
@@ -952,13 +953,14 @@ def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
     """Bring a Title Case headline to sentence case so one task's clips read alike.
 
     Models mix "That Tastes Like Dirt, Bro" with "It just tastes like texture".
-    A capitalised later word keeps its capital when the transcript spells it
-    that way in mid-sentence (a name), or when it has capitals inside (CEOs,
-    iPhone) or is "I"; it is lowered when the transcript has it in lower case,
-    and, when the transcript does not have it at all, only if the whole title
-    is in Title Case. A word the transcript has but never in lower case (a
-    name that only opens sentences there) keeps its capital. The first word of
-    each sentence stays capitalised.
+    Only a title in Title Case is touched (every later word of some length
+    capitalised), and only when the transcript accounts for each of those
+    words. A capitalised word is then lowered when the transcript has it in
+    lower case; one it spells with a capital in mid-sentence, or has only at
+    the start of sentences, may be a name and keeps its capital, as do words
+    with capitals inside (CEOs, iPhone) and "I". A title with a capitalised
+    word the transcript does not have at all is left as it is. The first word
+    of each sentence stays capitalised.
     """
     words = title.split()
     if len(words) < 3:
@@ -978,7 +980,16 @@ def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
         if core[:1].isalpha() and not starts:
             later.append(core)
     capped = [core for core in later if simple_capital(core) and not core.startswith(("I'", "I’"))]
-    title_case = len(capped) >= 2 and len(capped) >= 0.6 * len(later)
+    # Title Case capitalises every word of some length. A German sentence does that to its nouns only, and its
+    # verbs give it away: such a title is left as it is.
+    longer = [core for core in later if len(core) >= TITLE_CASE_WORD_LETTERS]
+    if len(capped) < 2 or any(not simple_capital(core) for core in longer if core == core.lower() or core[0].islower()):
+        return title
+    # All of it or none: a capitalised word the transcript does not have at all could be a name or an ordinary
+    # word, and a title lowered by half reads worse than one left in Title Case.
+    if any(core not in proper and core[0].lower() + core[1:] not in common and _bare_word(core) not in spoken
+           for core in capped):
+        return title
     out = []
     for index, word in enumerate(words):
         core = _WORD_EDGE.sub("", word)
@@ -987,7 +998,8 @@ def sentence_case_title(title: str, source_text: Optional[str] = None) -> str:
             out.append(word)
             continue
         lowered = core[0].lower() + core[1:]
-        if lowered in common or (title_case and _bare_word(core) not in spoken):
+        # Only what the transcript shows in lower case: a word it does not have at all may be a name.
+        if lowered in common:
             word = word.replace(core, lowered, 1)
         out.append(word)
     return " ".join(out)

@@ -299,6 +299,7 @@
       "WORKER_STOPPED": "perender berhenti sebelum editan selesai.",
       "CLIP_JOB_TIMEOUT": "proses render terlalu lama."
     },
+    "jobInProgress": "Render ulang sudah berjalan. Klip kamu akan diperbarui setelah selesai.",
     "jobUnreachable": "Kami kehilangan kontak dengan proses render. Mungkin masih berjalan.",
     "jobDenied": "Kamu tidak lagi punya akses ke proses render ini. Masuk lagi lalu muat ulang halaman.",
     "retry": "Coba lagi",

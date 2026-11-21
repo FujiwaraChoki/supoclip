@@ -292,6 +292,7 @@ async def write_fx_clip_job_state(job_id: str, state: Dict[str, Any]) -> None:
 
 FX_CLIP_JOB_STARTED = "started"
 FX_CLIP_JOB_CLOSED = "closed"
+FX_CLIP_JOB_STARTED_CLAIM_SECONDS = 120
 
 
 async def claim_fx_clip_job(job_id: str, holder: str) -> str:
@@ -301,7 +302,10 @@ async def claim_fx_clip_job(job_id: str, holder: str) -> str:
     client = _fx_clip_job_redis()
     try:
         key = f"{fx_clip_job_key(job_id)}:claim"
-        await client.set(key, holder, nx=True, ex=FX_CLIP_JOB_TTL_SECONDS)
+        # A worker's claim only has to last until it has written "running", a moment later. Should the worker
+        # die in between, the claim lapses and the job can be given up on like any other that never started.
+        ttl = FX_CLIP_JOB_STARTED_CLAIM_SECONDS if holder == FX_CLIP_JOB_STARTED else FX_CLIP_JOB_TTL_SECONDS
+        await client.set(key, holder, nx=True, ex=ttl)
         return str(await client.get(key) or holder)
     finally:
         await client.aclose()

@@ -38,23 +38,39 @@ def test_a_number_said_both_ways_is_left_alone():
     ("That Tastes Like Dirt, Bro", "That tastes like dirt, bro"),
     ("I Emailed 5 CEOs and They All Said Yes", "I emailed 5 CEOs and they all said yes"),
     ("Eight Corn Dogs for 800 Yen in Tokyo", "Eight corn dogs for 800 yen in Tokyo"),
-    ("From £4,000 to £40,000 in Cameras", "From £4,000 to £40,000 in cameras"),
     ("My Podcast Sponsor Became My Board Seat", "My podcast sponsor became my board seat"),
     # Already sentence case: names stay, nothing else moves.
     ("You forgot Instagram but remember Netflix", "You forgot Instagram but remember Netflix"),
     ("It just tastes like texture", "It just tastes like texture"),
     ("They guessed oyster. They were wrong", "They guessed oyster. They were wrong"),
     ("Why I Quit", "Why I Quit"),
-    ("What I'd Tell My Younger Self", "What I'd tell my younger self"),
+    # One capital is not Title Case, and words the transcript does not have could be names: both are left alone.
+    ("From £4,000 to £40,000 in Cameras", "From £4,000 to £40,000 in Cameras"),
+    ("What I'd Tell My Younger Self", "What I'd Tell My Younger Self"),
 ])
 def test_title_case_becomes_sentence_case_and_names_keep_their_capital(title, expected):
     assert sentence_case_title(title, TRANSCRIPT) == expected
 
 
-def test_a_capital_the_transcript_cannot_explain_is_lowered_only_in_a_title_case_title():
+def test_a_title_with_a_capital_the_transcript_cannot_explain_is_left_as_it_is():
     assert sentence_case_title("He moved to Lisbon last year", "") == "He moved to Lisbon last year"
-    assert sentence_case_title("He Moved To Lisbon Last Year", "") == "He moved to lisbon last year"
-    assert sentence_case_title("He Moved To Lisbon Last Year", "so I moved to Lisbon") == "He moved to Lisbon last year"
+    # Nothing to check the words against: "Lisbon" must not become "lisbon".
+    assert sentence_case_title("He Moved To Lisbon Last Year", "") == "He Moved To Lisbon Last Year"
+    assert sentence_case_title("He Moved To Lisbon Last Year", "so he moved to Lisbon last year") == "He moved to Lisbon last year"
+    # A name nobody says in the clip.
+    assert sentence_case_title("How Altman Lost The Board", "and that is how he lost the board") == "How Altman Lost The Board"
+
+
+@pytest.mark.parametrize("title, transcript", [
+    ("Die Regierung lässt Unternehmen im Stich", "die Regierung will unternehmen und lässt alle im Stich"),
+    ("Warum Deutschlands Wirtschaft Probleme hat", "Deutschlands Wirtschaft hat große Probleme, warum eigentlich"),
+])
+def test_a_german_sentence_keeps_its_nouns(title, transcript):
+    assert sentence_case_title(title, transcript) == title
+    assert sanitize_hook_title(title, source_text=transcript) == title
+
+
+def test_other_scripts_are_untouched():
     assert sentence_case_title("这是一个标题 没有大小写", "") == "这是一个标题 没有大小写"
 
 
@@ -68,7 +84,7 @@ NAMES_OPEN_SENTENCES = (
     # A name the transcript only has at the start of a sentence is never seen in lower case: it stays.
     ("What Tesla Did Next Shocked Apple", "What Tesla did next shocked Apple"),
     ("What Tesla did next shocked Apple", "What Tesla did next shocked Apple"),
-    ("Nobody Expected Tesla's Next Move", "Nobody expected Tesla's next move"),
+    ("Nobody Expected Tesla's Next Move", "Nobody Expected Tesla's Next Move"),   # "move" is not in the clip
     # Common words the transcript has in lower case still come down.
     ("The Day Everything Changed", "The day everything changed"),
     ("What They Did Next Shocked Everyone", "What they did next shocked everyone"),
@@ -81,5 +97,7 @@ def test_a_word_is_lowered_only_when_the_transcript_has_it_in_lower_case(title, 
 def test_sanitize_applies_both_only_with_the_transcript():
     raw = '"90 of Podcast Guests Become Real Friends."'
     assert sanitize_hook_title(raw) == "90 of Podcast Guests Become Real Friends"          # callers without a transcript
-    assert sanitize_hook_title(raw, source_text=TRANSCRIPT) == "90% of podcast guests become real friends"
+    # The sign comes back; "guests" and "friends" are not in the transcript, so the casing is left alone.
+    assert sanitize_hook_title(raw, source_text=TRANSCRIPT) == "90% of Podcast Guests Become Real Friends"
+    assert sanitize_hook_title('"That Tastes Like Dirt, Bro."', source_text=TRANSCRIPT) == "That tastes like dirt, bro"
     assert sanitize_hook_title("", source_text=TRANSCRIPT) is None

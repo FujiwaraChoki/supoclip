@@ -663,6 +663,18 @@ export default function TaskPage() {
         },
         body,
       });
+      if (response.status === 409) {
+        // A re-render started somewhere else (another tab or device): follow that one instead of failing.
+        const refused = (await response.clone().json().catch(() => null)) as
+          { detail?: { code?: string; job_id?: string; kind?: string } } | null;
+        const inFlight = refused?.detail;
+        if (inFlight?.code === "CLIP_JOB_IN_PROGRESS" && inFlight.job_id) {
+          startClipJob({ id: inFlight.job_id, kind: inFlight.kind ?? "settings", clipIds: "all", progress: 0 });
+          setSettingsSheetOpen(false);
+          toast.message(t("fx.jobInProgress"));
+          return;
+        }
+      }
       if (!response.ok) {
         toast.error(await buildSupportError(response, t("errors.applySettings")));
         return;

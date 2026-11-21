@@ -299,6 +299,7 @@
       "WORKER_STOPPED": "o renderizador parou antes de a edição terminar.",
       "CLIP_JOB_TIMEOUT": "a renderização demorou demais."
     },
+    "jobInProgress": "Já existe uma nova renderização em andamento. Seus clipes serão atualizados quando ela terminar.",
     "jobUnreachable": "Perdemos o contato com a renderização. Ela pode ainda estar em andamento.",
     "jobDenied": "Você não tem mais acesso a esta renderização. Entre de novo e recarregue a página.",
     "retry": "Tentar de novo",
