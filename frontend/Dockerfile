@@ -66,6 +66,14 @@ COPY CHANGELOG.md LICENSE ./
 # Generate Prisma client before building
 RUN pnpm exec prisma generate
 
+# Copy the Prisma engine that matches this image's architecture to a fixed path
+# (the debian-openssl engine is x86-64 only; arm64 hosts need linux-arm64).
+RUN mkdir -p /app/prisma-engine && case "$(uname -m)" in \
+      aarch64|arm64) engine=linux-arm64-openssl-3.0.x ;; \
+      *) engine=debian-openssl-3.0.x ;; \
+    esac && \
+    cp "/app/src/generated/prisma/libquery_engine-${engine}.so.node" /app/prisma-engine/libquery_engine.so.node
+
 # Build the Next.js app
 ENV NEXT_TELEMETRY_DISABLED=1
 # Skip linting during build (generated Prisma code has lint warnings)
@@ -143,9 +151,9 @@ COPY --from=builder /app/prisma ./prisma
 # compatibility. Keep the native Prisma engine outside that mount and point
 # Prisma at the immutable copy so authentication cannot lose database access.
 COPY --from=builder --chown=nextjs:nodejs \
-    /app/src/generated/prisma/libquery_engine-debian-openssl-3.0.x.so.node \
-    /app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
-ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
+    /app/prisma-engine/libquery_engine.so.node \
+    /app/prisma-engine/libquery_engine.so.node
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/prisma-engine/libquery_engine.so.node
 
 # Raises Node's 300-second limit for receiving a request, which cut off slow
 # streamed uploads to /api/upload with a 408 (see the file).
