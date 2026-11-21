@@ -727,3 +727,85 @@ def test_a_crop_that_would_lose_its_face_follows_it_directly():
     # A calm face keeps the still crop.
     calm = {t: 400.0 + (i % 2) * 6 for i, t in enumerate(times)}
     assert not interview_layout._axis(segment, calm, size, W - size, still=400.0).startswith("'")
+
+
+# --- Over the shoulder at equal size: the back of a head gets no panel ---
+
+OVER_SHOULDER = [
+    (0, 5, [HOST, GUEST]),     # a real two-shot: both look towards the camera
+    (5, 9, [CLOSE]),
+    (9, 14, [HOST, GUEST]),    # the same two boxes, but one of them is seen from behind
+]
+
+
+def _facing_probe(monkeypatch, answers):
+    """``probe_eye_ratios`` stand-in: ``answers(start)`` gives the two eye spacings of the stretch."""
+    monkeypatch.setattr(interview_layout, "frame_changes", lambda _p: ([], None))
+    monkeypatch.setattr(interview_layout, "precise_cuts", lambda _t, _f, coarse: list(coarse))
+    monkeypatch.setattr(
+        interview_layout, "probe_eye_ratios",
+        lambda _path, start, _end, _boxes, _w, _h: answers(start),
+    )
+
+
+def test_a_person_seen_from_behind_gets_no_panel(monkeypatch):
+    # From 9 s the left person has turned their back (eyes drawn together), the right one faces the lens.
+    _facing_probe(monkeypatch, lambda start: [0.42, 0.44] if start < 9 else [0.05, 0.43])
+    result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
+    assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "single")]
+    assert result["segments"][2]["reason"] == "over_shoulder"
+    # The crop of that stretch is on the person facing the lens (the right-hand box).
+    x, w = re.search(r"trim=start=9.000,crop=(\d+):\d+:x=(\d+)", result["video_filter"]).group(2, 1)
+    assert int(x) <= GUEST[0] and GUEST[0] + GUEST[2] <= int(x) + int(w)
+    assert int(x) > HOST[0] + HOST[2]
+
+
+def test_two_people_in_profile_keep_their_panels(monkeypatch):
+    # A side-on two-shot: neither face shows both eyes apart, and neither is singled out.
+    _facing_probe(monkeypatch, lambda _start: [0.12, 0.16])
+    result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
+    assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "pair")]
+
+
+def test_an_unreadable_probe_keeps_the_two_shot(monkeypatch):
+    _facing_probe(monkeypatch, lambda _start: None)
+    result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
+    assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "pair")]
+    _facing_probe(monkeypatch, lambda _start: [0.4, None])
+    assert kinds(plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4")))[2][2] == "pair"
+
+
+def test_turned_away_needs_a_clear_difference():
+    from src.media.interview_layout import turned_away
+    assert turned_away([0.42, 0.05]) == 1
+    assert turned_away([0.18, 0.31]) == 0
+    assert turned_away([0.42, 0.26]) is None     # a three-quarter view is still a face
+    assert turned_away([0.15, 0.1]) is None      # both in profile
+    assert turned_away([0.4, None]) is None and turned_away(None) is None
+
+
+def test_eye_ratios_match_detections_to_the_people():
+    from src.media.interview_layout import eye_ratios
+
+    def row(box, spacing):
+        x, y, w, h = box
+        return [x, y, w, h, 0.93, x + w * 0.3, y + h * 0.4, x + w * (0.3 + spacing), y + h * 0.4]
+
+    # Probe frames at half the clip's size; the left face is frontal, the right one turned away.
+    half = lambda box: tuple(v / 2 for v in box)
+    frames = [[row(half(HOST), 0.4), row(half(GUEST), 0.08)] for _ in range(4)] + [[]]
+    ratios = eye_ratios(frames, [HOST, GUEST], scale=2.0)
+    assert ratios[0] == pytest.approx(0.4) and ratios[1] == pytest.approx(0.08)
+    # Seen in one frame only: unknown.
+    assert eye_ratios([[row(half(HOST), 0.4)]], [HOST, GUEST], scale=2.0) == [None, None]
+
+
+@needs_ffmpeg
+def test_the_facing_probe_reads_frames_of_a_clip_and_knows_nothing_without_faces(tmp_path):
+    from src.media.interview_layout import probe_eye_ratios
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=1280x720:r=30:d=3",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)], check=True)
+    # No faces in a test pattern: both people unknown, so no layout changes because of it.
+    assert probe_eye_ratios(clip, 0.5, 2.5, [HOST, GUEST], 1280, 720) == [None, None]
+    assert probe_eye_ratios(clip, 2.0, 2.0, [HOST, GUEST], 1280, 720) is None
