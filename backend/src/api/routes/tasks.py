@@ -454,15 +454,27 @@ async def _can_access_task(
     return task.get("user_id") == auth_ctx.user_id
 
 
-async def _require_task_owner(
+async def _require_task_access(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
-):
-    """Ensure authenticated user owns the task or actively belongs to its team."""
+) -> tuple[AuthContext, Dict[str, Any]]:
+    """The caller and a task they own or reach through its team. Returns (caller, task).
+
+    In a team the caller is not always the task's creator; whatever is metered
+    per member is charged to the caller.
+    """
     auth_ctx, task = await _load_task_for_user(request, task_service, db, task_id)
 
     if not await _can_access_task(auth_ctx, db, task):
         raise HTTPException(status_code=403, detail="Not authorized for this task")
 
+    return auth_ctx, task
+
+
+async def _require_task_owner(
+    request: Request, task_service: TaskService, db: AsyncSession, task_id: str
+):
+    """Ensure authenticated user owns the task or actively belongs to its team."""
+    _auth_ctx, task = await _require_task_access(request, task_service, db, task_id)
     return task
 
 
@@ -1246,18 +1258,11 @@ async def delete_task(
 ):
     """Delete a task and all its associated clips."""
     try:
-        user_id = await _get_user_id_from_headers(request, db)
         task_service = TaskService(db)
 
-        # Get task to verify ownership
-        task = await task_service.task_repo.get_task_by_id(db, task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        if task["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, detail="Not authorized to delete this task"
-            )
+        # The owner, or a current member of the task's team. A member removed
+        # from the team, or an API key bound to another workspace, is refused.
+        await _require_task_owner(request, task_service, db, task_id)
 
         # Delete clips and task
         await task_service.delete_task(task_id)
@@ -1279,18 +1284,9 @@ async def delete_clip(
 ):
     """Delete a specific clip."""
     try:
-        user_id = await _get_user_id_from_headers(request, db)
         task_service = TaskService(db)
 
-        # Verify task ownership
-        task = await task_service.task_repo.get_task_by_id(db, task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        if task["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, detail="Not authorized to delete this clip"
-            )
+        await _require_task_owner(request, task_service, db, task_id)
 
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip["task_id"] != task_id:

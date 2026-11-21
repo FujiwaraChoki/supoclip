@@ -35,7 +35,7 @@ from ...repositories.upload_repository import (
 )
 from ...utils.async_helpers import run_in_thread
 from ...database import get_db
-from ...auth_headers import resolve_auth_context, resolve_authenticated_user_id
+from ...auth_headers import AuthContext, resolve_auth_context, resolve_authenticated_user_id
 from ...services.billing_service import BillingService, grants_paid_access
 from starlette.formparsers import MultiPartException, MultiPartParser
 
@@ -67,6 +67,11 @@ MAX_FONT_UPLOAD_BYTES = 10 * 1024 * 1024
 async def _get_authenticated_user_id(request: Request, db: AsyncSession) -> str:
     config = get_config()
     return await resolve_authenticated_user_id(request, db, config)
+
+
+async def _get_auth_context(request: Request, db: AsyncSession) -> AuthContext:
+    """The caller and their verified active workspace (personal or a team)."""
+    return await resolve_auth_context(request, db, get_config())
 
 
 async def _read_limited_upload_form(request: Request, max_bytes: int):
@@ -217,7 +222,9 @@ async def upload_font(
 ):
     """Upload a custom .ttf/.otf font so it appears in the font picker."""
     try:
-        auth_ctx = await resolve_auth_context(request, db, get_config())
+        # Fonts stay with the person who uploaded them. The workspace only
+        # decides which plan pays for the feature.
+        auth_ctx = await _get_auth_context(request, db)
         user_id = auth_ctx.user_id
         billing_service = BillingService(db)
         summary = await billing_service.get_usage_summary(

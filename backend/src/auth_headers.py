@@ -161,6 +161,39 @@ def get_authenticated_user_id(request: Request, config: Config) -> str:
     return user_id
 
 
+async def _resolve_api_key_context(
+    request: Request, db: "AsyncSession", raw_key: str
+) -> AuthContext:
+    """The key's owner and workspace. A team key stops working when its
+    creator leaves the team, on every route."""
+    from .repositories.api_key_repository import ApiKeyRepository
+    from .repositories.team_repository import TeamRepository
+
+    key_context = await ApiKeyRepository.resolve_key_context(db, hash_api_key(raw_key))
+    if not key_context or not key_context.get("user_id"):
+        raise HTTPException(status_code=401, detail="Invalid or revoked API key")
+
+    user_id = str(key_context["user_id"])
+    team_id = _normalize_team_id(key_context.get("team_id"))
+    bind_request_user(request, user_id)
+
+    team_role: Optional[str] = None
+    if team_id:
+        team_role = await TeamRepository.get_member_role(db, team_id, user_id)
+        if not team_role:
+            raise HTTPException(
+                status_code=403,
+                detail="API key owner is no longer a member of this team",
+            )
+
+    return AuthContext(
+        user_id=user_id,
+        team_id=team_id,
+        team_role=team_role,
+        via_api_key=True,
+    )
+
+
 async def resolve_auth_context(
     request: Request,
     db: "AsyncSession",
@@ -180,32 +213,7 @@ async def resolve_auth_context(
     if not session_only:
         raw_key = extract_api_key(request)
         if raw_key:
-            from .repositories.api_key_repository import ApiKeyRepository
-
-            key_hash = hash_api_key(raw_key)
-            key_context = await ApiKeyRepository.resolve_key_context(db, key_hash)
-            if not key_context or not key_context.get("user_id"):
-                raise HTTPException(status_code=401, detail="Invalid or revoked API key")
-
-            user_id = str(key_context["user_id"])
-            team_id = _normalize_team_id(key_context.get("team_id"))
-            bind_request_user(request, user_id)
-
-            team_role: Optional[str] = None
-            if team_id:
-                team_role = await TeamRepository.get_member_role(db, team_id, user_id)
-                if not team_role:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="API key owner is no longer a member of this team",
-                    )
-
-            return AuthContext(
-                user_id=user_id,
-                team_id=team_id,
-                team_role=team_role,
-                via_api_key=True,
-            )
+            return await _resolve_api_key_context(request, db, raw_key)
 
     user_id, team_id = get_authenticated_identity(request, config)
     team_role = None
@@ -236,12 +244,6 @@ async def resolve_authenticated_user_id(
     """
     raw_key = extract_api_key(request)
     if raw_key:
-        from .repositories.api_key_repository import ApiKeyRepository
-
-        user_id = await ApiKeyRepository.resolve_user_id(db, hash_api_key(raw_key))
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid or revoked API key")
-        bind_request_user(request, user_id)
-        return user_id
+        return (await _resolve_api_key_context(request, db, raw_key)).user_id
 
     return get_authenticated_user_id(request, config)
