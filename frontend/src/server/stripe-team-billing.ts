@@ -23,6 +23,7 @@ import {
   getTeamIntervalForStripePrice,
   getTeamSeatsFromSubscription,
   getTeamStripePrices,
+  hasTeamBasePrice,
   isTeamBaseStripePrice,
   isTeamSeatStripePrice,
   isTeamStripePrice,
@@ -140,8 +141,26 @@ export async function syncTeamSubscriptionState(
   const cancelAt =
     subscription.cancel_at ??
     (subscription.cancel_at_period_end ? currentPeriodEnd : null);
-  const entitled = ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status);
-  const seatLimit = getTeamSeatsFromSubscription(subscription, includedSeats);
+  const entitled =
+    ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status) && hasTeamBasePrice(subscription);
+
+  // An event about a subscription the team has already replaced (a late or
+  // retried delivery for the one it cancelled) must not take the plan away
+  // from the subscription that is paying now.
+  const teamIsEntitled =
+    team.plan === "team" && ENTITLED_SUBSCRIPTION_STATUSES.has(team.subscription_status);
+  if (
+    !entitled &&
+    teamIsEntitled &&
+    team.stripe_subscription_id &&
+    team.stripe_subscription_id !== subscription.id
+  ) {
+    return true;
+  }
+
+  const seatLimit = entitled
+    ? getTeamSeatsFromSubscription(subscription, includedSeats)
+    : includedSeats;
 
   await getPrismaClient().team.update({
     where: { id: team.id },
@@ -161,6 +180,24 @@ export async function syncTeamSubscriptionState(
     },
   });
   return true;
+}
+
+/**
+ * `customer.subscription.updated` for a team. The event carries the
+ * subscription as it was when the event was made, and Stripe does not deliver
+ * events in order: applying an older snapshot would undo a newer seat count.
+ * The team's state is always taken from the subscription as it is now.
+ */
+export async function handleTeamSubscriptionUpdated(
+  snapshot: Stripe.Subscription,
+): Promise<boolean> {
+  const team = await findTeamForStripeCustomer(
+    customerIdOf(snapshot.customer),
+    snapshot.metadata?.teamId || null,
+  );
+  if (!team) return false;
+  const current = await getServerStripeClient().subscriptions.retrieve(snapshot.id);
+  return syncTeamSubscriptionState(current, { teamIdHint: team.id });
 }
 
 export async function handleTeamCheckoutCompleted(
@@ -300,10 +337,20 @@ export async function createTeamCheckoutSession({
   if (!team) throw new TeamError("Team not found", 404, "team_not_found");
 
   const config = getTeamBillingConfig();
+  // A team that kept its members after a cancellation pays for all of them.
+  const { occupiedSeats } = await countOccupiedSeats(prisma, teamId);
+  if (occupiedSeats > MAX_TEAM_SEATS) {
+    throw new TeamError(
+      `Teams can have up to ${MAX_TEAM_SEATS} seats online. Contact us for larger teams.`,
+      400,
+      "max_seats",
+    );
+  }
   const seats = Math.min(
     MAX_TEAM_SEATS,
     Math.max(
       config.includedSeats,
+      occupiedSeats,
       Math.floor(requestedSeats ?? team.seat_limit ?? config.includedSeats),
     ),
   );
@@ -388,11 +435,13 @@ export async function createTeamCheckoutSession({
     mode: "subscription",
     ...checkoutTax,
     customer: customerId,
+    // No `userId` here: the personal-plan checkout handler binds a session's
+    // customer and subscription to the user named by that key.
     metadata: {
       app: "supoclip",
       plan: "team",
       teamId: team.id,
-      userId: actorUserId,
+      startedBy: actorUserId,
       interval,
       seats: String(seats),
     },
@@ -447,30 +496,11 @@ export async function updateTeamSeats({
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) throw new TeamError("Team not found", 404, "team_not_found");
 
-  const usage = await countOccupiedSeats(prisma, teamId);
-  if (newSeats < usage.occupiedSeats) {
-    throw new TeamError(
-      `You currently use ${usage.occupiedSeats} seats (${usage.activeMembers} members` +
-        `${usage.pendingInvitations > 0 ? ` and ${usage.pendingInvitations} pending invitations` : ""}). ` +
-        `Remove members or revoke pending invitations before lowering seats below ${usage.occupiedSeats}.`,
-      409,
-      "seats_in_use",
-      usage,
-    );
-  }
-
-  if (!monetizationEnabled) {
-    await prisma.team.update({
-      where: { id: teamId },
-      data: { seat_limit: newSeats },
-    });
-    return { seatLimit: newSeats, prorationApplied: false };
-  }
-
-  if (
-    !team.stripe_subscription_id ||
-    !BILLABLE_SUBSCRIPTION_STATUSES.has(team.subscription_status)
-  ) {
+  const paid =
+    monetizationEnabled &&
+    Boolean(team.stripe_subscription_id) &&
+    BILLABLE_SUBSCRIPTION_STATUSES.has(team.subscription_status);
+  if (monetizationEnabled && !paid) {
     throw new TeamError(
       "Start a Team subscription before changing paid seats",
       409,
@@ -478,58 +508,146 @@ export async function updateTeamSeats({
     );
   }
 
-  const stripe = getServerStripeClient();
-  const subscription = await stripe.subscriptions.retrieve(team.stripe_subscription_id);
-  const baseItem = subscription.items.data.find((item) =>
-    isTeamBaseStripePrice(item.price?.id),
-  );
-  const existingSeatItem = subscription.items.data.find((item) =>
-    isTeamSeatStripePrice(item.price?.id),
-  );
-
-  const detectedInterval: BillingInterval =
-    getTeamIntervalForStripePrice(baseItem?.price?.id) ||
-    (baseItem?.price?.recurring?.interval === "year" ? "year" : "month");
-  const prices = getTeamStripePrices();
-  const seatPriceId = prices.seat[detectedInterval];
-  const extraSeats = Math.max(0, newSeats - config.includedSeats);
-
-  if (extraSeats > 0 && !seatPriceId) {
-    throw new TeamError(
-      `Stripe ${detectedInterval}ly additional seat price is not configured`,
-      500,
-      "stripe_not_configured",
-    );
-  }
-
-  const items: Stripe.SubscriptionUpdateParams.Item[] = [];
-  if (extraSeats === 0) {
-    if (existingSeatItem) {
-      items.push({ id: existingSeatItem.id, deleted: true });
+  // Invitations and acceptances take the same lock on the team row, so the
+  // seats in use cannot grow between this check and the new limit. A lower
+  // limit is written here, before Stripe is told; a higher one only after
+  // Stripe has charged for it.
+  const previousSeats = team.seat_limit;
+  const lowering = newSeats < previousSeats;
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM teams WHERE id = ${teamId} FOR UPDATE`;
+    const usage = await countOccupiedSeats(tx, teamId);
+    if (newSeats < usage.occupiedSeats) {
+      throw new TeamError(
+        `You currently use ${usage.occupiedSeats} seats (${usage.activeMembers} members` +
+          `${usage.pendingInvitations > 0 ? ` and ${usage.pendingInvitations} pending invitations` : ""}). ` +
+          `Remove members or revoke pending invitations before lowering seats below ${usage.occupiedSeats}.`,
+        409,
+        "seats_in_use",
+        usage,
+      );
     }
-  } else if (existingSeatItem) {
-    items.push({ id: existingSeatItem.id, quantity: extraSeats });
-  } else if (seatPriceId) {
-    items.push({ price: seatPriceId, quantity: extraSeats });
+    if (!paid || lowering) {
+      await tx.team.update({ where: { id: teamId }, data: { seat_limit: newSeats } });
+    }
+  });
+
+  if (!paid) {
+    return { seatLimit: newSeats, prorationApplied: false };
   }
 
-  if (items.length > 0) {
+  const restoreSeats = async () => {
+    if (!lowering) return;
+    await prisma.team
+      .update({ where: { id: teamId }, data: { seat_limit: previousSeats } })
+      .catch((error) => console.error("Failed to restore team seat limit", error));
+  };
+
+  try {
+    const stripe = getServerStripeClient();
+    const subscription = await stripe.subscriptions.retrieve(team.stripe_subscription_id!);
+    const baseItem = subscription.items.data.find((item) =>
+      isTeamBaseStripePrice(item.price?.id),
+    );
+    const existingSeatItem = subscription.items.data.find((item) =>
+      isTeamSeatStripePrice(item.price?.id),
+    );
+    const currentExtraSeats = existingSeatItem ? Number(existingSeatItem.quantity ?? 0) : 0;
+
+    // The interval comes from what the subscription is billed on, so a team on
+    // an earlier price keeps its interval.
+    const detectedInterval: BillingInterval =
+      getTeamIntervalForStripePrice(baseItem?.price?.id) ||
+      (baseItem?.price?.recurring?.interval === "year" ? "year" : "month");
+    const prices = getTeamStripePrices();
+    const seatPriceId = prices.seat[detectedInterval];
+    const extraSeats = Math.max(0, newSeats - config.includedSeats);
+
+    const items: Stripe.SubscriptionUpdateParams.Item[] = [];
+    if (extraSeats === 0) {
+      if (existingSeatItem) {
+        items.push({ id: existingSeatItem.id, deleted: true });
+      }
+    } else if (existingSeatItem) {
+      if (currentExtraSeats !== extraSeats) {
+        items.push({ id: existingSeatItem.id, quantity: extraSeats });
+      }
+    } else if (seatPriceId) {
+      items.push({ price: seatPriceId, quantity: extraSeats });
+    } else {
+      throw new TeamError(
+        `Stripe ${detectedInterval}ly additional seat price is not configured`,
+        500,
+        "stripe_not_configured",
+      );
+    }
+
+    if (items.length === 0) {
+      await syncTeamSubscriptionState(subscription, { teamIdHint: team.id });
+      return {
+        seatLimit: getTeamSeatsFromSubscription(subscription, config.includedSeats),
+        prorationApplied: false,
+      };
+    }
+
+    // Seats add pooled minutes the moment they exist, so more seats are paid
+    // for now: the prorated amount is invoiced and charged in this call, and
+    // nothing changes if the charge fails. Fewer seats give no credit, or a
+    // team could add seats, spend their minutes and take the money back.
+    const adding = extraSeats > currentExtraSeats;
     const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
       items,
-      proration_behavior: "create_prorations",
+      ...(adding
+        ? { proration_behavior: "always_invoice", payment_behavior: "error_if_incomplete" }
+        : { proration_behavior: "none" }),
     });
     await syncTeamSubscriptionState(updatedSubscription, { teamIdHint: team.id });
     return {
       seatLimit: getTeamSeatsFromSubscription(updatedSubscription, config.includedSeats),
-      prorationApplied: true,
+      prorationApplied: adding,
     };
+  } catch (error) {
+    await restoreSeats();
+    if (isStripePaymentError(error)) {
+      throw new TeamError(
+        "The payment for the extra seats didn't go through. Update the payment method in Manage Billing and try again.",
+        402,
+        "payment_failed",
+      );
+    }
+    throw error;
   }
+}
 
-  await prisma.team.update({
-    where: { id: team.id },
-    data: { seat_limit: newSeats },
+function isStripePaymentError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { type, statusCode } = error as { type?: unknown; statusCode?: unknown };
+  return type === "StripeCardError" || statusCode === 402;
+}
+
+/**
+ * Whether Stripe still has a subscription on the team's customer that will
+ * charge again. Asked of Stripe, not of the team row: a missed webhook must
+ * not let a team be deleted while its subscription keeps billing.
+ */
+export async function teamHasBillableStripeSubscription(teamId: string): Promise<boolean> {
+  const team = await getPrismaClient().team.findUnique({
+    where: { id: teamId },
+    select: { stripe_customer_id: true },
   });
-  return { seatLimit: newSeats, prorationApplied: false };
+  if (!team?.stripe_customer_id) return false;
+  const stripe = getServerStripeClient();
+  for (const status of CHECKOUT_BLOCKING_STATUSES) {
+    const subscriptions = await stripe.subscriptions.list({
+      customer: team.stripe_customer_id,
+      status,
+      limit: 10,
+    });
+    if (subscriptions.data.some((subscription) => !subscription.cancel_at_period_end && !subscription.cancel_at)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function createTeamBillingPortalSession({

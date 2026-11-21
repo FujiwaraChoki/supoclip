@@ -36,9 +36,9 @@ import {
   handleTeamInvoicePaid,
   handleTeamInvoicePaymentFailed,
   handleTeamSubscriptionDeleted,
+  handleTeamSubscriptionUpdated,
   isTeamCheckoutSession,
   isTeamStripeSubscription,
-  syncTeamSubscriptionState,
 } from "@/server/stripe-team-billing";
 import Stripe from "stripe";
 
@@ -477,7 +477,7 @@ export async function dispatchBillingEvent(event: Stripe.Event, analytics?: Webh
 
   if (event.type === "customer.subscription.updated") {
     const subscription = event.data.object as Stripe.Subscription;
-    if (await syncTeamSubscriptionState(subscription)) {
+    if (await handleTeamSubscriptionUpdated(subscription)) {
       return;
     }
     if (isTeamStripeSubscription(subscription)) {
