@@ -1212,7 +1212,7 @@ class VideoService:
     ) -> str:
         """
         Generate transcript from video using the configured provider
-        (assemblyai, whisper, or youtube_captions).
+        (assemblyai, whisper, youtube_captions, or auto).
         Runs in thread pool to avoid blocking.
         """
         logger.info(f"Generating transcript for: {video_path}")
