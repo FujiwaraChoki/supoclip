@@ -154,7 +154,7 @@ def _minutes(seconds: float) -> str:
 def resolve_source_range(
     requested: Optional[RequestedRange],
     duration: float,
-    max_duration: float,
+    max_duration: Optional[float],
 ) -> Optional[SourceRange]:
     """Validate a requested part against the real duration and the plan limit.
 
@@ -163,7 +163,9 @@ def resolve_source_range(
     """
     if requested is None:
         return None
-    detail = {"duration_seconds": duration, "max_duration_seconds": max_duration}
+    detail: Dict[str, Any] = {"duration_seconds": duration}
+    if max_duration is not None:
+        detail["max_duration_seconds"] = max_duration
     start = _whole(requested.start or 0.0)
     end = float(duration) if requested.end is None else float(requested.end)
     if start >= duration:
@@ -182,7 +184,7 @@ def resolve_source_range(
         raise SourceRangeError(
             f"Pick a part at least {MIN_SOURCE_RANGE_SECONDS // 60} minute long. No minutes were used.", **detail,
         )
-    if length > max_duration:
+    if max_duration is not None and max_duration > 0 and length > max_duration:
         raise SourceRangeError(
             f"This part is {length / 60:.1f} minutes long. Your plan allows up to "
             f"{_minutes(max_duration)} minutes per video. Pick a shorter part. No minutes were used.",

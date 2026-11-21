@@ -697,14 +697,17 @@ class TaskService(ClipEditingMixin):
                     await progress_callback(progress, message, status)
 
             # Process video with progress updates
-            # The plan's per-video cap applies to every source, uploads included.
-            max_video_duration = self.config.max_video_duration
-            if user_id:
-                max_video_duration = self.config.max_youtube_video_duration_for_plan(
-                    billing.get("plan"),
-                    billing.get("subscription_status"),
-                    billing.get("subscription_provider"),
-                )
+            # The plan's per-video cap applies to every source, uploads included
+            # (hosted mode only; self-hosted installs have no video length limit).
+            max_video_duration: Optional[int] = None
+            if self.config.monetization_enabled:
+                max_video_duration = self.config.max_video_duration
+                if user_id:
+                    max_video_duration = self.config.max_youtube_video_duration_for_plan(
+                        billing.get("plan"),
+                        billing.get("subscription_status"),
+                        billing.get("subscription_provider"),
+                    )
 
             if source_type in {"twitch", "kick"}:
                 await self._seed_stream_source(task_id)

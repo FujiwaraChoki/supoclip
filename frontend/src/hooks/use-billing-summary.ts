@@ -27,8 +27,8 @@ export interface BillingSummary {
   can_create_task: boolean;
   upgrade_required: boolean;
   reason: string | null;
-  max_youtube_duration_seconds?: number;
-  max_upload_duration_seconds?: number;
+  max_youtube_duration_seconds?: number | null;
+  max_upload_duration_seconds?: number | null;
   /** Configured upload size cap in bytes. */
   max_upload_bytes?: number;
   /** Workspace scope ("personal" or "team") and team metadata when active. */

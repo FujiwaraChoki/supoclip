@@ -2032,12 +2032,16 @@ class VideoService:
 
         try:
             runtime_config = get_config()
-            duration_limit = (
-                runtime_config.max_video_duration
-                if max_video_duration is None
-                else max_video_duration
-            )
-            if source_range is not None and source_range.length > duration_limit + 1:
+            if max_video_duration is None:
+                configured = (
+                    runtime_config.max_video_duration
+                    if getattr(runtime_config, "monetization_enabled", True)
+                    else None
+                )
+                duration_limit = configured if configured and configured > 0 else None
+            else:
+                duration_limit = max_video_duration if max_video_duration > 0 else None
+            if source_range is not None and duration_limit and source_range.length > duration_limit + 1:
                 raise Exception(
                     f"The selected part is too long ({int(source_range.length) // 60} min). "
                     f"Maximum allowed duration is {duration_limit // 60} minutes."
@@ -2075,7 +2079,7 @@ class VideoService:
                 if video_info:
                     duration = video_info.get("duration", 0)
                     source_duration = duration or None
-                    if duration and duration > duration_limit and source_range is None:
+                    if duration_limit and duration and duration > duration_limit and source_range is None:
                         mins = duration_limit // 60
                         raise Exception(
                             f"Video is too long ({duration // 60} min). "
@@ -2195,7 +2199,7 @@ class VideoService:
             # A full file fetched for a picked part is checked once the part is cut from it.
             full_for_range = source_range is not None and not audio_first
             file_duration = None if full_for_range else VideoService._get_file_duration(video_path)
-            if file_duration and file_duration > duration_limit:
+            if duration_limit and file_duration and file_duration > duration_limit:
                 mins = duration_limit // 60
                 raise Exception(
                     f"Video is too long ({int(file_duration) // 60} min). "

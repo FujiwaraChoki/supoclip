@@ -282,3 +282,63 @@ async def test_resolve_upload_for_edit_keeps_a_local_only_fake(tmp_path):
     source.write_bytes(b"video")
     fake = SimpleNamespace(resolve_local_video_path=lambda _url: source)
     assert await resolve_upload_for_edit(fake, "upload://source.mp4") == source
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("monetization_enabled,expect_rejected", [(False, False), (True, True)])
+async def test_process_video_complete_skips_duration_limit_when_self_hosted(
+    monkeypatch, tmp_path, monetization_enabled, expect_rejected
+):
+    from unittest.mock import AsyncMock
+
+    source = tmp_path / "long-source.mp4"
+    source.write_bytes(b"placeholder")
+    source.with_suffix(".transcript_cache.json").write_text(
+        json.dumps({"words": [{"text": "hello", "start": 0, "end": 500}]})
+    )
+    config = SimpleNamespace(
+        self_host=not monetization_enabled,
+        monetization_enabled=monetization_enabled,
+        max_video_duration=5400,
+        clip_duration=30,
+        max_clips=10,
+        fast_mode_max_clips=4,
+    )
+    monkeypatch.setattr(video_service_module, "get_config", lambda: config)
+    monkeypatch.setattr(
+        video_service_module,
+        "async_get_youtube_video_info",
+        AsyncMock(return_value={"duration": 21600, "title": "Six Hour Stream"}),
+    )
+    monkeypatch.setattr(VideoService, "download_video", AsyncMock(return_value=source))
+    monkeypatch.setattr(VideoService, "_get_file_duration", staticmethod(lambda _path: 21600.0))
+    monkeypatch.setattr(VideoService, "_drop_static_segments", staticmethod(lambda _src, segs: segs))
+    monkeypatch.setattr(VideoService, "_refine_segment_openings", staticmethod(lambda s, *_: s))
+    monkeypatch.setattr(video_service_module, "cached_full_media", lambda *_a, **_k: None)
+
+    async def threaded(func, *args, **kwargs):
+        return func(*args, **kwargs) if func == VideoService._drop_static_segments else None
+
+    monkeypatch.setattr(video_service_module, "run_in_thread", threaded)
+    analysis = json.dumps({
+        "most_relevant_segments": [{"start_time": "00:00", "end_time": "00:30", "text": "hello"}],
+        "summary": "Test",
+        "key_topics": [],
+    })
+
+    if expect_rejected:
+        with pytest.raises(Exception, match="Video is too long"):
+            await VideoService.process_video_complete(
+                url="https://www.youtube.com/watch?v=abcdefghijk",
+                source_type="youtube",
+                cached_transcript="Existing transcript",
+                cached_analysis_json=analysis,
+            )
+    else:
+        result = await VideoService.process_video_complete(
+            url="https://www.youtube.com/watch?v=abcdefghijk",
+            source_type="youtube",
+            cached_transcript="Existing transcript",
+            cached_analysis_json=analysis,
+        )
+        assert len(result["segments_to_render"]) == 1

@@ -794,3 +794,8 @@ async def test_regenerating_a_part_tasks_clips_keeps_subtitle_timings(isolated_c
     # The private link and the stream download are both gone afterwards.
     assert not rendered["path"].exists()
     assert not (Path(pipeline_config.temp_dir) / "stream-work" / "task").exists()
+
+
+def test_resolve_source_range_allows_long_part_when_uncapped():
+    part = resolve_source_range(RequestedRange(600.0, 15000.0), EIGHT_HOURS, None)
+    assert part == SourceRange(600.0, 15000.0, EIGHT_HOURS)

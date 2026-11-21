@@ -162,10 +162,10 @@ These settings affect clip generation speed, throughput, and defaults.
 | `QUEUE_DELAY_ALERT_INTERVAL_SECONDS` | `900` | Minimum time between those queue-delay reports |
 | `EMBED_CRON_WORKER` | `1` | When `1`, the worker process also starts the cron worker on queue `supoclip_cron`. Set `0` if the optional Compose `cron-worker` service (profile `cron`) is running instead, and on video workers that run on a different machine from the API |
 | `UPLOAD_COPY_WAIT_SECONDS` | `1800` | How long a video worker on another machine waits for an upload to be copied from the API's disk to object storage before the task fails (minimum 60). See [Video workers on other machines](./render-worker.md) |
-| `MAX_VIDEO_DURATION` | `5400` | Maximum source length in seconds without an active paid plan, and the only limit when monetization is off (self-hosting) |
+| `MAX_VIDEO_DURATION` | `5400` | Maximum source length in seconds without an active paid plan (hosted mode only, `SELF_HOST=false`; self-hosted installs have no video length limit) |
 | `MAX_VIDEO_UPLOAD_BYTES` | `4000000000` | Maximum uploaded file size, in bytes (4 GB). Checked in the browser before the upload starts, and again by the API and presigned upload session so it cannot be bypassed. Set `NEXT_PUBLIC_MAX_VIDEO_UPLOAD_BYTES` to the same value so the pre-upload check matches before the billing summary loads. Sources above 1080p or 60 fps are scaled down to that ceiling before transcription and rendering; plans with a lower output resolution still receive that lower resolution |
-| `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `7200` | Maximum length of one video (any source: YouTube, Twitch, Kick, upload) for active or trialing Pro subscriptions, in seconds. Keep `NEXT_PUBLIC_PRO_YOUTUBE_MAX_MINUTES` in step |
-| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum length of one video (any source) for active or trialing Creator (`scale`) subscriptions, in seconds. Keep `NEXT_PUBLIC_SCALE_YOUTUBE_MAX_MINUTES` in step |
+| `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `7200` | Maximum length of one video (any source: YouTube, Twitch, Kick, upload) for active or trialing Pro subscriptions, in seconds (hosted mode only). Keep `NEXT_PUBLIC_PRO_YOUTUBE_MAX_MINUTES` in step |
+| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum length of one video (any source) for active or trialing Creator (`scale`) subscriptions, in seconds (hosted mode only). Keep `NEXT_PUBLIC_SCALE_YOUTUBE_MAX_MINUTES` in step |
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 
@@ -312,7 +312,7 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `TEAM_PLAN_MINUTE_LIMIT` | `3600` | Hosted-mode Team base pooled allowance, in minutes of source video per month (60 hours) |
 | `TEAM_EXTRA_SEAT_MINUTE_LIMIT` | `900` | Extra pooled minutes per month added for each seat above `TEAM_PLAN_INCLUDED_SEATS` (+15 hours) |
 | `TEAM_PLAN_AI_EDIT_LIMIT` | `300` | Hosted-mode Team pooled AI edits per month |
-| `TEAM_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum length of one video (any source) in seconds for Team workspaces (180 minutes) |
+| `TEAM_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum length of one video (any source) in seconds for Team workspaces (180 minutes; hosted mode only) |
 | `VIDEO_JOB_TEAM_CONCURRENCY` | `3` | Maximum simultaneous video jobs running for a single team workspace |
 | `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the Pro plan |
 | `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `24.99` | Frontend display price for the Creator plan |
