@@ -310,11 +310,9 @@
     "title": "Sua vez: escolha os clipes com um chat de IA",
     "body": "A transcrição está pronta. Este servidor não tem um modelo de IA configurado, então use qualquer chat de IA (ChatGPT, Claude, Gemini e similares) para escolher os melhores momentos.",
     "step1Title": "1. Obtenha o prompt",
-    "step1Body": "Baixe ou copie e cole no seu chat de IA. O chat responde com JSON.",
+    "step1Body": "Baixe o arquivo do prompt, anexe-o ao seu chat de IA e envie com ele a mensagem abaixo.",
     "download": "Baixar prompt",
-    "copy": "Copiar prompt",
     "downloaded": "Prompt baixado",
-    "copied": "Prompt copiado",
     "step2Title": "2. Adicione a resposta",
     "step2Body": "Cole abaixo a resposta do chat ou envie como arquivo. Blocos de código e palavras extras em volta do JSON não são problema.",
     "pasteLabel": "Resposta do chat de IA (JSON)",
@@ -327,10 +325,12 @@
     "submitting": "Verificando…",
     "submitted": "Resposta aceita. Gerando seus clipes…",
     "promptError": "Não foi possível carregar o prompt. Tente novamente.",
-    "copyError": "Não foi possível copiar. Use o download.",
+    "copyError": "Não foi possível copiar. Selecione a mensagem e copie manualmente.",
     "submitError": "Não foi possível enviar a resposta. Tente novamente.",
     "readOnly": "Somente o dono desta tarefa pode adicionar a resposta da IA.",
     "fileReadError": "Não foi possível ler esse arquivo.",
-    "step1Hint": "O chat diz que é longo demais? Anexe o arquivo baixado à mensagem em vez de colar."
+    "messageLabel": "Mensagem para enviar com o arquivo",
+    "copyMessage": "Copiar mensagem",
+    "messageCopied": "Mensagem copiada"
   }
 }

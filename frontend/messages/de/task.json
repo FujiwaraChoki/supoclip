@@ -310,11 +310,9 @@
     "title": "Sie sind dran: Clips mit einem KI-Chat auswählen",
     "body": "Die Transkription ist fertig. Auf diesem Server ist kein KI-Modell eingerichtet. Nutzen Sie einen beliebigen KI-Chat (ChatGPT, Claude, Gemini und ähnliche), um die besten Momente auszuwählen.",
     "step1Title": "1. Prompt holen",
-    "step1Body": "Laden Sie ihn herunter oder kopieren Sie ihn und fügen Sie ihn in Ihren KI-Chat ein. Der Chat antwortet mit JSON.",
+    "step1Body": "Laden Sie die Prompt-Datei herunter, hängen Sie sie an Ihren KI-Chat an und senden Sie die Nachricht unten dazu.",
     "download": "Prompt herunterladen",
-    "copy": "Prompt kopieren",
     "downloaded": "Prompt heruntergeladen",
-    "copied": "Prompt kopiert",
     "step2Title": "2. Antwort hinzufügen",
     "step2Body": "Fügen Sie die Antwort des Chats unten ein oder laden Sie sie als Datei hoch. Codeblöcke und zusätzliche Worte um das JSON sind in Ordnung.",
     "pasteLabel": "Antwort des KI-Chats (JSON)",
@@ -327,10 +325,12 @@
     "submitting": "Wird geprüft…",
     "submitted": "Antwort akzeptiert. Ihre Clips werden erstellt…",
     "promptError": "Der Prompt konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
-    "copyError": "Kopieren nicht möglich. Nutzen Sie stattdessen den Download.",
+    "copyError": "Kopieren nicht möglich. Markieren Sie die Nachricht und kopieren Sie sie manuell.",
     "submitError": "Die Antwort konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
     "readOnly": "Nur der Besitzer dieser Aufgabe kann die KI-Antwort hinzufügen.",
     "fileReadError": "Die Datei konnte nicht gelesen werden.",
-    "step1Hint": "Der Chat meldet, es sei zu lang? Hängen Sie die heruntergeladene Datei an Ihre Nachricht an, statt sie einzufügen."
+    "messageLabel": "Nachricht, die Sie mit der Datei senden",
+    "copyMessage": "Nachricht kopieren",
+    "messageCopied": "Nachricht kopiert"
   }
 }

@@ -12,7 +12,13 @@ import { triggerFileDownload } from "@/lib/clip-export";
 /** A real answer is a few kilobytes; this only keeps a wrong file from filling the box. */
 export const MAX_ANSWER_BYTES = 500_000;
 
-type Pending = "download" | "copy" | "submit" | null;
+/**
+ * What to send with the downloaded file. Some chats ask "what should I do?" when
+ * they only get an attachment; this tells them, and stays English like the file.
+ */
+export const CHAT_MESSAGE = "Read the attached file and follow its instructions. Reply with the JSON object only.";
+
+type Pending = "download" | "submit" | null;
 
 function readFileText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -34,8 +40,8 @@ async function failureReason(response: Response): Promise<string | null> {
 }
 
 /**
- * LLM=manual: the task waits for the user's own AI chat. Get the prompt (download
- * or copy), run it in a chat, then paste or upload the JSON answer.
+ * LLM=manual: the task waits for the user's own AI chat. Download the prompt file,
+ * send it to a chat with the short message, then paste or upload the JSON answer.
  */
 export function ManualAnalysisPanel({
   taskId,
@@ -76,21 +82,12 @@ export function ManualAnalysisPanel({
     }
   }
 
-  async function copyPrompt() {
-    setPending("copy");
+  async function copyMessage() {
     try {
-      const prompt = await loadPrompt();
-      try {
-        await navigator.clipboard.writeText(prompt);
-      } catch {
-        toast.error(t("copyError"));
-        return;
-      }
-      toast.success(t("copied"));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("promptError"));
-    } finally {
-      setPending(null);
+      await navigator.clipboard.writeText(CHAT_MESSAGE);
+      toast.success(t("messageCopied"));
+    } catch {
+      toast.error(t("copyError"));
     }
   }
 
@@ -157,17 +154,19 @@ export function ManualAnalysisPanel({
           <div>
             <h3 className="text-sm font-semibold">{t("step1Title")}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{t("step1Body")}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => void downloadPrompt()} disabled={pending !== null}>
+            <div className="mt-3">
+              <Button onClick={() => void downloadPrompt()} disabled={pending !== null}>
                 {pending === "download" ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                 {t("download")}
               </Button>
-              <Button variant="outline" onClick={() => void copyPrompt()} disabled={pending !== null}>
-                {pending === "copy" ? <Loader2 className="size-4 animate-spin" /> : <Copy className="size-4" />}
-                {t("copy")}
+            </div>
+            <p className="mt-4 text-xs font-medium text-muted-foreground">{t("messageLabel")}</p>
+            <div className="mt-1.5 flex items-start gap-2 rounded-lg border bg-muted/40 p-3">
+              <p className="min-w-0 flex-1 text-sm" lang="en">{CHAT_MESSAGE}</p>
+              <Button size="sm" variant="ghost" onClick={() => void copyMessage()} aria-label={t("copyMessage")}>
+                <Copy className="size-4" />{t("copyMessage")}
               </Button>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">{t("step1Hint")}</p>
           </div>
 
           <div>

@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/test/setup";
-import { ManualAnalysisPanel } from "./manual-analysis-panel";
+import { CHAT_MESSAGE, ManualAnalysisPanel } from "./manual-analysis-panel";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
@@ -52,22 +52,23 @@ describe("ManualAnalysisPanel", () => {
     expect(toast.success).toHaveBeenCalledWith("Prompt downloaded");
   });
 
-  it("copies the prompt to the clipboard", async () => {
-    promptEndpoint();
+  it("tells the chat what to do with the attached file, and copies that message", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(PROMPT));
-    expect(toast.success).toHaveBeenCalledWith("Prompt copied");
+    expect(screen.getByText(CHAT_MESSAGE)).toBeInTheDocument();
+    // The prompt itself is a file to attach: it is never copied.
+    expect(screen.queryByRole("button", { name: "Copy prompt" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(CHAT_MESSAGE));
+    expect(toast.success).toHaveBeenCalledWith("Message copied");
   });
 
-  it("points to the download when the clipboard is refused", async () => {
-    promptEndpoint();
+  it("asks to copy by hand when the clipboard is refused", async () => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) }, configurable: true });
     renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not copy. Use Download instead."));
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not copy. Select the message and copy it instead."));
   });
 
   it("reports a prompt that cannot be loaded", async () => {

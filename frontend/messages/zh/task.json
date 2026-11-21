@@ -310,11 +310,9 @@
     "title": "轮到你了：用 AI 聊天选出片段",
     "body": "转录已完成。此服务器没有配置 AI 模型，请使用任意 AI 聊天工具（ChatGPT、Claude、Gemini 等）来挑选最精彩的片段。",
     "step1Title": "1. 获取提示词",
-    "step1Body": "下载或复制提示词，然后粘贴到你的 AI 聊天中。聊天会返回 JSON。",
+    "step1Body": "下载提示词文件，将其作为附件发送到你的 AI 聊天，并附上下面这条消息。",
     "download": "下载提示词",
-    "copy": "复制提示词",
     "downloaded": "提示词已下载",
-    "copied": "提示词已复制",
     "step2Title": "2. 添加回复",
     "step2Body": "将聊天的回复粘贴到下方，或作为文件上传。JSON 前后带有代码块或多余文字也没关系。",
     "pasteLabel": "AI 聊天回复（JSON）",
@@ -327,10 +325,12 @@
     "submitting": "正在检查…",
     "submitted": "回复已接受，正在生成你的片段…",
     "promptError": "无法加载提示词，请重试。",
-    "copyError": "无法复制，请改用下载。",
+    "copyError": "无法复制，请选中消息后手动复制。",
     "submitError": "无法提交回复，请重试。",
     "readOnly": "只有此任务的所有者可以添加 AI 回复。",
     "fileReadError": "无法读取该文件。",
-    "step1Hint": "聊天提示内容太长？请把下载的文件作为附件发送，而不是直接粘贴。"
+    "messageLabel": "随文件一起发送的消息",
+    "copyMessage": "复制消息",
+    "messageCopied": "消息已复制"
   }
 }

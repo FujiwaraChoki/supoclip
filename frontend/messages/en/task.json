@@ -310,11 +310,9 @@
     "title": "Your turn: pick the clips with an AI chat",
     "body": "Transcription is done. No AI model is set up on this server, so use any AI chat (ChatGPT, Claude, Gemini and similar) to choose the best moments.",
     "step1Title": "1. Get the prompt",
-    "step1Body": "Download it or copy it, then paste it into your AI chat. The chat answers with JSON.",
+    "step1Body": "Download the prompt file, attach it to your AI chat, and send the message below with it.",
     "download": "Download prompt",
-    "copy": "Copy prompt",
     "downloaded": "Prompt downloaded",
-    "copied": "Prompt copied",
     "step2Title": "2. Add the answer",
     "step2Body": "Paste the chat's reply below, or upload it as a file. Code fences and extra words around the JSON are fine.",
     "pasteLabel": "AI chat reply (JSON)",
@@ -327,10 +325,12 @@
     "submitting": "Checking…",
     "submitted": "Answer accepted. Generating your clips…",
     "promptError": "Could not load the prompt. Please try again.",
-    "copyError": "Could not copy. Use Download instead.",
+    "copyError": "Could not copy. Select the message and copy it instead.",
     "submitError": "Could not submit the answer. Please try again.",
     "readOnly": "Only the owner of this task can add the AI answer.",
     "fileReadError": "Could not read that file.",
-    "step1Hint": "Chat says it is too long? Attach the downloaded file to your message instead of pasting."
+    "messageLabel": "Message to send with the file",
+    "copyMessage": "Copy message",
+    "messageCopied": "Message copied"
   }
 }
