@@ -176,10 +176,28 @@ async def test_feature_flags_route_evaluates_for_the_caller(client, db_session, 
 
     web = await client.get("/feature-flags", headers=headers_for(user_id))
     assert web.status_code == 200, web.text
-    assert web.json() == {"platform": "web", "flags": {"dynamic_edits": False, "tiktok_publishing": False, "workflows": False}}
+    assert web.json() == {
+        "platform": "web",
+        "flags": {
+            "dynamic_edits": False,
+            "instagram_publishing": False,
+            "tiktok_publishing": False,
+            "workflows": False,
+        },
+    }
     ios = (await client.get("/feature-flags", headers=headers_for(user_id, **IOS))).json()
-    assert ios == {"platform": "ios", "flags": {"dynamic_edits": False, "tiktok_publishing": False, "workflows": True}}
-    assert (await client.get("/feature-flags", headers=headers_for(admin))).json()["flags"]["workflows"] is True
+    assert ios == {
+        "platform": "ios",
+        "flags": {
+            "dynamic_edits": False,
+            "instagram_publishing": False,
+            "tiktok_publishing": False,
+            "workflows": True,
+        },
+    }
+    admin_flags = (await client.get("/feature-flags", headers=headers_for(admin))).json()["flags"]
+    assert admin_flags["workflows"] is True
+    assert admin_flags["instagram_publishing"] is True
     assert (await client.get("/feature-flags")).status_code == 401
 
 
