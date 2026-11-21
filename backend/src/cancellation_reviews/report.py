@@ -258,8 +258,10 @@ def render_report(
         for index, item in enumerate(clips, 1):
             clip = item.clip
             source = clip.get("source_type") or clip.get("source_kind") or "source"
+            workflow = clip.get("workflow") or "highlights"
             header = (f"{index}. “{_clip_title(clip)}” — {item.role}; task {_date(clip.get('task_created_at'))}, "
-                      f"{source}, SupoClip score {clip.get('virality_score')}")
+                      f"{source}{'' if workflow == 'highlights' else f', {workflow}'}, "
+                      f"SupoClip score {clip.get('virality_score')}")
             lines.append(header)
             if not item.available:
                 lines.append(f"   NOT REVIEWED: {item.unavailable_reason}. No judgment is made about this clip.")

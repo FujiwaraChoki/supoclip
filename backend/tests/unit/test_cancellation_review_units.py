@@ -11,6 +11,7 @@ import pytest
 from src.cancellation_reviews.delivery import interpret, signed_request
 from src.cancellation_reviews.evidence import (
     ClipEvidence,
+    expected_length,
     mask_email,
     objective_checks,
     select_representative,
@@ -220,6 +221,62 @@ def test_objective_checks_compare_against_the_plan_and_settings():
     assert "outside the 'short' range" in joined
     assert "-28.0 LUFS" in joined and "clipping" in joined and "near-silent" in joined
     assert "opens mid-thought" in joined and "ends without sentence punctuation" in joined
+
+
+def _length_check(clip, seconds):
+    metrics = {"width": 1080, "height": 1920, "duration_seconds": seconds, "has_audio": True}
+    return next(c for c in objective_checks({"text": "Done.", **clip}, metrics, 1080) if c.startswith(f"{seconds:.0f}s"))
+
+
+def test_series_parts_are_checked_against_the_series_range_not_highlights():
+    series = {"workflow": "series", "clip_length": "short"}
+    # Seen in production: three valid 'short' series parts flagged against highlights' 15–30s.
+    for seconds in (31.0, 47.0, 58.0, 64.0):
+        check = _length_check(series, seconds)
+        assert "fits the series part 'short' range 30–60s, render cap 65s" in check
+    assert "outside the series part 'short' range" in _length_check(series, 71.0)
+    assert "outside the series part 'short' range" in _length_check(series, 20.0)
+    assert expected_length({"workflow": "series", "clip_length": None}).describe().startswith(
+        "series part 'auto' range 45–150s")
+
+
+def test_highlights_keep_their_own_ranges():
+    for clip in ({"clip_length": "short"}, {"workflow": "highlights", "clip_length": "short"}):
+        assert "outside the 'short' range 15–30s" in _length_check(clip, 47.0)
+        assert "fits the 'short' range 15–30s" in _length_check(clip, 34.0)
+    assert "fits the 'auto' range 15–60s" in _length_check({"workflow": "highlights", "clip_length": "bogus"}, 40.0)
+
+
+def test_recap_trailer_and_topic_use_their_budgets():
+    assert "fits the recap 'auto' range" in _length_check(
+        {"workflow": "recap", "clip_length": "auto", "source_duration_seconds": 1200}, 60.0)
+    trailer = {"workflow": "trailer", "clip_length": "auto", "target_seconds": "50"}
+    assert expected_length(trailer).target == 50
+    assert "fits the trailer 'auto' range" in _length_check(trailer, 50.0)
+    assert "fits the topic clip 'auto' range 15–90s" in _length_check({"workflow": "topic", "clip_length": "auto"}, 80.0)
+
+
+def test_unknown_lengths_are_not_judged():
+    assert expected_length({"workflow": "montage", "clip_length": "short"}) is None
+    assert expected_length({"workflow": "recap", "clip_length": "auto"}) is None  # source length never recorded
+    check = _length_check({"workflow": "montage", "clip_length": "short"}, 47.0)
+    assert "length not checked" in check and "outside" not in check
+
+
+def test_judge_and_case_get_the_workflow_length():
+    from src.cancellation_reviews.evidence import ClipEvidence
+    from src.cancellation_reviews.judging import clip_prompt
+    from src.cancellation_reviews.runner import _case
+
+    clip = {"id": "c1", "workflow": "series", "clip_length": "short", "text": "Done."}
+    item = ClipEvidence("best clip of the latest task", clip, True, metrics={"duration_seconds": 58.0})
+    facts = json.loads(clip_prompt(item)[0]["text"].removeprefix("Clip facts:\n"))
+    assert facts["workflow"] == "series"
+    assert facts["expected length for this workflow"].startswith("series part 'short' range 30–60s")
+    case = _case({"kind": "scheduled", "snapshot": {}}, None, None, [], [item], {})
+    reviewed = case["clips_reviewed"][0]
+    assert reviewed["workflow"] == "series" and reviewed["requested_clip_length"] == "short"
+    assert reviewed["expected_length"].startswith("series part 'short' range 30–60s")
 
 
 def test_masked_email_hides_the_local_part():

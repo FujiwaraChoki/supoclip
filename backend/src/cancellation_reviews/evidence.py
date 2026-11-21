@@ -19,6 +19,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..clip_duration import CLIP_DURATIONS, normalize_clip_length
+from ..workflows.durations import RENDER_CAP_PADDING_SECONDS, workflow_budget
+from ..workflows.settings import read_settings
 from .schema import account_column, has_column, has_table
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,9 @@ MAX_CLIP_BYTES = 400 * 1024 * 1024
 FRAME_COUNT = 8
 FFMPEG_TIMEOUT_SECONDS = 180
 FULL_HD_SHORT_SIDE = 1080
+# A rendered file's container runs a frame or an audio packet past its cut.
+DURATION_MEASUREMENT_SLACK = 0.5
+WORKFLOW_LENGTH_NOUNS = {"series": "series part", "topic": "topic clip", "recap": "recap", "trailer": "trailer"}
 CONJUNCTION_START = re.compile(r"^(and|but|so|or|because|then|which|that)\b", re.IGNORECASE)
 
 
@@ -206,6 +211,7 @@ async def candidate_clips(db: AsyncSession, user_id: str) -> list[dict[str, Any]
                    t.created_at AS task_created_at, t.workflow, t.caption_template, t.processing_mode, t.include_broll,
                    t.source_duration_seconds, t.source_metadata->>'clip_length' AS clip_length,
                    t.source_metadata->>'output_format' AS output_format,
+                   t.workflow_options->'advanced'->>'target_seconds' AS target_seconds,
                    t.source_metadata->>'source_type' AS source_type,
                    s.title AS source_title, s.type AS source_kind
             FROM generated_clips g
@@ -334,13 +340,15 @@ def objective_checks(clip: dict[str, Any], metrics: dict[str, Any], expected_sho
             checks.append(f"short side {short_side}px is below the plan's {target}px")
         else:
             checks.append(f"resolution {width}×{height} meets the {target}px plan cap")
-    preset = CLIP_DURATIONS[normalize_clip_length(clip.get("clip_length"))]
     duration = metrics.get("duration_seconds") or 0
-    length_name = normalize_clip_length(clip.get("clip_length"))
-    if duration and not (preset.minimum - 1 <= duration <= preset.maximum + 5):
-        checks.append(f"{duration:.0f}s is outside the '{length_name}' range {preset.minimum}–{preset.maximum}s")
+    expected = expected_length(clip)
+    if duration and expected is None:
+        checks.append(f"{duration:.0f}s; length not checked: no known range for workflow "
+                      f"'{clip.get('workflow')}' with length '{normalize_clip_length(clip.get('clip_length'))}'")
+    elif duration and not expected.fits(duration):
+        checks.append(f"{duration:.0f}s is outside the {expected.describe()}")
     elif duration:
-        checks.append(f"{duration:.0f}s fits the '{length_name}' range {preset.minimum}–{preset.maximum}s")
+        checks.append(f"{duration:.0f}s fits the {expected.describe()}")
     if not metrics.get("has_audio"):
         checks.append("no audio stream")
     else:
@@ -364,6 +372,63 @@ def objective_checks(clip: dict[str, Any], metrics: dict[str, Any], expected_sho
         if words[-1:] not in ".!?…\"'”":
             checks.append(f"transcript ends without sentence punctuation (“…{' '.join(words.split()[-4:])}”) [heuristic]")
     return checks
+
+
+@dataclass(frozen=True)
+class LengthExpectation:
+    """The length a clip's own workflow and settings promise, in rendered seconds."""
+
+    label: str
+    minimum: float
+    maximum: float
+    cap: float  # the renderer's safety cap: a valid clip may run up to it
+    target: float | None = None
+
+    def describe(self) -> str:
+        text = f"{self.label} range {self.minimum:g}–{self.maximum:g}s"
+        if self.target is not None:
+            text += f" (target {self.target:g}s)"
+        if self.cap > self.maximum:
+            text += f", render cap {self.cap:g}s"
+        return text
+
+    def fits(self, seconds: float) -> bool:
+        return self.minimum - 1 <= seconds <= self.cap + DURATION_MEASUREMENT_SLACK
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def expected_length(clip: dict[str, Any]) -> LengthExpectation | None:
+    """What length the task asked for, read the way its workflow reads ``clip_length``.
+
+    The chip means per-clip length for highlights and topic clips, part length for a
+    series and total length for a recap or trailer. None when it can't be known: an
+    unknown workflow, or an automatic recap whose source length was never recorded.
+    """
+    workflow = clip.get("workflow") or "highlights"
+    length_name = normalize_clip_length(clip.get("clip_length"))
+    if workflow == "highlights":
+        preset = CLIP_DURATIONS[length_name]
+        return LengthExpectation(f"'{length_name}'", preset.minimum, preset.maximum,
+                                 preset.maximum + RENDER_CAP_PADDING_SECONDS)
+    if workflow not in WORKFLOW_LENGTH_NOUNS:
+        return None
+    advanced = read_settings(workflow, {"target_seconds": _int_or_none(clip.get("target_seconds"))})
+    target_seconds = advanced.get("target_seconds")
+    source_seconds = float(clip.get("source_duration_seconds") or 0)
+    if workflow == "recap" and length_name == "auto" and target_seconds is None and source_seconds <= 0:
+        return None
+    try:
+        budget = workflow_budget(workflow, length_name, source_seconds, target_seconds)
+    except ValueError:
+        return None
+    return LengthExpectation(f"{WORKFLOW_LENGTH_NOUNS[workflow]} '{length_name}'", budget.min, budget.max,
+                             budget.render_cap, budget.target)
 
 
 @dataclass

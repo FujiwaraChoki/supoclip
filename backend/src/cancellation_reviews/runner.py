@@ -36,7 +36,14 @@ from .evidence import (
     user_context,
 )
 from .folding import feedback_of, fold_event
-from .judging import ClipJudgment, JudgeUnavailable, assess_case, judge_clip, model_name
+from .judging import (
+    ClipJudgment,
+    JudgeUnavailable,
+    assess_case,
+    judge_clip,
+    length_context,
+    model_name,
+)
 from .report import customer_text, plan_hint, render_report, render_update
 from .schema import account_column, has_table
 
@@ -229,6 +236,9 @@ def _case(review, context, usage, notes, evidence, judgments) -> dict[str, Any]:
         "clips_reviewed": [
             {
                 "picked_because": item.role, "virality_score": item.clip.get("virality_score"),
+                "workflow": item.clip.get("workflow") or "highlights",
+                "requested_clip_length": item.clip.get("clip_length") or "auto",
+                "expected_length": length_context(item.clip),
                 "available": item.available, "unavailable_reason": item.unavailable_reason,
                 "measurements": item.metrics, "automatic_checks": item.checks,
                 "judgment": (judgments[item.clip["id"]].model_dump()
