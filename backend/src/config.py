@@ -103,6 +103,8 @@ class Config:
             os.getenv("APIFY_LONG_VIDEO_SECONDS", "1800")
         )
 
+        # Video duration limits apply only in hosted mode (SELF_HOST=false).
+        # Self-hosted instances are not limited by video length.
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
         # Per-video length cap for paid tiers, for every source (YouTube,
         # Twitch, Kick and uploads). The names predate uploads following it.

@@ -234,6 +234,24 @@ async def test_billing_summary_exposes_enforced_duration_limit(plan, status, pro
     assert summary["max_upload_bytes"] == 4_000_000_000
 
 
+@pytest.mark.asyncio
+async def test_billing_summary_has_no_duration_limit_when_self_hosted():
+    service = BillingService(_FakeSession([]))
+    service.config.self_host = True
+    service.config.monetization_enabled = False
+    service.config.max_video_duration = 5400
+    service.config.pro_youtube_max_video_duration = 5400
+    service.config.scale_youtube_max_video_duration = 10800
+    service.config.max_video_upload_bytes = 4_000_000_000
+
+    summary = await service.get_usage_summary("user-1")
+
+    assert summary["plan"] == "self_host"
+    assert summary["max_youtube_duration_seconds"] is None
+    assert summary["max_upload_duration_seconds"] is None
+    assert summary["max_upload_bytes"] == 4_000_000_000
+
+
 @pytest.mark.parametrize(
     "summary,expected",
     [

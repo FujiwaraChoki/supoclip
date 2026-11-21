@@ -168,8 +168,8 @@ def _duration_unavailable_error(platform: str) -> HTTPException:
 async def _preflight_youtube_source(url: str, duration_limit: Optional[int]) -> Dict[str, Any]:
     """Check duration before creating a task or consuming a generation.
 
-    ``duration_limit`` None skips the whole-video check (a part was picked;
-    the part's length is checked once the duration is known).
+    ``duration_limit`` None skips the whole-video check (either self-hosted with
+    no cap, or a part was picked and its length is checked once known).
     """
     # wait_for cancels the awaiting task when this elapses. A yt-dlp call already
     # running inside asyncio.to_thread can finish in the background.
@@ -231,7 +231,7 @@ async def _preflight_youtube_source(url: str, duration_limit: Optional[int]) -> 
             },
         ) from None
 
-    if duration_limit is not None and duration > duration_limit:
+    if duration_limit is not None and duration_limit > 0 and duration > duration_limit:
         raise HTTPException(status_code=422, detail=video_too_long_detail(duration, duration_limit))
     return metadata
 
@@ -253,7 +253,7 @@ async def _preflight_stream_source(url: str, source: str, duration_limit: Option
         raise HTTPException(status_code=422, detail={"code": "VIDEO_UNAVAILABLE", "message": str(exc)}) from None
     except Exception:
         raise HTTPException(status_code=503, detail={"code": "VIDEO_METADATA_UNAVAILABLE", "message": "We couldn't fetch this video, try again later. No minutes were used."}) from None
-    if duration_limit is not None and duration > duration_limit:
+    if duration_limit is not None and duration_limit > 0 and duration > duration_limit:
         raise HTTPException(status_code=422, detail=video_too_long_detail(duration, duration_limit, platform=source.title()))
     return metadata
 
@@ -308,7 +308,7 @@ async def _preflight_upload_source(url: str, user_id: str, duration_limit: Optio
             },
         ) from None
 
-    if duration_limit is not None and duration > duration_limit:
+    if duration_limit is not None and duration_limit > 0 and duration > duration_limit:
         raise HTTPException(status_code=422, detail=video_too_long_detail(duration, duration_limit, upload=True))
     return duration
 
