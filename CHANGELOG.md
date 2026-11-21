@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-21
 
+- **Fixed:** In a conversation filmed over the shoulder, the person seen from behind no longer gets half of a split screen. When one of two people faces the camera and the other has their back to it, the clip shows the one facing the camera; two people filmed from the side keep their two panels. ([#545](https://github.com/FujiwaraChoki/supoclip/pull/545))
 - **Improved:** The pricing modal shows the full Self-hosted card again, with what self-hosting includes and a direct link to the self-hosting guide alongside the hosted plans. ([#532](https://github.com/FujiwaraChoki/supoclip/pull/532))
 - **Improved:** Self-hosted installs are no longer capped by the hosted video length limit. YouTube, Twitch, Kick, and uploaded videos are no longer rejected at 90 minutes (upload size, download size, and processing time limits still apply), and the create screen no longer shows a video-length limit on self-hosted setups. ([#525](https://github.com/FujiwaraChoki/supoclip/pull/525))
 - **New:** An Examples page at /examples shows real clips SupoClip made from public videos (podcasts and interviews, gaming streams and vlogs), with each clip's hook title, length, virality score and caption style. Hover a clip to preview it, click or tap to play it with sound, filter by category, and follow the credit to the creator's original video. ([#527](https://github.com/FujiwaraChoki/supoclip/pull/527))
