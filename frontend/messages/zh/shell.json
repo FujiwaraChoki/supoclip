@@ -78,5 +78,26 @@
     "personalSubtitle": "个人工作区",
     "teamSettings": "团队设置",
     "createTeam": "创建团队"
+  },
+  "account": {
+    "menu": "账户菜单",
+    "minutesLeft": "剩余 {count} 分钟",
+    "planMinutesLeft": "{plan} · 剩余 {count} 分钟",
+    "seatPaused": "席位已暂停",
+    "usage": "用量",
+    "usageThisMonth": "本月用量",
+    "current": "当前",
+    "planLabel": "{plan} 套餐",
+    "yourLimit": "你的限额",
+    "teamPool": "团队额度",
+    "teamPoolOf": "团队额度 {used} / {limit} 分钟",
+    "teamPoolUsed": "团队额度 {used} 分钟",
+    "seatPausedLong": "管理员已暂停你的席位",
+    "askAdmin": "向管理员申请更多额度",
+    "usageError": "无法加载你的其他工作区。",
+    "billing": "账单与用量",
+    "theme": "主题",
+    "themeLight": "浅色",
+    "themeDark": "深色"
   }
 }

@@ -78,5 +78,26 @@
     "personalSubtitle": "Ruang kerja pribadi",
     "teamSettings": "Pengaturan tim",
     "createTeam": "Buat tim"
+  },
+  "account": {
+    "menu": "Menu akun",
+    "minutesLeft": "{count} mnt tersisa",
+    "planMinutesLeft": "{plan} · {count} mnt tersisa",
+    "seatPaused": "Kursi dijeda",
+    "usage": "Penggunaan",
+    "usageThisMonth": "Penggunaan bulan ini",
+    "current": "Saat ini",
+    "planLabel": "Paket {plan}",
+    "yourLimit": "Batas Anda",
+    "teamPool": "Kuota tim",
+    "teamPoolOf": "Kuota tim {used} / {limit} mnt",
+    "teamPoolUsed": "Kuota tim {used} mnt",
+    "seatPausedLong": "Kursi Anda dijeda oleh admin",
+    "askAdmin": "Minta tambahan ke admin",
+    "usageError": "Ruang kerja Anda yang lain tidak bisa dimuat.",
+    "billing": "Tagihan dan penggunaan",
+    "theme": "Tema",
+    "themeLight": "Terang",
+    "themeDark": "Gelap"
   }
 }

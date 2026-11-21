@@ -7,6 +7,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-21
 
 - **New:** Team workspaces and a Team plan with seat-based pricing. Create a shared workspace to pool monthly video hours (60 hours and 3 seats included, plus 15 extra hours for each additional seat) and AI edits across your editors, invite teammates by email with Owner, Admin, and Member roles, set optional per-member monthly video and AI edit limits, switch workspaces from the sidebar once you belong to a team, and adjust seats directly from Settings → Team & workspaces. ([#500](https://github.com/FujiwaraChoki/supoclip/pull/500))
+- **Improved:** The bottom of the sidebar is now a single account row: your name, the minutes you have left this month with a ring that fills as you use them, and What's new right beside it. Click it for the theme, team actions and sign out, and hover Usage to see this month's limit in every workspace you belong to, including your own limit inside a team. ([#500](https://github.com/FujiwaraChoki/supoclip/pull/500))
 - **Fixed:** In gaming clips where the game's own subtitles are left without captions, one or two leftover words no longer stay frozen on screen for many seconds, and stray scraps of a subtitled line are no longer captioned on their own. ([#499](https://github.com/FujiwaraChoki/supoclip/pull/499))
 
 ## 2026-11-20

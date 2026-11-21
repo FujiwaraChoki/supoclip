@@ -78,5 +78,26 @@
     "personalSubtitle": "Espacio personal",
     "teamSettings": "Ajustes del equipo",
     "createTeam": "Crear un equipo"
+  },
+  "account": {
+    "menu": "Menú de la cuenta",
+    "minutesLeft": "quedan {count} min",
+    "planMinutesLeft": "{plan} · quedan {count} min",
+    "seatPaused": "Puesto pausado",
+    "usage": "Uso",
+    "usageThisMonth": "Uso de este mes",
+    "current": "Actual",
+    "planLabel": "Plan {plan}",
+    "yourLimit": "Tu límite",
+    "teamPool": "Bolsa del equipo",
+    "teamPoolOf": "Bolsa del equipo {used} / {limit} min",
+    "teamPoolUsed": "Bolsa del equipo {used} min",
+    "seatPausedLong": "Un administrador pausó tu puesto",
+    "askAdmin": "Pide más a un administrador",
+    "usageError": "No se pudieron cargar tus otros espacios de trabajo.",
+    "billing": "Facturación y uso",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro"
   }
 }

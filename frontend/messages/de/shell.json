@@ -78,5 +78,26 @@
     "personalSubtitle": "Persönlicher Workspace",
     "teamSettings": "Team-Einstellungen",
     "createTeam": "Team erstellen"
+  },
+  "account": {
+    "menu": "Kontomenü",
+    "minutesLeft": "noch {count} Min.",
+    "planMinutesLeft": "{plan} · noch {count} Min.",
+    "seatPaused": "Platz pausiert",
+    "usage": "Nutzung",
+    "usageThisMonth": "Nutzung diesen Monat",
+    "current": "Aktuell",
+    "planLabel": "Tarif {plan}",
+    "yourLimit": "Dein Limit",
+    "teamPool": "Team-Kontingent",
+    "teamPoolOf": "Team-Kontingent {used} / {limit} Min.",
+    "teamPoolUsed": "Team-Kontingent {used} Min.",
+    "seatPausedLong": "Dein Platz wurde von einem Admin pausiert",
+    "askAdmin": "Frag einen Admin nach mehr",
+    "usageError": "Deine anderen Workspaces konnten nicht geladen werden.",
+    "billing": "Abrechnung und Nutzung",
+    "theme": "Design",
+    "themeLight": "Hell",
+    "themeDark": "Dunkel"
   }
 }

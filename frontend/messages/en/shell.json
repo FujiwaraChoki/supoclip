@@ -78,5 +78,26 @@
     "personalSubtitle": "Personal workspace",
     "teamSettings": "Team settings",
     "createTeam": "Create a team"
+  },
+  "account": {
+    "menu": "Account menu",
+    "minutesLeft": "{count} min left",
+    "planMinutesLeft": "{plan} · {count} min left",
+    "seatPaused": "Seat paused",
+    "usage": "Usage",
+    "usageThisMonth": "Usage this month",
+    "current": "Current",
+    "planLabel": "{plan} plan",
+    "yourLimit": "Your limit",
+    "teamPool": "Team pool",
+    "teamPoolOf": "Team pool {used} / {limit} min",
+    "teamPoolUsed": "Team pool {used} min",
+    "seatPausedLong": "Your seat is paused by an admin",
+    "askAdmin": "Ask an admin for more",
+    "usageError": "Couldn't load your other workspaces.",
+    "billing": "Billing and usage",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark"
   }
 }
