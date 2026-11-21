@@ -7,9 +7,9 @@ const pro = {
   reason: null, period_end: "2026-12-01T00:00:00Z", max_youtube_duration_seconds: 7200, max_upload_duration_seconds: 7200,
 };
 
-async function mockApp(page: Page) {
+async function mockApp(page: Page, billing: Partial<typeof pro> = {}) {
   await page.route("**/api/auth/get-session**", (route) => route.fulfill({ json: { session: { id: "session", userId: "user", expiresAt: "2099-01-01T00:00:00Z" }, user: { id: "user", name: "Alex", email: "alex@example.com", emailVerified: true } } }));
-  await page.route("**/api/tasks/billing-summary", (route) => route.fulfill({ json: pro }));
+  await page.route("**/api/tasks/billing-summary", (route) => route.fulfill({ json: { ...pro, ...billing } }));
   await page.route("**/api/fonts", (route) => route.fulfill({ json: { fonts: [] } }));
   await page.route("**/api/caption-templates", (route) => route.fulfill({ json: { templates: [{ id: "default", name: "Default", description: "Word captions" }] } }));
   await page.route("**/api/preferences", (route) => route.fulfill({ json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true } }));
@@ -86,4 +86,31 @@ test("the task page says which part was clipped and links to where it starts", a
   await page.goto("/tasks/part");
   await expect(page.getByTestId("source-range")).toHaveText("Part 1:30:00–3:30:00");
   await expect(page.getByRole("link", { name: /YouTube/ }).first()).toHaveAttribute("href", /[?&]t=5400s/);
+});
+
+test("Creator over 180 minutes gets the picker without an upgrade", async ({ page }) => {
+  await mockApp(page, { plan: "scale", max_youtube_duration_seconds: 10800, max_upload_duration_seconds: 10800, minute_limit: 1500, remaining_minutes: 1380 });
+  await page.route("**/api/tasks/create", (route) => route.fulfill({ status: 422, json: { detail: {
+    code: "VIDEO_TOO_LONG", message: "Too long", duration_seconds: 5 * 3600, max_duration_seconds: 10800, range_allowed: true,
+  } } }));
+  await page.goto("/");
+  await page.getByRole("textbox").first().fill("https://kick.com/demo/videos/00000000-0000-0000-0000-000000000000");
+  await page.getByRole("button", { name: "Generate clips" }).click();
+  const panel = page.getByTestId("source-range-panel");
+  await expect(panel.getByText("This 5 h video is over your 180-minute limit")).toBeVisible();
+  await expect(panel.getByRole("button", { name: /Upgrade/ })).toHaveCount(0);
+  await expect(panel.getByRole("textbox", { name: "End" })).toHaveValue("3:00:00");
+});
+
+test("a livestream that is still going gets a clear message, not a picker", async ({ page }) => {
+  await mockApp(page);
+  await page.route("**/api/tasks/create", (route) => route.fulfill({ status: 422, json: { detail: {
+    code: "VIDEO_DURATION_UNAVAILABLE", message: "We couldn't verify this YouTube video's length.",
+  } } }));
+  await page.goto("/");
+  await page.getByRole("textbox").first().fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "Generate clips" }).click();
+  await expect(page.getByTestId("length-error")).toContainText("We couldn't read this video's length");
+  await expect(page.getByTestId("length-error")).toContainText("wait until it ends");
+  await expect(page.getByTestId("source-range-panel")).toHaveCount(0);
 });

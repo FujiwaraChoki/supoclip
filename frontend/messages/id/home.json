@@ -516,7 +516,18 @@
     "bodyUpgrade": "Pilih bagian sampai {minutes} menit dan kami hanya memotong bagian itu, atau upgrade ke {plan} untuk video sampai {nextMinutes} menit. Hanya bagian yang kamu pilih yang dihitung ke menitmu.",
     "submit": "Potong bagian ini",
     "cancel": "Pilih video lain",
-    "upgradeLink": "Bandingkan paket",
-    "label": "Bagian video yang akan dipotong"
+    "label": "Bagian video yang akan dipotong",
+    "upgradeTo": "Upgrade ke {plan} (sampai {minutes} menit per video)",
+    "checkoutFailed": "Checkout tidak terbuka. Coba lagi sebentar lagi."
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "Kami tidak bisa membaca durasi video ini",
+      "body": "Kalau ini livestream yang masih berjalan, tunggu sampai selesai lalu tempel rekaman lengkapnya. Kalau sudah selesai, coba lagi dalam semenit. Tidak ada menit yang terpakai."
+    },
+    "tooLongNoRange": {
+      "title": "Video ini melebihi batas {minutes} menit kamu",
+      "body": "Video ini lebih panjang dari yang diizinkan paketmu, dan bagiannya tidak bisa dipilih di sini. Coba rekaman lengkapnya atau video yang lebih pendek. Tidak ada menit yang terpakai."
+    }
   }
 }

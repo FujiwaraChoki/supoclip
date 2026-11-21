@@ -512,6 +512,10 @@
         "roles": "Funções de Proprietário, Admin e Membro + mais concorrência",
         "aiEdits": "{aiEdits} edições de IA compartilhadas/mês"
       }
+    },
+    "limits": {
+      "monthly": "Vídeo por mês",
+      "perVideo": "Duração máx. por vídeo"
     }
   },
   "faq": {

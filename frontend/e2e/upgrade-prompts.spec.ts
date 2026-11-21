@@ -106,10 +106,12 @@ test("a too-long video offers a part of it and the Creator plan instead of a dea
   await page.getByRole("button", { name: "Generate clips" }).click();
   const panel = page.getByTestId("source-range-panel");
   await expect(panel.getByText("This 2 h video is over your 90-minute limit")).toBeVisible();
-  await panel.getByRole("button", { name: "Compare plans" }).click();
-  await expect(page.getByRole("dialog").getByText("Creator can take this 2 h video")).toBeVisible();
-  await page.waitForTimeout(2200);
-  await page.screenshot({ path: "test-results/upgrade-dialog-too-long.png" });
+  await page.route("**/api/billing/checkout", (route) => route.fulfill({ json: { url: "https://checkout.example/creator" } }));
+  await page.route("https://checkout.example/creator", (route) => route.fulfill({ contentType: "text/html", body: "Demo Checkout transport" }));
+  const checkout = page.waitForRequest((request) => request.url().endsWith("/api/billing/checkout") && request.method() === "POST");
+  await panel.getByRole("button", { name: "Upgrade to Creator (up to 180 min per video)" }).click();
+  expect((await checkout).postDataJSON()).toMatchObject({ plan: "scale", interval: "month" });
+  await expect(page).toHaveURL("https://checkout.example/creator");
 });
 
 test("settings shows Pro users the step up to Creator and yearly billing", async ({ page }) => {

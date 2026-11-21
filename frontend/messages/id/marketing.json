@@ -512,6 +512,10 @@
         "roles": "Peran Pemilik, Admin & Anggota + konkurensi lebih tinggi",
         "aiEdits": "{aiEdits} edit AI bersama/bln"
       }
+    },
+    "limits": {
+      "monthly": "Video per bulan",
+      "perVideo": "Durasi maks. per video"
     }
   },
   "faq": {

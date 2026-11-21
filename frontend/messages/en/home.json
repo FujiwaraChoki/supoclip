@@ -516,7 +516,18 @@
     "bodyUpgrade": "Pick a part up to {minutes} minutes and we'll clip just that, or upgrade to {plan} for videos up to {nextMinutes} minutes. Only the part you pick counts toward your minutes.",
     "submit": "Clip this part",
     "cancel": "Choose another video",
-    "upgradeLink": "Compare plans",
-    "label": "Part of the video to clip"
+    "label": "Part of the video to clip",
+    "upgradeTo": "Upgrade to {plan} (up to {minutes} min per video)",
+    "checkoutFailed": "Checkout didn't open. Try again in a moment."
+  },
+  "lengthErrors": {
+    "durationUnavailable": {
+      "title": "We couldn't read this video's length",
+      "body": "If it's a livestream that's still going, wait until it ends and paste the finished recording. If it has already ended, try again in a minute. No minutes were used."
+    },
+    "tooLongNoRange": {
+      "title": "This video is over your {minutes}-minute limit",
+      "body": "It's longer than your plan allows, and part of it can't be picked here. Try the finished recording or a shorter video. No minutes were used."
+    }
   }
 }
