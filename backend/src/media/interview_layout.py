@@ -183,12 +183,14 @@ COVER_MIN_DIFFERENCE = 10.0
 # A face cluster this steady in a shot without a close subject is its subject.
 COVER_FACE_SUPPORT = 0.6
 
-# Over the shoulder at equal size: the person facing the lens has both eyes apart (their spacing is this
-# share of the face's width or more), the one seen from behind has them drawn together or guessed (this
-# share or less). Two people in profile (a side-on two-shot) are both in between or both low, and keep
-# their panels.
+# Over the shoulder at equal size: the person facing the lens has both eyes apart (their spacing is
+# FACING_MIN_EYE_RATIO of the face's width or more). On the back of a head the detector still fires,
+# with the eyes and the corners of the mouth drawn together (both at or under the TURNED ratios). A
+# person in profile, who may well be the one speaking, keeps a visible mouth width and is not "behind";
+# two people in profile (a side-on two-shot) keep their panels.
 FACING_MIN_EYE_RATIO = 0.27
-TURNED_MAX_EYE_RATIO = 0.2
+TURNED_MAX_EYE_RATIO = 0.12
+TURNED_MAX_MOUTH_RATIO = 0.1
 # A layout that changes where the camera did not cut (someone leaves a two-shot, a face is lost and
 # found again) holds at least this long on both sides. Shorter than that it is a flash of another
 # framing in one continuous shot, and the stretch stays with the neighbour it was not cut from.
@@ -463,48 +465,63 @@ def _cover_centre(
     return float(np.median([getattr(e, "focus_center", 0.5) for e in evidence]))
 
 
-def turned_away(ratios: Optional[Sequence[Optional[float]]]) -> Optional[int]:
+def turned_away(ratios: Optional[Sequence[Optional[Tuple[float, float]]]]) -> Optional[int]:
     """Index (0 or 1) of the person seen from behind in an over-the-shoulder two-shot, else None.
 
-    ``ratios`` are the two people's eye spacings as a share of their face widths. Only a clear
-    difference counts: one facing the lens, the other turned away. Unknown values never change a layout.
+    ``ratios`` are the two people's (eye spacing, mouth width) as shares of their face widths. Only a
+    clear difference counts: one facing the lens, the other with eyes and mouth collapsed, which is
+    the back of a head. A profile is not that. Unknown values never change a layout.
     """
     if not ratios or len(ratios) != 2 or ratios[0] is None or ratios[1] is None:
         return None
-    first, second = float(ratios[0]), float(ratios[1])
-    if first >= FACING_MIN_EYE_RATIO and second <= TURNED_MAX_EYE_RATIO:
+
+    def facing(person: Tuple[float, float]) -> bool:
+        return person[0] >= FACING_MIN_EYE_RATIO
+
+    def behind(person: Tuple[float, float]) -> bool:
+        return person[0] <= TURNED_MAX_EYE_RATIO and person[1] <= TURNED_MAX_MOUTH_RATIO
+
+    first, second = ratios
+    if facing(first) and behind(second):
         return 1
-    if second >= FACING_MIN_EYE_RATIO and first <= TURNED_MAX_EYE_RATIO:
+    if facing(second) and behind(first):
         return 0
     return None
 
 
 def eye_ratios(
     detections: Sequence[Sequence[Sequence[float]]], boxes: Sequence[Box], scale: float = 1.0,
-) -> List[Optional[float]]:
-    """Per face box, the median eye spacing over face width in the frames where that face was found.
+) -> List[Optional[Tuple[float, float]]]:
+    """Per face box, the median (eye spacing, mouth width) over face width in the frames where that
+    face was found.
 
     ``detections`` holds, per frame, YuNet rows with landmarks (x, y, w, h, score, right eye x, y, left
-    eye x, y, ...) in probe pixels; ``scale`` turns them into the boxes' pixels. A face seen in fewer than
-    two frames is unknown.
+    eye x, y, nose x, y, right mouth corner x, y, left mouth corner x, y) in probe pixels; ``scale``
+    turns them into the boxes' pixels. A face seen in fewer than two frames is unknown.
     """
-    found: List[List[float]] = [[] for _ in boxes]
+    found: List[List[Tuple[float, float]]] = [[] for _ in boxes]
     for frame in detections:
         for row in frame:
             x, y, w, h = (float(v) * scale for v in row[:4])
-            if w <= 0 or len(row) < 9:
+            if w <= 0 or len(row) < 15:
                 continue
             cx, cy = x + w / 2, y + h / 2
             for index, (bx, by, bw, bh) in enumerate(boxes):
                 if bx - 0.3 * bw <= cx <= bx + 1.3 * bw and by - 0.3 * bh <= cy <= by + 1.3 * bh:
-                    found[index].append(abs(float(row[7]) - float(row[5])) * scale / w)
+                    eyes = abs(float(row[7]) - float(row[5])) * scale / w
+                    mouth = abs(float(row[13]) - float(row[11])) * scale / w
+                    found[index].append((eyes, mouth))
                     break
-    return [float(np.median(values)) if len(values) >= 2 else None for values in found]
+    return [
+        (float(np.median([v[0] for v in values])), float(np.median([v[1] for v in values])))
+        if len(values) >= 2 else None
+        for values in found
+    ]
 
 
 def probe_eye_ratios(
     input_path: Path, start: float, end: float, boxes: Sequence[Box], width: int, height: int,
-) -> Optional[List[Optional[float]]]:
+) -> Optional[List[Optional[Tuple[float, float]]]]:
     """``eye_ratios`` of a stretch of the clip, from a few of its frames. None when they cannot be read."""
     from .face_detection import open_yunet_detector
 
@@ -545,9 +562,9 @@ def _classify(
     """The composition of one stretch of a shot. ``allow_pair=False`` never stacks: the stretch is part of a
     two-shot where only one side is on screen, so it frames whoever is there.
 
-    ``facing(start, end, boxes)`` returns, per face box, how far apart its eyes are as a share of its width
-    (None when it cannot tell). Two people of equal size where one faces the lens and the other shows the
-    back of the head are an over-the-shoulder shot: the one facing the lens is the subject."""
+    ``facing(start, end, boxes)`` returns, per face box, how far apart its eyes and its mouth corners are as
+    shares of its width (None when it cannot tell). Two people of equal size where one faces the lens and the
+    other shows the back of the head are an over-the-shoulder shot: the one facing the lens is the subject."""
     segment.times = [t for t, _ in samples]
     if segment.graphic:
         segment.kind, segment.reason = "fit", "graphic"
@@ -1033,8 +1050,9 @@ def _steady(segments: List[Segment], cuts: Sequence[float]) -> List[Segment]:
     """Take out layouts that flash by inside one continuous shot.
 
     A stretch shorter than ``UNCUT_HOLD_SECONDS`` whose start or end is not a camera cut joins the
-    neighbour on that side (the longer one when neither side is a cut). A short shot between two
-    cuts is the source's own editing and keeps its framing.
+    neighbour on that side. When neither side is a cut it joins the neighbour framed the same way,
+    else the longer one. A short shot between two cuts is the source's own editing and keeps its
+    framing.
     """
     def on_cut(time: float) -> bool:
         return any(abs(time - cut) <= CUT_MATCH_SECONDS for cut in cuts)
@@ -1055,7 +1073,13 @@ def _steady(segments: List[Segment], cuts: Sequence[float]) -> List[Segment]:
             index += 1
             continue
         if left and right:
-            keep = index - 1 if length(segments[index - 1]) >= length(segments[index + 1]) else index + 1
+            before, after = segments[index - 1], segments[index + 1]
+            if (before.kind == segment.kind) != (after.kind == segment.kind):
+                # It joins the framing it already has: a moment of one person stays a single crop
+                # instead of holding two panels over a place where nobody is.
+                keep = index - 1 if before.kind == segment.kind else index + 1
+            else:
+                keep = index - 1 if length(before) >= length(after) else index + 1
         else:
             keep = index - 1 if left else index + 1
         neighbour = segments[keep]
@@ -1544,9 +1568,9 @@ def plan_interview_layout(
             index -= 1
         return frames[index].reshape(CUT_PROBE_H, CUT_PROBE_W)
 
-    seen: Dict[Tuple[float, float], Optional[List[Optional[float]]]] = {}
+    seen: Dict[Tuple[float, float], Optional[List[Optional[Tuple[float, float]]]]] = {}
 
-    def facing(start: float, end: float, boxes: Sequence[Box]) -> Optional[List[Optional[float]]]:
+    def facing(start: float, end: float, boxes: Sequence[Box]) -> Optional[List[Optional[Tuple[float, float]]]]:
         # The plan is built twice (sampled cuts, then exact ones); most stretches are the same both times.
         if input_path is None:
             return None

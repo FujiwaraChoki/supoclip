@@ -750,7 +750,7 @@ def _facing_probe(monkeypatch, answers):
 
 def test_a_person_seen_from_behind_gets_no_panel(monkeypatch):
     # From 9 s the left person has turned their back (eyes drawn together), the right one faces the lens.
-    _facing_probe(monkeypatch, lambda start: [0.42, 0.44] if start < 9 else [0.05, 0.43])
+    _facing_probe(monkeypatch, lambda start: [(0.42, 0.4), (0.44, 0.41)] if start < 9 else [(0.05, 0.03), (0.43, 0.4)])
     result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
     assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "single")]
     assert result["segments"][2]["reason"] == "over_shoulder"
@@ -762,7 +762,7 @@ def test_a_person_seen_from_behind_gets_no_panel(monkeypatch):
 
 def test_two_people_in_profile_keep_their_panels(monkeypatch):
     # A side-on two-shot: neither face shows both eyes apart, and neither is singled out.
-    _facing_probe(monkeypatch, lambda _start: [0.12, 0.16])
+    _facing_probe(monkeypatch, lambda _start: [(0.12, 0.2), (0.16, 0.22)])
     result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
     assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "pair")]
 
@@ -771,33 +771,44 @@ def test_an_unreadable_probe_keeps_the_two_shot(monkeypatch):
     _facing_probe(monkeypatch, lambda _start: None)
     result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
     assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "pair")]
-    _facing_probe(monkeypatch, lambda _start: [0.4, None])
+    _facing_probe(monkeypatch, lambda _start: [(0.4, 0.4), None])
     assert kinds(plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4")))[2][2] == "pair"
+
+
+def test_a_speaker_in_profile_keeps_their_panel(monkeypatch):
+    """Seen from the side the eyes are close together too, but the mouth is there: not the back of a head.
+    Dropping that person can take the one who is speaking off screen."""
+    _facing_probe(monkeypatch, lambda _start: [(0.46, 0.38), (0.07, 0.12)])
+    result = plan(OVER_SHOULDER, [5, 9], 14, input_path=Path("clip.mp4"))
+    assert kinds(result) == [(0, 5, "pair"), (5, 9, "single"), (9, 14, "pair")]
 
 
 def test_turned_away_needs_a_clear_difference():
     from src.media.interview_layout import turned_away
-    assert turned_away([0.42, 0.05]) == 1
-    assert turned_away([0.18, 0.31]) == 0
-    assert turned_away([0.42, 0.26]) is None     # a three-quarter view is still a face
-    assert turned_away([0.15, 0.1]) is None      # both in profile
-    assert turned_away([0.4, None]) is None and turned_away(None) is None
+    front, behind, profile, three_quarter = (0.42, 0.4), (0.05, 0.03), (0.07, 0.12), (0.2, 0.18)
+    assert turned_away([front, behind]) == 1
+    assert turned_away([behind, front]) == 0
+    assert turned_away([front, profile]) is None        # a profile keeps its mouth: it may be the speaker
+    assert turned_away([front, three_quarter]) is None
+    assert turned_away([profile, behind]) is None       # nobody faces the lens
+    assert turned_away([front, None]) is None and turned_away(None) is None
 
 
 def test_eye_ratios_match_detections_to_the_people():
     from src.media.interview_layout import eye_ratios
 
-    def row(box, spacing):
+    def row(box, eyes, mouth):
         x, y, w, h = box
-        return [x, y, w, h, 0.93, x + w * 0.3, y + h * 0.4, x + w * (0.3 + spacing), y + h * 0.4]
+        return [x, y, w, h, 0.93, x + w * 0.3, y + h * 0.4, x + w * (0.3 + eyes), y + h * 0.4,
+                x + w * 0.5, y + h * 0.6, x + w * 0.35, y + h * 0.8, x + w * (0.35 + mouth), y + h * 0.8]
 
-    # Probe frames at half the clip's size; the left face is frontal, the right one turned away.
+    # Probe frames at half the clip's size; the left face is frontal, the right one is the back of a head.
     half = lambda box: tuple(v / 2 for v in box)
-    frames = [[row(half(HOST), 0.4), row(half(GUEST), 0.08)] for _ in range(4)] + [[]]
+    frames = [[row(half(HOST), 0.4, 0.36), row(half(GUEST), 0.08, 0.04)] for _ in range(4)] + [[]]
     ratios = eye_ratios(frames, [HOST, GUEST], scale=2.0)
-    assert ratios[0] == pytest.approx(0.4) and ratios[1] == pytest.approx(0.08)
+    assert ratios[0] == pytest.approx((0.4, 0.36)) and ratios[1] == pytest.approx((0.08, 0.04))
     # Seen in one frame only: unknown.
-    assert eye_ratios([[row(half(HOST), 0.4)]], [HOST, GUEST], scale=2.0) == [None, None]
+    assert eye_ratios([[row(half(HOST), 0.4, 0.36)]], [HOST, GUEST], scale=2.0) == [None, None]
 
 
 @needs_ffmpeg
@@ -829,6 +840,14 @@ def test_a_flash_of_another_layout_with_no_camera_cut_joins_its_neighbour():
     # How the clip opens and closes is not a flash: a short first or last stretch stays.
     edges = [_seg(0, 0.8), _seg(0.8, 9, "pair"), _seg(9, 9.6)]
     assert len(_steady(edges, cuts=[])) == 3
+
+
+def test_a_flash_joins_the_neighbour_framed_the_same_way():
+    from src.media.interview_layout import _steady
+    # One person for a moment between a long two-shot and a single crop: it stays a single crop,
+    # instead of two panels held over a place where nobody is.
+    steady = _steady([_seg(0, 6, "pair"), _seg(6, 6.8), _seg(6.8, 9), _seg(9, 12, "pair")], cuts=[])
+    assert [(s.start, s.end, s.kind) for s in steady] == [(0, 6, "pair"), (6, 9, "single"), (9, 12, "pair")]
 
 
 def test_a_short_shot_between_two_camera_cuts_keeps_its_framing():
