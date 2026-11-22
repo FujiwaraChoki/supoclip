@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-22
 
+- **Fixed:** In a split screen of two people, captions now sit on the line between the two halves instead of across the lower person's mouth or chin. ([#561](https://github.com/FujiwaraChoki/supoclip/pull/561))
 - **Improved:** The upgrade dialog now shows a moving two-column gallery of live-playing vertical clips made with SupoClip beneath the plan's monthly hours, along with a link to the full examples catalog. ([#557](https://github.com/FujiwaraChoki/supoclip/pull/557))
 - **Improved:** SupoClip's top five creator guides on the blog—covering GTA 6 clipping (including its interactive payout calculator and moment map), Twitch VODs, video podcasts, finding the best moments, and word-by-word captions—are now localized in Spanish, Portuguese, and Bahasa Indonesia. ([#556](https://github.com/FujiwaraChoki/supoclip/pull/556))
 
