@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-22
 
-- **Improved:** The upgrade dialog now shows a moving collage of real vertical clips made with SupoClip beneath the plan's monthly hours, with muted video preview on hover and a link to the full examples catalog. ([PR](https://github.com/FujiwaraChoki/supoclip/pulls))
+- **Improved:** The upgrade dialog now shows a moving collage of real vertical clips made with SupoClip beneath the plan's monthly hours, with muted video preview on hover and a link to the full examples catalog. ([#557](https://github.com/FujiwaraChoki/supoclip/pull/557))
 
 ## 2026-11-21
 
