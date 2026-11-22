@@ -124,5 +124,9 @@
   "comingSoon": "即将推出",
   "teamWorkspaceBody": "{team} 使用共享团队订阅。团队所有者可以开通套餐或增加席位以扩充每月共享时长。",
   "manageTeamSeats": "管理团队与席位",
-  "teamAskOwner": "{team} 使用共享团队订阅。请联系团队所有者开通套餐或增加席位。"
+  "teamAskOwner": "{team} 使用共享团队订阅。请联系团队所有者开通套餐或增加席位。",
+  "gallery": {
+    "regionLabel": "使用 SupoClip 制作的示例片段",
+    "viewAll": "更多示例"
+  }
 }
