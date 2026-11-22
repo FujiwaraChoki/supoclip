@@ -124,5 +124,14 @@
   "comingSoon": "Em breve",
   "teamWorkspaceBody": "{team} usa uma assinatura compartilhada de Equipe. Proprietários podem ativar o plano ou adicionar assentos para ampliar as horas mensais.",
   "manageTeamSeats": "Gerenciar equipe e assentos",
-  "teamAskOwner": "{team} usa uma assinatura compartilhada de Equipe. Peça ao proprietário da equipe para ativar o plano ou adicionar assentos."
+  "teamAskOwner": "{team} usa uma assinatura compartilhada de Equipe. Peça ao proprietário da equipe para ativar o plano ou adicionar assentos.",
+  "gallery": {
+    "regionLabel": "Clipes de exemplo feitos com o SupoClip",
+    "viewAll": "Mais exemplos",
+    "groups": {
+      "interview": "Podcast",
+      "gaming": "Gaming",
+      "vlog": "Vlog"
+    }
+  }
 }

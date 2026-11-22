@@ -124,5 +124,14 @@
   "comingSoon": "Coming soon",
   "teamWorkspaceBody": "{team} uses a pooled Team subscription. Owners can activate the plan or add seats to expand pooled monthly hours.",
   "manageTeamSeats": "Manage team & seats",
-  "teamAskOwner": "{team} uses a pooled Team subscription. Ask the team owner to start the plan or add seats."
+  "teamAskOwner": "{team} uses a pooled Team subscription. Ask the team owner to start the plan or add seats.",
+  "gallery": {
+    "regionLabel": "Example clips made with SupoClip",
+    "viewAll": "More examples",
+    "groups": {
+      "interview": "Podcast",
+      "gaming": "Gaming",
+      "vlog": "Vlog"
+    }
+  }
 }

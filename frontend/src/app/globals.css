@@ -264,3 +264,36 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+
+/* Upgrade dialog: staggered vertical example-clip gallery */
+@keyframes upgrade-gallery-up {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
+}
+@keyframes upgrade-gallery-down {
+  from { transform: translate3d(0, -50%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+.upgrade-gallery-track {
+  will-change: transform;
+}
+.upgrade-gallery-up {
+  animation: upgrade-gallery-up var(--gallery-duration, 36s) linear infinite;
+}
+.upgrade-gallery-down {
+  animation: upgrade-gallery-down var(--gallery-duration, 42s) linear infinite;
+}
+.upgrade-gallery:hover .upgrade-gallery-track,
+.upgrade-gallery:focus-within .upgrade-gallery-track {
+  animation-play-state: paused;
+}
+.upgrade-gallery-mask {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 11%, black 89%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 11%, black 89%, transparent 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-gallery-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}
