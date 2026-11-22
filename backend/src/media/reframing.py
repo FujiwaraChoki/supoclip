@@ -1486,10 +1486,55 @@ def build_vertical_filter_plan(
             report["interview_segments"] = described["interview_segments"]
         if described.get("gaming"):
             report["gaming"] = described["gaming"]
+        if described.get("letterbox"):
+            report["letterbox"] = described["letterbox"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
 def describe_vertical_layout(
+    input_path: Path,
+    width: int,
+    height: int,
+    speaker_turns: Optional[List[Dict[str, Any]]] = None,
+    speaker_words: Optional[List[Dict[str, Any]]] = None,
+    allow_kenburns: bool = True,
+) -> Dict[str, Any]:
+    """The clip's 9:16 plan (``_describe_vertical_layout``), made on the picture without its black bars.
+
+    A source with a film look carries black bars at the top and bottom of every frame. They are measured
+    (``letterbox.detect_letterbox``), the layout is planned on the picture between them, and the plan
+    starts with the crop that removes them, so it applies to the uncropped clip and the studio can replay
+    it. ``letterbox`` in the result holds the (top, bottom) rows removed. A clip without bars, or one
+    whose bars cannot be measured, is planned as it is.
+    """
+    from .letterbox import cropped_copy, detect_letterbox, plan_on_picture
+
+    kenburns = {} if allow_kenburns else {"allow_kenburns": False}
+    try:
+        bars = detect_letterbox(input_path, width, height)
+    except Exception as exc:  # noqa: BLE001 - the clip is planned with its bars
+        logger.warning("Letterbox check failed (%s); planning the whole frame", exc)
+        bars = None
+    if not bars:
+        return _describe_vertical_layout(input_path, width, height, speaker_turns, speaker_words, **kenburns)
+    top, bottom = bars
+    picture_h = height - top - bottom
+    with tempfile.TemporaryDirectory(prefix="supoclip_letterbox_") as scratch:
+        picture = Path(scratch) / "picture.mp4"
+        if not cropped_copy(input_path, picture, width, picture_h, top):
+            return _describe_vertical_layout(input_path, width, height, speaker_turns, speaker_words, **kenburns)
+        described = dict(_describe_vertical_layout(picture, width, picture_h, speaker_turns, speaker_words, **kenburns))
+    if described.get("kind") == "gaming":
+        # A game's own subtitles can sit in a bar, and the gameplay layout leaves captions off for the
+        # lines they carry. Cutting the bar would leave those lines with neither.
+        return _describe_vertical_layout(input_path, width, height, speaker_turns, speaker_words, **kenburns)
+    described["video_filter"] = plan_on_picture(described["video_filter"], described["mode"], width, picture_h, top)
+    described["letterbox"] = [top, bottom]
+    logger.info("Letterbox bars removed before layout: %d px top, %d px bottom", top, bottom)
+    return described
+
+
+def _describe_vertical_layout(
     input_path: Path,
     width: int,
     height: int,
