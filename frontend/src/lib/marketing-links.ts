@@ -1,3 +1,6 @@
+import type { Locale } from "@/i18n/config";
+import { GUIDE_LOCALES } from "@/lib/localized-guides";
+
 /**
  * Single registry of indexable marketing pages. The landing page, footer,
  * SEO pages, and blog all link from here so new pages are never orphaned.
@@ -5,8 +8,8 @@
 export type MarketingLinkGroup = "product" | "guide" | "comparison";
 
 export interface MarketingLink {
-  /** English-only editorial destinations keep their English navigation labels. */
-  language?: "en";
+  /** Supported locales for partially-translated editorial destinations; omit when covered in all app locales. */
+  languages?: readonly Locale[];
   href: string;
   group: MarketingLinkGroup;
   eyebrow: string;
@@ -23,13 +26,13 @@ export const OPUSCLIP_COMPARISON_HREF = "/blog/supoclip-vs-opusclip";
 
 export const marketingLinks: MarketingLink[] = [
   {
-    href: "/blog/how-to-clip-gta-6", language: "en", group: "guide", eyebrow: "GTA 6 clipping",
+    href: "/blog/how-to-clip-gta-6", languages: GUIDE_LOCALES, group: "guide", eyebrow: "GTA 6 clipping",
     title: "How to clip GTA 6", label: "How to clip GTA 6",
     description: "What clipping campaigns pay, Rockstar's rules, and the workflow from VOD to vertical clips.",
     related: ["/blog/twitch-vod-to-shorts", "/blog/find-best-moments-in-video", "/blog/tiktok-publishing-is-live"],
   },
   {
-    href: "/blog/tiktok-publishing-is-live", language: "en", group: "guide", eyebrow: "Product update",
+    href: "/blog/tiktok-publishing-is-live", languages: ["en"], group: "guide", eyebrow: "Product update",
     title: "TikTok publishing is now live in SupoClip", label: "TikTok publishing",
     description: "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator.",
     related: ["/blog/schedule-week-of-youtube-shorts", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
@@ -107,43 +110,43 @@ export const marketingLinks: MarketingLink[] = [
     related: ["/open-source-video-clipper", SELF_HOSTING_GUIDE_HREF, OPUSCLIP_COMPARISON_HREF],
   },
   {
-    href: "/blog/podcast-to-shorts", language: "en", group: "guide", eyebrow: "Podcast clips",
+    href: "/blog/podcast-to-shorts", languages: GUIDE_LOCALES, group: "guide", eyebrow: "Podcast clips",
     title: "Turn a video podcast into Shorts and Reels", label: "Podcast to Shorts",
     description: "Choose complete ideas, correct captions, and follow real clips back to the source.",
     related: ["/blog/tiktok-publishing-is-live", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
   },
   {
-    href: "/blog/find-best-moments-in-video", language: "en", group: "guide", eyebrow: "Highlight selection",
+    href: "/blog/find-best-moments-in-video", languages: GUIDE_LOCALES, group: "guide", eyebrow: "Highlight selection",
     title: "Find the best moments in a long video", label: "Find video highlights",
     description: "Use a practical checklist for hooks, context, payoff, and clean boundaries.",
     related: ["/blog/podcast-to-shorts", "/blog/repurpose-webinar-clips", "/ai-video-clipper"],
   },
   {
-    href: "/blog/twitch-vod-to-shorts", language: "en", group: "guide", eyebrow: "Stream clips",
+    href: "/blog/twitch-vod-to-shorts", languages: GUIDE_LOCALES, group: "guide", eyebrow: "Stream clips",
     title: "Turn Twitch VODs into TikTok clips and Shorts", label: "Twitch VOD to Shorts",
     description: "Review spoken highlights, preserve gameplay context, and export vertical clips.",
     related: ["/blog/how-to-clip-gta-6", "/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions"],
   },
   {
-    href: "/blog/repurpose-webinar-clips", language: "en", group: "guide", eyebrow: "Webinar repurposing",
+    href: "/blog/repurpose-webinar-clips", languages: ["en"], group: "guide", eyebrow: "Webinar repurposing",
     title: "Repurpose a webinar into social media clips", label: "Webinar clips",
     description: "Turn audience questions and useful answers into clips with readable slides and captions.",
     related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/blog/schedule-week-of-youtube-shorts"],
   },
   {
-    href: "/blog/word-by-word-video-captions", language: "en", group: "guide", eyebrow: "Caption editing",
+    href: "/blog/word-by-word-video-captions", languages: GUIDE_LOCALES, group: "guide", eyebrow: "Caption editing",
     title: "Add readable word-by-word captions to clips", label: "Word-by-word captions",
     description: "Correct the transcript, choose a style, and keep subtitles clear of platform controls.",
     related: ["/blog/podcast-to-shorts", "/blog/twitch-vod-to-shorts", "/blog/repurpose-webinar-clips"],
   },
   {
-    href: "/blog/schedule-week-of-youtube-shorts", language: "en", group: "guide", eyebrow: "Publishing workflow",
+    href: "/blog/schedule-week-of-youtube-shorts", languages: ["en"], group: "guide", eyebrow: "Publishing workflow",
     title: "Create and schedule a week of YouTube Shorts", label: "Schedule YouTube Shorts",
     description: "Build a distinct batch, review each clip, and verify scheduled publication.",
     related: ["/blog/podcast-to-shorts", "/youtube-shorts-clipper", "/blog/repurpose-webinar-clips"],
   },
   {
-    href: "/blog/open-source-video-clippers", language: "en", group: "comparison", eyebrow: "Open-source comparison",
+    href: "/blog/open-source-video-clippers", languages: ["en"], group: "comparison", eyebrow: "Open-source comparison",
     title: "Compare SupoClip, Clips AI, and Auto-Editor", label: "Open-source video clippers",
     description: "Choose an app, Python library, or command-line tool for the editing job you need.",
     related: ["/open-source-video-clipper", SELF_HOSTING_GUIDE_HREF, OPUSCLIP_COMPARISON_HREF],

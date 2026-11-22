@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -56,6 +56,7 @@ import {
   getMarketingLink,
   type MarketingLink,
 } from "@/lib/marketing-links";
+import { contentLangAttr } from "@/lib/localized-guides";
 import { APP_STORE_URL, DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL, SOURCE_LICENSE_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -215,6 +216,7 @@ function PrimaryCta({ authEnabled, label, hostedLabel, className }: {
 }
 
 export default function LandingPage() {
+  const locale = useLocale();
   const t = useTranslations("marketing");
   const tCommon = useTranslations("common");
   const planText = useBillingPlanText();
@@ -801,7 +803,7 @@ export default function LandingPage() {
               <Reveal key={resource.href} delay={(index % 2) * 0.06}>
                 <Link
                   href={resource.href}
-                  lang={resource.language}
+                  lang={contentLangAttr(resource.languages, locale)}
                   className="group flex items-start justify-between gap-6 border-b py-6 transition-colors"
                 >
                   <span>
