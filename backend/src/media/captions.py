@@ -975,7 +975,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             line_start = float(chunk[0]["start"])
             for row_start, row_end, row_y in caption_rows:
                 if (line_start >= max(row_start - CAPTION_ROW_EDGE_SECONDS, rows_from)
-                        and chunk_end <= row_end + CAPTION_ROW_EDGE_SECONDS):
+                        and float(chunk[-1]["end"]) <= row_end + CAPTION_ROW_EDGE_SECONDS):
                     prefix = line_prefix(chunk_scale, int(row_y))
                     break
         if placement is not None:
