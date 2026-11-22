@@ -791,6 +791,13 @@ LOOK_CUT_SAMPLES = 3          # samples averaged either side of the step (one se
 LOOK_CUT_MIN_STEP = 24.0      # mean change at the step itself, as for the other cut tests
 LOOK_CUT_MIN_SHIFT = 25.0     # change of the mean colour across the step (0-255, the channel that moves most)
 LOOK_CUT_REACH = 2            # the step is the largest within this many samples
+# On its own the test also fires inside one shot (an explosion, lights going on, a fast pan from shade into sun):
+# a third of its finds on reviewed clips had no cut. So each find is checked at the full frame rate, where a hard
+# cut is one frame-to-frame change and motion is not (``interview_layout.precise_cuts``). That pass is only
+# decoded when the test found something the other tests did not.
+LOOK_CUT_SAME = 0.4           # seconds: a find this close to a cut already known adds nothing
+LOOK_CUT_FRAME_REACH = (0.45, 0.1)   # a sampled cut lies up to one sample before its time; seconds before, after
+LOOK_CUT_MAX_RATE = 1.5       # frame-accurate cuts per second above which that detector is not trusted (judder)
 
 
 def _scene_cuts_from_look(times: Sequence[float], thumbs: Sequence[np.ndarray]) -> List[float]:
@@ -815,6 +822,25 @@ def _scene_cuts_from_look(times: Sequence[float], thumbs: Sequence[np.ndarray]) 
         if float(np.abs(after - before).max()) >= LOOK_CUT_MIN_SHIFT:
             cuts.append(float(times[i]))
     return cuts
+
+
+def _look_cuts_on_real_cuts(input_path: Path, finds: Sequence[float], duration: float) -> List[float]:
+    """The look test's finds that sit on a frame-accurate hard cut. None when that cannot be checked."""
+    if not finds:
+        return []
+    from .interview_layout import frame_changes, precise_cuts
+
+    try:
+        times, thumbnails = frame_changes(input_path)
+        hard = precise_cuts(times, thumbnails, [])
+    except Exception as exc:  # noqa: BLE001 - the cuts already known stand
+        logger.warning("Frame-accurate check of scene changes failed (%s); keeping the sampled cuts", exc)
+        return []
+    if len(hard) > LOOK_CUT_MAX_RATE * max(duration, 1.0):
+        # Footage with repeated frames (judder) reads as a cut every few frames: nothing can be confirmed on it.
+        return []
+    before, after = LOOK_CUT_FRAME_REACH
+    return [c for c in finds if any(-before <= h - c <= after for h in hard)]
 
 
 def analyze_vertical_clip(
@@ -919,10 +945,16 @@ def analyze_vertical_clip(
 
     if proc.returncode != 0:
         raise RuntimeError("Video analysis decoder failed; partial analysis discarded")
-    cuts = sorted(
-        set(_scene_cuts_from_diffs(diffs)) | set(context_scene_cuts(context))
-        | set(_scene_cuts_from_look(thumb_times, thumbs))
-    )
+    cuts = sorted(set(_scene_cuts_from_diffs(diffs)) | set(context_scene_cuts(context)))
+    finds = [
+        c for c in _scene_cuts_from_look(thumb_times, thumbs)
+        if not any(abs(c - known) < LOOK_CUT_SAME for known in cuts)
+    ]
+    if finds:
+        confirmed = _look_cuts_on_real_cuts(input_path, finds, idx / sample_fps)
+        if confirmed:
+            logger.info("Scene changes into busy footage: %s", [round(c, 2) for c in confirmed])
+            cuts = sorted(set(cuts) | set(confirmed))
     return track, cuts, face_samples, context
 
 
