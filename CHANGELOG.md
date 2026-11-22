@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-22
 
-- **Improved:** SupoClip's top five creator guides on the blog—covering GTA 6 clipping (including its interactive payout calculator and moment map), Twitch VODs, video podcasts, finding the best moments, and word-by-word captions—are now localized in Spanish, Portuguese, and Bahasa Indonesia. ([Blog](https://supoclip.com/blog))
+- **Improved:** SupoClip's top five creator guides on the blog—covering GTA 6 clipping (including its interactive payout calculator and moment map), Twitch VODs, video podcasts, finding the best moments, and word-by-word captions—are now localized in Spanish, Portuguese, and Bahasa Indonesia. ([#556](https://github.com/FujiwaraChoki/supoclip/pull/556))
 
 ## 2026-11-21
 
