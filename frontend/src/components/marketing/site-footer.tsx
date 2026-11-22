@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { catalogKey } from "@/i18n/config";
+import { contentLangAttr } from "@/lib/localized-guides";
 import { getMarketingLink, getMarketingLinks } from "@/lib/marketing-links";
 import {
   APP_STORE_URL,
@@ -21,6 +22,7 @@ const linkClassName = "hover:text-foreground transition-colors";
 
 /** Crawlable footer shared by the landing page, SEO pages, and blog. */
 export function SiteFooter() {
+  const locale = useLocale();
   const t = useTranslations("marketing");
   const columns = [
     {
@@ -108,7 +110,7 @@ export function SiteFooter() {
             <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
               {column.hrefs.map((href) => (
                 <li key={href}>
-                  <Link href={href} lang={getMarketingLink(href)?.language} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
+                  <Link href={href} lang={contentLangAttr(getMarketingLink(href)?.languages, locale)} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
                 </li>
               ))}
             </ul>

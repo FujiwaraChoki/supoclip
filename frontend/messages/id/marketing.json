@@ -140,28 +140,28 @@
       "label": "Catatan perubahan"
     },
     "blog_podcast_to_shorts": {
-      "eyebrow": "Podcast clips",
-      "title": "Turn a video podcast into Shorts and Reels",
-      "label": "Podcast to Shorts",
-      "description": "Choose complete ideas, correct captions, and follow real clips back to the source."
+      "eyebrow": "Klip podcast",
+      "title": "Ubah video podcast menjadi Shorts dan Reels",
+      "label": "Podcast ke Shorts",
+      "description": "Pilih gagasan yang utuh, perbaiki subtitle, dan bandingkan klip nyata dengan rekaman aslinya."
     },
     "blog_find_best_moments_in_video": {
-      "eyebrow": "Highlight selection",
-      "title": "Find the best moments in a long video",
-      "label": "Find video highlights",
-      "description": "Use a practical checklist for hooks, context, payoff, and clean boundaries."
+      "eyebrow": "Pilihan highlight",
+      "title": "Temukan momen terbaik di video panjang",
+      "label": "Temukan highlight video",
+      "description": "Gunakan daftar cek praktis untuk hook, konteks, klimaks, dan batas potong yang rapi."
     },
     "blog_twitch_vod_to_shorts": {
-      "eyebrow": "Stream clips",
-      "title": "Turn Twitch VODs into TikTok clips and Shorts",
-      "label": "Twitch VOD to Shorts",
-      "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+      "eyebrow": "Klip stream",
+      "title": "Ubah VOD Twitch jadi klip TikTok dan Shorts",
+      "label": "VOD Twitch ke Shorts",
+      "description": "Tinjau highlight lisan, jaga konteks gameplay, dan ekspor klip vertikal."
     },
     "blog_how_to_clip_gta_6": {
       "eyebrow": "Clipping GTA 6",
       "title": "Cara membuat klip GTA 6",
       "label": "Klip GTA 6",
-      "description": "Bayaran kampanye clipping, aturan Rockstar, dan alur kerja dari VOD ke klip vertikal."
+      "description": "Bayaran kampanye clipping, aturan Rockstar Games, dan alur kerja dari VOD ke klip vertikal."
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -170,10 +170,10 @@
       "description": "Turn audience questions and useful answers into clips with readable slides and captions."
     },
     "blog_word_by_word_video_captions": {
-      "eyebrow": "Caption editing",
-      "title": "Add readable word-by-word captions to clips",
-      "label": "Word-by-word captions",
-      "description": "Correct the transcript, choose a style, and keep subtitles clear of platform controls."
+      "eyebrow": "Edit subtitle",
+      "title": "Tambahkan subtitle kata per kata yang rapi ke klip",
+      "label": "Subtitle kata per kata",
+      "description": "Perbaiki transkrip, pilih gaya, dan jaga subtitle tetap bersih dari tombol platform."
     },
     "blog_schedule_week_of_youtube_shorts": {
       "eyebrow": "Publishing workflow",

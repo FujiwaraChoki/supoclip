@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-22
+
+- **Improved:** The upgrade dialog now shows a moving two-column gallery of live-playing vertical clips made with SupoClip beneath the plan's monthly hours, along with a link to the full examples catalog. ([#557](https://github.com/FujiwaraChoki/supoclip/pull/557))
+- **Improved:** SupoClip's top five creator guides on the blog—covering GTA 6 clipping (including its interactive payout calculator and moment map), Twitch VODs, video podcasts, finding the best moments, and word-by-word captions—are now localized in Spanish, Portuguese, and Bahasa Indonesia. ([#556](https://github.com/FujiwaraChoki/supoclip/pull/556))
+
 ## 2026-11-21
 
 - **Fixed:** Captions follow the way people speak. A caption line now ends where a sentence ends, so one line no longer carries the end of one sentence and the start of the next, and it leaves the screen with its last word instead of staying frozen through a pause (a laugh, a silent stretch of gameplay) with the next words already readable. A sentence of five or six words is shared evenly over two lines instead of leaving a single word behind. A line too brief to read in fast speech joins its neighbour. Applies to newly made clips and re-renders. ([#534](https://github.com/FujiwaraChoki/supoclip/pull/534))

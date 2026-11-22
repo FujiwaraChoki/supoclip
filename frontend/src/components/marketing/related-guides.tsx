@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { catalogKey } from "@/i18n/config";
+import { contentLangAttr } from "@/lib/localized-guides";
 import { getRelatedMarketingLinks } from "@/lib/marketing-links";
 
 const HEADINGS: Record<string, "continueExploring" | "keepReading" | "relatedGuides"> = {
@@ -14,6 +15,7 @@ const HEADINGS: Record<string, "continueExploring" | "keepReading" | "relatedGui
 };
 
 export function RelatedGuides({ href, heading = "Continue exploring" }: { href: string; heading?: string }) {
+  const locale = useLocale();
   const t = useTranslations("marketing");
   const links = getRelatedMarketingLinks(href);
   if (links.length === 0) return null;
@@ -29,7 +31,7 @@ export function RelatedGuides({ href, heading = "Continue exploring" }: { href: 
           <Link
             key={link.href}
             href={link.href}
-            lang={link.language}
+            lang={contentLangAttr(link.languages, locale)}
             className="group rounded-lg border p-5 !no-underline transition-colors hover:border-foreground/30"
           >
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(`links.${catalogKey(link.href)}.eyebrow`)}</p>

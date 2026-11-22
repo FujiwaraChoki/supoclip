@@ -18,7 +18,7 @@ const stroke = {
 };
 
 /** A count that ticks up from `from` to `to`. */
-function CountUp({ from, to }: { from: number; to: number }) {
+export function CountUp({ from, to }: { from: number; to: number }) {
   const reduceMotion = useReducedMotion();
   const value = useMotionValue(reduceMotion ? to : from);
   const rounded = useTransform(value, (latest) => Math.round(latest).toString());
@@ -28,60 +28,6 @@ function CountUp({ from, to }: { from: number; to: number }) {
     return () => controls.stop();
   }, [reduceMotion, to, value]);
   return <motion.span>{rounded}</motion.span>;
-}
-
-/** A clip outline with a speaker and captions, at the origin, 60×106. */
-function ClipGlyph({ highlight }: { highlight?: boolean }) {
-  return (
-    <g {...stroke} strokeOpacity={highlight ? 1 : 0.45}>
-      <rect width={60} height={106} rx={9} />
-      <circle cx={30} cy={52} r={9} />
-      <path d="M11 106 C11 76 49 76 49 106" />
-      <line x1={12} x2={48} y1={84} y2={84} strokeWidth={2.5} />
-      <line x1={18} x2={42} y1={91} y2={91} strokeWidth={2.5} />
-    </g>
-  );
-}
-
-const fanSize = (hours: number) => (hours <= 0 ? 0 : hours <= 12 ? 5 : 9);
-
-/**
- * More video per month: a fan whose size follows the plan's monthly hours (5
- * cards for Pro, 9 for Creator). Cards you already have stay faint; the new ones fan in.
- */
-export function CapacityIllustration({ from, to, label }: { from: number; to: number; label: string }) {
-  const reduceMotion = useReducedMotion();
-  const total = fanSize(to);
-  const existing = fanSize(from);
-  const half = (total - 1) / 2;
-  const spread = total > 5 ? 22 : 32;
-  // Outer cards first so the centre card is drawn on top.
-  const slots = Array.from({ length: total }, (_, i) => i - half).sort((a, b) => Math.abs(b) - Math.abs(a));
-  return (
-    <div>
-      <p className="font-display text-5xl font-bold tracking-tight tabular-nums">
-        <CountUp from={from} to={to} />
-      </p>
-      <p className="mt-1 text-sm text-muted-foreground">{label}</p>
-      <svg viewBox="-150 -10 300 150" className="mt-8 w-full overflow-visible" aria-hidden>
-        {slots.map((slot) => {
-          const isNew = Math.abs(slot) > (existing - 1) / 2;
-          return (
-            <motion.g
-              key={slot}
-              initial={reduceMotion ? false : { x: -30, y: 12, rotate: 0, opacity: isNew ? 0 : 1 }}
-              animate={{ x: slot * spread - 30, y: Math.abs(slot) * 5, rotate: slot * 6, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 140, damping: 17, delay: 0.15 + Math.abs(slot) * 0.06 }}
-              style={{ originX: 0.5, originY: 1 }}
-            >
-              <rect width={60} height={106} rx={9} className="fill-background" />
-              <ClipGlyph highlight={slot === 0 || (isNew && existing > 0)} />
-            </motion.g>
-          );
-        })}
-      </svg>
-    </div>
-  );
 }
 
 /** A long video on a ruler: today's limit is a dashed mark, the bigger plan's reach is the full line. */

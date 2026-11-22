@@ -124,5 +124,9 @@
   "comingSoon": "Próximamente",
   "teamWorkspaceBody": "{team} usa una suscripción compartida de Equipo. Los propietarios pueden activar el plan o agregar puestos para ampliar las horas mensuales.",
   "manageTeamSeats": "Gestionar equipo y puestos",
-  "teamAskOwner": "{team} usa una suscripción compartida de Equipo. Pide al propietario del equipo que active el plan o agregue puestos."
+  "teamAskOwner": "{team} usa una suscripción compartida de Equipo. Pide al propietario del equipo que active el plan o agregue puestos.",
+  "gallery": {
+    "regionLabel": "Clips de ejemplo creados con SupoClip",
+    "viewAll": "Más ejemplos"
+  }
 }

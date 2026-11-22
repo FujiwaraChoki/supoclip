@@ -124,5 +124,9 @@
   "comingSoon": "Segera hadir",
   "teamWorkspaceBody": "{team} menggunakan langganan Tim bersama. Pemilik dapat mengaktifkan paket atau menambah kursi untuk memperluas jam bulanan.",
   "manageTeamSeats": "Kelola tim & kursi",
-  "teamAskOwner": "{team} menggunakan langganan Tim bersama. Minta pemilik tim untuk mengaktifkan paket atau menambah kursi."
+  "teamAskOwner": "{team} menggunakan langganan Tim bersama. Minta pemilik tim untuk mengaktifkan paket atau menambah kursi.",
+  "gallery": {
+    "regionLabel": "Contoh clip yang dibuat dengan SupoClip",
+    "viewAll": "Contoh lainnya"
+  }
 }
