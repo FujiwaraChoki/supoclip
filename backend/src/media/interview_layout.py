@@ -923,6 +923,33 @@ def _segments(
     return segments
 
 
+# A single crop follows one face. When that face is somewhere else from one sample to the next, twice or more in
+# one stretch, the crop is not following a person: the camera whips between people, or the stretch holds several
+# shots the cut tests missed and a different person each time. The crop trails behind and shows walls. Such a
+# stretch keeps the whole picture. (Measured on 292 single crops of reviewed clips: one stretch has such jumps,
+# three of them; the other 291 have none or one.)
+SINGLE_JUMP_CROP_FRAC = 0.5      # a jump: the face centre moves by this much of the crop's width between two samples
+SINGLE_MAX_JUMPS = 2             # jumps in one stretch from which the crop gives way to the whole picture
+
+
+def _face_jumps(segment: Segment, crop_w: float) -> int:
+    """How often the followed face is somewhere else from one sample to the next."""
+    track = segment.tracks[0] if segment.tracks else {}
+    centres = [_centre(track[t])[0] for t in sorted(track) if segment.start <= t < segment.end]
+    return sum(1 for a, b in zip(centres, centres[1:]) if abs(a - b) > SINGLE_JUMP_CROP_FRAC * crop_w)
+
+
+def _wide_where_the_person_is_lost(segments: List[Segment], width: int, height: int) -> List[Segment]:
+    """Single crops that cannot stay on their person show the whole picture instead (see SINGLE_MAX_JUMPS)."""
+    for segment in segments:
+        if segment.kind != "single" or segment.reason != "one_person" or not segment.people:
+            continue
+        crop_w = _single_size(segment.people[0], width, height)[0]
+        if _face_jumps(segment, crop_w) >= SINGLE_MAX_JUMPS:
+            segment.kind, segment.reason = "fit", "person_moves_across_frame"
+    return segments
+
+
 def _same_setup(a: Sequence[Box], b: Sequence[Box], width: int) -> bool:
     if len(a) != len(b):
         return False
@@ -1418,7 +1445,7 @@ def plan_interview_layout(
     if segments is None:
         return None
     _pool_setups(segments, width)
-    segments = _merge_neighbours(segments)
+    segments = _merge_neighbours(_wide_where_the_person_is_lost(_merge_neighbours(segments), width, height))
     video_filter, lowest = build_interview_filter(segments, width, height)
     summary = [_reported(s) for s in segments]
     logger.info("Interview layout: %s", summary)
