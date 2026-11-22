@@ -114,6 +114,30 @@
           ],
           "kwargs": {}
         }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
+        }
       ]
     },
     "layout_report": {
@@ -200,6 +224,30 @@
             "<RENDER>/source.mp4"
           ],
           "kwargs": {}
+        }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
         }
       ]
     },
@@ -406,6 +454,30 @@
           ],
           "kwargs": {}
         }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
+        }
       ]
     },
     "layout_report": {
@@ -588,6 +660,30 @@
           ],
           "kwargs": {}
         }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
+        }
       ]
     },
     "layout_report": {
@@ -692,6 +788,30 @@
             "<RENDER>/source.mp4"
           ],
           "kwargs": {}
+        }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
         }
       ]
     },
@@ -861,6 +981,30 @@
             ]
           }
         }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
+        }
       ]
     },
     "layout_report": {
@@ -947,6 +1091,30 @@
             "<RENDER>/source.mp4"
           ],
           "kwargs": {}
+        }
+      ],
+      "stream_copy": [
+        {
+          "args": [
+            [
+              "ffprobe",
+              "-v",
+              "error",
+              "-select_streams",
+              "v:0",
+              "-count_packets",
+              "-show_entries",
+              "stream=nb_read_packets,avg_frame_rate",
+              "-of",
+              "csv=p=0",
+              "<RENDER>/source.mp4"
+            ]
+          ],
+          "kwargs": {
+            "capture_output": true,
+            "text": true,
+            "timeout": 120
+          }
         }
       ]
     },
