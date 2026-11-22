@@ -399,6 +399,12 @@ def create_optimized_clip(
                 **offsets_kwargs,
             ):
                 raise RuntimeError("ffmpeg source-range render failed")
+            try:
+                # A shot change a few frames from either end would open or close the clip on another scene.
+                from .media.edge_shots import hold_stray_edge_shots
+                hold_stray_edge_shots(source_clip_path)
+            except Exception as exc:  # noqa: BLE001 - the clip renders as cut
+                logger.warning("Edge shot check failed (%s); keeping the cut as it is", exc)
 
             reframe_format = (
                 output_format if output_format in VALID_OUTPUT_FORMATS else "vertical"

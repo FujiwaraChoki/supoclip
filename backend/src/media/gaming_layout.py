@@ -116,6 +116,17 @@ MIN_CAMERA_MOTION = 0.03       # share of the camera rectangle that moves: a log
 VIRTUAL_CAMERA_WIDTH = 4.2     # a keyed-out streamer has no rectangle: one is drawn around the head, in face widths
 VIRTUAL_CAMERA_ABOVE, VIRTUAL_CAMERA_BELOW = 0.7, 1.4  # ... and in face heights above and below the face
 VIRTUAL_CAMERA_FACE_MAX_AREA = 0.02  # a larger still face is a person filmed, not an inset
+# A head whose chin sits at the bottom of the picture was pasted there (someone filmed has a body below the face),
+# so over a HUD it may be larger. Measured on duo streams: 2.1-2.7 % of the frame, chin at 93-95 % of the height.
+KEYED_LOW_CHIN = 0.9
+KEYED_LOW_FACE_MAX_AREA = 0.035
+# Streamers side by side without a camera rectangle share one. A companion head is there for a good part of the
+# clip, on the same row (centres within KEYED_GROUP_ROW of the taller head's height), of a like size (heights
+# within KEYED_GROUP_SIZE of each other) and close (the gap is at most KEYED_GROUP_GAP widths of the wider head).
+KEYED_GROUP_MIN_PRESENCE = 0.3
+KEYED_GROUP_ROW = 0.6
+KEYED_GROUP_SIZE = 2.0
+KEYED_GROUP_GAP = 1.5
 # A face is a picture (a logo, an avatar) when hardly any of it ever changes. Measured over 30 samples: a
 # streamer sitting still 0.60-1.0 of the face box, pictures 0.0-0.13. Fewer samples cannot tell a calm moment
 # from a picture, and the face counts as a person.
@@ -131,6 +142,11 @@ STICKER_WIDTH = 0.2               # of the canvas
 STICKER_MAX_SCALE = 1.6
 STICKER_TOP, STICKER_SIDE = 0.06, 0.035   # where it sits, of the canvas height and width
 STICKER_FROM_SECONDS = HOOK_TITLE_SECONDS + 0.2   # the hook title has the top of the frame until then
+# The hook title is drawn on the seam under the camera (at the top of the frame without one), which is where the
+# game's top elements are pasted. A cut-out within this much of the canvas height below the title's row waits
+# until the title has gone, so the title is never printed on the game's own text.
+HOOK_TITLE_REACH = 0.14
+HOOK_TITLE_TOP = 0.11            # the title's top edge without a camera panel
 KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
 KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
 HOST_MIN_PRESENCE = 0.9        # someone filmed is there for the whole clip; a game character comes and goes
@@ -1083,6 +1099,41 @@ def virtual_camera_rect(face: Box, w: int, h: int) -> Rect:
     return Rect(x0, y0, int(cw), max(2, y1 - y0))
 
 
+def side_by_side(a: Box, b: Box) -> bool:
+    """Two heads sitting next to each other: one row, like sizes, close together."""
+    taller, wider = max(a[3], b[3]), max(a[2], b[2])
+    if min(a[3], b[3]) <= 0 or taller > KEYED_GROUP_SIZE * min(a[3], b[3]):
+        return False
+    if abs((a[1] + a[3] / 2) - (b[1] + b[3] / 2)) > KEYED_GROUP_ROW * taller:
+        return False
+    gap = max(a[0], b[0]) - min(a[0] + a[2], b[0] + b[2])
+    return gap <= KEYED_GROUP_GAP * wider
+
+
+def keyed_group(lead: Box, others: Sequence[Box]) -> List[Box]:
+    """The lead head and every head that sits beside it, or beside one that does."""
+    group, rest = [lead], [b for b in others if b != lead]
+    grown = True
+    while grown:
+        grown = False
+        for box in list(rest):
+            if any(side_by_side(box, member) for member in group):
+                group.append(box)
+                rest.remove(box)
+                grown = True
+    return group
+
+
+def group_camera_rect(heads: Sequence[Box], w: int, h: int) -> Tuple[Rect, Box]:
+    """One camera rectangle around heads that sit side by side, and the box that holds the heads."""
+    rects = [virtual_camera_rect(box, w, h) for box in heads]
+    x0, y0 = min(r.x for r in rects), min(r.y for r in rects)
+    x1, y1 = max(r.x2 for r in rects), max(r.y2 for r in rects)
+    fx0, fy0 = min(b[0] for b in heads), min(b[1] for b in heads)
+    fx1, fy1 = max(b[0] + b[2] for b in heads), max(b[1] + b[3] for b in heads)
+    return Rect(x0, y0, max(2, x1 - x0), max(2, y1 - y0)), (fx0, fy0, fx1 - fx0, fy1 - fy0)
+
+
 def classify_gaming(
     evidence: FrameEvidence,
     faces: Sequence[Sequence[Box]],
@@ -1126,7 +1177,10 @@ def classify_gaming(
     def keyed_streamer(box: Box) -> bool:
         # A streamer without a camera rectangle sits small, or at the edge of the picture, beside the game.
         # A person in the middle of the frame at a size that fills it is being filmed (a vlog).
-        if box[2] * box[3] > VIRTUAL_CAMERA_FACE_MAX_AREA * w * h or not alive(box):
+        largest = VIRTUAL_CAMERA_FACE_MAX_AREA
+        if box[1] + box[3] >= KEYED_LOW_CHIN * h and len(regions) >= HOST_HUD_REGIONS:
+            largest = KEYED_LOW_FACE_MAX_AREA
+        if box[2] * box[3] > largest * w * h or not alive(box):
             return False
         if box[2] * box[3] <= KEYED_FREE_FACE_AREA * w * h:
             return True
@@ -1190,7 +1244,14 @@ def classify_gaming(
     if facecam is None and keyed and regions and float(hud_mask.sum()) / float(w * h) >= MIN_HUD_EDGE_FRACTION:
         # No rectangle, but a head that stays put over a game that draws a HUD: a streamer with the background
         # keyed out. The top panel shows head and shoulders with the game behind them.
-        facecam, face_box, virtual = virtual_camera_rect(keyed[0].box, w, h), keyed[0].box, True
+        # Streamers sitting side by side share the panel: left out of it, the second one reads as a person on
+        # screen and the clip is not laid out as gameplay at all.
+        beside = [
+            t.box for t in fixed_face_tracks(faces, w, h)
+            if t.presence >= KEYED_GROUP_MIN_PRESENCE and alive(t.box)
+        ]
+        facecam, face_box = group_camera_rect(keyed_group(keyed[0].box, beside), w, h)
+        virtual = True
         regions, crosshair, hud_mask = find_hud_regions(evidence, facecam)
     if facecam is not None:
         # A name plate or ornament drawn on the camera's frame belongs to the camera, not to the game: lifted into
@@ -1752,10 +1813,16 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
             f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
             f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
         ]
+    title_top = cam_h if cam else HOOK_TITLE_TOP * CANVAS_H
+    title_bottom = title_top + HOOK_TITLE_REACH * CANVAS_H
     for i, item in enumerate(cutouts):
         r: Rect = item["source"]
+        # A cut-out under the hook title is pasted once the title has gone.
+        under_title = item["y"] < title_bottom and item["y"] + item["h"] > title_top
+        item["from"] = STICKER_FROM_SECONDS if under_title else 0.0
+        wait = f":enable='gte(t,{item['from']:g})'" if item["from"] else ""
         lines.append(f"[{tag}_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[{tag}_c{i}]")
-        lines.append(f"[{tag}_p{i}][{tag}_c{i}]overlay={item['x']}:{item['y'] - panel_y}[{tag}_p{i + 1}]")
+        lines.append(f"[{tag}_p{i}][{tag}_c{i}]overlay={item['x']}:{item['y'] - panel_y}{wait}[{tag}_p{i + 1}]")
     panel = f"[{tag}_p{len(cutouts)}]"
     mark = profile.sticker
     # The sticker goes up only when the crop does not show the picture where it is: it cannot be taken out
@@ -1801,7 +1868,8 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
         "facecam_panel": [0, 0, CANVAS_W, cam_h] if cam else None,
         "gameplay": crop.as_list(),
         "gameplay_panel": [0, panel_y, CANVAS_W, panel_h],
-        "hud": [{"source": item["source"].as_list(), "at": [item["x"], item["y"], item["w"], item["h"]]}
+        "hud": [{"source": item["source"].as_list(), "at": [item["x"], item["y"], item["w"], item["h"]],
+                 **({"from": item["from"]} if item["from"] else {})}
                 for item in cutouts],
         "crosshair": profile.crosshair,
     }

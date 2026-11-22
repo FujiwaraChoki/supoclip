@@ -86,5 +86,5 @@ describe("face_doodles raster goldens", () => {
       expectGolden(`face_doodles__${kind}_t1.2`, renderSceneToPng(scene([doodle(kind)], 540, 960), 1.2));
     }
     expectGolden("face_doodles__noface_t1.0", renderSceneToPng(scene([doodle("bang")], 540, 960, { face_track: null }), 1.0));
-  });
+  }, 30_000); // one frame per doodle kind; a shared CI runner needs more than the default 5 s
 });
