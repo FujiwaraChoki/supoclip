@@ -142,6 +142,11 @@ STICKER_WIDTH = 0.2               # of the canvas
 STICKER_MAX_SCALE = 1.6
 STICKER_TOP, STICKER_SIDE = 0.06, 0.035   # where it sits, of the canvas height and width
 STICKER_FROM_SECONDS = HOOK_TITLE_SECONDS + 0.2   # the hook title has the top of the frame until then
+# The hook title is drawn on the seam under the camera (at the top of the frame without one), which is where the
+# game's top elements are pasted. A cut-out within this much of the canvas height below the title's row waits
+# until the title has gone, so the title is never printed on the game's own text.
+HOOK_TITLE_REACH = 0.14
+HOOK_TITLE_TOP = 0.11            # the title's top edge without a camera panel
 KEYED_FREE_FACE_AREA = 0.006   # a keyed-out head larger than this sits at the edge of the frame, see keyed_streamer
 KEYED_EDGE_REACH = 0.03        # ... within this much of it (of the frame's width and height)
 HOST_MIN_PRESENCE = 0.9        # someone filmed is there for the whole clip; a game character comes and goes
@@ -1808,10 +1813,16 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
             f"[{tag}_game]crop={crop.w}:{crop.h}:{crop.x}:{crop.y},"
             f"scale={CANVAS_W}:{panel_h}:flags=lanczos{sharpen},setsar=1[{tag}_p0]"
         ]
+    title_top = cam_h if cam else HOOK_TITLE_TOP * CANVAS_H
+    title_bottom = title_top + HOOK_TITLE_REACH * CANVAS_H
     for i, item in enumerate(cutouts):
         r: Rect = item["source"]
+        # A cut-out under the hook title is pasted once the title has gone.
+        under_title = item["y"] < title_bottom and item["y"] + item["h"] > title_top
+        item["from"] = STICKER_FROM_SECONDS if under_title else 0.0
+        wait = f":enable='gte(t,{item['from']:g})'" if item["from"] else ""
         lines.append(f"[{tag}_h{i}]crop={r.w}:{r.h}:{r.x}:{r.y},scale={item['w']}:{item['h']}:flags=lanczos[{tag}_c{i}]")
-        lines.append(f"[{tag}_p{i}][{tag}_c{i}]overlay={item['x']}:{item['y'] - panel_y}[{tag}_p{i + 1}]")
+        lines.append(f"[{tag}_p{i}][{tag}_c{i}]overlay={item['x']}:{item['y'] - panel_y}{wait}[{tag}_p{i + 1}]")
     panel = f"[{tag}_p{len(cutouts)}]"
     mark = profile.sticker
     # The sticker goes up only when the crop does not show the picture where it is: it cannot be taken out
@@ -1857,7 +1868,8 @@ def _compose(profile: GamingProfile, tag: str, out: str) -> Dict[str, Any]:
         "facecam_panel": [0, 0, CANVAS_W, cam_h] if cam else None,
         "gameplay": crop.as_list(),
         "gameplay_panel": [0, panel_y, CANVAS_W, panel_h],
-        "hud": [{"source": item["source"].as_list(), "at": [item["x"], item["y"], item["w"], item["h"]]}
+        "hud": [{"source": item["source"].as_list(), "at": [item["x"], item["y"], item["w"], item["h"]],
+                 **({"from": item["from"]} if item["from"] else {})}
                 for item in cutouts],
         "crosshair": profile.crosshair,
     }
