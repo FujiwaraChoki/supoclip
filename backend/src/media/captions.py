@@ -591,6 +591,8 @@ def _passage_breaks(
 
 
 CAPTION_LINE_MAX_PAUSE_SECONDS = 1.0
+# A line sits on a shot's own caption row when it is spoken inside that shot, give or take this much.
+CAPTION_ROW_EDGE_SECONDS = 0.15
 # A line stays up until the next one when the gap is this short, and is on screen at least MIN_HOLD
 # (never past the next line's start). Same values as the look captions (edit_fx.caption_groups).
 CAPTION_LINE_BRIDGE_SECONDS = 0.30
@@ -751,8 +753,16 @@ def build_assemblyai_ass_subtitles(
     time_map: Optional[TimeMap] = None,
     censor_spans: Optional[Sequence[Tuple[float, float]]] = None,
     drop_screen_words: bool = False,
+    caption_rows: Optional[Sequence[Tuple[float, float, int]]] = None,
+    caption_rows_after_hook: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
+
+    ``caption_rows`` are (start, end, centre y in pixels) in clip seconds: a line spoken wholly inside one sits
+    on that row instead of the clip's own (a stacked two-shot's seam, see ``video_utils``). A line that reaches
+    past a row's ends keeps the clip's row. With ``caption_rows_after_hook`` the rows start once the hook title
+    has gone (the title has the seam while it shows).
+
 
     Renders OpusClip-style captions: a per-word active highlight that pops, an
     accent colour on emphasised power/keyword words, contextual emojis, a thick
@@ -1013,8 +1023,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     def scaled(percent: int, scale: float) -> int:
         return max(1, round(percent * scale))
 
-    def line_prefix(scale: float) -> str:
-        tags = f"\\pos({x_pos},{y_pos})" + ("\\blur4" if glow else "")
+    def line_prefix(scale: float, y: Optional[int] = None) -> str:
+        tags = f"\\pos({x_pos},{y_pos if y is None else y})" + ("\\blur4" if glow else "")
         if scale < 1.0:
             tags += f"\\fscx{scaled(100, scale)}\\fscy{scaled(100, scale)}"
         return f"{{{tags}}}"
@@ -1064,6 +1074,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events: List[str] = []
     original_geometry = (outline_px, shadow_px, box_bord)
+    rows_from = hook_title_window(output_duration) if (caption_rows_after_hook and hook_title) else 0.0
     display_ends = _line_display_ends(
         [(float(relevant_words[a]["start"]), float(relevant_words[b - 1]["end"])) for a, b, _ in chunk_spans],
         [index for index, (_, stop, _) in enumerate(chunk_spans) if stop in jump_breaks],
@@ -1077,6 +1088,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         outline_px, shadow_px, box_bord = original_geometry
         placement = (caption_placements[chunk_start // chunk_size]
                      if caption_placements and chunk_start // chunk_size < len(caption_placements) else None)
+        if placement is None and caption_rows and time_map is None:
+            line_start = float(chunk[0]["start"])
+            for row_start, row_end, row_y in caption_rows:
+                if (line_start >= max(row_start - CAPTION_ROW_EDGE_SECONDS, rows_from)
+                        and float(chunk[-1]["end"]) <= row_end + CAPTION_ROW_EDGE_SECONDS):
+                    prefix = line_prefix(chunk_scale, int(row_y))
+                    break
         if placement is not None:
             px = placement["font_px"]
             outline_px = max(base_stroke, round(px * base_stroke / 26)) if has_outline else 0

@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-22
 
+- **Fixed:** In a split screen of two people, captions now sit on the line between the two halves instead of across the lower person's mouth or chin. ([#561](https://github.com/FujiwaraChoki/supoclip/pull/561))
 - **Fixed:** In a handheld scene where the camera swings between several people, the clip no longer follows the wrong spot and shows a wall. A stretch like that now keeps the whole picture. ([#560](https://github.com/FujiwaraChoki/supoclip/pull/560))
 - **Fixed:** A video that cuts from a calm scene into busy handheld footage is now framed scene by scene. The cut used to go unnoticed, the two scenes were treated as one shot, and the clip could come out as a small picture between blurred bars. ([#559](https://github.com/FujiwaraChoki/supoclip/pull/559))
 - **Fixed:** In gameplay clips the title at the start no longer covers the game's own labels. An hour label, timer or money counter that sits where the title is shown now appears once the title has gone, instead of the two being printed on top of each other. ([#558](https://github.com/FujiwaraChoki/supoclip/pull/558))
