@@ -127,11 +127,6 @@
   "teamAskOwner": "{team} nutzt ein gemeinsames Team-Abo. Bitte den Team-Eigentümer, den Tarif zu starten oder Plätze hinzuzufügen.",
   "gallery": {
     "regionLabel": "Beispiel-Clips erstellt mit SupoClip",
-    "viewAll": "Mehr Beispiele",
-    "groups": {
-      "interview": "Podcast",
-      "gaming": "Gaming",
-      "vlog": "Vlog"
-    }
+    "viewAll": "Mehr Beispiele"
   }
 }

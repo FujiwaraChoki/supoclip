@@ -127,11 +127,6 @@
   "teamAskOwner": "{team} menggunakan langganan Tim bersama. Minta pemilik tim untuk mengaktifkan paket atau menambah kursi.",
   "gallery": {
     "regionLabel": "Contoh clip yang dibuat dengan SupoClip",
-    "viewAll": "Contoh lainnya",
-    "groups": {
-      "interview": "Podcast",
-      "gaming": "Gaming",
-      "vlog": "Vlog"
-    }
+    "viewAll": "Contoh lainnya"
   }
 }

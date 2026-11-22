@@ -127,11 +127,6 @@
   "teamAskOwner": "{team} usa uma assinatura compartilhada de Equipe. Peça ao proprietário da equipe para ativar o plano ou adicionar assentos.",
   "gallery": {
     "regionLabel": "Clipes de exemplo feitos com o SupoClip",
-    "viewAll": "Mais exemplos",
-    "groups": {
-      "interview": "Podcast",
-      "gaming": "Gaming",
-      "vlog": "Vlog"
-    }
+    "viewAll": "Mais exemplos"
   }
 }

@@ -127,11 +127,6 @@
   "teamAskOwner": "{team} usa una suscripción compartida de Equipo. Pide al propietario del equipo que active el plan o agregue puestos.",
   "gallery": {
     "regionLabel": "Clips de ejemplo creados con SupoClip",
-    "viewAll": "Más ejemplos",
-    "groups": {
-      "interview": "Pódcast",
-      "gaming": "Gaming",
-      "vlog": "Vlog"
-    }
+    "viewAll": "Más ejemplos"
   }
 }
