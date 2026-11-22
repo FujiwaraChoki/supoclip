@@ -3,15 +3,19 @@ import Link from "next/link";
 
 import { ArticleShell } from "@/components/articles/article-shell";
 import { ArticleClipExamples } from "@/components/articles/article-clip-examples";
-import { articleClipGalleries, getArticleVideoObjects } from "@/lib/article-clips";
+import type { Locale } from "@/i18n/config";
+import { getArticleClipGallery, getArticleVideoObjects } from "@/lib/article-clips";
+import { getArticleShellExtras, getEditorFigureCopy } from "@/lib/localized-guides";
 import { getSiteUrl } from "@/lib/site";
 import type { CreatorGuide } from "@/lib/creator-guides";
 
-export function CreatorGuideArticle({ guide }: { guide: CreatorGuide }) {
-  const gallery = articleClipGalleries[guide.post.slug];
+export function CreatorGuideArticle({ guide, locale = "en" }: { guide: CreatorGuide; locale?: Locale }) {
+  const gallery = getArticleClipGallery(guide.post.slug, locale);
+  const shellExtras = getArticleShellExtras(locale);
+  const editorFigure = getEditorFigureCopy(guide.post.slug, locale);
   return (
     <ArticleShell post={guide.post} breadcrumb={guide.post.title}
-      toc={[...guide.sections.map((section): [string, string] => [section.id, section.heading]), ["faq", "FAQ"]]}
+      toc={[...guide.sections.map((section): [string, string] => [section.id, section.heading]), ["faq", shellExtras.faqTocLabel]]}
       faqs={guide.faqs} cta={guide.cta} videos={getArticleVideoObjects(guide.post.slug, getSiteUrl())}>
       <p>{guide.intro}</p>
       {guide.sections.map((section) => (
@@ -29,13 +33,13 @@ export function CreatorGuideArticle({ guide }: { guide: CreatorGuide }) {
               </table>
             </div>
           ) : null}
-          {gallery?.afterSection === section.id ? <ArticleClipExamples gallery={gallery} /> : null}
+          {gallery?.afterSection === section.id ? <ArticleClipExamples gallery={gallery} locale={locale} /> : null}
           {section.example === "editor" ? (
             <figure className="not-prose space-y-3">
-              <a href="/blog/supoclip-editor.webp" aria-label="Open the full-size SupoClip editor screenshot">
-                <Image src="/blog/supoclip-editor.webp" alt="SupoClip caption editor showing style controls, a word-level transcript, and safe-area preview" width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
+              <a href="/blog/supoclip-editor.webp" aria-label={editorFigure.ariaLabel}>
+                <Image src="/blog/supoclip-editor.webp" alt={editorFigure.alt} width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full rounded-xl border" />
               </a>
-              <figcaption className="text-sm leading-6 text-muted-foreground">Editor screenshot using a sample video. The caption controls and transcript sit beside the preview; open the image to inspect them at full size.</figcaption>
+              <figcaption className="text-sm leading-6 text-muted-foreground">{editorFigure.caption}</figcaption>
             </figure>
           ) : null}
           {section.links ? <p className="flex flex-wrap gap-x-5 gap-y-2 text-sm">{section.links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}</p> : null}

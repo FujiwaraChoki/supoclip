@@ -8,7 +8,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
-import { CapacityIllustration, FontIllustration, LengthIllustration } from "@/components/billing/upgrade-illustrations";
+import { UpgradeExamplesGallery } from "@/components/billing/upgrade-examples-gallery";
+import { CountUp, FontIllustration, LengthIllustration } from "@/components/billing/upgrade-illustrations";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { useTeamRole } from "@/hooks/use-workspace";
@@ -568,7 +569,7 @@ function PlanOption({
   );
 }
 
-/** The right-hand panel: an illustration for why the prompt opened, plus what the plan includes. */
+/** The right-hand panel: a reason-specific illustration or a live moving collage of real clips. */
 function PlanShowcase({
   reason,
   plan,
@@ -579,53 +580,87 @@ function PlanShowcase({
   currentPlan: PublicBillingPlan | undefined;
 }) {
   const text = useBillingPlanText();
-  return (
-    <div className="hidden flex-col border-l bg-muted/50 p-8 sm:flex">
-      <div className="flex flex-1 flex-col justify-center">
-        {plan &&
-          (reason.kind === "video_too_long" ? (
-            <LengthIllustration
-              durationSeconds={reason.durationSeconds}
-              currentLimitSeconds={reason.maxSeconds}
-              nextLimitSeconds={plan.youtubeMaxMinutes * 60}
-              durationLabel={text.formatRuntime(reason.durationSeconds)}
-              currentLabel={`${currentPlan ? text.planName(currentPlan.id) : text.t("illustration.today")} · ${text.formatMinutes(Math.round(reason.maxSeconds / 60))}`}
-              nextLabel={`${text.planName(plan.id)} · ${text.formatMinutes(plan.youtubeMaxMinutes)}`}
-            />
-          ) : reason.kind === "custom_fonts" ? (
-            <FontIllustration />
-          ) : (
-            <CapacityIllustration
-              key={plan.id}
-              from={currentPlan ? currentPlan.minuteLimit / 60 : 0}
-              to={plan.minuteLimit / 60}
-              label={
-                currentPlan
-                  ? text.t("illustration.hoursUpFrom", { count: currentPlan.minuteLimit / 60 })
-                  : text.t("illustration.hoursWith", { plan: text.planName(plan.id) })
-              }
-            />
-          ))}
-      </div>
+  const isSpecificIllustration = reason.kind === "video_too_long" || reason.kind === "custom_fonts";
 
+  if (isSpecificIllustration) {
+    return (
+      <div className="hidden flex-col border-l bg-muted/50 p-8 sm:flex">
+        <div className="flex flex-1 flex-col justify-center">
+          {plan &&
+            (reason.kind === "video_too_long" ? (
+              <LengthIllustration
+                durationSeconds={reason.durationSeconds}
+                currentLimitSeconds={reason.maxSeconds}
+                nextLimitSeconds={plan.youtubeMaxMinutes * 60}
+                durationLabel={text.formatRuntime(reason.durationSeconds)}
+                currentLabel={`${currentPlan ? text.planName(currentPlan.id) : text.t("illustration.today")} · ${text.formatMinutes(Math.round(reason.maxSeconds / 60))}`}
+                nextLabel={`${text.planName(plan.id)} · ${text.formatMinutes(plan.youtubeMaxMinutes)}`}
+              />
+            ) : (
+              <FontIllustration />
+            ))}
+        </div>
+
+        {plan && (
+          <ul className="mt-8 space-y-2 border-t pt-5">
+            {text.highlights(plan).map((highlight) => (
+              <li key={highlight} className="flex items-start gap-2 text-sm">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                {highlight}
+              </li>
+            ))}
+            {text.comingSoon(plan) && (
+              <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Clock className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  {text.comingSoon(plan)} <ComingSoonTag />
+                </span>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  const hoursLabel = plan
+    ? currentPlan
+      ? text.t("illustration.hoursUpFrom", { count: currentPlan.minuteLimit / 60 })
+      : text.t("illustration.hoursWith", { plan: text.planName(plan.id) })
+    : null;
+  // Monthly hours are already the headline above, so keep the compact summary focused on the rest.
+  const compactHighlights = plan ? text.highlights(plan).slice(1) : [];
+
+  return (
+    <div className="hidden flex-col overflow-hidden border-l bg-muted/50 sm:flex">
       {plan && (
-        <ul className="mt-8 space-y-2 border-t pt-5">
-          {text.highlights(plan).map((highlight) => (
-            <li key={highlight} className="flex items-start gap-2 text-sm">
-              <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-              {highlight}
-            </li>
-          ))}
-          {text.comingSoon(plan) && (
-            <li className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Clock className="mt-0.5 size-3.5 shrink-0" />
-              <span>
-                {text.comingSoon(plan)} <ComingSoonTag />
-              </span>
-            </li>
-          )}
-        </ul>
+        <div className="shrink-0 px-6 pb-3 pt-6">
+          <div className="flex items-baseline gap-2.5 pr-8">
+            <p className="font-display text-4xl font-bold leading-none tracking-tight tabular-nums">
+              <CountUp key={plan.id} from={currentPlan ? currentPlan.minuteLimit / 60 : 0} to={plan.minuteLimit / 60} />
+            </p>
+            <p className="text-sm leading-snug text-muted-foreground">{hoursLabel}</p>
+          </div>
+          <ul className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {compactHighlights.map((highlight) => (
+              <li key={highlight} className="inline-flex items-center gap-1">
+                <Check className="size-3 shrink-0 text-foreground/70" />
+                <span>{highlight}</span>
+              </li>
+            ))}
+            {text.comingSoon(plan) && (
+              <li className="inline-flex items-center gap-1">
+                <Clock className="size-3 shrink-0" />
+                <span>
+                  {text.comingSoon(plan)} <ComingSoonTag />
+                </span>
+              </li>
+            )}
+          </ul>
+        </div>
       )}
+
+      <UpgradeExamplesGallery className="min-h-[340px]" />
     </div>
   );
 }

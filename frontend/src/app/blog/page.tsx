@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ArrowRight, Clock, ExternalLink, Github, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { applyBlogCopy, HOSTED_APP_URL, blogPosts, getSiteUrl } from "@/lib/blog-posts";
+import { contentLangAttr } from "@/lib/localized-guides";
 import { getMarketingLinks } from "@/lib/marketing-links";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,9 +29,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function BlogIndexPage() {
-  const t = await getTranslations("blog");
+  const [locale, t] = await Promise.all([getLocale(), getTranslations("blog")]);
   const translate = (key: string) => t(key);
-  const posts = blogPosts.map((post) => applyBlogCopy(post, translate));
+  const posts = blogPosts.map((post) => applyBlogCopy(post, translate, locale));
   const featuredPost = posts[0];
 
   return (
@@ -93,7 +94,7 @@ export default async function BlogIndexPage() {
           href={`/blog/${featuredPost.slug}`}
           className="group grid gap-8 rounded-lg border bg-card p-6 transition-colors hover:border-foreground/30 md:grid-cols-[1fr_0.55fr] md:p-8"
         >
-          <article lang={featuredPost.language}>
+          <article lang={contentLangAttr(featuredPost.languages, locale)}>
             <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <Badge variant="outline">{featuredPost.category}</Badge>
               <span className="flex items-center gap-1.5">
@@ -115,7 +116,7 @@ export default async function BlogIndexPage() {
                 {t("index.readArticle")}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </span>
-              {!featuredPost.language ? <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              {!featuredPost.languages ? <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <Github className="h-4 w-4" />
                 {t("index.openSource")}
               </span> : null}
@@ -126,7 +127,7 @@ export default async function BlogIndexPage() {
 
         </Link>
 
-        {posts.length > 1 && <section className="mt-12" aria-labelledby="more-articles"><h2 id="more-articles" className="text-2xl font-bold">{t("index.moreGuides")}</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{posts.slice(1).map(post => <Link key={post.slug} href={`/blog/${post.slug}`} lang={post.language} className="rounded-xl border p-6 hover:border-foreground/30"><p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{post.category}</p><h3 className="mt-3 text-xl font-bold">{post.title}</h3><p className="mt-3 text-sm leading-7 text-muted-foreground">{post.summary}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">{t("index.readArticle")}<ArrowRight className="h-4 w-4" /></span></Link>)}</div></section>}
+        {posts.length > 1 && <section className="mt-12" aria-labelledby="more-articles"><h2 id="more-articles" className="text-2xl font-bold">{t("index.moreGuides")}</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{posts.slice(1).map(post => <Link key={post.slug} href={`/blog/${post.slug}`} lang={contentLangAttr(post.languages, locale)} className="rounded-xl border p-6 hover:border-foreground/30"><p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{post.category}</p><h3 className="mt-3 text-xl font-bold">{post.title}</h3><p className="mt-3 text-sm leading-7 text-muted-foreground">{post.summary}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">{t("index.readArticle")}<ArrowRight className="h-4 w-4" /></span></Link>)}</div></section>}
         <section className="mt-14" aria-labelledby="product-guides-heading">
           <h2 id="product-guides-heading" className="text-2xl font-bold tracking-tight">
             {t("index.productGuides")}

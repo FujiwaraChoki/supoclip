@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
+import type { Locale } from "@/i18n/config";
 import { getSiteUrl } from "@/lib/site";
 import { creatorGuides } from "@/lib/creator-guides";
+import {
+  GUIDE_LOCALES,
+  getLocalizedBlogPostCopy,
+  resolveContentLocale,
+} from "@/lib/localized-guides";
 
 export { HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
 
 export interface BlogPost {
-  /** Set for editorial content not yet translated; do not localize only its title. */
-  language?: "en";
+  /** Locales in which this editorial post is translated; omit when covered in all app locales via `messages/<locale>/blog.json`. */
+  languages?: readonly Locale[];
   slug: string;
   image?: { src: string; alt: string; width: number; height: number };
   title: string;
@@ -23,7 +29,7 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
   {
-    language: "en",
+    languages: GUIDE_LOCALES,
     slug: "how-to-clip-gta-6",
     image: { src: "/blog/how-to-clip-gta-6.webp", alt: "Illustration of a GTA-style sunset stream with a webcam inset turning into three vertical captioned clips", width: 1672, height: 941 },
     title: "How to Clip GTA 6 (and What It Really Pays)",
@@ -38,7 +44,7 @@ export const blogPosts: BlogPost[] = [
     summary: "Everyone is clipping GTA 6. Here is what it pays, which clips get taken down, and the workflow from a four-hour stream to vertical clips worth posting.",
   },
   {
-    language: "en",
+    languages: ["en"],
     slug: "tiktok-publishing-is-live",
     title: "TikTok publishing is now live in SupoClip",
     description: "Publish clips straight to TikTok, select TikTok and YouTube together on the web, and schedule ahead on Creator. Here’s how to get started.",
@@ -136,9 +142,25 @@ export function getBlogPost(slug: string) {
   return blogPosts.find((post) => post.slug === slug);
 }
 
-/** Overlay translated title, description, and listing copy. Keywords stay English. */
-export function applyBlogCopy(post: BlogPost, translate: (key: string) => string): BlogPost {
-  if (post.language) return post;
+/** Overlay translated title, description, and listing copy for supported locales. */
+export function applyBlogCopy(post: BlogPost, translate: (key: string) => string, locale?: string): BlogPost {
+  if (post.languages) {
+    const resolved = resolveContentLocale(post.languages, locale);
+    if (resolved === "en") return post;
+    const copy = getLocalizedBlogPostCopy(post.slug, resolved);
+    if (!copy) return post;
+    return {
+      ...post,
+      title: copy.title,
+      description: copy.description,
+      eyebrow: copy.eyebrow,
+      category: copy.category,
+      readingTime: copy.readingTime,
+      summary: copy.summary,
+      keywords: copy.keywords ?? post.keywords,
+      image: post.image ? { ...post.image, alt: copy.imageAlt ?? post.image.alt } : undefined,
+    };
+  }
   const slug = post.slug;
   return {
     ...post,

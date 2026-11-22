@@ -1,15 +1,14 @@
+import type { Locale } from "@/i18n/config";
 import type { BlogPost } from "@/lib/blog-posts";
+import {
+  GUIDE_LOCALES,
+  getLocalizedCreatorGuideContent,
+  isLocalizedGuideSlug,
+  resolveContentLocale,
+  type GuideSection,
+} from "@/lib/localized-guides";
 
-export interface GuideSection {
-  id: string;
-  heading: string;
-  paragraphs: string[];
-  steps?: string[];
-  bullets?: string[];
-  table?: { caption: string; headers: string[]; rows: string[][] };
-  links?: Array<{ href: string; label: string }>;
-  example?: "editor";
-}
+export type { GuideSection };
 
 export interface CreatorGuide {
   post: BlogPost;
@@ -21,7 +20,14 @@ export interface CreatorGuide {
 }
 
 const publishedAt = "2026-10-26";
-const post = (slug: string, title: string, description: string, keywords: string[], readingTime: string): BlogPost => ({
+const post = (
+  slug: string,
+  title: string,
+  description: string,
+  keywords: string[],
+  readingTime: string,
+  languages: readonly Locale[] = isLocalizedGuideSlug(slug) ? GUIDE_LOCALES : ["en"],
+): BlogPost => ({
   slug, title, description, keywords, readingTime,
   summary: description,
   eyebrow: "Creator workflow",
@@ -29,10 +35,10 @@ const post = (slug: string, title: string, description: string, keywords: string
   publishedAt,
   updatedAt: publishedAt,
   author: "SupoClip Team",
-  language: "en",
+  languages,
 });
 
-/** English editorial guides. Explicit language keeps untranslated copy and schema honest. */
+/** Editorial creator guides. Explicit `languages` keeps translated locales and English fallbacks honest. */
 export const creatorGuides: CreatorGuide[] = [
   {
     post: {
@@ -336,6 +342,31 @@ export const creatorGuides: CreatorGuide[] = [
   },
 ];
 
-export function getCreatorGuide(slug: string) {
-  return creatorGuides.find((guide) => guide.post.slug === slug);
+export function getCreatorGuide(slug: string, locale?: string): CreatorGuide | undefined {
+  const base = creatorGuides.find((guide) => guide.post.slug === slug);
+  if (!base) return undefined;
+  const resolved = resolveContentLocale(base.post.languages, locale);
+  if (resolved === "en") return base;
+  const localized = getLocalizedCreatorGuideContent(slug, resolved);
+  if (!localized) return base;
+  return {
+    ...base,
+    post: {
+      ...base.post,
+      title: localized.post.title,
+      description: localized.post.description,
+      eyebrow: localized.post.eyebrow,
+      category: localized.post.category,
+      readingTime: localized.post.readingTime,
+      summary: localized.post.summary,
+      keywords: localized.post.keywords ?? base.post.keywords,
+      image: base.post.image
+        ? { ...base.post.image, alt: localized.post.imageAlt ?? base.post.image.alt }
+        : undefined,
+    },
+    intro: localized.intro,
+    sections: localized.sections,
+    faqs: localized.faqs,
+    cta: localized.cta,
+  };
 }
