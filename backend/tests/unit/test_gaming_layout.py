@@ -1028,3 +1028,62 @@ def test_lines_all_around_a_face_are_not_a_round_camera():
         p[:, ::11] = 1.0
     assert gl.find_round_camera(_ring_evidence(shelves), (822, 103, 66, 78)) is None
     assert gl.find_round_camera(_ring_evidence(lambda p: None), (822, 103, 66, 78)) is None
+
+
+# ---------------------------------------------------------------------------
+# The hook title and the game's top elements
+# ---------------------------------------------------------------------------
+
+HOUR_LABEL = Rect(30, 30, 300, 100)
+
+
+def test_a_cutout_under_the_hook_title_waits_until_the_title_has_gone():
+    # The title sits on the seam under the camera, exactly where a top-left label of the game is pasted:
+    # the title's second line was printed on the label for its first four seconds.
+    cam = Rect(1320, 60, 540, 304)
+    layout = gl.build_gaming_layout(profile_with(cam, (1540.0, 120.0, 110.0, 140.0), [HOUR_LABEL, HEALTH, AMMO]), 20.0)
+    seam = layout["hook_center_y"] * 1920
+    label, *bottom = layout["gaming"]["hud"]
+    assert label["source"] == HOUR_LABEL.as_list() and seam <= label["at"][1] < seam + gl.HOOK_TITLE_REACH * 1920
+    assert label["from"] == pytest.approx(gl.STICKER_FROM_SECONDS)
+    assert all("from" not in item for item in bottom)               # health and ammo are far from the title
+    overlays = [line for line in layout["video_filter"].split(";") if "overlay=" in line and "_c" in line]
+    assert len(overlays) == 3
+    assert f"enable='gte(t,{gl.STICKER_FROM_SECONDS:g})'" in overlays[0]
+    assert all("enable" not in line for line in overlays[1:])
+
+
+def test_without_a_camera_only_a_cutout_in_the_titles_own_rows_waits():
+    # No camera: the title keeps the top of the frame, from 11 % of the height down.
+    above = gl.build_gaming_layout(profile_with(hud=[HOUR_LABEL, HEALTH, AMMO]), 20.0)["gaming"]["hud"][0]
+    assert above["at"][1] + above["at"][3] <= gl.HOOK_TITLE_TOP * 1920 and "from" not in above   # sits above the title
+    lower = Rect(30, 150, 300, 100)
+    layout = gl.build_gaming_layout(profile_with(hud=[lower, HEALTH, AMMO]), 20.0)
+    item = layout["gaming"]["hud"][0]
+    assert item["source"] == lower.as_list() and item["from"] == pytest.approx(gl.STICKER_FROM_SECONDS)
+    assert f"enable='gte(t,{gl.STICKER_FROM_SECONDS:g})'" in layout["video_filter"]
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_a_waiting_cutout_renders_and_appears_after_the_title(tmp_path):
+    src = tmp_path / "src.mp4"
+    # Dark picture with a white label top left, so the pasted cut-out is easy to find.
+    subprocess.run([
+        "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x202020:s=1920x1080:r=10:d=6",
+        "-vf", "drawbox=x=30:y=30:w=300:h=100:color=white:t=fill", "-pix_fmt", "yuv420p", str(src),
+    ], check=True)
+    cam = Rect(1320, 60, 540, 304)
+    layout = gl.build_gaming_layout(profile_with(cam, (1540.0, 120.0, 110.0, 140.0), [HOUR_LABEL]), 6.0)
+    x, y, w, h = layout["gaming"]["hud"][0]["at"]
+
+    raw = subprocess.run([
+        "ffmpeg", "-v", "error", "-i", str(src), "-filter_complex",
+        f"{layout['video_filter']};[vout]fps=1,scale=270:480,format=gray[small]", "-map", "[small]", "-f", "rawvideo", "-",
+    ], capture_output=True, check=True).stdout
+    frames = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 480, 270)
+
+    def brightness(second: int) -> float:
+        return float(frames[second][(y + 12) // 4:(y + h - 12) // 4, (x + 12) // 4:(x + w - 12) // 4].mean())
+
+    assert brightness(1) < 80                                       # the title's rows are clear of the label
+    assert brightness(5) > 180                                      # the label is there once the title has gone
