@@ -244,6 +244,7 @@ reviewed gameplay clips).
   gone, as the logo sticker already is. The report lists it with `"from"`.
 - The layout does not know whether the clip has a hook title: without one the label is simply absent for the
   first 4.2 s. An element the crop still shows (not a cut-out) stays where it is.
+
 ### Streamers side by side (clip review, 21 Nov 2026)
 
 Two or three creators keyed out next to each other over a game (a duo or trio channel) were not laid out as
