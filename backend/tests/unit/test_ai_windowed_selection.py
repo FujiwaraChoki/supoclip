@@ -142,6 +142,28 @@ def test_dedupe_keeps_lightly_overlapping_candidates():
     assert ai.dedupe_overlapping_segments([first, second]) == [first, second]
 
 
+def test_dedupe_drops_a_candidate_that_shares_nearly_half_of_a_stronger_one():
+    """Regression: three picks of one video, each sharing just under half its footage with the next.
+
+    The middle one shared 12 of its 26 seconds with the first and 13 with the last (each at or under the
+    old 50% limit), so all but a second of it was footage the other two already showed.
+    """
+    first = _segment("04:55", "05:20", total=70)
+    middle = _segment("05:08", "05:34", total=45)
+    last = _segment("05:21", "05:51", total=30)
+
+    assert ai.dedupe_overlapping_segments([first, middle, last]) == [first, last]
+
+
+def test_dedupe_drops_a_candidate_mostly_covered_by_two_stronger_ones_together():
+    left = _segment("01:00", "01:40", total=80)
+    right = _segment("01:58", "02:40", total=75)
+    # 12 of 40 seconds with each neighbour (30%: under the pair limit), 60% covered by both together.
+    between = _segment("01:28", "02:08", total=60)
+
+    assert ai.dedupe_overlapping_segments([left, between, right]) == [left, right]
+
+
 @pytest.mark.parametrize(
     ("seconds", "expected"),
     [(5 * 60, 5), (20 * 60, 5), (45 * 60, 9), (90 * 60, 18), (200 * 60, 20)],
