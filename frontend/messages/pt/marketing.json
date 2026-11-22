@@ -140,28 +140,28 @@
       "label": "Novidades"
     },
     "blog_podcast_to_shorts": {
-      "eyebrow": "Podcast clips",
-      "title": "Turn a video podcast into Shorts and Reels",
-      "label": "Podcast to Shorts",
-      "description": "Choose complete ideas, correct captions, and follow real clips back to the source."
+      "eyebrow": "Cortes de podcast",
+      "title": "Transforme um podcast em vídeo em Shorts e Reels",
+      "label": "Podcast para Shorts",
+      "description": "Escolha ideias completas, corrija legendas e compare cortes reais com a gravação original."
     },
     "blog_find_best_moments_in_video": {
-      "eyebrow": "Highlight selection",
-      "title": "Find the best moments in a long video",
-      "label": "Find video highlights",
-      "description": "Use a practical checklist for hooks, context, payoff, and clean boundaries."
+      "eyebrow": "Seleção de momentos",
+      "title": "Encontre os melhores momentos em um vídeo longo",
+      "label": "Encontrar melhores momentos",
+      "description": "Use um checklist prático de gancho, contexto, desfecho e limites de corte."
     },
     "blog_twitch_vod_to_shorts": {
-      "eyebrow": "Stream clips",
-      "title": "Turn Twitch VODs into TikTok clips and Shorts",
-      "label": "Twitch VOD to Shorts",
-      "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+      "eyebrow": "Cortes de live",
+      "title": "Transforme VODs da Twitch em cortes para TikTok e Shorts",
+      "label": "VOD da Twitch para Shorts",
+      "description": "Revise destaques falados, preserve o contexto da gameplay e exporte cortes verticais."
     },
     "blog_how_to_clip_gta_6": {
-      "eyebrow": "Clipes de GTA 6",
-      "title": "Como fazer clipes de GTA 6",
-      "label": "Clipes de GTA 6",
-      "description": "Quanto pagam as campanhas de clipping, as regras da Rockstar e o fluxo do VOD ao clipe vertical."
+      "eyebrow": "Cortes de GTA 6",
+      "title": "Como fazer cortes de GTA 6",
+      "label": "Cortes de GTA 6",
+      "description": "Quanto pagam as campanhas de cortes, as regras da Rockstar Games e o fluxo do VOD ao corte vertical."
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -170,10 +170,10 @@
       "description": "Turn audience questions and useful answers into clips with readable slides and captions."
     },
     "blog_word_by_word_video_captions": {
-      "eyebrow": "Caption editing",
-      "title": "Add readable word-by-word captions to clips",
-      "label": "Word-by-word captions",
-      "description": "Correct the transcript, choose a style, and keep subtitles clear of platform controls."
+      "eyebrow": "Edição de legendas",
+      "title": "Coloque legendas palavra por palavra nos seus cortes",
+      "label": "Legendas palavra por palavra",
+      "description": "Corrija a transcrição, escolha o estilo e mantenha as legendas fora dos botões da plataforma."
     },
     "blog_schedule_week_of_youtube_shorts": {
       "eyebrow": "Publishing workflow",

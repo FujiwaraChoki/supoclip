@@ -7,10 +7,12 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-22
 
 - **Improved:** The upgrade dialog now shows a moving two-column gallery of live-playing vertical clips made with SupoClip beneath the plan's monthly hours, along with a link to the full examples catalog. ([#557](https://github.com/FujiwaraChoki/supoclip/pull/557))
+- **Improved:** SupoClip's top five creator guides on the blog—covering GTA 6 clipping (including its interactive payout calculator and moment map), Twitch VODs, video podcasts, finding the best moments, and word-by-word captions—are now localized in Spanish, Portuguese, and Bahasa Indonesia. ([#556](https://github.com/FujiwaraChoki/supoclip/pull/556))
 
 ## 2026-11-21
 
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))
+- **Fixed:** Clips from very long YouTube videos (six hours and up, including day-long streams) no longer fail on every try. SupoClip now downloads just the parts it needs from them instead of falling back to the whole video, and a video too large to download in full now fails right away with a clear message instead of after a long wait. ([#544](https://github.com/FujiwaraChoki/supoclip/pull/544))
 - **Improved:** The pricing modal shows the full Self-hosted card again, with what self-hosting includes and a direct link to the self-hosting guide alongside the hosted plans. ([#532](https://github.com/FujiwaraChoki/supoclip/pull/532))
 - **Improved:** Self-hosted installs are no longer capped by the hosted video length limit. YouTube, Twitch, Kick, and uploaded videos are no longer rejected at 90 minutes (upload size, download size, and processing time limits still apply), and the create screen no longer shows a video-length limit on self-hosted setups. ([#525](https://github.com/FujiwaraChoki/supoclip/pull/525))
 - **New:** An Examples page at /examples shows real clips SupoClip made from public videos (podcasts and interviews, gaming streams and vlogs), with each clip's hook title, length, virality score and caption style. Hover a clip to preview it, click or tap to play it with sound, filter by category, and follow the credit to the creator's original video. ([#527](https://github.com/FujiwaraChoki/supoclip/pull/527))
