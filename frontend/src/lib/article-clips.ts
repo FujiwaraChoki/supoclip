@@ -1,4 +1,5 @@
 import assets from "@/lib/article-clip-assets.json";
+import { getLocalizedCreatorGuideContent } from "@/lib/localized-guides";
 
 export interface ArticleClipSource {
   title: string;
@@ -104,6 +105,22 @@ export const articleClipGalleries: Record<string, ArticleClipGallery> = {
     ],
   },
 };
+
+export function getArticleClipGallery(slug: string, locale?: string): ArticleClipGallery | undefined {
+  const base = articleClipGalleries[slug];
+  if (!base) return undefined;
+  const localized = getLocalizedCreatorGuideContent(slug, locale)?.gallery;
+  if (!localized) return base;
+  return {
+    ...base,
+    heading: localized.heading,
+    intro: localized.intro,
+    examples: base.examples.map((example) => ({
+      ...example,
+      note: localized.notes[example.clipId] ?? example.note,
+    })),
+  };
+}
 
 export function getArticleVideoObjects(slug: string, siteUrl: string) {
   const gallery = articleClipGalleries[slug];

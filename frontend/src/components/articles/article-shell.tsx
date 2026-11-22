@@ -7,6 +7,7 @@ import { RelatedGuides } from "@/components/marketing/related-guides";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { intlLocale } from "@/i18n/config";
 import { type BlogPost, getSiteUrl } from "@/lib/blog-posts";
+import { getArticleShellExtras, resolveContentLocale } from "@/lib/localized-guides";
 import { GITHUB_URL } from "@/lib/site";
 
 export interface ArticleFaq {
@@ -48,8 +49,10 @@ export async function ArticleShell({
   videos?: Array<Record<string, unknown>>;
   children: React.ReactNode;
 }) {
-  const locale = post.language ?? await getLocale();
+  const activeLocale = await getLocale();
+  const locale = resolveContentLocale(post.languages, activeLocale);
   const t = await getTranslations({ locale, namespace: "blog" });
+  const shellExtras = getArticleShellExtras(locale);
   const siteUrl = getSiteUrl();
   const url = `${siteUrl}/blog/${post.slug}`;
   const updatedLabel = formatArticleDate(post.updatedAt, locale);
@@ -104,7 +107,7 @@ export async function ArticleShell({
           </div>
         </nav>
       </header>
-      <article lang={locale} className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
+      <article lang={intlLocale(locale)} className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
         <nav aria-label={t("shell.breadcrumbNav")} className="mb-8 flex flex-wrap gap-2 text-sm text-muted-foreground">
           <Link href="/">{t("shell.home")}</Link><span aria-hidden="true">/</span><Link href="/blog">{t("shell.blog")}</Link><span aria-hidden="true">/</span><span>{breadcrumb}</span>
         </nav>
@@ -137,7 +140,7 @@ export async function ArticleShell({
             <p className="mt-2 text-muted-foreground">{cta?.body ?? t("shell.ctaBody")}</p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link href={cta?.href ?? "/sign-up"} className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-semibold !text-background !no-underline">{cta?.label ?? t("shell.startClipping")}<ArrowRight className="h-4 w-4" /></Link>
-              {cta ? <Link href="/#pricing" className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold !no-underline">See hosted plans</Link> : null}
+              {cta ? <Link href="/#pricing" className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold !no-underline">{shellExtras.seeHostedPlans}</Link> : null}
               <a href={GITHUB_URL} className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold !no-underline"><Github className="h-4 w-4" />{t("shell.getSource")}</a>
             </div>
           </section>
