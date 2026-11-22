@@ -232,14 +232,44 @@ def source_within_output_limits(path: Path) -> bool:
     )
 
 
-def _has_audio(path: Path) -> bool:
+class UnreadableAudioError(ValueError):
+    """The source has audio, but in a format ffmpeg cannot decode.
+
+    Transcription needs the speech, so a silent copy would only fail later.
+    The message is for the user; a retry would fail the same way.
+    """
+
+    code = "audio_unreadable"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "This video's audio track is in a format we can't read "
+            "(for example iPhone spatial audio). Please re-export it with "
+            "standard audio and upload again."
+        )
+
+
+def pick_audio_stream(streams: list[dict]) -> int | None:
+    """Position (the n in `0:a:n`) of the first audio stream ffmpeg can decode.
+
+    iPhone recordings can carry an extra spatial-audio track ffprobe reports
+    without a codec name. Mapping it fails both the copy and the transcode.
+    """
+    for position, stream in enumerate(streams):
+        name = stream.get("codec_name")
+        if isinstance(name, str) and name.strip() and name.strip().lower() not in {"none", "unknown"}:
+            return position
+    return None
+
+
+def _audio_streams(path: Path) -> list[dict]:
     try:
         result = subprocess.run(
             [
                 "ffprobe", "-v", "error",
-                "-select_streams", "a:0",
-                "-show_entries", "stream=codec_type",
-                "-of", "csv=p=0",
+                "-select_streams", "a",
+                "-show_entries", "stream=index,codec_name",
+                "-of", "json",
                 str(path),
             ],
             capture_output=True,
@@ -247,8 +277,14 @@ def _has_audio(path: Path) -> bool:
             timeout=60,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
-    return result.returncode == 0 and "audio" in result.stdout
+        return []
+    if result.returncode != 0:
+        return []
+    try:
+        streams = json.loads(result.stdout or "{}").get("streams")
+    except (ValueError, AttributeError):
+        return []
+    return [stream for stream in streams or [] if isinstance(stream, dict)]
 
 
 def _format_name(path: Path) -> str | None:
@@ -349,12 +385,15 @@ def build_normalization_command(
     *,
     scale: tuple[int, int] | None,
     cap_frame_rate: bool,
-    has_audio: bool,
+    audio_stream: int | None,
     copy_audio: bool,
     square_pixels: bool = False,
     tonemap: bool = False,
 ) -> list[str]:
     """ffmpeg command that writes a capped H.264 file. `scale` is the fitted size.
+
+    Only the first video stream and the audio stream at `audio_stream` are
+    kept. Other audio, data and metadata tracks are dropped.
 
     The file is a local intermediate. `+faststart` is left to the clip encode
     so this pass does not rewrite a multi-gigabyte master a second time.
@@ -365,9 +404,10 @@ def build_normalization_command(
         square_pixels=square_pixels,
         tonemap=tonemap,
     )
+    has_audio = audio_stream is not None
     command = ["ffmpeg", "-y", "-i", str(source), "-map", "0:v:0"]
     if has_audio:
-        command += ["-map", "0:a?"]
+        command += ["-map", f"0:a:{audio_stream}"]
     if filters:
         command += ["-vf", ",".join(filters)]
     command += [
@@ -406,9 +446,17 @@ def _run_ffmpeg(command: list[str]) -> bool:
         logger.warning("Source normalization failed to run: %s", exc)
         return False
     if result.returncode != 0:
-        logger.warning("Source normalization ffmpeg failed: %s", result.stderr[-500:])
+        logger.warning("Source normalization ffmpeg failed: %s", _stderr_excerpt(result.stderr))
         return False
     return True
+
+
+def _stderr_excerpt(stderr: str | None, head: int = 2000, tail: int = 1000) -> str:
+    """Head (input and stream list) and tail (the error) of ffmpeg's stderr."""
+    stderr = stderr or ""
+    if len(stderr) <= head + tail:
+        return stderr
+    return f"{stderr[:head]}\n[... {len(stderr) - head - tail} chars omitted ...]\n{stderr[-tail:]}"
 
 
 def _replace_source(temporary: Path, path: Path) -> None:
@@ -453,7 +501,7 @@ def _encode_attempt(
     *,
     scale: tuple[int, int] | None,
     cap_frame_rate: bool,
-    has_audio: bool,
+    audio_stream: int | None,
     copy_audio: bool,
     square_pixels: bool,
     tonemap: bool,
@@ -463,7 +511,7 @@ def _encode_attempt(
         path, temporary,
         scale=scale,
         cap_frame_rate=cap_frame_rate,
-        has_audio=has_audio,
+        audio_stream=audio_stream,
         copy_audio=copy_audio,
         square_pixels=square_pixels,
         tonemap=tonemap,
@@ -484,7 +532,16 @@ def _normalize_locked(path: Path) -> Path:
     fitted = fit_within_1080p(display_width, display_height)
     needs_scale = fitted != (display_width, display_height)
     needs_fps = geometry.fps is not None and geometry.fps > MAX_OUTPUT_FPS + FPS_EPSILON
-    has_audio = _has_audio(path)
+    audio_streams = _audio_streams(path)
+    audio_stream = pick_audio_stream(audio_streams)
+    if audio_streams and audio_stream is None:
+        logger.warning(
+            "No decodable audio stream in %s: %s",
+            path.name,
+            [(stream.get("index"), stream.get("codec_name")) for stream in audio_streams],
+        )
+        raise UnreadableAudioError()
+    has_audio = audio_stream is not None
     _enough_disk(path)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.capped.mp4")
     logger.info(
@@ -501,7 +558,7 @@ def _normalize_locked(path: Path) -> Path:
     common = {
         "scale": scale,
         "cap_frame_rate": needs_fps,
-        "has_audio": has_audio,
+        "audio_stream": audio_stream,
         "square_pixels": geometry.anamorphic,
     }
     try:

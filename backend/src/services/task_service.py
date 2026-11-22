@@ -55,6 +55,7 @@ from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_duration import clip_duration, validate_clip_length
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings, normalize_source_ranges, source_range_bounds
+from ..media.source_limits import UnreadableAudioError
 from ..media.timeline import seconds_to_mmss
 from ..workflows.boundaries import cleanup_key
 from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_from_task
@@ -1154,6 +1155,8 @@ class TaskService(ClipEditingMixin):
             error_code = "task_error"
             message = str(e).lower()
             if is_workflow_error:
+                error_code = e.code
+            elif isinstance(e, UnreadableAudioError):
                 error_code = e.code
             elif isinstance(e, YouTubeGeoRestrictedError):
                 error_code = "youtube_geo_restricted"

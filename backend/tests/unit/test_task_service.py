@@ -1077,6 +1077,24 @@ def test_failure_text_never_shows_internals(error, shown):
     assert user_facing_error(error) == (shown or _GENERIC_ERROR)
 
 
+@pytest.mark.asyncio
+async def test_unreadable_audio_has_its_own_error_code_and_message():
+    from src.media.source_limits import UnreadableAudioError
+
+    service = build_task_service()
+    service.video_service.process_video_complete.side_effect = UnreadableAudioError()
+    progress = AsyncMock()
+
+    with pytest.raises(UnreadableAudioError):
+        await service.process_task(
+            task_id="task-1", url="https://www.youtube.com/watch?v=abcdefghijk",
+            source_type="youtube", user_id="user-1", progress_callback=progress,
+        )
+
+    assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "audio_unreadable"
+    assert service.task_repo.update_task_status.await_args.kwargs["progress_message"] == str(UnreadableAudioError())
+
+
 def test_download_errors_keep_their_wording():
     from src.services.task_service import user_facing_error
     from src.stream_source import StreamSourceError
@@ -1084,3 +1102,10 @@ def test_download_errors_keep_their_wording():
 
     assert user_facing_error(StreamSourceError("This VOD is private")) == "This VOD is private"
     assert user_facing_error(YouTubeGeoRestrictedError()) == str(YouTubeGeoRestrictedError())
+
+
+def test_unreadable_audio_keeps_its_wording():
+    from src.media.source_limits import UnreadableAudioError
+    from src.services.task_service import user_facing_error
+
+    assert user_facing_error(UnreadableAudioError()) == str(UnreadableAudioError())
