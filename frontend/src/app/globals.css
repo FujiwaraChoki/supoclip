@@ -265,8 +265,50 @@
   50% { transform: translateY(-3px); }
 }
 
-/* Upgrade dialog: soft vertical fade mask for the looping example-clip collage */
+/* Upgrade dialog: soft 2-axis fade mask + progressive edge blurs for the looping example-clip collage */
 .upgrade-gallery-mask {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0%, black 13%, black 87%, transparent 100%),
+    linear-gradient(to right, transparent 0%, black 4.5%, black 95.5%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, transparent 0%, black 13%, black 87%, transparent 100%),
+    linear-gradient(to right, transparent 0%, black 4.5%, black 95.5%, transparent 100%);
+  mask-composite: intersect;
+}
+.upgrade-gallery-blur-top-soft {
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 35%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 35%, transparent 100%);
+}
+.upgrade-gallery-blur-top-strong {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 72%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 72%);
+}
+.upgrade-gallery-blur-bottom-soft {
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  -webkit-mask-image: linear-gradient(to top, black 0%, black 35%, transparent 100%);
+  mask-image: linear-gradient(to top, black 0%, black 35%, transparent 100%);
+}
+.upgrade-gallery-blur-bottom-strong {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 72%);
+  mask-image: linear-gradient(to top, black 0%, transparent 72%);
+}
+.upgrade-gallery-blur-left {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to right, black 0%, transparent 100%);
+  mask-image: linear-gradient(to right, black 0%, transparent 100%);
+}
+.upgrade-gallery-blur-right {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to left, black 0%, transparent 100%);
+  mask-image: linear-gradient(to left, black 0%, transparent 100%);
 }

@@ -59,6 +59,13 @@ export function UpgradeExamplesGallery({ className }: { className?: string }) {
             className="size-full object-cover"
           />
         )}
+        {/* Progressive edge blurs (top, bottom, and gentle sides) layered inside the opacity mask */}
+        <div aria-hidden="true" className="upgrade-gallery-blur-top-soft pointer-events-none absolute inset-x-0 top-0 h-20" />
+        <div aria-hidden="true" className="upgrade-gallery-blur-top-strong pointer-events-none absolute inset-x-0 top-0 h-14" />
+        <div aria-hidden="true" className="upgrade-gallery-blur-bottom-soft pointer-events-none absolute inset-x-0 bottom-0 h-20" />
+        <div aria-hidden="true" className="upgrade-gallery-blur-bottom-strong pointer-events-none absolute inset-x-0 bottom-0 h-14" />
+        <div aria-hidden="true" className="upgrade-gallery-blur-left pointer-events-none absolute inset-y-0 left-0 w-7" />
+        <div aria-hidden="true" className="upgrade-gallery-blur-right pointer-events-none absolute inset-y-0 right-0 w-7" />
       </div>
 
       <Link
