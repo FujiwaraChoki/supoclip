@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from pathlib import Path
 from typing import Tuple
 import cv2
@@ -781,6 +782,67 @@ def _scene_cuts_from_diffs(diffs: List[Tuple[float, float]]) -> List[float]:
     return cuts
 
 
+# A scene change into (or out of) busy footage. The spike tests above and in ``context_scene_cuts`` need a cut to
+# stand out from the changes around it; a cut from a calm scene to handheld footage is followed by changes almost
+# as large, and a clip with many such changes raises its own threshold. But the scene looks different: the
+# picture's overall colour shifts in one step and stays shifted. Measured on a cut from a night street to a lit
+# room: step 52, the next three steps 35 to 42, colour shift 60; a pan inside one scene shifts it by under 10.
+LOOK_CUT_SAMPLES = 3          # samples averaged either side of the step (one second at the analysis rate)
+LOOK_CUT_MIN_STEP = 24.0      # mean change at the step itself, as for the other cut tests
+LOOK_CUT_MIN_SHIFT = 25.0     # change of the mean colour across the step (0-255, the channel that moves most)
+LOOK_CUT_REACH = 2            # the step is the largest within this many samples
+# On its own the test also fires inside one shot (an explosion, lights going on, a fast pan from shade into sun):
+# a third of its finds on reviewed clips had no cut. So each find is checked at the full frame rate, where a hard
+# cut is one frame-to-frame change and motion is not (``interview_layout.precise_cuts``). That pass is only
+# decoded when the test found something the other tests did not.
+LOOK_CUT_SAME = 0.4           # seconds: a find this close to a cut already known adds nothing
+LOOK_CUT_FRAME_REACH = (0.45, 0.1)   # a sampled cut lies up to one sample before its time; seconds before, after
+LOOK_CUT_MAX_RATE = 1.5       # frame-accurate cuts per second above which that detector is not trusted (judder)
+
+
+def _scene_cuts_from_look(times: Sequence[float], thumbs: Sequence[np.ndarray]) -> List[float]:
+    """Cuts where the picture's overall colour changes in one step and stays changed (see LOOK_CUT_*)."""
+    count = min(len(times), len(thumbs))
+    if count < 2 * LOOK_CUT_SAMPLES:
+        return []
+    frames = np.stack([np.asarray(t, dtype=np.float32) for t in thumbs[:count]])
+    steps = np.abs(np.diff(frames, axis=0)).reshape(count - 1, -1).mean(axis=1)   # steps[i - 1]: frame i-1 to i
+    tones = frames.reshape(count, -1, frames.shape[-1]).mean(axis=1)               # mean colour per frame
+    cuts: List[float] = []
+    for i in range(LOOK_CUT_SAMPLES, count - LOOK_CUT_SAMPLES + 1):
+        step = float(steps[i - 1])
+        if step < LOOK_CUT_MIN_STEP:
+            continue
+        around = steps[max(0, i - 1 - LOOK_CUT_REACH):i + LOOK_CUT_REACH]
+        if step < float(around.max()):
+            continue
+        # The median of each side: one flash frame does not move it.
+        before = np.median(tones[i - LOOK_CUT_SAMPLES:i], axis=0)
+        after = np.median(tones[i:i + LOOK_CUT_SAMPLES], axis=0)
+        if float(np.abs(after - before).max()) >= LOOK_CUT_MIN_SHIFT:
+            cuts.append(float(times[i]))
+    return cuts
+
+
+def _look_cuts_on_real_cuts(input_path: Path, finds: Sequence[float], duration: float) -> List[float]:
+    """The look test's finds that sit on a frame-accurate hard cut. None when that cannot be checked."""
+    if not finds:
+        return []
+    from .interview_layout import frame_changes, precise_cuts
+
+    try:
+        times, thumbnails = frame_changes(input_path)
+        hard = precise_cuts(times, thumbnails, [])
+    except Exception as exc:  # noqa: BLE001 - the cuts already known stand
+        logger.warning("Frame-accurate check of scene changes failed (%s); keeping the sampled cuts", exc)
+        return []
+    if len(hard) > LOOK_CUT_MAX_RATE * max(duration, 1.0):
+        # Footage with repeated frames (judder) reads as a cut every few frames: nothing can be confirmed on it.
+        return []
+    before, after = LOOK_CUT_FRAME_REACH
+    return [c for c in finds if any(-before <= h - c <= after for h in hard)]
+
+
 def analyze_vertical_clip(
     input_path: Path,
     *,
@@ -834,6 +896,8 @@ def analyze_vertical_clip(
     track: List[Tuple[float, Optional[float], float]] = []
     face_samples: List[Tuple[float, List[Tuple[float, float, float, float]]]] = []
     diffs: List[Tuple[float, float]] = []
+    thumbs: List[np.ndarray] = []
+    thumb_times: List[float] = []
     context_analyzer = ContextAnalyzer() if analyze_context else None
     context: List[SceneEvidence] = []
     prev_small = None
@@ -867,6 +931,8 @@ def analyze_vertical_clip(
             if prev_small is not None:
                 diffs.append((t, float(np.mean(np.abs(small - prev_small)))))
             prev_small = small
+            thumbs.append(small)
+            thumb_times.append(t)
             idx += 1
     finally:
         try:
@@ -880,6 +946,15 @@ def analyze_vertical_clip(
     if proc.returncode != 0:
         raise RuntimeError("Video analysis decoder failed; partial analysis discarded")
     cuts = sorted(set(_scene_cuts_from_diffs(diffs)) | set(context_scene_cuts(context)))
+    finds = [
+        c for c in _scene_cuts_from_look(thumb_times, thumbs)
+        if not any(abs(c - known) < LOOK_CUT_SAME for known in cuts)
+    ]
+    if finds:
+        confirmed = _look_cuts_on_real_cuts(input_path, finds, idx / sample_fps)
+        if confirmed:
+            logger.info("Scene changes into busy footage: %s", [round(c, 2) for c in confirmed])
+            cuts = sorted(set(cuts) | set(confirmed))
     return track, cuts, face_samples, context
 
 
