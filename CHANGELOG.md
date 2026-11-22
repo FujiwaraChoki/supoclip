@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-22
+
+- **Fixed:** A video that cuts from a calm scene into busy handheld footage is now framed scene by scene. The cut used to go unnoticed, the two scenes were treated as one shot, and the clip could come out as a small picture between blurred bars. ([#559](https://github.com/FujiwaraChoki/supoclip/pull/559))
+
 ## 2026-11-21
 
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))
