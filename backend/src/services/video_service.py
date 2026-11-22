@@ -568,6 +568,48 @@ def _sync_plan_ranges(plan: Dict[str, Any], segments: List[Dict[str, Any]]) -> N
             ]
 
 
+SCORE_KEYS = ("hook_score", "engagement_score", "value_score", "shareability_score")
+
+
+def stored_segment_scores(segment: Dict[str, Any]) -> Dict[str, Any]:
+    """Scores of a segment that was stored as JSON, in the shape clips are saved with.
+
+    A checkpoint keeps the model's answer, with the scores nested under ``virality``. The shared
+    analysis cache keeps the render payload, where the same scores are top-level keys. Both are
+    read here, so a clip made from a cached analysis keeps its score and hook type.
+    """
+    virality = segment.get("virality")
+    if hasattr(virality, "model_dump"):
+        virality = virality.model_dump()
+    if isinstance(virality, dict) and virality:
+        return {
+            "virality_score": virality.get("total_score", 0),
+            **{key: virality.get(key, 0) for key in SCORE_KEYS},
+            "hook_type": virality.get("hook_type"),
+        }
+    return {
+        "virality_score": segment.get("virality_score") or 0,
+        **{key: segment.get(key) or 0 for key in SCORE_KEYS},
+        "hook_type": segment.get("hook_type"),
+    }
+
+
+def cached_scores_were_lost(segments: List[Any]) -> bool:
+    """True for a cached analysis whose every moment carries a stored score of zero.
+
+    Until scores were read from both stored shapes, a run that started from the cache wrote the
+    analysis back with every score at zero. A moment the model picked never scores zero, and a
+    starter clip for a video without speech (``fallback``) has no score to lose.
+    """
+    stored = [segment for segment in segments if isinstance(segment, dict) and "virality_score" in segment]
+    if not stored or len(stored) != len(segments):
+        return False
+    return all(
+        not segment.get("virality_score") and not segment.get("hook_type") and not segment.get("virality")
+        for segment in stored
+    )
+
+
 class VideoService:
     """Service for video processing operations."""
 
@@ -1817,6 +1859,12 @@ class VideoService:
                     logger.info(
                         "Ignoring cached transcript analysis with no clip segments"
                     )
+                elif cached_scores_were_lost(segments) and not (
+                    checkpoint.get("analysis") or checkpoint.get("candidates") or checkpoint.get("segments")
+                ):
+                    # Saved by a run that read an earlier cache entry without its scores. The moments are
+                    # still there but their ranking is not, so the video is analysed again.
+                    logger.info("Ignoring cached transcript analysis that lost its scores")
                 else:
 
                     class _SimpleResult:
@@ -1875,21 +1923,13 @@ class VideoService:
         transcript_data = load_cached_transcript_data(video_path)
         for segment in ([] if prepared_segments else raw_segments):
             if isinstance(segment, dict):
-                virality = segment.get("virality") or {}
-                if hasattr(virality, "model_dump"):
-                    virality = virality.model_dump()
                 segment_payload = {
                     "start_time": segment.get("start_time"),
                     "end_time": segment.get("end_time"),
                     "text": segment.get("text", ""),
                     "relevance_score": segment.get("relevance_score", 0.0),
                     "reasoning": segment.get("reasoning", ""),
-                    "virality_score": virality.get("total_score", 0),
-                    "hook_score": virality.get("hook_score", 0),
-                    "engagement_score": virality.get("engagement_score", 0),
-                    "value_score": virality.get("value_score", 0),
-                    "shareability_score": virality.get("shareability_score", 0),
-                    "hook_type": virality.get("hook_type"),
+                    **stored_segment_scores(segment),
                     "hook_title": segment.get("hook_title"),
                     "hook_start_time": segment.get("hook_start_time"),
                     "hook_end_time": segment.get("hook_end_time"),
