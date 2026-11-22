@@ -729,6 +729,24 @@ def test_a_crop_that_would_lose_its_face_follows_it_directly():
     assert not interview_layout._axis(segment, calm, size, W - size, still=400.0).startswith("'")
 
 
+def test_the_hook_title_is_on_the_seam_only_when_the_two_shot_fills_most_of_its_time():
+    """The title keeps one row for its four seconds. In a frame-filling crop the seam is the face or
+    chest of the person in it."""
+    # A close-up for three seconds, then the two-shot: the title used to lie across the face.
+    late_two_shot = [(0, 3, [CLOSE]), (3, 9, [HOST, GUEST]), (9, 12, [CLOSE])]
+    assert "hook_center_y" not in plan(late_two_shot, [3, 9], 12)
+    # A two-shot for a second and a half, then a close-up.
+    short_two_shot = [(0, 1.5, [HOST, GUEST]), (1.5, 8, [CLOSE]), (8, 12, [HOST, GUEST])]
+    assert "hook_center_y" not in plan(short_two_shot, [1.5, 8], 12)
+    # The two-shot fills three of the four seconds: the seam, as before.
+    long_two_shot = [(0, 3, [HOST, GUEST]), (3, 8, [CLOSE]), (8, 12, [HOST, GUEST])]
+    assert plan(long_two_shot, [3, 8], 12)["hook_center_y"] == interview_layout.PAIR_SEAM_Y
+    # Two different two-shots across a cut still count together.
+    other = ((430.0, 240.0, 140.0, 180.0), (1300.0, 230.0, 150.0, 195.0))
+    two_two_shots = [(0, 2, [HOST, GUEST]), (2, 7, list(other)), (7, 12, [CLOSE])]
+    assert plan(two_two_shots, [2, 7], 12)["hook_center_y"] == interview_layout.PAIR_SEAM_Y
+
+
 # --- Over the shoulder at equal size: the back of a head gets no panel ---
 
 OVER_SHOULDER = [
