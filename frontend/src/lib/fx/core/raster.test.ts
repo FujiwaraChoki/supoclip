@@ -144,7 +144,7 @@ describe("raster goldens", () => {
           : template === "behind_head" ? { ...scene.caption!, stroke_color: null, stroke_px: 0 } : { ...scene.caption!, font: "Poppins-ExtraBold" };
       expectGolden(`base__${template}_t1.05`, renderSceneToPng({ ...scene, caption: { ...style, template } }, 1.05));
     }
-  });
+  }, 30_000); // four full-size frames; a shared CI runner needs more than the default 5 s
 
   it("picture ops: punch toward the face, whip blur, spin, RGB split + slices", () => {
     const states = {
