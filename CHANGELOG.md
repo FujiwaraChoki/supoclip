@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-22
+
+- **Fixed:** In gameplay clips the title at the start no longer covers the game's own labels. An hour label, timer or money counter that sits where the title is shown now appears once the title has gone, instead of the two being printed on top of each other. ([#558](https://github.com/FujiwaraChoki/supoclip/pull/558))
+
 ## 2026-11-21
 
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))
