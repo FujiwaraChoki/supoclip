@@ -124,5 +124,9 @@
   "comingSoon": "Demnächst",
   "teamWorkspaceBody": "{team} nutzt ein gemeinsames Team-Abo. Eigentümer können den Tarif aktivieren oder Plätze hinzufügen, um das Stundenkontingent zu erhöhen.",
   "manageTeamSeats": "Team & Plätze verwalten",
-  "teamAskOwner": "{team} nutzt ein gemeinsames Team-Abo. Bitte den Team-Eigentümer, den Tarif zu starten oder Plätze hinzuzufügen."
+  "teamAskOwner": "{team} nutzt ein gemeinsames Team-Abo. Bitte den Team-Eigentümer, den Tarif zu starten oder Plätze hinzuzufügen.",
+  "gallery": {
+    "regionLabel": "Beispiel-Clips erstellt mit SupoClip",
+    "viewAll": "Mehr Beispiele"
+  }
 }
