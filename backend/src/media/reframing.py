@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from pathlib import Path
 from typing import Tuple
 import cv2
@@ -781,6 +782,41 @@ def _scene_cuts_from_diffs(diffs: List[Tuple[float, float]]) -> List[float]:
     return cuts
 
 
+# A scene change into (or out of) busy footage. The spike tests above and in ``context_scene_cuts`` need a cut to
+# stand out from the changes around it; a cut from a calm scene to handheld footage is followed by changes almost
+# as large, and a clip with many such changes raises its own threshold. But the scene looks different: the
+# picture's overall colour shifts in one step and stays shifted. Measured on a cut from a night street to a lit
+# room: step 52, the next three steps 35 to 42, colour shift 60; a pan inside one scene shifts it by under 10.
+LOOK_CUT_SAMPLES = 3          # samples averaged either side of the step (one second at the analysis rate)
+LOOK_CUT_MIN_STEP = 24.0      # mean change at the step itself, as for the other cut tests
+LOOK_CUT_MIN_SHIFT = 25.0     # change of the mean colour across the step (0-255, the channel that moves most)
+LOOK_CUT_REACH = 2            # the step is the largest within this many samples
+
+
+def _scene_cuts_from_look(times: Sequence[float], thumbs: Sequence[np.ndarray]) -> List[float]:
+    """Cuts where the picture's overall colour changes in one step and stays changed (see LOOK_CUT_*)."""
+    count = min(len(times), len(thumbs))
+    if count < 2 * LOOK_CUT_SAMPLES:
+        return []
+    frames = np.stack([np.asarray(t, dtype=np.float32) for t in thumbs[:count]])
+    steps = np.abs(np.diff(frames, axis=0)).reshape(count - 1, -1).mean(axis=1)   # steps[i - 1]: frame i-1 to i
+    tones = frames.reshape(count, -1, frames.shape[-1]).mean(axis=1)               # mean colour per frame
+    cuts: List[float] = []
+    for i in range(LOOK_CUT_SAMPLES, count - LOOK_CUT_SAMPLES + 1):
+        step = float(steps[i - 1])
+        if step < LOOK_CUT_MIN_STEP:
+            continue
+        around = steps[max(0, i - 1 - LOOK_CUT_REACH):i + LOOK_CUT_REACH]
+        if step < float(around.max()):
+            continue
+        # The median of each side: one flash frame does not move it.
+        before = np.median(tones[i - LOOK_CUT_SAMPLES:i], axis=0)
+        after = np.median(tones[i:i + LOOK_CUT_SAMPLES], axis=0)
+        if float(np.abs(after - before).max()) >= LOOK_CUT_MIN_SHIFT:
+            cuts.append(float(times[i]))
+    return cuts
+
+
 def analyze_vertical_clip(
     input_path: Path,
     *,
@@ -834,6 +870,8 @@ def analyze_vertical_clip(
     track: List[Tuple[float, Optional[float], float]] = []
     face_samples: List[Tuple[float, List[Tuple[float, float, float, float]]]] = []
     diffs: List[Tuple[float, float]] = []
+    thumbs: List[np.ndarray] = []
+    thumb_times: List[float] = []
     context_analyzer = ContextAnalyzer() if analyze_context else None
     context: List[SceneEvidence] = []
     prev_small = None
@@ -867,6 +905,8 @@ def analyze_vertical_clip(
             if prev_small is not None:
                 diffs.append((t, float(np.mean(np.abs(small - prev_small)))))
             prev_small = small
+            thumbs.append(small)
+            thumb_times.append(t)
             idx += 1
     finally:
         try:
@@ -879,7 +919,10 @@ def analyze_vertical_clip(
 
     if proc.returncode != 0:
         raise RuntimeError("Video analysis decoder failed; partial analysis discarded")
-    cuts = sorted(set(_scene_cuts_from_diffs(diffs)) | set(context_scene_cuts(context)))
+    cuts = sorted(
+        set(_scene_cuts_from_diffs(diffs)) | set(context_scene_cuts(context))
+        | set(_scene_cuts_from_look(thumb_times, thumbs))
+    )
     return track, cuts, face_samples, context
 
 
