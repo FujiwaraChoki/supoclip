@@ -232,6 +232,19 @@ shown larger without cutting one side); a logo in the middle of the gameplay cro
 cutscene without a HUD where one character holds the frame for 90 % of the clip keeps the regular layout; in
 heavily edited videos a game character can be taken for a keyed-out streamer while the creators are off screen.
 
+### The hook title and the game's top elements (clip review, 21 Nov 2026)
+
+The hook title sits on the seam under the camera panel (at the top of the frame without a camera). The game's
+top elements, an hour label, a timer, a money counter, are pasted at the top of the game panel, right under that
+seam, so the title's second line was printed on the game's own text for its first four seconds (13 of 14
+reviewed gameplay clips).
+
+- A cut-out that overlaps the title's rows (from the seam, or from 11 % of the height without a camera, down
+  `HOOK_TITLE_REACH` = 14 % of the canvas height) is pasted from `STICKER_FROM_SECONDS` on, once the title has
+  gone, as the logo sticker already is. The report lists it with `"from"`.
+- The layout does not know whether the clip has a hook title: without one the label is simply absent for the
+  first 4.2 s. An element the crop still shows (not a cut-out) stays where it is.
+
 ## Streams of story games (GTA 6)
 
 Checked on 2026-11-19 against the GTA 6 videos people were submitting (single-streamer playthroughs with a camera
