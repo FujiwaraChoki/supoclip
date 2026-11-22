@@ -265,50 +265,67 @@
   50% { transform: translateY(-3px); }
 }
 
-/* Upgrade dialog: soft 2-axis fade mask + progressive edge blurs for the looping example-clip collage */
+/* Upgrade dialog: opposing vertical marquee + smooth cubic-eased top/bottom fade mask */
+@keyframes upgrade-gallery-up {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
+}
+@keyframes upgrade-gallery-down {
+  from { transform: translate3d(0, -50%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+.upgrade-gallery-track {
+  will-change: transform;
+}
+.upgrade-gallery-up {
+  animation: upgrade-gallery-up var(--gallery-duration, 34s) linear infinite;
+}
+.upgrade-gallery-down {
+  animation: upgrade-gallery-down var(--gallery-duration, 38s) linear infinite;
+}
+.upgrade-gallery:hover .upgrade-gallery-track,
+.upgrade-gallery:focus-within .upgrade-gallery-track {
+  animation-play-state: paused;
+}
 .upgrade-gallery-mask {
-  -webkit-mask-image:
-    linear-gradient(to bottom, transparent 0%, black 13%, black 87%, transparent 100%),
-    linear-gradient(to right, transparent 0%, black 4.5%, black 95.5%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(to bottom, transparent 0%, black 13%, black 87%, transparent 100%),
-    linear-gradient(to right, transparent 0%, black 4.5%, black 95.5%, transparent 100%);
-  mask-composite: intersect;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(0 0 0 / 0.08) 3.5%,
+    rgb(0 0 0 / 0.28) 7.5%,
+    rgb(0 0 0 / 0.58) 12%,
+    rgb(0 0 0 / 0.84) 16.5%,
+    rgb(0 0 0 / 0.96) 20%,
+    black 23%,
+    black 77%,
+    rgb(0 0 0 / 0.96) 80%,
+    rgb(0 0 0 / 0.84) 83.5%,
+    rgb(0 0 0 / 0.58) 88%,
+    rgb(0 0 0 / 0.28) 92.5%,
+    rgb(0 0 0 / 0.08) 96.5%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(0 0 0 / 0.08) 3.5%,
+    rgb(0 0 0 / 0.28) 7.5%,
+    rgb(0 0 0 / 0.58) 12%,
+    rgb(0 0 0 / 0.84) 16.5%,
+    rgb(0 0 0 / 0.96) 20%,
+    black 23%,
+    black 77%,
+    rgb(0 0 0 / 0.96) 80%,
+    rgb(0 0 0 / 0.84) 83.5%,
+    rgb(0 0 0 / 0.58) 88%,
+    rgb(0 0 0 / 0.28) 92.5%,
+    rgb(0 0 0 / 0.08) 96.5%,
+    transparent 100%
+  );
 }
-.upgrade-gallery-blur-top-soft {
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 35%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 0%, black 35%, transparent 100%);
-}
-.upgrade-gallery-blur-top-strong {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 72%);
-  mask-image: linear-gradient(to bottom, black 0%, transparent 72%);
-}
-.upgrade-gallery-blur-bottom-soft {
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-  -webkit-mask-image: linear-gradient(to top, black 0%, black 35%, transparent 100%);
-  mask-image: linear-gradient(to top, black 0%, black 35%, transparent 100%);
-}
-.upgrade-gallery-blur-bottom-strong {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 72%);
-  mask-image: linear-gradient(to top, black 0%, transparent 72%);
-}
-.upgrade-gallery-blur-left {
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(to right, black 0%, transparent 100%);
-  mask-image: linear-gradient(to right, black 0%, transparent 100%);
-}
-.upgrade-gallery-blur-right {
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(to left, black 0%, transparent 100%);
-  mask-image: linear-gradient(to left, black 0%, transparent 100%);
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-gallery-track {
+    animation: none !important;
+    transform: none !important;
+  }
 }
