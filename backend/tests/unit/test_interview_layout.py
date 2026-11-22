@@ -729,6 +729,41 @@ def test_a_crop_that_would_lose_its_face_follows_it_directly():
     assert not interview_layout._axis(segment, calm, size, W - size, still=400.0).startswith("'")
 
 
+# ---------------------------------------------------------------------------
+# A single crop that cannot stay on its person
+# ---------------------------------------------------------------------------
+
+LEFT_FACE = (300.0, 300.0, 180.0, 230.0)
+RIGHT_FACE = (575.0, 310.0, 180.0, 230.0)       # the next seat: 275 px away, more than half a crop
+MID_FACE = (820.0, 280.0, 180.0, 230.0)
+
+
+def test_a_stretch_whose_face_keeps_jumping_across_the_frame_stays_wide():
+    # A two-shot, a cut, then a handheld scene whose inner cuts were missed: the one face found is on the left,
+    # for a moment on the right, left again, right again. A crop that follows "the person" trails behind and
+    # shows the wall between them.
+    whip = [(5, 6.7, [LEFT_FACE]), (6.7, 7.4, [RIGHT_FACE]), (7.4, 9, [LEFT_FACE]), (9, 9.7, [RIGHT_FACE]),
+            (9.7, 11, [LEFT_FACE])]
+    result = plan([(0, 5, [HOST, GUEST]), *whip], [5.0], 11.0)
+    assert [(s["kind"], s.get("reason")) for s in result["segments"]] == [
+        ("pair", "two_people"), ("fit", "person_moves_across_frame")]
+    # One move across the frame is a person changing seat or the camera reframing: the crop follows.
+    once = plan([(0, 5, [HOST, GUEST]), (5, 8, [LEFT_FACE]), (8, 11, [RIGHT_FACE])], [5.0], 11.0)
+    assert [s["kind"] for s in once["segments"]] == ["pair", "single"]
+    # A person who stays put, or drifts, keeps the crop.
+    drift = [(5 + i * 0.5, 5.5 + i * 0.5, [(300.0 + 30 * i, 300.0, 180.0, 230.0)]) for i in range(12)]
+    steady = plan([(0, 5, [HOST, GUEST]), *drift], [5.0], 11.0)
+    assert [s["kind"] for s in steady["segments"]] == ["pair", "single"]
+
+
+def test_face_jumps_counts_moves_of_half_a_crop_or_more():
+    segment = interview_layout.Segment(0.0, 4.0, kind="single", reason="one_person")
+    xs = [100, 110, 400, 405, 120, 125, 130]
+    segment.tracks = [{i * 0.5: (float(x), 200.0, 100.0, 120.0) for i, x in enumerate(xs)}]
+    assert interview_layout._face_jumps(segment, 400.0) == 2        # 110 -> 400 and 405 -> 120
+    assert interview_layout._face_jumps(segment, 800.0) == 0        # in a wider crop those are small moves
+
+
 def test_the_hook_title_is_on_the_seam_only_when_the_two_shot_fills_most_of_its_time():
     """The title keeps one row for its four seconds. In a frame-filling crop the seam is the face or
     chest of the person in it."""
