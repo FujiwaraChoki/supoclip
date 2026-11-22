@@ -264,3 +264,68 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+
+/* Upgrade dialog: opposing vertical marquee + smooth cubic-eased top/bottom fade mask */
+@keyframes upgrade-gallery-up {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
+}
+@keyframes upgrade-gallery-down {
+  from { transform: translate3d(0, -50%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+.upgrade-gallery-track {
+  will-change: transform;
+}
+.upgrade-gallery-up {
+  animation: upgrade-gallery-up var(--gallery-duration, 34s) linear infinite;
+}
+.upgrade-gallery-down {
+  animation: upgrade-gallery-down var(--gallery-duration, 38s) linear infinite;
+}
+.upgrade-gallery:hover .upgrade-gallery-track,
+.upgrade-gallery:focus-within .upgrade-gallery-track {
+  animation-play-state: paused;
+}
+.upgrade-gallery-mask {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(0 0 0 / 0.08) 3.5%,
+    rgb(0 0 0 / 0.28) 7.5%,
+    rgb(0 0 0 / 0.58) 12%,
+    rgb(0 0 0 / 0.84) 16.5%,
+    rgb(0 0 0 / 0.96) 20%,
+    black 23%,
+    black 77%,
+    rgb(0 0 0 / 0.96) 80%,
+    rgb(0 0 0 / 0.84) 83.5%,
+    rgb(0 0 0 / 0.58) 88%,
+    rgb(0 0 0 / 0.28) 92.5%,
+    rgb(0 0 0 / 0.08) 96.5%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(0 0 0 / 0.08) 3.5%,
+    rgb(0 0 0 / 0.28) 7.5%,
+    rgb(0 0 0 / 0.58) 12%,
+    rgb(0 0 0 / 0.84) 16.5%,
+    rgb(0 0 0 / 0.96) 20%,
+    black 23%,
+    black 77%,
+    rgb(0 0 0 / 0.96) 80%,
+    rgb(0 0 0 / 0.84) 83.5%,
+    rgb(0 0 0 / 0.58) 88%,
+    rgb(0 0 0 / 0.28) 92.5%,
+    rgb(0 0 0 / 0.08) 96.5%,
+    transparent 100%
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-gallery-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}

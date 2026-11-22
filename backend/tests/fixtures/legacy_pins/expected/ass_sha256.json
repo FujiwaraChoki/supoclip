@@ -5,7 +5,7 @@
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "d8c90ddb5b8abe9420594c029dde10af351bc2460f05625a4658fd401d44d97e"
+    "sha256": "d309a14b5371f291d60603097500d3c12d7025141aced3a47cec14c77b5f0072"
   },
   "default|generated|offsets": {
     "dialogue_lines": 52,
@@ -13,23 +13,23 @@
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "2e72a0d510e3bf75421b5c4c9db1bf6d629ffb58fc6d297ae5ccce490f945733"
+    "sha256": "3d684b88fd6126e919d6e4c5ca5a6e8fffad2549f619b5581113e00b7c4313cf"
   },
   "default|karaoke_off|crossfade": {
-    "dialogue_lines": 14,
+    "dialogue_lines": 17,
     "layout_report": {
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "19e26673a91eb9435fb72960356ab85d06f0c55faa4f3bfcf5d0bcaac9ef5a4a"
+    "sha256": "259a4de4ac9368ff6662fd72bce46494649fb2ae257b49782bf3c7f7007c4d4e"
   },
   "default|karaoke_off|offsets": {
-    "dialogue_lines": 14,
+    "dialogue_lines": 17,
     "layout_report": {
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "8010ddd7a49a177bfaf8bd75b837b4e295b0b7aff0496d35a12163006d91c7e8"
+    "sha256": "e4891799e529c5a9ce6d17653be5e7689d45bf50ca65f7a3e9681e3c4b172c9b"
   },
   "default|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -37,7 +37,7 @@
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "d8c90ddb5b8abe9420594c029dde10af351bc2460f05625a4658fd401d44d97e"
+    "sha256": "d309a14b5371f291d60603097500d3c12d7025141aced3a47cec14c77b5f0072"
   },
   "default|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -45,7 +45,7 @@
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "2e72a0d510e3bf75421b5c4c9db1bf6d629ffb58fc6d297ae5ccce490f945733"
+    "sha256": "3d684b88fd6126e919d6e4c5ca5a6e8fffad2549f619b5581113e00b7c4313cf"
   },
   "default|single_range": {
     "dialogue_lines": 29,
@@ -53,7 +53,7 @@
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "f4c8964d42d4c1125c2356a0ae7bfc3f8cf80ea25219af107522666c3edf87e9"
+    "sha256": "c4429f4ca73f0cde9e5f66884249289eb9b61c3da796f279cfb3657666ee296c"
   },
   "extra|caption_words": {
     "dialogue_lines": 3,
@@ -91,7 +91,7 @@
       "caption_y": 0.2859375
     },
     "ok": true,
-    "sha256": "f4704447c21f66571e0d95bdcac2920e2962f3a8d9abe95ff8958cde0985e405"
+    "sha256": "434bec164b6886c7190f3041f63fb76d51ea201e6b501291df6139b1c5cb2440"
   },
   "extra|point_labels": {
     "dialogue_lines": 54,
@@ -99,7 +99,7 @@
       "caption_y": 0.7760416666666666
     },
     "ok": true,
-    "sha256": "e17fd2a71f39e89fb08571b17dd5b2be845bca2de12670e590c54a570a49faf4"
+    "sha256": "40e27f9367848919612658ac300519c568264c791e7cfd735fc766b252af348b"
   },
   "extra|studio": {
     "dialogue_lines": 52,
@@ -107,7 +107,7 @@
       "caption_y": 0.7291666666666666
     },
     "ok": true,
-    "sha256": "c184124143fedb67028010399345f1c9af2ee67aeea68ff976fd6badd8475ee5"
+    "sha256": "fddefaa300591048af68c1922dd5a92b43c14d72be53e582bccd88b54c21e493"
   },
   "hormozi|generated|crossfade": {
     "dialogue_lines": 52,
@@ -115,7 +115,7 @@
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "d01d9888470ea3da465fff2d70b9283b4422c7984d623d20886133b171203725"
+    "sha256": "f53be81f4553ab876cd49ac76bfb4e29be380ad2c2b7a9b2540c2fc45a15c4e8"
   },
   "hormozi|generated|offsets": {
     "dialogue_lines": 52,
@@ -123,23 +123,23 @@
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "f1fe260cb1bba6bead7b7f6b98ae71abc292cc520bd93171a19965e3a0c611b9"
+    "sha256": "d7a1c651ad26e91faabffcfea115abd641c3d0542776633b3c5252d73a882fad"
   },
   "hormozi|karaoke_off|crossfade": {
-    "dialogue_lines": 18,
+    "dialogue_lines": 21,
     "layout_report": {
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "bde86d079a207b2791e668116832863f4a60b0ea7248b1d094fc5ca2d7f621de"
+    "sha256": "851bd3a4c19fc863128abbcb7164eb78c2bde514a6dcd557d9083dc4c7b07961"
   },
   "hormozi|karaoke_off|offsets": {
-    "dialogue_lines": 18,
+    "dialogue_lines": 21,
     "layout_report": {
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "a2e9ac8944cd0df58be5aa3c4691af5a9cbebe4d5c248680fe3cdaa1f82ded17"
+    "sha256": "6c4d32925f732db1ed05b233ed36260ce1b49819a2c56fd3c3020341e6f59783"
   },
   "hormozi|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -147,7 +147,7 @@
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "d01d9888470ea3da465fff2d70b9283b4422c7984d623d20886133b171203725"
+    "sha256": "f53be81f4553ab876cd49ac76bfb4e29be380ad2c2b7a9b2540c2fc45a15c4e8"
   },
   "hormozi|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -155,7 +155,7 @@
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "f1fe260cb1bba6bead7b7f6b98ae71abc292cc520bd93171a19965e3a0c611b9"
+    "sha256": "d7a1c651ad26e91faabffcfea115abd641c3d0542776633b3c5252d73a882fad"
   },
   "hormozi|single_range": {
     "dialogue_lines": 29,
@@ -163,39 +163,39 @@
       "caption_y": 0.715625
     },
     "ok": true,
-    "sha256": "0aa8d5eb64d723fbdc7377a6d3356a1e963978fb25ec5f3d27b7722e066bebc7"
+    "sha256": "3b6ce45a3a7f6b35e75c6d339dc7679c50092f98423e443e1846cd3500208624"
   },
   "minimal|generated|crossfade": {
-    "dialogue_lines": 10,
+    "dialogue_lines": 13,
     "layout_report": {
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "926223cfe29ce70c4e94b309a0977e8b3156b9c89b65faae1e0b4744f300f36a"
+    "sha256": "a59eb3288fa080299bec4821f9a0f916eeb53af45157a0e49666f4dbe8b4ca58"
   },
   "minimal|generated|offsets": {
-    "dialogue_lines": 10,
+    "dialogue_lines": 13,
     "layout_report": {
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "a0af52a0fbfcf2ee89c2ecaa3c26a649eff6d9d4a803d4f0f745e03d69708248"
+    "sha256": "22b6161c0751abf0101eca29f824fe6bbddb3a04895cfcf1f253a0b15327ada3"
   },
   "minimal|karaoke_off|crossfade": {
-    "dialogue_lines": 10,
+    "dialogue_lines": 13,
     "layout_report": {
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "926223cfe29ce70c4e94b309a0977e8b3156b9c89b65faae1e0b4744f300f36a"
+    "sha256": "a59eb3288fa080299bec4821f9a0f916eeb53af45157a0e49666f4dbe8b4ca58"
   },
   "minimal|karaoke_off|offsets": {
-    "dialogue_lines": 10,
+    "dialogue_lines": 13,
     "layout_report": {
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "a0af52a0fbfcf2ee89c2ecaa3c26a649eff6d9d4a803d4f0f745e03d69708248"
+    "sha256": "22b6161c0751abf0101eca29f824fe6bbddb3a04895cfcf1f253a0b15327ada3"
   },
   "minimal|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -203,7 +203,7 @@
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "2789f93c58c24709d3cb9d75bdd1fe7c9240d64a8d55b3a907c03ca736cc906f"
+    "sha256": "9296c9a738877db93db549140a06a5360373ad48bd103e6710cff13a93dd98c3"
   },
   "minimal|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -211,15 +211,15 @@
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "56f60ebc870941e554ff2fc16f0fa442bdb79443d1423653979eb5f6932b576e"
+    "sha256": "4c55f3c009ed26833115adaa9d53939d33660c2641d5026ca1689cc6ef0ce86a"
   },
   "minimal|single_range": {
-    "dialogue_lines": 6,
+    "dialogue_lines": 8,
     "layout_report": {
       "caption_y": 0.8005208333333333
     },
     "ok": true,
-    "sha256": "9ba90c70b6820b65464269220f89cc463783aff4dcbb63930eb32cef9ab8f776"
+    "sha256": "e010d4712e12b142a45c208a248a8b6c2b14f4a79a9563c91fb424219bdc85fa"
   },
   "mrbeast|generated|crossfade": {
     "dialogue_lines": 52,
@@ -227,7 +227,7 @@
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "f42615e697c17cd33f18a4a2cb188ea6339f64e131ea3d56a6149e262c4782ea"
+    "sha256": "7511534561481a2143444d7634be532ba4def59c47d29dd3960f90cbc818b9d6"
   },
   "mrbeast|generated|offsets": {
     "dialogue_lines": 52,
@@ -235,23 +235,23 @@
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "ff871c78ca4312901086a5cb1dd41cd50ad378ed1717c11a5d3d44c29d7811bb"
+    "sha256": "6d93f743f15fe37a68e12a7e9d270ae5938a723344f12a0d7598e3132e3d3710"
   },
   "mrbeast|karaoke_off|crossfade": {
-    "dialogue_lines": 18,
+    "dialogue_lines": 21,
     "layout_report": {
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "15c72cc2629ff37ddd5316b7e817b9600e6229da80aeb2a39700e3edf18b69ed"
+    "sha256": "5d800adfbff92c7393a301e1ee9bb57920b9252775589f51da89f486a21eb89d"
   },
   "mrbeast|karaoke_off|offsets": {
-    "dialogue_lines": 18,
+    "dialogue_lines": 21,
     "layout_report": {
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "c959983fd42aed5804fa656972c77caf838a361ba55d087d22e30b240a85e23a"
+    "sha256": "ed7f88e95995fe7d3bba433d5adfae438d13c5c9d8f02d09f0bc7708ab316005"
   },
   "mrbeast|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -259,7 +259,7 @@
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "f42615e697c17cd33f18a4a2cb188ea6339f64e131ea3d56a6149e262c4782ea"
+    "sha256": "7511534561481a2143444d7634be532ba4def59c47d29dd3960f90cbc818b9d6"
   },
   "mrbeast|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -267,7 +267,7 @@
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "ff871c78ca4312901086a5cb1dd41cd50ad378ed1717c11a5d3d44c29d7811bb"
+    "sha256": "6d93f743f15fe37a68e12a7e9d270ae5938a723344f12a0d7598e3132e3d3710"
   },
   "mrbeast|single_range": {
     "dialogue_lines": 29,
@@ -275,7 +275,7 @@
       "caption_y": 0.6744791666666666
     },
     "ok": true,
-    "sha256": "6dc5afe3bd7df9656c43542d9dc2fe86359cc31d3f7eb36bb6f2b0e4766f8c6b"
+    "sha256": "d75c794c16b0f0a88caf9e44a61d4fd30391d33cfdee66b81187fee85a7244ce"
   },
   "neon|generated|crossfade": {
     "dialogue_lines": 52,
@@ -283,7 +283,7 @@
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "3341b28dae12b02ddfee4072f442348861c8e7612f433eda4ff897985cec6ea5"
+    "sha256": "e439c07922c45efc124eef042ca3e27dd666a6d5c36d337b442aff52a91ab260"
   },
   "neon|generated|offsets": {
     "dialogue_lines": 52,
@@ -291,23 +291,23 @@
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "e3d4bf4200107291d5765e2233a07bd7b691e0723dbc23ba57b98e1a2e84c9cb"
+    "sha256": "8d642a7f564a28b8b45c805628eb703f4da46020b4de93137e861256b4dfbbbe"
   },
   "neon|karaoke_off|crossfade": {
-    "dialogue_lines": 14,
+    "dialogue_lines": 17,
     "layout_report": {
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "e926d3e80ed2e8c6613e8c5b08e87da7e159d6d5843a4a5daf3cf240d3c742da"
+    "sha256": "bbf151bc3946e834d07860e7d1fda98c85b7e4d98855023ac415743abb578894"
   },
   "neon|karaoke_off|offsets": {
-    "dialogue_lines": 14,
+    "dialogue_lines": 17,
     "layout_report": {
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "394d33619911ebdad594b7c5db3d688fb1d6ed9d4bb84109198387e69ab779f6"
+    "sha256": "51878e61235d7203c5420c39722c235274ae803248af505bec987b227ee38c9f"
   },
   "neon|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -315,7 +315,7 @@
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "3341b28dae12b02ddfee4072f442348861c8e7612f433eda4ff897985cec6ea5"
+    "sha256": "e439c07922c45efc124eef042ca3e27dd666a6d5c36d337b442aff52a91ab260"
   },
   "neon|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -323,7 +323,7 @@
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "e3d4bf4200107291d5765e2233a07bd7b691e0723dbc23ba57b98e1a2e84c9cb"
+    "sha256": "8d642a7f564a28b8b45c805628eb703f4da46020b4de93137e861256b4dfbbbe"
   },
   "neon|single_range": {
     "dialogue_lines": 29,
@@ -331,7 +331,7 @@
       "caption_y": 0.7375
     },
     "ok": true,
-    "sha256": "46867bf00ddfe1bc7891ce8b570057a87dea4c9da862aa97bb63af6b8f8a5816"
+    "sha256": "0894904989db90dfd6828ecb0557ee78e25873fe533eca90738faecca107891c"
   },
   "podcast|generated|crossfade": {
     "dialogue_lines": 52,
@@ -339,7 +339,7 @@
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "061ce818cc9607d398a45f328f72e002c90932a77cbb95d9528cf4acb9c4d96c"
+    "sha256": "f1f2d0a4f80759586bd33af7aafdbc98217ecc1a00052566f7b23cd62d23bf5e"
   },
   "podcast|generated|offsets": {
     "dialogue_lines": 52,
@@ -347,23 +347,23 @@
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "b43c620e272b38a5292f6bf648ee1e125f0ac295ce4575d258cd4e7bb88b7751"
+    "sha256": "9413bd740a17a04be65c3f1c72032d6dcd13b760ccc292afab66e0c7e4b0a550"
   },
   "podcast|karaoke_off|crossfade": {
-    "dialogue_lines": 12,
+    "dialogue_lines": 14,
     "layout_report": {
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "f31e50b9feb9ba23dd47a7a6fcb69ad55c06b6e3097f952f023443a8ea11a713"
+    "sha256": "dfa278e5cd1ac2c4df4ba47f7e68c27f8b62ff4d47431ee5e178743b0d48662c"
   },
   "podcast|karaoke_off|offsets": {
-    "dialogue_lines": 12,
+    "dialogue_lines": 14,
     "layout_report": {
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "864148776ae9226ca7a00b66798ed1f1c1657d3c0b161384c89e8df836744197"
+    "sha256": "4ec4619bc54ff72b61a2418e311e9c3f9c3282b31faf8d31a3f8d24216aed38d"
   },
   "podcast|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -371,7 +371,7 @@
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "061ce818cc9607d398a45f328f72e002c90932a77cbb95d9528cf4acb9c4d96c"
+    "sha256": "f1f2d0a4f80759586bd33af7aafdbc98217ecc1a00052566f7b23cd62d23bf5e"
   },
   "podcast|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -379,7 +379,7 @@
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "b43c620e272b38a5292f6bf648ee1e125f0ac295ce4575d258cd4e7bb88b7751"
+    "sha256": "9413bd740a17a04be65c3f1c72032d6dcd13b760ccc292afab66e0c7e4b0a550"
   },
   "podcast|single_range": {
     "dialogue_lines": 29,
@@ -387,7 +387,7 @@
       "caption_y": 0.7791666666666667
     },
     "ok": true,
-    "sha256": "70a0c24b9c2232436b09034a0f29a27afa116c7396d15a56f3ad9a6c47d86b07"
+    "sha256": "61313b54bf923bbaba1caa9b07fe02f8a21d09711088cd1ce59b39bfeb517b0f"
   },
   "tiktok|generated|crossfade": {
     "dialogue_lines": 52,
@@ -395,7 +395,7 @@
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "11e50ea8257e2e242ad4fbe4ad748abb15fbedc6d23271ca69797bd716f67619"
+    "sha256": "a9d1b98a6b4aac74036db876730e1d417fcb054ac8e39cf4fd641fc884407811"
   },
   "tiktok|generated|offsets": {
     "dialogue_lines": 52,
@@ -403,23 +403,23 @@
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "7d9783f2c62c6eb95c3c32329b4518f5978d8dddd34d6f2bbc6be9f6fa3b507e"
+    "sha256": "74dd6d6f6518a7552c2f642bcf13069c6b54cf3089070ce887bb993996cbf73d"
   },
   "tiktok|karaoke_off|crossfade": {
-    "dialogue_lines": 14,
+    "dialogue_lines": 17,
     "layout_report": {
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "785bd1000822b9b3f124154d862d3eb4750cbd25714a61a1119d5aa9e00b3834"
+    "sha256": "646fb858b038eac1f65a9fea72ef925a07fa9f240b140d84f829098f3e791e14"
   },
   "tiktok|karaoke_off|offsets": {
-    "dialogue_lines": 14,
+    "dialogue_lines": 17,
     "layout_report": {
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "5cdf52b03f39fd6e0cb0b83855cdf08597a9c3f52cd66f659f8e1236c8a31d15"
+    "sha256": "83f506c586739a0f132b723ce07cd7c9e008476ac6eba3f4d6dbe40fe9f7499f"
   },
   "tiktok|karaoke_on|crossfade": {
     "dialogue_lines": 52,
@@ -427,7 +427,7 @@
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "11e50ea8257e2e242ad4fbe4ad748abb15fbedc6d23271ca69797bd716f67619"
+    "sha256": "a9d1b98a6b4aac74036db876730e1d417fcb054ac8e39cf4fd641fc884407811"
   },
   "tiktok|karaoke_on|offsets": {
     "dialogue_lines": 52,
@@ -435,7 +435,7 @@
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "7d9783f2c62c6eb95c3c32329b4518f5978d8dddd34d6f2bbc6be9f6fa3b507e"
+    "sha256": "74dd6d6f6518a7552c2f642bcf13069c6b54cf3089070ce887bb993996cbf73d"
   },
   "tiktok|single_range": {
     "dialogue_lines": 29,
@@ -443,6 +443,6 @@
       "caption_y": 0.7588541666666667
     },
     "ok": true,
-    "sha256": "4d6ca4124dc7d7acd954528eb5c495a031be726cb47448902578562b72e6e814"
+    "sha256": "f2615fcf1075c235584f67a8903f3cd61ffc2071ce56754bfb0a97391a5b8136"
   }
 }
