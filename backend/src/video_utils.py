@@ -533,6 +533,10 @@ def create_optimized_clip(
                     **({"drop_screen_words": True} if include_captions and plan_report.get("kind") == "gaming" else {}),
                     # Only stacked interview openings move the hook title.
                     **_interview_hook_kwargs(plan_report),
+                    # Lines spoken in a stacked two-shot sit on its seam, clear of both faces.
+                    **(_pair_caption_rows_kwargs(plan_report, target_height)
+                       if include_captions and override.get("position_y") is None and source_caption_band is None
+                       else {}),
                     # A Dynamic edits clip rendered without the drawing stage: heavy outlined type, no boxes.
                     **({"hook_heavy": True} if fx is not None else {}),
                 )
@@ -811,6 +815,29 @@ def _interview_hook_kwargs(plan_report: Dict[str, Any]) -> Dict[str, Any]:
     if plan_report.get("hook_center_y") is None:
         return {}
     return {"hook_center_y": plan_report["hook_center_y"]}
+
+
+# Classic captions have one row for the clip, under the lowest face (about 81 % of the height). In a stacked
+# two-shot that row is the mouth or the chin of the person in the lower half whenever they sit a little lower than
+# planned. The seam between the halves is clear of both faces, which is where the intensity looks already put
+# their captions. A two-shot shorter than this keeps the clip's row, so captions do not jump for a flash.
+PAIR_CAPTION_MIN_SECONDS = 1.0
+PAIR_CAPTION_ROW_Y = 0.5
+
+
+def _pair_caption_rows_kwargs(plan_report: Dict[str, Any], height: int) -> Dict[str, Any]:
+    """Caption rows for the stacked two-shots of an interview clip: (start, end, y in pixels), the seam."""
+    if plan_report.get("kind") != "interview":
+        return {}
+    rows = [
+        (float(shot["start"]), float(shot["end"]), int(round(height * PAIR_CAPTION_ROW_Y)))
+        for shot in plan_report.get("interview_segments") or ()
+        if shot.get("kind") == "pair" and float(shot["end"]) - float(shot["start"]) >= PAIR_CAPTION_MIN_SECONDS
+    ]
+    if not rows:
+        return {}
+    # A hook title on the seam has it while it shows.
+    return {"caption_rows": rows, "caption_rows_after_hook": plan_report.get("hook_center_y") is not None}
 
 
 # Intensity-look captions on an interview clip sit on the stacked seam on two-shots, at mid-chest on close-ups and
