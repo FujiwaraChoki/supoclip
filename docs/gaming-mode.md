@@ -244,6 +244,23 @@ reviewed gameplay clips).
   gone, as the logo sticker already is. The report lists it with `"from"`.
 - The layout does not know whether the clip has a hook title: without one the label is simply absent for the
   first 4.2 s. An element the crop still shows (not a cut-out) stays where it is.
+### Streamers side by side (clip review, 21 Nov 2026)
+
+Two or three creators keyed out next to each other over a game (a duo or trio channel) were not laid out as
+gameplay: the rectangle was drawn around one head, the others counted as faces outside the camera, and the clip
+ended as `people_on_screen`, which the regular layout showed as a small picture between blurred bars.
+
+- **Heads that sit side by side share one camera** (`keyed_group`, `group_camera_rect`). A companion is a fixed,
+  live head seen in at least 30 % of the samples (`KEYED_GROUP_MIN_PRESENCE`), on the same row, of a like size
+  and close to a head already in the group (`side_by_side`: centres within 0.6 of the taller head's height,
+  heights within a factor of two, gap at most 1.5 widths of the wider head). The top panel shows the group, and
+  the faces inside it no longer count as people on screen. A face across the picture, on another row or much
+  larger still does.
+- **A large head with its chin at the bottom of the picture** (`KEYED_LOW_CHIN`, 90 % of the height) is pasted
+  there: someone filmed has a body below the face. Over two or more HUD elements it may be up to 3.5 % of the
+  frame (`KEYED_LOW_FACE_MAX_AREA`) instead of 2 %. Over one watermark the limit stays.
+- The gameplay crop slides off the group by at most `CROP_SHIFT_MAX`, as for one head, so a wide group can
+  still show a shoulder at the bottom corner of the gameplay panel.
 
 ## Streams of story games (GTA 6)
 
