@@ -7,6 +7,7 @@ import pytest
 
 from src.media.source_limits import (
     MAX_OUTPUT_FPS,
+    UnreadableAudioError,
     VideoGeometry,
     build_normalization_command,
     exceeds_output_limits,
@@ -14,6 +15,7 @@ from src.media.source_limits import (
     normalize_source_media,
     output_rate_token,
     parse_frame_rate,
+    pick_audio_stream,
     probe_video_geometry,
     source_within_output_limits,
 )
@@ -85,7 +87,7 @@ def test_anamorphic_and_hdr_geometry():
         __import__("pathlib").Path("out.mp4"),
         scale=(1920, 1080),
         cap_frame_rate=False,
-        has_audio=True,
+        audio_stream=0,
         copy_audio=True,
         square_pixels=True,
         tonemap=True,
@@ -118,6 +120,13 @@ def _completed(stdout="", code=0):
     return SimpleNamespace(returncode=code, stdout=stdout, stderr="")
 
 
+AAC_AUDIO = json.dumps({"streams": [{"index": 1, "codec_name": "aac"}]})
+
+
+def _is_audio_probe(command):
+    return command[0] == "ffprobe" and command[command.index("-select_streams") + 1] == "a"
+
+
 def test_normalize_leaves_1080p30_untouched(tmp_path, monkeypatch):
     source = tmp_path / "video.mp4"
     source.write_bytes(b"original")
@@ -139,8 +148,8 @@ def test_normalize_scales_4k_120fps_in_place(tmp_path, monkeypatch):
     source.write_bytes(b"original")
 
     def fake_run(command, **_kwargs):
-        if command[0] == "ffprobe" and "a:0" in command:
-            return _completed("audio")
+        if _is_audio_probe(command):
+            return _completed(AAC_AUDIO)
         if command[0] == "ffprobe":
             payload = {
                 "streams": [{
@@ -246,8 +255,8 @@ def test_audio_copy_failure_falls_back_without_touching_the_sidecar(tmp_path, mo
     sidecar.write_text('{"words":[{"text":"hi"}]}')
 
     def fake_run(command, **_kwargs):
-        if command[0] == "ffprobe" and "a:0" in command:
-            return _completed("audio")
+        if _is_audio_probe(command):
+            return _completed(AAC_AUDIO)
         if command[0] == "ffprobe":
             payload = {"streams": [{"width": 3840, "height": 2160, "avg_frame_rate": "60000/1001"}]}
             return _completed(json.dumps(payload))
@@ -295,8 +304,134 @@ def test_normalization_command_can_reencode_audio():
         __import__("pathlib").Path("out.mp4"),
         scale=(1920, 1080),
         cap_frame_rate=False,
-        has_audio=True,
+        audio_stream=0,
         copy_audio=False,
     )
     assert command[command.index("-c:a") + 1] == "aac"
     assert "fps=60" not in command
+
+
+# An iPhone .mov: H.264 video, a spatial-audio track ffprobe can't name,
+# the regular AAC track, and a `mebx` metadata track.
+IPHONE_AUDIO_STREAMS = [{"index": 1, "codec_name": "none"}, {"index": 2, "codec_name": "aac"}]
+
+
+def test_pick_audio_stream_skips_undecodable_tracks():
+    assert pick_audio_stream(IPHONE_AUDIO_STREAMS) == 1
+    assert pick_audio_stream([{"index": 1}, {"index": 2, "codec_name": "aac"}]) == 1
+    assert pick_audio_stream([{"index": 1, "codec_name": "aac"}]) == 0
+    assert pick_audio_stream([{"index": 1}, {"index": 2, "codec_name": "none"}]) is None
+    assert pick_audio_stream([]) is None
+
+
+def _maps(command):
+    return [command[i + 1] for i, part in enumerate(command) if part == "-map"]
+
+
+@pytest.mark.parametrize("copy_audio", [True, False])
+def test_iphone_mov_maps_only_the_first_video_and_the_decodable_audio(tmp_path, monkeypatch, copy_audio):
+    source = tmp_path / "video.mov"
+    source.write_bytes(b"original")
+    commands = []
+
+    def fake_run(command, **_kwargs):
+        if _is_audio_probe(command):
+            return _completed(json.dumps({"streams": IPHONE_AUDIO_STREAMS}))
+        if command[0] == "ffprobe":
+            payload = {"streams": [{"width": 3840, "height": 2160, "avg_frame_rate": "30/1"}]}
+            return _completed(json.dumps(payload))
+        commands.append(command)
+        if copy_audio is False and "copy" in command:
+            return _completed(code=1)
+        from pathlib import Path
+        Path(command[-1]).write_bytes(b"capped")
+        return _completed()
+
+    monkeypatch.setattr("src.media.source_limits.subprocess.run", fake_run)
+    assert normalize_source_media(source) == source
+    assert source.read_bytes() == b"capped"
+    assert commands
+    for command in commands:
+        assert _maps(command) == ["0:v:0", "0:a:1"]
+
+
+def test_source_with_only_undecodable_audio_fails_with_a_clear_message(tmp_path, monkeypatch):
+    from src.services.task_service import user_facing_error
+
+    source = tmp_path / "video.mov"
+    source.write_bytes(b"original")
+
+    def fake_run(command, **_kwargs):
+        if _is_audio_probe(command):
+            return _completed(json.dumps({"streams": [{"index": 1, "codec_name": "none"}, {"index": 2}]}))
+        if command[0] == "ffprobe":
+            payload = {"streams": [{"width": 3840, "height": 2160, "avg_frame_rate": "30/1"}]}
+            return _completed(json.dumps(payload))
+        raise AssertionError("ffmpeg ran on a source with no readable audio")
+
+    monkeypatch.setattr("src.media.source_limits.subprocess.run", fake_run)
+    with pytest.raises(UnreadableAudioError) as raised:
+        normalize_source_media(source)
+    assert raised.value.code == "audio_unreadable"
+    shown = user_facing_error(raised.value)
+    assert "audio track" in shown and "re-export" in shown
+    assert "Retry" not in shown
+    assert source.read_bytes() == b"original"
+
+
+def test_source_without_audio_is_still_normalized_silently(tmp_path, monkeypatch):
+    source = tmp_path / "video.mp4"
+    source.write_bytes(b"original")
+
+    def fake_run(command, **_kwargs):
+        if _is_audio_probe(command):
+            return _completed(json.dumps({"streams": []}))
+        if command[0] == "ffprobe":
+            payload = {"streams": [{"width": 3840, "height": 2160, "avg_frame_rate": "30/1"}]}
+            return _completed(json.dumps(payload))
+        assert _maps(command) == ["0:v:0"] and "-an" in command
+        from pathlib import Path
+        Path(command[-1]).write_bytes(b"capped")
+        return _completed()
+
+    monkeypatch.setattr("src.media.source_limits.subprocess.run", fake_run)
+    assert normalize_source_media(source) == source
+    assert source.read_bytes() == b"capped"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
+def test_real_source_with_an_undecodable_extra_audio_track_is_capped(tmp_path):
+    # PCM under an unknown fourcc: ffprobe reports the track with no codec,
+    # like the spatial-audio track on iPhone recordings. Mapping it fails
+    # both the audio copy and the audio transcode.
+    source = tmp_path / "video.mov"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi", "-i", "testsrc2=size=2048x1152:rate=30:duration=0.3",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=0.3",
+            "-f", "lavfi", "-i", "sine=frequency=880:duration=0.3",
+            "-map", "0:v", "-map", "1:a", "-map", "2:a",
+            "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+            "-c:a:0", "pcm_s16le", "-tag:a:0", "zzzz",
+            "-c:a:1", "aac",
+            "-strict", "-2", "-f", "mov", str(source),
+        ],
+        check=True,
+    )
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_name", "-of", "json", str(source)],
+        capture_output=True, text=True, check=True,
+    )
+    streams = json.loads(probe.stdout)["streams"]
+    if len(streams) != 2 or streams[0].get("codec_name"):
+        pytest.skip("this ffmpeg build decodes the fixture's unknown audio track")
+
+    assert normalize_source_media(source) == source
+    geometry = probe_video_geometry(source)
+    assert geometry is not None and (geometry.width, geometry.height) == (1920, 1080)
+    audio = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(source)],
+        capture_output=True, text=True, check=True,
+    )
+    assert audio.stdout.split() == ["aac"]
