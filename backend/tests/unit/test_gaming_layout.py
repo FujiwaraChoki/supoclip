@@ -1028,3 +1028,82 @@ def test_lines_all_around_a_face_are_not_a_round_camera():
         p[:, ::11] = 1.0
     assert gl.find_round_camera(_ring_evidence(shelves), (822, 103, 66, 78)) is None
     assert gl.find_round_camera(_ring_evidence(lambda p: None), (822, 103, 66, 78)) is None
+
+
+# ---------------------------------------------------------------------------
+# Streamers side by side without a camera rectangle
+# ---------------------------------------------------------------------------
+
+TRIO = [(8.0, 250.0, 30.0, 38.0), (80.0, 250.0, 30.0, 38.0), (152.0, 250.0, 30.0, 38.0)]
+
+
+def test_streamers_side_by_side_share_one_camera_panel():
+    # Three keyed-out heads in a row over a game. A rectangle around one of them leaves the others outside
+    # it, where they counted as people on screen and the clip was not laid out as gameplay.
+    frames, times = clip(cam=False)
+    profile = classify(frames, times, [list(TRIO) for _ in frames])
+    assert profile.is_gaming and profile.virtual_camera and profile.reason == "facecam_hud"
+    assert profile.outside_face_rate == 0
+    cam = profile.facecam
+    for x, y, w, h in TRIO:                                         # every head is inside, in source pixels
+        assert cam.x <= x * 3 and cam.x2 >= (x + w) * 3
+        assert cam.y < y * 3 and cam.y2 > (y + h) * 3
+    layout = gl.build_gaming_layout(profile, 16.0)
+    shown = Rect(*layout["gaming"]["facecam"])
+    assert shown.x <= TRIO[0][0] * 3 and shown.x2 >= (TRIO[2][0] + TRIO[2][2]) * 3   # the panel shows all three
+
+
+def test_a_companion_who_joins_later_is_in_the_panel_too():
+    frames, times = clip(cam=False)
+    first, second = (60.0, 250.0, 30.0, 38.0), (130.0, 250.0, 30.0, 38.0)
+    faces = [[first, second] if i >= 28 else [first] for i in range(len(frames))]   # there for 42 % of the clip
+    profile = classify(frames, times, faces)
+    assert profile.is_gaming and profile.virtual_camera
+    assert profile.facecam.x2 >= (second[0] + second[2]) * 3
+
+
+def test_a_face_away_from_the_streamer_is_still_someone_on_screen():
+    frames, times = clip(cam=False)
+    streamer = TRIO[0]
+    for other in (
+        (300.0, 250.0, 30.0, 38.0),                                 # the same row, across the picture
+        (20.0, 120.0, 30.0, 38.0),                                  # above the streamer
+        (150.0, 236.0, 62.0, 78.0),                                 # near them, at twice the size
+    ):
+        profile = classify(frames, times, [[streamer, other] for _ in frames])
+        assert not profile.is_gaming and profile.reason == "people_on_screen", other
+
+
+def test_side_by_side_needs_one_row_like_sizes_and_a_small_gap():
+    head = (100.0, 200.0, 40.0, 50.0)
+    assert gl.side_by_side(head, (150.0, 205.0, 44.0, 54.0))
+    assert gl.side_by_side((150.0, 205.0, 44.0, 54.0), head)
+    assert gl.side_by_side(head, (120.0, 198.0, 40.0, 50.0))        # shoulders overlap
+    assert not gl.side_by_side(head, (150.0, 260.0, 40.0, 50.0))    # a row below
+    assert not gl.side_by_side(head, (150.0, 190.0, 90.0, 110.0))   # more than twice the size
+    assert not gl.side_by_side(head, (220.0, 200.0, 40.0, 50.0))    # two head widths away
+    # Heads chain: the third sits beside the second, not beside the first.
+    row = [head, (160.0, 200.0, 40.0, 50.0), (220.0, 200.0, 40.0, 50.0)]
+    assert gl.keyed_group(head, row + [(500.0, 60.0, 40.0, 50.0)]) == row
+
+
+def test_a_large_head_with_its_chin_at_the_bottom_of_the_picture_is_a_keyed_out_streamer():
+    frames, times = clip(cam=False)
+    low = (16.0, 262.0, 70.0, 90.0)                                 # 2.7 % of the frame, chin at 98 % of the height
+    profile = classify(frames, times, [[low] for _ in frames])
+    assert profile.is_gaming and profile.virtual_camera
+    # The same head with a body below it is someone being filmed.
+    filmed = (16.0, 150.0, 70.0, 90.0)
+    profile = classify(frames, times, [[filmed] for _ in frames])
+    assert not profile.is_gaming and profile.reason == "people_on_screen"
+
+
+def test_a_large_low_head_over_one_watermark_is_not_a_stream():
+    # A selfie with the face low in the frame and a channel logo: one persistent graphic is not a HUD.
+    frames, times = clip(hud=False)
+    for frame in frames:
+        cv2.rectangle(frame, (460, 12), (628, 40), (15, 15, 15), -1)
+        cv2.putText(frame, "CHANNEL TV", (466, 33), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    low = (16.0, 262.0, 70.0, 90.0)
+    profile = classify(frames, times, [[low] for _ in frames])
+    assert not profile.is_gaming and not profile.virtual_camera
