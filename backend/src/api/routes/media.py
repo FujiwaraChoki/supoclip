@@ -478,10 +478,20 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
             published.unlink(missing_ok=True)
 
 
+async def _plan_upload_bytes(db: AsyncSession, auth_ctx: AuthContext) -> int:
+    """Upload size cap for the caller's active workspace (personal or team)."""
+    summary = await BillingService(db).get_usage_summary(
+        auth_ctx.user_id, team_id=auth_ctx.team_id
+    )
+    limit = summary.get("max_upload_bytes")
+    return limit if isinstance(limit, int) and limit > 0 else get_config().max_video_upload_bytes
+
+
 @router.post("/upload/authorize")
 @media_work
 async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db)):
-    user_id = await _get_authenticated_user_id(request, db)
+    auth_ctx = await _get_auth_context(request, db)
+    user_id = auth_ctx.user_id
     storage = MediaStorage()
     if not storage.enabled:
         return {"storage": "local"}
@@ -496,7 +506,8 @@ async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db))
         content_type = payload.get("contentType") or "application/octet-stream"
         if not isinstance(content_type, str) or len(content_type) > 128:
             raise ValueError("Invalid content type")
-        session_id = await reserve_upload(db, user_id, size, storage.config)
+        max_bytes = await _plan_upload_bytes(db, auth_ctx)
+        session_id = await reserve_upload(db, user_id, size, storage.config, max_bytes=max_bytes)
         authorization = {}
         def begin():
             # Retain the SDK result even if cancellation prevents delivery of

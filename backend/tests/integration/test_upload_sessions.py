@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from src.media_storage import owner_key
+from src.media_storage import PART_BYTES, owner_key
 from src.repositories.upload_repository import reserve_upload, bind_upload, finish_upload, UploadLimitReached
 from src.workers.media_cleanup import cleanup_upload_sessions
 from tests.fixtures.factories import create_user
@@ -294,7 +294,8 @@ async def test_signing_and_abort_failure_keeps_sdk_identity_and_capacity(db_sess
     storage.client.create_multipart_upload = Mock(return_value={'UploadId': uuid.uuid4().hex})
     storage.client.generate_presigned_url = Mock(side_effect=OSError('Signing failed'))
     storage.client.abort_multipart_upload = Mock(side_effect=OSError('Abort unavailable'))
-    monkeypatch.setattr(media, '_get_authenticated_user_id', AsyncMock(return_value=owner['id']))
+    from src.auth_headers import AuthContext
+    monkeypatch.setattr(media, '_get_auth_context', AsyncMock(return_value=AuthContext(user_id=owner['id'], team_id=None)))
     request = SimpleNamespace(json=AsyncMock(return_value={'size': 1, 'filename': 'video.mp4'}))
     with pytest.raises(OSError, match='Abort unavailable'):
         await media.authorize_upload(request, db_session)
@@ -302,3 +303,35 @@ async def test_signing_and_abort_failure_keeps_sdk_identity_and_capacity(db_sess
     assert session.upload_id and session.state == 'uploading'
     with pytest.raises(UploadLimitReached):
         await reserve_upload(db_session, owner['id'], 1, storage.config)
+
+
+@pytest.mark.parametrize("plan,status,size,accepted", [
+    ("pro", "active", 60_000_000_000, True),
+    ("pro", "active", 60_000_000_001, False),
+    ("scale", "active", 90_000_000_000, True),
+    ("scale", "active", 90_000_000_001, False),
+    ("free", "inactive", 4_000_000_001, False),
+])
+async def test_direct_upload_size_follows_the_plan(client, db_session, media_backend, auth_headers, plan, status, size, accepted):
+    storage = media_backend
+    storage.config.monetization_enabled = True
+    storage.config.max_video_upload_bytes = 4_000_000_000
+    storage.config.pro_max_video_upload_bytes = 60_000_000_000
+    storage.config.scale_max_video_upload_bytes = 90_000_000_000
+    storage.config.team_max_video_upload_bytes = 90_000_000_000
+    await create_user(db_session, user_id="user-1", plan=plan, subscription_status=status)
+    await db_session.execute(text("DELETE FROM media_upload_sessions WHERE user_id = 'user-1'"))
+    await db_session.commit()
+    storage.client.create_multipart_upload = Mock(return_value={"UploadId": "plan-sized-upload"})
+    storage.client.generate_presigned_url = Mock(return_value="https://storage.test/part")
+    request = {"filename": "recording.mp4", "size": size, "contentType": "video/mp4"}
+    response = await client.post("/upload/authorize", json=request, headers=auth_headers)
+    if accepted:
+        assert response.status_code == 200
+        assert len(response.json()["parts"]) == (size + PART_BYTES - 1) // PART_BYTES
+    else:
+        assert response.status_code == 400
+        assert "too large" in response.json()["detail"]
+        storage.client.create_multipart_upload.assert_not_called()
+    await db_session.execute(text("DELETE FROM media_upload_sessions WHERE user_id = 'user-1'"))
+    await db_session.commit()

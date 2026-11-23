@@ -2,9 +2,14 @@ import { headers } from "next/headers";
 
 import { POST } from "./route";
 import { auth } from "@/lib/auth";
+import { getVerifiedActiveTeamId } from "@/server/workspace";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(),
+}));
+
+vi.mock("@/server/workspace", () => ({
+  getVerifiedActiveTeamId: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -20,6 +25,7 @@ describe("/api/upload/authorization", () => {
     vi.resetAllMocks();
     vi.unstubAllEnvs();
     vi.mocked(headers).mockResolvedValue(new Headers());
+    vi.mocked(getVerifiedActiveTeamId).mockResolvedValue(null);
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -37,6 +43,23 @@ describe("/api/upload/authorization", () => {
     await expect(response.json()).resolves.toEqual(payload);
     expect(fetchMock).toHaveBeenCalledWith("http://backend:8000/upload/authorize", expect.objectContaining({
       headers: expect.objectContaining({ "x-supoclip-user-id": "owner" }),
+    }));
+  });
+
+  it("authorizes in the active team workspace so the team's upload cap applies", async () => {
+    vi.stubEnv("BACKEND_AUTH_SECRET", "");
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://backend:8000");
+    vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "member" } } as never);
+    vi.mocked(getVerifiedActiveTeamId).mockResolvedValue("team-1");
+    const payload = { storage: "s3", video_path: "upload://s3/member/id/video.mp4", parts: [] };
+    const fetchMock = vi.fn().mockResolvedValue(Response.json(payload));
+    vi.stubGlobal("fetch", fetchMock);
+    await POST(new Request("http://app/api/upload/authorization", {
+      method: "POST", body: JSON.stringify({ filename: "video.mp4", size: 6, contentType: "video/mp4" }),
+    }));
+    expect(getVerifiedActiveTeamId).toHaveBeenCalledWith("member");
+    expect(fetchMock).toHaveBeenCalledWith("http://backend:8000/upload/authorize", expect.objectContaining({
+      headers: expect.objectContaining({ "x-supoclip-user-id": "member", "x-supoclip-team-id": "team-1" }),
     }));
   });
 
