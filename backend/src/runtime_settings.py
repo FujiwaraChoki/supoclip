@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "ASSEMBLY_AI_API_KEY",
+    "SONIOX_API_KEY",
     "LLM",
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",

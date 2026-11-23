@@ -24,7 +24,12 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 SETTING_METADATA = {
     "ASSEMBLY_AI_API_KEY": {
         "label": "AssemblyAI API key",
-        "description": "Used for video transcription.",
+        "description": "Used for video transcription when TRANSCRIPTION_PROVIDER=assemblyai.",
+        "input_type": "password",
+    },
+    "SONIOX_API_KEY": {
+        "label": "Soniox API key",
+        "description": "Used for video transcription when TRANSCRIPTION_PROVIDER=soniox.",
         "input_type": "password",
     },
     "LLM": {
