@@ -23,11 +23,13 @@ class UploadIdempotencyConflict(ValueError):
     """The same idempotency key was already used for different bytes."""
 
 
-async def reserve_upload(db, user_id: str, size: int, config):
+async def reserve_upload(db, user_id: str, size: int, config, *, max_bytes: int | None = None):
+    """Admit one direct upload. ``max_bytes`` is the caller's plan cap."""
+    limit = config.max_video_upload_bytes if max_bytes is None else max_bytes
     if type(size) is not int or size <= 0:
         raise ValueError("Uploaded file is too large or empty")
-    if size > config.max_video_upload_bytes:
-        raise ValueError(upload_too_large_detail(config.max_video_upload_bytes))
+    if size > limit:
+        raise ValueError(upload_too_large_detail(limit))
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 113463))"), {"owner": user_id})
     counts = (await db.execute(_admission_counts(), _admission_params(user_id, config))).one()
     if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:

@@ -190,8 +190,8 @@ class MediaStorage:
         if (size <= 0 or (expected and size != int(expected))
                 or (expected_size is not None and size != expected_size)):
             raise ValueError("Uploaded video has an invalid size")
-        if size > self.config.max_video_upload_bytes:
-            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
+        if size > self.config.upload_bytes_ceiling:
+            raise ValueError(upload_too_large_detail(self.config.upload_bytes_ceiling))
         return reference
 
     def upload_file(self, path: Path, key: str, **extra) -> str:
@@ -432,8 +432,8 @@ class MediaStorage:
     def begin_upload(self, user_id: str, filename: str, size: int, content_type: str, *, authorization=None):
         if type(size) is not int or size <= 0:
             raise ValueError("Uploaded file is too large or empty")
-        if size > self.config.max_video_upload_bytes:
-            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
+        if size > self.config.upload_bytes_ceiling:
+            raise ValueError(upload_too_large_detail(self.config.upload_bytes_ceiling))
         extension = self.video_extension(filename, content_type)
         relative = f"{owner_key(user_id)}/{uuid.uuid4().hex}/video{extension}"
         key = self.key("sources", relative)
@@ -510,7 +510,7 @@ class MediaStorage:
         key = self.owned_upload_key(payload["video_path"], user_id)
         numbers = payload["partNumbers"]
         max_parts = (size + PART_BYTES - 1) // PART_BYTES
-        if (type(size) is not int or not 0 < size <= self.config.max_video_upload_bytes
+        if (type(size) is not int or not 0 < size <= self.config.upload_bytes_ceiling
                 or not isinstance(numbers, list) or not 0 < len(numbers) <= 3
                 or any(type(n) is not int or not 1 <= n <= max_parts for n in numbers)):
             raise ValueError("Invalid multipart part numbers")
@@ -561,21 +561,21 @@ class MediaStorage:
             number = int(part.get("PartNumber") or 0)
             part_size = int(part.get("Size") or 0)
             if number not in expected_numbers or number in seen:
-                if part_size > PART_BYTES or part_size > self.config.max_video_upload_bytes:
+                if part_size > PART_BYTES or part_size > self.config.upload_bytes_ceiling:
                     oversized = True
                 continue
             expected_part = min(PART_BYTES, size - (number - 1) * PART_BYTES)
-            if part_size > expected_part or part_size > self.config.max_video_upload_bytes:
+            if part_size > expected_part or part_size > self.config.upload_bytes_ceiling:
                 oversized = True
                 continue
             seen[number] = part_size
-        if oversized or sum(seen.values()) > self.config.max_video_upload_bytes:
+        if oversized or sum(seen.values()) > self.config.upload_bytes_ceiling:
             try:
                 self.client.abort_multipart_upload(Bucket=self.bucket, Key=key, UploadId=upload_id)
             except ClientError as exc:
                 if exc.response["Error"]["Code"] != "NoSuchUpload":
                     raise
-            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
+            raise ValueError(upload_too_large_detail(self.config.upload_bytes_ceiling))
         if sorted(seen) != expected_numbers:
             raise ValueError("Multipart upload does not contain every expected part")
         if any(seen[number] != min(PART_BYTES, size - (number - 1) * PART_BYTES) for number in expected_numbers):

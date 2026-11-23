@@ -461,7 +461,7 @@ class BillingService:
             "max_youtube_duration_seconds": max_duration,
             # One per-video cap for links and uploads alike.
             "max_upload_duration_seconds": max_duration,
-            "max_upload_bytes": self.config.max_video_upload_bytes,
+            "max_upload_bytes": self.config.max_upload_bytes_for_plan(plan, status, provider),
             "subscription_status": status,
             "subscription_provider": row.get("subscription_provider"),
             "period_start": start,

@@ -266,11 +266,16 @@ def test_completion_accepts_parts_that_match_the_signed_length(storage):
     storage.client.complete_multipart_upload.assert_called_once()
 
 
-def test_begin_upload_rejects_files_over_the_configured_limit(storage):
+def test_begin_upload_rejects_files_over_the_largest_plan_limit(storage):
+    # Each plan's own cap is checked when the upload is reserved; storage only
+    # refuses what no plan allows.
     storage.config.max_video_upload_bytes = 4_000_000_000
+    storage.config.pro_max_video_upload_bytes = 60_000_000_000
+    storage.config.scale_max_video_upload_bytes = 90_000_000_000
+    storage.config.team_max_video_upload_bytes = 90_000_000_000
     storage._client = Mock()
-    with pytest.raises(ValueError, match="4 GB"):
-        storage.begin_upload("owner", "video.mp4", 4_000_000_001, "video/mp4")
+    with pytest.raises(ValueError, match="90 GB"):
+        storage.begin_upload("owner", "video.mp4", 90_000_000_001, "video/mp4")
     storage.client.create_multipart_upload.assert_not_called()
 
 

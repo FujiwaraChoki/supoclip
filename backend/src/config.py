@@ -117,11 +117,23 @@ class Config:
         self.team_youtube_max_video_duration = int(
             os.getenv("TEAM_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
-        # 4 GB fits a full-length upload (two hours on Pro) at a
-        # normal 1080p bitrate. Larger files make transcription, storage, and
-        # rendering slow and fragile.
+        # Upload size cap without a paid plan, for self-hosted installs, and
+        # for the API-spooled `/upload` route (it writes to the API's own disk).
         self.max_video_upload_bytes = int(
             os.getenv("MAX_VIDEO_UPLOAD_BYTES", "4000000000")
+        )
+        # Paid plans upload straight to the bucket. Each cap fits a plan's
+        # longest video at about 66 Mbps, above a 4K60 phone or OBS recording,
+        # so the length limit is the one people meet. Sources above 1080p are
+        # scaled down before processing.
+        self.pro_max_video_upload_bytes = int(
+            os.getenv("PRO_MAX_VIDEO_UPLOAD_BYTES", "60000000000")
+        )
+        self.scale_max_video_upload_bytes = int(
+            os.getenv("SCALE_MAX_VIDEO_UPLOAD_BYTES", "90000000000")
+        )
+        self.team_max_video_upload_bytes = int(
+            os.getenv("TEAM_MAX_VIDEO_UPLOAD_BYTES", "90000000000")
         )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
@@ -400,6 +412,50 @@ class Config:
         subscription_provider: str | None = None,
     ) -> int:
         """Return the per-video duration cap (any source) granted by an active entitlement."""
+        return self._plan_limit(
+            plan, subscription_status, subscription_provider,
+            default=self.max_video_duration,
+            pro=self.pro_youtube_max_video_duration,
+            scale=self.scale_youtube_max_video_duration,
+            team=self.team_youtube_max_video_duration,
+        )
+
+    def max_upload_bytes_for_plan(
+        self,
+        plan: str | None,
+        subscription_status: str | None,
+        subscription_provider: str | None = None,
+    ) -> int:
+        """Return the direct-upload size cap granted by an active entitlement."""
+        return self._plan_limit(
+            plan, subscription_status, subscription_provider,
+            default=self.max_video_upload_bytes,
+            pro=self.pro_max_video_upload_bytes,
+            scale=self.scale_max_video_upload_bytes,
+            team=self.team_max_video_upload_bytes,
+        )
+
+    @property
+    def upload_bytes_ceiling(self) -> int:
+        """Largest upload any plan allows; storage refuses anything bigger."""
+        return max(
+            self.max_video_upload_bytes,
+            self.pro_max_video_upload_bytes,
+            self.scale_max_video_upload_bytes,
+            self.team_max_video_upload_bytes,
+        )
+
+    @staticmethod
+    def _plan_limit(
+        plan: str | None,
+        subscription_status: str | None,
+        subscription_provider: str | None,
+        *,
+        default: int,
+        pro: int,
+        scale: int,
+        team: int,
+    ) -> int:
         status = (subscription_status or "").lower()
         provider = (subscription_provider or "").lower()
         # past_due keeps the cap only while Stripe is still retrying the invoice.
@@ -407,15 +463,8 @@ class Config:
             status == "past_due" and provider == "stripe"
         )
         if not entitled:
-            return self.max_video_duration
-
-        if (plan or "").lower() == "team":
-            return self.team_youtube_max_video_duration
-        if (plan or "").lower() == "scale":
-            return self.scale_youtube_max_video_duration
-        if (plan or "").lower() == "pro":
-            return self.pro_youtube_max_video_duration
-        return self.max_video_duration
+            return default
+        return {"team": team, "scale": scale, "pro": pro}.get((plan or "").lower(), default)
 
     def team_minute_limit_for_seats(self, seat_limit: int | None) -> int:
         """Pooled monthly minute allowance for a Team plan with `seat_limit` seats."""
