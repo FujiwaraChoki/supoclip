@@ -641,8 +641,9 @@ def _save_manifest(directory: Path, manifest: dict) -> None:
     temporary.replace(target)
 
 
-def _range_filename(start: float, end: float) -> str:
-    return f"r-{int(round(start * 1000)):010d}-{int(round(end * 1000)):010d}.mp4"
+def _range_filename(start: float, end: float, height: Optional[int] = None) -> str:
+    suffix = f"-h{height}" if height else ""
+    return f"r-{int(round(start * 1000)):010d}-{int(round(end * 1000)):010d}{suffix}.mp4"
 
 
 def sweep_expired_cache(config=None) -> None:
@@ -802,12 +803,27 @@ def _restore_remote_cache(video_id: str, directory: Path) -> None:
         _save_manifest(directory, merged)
 
 
-def _pieces(directory: Path, manifest: dict) -> list[CachedPiece]:
+def _piece_height(item: dict) -> int:
+    """Height cap a cached section was fetched under.
+
+    Sections stored before heights were recorded were fetched at the global cap.
+    """
+    try:
+        return int(item["height"])
+    except (KeyError, TypeError, ValueError):
+        return requested_height()
+
+
+def _pieces(directory: Path, manifest: dict, quality: Optional[str] = None) -> list[CachedPiece]:
+    """Cached sections at or above ``quality``; a 720p section never serves a 1080p request."""
+    wanted = requested_height(quality)
     pieces = []
     for item in manifest.get("ranges") or []:
         try:
             start, end = float(item["start"]), float(item["end"])
         except (KeyError, TypeError, ValueError):
+            continue
+        if _piece_height(item) < wanted:
             continue
         path = directory / str(item.get("file") or "")
         if end > start and path.is_file() and path.stat().st_size > 0:
@@ -1302,13 +1318,16 @@ def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
 def _cache_section_gap(
     url: str, video_id: str, start: float, end: float, directory: Path,
     manifest: dict, task_id: Optional[str], budget: ByteBudget,
+    quality: Optional[str] = None,
 ) -> None:
     """Publish each completed window before asking the proxy for the next."""
+    height = requested_height(quality)
     while start < end - COVERAGE_TOLERANCE_SECONDS:
         window_end = min(start + SECTION_WINDOW_SECONDS, end)
-        target = directory / _range_filename(start, window_end)
+        target = directory / _range_filename(start, window_end, height)
         _, media_start, media_end = download_section_file(
             url, video_id, start, window_end, target, task_id=task_id, budget=budget,
+            height=height,
         )
         if (media_start > start + COVERAGE_TOLERANCE_SECONDS
                 or media_end < window_end - COVERAGE_TOLERANCE_SECONDS):
@@ -1318,6 +1337,7 @@ def _cache_section_gap(
         ]
         manifest["ranges"].append({
             "start": media_start, "end": media_end, "file": target.name, "bytes": target.stat().st_size,
+            "height": height,
         })
         _save_manifest(directory, manifest)
         _persist_named(video_id, target)
@@ -1340,9 +1360,9 @@ def materialize_clip_source(
     """Build a render file that covers the selected segments.
 
     A cached full download at or above ``quality`` is returned unchanged
-    (original timestamps). Sections are always fetched at the global cap.
-    Otherwise only missing padded ranges are fetched, then assembled into a
-    local timeline with a ``.timeline.json`` sidecar.
+    (original timestamps). Otherwise only missing padded ranges are fetched,
+    at ``quality``'s height cap, then assembled into a local timeline with a
+    ``.timeline.json`` sidecar. Cached sections below that cap are not reused.
     """
     runtime = get_config()
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
@@ -1365,7 +1385,7 @@ def materialize_clip_source(
                 outcome="cache_hit", nbytes=0, task_id=task_id,
             )
             return full
-        pieces = _pieces(directory, manifest)
+        pieces = _pieces(directory, manifest, quality)
         gaps = missing_intervals([(piece.start, piece.end) for piece in pieces], needed)
 
         if gaps and not proxy_configured(runtime):
@@ -1374,11 +1394,13 @@ def materialize_clip_source(
         # Recheck and fill gaps under the same lock so a waiting job reuses
         # completed files instead of writing to another job's native parts.
         for gap_start, gap_end in gaps:
-            _cache_section_gap(url, video_id, gap_start, gap_end, directory, manifest, task_id, counter)
+            _cache_section_gap(
+                url, video_id, gap_start, gap_end, directory, manifest, task_id, counter, quality,
+            )
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)
-        pieces = _pieces(directory, manifest)
+        pieces = _pieces(directory, manifest, quality)
         slices: list[tuple[CachedPiece, float, float]] = []
         for start, end in needed:
             chosen = _cover_pieces(pieces, start, end)

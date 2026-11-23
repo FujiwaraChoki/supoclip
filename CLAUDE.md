@@ -259,7 +259,8 @@ RevenueCat `...scale.monthly/annual` product IDs); only the display name changed
   yt-dlp height cap), and their `processing_cache` key gets a `|q720` suffix so a 1080p
   request never reuses a 720p source. Full-quality keys are unchanged. The durable
   `youtube-cache/<video_id>` full file records its height (`full_height`, one file per
-  height) and is reused only at or above the requested cap; sections always use the global cap.
+  height) and is reused only at or above the requested cap. Sections are fetched at the plan's cap too and
+  record their height (`ranges[].height`); a cached section is reused only at or above the requested cap.
 - **Scheduling** social posts requires Creator (`can_schedule_posts`); publishing
   immediately works on Pro.
 - **Annual** checkout: `interval: "year"` uses `STRIPE_PRO_/SCALE_ANNUAL_PRICE_ID`.
