@@ -1,26 +1,41 @@
 "use client";
 
 // The create screen's "Edits" settings: how hard the AI-tagged moments hit (intensity), and what it may use to hit them.
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Disclosure } from "@/components/disclosure";
 import { Switch } from "@/components/ui/switch";
 import { INTENSITIES, type Censor, type EditStyle, type Intensity } from "@/lib/fx/core/types";
-import { CENSORS, EDIT_STYLES_UNAVAILABLE, fetchEditStylesInfo, type EditStylesInfo } from "@/lib/fx/edit-style-request";
+import { CENSORS, EDIT_STYLES_UNAVAILABLE, parseEditStylesInfo, type EditStylesInfo } from "@/lib/fx/edit-style-request";
 import { cn } from "@/lib/utils";
 
-/** `GET /api/tasks/edit-styles` once per mount; null until it answers, "not enabled" on any failure. */
+export const editStylesInfoKey = ["edit-styles-info"] as const;
+
+/**
+ * A network error or a 5xx throws, so a refresh that fails keeps what is already known;
+ * any other non-OK answer (a 404 from an older backend) means "not enabled".
+ */
+async function loadEditStylesInfo(): Promise<EditStylesInfo> {
+  const response = await fetch("/api/tasks/edit-styles", { cache: "no-store" });
+  if (response.status >= 500) throw new Error(`Failed to fetch edit styles: ${response.status}`);
+  return response.ok ? parseEditStylesInfo(await response.json()) : EDIT_STYLES_UNAVAILABLE;
+}
+
+/** `GET /api/tasks/edit-styles` on mount; null until it answers, "not enabled" when it can't be read. */
 export function useEditStylesInfo(active = true): EditStylesInfo | null {
-  const [info, setInfo] = useState<EditStylesInfo | null>(null);
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    void fetchEditStylesInfo().then((next) => { if (!cancelled) setInfo(next); }, () => { if (!cancelled) setInfo(EDIT_STYLES_UNAVAILABLE); });
-    return () => { cancelled = true; };
-  }, [active]);
-  return info;
+  const { data, isError } = useQuery({
+    queryKey: editStylesInfoKey,
+    queryFn: loadEditStylesInfo,
+    enabled: active,
+    // The create screen and the editor's inspector can mount together; one request serves both.
+    staleTime: 5_000,
+    retry: false,
+  });
+  if (!active) return null;
+  return data ?? (isError ? EDIT_STYLES_UNAVAILABLE : null);
 }
 
 // Five bars per glyph: resting height (0-1) and how far each one swings, per intensity.

@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-23
 
+- **Improved:** Pages you have already opened, like the library, a task or settings, now show up instantly when you go back to them and refresh in the background. Lists also refresh when you return to the tab, and no longer flash while they reload after you change something. ([#563](https://github.com/FujiwaraChoki/supoclip/pull/563))
 - **Improved:** The payment page you see when upgrading now carries SupoClip's name, logo and colours. ([#562](https://github.com/FujiwaraChoki/supoclip/pull/562))
 
 ## 2026-11-22

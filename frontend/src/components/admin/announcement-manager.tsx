@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,12 @@ import { intlLocale } from "@/i18n/config";
 import { ANNOUNCEMENTS_UPDATED_EVENT, type ManagedAnnouncement } from "@/lib/announcements";
 
 type Editor = Omit<ManagedAnnouncement, "id">;
+
+const NO_ANNOUNCEMENTS: ManagedAnnouncement[] = [];
+export const managedAnnouncementsKey = ["admin", "announcements"] as const;
+
+const newestFirst = (a: ManagedAnnouncement, b: ManagedAnnouncement) =>
+  new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
 
 function localDate(iso: string) {
   const date = new Date(iso);
@@ -23,36 +30,35 @@ function emptyEditor(action: string): Editor {
 export function AnnouncementManager() {
   const t = useTranslations("admin");
   const dateLocale = intlLocale(useLocale());
-  const [items, setItems] = useState<ManagedAnnouncement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const list = useQuery({
+    queryKey: managedAnnouncementsKey,
+    queryFn: async () => {
       const response = await fetch("/api/admin/announcements", { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || t("announcements.loadFailed"));
-      setItems(data.announcements);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("announcements.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+      return data.announcements as ManagedAnnouncement[];
+    },
+  });
+  const items = list.data ?? NO_ANNOUNCEMENTS;
+  // A retry after a failed load shows the loading line again, as before.
+  const loading = !list.data && (list.isPending || list.isFetching);
+  const loadError = list.isError && !list.isFetching
+    ? list.error.message || t("announcements.loadFailed")
+    : null;
+  const error = saveError ?? loadError;
+  const load = () => {
+    setSaveError(null);
+    void list.refetch();
+  };
 
-  useEffect(() => { void load(); }, [load]);
-
-  const save = async (data: Editor, id: string | null) => {
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async ({ data, id }: { data: Editor; id: string | null }) => {
       const response = await fetch(id ? `/api/admin/announcements/${encodeURIComponent(id)}` : "/api/admin/announcements", {
         method: id ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -60,21 +66,27 @@ export function AnnouncementManager() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || t("announcements.saveFailed"));
-      const saved: ManagedAnnouncement = id ? { ...data, id } : result.announcement;
-      setItems(current => [saved, ...current.filter(item => item.id !== saved.id)]
-        .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()));
+      return id ? { ...data, id } : (result.announcement as ManagedAnnouncement);
+    },
+    onMutate: () => {
+      setSaveError(null);
+      setMessage(null);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData<ManagedAnnouncement[]>(managedAnnouncementsKey, (current = NO_ANNOUNCEMENTS) =>
+        [saved, ...current.filter(item => item.id !== saved.id)].sort(newestFirst));
       setEditor(null);
       setEditingId(null);
       setMessage(saved.isPublished
         ? new Date(saved.publishedAt).getTime() > Date.now() ? t("announcements.scheduled") : t("announcements.published")
         : t("announcements.draftSaved"));
+      // The public banner (useAnnouncements) refetches on this event.
       window.dispatchEvent(new Event(ANNOUNCEMENTS_UPDATED_EVENT));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("announcements.saveFailed"));
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (err) => setSaveError(err instanceof Error ? err.message : t("announcements.saveFailed")),
+  });
+  const saving = saveMutation.isPending;
+  const save = (data: Editor, id: string | null) => saveMutation.mutate({ data, id });
 
   const badge = (item: ManagedAnnouncement) => {
     if (!item.isPublished) return t("announcements.draft");
@@ -88,7 +100,7 @@ export function AnnouncementManager() {
         <p className="text-sm text-muted-foreground">{t("announcements.intro")}</p>
         <Button disabled={saving || loading} onClick={() => { setEditingId(null); setEditor(emptyEditor(t("announcements.defaultAction"))); setMessage(null); }}>{t("announcements.new")}</Button>
       </div>
-      {error && <div role="alert" className="flex items-center gap-3 text-sm text-red-600">{error}{!editor && <Button variant="outline" size="sm" onClick={() => void load()}>{t("announcements.retry")}</Button>}</div>}
+      {error && <div role="alert" className="flex items-center gap-3 text-sm text-red-600">{error}{!editor && <Button variant="outline" size="sm" onClick={load}>{t("announcements.retry")}</Button>}</div>}
       {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
       {editor && (
         <form className="space-y-4 rounded-2xl border bg-background p-5" onSubmit={event => {

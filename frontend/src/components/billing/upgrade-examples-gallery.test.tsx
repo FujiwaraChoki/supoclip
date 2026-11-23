@@ -1,10 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/test/setup";
 import { LOCAL_EXAMPLE_CLIPS, type GalleryClip } from "@/lib/example-gallery";
-import { resetUpgradeExamplesGalleryCache, UpgradeExamplesGallery } from "./upgrade-examples-gallery";
+import { UpgradeExamplesGallery } from "./upgrade-examples-gallery";
 import { UpgradeDialog } from "./upgrade-prompt";
 
 let mockReducedMotion = false;
@@ -52,7 +54,6 @@ const remoteClips: GalleryClip[] = [
 ];
 
 beforeEach(() => {
-  resetUpgradeExamplesGalleryCache();
   mockReducedMotion = false;
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
 });
@@ -77,7 +78,12 @@ describe("UpgradeExamplesGallery", () => {
       }),
     );
 
-    const { unmount } = render(<UpgradeExamplesGallery />);
+    // One app-wide query cache, as in the app, so a reopened dialog can reuse the catalog.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { unmount } = render(<UpgradeExamplesGallery />, { wrapper });
 
     // Instant seed from local bundled clips before /api/examples resolves.
     const initialCards = screen.getAllByTestId("upgrade-gallery-card");
@@ -108,9 +114,9 @@ describe("UpgradeExamplesGallery", () => {
     );
     expect(requestCount).toBe(1);
 
-    // Reopening the modal reuses the module cache without re-fetching.
+    // Reopening the modal reuses the cached catalog without re-fetching.
     unmount();
-    render(<UpgradeExamplesGallery />);
+    render(<UpgradeExamplesGallery />, { wrapper });
     expect(
       screen.getAllByTestId("upgrade-gallery-card").some((c) => c.getAttribute("data-clip-id") === "remote-gaming-1"),
     ).toBe(true);
@@ -124,6 +130,23 @@ describe("UpgradeExamplesGallery", () => {
     await waitFor(() => {
       expect(screen.getAllByTestId("upgrade-gallery-card")[0]).toHaveAttribute("data-clip-id", LOCAL_EXAMPLE_CLIPS[0].id);
     });
+  });
+
+  it("asks once per page load, even when the catalog failed", async () => {
+    let requestCount = 0;
+    server.use(http.get("/api/examples", () => { requestCount += 1; return HttpResponse.error(); }));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { unmount } = render(<UpgradeExamplesGallery />, { wrapper });
+    await waitFor(() => expect(requestCount).toBe(1));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    unmount();
+    render(<UpgradeExamplesGallery />, { wrapper });
+    expect(screen.getAllByTestId("upgrade-gallery-card")[0]).toHaveAttribute("data-clip-id", LOCAL_EXAMPLE_CLIPS[0].id);
+    expect(requestCount).toBe(1);
   });
 
   it("renders static poster images instead of autoplaying videos under reduced motion", async () => {

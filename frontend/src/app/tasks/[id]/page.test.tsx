@@ -1,7 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import TaskPage from "./page";
+import { taskDetailKeys } from "@/lib/queries/task-detail";
+import { generationKeys } from "@/lib/queries/generations";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 vi.mock("next/navigation", () => ({
@@ -13,14 +17,28 @@ vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: { user: { id: "user-1" } }, isPending: false }),
 }));
 // The page's SSE refresh, so a test can deliver the next server state.
-const progress = vi.hoisted(() => ({ refresh: null as null | (() => Promise<unknown>) }));
+type ProgressOptions = {
+  refresh: () => Promise<unknown>;
+  onProgress: (event: { progress?: number; message?: string }) => void;
+  onClip: (clip: unknown) => void;
+};
+const progress = vi.hoisted(() => ({
+  refresh: null as null | (() => Promise<unknown>),
+  onProgress: null as null | ProgressOptions["onProgress"],
+  onClip: null as null | ProgressOptions["onClip"],
+}));
 vi.mock("@/hooks/use-task-progress", () => ({
-  useTaskProgress: (options: { refresh: () => Promise<unknown> }) => {
+  useTaskProgress: (options: ProgressOptions) => {
     progress.refresh = options.refresh;
+    progress.onProgress = options.onProgress;
+    progress.onClip = options.onClip;
     return { reconnecting: false };
   },
 }));
-vi.mock("@/hooks/use-billing-summary", () => ({ useBillingSummary: () => [null, vi.fn()] }));
+vi.mock("@/hooks/use-billing-summary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-billing-summary")>()),
+  useBillingSummary: () => [null, vi.fn()],
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 type Json = Record<string, unknown>;
@@ -517,5 +535,198 @@ describe("task page dynamic edits", () => {
     fireEvent.click(await screen.findByRole("button", { name: "pricing" }));
     await waitFor(() => expect(created).not.toBeNull());
     expect(created).toMatchObject({ caption_template: "slam", edit_style: { intensity: "bold", sfx: false } });
+  });
+});
+
+describe("task page data loading", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("writes SSE progress and finished clips into the page", async () => {
+    serve(task({ status: "processing", progress: 10, progress_message: "Rendering clip 1/3" }), [clip(1, { hook_title: "First clip" })]);
+    const { container } = renderPage();
+    expect(await screen.findByRole("heading", { name: "First clip" })).toBeInTheDocument();
+    const emptySlots = () => container.querySelectorAll("div.animate-rise[aria-hidden]").length;
+    expect(emptySlots()).toBe(2);
+
+    act(() => { progress.onProgress?.({ progress: 60, message: "Rendering clip 2/6" }); });
+    expect(emptySlots()).toBe(5);
+
+    act(() => { progress.onClip?.(clip(2, { hook_title: "Second clip" })); });
+    expect(await screen.findByRole("heading", { name: "Second clip" })).toBeInTheDocument();
+
+    // A refresh while processing keeps a clip the server list doesn't have yet.
+    await act(async () => { await progress.refresh?.(); });
+    expect(screen.getByRole("heading", { name: "Second clip" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "First clip" })).toBeInTheDocument();
+  });
+
+  it("keeps the task on screen when a background refresh fails", async () => {
+    serve(task({ status: "processing" }), [clip(1)]);
+    renderPage();
+    expect(await screen.findByText("Founder interview")).toBeInTheDocument();
+
+    vi.mocked(fetch).mockImplementation(async () => new Response("nope", { status: 500 }));
+    await act(async () => { await progress.refresh?.(); });
+
+    expect(screen.getByText("Founder interview")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  });
+
+  it("waits for a task that is not persisted yet", async () => {
+    serve(task(), [clip(1, { hook_title: "First clip" })]);
+    const served = vi.mocked(fetch).getMockImplementation()!;
+    let misses = 0;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/tasks/task-1" && misses < 1) {
+        misses += 1;
+        return new Response("not found", { status: 404 });
+      }
+      return served(input, init);
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "First clip" }, { timeout: 3000 })).toBeInTheDocument();
+    expect(misses).toBe(1);
+    log.mockRestore();
+  });
+
+  it("polls a scheduled post and stops once it has published", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      serve(task(), [clip(1)]);
+      const served = vi.mocked(fetch).getMockImplementation()!;
+      const statuses = ["publishing", "published"];
+      let postFetches = 0;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        if (String(input) === "/api/social/posts?task_id=task-1") {
+          postFetches += 1;
+          const status = statuses[Math.min(postFetches - 1, statuses.length - 1)];
+          return Response.json({ posts: [{ id: "post-1", clip_id: "clip-1", status, provider: "youtube" }] });
+        }
+        return served(input, init);
+      });
+      renderPage();
+      await waitFor(() => expect(postFetches).toBe(1));
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(4100); });
+      expect(postFetches).toBe(2);
+      // Published: nothing left to follow.
+      await act(async () => { await vi.advanceTimersByTimeAsync(40_000); });
+      expect(postFetches).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("task page cache and review fixes", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  function renderWithClient(client: QueryClient) {
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return render(<TooltipProvider><TaskPage /></TooltipProvider>, { wrapper });
+  }
+
+  function cachedClient(taskBody: Json, clips: Json[]) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(taskDetailKeys.detail("task-1"), { task: taskBody, clips, loadNumber: 0 });
+    return client;
+  }
+
+  async function openRestyle() {
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Restyle" }));
+    return screen.findByRole("dialog");
+  }
+
+  it("fills the restyle sheet from a cached task when the refresh on revisit fails", async () => {
+    serve(task(), [clip(1)]);
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input) === "/api/tasks/task-1" ? new Response("down", { status: 502 }) : Response.json({}));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderWithClient(cachedClient(task({ filtered_words: ["um", "like"] }), [clip(1)]));
+
+    const sheet = await openRestyle();
+    expect(within(sheet).getByDisplayValue("um, like")).toBeInTheDocument();
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it("never overwrites an open sheet or a chosen sort with the fresh load", async () => {
+    let release: (() => void) | null = null;
+    serve(task({ filtered_words: ["fresh"] }), [clip(1)]);
+    const served = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/tasks/task-1") await new Promise<void>((resolve) => { release = resolve; });
+      return served(input, init);
+    });
+    renderWithClient(cachedClient(task({ filtered_words: ["cached"] }), [clip(1)]));
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Timeline" }));
+    const sheet = await openRestyle();
+    const words = within(sheet).getByDisplayValue("cached");
+    fireEvent.change(words, { target: { value: "mine" } });
+    await waitFor(() => expect(release).not.toBeNull());
+    await act(async () => { release?.(); });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url) === "/api/tasks/task-1/clips")).toBe(true));
+
+    expect(within(sheet).getByDisplayValue("mine")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Timeline", hidden: true })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("refills a closed sheet from the fresh load after showing the cached task", async () => {
+    serve(task({ filtered_words: ["fresh"] }), [clip(1)]);
+    const client = cachedClient(task({ filtered_words: ["cached"] }), [clip(1)]);
+    renderWithClient(client);
+    await waitFor(() => expect((client.getQueryData(taskDetailKeys.detail("task-1")) as { loadNumber: number }).loadNumber).toBeGreaterThan(0));
+
+    const sheet = await openRestyle();
+    expect(within(sheet).getByDisplayValue("fresh")).toBeInTheDocument();
+  });
+
+  it("forgets a failed reload once the task loads again, so a later background failure keeps the page", async () => {
+    serve(task({ status: "processing" }), [clip(1)]);
+    const served = vi.mocked(fetch).getMockImplementation()!;
+    let failTask = false;
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      failTask && String(input) === "/api/tasks/task-1" ? new Response("down", { status: 502 }) : served(input, init));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderPage();
+    await screen.findByText("Founder interview");
+
+    // The reload after Cancel fails: the error page shows.
+    failTask = true;
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
+
+    // A background refresh succeeds: the task is back.
+    failTask = false;
+    await act(async () => { await progress.refresh?.(); });
+    expect(await screen.findByText("Founder interview")).toBeInTheDocument();
+
+    // A later background failure keeps it on screen.
+    failTask = true;
+    await act(async () => { await progress.refresh?.(); });
+    expect(screen.getByText("Founder interview")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it("drops a deleted task from the library cache and forgets it once the page has left", async () => {
+    serve(task(), [clip(1)]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(generationKeys.all("user-1"), [{ id: "task-1" }, { id: "task-2" }]);
+    const { unmount } = renderWithClient(client);
+    await screen.findByText("Founder interview");
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete generation" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(client.getQueryData(generationKeys.all("user-1"))).toEqual([{ id: "task-2" }]));
+    // Still on screen until the page leaves: it must not reload a task that is gone.
+    expect(client.getQueryData(taskDetailKeys.detail("task-1"))).toBeDefined();
+    unmount();
+    expect(client.getQueryData(taskDetailKeys.detail("task-1"))).toBeUndefined();
   });
 });

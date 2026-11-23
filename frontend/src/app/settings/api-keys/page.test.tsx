@@ -116,3 +116,23 @@ it("selects the new key when the clipboard blocks the copy", async () => {
   expect(window.getSelection()?.toString()).toBe("sk_only-once");
   expect(key.contains(window.getSelection()?.anchorNode ?? null)).toBe(true);
 });
+
+it("reloads the list after revoking a key", async () => {
+  let revoked = false;
+  vi.mocked(fetch).mockImplementation(async (_url, options) => {
+    if (options?.method === "DELETE") {
+      revoked = true;
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ api_keys: [
+      { id: "key-1", name: "Existing key", key_prefix: "sk_test", created_at: null, last_used_at: null, revoked },
+    ] }), { status: 200 });
+  });
+  render(<ApiKeysPage />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Revoke" }));
+
+  expect(await screen.findByText("Revoked")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
+  expect(vi.mocked(fetch).mock.calls.filter(([url, init]) => url === "/api/api-keys" && !init?.method)).toHaveLength(2);
+});

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { intlLocale } from "@/i18n/config";
 import { timeAgo } from "@/lib/generations";
+import { fetchScheduledPosts, socialPostKeys } from "@/lib/queries/social";
 import { PROVIDER_LABELS, type SocialPost } from "@/lib/social";
 
 function dayLabel(date: Date, todayLabel: string, tomorrowLabel: string, format: Intl.DateTimeFormat): string {
@@ -48,26 +50,14 @@ export function ScheduledPosts({ sectionHeadingClassName }: { sectionHeadingClas
     () => new Intl.DateTimeFormat(intlLocale(locale), { hour: "numeric", minute: "2-digit" }),
     [locale],
   );
-  const [posts, setPosts] = useState<SocialPost[] | null>(null);
+  const queryClient = useQueryClient();
+  // Posts leave this list as the worker picks them up, so refresh periodically. A failed refresh keeps the last list.
+  const { data: posts = null } = useQuery({
+    queryKey: socialPostKeys.scheduled(),
+    queryFn: fetchScheduledPosts,
+    refetchInterval: 30_000,
+  });
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch("/api/social/posts?status=scheduled&limit=200", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = (await response.json()) as { posts?: SocialPost[] };
-      setPosts(data.posts ?? []);
-    } catch {
-      // Keep whatever was last loaded; the next poll retries.
-    }
-  }, []);
-
-  // Posts leave this list as the worker picks them up, so refresh periodically.
-  useEffect(() => {
-    void load();
-    const interval = window.setInterval(() => void load(), 30_000);
-    return () => window.clearInterval(interval);
-  }, [load]);
 
   const groups = useMemo(() => {
     const sorted = [...(posts ?? [])]
@@ -91,7 +81,7 @@ export function ScheduledPosts({ sectionHeadingClassName }: { sectionHeadingClas
         const data = await response.json().catch(() => ({}));
         toast.error(typeof data?.detail === "string" ? data.detail : t("toasts.cancelFailed"));
       }
-      await load();
+      await queryClient.invalidateQueries({ queryKey: socialPostKeys.all });
     } finally {
       setBusyPostId(null);
     }

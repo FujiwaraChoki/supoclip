@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -38,24 +39,28 @@ const KNOWN_ERRORS = new Set([
 
 type Editor = { name: string; kind: (typeof WEBHOOK_KINDS)[number]; url: string; categories: FeedbackCategory[]; enabled: boolean };
 const emptyEditor = (): Editor => ({ name: "", kind: "discord", url: "", categories: [...FEEDBACK_CATEGORIES], enabled: true });
+const NO_WEBHOOKS: FeedbackWebhook[] = [];
+const NO_ENV: EnvWebhookStatus[] = [];
+
+export const feedbackWebhookKeys = {
+  all: ["admin", "feedback-webhooks"] as const,
+  list: () => [...feedbackWebhookKeys.all, "list"] as const,
+  deliveries: (id: string) => [...feedbackWebhookKeys.all, "deliveries", id] as const,
+};
 
 /** Webhook destinations for new feedback (/admin/feedback/webhooks). URLs and secrets are write-only. */
 export function FeedbackWebhookManager() {
   const t = useTranslations("admin");
   const dateLocale = intlLocale(useLocale());
   const copy = useCopyText();
-  const [webhooks, setWebhooks] = useState<FeedbackWebhook[]>([]);
-  const [environment, setEnvironment] = useState<EnvWebhookStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [secret, setSecret] = useState<{ name: string; value: string } | null>(null);
   const [deleting, setDeleting] = useState<FeedbackWebhook | null>(null);
   const [logFor, setLogFor] = useState<string | null>(null);
-  const [log, setLog] = useState<WebhookDelivery[] | null>(null);
   const secretRef = useRef<HTMLElement>(null);
   const when = (iso: string) => new Date(iso).toLocaleString(dateLocale, { dateStyle: "medium", timeStyle: "short" });
 
@@ -65,39 +70,51 @@ export function FeedbackWebhookManager() {
     return detail || fallback;
   }, [t]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const listing = useQuery({
+    queryKey: feedbackWebhookKeys.list(),
+    queryFn: async () => {
       const response = await fetch(API, { cache: "no-store" });
       if (!response.ok) throw new Error(await describe(response, t("feedback.webhooks.loadFailed")));
-      const data = (await response.json()) as { webhooks: FeedbackWebhook[]; environment: EnvWebhookStatus[] };
-      setWebhooks(data.webhooks);
-      setEnvironment(data.environment);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("feedback.webhooks.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [describe, t]);
+      return (await response.json()) as { webhooks: FeedbackWebhook[]; environment: EnvWebhookStatus[] };
+    },
+  });
+  const webhooks = listing.data?.webhooks ?? NO_WEBHOOKS;
+  const environment = listing.data?.environment ?? NO_ENV;
+  const loading = listing.isPending;
+  const loadError = listing.isError && !listing.isFetching
+    ? listing.error.message || t("feedback.webhooks.loadFailed")
+    : null;
 
-  useEffect(() => { void load(); }, [load]);
+  // Loaded afresh each time the log is opened (gcTime 0) and refetched after a test or a retry.
+  // A failed load shows as an empty log.
+  const deliveries = useQuery({
+    queryKey: feedbackWebhookKeys.deliveries(logFor ?? ""),
+    queryFn: async ({ queryKey }): Promise<WebhookDelivery[]> => {
+      const response = await fetch(`${API}/${encodeURIComponent(queryKey[3])}/deliveries`, { cache: "no-store" });
+      if (!response.ok) return [];
+      return ((await response.json()) as { deliveries: WebhookDelivery[] }).deliveries;
+    },
+    enabled: logFor !== null,
+    gcTime: 0,
+  });
+  const log = deliveries.data ?? null;
 
-  const loadLog = useCallback(async (id: string) => {
-    setLog(null);
-    const response = await fetch(`${API}/${encodeURIComponent(id)}/deliveries`, { cache: "no-store" });
-    if (response.ok) setLog(((await response.json()) as { deliveries: WebhookDelivery[] }).deliveries);
-    else setLog([]);
-  }, []);
+  const reload = () => queryClient.invalidateQueries({ queryKey: feedbackWebhookKeys.list() });
+  const reloadLog = (id: string) => queryClient.invalidateQueries({ queryKey: feedbackWebhookKeys.deliveries(id) });
 
+  // One action at a time; `busy` names it so its button can say what it is doing. A plain runner,
+  // not a mutation: the work closes over the editor's write-only URL, which the mutation cache
+  // would keep as its variables.
+  const [busy, setBusy] = useState<string | null>(null);
+  const error = actionError ?? loadError;
   const run = async (key: string, work: () => Promise<void>) => {
     setBusy(key);
-    setError(null);
+    setActionError(null);
     setMessage(null);
     try {
       await work();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("feedback.webhooks.saveFailed"));
+      setActionError(err instanceof Error ? err.message : t("feedback.webhooks.saveFailed"));
     } finally {
       setBusy(null);
     }
@@ -121,7 +138,7 @@ export function FeedbackWebhookManager() {
       setEditor(null);
       setEditingId(null);
       setMessage(editingId ? t("feedback.webhooks.updated") : t("feedback.webhooks.created"));
-      await load();
+      await reload();
     });
   };
 
@@ -133,7 +150,7 @@ export function FeedbackWebhookManager() {
     });
     if (!response.ok) throw new Error(await describe(response, t("feedback.webhooks.saveFailed")));
     setMessage(enabled ? t("feedback.webhooks.enabledMessage", { name: webhook.name }) : t("feedback.webhooks.disabledMessage", { name: webhook.name }));
-    await load();
+    await reload();
   });
 
   const test = (webhook: FeedbackWebhook) => void run(`test-${webhook.id}`, async () => {
@@ -141,8 +158,8 @@ export function FeedbackWebhookManager() {
     if (!response.ok) throw new Error(await describe(response, t("feedback.webhooks.testFailed")));
     const { delivery } = (await response.json()) as { delivery: { status: string; status_code: number | null; error: string | null } };
     if (delivery.status === "delivered") setMessage(t("feedback.webhooks.testDelivered", { name: webhook.name, code: delivery.status_code ?? "" }));
-    else setError(t("feedback.webhooks.testRejected", { name: webhook.name, reason: delivery.error || "—" }));
-    if (logFor === webhook.id) await loadLog(webhook.id);
+    else setActionError(t("feedback.webhooks.testRejected", { name: webhook.name, reason: delivery.error || "—" }));
+    if (logFor === webhook.id) await reloadLog(webhook.id);
   });
 
   const rotate = (webhook: FeedbackWebhook) => void run(`rotate-${webhook.id}`, async () => {
@@ -156,14 +173,14 @@ export function FeedbackWebhookManager() {
     if (!response.ok) throw new Error(await describe(response, t("feedback.webhooks.saveFailed")));
     setDeleting(null);
     setMessage(t("feedback.webhooks.deleted", { name: webhook.name }));
-    await load();
+    await reload();
   });
 
   const retry = (deliveryId: string, webhookId: string) => void run(`retry-${deliveryId}`, async () => {
     const response = await fetch(`/api/admin/feedback/deliveries/${encodeURIComponent(deliveryId)}/retry`, { method: "POST" });
     if (!response.ok) throw new Error(await describe(response, t("feedback.triage.retryFailed")));
     setMessage(t("feedback.triage.retryQueued"));
-    await loadLog(webhookId);
+    await reloadLog(webhookId);
   });
 
   const toggleLog = (id: string) => {
@@ -172,7 +189,6 @@ export function FeedbackWebhookManager() {
       return;
     }
     setLogFor(id);
-    void loadLog(id);
   };
 
   const categoryLabel = (category: FeedbackCategory) => t(`feedback.category.${category}`);

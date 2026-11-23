@@ -60,3 +60,28 @@ it("cancels a scheduled post from its menu", async () => {
   expect(fetchMock).toHaveBeenCalledWith("/api/social/posts/a/cancel", { method: "POST" });
   expect(await screen.findByText(/Nothing scheduled/)).toBeInTheDocument();
 });
+
+it("refreshes every 30 seconds and keeps the last list when a refresh fails", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ posts: [scheduledPost("a", 2, "Soon clip")] })))
+      .mockResolvedValueOnce(new Response("busy", { status: 503 }))
+      .mockResolvedValue(new Response(JSON.stringify({ posts: [] })));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ScheduledPosts sectionHeadingClassName="" />);
+    expect(await screen.findByRole("link", { name: "Soon clip" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("link", { name: "Soon clip" })).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await screen.findByText(/Nothing scheduled/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  } finally {
+    vi.useRealTimers();
+  }
+});
