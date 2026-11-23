@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
+import { memo } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { WORKSPACE_SWITCHED_EVENT } from "@/hooks/use-workspace";
@@ -30,6 +31,23 @@ it("drops everything cached for the previous user when another account signs in"
   session.current = { data: { user: { id: "user-b" } }, isPending: false };
   view.rerender(<><QueryScope /><Probe queryKey="tasks" /><Grab /></>);
   await waitFor(() => expect(client.getQueryData(["private"])).toBeUndefined());
+});
+
+it("refetches a query already on screen as the new user instead of keeping the old answer", async () => {
+  let user = "user-a";
+  function Mine() {
+    const { data } = useQuery({ queryKey: ["billing"], queryFn: async () => `plan of ${user}` });
+    return <p data-testid="mine">{data ?? "loading"}</p>;
+  }
+  // Memoized like a page that has no reason to re-render when the session changes.
+  const MemoMine = memo(Mine);
+  const view = render(<><QueryScope /><MemoMine /></>);
+  await waitFor(() => expect(screen.getByTestId("mine")).toHaveTextContent("plan of user-a"));
+
+  user = "user-b";
+  session.current = { data: { user: { id: "user-b" } }, isPending: false };
+  view.rerender(<><QueryScope /><MemoMine /></>);
+  await waitFor(() => expect(screen.getByTestId("mine")).toHaveTextContent("plan of user-b"));
 });
 
 it("keeps the cache while the session first loads", async () => {

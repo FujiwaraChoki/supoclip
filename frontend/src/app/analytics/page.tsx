@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
             <StatTile label={t("comments")} value={formatMetric(sum(performance.by_provider.map((row) => row.total_comments)))} />
           </section>
 
-          <ViewsSection userId={session.user.id} />
+          <ViewsSection key={session.user.id} userId={session.user.id} />
 
           <section className="rounded-xl border bg-muted/50 p-4 text-sm">
             {performance.personalization_active ? (

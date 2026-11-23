@@ -61,9 +61,9 @@ export function invalidateWorkspaces() {
 /** Fired when the active workspace changed without a page load; the query provider drops workspace data. */
 export const WORKSPACE_SWITCHED_EVENT = "supoclip:workspace-switched";
 
+/** The query provider refetches everything on screen, the workspace and billing summary included. */
 function workspaceSwitchedInPlace() {
   window.dispatchEvent(new CustomEvent(WORKSPACE_SWITCHED_EVENT));
-  invalidateWorkspaces();
 }
 
 // The active workspace is a cookie, so it changes for every tab at once. Tell the other

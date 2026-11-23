@@ -27,7 +27,13 @@ export function QueryScope() {
 
   useEffect(() => {
     if (userId === undefined) return;
-    if (settledUser.current !== undefined && settledUser.current !== userId) queryClient.clear();
+    if (settledUser.current !== undefined && settledUser.current !== userId) {
+      // clear() would leave mounted queries attached to removed entries, still showing the
+      // previous user's data; resetting them empties the screen and refetches as the new user.
+      queryClient.removeQueries({ type: "inactive" });
+      queryClient.getMutationCache().clear();
+      void queryClient.resetQueries({ type: "active" });
+    }
     settledUser.current = userId;
   }, [userId, queryClient]);
 
