@@ -95,6 +95,11 @@ describe("/api/billing/checkout", () => {
       expect.objectContaining({
         line_items: [{ price: "price_scale", quantity: 1 }],
         metadata: { app: "supoclip", userId: "user-1", plan: "scale", interval: "month" },
+        // The Stripe account is shared with Shiori, so SupoClip's branding rides on the session.
+        branding_settings: expect.objectContaining({
+          display_name: "SupoClip",
+          icon: { type: "url", url: "https://www.supoclip.com/logo.png" },
+        }),
       }),
     );
     await expect(response.json()).resolves.toEqual({ url: "https://checkout.example/scale" });
