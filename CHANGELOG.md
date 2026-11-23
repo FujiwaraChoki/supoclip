@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-23
 
-- **Fixed:** On plans that make clips in 720p, long YouTube videos no longer fail partway through with a download limit error. The parts of the video needed for the clips are now downloaded at 720p instead of 1080p, about half the size, so a long series or highlights job stays within the limit. Plans with 1080p clips are unchanged. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** On plans that make clips in 720p, long YouTube videos no longer fail partway through with a download limit error. The parts of the video needed for the clips are now downloaded at 720p instead of 1080p, about half the size, so a long series or highlights job stays within the limit. Plans with 1080p clips are unchanged. ([#565](https://github.com/FujiwaraChoki/supoclip/pull/565))
 - **Improved:** Pages you have already opened, like the library, a task or settings, now show up instantly when you go back to them and refresh in the background. Lists also refresh when you return to the tab, and no longer flash while they reload after you change something. ([#563](https://github.com/FujiwaraChoki/supoclip/pull/563))
 - **Improved:** The payment page you see when upgrading now carries SupoClip's name, logo and colours. ([#562](https://github.com/FujiwaraChoki/supoclip/pull/562))
 
