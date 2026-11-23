@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-23
 
-- **Improved:** In Brazil you can now pay for Pro or Creator with Pix, monthly or yearly. You approve the subscription once in your bank app and renewals are charged from there, with your bank's usual notice a few days before.
+- **Improved:** In Brazil you can now pay for Pro or Creator with Pix, monthly or yearly. You approve the subscription once in your bank app and renewals are charged from there, with your bank's usual notice a few days before. ([#569](https://github.com/FujiwaraChoki/supoclip/pull/569))
 - **Improved:** Pro and Creator can upload much larger files: up to 60 GB on Pro, 90 GB on Creator and Team (it was 4 GB on every plan). A full-length recording, even in 4K, now fits, so the plan's video length is the only limit you meet. Videos above 1080p are still scaled down before clipping. ([#567](https://github.com/FujiwaraChoki/supoclip/pull/567))
 - **New:** Soniox is now available as a transcription provider alongside AssemblyAI, local Whisper, and YouTube captions. Set `TRANSCRIPTION_PROVIDER=soniox` and `SONIOX_API_KEY` to transcribe with word-level caption timing, speaker diarization, and automatic language detection at lower cost. ([#568](https://github.com/FujiwaraChoki/supoclip/pull/568))
 - **New:** If an upgrade doesn't go through, for example because a card was declined, you now get one email with a link that takes you straight back to the payment page to try another card or payment method. The link works for 30 days, and you get at most one of these a month. Turning off product emails turns these off too. ([#566](https://github.com/FujiwaraChoki/supoclip/pull/566))
