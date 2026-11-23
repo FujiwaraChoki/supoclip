@@ -66,3 +66,40 @@ it("groups repeat runs of the same original video", async () => {
     .filter((href) => href?.startsWith("/tasks/"));
   expect(links).toEqual(["/tasks/new-cut", "/tasks/old-cut", "/tasks/standup"]);
 });
+
+it("shows an error when the first load fails", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
+  render(<ListPage />);
+
+  expect(await screen.findByText("Failed to fetch tasks: 500")).toBeInTheDocument();
+});
+
+it("polls while a generation is processing and keeps the list when a refresh fails", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const processing = [{ ...tasks[0], status: "processing" }];
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ tasks: processing }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValue(Response.json({ tasks: [tasks[0]] }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ListPage />);
+
+    expect(await screen.findByRole("link", { name: /Podcast/ })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("link", { name: /Podcast/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch tasks/)).not.toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // Nothing is processing any more, so polling stops.
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  } finally {
+    vi.useRealTimers();
+  }
+});

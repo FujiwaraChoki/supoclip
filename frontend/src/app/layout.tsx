@@ -11,6 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 import { PostHogIdentity } from "@/components/posthog-identity";
 import { ThemeProvider } from "@/components/theme-provider";
+import { QueryProvider } from "@/components/query-provider";
 import { intlLocale } from "@/i18n/config";
 import { APP_STORE_ID, COMPANY_NAME, getSiteUrl } from "@/lib/site";
 
@@ -133,6 +134,7 @@ export default async function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
         <ThemeProvider>
+          <QueryProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <TooltipProvider>
               {children}
@@ -143,6 +145,7 @@ export default async function RootLayout({
               <Toaster />
             </TooltipProvider>
           </NextIntlClientProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

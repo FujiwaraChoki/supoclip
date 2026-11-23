@@ -10,6 +10,7 @@ vi.mock("@testing-library/react", async () => {
   const actual = await vi.importActual<typeof import("@testing-library/react")>("@testing-library/react");
   const { createElement } = await import("react");
   const { NextIntlClientProvider } = await import("next-intl");
+  const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
   const dir = join(process.cwd(), "messages/en");
   const messages: Record<string, unknown> = {};
   for (const file of readdirSync(dir)) {
@@ -21,7 +22,10 @@ vi.mock("@testing-library/react", async () => {
     const UserWrapper = options?.wrapper;
     return function IntlWrapper({ children }: { children: ReactNode }) {
       const inner = UserWrapper ? createElement(UserWrapper, null, children) : children;
-      return createElement(NextIntlClientProvider, { locale: "en", messages, children: inner });
+      // A fresh cache per render, without retries, so tests never share or wait on data.
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const withQuery = createElement(QueryClientProvider, { client: queryClient, children: inner });
+      return createElement(NextIntlClientProvider, { locale: "en", messages, children: withQuery });
     };
   }
 
@@ -33,6 +37,10 @@ vi.mock("@testing-library/react", async () => {
       actual.renderHook(callback, { ...options, wrapper: withIntl(options) })) as typeof actual.renderHook,
   };
 });
+
+// Deliver query updates synchronously so `act()` sees them (the default batches them on a timer).
+const { notifyManager } = await import("@tanstack/react-query");
+notifyManager.setScheduler((callback) => callback());
 
 export const server = setupServer();
 

@@ -69,6 +69,9 @@ importers:
       '@radix-ui/react-switch':
         specifier: ^1.2.6
         version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.10(react@19.1.10))(react@19.1.10)
+      '@tanstack/react-query':
+        specifier: ^5.108.3
+        version: 5.108.3(@types/react@19.2.14)(react@19.1.10)
       better-auth:
         specifier: 1.7.17
         version: 1.7.17(@prisma/client@6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3))(next@15.5.29(@babel/core@7.29.6)(@playwright/test@1.59.1)(@types/node@20.19.39)(react-dom@19.1.10(react@19.1.10))(react@19.1.10))(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(react-dom@19.1.10(react@19.1.10))(react@19.1.10)(vitest@4.1.12)
@@ -2358,6 +2361,18 @@ packages:
 
   '@tailwindcss/postcss@4.2.4':
     resolution: {integrity: sha512-wgAVj6nUWAolAu8YFvzT2cTBIElWHkjZwFYovF+xsqKsW2ADxM/X2opxj5NsF/qVccAOjRNe8X2IdPzMsWyHTg==}
+
+  '@tanstack/query-core@5.108.3':
+    resolution: {integrity: sha512-Lh8fyLDlHOdZXfUB+G1M5bKxfQ1Y0/mfydFP+pMjFKweAU4OUiC4MyIBTcW7Ck+Iwt6K3/pzvADrJi2Dc1lwuQ==}
+
+  '@tanstack/react-query@5.108.3':
+    resolution: {integrity: sha512-dd9eDuqr6hvoTycO+wwuIgdA10S9gRA5EYsJCByhiATp/Xy0D51XgJUCRYJONgKs3URKApbBfNl8mgAe5wI0+Q==}
+    peerDependencies:
+      '@types/react': ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -6989,6 +7004,15 @@ snapshots:
       '@tailwindcss/oxide': 4.2.4
       postcss: 8.5.32
       tailwindcss: 4.2.4
+
+  '@tanstack/query-core@5.108.3': {}
+
+  '@tanstack/react-query@5.108.3(@types/react@19.2.14)(react@19.1.10)':
+    dependencies:
+      '@tanstack/query-core': 5.108.3
+      react: 19.1.10
+    optionalDependencies:
+      '@types/react': 19.2.14
 
   '@testing-library/dom@10.4.1':
     dependencies:

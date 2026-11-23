@@ -1,7 +1,7 @@
 "use client";
 
 import { removeTaskDrafts } from "@/lib/editor/draft-cache";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { ACTIVE_TASK_STATUSES, RETRYABLE_TASK_STATUSES } from "@/components/app/status-badge";
 import { PageLoading } from "@/components/app/page-state";
@@ -11,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { GenerationCard } from "@/components/app/generation-card";
-import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
+import { type GenerationSummary } from "@/lib/generations";
+import { useGenerations } from "@/lib/queries/generations";
 import { groupByOriginalVideo, type LibrarySort } from "@/lib/library-groups";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,8 +53,6 @@ type Task = GenerationSummary;
 
 type BatchAction = "cancel" | "retry" | "delete" | null;
 
-const fetchTasksList = fetchGenerations;
-
 async function buildSupportError(response: Response, fallbackMessage: string) {
   const parsed = await parseApiError(response, fallbackMessage);
   return formatSupportMessage(parsed);
@@ -62,10 +61,16 @@ async function buildSupportError(response: Response, fallbackMessage: string) {
 export default function ListPage() {
   const t = useTranslations("library");
   const { data: session, isPending } = useSession();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const generations = useGenerations(session?.user?.id);
+  const tasks: Task[] = generations.data ?? [];
+  const isLoading = generations.isLoading;
+  // A failed background refresh keeps the last list on screen; only a failed first load shows an error.
+  const error = !generations.data && generations.error
+    ? generations.error.message || t("loadError")
+    : null;
+  const [selectedIds, setSelectedTaskIds] = useState<string[]>([]);
+  // Tasks that disappeared (deleted elsewhere) drop out of the selection.
+  const selectedTaskIds = selectedIds.filter((id) => tasks.some((task) => task.id === id));
   const [batchNotice, setBatchNotice] = useState<{
     tone: "success" | "error";
     message: string;
@@ -89,57 +94,9 @@ export default function ListPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => {
-    const loadTasks = async () => {
-      if (!session?.user?.id) {
-        setTasks([]);
-        setSelectedTaskIds([]);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        setError(null);
-        const nextTasks = await fetchTasksList();
-        setTasks(nextTasks);
-        setSelectedTaskIds((current) =>
-          current.filter((taskId) => nextTasks.some((task) => task.id === taskId)),
-        );
-      } catch (err) {
-        console.error("Error fetching tasks:", err);
-        setError(err instanceof Error ? err.message : t("loadError"));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void loadTasks();
-  }, [session?.user?.id, t]);
-
-  const refreshTasks = useCallback(async () => {
-    const nextTasks = await fetchTasksList();
-    setTasks(nextTasks);
-    setSelectedTaskIds((current) =>
-      current.filter((taskId) => nextTasks.some((task) => task.id === taskId)),
-    );
-  }, []);
-
-  const hasActiveTasks = tasks.some((task) => ACTIVE_TASK_STATUSES.includes(task.status));
-  useEffect(() => {
-    if (!session?.user?.id || !hasActiveTasks) return;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const refresh = async () => {
-      try { await refreshTasks(); }
-      catch { /* Preserve the last list during a transient network outage. */ }
-      if (!stopped) timer = setTimeout(refresh, 5000);
-    };
-    timer = setTimeout(refresh, 5000);
-    const onFocus = () => { void refreshTasks().catch(() => {}); };
-    window.addEventListener("focus", onFocus);
-    return () => { stopped = true; clearTimeout(timer); window.removeEventListener("focus", onFocus); };
-  }, [session?.user?.id, hasActiveTasks, refreshTasks]);
+  const refreshTasks = async () => {
+    await generations.refetch({ throwOnError: true });
+  };
 
   const selectedTasks = tasks.filter((task) => selectedTaskIds.includes(task.id));
   const selectedCount = selectedTasks.length;

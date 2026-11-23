@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect } from "react";
 
 export const WORKSPACE_CHANGED_EVENT = "supoclip:workspace-changed";
 
@@ -44,45 +45,48 @@ export interface BillingSummary {
   member_limit_reached?: boolean;
 }
 
-// One in-flight request shared by the shell and the page it wraps.
-let pending: Promise<BillingSummary | null> | null = null;
+export const billingSummaryKey = ["billing-summary"] as const;
 
-function loadBillingSummary(force = false) {
-  if (force) pending = null;
-  pending ??= fetch("/api/tasks/billing-summary", { cache: "no-store" })
-    .then((response) => (response.ok ? (response.json() as Promise<BillingSummary>) : null))
-    .catch(() => null)
-    .finally(() => { setTimeout(() => { pending = null; }, 5_000); });
-  return pending;
+async function loadBillingSummary(): Promise<BillingSummary | null> {
+  try {
+    const response = await fetch("/api/tasks/billing-summary", { cache: "no-store" });
+    return response.ok ? ((await response.json()) as BillingSummary) : null;
+  } catch {
+    return null;
+  }
 }
 
+/** Refetch the summary everywhere it is shown (after a plan, team or workspace change). */
 export function invalidateBillingSummary() {
-  pending = null;
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(WORKSPACE_CHANGED_EVENT));
   }
 }
 
 export function useBillingSummary(enabled: boolean) {
-  const [summary, setSummary] = useState<BillingSummary | null>(null);
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: billingSummaryKey,
+    queryFn: loadBillingSummary,
+    enabled,
+    // The shell and the page it wraps both ask on mount; one request serves both.
+    staleTime: 5_000,
+  });
+
   useEffect(() => {
     if (!enabled) return;
-    let cancelled = false;
-    const fetchNow = (force = false) => {
-      void loadBillingSummary(force).then((data) => {
-        if (!cancelled) setSummary(data);
-      });
+    const onWorkspaceChanged = () => {
+      void queryClient.invalidateQueries({ queryKey: billingSummaryKey }, { cancelRefetch: false });
     };
-    fetchNow();
-    const onWorkspaceChanged = () => fetchNow(true);
     window.addEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
-    };
-  }, [enabled]);
+    return () => window.removeEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
+  }, [enabled, queryClient]);
+
   const update = useCallback((patch: Partial<BillingSummary>) => {
-    setSummary((current) => (current ? { ...current, ...patch } : current));
-  }, []);
-  return [summary, update] as const;
+    queryClient.setQueryData<BillingSummary | null>(billingSummaryKey, (current) =>
+      current ? { ...current, ...patch } : current,
+    );
+  }, [queryClient]);
+
+  return [enabled ? data ?? null : null, update] as const;
 }
