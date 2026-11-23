@@ -20,6 +20,19 @@ import {
   subscriptionNeedsPayment,
 } from "@/lib/subscription-status";
 import type Stripe from "stripe";
+import { HOSTED_APP_URL } from "@/lib/site";
+
+// The Stripe account (Shiori LLC) also sells other products, so SupoClip's look is set per session
+// instead of in the account's branding settings. The icon comes from the hosted site so Stripe can
+// always fetch it, including from local and self-hosted checkouts.
+const CHECKOUT_BRANDING: Stripe.Checkout.SessionCreateParams.BrandingSettings = {
+  display_name: "SupoClip",
+  icon: { type: "url", url: `${HOSTED_APP_URL}/logo.png` },
+  button_color: "#eb5116",
+  background_color: "#ffffff",
+  font_family: "inter",
+  border_style: "rounded",
+};
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
 const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
@@ -231,6 +244,7 @@ export async function POST(request: Request) {
           : {}),
       },
       line_items: [{ price: priceId, quantity: 1 }],
+      branding_settings: CHECKOUT_BRANDING,
       ...(offer
         ? { discounts: [{ promotion_code: offer.promotionCodeId }] }
         : {}),
