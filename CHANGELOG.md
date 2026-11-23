@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-23
 
-- **New:** If an upgrade doesn't go through, for example because a card was declined, you now get one email with a link that takes you straight back to the payment page to try another card or payment method. The link works for 30 days, and you get at most one of these a month. Turning off product emails turns these off too.
+- **New:** If an upgrade doesn't go through, for example because a card was declined, you now get one email with a link that takes you straight back to the payment page to try another card or payment method. The link works for 30 days, and you get at most one of these a month. Turning off product emails turns these off too. ([#566](https://github.com/FujiwaraChoki/supoclip/pull/566))
 - **Improved:** New accounts now confirm their email address before they start. After signing up you get a link by email; open it and you're signed in and taken where you were headed. Signing in before then sends a fresh link. Existing accounts are not affected. ([#526](https://github.com/FujiwaraChoki/supoclip/pull/526))
 - **Improved:** Pages you have already opened, like the library, a task or settings, now show up instantly when you go back to them and refresh in the background. Lists also refresh when you return to the tab, and no longer flash while they reload after you change something. ([#563](https://github.com/FujiwaraChoki/supoclip/pull/563))
 - **Improved:** The payment page you see when upgrading now carries SupoClip's name, logo and colours. ([#562](https://github.com/FujiwaraChoki/supoclip/pull/562))
