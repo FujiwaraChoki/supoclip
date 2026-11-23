@@ -105,6 +105,32 @@ describe("/api/billing/checkout", () => {
     await expect(response.json()).resolves.toEqual({ url: "https://checkout.example/scale" });
   });
 
+  it("expires an unfinished checkout after an hour with a recovery link", async () => {
+    const stripe = {
+      checkout: {
+        sessions: {
+          create: vi.fn().mockResolvedValue({ url: "https://checkout.example/pro" }),
+        },
+      },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+    };
+    vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+    const before = Math.floor(Date.now() / 1000);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: "pro" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const params = stripe.checkout.sessions.create.mock.calls[0][0];
+    expect(params.after_expiration).toEqual({ recovery: { enabled: true } });
+    expect(params.expires_at).toBeGreaterThanOrEqual(before + 3600);
+    expect(params.expires_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 3600);
+  });
+
   it("uses the annual price when yearly billing is selected", async () => {
     const stripe = {
       checkout: {
