@@ -533,6 +533,8 @@ def create_optimized_clip(
                     **({"drop_screen_words": True} if include_captions and plan_report.get("kind") == "gaming" else {}),
                     # Only stacked interview openings move the hook title.
                     **_interview_hook_kwargs(plan_report),
+                    # Layout-aware positioning kwargs
+                    **_layout_aware_positioning_kwargs(plan_report, src_w, src_h, target_width, target_height),
                     # A Dynamic edits clip rendered without the drawing stage: heavy outlined type, no boxes.
                     **({"hook_heavy": True} if fx is not None else {}),
                 )
@@ -811,6 +813,37 @@ def _interview_hook_kwargs(plan_report: Dict[str, Any]) -> Dict[str, Any]:
     if plan_report.get("hook_center_y") is None:
         return {}
     return {"hook_center_y": plan_report["hook_center_y"]}
+
+
+def _layout_aware_positioning_kwargs(
+    plan_report: Dict[str, Any], src_w: int, src_h: int, target_w: int, target_h: int
+) -> Dict[str, Any]:
+    """Provide layout-aware positioning parameters from plan_report."""
+    from .media.positioning import calculate_fit_video_bounds, Rect
+    kwargs: Dict[str, Any] = {}
+    kind = plan_report.get("kind")
+    if kind == "fit":
+        kwargs["layout_type"] = "fit"
+        kwargs["content_box"] = calculate_fit_video_bounds(src_w, src_h, target_w, target_h)
+    elif kind in ("interview", "stack") or plan_report.get("panel_windows") or any(
+        s.get("kind") == "pair" for s in plan_report.get("interview_segments", [])
+    ):
+        kwargs["layout_type"] = "split"
+        kwargs["split_seams"] = [0.5]
+    elif kind == "gaming":
+        kwargs["layout_type"] = "gameplay"
+        gaming_info = plan_report.get("gaming") or {}
+        cam_h = gaming_info.get("cam_h")
+        if cam_h:
+            kwargs["split_seams"] = [cam_h / float(target_h)]
+        if gaming_info.get("hud"):
+            kwargs["hud_boxes"] = [
+                Rect.from_pixels(r[0], r[1], r[2], r[3], target_w, target_h)
+                for r in gaming_info["hud"]
+            ]
+    elif kind in ("crop", "single", "solo"):
+        kwargs["layout_type"] = "close_up"
+    return kwargs
 
 
 # Intensity-look captions on an interview clip sit on the stacked seam on two-shots, at mid-chest on close-ups and

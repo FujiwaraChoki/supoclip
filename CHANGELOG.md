@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-23
+
+- **Fixed:** Hook titles and captions are now positioned using layout-aware and content-aware placement across all framing modes. In split-screen videos, hook titles stay within one half of the screen and never cross the dividing seam over someone's chin or chest, and captions sit in the safe area between presenters instead of overlapping the lower person's face. On tight close-ups, hook titles avoid covering the presenter's forehead. On gameplay clips, titles and captions avoid on-screen text, timers, game HUD elements, and the webcam border. On letterboxed fit layouts, captions stay inside the visible video area instead of landing on the blurred background.
+
 ## 2026-11-21
 
 - **Improved:** The site footer now shows SupoClip's full operating company imprint, including its registered address and contact phone number. ([#547](https://github.com/FujiwaraChoki/supoclip/pull/547))

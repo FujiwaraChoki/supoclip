@@ -441,6 +441,13 @@ def build_hook_title_ass(
     time_map: Optional[TimeMap] = None,
     center_y: Optional[float] = None,
     heavy: bool = False,
+    layout_type: Optional[str] = None,
+    faces: Optional[Sequence[Any]] = None,
+    ocr_boxes: Optional[Sequence[Any]] = None,
+    hud_boxes: Optional[Sequence[Any]] = None,
+    split_seams: Optional[Sequence[float]] = None,
+    content_box: Optional[Any] = None,
+    position_report: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -545,10 +552,51 @@ def build_hook_title_ass(
         x = video_width * (0.5 + float(editor_style.get("x", 0)))
         y = margin_v + original_px * 1.2 * len(lines) / 2 + video_height * float(editor_style.get("y", 0))
         entrance += f"\\an5\\pos({round(x)},{round(y)})"
-    elif center_y is not None:
-        entrance += f"\\an5\\pos({video_width // 2},{round(video_height * center_y)})"
-    elif position_y is not None:
-        entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
+    else:
+        eff_layout = layout_type
+        if eff_layout is None:
+            if split_seams or (center_y is not None and abs(center_y - 0.5) < 0.05):
+                eff_layout = "split"
+            elif content_box is not None:
+                eff_layout = "fit"
+            elif faces and len(faces) == 1 and getattr(faces[0], "h", 0) > 0.18:
+                eff_layout = "close_up"
+
+        if eff_layout is not None or faces or ocr_boxes or hud_boxes or split_seams or content_box:
+            from .positioning import get_positioner, TargetType, Rect
+            pos_engine = get_positioner(video_width, video_height)
+            title_w_frac = min(1.0, float(usable_width) / float(video_width))
+            title_h_frac = min(1.0, float(hook_px * 1.35 * len(lines) + outline_px * 2) / float(video_height))
+
+            rect_faces = [f if isinstance(f, Rect) else Rect(*f[:4]) for f in (faces or [])]
+            rect_ocr = [b if isinstance(b, Rect) else Rect(*b[:4]) for b in (ocr_boxes or [])]
+            rect_hud = [b if isinstance(b, Rect) else Rect(*b[:4]) for b in (hud_boxes or [])]
+            rect_content = content_box if (content_box is None or isinstance(content_box, Rect)) else Rect(*content_box[:4])
+            seams = list(split_seams or ([center_y] if center_y is not None and eff_layout == "split" else []))
+
+            res = pos_engine.position(
+                target=TargetType.HOOK_TITLE,
+                layout_type=eff_layout or "default",
+                item_width=title_w_frac,
+                item_height=title_h_frac,
+                faces=rect_faces,
+                ocr_boxes=rect_ocr,
+                hud_boxes=rect_hud,
+                split_seams=seams,
+                content_box=rect_content,
+            )
+            entrance += f"\\an{res.alignment}\\pos({res.pixel_x},{res.pixel_y})"
+            if position_report is not None:
+                position_report.update({
+                    "x": res.x, "y": res.y, "alignment": res.alignment,
+                    "safe_box": (res.safe_box.x, res.safe_box.y, res.safe_box.w, res.safe_box.h),
+                    "selected_region": res.selected_region,
+                    "confidence": res.confidence, "reason": res.reason, "score": res.score,
+                })
+        elif center_y is not None:
+            entrance += f"\\an5\\pos({video_width // 2},{round(video_height * center_y)})"
+        elif position_y is not None:
+            entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
         entrance += f"\\fscx90\\fscy90\\t(0,{round(fade_in * 1000)},\\fscx100\\fscy100)"
     if time_map is not None:
@@ -649,6 +697,13 @@ def build_assemblyai_ass_subtitles(
     time_map: Optional[TimeMap] = None,
     censor_spans: Optional[Sequence[Tuple[float, float]]] = None,
     drop_screen_words: bool = False,
+    layout_type: Optional[str] = None,
+    faces: Optional[Sequence[Any]] = None,
+    ocr_boxes: Optional[Sequence[Any]] = None,
+    hud_boxes: Optional[Sequence[Any]] = None,
+    split_seams: Optional[Sequence[float]] = None,
+    content_box: Optional[Any] = None,
+    position_report: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -765,13 +820,68 @@ def build_assemblyai_ass_subtitles(
         else float(template.get("position_y", 0.80))
     )
     est_text_height = int(font_px * 1.5)
-    y_pos = (
-        int(center_y_override)
-        if center_y_override is not None
-        else get_safe_vertical_position(video_height, est_text_height, pos_y)
-    )
-    if avoid_band is not None and center_y_override is None:
-        y_pos = caption_center_clear_of_band(y_pos, est_text_height, avoid_band, video_height)
+
+    eff_layout = layout_type
+    if eff_layout is None and caption_layout_report is not None:
+        kind = caption_layout_report.get("kind") or (
+            caption_layout_report.get("vertical_layout", {}).get("kind")
+            if isinstance(caption_layout_report.get("vertical_layout"), dict) else None
+        )
+        if kind == "fit":
+            eff_layout = "fit"
+        elif kind in ("interview", "pair", "stack") or caption_layout_report.get("panel_windows") or (hook_center_y is not None and abs(hook_center_y - 0.5) < 0.05):
+            eff_layout = "split"
+        elif kind == "gaming":
+            eff_layout = "gameplay"
+        elif kind in ("crop", "single", "solo"):
+            eff_layout = "close_up"
+
+    from .positioning import get_positioner, TargetType, LayoutType, Rect, calculate_fit_video_bounds
+    rect_content = content_box
+    if rect_content is None and eff_layout == "fit":
+        rect_content = calculate_fit_video_bounds(video_width, video_height, video_width, video_height)
+    elif rect_content is not None and not isinstance(rect_content, Rect):
+        rect_content = Rect(*rect_content[:4])
+
+    rect_faces = [f if isinstance(f, Rect) else Rect(*f[:4]) for f in (faces or [])]
+    rect_ocr = [b if isinstance(b, Rect) else Rect(*b[:4]) for b in (ocr_boxes or [])]
+    rect_hud = [b if isinstance(b, Rect) else Rect(*b[:4]) for b in (hud_boxes or [])]
+    seams = list(split_seams or ([0.5] if eff_layout == "split" else []))
+
+    if center_y_override is not None:
+        y_pos = int(center_y_override)
+    elif eff_layout is not None or faces or ocr_boxes or hud_boxes or split_seams or rect_content:
+        pos_engine = get_positioner(video_width, video_height)
+        max_sub_w = get_subtitle_max_width(video_width)
+        cap_w_frac = min(1.0, float(max_sub_w) / float(video_width))
+        cap_h_frac = min(1.0, float(est_text_height) / float(video_height))
+
+        cap_res = pos_engine.position(
+            target=TargetType.CAPTION,
+            layout_type=eff_layout or "default",
+            item_width=cap_w_frac,
+            item_height=cap_h_frac,
+            faces=rect_faces,
+            ocr_boxes=rect_ocr,
+            hud_boxes=rect_hud,
+            split_seams=seams,
+            content_box=rect_content,
+        )
+        y_pos = cap_res.pixel_y
+        if avoid_band is not None and center_y_override is None:
+            y_pos = caption_center_clear_of_band(y_pos, est_text_height, avoid_band, video_height)
+        if position_report is not None:
+            position_report["caption"] = {
+                "x": cap_res.x, "y": cap_res.y, "alignment": cap_res.alignment,
+                "safe_box": (cap_res.safe_box.x, cap_res.safe_box.y, cap_res.safe_box.w, cap_res.safe_box.h),
+                "selected_region": cap_res.selected_region,
+                "confidence": cap_res.confidence, "reason": cap_res.reason, "score": cap_res.score,
+            }
+    else:
+        y_pos = get_safe_vertical_position(video_height, est_text_height, pos_y)
+        if avoid_band is not None and center_y_override is None:
+            y_pos = caption_center_clear_of_band(y_pos, est_text_height, avoid_band, video_height)
+
     if caption_layout_report is not None:
         caption_layout_report["caption_y"] = y_pos / video_height
     font_name = ass_font_name(effective_font_family)
@@ -812,6 +922,13 @@ def build_assemblyai_ass_subtitles(
             heavy=hook_heavy,
             **({"time_map": time_map} if time_map is not None else {}),
             center_y=hook_center_y,
+            layout_type=eff_layout,
+            faces=rect_faces,
+            ocr_boxes=rect_ocr,
+            hud_boxes=rect_hud,
+            split_seams=seams,
+            content_box=rect_content,
+            position_report=position_report,
         )
         hook_style_block = f"{hook_style_line}\n"
     if point_labels:
