@@ -31,6 +31,9 @@ export function usePollUntil<T>({
     retry: false,
     // A checkout tab is often in the background while Stripe finishes; keep counting there too.
     refetchIntervalInBackground: true,
+    // Only the interval asks: a focus or reconnect would spend attempts early.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     refetchInterval: (current) => {
       const data = current.state.data;
       if (data && done(data)) return false;

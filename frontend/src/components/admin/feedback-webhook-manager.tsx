@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -102,18 +102,23 @@ export function FeedbackWebhookManager() {
   const reload = () => queryClient.invalidateQueries({ queryKey: feedbackWebhookKeys.list() });
   const reloadLog = (id: string) => queryClient.invalidateQueries({ queryKey: feedbackWebhookKeys.deliveries(id) });
 
-  // One action at a time; `busy` names it so its button can say what it is doing.
-  const action = useMutation({
-    mutationFn: ({ work }: { key: string; work: () => Promise<void> }) => work(),
-    onMutate: () => {
-      setActionError(null);
-      setMessage(null);
-    },
-    onError: (err) => setActionError(err instanceof Error ? err.message : t("feedback.webhooks.saveFailed")),
-  });
-  const busy = action.isPending ? action.variables.key : null;
+  // One action at a time; `busy` names it so its button can say what it is doing. A plain runner,
+  // not a mutation: the work closes over the editor's write-only URL, which the mutation cache
+  // would keep as its variables.
+  const [busy, setBusy] = useState<string | null>(null);
   const error = actionError ?? loadError;
-  const run = (key: string, work: () => Promise<void>) => action.mutate({ key, work });
+  const run = async (key: string, work: () => Promise<void>) => {
+    setBusy(key);
+    setActionError(null);
+    setMessage(null);
+    try {
+      await work();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : t("feedback.webhooks.saveFailed"));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const save = (event: React.FormEvent) => {
     event.preventDefault();

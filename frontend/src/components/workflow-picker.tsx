@@ -11,14 +11,15 @@ const UNAVAILABLE: WorkflowsInfo = { enabled: false, workflows: [], topic_max_ch
 
 export const workflowsInfoKey = ["workflows-info"] as const;
 
+/**
+ * A network error or a 5xx throws, so a refresh that fails keeps the flags already known;
+ * any other answer that isn't a workflow list (a 404 from an older backend) means unavailable.
+ */
 async function loadWorkflowsInfo(): Promise<WorkflowsInfo> {
-  try {
-    const response = await fetch("/api/tasks/workflows", { cache: "no-store" });
-    const data = (response.ok ? await response.json() : null) as Partial<WorkflowsInfo> | null;
-    return data && Array.isArray(data.workflows) ? { ...UNAVAILABLE, ...data, enabled: data.enabled === true } as WorkflowsInfo : UNAVAILABLE;
-  } catch {
-    return UNAVAILABLE;
-  }
+  const response = await fetch("/api/tasks/workflows", { cache: "no-store" });
+  if (response.status >= 500) throw new Error(`Failed to fetch workflows: ${response.status}`);
+  const data = (response.ok ? await response.json().catch(() => null) : null) as Partial<WorkflowsInfo> | null;
+  return data && Array.isArray(data.workflows) ? { ...UNAVAILABLE, ...data, enabled: data.enabled === true } as WorkflowsInfo : UNAVAILABLE;
 }
 
 /**
@@ -27,14 +28,16 @@ async function loadWorkflowsInfo(): Promise<WorkflowsInfo> {
  * highlights.
  */
 export function useWorkflowsInfo(active = true): WorkflowsInfo | null {
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: workflowsInfoKey,
     queryFn: loadWorkflowsInfo,
     enabled: active,
     // The shell's command palette and the create screen both ask; one request serves both.
     staleTime: 5_000,
+    retry: false,
   });
-  return active ? data ?? null : null;
+  if (!active) return null;
+  return data ?? (isError ? UNAVAILABLE : null);
 }
 
 /** Workflows the user may pick right now. Empty unless the server explicitly enables them. */

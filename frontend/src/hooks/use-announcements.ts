@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useInvalidateOnWindowEvent } from "@/lib/queries/window-events";
 import { ANNOUNCEMENTS_UPDATED_EVENT, type Announcement } from "@/lib/announcements";
 
 const announcementsKey = ["announcements"] as const;
@@ -19,7 +19,6 @@ async function loadAnnouncements(): Promise<Announcement[]> {
 }
 
 export function useAnnouncements() {
-  const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: announcementsKey,
     queryFn: loadAnnouncements,
@@ -28,16 +27,9 @@ export function useAnnouncements() {
     retry: false,
   });
 
-  useEffect(() => {
-    const onUpdated = () => { void queryClient.invalidateQueries({ queryKey: announcementsKey }); };
-    // The query refetches on visibility changes; a window focus (another app, devtools) counts too.
-    window.addEventListener("focus", onUpdated);
-    window.addEventListener(ANNOUNCEMENTS_UPDATED_EVENT, onUpdated);
-    return () => {
-      window.removeEventListener("focus", onUpdated);
-      window.removeEventListener(ANNOUNCEMENTS_UPDATED_EVENT, onUpdated);
-    };
-  }, [queryClient]);
+  // The query refetches on visibility changes; a window focus (another app, devtools) counts too.
+  useInvalidateOnWindowEvent("focus", announcementsKey);
+  useInvalidateOnWindowEvent(ANNOUNCEMENTS_UPDATED_EVENT, announcementsKey);
 
   return data ?? [];
 }

@@ -16,7 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { signOut } from "@/lib/auth-client";
+import { signOut, useSession } from "@/lib/auth-client";
 import { invalidateWorkspaces } from "@/hooks/use-workspace";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,8 @@ interface InvitationResponse {
 }
 
 const invitationKeys = {
-  detail: (token: string) => ["team-invitation", token] as const,
+  /** Per viewer: the answer says whether they are signed in and as whom. */
+  detail: (token: string, viewer: string) => ["team-invitation", token, viewer] as const,
 };
 
 /** The invitation behind `token`; null when it does not exist (404). */
@@ -63,11 +64,17 @@ export default function AcceptInvitePage({
   const [signingOut, setSigningOut] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
-  // Read once: a refetch on focus could swap the page under someone about to join.
+  const { data: session, isPending: sessionPending } = useSession();
+  const viewer = session?.user?.id ?? "anon";
+
+  // Read once per visit and viewer: a refetch on focus could swap the page under someone about
+  // to join, and coming back signed in (or as someone else) must ask again, not reuse the cache.
   const invite = useQuery({
-    queryKey: invitationKeys.detail(token),
+    queryKey: invitationKeys.detail(token, viewer),
     queryFn: () => fetchInvitation(token, t("invite.loadFailed")),
+    enabled: !sessionPending,
     staleTime: Infinity,
+    gcTime: 0,
     refetchOnWindowFocus: false,
   });
   const data = invite.data ?? null;

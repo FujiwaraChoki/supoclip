@@ -144,3 +144,22 @@ describe("useWorkflowsInfo", () => {
     expect(availableWorkflows(result.current).size).toBe(0);
   });
 });
+
+describe("useWorkflowsInfo after a failed refresh", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps workflows it already knows when a later request fails", async () => {
+    const info: WorkflowsInfo = { enabled: true, workflows: [{ id: "series", available: true }], topic_max_chars: 200, instructions_max_chars: 500 } as WorkflowsInfo;
+    let respond = () => Response.json(info);
+    vi.stubGlobal("fetch", vi.fn(async () => respond()));
+    const { result, rerender } = renderHook(({ active }) => useWorkflowsInfo(active), { initialProps: { active: true } });
+    await waitFor(() => expect(result.current?.enabled).toBe(true));
+
+    respond = () => new Response("bad gateway", { status: 502 });
+    rerender({ active: false });
+    await new Promise((resolve) => setTimeout(resolve, 5_100));
+    rerender({ active: true });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(result.current?.enabled).toBe(true);
+  }, 10_000);
+});

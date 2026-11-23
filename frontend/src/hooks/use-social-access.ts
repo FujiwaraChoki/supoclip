@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "@/lib/auth-client";
 
 /** True only when this server explicitly grants social publishing. Missing or false stays hidden. */
 export function isSocialPublishingEnabled(data: { enabled?: boolean } | null | undefined) {
@@ -19,8 +20,9 @@ async function loadSocialAccess(): Promise<boolean> {
 
 /** Whether social publishing is available to the signed-in user (null while loading). */
 export function useSocialAccess(enabled = true) {
+  const { data: session } = useSession();
   const { data } = useQuery({
-    queryKey: ["social-access"],
+    queryKey: ["social-access", session?.user?.id ?? "anonymous"],
     queryFn: loadSocialAccess,
     enabled,
     // Asked once per page load, shared by the shell and the pages it wraps.

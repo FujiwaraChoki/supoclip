@@ -1,7 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import TaskPage from "./page";
+import { taskDetailKeys } from "@/lib/queries/task-detail";
+import { generationKeys } from "@/lib/queries/generations";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 vi.mock("next/navigation", () => ({
@@ -31,7 +35,10 @@ vi.mock("@/hooks/use-task-progress", () => ({
     return { reconnecting: false };
   },
 }));
-vi.mock("@/hooks/use-billing-summary", () => ({ useBillingSummary: () => [null, vi.fn()] }));
+vi.mock("@/hooks/use-billing-summary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-billing-summary")>()),
+  useBillingSummary: () => [null, vi.fn()],
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 type Json = Record<string, unknown>;
@@ -610,5 +617,116 @@ describe("task page data loading", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("task page cache and review fixes", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  function renderWithClient(client: QueryClient) {
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return render(<TooltipProvider><TaskPage /></TooltipProvider>, { wrapper });
+  }
+
+  function cachedClient(taskBody: Json, clips: Json[]) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(taskDetailKeys.detail("task-1"), { task: taskBody, clips, loadNumber: 0 });
+    return client;
+  }
+
+  async function openRestyle() {
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Restyle" }));
+    return screen.findByRole("dialog");
+  }
+
+  it("fills the restyle sheet from a cached task when the refresh on revisit fails", async () => {
+    serve(task(), [clip(1)]);
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input) === "/api/tasks/task-1" ? new Response("down", { status: 502 }) : Response.json({}));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderWithClient(cachedClient(task({ filtered_words: ["um", "like"] }), [clip(1)]));
+
+    const sheet = await openRestyle();
+    expect(within(sheet).getByDisplayValue("um, like")).toBeInTheDocument();
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it("never overwrites an open sheet or a chosen sort with the fresh load", async () => {
+    let release: (() => void) | null = null;
+    serve(task({ filtered_words: ["fresh"] }), [clip(1)]);
+    const served = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/tasks/task-1") await new Promise<void>((resolve) => { release = resolve; });
+      return served(input, init);
+    });
+    renderWithClient(cachedClient(task({ filtered_words: ["cached"] }), [clip(1)]));
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Timeline" }));
+    const sheet = await openRestyle();
+    const words = within(sheet).getByDisplayValue("cached");
+    fireEvent.change(words, { target: { value: "mine" } });
+    await waitFor(() => expect(release).not.toBeNull());
+    await act(async () => { release?.(); });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url) === "/api/tasks/task-1/clips")).toBe(true));
+
+    expect(within(sheet).getByDisplayValue("mine")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Timeline", hidden: true })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("refills a closed sheet from the fresh load after showing the cached task", async () => {
+    serve(task({ filtered_words: ["fresh"] }), [clip(1)]);
+    const client = cachedClient(task({ filtered_words: ["cached"] }), [clip(1)]);
+    renderWithClient(client);
+    await waitFor(() => expect((client.getQueryData(taskDetailKeys.detail("task-1")) as { loadNumber: number }).loadNumber).toBeGreaterThan(0));
+
+    const sheet = await openRestyle();
+    expect(within(sheet).getByDisplayValue("fresh")).toBeInTheDocument();
+  });
+
+  it("forgets a failed reload once the task loads again, so a later background failure keeps the page", async () => {
+    serve(task({ status: "processing" }), [clip(1)]);
+    const served = vi.mocked(fetch).getMockImplementation()!;
+    let failTask = false;
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      failTask && String(input) === "/api/tasks/task-1" ? new Response("down", { status: 502 }) : served(input, init));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderPage();
+    await screen.findByText("Founder interview");
+
+    // The reload after Cancel fails: the error page shows.
+    failTask = true;
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
+
+    // A background refresh succeeds: the task is back.
+    failTask = false;
+    await act(async () => { await progress.refresh?.(); });
+    expect(await screen.findByText("Founder interview")).toBeInTheDocument();
+
+    // A later background failure keeps it on screen.
+    failTask = true;
+    await act(async () => { await progress.refresh?.(); });
+    expect(screen.getByText("Founder interview")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it("drops a deleted task from the library cache and forgets it once the page has left", async () => {
+    serve(task(), [clip(1)]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(generationKeys.all("user-1"), [{ id: "task-1" }, { id: "task-2" }]);
+    const { unmount } = renderWithClient(client);
+    await screen.findByText("Founder interview");
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete generation" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(client.getQueryData(generationKeys.all("user-1"))).toEqual([{ id: "task-2" }]));
+    // Still on screen until the page leaves: it must not reload a task that is gone.
+    expect(client.getQueryData(taskDetailKeys.detail("task-1"))).toBeDefined();
+    unmount();
+    expect(client.getQueryData(taskDetailKeys.detail("task-1"))).toBeUndefined();
   });
 });

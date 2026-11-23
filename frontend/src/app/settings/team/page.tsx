@@ -153,8 +153,9 @@ interface TeamDetailPayload {
 }
 
 const teamKeys = {
-  detail: (teamId: string) => ["team-detail", teamId] as const,
-  awaitPaid: (teamId: string) => ["team-detail", teamId, "await-paid"] as const,
+  // Siblings, not prefixes: refreshing the detail must not also refetch the checkout poll.
+  detail: (teamId: string) => ["team", teamId, "detail"] as const,
+  awaitPaid: (teamId: string) => ["team", teamId, "await-paid"] as const,
 };
 
 /** The team's settings view; throws with the server's reason when it gives one. */
@@ -310,7 +311,11 @@ export default function TeamSettingsPage() {
   const checkoutPollExhausted = checkoutPoll.exhausted;
   useEffect(() => {
     if (!awaitingCheckout) return;
-    if (polledDetail) queryClient.setQueryData(teamKeys.detail(polledDetail.team.id), polledDetail);
+    if (polledDetail) {
+      // A slower detail request still in flight (the first load) must not land the unpaid team over this.
+      const key = teamKeys.detail(polledDetail.team.id);
+      void queryClient.cancelQueries({ queryKey: key }).then(() => queryClient.setQueryData(key, polledDetail));
+    }
     if (polledDetail && isPaidTeam(polledDetail)) {
       setAwaitingCheckout(false);
       invalidateWorkspaces();

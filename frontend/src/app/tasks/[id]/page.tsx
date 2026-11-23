@@ -84,6 +84,9 @@ import { formatClock } from "@/lib/source-range";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
+  dropDeletedTaskFromLists,
+  forgetTaskDetail,
+  taskDetailLoadCount,
   taskPageKeys,
   updateTaskDetail,
   useBrollAvailable,
@@ -285,7 +288,9 @@ export default function TaskPage() {
   const progressMessage = task?.progress_message ?? "";
   // A failed load the user asked for (first load, Retry, refresh after an action) replaces the page;
   // a failed background refresh keeps the last task on screen.
-  const [foregroundFailed, setForegroundFailed] = useState(false);
+  // `errorUpdatedAt` of that failure: it stands until the task loads again (any later success clears it).
+  const [foregroundErrorAt, setForegroundErrorAt] = useState<number | null>(null);
+  const foregroundFailed = foregroundErrorAt !== null && taskQuery.dataUpdatedAt <= foregroundErrorAt;
   const error = taskQuery.status === "error" && (foregroundFailed || !taskQuery.data)
     ? (taskQuery.error instanceof Error ? taskQuery.error.message : t("errors.load"))
     : null;
@@ -370,20 +375,28 @@ export default function TaskPage() {
     }
   }, []);
 
-  // The first load fetched on this visit fills the sheet (a cached task from an earlier visit does not).
-  const syncedOnMount = useRef(false);
-  const mountTask = taskQuery.isFetchedAfterMount && taskQuery.status === "success" ? taskQuery.data?.task : undefined;
+  // The sheet fills from the task as soon as there is one, cached from an earlier visit included. The first
+  // load of this visit fills it again, unless the sheet has been opened by then (it never overwrites the user).
+  const [firstLoadOfVisit] = useState(() => taskDetailLoadCount() + 1);
+  const sheetSync = useRef<"none" | "cached" | "done">("none");
+  const shownTask = taskQuery.data?.task;
+  const shownLoad = taskQuery.data?.loadNumber ?? 0;
   useEffect(() => {
-    if (!mountTask || syncedOnMount.current) return;
-    syncedOnMount.current = true;
-    syncSettingsFromTask(mountTask);
-  }, [mountTask, syncSettingsFromTask]);
+    if (!shownTask || sheetSync.current === "done") return;
+    const fresh = shownLoad >= firstLoadOfVisit;
+    if (sheetSync.current === "cached" && (settingsSheetOpen || !fresh)) {
+      if (settingsSheetOpen) sheetSync.current = "done";
+      return;
+    }
+    syncSettingsFromTask(shownTask);
+    sheetSync.current = fresh ? "done" : "cached";
+  }, [shownTask, shownLoad, firstLoadOfVisit, settingsSheetOpen, syncSettingsFromTask]);
 
   const { refetch: refetchTask } = taskQuery;
   /** Reload the task the user is waiting on: a failure shows the error page, success refills the sheet. */
   const reloadTask = useCallback(async () => {
     const result = await refetchTask();
-    setForegroundFailed(result.status === "error");
+    setForegroundErrorAt(result.status === "error" ? result.errorUpdatedAt : null);
     if (result.status === "success") syncSettingsFromTask(result.data.task);
   }, [refetchTask, syncSettingsFromTask]);
   /** Refresh behind the scenes (SSE reconcile, finished clip job): a failure keeps what is on screen. */
@@ -464,6 +477,12 @@ export default function TaskPage() {
     }
   };
 
+  // A deleted task's cache goes once the page has left, so Back shows the server's answer, not the old task.
+  const taskDeleted = useRef(false);
+  useEffect(() => () => {
+    if (taskDeleted.current) forgetTaskDetail(queryClient, taskId);
+  }, [queryClient, taskId]);
+
   const handleDeleteTask = async () => {
     if (!session?.user?.id || !params.id) return;
 
@@ -475,6 +494,8 @@ export default function TaskPage() {
 
       if (response.ok) {
         removeTaskDrafts(String(params.id));
+        taskDeleted.current = true;
+        dropDeletedTaskFromLists(queryClient, taskId, session.user.id);
         router.push("/list");
       } else {
         toast.error(await buildSupportError(response, t("errors.deleteTask")));
@@ -1204,7 +1225,7 @@ export default function TaskPage() {
               {sortable ? (
                 <div className="inline-flex rounded-lg border bg-background p-0.5" role="tablist" aria-label={t("sortLabel")}>
                   {(["score", "timeline"] as const).map((value) => (
-                    <button key={value} type="button" role="tab" aria-selected={sortBy === value} onClick={() => setSortBy(value)}
+                    <button key={value} type="button" role="tab" aria-selected={sortBy === value} onClick={() => { sortChosen.current = true; setSortBy(value); }}
                       className={cn("h-7 rounded-md px-3 text-xs font-medium transition-colors", sortBy === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
                       {t(`sort.${value}`)}
                     </button>

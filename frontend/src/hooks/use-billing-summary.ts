@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
+import { useInvalidateOnWindowEvent } from "@/lib/queries/window-events";
 
 export const WORKSPACE_CHANGED_EVENT = "supoclip:workspace-changed";
 
@@ -47,13 +48,15 @@ export interface BillingSummary {
 
 export const billingSummaryKey = ["billing-summary"] as const;
 
+/**
+ * A failed request (a blip, a 5xx) throws, so the query keeps the last good summary
+ * instead of replacing it with nothing. Only a 401 answers null: nobody is signed in.
+ */
 async function loadBillingSummary(): Promise<BillingSummary | null> {
-  try {
-    const response = await fetch("/api/tasks/billing-summary", { cache: "no-store" });
-    return response.ok ? ((await response.json()) as BillingSummary) : null;
-  } catch {
-    return null;
-  }
+  const response = await fetch("/api/tasks/billing-summary", { cache: "no-store" });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`Failed to fetch billing summary: ${response.status}`);
+  return (await response.json()) as BillingSummary;
 }
 
 /** Refetch the summary everywhere it is shown (after a plan, team or workspace change). */
@@ -71,16 +74,9 @@ export function useBillingSummary(enabled: boolean) {
     enabled,
     // The shell and the page it wraps both ask on mount; one request serves both.
     staleTime: 5_000,
+    retry: false,
   });
-
-  useEffect(() => {
-    if (!enabled) return;
-    const onWorkspaceChanged = () => {
-      void queryClient.invalidateQueries({ queryKey: billingSummaryKey }, { cancelRefetch: false });
-    };
-    window.addEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
-    return () => window.removeEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
-  }, [enabled, queryClient]);
+  useInvalidateOnWindowEvent(WORKSPACE_CHANGED_EVENT, billingSummaryKey, enabled);
 
   const update = useCallback((patch: Partial<BillingSummary>) => {
     queryClient.setQueryData<BillingSummary | null>(billingSummaryKey, (current) =>

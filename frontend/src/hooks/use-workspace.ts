@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useInvalidateOnWindowEvent } from "@/lib/queries/window-events";
 import { useCallback, useEffect } from "react";
 import { invalidateBillingSummary, WORKSPACE_CHANGED_EVENT } from "@/hooks/use-billing-summary";
 
@@ -57,6 +58,14 @@ export function invalidateWorkspaces() {
   invalidateBillingSummary();
 }
 
+/** Fired when the active workspace changed without a page load; the query provider drops workspace data. */
+export const WORKSPACE_SWITCHED_EVENT = "supoclip:workspace-switched";
+
+function workspaceSwitchedInPlace() {
+  window.dispatchEvent(new CustomEvent(WORKSPACE_SWITCHED_EVENT));
+  invalidateWorkspaces();
+}
+
 // The active workspace is a cookie, so it changes for every tab at once. Tell the other
 // tabs, or they keep showing one workspace while their next request acts in another.
 const WORKSPACE_SWITCH_CHANNEL = "supoclip:workspace-switch";
@@ -65,7 +74,7 @@ let switchChannel: BroadcastChannel | null | undefined;
 function onSwitchedInOtherTab() {
   // A task stays reachable from any workspace its owner or team allows, so an open task or
   // editor is left alone (it may hold work in progress); only its shell catches up.
-  if (window.location.pathname.startsWith("/tasks/")) invalidateWorkspaces();
+  if (window.location.pathname.startsWith("/tasks/")) workspaceSwitchedInPlace();
   else window.location.reload();
 }
 
@@ -106,7 +115,6 @@ async function requestError(response: Response): Promise<WorkspaceRequestError> 
 }
 
 export function useWorkspace(enabled: boolean) {
-  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: workspaceKey,
     queryFn: loadWorkspaces,
@@ -126,14 +134,9 @@ export function useWorkspace(enabled: boolean) {
   }, [enabled, refetch]);
 
   useEffect(() => {
-    if (!enabled) return;
-    workspaceSwitchChannel();
-    const onChanged = () => {
-      void queryClient.invalidateQueries({ queryKey: workspaceKey }, { cancelRefetch: false });
-    };
-    window.addEventListener(WORKSPACE_CHANGED_EVENT, onChanged);
-    return () => window.removeEventListener(WORKSPACE_CHANGED_EVENT, onChanged);
-  }, [enabled, queryClient]);
+    if (enabled) workspaceSwitchChannel();
+  }, [enabled]);
+  useInvalidateOnWindowEvent(WORKSPACE_CHANGED_EVENT, workspaceKey, enabled);
 
   const switchWorkspace = useCallback(async (teamId: string | null, redirectTo?: string) => {
     const response = await fetch("/api/teams/active", {
@@ -164,7 +167,8 @@ export function useWorkspace(enabled: boolean) {
     if (!response.ok) throw await requestError(response);
     const payload = (await response.json().catch(() => ({}))) as { team?: TeamSummary };
     if (!payload.team) throw new WorkspaceRequestError("");
-    invalidateWorkspaces();
+    // The new team is now the active workspace in this tab too.
+    workspaceSwitchedInPlace();
     // Creating a team makes it the active workspace.
     announceWorkspaceSwitch();
     return payload.team;

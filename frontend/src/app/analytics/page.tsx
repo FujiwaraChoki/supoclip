@@ -49,15 +49,15 @@ const RANGES = [7, 30, 90] as const;
 
 const analyticsKeys = {
   performance: (userId: string) => ["social-performance", userId] as const,
-  timeseries: (days: number) => ["social-performance", "timeseries", days] as const,
+  timeseries: (userId: string, days: number) => ["social-performance", userId, "timeseries", days] as const,
 };
 
-function ViewsSection() {
+function ViewsSection({ userId }: { userId: string }) {
   const t = useTranslations("analytics");
   const [range, setRange] = useState<(typeof RANGES)[number]>(30);
   // The last chart stays up while another range loads, and when that range fails to load.
   const { data } = useQuery({
-    queryKey: analyticsKeys.timeseries(range),
+    queryKey: analyticsKeys.timeseries(userId, range),
     queryFn: async () => {
       const response = await fetch(`/api/social/performance/timeseries?days=${range}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`Timeseries request failed (${response.status})`);
@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
             <StatTile label={t("comments")} value={formatMetric(sum(performance.by_provider.map((row) => row.total_comments)))} />
           </section>
 
-          <ViewsSection />
+          <ViewsSection userId={session.user.id} />
 
           <section className="rounded-xl border bg-muted/50 p-4 text-sm">
             {performance.personalization_active ? (
