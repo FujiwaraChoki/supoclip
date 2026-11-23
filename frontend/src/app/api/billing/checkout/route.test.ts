@@ -4,6 +4,7 @@ import { POST } from "./route";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { getStripeClient } from "@/lib/stripe";
+import { clearPixMandateCache } from "@/server/pix-mandate";
 import { captureServerEvent } from "@/server/analytics";
 
 vi.mock("next/headers", () => ({
@@ -129,6 +130,104 @@ describe("/api/billing/checkout", () => {
     expect(params.after_expiration).toEqual({ recovery: { enabled: true } });
     expect(params.expires_at).toBeGreaterThanOrEqual(before + 3600);
     expect(params.expires_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 3600);
+  });
+
+  describe("Pix mandate", () => {
+    beforeEach(() => clearPixMandateCache());
+
+    function stripeWithPrice(retrieve: ReturnType<typeof vi.fn>) {
+      return {
+        checkout: {
+          sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/pro" }) },
+        },
+        prices: { retrieve },
+        subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+      };
+    }
+
+    function checkout(body: Record<string, unknown>) {
+      return POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    }
+
+    it("caps a monthly Pix mandate at twice the price's BRL amount", async () => {
+      const retrieve = vi.fn().mockResolvedValue({
+        currency: "usd",
+        unit_amount: 999,
+        currency_options: { usd: { unit_amount: 999 }, brl: { unit_amount: 5999 } },
+      });
+      const stripe = stripeWithPrice(retrieve);
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      expect(retrieve).toHaveBeenCalledWith("price_pro", { expand: ["currency_options"] });
+      expect(stripe.checkout.sessions.create.mock.calls[0][0].payment_method_options).toEqual({
+        pix: { mandate_options: { amount: 11998, payment_schedule: "monthly" } },
+      });
+    });
+
+    it("uses a yearly schedule for annual prices", async () => {
+      const retrieve = vi.fn().mockResolvedValue({
+        currency: "usd",
+        unit_amount: 9990,
+        currency_options: { brl: { unit_amount: 59990 } },
+      });
+      const stripe = stripeWithPrice(retrieve);
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      await checkout({ plan: "pro", interval: "year" });
+
+      expect(retrieve).toHaveBeenCalledWith("price_pro_annual", { expand: ["currency_options"] });
+      expect(stripe.checkout.sessions.create.mock.calls[0][0].payment_method_options).toEqual({
+        pix: { mandate_options: { amount: 119980, payment_schedule: "yearly" } },
+      });
+    });
+
+    it("reads each price once and reuses it for later checkouts", async () => {
+      const retrieve = vi.fn().mockResolvedValue({
+        currency: "usd",
+        unit_amount: 999,
+        currency_options: { brl: { unit_amount: 5999 } },
+      });
+      vi.mocked(getStripeClient).mockReturnValue(stripeWithPrice(retrieve) as never);
+
+      await checkout({ plan: "pro" });
+      await checkout({ plan: "pro" });
+
+      expect(retrieve).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves Pix out when the price has no BRL amount", async () => {
+      const retrieve = vi.fn().mockResolvedValue({
+        currency: "usd",
+        unit_amount: 999,
+        currency_options: { usd: { unit_amount: 999 } },
+      });
+      const stripe = stripeWithPrice(retrieve);
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      await checkout({ plan: "pro" });
+
+      expect(stripe.checkout.sessions.create.mock.calls[0][0]).not.toHaveProperty("payment_method_options");
+    });
+
+    it("still opens checkout when the price can't be read", async () => {
+      const stripe = stripeWithPrice(vi.fn().mockRejectedValue(new Error("Stripe is down")));
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      expect(stripe.checkout.sessions.create.mock.calls[0][0]).not.toHaveProperty("payment_method_options");
+      warn.mockRestore();
+    });
   });
 
   it("uses the annual price when yearly billing is selected", async () => {

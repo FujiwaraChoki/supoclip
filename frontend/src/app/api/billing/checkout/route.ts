@@ -21,6 +21,7 @@ import {
 } from "@/lib/subscription-status";
 import type Stripe from "stripe";
 import { HOSTED_APP_URL } from "@/lib/site";
+import { pixPaymentMethodOptions } from "@/server/pix-mandate";
 
 // The Stripe account (Shiori LLC) also sells other products, so SupoClip's look is set per session
 // instead of in the account's branding settings. The icon comes from the hosted site so Stripe can
@@ -231,6 +232,8 @@ export async function POST(request: Request) {
       .get("cookie")
       ?.match(/(?:^|;\s*)tilly_visitor_id=([^;]+)/)?.[1];
 
+    const paymentMethodOptions = await pixPaymentMethodOptions(stripe, priceId, interval);
+
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
       ...checkoutTax,
@@ -247,6 +250,7 @@ export async function POST(request: Request) {
       },
       line_items: [{ price: priceId, quantity: 1 }],
       branding_settings: CHECKOUT_BRANDING,
+      ...(paymentMethodOptions ? { payment_method_options: paymentMethodOptions } : {}),
       ...(offer
         ? { discounts: [{ promotion_code: offer.promotionCodeId }] }
         : {}),
