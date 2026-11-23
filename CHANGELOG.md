@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-23
+
+- **Improved:** The payment page you see when upgrading now carries SupoClip's name, logo and colours. ([#562](https://github.com/FujiwaraChoki/supoclip/pull/562))
+
 ## 2026-11-22
 
 - **Fixed:** In a split screen of two people, captions now sit on the line between the two halves instead of across the lower person's mouth or chin. ([#561](https://github.com/FujiwaraChoki/supoclip/pull/561))
