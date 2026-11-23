@@ -182,7 +182,7 @@ docker-compose logs -f worker
 
 Verify:
 
-- `ASSEMBLY_AI_API_KEY` is set
+- `ASSEMBLY_AI_API_KEY` (or `SONIOX_API_KEY` when `TRANSCRIPTION_PROVIDER=soniox`) is set
 - `LLM` matches the provider key you supplied
 - The provider account is active and has quota
 

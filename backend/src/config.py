@@ -43,6 +43,18 @@ class Config:
         self.assembly_ai_request_timeout_seconds = max(5, min(300, int(
             os.getenv("ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS", "60")
         )))
+        self.soniox_api_key = self._get_runtime_setting("SONIOX_API_KEY")
+        self.soniox_model = os.getenv("SONIOX_MODEL", "stt-async-v6").strip() or "stt-async-v6"
+        self.soniox_base_url = (
+            os.getenv("SONIOX_BASE_URL", "https://api.soniox.com").strip()
+            or "https://api.soniox.com"
+        ).rstrip("/")
+        self.soniox_http_timeout_seconds = max(30, min(7200, int(
+            os.getenv("SONIOX_HTTP_TIMEOUT_SECONDS", "900")
+        )))
+        self.soniox_request_timeout_seconds = max(5, min(300, int(
+            os.getenv("SONIOX_REQUEST_TIMEOUT_SECONDS", "60")
+        )))
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.rapidapi_youtube_api_key = self._get_optional_env("RAPIDAPI_YOUTUBE_API_KEY")
@@ -445,6 +457,7 @@ class Config:
     def as_runtime_settings(self) -> dict[str, str | None]:
         return {
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
+            "SONIOX_API_KEY": self.soniox_api_key,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
             "OPENROUTER_API_KEY": self.openrouter_api_key,
@@ -517,7 +530,7 @@ class Config:
     @staticmethod
     def _normalize_transcription_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized in ("whisper", "youtube_captions"):
+        if normalized in ("soniox", "whisper", "youtube_captions"):
             return normalized
         return "assemblyai"
 
