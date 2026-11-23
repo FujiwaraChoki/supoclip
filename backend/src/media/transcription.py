@@ -29,6 +29,21 @@ from .ffmpeg import (
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from ..workflows.language import is_no_space
+
+SONIOX_POLLING_INTERVAL_SECONDS = 2.0
+SONIOX_MIN_WORD_DURATION_MS = 180
+SONIOX_TOKEN_WORD_GAP_MS = 1000
+SONIOX_UTTERANCE_PAUSE_SPLIT_MS = 1500
+_SONIOX_RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
+_SONIOX_TRAILING_PUNCT_RE = re.compile(
+    r"^[.,?!;:…—–\-)\]}'\"»”。，！？、；：）」』】]+$"
+)
+# Only unambiguous closing/French spaced marks attach when preceded by a space;
+# quotes, apostrophes, dashes, and opening brackets start a new word instead.
+_SONIOX_SPACED_CLOSING_PUNCT_RE = re.compile(
+    r"^[.,?!;:…»”。，！？、；：）」』】]+$"
+)
 
 
 def _prepare_audio_for_transcription(video_path: Path) -> Path:
@@ -172,6 +187,388 @@ def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
     if normalized in {"nano", "universal-2"}:
         return ["universal-2"]
     return ["universal-3-5-pro", "universal-2"]
+
+
+def _soniox_delete_file_best_effort(client: httpx.Client, file_id: str) -> None:
+    """Remove the temporary uploaded audio from Soniox to avoid storage limits."""
+    try:
+        response = client.delete(f"/v1/files/{file_id}", timeout=15.0)
+        if response.status_code >= 400 and response.status_code != 404:
+            logger.warning(
+                "Soniox file cleanup returned HTTP %s for %s",
+                response.status_code,
+                file_id,
+            )
+    except Exception as error:
+        logger.warning("Soniox file cleanup failed for %s: %s", file_id, error)
+
+
+def _soniox_delete_transcription_best_effort(
+    client: httpx.Client, transcription_id: str
+) -> None:
+    """Delete a finished or errored Soniox transcription to stay under account limits."""
+    try:
+        response = client.delete(f"/v1/transcriptions/{transcription_id}", timeout=15.0)
+        if response.status_code >= 400 and response.status_code != 404:
+            logger.warning(
+                "Soniox transcription cleanup returned HTTP %s for %s",
+                response.status_code,
+                transcription_id,
+            )
+    except Exception as error:
+        logger.warning(
+            "Soniox transcription cleanup failed for %s: %s",
+            transcription_id,
+            error,
+        )
+
+
+def _submit_and_wait_for_soniox_transcript(
+    client: httpx.Client,
+    media_path: Path,
+    model: str,
+    language: str,
+    timeout_seconds: int,
+    request_timeout_seconds: int = 60,
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """Upload audio, submit a Soniox async transcription job, and poll until done."""
+    file_id: Optional[str] = None
+    content_type = "audio/mpeg" if media_path.suffix.lower() == ".mp3" else "application/octet-stream"
+
+    # Uploads are safe to retry: they do not create a paid transcription job.
+    for attempt in range(1, 4):
+        try:
+            with media_path.open("rb") as audio_file:
+                upload_response = client.post(
+                    "/v1/files",
+                    files={"file": (media_path.name, audio_file, content_type)},
+                    timeout=float(request_timeout_seconds),
+                )
+            upload_response.raise_for_status()
+            file_id = upload_response.json().get("id")
+            if not file_id:
+                raise RuntimeError("Soniox audio upload did not return a file ID")
+            break
+        except (httpx.TransportError, httpx.HTTPStatusError) as error:
+            status = error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+            retryable = isinstance(error, httpx.TransportError) or status in _SONIOX_RETRYABLE_STATUS_CODES
+            if not retryable:
+                raise
+            if attempt == 3:
+                raise RuntimeError(
+                    "Soniox audio upload unavailable after 3 attempts"
+                    + (f" (HTTP {status})." if status else ".")
+                ) from None
+            if isinstance(error, httpx.ReadTimeout):
+                logger.warning(
+                    "Soniox audio upload read timed out (an earlier upload may have succeeded server-side); "
+                    "retrying upload (%s/3)",
+                    attempt,
+                )
+            else:
+                logger.warning("Soniox audio upload failed (HTTP %s); retrying upload (%s/3)", status, attempt)
+            time.sleep(2.0 ** attempt)
+
+    assert file_id is not None
+    transcription_id: Optional[str] = None
+    can_delete_transcription = False
+    try:
+        create_payload: Dict[str, Any] = {
+            "model": model,
+            "file_id": file_id,
+            "enable_speaker_diarization": True,
+            "enable_language_identification": not bool(language),
+        }
+        if language:
+            create_payload["language_hints"] = [language.split("_", 1)[0]]
+            create_payload["language_hints_strict"] = True
+
+        # Keep the paid job submission outside any retry loop.
+        submit_response = client.post(
+            "/v1/transcriptions",
+            json=create_payload,
+            timeout=float(request_timeout_seconds),
+        )
+        submit_response.raise_for_status()
+        job = submit_response.json()
+        transcription_id = job.get("id")
+        if not transcription_id:
+            raise RuntimeError("Soniox did not return a transcription ID")
+
+        logger.info("Soniox transcript submitted: %s (model: %s)", transcription_id, model)
+        deadline = time.monotonic() + timeout_seconds
+        next_log_at = 0.0
+        consecutive_failures = 0
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning(
+                    "Soniox transcript %s timed out while still active; cannot delete until finished",
+                    transcription_id,
+                )
+                raise TimeoutError(
+                    f"Soniox transcript {transcription_id} did not complete within {timeout_seconds}s"
+                )
+            try:
+                poll_response = client.get(
+                    f"/v1/transcriptions/{transcription_id}",
+                    timeout=min(30.0, remaining),
+                )
+                poll_response.raise_for_status()
+                job = poll_response.json()
+                consecutive_failures = 0
+            except (httpx.TransportError, httpx.HTTPStatusError) as error:
+                if (
+                    isinstance(error, httpx.HTTPStatusError)
+                    and error.response.status_code not in _SONIOX_RETRYABLE_STATUS_CODES
+                ):
+                    raise
+                consecutive_failures += 1
+                logger.warning("Soniox status polling unavailable; retrying the existing transcript")
+                time.sleep(
+                    min(
+                        30.0,
+                        2.0 ** min(consecutive_failures, 4),
+                        max(0.0, deadline - time.monotonic()),
+                    )
+                )
+                continue
+
+            status = job.get("status")
+            if status == "completed":
+                can_delete_transcription = True
+                break
+            if status == "error":
+                can_delete_transcription = True
+                detail = job.get("error_message") or job.get("error_type") or "unknown error"
+                raise RuntimeError(f"Soniox transcription failed: {detail}")
+
+            now = time.monotonic()
+            if now >= deadline:
+                logger.warning(
+                    "Soniox transcript %s timed out while still %s; cannot delete until finished",
+                    transcription_id,
+                    status,
+                )
+                raise TimeoutError(
+                    f"Soniox transcript {transcription_id} did not complete within {timeout_seconds}s"
+                )
+            if now >= next_log_at:
+                logger.info("Soniox transcript %s still %s", transcription_id, status)
+                next_log_at = now + 30
+            time.sleep(min(SONIOX_POLLING_INTERVAL_SECONDS, max(0.0, deadline - now)))
+
+        # Fetching a completed transcript is idempotent and gets its own bounded
+        # budget so slow polling near the deadline does not starve the GET.
+        fetch_budget = max(60.0, float(request_timeout_seconds) * 2.0)
+        fetch_deadline = time.monotonic() + fetch_budget
+        consecutive_failures = 0
+        while True:
+            fetch_remaining = fetch_deadline - time.monotonic()
+            if fetch_remaining <= 0:
+                raise TimeoutError(
+                    f"Soniox transcript {transcription_id} fetch did not complete within {int(fetch_budget)}s"
+                )
+            try:
+                tx_response = client.get(
+                    f"/v1/transcriptions/{transcription_id}/transcript",
+                    timeout=min(float(request_timeout_seconds), fetch_remaining),
+                )
+                tx_response.raise_for_status()
+                return tx_response.json(), job
+            except (httpx.TransportError, httpx.HTTPStatusError) as error:
+                if (
+                    isinstance(error, httpx.HTTPStatusError)
+                    and error.response.status_code not in _SONIOX_RETRYABLE_STATUS_CODES
+                ):
+                    raise
+                consecutive_failures += 1
+                if consecutive_failures >= 4:
+                    raise
+                logger.warning("Soniox transcript fetch unavailable; retrying (%s/3)", consecutive_failures)
+                time.sleep(
+                    min(
+                        16.0,
+                        2.0 ** consecutive_failures,
+                        max(0.0, fetch_deadline - time.monotonic()),
+                    )
+                )
+    finally:
+        # Delete the finished/errored transcription before the file (per Soniox SDK
+        # guidance) so account-wide transcription and file limits are never exhausted.
+        if transcription_id and can_delete_transcription:
+            _soniox_delete_transcription_best_effort(client, transcription_id)
+        _soniox_delete_file_best_effort(client, file_id)
+
+
+def _soniox_result_to_transcript_data(
+    transcript_payload: Dict[str, Any],
+    *,
+    audio_duration_ms: Optional[int] = None,
+    fallback_language: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Convert a Soniox async transcript payload into the standard cache format.
+
+    Merges BPE subword tokens into whole words (flushing on standalone whitespace
+    tokens, no-space script boundaries, speaker changes, or token gaps), clamps
+    short or overlapping word durations without overlapping the next word, and
+    groups consecutive same-speaker runs into utterances.
+    """
+    tokens = transcript_payload.get("tokens") or []
+    words_data: List[Dict[str, Any]] = []
+    lang_counts: Dict[str, int] = {}
+    current: Optional[Dict[str, Any]] = None
+
+    def flush_word() -> None:
+        nonlocal current
+        if current is None:
+            return
+        confs = current["confs"]
+        words_data.append(
+            {
+                "text": current["text"],
+                "start": int(current["start"]),
+                "end": int(current["end"]),
+                "confidence": round(sum(confs) / len(confs), 4) if confs else 1.0,
+                "speaker": current["speaker"],
+            }
+        )
+        current = None
+
+    for tok in tokens:
+        if not isinstance(tok, dict):
+            continue
+        raw_text = str(tok.get("text") or "")
+        if not raw_text:
+            continue
+
+        tok_lang = tok.get("language")
+        lang_code: Optional[str] = None
+        if isinstance(tok_lang, str) and tok_lang.strip():
+            lang_code = tok_lang.strip().lower()
+            lang_counts[lang_code] = lang_counts.get(lang_code, 0) + 1
+
+        starts_with_space = raw_text[0].isspace()
+        stripped = raw_text.strip()
+        if not stripped:
+            # Standalone whitespace tokens mark an explicit word boundary.
+            flush_word()
+            continue
+
+        start_ms = max(0, int(tok.get("start_ms") or 0))
+        end_ms = max(start_ms, int(tok.get("end_ms") or start_ms))
+        raw_conf = tok.get("confidence")
+        conf = float(raw_conf) if raw_conf is not None else 1.0
+        raw_speaker = tok.get("speaker")
+        speaker_str = str(raw_speaker) if raw_speaker is not None else None
+        is_trailing_punct = (
+            bool(_SONIOX_SPACED_CLOSING_PUNCT_RE.match(stripped))
+            if starts_with_space
+            else bool(_SONIOX_TRAILING_PUNCT_RE.match(stripped))
+        )
+        token_no_space = (not is_trailing_punct) and is_no_space(lang_code, stripped)
+
+        if current is None:
+            current = {
+                "text": stripped,
+                "start": start_ms,
+                "end": end_ms,
+                "confs": [conf],
+                "speaker": speaker_str,
+                "no_space": token_no_space,
+            }
+        elif is_trailing_punct and (speaker_str == current["speaker"] or speaker_str is None):
+            # Attach trailing punctuation (including French spaced " ?" / " !" and CJK "。"/"，")
+            # to the current word instead of creating an orphan caption word.
+            current["text"] += stripped
+        elif (
+            not starts_with_space
+            and not token_no_space
+            and not current["no_space"]
+            and (speaker_str == current["speaker"] or speaker_str is None)
+            and (start_ms - current["end"]) < SONIOX_TOKEN_WORD_GAP_MS
+        ):
+            current["text"] += stripped
+            current["end"] = max(current["end"], end_ms)
+            current["confs"].append(conf)
+        else:
+            flush_word()
+            current = {
+                "text": stripped,
+                "start": start_ms,
+                "end": end_ms,
+                "confs": [conf],
+                "speaker": speaker_str,
+                "no_space": token_no_space,
+            }
+
+    flush_word()
+
+    # Soniox emits tight 60ms frame spans on single-token words (and occasional
+    # start == end stamps or overlapping ends). Pad short endings toward a natural
+    # duration and clamp every word's end so words never overlap the next start.
+    for index, word in enumerate(words_data):
+        start_ms = word["start"]
+        end_ms = word["end"]
+        next_start = words_data[index + 1]["start"] if index + 1 < len(words_data) else None
+
+        if next_start is not None and end_ms > next_start:
+            target_end = max(start_ms, next_start)
+        else:
+            target_end = max(end_ms, start_ms + SONIOX_MIN_WORD_DURATION_MS)
+            if next_start is not None:
+                # Leave a 10ms cushion before the next word when room allows.
+                gap_cap = next_start - 10 if next_start - start_ms > 20 else next_start
+                target_end = min(target_end, max(end_ms, gap_cap))
+        if audio_duration_ms is not None and audio_duration_ms > 0:
+            target_end = min(target_end, max(start_ms, int(audio_duration_ms)))
+        word["end"] = max(start_ms, target_end)
+
+    # Group words into speaker-consistent utterances for LLM analysis & caching.
+    utterances_data: List[Dict[str, Any]] = []
+    utt_words: List[Dict[str, Any]] = []
+
+    def flush_utterance() -> None:
+        nonlocal utt_words
+        if not utt_words:
+            return
+        utterances_data.append(
+            {
+                "text": _join_transcript_tokens([w["text"] for w in utt_words]),
+                "start": utt_words[0]["start"],
+                "end": utt_words[-1]["end"],
+                "speaker": utt_words[0].get("speaker"),
+                "words": utt_words,
+            }
+        )
+        utt_words = []
+
+    for word in words_data:
+        if utt_words:
+            prev = utt_words[-1]
+            speaker_changed = word.get("speaker") != prev.get("speaker")
+            long_pause = (word["start"] - prev["end"]) >= SONIOX_UTTERANCE_PAUSE_SPLIT_MS
+            if speaker_changed or long_pause:
+                flush_utterance()
+        utt_words.append(word)
+    flush_utterance()
+
+    language_code: Optional[str] = max(lang_counts, key=lang_counts.get) if lang_counts else None
+    if not language_code and fallback_language:
+        language_code = fallback_language.split("_", 1)[0]
+
+    text = transcript_payload.get("text")
+    if not isinstance(text, str) or not text.strip():
+        text = _join_transcript_tokens([w["text"] for w in words_data])
+
+    return {
+        "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
+        "words": words_data,
+        "utterances": utterances_data,
+        "text": text,
+        "language_code": language_code,
+    }
 
 
 def _get_whisper_model(model_name: str = "base"):
@@ -323,7 +720,7 @@ def get_video_transcript(
 ) -> str:
     """Get a video transcript using the configured provider.
 
-    Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
+    Dispatches to AssemblyAI, Soniox, local Whisper, or YouTube captions based on
     ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
     provider, which needs the original URL rather than a local file path.
     """
@@ -331,6 +728,8 @@ def get_video_transcript(
     runtime_config = get_config()
     provider = runtime_config.transcription_provider
 
+    if provider == "soniox":
+        return _get_transcript_with_soniox(video_path, runtime_config)
     if provider == "whisper":
         return _get_transcript_with_whisper(video_path, runtime_config)
     if provider == "youtube_captions":
@@ -414,6 +813,66 @@ def _get_transcript_with_assemblyai(
         client.http_client.close()
 
 
+def _get_transcript_with_soniox(video_path: Path, runtime_config) -> str:
+    """Get transcript using Soniox Async API with word-level timing and diarization."""
+    api_key = getattr(runtime_config, "soniox_api_key", None)
+    if not api_key:
+        raise RuntimeError(
+            "SONIOX_API_KEY is not set. Configure SONIOX_API_KEY or switch TRANSCRIPTION_PROVIDER."
+        )
+
+    model = getattr(runtime_config, "soniox_model", "stt-async-v6") or "stt-async-v6"
+    base_url = (getattr(runtime_config, "soniox_base_url", "https://api.soniox.com") or "https://api.soniox.com").rstrip("/")
+    timeout_seconds = int(getattr(runtime_config, "soniox_http_timeout_seconds", 900))
+    request_timeout_seconds = int(getattr(runtime_config, "soniox_request_timeout_seconds", 60))
+    language = getattr(runtime_config, "transcription_language", "") or ""
+
+    client = httpx.Client(
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=float(request_timeout_seconds),
+    )
+    try:
+        logger.info("Starting Soniox transcription (model: %s)", model)
+        transcription_media_path = _prepare_audio_for_transcription(video_path)
+        transcript_payload, job = _submit_and_wait_for_soniox_transcript(
+            client,
+            transcription_media_path,
+            model,
+            language,
+            timeout_seconds,
+            request_timeout_seconds,
+        )
+
+        transcript_data = _soniox_result_to_transcript_data(
+            transcript_payload,
+            audio_duration_ms=job.get("audio_duration_ms"),
+            fallback_language=language or None,
+        )
+        logger.info(
+            "Soniox transcript language: %s (%d words, %d utterances)",
+            transcript_data.get("language_code") or "unknown",
+            len(transcript_data["words"]),
+            len(transcript_data["utterances"]),
+        )
+
+        formatted_lines = format_transcript_for_analysis(transcript_data)
+        cache_transcript_data(video_path, transcript_data)
+
+        result = "\n".join(formatted_lines)
+        logger.info(
+            "Soniox transcript formatted: %d segments, %d chars",
+            len(formatted_lines),
+            len(result),
+        )
+        return result
+    except Exception as error:
+        logger.error("Error in Soniox transcription: %s", error)
+        raise
+    finally:
+        client.close()
+
+
 def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
     """Get transcript using local Whisper with word-level timestamps."""
     model_name = runtime_config.whisper_model
@@ -450,12 +909,22 @@ def _get_transcript_with_youtube_captions(source_url: str) -> str:
 def cache_transcript_data(video_path: Path, transcript) -> None:
     """Cache transcript data for subtitle generation.
 
-    Handles both AssemblyAI transcript objects and Whisper result dicts.
+    Handles AssemblyAI transcript objects, pre-normalized transcript dicts
+    (e.g. Soniox), and Whisper result dicts.
     """
     cache_path = video_path.with_suffix(".transcript_cache.json")
 
     if isinstance(transcript, dict):
-        cache_data = _whisper_result_to_transcript_data(transcript)
+        if "words" in transcript and "utterances" in transcript:
+            cache_data = {
+                "version": transcript.get("version", TRANSCRIPT_CACHE_SCHEMA_VERSION),
+                "words": transcript.get("words") or [],
+                "utterances": transcript.get("utterances") or [],
+                "text": transcript.get("text") or "",
+                "language_code": transcript.get("language_code"),
+            }
+        else:
+            cache_data = _whisper_result_to_transcript_data(transcript)
         with open(cache_path, "w") as f:
             json.dump(cache_data, f)
         logger.info("Cached %d words to %s", len(cache_data["words"]), cache_path)
@@ -560,6 +1029,12 @@ def _join_transcript_tokens(tokens: List[str]) -> str:
     return text.strip()
 
 
+def _word_field(word: Any, field: str, default: Any = None) -> Any:
+    if isinstance(word, dict):
+        return word.get(field, default)
+    return getattr(word, field, default)
+
+
 def _format_words_for_analysis(
     words: List[Any],
     speaker: Optional[str] = None,
@@ -579,9 +1054,9 @@ def _format_words_for_analysis(
         nonlocal current_words, current_start
         if not current_words:
             return
-        start_time = format_ms_to_timestamp(current_words[0].start)
-        end_time = format_ms_to_timestamp(current_words[-1].end)
-        text = _join_transcript_tokens([word.text for word in current_words])
+        start_time = format_ms_to_timestamp(int(_word_field(current_words[0], "start", 0)))
+        end_time = format_ms_to_timestamp(int(_word_field(current_words[-1], "end", 0)))
+        text = _join_transcript_tokens([str(_word_field(word, "text", "")) for word in current_words])
         if text:
             speaker_prefix = f"Speaker {speaker}: " if speaker else ""
             formatted_lines.append(f"[{start_time} - {end_time}] {speaker_prefix}{text}")
@@ -589,13 +1064,16 @@ def _format_words_for_analysis(
         current_start = None
 
     for word in words:
+        word_start = int(_word_field(word, "start", 0))
+        word_end = int(_word_field(word, "end", word_start))
+        word_text = str(_word_field(word, "text", ""))
         if current_start is None:
-            current_start = word.start
+            current_start = word_start
 
         current_words.append(word)
-        duration_ms = word.end - current_start
+        duration_ms = word_end - current_start
         segment_word_count = len(current_words)
-        ends_sentence = str(word.text).endswith((".", "!", "?"))
+        ends_sentence = word_text.endswith((".", "!", "?"))
 
         should_flush = False
         if segment_word_count >= max_words_per_segment:
@@ -621,12 +1099,11 @@ def _format_words_for_analysis(
 def format_transcript_for_analysis(transcript) -> List[str]:
     """Format transcripts into readable timestamped segments for AI analysis.
 
-    Handles both AssemblyAI transcript objects (utterances/words with ms
-    timings) and Whisper result dicts (segments with second-based timings).
+    Handles AssemblyAI transcript objects (utterances/words with ms timings),
+    pre-normalized transcript dicts (e.g. Soniox), and Whisper result dicts
+    (segments with second-based timings).
     """
-    # Whisper result dict: treat each segment as an utterance, converting the
-    # second-based timings to milliseconds to match the timestamp formatter.
-    if isinstance(transcript, dict):
+    if isinstance(transcript, dict) and "segments" in transcript and "utterances" not in transcript:
         formatted_lines = []
         for segment in transcript.get("segments") or []:
             start_ms = int(segment.get("start", 0) * 1000)
@@ -637,12 +1114,19 @@ def format_transcript_for_analysis(transcript) -> List[str]:
             )
         return formatted_lines
 
-    utterances = getattr(transcript, "utterances", None) or []
+    utterances = (
+        transcript.get("utterances")
+        if isinstance(transcript, dict)
+        else getattr(transcript, "utterances", None)
+    ) or []
     if utterances:
         formatted_lines = []
         for utterance in utterances:
-            utterance_words = list(getattr(utterance, "words", []) or [])
-            utterance_duration = max(0, int(utterance.end) - int(utterance.start))
+            utterance_words = list(_word_field(utterance, "words", []) or [])
+            utt_start = int(_word_field(utterance, "start", 0))
+            utt_end = int(_word_field(utterance, "end", utt_start))
+            utterance_duration = max(0, utt_end - utt_start)
+            speaker = _word_field(utterance, "speaker", None)
             if utterance_words and (
                 utterance_duration > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_MS
                 or len(utterance_words) > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS
@@ -650,24 +1134,28 @@ def format_transcript_for_analysis(transcript) -> List[str]:
                 formatted_lines.extend(
                     _format_words_for_analysis(
                         utterance_words,
-                        getattr(utterance, "speaker", None),
+                        speaker,
                         max_words_per_segment=ANALYSIS_LONG_UTTERANCE_MAX_WORDS,
                         max_duration_ms=ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
                     )
                 )
                 continue
 
-            start_time = format_ms_to_timestamp(utterance.start)
-            end_time = format_ms_to_timestamp(utterance.end)
-            speaker = getattr(utterance, "speaker", None)
+            start_time = format_ms_to_timestamp(utt_start)
+            end_time = format_ms_to_timestamp(utt_end)
             speaker_prefix = f"Speaker {speaker}: " if speaker else ""
+            utt_text = str(_word_field(utterance, "text", ""))
             formatted_lines.append(
-                f"[{start_time} - {end_time}] {speaker_prefix}{utterance.text}"
+                f"[{start_time} - {end_time}] {speaker_prefix}{utt_text}"
             )
         return formatted_lines
 
     formatted_lines = []
-    words = getattr(transcript, "words", None) or []
+    words = (
+        transcript.get("words")
+        if isinstance(transcript, dict)
+        else getattr(transcript, "words", None)
+    ) or []
     if not words:
         return formatted_lines
 

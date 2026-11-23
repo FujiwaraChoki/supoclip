@@ -24,7 +24,7 @@ if [ ! -f .env ]; then
     echo "  1. Copy the template: cp .env.example .env"
     echo "  2. Or use the provided .env file"
     echo "  3. Edit .env and add your API keys:"
-    echo "     - ASSEMBLY_AI_API_KEY (required)"
+    echo "     - ASSEMBLY_AI_API_KEY (or SONIOX_API_KEY when TRANSCRIPTION_PROVIDER=soniox)"
     echo "     - OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY"
     echo "     - OR set LLM=ollama:<model> (optional: OLLAMA_BASE_URL, OLLAMA_API_KEY)"
     echo ""
@@ -49,7 +49,14 @@ if [ -n "${LLM:-}" ]; then
     esac
 fi
 
-if [ -z "$ASSEMBLY_AI_API_KEY" ]; then
+PROVIDER="$(printf '%s' "${TRANSCRIPTION_PROVIDER:-assemblyai}" | tr '[:upper:]' '[:lower:]')"
+if [ "$PROVIDER" = "soniox" ]; then
+    if [ -z "${SONIOX_API_KEY:-}" ]; then
+        echo -e "${YELLOW}Warning: SONIOX_API_KEY is not set in .env${NC}"
+        echo "Video transcription will not work with TRANSCRIPTION_PROVIDER=soniox without this key."
+        echo ""
+    fi
+elif [ "$PROVIDER" = "assemblyai" ] && [ -z "${ASSEMBLY_AI_API_KEY:-}" ]; then
     echo -e "${YELLOW}Warning: ASSEMBLY_AI_API_KEY is not set in .env${NC}"
     echo "Video transcription will not work without this key."
     echo ""
