@@ -1229,3 +1229,167 @@ describe("/api/billing/webhook analytics", () => {
     }));
   });
 });
+
+describe("/api/billing/webhook checkout recovery", () => {
+  const env = process.env;
+  const recoveryUrl = "https://buy.stripe.com/r/test_recovery_example";
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-23T12:00:00Z"));
+    vi.mocked(fetchBackend).mockResolvedValue(new Response("{}", { status: 200 }));
+    process.env = {
+      ...env,
+      STRIPE_WEBHOOK_SECRET: "whsec_test",
+      STRIPE_PRO_PRICE_ID: "price_pro",
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  afterAll(() => {
+    process.env = env;
+  });
+
+  /** A dedup table that behaves like the real one: a second insert of an id fails with P2002. */
+  function webhookEvents() {
+    const ids = new Set<string>();
+    return {
+      ids,
+      create: vi.fn(async ({ data }: { data: { id: string } }) => {
+        if (ids.has(data.id)) throw { code: "P2002" };
+        ids.add(data.id);
+        return {};
+      }),
+      delete: vi.fn(async ({ where }: { where: { id: string } }) => {
+        ids.delete(where.id);
+        return {};
+      }),
+    };
+  }
+
+  function mockDb(user: Record<string, unknown> | null = {
+    plan: "free",
+    subscription_status: "incomplete_expired",
+    subscription_provider: null,
+  }) {
+    const events = webhookEvents();
+    const findUnique = vi.fn().mockResolvedValue(user);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: events,
+      user: { findUnique },
+    } as never);
+    return { events, findUnique };
+  }
+
+  function expired(id: string, overrides: Record<string, unknown> = {}) {
+    vi.mocked(getServerStripeClient).mockReturnValue({
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id,
+          type: "checkout.session.expired",
+          data: {
+            object: {
+              id: `cs_${id}`,
+              mode: "subscription",
+              customer: "cus_123",
+              metadata: { userId: "user-1", app: "supoclip", plan: "pro", interval: "month" },
+              after_expiration: { recovery: { enabled: true, url: recoveryUrl } },
+              ...overrides,
+            },
+          },
+        }),
+      },
+    } as never);
+  }
+
+  function deliver() {
+    return POST(new Request("http://localhost/api/billing/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "sig" },
+      body: "{}",
+    }));
+  }
+
+  function recoveryEmails() {
+    return vi.mocked(fetchBackend).mock.calls.filter(([, init]) =>
+      String(init?.body).includes("checkout_recovery"),
+    );
+  }
+
+  it("emails the recovery link to a user who is still on the free plan", async () => {
+    const { events } = mockDb();
+    expired("evt_expired_1");
+
+    expect((await deliver()).status).toBe(200);
+    const calls = recoveryEmails();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe("/billing/subscription-email");
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({
+      event: "checkout_recovery",
+      recovery_url: recoveryUrl,
+    });
+    expect(events.ids.has("checkout_recovery:user-1:2026-11")).toBe(true);
+  });
+
+  it("sends at most one recovery email per user per month", async () => {
+    const { events } = mockDb();
+    expired("evt_expired_1");
+    expect((await deliver()).status).toBe(200);
+    expired("evt_expired_2");
+    expect((await deliver()).status).toBe(200);
+    expect(recoveryEmails()).toHaveLength(1);
+
+    vi.setSystemTime(new Date("2026-12-02T12:00:00Z"));
+    expired("evt_expired_3");
+    expect((await deliver()).status).toBe(200);
+    expect(recoveryEmails()).toHaveLength(2);
+    expect(events.ids.has("checkout_recovery:user-1:2026-12")).toBe(true);
+  });
+
+  it.each([
+    ["on a paid plan", { plan: "pro", subscription_status: "active", subscription_provider: "stripe" }],
+    ["with an active subscription", { plan: "free", subscription_status: "active", subscription_provider: "stripe" }],
+    ["retrying a payment", { plan: "free", subscription_status: "past_due", subscription_provider: "stripe" }],
+    ["subscribed through the App Store", { plan: "free", subscription_status: "inactive", subscription_provider: "apple" }],
+    ["on creator Pro", { plan: "free", subscription_status: "inactive", subscription_provider: "affiliate" }],
+  ])("skips a user %s", async (_label, user) => {
+    const { events } = mockDb(user);
+    expired("evt_expired_paid");
+
+    expect((await deliver()).status).toBe(200);
+    expect(recoveryEmails()).toHaveLength(0);
+    expect([...events.ids].some((id) => id.startsWith("checkout_recovery:"))).toBe(false);
+  });
+
+  it.each([
+    ["a team checkout", { metadata: { userId: "user-1", plan: "team", teamId: "team-1" } }],
+    ["a one-off payment", { mode: "payment" }],
+    ["a session without a user", { metadata: { app: "supoclip" } }],
+    ["a session without a recovery link", { after_expiration: null }],
+  ])("ignores %s", async (_label, overrides) => {
+    const { findUnique } = mockDb();
+    expired("evt_expired_ignored", overrides);
+
+    expect((await deliver()).status).toBe(200);
+    expect(recoveryEmails()).toHaveLength(0);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("releases the month's claim when the email fails so Stripe's retry can send it", async () => {
+    const { events } = mockDb();
+    vi.mocked(fetchBackend).mockResolvedValueOnce(new Response("SES unavailable", { status: 503 }));
+    expired("evt_expired_retry");
+
+    await expect(deliver()).rejects.toThrow("Backend subscription email failed with 503");
+    expect(events.ids.has("checkout_recovery:user-1:2026-11")).toBe(false);
+    expect(events.ids.has("evt_expired_retry")).toBe(false);
+
+    expect((await deliver()).status).toBe(200);
+    expect(recoveryEmails()).toHaveLength(2);
+    expect(events.ids.has("checkout_recovery:user-1:2026-11")).toBe(true);
+  });
+});

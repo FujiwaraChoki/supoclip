@@ -43,11 +43,12 @@ import {
 import Stripe from "stripe";
 
 type SubscriptionEmailEvent =
-  "subscribed" | "unsubscribed" | "cancellation_scheduled";
+  "subscribed" | "unsubscribed" | "cancellation_scheduled" | "checkout_recovery";
 
 async function sendBackendSubscriptionEmail(
   userId: string,
   event: SubscriptionEmailEvent,
+  extra: Record<string, string> = {},
 ) {
   const response = await fetchBackend("/billing/subscription-email", {
     method: "POST",
@@ -56,7 +57,7 @@ async function sendBackendSubscriptionEmail(
       ...buildBackendAuthHeaders(userId),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ event }),
+    body: JSON.stringify({ event, ...extra }),
     cache: "no-store",
   });
 
@@ -231,6 +232,54 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, analyti
       },
       set: { plan: paidPlan, subscription_status: subscription.status },
     });
+  }
+}
+
+const PAID_OR_PENDING_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+/**
+ * An upgrade Checkout that expired unfinished (most often a declined card) gets one
+ * email with Stripe's recovery link, at most once per user per calendar month.
+ */
+async function handleCheckoutExpired(session: Stripe.Checkout.Session) {
+  if (session.mode !== "subscription" || isTeamCheckoutSession(session)) return;
+  const userId = session.metadata?.userId;
+  const recoveryUrl = session.after_expiration?.recovery?.url;
+  if (!userId || !recoveryUrl) return;
+
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { plan: true, subscription_status: true, subscription_provider: true },
+  });
+  if (
+    !user ||
+    user.plan !== "free" ||
+    PAID_OR_PENDING_STATUSES.has(user.subscription_status) ||
+    user.subscription_provider === "apple" ||
+    user.subscription_provider === "affiliate"
+  )
+    return;
+
+  const month = new Date().toISOString().slice(0, 7);
+  const claimId = `checkout_recovery:${userId}:${month}`;
+  try {
+    await prisma.stripeWebhookEvent.create({
+      data: { id: claimId, type: "checkout_recovery", status: "processed" },
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code === "P2002") return;
+    throw error;
+  }
+
+  try {
+    await sendBackendSubscriptionEmail(userId, "checkout_recovery", {
+      recovery_url: recoveryUrl,
+    });
+  } catch (error) {
+    // Release the month's claim so Stripe's retry of this event can send it.
+    await prisma.stripeWebhookEvent.delete({ where: { id: claimId } }).catch(() => {});
+    throw error;
   }
 }
 
@@ -473,6 +522,10 @@ export async function dispatchBillingEvent(event: Stripe.Event, analytics?: Webh
       return;
     }
     await handleCheckoutCompleted(checkoutSession, analytics);
+  }
+
+  if (event.type === "checkout.session.expired") {
+    await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
   }
 
   if (event.type === "customer.subscription.updated") {

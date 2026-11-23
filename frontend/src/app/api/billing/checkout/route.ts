@@ -36,6 +36,8 @@ const CHECKOUT_BRANDING: Stripe.Checkout.SessionCreateParams.BrandingSettings = 
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
 const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+/** Stripe accepts 30 minutes to 24 hours. */
+const CHECKOUT_EXPIRES_AFTER_SECONDS = 60 * 60;
 
 export async function POST(request: Request) {
   if (!monetizationEnabled) {
@@ -248,6 +250,10 @@ export async function POST(request: Request) {
       ...(offer
         ? { discounts: [{ promotion_code: offer.promotionCodeId }] }
         : {}),
+      // An unfinished checkout (often a declined card) expires after an hour, and the
+      // checkout.session.expired webhook emails its recovery link while the intent is fresh.
+      expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES_AFTER_SECONDS,
+      after_expiration: { recovery: { enabled: true } },
       success_url: `${appUrl}/settings?billing=success`,
       cancel_url: `${appUrl}/settings?billing=cancelled`,
     });

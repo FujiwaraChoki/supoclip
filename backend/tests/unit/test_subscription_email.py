@@ -143,3 +143,119 @@ async def test_delivery_failure_is_visible_for_webhook_retry(cancellation_client
     response = await http.post("/billing/subscription-email", json={"event": "cancellation_scheduled"})
 
     assert response.status_code == status
+
+
+RECOVERY_URL = "https://buy.stripe.com/r/test_recovery_example"
+
+
+@pytest.mark.parametrize("opted_out", [False, True])
+async def test_checkout_recovery_email_links_back_and_respects_opt_out(monkeypatch, opted_out):
+    service = configured_service()
+    send = AsyncMock(return_value={"MessageId": "m-1"})
+    monkeypatch.setattr(SesEmailService, "send_email", send)
+    user = SimpleNamespace(id="user-1", email="owner@example.com", first_name="<Ada>", name="Ada")
+    monkeypatch.setattr(EmailPreferenceRepository, "get_product_update_recipient", AsyncMock(return_value={
+        "id": user.id, "email": user.email, "first_name": user.first_name, "name": user.name,
+        "product_updates_unsubscribed_at": datetime.now(timezone.utc) if opted_out else None,
+    }))
+
+    result = await service.send_checkout_recovery_email(user, RECOVERY_URL, MagicMock())
+
+    if opted_out:
+        assert result == {"skipped": True, "reason": "unsubscribed"}
+        send.assert_not_awaited()
+        return
+    recipient, content = send.call_args.args
+    assert recipient == "owner@example.com"
+    assert content.subject == "Your SupoClip upgrade didn't go through"
+    assert content.category == PRODUCT_UPDATE
+    assert f'<a href="{RECOVERY_URL}">Finish upgrading</a>' in content.html
+    assert f"Finish upgrading: {RECOVERY_URL}" in content.text
+    assert "&lt;Ada&gt;" in content.html
+    for body in (content.html, content.text):
+        assert "30 days" in body
+        assert "/email/product-updates/unsubscribe?token=" in body
+        assert "%" not in body  # no discount in a recovery reminder
+
+
+@pytest.fixture
+async def recovery_client(monkeypatch):
+    user = SimpleNamespace(
+        id="user-1", email="owner@example.com", first_name="Ada", name="Ada",
+        plan="free", subscription_status="incomplete_expired", subscription_provider=None,
+    )
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = user
+    db = SimpleNamespace(execute=AsyncMock(return_value=result))
+    send = AsyncMock(return_value={"MessageId": "m-1"})
+    monkeypatch.setattr(billing, "get_authenticated_user_id", lambda request, config: user.id)
+    monkeypatch.setattr(SubscriptionEmailService, "send_checkout_recovery_email", send)
+    app = FastAPI()
+    app.include_router(billing.router)
+    app.dependency_overrides[get_db] = lambda: db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
+        yield http, send, user, db
+
+
+async def test_sends_checkout_recovery_to_free_user(recovery_client):
+    http, send, user, db = recovery_client
+    response = await http.post("/billing/subscription-email", json={
+        "event": "checkout_recovery", "recovery_url": RECOVERY_URL,
+    })
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    send.assert_awaited_once_with(user, RECOVERY_URL, db)
+
+
+@pytest.mark.parametrize("url", [
+    None,
+    "http://buy.stripe.com/r/test",
+    "https://evil.example.com/r/test",
+    "https://buy.stripe.com.evil.example.com/r/test",
+    "https://user@buy.stripe.com/r/test",
+    "https://buy.stripe.com:8443/r/test",
+    "https://buy.stripe.com/r/{{unsubscribe_url}}",
+    'https://buy.stripe.com/r/"><script>',
+])
+async def test_rejects_recovery_url_not_on_stripe(recovery_client, url):
+    http, send, _, _ = recovery_client
+    response = await http.post("/billing/subscription-email", json={
+        "event": "checkout_recovery", "recovery_url": url,
+    })
+
+    assert response.status_code == 400
+    send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", [
+    {"plan": "pro"},
+    {"subscription_status": "active"},
+    {"subscription_status": "past_due"},
+    {"subscription_provider": "apple"},
+    {"subscription_provider": "affiliate"},
+])
+async def test_skips_checkout_recovery_when_already_subscribed(recovery_client, change):
+    http, send, user, _ = recovery_client
+    for key, value in change.items():
+        setattr(user, key, value)
+
+    response = await http.post("/billing/subscription-email", json={
+        "event": "checkout_recovery", "recovery_url": RECOVERY_URL,
+    })
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "skipped", "reason": "already_subscribed"}
+    send.assert_not_awaited()
+
+
+async def test_checkout_recovery_reports_opt_out_as_skipped(recovery_client):
+    http, send, _, _ = recovery_client
+    send.return_value = {"skipped": True, "reason": "unsubscribed"}
+
+    response = await http.post("/billing/subscription-email", json={
+        "event": "checkout_recovery", "recovery_url": RECOVERY_URL,
+    })
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "skipped", "reason": "unsubscribed"}

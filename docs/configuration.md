@@ -410,6 +410,22 @@ personal subscriptions.
 | `AWS_SECRET_ACCESS_KEY` | AWS secret access key used to send hosted billing lifecycle emails |
 | `SES_FROM_EMAIL` | Verified sender address for subscription emails, default `SupoClip <onboarding@example.com>` |
 
+#### Unfinished upgrade emails
+
+An upgrade Checkout expires one hour after it opens (`expires_at`) with
+`after_expiration.recovery` enabled. When the webhook receives
+`checkout.session.expired` for a subscription Checkout that still has a free user
+behind it (most often a declined card), it calls `/billing/subscription-email`
+with `{"event":"checkout_recovery","recovery_url":...}`. The backend sends one
+short email with Stripe's recovery link, which stays valid for 30 days. It goes
+through the [product-email preferences](product-update-emails.md), so opted-out
+users get nothing. A user receives at most one per calendar month (a
+`checkout_recovery:<user>:<month>` row in `stripe_webhook_events`, released if
+sending fails so Stripe's retry can send it). Team checkouts are skipped.
+
+Subscribe every Stripe billing webhook endpoint (the root and each account route)
+to `checkout.session.expired`.
+
 #### Scheduled cancellation emails
 
 The frontend Stripe webhook at `/api/billing/webhook` handles

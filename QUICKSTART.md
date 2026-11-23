@@ -137,6 +137,7 @@ The billing flow sends:
 
 - A thank-you email after `checkout.session.completed`
 - A cancellation email after `customer.subscription.deleted`
+- A reminder with a link to finish upgrading after `checkout.session.expired` (an unfinished upgrade, at most once a month)
 
 ## Supported AI Models
 

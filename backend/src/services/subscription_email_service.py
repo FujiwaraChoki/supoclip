@@ -39,6 +39,44 @@ class SubscriptionEmailService:
             return await self.email_service.send_email(user.email, confirmation)
         return result
 
+    async def send_checkout_recovery_email(
+        self, user: User, recovery_url: str, db: AsyncSession
+    ) -> dict:
+        # A reminder, not a receipt: opted-out users get nothing.
+        content = self._build_checkout_recovery_email(recovery_url)
+        return await ProductUpdateEmailService(db, self.config).send_product_update(user.id, content)
+
+    def _build_checkout_recovery_email(self, recovery_url: str) -> EmailContent:
+        link = escape(recovery_url, quote=True)
+        paragraphs = [
+            "It looks like your SupoClip upgrade didn't go through, so you're still on the free plan.",
+            "If your card was declined, you can try again with another card, or pay with "
+            "Apple Pay, Google Pay or Link instead. Your plan starts as soon as the payment goes through.",
+        ]
+        after = [
+            "The link works for 30 days. If something went wrong at checkout, just reply "
+            "and tell us what happened.",
+        ]
+        return EmailContent(
+            subject="Your SupoClip upgrade didn't go through",
+            reply_to=("support@supoclip.com",),
+            category=PRODUCT_UPDATE,
+            html=(
+                "<p>Hey {{first_name}},</p>"
+                + "".join(f"<p>{escape(paragraph)}</p>" for paragraph in paragraphs)
+                + f'<p><a href="{link}">Finish upgrading</a></p>'
+                + "".join(f"<p>{escape(paragraph)}</p>" for paragraph in after)
+                + "<p>Best,<br>Team SupoClip</p>"
+            ),
+            text=(
+                "Hey {{first_name}},\n\n"
+                + "\n\n".join(paragraphs)
+                + f"\n\nFinish upgrading: {recovery_url}\n\n"
+                + "\n\n".join(after)
+                + "\n\nBest,\nTeam SupoClip"
+            ),
+        )
+
     def _build_cancellation_scheduled_email(
         self, user: User, *, include_retention_offer: bool = False,
     ) -> EmailContent:
