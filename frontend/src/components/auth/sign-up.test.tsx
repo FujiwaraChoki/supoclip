@@ -33,7 +33,7 @@ describe("SignUp", () => {
   });
 
   it("shows a success state after sign up", async () => {
-    vi.mocked(signUp.email).mockResolvedValue({ error: null } as never);
+    vi.mocked(signUp.email).mockResolvedValue({ data: { token: "session-token" }, error: null } as never);
     const user = userEvent.setup();
 
     render(<SignUp />);
@@ -46,6 +46,24 @@ describe("SignUp", () => {
     expect(
       await screen.findByText("Account created successfully! Signing you in..."),
     ).toBeInTheDocument();
+  });
+
+  it("asks a new account to verify its email when sign-up returns no session", async () => {
+    window.history.replaceState(null, "", "/sign-up?next=/invite/abc");
+    vi.mocked(signUp.email).mockResolvedValue({ data: { token: null }, error: null } as never);
+    const user = userEvent.setup();
+
+    render(<SignUp />);
+
+    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
+    await user.type(screen.getByPlaceholderText("Password"), "Password123!");
+    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+
+    expect(await screen.findByText("Check your inbox")).toBeInTheDocument();
+    expect(screen.getByText(/We sent a link to admin@example.com/)).toBeInTheDocument();
+    expect(signUp.email).toHaveBeenCalledWith(expect.objectContaining({ callbackURL: "/invite/abc" }));
+    window.history.replaceState(null, "", "/");
   });
 
   it("explains a server failure when the response has no message", async () => {

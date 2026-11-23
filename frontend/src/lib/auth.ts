@@ -1,4 +1,5 @@
-import { betterAuth } from "better-auth";
+import { BASE_ERROR_CODES, betterAuth } from "better-auth";
+import { APIError, createEmailVerificationToken } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/prisma";
 import { nextCookies } from "better-auth/next-js";
@@ -9,6 +10,25 @@ import { fetchBackend } from "@/server/backend-api";
 const disableSignUp = ["1", "true", "yes"].includes(
   (process.env.DISABLE_SIGN_UP ?? "").toLowerCase()
 );
+
+/**
+ * Accounts created at or after this instant must verify their email before they
+ * get a session; older accounts keep signing in as before. Unset = never required.
+ */
+export function parseVerificationCutoff(value: string | undefined): Date | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  const cutoff = new Date(raw);
+  if (Number.isNaN(cutoff.getTime())) {
+    throw new Error(`EMAIL_VERIFICATION_REQUIRED_SINCE is not a date: ${raw}`);
+  }
+  return cutoff;
+}
+
+const verificationRequiredSince = parseVerificationCutoff(
+  process.env.EMAIL_VERIFICATION_REQUIRED_SINCE
+);
+const verificationExpiresIn = 3600;
 
 async function sendPasswordResetEmail(userId: string, url: string) {
   const response = await fetchBackend("/account/password-reset-email", {
@@ -59,9 +79,12 @@ export const auth = betterAuth({
   // would skip that flow's codes if it were ever switched on.
   disabledPaths: ["/verify-password", "/change-email"],
   emailVerification: {
-    sendOnSignUp: false,
+    // Only when verification is required; otherwise the link is sent on request
+    // (API keys, MCP consent).
+    sendOnSignUp: verificationRequiredSince !== null,
     sendOnSignIn: false,
-    expiresIn: 3600,
+    autoSignInAfterVerification: true,
+    expiresIn: verificationExpiresIn,
     sendVerificationEmail: async ({ user, url }) => {
       const response = await fetchBackend("/account/verification-email", {
         method: "POST",
@@ -79,12 +102,40 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp,
+    // A new account gets its session from the verification link, not from sign-up.
+    // This also makes sign-up answer the same for a taken address.
+    autoSignIn: verificationRequiredSince === null,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       // Not awaited so response timing doesn't reveal whether an account exists.
       void sendPasswordResetEmail(user.id, url).catch((error) => {
         console.error("Failed to send password reset email", error);
       });
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        // Every way of getting a session passes here, after the password check, so
+        // an unverified new account can't sign in by any route. Better Auth's own
+        // requireEmailVerification would also lock out every older unverified account.
+        before: async (session, ctx) => {
+          if (!verificationRequiredSince || !ctx) return;
+          const user = await ctx.context.internalAdapter.findUserById(session.userId);
+          if (!user || user.emailVerified) return;
+          if (new Date(user.createdAt).getTime() < verificationRequiredSince.getTime()) return;
+          if (ctx.path === "/sign-in/email") {
+            // Signing in resends the link, so "check your inbox" is always true.
+            const token = await createEmailVerificationToken(
+              ctx.context.secret, user.email, undefined, verificationExpiresIn, { userId: user.id }
+            );
+            const url = `${ctx.context.baseURL}/verify-email?token=${token}&callbackURL=${encodeURIComponent("/")}`;
+            await ctx.context.options.emailVerification?.sendVerificationEmail?.({ user, url, token }, ctx.request)
+              .catch((error) => console.error("Failed to resend verification email", error));
+          }
+          throw APIError.from("FORBIDDEN", BASE_ERROR_CODES.EMAIL_NOT_VERIFIED);
+        },
+      },
     },
   },
   plugins: [

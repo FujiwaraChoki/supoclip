@@ -97,6 +97,7 @@ The backend can infer a default LLM from whichever API key is present, but setti
 | `BETTER_AUTH_TRUSTED_ORIGINS` | unset | Additional explicit comma-separated HTTP(S) browser origins for authentication; no wildcard support |
 | `BETTER_AUTH_SECRET` | Dev secret | Frontend auth secret; must be changed in non-local environments |
 | `DISABLE_SIGN_UP` | `false` | Prevents creation of new user accounts when set |
+| `EMAIL_VERIFICATION_REQUIRED_SINCE` | unset | ISO 8601 time. Accounts created at or after it get no session until they open the emailed verification link (signing in resends it); older accounts are unaffected. Needs working email (SES). An invalid value stops the frontend from starting |
 | `NEXT_PUBLIC_LANDING_ONLY_MODE` | `false` | Restricts the UI to the landing page only |
 | `TEMP_DIR` | `/app/uploads` in Docker | Working directory for uploads, caches and renders. With `MEDIA_STORAGE=local` the API and workers must share it; with `s3` each machine has its own |
 | `MEDIA_STORAGE` | `local` | `s3` stores durable media in a private bucket; see [Media storage](media-storage.md) for configuration, retention and migration |

@@ -19,16 +19,16 @@ class VerificationEmailService:
             subject="Verify your SupoClip email address",
             html=(
                 f"<p>Hi {escape(name)},</p>"
-                "<p>Verify your email address to create SupoClip API keys.</p>"
+                "<p>Confirm this is your email address to use it with SupoClip.</p>"
                 + email_button(url, "Verify email address")
-                + "<p>This link expires in 1 hour. If you did not request this, "
-                "you can ignore this email.</p><p>Team SupoClip</p>"
+                + "<p>This link expires in 1 hour. If you did not sign up for SupoClip "
+                "or request this, you can ignore this email.</p><p>Team SupoClip</p>"
             ),
             text=(
-                f"Hi {name},\n\nVerify your email address to create SupoClip API keys.\n\n"
+                f"Hi {name},\n\nConfirm this is your email address to use it with SupoClip.\n\n"
                 f"Verify email address: {url}\n\n"
-                "This link expires in 1 hour. If you did not request this, "
-                "you can ignore this email.\n\nTeam SupoClip"
+                "This link expires in 1 hour. If you did not sign up for SupoClip "
+                "or request this, you can ignore this email.\n\nTeam SupoClip"
             ),
         )
         return await self.email_service.send_email(user.email, content)
