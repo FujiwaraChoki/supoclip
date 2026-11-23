@@ -38,6 +38,10 @@ class MemoryS3:
             raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
         return {"ContentLength": len(self.objects[Key])}
 
+    def list_parts(self, **kwargs):
+        # No multipart part has reached this store.
+        return {"Parts": []}
+
     def get_paginator(self, name):
         def paginate(Bucket, Prefix):
             yield {"Contents": [{"Key": key, "LastModified": datetime.now(timezone.utc)}

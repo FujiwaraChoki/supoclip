@@ -31,6 +31,12 @@ export type ProductEvents = {
     blocked_by_upgrade: boolean;
   };
   upgrade_dialog_shown: { reason: UpgradeReason["kind"]; plan: string; source: string };
+  /** A video was refused for its length; the user was offered a part of it and/or a bigger plan. */
+  video_too_long_shown: { source_kind: SourceKind | "unknown"; plan: string; duration_minutes: number; max_minutes: number; range_offered: boolean; upgrade_offered: boolean };
+  /** A task was created for a part of a video that was over the limit. */
+  source_range_chosen: { source_kind: SourceKind | "unknown"; plan: string; range_minutes: number; start_minutes: number; duration_minutes: number };
+  /** "Upgrade to Creator" in the too-long prompt, before checkout opens. */
+  video_too_long_upgrade_clicked: { plan: string; target_plan: string; duration_minutes: number };
   editor_opened: { clip_count: number };
   ai_edit_submitted: { outcome: "accepted" | "limit_reached" };
   clip_downloaded: { surface: ClipExportSurface; format: string };

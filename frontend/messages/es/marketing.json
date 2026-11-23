@@ -46,7 +46,7 @@
       "product": "Producto"
     },
     "columnLinks": "Enlaces de {heading}",
-    "operator": "Un producto de {company}."
+    "operator": "SupoClip es operado por {company}."
   },
   "creator": {
     "codeLead": "Código",
@@ -140,28 +140,28 @@
       "label": "Novedades"
     },
     "blog_podcast_to_shorts": {
-      "eyebrow": "Podcast clips",
-      "title": "Turn a video podcast into Shorts and Reels",
-      "label": "Podcast to Shorts",
-      "description": "Choose complete ideas, correct captions, and follow real clips back to the source."
+      "eyebrow": "Clips de pódcast",
+      "title": "Convierte un videopódcast en Shorts y Reels",
+      "label": "Pódcast a Shorts",
+      "description": "Elige ideas completas, corrige subtítulos y compara clips reales con la grabación original."
     },
     "blog_find_best_moments_in_video": {
-      "eyebrow": "Highlight selection",
-      "title": "Find the best moments in a long video",
-      "label": "Find video highlights",
-      "description": "Use a practical checklist for hooks, context, payoff, and clean boundaries."
+      "eyebrow": "Selección de momentos",
+      "title": "Encuentra los mejores momentos en un video largo",
+      "label": "Encontrar mejores momentos",
+      "description": "Usa una lista práctica para gancho, contexto, remate y cortes limpios."
     },
     "blog_twitch_vod_to_shorts": {
-      "eyebrow": "Stream clips",
-      "title": "Turn Twitch VODs into TikTok clips and Shorts",
-      "label": "Twitch VOD to Shorts",
-      "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+      "eyebrow": "Clips de streams",
+      "title": "Convierte VODs de Twitch en clips para TikTok y Shorts",
+      "label": "VOD de Twitch a Shorts",
+      "description": "Revisa momentos hablados, conserva el contexto del gameplay y exporta clips verticales."
     },
     "blog_how_to_clip_gta_6": {
       "eyebrow": "Clips de GTA 6",
       "title": "Cómo hacer clips de GTA 6",
       "label": "Clips de GTA 6",
-      "description": "Lo que pagan las campañas de clipping, las reglas de Rockstar y el flujo del VOD al clip vertical."
+      "description": "Lo que pagan las campañas de clipping, las reglas de Rockstar Games y el flujo del VOD al clip vertical."
     },
     "blog_repurpose_webinar_clips": {
       "eyebrow": "Webinar repurposing",
@@ -170,10 +170,10 @@
       "description": "Turn audience questions and useful answers into clips with readable slides and captions."
     },
     "blog_word_by_word_video_captions": {
-      "eyebrow": "Caption editing",
-      "title": "Add readable word-by-word captions to clips",
-      "label": "Word-by-word captions",
-      "description": "Correct the transcript, choose a style, and keep subtitles clear of platform controls."
+      "eyebrow": "Edición de subtítulos",
+      "title": "Agrega subtítulos palabra por palabra legibles a tus clips",
+      "label": "Subtítulos palabra por palabra",
+      "description": "Corrige la transcripción, elige un estilo y mantén los subtítulos lejos de los controles de cada app."
     },
     "blog_schedule_week_of_youtube_shorts": {
       "eyebrow": "Publishing workflow",
@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "Preguntas frecuentes"
+    },
+    "examples": {
+      "label": "Clips de ejemplo"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "Abrir la app alojada",
     "toggleMenu": "Abrir o cerrar el menú",
     "publishing": "Publicación",
-    "faq": "Preguntas frecuentes"
+    "faq": "Preguntas frecuentes",
+    "examples": "Ejemplos"
   },
   "hero": {
     "badge": "Código abierto y autoalojable. También en iPhone.",
@@ -507,11 +511,15 @@
       "features": {
         "pooledHours": "{hours} horas compartidas de video/mes",
         "seats": "{seats} puestos con biblioteca compartida",
-        "quality": "Clips Full HD {resolution} · YouTube hasta {hours} h",
+        "quality": "Clips Full HD {resolution} · vídeos de hasta {hours} h",
         "sharedWorkspace": "Programación social y {aiEdits} ediciones IA/mes",
         "roles": "Roles de Propietario, Admin y Miembro + mayor concurrencia",
         "aiEdits": "{aiEdits} ediciones IA compartidas/mes"
       }
+    },
+    "limits": {
+      "monthly": "Video al mes",
+      "perVideo": "Duración máx. por video"
     }
   },
   "faq": {
@@ -529,7 +537,7 @@
       },
       "minutes": {
         "question": "¿Cómo se cuentan los minutos?",
-        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales."
+        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales. Cada video puede durar hasta {proMinutes} minutos en Pro y {creatorMinutes} minutos en Creator."
       },
       "publishing": {
         "question": "¿SupoClip puede publicar en TikTok e Instagram?",

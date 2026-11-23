@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ArrowUpRight, Copy, Check, Trash2, AlertCircle, Plus, KeyRound } from "lucide-react";
@@ -17,20 +18,14 @@ import { useCopyText } from "@/lib/copy-text";
 import { GITHUB_URL } from "@/lib/site";
 import { KeyClientSetup } from "@/components/mcp-setup";
 import { AssistantConnect } from "@/components/assistant-connect";
+import { apiKeyKeys, useApiKeys, type ApiKey } from "@/lib/queries/settings-api-keys";
 
 const DOCS = [
   { labelKey: "docsMcp", href: `${GITHUB_URL}/blob/main/mcp/README.md` },
   { labelKey: "docsRest", href: `${GITHUB_URL}/blob/main/docs/api-reference.md#authenticating-with-api-keys` },
 ] as const;
 
-interface ApiKey {
-  id: string;
-  name: string;
-  key_prefix: string;
-  created_at: string | null;
-  last_used_at: string | null;
-  revoked: boolean;
-}
+const NO_KEYS: ApiKey[] = [];
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -44,9 +39,12 @@ export default function ApiKeysPage() {
   const copyText = useCopyText();
   const newKeyRef = useRef<HTMLElement>(null);
   const { data: session, isPending, refetch } = useSession();
-  const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [isFetching, setIsFetching] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const keysQuery = useApiKeys(session?.user?.id);
+  const keys = keysQuery.data ?? NO_KEYS;
+  const isFetching = keysQuery.isPending;
+  const [actionError, setError] = useState<string | null>(null);
+  const error = actionError ?? (keysQuery.isError ? t("apiKeys.loadFailed") : null);
   const [name, setName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
@@ -81,25 +79,7 @@ export default function ApiKeysPage() {
     }
   };
 
-  const loadKeys = useCallback(async () => {
-    setIsFetching(true);
-    try {
-      const response = await fetch("/api/api-keys", { cache: "no-store" });
-      if (!response.ok) throw new Error(t("apiKeys.loadFailed"));
-      const data = await response.json();
-      setKeys(data.api_keys || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("apiKeys.loadFailed"));
-    } finally {
-      setIsFetching(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (session?.user?.id) {
-      loadKeys();
-    }
-  }, [session?.user?.id, loadKeys]);
+  const loadKeys = () => queryClient.invalidateQueries({ queryKey: apiKeyKeys.all });
 
   const handleCreate = async () => {
     if (!emailVerified) return;
@@ -117,6 +97,7 @@ export default function ApiKeysPage() {
       if (!response.ok) {
         throw new Error(data?.detail || t("apiKeys.createFailed"));
       }
+      // Shown once from component state: the plaintext never enters the query cache.
       setNewKey(data.api_key?.key ?? null);
       setName("");
       await loadKeys();
@@ -127,19 +108,19 @@ export default function ApiKeysPage() {
     }
   };
 
-  const handleRevoke = async (id: string) => {
-    setError(null);
-    try {
+  const revoke = useMutation({
+    mutationFn: async (id: string) => {
       const response = await fetch(`/api/api-keys/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data?.detail || t("apiKeys.revokeFailed"));
       }
-      await loadKeys();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("apiKeys.revokeFailed"));
-    }
-  };
+    },
+    onMutate: () => setError(null),
+    onSuccess: () => loadKeys(),
+    onError: (err) => setError(err instanceof Error ? err.message : t("apiKeys.revokeFailed")),
+  });
+  const handleRevoke = (id: string) => revoke.mutate(id);
 
   const handleCopy = async () => {
     if (!newKey) return;

@@ -1025,6 +1025,26 @@ def parse_hls_fragments(playlist: str, base_url: str, duration: float) -> list[d
     return fragments
 
 
+# A media playlist grows with its source: one signed segment URL (hundreds of
+# bytes up to ~2 KB) every few seconds. Multi-hour sources were seen above
+# 180 bytes per second, so the cap allows 1,000 (a 24 h source: ~86 MB) between
+# a floor that is also used when the duration is unknown and a hard ceiling.
+HLS_PLAYLIST_MIN_BYTES = 4_000_000
+HLS_PLAYLIST_BYTES_PER_SECOND = 1_000
+HLS_PLAYLIST_MAX_BYTES = 96_000_000
+
+
+def hls_playlist_byte_limit(duration: float | None) -> int:
+    try:
+        seconds = float(duration or 0)
+    except (TypeError, ValueError):
+        return HLS_PLAYLIST_MIN_BYTES
+    if not math.isfinite(seconds) or seconds <= 0:
+        return HLS_PLAYLIST_MIN_BYTES
+    scaled = int(seconds * HLS_PLAYLIST_BYTES_PER_SECOND)
+    return min(HLS_PLAYLIST_MAX_BYTES, max(HLS_PLAYLIST_MIN_BYTES, scaled))
+
+
 def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: float) -> dict:
     if "m3u8" not in (fmt.get("protocol") or "") or _has_media_timing(fmt):
         return fmt
@@ -1032,16 +1052,17 @@ def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: fl
     from yt_dlp.networking import Request
 
     address = _hls_url(fmt["url"], fmt["url"])
+    limit = hls_playlist_byte_limit(duration)
     try:
         with _proxy_client(options) as ydl:
             response = ydl.urlopen(Request(address, headers=fmt.get("http_headers") or {}))
             try:
                 base_url = _hls_url(address, response.url)
-                payload = response.read(4_000_001)
+                payload = response.read(limit + 1)
             finally:
                 response.close()
         budget.add(len(payload))
-        if len(payload) > 4_000_000:
+        if len(payload) > limit:
             raise PartialDownloadUnavailable("HLS playlist exceeds its size limit")
         fragments = parse_hls_fragments(payload.decode("utf-8"), base_url, duration)
     except (DownloadBudgetExceeded, DownloadDeadlineExceeded, PartialDownloadUnavailable):
@@ -1371,6 +1392,93 @@ def _download_audio_attempt(
         raise
 
 
+def download_audio_section(
+    url: str,
+    video_id: str,
+    start: float,
+    end: float,
+    dest_stem: Path,
+    *,
+    task_id: Optional[str] = None,
+    budget: Optional[ByteBudget] = None,
+) -> tuple[Path, float, float]:
+    """Audio of one time window only, for a picked part of a long video.
+
+    Returns the file and its original-timeline bounds (whole HLS fragments,
+    so it may start a few seconds before ``start``). Formats without timed
+    fragments raise ``PartialDownloadUnavailable``.
+    """
+    counter = budget or ByteBudget(get_config().youtube_download_max_bytes)
+    return _with_proxy_retry(
+        lambda options: _download_audio_section_attempt(
+            url, video_id, start, end, dest_stem, task_id=task_id, budget=counter, options=options,
+        ),
+        task_id=task_id, video_id=video_id, budget=counter,
+        cleanup=lambda: _discard_output(dest_stem),
+    )
+
+
+def _download_audio_section_attempt(
+    url: str,
+    video_id: str,
+    start: float,
+    end: float,
+    dest_stem: Path,
+    *,
+    task_id: Optional[str],
+    budget: ByteBudget,
+    options: dict[str, Any],
+) -> tuple[Path, float, float]:
+    counter = budget
+    before = counter.snapshot()
+    try:
+        info = extract_video_info(url, options)
+        formats = info.get("formats") or []
+        source_language = _video_language(info)
+        fmt = pick_hls_audio_format(
+            formats,
+            source_language=source_language,
+            original_audio=_original_audio_resolution(formats, source_language),
+        )
+        if fmt is None:
+            raise PartialDownloadUnavailable("No HLS audio format is available for a section")
+        duration = info.get("duration") or 0
+        fmt = expand_hls_format(fmt, options, counter, duration)
+        window = select_window(fmt, start, min(end, float(duration)) if duration else end)
+        if not window:
+            raise PartialDownloadUnavailable(
+                "Audio format has no timed fragments; refusing an ffmpeg section download"
+            )
+        fragments, media_start, media_end = window
+        options["_youtube_section_clock"] = _SectionTransferClock(
+            deadline=min(options["_youtube_deadline"], time.monotonic() + _SECTION_IDLE_SECONDS),
+            hard_deadline=options["_youtube_overall_deadline"],
+        )
+        path = native_download_format(options, url, video_id, fmt, dest_stem, fragments)
+        path = contain_raw_aac(path)
+        nbytes = _account_file(path, counter, before)
+        log_youtube_attempt(
+            provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+            video_id=video_id,
+            kind="audio_section",
+            outcome="success",
+            nbytes=nbytes,
+            task_id=task_id,
+        )
+        return path, media_start, media_end
+    except Exception as exc:
+        log_youtube_attempt(
+            provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+            video_id=video_id,
+            kind="audio_section",
+            outcome="failure",
+            nbytes=max(0, counter.snapshot() - before),
+            task_id=task_id,
+            error=str(exc),
+        )
+        raise
+
+
 def download_section_file(
     url: str,
     video_id: str,
@@ -1543,6 +1651,57 @@ def _account_failed_media(
                      "downloaded_bytes": int(incomplete.group(1))})
 
 
+# A full download is refused up front only when its estimate is clearly past
+# what the job has left: an exact size over it, or an estimate 1.5x over it.
+# Missing or unreadable sizes fall through to the download, which the byte
+# budget still stops.
+FULL_DOWNLOAD_ESTIMATE_MARGIN = 1.5
+
+
+def _positive(value) -> float:
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) and number > 0 else 0.0
+
+
+def estimate_download_bytes(info: dict) -> tuple[int, bool]:
+    """Expected bytes of the selected format(s) and whether every size was exact.
+
+    Returns ``(0, False)`` when any selected format has no usable estimate.
+    """
+    formats = info.get("requested_formats") or [info]
+    duration = _positive(info.get("duration"))
+    total = 0.0
+    exact = True
+    for fmt in formats:
+        size = _positive(fmt.get("filesize"))
+        if not size:
+            exact = False
+            size = _positive(fmt.get("filesize_approx"))
+        if not size and duration:
+            # tbr is in kbit/s.
+            size = _positive(fmt.get("tbr")) * 1000 / 8 * duration
+        if not size:
+            return 0, False
+        total += size
+    return int(total), exact
+
+
+def full_download_refusal(info: dict, budget: ByteBudget) -> Optional[str]:
+    if not budget.limit or not isinstance(info, dict):
+        return None
+    estimate, exact = estimate_download_bytes(info)
+    remaining = budget.limit - budget.snapshot()
+    if not estimate or estimate <= remaining * (1 if exact else FULL_DOWNLOAD_ESTIMATE_MARGIN):
+        return None
+    return (
+        f"This video is too large to download in full (about {estimate / 1e9:.1f} GB, "
+        f"over the {budget.limit / 1e9:.1f} GB download limit for one video)."
+    )
+
+
 def download_full_with_proxy(
     url: str,
     video_id: str,
@@ -1562,9 +1721,15 @@ def download_full_with_proxy(
         before = counter.snapshot()
         with tempfile.TemporaryDirectory(prefix="attempt-", dir=job_dir) as directory:
             stem = Path(directory) / video_id
+            refused: list[str] = []
 
-            def metadata_available(_info, *, incomplete=False):
+            def metadata_available(info, *, incomplete=False):
                 if not incomplete:
+                    # Called after format selection and before any media byte.
+                    refusal = full_download_refusal(info, counter)
+                    if refusal:
+                        refused.append(refusal)
+                        return refusal
                     _metadata_ready(options)
                 return None
 
@@ -1580,6 +1745,8 @@ def download_full_with_proxy(
             except Exception as exc:
                 _account_failed_media(options, stem, exc)
                 raise
+            if refused:
+                raise DownloadBudgetExceeded(refused[0])
             path = _find_download(stem)
             _account_file(path, counter, before)
             result = job_dir / (video_id + path.suffix)

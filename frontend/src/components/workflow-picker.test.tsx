@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WORKFLOWS, type Workflow, type WorkflowsInfo } from "@/lib/workflows";
-import { availableWorkflows, WorkflowGlyph, WorkflowPicker } from "./workflow-picker";
+import { availableWorkflows, useWorkflowsInfo, WorkflowGlyph, WorkflowPicker } from "./workflow-picker";
 
 const ALL: ReadonlySet<Workflow> = new Set(WORKFLOWS);
 
@@ -118,4 +118,48 @@ describe("availableWorkflows", () => {
     ] as WorkflowsInfo["workflows"];
     expect([...availableWorkflows(info(true, rows))]).toEqual(["highlights"]);
   });
+});
+
+describe("useWorkflowsInfo", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("serves every caller on the page from one request", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ enabled: true, workflows: [{ id: "series", available: true }] })));
+    const { result } = renderHook(() => [useWorkflowsInfo(true), useWorkflowsInfo(true)] as const);
+    await waitFor(() => expect(result.current[0]?.enabled).toBe(true));
+    expect(result.current[1]?.enabled).toBe(true);
+    expect(availableWorkflows(result.current[0])).toEqual(new Set(["series"]));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith("/api/tasks/workflows", { cache: "no-store" });
+  });
+
+  it("stays quiet while inactive and reads a failure as unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
+    const { result, rerender } = renderHook(({ active }) => useWorkflowsInfo(active), { initialProps: { active: false } });
+    expect(result.current).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ active: true });
+    await waitFor(() => expect(result.current).not.toBeNull());
+    expect(result.current?.enabled).toBe(false);
+    expect(availableWorkflows(result.current).size).toBe(0);
+  });
+});
+
+describe("useWorkflowsInfo after a failed refresh", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps workflows it already knows when a later request fails", async () => {
+    const info: WorkflowsInfo = { enabled: true, workflows: [{ id: "series", available: true }], topic_max_chars: 200, instructions_max_chars: 500 } as WorkflowsInfo;
+    let respond = () => Response.json(info);
+    vi.stubGlobal("fetch", vi.fn(async () => respond()));
+    const { result, rerender } = renderHook(({ active }) => useWorkflowsInfo(active), { initialProps: { active: true } });
+    await waitFor(() => expect(result.current?.enabled).toBe(true));
+
+    respond = () => new Response("bad gateway", { status: 502 });
+    rerender({ active: false });
+    await new Promise((resolve) => setTimeout(resolve, 5_100));
+    rerender({ active: true });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(result.current?.enabled).toBe(true);
+  }, 10_000);
 });

@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "title": "SupoClip 示例：来自播客、游戏和 Vlog 的真实 AI 剪辑",
+    "description": "观看 SupoClip 从公开长视频中生成的竖屏片段：访谈、游戏直播和 Vlog，每个片段都带字幕、钩子标题和爆款评分。"
+  },
+  "badge": "示例",
+  "heading": "SupoClip 用真实视频生成的片段",
+  "intro": "来自 {sources} 个公开视频的 {clips} 个片段，使用与你相同的流程生成：找出精彩时刻、裁成 9:16、写出钩子标题，并烧录逐字同步的字幕。没有任何手动剪辑。",
+  "primaryNav": "示例导航",
+  "filters": {
+    "label": "按类别筛选",
+    "all": "全部"
+  },
+  "groups": {
+    "interview": {
+      "label": "播客与访谈",
+      "description": "把长对话剪成大家愿意转发的那句回答。"
+    },
+    "gaming": {
+      "label": "游戏与直播",
+      "description": "保留摄像头画面的游戏片段，从剧情流程到直播反应。"
+    },
+    "vlog": {
+      "label": "Vlog",
+      "description": "把手持拍摄的 IRL 素材变成简短、带字幕的精彩时刻。"
+    }
+  },
+  "card": {
+    "videoLabel": "示例片段：{title}",
+    "play": "播放“{title}”",
+    "lengthLabel": "时长",
+    "viralityLabel": "爆款评分",
+    "viralityHint": "SupoClip AI 爆款评分，满分 100",
+    "captionsLabel": "字幕",
+    "credit": "来自 <strong>{channel}</strong>。",
+    "watchOriginal": "观看原视频",
+    "originalLabel": "原视频：{title}"
+  },
+  "videoDescription": "SupoClip 根据 {channel} 的《{title}》生成的竖屏片段。",
+  "note": "这些片段由 SupoClip 根据公开的 YouTube 视频生成，用于展示产品效果。所有权利归原创作者所有：每个片段都注明了频道并链接到完整视频。SupoClip 水印仅为本页添加，你自己的片段不会带水印。",
+  "cta": {
+    "title": "用你的视频做出这样的片段",
+    "body": "粘贴 YouTube 链接或上传文件。SupoClip 会找出最佳时刻，几分钟内给你带字幕的竖屏片段。",
+    "signUp": "开始剪辑",
+    "pricing": "价格"
+  }
+}

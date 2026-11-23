@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..analytics import capture_event
 from ..config import Config, get_config
 from .. import feature_flags
-from ..feature_flags import PLATFORMS, TIKTOK_PUBLISHING, Platform
+from ..feature_flags import INSTAGRAM_PUBLISHING, PLATFORMS, TIKTOK_PUBLISHING, Platform
 from .billing_service import BillingService
 from .social_publish_email_service import (
     SocialPublishEmailService,
@@ -56,6 +56,13 @@ TIKTOK_PAUSED_MESSAGE = (
     "TikTok publishing is paused while we fix an issue with TikTok. "
     "Your other platforms work as usual."
 )
+INSTAGRAM_UNAVAILABLE_MESSAGE = (
+    "Instagram Reels publishing is not available on your account yet."
+)
+_PROVIDER_FLAG_GATES: dict[str, tuple[str, str]] = {
+    "tiktok": (TIKTOK_PUBLISHING, TIKTOK_PAUSED_MESSAGE),
+    "instagram": (INSTAGRAM_PUBLISHING, INSTAGRAM_UNAVAILABLE_MESSAGE),
+}
 
 PUBLISH_JOB_NAME = "publish_social_post"
 OAUTH_STATE_TTL_SECONDS = 600
@@ -166,27 +173,37 @@ class SocialService:
         )
         return bool(summary.get("can_schedule_posts"))
 
+    async def provider_flag_enabled(self, name: str, user_id: Optional[str]) -> bool:
+        """Whether a provider's feature flag (if any) allows this caller on this platform."""
+        gate = _PROVIDER_FLAG_GATES.get((name or "").strip().lower())
+        if gate is None:
+            return True
+        flag_key, _ = gate
+        return await feature_flags.is_enabled(
+            self.db, flag_key, platform=self.platform, user_id=user_id
+        )
+
     async def provider_paused(self, name: str, user_id: Optional[str]) -> bool:
         """TikTok is paused by the ``tiktok_publishing`` feature flag (switched in /admin)."""
         if (name or "").strip().lower() != "tiktok":
             return False
-        return not await feature_flags.is_enabled(
-            self.db, TIKTOK_PUBLISHING, platform=self.platform, user_id=user_id
-        )
+        return not await self.provider_flag_enabled("tiktok", user_id)
 
     async def _ensure_not_paused(
         self, name: str, user_id: Optional[str], *, any_platform: bool = False
     ) -> None:
-        """Refuse a paused platform. The worker has no platform, so either one being on lets it publish."""
-        if (name or "").strip().lower() != "tiktok":
+        """Refuse a disabled/paused platform. The worker has no platform, so either one being on lets it publish."""
+        gate = _PROVIDER_FLAG_GATES.get((name or "").strip().lower())
+        if gate is None:
             return
+        flag_key, message = gate
         platforms = PLATFORMS if any_platform else (self.platform,)
         for platform in platforms:
             if await feature_flags.is_enabled(
-                self.db, TIKTOK_PUBLISHING, platform=platform, user_id=user_id
+                self.db, flag_key, platform=platform, user_id=user_id
             ):
                 return
-        raise SocialProviderUnavailable(TIKTOK_PAUSED_MESSAGE)
+        raise SocialProviderUnavailable(message)
 
     def _provider(self, name: str) -> SocialProvider:
         normalized = (name or "").strip().lower()

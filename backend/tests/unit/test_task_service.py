@@ -237,12 +237,19 @@ async def test_process_task_fails_when_no_clip_segments_are_selected():
 @pytest.mark.asyncio
 async def test_process_task_uses_scale_youtube_duration_allowance(monkeypatch):
     service = build_task_service()
+    service.config.monetization_enabled = True
     service.config.max_video_duration = 5400
     service.config.scale_youtube_max_video_duration = 10800
+    monkeypatch.setattr(
+        task_service_module, "generation_allowance_guard", lambda *_args, **_kwargs: nullcontext()
+    )
 
     class FakeBillingService:
         def __init__(self, *_args, **_kwargs):
             pass
+
+        async def assert_can_resume_task(self, *_args, **_kwargs):
+            return {"plan": "scale", "subscription_status": "active"}
 
         async def get_usage_summary(self, _user_id):
             return {"plan": "scale", "subscription_status": "active"}
@@ -261,6 +268,83 @@ async def test_process_task_uses_scale_youtube_duration_allowance(monkeypatch):
             "max_video_duration"
         ]
         == 10800
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_task_applies_pro_limit_to_uploads(monkeypatch):
+    service = build_task_service()
+    service.config.monetization_enabled = True
+    service.config.max_video_duration = 5400
+    service.config.pro_youtube_max_video_duration = 7200
+    monkeypatch.setattr(
+        task_service_module, "generation_allowance_guard", lambda *_args, **_kwargs: nullcontext()
+    )
+
+    class FakeBillingService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def assert_can_resume_task(self, *_args, **_kwargs):
+            return {"plan": "pro", "subscription_status": "active"}
+
+        async def get_usage_summary(self, _user_id):
+            return {"plan": "pro", "subscription_status": "active"}
+
+    monkeypatch.setattr(task_service_module, "BillingService", FakeBillingService)
+
+    await service.process_task(
+        task_id="task-1",
+        url="/tmp/uploads/demo.mp4",
+        source_type="video_url",
+        user_id="pro-user",
+    )
+
+    assert service.video_service.process_video_complete.await_args.kwargs["max_video_duration"] == 7200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "source_type,url",
+    [
+        ("youtube", "https://www.youtube.com/watch?v=demo"),
+        ("twitch", "https://www.twitch.tv/videos/123456"),
+        ("video_url", "upload://long.mp4"),
+    ],
+)
+async def test_process_task_has_no_duration_limit_when_self_hosted(monkeypatch, source_type, url):
+    service = build_task_service()
+    service.config.self_host = True
+    service.config.monetization_enabled = False
+    service.config.max_video_duration = 5400
+    service._seed_stream_source = AsyncMock()
+
+    class FakeBillingService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def get_usage_summary(self, _user_id):
+            return {
+                "monetization_enabled": False,
+                "plan": "self_host",
+                "max_youtube_duration_seconds": None,
+                "max_upload_duration_seconds": None,
+            }
+
+    monkeypatch.setattr(task_service_module, "BillingService", FakeBillingService)
+
+    await service.process_task(
+        task_id="task-1",
+        url=url,
+        source_type=source_type,
+        user_id="self-host-user",
+    )
+
+    assert (
+        service.video_service.process_video_complete.await_args.kwargs[
+            "max_video_duration"
+        ]
+        is None
     )
 
 

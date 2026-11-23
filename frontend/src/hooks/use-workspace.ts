@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useInvalidateOnWindowEvent } from "@/lib/queries/window-events";
+import { useCallback, useEffect } from "react";
 import { invalidateBillingSummary, WORKSPACE_CHANGED_EVENT } from "@/hooks/use-billing-summary";
 
 export type TeamRole = "owner" | "admin" | "member";
@@ -37,38 +39,31 @@ export class WorkspaceRequestError extends Error {
   }
 }
 
-let pendingWorkspace: Promise<WorkspacePayload | null> | null = null;
-let cachedWorkspace: WorkspacePayload | null = null;
+export const workspaceKey = ["workspace"] as const;
 
 /**
- * The last good answer stays until a newer one arrives: a request that fails on the way
- * (a blip, a 500) must not hide the switcher or turn Team settings into "Create a team".
+ * A request that fails on the way (a blip, a 500) throws, so the query keeps the last good
+ * answer: it must not hide the switcher or turn Team settings into "Create a team".
  * Only a 401 forgets it, because then nobody is signed in.
  */
-function loadWorkspaces(force = false): Promise<WorkspacePayload | null> {
-  if (force) pendingWorkspace = null;
-  pendingWorkspace ??= fetch("/api/teams", { cache: "no-store" })
-    .then(async (response) => {
-      if (response.status === 401) {
-        cachedWorkspace = null;
-        return null;
-      }
-      if (!response.ok) return cachedWorkspace;
-      cachedWorkspace = (await response.json()) as WorkspacePayload;
-      return cachedWorkspace;
-    })
-    .catch(() => cachedWorkspace)
-    .finally(() => {
-      setTimeout(() => {
-        pendingWorkspace = null;
-      }, 3_000);
-    });
-  return pendingWorkspace;
+async function loadWorkspaces(): Promise<WorkspacePayload | null> {
+  const response = await fetch("/api/teams", { cache: "no-store" });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new WorkspaceRequestError("", `http_${response.status}`);
+  return (await response.json()) as WorkspacePayload;
 }
 
+/** Refetch the workspace and billing summary everywhere (the hooks listen for this event). */
 export function invalidateWorkspaces() {
-  pendingWorkspace = null;
   invalidateBillingSummary();
+}
+
+/** Fired when the active workspace changed without a page load; the query provider drops workspace data. */
+export const WORKSPACE_SWITCHED_EVENT = "supoclip:workspace-switched";
+
+/** The query provider refetches everything on screen, the workspace and billing summary included. */
+function workspaceSwitchedInPlace() {
+  window.dispatchEvent(new CustomEvent(WORKSPACE_SWITCHED_EVENT));
 }
 
 // The active workspace is a cookie, so it changes for every tab at once. Tell the other
@@ -79,7 +74,7 @@ let switchChannel: BroadcastChannel | null | undefined;
 function onSwitchedInOtherTab() {
   // A task stays reachable from any workspace its owner or team allows, so an open task or
   // editor is left alone (it may hold work in progress); only its shell catches up.
-  if (window.location.pathname.startsWith("/tasks/")) invalidateWorkspaces();
+  if (window.location.pathname.startsWith("/tasks/")) workspaceSwitchedInPlace();
   else window.location.reload();
 }
 
@@ -120,38 +115,28 @@ async function requestError(response: Response): Promise<WorkspaceRequestError> 
 }
 
 export function useWorkspace(enabled: boolean) {
-  const [data, setData] = useState<WorkspacePayload | null>(() => cachedWorkspace);
+  const query = useQuery({
+    queryKey: workspaceKey,
+    queryFn: loadWorkspaces,
+    enabled,
+    staleTime: 3_000,
+    retry: false,
+  });
+  const data = query.data ?? null;
   // True once a request has answered. Until then nothing is known, which is not "no teams".
-  const [settled, setSettled] = useState<boolean>(() => cachedWorkspace !== null);
+  const settled = query.status !== "pending";
+  const { refetch } = query;
 
   const refresh = useCallback(async () => {
     if (!enabled) return null;
-    const next = await loadWorkspaces(true);
-    setData(next);
-    setSettled(true);
-    return next;
-  }, [enabled]);
+    const result = await refetch();
+    return result.data ?? null;
+  }, [enabled, refetch]);
 
   useEffect(() => {
-    if (!enabled) return;
-    workspaceSwitchChannel();
-    let cancelled = false;
-    const run = (force = false) => {
-      void loadWorkspaces(force).then((next) => {
-        if (!cancelled) {
-          setData(next);
-          setSettled(true);
-        }
-      });
-    };
-    run();
-    const onChanged = () => run(true);
-    window.addEventListener(WORKSPACE_CHANGED_EVENT, onChanged);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(WORKSPACE_CHANGED_EVENT, onChanged);
-    };
+    if (enabled) workspaceSwitchChannel();
   }, [enabled]);
+  useInvalidateOnWindowEvent(WORKSPACE_CHANGED_EVENT, workspaceKey, enabled);
 
   const switchWorkspace = useCallback(async (teamId: string | null, redirectTo?: string) => {
     const response = await fetch("/api/teams/active", {
@@ -182,7 +167,8 @@ export function useWorkspace(enabled: boolean) {
     if (!response.ok) throw await requestError(response);
     const payload = (await response.json().catch(() => ({}))) as { team?: TeamSummary };
     if (!payload.team) throw new WorkspaceRequestError("");
-    invalidateWorkspaces();
+    // The new team is now the active workspace in this tab too.
+    workspaceSwitchedInPlace();
     // Creating a team makes it the active workspace.
     announceWorkspaceSwitch();
     return payload.team;

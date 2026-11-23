@@ -413,6 +413,49 @@ async def test_providers_report_tiktok_paused_by_its_flag(app, client, auth_head
 
 
 @pytest.mark.asyncio
+async def test_providers_gate_instagram_behind_flag_with_admin_bypass(
+    app, client, db_session, auth_headers, feature_flag, monkeypatch
+):
+    from src import feature_flags
+    from tests.integration.test_feature_flags import headers_for
+
+    await create_user(db_session, user_id="user-1", is_admin=False)
+    await create_user(db_session, user_id="admin-1", is_admin=True)
+
+    config = app.state.config
+    monkeypatch.setattr(config, "social_publishing_access", "all")
+    monkeypatch.setattr(config, "social_publishing_providers", frozenset({"youtube", "instagram"}))
+    for field in ("youtube_oauth_client_id", "youtube_oauth_client_secret", "instagram_app_id", "instagram_app_secret"):
+        monkeypatch.setattr(config, field, "test-credential")
+
+    async def providers(headers):
+        feature_flags.clear_cache()
+        response = await client.get("/social/providers", headers=headers)
+        assert response.status_code == 200, response.text
+        return {row["provider"]: row for row in response.json()["providers"]}
+
+    # Seeded off with admins_bypass=True: regular users see Coming soon (no paused banner),
+    # while admins can connect and test Instagram Reels.
+    user_rows = await providers(auth_headers)
+    assert user_rows["instagram"]["configured"] is False
+    assert "paused" not in user_rows["instagram"]
+    blocked = await client.post("/social/connections/instagram/authorize", headers=auth_headers)
+    assert blocked.status_code == 503 and "not available" in blocked.json()["detail"]
+
+    admin_headers = headers_for("admin-1")
+    admin_rows = await providers(admin_headers)
+    assert admin_rows["instagram"]["configured"] is True
+    assert "paused" not in admin_rows["instagram"]
+    started = await client.post("/social/connections/instagram/authorize", headers=admin_headers)
+    assert started.status_code == 200
+
+    await feature_flag("instagram_publishing", web_enabled=True)
+    user_rows = await providers(auth_headers)
+    assert user_rows["instagram"]["configured"] is True
+    feature_flags.clear_cache()
+
+
+@pytest.mark.asyncio
 async def test_publish_notification_respects_user_setting_and_stamps_once(
     social_setup, client, db_session, auth_headers, monkeypatch,
 ):

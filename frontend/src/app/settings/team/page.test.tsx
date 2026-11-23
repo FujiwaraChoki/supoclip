@@ -6,6 +6,8 @@ import TeamSettingsPage from "./page";
 import AcceptInvitePage from "@/app/invite/[token]/page";
 import LandingPage from "@/components/landing-page";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
+import { toast } from "sonner";
+import { invalidateWorkspaces } from "@/hooks/use-workspace";
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() },
@@ -427,7 +429,55 @@ describe("TeamSettingsPage UI & role matrix", () => {
     rerender(<WorkspaceSwitcher />);
     expect(screen.getByRole("button", { name: "Switch workspace" })).toBeInTheDocument();
   });
+  it("after checkout, reloads the team until its plan is paid, then says so once", async () => {
+    window.history.replaceState(null, "", "/settings/team?billing=success");
+    let detailCalls = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      detailCalls += 1;
+      // The redirect beats Stripe's webhook: the first answer is still unpaid.
+      const team = detailCalls === 1
+        ? { ...makeTeamDetail().team, plan: "free", subscriptionStatus: "inactive", hasStripeSubscription: false }
+        : makeTeamDetail().team;
+      return new Response(JSON.stringify(makeTeamDetail({ team })), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TeamSettingsPage />);
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Team plan is active!"), { timeout: 4000 });
+    expect(window.location.search).toBe("");
+    expect(invalidateWorkspaces).toHaveBeenCalled();
+    const calls = fetchMock.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    // Polling stopped once the plan was paid.
+    expect(fetchMock.mock.calls.length).toBe(calls);
+    expect(toast.success).toHaveBeenCalledTimes(1);
+  });
+  it("after checkout, a slower first load never lands the unpaid team over the paid one", async () => {
+    window.history.replaceState(null, "", "/settings/team?billing=success");
+    let detailCalls = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      detailCalls += 1;
+      if (detailCalls === 1) {
+        // The first load was sent before Stripe's webhook and answers after the poll does.
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const team = { ...makeTeamDetail().team, plan: "free", subscriptionStatus: "inactive", hasStripeSubscription: false };
+        return new Response(JSON.stringify(makeTeamDetail({ team })), { status: 200 });
+      }
+      return new Response(JSON.stringify(makeTeamDetail()), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TeamSettingsPage />);
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Team plan is active!"));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(screen.queryByText("inactive")).not.toBeInTheDocument();
+    expect(screen.getByText("Manage Billing")).toBeInTheDocument();
+  });
 });
+
+
 
 describe("AcceptInvitePage UI states", () => {
   beforeEach(() => {
@@ -506,6 +556,107 @@ describe("AcceptInvitePage UI states", () => {
     });
     expect(await screen.findByText(/signed in as wrong@example.com/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign out and switch account/ })).toBeInTheDocument();
+  });
+
+  it("joins on click only, and keeps the button busy while it navigates away", async () => {
+    const invitation = {
+      invitation: {
+        teamId: "team-1",
+        teamName: "Clip Crew",
+        email: "editor@example.com",
+        role: "member",
+        status: "valid",
+        inviterName: "Alex",
+        expiresAt: "2026-11-28T00:00:00.000Z",
+      },
+      signedIn: true,
+      signedInEmail: "editor@example.com",
+      emailMatches: true,
+    };
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+        : new Response(JSON.stringify(invitation), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <AcceptInvitePage params={Promise.resolve({ token: "sample-token-123456" })} />
+        </Suspense>,
+      );
+    });
+
+    const join = await screen.findByRole("button", { name: "Join Clip Crew" });
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    fireEvent.click(join);
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledWith("/api/teams/invitations/sample-token-123456/accept", { method: "POST" });
+    expect(invalidateWorkspaces).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Joining team/ })).toBeDisabled();
+  });
+
+  it("says why a first load failed and loads again on Try again", async () => {
+    let failing = true;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => failing
+      ? new Response("{}", { status: 500 })
+      : new Response(JSON.stringify({
+        invitation: {
+          teamId: "team-1", teamName: "Clip Crew", email: "editor@example.com", role: "member",
+          status: "expired", inviterName: null, expiresAt: "2026-11-01T00:00:00.000Z",
+        },
+        signedIn: false, signedInEmail: null, emailMatches: false,
+      }), { status: 200 })));
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <AcceptInvitePage params={Promise.resolve({ token: "sample-token-123456" })} />
+        </Suspense>,
+      );
+    });
+
+    expect(await screen.findByText("Could not load this invitation.")).toBeInTheDocument();
+    failing = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/Clip Crew/)).toBeInTheDocument();
+  });
+
+  it("asks again after signing in instead of showing the signed-out answer from before", async () => {
+    sessionState.user = null;
+    const invitation = (signedIn: boolean) => ({
+      invitation: {
+        teamId: "team-1", teamName: "Clip Crew", email: "editor@example.com", role: "member",
+        status: "valid", inviterName: "Alex", expiresAt: "2026-11-28T00:00:00.000Z",
+      },
+      signedIn,
+      signedInEmail: signedIn ? "editor@example.com" : null,
+      emailMatches: signedIn,
+    });
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(invitation(sessionState.user !== null)), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const params = Promise.resolve({ token: "sample-token-123456" });
+    const page = () => (
+      <Suspense fallback={null}>
+        <AcceptInvitePage params={params} />
+      </Suspense>
+    );
+
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(page());
+    });
+    expect(await screen.findByRole("link", { name: /Create account/ })).toBeInTheDocument();
+
+    // Back from /sign-in on the client: same page, same cache, now signed in.
+    sessionState.user = { id: "u-editor", email: "editor@example.com", name: "Editor" };
+    view.rerender(page());
+
+    expect(await screen.findByRole("button", { name: "Join Clip Crew" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "每月剪辑 {count} 个视频",
-    "youtube": "YouTube 视频最长 {length}",
+    "youtube": "单个视频最长 {length}",
     "fonts": "自定义字体、B-roll 和字幕模板",
     "priority": "优先处理",
     "minutes": "每月 {length} 视频",
@@ -36,7 +36,11 @@
   "prorated": "你会在 Stripe 确认变更，并只支付按比例计算的差价。",
   "cancelAnytime": "可随时取消 · 通过 Stripe 安全结账",
   "appStore": "你的订阅由 App Store 管理。可以在 SupoClip iOS 应用里更换方案。",
-  "selfHostLink": "或自行托管",
+  "selfHosted": {
+    "title": "自行托管",
+    "body": "在你自己的电脑上运行 SupoClip，没有订阅，也没有每月视频上限。需要自行安装；硬件和你选用的付费 AI 服务由你提供。",
+    "guide": "自行托管指南"
+  },
   "upgrade": {
     "start": {
       "eyebrow": "随时可以开始",
@@ -58,8 +62,8 @@
       "eyebrow": "这条比较长",
       "title": "{plan} 可以处理这条 {runtime} 的视频",
       "fallbackPlan": "更大的方案",
-      "body": "{plan} 支持最长 {length} 的 YouTube 视频。{next} 支持最长 {nextLength}，这个视频可以直接处理。本次尝试未消耗分钟数。",
-      "bodyNoNext": "{plan} 支持最长 {length} 的 YouTube 视频。本次尝试未消耗分钟数。"
+      "body": "{plan} 支持单个视频最长 {length}。{next} 支持最长 {nextLength}，这个视频可以直接处理。本次尝试未消耗分钟数。",
+      "bodyNoNext": "{plan} 支持单个视频最长 {length}。本次尝试未消耗分钟数。"
     },
     "fonts": {
       "eyebrow": "做成你的风格",
@@ -120,5 +124,9 @@
   "comingSoon": "即将推出",
   "teamWorkspaceBody": "{team} 使用共享团队订阅。团队所有者可以开通套餐或增加席位以扩充每月共享时长。",
   "manageTeamSeats": "管理团队与席位",
-  "teamAskOwner": "{team} 使用共享团队订阅。请联系团队所有者开通套餐或增加席位。"
+  "teamAskOwner": "{team} 使用共享团队订阅。请联系团队所有者开通套餐或增加席位。",
+  "gallery": {
+    "regionLabel": "使用 SupoClip 制作的示例片段",
+    "viewAll": "更多示例"
+  }
 }

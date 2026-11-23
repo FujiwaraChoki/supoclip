@@ -29,6 +29,7 @@ from ...repositories.upload_repository import (
     claim_completion,
     completion_digest,
     release_completion,
+    touch_upload,
     UploadCompletionConflict,
     UploadIdempotencyConflict,
     UploadLimitReached,
@@ -529,7 +530,25 @@ async def refresh_upload_parts(request: Request, db: AsyncSession = Depends(get_
     try:
         payload = await request.json()
         session = await get_upload(db, user_id, payload)
-        return await run_in_thread(MediaStorage().refresh_upload_parts, user_id, payload, size=session.size)
+        storage = MediaStorage()
+        parts = await run_in_thread(storage.refresh_upload_parts, user_id, payload, size=session.size)
+        # A refresh means the browser is still sending parts.
+        await touch_upload(db, session.id, storage.config)
+        return parts
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/upload/progress")
+async def report_upload_progress(request: Request, db: AsyncSession = Depends(get_db)):
+    """The browser finished a part: keep the upload's slot and stop cleanup aborting it."""
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        payload = await request.json()
+        session = await get_upload(db, user_id, payload)
+        if not await touch_upload(db, session.id, MediaStorage().config):
+            raise ValueError("Upload expired or is unavailable; restart the upload")
+        return {"ok": True}
     except (ValueError, TypeError, AttributeError, KeyError) as exc:
         raise HTTPException(400, str(exc)) from None
 

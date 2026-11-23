@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "generated_at": "2026-11-21",
+  "note": "Clips were made by the standard SupoClip highlights pipeline (9:16, auto length, subtitles, hook titles) from public videos, then watermarked. Credit to the original creators.",
+  "groups": [
+    "interview",
+    "gaming",
+    "vlog"
+  ],
+  "base_url": "https://media.example.test",
+  "videos": [
+    {
+      "slug": "how-drugs-get-into-prison",
+      "source_title": "How Drugs Get Into Prison",
+      "channel": "Tommy G",
+      "source_url": "https://www.youtube.com/watch?v=H9BSYGXS1XM",
+      "category": "Documentary",
+      "source_duration_seconds": 2172,
+      "caption_template": "hormozi",
+      "clips": [
+        {
+          "id": "how-drugs-get-into-prison-1",
+          "title": "What one smuggled phone actually pays",
+          "duration_seconds": 37.4,
+          "virality_score": 92,
+          "transcript_excerpt": "How much do you buy that smartphone on the street for? Oh, this is an iPhone 13 Pro Max.",
+          "source_start": "05:08",
+          "source_end": "05:45",
+          "video_path": "/examples/v1/how-drugs-get-into-prison/clip-1.mp4",
+          "poster_path": "/examples/v1/how-drugs-get-into-prison/clip-1.jpg",
+          "width": 720,
+          "height": 1280,
+          "video_url": "https://media.example.test/examples/v1/how-drugs-get-into-prison/clip-1.mp4",
+          "poster_url": "https://media.example.test/examples/v1/how-drugs-get-into-prison/clip-1.jpg"
+        }
+      ],
+      "group": "interview"
+    },
+    {
+      "slug": "gta-6-better-than-we-thought",
+      "source_title": "GTA 6 IS BETTER THAN WE THOUGHT…",
+      "channel": "ohnepixel raw",
+      "source_url": "https://www.youtube.com/watch?v=tx_0pcjW8SE",
+      "category": "Gaming stream",
+      "source_duration_seconds": 2709,
+      "caption_template": "tiktok",
+      "clips": [
+        {
+          "id": "gta-6-better-than-we-thought-1",
+          "title": "Who knew my landlord was my ex",
+          "duration_seconds": 45.0,
+          "virality_score": 92,
+          "transcript_excerpt": "Small world, huh? I know. Who would have thought you'd end up be my landlord?",
+          "source_start": "43:28",
+          "source_end": "44:13",
+          "video_path": "/examples/v1/gta-6-better-than-we-thought/clip-1.mp4",
+          "poster_path": "/examples/v1/gta-6-better-than-we-thought/clip-1.jpg",
+          "width": 720,
+          "height": 1280,
+          "video_url": "https://media.example.test/examples/v1/gta-6-better-than-we-thought/clip-1.mp4",
+          "poster_url": "https://media.example.test/examples/v1/gta-6-better-than-we-thought/clip-1.jpg"
+        },
+        {
+          "id": "gta-6-better-than-we-thought-2",
+          "title": "She asks why he doesn't like her",
+          "duration_seconds": 46.5,
+          "virality_score": 80,
+          "transcript_excerpt": "What's up, Jason? Why don't you like me? What? You need to calm down. He's starting to freak me out.",
+          "source_start": "21:16",
+          "source_end": "22:02",
+          "video_path": "/examples/v1/gta-6-better-than-we-thought/clip-2.mp4",
+          "poster_path": "/examples/v1/gta-6-better-than-we-thought/clip-2.jpg",
+          "width": 720,
+          "height": 1280,
+          "video_url": "https://media.example.test/examples/v1/gta-6-better-than-we-thought/clip-2.mp4",
+          "poster_url": "https://media.example.test/examples/v1/gta-6-better-than-we-thought/clip-2.jpg"
+        }
+      ],
+      "group": "gaming"
+    }
+  ]
+}

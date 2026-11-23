@@ -712,7 +712,7 @@ def _clamp_to_playlist(ranges, total: float):
     return clamped
 
 
-def _normalize_span(source: Path, dest: Path) -> None:
+def _normalize_span(source: Path, dest: Path, *, audio: bool = False) -> None:
     """Remux a downloaded span so its first timestamp is zero.
 
     MPEG-TS starts at an arbitrary PTS and fragmented MP4 keeps each fragment's
@@ -720,7 +720,9 @@ def _normalize_span(source: Path, dest: Path) -> None:
     wrong origin.
     """
     result = subprocess.run(
-        ["ffmpeg", "-y", "-nostdin", "-i", str(source), "-map", "0:v:0", "-map", "0:a:0?",
+        ["ffmpeg", "-y", "-nostdin", "-i", str(source),
+         # An audio-only rendition (a picked part's analysis audio) has no picture.
+         *(["-map", "0:a:0"] if audio else ["-map", "0:v:0", "-map", "0:a:0?"]),
          "-c", "copy", "-avoid_negative_ts", "make_zero", str(dest)],
         capture_output=True, text=True,
     )
@@ -728,7 +730,7 @@ def _normalize_span(source: Path, dest: Path) -> None:
         raise RuntimeError("could not remux a downloaded section")
 
 
-def _hls_section_pieces(source: dict | str, provider: str, work_dir: Path, ranges, *, session: str) -> tuple[list[tuple[CachedPiece, float, float]], float]:
+def _hls_section_pieces(source: dict | str, provider: str, work_dir: Path, ranges, *, session: str, audio: bool = False) -> tuple[list[tuple[CachedPiece, float, float]], float]:
     """Download only the HLS fragments under ``ranges``.
 
     ``source`` is extracted platform metadata or a playlist URL (Apify media).
@@ -742,7 +744,7 @@ def _hls_section_pieces(source: dict | str, provider: str, work_dir: Path, range
     if isinstance(source, dict) and not source.get("formats") and not source.get("url"):
         raise _NoHlsSections("no formats to choose from")
     work_dir.mkdir(parents=True, exist_ok=True)
-    with bounded_client(_ydl_options(provider, work_dir / "unused.%(ext)s", session=session, media=True)) as ydl:
+    with bounded_client(_ydl_options(provider, work_dir / "unused.%(ext)s", audio=audio, session=session, media=True)) as ydl:
         try:
             info = (
                 copy.deepcopy(source) if isinstance(source, dict)
@@ -813,7 +815,7 @@ def _hls_section_pieces(source: dict | str, provider: str, work_dir: Path, range
                     if part not in init_files.values():
                         part.unlink()
             span_path = work_dir / f"span-{number:03d}.mkv"
-            _normalize_span(raw, span_path)
+            _normalize_span(raw, span_path, audio=audio and _audio_only(raw))
             raw.unlink()
             start, end = segments[first].start, segments[last].end
             actual, wanted = _probe(span_path), end - start
@@ -827,6 +829,33 @@ def _hls_section_pieces(source: dict | str, provider: str, work_dir: Path, range
             raise RuntimeError(f"no downloaded section covers {a:.1f}-{b:.1f}s")
         slices.append((piece, a, b))
     return slices, total
+
+
+def _audio_only(path: Path) -> bool:
+    """True when a downloaded span holds no video stream."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=index",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0 and not result.stdout.strip()
+
+
+def _cut_audio_part(slices, call_dir: Path) -> Path:
+    """The audio of one picked part, with a timeline back to the source."""
+    from .source_range import SourceRange, cut_audio_range
+
+    if len(slices) != 1:
+        raise StreamSourceError("An audio part must be one continuous range")
+    piece, start, end = slices[0]
+    return cut_audio_range(
+        piece.path, call_dir / "selected-audio.m4a", SourceRange(start, end), offset=piece.start,
+    )
+
+
+def _assemble_audio(slices, call_dir: Path) -> Path:
+    with local_work():
+        return _cut_audio_part(slices, call_dir)
 
 
 def _assemble(slices, call_dir: Path) -> Path:
@@ -860,13 +889,13 @@ def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, templa
             watch = _TransferWatch(stall_seconds=idle, overall_seconds=allowance)
             if ranges and state.local_media is not None and state.local_media.exists():
                 with local_work():
-                    return _from_local(state.local_media, call_dir, audio=False, ranges=wanted)
+                    return _from_local(state.local_media, call_dir, audio=audio, ranges=wanted)
             if ranges:
                 # Fetch only the fragments under the clips. Downloading a long
                 # VOD whole takes longer than the transfer allows and can exceed
                 # the byte budget (a 1-hour 1080p60 Twitch VOD is ~3.3 GB).
                 try:
-                    slices, _total = _hls_section_pieces(info, provider, attempt_dir / "hls", wanted, session=session)
+                    slices, _total = _hls_section_pieces(info, provider, attempt_dir / "hls", wanted, session=session, audio=audio)
                 except _NoHlsSections as exc:
                     _log_stream(
                         logging.INFO, "whole_file", provider=provider, source=source, kind=kind,
@@ -874,14 +903,14 @@ def _ytdlp_media(url, provider, state: _Operation, attempt_dir, call_dir, templa
                     )
                     shutil.rmtree(attempt_dir / "hls", ignore_errors=True)
                 else:
-                    return _assemble(slices, call_dir)
+                    return _assemble_audio(slices, call_dir) if audio else _assemble(slices, call_dir)
             full_template = attempt_dir / "source.%(ext)s"
             _download_info(info, provider, full_template, audio=audio, ranges=None, session=session, watch=watch)
             with local_work():
                 result = _finish(attempt_dir, call_dir, None)
                 if not audio:
                     state.local_media = result
-                return _from_local(result, call_dir, audio=False, ranges=wanted) if ranges else result
+                return _from_local(result, call_dir, audio=audio, ranges=wanted) if ranges else result
         except (ProviderSkipped, StreamSourceError):
             raise
         except Exception as exc:
@@ -1053,6 +1082,10 @@ def _parsebird_file(info: dict, state: _Operation, op_dir: Path) -> Path:
 
 
 def _from_local(source: Path, call_dir: Path, *, audio: bool, ranges) -> Path:
+    if ranges and audio:
+        total = _probe(source)
+        wanted = _clamp_ranges(ranges, total)
+        return _cut_audio_part([(CachedPiece(0.0, total or wanted[-1][1], source), a, b) for a, b in wanted], call_dir)
     if ranges:
         total = _probe(source)
         wanted = _clamp_ranges(ranges, total)
@@ -1096,7 +1129,7 @@ def _actor_media(url, provider, state: _Operation, op_dir, call_dir, attempt_dir
     if ranges:
         slices = _actor_hls_sections(media, state, attempt_dir, wanted, actual, session=session)
         if slices is not None:
-            return _assemble(slices, call_dir)
+            return _assemble_audio(slices, call_dir) if audio else _assemble(slices, call_dir)
     # Actor media URLs are fetched directly first; the proxy only if that fails.
     try:
         _download_url(media, "direct", attempt_dir / "source.%(ext)s", audio=audio, ranges=None, session=session)
@@ -1118,7 +1151,7 @@ def _actor_media(url, provider, state: _Operation, op_dir, call_dir, attempt_dir
             raise RuntimeError("stream duration does not match the requested video")
         if not audio:
             state.local_media = result
-        return _from_local(result, call_dir, audio=False, ranges=wanted) if ranges else result
+        return _from_local(result, call_dir, audio=audio, ranges=wanted) if ranges else result
 
 
 def _actor_hls_sections(media: str, state: _Operation, attempt_dir: Path, wanted, actual, *, session: str):
@@ -1372,6 +1405,19 @@ def download_stream_audio(url, duration=None, task_id=None, *, max_duration=None
 
 def download_stream_video(url, duration=None, task_id=None, *, max_duration=None, operation=None):
     return _download(url, expected_duration=duration, max_duration=max_duration, task_id=task_id, operation=operation)
+
+
+def download_stream_range_audio(url, source_range, task_id=None, *, operation=None):
+    """Audio of a picked part of a VOD (only its HLS fragments where possible).
+
+    The plan cap was checked against the part's length at admission, so the
+    whole VOD's length is not held against it here.
+    """
+    ranges = [(float(source_range.start), float(source_range.end))]
+    return _download(
+        url, audio=True, ranges=ranges, expected_duration=source_range.source_duration,
+        max_duration=None, task_id=task_id, operation=operation,
+    )
 
 
 def download_stream_sections(url, segments, duration=None, task_id=None, *, max_duration=None, operation=None):

@@ -3,16 +3,26 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { catalogKey } from "@/i18n/config";
+import { contentLangAttr } from "@/lib/localized-guides";
 import { getMarketingLink, getMarketingLinks } from "@/lib/marketing-links";
-import { APP_STORE_URL, COMPANY_NAME, DISCORD_COMMUNITY_URL, GITHUB_URL, SOURCE_LICENSE_URL } from "@/lib/site";
+import {
+  APP_STORE_URL,
+  COMPANY_NAME,
+  COMPANY_PHONE,
+  COMPANY_REGISTERED_ADDRESS,
+  DISCORD_COMMUNITY_URL,
+  GITHUB_URL,
+  SOURCE_LICENSE_URL,
+} from "@/lib/site";
 
 const linkClassName = "hover:text-foreground transition-colors";
 
 /** Crawlable footer shared by the landing page, SEO pages, and blog. */
 export function SiteFooter() {
+  const locale = useLocale();
   const t = useTranslations("marketing");
   const columns = [
     {
@@ -32,6 +42,7 @@ export function SiteFooter() {
         ...getMarketingLinks("product").map((link) => link.href),
         "/sign-up",
         "/#pricing",
+        "/examples",
         "/faq",
         "/affiliate",
         "/changelog",
@@ -80,9 +91,13 @@ export function SiteFooter() {
               ),
             })}
           </p>
-          <p className="mt-2 text-xs leading-6 text-muted-foreground">
+          <p className="mt-2 max-w-xs text-xs leading-5 text-muted-foreground">
             {t("footer.operator", { company: COMPANY_NAME })}
           </p>
+          <address className="mt-0.5 max-w-xs text-xs not-italic leading-5 text-muted-foreground">
+            <span className="block">{COMPANY_REGISTERED_ADDRESS}</span>
+            <span className="block">{COMPANY_PHONE}</span>
+          </address>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.github")}</a>
             <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.ios")}</a>
@@ -95,7 +110,7 @@ export function SiteFooter() {
             <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
               {column.hrefs.map((href) => (
                 <li key={href}>
-                  <Link href={href} lang={getMarketingLink(href)?.language} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
+                  <Link href={href} lang={contentLangAttr(getMarketingLink(href)?.languages, locale)} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
                 </li>
               ))}
             </ul>

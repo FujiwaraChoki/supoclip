@@ -71,7 +71,7 @@
     "baseLine": "Team-Basis ({seats} Plätze, {hours} Std./Monat)",
     "extraSeatsLine": "{count, plural, one {# Zusatzplatz} other {# Zusatzplätze}} (${price} je Platz, +{hours} Std./Monat)",
     "totalLine": "Gesamt ({seats} Plätze · {hours} gemeinsame Std./Monat)",
-    "includedFeatures": "Enthält {resolution}-Clips, YouTube bis {youtubeHours} Std., Social-Planung und {aiEdits} KI-Edits/Monat.",
+    "includedFeatures": "Enthält {resolution}-Clips, Videos bis {youtubeHours} Std., Social-Planung und {aiEdits} KI-Edits/Monat.",
     "openingCheckout": "Checkout wird geöffnet…",
     "startPlan": "Team-Tarif starten",
     "managePortal": "Abrechnung verwalten",
@@ -80,7 +80,7 @@
     "paymentFailed": "Die letzte Zahlung des Teams ist fehlgeschlagen. Aktualisiere die Zahlungsmethode.",
     "updatePayment": "Zahlungsmethode aktualisieren",
     "cancelScheduled": "Dieses Team-Abo wird am {date} gekündigt.",
-    "includedFeaturesNoScheduling": "Enthält {resolution}-Clips, YouTube bis {youtubeHours} Std. und {aiEdits} KI-Edits/Monat."
+    "includedFeaturesNoScheduling": "Enthält {resolution}-Clips, Videos bis {youtubeHours} Std. und {aiEdits} KI-Edits/Monat."
   },
   "members": {
     "title": "Mitglieder & Einladungen",

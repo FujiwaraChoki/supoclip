@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useInvalidateOnWindowEvent } from "@/lib/queries/window-events";
 
 export const WORKSPACE_CHANGED_EVENT = "supoclip:workspace-changed";
 
@@ -27,8 +29,8 @@ export interface BillingSummary {
   can_create_task: boolean;
   upgrade_required: boolean;
   reason: string | null;
-  max_youtube_duration_seconds?: number;
-  max_upload_duration_seconds?: number;
+  max_youtube_duration_seconds?: number | null;
+  max_upload_duration_seconds?: number | null;
   /** Configured upload size cap in bytes. */
   max_upload_bytes?: number;
   /** Workspace scope ("personal" or "team") and team metadata when active. */
@@ -44,45 +46,43 @@ export interface BillingSummary {
   member_limit_reached?: boolean;
 }
 
-// One in-flight request shared by the shell and the page it wraps.
-let pending: Promise<BillingSummary | null> | null = null;
+export const billingSummaryKey = ["billing-summary"] as const;
 
-function loadBillingSummary(force = false) {
-  if (force) pending = null;
-  pending ??= fetch("/api/tasks/billing-summary", { cache: "no-store" })
-    .then((response) => (response.ok ? (response.json() as Promise<BillingSummary>) : null))
-    .catch(() => null)
-    .finally(() => { setTimeout(() => { pending = null; }, 5_000); });
-  return pending;
+/**
+ * A failed request (a blip, a 5xx) throws, so the query keeps the last good summary
+ * instead of replacing it with nothing. Only a 401 answers null: nobody is signed in.
+ */
+async function loadBillingSummary(): Promise<BillingSummary | null> {
+  const response = await fetch("/api/tasks/billing-summary", { cache: "no-store" });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`Failed to fetch billing summary: ${response.status}`);
+  return (await response.json()) as BillingSummary;
 }
 
+/** Refetch the summary everywhere it is shown (after a plan, team or workspace change). */
 export function invalidateBillingSummary() {
-  pending = null;
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(WORKSPACE_CHANGED_EVENT));
   }
 }
 
 export function useBillingSummary(enabled: boolean) {
-  const [summary, setSummary] = useState<BillingSummary | null>(null);
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    const fetchNow = (force = false) => {
-      void loadBillingSummary(force).then((data) => {
-        if (!cancelled) setSummary(data);
-      });
-    };
-    fetchNow();
-    const onWorkspaceChanged = () => fetchNow(true);
-    window.addEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(WORKSPACE_CHANGED_EVENT, onWorkspaceChanged);
-    };
-  }, [enabled]);
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: billingSummaryKey,
+    queryFn: loadBillingSummary,
+    enabled,
+    // The shell and the page it wraps both ask on mount; one request serves both.
+    staleTime: 5_000,
+    retry: false,
+  });
+  useInvalidateOnWindowEvent(WORKSPACE_CHANGED_EVENT, billingSummaryKey, enabled);
+
   const update = useCallback((patch: Partial<BillingSummary>) => {
-    setSummary((current) => (current ? { ...current, ...patch } : current));
-  }, []);
-  return [summary, update] as const;
+    queryClient.setQueryData<BillingSummary | null>(billingSummaryKey, (current) =>
+      current ? { ...current, ...patch } : current,
+    );
+  }, [queryClient]);
+
+  return [enabled ? data ?? null : null, update] as const;
 }

@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} videos clipped every month",
-    "youtube": "YouTube videos up to {length}",
+    "youtube": "Videos up to {length} each",
     "fonts": "Custom fonts, B-roll and caption templates",
     "priority": "Priority processing",
     "minutes": "{length} of video every month",
@@ -36,7 +36,11 @@
   "prorated": "You'll confirm the change on Stripe and only pay the prorated difference.",
   "cancelAnytime": "Cancel anytime · Secure checkout with Stripe",
   "appStore": "Your subscription is managed through the App Store. You can change plans in the SupoClip iOS app.",
-  "selfHostLink": "Or self-host",
+  "selfHosted": {
+    "title": "Self-hosted",
+    "body": "Run SupoClip on your own computer with no subscription or monthly video limit. Setup required; you provide the hardware and any paid AI services you choose.",
+    "guide": "Self-hosting guide"
+  },
   "upgrade": {
     "start": {
       "eyebrow": "Ready when you are",
@@ -58,8 +62,8 @@
       "eyebrow": "A long one",
       "title": "{plan} can take this {runtime} video",
       "fallbackPlan": "A bigger plan",
-      "body": "{plan} covers YouTube videos up to {length}. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use any minutes.",
-      "bodyNoNext": "{plan} covers YouTube videos up to {length}. This try didn't use any minutes."
+      "body": "{plan} takes videos up to {length} each. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use any minutes.",
+      "bodyNoNext": "{plan} takes videos up to {length} each. This try didn't use any minutes."
     },
     "fonts": {
       "eyebrow": "Make it yours",
@@ -120,5 +124,9 @@
   "comingSoon": "Coming soon",
   "teamWorkspaceBody": "{team} uses a pooled Team subscription. Owners can activate the plan or add seats to expand pooled monthly hours.",
   "manageTeamSeats": "Manage team & seats",
-  "teamAskOwner": "{team} uses a pooled Team subscription. Ask the team owner to start the plan or add seats."
+  "teamAskOwner": "{team} uses a pooled Team subscription. Ask the team owner to start the plan or add seats.",
+  "gallery": {
+    "regionLabel": "Example clips made with SupoClip",
+    "viewAll": "More examples"
+  }
 }

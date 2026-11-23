@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { ArrowRight, CreditCard, Gauge, LogOut, Moon, Plus, Settings2, Sun, User as UserIcon, Users } from "lucide-react";
@@ -213,17 +214,15 @@ function UsageRing({ fraction, children }: { fraction: number; children: React.R
 /** Every workspace's allowance, the current one first. Shows the current one alone until the rest load. */
 function WorkspaceUsageList({ current }: { current: BillingSummary }) {
   const t = useTranslations("shell");
-  const [payload, setPayload] = useState<WorkspaceUsagePayload | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/billing/usage", { cache: "no-store" })
-      .then((response) => (response.ok ? (response.json() as Promise<WorkspaceUsagePayload>) : Promise.reject()))
-      .then((data) => { if (!cancelled) setPayload(data); })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
-  }, []);
+  const { data: payload, isError: failed } = useQuery({
+    queryKey: ["billing-usage"],
+    queryFn: async () => {
+      const response = await fetch("/api/billing/usage", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Failed to fetch usage: ${response.status}`);
+      return (await response.json()) as WorkspaceUsagePayload;
+    },
+    retry: false,
+  });
 
   const currentTeamId = current.workspace_type === "team" ? current.team_id ?? null : null;
   const fallback: WorkspaceUsage = { teamId: currentTeamId, name: current.team_name ?? null, role: null, summary: current };

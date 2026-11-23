@@ -11,7 +11,8 @@ import {
 import { useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { useSocialAccess } from "@/hooks/use-social-access";
-import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
+import { timeAgo, type GenerationSummary } from "@/lib/generations";
+import { useGenerations } from "@/lib/queries/generations";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Announcements } from "@/components/announcements";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -220,13 +221,17 @@ const WORKFLOW_SHORTCUTS = [
   { id: "trailer", icon: Play },
 ] as const;
 
+const NO_GENERATIONS: GenerationSummary[] = [];
+
 function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations("shell");
   const tHome = useTranslations("home");
   const locale = useLocale();
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [generations, setGenerations] = useState<GenerationSummary[]>([]);
+  const { data: session } = useSession();
+  // Disabled while closed; opening the palette refetches the list.
+  const generations: GenerationSummary[] = useGenerations(open ? session?.user?.id : undefined).data ?? NO_GENERATIONS;
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -234,7 +239,6 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     if (!open) return;
     setQuery("");
     setActive(0);
-    void fetchGenerations().then(setGenerations).catch(() => {});
   }, [open]);
 
   const socialAccess = useSocialAccess(open);

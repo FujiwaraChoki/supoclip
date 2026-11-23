@@ -49,7 +49,12 @@ ANALYSIS_WINDOW_SEGMENT_TARGET = "3-5"
 # its own TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS budget once it starts running.
 ANALYSIS_TOTAL_TIMEOUT_SECONDS = 1800
 RERANK_TIMEOUT_SECONDS = 240
-CANDIDATE_DEDUPE_OVERLAP_RATIO = 0.5
+# Two clips of one video may share a little footage at their edges, not a third of the shorter one:
+# a viewer of both would watch the same moment twice.
+CANDIDATE_DEDUPE_OVERLAP_RATIO = 1 / 3
+# A pick that sits between two stronger ones can stay under that limit with each and still be mostly
+# footage they already show.
+CANDIDATE_DEDUPE_COVERED_RATIO = 0.5
 # How far a model timestamp may sit from a transcript line boundary and still be
 # snapped onto it instead of the whole clip being dropped.
 SEGMENT_SNAP_TOLERANCE_SECONDS = 8
@@ -1401,6 +1406,20 @@ def _overlap_ratio(first: tuple[int, int], second: tuple[int, int]) -> float:
     return max(0, overlap) / shorter
 
 
+def _covered_ratio(bounds: tuple[int, int], others: List[tuple[int, int]]) -> float:
+    """Share of ``bounds`` that the other ranges, taken together, already show."""
+    start, end = bounds
+    if end <= start:
+        return 0.0
+    covered, cursor = 0, start
+    for other_start, other_end in sorted(others):
+        low, high = max(other_start, cursor), min(other_end, end)
+        if high > low:
+            covered += high - low
+            cursor = high
+    return covered / (end - start)
+
+
 def dedupe_overlapping_segments(
     segments: List[TranscriptSegment],
     max_overlap_ratio: float = CANDIDATE_DEDUPE_OVERLAP_RATIO,
@@ -1415,7 +1434,7 @@ def dedupe_overlapping_segments(
         if any(
             _overlap_ratio(bounds, kept_bounds) > max_overlap_ratio
             for _, kept_bounds in kept
-        ):
+        ) or _covered_ratio(bounds, [kept_bounds for _, kept_bounds in kept]) > CANDIDATE_DEDUPE_COVERED_RATIO:
             logger.info(
                 "Dropping overlapping candidate %s-%s", segment.start_time, segment.end_time
             )

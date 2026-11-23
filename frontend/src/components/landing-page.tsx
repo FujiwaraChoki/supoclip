@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -56,6 +56,7 @@ import {
   getMarketingLink,
   type MarketingLink,
 } from "@/lib/marketing-links";
+import { contentLangAttr } from "@/lib/localized-guides";
 import { APP_STORE_URL, DISCORD_COMMUNITY_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL, SOURCE_LICENSE_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ const NAV_LINKS = [
   { href: "#publish", key: "publishing" },
   { href: "#pricing", key: "pricing" },
   { href: "#open-source", key: "openSource" },
+  { href: "/examples", key: "examples" },
   { href: "/faq", key: "faq" },
   { href: "/blog", key: "blog" },
   { href: "/affiliate", key: "affiliate" },
@@ -104,6 +106,7 @@ function getPlans(
       note: null as string | null,
       soon: null as string | null,
       usageExample: null as string | null,
+      limits: null as PlanLimits | null,
       description: t("pricing.selfHost.description"),
       features: [
         t("pricing.selfHost.features.crop"),
@@ -132,8 +135,10 @@ function getPlans(
             ? t("pricing.usageExample.videos", { count: exampleVideos })
             : null,
         description: t(`pricing.${plan.id}.description`),
+        limits: { monthly: planText.formatRuntime(plan.minuteLimit * 60), perVideo: planText.formatRuntime(plan.youtubeMaxMinutes * 60) },
         features: [
-          ...planText.highlights(plan).filter((line) => line !== genericScheduling),
+          // Video a month and the per-video length are in the limits block above the list.
+          ...planText.highlights(plan).filter((line) => line !== genericScheduling && line !== planText.perVideo(plan) && line !== planText.monthly(plan)),
           // Creator schedules; plans without scheduling can still post right away.
           ...(scheduling ? [t("pricing.schedulingPlatforms")] : showScheduling ? [t("pricing.publishPlatforms")] : []),
           t("pricing.hosted.tracking"),
@@ -145,6 +150,46 @@ function getPlans(
       };
     }),
   ];
+}
+
+type PlanLimits = { monthly: string; perVideo: string };
+
+/** Video a month and the longest single video: the two limits people run into, before the feature list. */
+function PlanLimitsBlock({ limits, note }: { limits: PlanLimits; note?: string | null }) {
+  const t = useTranslations("marketing");
+  return (
+    <dl className="mt-6 divide-y rounded-xl border text-sm" data-testid="plan-limits">
+      {([["monthly", limits.monthly], ["perVideo", limits.perVideo]] as const).map(([key, value]) => (
+        <div key={key} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+          <dt className="flex items-center text-muted-foreground">
+            {t(`pricing.limits.${key}`)}
+            {key === "monthly" && note && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={note}
+                    className="ml-1 inline-flex rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Info className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  sideOffset={6}
+                  // Light so it stands out on the dark Pro card too.
+                  className="max-w-60 bg-background text-foreground shadow-lg ring-1 ring-border [&_svg]:bg-background [&_svg]:fill-background"
+                >
+                  {note}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </dt>
+          <dd className="shrink-0 font-display font-bold tracking-tight tabular-nums">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 function PrimaryCta({ authEnabled, label, hostedLabel, className }: {
@@ -171,6 +216,7 @@ function PrimaryCta({ authEnabled, label, hostedLabel, className }: {
 }
 
 export default function LandingPage() {
+  const locale = useLocale();
   const t = useTranslations("marketing");
   const tCommon = useTranslations("common");
   const planText = useBillingPlanText();
@@ -450,37 +496,13 @@ export default function LandingPage() {
                     {plan.note && <p className="mt-1 text-xs text-muted-foreground">{plan.note}</p>}
                   </div>
 
+                  {plan.limits && <PlanLimitsBlock limits={plan.limits} note={plan.usageExample} />}
+
                   <ul className="mt-7 flex-1 space-y-3 border-t pt-7">
-                    {plan.features.map((feature, index) => (
+                    {plan.features.map((feature) => (
                       <li key={feature} className="flex items-start gap-3 text-sm">
                         <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                        {/* The first line is the minute allowance; translate it into videos right there. */}
-                        {index === 0 && plan.usageExample ? (
-                          <span>
-                            {feature}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  aria-label={plan.usageExample}
-                                  className="ml-1 inline-flex translate-y-[2px] rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                >
-                                  <Info className="size-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="top"
-                                sideOffset={6}
-                                // Light so it stands out on the dark Pro card too.
-                                className="max-w-60 bg-background text-foreground shadow-lg ring-1 ring-border [&_svg]:bg-background [&_svg]:fill-background"
-                              >
-                                {plan.usageExample}
-                              </TooltipContent>
-                            </Tooltip>
-                          </span>
-                        ) : (
-                          feature
-                        )}
+                        {feature}
                       </li>
                     ))}
                     {plan.soon && (
@@ -602,6 +624,8 @@ export default function LandingPage() {
                     </button>
                   </div>
                 </div>
+
+                <PlanLimitsBlock limits={{ monthly: planText.formatRuntime(teamPricing.totalHours * 3600), perVideo: planText.formatRuntime(teamConfig.youtubeMaxMinutes * 60) }} />
 
                 <ul className="mt-5 flex-1 space-y-3 border-t pt-5">
                   <li className="flex items-start gap-3 text-sm">
@@ -779,7 +803,7 @@ export default function LandingPage() {
               <Reveal key={resource.href} delay={(index % 2) * 0.06}>
                 <Link
                   href={resource.href}
-                  lang={resource.language}
+                  lang={contentLangAttr(resource.languages, locale)}
                   className="group flex items-start justify-between gap-6 border-b py-6 transition-colors"
                 >
                   <span>

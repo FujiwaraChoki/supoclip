@@ -1,5 +1,6 @@
 """Captions helpers for the video pipeline."""
 
+import re
 import unicodedata
 from typing import Any
 from typing import Callable
@@ -590,6 +591,18 @@ def _passage_breaks(
 
 
 CAPTION_LINE_MAX_PAUSE_SECONDS = 1.0
+# A line sits on a shot's own caption row when it is spoken inside that shot, give or take this much.
+CAPTION_ROW_EDGE_SECONDS = 0.15
+# A line stays up until the next one when the gap is this short, and is on screen at least MIN_HOLD
+# (never past the next line's start). Same values as the look captions (edit_fx.caption_groups).
+CAPTION_LINE_BRIDGE_SECONDS = 0.30
+CAPTION_LINE_MIN_HOLD_SECONDS = 0.40
+# A line that the next one replaces sooner than this cannot be read; it joins a neighbour instead.
+CAPTION_LINE_MIN_READABLE_SECONDS = 0.30
+
+_SENTENCE_END = re.compile(r"[.!?…。！？][\"'”’)\]]*$")
+# "Mr." and "J." end with a full stop without ending a sentence.
+_NOT_A_SENTENCE_END = frozenset({"mr", "mrs", "ms", "dr", "prof", "st", "jr", "sr", "vs", "mt", "no", "etc"})
 
 
 def _pause_breaks(words: List[Dict[str, Any]]) -> List[int]:
@@ -600,15 +613,106 @@ def _pause_breaks(words: List[Dict[str, Any]]) -> List[int]:
     ]
 
 
-def _chunk_bounds(word_count: int, chunk_size: int, breaks: List[int]):
+def ends_sentence(text: str) -> bool:
+    """True when a transcript word closes a sentence ("here?", "guess.", "go!")."""
+    word = (text or "").strip()
+    if not _SENTENCE_END.search(word):
+        return False
+    bare = re.sub(r"[^\w]+", "", word, flags=re.UNICODE).lower()
+    if word.endswith(".") and (bare in _NOT_A_SENTENCE_END or (len(bare) == 1 and bare.isalpha())):
+        return False
+    return True
+
+
+def _sentence_breaks(words: List[Dict[str, Any]]) -> List[int]:
+    """Indices of words that open a sentence, so a caption line never joins the end of one sentence
+    (or speaker) to the start of the next ("SIGN. YEAH, LISTEN, LET'S")."""
+    return [
+        index for index in range(1, len(words))
+        if ends_sentence(str(words[index - 1].get("text", "")))
+    ]
+
+
+def _merge_flash_lines(
+    lines: List[Tuple[int, int]], words: List[Dict[str, Any]], chunk_size: int, hard_breaks: Iterable[int],
+) -> List[Tuple[int, int]]:
+    """Join a line that the next one would replace too soon to read to a neighbour.
+
+    In fast speech a one-word sentence ("Yeah.") is followed by the next line a fifth of a second
+    later. Such a line goes with the line after it, or with the one before when they run together,
+    as long as the result stays within ``chunk_size`` words. Lines are never joined across a pause
+    or a passage break (``hard_breaks``).
+    """
+    hard = set(hard_breaks)
+    lines = list(lines)
+    index = 0
+    while index < len(lines) - 1:
+        start, stop = lines[index]
+        next_start, next_stop = lines[index + 1]
+        shown = float(words[next_start]["start"]) - float(words[start]["start"])
+        if shown >= CAPTION_LINE_MIN_READABLE_SECONDS:
+            index += 1
+            continue
+        if next_start not in hard and next_stop - start <= chunk_size:
+            lines[index:index + 2] = [(start, next_stop)]
+            continue
+        if index and start not in hard:
+            prev_start, prev_stop = lines[index - 1]
+            gap = float(words[start]["start"]) - float(words[prev_stop - 1]["end"])
+            if stop - prev_start <= chunk_size and gap <= CAPTION_LINE_BRIDGE_SECONDS:
+                lines[index - 1:index + 1] = [(prev_start, stop)]
+                index -= 1
+                continue
+        index += 1
+    return lines
+
+
+def _line_display_ends(lines: List[Tuple[float, float]], before_cut: Iterable[int] = ()) -> List[float]:
+    """When each caption line leaves the screen, given (first word start, last word end) per line.
+
+    A line ends with its last word, stays for the minimum hold, and bridges a short gap to the next
+    line. It never overlaps the next line and never waits out a long pause. A line that is the last
+    of its passage (``before_cut``: line indices) ends with its last word, so it is gone when a
+    planned clip jumps to its next moment.
+    """
+    cut = set(before_cut)
+    ends: List[float] = []
+    for index, (start, end) in enumerate(lines):
+        if index in cut:
+            ends.append(end)
+            continue
+        shown_until = max(end, start + CAPTION_LINE_MIN_HOLD_SECONDS)
+        if index + 1 < len(lines):
+            next_start = lines[index + 1][0]
+            if next_start - shown_until <= CAPTION_LINE_BRIDGE_SECONDS:
+                shown_until = next_start
+            shown_until = min(shown_until, max(next_start, start + 0.05))
+        ends.append(shown_until)
+    return ends
+
+
+def _chunk_bounds(word_count: int, chunk_size: int, breaks: List[int], balanced: bool = False):
     """Caption lines of ``chunk_size`` words that never straddle a passage break.
 
     A line showing the next beat's words before the cut would give the edit away.
+
+    ``balanced`` shares the words between two breaks evenly over the lines they need, so a sentence
+    of five words reads 3 + 2 instead of 4 and a single word left over.
     """
     start = 0
     for limit in [*sorted(set(breaks)), word_count]:
-        while start < min(limit, word_count):
-            stop = min(limit, word_count, start + chunk_size)
+        limit = min(limit, word_count)
+        if balanced and limit > start:
+            run = limit - start
+            lines = -(-run // chunk_size)
+            base, extra = divmod(run, lines)
+            for index in range(lines):
+                stop = start + base + (1 if index < extra else 0)
+                yield start, stop
+                start = stop
+            continue
+        while start < limit:
+            stop = min(limit, start + chunk_size)
             yield start, stop
             start = stop
 
@@ -649,8 +753,16 @@ def build_assemblyai_ass_subtitles(
     time_map: Optional[TimeMap] = None,
     censor_spans: Optional[Sequence[Tuple[float, float]]] = None,
     drop_screen_words: bool = False,
+    caption_rows: Optional[Sequence[Tuple[float, float, int]]] = None,
+    caption_rows_after_hook: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
+
+    ``caption_rows`` are (start, end, centre y in pixels) in clip seconds: a line spoken wholly inside one sits
+    on that row instead of the clip's own (a stacked two-shot's seam, see ``video_utils``). A line that reaches
+    past a row's ends keeps the clip's row. With ``caption_rows_after_hook`` the rows start once the hook title
+    has gone (the title has the seam while it shows).
+
 
     Renders OpusClip-style captions: a per-word active highlight that pops, an
     accent colour on emphasised power/keyword words, contextual emojis, a thick
@@ -687,6 +799,11 @@ def build_assemblyai_ass_subtitles(
 
     relevant_words: List[Dict[str, Any]] = list(caption_words or [])
     passage_breaks: List[int] = []
+    # Lines cut from the transcript follow speech (pauses, sentences). Words handed in by the editor or
+    # an FX caption edit keep their fixed groups: per-line placements are keyed by them.
+    natural_lines = False
+    hard_breaks: List[int] = []
+    jump_breaks: set = set()
     if (
         include_captions
         and not relevant_words
@@ -707,10 +824,13 @@ def build_assemblyai_ass_subtitles(
                 passage_breaks = _passage_breaks(transcript_data, keep_ranges)
         else:
             relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
-        if transcript_data is not every_word:
-            # A caption line holds each word until the next one starts. Across a line that was left out that
-            # is many seconds of the same words, so a line ends where words were left out.
-            passage_breaks = sorted({*passage_breaks, *_pause_breaks(relevant_words)})
+        # A caption line holds each word until the next one starts. Across a pause (a laugh, a silent
+        # stretch of gameplay, a line that was left out) that is seconds of the same words with the
+        # next ones already readable, so a line ends at a pause and at the end of a sentence.
+        jump_breaks = set(passage_breaks)
+        hard_breaks = sorted({*passage_breaks, *_pause_breaks(relevant_words)})
+        passage_breaks = sorted({*hard_breaks, *_sentence_breaks(relevant_words)})
+        natural_lines = True
     if not relevant_words and not hook_title and not point_labels:
         logger.warning("No words or hook title available for ASS subtitles")
         return False
@@ -871,7 +991,10 @@ def build_assemblyai_ass_subtitles(
 
     word_widths = [display_width(index, word) for index, word in enumerate(relevant_words)]
     chunk_spans: List[Tuple[int, int, float]] = []
-    for chunk_start, chunk_stop in _chunk_bounds(len(relevant_words), chunk_size, passage_breaks):
+    line_bounds = list(_chunk_bounds(len(relevant_words), chunk_size, passage_breaks, natural_lines))
+    if natural_lines:
+        line_bounds = _merge_flash_lines(line_bounds, relevant_words, chunk_size, hard_breaks)
+    for chunk_start, chunk_stop in line_bounds:
         if wrap_lines:
             chunk_spans.append((chunk_start, chunk_stop, 1.0))
             continue
@@ -900,8 +1023,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     def scaled(percent: int, scale: float) -> int:
         return max(1, round(percent * scale))
 
-    def line_prefix(scale: float) -> str:
-        tags = f"\\pos({x_pos},{y_pos})" + ("\\blur4" if glow else "")
+    def line_prefix(scale: float, y: Optional[int] = None) -> str:
+        tags = f"\\pos({x_pos},{y_pos if y is None else y})" + ("\\blur4" if glow else "")
         if scale < 1.0:
             tags += f"\\fscx{scaled(100, scale)}\\fscy{scaled(100, scale)}"
         return f"{{{tags}}}"
@@ -951,15 +1074,27 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events: List[str] = []
     original_geometry = (outline_px, shadow_px, box_bord)
-    for chunk_start, chunk_stop, chunk_scale in chunk_spans:
+    rows_from = hook_title_window(output_duration) if (caption_rows_after_hook and hook_title) else 0.0
+    display_ends = _line_display_ends(
+        [(float(relevant_words[a]["start"]), float(relevant_words[b - 1]["end"])) for a, b, _ in chunk_spans],
+        [index for index, (_, stop, _) in enumerate(chunk_spans) if stop in jump_breaks],
+    ) if natural_lines else None
+    for line_index, (chunk_start, chunk_stop, chunk_scale) in enumerate(chunk_spans):
         chunk = relevant_words[chunk_start:chunk_stop]
         indices = list(range(chunk_start, chunk_stop))
-        chunk_end = float(chunk[-1]["end"])
+        chunk_end = display_ends[line_index] if display_ends is not None else float(chunk[-1]["end"])
         prefix = line_prefix(chunk_scale)
         entrance_tags = line_entrance(chunk_scale)
         outline_px, shadow_px, box_bord = original_geometry
         placement = (caption_placements[chunk_start // chunk_size]
                      if caption_placements and chunk_start // chunk_size < len(caption_placements) else None)
+        if placement is None and caption_rows and time_map is None:
+            line_start = float(chunk[0]["start"])
+            for row_start, row_end, row_y in caption_rows:
+                if (line_start >= max(row_start - CAPTION_ROW_EDGE_SECONDS, rows_from)
+                        and float(chunk[-1]["end"]) <= row_end + CAPTION_ROW_EDGE_SECONDS):
+                    prefix = line_prefix(chunk_scale, int(row_y))
+                    break
         if placement is not None:
             px = placement["font_px"]
             outline_px = max(base_stroke, round(px * base_stroke / 26)) if has_outline else 0

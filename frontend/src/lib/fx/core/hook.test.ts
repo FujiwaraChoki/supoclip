@@ -382,5 +382,5 @@ describe("the frame", () => {
     });
     expectGolden("hook_outline_slam", renderSceneToPng(outlined("slam", "Never trust the first 3 offers"), 1.2));
     expectGolden("hook_outline_neon", renderSceneToPng(outlined("neon", "90% of podcast guests become real friends"), 1.2));
-  });
+  }, 30_000); // four full-size frames; a shared CI runner needs more than the default 5 s
 });

@@ -305,5 +305,6 @@
     "retry": "Reintentar",
     "approxTiming": "Este video no tenía tiempos por palabra, así que los subtítulos y efectos siguen tiempos aproximados.",
     "simplified": "Algunos efectos se simplificaron en este clip."
-  }
+  },
+  "sourceRange": "Parte {start}–{end}"
 }

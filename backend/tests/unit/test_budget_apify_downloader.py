@@ -52,6 +52,23 @@ def test_bounded_kv_file_submission_and_run_owned_file(config, tmp_path, monkeyp
     assert calls[0][1]['params']['maxTotalChargeUsd'] == .02
     assert calls[0][1]['params']['restartOnError'] == 'false'
     assert calls[0][1]['json']['quality'] == '1080p'
+    assert calls[0][1]['json']['maxMinutes'] == 720
+
+def test_kv_file_uses_configured_duration_cap_when_hosted(config, tmp_path, monkeypatch):
+    config.self_host = False
+    config.monetization_enabled = True
+    config.max_video_duration = 5400
+    config.pro_youtube_max_video_duration = 5400
+    config.scale_youtube_max_video_duration = 10800
+    calls = []
+    run = {'id': 'run1', 'status': 'SUCCEEDED', 'defaultDatasetId': 'ds1', 'defaultKeyValueStoreId': 'store1'}
+    def api(session, method, path, deadline, **kw):
+        calls.append((method, kw)); return {'data': run} if method == 'POST' else [record()]
+    monkeypatch.setattr(mod, '_api', api)
+    monkeypatch.setattr(mod, '_download', lambda url, target, *a, **k: target.write_bytes(b'video'))
+    monkeypatch.setattr(mod, '_verify_media', lambda *a: None)
+    mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
+    assert calls[0][1]['json']['maxMinutes'] == 180
 
 def test_wrong_video_rejected_and_staging_removed(config, tmp_path, monkeypatch):
     wrong = record(); wrong['videoId'] = 'S7CrlFLAmEA'

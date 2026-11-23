@@ -11,7 +11,7 @@
   },
   "highlights": {
     "videos": "{count} video di-clip setiap bulan",
-    "youtube": "Video YouTube sampai {length}",
+    "youtube": "Video sampai {length} per video",
     "fonts": "Font kustom, B-roll, dan template caption",
     "priority": "Pemrosesan prioritas",
     "minutes": "{length} video setiap bulan",
@@ -36,7 +36,11 @@
   "prorated": "Kamu mengonfirmasi perubahan di Stripe dan hanya membayar selisih prorata.",
   "cancelAnytime": "Batalkan kapan saja · Checkout aman dengan Stripe",
   "appStore": "Langgananmu dikelola lewat App Store. Kamu bisa ganti paket di aplikasi iOS SupoClip.",
-  "selfHostLink": "Atau host sendiri",
+  "selfHosted": {
+    "title": "Host sendiri",
+    "body": "Jalankan SupoClip di komputermu sendiri, tanpa langganan atau batas video bulanan. Perlu penyiapan; kamu menyediakan perangkat dan layanan AI berbayar yang kamu pilih.",
+    "guide": "Panduan host sendiri"
+  },
   "upgrade": {
     "start": {
       "eyebrow": "Siap kapan kamu siap",
@@ -58,8 +62,8 @@
       "eyebrow": "Yang panjang",
       "title": "{plan} bisa menerima video {runtime} ini",
       "fallbackPlan": "Paket yang lebih besar",
-      "body": "{plan} mencakup video YouTube sampai {length}. {next} menangani sampai {nextLength}, jadi yang ini langsung lolos. Percobaan ini tidak memakai menit.",
-      "bodyNoNext": "{plan} mencakup video YouTube sampai {length}. Percobaan ini tidak memakai menit."
+      "body": "{plan} menerima video sampai {length}. {next} menangani sampai {nextLength}, jadi yang ini langsung lolos. Percobaan ini tidak memakai menit.",
+      "bodyNoNext": "{plan} menerima video sampai {length}. Percobaan ini tidak memakai menit."
     },
     "fonts": {
       "eyebrow": "Jadikan milikmu",
@@ -120,5 +124,9 @@
   "comingSoon": "Segera hadir",
   "teamWorkspaceBody": "{team} menggunakan langganan Tim bersama. Pemilik dapat mengaktifkan paket atau menambah kursi untuk memperluas jam bulanan.",
   "manageTeamSeats": "Kelola tim & kursi",
-  "teamAskOwner": "{team} menggunakan langganan Tim bersama. Minta pemilik tim untuk mengaktifkan paket atau menambah kursi."
+  "teamAskOwner": "{team} menggunakan langganan Tim bersama. Minta pemilik tim untuk mengaktifkan paket atau menambah kursi.",
+  "gallery": {
+    "regionLabel": "Contoh clip yang dibuat dengan SupoClip",
+    "viewAll": "Contoh lainnya"
+  }
 }

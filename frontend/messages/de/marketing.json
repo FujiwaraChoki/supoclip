@@ -46,7 +46,7 @@
       "product": "Produkt"
     },
     "columnLinks": "{heading}-Links",
-    "operator": "Ein Produkt von {company}."
+    "operator": "SupoClip wird betrieben von {company}."
   },
   "creator": {
     "codeLead": "Code",
@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "FAQ"
+    },
+    "examples": {
+      "label": "Beispiel-Clips"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "Gehostete App öffnen",
     "toggleMenu": "Menü umschalten",
     "publishing": "Veröffentlichen",
-    "faq": "FAQ"
+    "faq": "FAQ",
+    "examples": "Beispiele"
   },
   "hero": {
     "badge": "Open Source und selbst hostbar. Auch fürs iPhone.",
@@ -507,11 +511,15 @@
       "features": {
         "pooledHours": "{hours} gemeinsame Videostunden/Monat",
         "seats": "{seats} Plätze mit geteilter Clip-Mediathek",
-        "quality": "Full-HD-{resolution}-Clips · YouTube bis {hours} Std.",
+        "quality": "Full-HD-{resolution}-Clips · Videos bis {hours} Std.",
         "sharedWorkspace": "Social-Planung & {aiEdits} gemeinsame KI-Edits/Monat",
         "roles": "Eigentümer-, Admin- & Mitgliedsrollen + höhere Parallelität",
         "aiEdits": "{aiEdits} gemeinsame KI-Edits/Monat"
       }
+    },
+    "limits": {
+      "monthly": "Video pro Monat",
+      "perVideo": "Max. Länge pro Video"
     }
   },
   "faq": {
@@ -529,7 +537,7 @@
       },
       "minutes": {
         "question": "Wie werden Minuten gezählt?",
-        "answer": "Tarife werden in Minuten Quellvideo gemessen, nicht in Clips. Pro enthält {proHours} Stunden im Monat, Creator {creatorHours} Stunden. Ein 30-Minuten-Video verbraucht 30 Minuten, egal wie viele Clips daraus entstehen. Das Kontingent wird jeden Monat zurückgesetzt, auch bei Jahrestarifen."
+        "answer": "Tarife werden in Minuten Quellvideo gemessen, nicht in Clips. Pro enthält {proHours} Stunden im Monat, Creator {creatorHours} Stunden. Ein 30-Minuten-Video verbraucht 30 Minuten, egal wie viele Clips daraus entstehen. Das Kontingent wird jeden Monat zurückgesetzt, auch bei Jahrestarifen. Ein einzelnes Video darf bei Pro bis {proMinutes} Minuten lang sein, bei Creator bis {creatorMinutes} Minuten."
       },
       "publishing": {
         "question": "Kann SupoClip auf TikTok und Instagram posten?",

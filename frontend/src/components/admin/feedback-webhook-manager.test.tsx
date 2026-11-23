@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { FeedbackWebhookManager } from "./feedback-webhook-manager";
 
 const webhook = {
@@ -141,5 +143,25 @@ describe("FeedbackWebhookManager", () => {
     ]));
     render(<FeedbackWebhookManager />);
     expect(await screen.findByText(/Sales \(Discord\) was imported from DISCORD_SALES_WEBHOOK_URL/)).toBeInTheDocument();
+  });
+
+  it("keeps no copy of a write-only webhook URL in the query client after saving", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(listing([]))
+      .mockResolvedValueOnce(Response.json({ webhook: { ...webhook, id: "hook-2", name: "Ops" } }, { status: 201 }))
+      .mockResolvedValueOnce(listing());
+    render(<FeedbackWebhookManager />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add webhook" }));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Ops" } });
+    fireEvent.change(screen.getByLabelText(/Webhook URL/), { target: { value: "https://discord.com/api/webhooks/1/secret-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save webhook" }));
+
+    expect(await screen.findByText("Webhook added.")).toBeInTheDocument();
+    expect(client.getMutationCache().getAll()).toHaveLength(0);
+    const cached = JSON.stringify(client.getQueryCache().getAll().map((query) => query.state.data));
+    expect(cached).not.toContain("secret-token");
   });
 });

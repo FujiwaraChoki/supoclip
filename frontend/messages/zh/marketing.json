@@ -46,7 +46,7 @@
       "product": "产品"
     },
     "columnLinks": "{heading}链接",
-    "operator": "由 {company} 提供的产品。"
+    "operator": "SupoClip 由 {company} 运营。"
   },
   "creator": {
     "codeLead": "优惠码",
@@ -189,6 +189,9 @@
     },
     "faq": {
       "label": "常见问题"
+    },
+    "examples": {
+      "label": "示例片段"
     }
   },
   "nav": {
@@ -205,7 +208,8 @@
     "openHosted": "打开托管应用",
     "toggleMenu": "打开或关闭菜单",
     "publishing": "发布",
-    "faq": "常见问题"
+    "faq": "常见问题",
+    "examples": "示例"
   },
   "hero": {
     "badge": "开源，可自托管。也有 iPhone 版。",
@@ -507,11 +511,15 @@
       "features": {
         "pooledHours": "每月 {hours} 小时共享视频时长",
         "seats": "{seats} 个席位及共享切片库",
-        "quality": "Full HD {resolution} 切片 · 最长 {hours} 小时 YouTube 视频",
+        "quality": "Full HD {resolution} 切片 · 单个视频最长 {hours} 小时",
         "sharedWorkspace": "社交定时发布与每月 {aiEdits} 次共享 AI 编辑",
         "roles": "所有者、管理员与成员权限 + 更高并发处理",
         "aiEdits": "每月 {aiEdits} 次共享 AI 编辑"
       }
+    },
+    "limits": {
+      "monthly": "每月视频时长",
+      "perVideo": "单个视频最长"
     }
   },
   "faq": {
@@ -529,7 +537,7 @@
       },
       "minutes": {
         "question": "分钟数如何计算？",
-        "answer": "方案按处理的原视频分钟数计量，而不是按片段数。Pro 每月包含 {proHours} 小时，Creator 包含 {creatorHours} 小时。一个 30 分钟的视频消耗 30 分钟，无论剪出多少片段。额度每月重置，年付方案也一样。"
+        "answer": "方案按处理的原视频分钟数计量，而不是按片段数。Pro 每月包含 {proHours} 小时，Creator 包含 {creatorHours} 小时。一个 30 分钟的视频消耗 30 分钟，无论剪出多少片段。额度每月重置，年付方案也一样。单个视频在 Pro 上最长 {proMinutes} 分钟，在 Creator 上最长 {creatorMinutes} 分钟。"
       },
       "publishing": {
         "question": "SupoClip 能发布到 TikTok 和 Instagram 吗？",
