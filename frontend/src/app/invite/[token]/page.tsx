@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
@@ -38,6 +39,20 @@ interface InvitationResponse {
   emailMatches: boolean;
 }
 
+const invitationKeys = {
+  detail: (token: string) => ["team-invitation", token] as const,
+};
+
+/** The invitation behind `token`; null when it does not exist (404). */
+async function fetchInvitation(token: string, loadFailed: string): Promise<InvitationResponse | null> {
+  const response = await fetch(`/api/teams/invitations/${encodeURIComponent(token)}`, {
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(loadFailed);
+  return (await response.json()) as InvitationResponse;
+}
+
 export default function AcceptInvitePage({
   params,
 }: {
@@ -45,45 +60,29 @@ export default function AcceptInvitePage({
 }) {
   const { token } = use(params);
   const t = useTranslations("team");
-  const [data, setData] = useState<InvitationResponse | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [accepting, setAccepting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
-  const loadInvite = useCallback(async () => {
-    setLoading(true);
-    setNotFound(false);
-    setErrorMessage(null);
-    try {
-      const response = await fetch(`/api/teams/invitations/${encodeURIComponent(token)}`, {
-        cache: "no-store",
-      });
-      if (response.status === 404) {
-        setNotFound(true);
-        return;
-      }
-      if (!response.ok) {
-        throw new Error(t("invite.loadFailed"));
-      }
-      const payload = (await response.json()) as InvitationResponse;
-      setData(payload);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("invite.loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [token, t]);
+  // Read once: a refetch on focus could swap the page under someone about to join.
+  const invite = useQuery({
+    queryKey: invitationKeys.detail(token),
+    queryFn: () => fetchInvitation(token, t("invite.loadFailed")),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const data = invite.data ?? null;
+  const notFound = invite.data === null;
+  // Also while "Try again" reloads a failed invitation.
+  const loading = invite.data === undefined && (invite.isPending || invite.isFetching);
+  const errorMessage = acceptError ?? (invite.isError ? invite.error.message || t("invite.loadFailed") : null);
+  const loadInvite = () => {
+    setAcceptError(null);
+    return invite.refetch();
+  };
 
-  useEffect(() => {
-    void loadInvite();
-  }, [loadInvite]);
-
-  const handleAccept = async () => {
-    setAccepting(true);
-    setErrorMessage(null);
-    try {
+  // A click, never on load: accepting joins the team.
+  const accept = useMutation({
+    mutationFn: async () => {
       const response = await fetch(
         `/api/teams/invitations/${encodeURIComponent(token)}/accept`,
         { method: "POST" },
@@ -95,14 +94,18 @@ export default function AcceptInvitePage({
       if (!response.ok) {
         throw new Error(payload.error || t("invite.acceptFailed"));
       }
+    },
+    onMutate: () => setAcceptError(null),
+    onSuccess: () => {
       invalidateWorkspaces();
       toast.success(t("invite.joinedToast", { team: data?.invitation.teamName ?? "" }));
       window.location.assign("/");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("invite.acceptFailed"));
-      setAccepting(false);
-    }
-  };
+    },
+    onError: (error) => setAcceptError(error instanceof Error ? error.message : t("invite.acceptFailed")),
+  });
+  // Stays on after success: the page is navigating away.
+  const accepting = accept.isPending || accept.isSuccess;
+  const handleAccept = () => accept.mutate();
 
   const handleSignOut = async () => {
     setSigningOut(true);

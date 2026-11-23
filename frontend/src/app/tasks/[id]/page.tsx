@@ -4,6 +4,7 @@ import { removeTaskDrafts } from "@/lib/editor/draft-cache";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useTaskProgress } from "@/hooks/use-task-progress";
@@ -83,11 +84,17 @@ import { formatClock } from "@/lib/source-range";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
-  ACTIVE_POST_STATUSES,
-  type SocialConnection,
-  type SocialPost,
-  type SocialProviderStatus,
-} from "@/lib/social";
+  taskPageKeys,
+  updateTaskDetail,
+  useBrollAvailable,
+  useCaptionTemplates,
+  useSocialPublishContext,
+  useTaskDetail,
+  useTaskFonts,
+  useTaskSocialPosts,
+  type CaptionTemplateOption,
+} from "@/lib/queries/task-detail";
+import type { SocialConnection, SocialProviderStatus } from "@/lib/social";
 import {
   defaultSort,
   expectedOutputs,
@@ -227,6 +234,12 @@ function noteParams(note: WorkflowNote, plan: WorkflowPlan | null, clipCount: nu
   return (NOTE_PARAMS[note.code] ?? []).every((key) => params[key] !== undefined && params[key] !== null) ? params : null;
 }
 
+const NO_CLIPS: Clip[] = [];
+const NO_FONTS: FontOption[] = [];
+const NO_TEMPLATES: CaptionTemplateOption[] = [];
+const NO_CONNECTIONS: SocialConnection[] = [];
+const NO_PROVIDERS: SocialProviderStatus[] = [];
+
 function sourceLabel(source: VideoSourceKind, uploadLabel: string) {
   return source === "upload" ? uploadLabel : VIDEO_SOURCE_LABELS[source];
 }
@@ -261,7 +274,21 @@ export default function TaskPage() {
   const alreadyProcessing = searchParams.get("already") === "1";
   const router = useRouter();
   const { data: session } = useSession();
-  const [task, setTask] = useState<TaskDetails | null>(null);
+  const queryClient = useQueryClient();
+  const taskId = params.id ? String(params.id) : "";
+  const taskQuery = useTaskDetail<TaskDetails, Clip>(taskId, (kind, status) =>
+    kind === "task" ? t("errors.fetchTask", { status }) : t("errors.fetchClips", { status }));
+  const task = taskQuery.data?.task ?? null;
+  const clips = taskQuery.data?.clips ?? NO_CLIPS;
+  // Progress lives on the cached task: a fetch sets it and SSE events overwrite it.
+  const progress = task?.progress ?? 0;
+  const progressMessage = task?.progress_message ?? "";
+  // A failed load the user asked for (first load, Retry, refresh after an action) replaces the page;
+  // a failed background refresh keeps the last task on screen.
+  const [foregroundFailed, setForegroundFailed] = useState(false);
+  const error = taskQuery.status === "error" && (foregroundFailed || !taskQuery.data)
+    ? (taskQuery.error instanceof Error ? taskQuery.error.message : t("errors.load"))
+    : null;
   const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
   // Source failures a retry can't fix get their own explanation.
   const failedBody = task?.error_code === "youtube_age_restricted"
@@ -271,11 +298,6 @@ export default function TaskPage() {
       : t("failedBody");
   // Next steps on the failure screen stay inside what this user may make.
   const workflowsInfo = useWorkflowsInfo(Boolean(failureCode));
-  const [clips, setClips] = useState<Clip[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -284,9 +306,6 @@ export default function TaskPage() {
   const [exportPreset, setExportPreset] = useState("original");
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
-  const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
-  const [socialProviders, setSocialProviders] = useState<SocialProviderStatus[]>([]);
-  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
 
   // null means "use the caption template's own value" — mirrors the create form's contract.
   const [projectFontFamily, setProjectFontFamily] = useState<string | null>(null);
@@ -301,21 +320,12 @@ export default function TaskPage() {
   const [storedEditStyle, setStoredEditStyle] = useState<EditStyle>(DEFAULT_EDIT_STYLE);
   const [projectEditStyle, setProjectEditStyle] = useState<EditStyle>(DEFAULT_EDIT_STYLE);
   const [clipJob, setClipJob] = useState<ClipJob | null>(null);
-  const [brollAvailable, setBrollAvailable] = useState(false);
-  useEffect(() => {
-    fetch("/api/broll/status")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => setBrollAvailable(data?.configured === true))
-      .catch(() => setBrollAvailable(false));
-  }, []);
+  const brollAvailable = useBrollAvailable();
   const [projectFilteredWords, setProjectFilteredWords] = useState("");
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
-  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+  const availableFonts = useTaskFonts().data ?? NO_FONTS;
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
-  const [availableTemplates, setAvailableTemplates] = useState<
-    Array<{ id: string; name: string; description: string; animation: string }>
-  >([]);
   const [fontToDelete, setFontToDelete] = useState<FontOption | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [billingSummary] = useBillingSummary(Boolean(session?.user?.id));
@@ -328,210 +338,80 @@ export default function TaskPage() {
 
   const taskApiUrl = "/api/tasks";
 
-  const loadSocialPosts = useCallback(async () => {
-    if (!params.id) return;
-    try {
-      const response = await fetch(`/api/social/posts?task_id=${params.id}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const data = (await response.json()) as { posts?: SocialPost[] };
-      setSocialPosts(data.posts ?? []);
-    } catch {
-      // Publishing is optional; never block the task page on it.
-    }
-  }, [params.id]);
-
-  const loadSocialContext = useCallback(async () => {
-    try {
-      const [connectionsResponse, providersResponse] = await Promise.all([
-        fetch("/api/social/connections", { cache: "no-store" }),
-        fetch("/api/social/providers", { cache: "no-store" }),
-      ]);
-      if (connectionsResponse.ok) {
-        const data = (await connectionsResponse.json()) as { connections?: SocialConnection[] };
-        setSocialConnections(data.connections ?? []);
-      }
-      if (providersResponse.ok) {
-        const data = (await providersResponse.json()) as { providers?: SocialProviderStatus[] };
-        setSocialProviders(data.providers ?? []);
-      }
-    } catch {
-      // Publishing is optional; never block the task page on it.
-    }
-    await loadSocialPosts();
-  }, [loadSocialPosts]);
-
-  // Load publishing context once the task is done, then poll while a post is in flight.
-  useEffect(() => {
-    if (!session?.user?.id || task?.status !== "completed") return;
-    void loadSocialContext();
-  }, [session?.user?.id, task?.status, loadSocialContext]);
-
-  // Poll quickly while an upload is in flight so its progress and outcome show
-  // up promptly, and slowly while something is scheduled.
+  // Publishing context loads once the task is done; posts poll while one is in flight or scheduled.
+  const socialEnabled = Boolean(session?.user?.id) && task?.status === "completed";
+  const socialContext = useSocialPublishContext(socialEnabled);
+  const socialConnections = socialContext.connections ?? NO_CONNECTIONS;
+  const socialProviders = socialContext.providers ?? NO_PROVIDERS;
+  const { posts: socialPosts, reload: loadSocialPosts } = useTaskSocialPosts(taskId, socialEnabled);
   useSocialPostToasts(socialPosts);
-  useEffect(() => {
-    const inFlight = socialPosts.some((post) => ACTIVE_POST_STATUSES.includes(post.status));
-    const scheduled = socialPosts.some((post) => post.status === "scheduled");
-    if (!inFlight && !scheduled) return;
-    const interval = window.setInterval(() => {
-      void loadSocialPosts();
-    }, inFlight ? 4000 : 30000);
-    return () => window.clearInterval(interval);
-  }, [socialPosts, loadSocialPosts]);
 
   const buildSupportError = useCallback(async (response: Response, fallbackMessage: string) => {
     const parsed = await parseApiError(response, fallbackMessage);
     return formatSupportMessage(parsed);
   }, []);
 
-  const fetchTaskStatus = useCallback(
-    async (retryCount = 0, maxRetries = 5, background = false) => {
-      if (!params.id) return false;
-
-      try {
-        const taskResponse = await fetch(`${taskApiUrl}/${params.id}`, {
-          cache: "no-store",
-        });
-
-        // Handle 404 with retry logic (task might not be persisted yet)
-        if (taskResponse.status === 404 && retryCount < maxRetries) {
-          console.log(
-            `Task not found yet, retrying in ${(retryCount + 1) * 500}ms... (${retryCount + 1}/${maxRetries})`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
-          return fetchTaskStatus(retryCount + 1, maxRetries, background);
-        }
-
-        if (!taskResponse.ok) {
-          throw new Error(await buildSupportError(taskResponse, t("errors.fetchTask", { status: taskResponse.status })));
-        }
-
-        const taskData = await taskResponse.json();
-        setProgress(taskData.progress ?? 0);
-        setProgressMessage(taskData.progress_message ?? "");
-        setError(null);
-        if (!background) {
-        setProjectFontFamily(taskData.font_family ?? null);
-        setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
-        setProjectFontColor(taskData.font_color ?? null);
-        setProjectCaptionTemplate(taskData.caption_template || "default");
-        setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
-        setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 1200));
-        setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
-        setProjectIncludeBroll(Boolean(taskData.include_broll));
-        setProjectFilteredWords((taskData.filtered_words || []).join(", "));
-        setStoredEditStyle(readEditStyle(taskData.edit_style));
-        setProjectEditStyle(readEditStyle(taskData.edit_style));
-        if (!sortChosen.current) {
-          sortChosen.current = true;
-          setSortBy(defaultSort(taskWorkflow(taskData)));
-        }
-        }
-
-        // Queued retries can already have completed clips, including after reload.
-        const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, {
-          cache: "no-store",
-        });
-
-        if (!clipsResponse.ok) {
-          throw new Error(await buildSupportError(clipsResponse, t("errors.fetchClips", { status: clipsResponse.status })));
-        }
-
-        const clipsData = await clipsResponse.json();
-        const nextClips = clipsData.clips || [];
-        setClips((prev) => {
-          // Once the task stops, the server's list is the truth: a failed series,
-          // recap or trailer has had its clips deleted (and its minutes refunded).
-          if (taskData.status !== "processing") {
-            return nextClips;
-          }
-
-          const merged = new Map<string, Clip>();
-          for (const clip of prev) {
-            merged.set(clip.id, clip);
-          }
-          for (const clip of nextClips) {
-            merged.set(clip.id, clip);
-          }
-          return Array.from(merged.values()).sort(
-            (a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
-          );
-        });
-
-        setTask(taskData);
-        return true;
-      } catch (err) {
-        console.error("Error fetching task data:", err);
-        if (!background) setError(err instanceof Error ? err.message : t("errors.load"));
-        return false;
-      }
-    },
-    [buildSupportError, params.id, t, taskApiUrl],
-  );
-
-  // Initial fetch - runs immediately, doesn't wait for session
-  useEffect(() => {
-    if (!params.id) return;
-
-    const fetchTaskData = async () => {
-      try {
-        setIsLoading(true);
-        await fetchTaskStatus();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTaskData();
-  }, [params.id, fetchTaskStatus]);
-
-  useEffect(() => {
-    const loadFonts = async () => {
-      try {
-        const response = await fetch("/api/fonts", { cache: "no-store" });
-        if (!response.ok) {
-          return;
-        }
-        const data = await response.json();
-        setAvailableFonts(data.fonts || []);
-      } catch (loadError) {
-        console.error("Failed to load fonts:", loadError);
-      }
-    };
-
-    void loadFonts();
+  /** Fill the restyle sheet from the task as stored; the first load also picks the default sort. */
+  const syncSettingsFromTask = useCallback((taskData: TaskDetails) => {
+    setProjectFontFamily(taskData.font_family ?? null);
+    setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
+    setProjectFontColor(taskData.font_color ?? null);
+    setProjectCaptionTemplate(taskData.caption_template || "default");
+    setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
+    setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 1200));
+    setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
+    setProjectIncludeBroll(Boolean(taskData.include_broll));
+    setProjectFilteredWords((taskData.filtered_words || []).join(", "));
+    setStoredEditStyle(readEditStyle(taskData.edit_style));
+    setProjectEditStyle(readEditStyle(taskData.edit_style));
+    if (!sortChosen.current) {
+      sortChosen.current = true;
+      setSortBy(defaultSort(taskWorkflow(taskData)));
+    }
   }, []);
+
+  // The first load fetched on this visit fills the sheet (a cached task from an earlier visit does not).
+  const syncedOnMount = useRef(false);
+  const mountTask = taskQuery.isFetchedAfterMount && taskQuery.status === "success" ? taskQuery.data?.task : undefined;
+  useEffect(() => {
+    if (!mountTask || syncedOnMount.current) return;
+    syncedOnMount.current = true;
+    syncSettingsFromTask(mountTask);
+  }, [mountTask, syncSettingsFromTask]);
+
+  const { refetch: refetchTask } = taskQuery;
+  /** Reload the task the user is waiting on: a failure shows the error page, success refills the sheet. */
+  const reloadTask = useCallback(async () => {
+    const result = await refetchTask();
+    setForegroundFailed(result.status === "error");
+    if (result.status === "success") syncSettingsFromTask(result.data.task);
+  }, [refetchTask, syncSettingsFromTask]);
+  /** Refresh behind the scenes (SSE reconcile, finished clip job): a failure keeps what is on screen. */
+  const refreshTaskInBackground = useCallback(async () => {
+    await refetchTask({ cancelRefetch: false });
+  }, [refetchTask]);
 
   // Dynamic edits are offered (and animated templates asked for) only when the server says they're on for this user.
   const editStylesInfo = useEditStylesInfo(Boolean(session?.user?.id));
   const fxEnabled = editStylesInfo?.enabled === true;
-  useEffect(() => {
-    let cancelled = false;
-    const loadTemplates = async () => {
-      try {
-        const response = await fetch(fxEnabled ? "/api/caption-templates?include=fx" : "/api/caption-templates");
-        if (response.ok && !cancelled) {
-          const data = await response.json();
-          setAvailableTemplates(data.templates || []);
-        }
-      } catch (error) {
-        console.error("Failed to load caption templates:", error);
-      }
-    };
-    void loadTemplates();
-    return () => { cancelled = true; };
-  }, [fxEnabled]);
+  const availableTemplates = useCaptionTemplates(fxEnabled).data ?? NO_TEMPLATES;
 
   const { reconnecting } = useTaskProgress<Clip>({
-    taskId: String(params.id || ""),
+    taskId,
     active: ACTIVE_TASK_STATUSES.includes(task?.status || ""),
-    refresh: () => fetchTaskStatus(0, 0, true),
-    onProgress: (data) => {
-      if (typeof data.progress === "number") setProgress(data.progress);
-      if (typeof data.message === "string") setProgressMessage(data.message);
-    },
-    onClip: (clip) => setClips((current) =>
-      [...current.filter((item) => item.id !== clip.id), clip].sort((a, b) => a.clip_order - b.clip_order)),
+    refresh: refreshTaskInBackground,
+    onProgress: (data) => updateTaskDetail<TaskDetails, Clip>(queryClient, taskId, (current) => ({
+      ...current,
+      task: {
+        ...current.task,
+        ...(typeof data.progress === "number" ? { progress: data.progress } : {}),
+        ...(typeof data.message === "string" ? { progress_message: data.message } : {}),
+      },
+    })),
+    onClip: (clip) => updateTaskDetail<TaskDetails, Clip>(queryClient, taskId, (current) => ({
+      ...current,
+      clips: [...current.clips.filter((item) => item.id !== clip.id), clip].sort((a, b) => a.clip_order - b.clip_order),
+    })),
   });
 
   const runAction = async (name: string, action: () => Promise<void>) => {
@@ -573,7 +453,7 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
-        setTask(task ? { ...task, source_title: editedTitle } : null);
+        updateTaskDetail<TaskDetails, Clip>(queryClient, taskId, (current) => ({ ...current, task: { ...current.task, source_title: editedTitle } }));
         setIsEditing(false);
       } else {
         toast.error(await buildSupportError(response, t("errors.updateTitle")));
@@ -618,7 +498,7 @@ export default function TaskPage() {
 
       if (response.ok) {
         removeTaskDrafts(String(params.id), clipId);
-        setClips(clips.filter((clip) => clip.id !== clipId));
+        updateTaskDetail<TaskDetails, Clip>(queryClient, taskId, (current) => ({ ...current, clips: current.clips.filter((clip) => clip.id !== clipId) }));
         setDeletingClipId(null);
       } else {
         toast.error(await buildSupportError(response, t("errors.deleteClip")));
@@ -700,7 +580,7 @@ export default function TaskPage() {
         toast.success(t("fx.queued"));
         return;
       }
-      await fetchTaskStatus();
+      await reloadTask();
       setSettingsSheetOpen(false);
       toast.success(t("toasts.settingsApplied"));
     } catch (err) {
@@ -740,10 +620,10 @@ export default function TaskPage() {
           return fail(t("fx.jobFailed", { message: known ?? (end.message || t("errors.applySettings")) }), (job) => (job.request ? "resend" : undefined));
         }
         setClipJob(null);
-        void fetchTaskStatus(0, 0, true).then(() => { if (end.status === "done") toast.success(t("fx.applied")); });
+        void refreshTaskInBackground().then(() => { if (end.status === "done") toast.success(t("fx.applied")); });
       },
     });
-  }, [clipJobId, params.id, taskApiUrl, fetchTaskStatus, t]);
+  }, [clipJobId, params.id, taskApiUrl, refreshTaskInBackground, t]);
 
   const dismissClipJob = () => {
     if (params.id) storeClipJob(String(params.id), null);
@@ -773,8 +653,7 @@ export default function TaskPage() {
         throw new Error(await buildSupportError(response, t("errors.deleteFont")));
       }
 
-      const remainingFonts = availableFonts.filter((item) => item.name !== font.name);
-      setAvailableFonts(remainingFonts);
+      queryClient.setQueryData<FontOption[]>(taskPageKeys.fonts, (current) => current?.filter((item) => item.name !== font.name));
       if (projectFontFamily === font.name) {
         // The deleted font was in use — fall back to the caption template's own font.
         setProjectFontFamily(null);
@@ -861,7 +740,7 @@ export default function TaskPage() {
         return;
       }
       // Finished clips stay and the worker renders only what's missing.
-      await fetchTaskStatus();
+      await reloadTask();
       toast.success(t("toasts.retryQueued"));
     });
   };
@@ -910,9 +789,7 @@ export default function TaskPage() {
 
       const data = (await response.json()) as { share_path: string };
       const shareUrl = new URL(data.share_path, window.location.origin).toString();
-      setTask((currentTask) =>
-        currentTask ? { ...currentTask, share_enabled: true } : currentTask,
-      );
+      updateTaskDetail<TaskDetails, Clip>(queryClient, taskId, (current) => ({ ...current, task: { ...current.task, share_enabled: true } }));
       const outcome = await copyText(shareUrl);
       if (outcome !== "copied") {
         setShareState("idle");
@@ -937,9 +814,7 @@ export default function TaskPage() {
       if (!response.ok) {
         throw new Error(await buildSupportError(response, t("errors.disableShare")));
       }
-      setTask((currentTask) =>
-        currentTask ? { ...currentTask, share_enabled: false } : currentTask,
-      );
+      updateTaskDetail<TaskDetails, Clip>(queryClient, taskId, (current) => ({ ...current, task: { ...current.task, share_enabled: false } }));
     } catch (revokeError) {
       toast.error(revokeError instanceof Error ? revokeError.message : t("errors.disableShare"));
     } finally {
@@ -947,8 +822,8 @@ export default function TaskPage() {
     }
   };
 
-  if (isLoading) return <PageLoading />;
-  if (error) return <PageError message={error} retry={() => void fetchTaskStatus()} />;
+  if (taskQuery.isPending) return <PageLoading />;
+  if (error) return <PageError message={error} retry={() => void reloadTask()} />;
 
   const readOnly = Boolean(session?.user?.id && task?.user_id && session.user.id !== task.user_id);
   const sourceVideoUrl = task ? originalVideoUrl(task) : null;
@@ -1160,7 +1035,7 @@ export default function TaskPage() {
               <Button size="sm" variant="outline" disabled={pendingAction !== null}
                 onClick={() => void runAction("cancel", async () => {
                   await requestAction(`${taskApiUrl}/${task.id}/cancel`, "POST");
-                  await fetchTaskStatus();
+                  await reloadTask();
                   toast.success(t("toasts.cancelled"));
                 })}>
                 {t("cancel")}

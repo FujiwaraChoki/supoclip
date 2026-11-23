@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useReducedMotion } from "motion/react";
@@ -14,40 +15,18 @@ import {
 } from "@/lib/example-gallery";
 import { cn } from "@/lib/utils";
 
-/** Module-level cache so reopening the upgrade dialog reuses the fetched catalog without re-fetching. */
-let cachedManifestClips: GalleryClip[] | null = null;
-let hasFetchedCatalog = false;
-let inflightCatalog: Promise<GalleryClip[] | null> | null = null;
+export const examplesGalleryKey = ["examples-gallery"] as const;
 
-/** Resets module-level gallery cache (for unit tests). */
-export function resetUpgradeExamplesGalleryCache() {
-  cachedManifestClips = null;
-  hasFetchedCatalog = false;
-  inflightCatalog = null;
-}
-
+/** The live catalog, or null (bundled clips stay) when it is missing, empty or fails. Never throws. */
 async function loadRemoteGalleryClips(): Promise<GalleryClip[] | null> {
-  if (cachedManifestClips) return cachedManifestClips;
-  if (hasFetchedCatalog) return null;
-  if (inflightCatalog) return inflightCatalog;
-
-  inflightCatalog = fetch("/api/examples")
-    .then(async (response) => {
-      if (!response.ok) return null;
-      const data = (await response.json()) as Partial<ExamplesGalleryPayload> | null;
-      if (data?.source === "manifest" && Array.isArray(data.clips) && data.clips.length > 0) {
-        cachedManifestClips = data.clips;
-        return data.clips;
-      }
-      return null;
-    })
-    .catch(() => null)
-    .finally(() => {
-      hasFetchedCatalog = true;
-      inflightCatalog = null;
-    });
-
-  return inflightCatalog;
+  try {
+    const response = await fetch("/api/examples");
+    if (!response.ok) return null;
+    const data = (await response.json()) as Partial<ExamplesGalleryPayload> | null;
+    return data?.source === "manifest" && Array.isArray(data.clips) && data.clips.length > 0 ? data.clips : null;
+  } catch {
+    return null;
+  }
 }
 
 const COLUMN_CONFIG = [
@@ -158,20 +137,14 @@ function GalleryVideoCard({
 export function UpgradeExamplesGallery({ className }: { className?: string }) {
   const t = useTranslations("billing");
   const reduceMotion = Boolean(useReducedMotion());
-  const [clips, setClips] = useState<GalleryClip[]>(() => cachedManifestClips ?? LOCAL_EXAMPLE_CLIPS);
-
-  useEffect(() => {
-    if (cachedManifestClips || hasFetchedCatalog) return;
-    let cancelled = false;
-    void loadRemoteGalleryClips().then((remote) => {
-      if (!cancelled && remote) {
-        setClips(remote);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Asked once per page load: reopening the upgrade dialog reuses the answer, a failure included.
+  const { data: remoteClips } = useQuery({
+    queryKey: examplesGalleryKey,
+    queryFn: loadRemoteGalleryClips,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  const clips = remoteClips ?? LOCAL_EXAMPLE_CLIPS;
 
   const columns = useMemo(() => buildGalleryColumns(clips, COLUMN_CONFIG.length, 3), [clips]);
 

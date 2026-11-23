@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
@@ -68,6 +69,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { usePollUntil } from "@/lib/queries/settings-polling";
 
 interface TeamMemberItem {
   userId: string;
@@ -150,6 +152,26 @@ interface TeamDetailPayload {
   } | null;
 }
 
+const teamKeys = {
+  detail: (teamId: string) => ["team-detail", teamId] as const,
+  awaitPaid: (teamId: string) => ["team-detail", teamId, "await-paid"] as const,
+};
+
+/** The team's settings view; throws with the server's reason when it gives one. */
+async function fetchTeamDetail(teamId: string, loadFailed: string): Promise<TeamDetailPayload> {
+  const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || loadFailed);
+  }
+  return (await response.json()) as TeamDetailPayload;
+}
+
+const isPaidTeam = (detail: TeamDetailPayload) =>
+  hasPaidAccess(detail.team.plan, detail.team.subscriptionStatus, detail.team.subscriptionProvider);
+
 function memberInitials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email || "?";
   return source
@@ -179,12 +201,6 @@ export default function TeamSettingsPage() {
     switchWorkspace,
     createTeam,
   } = useWorkspace(Boolean(session?.user));
-
-  const [detail, setDetail] = useState<TeamDetailPayload | null>(null);
-  // The last loaded detail, to tell a draft the user changed from one still showing the server's value.
-  const loadedDetail = useRef<TeamDetailPayload | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
 
   // Create team form (when in personal workspace)
   const [newTeamName, setNewTeamName] = useState("");
@@ -228,58 +244,42 @@ export default function TeamSettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingTeam, setDeletingTeam] = useState(false);
 
-  const loadDetail = useCallback(
-    async (teamId: string, silent = false) => {
-      if (!silent) {
-        setLoadingDetail(true);
-        setDetailError(null);
-      }
-      try {
-        const response = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as { error?: string };
-          throw new Error(payload.error || t("errors.loadFailed"));
-        }
-        const payload = (await response.json()) as TeamDetailPayload;
-        const previous = loadedDetail.current;
-        loadedDetail.current = payload;
-        setDetail(payload);
-        setDetailError(null);
-        // A background refresh follows the server only where the user has not typed something else.
-        const fresh = !silent || !previous;
-        const seatsOf = (value: TeamDetailPayload) => Math.max(teamConfig.includedSeats, value.seats.limit);
-        setTeamNameDraft((draft) => (fresh || draft === previous.team.name ? payload.team.name : draft));
-        setDesiredSeats((draft) => (fresh || draft === seatsOf(previous) ? seatsOf(payload) : draft));
-        const interval = payload.usage?.billing?.billing_interval;
-        if (interval) {
-          setBillingInterval((draft) =>
-            fresh || draft === (previous.usage?.billing?.billing_interval ?? draft) ? interval : draft,
-          );
-        }
-        return payload;
-      } catch (error) {
-        // What is on screen stays when a background refresh fails; the next one catches up.
-        if (!silent) setDetailError(error instanceof Error ? error.message : t("errors.loadFailed"));
-        return null;
-      } finally {
-        if (!silent) setLoadingDetail(false);
-      }
-    },
-    [t, teamConfig.includedSeats],
-  );
+  const queryClient = useQueryClient();
+  const teamId = session?.user?.id && activeTeamId ? activeTeamId : null;
+  const detailQuery = useQuery({
+    queryKey: teamKeys.detail(teamId ?? ""),
+    queryFn: () => fetchTeamDetail(teamId!, t("errors.loadFailed")),
+    enabled: teamId !== null,
+  });
+  // A failed refresh keeps what is on screen (the query keeps its data); only a first load that fails says so.
+  const detail = teamId ? detailQuery.data ?? null : null;
+  const loadingDetail = !detail && (detailQuery.isPending || detailQuery.isFetching);
+  const detailError = !detail && detailQuery.isError
+    ? detailQuery.error.message || t("errors.loadFailed")
+    : null;
+  const retryDetail = () => void detailQuery.refetch();
+  /** Reload the team in the background, after a change made here. */
+  const refreshDetail = (id: string) => queryClient.invalidateQueries({ queryKey: teamKeys.detail(id) });
 
-  useEffect(() => {
-    if (!session?.user?.id || !activeTeamId) {
-      loadedDetail.current = null;
-      setDetail(null);
-      return;
+  // The detail the drafts were last synced with, to tell a draft the user changed from one
+  // still showing the server's value.
+  const [syncedDetail, setSyncedDetail] = useState<TeamDetailPayload | null>(null);
+  if (detail && detail !== syncedDetail) {
+    const previous = syncedDetail;
+    setSyncedDetail(detail);
+    // A refresh of the same team follows the server only where the user has not typed something else.
+    const fresh = !previous || previous.team.id !== detail.team.id;
+    const seatsOf = (value: TeamDetailPayload) => Math.max(teamConfig.includedSeats, value.seats.limit);
+    if (fresh || teamNameDraft === previous.team.name) setTeamNameDraft(detail.team.name);
+    if (fresh || desiredSeats === seatsOf(previous)) setDesiredSeats(seatsOf(detail));
+    const interval = detail.usage?.billing?.billing_interval;
+    if (interval && (fresh || billingInterval === (previous.usage?.billing?.billing_interval ?? billingInterval))) {
+      setBillingInterval(interval);
     }
-    void loadDetail(activeTeamId);
-  }, [session?.user?.id, activeTeamId, loadDetail]);
+  }
 
-  // Handle return from Stripe checkout (?billing=success).
+  // Handle return from Stripe checkout (?billing=success): look again until the plan is paid.
+  const [awaitingCheckout, setAwaitingCheckout] = useState(false);
   useEffect(() => {
     if (!activeTeamId) return;
     const params = new URLSearchParams(window.location.search);
@@ -294,26 +294,35 @@ export default function TeamSettingsPage() {
       `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`,
     );
 
-    if (outcome !== "success") return;
+    if (outcome === "success") setAwaitingCheckout(true);
+  }, [activeTeamId]);
 
-    let attempts = 0;
-    const timer = window.setInterval(async () => {
-      attempts += 1;
-      const latest = await loadDetail(activeTeamId, true);
-      if (latest && hasPaidAccess(latest.team.plan, latest.team.subscriptionStatus, latest.team.subscriptionProvider)) {
-        window.clearInterval(timer);
-        invalidateWorkspaces();
-        toast.success(t("toasts.subscriptionActive"));
-        return;
-      }
-      if (attempts >= 8) {
-        window.clearInterval(timer);
-        invalidateWorkspaces();
-        toast.success(t("toasts.subscriptionProcessing"));
-      }
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [activeTeamId, loadDetail, t]);
+  const checkoutPoll = usePollUntil({
+    queryKey: teamKeys.awaitPaid(teamId ?? ""),
+    queryFn: () => fetchTeamDetail(teamId!, "").catch(() => null),
+    enabled: awaitingCheckout && teamId !== null,
+    done: isPaidTeam,
+    // The first look now, then 8 more every 1.5s.
+    attempts: 9,
+    intervalMs: 1500,
+  });
+  const polledDetail = checkoutPoll.data;
+  const checkoutPollExhausted = checkoutPoll.exhausted;
+  useEffect(() => {
+    if (!awaitingCheckout) return;
+    if (polledDetail) queryClient.setQueryData(teamKeys.detail(polledDetail.team.id), polledDetail);
+    if (polledDetail && isPaidTeam(polledDetail)) {
+      setAwaitingCheckout(false);
+      invalidateWorkspaces();
+      toast.success(t("toasts.subscriptionActive"));
+      return;
+    }
+    if (checkoutPollExhausted) {
+      setAwaitingCheckout(false);
+      invalidateWorkspaces();
+      toast.success(t("toasts.subscriptionProcessing"));
+    }
+  }, [awaitingCheckout, polledDetail, checkoutPollExhausted, queryClient, t]);
 
   /** The server's reason in the reader's language where it has a code we know, else its own text. */
   const serverMessage = (payload: { error?: string; code?: string }, fallback: string) => {
@@ -382,7 +391,7 @@ export default function TeamSettingsPage() {
       if (!response.ok) throw new Error(payload.error || t("errors.updateFailed"));
       toast.success(t("toasts.renamed"));
       invalidateWorkspaces();
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.updateFailed"));
     } finally {
@@ -431,7 +440,7 @@ export default function TeamSettingsPage() {
       }
       toast.success(t("toasts.seatsUpdated", { count: desiredSeats }));
       invalidateWorkspaces();
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.seatsUpdateFailed"));
     } finally {
@@ -499,7 +508,7 @@ export default function TeamSettingsPage() {
         payload.emailSent ? t("toasts.inviteSent", { email }) : t("toasts.inviteCreated", { email }),
       );
       invalidateWorkspaces();
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.inviteFailed"));
     } finally {
@@ -531,7 +540,7 @@ export default function TeamSettingsPage() {
         });
       }
       toast.success(t("toasts.inviteResent", { email: invite.email }));
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.resendFailed"));
     } finally {
@@ -551,7 +560,7 @@ export default function TeamSettingsPage() {
       if (!response.ok) throw new Error(payload.error || t("errors.revokeFailed"));
       toast.success(t("toasts.inviteRevoked", { email: invite.email }));
       invalidateWorkspaces();
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.revokeFailed"));
     } finally {
@@ -574,7 +583,7 @@ export default function TeamSettingsPage() {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error || t("errors.roleUpdateFailed"));
       toast.success(t("toasts.roleUpdated"));
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.roleUpdateFailed"));
     } finally {
@@ -629,7 +638,7 @@ export default function TeamSettingsPage() {
       if (!response.ok) throw new Error(payload.error || t("errors.limitsUpdateFailed"));
       toast.success(t("toasts.limitsUpdated"));
       setLimitsTarget(null);
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.limitsUpdateFailed"));
     } finally {
@@ -663,7 +672,7 @@ export default function TeamSettingsPage() {
         return;
       }
       toast.success(t("toasts.memberRemoved"));
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.removeMemberFailed"));
     } finally {
@@ -697,7 +706,7 @@ export default function TeamSettingsPage() {
       toast.success(t("toasts.ownershipTransferred"));
       setTransferTargetId("");
       invalidateWorkspaces();
-      await loadDetail(detail.team.id, true);
+      await refreshDetail(detail.team.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("errors.transferFailed"));
     } finally {
@@ -897,7 +906,7 @@ export default function TeamSettingsPage() {
           size="sm"
           className="mt-4"
           disabled={loadingDetail}
-          onClick={() => void loadDetail(activeTeamId)}
+          onClick={retryDetail}
         >
           {loadingDetail && <Loader2 className="size-3.5 animate-spin" />}
           {t("invite.retry")}

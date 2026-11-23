@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
@@ -17,6 +18,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/auth-client";
 import { useCopyText } from "@/lib/copy-text";
 import { appStoreRedeemUrl } from "@/lib/site";
+import {
+  creatorProgramKeys,
+  useCreatorProgram,
+  type CreatorApplication as Application,
+  type CreatorProgramState,
+} from "@/lib/queries/settings-creator";
 
 const APPLY_PATH = "/settings/creator-program";
 
@@ -32,13 +39,6 @@ const AUDIENCE_KEYS = {
   "10k-100k": "from10k",
   "100k-plus": "from100k",
 } as const;
-
-interface Application {
-  slug: string | null;
-  status: "pending" | "approved" | "declined" | "revoked";
-  decline_reason: string | null;
-  app_store_code_added_at: string | null;
-}
 
 type SlugState = { state: "idle" | "checking" } | { state: "available" } | { state: "unavailable"; reason: string };
 
@@ -71,10 +71,14 @@ function CopyField({ label, value, copyLabel }: { label: string; value: string; 
 export default function CreatorProgramPage() {
   const t = useTranslations("settings");
   const { data: session, isPending } = useSession();
-  const [application, setApplication] = useState<Application | null>(null);
-  const [canApplyAt, setCanApplyAt] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const userId = session?.user?.id;
+  const program = useCreatorProgram(userId, t("creator.loadFailed"));
+  const application = program.data?.application ?? null;
+  const canApplyAt = program.data?.can_apply_at ?? null;
+  const isLoading = program.isPending;
+  const [submitError, setError] = useState<string | null>(null);
+  const error = submitError ?? (program.isError ? program.error.message || t("creator.loadFailed") : null);
 
   const [slug, setSlug] = useState("");
   const [slugState, setSlugState] = useState<SlugState>({ state: "idle" });
@@ -84,20 +88,6 @@ export default function CreatorProgramPage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [promotionPlan, setPromotionPlan] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    fetch("/api/affiliates", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(t("creator.loadFailed"));
-        const data = await response.json();
-        setApplication(data.application);
-        setCanApplyAt(data.can_apply_at);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : t("creator.loadFailed")))
-      .finally(() => setIsLoading(false));
-  }, [session?.user?.id, t]);
 
   useEffect(() => {
     const value = slug.trim();
@@ -122,11 +112,8 @@ export default function CreatorProgramPage() {
     };
   }, [slug, t]);
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-    try {
+  const apply = useMutation({
+    mutationFn: async () => {
       const response = await fetch("/api/affiliates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,13 +129,22 @@ export default function CreatorProgramPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t("creator.submitFailed"));
-      setApplication(data.application);
-      setCanApplyAt(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("creator.submitFailed"));
-    } finally {
-      setIsSubmitting(false);
-    }
+      return data.application as Application;
+    },
+    onMutate: () => setError(null),
+    onSuccess: (submitted) => {
+      queryClient.setQueryData<CreatorProgramState>(creatorProgramKeys.detail(userId ?? ""), {
+        application: submitted,
+        can_apply_at: null,
+      });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : t("creator.submitFailed")),
+  });
+  const isSubmitting = apply.isPending;
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    apply.mutate();
   };
 
   if (isPending || (session?.user && isLoading)) {

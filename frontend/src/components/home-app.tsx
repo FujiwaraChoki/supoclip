@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, useId } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -47,7 +48,9 @@ import { track } from "@/lib/datafast";
 import { taskPathFromCreate } from "@/lib/task-create";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults, STOCK_FONT_DEFAULTS } from "@/lib/font-options";
-import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
+import type { GenerationSummary } from "@/lib/generations";
+import { createOptionKeys, fetchBrollConfigured, fetchFonts } from "@/lib/queries/create-options";
+import { useGenerations } from "@/lib/queries/generations";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 import {
   INSTRUCTIONS_MAX_CHARS, isWorkflow, MIN_SOURCE_SECONDS, normalizeTopic, PART_COUNT_OPTIONS, TOPIC_MAX_CHARS, topicIssue,
@@ -59,6 +62,19 @@ import { DEFAULT_MIN_RANGE_SECONDS, defaultSourceRange, sourceRangeFields, sourc
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { DEFAULT_EDIT_STYLE, isFxTemplate, type EditStyle } from "@/lib/fx/core/types";
 import { editStylePreference, fxCreateFields, offeredFxTemplates, sendableCaptionTemplate } from "@/lib/fx/edit-style-request";
+
+const NO_FONTS: FontOption[] = [];
+const NO_TEMPLATES: CaptionTemplate[] = [];
+
+/** Recent generations on the home screen. */
+const RECENT_COUNT = 8;
+
+async function fetchCaptionTemplates(includeFx: boolean): Promise<CaptionTemplate[]> {
+  const response = await fetch(includeFx ? "/api/caption-templates?include=fx" : "/api/caption-templates");
+  if (!response.ok) throw new Error(`Failed to load caption templates (${response.status})`);
+  const data = (await response.json()) as { templates?: CaptionTemplate[] } | null;
+  return data?.templates || [];
+}
 
 interface CaptionTemplate {
   id: string;
@@ -166,14 +182,11 @@ export default function HomeApp() {
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number | null>(null);
   const [fontColor, setFontColor] = useState<string | null>(null);
-  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [fontSearch, setFontSearch] = useState("");
-  const [fontLoadError, setFontLoadError] = useState<string | null>(null);
   const [isUploadingFont, setIsUploadingFont] = useState(false);
   const fontUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const [captionTemplate, setCaptionTemplate] = useState("default");
-  const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
   // Dynamic edits: offered only when the server says the flag is on for this user (`enabled === true`).
   const editStylesInfo = useEditStylesInfo(Boolean(session?.user?.id));
   const fxEnabled = editStylesInfo?.enabled === true;
@@ -185,7 +198,6 @@ export default function HomeApp() {
   const clipLengthEdited = useRef(false);
   const clipLengthSave = useRef<Promise<unknown>>(Promise.resolve());
   const [addSubtitles, setAddSubtitles] = useState(true);
-  const [brollAvailable, setBrollAvailable] = useState(false);
   const [includeBroll, setIncludeBroll] = useState(false);
   const [cutLongPauses, setCutLongPauses] = useState(true);
   const [pauseThresholdMs, setPauseThresholdMs] = useState("1200");
@@ -253,7 +265,12 @@ export default function HomeApp() {
     try { window.localStorage.setItem(WORKFLOW_STORAGE_KEY, workflow); } catch { /* storage blocked: still works for this visit */ }
   }, [workflow]);
 
-  const [recent, setRecent] = useState<GenerationSummary[] | null>(null);
+  // The library's cache: shared with /list and the command palette, and live while a generation is processing.
+  const generations = useGenerations(session?.user?.id);
+  const recent = useMemo<GenerationSummary[] | null>(() => {
+    if (generations.data) return generations.data.slice(0, RECENT_COUNT);
+    return generations.isError ? [] : null;
+  }, [generations.data, generations.isError]);
   const [billingSummary, updateBillingSummary] = useBillingSummary(Boolean(session?.user?.id));
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
   const [lastUpgradeReason, setLastUpgradeReason] = useState<UpgradeReason>({ kind: "start" });
@@ -384,58 +401,45 @@ export default function HomeApp() {
     });
   }
 
-  const refreshFonts = useCallback(async () => {
-    try {
-      setFontLoadError(null);
-      const response = await fetch("/api/fonts", { cache: "no-store" });
-      if (!response.ok) throw new Error(`Failed to load fonts (${response.status})`);
-      const data = await response.json();
-      const fonts: FontOption[] = data.fonts || [];
-      setAvailableFonts(fonts);
-
-      const styleElement = document.createElement("style");
-      styleElement.id = "custom-fonts";
-      styleElement.innerHTML = fonts.map((font) => `
+  const queryClient = useQueryClient();
+  const fontsQuery = useQuery({ queryKey: createOptionKeys.fonts, queryFn: fetchFonts });
+  const availableFonts = fontsQuery.data ?? NO_FONTS;
+  const fontLoadError = fontsQuery.isError && !fontsQuery.isFetching ? t("errors.fonts") : null;
+  useEffect(() => {
+    if (fontsQuery.error) console.error("Failed to load fonts:", fontsQuery.error);
+  }, [fontsQuery.error]);
+  useEffect(() => {
+    if (!fontsQuery.data) return;
+    const styleElement = document.createElement("style");
+    styleElement.id = "custom-fonts";
+    styleElement.innerHTML = fontsQuery.data.map((font) => `
         @font-face {
           font-family: '${font.name}';
           src: url('/api/fonts/${font.name}') format('${font.format === "otf" ? "opentype" : "truetype"}');
           font-weight: normal;
           font-style: normal;
         }`).join("\n");
-      document.getElementById("custom-fonts")?.remove();
-      document.head.appendChild(styleElement);
-    } catch (error) {
-      console.error("Failed to load fonts:", error);
-      setFontLoadError(t("errors.fonts"));
-    }
-  }, [t]);
+    document.getElementById("custom-fonts")?.remove();
+    document.head.appendChild(styleElement);
+  }, [fontsQuery.data]);
 
-  useEffect(() => { void refreshFonts(); }, [refreshFonts]);
-
+  // Animated templates are asked for only once dynamic edits are on, so nobody else ever sees their ids.
+  const templatesQuery = useQuery({
+    queryKey: createOptionKeys.captionTemplates(fxEnabled),
+    queryFn: () => fetchCaptionTemplates(fxEnabled),
+    // The standard list stays up while the one with animated templates loads.
+    placeholderData: keepPreviousData,
+  });
+  const availableTemplates = templatesQuery.data ?? NO_TEMPLATES;
   useEffect(() => {
-    // Animated templates are asked for only once dynamic edits are on, so nobody else ever sees their ids.
-    let cancelled = false;
-    fetch(fxEnabled ? "/api/caption-templates?include=fx" : "/api/caption-templates")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => { if (data && !cancelled) setAvailableTemplates(data.templates || []); })
-      .catch((error) => console.error("Failed to load caption templates:", error));
-    return () => { cancelled = true; };
-  }, [fxEnabled]);
+    if (templatesQuery.error) console.error("Failed to load caption templates:", templatesQuery.error);
+  }, [templatesQuery.error]);
 
-  useEffect(() => {
-    // B-roll is only offered when the server has a stock footage provider.
-    fetch("/api/broll/status")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => setBrollAvailable(data?.configured === true))
-      .catch(() => setBrollAvailable(false));
-  }, []);
-
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    fetchGenerations()
-      .then((tasks) => setRecent(tasks.slice(0, 8)))
-      .catch((error) => { console.error("Failed to load recent generations:", error); setRecent([]); });
-  }, [session?.user?.id]);
+  // B-roll is only offered when the server has a stock footage provider.
+  const { data: brollAvailable = false } = useQuery({
+    queryKey: createOptionKeys.brollStatus,
+    queryFn: fetchBrollConfigured,
+  });
 
   const attachFile = (next: File | null) => {
     if (next && !next.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(next.name)) {
@@ -659,7 +663,7 @@ export default function HomeApp() {
       }
       const data = await response.json();
       if (data?.font?.name) setFontFamily(data.font.name);
-      await refreshFonts();
+      await queryClient.invalidateQueries({ queryKey: createOptionKeys.fonts });
     } catch (uploadError) {
       console.error("Failed to upload font:", uploadError);
       setError(t("errors.uploadFontRetry"));

@@ -1,7 +1,8 @@
 "use client";
 
 // The create screen's "Edits" settings: how hard the AI-tagged moments hit (intensity), and what it may use to hit them.
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,16 +12,18 @@ import { INTENSITIES, type Censor, type EditStyle, type Intensity } from "@/lib/
 import { CENSORS, EDIT_STYLES_UNAVAILABLE, fetchEditStylesInfo, type EditStylesInfo } from "@/lib/fx/edit-style-request";
 import { cn } from "@/lib/utils";
 
-/** `GET /api/tasks/edit-styles` once per mount; null until it answers, "not enabled" on any failure. */
+export const editStylesInfoKey = ["edit-styles-info"] as const;
+
+/** `GET /api/tasks/edit-styles` on mount; null until it answers, "not enabled" on any failure. */
 export function useEditStylesInfo(active = true): EditStylesInfo | null {
-  const [info, setInfo] = useState<EditStylesInfo | null>(null);
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    void fetchEditStylesInfo().then((next) => { if (!cancelled) setInfo(next); }, () => { if (!cancelled) setInfo(EDIT_STYLES_UNAVAILABLE); });
-    return () => { cancelled = true; };
-  }, [active]);
-  return info;
+  const { data } = useQuery({
+    queryKey: editStylesInfoKey,
+    queryFn: () => fetchEditStylesInfo().catch(() => EDIT_STYLES_UNAVAILABLE),
+    enabled: active,
+    // The create screen and the editor's inspector can mount together; one request serves both.
+    staleTime: 5_000,
+  });
+  return active ? data ?? null : null;
 }
 
 // Five bars per glyph: resting height (0-1) and how far each one swings, per intensity.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -47,15 +48,11 @@ export default function SharedGenerationPage() {
   const locale = useLocale();
   const params = useParams<{ token: string }>();
   const token = params.token;
-  const [task, setTask] = useState<SharedTask | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
-  const loadSharedTask = useCallback(async () => {
-    if (!token) return;
-
-    try {
+  const sharedTask = useQuery({
+    queryKey: ["shared-task", token],
+    queryFn: async () => {
       const response = await fetch(`/api/share/${encodeURIComponent(token)}`, {
         cache: "no-store",
       });
@@ -63,17 +60,16 @@ export default function SharedGenerationPage() {
         const parsed = await parseApiError(response, t("unavailable"));
         throw new Error(formatSupportMessage(parsed));
       }
-      setTask(await response.json());
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : t("unavailable"));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [t, token]);
-
-  useEffect(() => {
-    void loadSharedTask();
-  }, [loadSharedTask]);
+      return (await response.json()) as SharedTask;
+    },
+    enabled: Boolean(token),
+    // A missing or revoked link answers the same way twice; show it straight away.
+    retry: false,
+  });
+  const task = sharedTask.data ?? null;
+  const isLoading = sharedTask.isPending;
+  // A failed background refresh never replaces a page that already loaded.
+  const error = sharedTask.error && !task ? sharedTask.error.message || t("unavailable") : null;
 
   const clipFileUrl = (clipId: string) =>
     `/api/share/${encodeURIComponent(token)}/clips/${encodeURIComponent(clipId)}/file`;

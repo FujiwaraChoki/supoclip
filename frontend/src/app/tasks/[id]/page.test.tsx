@@ -13,10 +13,21 @@ vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: { user: { id: "user-1" } }, isPending: false }),
 }));
 // The page's SSE refresh, so a test can deliver the next server state.
-const progress = vi.hoisted(() => ({ refresh: null as null | (() => Promise<unknown>) }));
+type ProgressOptions = {
+  refresh: () => Promise<unknown>;
+  onProgress: (event: { progress?: number; message?: string }) => void;
+  onClip: (clip: unknown) => void;
+};
+const progress = vi.hoisted(() => ({
+  refresh: null as null | (() => Promise<unknown>),
+  onProgress: null as null | ProgressOptions["onProgress"],
+  onClip: null as null | ProgressOptions["onClip"],
+}));
 vi.mock("@/hooks/use-task-progress", () => ({
-  useTaskProgress: (options: { refresh: () => Promise<unknown> }) => {
+  useTaskProgress: (options: ProgressOptions) => {
     progress.refresh = options.refresh;
+    progress.onProgress = options.onProgress;
+    progress.onClip = options.onClip;
     return { reconnecting: false };
   },
 }));
@@ -517,5 +528,87 @@ describe("task page dynamic edits", () => {
     fireEvent.click(await screen.findByRole("button", { name: "pricing" }));
     await waitFor(() => expect(created).not.toBeNull());
     expect(created).toMatchObject({ caption_template: "slam", edit_style: { intensity: "bold", sfx: false } });
+  });
+});
+
+describe("task page data loading", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("writes SSE progress and finished clips into the page", async () => {
+    serve(task({ status: "processing", progress: 10, progress_message: "Rendering clip 1/3" }), [clip(1, { hook_title: "First clip" })]);
+    const { container } = renderPage();
+    expect(await screen.findByRole("heading", { name: "First clip" })).toBeInTheDocument();
+    const emptySlots = () => container.querySelectorAll("div.animate-rise[aria-hidden]").length;
+    expect(emptySlots()).toBe(2);
+
+    act(() => { progress.onProgress?.({ progress: 60, message: "Rendering clip 2/6" }); });
+    expect(emptySlots()).toBe(5);
+
+    act(() => { progress.onClip?.(clip(2, { hook_title: "Second clip" })); });
+    expect(await screen.findByRole("heading", { name: "Second clip" })).toBeInTheDocument();
+
+    // A refresh while processing keeps a clip the server list doesn't have yet.
+    await act(async () => { await progress.refresh?.(); });
+    expect(screen.getByRole("heading", { name: "Second clip" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "First clip" })).toBeInTheDocument();
+  });
+
+  it("keeps the task on screen when a background refresh fails", async () => {
+    serve(task({ status: "processing" }), [clip(1)]);
+    renderPage();
+    expect(await screen.findByText("Founder interview")).toBeInTheDocument();
+
+    vi.mocked(fetch).mockImplementation(async () => new Response("nope", { status: 500 }));
+    await act(async () => { await progress.refresh?.(); });
+
+    expect(screen.getByText("Founder interview")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  });
+
+  it("waits for a task that is not persisted yet", async () => {
+    serve(task(), [clip(1, { hook_title: "First clip" })]);
+    const served = vi.mocked(fetch).getMockImplementation()!;
+    let misses = 0;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input) === "/api/tasks/task-1" && misses < 1) {
+        misses += 1;
+        return new Response("not found", { status: 404 });
+      }
+      return served(input, init);
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "First clip" }, { timeout: 3000 })).toBeInTheDocument();
+    expect(misses).toBe(1);
+    log.mockRestore();
+  });
+
+  it("polls a scheduled post and stops once it has published", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      serve(task(), [clip(1)]);
+      const served = vi.mocked(fetch).getMockImplementation()!;
+      const statuses = ["publishing", "published"];
+      let postFetches = 0;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        if (String(input) === "/api/social/posts?task_id=task-1") {
+          postFetches += 1;
+          const status = statuses[Math.min(postFetches - 1, statuses.length - 1)];
+          return Response.json({ posts: [{ id: "post-1", clip_id: "clip-1", status, provider: "youtube" }] });
+        }
+        return served(input, init);
+      });
+      renderPage();
+      await waitFor(() => expect(postFetches).toBe(1));
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(4100); });
+      expect(postFetches).toBe(2);
+      // Published: nothing left to follow.
+      await act(async () => { await vi.advanceTimersByTimeAsync(40_000); });
+      expect(postFetches).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

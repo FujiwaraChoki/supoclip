@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
@@ -46,23 +47,27 @@ interface ViewsTimeseries {
 
 const RANGES = [7, 30, 90] as const;
 
+const analyticsKeys = {
+  performance: (userId: string) => ["social-performance", userId] as const,
+  timeseries: (days: number) => ["social-performance", "timeseries", days] as const,
+};
+
 function ViewsSection() {
   const t = useTranslations("analytics");
   const [range, setRange] = useState<(typeof RANGES)[number]>(30);
-  const [series, setSeries] = useState<ViewsTimeseries | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/social/performance/timeseries?days=${range}`, { cache: "no-store" })
-      .then(async (response) => (response.ok ? ((await response.json()) as ViewsTimeseries) : null))
-      .then((data) => {
-        if (!cancelled && data) setSeries(data);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [range]);
+  // The last chart stays up while another range loads, and when that range fails to load.
+  const { data } = useQuery({
+    queryKey: analyticsKeys.timeseries(range),
+    queryFn: async () => {
+      const response = await fetch(`/api/social/performance/timeseries?days=${range}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Timeseries request failed (${response.status})`);
+      return (await response.json()) as ViewsTimeseries;
+    },
+    placeholderData: keepPreviousData,
+  });
+  const [lastSeries, setLastSeries] = useState<ViewsTimeseries | null>(null);
+  if (data && data !== lastSeries) setLastSeries(data);
+  const series = data ?? lastSeries;
 
   return (
     <section>
@@ -101,19 +106,23 @@ function ViewsSection() {
 export default function AnalyticsPage() {
   const t = useTranslations("analytics");
   const { data: session, isPending } = useSession();
-  const [performance, setPerformance] = useState<PerformanceSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const socialAccess = useSocialAccess(Boolean(session?.user?.id));
+  const userId = session?.user?.id;
 
-  useEffect(() => {
-    if (!session?.user?.id || !socialAccess) return;
-    fetch("/api/social/performance", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(t("loadError"));
-        setPerformance((await response.json()) as PerformanceSummary);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : t("loadError")));
-  }, [session?.user?.id, socialAccess, t]);
+  const performanceQuery = useQuery({
+    queryKey: analyticsKeys.performance(userId ?? ""),
+    queryFn: async () => {
+      const response = await fetch("/api/social/performance", { cache: "no-store" });
+      if (!response.ok) throw new Error(t("loadError"));
+      return (await response.json()) as PerformanceSummary;
+    },
+    enabled: Boolean(userId && socialAccess),
+  });
+  const performance = performanceQuery.data ?? null;
+  // A failed background refresh keeps the figures already on screen.
+  const error = performanceQuery.error && !performance
+    ? performanceQuery.error.message || t("loadError")
+    : null;
 
   if (isPending) {
     return (

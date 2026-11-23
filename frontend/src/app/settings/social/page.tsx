@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -21,8 +22,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
-import { isSocialPublishingEnabled } from "@/hooks/use-social-access";
 import { useSession } from "@/lib/auth-client";
+import { socialSettingsKeys, useSocialSettings } from "@/lib/queries/settings-social";
 import {
   PROVIDER_LABELS,
   connectionLabel,
@@ -30,6 +31,9 @@ import {
   type SocialConnection,
   type SocialProviderStatus,
 } from "@/lib/social";
+
+const NO_PROVIDERS: SocialProviderStatus[] = [];
+const NO_CONNECTIONS: SocialConnection[] = [];
 
 const SECTION_HEADING = "mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground";
 
@@ -57,47 +61,15 @@ function SocialSettingsContent() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [providers, setProviders] = useState<SocialProviderStatus[]>([]);
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [connections, setConnections] = useState<SocialConnection[]>([]);
-  const [isFetching, setIsFetching] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const settings = useSocialSettings(session?.user?.id, t("page.loadError"));
+  const providers = settings.data?.providers ?? NO_PROVIDERS;
+  const connections = settings.data?.connections ?? NO_CONNECTIONS;
+  const enabled = settings.data ? settings.data.enabled : null;
+  const isFetching = settings.isPending;
+  const [actionError, setError] = useState<string | null>(null);
+  const error = actionError ?? (settings.isError ? settings.error.message || t("page.loadError") : null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setIsFetching(true);
-    setError(null);
-    try {
-      const [providersResponse, connectionsResponse] = await Promise.all([
-        fetch("/api/social/providers", { cache: "no-store" }),
-        fetch("/api/social/connections", { cache: "no-store" }),
-      ]);
-      if (!providersResponse.ok) {
-        throw new Error(t("page.loadError"));
-      }
-      const providersData = (await providersResponse.json()) as {
-        enabled?: boolean;
-        providers: SocialProviderStatus[];
-      };
-      setEnabled(isSocialPublishingEnabled(providersData));
-      const connectionsData = connectionsResponse.ok
-        ? ((await connectionsResponse.json()) as { connections: SocialConnection[] })
-        : { connections: [] };
-      setProviders(providersData.providers ?? []);
-      setConnections(connectionsData.connections ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("page.loadError"));
-    } finally {
-      setIsFetching(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (session?.user?.id) {
-      void load();
-    }
-  }, [session?.user?.id, load]);
 
   // Surface the result of an OAuth round-trip, then clean the URL.
   useEffect(() => {
@@ -115,24 +87,26 @@ function SocialSettingsContent() {
     router.replace("/settings/social");
   }, [searchParams, router, t]);
 
-  const handleDisconnect = async (connection: SocialConnection) => {
-    if (!window.confirm(t("page.disconnectConfirm", { account: connectionLabel(connection) }))) {
-      return;
-    }
-    setDisconnectingId(connection.id);
-    setError(null);
-    try {
+  const disconnect = useMutation({
+    mutationFn: async (connection: SocialConnection) => {
       const response = await fetch(`/api/social/connections/${connection.id}`, { method: "DELETE" });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data?.detail || t("page.disconnectError"));
       }
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("page.disconnectError"));
-    } finally {
-      setDisconnectingId(null);
+    },
+    onMutate: () => setError(null),
+    // Kept pending until the list has reloaded, so the button stays disabled meanwhile.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: socialSettingsKeys.all }),
+    onError: (err) => setError(err instanceof Error ? err.message : t("page.disconnectError")),
+  });
+  const disconnectingId = disconnect.isPending ? disconnect.variables.id : null;
+
+  const handleDisconnect = (connection: SocialConnection) => {
+    if (!window.confirm(t("page.disconnectConfirm", { account: connectionLabel(connection) }))) {
+      return;
     }
+    disconnect.mutate(connection);
   };
 
   if (isPending) {

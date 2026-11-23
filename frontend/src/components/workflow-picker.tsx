@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { isWorkflow, WORKFLOWS, type Workflow, type WorkflowsInfo } from "@/lib/workflows";
@@ -8,26 +9,32 @@ import { cn } from "@/lib/utils";
 
 const UNAVAILABLE: WorkflowsInfo = { enabled: false, workflows: [], topic_max_chars: 0, instructions_max_chars: 0 };
 
+export const workflowsInfoKey = ["workflows-info"] as const;
+
+async function loadWorkflowsInfo(): Promise<WorkflowsInfo> {
+  try {
+    const response = await fetch("/api/tasks/workflows", { cache: "no-store" });
+    const data = (response.ok ? await response.json() : null) as Partial<WorkflowsInfo> | null;
+    return data && Array.isArray(data.workflows) ? { ...UNAVAILABLE, ...data, enabled: data.enabled === true } as WorkflowsInfo : UNAVAILABLE;
+  } catch {
+    return UNAVAILABLE;
+  }
+}
+
 /**
  * `GET /tasks/workflows` for the signed-in user: null while loading, and
  * disabled when the request fails, so the create screen falls back to plain
  * highlights.
  */
 export function useWorkflowsInfo(active = true): WorkflowsInfo | null {
-  const [info, setInfo] = useState<WorkflowsInfo | null>(null);
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    fetch("/api/tasks/workflows", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: Partial<WorkflowsInfo> | null) => {
-        if (cancelled) return;
-        setInfo(data && Array.isArray(data.workflows) ? { ...UNAVAILABLE, ...data, enabled: data.enabled === true } as WorkflowsInfo : UNAVAILABLE);
-      })
-      .catch(() => { if (!cancelled) setInfo(UNAVAILABLE); });
-    return () => { cancelled = true; };
-  }, [active]);
-  return info;
+  const { data } = useQuery({
+    queryKey: workflowsInfoKey,
+    queryFn: loadWorkflowsInfo,
+    enabled: active,
+    // The shell's command palette and the create screen both ask; one request serves both.
+    staleTime: 5_000,
+  });
+  return active ? data ?? null : null;
 }
 
 /** Workflows the user may pick right now. Empty unless the server explicitly enables them. */

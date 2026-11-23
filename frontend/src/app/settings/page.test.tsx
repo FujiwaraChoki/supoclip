@@ -181,4 +181,32 @@ describe("settings plan section", () => {
       ),
     );
   });
+
+  it("after checkout, looks again until the paid plan lands and then thanks on the plan card", async () => {
+    window.history.replaceState(null, "", "/settings?billing=success");
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    let summaryCalls = 0;
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("billing-summary")) {
+        summaryCalls += 1;
+        // The redirect beats Stripe's webhook: the first answer is still free.
+        return Response.json(summaryCalls === 1
+          ? billing({})
+          : billing({ plan: "pro", subscription_status: "active", subscription_provider: "stripe", billing_interval: "month" }));
+      }
+      if (url.includes("/api/preferences")) return Response.json(preferences);
+      if (url.includes("/api/fonts")) return Response.json({ fonts: [] });
+      return Response.json({});
+    });
+    vi.stubGlobal("fetch", request);
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByRole("button", { name: "Manage Billing" })).toBeInTheDocument();
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(window.location.search).toBe("");
+    expect(summaryCalls).toBe(2);
+  });
 });
