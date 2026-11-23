@@ -1489,12 +1489,14 @@ def download_section_file(
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
     fallback: Optional[str] = None,
+    height: Optional[int] = None,
 ) -> tuple[Path, float, float]:
+    """``height`` caps the video format (a plan's quality); None is the global cap."""
     counter = budget or ByteBudget(get_config().youtube_download_max_bytes)
     return _with_proxy_retry(
         lambda options: _download_section_attempt(
             url, video_id, start, end, dest, task_id=task_id, budget=counter,
-            fallback=fallback, options=options,
+            fallback=fallback, options=options, height=height,
         ),
         task_id=task_id, video_id=video_id, budget=counter,
         cleanup=lambda: dest.unlink(missing_ok=True),
@@ -1512,6 +1514,7 @@ def _download_section_attempt(
     budget: ByteBudget,
     fallback: Optional[str],
     options: dict[str, Any],
+    height: Optional[int] = None,
 ) -> tuple[Path, float, float]:
     """Download one time window. Returns the file and its original-timeline bounds.
 
@@ -1525,7 +1528,7 @@ def _download_section_attempt(
         formats = info.get("formats") or []
         source_language = _video_language(info)
         original_audio = _original_audio_resolution(formats, source_language)
-        video_fmt = pick_video_format(formats)
+        video_fmt = pick_video_format(formats, height)
         audio_fmt = pick_audio_format(
             formats,
             modest=False,

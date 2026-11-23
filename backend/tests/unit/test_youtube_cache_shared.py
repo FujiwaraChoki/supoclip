@@ -128,7 +128,7 @@ def test_long_section_resumes_from_last_completed_fragment_on_another_worker(mac
     monkeypatch.setattr(source, "get_config", lambda: runtime)
     calls = []
 
-    def download(url, video_id, start, end, dest, *, task_id, budget):
+    def download(url, video_id, start, end, dest, *, task_id, budget, height=None):
         calls.append((start, end))
         if dest.parent == first[1] and len(calls) == 2:
             raise TimeoutError("connection lost")
