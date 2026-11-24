@@ -324,7 +324,9 @@ class FxPlan(_Strict):
 
     @property
     def needs_face(self) -> bool:
-        return any((c.kind == "zoom" and c.anchor == "face") or (c.kind == "accent" and c.variant == "doodle")
+        # A kinetic stack reads the face track to keep off the speaker's head (fx-core kineticBand).
+        return any((c.kind == "zoom" and c.anchor == "face")
+                   or (c.kind == "accent" and c.variant in ("doodle", "kinetic"))
                    or (c.kind == "bleep" and c.cover != "none") for c in self.cues)
 
     @property
