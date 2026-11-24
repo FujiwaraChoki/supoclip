@@ -1,4 +1,4 @@
--- Mirrors backend/src/migrations/sql/20261124_0001_pebble_onboarding.sql (columns only).
+-- Mirrors backend/src/migrations/sql/20261124_0002_pebble_onboarding.sql (columns only).
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_variant" VARCHAR(16);
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_answers" JSONB;
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed_at" TIMESTAMPTZ;
