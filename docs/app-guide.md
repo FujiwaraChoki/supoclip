@@ -23,10 +23,12 @@ The homepage is the main task creation screen.
 
 Core behaviors:
 
-- Accepts a YouTube, Twitch, or Kick URL, or an uploaded file
+- Accepts a YouTube, Twitch, or Kick URL, or one or more uploaded files (up to 10 per batch)
 - Shows the matching source icon for a recognised URL, and a YouTube thumbnail preview when a YouTube URL can be parsed
-- Lets users set clip styling defaults before submission
-- Starts the job and transitions the user into task tracking
+- Lets users set clip styling defaults before submission; a batch reuses the same settings for every file
+- Uploads a batch one file at a time, showing which file is in progress
+- Starts the job and transitions the user into task tracking; a single file opens its task page, while a batch opens the task list
+- Offers to clip part of a video that is over the plan's per-video limit; the part picker applies to one video at a time, so a batch sends whole files and names any file that is refused
 
 Available creation options on this screen include:
 

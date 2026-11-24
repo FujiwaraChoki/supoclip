@@ -96,6 +96,12 @@ const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "
 
 type PartCount = "auto" | number;
 const SETTINGS_SAVE_DELAY_MS = 500;
+// Enough for a week of episodes without turning the composer into a file manager.
+const MAX_BATCH_FILES = 10;
+
+function queuedFileKey(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
 
 // Here the length chip sets each part's or the whole video's length, not the saved clip length.
 const WORKFLOW_LENGTHS: ReadonlySet<Workflow> = new Set<Workflow>(["series", "recap", "trailer"]);
@@ -170,13 +176,15 @@ export default function HomeApp() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
+  const [fileDurations, setFileDurations] = useState<Record<string, number | null>>({});
+  const [batchResult, setBatchResult] = useState<{ created: number; total: number; failed: string[] } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const { data: session, isPending } = useSession();
-  const sourceType: "youtube" | "upload" = file ? "upload" : "youtube";
+  const sourceType: "youtube" | "upload" = queuedFiles.length ? "upload" : "youtube";
 
   // Font customization states — null means "use the caption template's own value"
   const [fontFamily, setFontFamily] = useState<string | null>(null);
@@ -225,7 +233,6 @@ export default function HomeApp() {
   const [cleanupMoreOpen, setCleanupMoreOpen] = useState<boolean | null>(null);
   // Per workflow: settings mean different things in each, and switching back keeps them.
   const [advancedByWorkflow, setAdvancedByWorkflow] = useState<Partial<Record<Workflow, AdvancedValues>>>({});
-  const [sourceSeconds, setSourceSeconds] = useState<number | null>(null);
   const [rescue, setRescue] = useState<UrlRescue | null>(null);
   const [suggestion, setSuggestion] = useState<WorkflowIntent | null>(null);
   const topicInputRef = useRef<HTMLInputElement | null>(null);
@@ -235,7 +242,13 @@ export default function HomeApp() {
   const keptAsTyped = useRef<string | null>(null);
   // When the link box was last held back for the user to look (a suggestion or a request without a link).
   const heldAt = useRef(0);
-  const durationFile = useRef<File | null>(null);
+  // The shortest known duration decides which workflows fit every queued file.
+  const sourceSeconds = useMemo(() => {
+    const known = queuedFiles
+      .map((queued) => fileDurations[queuedFileKey(queued)])
+      .filter((seconds): seconds is number => typeof seconds === "number");
+    return known.length ? Math.min(...known) : null;
+  }, [queuedFiles, fileDurations]);
   const activeWorkflow: Workflow = workflowsEnabled && offeredWorkflows.has(workflow) ? workflow : "highlights";
   // A saved series is plain highlights until the server says otherwise, and
   // submitting that early would charge for the wrong thing.
@@ -298,21 +311,23 @@ export default function HomeApp() {
     setRangeOffer(null);
     setSourceRange(null);
     setLengthError(null);
-  }, [url, file]);
+  }, [url, queuedFiles]);
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
     : maxVideoUploadBytes();
 
-  // Product funnel: once per distinct link or file. The key stays in this tab; only the kind is sent.
+  // Product funnel: once per distinct link or batch of files. The key stays in this tab; only the kind is sent.
   const enteredSource = useRef<string | null>(null);
   useEffect(() => {
-    const sourceKind = file ? "upload" : urlSource;
+    const sourceKind = queuedFiles.length ? "upload" : urlSource;
     if (!sourceKind) return;
-    const key = file ? `upload:${file.name}:${file.size}` : url.trim();
+    const key = queuedFiles.length
+      ? `upload:${queuedFiles.map(queuedFileKey).join("|")}`
+      : url.trim();
     if (key === enteredSource.current) return;
     enteredSource.current = key;
     trackEvent("source_entered", { source_kind: sourceKind });
-  }, [file, url, urlSource]);
+  }, [queuedFiles, url, urlSource]);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,31 +456,58 @@ export default function HomeApp() {
     queryFn: fetchBrollConfigured,
   });
 
-  const attachFile = (next: File | null) => {
-    if (next && !next.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(next.name)) {
-      setError(t("errors.notVideo"));
-      return;
+  const addFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
+    const existingKeys = new Set(queuedFiles.map(queuedFileKey));
+    const accepted: File[] = [];
+    let problem: string | null = null;
+
+    for (const next of incoming) {
+      const key = queuedFileKey(next);
+      if (existingKeys.has(key)) continue;
+      if (!next.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(next.name)) {
+        problem ??= t("errors.notVideo");
+        continue;
+      }
+      if (next.size > uploadLimitBytes) {
+        problem ??= t("errors.fileTooLarge", {
+          size: formatBytes(next.size),
+          limit: formatUploadLimit(uploadLimitBytes),
+        });
+        continue;
+      }
+      if (existingKeys.size >= MAX_BATCH_FILES) {
+        problem ??= t("batchLimit", { count: MAX_BATCH_FILES });
+        break;
+      }
+      existingKeys.add(key);
+      accepted.push(next);
     }
-    if (next && next.size > uploadLimitBytes) {
-      setError(t("errors.fileTooLarge", {
-        size: formatBytes(next.size),
-        limit: formatUploadLimit(uploadLimitBytes),
-      }));
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
+
+    if (accepted.length) {
+      setError(null);
+      setBatchResult(null);
+      setQueuedFiles((current) => [...current, ...accepted]);
+      // Durations are only used to warn before uploading, so they are read in the background.
+      for (const next of accepted) {
+        const key = queuedFileKey(next);
+        void readVideoDuration(next).then((seconds) => {
+          setFileDurations((current) => ({ ...current, [key]: seconds }));
+        });
+      }
     }
-    setError(null);
-    setFile(next);
-    // The length is only used for a hint, so it is read in the background.
-    durationFile.current = next;
-    setSourceSeconds(null);
-    if (next) {
-      void readVideoDuration(next).then((seconds) => {
-        if (durationFile.current === next) setSourceSeconds(seconds);
-      });
-    }
-    if (!next && fileInputRef.current) fileInputRef.current.value = "";
-    if (!next) requestAnimationFrame(() => urlInputRef.current?.focus());
+    if (problem) setError(problem);
+  };
+
+  const removeFile = (key: string) => {
+    setQueuedFiles((current) => current.filter((queued) => queuedFileKey(queued) !== key));
+    setFileDurations((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setBatchResult(null);
+    if (queuedFiles.length === 1) requestAnimationFrame(() => urlInputRef.current?.focus());
   };
 
   // The tour shows each workflow on the real page, then puts back what was selected.
@@ -710,7 +752,7 @@ export default function HomeApp() {
   const teamRole = useTeamRole(billingTeamId);
   // Users can explore every option; the plan prompt only appears when they hit Generate.
   const controlsDisabled = isLoading;
-  const hasSource = sourceType === "upload" ? Boolean(file) : Boolean(url.trim());
+  const hasSource = sourceType === "upload" ? queuedFiles.length > 0 : Boolean(url.trim());
   const cleanupCount = [cutLongPauses, removeFillerWords, filteredWords.trim().length > 0].filter(Boolean).length;
   const customized = fontFamily !== null || fontSize !== null || fontColor !== null;
   // Series, recap and trailer lengths are per generation; only the clip length is saved.
@@ -734,7 +776,7 @@ export default function HomeApp() {
   const tooLongUpgradePlan = rangeOffer && !billingTeamId && upgradeState?.nextPlan && upgradeState.nextPlan.youtubeMaxMinutes * 60 > rangeOffer.maxSeconds
     ? upgradeState.nextPlan
     : null;
-  const analyticsSourceKind = () => (file ? "upload" as const : validateVideoSourceUrl(url).source ?? "unknown");
+  const analyticsSourceKind = () => (sourceType === "upload" ? "upload" as const : validateVideoSourceUrl(url).source ?? "unknown");
   useEffect(() => {
     // A video whose length can't be read wasn't refused for being too long.
     if (!rangeOffer && lengthError?.kind !== "tooLongNoRange") return;
@@ -755,6 +797,24 @@ export default function HomeApp() {
   const maxPartsThatFit = activeWorkflow === "series" && sourceType === "upload" && sourceSeconds !== null && Array.isArray(partRange)
     ? Math.floor(sourceSeconds / (partRange[0] * 1.25))
     : null;
+  // Every queued file has to fit the chosen workflow, not just the shortest one.
+  const fileProblem = (queued: File) => {
+    if (activeWorkflow === "highlights") return null;
+    const seconds = fileDurations[queuedFileKey(queued)];
+    if (seconds === null || seconds === undefined) return null;
+    if (seconds < minSourceSeconds) return t(`workflowErrors.${SOURCE_TOO_SHORT_CODES[activeWorkflow]}`);
+    if (activeWorkflow === "series" && typeof partCount === "number" && Array.isArray(partRange)) {
+      const maxParts = Math.floor(seconds / (partRange[0] * 1.25));
+      if (partCount > maxParts) {
+        return maxParts < 2
+          ? t("workflowErrors.SOURCE_TOO_SHORT_FOR_SERIES")
+          : t("workflowErrors.TOO_MANY_PARTS", { max_parts: maxParts });
+      }
+    }
+    return null;
+  };
+  const queuedFileProblems = new Map(queuedFiles.map((queued) => [queuedFileKey(queued), fileProblem(queued)]));
+  const blockingFile = queuedFiles.find((queued) => fileProblem(queued) !== null) ?? null;
   const partOptions: PartCount[] = typeof partCount === "number" && !(PART_COUNT_OPTIONS as readonly PartCount[]).includes(partCount)
     ? ["auto", ...[...PART_COUNT_OPTIONS.filter((value): value is Exclude<typeof value, "auto"> => value !== "auto"), partCount].sort((a, b) => a - b)]
     : [...PART_COUNT_OPTIONS];
@@ -885,8 +945,9 @@ export default function HomeApp() {
       return;
     }
     // The server would refuse this upload for its length: say so before spending minutes uploading it.
-    if (activeWorkflow !== "highlights" && (sourceTooShort || partsProblem)) {
-      setError(sourceTooShort ? t(`workflowErrors.${SOURCE_TOO_SHORT_CODES[activeWorkflow]}`) : partsProblem);
+    if (sourceType === "upload" && blockingFile) {
+      const problem = fileProblem(blockingFile) ?? t("errors.processVideo");
+      setError(queuedFiles.length > 1 ? `${blockingFile.name}: ${problem}` : problem);
       return;
     }
     trackEvent("generate_clicked", {
@@ -908,131 +969,168 @@ export default function HomeApp() {
     setIsLoading(true);
     setError(null);
     setStatusMessage("");
+    setBatchResult(null);
 
     const fontOptions = buildFontOptionsPayload(fontFamily, fontSize, fontColor);
     // Sanitised at send time (§15): no edit_style and no animated template unless the flag said enabled === true.
     const fxFields = fxCreateFields({ editStyle, captionTemplate }, editStylesInfo);
+    const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
+      ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
+      : 1200;
+    const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
 
-    try {
-      let videoUrl = sourceUrl.trim();
-      const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
-        ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
-        : 1200;
-      const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
+    // Plain highlights without instructions sends exactly the request it always has.
+    const baseRequest: Record<string, unknown> = {
+      font_options: fontOptions,
+      caption_template: fxFields.caption_template,
+      processing_mode: "fast",
+      output_format: outputFormat,
+      clip_length: selectedLength,
+      add_subtitles: addSubtitles,
+      include_broll: brollAvailable && includeBroll,
+      cut_long_pauses: cutLongPauses,
+      pause_threshold_ms: normalizedPauseThreshold,
+      remove_filler_words: removeFillerWords,
+      filtered_words: normalizedFilteredWords,
+      // Only when intensity isn't off: an off request stays exactly today's.
+      ...(fxFields.edit_style ? { edit_style: fxFields.edit_style } : {}),
+    };
+    const options: WorkflowOptions = {};
+    if (activeWorkflow !== "highlights") {
+      baseRequest.workflow = activeWorkflow;
+      if (activeWorkflow === "topic") options.topic = normalizeTopic(topic);
+      if (activeWorkflow === "series" && partCount !== "auto") options.part_count = partCount;
+    }
+    if (advancedCount > 0) options.advanced = advancedChanges;
+    if (Object.keys(options).length > 0) baseRequest.workflow_options = options;
+    if (sentInstructions) baseRequest.instructions = sentInstructions;
 
-      if (sourceType === "upload" && file) {
-        if (rangeOffer?.uploadedUrl) {
-          videoUrl = rangeOffer.uploadedUrl;
+    const uploads: Array<File | null> = sourceType === "upload" ? queuedFiles : [null];
+    const failures: string[] = [];
+    let createdCount = 0;
+    let lastResult: { task_id?: string; duplicate?: boolean; code?: string } | null = null;
+    // A part of the timeline is picked for one source at a time; a batch always sends whole videos.
+    const singleSource = uploads.length === 1;
+
+    for (const [index, queued] of uploads.entries()) {
+      try {
+        let videoUrl = sourceUrl.trim();
+        let title: string | null = null;
+
+        if (queued) {
+          if (singleSource && rangeOffer?.uploadedUrl) {
+            videoUrl = rangeOffer.uploadedUrl;
+          } else {
+            setStatusMessage(uploads.length > 1
+              ? t("status.uploadingFile", { index: index + 1, total: uploads.length, name: queued.name })
+              : t("status.uploading"));
+            videoUrl = await uploadVideoFile(queued, uploadLimitBytes);
+          }
+          title = queued.name.slice(0, 500);
+          setStatusMessage(uploads.length > 1
+            ? t("status.startingFile", { index: index + 1, total: uploads.length, name: queued.name })
+            : t("status.starting"));
         } else {
-          setStatusMessage(t("status.uploading"));
-          videoUrl = await uploadVideoFile(file, uploadLimitBytes);
+          setStatusMessage(sourceType === "youtube" ? t("status.checkingLength") : t("status.starting"));
         }
+
+        const startResponse = await fetch("/api/tasks/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: {
+              url: videoUrl,
+              title,
+              // Only once a part was picked: a whole-video request stays exactly as before.
+              ...sourceRangeFields(singleSource && rangeOffer ? sourceRange : null),
+            },
+            ...baseRequest,
+          }),
+        });
+
+        if (!startResponse.ok) {
+          const info = await parseApiError(startResponse, t("errors.api", { status: startResponse.status }));
+          // One source can swap part of its timeline for the whole video; a batch names the file that was refused.
+          if (singleSource && info.code === "VIDEO_DURATION_UNAVAILABLE") {
+            setLengthError({ kind: "durationUnavailable" });
+            setIsLoading(false);
+            setStatusMessage("");
+            return;
+          }
+          const tooLong = singleSource ? tooLongRangeOffer(info) : null;
+          if (singleSource && !tooLong && info.code === "VIDEO_TOO_LONG" && (info.detail as Record<string, unknown> | undefined)?.range_allowed === false) {
+            setLengthError({ kind: "tooLongNoRange", minutes: Math.round(Number((info.detail as Record<string, unknown>).max_duration_seconds) / 60) || 0 });
+            setIsLoading(false);
+            setStatusMessage("");
+            return;
+          }
+          if (tooLong) {
+            offerRange({ ...tooLong, ...(queued ? { uploadedUrl: videoUrl } : {}) });
+            setIsLoading(false);
+            setStatusMessage("");
+            return;
+          }
+          const upgradeForError = upgradeReasonForError(info.code, info.detail, upgradeState?.nextPlan?.youtubeMaxMinutes);
+          if (upgradeForError) {
+            openUpgrade(upgradeForError);
+            setIsLoading(false);
+            setStatusMessage("");
+            // Files queued before the limit was hit are already running: say so instead of dropping them.
+            if (createdCount > 0) {
+              const notStarted = uploads.slice(index).flatMap((pending) => (pending ? [pending.name] : []));
+              setBatchResult({ created: createdCount, total: uploads.length, failed: notStarted });
+            }
+            return;
+          }
+          throw new Error(formatSupportMessage({ ...info, message: workflowErrorMessage(info) ?? info.message }));
+        }
+
+        const startResult = await startResponse.json();
+        lastResult = startResult;
+        createdCount += 1;
+        const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
+        if (singleSource && rangeOffer && sourceRange && !alreadyProcessing) trackEvent("source_range_chosen", {
+          source_kind: analyticsSourceKind(),
+          plan: billingSummary?.plan ?? "unknown",
+          range_minutes: Math.ceil((sourceRange.end - sourceRange.start) / 60),
+          start_minutes: Math.floor(sourceRange.start / 60),
+          duration_minutes: Math.round(rangeOffer.durationSeconds / 60),
+        });
+        if (!alreadyProcessing) track("task_created", {
+          // Analytics keeps ten fields, so workflow runs lead with theirs; plain highlights reports as before.
+          ...(activeWorkflow !== "highlights" || sentInstructions ? {
+            workflow: activeWorkflow,
+            has_instructions: Boolean(sentInstructions),
+            part_count: activeWorkflow === "series" ? partCount : null,
+          } : {}),
+          source_type: sourceType,
+          caption_template: fxFields.caption_template,
+          output_format: outputFormat,
+          add_subtitles: addSubtitles,
+          include_broll: brollAvailable && includeBroll,
+          cut_long_pauses: cutLongPauses,
+          pause_threshold_ms: normalizedPauseThreshold,
+          remove_filler_words: removeFillerWords,
+          filtered_words: normalizedFilteredWords,
+          processing_mode: "fast",
+        });
+      } catch (error) {
+        console.error("Error processing video:", error);
+        const message = error instanceof Error ? error.message : t("errors.processVideo");
+        failures.push(uploads.length > 1 && queued ? `${queued.name}: ${message}` : message);
       }
+    }
 
-      const request: Record<string, unknown> = {
-        source: {
-          url: videoUrl,
-          title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null,
-          // Only once a part was picked: a whole-video request stays exactly as before.
-          ...sourceRangeFields(rangeOffer ? sourceRange : null),
-        },
-        font_options: fontOptions,
-        caption_template: fxFields.caption_template,
-        processing_mode: "fast",
-        output_format: outputFormat,
-        clip_length: selectedLength,
-        add_subtitles: addSubtitles,
-        include_broll: brollAvailable && includeBroll,
-        cut_long_pauses: cutLongPauses,
-        pause_threshold_ms: normalizedPauseThreshold,
-        remove_filler_words: removeFillerWords,
-        filtered_words: normalizedFilteredWords,
-        // Only when intensity isn't off: an off request stays exactly today's.
-        ...(fxFields.edit_style ? { edit_style: fxFields.edit_style } : {}),
-      };
-      // Plain highlights without instructions sends exactly the request it always has.
-      const options: WorkflowOptions = {};
-      if (activeWorkflow !== "highlights") {
-        request.workflow = activeWorkflow;
-        if (activeWorkflow === "topic") options.topic = normalizeTopic(topic);
-        if (activeWorkflow === "series" && partCount !== "auto") options.part_count = partCount;
-      }
-      if (advancedCount > 0) options.advanced = advancedChanges;
-      if (Object.keys(options).length > 0) request.workflow_options = options;
-      if (sentInstructions) request.instructions = sentInstructions;
-
-      setStatusMessage(sourceType === "youtube" ? t("status.checkingLength") : t("status.starting"));
-      const startResponse = await fetch("/api/tasks/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-      });
-
-      if (!startResponse.ok) {
-        const info = await parseApiError(startResponse, t("errors.api", { status: startResponse.status }));
-        if (info.code === "VIDEO_DURATION_UNAVAILABLE") {
-          setLengthError({ kind: "durationUnavailable" });
-          setIsLoading(false);
-          setStatusMessage("");
-          return;
-        }
-        const tooLong = tooLongRangeOffer(info);
-        if (!tooLong && info.code === "VIDEO_TOO_LONG" && (info.detail as Record<string, unknown> | undefined)?.range_allowed === false) {
-          setLengthError({ kind: "tooLongNoRange", minutes: Math.round(Number((info.detail as Record<string, unknown>).max_duration_seconds) / 60) || 0 });
-          setIsLoading(false);
-          setStatusMessage("");
-          return;
-        }
-        if (tooLong) {
-          offerRange({ ...tooLong, ...(sourceType === "upload" ? { uploadedUrl: videoUrl } : {}) });
-          setIsLoading(false);
-          setStatusMessage("");
-          return;
-        }
-        const upgradeForError = upgradeReasonForError(info.code, info.detail, upgradeState?.nextPlan?.youtubeMaxMinutes);
-        if (upgradeForError) {
-          openUpgrade(upgradeForError);
-          setIsLoading(false);
-          setStatusMessage("");
-          return;
-        }
-        throw new Error(formatSupportMessage({ ...info, message: workflowErrorMessage(info) ?? info.message }));
-      }
-
-      const startResult = await startResponse.json();
-      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
-      if (rangeOffer && sourceRange && !alreadyProcessing) trackEvent("source_range_chosen", {
-        source_kind: analyticsSourceKind(),
-        plan: billingSummary?.plan ?? "unknown",
-        range_minutes: Math.ceil((sourceRange.end - sourceRange.start) / 60),
-        start_minutes: Math.floor(sourceRange.start / 60),
-        duration_minutes: Math.round(rangeOffer.durationSeconds / 60),
-      });
-      if (!alreadyProcessing) track("task_created", {
-        // Analytics keeps ten fields, so workflow runs lead with theirs; plain highlights reports as before.
-        ...(activeWorkflow !== "highlights" || sentInstructions ? {
-          workflow: activeWorkflow,
-          has_instructions: Boolean(sentInstructions),
-          part_count: activeWorkflow === "series" ? partCount : null,
-        } : {}),
-        source_type: sourceType,
-        caption_template: fxFields.caption_template,
-        output_format: outputFormat,
-        add_subtitles: addSubtitles,
-        include_broll: brollAvailable && includeBroll,
-        cut_long_pauses: cutLongPauses,
-        pause_threshold_ms: normalizedPauseThreshold,
-        remove_filler_words: removeFillerWords,
-        filtered_words: normalizedFilteredWords,
-        processing_mode: "fast",
-      });
-      window.location.href = taskPathFromCreate(startResult);
-    } catch (error) {
-      console.error("Error processing video:", error);
-      setError(error instanceof Error ? error.message : t("errors.processVideo"));
+    if (failures.length) {
       setIsLoading(false);
       setStatusMessage("");
+      if (createdCount === 0) setError(failures.join(" "));
+      else setBatchResult({ created: createdCount, total: uploads.length, failed: failures });
+      return;
     }
+
+    if (uploads.length > 1) window.location.href = "/list";
+    else if (lastResult) window.location.href = taskPathFromCreate(lastResult);
   };
 
   if (isPending || !session?.user) {
@@ -1083,7 +1181,7 @@ export default function HomeApp() {
             <section className="mt-8 animate-rise" aria-labelledby="what-to-make">
               <p id="what-to-make" className="mb-2 text-sm font-medium">{t("whatToMake")}</p>
               <WorkflowPicker value={activeWorkflow} onChange={chooseWorkflow} disabled={controlsDisabled} available={offeredWorkflows} labelId="what-to-make" />
-              {sourceTooShort && sourceSeconds !== null && (
+              {queuedFiles.length === 1 && sourceTooShort && sourceSeconds !== null && (
                 <p role="status" className="mt-2 text-xs text-muted-foreground">
                   {t(`tooShort.${activeWorkflow}`, { duration: formatDuration(sourceSeconds) })}{" "}
                   <button type="button" onClick={() => chooseWorkflow("highlights")} className="font-medium text-foreground underline-offset-2 hover:underline">
@@ -1091,7 +1189,7 @@ export default function HomeApp() {
                   </button>
                 </p>
               )}
-              {!sourceTooShort && partsProblem && <p role="status" className="mt-2 text-xs text-muted-foreground">{partsProblem}</p>}
+              {queuedFiles.length === 1 && !sourceTooShort && partsProblem && <p role="status" className="mt-2 text-xs text-muted-foreground">{partsProblem}</p>}
             </section>
           )}
 
@@ -1104,7 +1202,7 @@ export default function HomeApp() {
             onDrop={(event) => {
               event.preventDefault();
               setIsDragging(false);
-              if (!controlsDisabled) attachFile(event.dataTransfer.files?.[0] ?? null);
+              if (!controlsDisabled) addFiles(Array.from(event.dataTransfer.files ?? []));
             }}
             className={cn(
               "relative rounded-2xl border bg-background shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_40px_-12px_rgb(0_0_0/0.12)] transition-all focus-within:border-foreground/25 focus-within:shadow-[0_1px_2px_rgb(0_0_0/0.04),0_16px_48px_-12px_rgb(0_0_0/0.18)]",
@@ -1116,9 +1214,14 @@ export default function HomeApp() {
               id="video-upload"
               type="file"
               accept="video/*"
+              multiple
               ref={fileInputRef}
               aria-describedby="source-limits"
-              onChange={(event) => attachFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                addFiles(Array.from(event.target.files ?? []));
+                // Selecting the same file again after removing it should still fire a change.
+                event.target.value = "";
+              }}
               disabled={controlsDisabled}
               className="hidden"
             />
@@ -1130,16 +1233,27 @@ export default function HomeApp() {
             )}
 
             <div data-tour="composer-source" className="flex items-start gap-3 p-3 pb-2 sm:p-4 sm:pb-2">
-              {file ? (
-                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl bg-muted/60 p-2 pr-3">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-background"><FileVideo className="size-5" /></span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{t("readyToUpload", { size: formatBytes(file.size) })}</p>
-                  </div>
-                  <button type="button" onClick={() => attachFile(null)} disabled={isLoading} aria-label={t("removeFile")} className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground">
-                    <X className="size-4" />
-                  </button>
+              {queuedFiles.length ? (
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  {queuedFiles.map((queued) => {
+                    const key = queuedFileKey(queued);
+                    // A single file already explains its problem below the picker.
+                    const problem = queuedFiles.length > 1 ? queuedFileProblems.get(key) : null;
+                    return (
+                      <div key={key} className="flex min-w-0 items-center gap-3 rounded-xl bg-muted/60 p-2 pr-3">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-background"><FileVideo className="size-5" /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{queued.name}</p>
+                          <p className={cn("text-xs", problem ? "text-destructive" : "text-muted-foreground")}>
+                            {problem ?? t("readyToUpload", { size: formatBytes(queued.size) })}
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => removeFile(key)} disabled={isLoading} aria-label={t("removeFile")} title={queued.name} className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground">
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <>
@@ -1277,11 +1391,9 @@ export default function HomeApp() {
             )}
 
             <div className="flex items-center gap-1 px-3 pb-3 sm:px-4">
-              {!file && (
-                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")} aria-describedby="source-limits">
-                  <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
-                </Chip>
-              )}
+              <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={queuedFiles.length ? t("addFiles") : t("uploadFile")} aria-describedby="source-limits">
+                <Paperclip className="size-3.5" /><span className="hidden sm:inline">{queuedFiles.length ? t("addFiles") : t("upload")}</span>
+              </Chip>
 
               {instructionsOffered && (
                 // Icon-only like B-roll, so the desktop composer stays on one row.
@@ -1539,7 +1651,7 @@ export default function HomeApp() {
                 <Button
                   type="submit"
                   size="icon"
-                  aria-label={t(`generateByWorkflow.${activeWorkflow}`)}
+                  aria-label={queuedFiles.length > 1 ? t("generateBatch", { count: queuedFiles.length }) : t(`generateByWorkflow.${activeWorkflow}`)}
                   disabled={!hasSource || isLoading || lengthLoading || awaitingWorkflows || awaitingEditStyles || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
@@ -1568,7 +1680,7 @@ export default function HomeApp() {
                 await startUpgrade(nextPlan.id, "video_too_long");
               }}
               onSubmit={() => void handleSubmit()}
-              onCancel={() => { setUrl(""); attachFile(null); }}
+              onCancel={() => { setUrl(""); setQueuedFiles([]); }}
               busy={isLoading}
               problem={rangeProblem}
             />
@@ -1592,6 +1704,15 @@ export default function HomeApp() {
             <Alert className="mt-4 border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {batchResult && (
+            <Alert className="mt-4">
+              <AlertDescription className="text-sm">
+                {t("batchPartial", { created: batchResult.created, total: batchResult.total, names: batchResult.failed.join(", ") })}{" "}
+                <Link href="/list" className="font-medium underline-offset-2 hover:underline">{t("viewLibrary")}</Link>
+              </AlertDescription>
             </Alert>
           )}
 
