@@ -4,14 +4,17 @@
 // would pass 80 % of the height. Each row slides in on its first word (60 ms, from 30u left, alpha 0 → 1), rows
 // alternate white and the accent colour, and normal captions hide while it plays (`hidesCaptions`). The desaturated
 // picture behind it is a separate resolver cue. With approximate word timing a row appears with its caption line.
+// The stack keeps off the speaker's head: when a head seen during the cue reaches into the stack's band, the stack
+// moves to the larger free band beneath the lowest chin or above the highest head (`kineticBand`).
 import type { DrawOp } from "../host";
 import { BASE_LOOKS, baseCaptionOps, cssColor } from "./base";
 import { registerAccent, registerCaptionStyle, type DrawerContext } from "../registry";
 import type { AccentCue, FxWord } from "../types";
 import { captionSafe } from "../constants";
 import { clamp01, easeOutCubic, progress } from "../easing";
-import { textOp } from "../layout";
+import { pictureMatrix, textOp, transformRect } from "../layout";
 import type { PreparedScene } from "../scene";
+import { pictureStateAt, type FxClock } from "../frame";
 import { approxTiming, cueWords, runStart, spokenWords } from "./highlighter_swipe";
 
 /** Every row's width as a fraction of the frame width. */
@@ -30,6 +33,12 @@ export const KINETIC_SLIDE_FROM = 30;
 /** Fade out over the last 120 ms of the cue. */
 export const KINETIC_OUT = 0.12;
 export const KINETIC_FONT = "THEBOLDFONT";
+/** Faces smaller than this share of H are background people (== HOOK_PLACE.minFace). */
+export const KINETIC_MIN_FACE = 0.05;
+/** Space kept between a head and the stack (fraction of H). */
+export const KINETIC_HEAD_GAP = 0.02;
+/** A free band beside the head must be at least this tall (fraction of H); otherwise the stack keeps its home. */
+export const KINETIC_MIN_BAND = 0.2;
 /** Rows of 1–3 words, filled up to ~12 weighted characters (emphasis counts 1.6×). */
 const ROW_WORDS = 3;
 const ROW_CHARS = 12;
@@ -83,6 +92,41 @@ export function kineticRows<T extends { text: string; emphasis: boolean }>(words
   return rows;
 }
 
+/**
+ * The vertical band the stack may use: its home (from `KINETIC_TOP`, at most `KINETIC_MAX_STACK` tall, clear of the
+ * bottom safe margin), unless a head seen while the cue plays reaches into it. Heads are the face-track boxes through
+ * the picture transform at each sample (so a punch-in during the cue counts), ignoring background faces. Then the
+ * stack takes the larger free band, beneath the lowest chin or above the highest head, when that band is at least
+ * `KINETIC_MIN_BAND` tall; with no room either side (a face filling the frame) it stays at home.
+ */
+export function kineticBand(p: PreparedScene, cue: AccentCue): { top: number; bottom: number } {
+  const W = p.width, H = p.height;
+  const homeTop = KINETIC_TOP * H;
+  const limit = H - captionSafe(W, H).bottom;
+  const home = { top: homeTop, bottom: Math.min(homeTop + KINETIC_MAX_STACK * H, limit) };
+  let headTop = Infinity, chin = -Infinity;
+  for (const [t, rows] of p.scene.face_track?.samples ?? []) {
+    if (t < cue.start - 0.2 || t > cue.end + 0.2) continue;
+    const e = Math.min(Math.max(t, cue.start), Math.max(cue.start, cue.end - 1e-3));
+    const clock: FxClock = { e, o: e, frame: Math.round(e * 30) };
+    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
+    for (const row of rows ?? []) {
+      if (row.length < 4 || row[3] < KINETIC_MIN_FACE) continue;
+      const r = transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
+      headTop = Math.min(headTop, r.y);
+      chin = Math.max(chin, r.y + r.h);
+    }
+  }
+  if (!(chin > home.top) || !(headTop < home.bottom)) return home;   // no head, or none inside the home band
+  const gap = KINETIC_HEAD_GAP * H;
+  const below = { top: Math.max(home.top, chin + gap), bottom: limit };
+  const above = { top: captionSafe(W, H).top, bottom: Math.min(home.bottom, headTop - gap) };
+  const size = (b: { top: number; bottom: number }) => b.bottom - b.top;
+  const best = size(below) >= size(above) ? below : above;
+  if (size(best) < KINETIC_MIN_BAND * H) return home;
+  return { top: best.top, bottom: Math.min(best.bottom, best.top + KINETIC_MAX_STACK * H) };
+}
+
 const layouts = new WeakMap<PreparedScene, Map<string, KineticLayout>>();
 
 /** Row sizes, positions and screens for a kinetic cue (memoised per prepared scene). */
@@ -94,8 +138,7 @@ export function kineticLayout(p: PreparedScene, cue: AccentCue): KineticLayout {
   const W = p.width, H = p.height, u = p.u;
   const family = p.family(KINETIC_FONT);
   const words = sentence(p, cue).map((w) => ({ ...w, text: w.text.toLocaleUpperCase() }));
-  const top = KINETIC_TOP * H;
-  const bottom = Math.min(top + KINETIC_MAX_STACK * H, H - captionSafe(W, H).bottom);
+  const { top, bottom } = kineticBand(p, cue);
   const gap = 14 * u;
   const rows: KineticRow[] = [];
   const screens: number[] = [];

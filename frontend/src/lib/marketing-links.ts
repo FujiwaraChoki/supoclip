@@ -83,13 +83,25 @@ export const marketingLinks: MarketingLink[] = [
     related: ["/open-source-video-clipper", OPUSCLIP_COMPARISON_HREF, "/youtube-shorts-clipper"],
   },
   {
+    href: "/blog/supoclip-vs-opusclip-klap-vizard", languages: ["en"], group: "comparison", eyebrow: "Comparison",
+    title: "SupoClip vs OpusClip vs Klap vs Vizard", label: "SupoClip vs OpusClip, Klap, Vizard",
+    description: "Free plans, price per hour or clip, exports and publishing across four AI clippers.",
+    related: ["/blog/free-opusclip-alternatives", OPUSCLIP_COMPARISON_HREF, "/demo"],
+  },
+  {
+    href: "/blog/free-opusclip-alternatives", languages: ["en"], group: "comparison", eyebrow: "Comparison",
+    title: "Best free OpusClip alternatives", label: "Free OpusClip alternatives",
+    description: "What the free tiers of hosted clippers include, and open-source tools with no watermark.",
+    related: ["/blog/supoclip-vs-opusclip-klap-vizard", "/blog/open-source-video-clippers", SELF_HOSTING_GUIDE_HREF],
+  },
+  {
     href: OPUSCLIP_COMPARISON_HREF,
     group: "comparison",
     eyebrow: "Comparison",
     title: "SupoClip vs OpusClip: a sourced comparison",
     label: "SupoClip vs OpusClip",
     description: "Pricing model, deployment, watermarks, and workflow, with every claim linked to a source.",
-    related: [SELF_HOSTING_GUIDE_HREF, "/blog/best-free-opusclip-alternative", "/ai-video-clipper"],
+    related: ["/blog/supoclip-vs-opusclip-klap-vizard", SELF_HOSTING_GUIDE_HREF, "/blog/best-free-opusclip-alternative"],
   },
   {
     href: "/blog/best-free-opusclip-alternative",
@@ -98,7 +110,7 @@ export const marketingLinks: MarketingLink[] = [
     title: "Free OpusClip alternative: costs and tradeoffs",
     label: "Self-hosted OpusClip alternative",
     description: "Understand the compute, provider costs, and maintenance behind a self-hosted workflow.",
-    related: [OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF, "/blog/supoclip-vs-supo-live"],
+    related: ["/blog/free-opusclip-alternatives", OPUSCLIP_COMPARISON_HREF, "/blog/supoclip-vs-supo-live"],
   },
   {
     href: "/blog/supoclip-vs-supo-live",

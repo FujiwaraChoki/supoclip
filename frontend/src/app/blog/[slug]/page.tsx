@@ -1,5 +1,7 @@
 import { formatArticleDate } from "@/components/articles/article-shell";
+import { ClipperComparisonArticle } from "@/components/articles/clipper-comparison-article";
 import { CreatorGuideArticle } from "@/components/articles/creator-guide-article";
+import { FreeOpusClipAlternativesArticle } from "@/components/articles/free-opusclip-alternatives-article";
 import { Gta6ClippingArticle } from "@/components/articles/gta6/gta6-clipping-article";
 import { OpusClipComparisonArticle } from "@/components/articles/opusclip-comparison-article";
 import { SelfHostingGuideArticle } from "@/components/articles/self-hosting-guide-article";
@@ -74,6 +76,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   if (slug === "tiktok-publishing-is-live") {
     return <TikTokPublishingArticle post={basePost} />;
+  }
+  if (slug === "supoclip-vs-opusclip-klap-vizard") {
+    return <ClipperComparisonArticle post={basePost} />;
+  }
+  if (slug === "free-opusclip-alternatives") {
+    return <FreeOpusClipAlternativesArticle post={basePost} />;
   }
 
   const locale = await getLocale();

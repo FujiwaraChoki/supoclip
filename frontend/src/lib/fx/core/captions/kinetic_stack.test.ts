@@ -5,13 +5,17 @@ import { accentDrawerFor } from "../registry";
 import { expectGolden, renderSceneToPng } from "../test-utils/golden";
 import type { FxWord } from "../types";
 import {
-  KINETIC_EMPHASIS, KINETIC_FILL, KINETIC_MAX_STACK, KINETIC_SLIDE, KINETIC_SLIDE_FROM, kineticLayout, kineticRows,
+  KINETIC_EMPHASIS, KINETIC_FILL, KINETIC_HEAD_GAP, KINETIC_MAX_STACK, KINETIC_SLIDE, KINETIC_SLIDE_FROM, KINETIC_TOP,
+  kineticBand, kineticLayout, kineticRows,
 } from "./kinetic_stack";
-import { accent, cueOps, expectInsideFrame, opsAt, prep, snap, templateScene, texts } from "./wp8.testkit";
+import type { ZoomCue } from "../types";
+import { accent, cueOps, expectInsideFrame, faceTrack, opsAt, prep, snap, templateScene, texts } from "./wp8.testkit";
 
 const HOOK = "Our revenue grew 300% in one year and honestly nobody saw that coming";
 const CUE = accent("b0.accent", "kinetic", 0.2, 4.6, { text: HOOK });
-const scene = (w = 1080, h = 1920, extra = {}) => templateScene("kinetic_stack", { width: w, height: h, cues: [CUE], ...extra });
+// No face track unless a test gives one: the layout tests below check the stack at its home band.
+const scene = (w = 1080, h = 1920, extra = {}) =>
+  templateScene("kinetic_stack", { width: w, height: h, cues: [CUE], face_track: null, ...extra });
 const TIMES = [0.21, 0.24, 0.6, 1.4, 2.5, 3.9];
 
 describe("kinetic_stack frameOps", () => {
@@ -150,5 +154,50 @@ describe("kinetic_stack raster goldens", () => {
   });
   it("renders landscape (960x540)", () => {
     expectGolden("kinetic_stack__kinetic_landscape_t2.5", renderSceneToPng(scene(960, 540), 2.5));
+  });
+});
+
+describe("kinetic stack keeps off the head", () => {
+  // A podcast close-up: the head fills the upper middle of a 9:16 frame, where the stack's home band starts.
+  const HEAD = { x: 0.3, y: 0.18, w: 0.4, h: 0.31 };
+  const withFace = (face: typeof HEAD, extra = {}) => scene(1080, 1920, { face_track: faceTrack(5, () => face), ...extra });
+  const rowsOverlap = (rows: { top: number; height: number }[], top: number, bottom: number) =>
+    rows.some((r) => r.top < bottom && r.top + r.height > top);
+
+  it("without a face track the stack starts at its home", () => {
+    expect(kineticBand(prep(scene()), CUE).top).toBeCloseTo(KINETIC_TOP * 1920, 6);
+  });
+
+  it("moves beneath the chin when the head is in its band, and never covers the head", () => {
+    const p = prep(withFace(HEAD));
+    const band = kineticBand(p, CUE);
+    const chin = (HEAD.y + HEAD.h) * 1920;
+    expect(band.top).toBeCloseTo(chin + KINETIC_HEAD_GAP * 1920, 6);
+    const { rows } = kineticLayout(p, CUE);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rowsOverlap(rows, HEAD.y * 1920, chin)).toBe(false);
+    for (const t of TIMES) expectInsideFrame(cueOps(withFace(HEAD), t), 1080, 1920);
+  });
+
+  it("goes above a head low in the frame", () => {
+    const low = { x: 0.3, y: 0.6, w: 0.4, h: 0.2 };
+    const p = prep(withFace(low));
+    const band = kineticBand(p, CUE);
+    expect(band.bottom).toBeCloseTo((low.y - KINETIC_HEAD_GAP) * 1920, 6);
+    expect(rowsOverlap(kineticLayout(p, CUE).rows, low.y * 1920, (low.y + low.h) * 1920)).toBe(false);
+  });
+
+  it("keeps its home when no band beside the head is tall enough, or the face is a background face", () => {
+    expect(kineticBand(prep(withFace({ x: 0.1, y: 0.1, w: 0.8, h: 0.75 })), CUE).top).toBeCloseTo(KINETIC_TOP * 1920, 6);
+    expect(kineticBand(prep(withFace({ x: 0.45, y: 0.3, w: 0.04, h: 0.03 })), CUE).top).toBeCloseTo(KINETIC_TOP * 1920, 6);
+  });
+
+  it("counts the head as a punch-in during the cue shows it", () => {
+    const zoom: ZoomCue = { id: "z54.zoom", kind: "zoom", start: 1.8, end: 4.6, seed: 1, beat: "b0", origin: "auto",
+      mode: "punch", scale: 1.2, anchor: "face" };
+    const still = kineticBand(prep(withFace(HEAD)), CUE);
+    const zoomed = kineticBand(prep(withFace(HEAD, { cues: [CUE, zoom] })), CUE);
+    // Scaled about the face centre, the chin drops by 0.2 × half the face height.
+    expect(zoomed.top - still.top).toBeCloseTo(0.2 * (HEAD.h / 2) * 1920, 0);
   });
 });
