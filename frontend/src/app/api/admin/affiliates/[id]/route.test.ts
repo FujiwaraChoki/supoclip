@@ -22,7 +22,7 @@ describe("/api/admin/affiliates/[id]", () => {
   const user = { updateMany: vi.fn() };
   const promotionCodes = { create: vi.fn(), update: vi.fn() };
 
-  const pending = { id: "aff-1", user_id: "creator-1", slug: "maya", status: "pending", stripe_promotion_code_id: null };
+  const pending = { id: "aff-1", user_id: "creator-1", slug: "maya", status: "pending", stripe_promotion_code_id: null, country: "US" };
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -57,7 +57,13 @@ describe("/api/admin/affiliates/[id]", () => {
     expect(user.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { plan: "pro", subscription_status: "active", subscription_provider: "affiliate" } }),
     );
-    expect(sendAffiliateEmail).toHaveBeenCalledWith("creator-1", { event: "approved", slug: "maya" });
+    expect(sendAffiliateEmail).toHaveBeenCalledWith("creator-1", { event: "approved", slug: "maya", commission: true });
+  });
+
+  it("approves a creator outside the payout countries without promising commission", async () => {
+    affiliate.findUnique.mockResolvedValue({ ...pending, country: "ZZ" });
+    expect((await review({ action: "approve" })).status).toBe(200);
+    expect(sendAffiliateEmail).toHaveBeenCalledWith("creator-1", { event: "approved", slug: "maya", commission: false });
   });
 
   it("deactivates the new code when another admin reviewed first", async () => {

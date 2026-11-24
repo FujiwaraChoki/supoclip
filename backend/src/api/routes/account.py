@@ -101,6 +101,9 @@ class AffiliateEmailRequest(BaseModel):
     video_url: Optional[str] = Field(default=None, max_length=500)
     promotion_plan: Optional[str] = Field(default=None, max_length=1000)
     decline_reason: Optional[str] = Field(default=None, max_length=1000)
+    country: Optional[str] = Field(default=None, max_length=2)
+    # Approval: whether the creator lives where commission can be paid out.
+    commission: bool = True
 
 
 @router.post("/affiliate-email")
@@ -132,7 +135,7 @@ async def send_affiliate_email(
         elif not user.email:
             raise HTTPException(status_code=400, detail="User email is missing")
         elif body.event == "approved":
-            await service.send_approved_email(user, body.slug)
+            await service.send_approved_email(user, body.slug, body.commission)
         else:
             await service.send_declined_email(user, body.decline_reason)
     except HTTPException:

@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Program Kreator SupoClip: Dapatkan Pro Gratis karena Membuat Video",
-    "description": "Buat Shorts, Reels, TikTok, atau video tentang SupoClip dan dapatkan SupoClip Pro gratis. Audiensmu mendapat diskon 20% untuk 3 bulan pertama dengan kodemu."
+    "title": "Program Kreator SupoClip: Dapatkan {percent}% Selama {months} Bulan",
+    "description": "Buat video tentang SupoClip dan dapatkan {percent}% dari yang dibayar penontonmu di {months} bulan pertama mereka, langsung ke rekening bankmu lewat Stripe. Penontonmu dapat diskon 20% untuk 3 bulan pertama."
   },
   "badge": "Program kreator",
   "nav": {
@@ -10,8 +10,8 @@
     "apply": "Daftar"
   },
   "hero": {
-    "title": "Buat video tentang SupoClip. Dapatkan Pro gratis.",
-    "body": "Sering posting Shorts, Reels, atau TikTok tentang clipping, podcast, atau alat kreator? Dapatkan kodemu sendiri. Audiensmu hemat di SupoClip, dan kamu dapat Pro selama ikut program.",
+    "title": "Buat video tentang SupoClip. Dapatkan {percent}% selama {months} bulan.",
+    "body": "Posting Shorts, Reels, atau TikTok tentang clipping, podcast, atau tools kreator? Dapatkan kodemu sendiri. Penontonmu hemat 20%, kamu dapat {percent}% dari yang mereka bayar di {months} bulan pertama, dan kamu dapat SupoClip Pro gratis selama ada di program.",
     "apply": "Daftar sekarang",
     "noMinimum": "Tanpa minimum pengikut."
   },
@@ -22,6 +22,8 @@
   },
   "offer": {
     "heading": "Yang didapat semua orang",
+    "earnTitle": "Kamu dapat {percent}% selama {months} bulan",
+    "earnDetail": "Dari setiap pembayaran orang yang berlangganan dengan kodemu, di {months} bulan pertama mereka. Kira-kira ${pro} per pelanggan Pro dan ${creator} per pelanggan Creator. Untuk kreator di AS, Inggris, Kanada, Swiss, dan Eropa.",
     "youTitle": "Kamu dapat SupoClip Pro, gratis",
     "youDetail": "Pro biasanya ${price}/bulan dan mencakup {limit} jam video sebulan. Kreator yang disetujui mendapatkannya gratis selama mereka ada di program.",
     "youDetailNoLimit": "Pro biasanya ${price}/bulan. Kreator yang disetujui mendapatkannya gratis selama mereka ada di program.",
@@ -42,7 +44,11 @@
     },
     "share": {
       "title": "Bagikan",
-      "detail": "Taruh tautanmu di bio atau sebut kodemu di video. Akunmu langsung dapat Pro."
+      "detail": "Taruh linkmu di bio atau sebut kodemu di videomu. Setiap pembayaran dari penontonmu memberimu {percent}% selama {months} bulan."
+    },
+    "paid": {
+      "title": "Dibayar",
+      "detail": "Hubungkan Stripe sekali. Komisi dikirim ke rekening bankmu setiap bulan, {days} hari setelah setiap pembayaran."
     }
   },
   "rules": {
@@ -50,13 +56,26 @@
     "sponsored": "Tandai postingan bersponsor sebagaimana mestinya, misalnya dengan #ad.",
     "ads": "Jangan pasang iklan atas nama SupoClip atau posting kodemu di situs kupon atau diskon.",
     "ownCode": "Jangan pakai kodemu sendiri.",
+    "incentive": "Jangan bayar atau beri hadiah agar orang daftar dengan kodemu.",
     "end": "Kami bisa mengakhiri program atau mengeluarkan kreator kapan saja."
   },
   "faq": {
     "heading": "Pertanyaan",
-    "cash": {
-      "question": "Apakah saya dibayar tunai?",
-      "answer": "Belum. Kreator yang disetujui mendapat SupoClip Pro (biasanya ${price}/bulan) gratis selama mereka ada di program."
+    "earn": {
+      "question": "Berapa yang saya dapat?",
+      "answer": "{percent}% dari yang dibayar di web oleh setiap pelanggan yang memakai link atau kodemu, di {months} bulan pertama mereka, tanpa pajak. Satu pelanggan Pro menghasilkan sekitar ${pro} dalam waktu itu dan satu pelanggan Creator sekitar ${creator}. Paket tahunan dihitung sekali. Pembayaran yang di-refund atau di-chargeback tidak menghasilkan komisi."
+    },
+    "payout": {
+      "question": "Bagaimana saya dibayar?",
+      "answer": "Lewat Stripe, langsung ke rekening bankmu. Kamu mengaturnya sekali dari halaman kreatormu: Stripe meminta nama, alamat, tanggal lahir, dan data bank. Komisi tersedia {days} hari setelah setiap pembayaran dan dibayar setiap bulan setelah kamu punya ${minimum} atau lebih. Pembayaran tersedia di AS, Inggris, Kanada, Swiss, dan Eropa."
+    },
+    "where": {
+      "question": "Apakah saya bisa dapat komisi di tempat tinggal saya?",
+      "answer": "Komisi dibayar ke kreator yang tinggal di AS, Inggris, Kanada, Swiss, dan Eropa, karena hanya ke sana Stripe bisa membayarnya. Kreator di tempat lain tetap bisa ikut: kamu dapat SupoClip Pro gratis dan kode yang memberi penontonmu diskon 20%."
+    },
+    "iphone": {
+      "question": "Apakah langganan di iPhone dihitung?",
+      "answer": "Belum. Penontonmu tetap dapat diskon di iPhone dengan kodemu, tapi komisi dihitung dari langganan yang dibeli di web."
     },
     "followers": {
       "question": "Apakah ada jumlah minimum pengikut?",

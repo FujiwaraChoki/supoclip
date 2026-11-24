@@ -55,7 +55,34 @@
     "approving": "正在批准...",
     "approve": "批准",
     "storeCodeAdded": "已添加 App Store 代码",
-    "markStoreCode": "标记已添加 App Store 代码"
+    "markStoreCode": "标记已添加 App Store 代码",
+    "livesIn": "居住在 {country}",
+    "noCommission": "居住在其他地方：无佣金",
+    "countryUnknown": "尚未填写国家/地区"
+  },
+  "creatorPayouts": {
+    "title": "佣金支付",
+    "description": "已过 30 天保留期的佣金，通过 Stripe Connect 从平台余额支付。不足 {minimum} 的创作者顺延到下月。每月运行一次。",
+    "nothingToPay": "无需支付",
+    "pay": "向 {count, plural, other {# 位创作者}}支付 {total}",
+    "creator": "创作者",
+    "available": "可用",
+    "pending": "保留中",
+    "payouts": "收款",
+    "ready": "就绪",
+    "notSetUp": "未设置",
+    "confirmTitle": "现在支付 {total}？",
+    "confirmBody": "这将从平台余额发送 {count, plural, other {# 笔 Stripe 转账}}。即使再次运行，每笔也只会发送一次。",
+    "confirm": "支付创作者",
+    "cancel": "取消",
+    "outcome": {
+      "paid": "已向 {name} 支付 {amount}",
+      "failed": "Stripe 拒绝了向 {name} 支付 {amount}；金额保留在其余额中",
+      "pending": "向 {name} 支付的 {amount} 尚未确认；再次运行以完成",
+      "skipped": "已跳过 {name}（{amount}）"
+    },
+    "loadFailed": "无法加载创作者余额",
+    "runFailed": "支付运行失败"
   },
   "processing": {
     "title": "正在处理的任务",

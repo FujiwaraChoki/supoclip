@@ -3,6 +3,7 @@ import { fetchBackend } from "@/server/backend-api";
 import { getPrismaClient } from "@/server/prisma";
 import { getPostHogServer } from "@/server/posthog";
 import { getServerStripeClient } from "@/server/stripe";
+import { handleAffiliateCommissionEvent } from "@/server/affiliate-commissions";
 
 vi.mock("@/lib/monetization", () => ({
   monetizationEnabled: true,
@@ -22,6 +23,10 @@ vi.mock("@/server/backend-api", () => ({
 
 vi.mock("@/server/posthog", () => ({
   getPostHogServer: vi.fn(),
+}));
+
+vi.mock("@/server/affiliate-commissions", () => ({
+  handleAffiliateCommissionEvent: vi.fn(),
 }));
 
 describe("/api/billing/webhook", () => {
@@ -1391,5 +1396,51 @@ describe("/api/billing/webhook checkout recovery", () => {
     expect((await deliver()).status).toBe(200);
     expect(recoveryEmails()).toHaveLength(2);
     expect(events.ids.has("checkout_recovery:user-1:2026-11")).toBe(true);
+  });
+});
+
+describe("/api/billing/webhook creator commission", () => {
+  const env = process.env;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    process.env = { ...env, STRIPE_WEBHOOK_SECRET: "whsec_test", STRIPE_PRO_PRICE_ID: "price_pro" };
+  });
+
+  afterEach(() => {
+    process.env = env;
+  });
+
+  async function deliver(type: string, object: Record<string, unknown>) {
+    const event = { id: `evt_${type}`, type, data: { object } };
+    vi.mocked(getServerStripeClient).mockReturnValue({
+      webhooks: { constructEvent: vi.fn().mockReturnValue(event) },
+    } as never);
+    const remove = vi.fn().mockResolvedValue({});
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: { create: vi.fn().mockResolvedValue({}), delete: remove },
+    } as never);
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+    return { event, response, remove };
+  }
+
+  it.each(["charge.refunded", "charge.dispute.created", "charge.dispute.closed"])(
+    "passes %s to the commission ledger",
+    async (type) => {
+      const { event, response } = await deliver(type, { id: "ch_1", object: "charge" });
+      expect(response.status).toBe(200);
+      expect(handleAffiliateCommissionEvent).toHaveBeenCalledWith(event);
+    },
+  );
+
+  it("lets Stripe redeliver the event when the ledger fails", async () => {
+    vi.mocked(handleAffiliateCommissionEvent).mockRejectedValue(new Error("database down"));
+    await expect(deliver("charge.refunded", { id: "ch_1" })).rejects.toThrow("database down");
   });
 });

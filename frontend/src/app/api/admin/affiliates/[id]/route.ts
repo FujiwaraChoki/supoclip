@@ -3,6 +3,7 @@ import {
   creatorCouponId,
   affiliateAdminStripeClient,
   deactivatePromotionCode,
+  earnsCommission,
   grantAffiliatePro,
   revokeAffiliatePro,
   sendAffiliateEmail,
@@ -45,7 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const prisma = getPrismaClient();
     const affiliate = await prisma.affiliate.findUnique({
       where: { id },
-      select: { id: true, user_id: true, slug: true, status: true, stripe_promotion_code_id: true },
+      select: { id: true, user_id: true, slug: true, status: true, stripe_promotion_code_id: true, country: true },
     });
     if (!affiliate) {
       return NextResponse.json({ error: "Application not found" }, { status: 404 });
@@ -80,7 +81,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
 
       await grantAffiliatePro(prisma, affiliate.user_id);
-      sendAffiliateEmail(affiliate.user_id, { event: "approved", slug: affiliate.slug });
+      sendAffiliateEmail(affiliate.user_id, {
+        event: "approved",
+        slug: affiliate.slug,
+        commission: earnsCommission(affiliate.country),
+      });
       return NextResponse.json({ status: "approved" });
     }
 

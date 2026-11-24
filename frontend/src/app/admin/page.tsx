@@ -8,6 +8,7 @@ import { LegacyHdToggle } from "@/components/admin/legacy-hd-toggle";
 import { FeatureFlagSwitch } from "@/components/admin/feature-flag-switch";
 import { formatBillingPlanName } from "@/lib/billing-plans";
 import { AffiliateReviewActions } from "@/components/admin/affiliate-review-actions";
+import { CreatorPayoutsPanel } from "@/components/admin/creator-payouts-panel";
 import {
   RuntimeSettingsForm,
   type RuntimeSetting,
@@ -246,6 +247,7 @@ export default async function AdminPage({
         audience_size: true,
         video_url: true,
         promotion_plan: true,
+        country: true,
         app_store_code_added_at: true,
         created_at: true,
         user: { select: { email: true, name: true } },
@@ -339,6 +341,7 @@ export default async function AdminPage({
           description={t(pendingAffiliates === 1 ? "creators.pendingOne" : "creators.pendingOther", { count: pendingAffiliates })}
           action={<a href={APP_STORE_CREATOR_OFFER_URL} target="_blank" rel="noopener noreferrer" className="text-xs font-medium underline-offset-4 hover:underline">{t("creators.offerCodes")}</a>}
         >
+          <CreatorPayoutsPanel />
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y">
               <thead className="bg-muted/40"><tr><th className={th}>{t("columns.creator")}</th><th className={th}>{t("columns.code")}</th><th className={th}>{t("columns.channel")}</th><th className={th}>{t("columns.pitch")}</th><th className={cn(th, "text-right")}>{t("columns.action")}</th></tr></thead>
@@ -358,6 +361,13 @@ export default async function AdminPage({
                     <td className={td}>
                       <a href={affiliate.profile_url} target="_blank" rel="noopener noreferrer" className="font-medium capitalize underline-offset-4 hover:underline">{affiliate.platform}</a>
                       <p className="text-xs text-muted-foreground">{t("creators.followers", { count: affiliate.audience_size })}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {affiliate.country === null
+                          ? t("creators.countryUnknown")
+                          : affiliate.country === "ZZ"
+                            ? t("creators.noCommission")
+                            : t("creators.livesIn", { country: affiliate.country })}
+                      </p>
                       {affiliate.video_url && (
                         <a href={affiliate.video_url} target="_blank" rel="noopener noreferrer" className="text-xs underline-offset-4 hover:underline">{t("creators.video")}</a>
                       )}

@@ -9,6 +9,8 @@ from .email_layout import email_button
 from .email_service import EmailContent, SesEmailService, first_name_for
 
 OFFER_TEXT = "20% off their first 3 months"
+# Keep in step with frontend/src/lib/creator-commission.ts.
+COMMISSION_TEXT = "30% of what customers who use your code pay on the web, for their first 12 months"
 
 
 class AffiliateEmailService:
@@ -24,8 +26,10 @@ class AffiliateEmailService:
             admin_email, self._build_applied_email(applicant, application)
         )
 
-    async def send_approved_email(self, user: User, slug: str) -> dict:
-        return await self.email_service.send_email(user.email, self._build_approved_email(user, slug))
+    async def send_approved_email(self, user: User, slug: str, commission: bool = True) -> dict:
+        return await self.email_service.send_email(
+            user.email, self._build_approved_email(user, slug, commission)
+        )
 
     async def send_declined_email(self, user: User, reason: Optional[str]) -> dict:
         return await self.email_service.send_email(user.email, self._build_declined_email(user, reason))
@@ -37,6 +41,7 @@ class AffiliateEmailService:
             ("Platform", str(application.get("platform") or "")),
             ("Profile", str(application.get("profile_url") or "")),
             ("Audience", str(application.get("audience_size") or "")),
+            ("Lives in", "elsewhere (no commission)" if application.get("country") == "ZZ" else str(application.get("country") or "—")),
             ("Video", str(application.get("video_url") or "—")),
             ("Plan", str(application.get("promotion_plan") or "—")),
         ]
@@ -57,10 +62,23 @@ class AffiliateEmailService:
             ),
         )
 
-    def _build_approved_email(self, user: User, slug: str) -> EmailContent:
+    def _build_approved_email(self, user: User, slug: str, commission: bool = True) -> EmailContent:
+        """`commission` is false for creators outside the countries Stripe can pay out to."""
         first_name = first_name_for(first_name=user.first_name, full_name=user.name)
         link = f"{self.app_url}/?ref={slug}"
+        payouts_url = f"{self.app_url}/settings/creator-program"
         code = slug.upper()
+        commission_html = (
+            f"<p>You earn {COMMISSION_TEXT}. Set up payouts on your creator page so we can send it to your bank: "
+            f'<a href="{escape(payouts_url)}">{escape(payouts_url)}</a></p>'
+            if commission
+            else ""
+        )
+        commission_text = (
+            f"You earn {COMMISSION_TEXT}. Set up payouts on your creator page so we can send it to your bank: {payouts_url}\n\n"
+            if commission
+            else ""
+        )
         return EmailContent(
             subject="You're in: welcome to the SupoClip creator program",
             html=(
@@ -70,6 +88,7 @@ class AffiliateEmailService:
                 f"<strong>Your code:</strong> {escape(code)}</p>"
                 f"<p>Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.</p>"
                 "<p>Your iPhone link (for the SupoClip iOS app) will show up on your creator page once your code is live on the App Store.</p>"
+                f"{commission_html}"
                 "<p>As a thank-you, your account now has SupoClip Pro for free while you're in the program.</p>"
                 "<p>Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
                 "or post your code on coupon sites.</p>"
@@ -82,6 +101,7 @@ class AffiliateEmailService:
                 f"Your code: {code}\n\n"
                 f"Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.\n\n"
                 "Your iPhone link (for the SupoClip iOS app) will show up on your creator page once your code is live on the App Store.\n\n"
+                f"{commission_text}"
                 "As a thank-you, your account now has SupoClip Pro for free while you're in the program.\n\n"
                 "Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
                 "or post your code on coupon sites.\n\n"
