@@ -11,8 +11,10 @@ is the default for self-hosted installs.
 | Desktop (Electron) | analytics, session replay, exceptions | — |
 | iOS | analytics, crashes | — |
 
-Production uses the PostHog project **SupoClip** (EU cloud, project id
-`314504`) and the Axiom dataset **`supoclip-prod`** (org `supoclip-tjzv`).
+Production uses the PostHog project **SupoClip** (self-hosted at
+`https://ph.supoclip.com`, project id `1`) and the Axiom dataset **`supoclip-prod`**
+(org `supoclip-tjzv`). Data from before 2026-11-24 stays in the old EU cloud project
+`314504`.
 
 ## Following an error from PostHog to the logs
 
