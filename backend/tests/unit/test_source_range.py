@@ -382,13 +382,26 @@ def test_youtube_part_downloads_only_its_audio_fragments(tmp_path, monkeypatch):
 
 def test_youtube_part_without_timed_audio_refuses_an_ffmpeg_section(tmp_path, monkeypatch):
     fmt = {"format_id": "140", "protocol": "https", "url": "https://media/file"}
-    monkeypatch.setattr(youtube_proxy, "extract_video_info", lambda *_a: {"formats": [fmt], "duration": 10000})
+    calls = []
+
+    def metadata(*_a):
+        calls.append(1)
+        return {"formats": [fmt], "duration": 10000}
+
+    config = Config()
+    config.youtube_proxy_url = "http://user:pass@proxy.invalid:1/{session}"
+    config.youtube_proxy_country = ""
+    monkeypatch.setattr(youtube_proxy, "get_config", lambda: config)
+    monkeypatch.delenv("YOUTUBE_PROXY_DEFAULT_PROVIDER", raising=False)
+    monkeypatch.setattr(youtube_proxy, "extract_video_info", metadata)
     monkeypatch.setattr(youtube_proxy, "pick_hls_audio_format", lambda *_a, **_k: None)
+    # No HLS in the list may be a failed playlist fetch: one fresh session, then refuse.
     with pytest.raises(youtube_proxy.PartialDownloadUnavailable):
-        youtube_proxy._download_audio_section_attempt(
+        youtube_proxy.download_audio_section(
             YOUTUBE_URL, "abcdefghijk", 0.0, 60.0, tmp_path / "stem",
-            task_id="t", budget=youtube_proxy.ByteBudget(10_000), options={},
+            task_id="t", budget=youtube_proxy.ByteBudget(10_000),
         )
+    assert len(calls) == 2
 
 
 @pytest.fixture
