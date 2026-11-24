@@ -1,0 +1,42 @@
+{
+  "title": "Calendar",
+  "summary": "{scheduled, plural, =0 {Nothing scheduled} one {# scheduled} other {# scheduled}} · {published, plural, =0 {nothing published yet} one {# published} other {# published}} in this view",
+  "planWithAgent": "Plan with the agent",
+  "planPrompt": "Look at my calendar for the next two weeks and fill the gaps with my best clips that aren't posted yet, at good times. Ask me first if you're unsure about platforms or how often to post.",
+  "previous": "Previous",
+  "next": "Next",
+  "today": "Today",
+  "filter": "Filter by platform",
+  "views": { "month": "Month", "week": "Week" },
+  "more": "+{count} more",
+  "untitled": "Untitled post",
+  "unavailable": "The posting calendar shows up once social publishing is on for your account.",
+  "goHome": "Go home",
+  "toasts": {
+    "past": "Pick a day that hasn't passed.",
+    "moved": "Moved to {day}",
+    "failed": "That didn't work. Try again.",
+    "saved": "Post updated",
+    "cancelled": "Post cancelled",
+    "retried": "Trying again"
+  },
+  "empty": {
+    "title": "Nothing on the calendar",
+    "body": "Schedule clips from a project and they'll show up here.",
+    "bodyAgent": "Your agent can pick your best clips and spread them out at good times.",
+    "library": "Open library"
+  },
+  "sheet": {
+    "when": "Goes out",
+    "wentOut": "When",
+    "caption": "Caption",
+    "views": "Views",
+    "likes": "Likes",
+    "comments": "Comments",
+    "save": "Save changes",
+    "cancel": "Cancel post",
+    "retry": "Try again",
+    "view": "View post",
+    "project": "Open project"
+  }
+}

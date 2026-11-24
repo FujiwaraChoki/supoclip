@@ -529,5 +529,10 @@
       "title": "Este vídeo passa do seu limite de {minutes} minutos",
       "body": "Ele é mais longo do que seu plano permite e não dá para escolher uma parte aqui. Use a gravação final ou um vídeo mais curto. Nenhum minuto foi usado."
     }
-  }
+  },
+  "askAgentInstead": "Pedir ao agente",
+  "creatorTag": "Creator",
+  "agentLapsed": "Suas conversas com o Agent estão salvas.",
+  "agentTrialEnded": "Você já usou suas mensagens grátis do Agent.",
+  "agentBackWithCreator": "Continue com o Creator"
 }

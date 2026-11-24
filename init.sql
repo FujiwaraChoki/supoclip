@@ -503,6 +503,24 @@ VALUES (
     false,
     true
 );
+-- The agent home screen: on for web (Creator plan only, checked in code), off for iOS.
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'creator_agent',
+    'The agent home screen for Creator plans: chat that makes, edits, schedules and publishes clips. Off shows everyone the manual home.',
+    true,
+    false,
+    true
+);
+-- Onboarding guided by Agent with a free preview clip: on for web, off for iOS.
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'pebble_onboarding',
+    'New accounts: the onboarding guided by Agent, with one free preview clip from their own video (A/B against the classic onboarding).',
+    true,
+    false,
+    true
+);
 
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
@@ -779,6 +797,17 @@ CREATE INDEX IF NOT EXISTS idx_social_posts_team_id ON social_posts (team_id);
 
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS team_id VARCHAR(36) REFERENCES teams(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_api_keys_team_id ON api_keys (team_id);
+
+-- What the home screen opens on: 'agent', 'manual', or NULL until the person chooses.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS home_mode VARCHAR(10);
+
+-- Pebble onboarding (A/B group, answers, finished) and the one free preview clip (docs/onboarding.md).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_variant VARCHAR(16);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_answers JSONB;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preview_used_at TIMESTAMPTZ;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS preview JSONB;
+CREATE INDEX IF NOT EXISTS ix_tasks_preview_created ON tasks (created_at) WHERE preview IS NOT NULL;
 
 -- Creator commissions (affiliate_referrals, affiliate_commissions, affiliate_payouts) and Connect payout columns.
 ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "stripe_connect_account_id" VARCHAR(255);

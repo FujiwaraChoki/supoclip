@@ -57,6 +57,28 @@
       "body": "É isso. Cole aqui seu primeiro link e a gente cuida do resto."
     }
   },
+  "creator-agent": {
+    "intro": {
+      "title": "Conheça seu agente",
+      "body": "Sua tela inicial agora pode fazer o trabalho por você. Diga ao agente o que você quer e ele cria os clipes, edita, escreve as legendas, agenda e publica, com as mesmas ferramentas que você usa."
+    },
+    "talk": {
+      "title": "Peça como pediria a um editor",
+      "body": "Cole um link ou anexe um vídeo e diga o que você quer: “três clipes para o TikTok esta semana”, “tira os ééé do clipe 2”, “publica o melhor amanhã às 18h”. Quando tem alguma decisão a tomar, ele mostra opções para você tocar."
+    },
+    "suggestions": {
+      "title": "Ideias feitas para você",
+      "body": "Elas vêm da sua própria conta: poste clipes do seu projeto mais recente, transforme-o em uma série ou veja o que vem por aí. Um toque e o Agent começa a trabalhar."
+    },
+    "manual": {
+      "title": "Seus controles continuam a um clique",
+      "body": "Quer todas as configurações na sua frente para um vídeo? Este link abre o formulário de criação só desta vez. Você escolhe qual abre primeiro em Configurações."
+    },
+    "calendar": {
+      "title": "Tudo em um só calendário",
+      "body": "Todo clipe agendado, publicado ou com falha em um só lugar. Arraste um post para outro dia para mudar a data, ou peça ao agente para preencher os buracos com seus melhores clipes ainda não publicados, em bons horários. Publicar na hora sempre espera o seu OK."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Apresentando os fluxos",

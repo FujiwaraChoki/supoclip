@@ -4,6 +4,11 @@ import { isClipLength } from "@/lib/clip-duration";
 import { parseCreateSettings } from "@/lib/create-settings";
 import { getServerSession } from "@/server/session";
 
+/** What the home screen opens on; null until the person has chosen. */
+function parseHomeMode(value: unknown): "agent" | "manual" | null {
+  return value === "agent" || value === "manual" ? value : null;
+}
+
 // GET /api/preferences - Get user preferences
 export async function GET() {
   try {
@@ -27,6 +32,7 @@ export async function GET() {
         notify_on_publish: true,
         default_clip_length: true,
         create_settings: true,
+        home_mode: true,
       },
     });
 
@@ -45,6 +51,7 @@ export async function GET() {
       notifyOnPublish: user.notify_on_publish ?? false,
       clipLength: user.default_clip_length || "auto",
       createSettings: parseCreateSettings(user.create_settings),
+      homeMode: parseHomeMode(user.home_mode),
     });
   } catch (error) {
     console.error("Error fetching preferences:", error);
@@ -79,7 +86,12 @@ export async function PATCH(request: NextRequest) {
       notifyOnPublish,
       clipLength,
       createSettings,
+      homeMode,
     } = body;
+
+    if (homeMode !== undefined && homeMode !== null && parseHomeMode(homeMode) === null) {
+      return NextResponse.json({ error: "Invalid homeMode" }, { status: 400 });
+    }
 
     if (clipLength !== undefined && !isClipLength(clipLength)) {
       return NextResponse.json({ error: "Invalid clipLength" }, { status: 400 });
@@ -136,6 +148,7 @@ export async function PATCH(request: NextRequest) {
       where: { id: session.user.id },
       data: {
         ...(clipLength !== undefined && { default_clip_length: clipLength }),
+        ...(homeMode !== undefined && { home_mode: parseHomeMode(homeMode) }),
         ...(createSettings !== undefined && { create_settings: parseCreateSettings(createSettings) }),
         ...(fontFamily !== undefined && { default_font_family: fontFamily }),
         ...(fontSize !== undefined && { default_font_size: fontSize }),
@@ -155,6 +168,7 @@ export async function PATCH(request: NextRequest) {
         notify_on_publish: true,
         default_clip_length: true,
         create_settings: true,
+        home_mode: true,
       },
     });
 
@@ -166,6 +180,7 @@ export async function PATCH(request: NextRequest) {
       notifyOnPublish: updatedUser.notify_on_publish ?? false,
       clipLength: updatedUser.default_clip_length || "auto",
       createSettings: parseCreateSettings(updatedUser.create_settings),
+      homeMode: parseHomeMode(updatedUser.home_mode),
     });
   } catch (error) {
     console.error("Error updating preferences:", error);

@@ -529,5 +529,10 @@
       "title": "Este video supera tu límite de {minutes} minutos",
       "body": "Dura más de lo que permite tu plan y aquí no se puede elegir una parte. Prueba con la grabación final o con un video más corto. No se usaron minutos."
     }
-  }
+  },
+  "askAgentInstead": "Mejor pregúntale al agente",
+  "creatorTag": "Creator",
+  "agentLapsed": "Tus chats con Agent están guardados.",
+  "agentTrialEnded": "Ya usaste tus mensajes gratis de Agent.",
+  "agentBackWithCreator": "Sigue con Creator"
 }

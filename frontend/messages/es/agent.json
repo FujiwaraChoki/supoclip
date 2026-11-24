@@ -1,0 +1,455 @@
+{
+  "greeting": {
+    "upLate": "¿Trasnochando, {name}?",
+    "morning": "Buenos días, {name}.",
+    "afternoon": "Hola, {name}.",
+    "evening": "Buenas noches, {name}."
+  },
+  "subtitle": "Suelta un video o dime qué necesitas. Lo recorto, lo pulo y lo publico.",
+  "manualLink": "¿Prefieres poner los detalles tú? Crear clips a mano",
+  "thinking": "Pensando",
+  "composer": {
+    "label": "Escribe al agente",
+    "placeholder": "Pide lo que quieras…",
+    "placeholderHome": "Pega el enlace de un video o pídeme que planee tu semana…",
+    "placeholderReply": "Responder…",
+    "placeholderApproval": "Responde, o contesta arriba…",
+    "attach": "Adjuntar",
+    "send": "Enviar",
+    "stop": "Detener",
+    "remove": "Quitar",
+    "videoLink": "Enlace del video",
+    "clipThis": "Sacar clips de este video",
+    "disclaimer": "El agente puede equivocarse. Siempre pregunta antes de publicar algo al momento.",
+    "lookAtThis": "Mira esto",
+    "uploading": "Subiendo",
+    "dropTitle": "Suéltalo aquí",
+    "dropBody": "Videos para recortar, imágenes, PDF y archivos de texto como guiones o subtítulos.",
+    "tooMany": "Hasta {count} archivos por mensaje.",
+    "unsupported": "{name} no es un tipo de archivo que Agent pueda leer.",
+    "tooBig": "{name} es demasiado grande. Imágenes hasta 20 MB, PDF hasta 10 MB, archivos de texto hasta 500 KB.",
+    "tooBigTotal": "Es demasiado para un solo mensaje. Envía algunos archivos en el siguiente.",
+    "readFailed": "No se pudo leer {name}.",
+    "kinds": {
+      "video": "Video",
+      "image": "Imagen",
+      "pdf": "PDF",
+      "text": "Texto"
+    },
+    "placeholderLocked": "Agent forma parte de Creator"
+  },
+  "home": {
+    "recentChats": "Chats recientes",
+    "noChats": "Tus chats con el agente aparecen aquí.",
+    "untitled": "Chat nuevo",
+    "needsYou": "Esperándote",
+    "comingUp": "Lo que viene",
+    "calendar": "Calendario",
+    "nothingScheduled": "Aún no hay nada programado. ¿Quieres que planee tu semana?"
+  },
+  "errors": {
+    "send": "No se envió. Inténtalo de nuevo.",
+    "load": "No se pudo cargar este chat.",
+    "retry": "Reintentar",
+    "rename": "No se pudo renombrar el chat.",
+    "delete": "No se pudo eliminar el chat."
+  },
+  "chat": {
+    "back": "Volver al inicio",
+    "newChat": "Chat nuevo",
+    "more": "Más",
+    "rename": "Renombrar",
+    "delete": "Eliminar chat"
+  },
+  "options": {
+    "recommended": "Recomendado",
+    "confirmCount": "{count, plural, one {Quedarme con este} other {Quedarme con estos #}}",
+    "pickSome": "Elige uno o más"
+  },
+  "cards": {
+    "noClipsYet": "Aún no hay clips.",
+    "newProject": "Proyecto nuevo",
+    "projectReady": "{count, plural, one {# clip listo} other {# clips listos}}",
+    "projectFailed": "Este no salió bien. Ábrelo para ver por qué.",
+    "projectQueued": "Empezando…",
+    "untitledPost": "Publicación sin título",
+    "viewPost": "Ver publicación",
+    "calendarEmpty": "No hay nada en el calendario para estos días.",
+    "openCalendar": "Abrir calendario",
+    "studioEdit": "Edición en el estudio",
+    "editFailed": "La edición no se completó.",
+    "openStudio": "Abrir en el estudio",
+    "download": "Descargar",
+    "whenReady": "Cuando “{title}” esté listo",
+    "thisProject": "este proyecto",
+    "views30": "Vistas, últimos 30 días",
+    "published": "Publicaciones hechas",
+    "openAnalytics": "Abrir analíticas",
+    "remembered": "Anotado: {note}",
+    "defaultsSaved": "Guardé tus nuevos valores por defecto",
+    "restyled": "Cambié el estilo de los subtítulos de {title}",
+    "trimmed": "Recortado"
+  },
+  "postStatus": {
+    "scheduled": "Programada",
+    "queued": "En cola",
+    "publishing": "Publicando",
+    "published": "Publicada",
+    "failed": "Falló",
+    "cancelled": "Cancelada"
+  },
+  "editStep": {
+    "preparing": "Abriendo el estudio",
+    "ai": "Editando",
+    "render": "Renderizando",
+    "done": "Listo"
+  },
+  "approval": {
+    "publishTitle": "{count, plural, one {¿Publicar esto ahora?} other {¿Publicar estos # ahora?}}",
+    "deleteTitle": "¿Eliminar este proyecto?",
+    "deleteBody": "El proyecto y todos sus clips se eliminan para siempre.",
+    "decline": "Ahora no",
+    "publish": "Publicar ahora",
+    "delete": "Eliminar"
+  },
+  "notice": {
+    "projectDone": "“{title}” está listo",
+    "projectEnded": "“{title}” se detuvo",
+    "editDone": "La edición de “{title}” está lista",
+    "editEnded": "La edición de “{title}” se detuvo"
+  },
+  "steps": {
+    "generic": "Trabajando en ello",
+    "waiting": "Esperando tu OK",
+    "declined": "omitido",
+    "failed": "no funcionó",
+    "lookedAround": "{count, plural, one {Revisé una cosa} other {Revisé # cosas}}",
+    "get_overview": {
+      "running": "Revisando tu cuenta",
+      "done": "Revisé tu cuenta"
+    },
+    "list_projects": {
+      "running": "Mirando tus proyectos",
+      "done": "Miré tus proyectos"
+    },
+    "get_project": {
+      "running": "Abriendo el proyecto",
+      "done": "Abrí el proyecto"
+    },
+    "find_clips": {
+      "running": "Buscando entre tus clips",
+      "done": "Busqué entre tus clips"
+    },
+    "get_clip_transcript": {
+      "running": "Leyendo el clip",
+      "done": "Leí el clip"
+    },
+    "create_project": {
+      "running": "Empezando un proyecto nuevo",
+      "done": "Empecé un proyecto nuevo"
+    },
+    "when_project_finishes": {
+      "running": "Preparando lo que sigue",
+      "done": "Lo retomo cuando esté listo"
+    },
+    "project_action": {
+      "running": "Actualizando el proyecto",
+      "done": "Actualicé el proyecto"
+    },
+    "delete_project": {
+      "running": "Eliminando el proyecto",
+      "done": "Eliminé el proyecto"
+    },
+    "list_caption_styles": {
+      "running": "Mirando estilos de subtítulos",
+      "done": "Miré estilos de subtítulos"
+    },
+    "edit_clip": {
+      "running": "Enviando la edición al estudio",
+      "done": "Editando en segundo plano"
+    },
+    "check_background_work": {
+      "running": "Revisando las ediciones",
+      "done": "Revisé las ediciones"
+    },
+    "trim_clip": {
+      "running": "Recortando el clip",
+      "done": "Recorté el clip"
+    },
+    "restyle_project": {
+      "running": "Cambiando el estilo de los subtítulos",
+      "done": "Cambié el estilo de los subtítulos"
+    },
+    "get_calendar": {
+      "running": "Abriendo tu calendario",
+      "done": "Revisé tu calendario"
+    },
+    "suggest_posting_times": {
+      "running": "Buscando buenos horarios para publicar",
+      "done": "Encontré buenos horarios para publicar"
+    },
+    "draft_caption": {
+      "running": "Escribiendo una descripción",
+      "done": "Escribí una descripción"
+    },
+    "schedule_post": {
+      "running": "Programando la publicación",
+      "done": "Programé la publicación"
+    },
+    "publish_now": {
+      "running": "Publicando",
+      "done": "Publicado"
+    },
+    "update_post": {
+      "running": "Actualizando la publicación",
+      "done": "Actualicé la publicación"
+    },
+    "post_action": {
+      "running": "Actualizando la publicación",
+      "done": "Actualicé la publicación"
+    },
+    "get_performance": {
+      "running": "Sacando tus números",
+      "done": "Saqué tus números"
+    },
+    "update_create_defaults": {
+      "running": "Guardando tus valores por defecto",
+      "done": "Guardé tus valores por defecto"
+    },
+    "remember": {
+      "running": "Tomando nota",
+      "done": "Tomé nota"
+    },
+    "forget": {
+      "running": "Olvidando eso",
+      "done": "Lo olvidé"
+    },
+    "show_options": {
+      "running": "Preparando opciones",
+      "done": "Aquí tienes unas opciones"
+    }
+  },
+  "choice": {
+    "title": "¿Cómo quieres trabajar?",
+    "subtitle": "Deja que Agent saque los clips, los edite y los publique por ti, o quédate tú con todos los controles. Puedes cambiar cuando quieras.",
+    "recommended": "Recomendado",
+    "changeLater": "Puedes cambiarlo cuando quieras en Ajustes, o solo por esta vez desde la pantalla de inicio.",
+    "saveFailed": "No se pudo guardar. Inténtalo de nuevo.",
+    "agent": {
+      "title": "Trabajar con el agente",
+      "body": "Dile lo que quieres con tus propias palabras. Él se encarga del resto.",
+      "perks": {
+        "0": "Pega un enlace y di qué quieres crear",
+        "1": "Edita, escribe descripciones y programa publicaciones",
+        "2": "Recuerda tu estilo y tus mejores horarios para publicar"
+      },
+      "cta": "Empezar con el agente"
+    },
+    "manual": {
+      "title": "Poner los detalles tú",
+      "body": "Elige tú el flujo, los subtítulos y la duración, cada vez.",
+      "perks": {
+        "0": "Todos los ajustes a la vista",
+        "1": "Mismos resultados, más control",
+        "2": "El agente está a un clic cuando lo quieras"
+      },
+      "cta": "Usar el formulario de creación"
+    },
+    "creatorTag": "Creator",
+    "trial": {
+      "cta": "{count, plural, one {Prueba # mensaje gratis} other {Prueba # mensajes gratis}}"
+    },
+    "locked": {
+      "cta": "Ver Creator"
+    },
+    "subtitleGated": "Los dos hacen los mismos clips. Completa los detalles tú mismo o deja que Agent lo haga todo con Creator.",
+    "includedInPro": "Incluido en Pro",
+    "proTag": "Pro"
+  },
+  "settings": {
+    "title": "Pantalla de inicio",
+    "description": "Lo que ves al abrir SupoClip.",
+    "creatorOnly": "Tu propio productor: dile lo que quieres y recorta, edita, programa y publica. Parte del plan Creator.",
+    "agentHint": "Chatea con tu agente para crear, editar y publicar clips",
+    "manualHint": "El formulario de creación con todos los ajustes",
+    "oneTime": "Elijas lo que elijas, un enlace bajo el cuadro de mensaje abre la otra opción solo una vez.",
+    "memoryTitle": "Lo que recuerda el agente",
+    "memoryHint": "Notas que guarda sobre ti entre chats. Pídele que recuerde u olvide algo, o borra una nota aquí.",
+    "memoryEmpty": "Nada todavía.",
+    "forget": "Olvidar",
+    "forgetFailed": "No se pudo borrar esa nota.",
+    "saved": "Pantalla de inicio actualizada",
+    "trialUsed": "Ya usaste tus mensajes gratis. Agent forma parte de Creator y tus chats se guardan."
+  },
+  "onboarding": {
+    "film": {
+      "online": "En línea",
+      "placeholder": "Pregúntale lo que sea a Agent…",
+      "agentAsk": "Saca clips de mi pódcast y publica los 3 mejores esta semana",
+      "agentSteps": {
+        "0": "Buscando los mejores momentos",
+        "1": "Eligiendo los 3 mejores ganchos",
+        "2": "Escribiendo descripciones con tu estilo"
+      },
+      "scheduled": "Programé 3 publicaciones",
+      "days": {
+        "0": "Lun",
+        "1": "Mar",
+        "2": "Mié",
+        "3": "Jue",
+        "4": "Vie",
+        "5": "Sáb",
+        "6": "Dom"
+      },
+      "agentReply": "¡Listo! Tres publicaciones quedaron programadas para el martes, jueves y sábado a las 7 p. m., cuando tu audiencia está más activa.",
+      "chips": {
+        "0": "Dale más ritmo al clip 2",
+        "1": "Planea la próxima semana"
+      },
+      "manualTitle": "¿Qué vamos a crear?",
+      "manualPlaceholder": "Pega un enlace de YouTube, Twitch o Kick",
+      "manualSource": "How I Make $1.2 Million A Year From This Podcast",
+      "whatToMake": "Qué crear",
+      "captionStyle": "Estilo de subtítulos",
+      "captionSample": "LA",
+      "captionAccent": "MAYORÍA",
+      "length": "Duración",
+      "lengths": {
+        "0": "Auto",
+        "1": "15–30 s",
+        "2": "30–60 s",
+        "3": "60–90 s"
+      },
+      "generate": "Generar",
+      "processing": {
+        "0": "Descargando el video",
+        "1": "Buscando los mejores momentos",
+        "2": "Encuadre, subtítulos y cortes"
+      },
+      "ready": "3 clips listos",
+      "part": "Parte {n}",
+      "working": "Trabajando en ello",
+      "done": "Listo",
+      "thisWeek": "Esta semana",
+      "agentChips": {
+        "0": "9 momentos",
+        "1": "Top 3 elegidos",
+        "2": "Descripciones listas"
+      },
+      "emptyTitle": "¿Qué hacemos hoy?",
+      "emptyChips": {
+        "0": "Recortar un video",
+        "1": "Planear mi semana",
+        "2": "¿Cómo van mis clips?"
+      },
+      "sourcesHint": "Enlaces de YouTube, Twitch y Kick, o sube un archivo"
+    },
+    "welcome": {
+      "skip": "Saltar por ahora",
+      "hello": "¡Hola, {name}! ¡Soy el Agent de SupoClip!",
+      "helloNoName": "¡Hola! ¡Soy el Agent de SupoClip!",
+      "intro": "Mándame un video largo y dime qué quieres. Encuentro los mejores momentos, los edito, escribo las descripciones y los publico cuando tu audiencia está conectada. ¿Qué quieres hacer primero?",
+      "choices": {
+        "examples": "Muéstrame ejemplos",
+        "abilities": "¿Qué sabes hacer?",
+        "start": "Empecemos"
+      },
+      "examplesIntro": "Aquí tienes algunos clips que SupoClip sacó de videos largos. Cada uno empezó con un solo enlace.",
+      "examplesOutro": "Cada uno encontró su momento, se encuadró y se subtituló sin que nadie tocara un editor. Los tuyos son los siguientes.",
+      "abilitiesIntro": "Dímelo con tus propias palabras. Algunas cosas que me piden:",
+      "abilitiesOutro": "Toca una para probarla o escribe la tuya abajo.",
+      "abilities": {
+        "series": {
+          "title": "Convierte un video en una serie",
+          "prompt": "Haz una serie de 5 partes con mi último pódcast"
+        },
+        "schedule": {
+          "title": "Planea tus publicaciones",
+          "prompt": "Publica mis 3 mejores clips esta semana a las 7 p. m."
+        },
+        "edit": {
+          "title": "Pule un clip",
+          "prompt": "Quita las muletillas y las pausas del clip 2"
+        },
+        "stats": {
+          "title": "Mira qué funciona",
+          "prompt": "¿Cómo les va a mis clips este mes?"
+        }
+      },
+      "startLine": "Pega un enlace o suelta un video abajo y dime qué quieres. Yo me encargo del resto.",
+      "composerPlaceholder": "Pega el enlace de un video y dime qué quieres…",
+      "sendFailed": "No se envió. Inténtalo de nuevo."
+    },
+    "manual": {
+      "title": "Tú tienes el control.",
+      "subtitle": "Tres pasos de un video largo a clips listos para publicar.",
+      "steps": {
+        "paste": {
+          "title": "Pega un enlace",
+          "body": "Un enlace de YouTube, Twitch o Kick, o sube un archivo."
+        },
+        "pick": {
+          "title": "Elige qué crear",
+          "body": "Destacados, una serie, cada momento sobre un tema, un resumen o un tráiler. Luego, subtítulos y duración."
+        },
+        "clips": {
+          "title": "Recibe tus clips",
+          "body": "Encuadrados, con subtítulos y puntuados. Edita cualquiera en el estudio y luego publícalo o prográmalo."
+        }
+      },
+      "cta": "Empezar a crear clips",
+      "agentNearby": "Agent está a un clic, bajo el cuadro de mensaje, cuando lo quieras."
+    }
+  },
+  "suggest": {
+    "post": {
+      "title": "Publicar sus mejores clips",
+      "hint": "{count, plural, one {# clip} other {# clips}} · {ago}",
+      "prompt": "Mira mi proyecto “{title}” y programa sus mejores clips esta semana en buenos horarios."
+    },
+    "series": {
+      "title": "Convertirlo en serie",
+      "hint": "Parte 1, 2, 3 de él",
+      "prompt": "Haz una serie de varias partes con el video de mi proyecto “{title}”."
+    },
+    "processing": {
+      "title": "Ver cómo va",
+      "prompt": "¿Cómo va mi proyecto “{title}”?"
+    },
+    "week": {
+      "title": "Ver lo que viene",
+      "hint": "{count, plural, one {# publicación programada} other {# publicaciones programadas}}",
+      "prompt": "Repasa conmigo lo programado esta semana y llena los huecos con mis mejores clips sin publicar."
+    },
+    "stats": {
+      "title": "Ver mis números",
+      "hint": "Vistas y mejores ganchos",
+      "prompt": "¿Cómo van mis clips últimamente? ¿Qué funciona y de qué debería publicar más?"
+    },
+    "clip": {
+      "title": "Recortar un video nuevo",
+      "hint": "Pega un enlace o suelta un archivo",
+      "prompt": "Recorta este video: "
+    },
+    "viral": {
+      "title": "Ganchos que funcionan",
+      "hint": "Qué hace despegar un clip",
+      "prompt": "¿Qué hace que un clip corto despegue? Dime lo más importante sobre ganchos, duración y horarios de publicación."
+    },
+    "rhythm": {
+      "title": "Planear cuándo publicar",
+      "hint": "Cada cuánto y a qué hora",
+      "prompt": "Ayúdame a planear un ritmo de publicación: ¿cada cuánto y cuándo debería publicar clips en cada plataforma?"
+    },
+    "fill": {
+      "prompt": "Planea mis publicaciones de los próximos 7 días con mis mejores clips que aún no he publicado."
+    }
+  },
+  "trial": {
+    "left": "{count, plural, one {Te queda # mensaje gratis} other {Te quedan # mensajes gratis}}",
+    "unlimited": "Ilimitado con Creator",
+    "locked": "Agent forma parte de Creator.",
+    "used": "Ya usaste tus mensajes gratis.",
+    "cta": "Obtener Creator"
+  }
+}

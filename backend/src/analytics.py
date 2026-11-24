@@ -25,6 +25,8 @@ EventName = Literal[
     "task_failed",
     "clip_exported",
     "social_post_published",
+    # The account was put in an onboarding group (A/B exposure; docs/onboarding.md).
+    "onboarding_assigned",
 ]
 
 Client = Literal["web", "ios", "api_key", "mcp"]

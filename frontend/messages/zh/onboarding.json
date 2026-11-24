@@ -1,0 +1,171 @@
+{
+  "intro": {
+    "hello": "嗨，{name}！我是 SupoClip 的 Agent！",
+    "helloNoName": "嗨！我是 SupoClip 的 Agent！",
+    "pitch": "我能把长视频变成大家真正会看的短片段。我们来做你的第一批吧。",
+    "pitchFree": "我能把长视频变成大家真正会看的短片段。第一个我请客，无需绑卡。",
+    "askMakes": "那么，你做什么内容？",
+    "makes": {
+      "podcasts": "播客",
+      "streams": "直播与游戏",
+      "youtube": "YouTube 视频",
+      "talks": "课程与演讲",
+      "other": "其他"
+    },
+    "reply": {
+      "podcasts": "太好了。播客里有很多能单独传播的瞬间：一个精彩的回答，可能比整期节目触达更多人。",
+      "streams": "不错。几个小时的直播里，藏着几段大家愿意转发的时刻。找到它们是我的工作。",
+      "youtube": "很好。你最精彩的几分钟，值得以 Shorts、Reels 和 TikTok 的形式再火一次。",
+      "talks": "完美。一场好的演讲总有几句会被人引用。我会找到它们并干净利落地剪出来。",
+      "other": "好的。不管是什么内容，只要有人在说话，我就能找到值得分享的瞬间。"
+    },
+    "offer": "想看看你自己的视频会变成什么样吗？",
+    "offerFree": "想看看你的吗？粘贴一个链接，我免费帮你做出最佳片段。",
+    "start": "来做我的",
+    "startFree": "做我的免费片段",
+    "skip": "暂时跳过",
+    "showcase": "先来尝尝鲜：这是我用真实播客剪出的几个片段，每个风格都不一样。"
+  },
+  "plans": {
+    "label": "方案",
+    "suggested": "推荐",
+    "proExtra": "字幕、B-roll 和自定义字体",
+    "creatorExtra": "Agent 全程帮你搞定，还能排期发布",
+    "cta": "继续使用 {plan}",
+    "ctaUnlock": "解锁其余 {count} 个片段",
+    "checkoutFailed": "无法打开付款页面，请重试。"
+  },
+  "dock": {
+    "label": "Agent，你的向导",
+    "open": "打开 Agent",
+    "minimize": "最小化",
+    "skip": "结束引导",
+    "steps": {
+      "link": "第一个片段",
+      "making": "处理中",
+      "ready": "你的片段",
+      "paid": "解锁中",
+      "choose": "最后一步",
+      "done": "完成"
+    },
+    "link": {
+      "elsewhere": "你的第一个片段从创建页面开始。",
+      "goHome": "带我过去",
+      "paste": "在上方粘贴你的某个视频链接，或上传文件，然后点击箭头。",
+      "pasteFree": "在上方粘贴你的某个视频链接，或上传文件。我会免费帮你做出最佳片段，无需绑卡。",
+      "lookFailed": "我打不开这个链接。请确认视频是公开的，再试一次？",
+      "untitled": "你的视频",
+      "estimate": "大约能剪出 {count} 个片段",
+      "free": "收到，时长 {runtime}。我看里面大约有 {count} 个片段。点击箭头，我免费帮你做最好的那个。",
+      "paid": "收到，时长 {runtime}，大约有 {count} 个片段。点击箭头，我就开始。",
+      "refused": {
+        "tooLong": "这个视频时长 {runtime}。免费片段只适用于 {minutes} 分钟以内的视频：换个短一点的，或选择方案，我来剪完整个视频。",
+        "used": "你已经用过免费片段了。选择一个方案，我来完整剪辑这个视频。",
+        "running": "你的免费片段正在制作中，好了我会告诉你。",
+        "busy": "抱歉，今天的免费片段已暂停。选择一个方案，我马上开始。",
+        "unverified": "请先确认你的邮箱（查看收件箱），然后再粘贴一次链接。你的免费片段还在等你。",
+        "disabled": "免费片段暂不可用。选择一个方案，我来完整剪辑这个视频。",
+        "team": "免费片段仅适用于个人账号。选择一个方案，我来完整剪辑这个视频。",
+        "not_needed": "你的方案已经包含了。点击箭头，我就开始。",
+        "unavailable": "免费片段暂不可用。选择一个方案，我来完整剪辑这个视频。"
+      }
+    },
+    "making": {
+      "started": "开工！我正在看完整个视频，找出值得发布的瞬间。",
+      "wait": "需要几分钟。你可以随便看看，好了我会发邮件通知你。",
+      "failed": "嗯，这个没能完成，有些视频会这样。要换一个试试吗？",
+      "again": "换个视频试试",
+      "phase": {
+        "fetch": "正在获取你的视频",
+        "listen": "正在听每一句话",
+        "find": "正在寻找最佳瞬间",
+        "cut": "正在剪辑你的片段",
+        "finish": "正在做最后润色"
+      }
+    },
+    "ready": {
+      "best": "完成！你的最佳瞬间：**「{hook}」**，得分 {score}/100。",
+      "bestNoHook": "完成！你的第一个片段做好了。",
+      "show": "给我看看",
+      "open": "打开你的片段",
+      "more": "我在这个视频里还找到了 {count} 个精彩瞬间。它们都准备好了，只差一个方案。",
+      "later": "以后再说"
+    },
+    "paid": {
+      "thanks": "欢迎加入！我正在这里为你做剩下的片段。"
+    },
+    "choose": {
+      "ask": "最后一件事：你希望首页打开什么？",
+      "allSet": "一切就绪。随时粘贴新链接，剩下的交给我。",
+      "tryAgent": "试用 Agent（{count} 条免费消息）",
+      "finish": "完成",
+      "saveFailed": "无法保存。你可以在设置中修改。",
+      "agent": {
+        "title": "问 Agent",
+        "body": "说出你想要的就行"
+      },
+      "manual": {
+        "title": "填写细节",
+        "body": "每项设置都由你决定"
+      }
+    },
+    "done": {
+      "bye": "引导结束！当你打开新页面时我会再出现。"
+    }
+  },
+  "hints": {
+    "label": "Agent",
+    "close": "关闭",
+    "gotIt": "知道了",
+    "libraryTitle": "你的素材库",
+    "library": "所有项目都在这里。打开一个即可观看、下载或精修片段。",
+    "calendarTitle": "你的发布日历",
+    "calendar": "按天显示你排好的所有内容。拖动帖子即可调整时间。",
+    "socialTitle": "连接你的账号",
+    "social": "只需连接一次 YouTube、TikTok 或 Instagram，之后一键发布任何片段。",
+    "analyticsTitle": "片段表现",
+    "analytics": "查看播放量和有效内容，让下一批片段表现更好。",
+    "settingsTitle": "你的默认设置",
+    "settings": "选一次字幕样式，之后每个新片段都会使用它。",
+    "assistantsTitle": "在其他应用中使用 SupoClip",
+    "assistants": "连接 Claude、ChatGPT 或 Cursor，无需打开 SupoClip 就能做片段。",
+    "clipsTitle": "你的片段",
+    "clips": "每个片段上的数字是它的得分：越高越容易传播。打开一个即可观看、下载或精修。",
+    "studioTitle": "工作室",
+    "studio": "告诉 AI 要改什么，比如「去掉嗯啊」或「更有冲击力」，它会帮你编辑片段。"
+  },
+  "preview": {
+    "lockedLabel": "已锁定的片段：{hook}",
+    "lockedTag": "选择方案即可解锁",
+    "untitled": "另一个精彩瞬间",
+    "bannerTitle": "你的免费片段，来自找到的 {found} 个瞬间",
+    "bannerBody": "下方还有 {count} 个瞬间在等你。选择一个方案，就会在这里直接生成。",
+    "bannerBodyOne": "这是这个视频里最好的瞬间。选择一个方案来剪下一个视频。",
+    "unlock": "全部解锁（{count} 个）",
+    "unlockFailed": "无法解锁片段，请重试。",
+    "unlockWaiting": "你的方案还在开通中。稍后刷新即可解锁片段。"
+  },
+  "showcase": {
+    "styles": {
+      "hormozi": "Hormozi 字幕",
+      "kinetic": "动感字幕",
+      "podcast": "播客字幕",
+      "highlighter": "荧光笔字幕"
+    },
+    "dynamic": "动态剪辑",
+    "clips": {
+      "hormozi": {
+        "hook": "One hypnosis session, 23% quit smoking"
+      },
+      "kinetic": {
+        "hook": "Tesla emailed me a Cybercab order link"
+      },
+      "podcast": {
+        "hook": "Why Earth's gravity makes rockets so hard"
+      },
+      "highlighter": {
+        "hook": "The engineers NVIDIA embeds inside AI labs"
+      }
+    }
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "intro": {
+    "hello": "Hai {name}! Aku Agent dari SupoClip!",
+    "helloNoName": "Hai! Aku Agent dari SupoClip!",
+    "pitch": "Aku mengubah video panjang jadi klip pendek yang benar-benar ditonton orang. Ayo buat klip pertamamu.",
+    "pitchFree": "Aku mengubah video panjang jadi klip pendek yang benar-benar ditonton orang. Klip pertamamu gratis, tanpa kartu.",
+    "askMakes": "Jadi, kamu bikin konten apa?",
+    "makes": {
+      "podcasts": "Podcast",
+      "streams": "Streaming & gaming",
+      "youtube": "Video YouTube",
+      "talks": "Kursus & presentasi",
+      "other": "Lainnya"
+    },
+    "reply": {
+      "podcasts": "Mantap. Podcast penuh momen yang bisa berdiri sendiri: satu jawaban tajam bisa menjangkau lebih banyak orang daripada satu episode penuh.",
+      "streams": "Keren. Berjam-jam stream menyimpan beberapa momen yang pasti dibagikan orang. Menemukannya adalah tugasku.",
+      "youtube": "Bagus. Menit terbaikmu layak dapat kesempatan kedua sebagai Shorts, Reels, dan TikTok.",
+      "talks": "Sempurna. Presentasi yang bagus punya beberapa kalimat yang dikutip orang. Aku menemukannya dan memotongnya rapi.",
+      "other": "Oke. Apa pun itu, selama ada yang bicara, aku bisa menemukan momen yang layak dibagikan."
+    },
+    "offer": "Mau lihat videomu sendiri jadi apa?",
+    "offerFree": "Mau lihat punyamu? Tempel tautan dan aku buatkan klip terbaikmu, gratis.",
+    "start": "Ayo buat punyaku",
+    "startFree": "Buat klip gratisku",
+    "skip": "Lewati dulu",
+    "showcase": "Ini contohnya: beberapa klip yang kubuat dari episode podcast sungguhan, masing-masing dengan gaya berbeda."
+  },
+  "plans": {
+    "label": "Paket",
+    "suggested": "Disarankan",
+    "proExtra": "Teks, B-roll, dan font milikmu sendiri",
+    "creatorExtra": "Agent mengerjakan semuanya untukmu, plus penjadwalan",
+    "cta": "Lanjut dengan {plan}",
+    "ctaUnlock": "Buka {count} klip lainnya",
+    "checkoutFailed": "Tidak bisa membuka pembayaran. Coba lagi."
+  },
+  "dock": {
+    "label": "Agent, pemandumu",
+    "open": "Buka Agent",
+    "minimize": "Perkecil",
+    "skip": "Akhiri tur",
+    "steps": {
+      "link": "Klip pertama",
+      "making": "Sedang dikerjakan",
+      "ready": "Klipmu",
+      "paid": "Membuka",
+      "choose": "Satu lagi",
+      "done": "Selesai"
+    },
+    "link": {
+      "elsewhere": "Klip pertamamu dimulai di layar buat.",
+      "goHome": "Antar aku ke sana",
+      "paste": "Tempel tautan salah satu videomu di atas, atau unggah file, lalu ketuk panah.",
+      "pasteFree": "Tempel tautan salah satu videomu di atas, atau unggah file. Aku buatkan klip terbaikmu gratis, tanpa kartu.",
+      "lookFailed": "Aku tidak bisa membuka tautan itu. Pastikan videonya publik, lalu coba lagi?",
+      "untitled": "Videomu",
+      "estimate": "Sekitar {count} klip di sini",
+      "free": "Oke, durasinya {runtime}. Aku melihat sekitar {count} klip di sana. Ketuk panah dan aku buatkan yang terbaik untukmu, gratis.",
+      "paid": "Oke, durasinya {runtime}, sekitar {count} klip di dalamnya. Ketuk panah dan aku mulai.",
+      "refused": {
+        "tooLong": "Video ini berdurasi {runtime}. Klip gratis hanya untuk video hingga {minutes} menit: coba yang lebih pendek, atau pilih paket dan aku klip seluruh videonya.",
+        "used": "Kamu sudah memakai klip gratismu. Pilih paket dan aku klip video ini sepenuhnya.",
+        "running": "Klip gratismu sedang dibuat. Aku kabari kalau sudah siap.",
+        "busy": "Maaf, klip gratis sedang dijeda hari ini. Pilih paket dan aku langsung mulai.",
+        "unverified": "Konfirmasi emailmu dulu (cek kotak masuk), lalu tempel tautannya lagi. Klip gratismu menunggu.",
+        "disabled": "Klip gratis sedang tidak tersedia. Pilih paket dan aku klip video ini sepenuhnya.",
+        "team": "Klip gratis untuk akun pribadi. Pilih paket dan aku klip video ini sepenuhnya.",
+        "not_needed": "Paketmu sudah mencakup ini. Ketuk panah dan aku mulai.",
+        "unavailable": "Klip gratis sedang tidak tersedia. Pilih paket dan aku klip video ini sepenuhnya."
+      }
+    },
+    "making": {
+      "started": "Siap! Aku menonton seluruh videonya untuk menemukan momen yang layak diposting.",
+      "wait": "Butuh beberapa menit. Silakan lihat-lihat, aku kirim email kalau sudah siap.",
+      "failed": "Hmm, yang ini tidak bisa kuselesaikan. Kadang terjadi pada beberapa video. Mau coba yang lain?",
+      "again": "Coba video lain",
+      "phase": {
+        "fetch": "Mengambil videomu",
+        "listen": "Mendengarkan setiap kata",
+        "find": "Mencari momen terbaik",
+        "cut": "Memotong klipmu",
+        "finish": "Sentuhan terakhir"
+      }
+    },
+    "ready": {
+      "best": "Selesai! Momen terbaikmu: **“{hook}”**. Skornya {score} dari 100.",
+      "bestNoHook": "Selesai! Klip pertamamu sudah siap.",
+      "show": "Tunjukkan",
+      "open": "Buka klipmu",
+      "more": "Aku menemukan {count} momen lagi di video ini. Semuanya siap dibuat, tinggal butuh paket.",
+      "later": "Nanti saja"
+    },
+    "paid": {
+      "thanks": "Kamu sudah masuk! Aku sedang membuat sisa klipmu, di sini juga."
+    },
+    "choose": {
+      "ask": "Satu hal terakhir: beranda kamu mau dibuka dengan apa?",
+      "allSet": "Semua siap. Tempel tautan lain kapan saja dan sisanya serahkan padaku.",
+      "tryAgent": "Coba Agent ({count} pesan gratis)",
+      "finish": "Selesai",
+      "saveFailed": "Tidak bisa menyimpan. Kamu bisa mengubahnya di Pengaturan.",
+      "agent": {
+        "title": "Tanya Agent",
+        "body": "Cukup bilang maumu"
+      },
+      "manual": {
+        "title": "Isi detailnya",
+        "body": "Atur semuanya sendiri"
+      }
+    },
+    "done": {
+      "bye": "Begitulah turnya! Aku akan muncul saat kamu membuka hal baru."
+    }
+  },
+  "hints": {
+    "label": "Agent",
+    "close": "Tutup",
+    "gotIt": "Mengerti",
+    "libraryTitle": "Pustakamu",
+    "library": "Semua proyek ada di sini. Buka salah satu untuk menonton, mengunduh, atau merapikan klipnya.",
+    "calendarTitle": "Kalender postinganmu",
+    "calendar": "Semua yang sudah kamu jadwalkan, hari demi hari. Seret postingan untuk memindahkannya.",
+    "socialTitle": "Hubungkan akunmu",
+    "social": "Hubungkan YouTube, TikTok, atau Instagram sekali, lalu posting klip apa pun dengan sekali klik.",
+    "analyticsTitle": "Performa klipmu",
+    "analytics": "Penayangan dan apa yang berhasil, supaya klip berikutnya makin kena.",
+    "settingsTitle": "Pengaturan bawaanmu",
+    "settings": "Pilih gaya teks sekali dan setiap klip baru akan memakainya.",
+    "assistantsTitle": "SupoClip di aplikasi lain",
+    "assistants": "Hubungkan Claude, ChatGPT, atau Cursor dan buat klip tanpa membuka SupoClip.",
+    "clipsTitle": "Klip-klipmu",
+    "clips": "Angka di setiap klip adalah skornya: makin tinggi, makin besar peluangnya menyebar. Buka salah satu untuk menonton, mengunduh, atau merapikannya.",
+    "studioTitle": "Studio",
+    "studio": "Bilang ke AI apa yang mau diubah, misalnya “hapus eee-nya” atau “bikin lebih nendang”, dan AI akan mengedit klipnya untukmu."
+  },
+  "preview": {
+    "lockedLabel": "Klip terkunci: {hook}",
+    "lockedTag": "Terbuka dengan paket",
+    "untitled": "Momen kuat lainnya",
+    "bannerTitle": "Klip gratismu, dari {found} momen yang ditemukan",
+    "bannerBody": "{count} momen lagi menunggu di bawah. Pilih paket dan semuanya dibuat langsung di sini.",
+    "bannerBodyOne": "Itu momen terbaik di video ini. Pilih paket untuk mengklip video berikutnya.",
+    "unlock": "Buka semua ({count})",
+    "unlockFailed": "Tidak bisa membuka klip. Coba lagi.",
+    "unlockWaiting": "Paketmu masih disiapkan. Muat ulang sebentar lagi untuk membuka klipmu."
+  },
+  "showcase": {
+    "styles": {
+      "hormozi": "Teks Hormozi",
+      "kinetic": "Teks kinetik",
+      "podcast": "Teks podcast",
+      "highlighter": "Teks stabilo"
+    },
+    "dynamic": "edit dinamis",
+    "clips": {
+      "hormozi": {
+        "hook": "One hypnosis session, 23% quit smoking"
+      },
+      "kinetic": {
+        "hook": "Tesla emailed me a Cybercab order link"
+      },
+      "podcast": {
+        "hook": "Why Earth's gravity makes rockets so hard"
+      },
+      "highlighter": {
+        "hook": "The engineers NVIDIA embeds inside AI labs"
+      }
+    }
+  }
+}

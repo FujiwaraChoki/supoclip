@@ -1,0 +1,455 @@
+{
+  "greeting": {
+    "upLate": "Up late, {name}?",
+    "morning": "Morning, {name}.",
+    "afternoon": "Hey {name}.",
+    "evening": "Evening, {name}."
+  },
+  "subtitle": "Drop a video or tell me what you need. I'll clip it, polish it and get it posted.",
+  "manualLink": "Prefer to fill in the details yourself? Clip manually",
+  "thinking": "Thinking",
+  "composer": {
+    "label": "Message the agent",
+    "placeholder": "Ask for anything…",
+    "placeholderHome": "Paste a video link, or ask me to plan your week…",
+    "placeholderReply": "Reply…",
+    "placeholderApproval": "Reply, or answer above…",
+    "attach": "Attach",
+    "send": "Send",
+    "stop": "Stop",
+    "remove": "Remove",
+    "videoLink": "Video link",
+    "clipThis": "Clip this video",
+    "disclaimer": "The agent can make mistakes. It asks before posting anything right away.",
+    "lookAtThis": "Take a look at this",
+    "uploading": "Uploading",
+    "dropTitle": "Drop it here",
+    "dropBody": "Videos to clip, images, PDFs and text files like scripts or captions.",
+    "tooMany": "Up to {count} files per message.",
+    "unsupported": "{name} isn't a file type Agent can read.",
+    "tooBig": "{name} is too big. Images up to 20 MB, PDFs up to 10 MB, text files up to 500 KB.",
+    "tooBigTotal": "That's too much for one message. Send some of the files in the next one.",
+    "readFailed": "Couldn't read {name}.",
+    "kinds": {
+      "video": "Video",
+      "image": "Image",
+      "pdf": "PDF",
+      "text": "Text"
+    },
+    "placeholderLocked": "Agent is part of Creator"
+  },
+  "home": {
+    "recentChats": "Recent chats",
+    "noChats": "Your chats with the agent show up here.",
+    "untitled": "New chat",
+    "needsYou": "Waiting for you",
+    "comingUp": "Coming up",
+    "calendar": "Calendar",
+    "nothingScheduled": "Nothing scheduled yet. Want me to plan your week?"
+  },
+  "errors": {
+    "send": "That didn't go through. Try again.",
+    "load": "This chat couldn't be loaded.",
+    "retry": "Try again",
+    "rename": "Couldn't rename the chat.",
+    "delete": "Couldn't delete the chat."
+  },
+  "chat": {
+    "back": "Back to home",
+    "newChat": "New chat",
+    "more": "More",
+    "rename": "Rename",
+    "delete": "Delete chat"
+  },
+  "options": {
+    "recommended": "Recommended",
+    "confirmCount": "{count, plural, one {Go with this one} other {Go with these #}}",
+    "pickSome": "Pick one or more"
+  },
+  "cards": {
+    "noClipsYet": "No clips yet.",
+    "newProject": "New project",
+    "projectReady": "{count, plural, one {# clip ready} other {# clips ready}}",
+    "projectFailed": "This one didn't work out. Open it to see why.",
+    "projectQueued": "Getting started…",
+    "untitledPost": "Untitled post",
+    "viewPost": "View post",
+    "calendarEmpty": "Nothing on the calendar for these days.",
+    "openCalendar": "Open calendar",
+    "studioEdit": "Studio edit",
+    "editFailed": "The edit didn't go through.",
+    "openStudio": "Open in studio",
+    "download": "Download",
+    "whenReady": "When “{title}” is ready",
+    "thisProject": "this project",
+    "views30": "Views, last 30 days",
+    "published": "Published posts",
+    "openAnalytics": "Open analytics",
+    "remembered": "Remembered: {note}",
+    "defaultsSaved": "Saved your new defaults",
+    "restyled": "Restyled the captions in {title}",
+    "trimmed": "Trimmed"
+  },
+  "postStatus": {
+    "scheduled": "Scheduled",
+    "queued": "Queued",
+    "publishing": "Posting",
+    "published": "Published",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "editStep": {
+    "preparing": "Opening the studio",
+    "ai": "Editing",
+    "render": "Rendering",
+    "done": "Done"
+  },
+  "approval": {
+    "publishTitle": "{count, plural, one {Post this now?} other {Post these # now?}}",
+    "deleteTitle": "Delete this project?",
+    "deleteBody": "The project and all of its clips are deleted for good.",
+    "decline": "Not now",
+    "publish": "Post now",
+    "delete": "Delete"
+  },
+  "notice": {
+    "projectDone": "“{title}” is ready",
+    "projectEnded": "“{title}” stopped",
+    "editDone": "Edit on “{title}” is done",
+    "editEnded": "Edit on “{title}” stopped"
+  },
+  "steps": {
+    "generic": "Working on it",
+    "waiting": "Waiting for your OK",
+    "declined": "skipped",
+    "failed": "didn't work",
+    "lookedAround": "{count, plural, one {Checked one thing} other {Checked # things}}",
+    "get_overview": {
+      "running": "Checking your account",
+      "done": "Checked your account"
+    },
+    "list_projects": {
+      "running": "Looking through your projects",
+      "done": "Looked through your projects"
+    },
+    "get_project": {
+      "running": "Opening the project",
+      "done": "Opened the project"
+    },
+    "find_clips": {
+      "running": "Searching your clips",
+      "done": "Searched your clips"
+    },
+    "get_clip_transcript": {
+      "running": "Reading the clip",
+      "done": "Read the clip"
+    },
+    "create_project": {
+      "running": "Starting a new project",
+      "done": "Started a new project"
+    },
+    "when_project_finishes": {
+      "running": "Setting up what happens next",
+      "done": "I'll pick this up when it's ready"
+    },
+    "project_action": {
+      "running": "Updating the project",
+      "done": "Updated the project"
+    },
+    "delete_project": {
+      "running": "Deleting the project",
+      "done": "Deleted the project"
+    },
+    "list_caption_styles": {
+      "running": "Looking at caption styles",
+      "done": "Looked at caption styles"
+    },
+    "edit_clip": {
+      "running": "Sending the edit to the studio",
+      "done": "Editing in the background"
+    },
+    "check_background_work": {
+      "running": "Checking on the edits",
+      "done": "Checked on the edits"
+    },
+    "trim_clip": {
+      "running": "Trimming the clip",
+      "done": "Trimmed the clip"
+    },
+    "restyle_project": {
+      "running": "Restyling the captions",
+      "done": "Restyled the captions"
+    },
+    "get_calendar": {
+      "running": "Opening your calendar",
+      "done": "Checked your calendar"
+    },
+    "suggest_posting_times": {
+      "running": "Finding good times to post",
+      "done": "Found good times to post"
+    },
+    "draft_caption": {
+      "running": "Writing a caption",
+      "done": "Wrote a caption"
+    },
+    "schedule_post": {
+      "running": "Scheduling the post",
+      "done": "Scheduled the post"
+    },
+    "publish_now": {
+      "running": "Posting",
+      "done": "Posted"
+    },
+    "update_post": {
+      "running": "Updating the post",
+      "done": "Updated the post"
+    },
+    "post_action": {
+      "running": "Updating the post",
+      "done": "Updated the post"
+    },
+    "get_performance": {
+      "running": "Pulling your numbers",
+      "done": "Pulled your numbers"
+    },
+    "update_create_defaults": {
+      "running": "Saving your defaults",
+      "done": "Saved your defaults"
+    },
+    "remember": {
+      "running": "Making a note",
+      "done": "Made a note"
+    },
+    "forget": {
+      "running": "Forgetting that",
+      "done": "Forgot that"
+    },
+    "show_options": {
+      "running": "Getting choices ready",
+      "done": "Here are some choices"
+    }
+  },
+  "choice": {
+    "title": "How do you want to work?",
+    "subtitle": "Let Agent do the clipping, editing and posting for you, or keep every control in your hands. You can switch any time.",
+    "recommended": "Recommended",
+    "changeLater": "You can switch any time in Settings, or just once from the home screen.",
+    "saveFailed": "Couldn't save that. Try again.",
+    "agent": {
+      "title": "Work with the agent",
+      "body": "Tell it what you want in your own words. It handles the rest.",
+      "perks": {
+        "0": "Paste a link and say what to make",
+        "1": "It edits, writes captions and schedules posts",
+        "2": "Remembers your style and best posting times"
+      },
+      "cta": "Start with the agent"
+    },
+    "manual": {
+      "title": "Fill in the details",
+      "body": "Pick the workflow, captions and length yourself, every time.",
+      "perks": {
+        "0": "Every setting in front of you",
+        "1": "Same results, more control",
+        "2": "The agent is one click away when you want it"
+      },
+      "cta": "Use the create form"
+    },
+    "creatorTag": "Creator",
+    "trial": {
+      "cta": "{count, plural, one {Try # free message} other {Try # free messages}}"
+    },
+    "locked": {
+      "cta": "See Creator"
+    },
+    "subtitleGated": "Both make the same clips. Fill in the details yourself, or let Agent do it all with Creator.",
+    "includedInPro": "Included in Pro",
+    "proTag": "Pro"
+  },
+  "settings": {
+    "title": "Home screen",
+    "description": "What you see when you open SupoClip.",
+    "creatorOnly": "Your own producer: tell it what you want and it clips, edits, schedules and posts. Part of the Creator plan.",
+    "agentHint": "Chat with your agent to make, edit and post clips",
+    "manualHint": "The create form with every setting",
+    "oneTime": "Either way, a link under the composer opens the other one just once.",
+    "memoryTitle": "What the agent remembers",
+    "memoryHint": "Notes it keeps about you between chats. Ask it to remember or forget something, or remove a note here.",
+    "memoryEmpty": "Nothing yet.",
+    "forget": "Forget",
+    "forgetFailed": "Couldn't remove that note.",
+    "saved": "Home screen updated",
+    "trialUsed": "You've used your free messages. Agent is part of Creator, and your chats are kept."
+  },
+  "onboarding": {
+    "film": {
+      "online": "Online",
+      "placeholder": "Ask Agent anything…",
+      "agentAsk": "Clip my podcast and post the 3 best this week",
+      "agentSteps": {
+        "0": "Finding the strongest moments",
+        "1": "Picking the 3 best hooks",
+        "2": "Writing captions in your voice"
+      },
+      "scheduled": "Scheduled 3 posts",
+      "days": {
+        "0": "Mon",
+        "1": "Tue",
+        "2": "Wed",
+        "3": "Thu",
+        "4": "Fri",
+        "5": "Sat",
+        "6": "Sun"
+      },
+      "agentReply": "Done! Three posts are lined up for Tue, Thu and Sat at 7pm, when your audience is most active.",
+      "chips": {
+        "0": "Tighten clip 2",
+        "1": "Plan next week"
+      },
+      "manualTitle": "What are we making?",
+      "manualPlaceholder": "Paste a YouTube, Twitch or Kick link",
+      "manualSource": "How I Make $1.2 Million A Year From This Podcast",
+      "whatToMake": "What to make",
+      "captionStyle": "Caption style",
+      "captionSample": "MOST",
+      "captionAccent": "PEOPLE",
+      "length": "Length",
+      "lengths": {
+        "0": "Auto",
+        "1": "15–30s",
+        "2": "30–60s",
+        "3": "60–90s"
+      },
+      "generate": "Generate",
+      "processing": {
+        "0": "Downloading the video",
+        "1": "Finding the best moments",
+        "2": "Framing, captions and cuts"
+      },
+      "ready": "3 clips ready",
+      "part": "Part {n}",
+      "working": "Working on it",
+      "done": "All done",
+      "thisWeek": "This week",
+      "agentChips": {
+        "0": "9 moments",
+        "1": "Top 3 picked",
+        "2": "Captions written"
+      },
+      "emptyTitle": "What should we make today?",
+      "emptyChips": {
+        "0": "Clip a video",
+        "1": "Plan my week",
+        "2": "How are my clips doing?"
+      },
+      "sourcesHint": "YouTube, Twitch and Kick links, or upload a file"
+    },
+    "welcome": {
+      "skip": "Skip for now",
+      "hello": "Hey {name}! I'm SupoClip's Agent!",
+      "helloNoName": "Hey! I'm SupoClip's Agent!",
+      "intro": "Send me a long video and tell me what you want. I'll find the best moments, edit them, write the captions and post them when your audience is around. What do you want to do first?",
+      "choices": {
+        "examples": "Show me examples",
+        "abilities": "What can you do?",
+        "start": "Let's start"
+      },
+      "examplesIntro": "Here are a few clips SupoClip made from long videos. Each one started as a single link.",
+      "examplesOutro": "Every one of these found its moment, got framed and captioned without anyone touching an editor. Yours are next.",
+      "abilitiesIntro": "Just tell me in your own words. A few things people ask me:",
+      "abilitiesOutro": "Tap one to try it, or write your own below.",
+      "abilities": {
+        "series": {
+          "title": "Turn a video into a series",
+          "prompt": "Make a 5-part series from my latest podcast"
+        },
+        "schedule": {
+          "title": "Plan your posting",
+          "prompt": "Post my 3 best clips this week at 7pm"
+        },
+        "edit": {
+          "title": "Polish a clip",
+          "prompt": "Cut the ums and pauses from clip 2"
+        },
+        "stats": {
+          "title": "See what's working",
+          "prompt": "How are my clips doing this month?"
+        }
+      },
+      "startLine": "Paste a link or drop a video below and tell me what you want. I'll take it from there.",
+      "composerPlaceholder": "Paste a video link and tell me what you want…",
+      "sendFailed": "That didn't go through. Try again."
+    },
+    "manual": {
+      "title": "You're in control.",
+      "subtitle": "Three steps from a long video to clips that are ready to post.",
+      "steps": {
+        "paste": {
+          "title": "Paste a link",
+          "body": "A YouTube, Twitch or Kick link, or upload a file."
+        },
+        "pick": {
+          "title": "Pick what to make",
+          "body": "Highlights, a series, every moment on a topic, a recap or a trailer. Then captions and length."
+        },
+        "clips": {
+          "title": "Get your clips",
+          "body": "Framed, captioned and scored. Edit any of them in the studio, then post or schedule."
+        }
+      },
+      "cta": "Start clipping",
+      "agentNearby": "Agent is one click away under the composer whenever you want it."
+    }
+  },
+  "suggest": {
+    "post": {
+      "title": "Post its best clips",
+      "hint": "{count, plural, one {# clip} other {# clips}} · {ago}",
+      "prompt": "Look at my project “{title}” and schedule its best clips this week at good times."
+    },
+    "series": {
+      "title": "Turn it into a series",
+      "hint": "Part 1, 2, 3 from it",
+      "prompt": "Make a multi-part series from the video in my project “{title}”."
+    },
+    "processing": {
+      "title": "Check on it",
+      "prompt": "How's my project “{title}” coming along?"
+    },
+    "week": {
+      "title": "See what's coming up",
+      "hint": "{count, plural, one {# post scheduled} other {# posts scheduled}}",
+      "prompt": "Walk me through what's scheduled this week and fill any gaps with my best unposted clips."
+    },
+    "stats": {
+      "title": "Check my numbers",
+      "hint": "Views and best hooks",
+      "prompt": "How are my clips doing lately? What's working and what should I post more of?"
+    },
+    "clip": {
+      "title": "Clip a new video",
+      "hint": "Paste a link or drop a file",
+      "prompt": "Clip this video: "
+    },
+    "viral": {
+      "title": "Hooks that work",
+      "hint": "What makes a clip take off",
+      "prompt": "What makes a short clip take off? Give me the few things that matter most for hooks, length and posting times."
+    },
+    "rhythm": {
+      "title": "Plan when to post",
+      "hint": "How often, and at what time",
+      "prompt": "Help me plan a posting rhythm: how often and when should I post clips on each platform?"
+    },
+    "fill": {
+      "prompt": "Plan my posting for the next 7 days with my best clips that aren't posted yet."
+    }
+  },
+  "trial": {
+    "left": "{count, plural, one {# free message left} other {# free messages left}}",
+    "unlimited": "Unlimited with Creator",
+    "locked": "Agent is part of Creator.",
+    "used": "You've used your free messages.",
+    "cta": "Get Creator"
+  }
+}

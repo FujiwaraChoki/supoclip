@@ -529,5 +529,10 @@
       "title": "Dieses Video ist länger als dein Limit von {minutes} Minuten",
       "body": "Es ist länger, als dein Tarif erlaubt, und hier lässt sich kein Teil davon wählen. Nimm die fertige Aufzeichnung oder ein kürzeres Video. Es wurden keine Minuten verbraucht."
     }
-  }
+  },
+  "askAgentInstead": "Lieber den Agenten fragen",
+  "creatorTag": "Creator",
+  "agentLapsed": "Deine Agent-Chats sind gespeichert.",
+  "agentTrialEnded": "Deine kostenlosen Agent-Nachrichten sind aufgebraucht.",
+  "agentBackWithCreator": "Mit Creator weitermachen"
 }

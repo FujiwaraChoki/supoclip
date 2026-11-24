@@ -7,7 +7,8 @@
     "agents": "Agents & API",
     "settings": "Settings",
     "admin": "Admin",
-    "newGeneration": "New generation"
+    "newGeneration": "New generation",
+    "calendar": "Calendar"
   },
   "search": {
     "generations": "Search generations",
@@ -27,7 +28,8 @@
     "analyticsHint": "How your published clips perform",
     "agentsHint": "API keys & MCP",
     "team": "Team & workspaces",
-    "teamHint": "Manage members, seats & pooled hours"
+    "teamHint": "Manage members, seats & pooled hours",
+    "calendarHint": "Everything scheduled and posted"
   },
   "usage": {
     "pickPlan": "Pick a plan to start clipping",

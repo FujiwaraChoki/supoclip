@@ -179,8 +179,12 @@ async def test_feature_flags_route_evaluates_for_the_caller(client, db_session, 
     assert web.json() == {
         "platform": "web",
         "flags": {
+            # Seeded on for web: the agent home is still limited to Creator plans in code.
+            "creator_agent": True,
             "dynamic_edits": False,
             "instagram_publishing": False,
+            # Seeded on for web: only new accounts in the Pebble group see it (onboarding/variant.py).
+            "pebble_onboarding": True,
             "tiktok_publishing": False,
             "workflows": False,
         },
@@ -189,8 +193,10 @@ async def test_feature_flags_route_evaluates_for_the_caller(client, db_session, 
     assert ios == {
         "platform": "ios",
         "flags": {
+            "creator_agent": False,
             "dynamic_edits": False,
             "instagram_publishing": False,
+            "pebble_onboarding": False,
             "tiktok_publishing": False,
             "workflows": True,
         },

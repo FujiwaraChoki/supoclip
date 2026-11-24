@@ -31,6 +31,7 @@ import {
   type BillingPlanId,
 } from "@/lib/billing-plans";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { HomeScreenSettings } from "@/components/agent/home-screen-settings";
 import { BillingIntervalToggle, ComingSoonTag, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import { billingSummaryKey, useBillingSummary, type BillingSummary } from "@/hooks/use-billing-summary";
 import { createOptionKeys, fetchFonts } from "@/lib/queries/create-options";
@@ -337,6 +338,8 @@ export default function SettingsPage() {
         <Section icon={<Languages className="size-4" />} title={tLang("label")} description={t("languageDescription")}>
           <LanguageSwitcher />
         </Section>
+
+        <HomeScreenSettings Section={Section} />
 
         <EmailChangeSection
           email={session.user.email}

@@ -34,6 +34,8 @@ WORKFLOWS = "workflows"
 TIKTOK_PUBLISHING = "tiktok_publishing"
 INSTAGRAM_PUBLISHING = "instagram_publishing"
 DYNAMIC_EDITS = "dynamic_edits"
+CREATOR_AGENT = "creator_agent"
+PEBBLE_ONBOARDING = "pebble_onboarding"
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,8 @@ DEFAULT_FLAGS: dict[str, FeatureFlag] = {
     TIKTOK_PUBLISHING: FeatureFlag(TIKTOK_PUBLISHING, admins_bypass=False),
     INSTAGRAM_PUBLISHING: FeatureFlag(INSTAGRAM_PUBLISHING),
     DYNAMIC_EDITS: FeatureFlag(DYNAMIC_EDITS),
+    CREATOR_AGENT: FeatureFlag(CREATOR_AGENT),
+    PEBBLE_ONBOARDING: FeatureFlag(PEBBLE_ONBOARDING),
 }
 
 _cache: Optional[tuple[float, dict[str, FeatureFlag]]] = None

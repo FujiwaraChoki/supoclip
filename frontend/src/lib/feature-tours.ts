@@ -1,3 +1,4 @@
+import { isPebbleHintId } from "@/lib/pebble-hints";
 import type { Workflow } from "@/lib/workflows";
 
 /**
@@ -114,6 +115,19 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     ],
   },
   {
+    // The agent home for Creator plans. Its targets exist only on the agent home, so people on the
+    // create form never see it until they switch. The calendar step needs social publishing.
+    id: "creator-agent",
+    releasedAt: "2026-11-24T00:00:00Z",
+    steps: [
+      { target: "agent-composer", message: "intro", side: "bottom", intro: true },
+      { target: "agent-composer", message: "talk", side: "bottom" },
+      { target: "agent-suggestions", message: "suggestions", side: "bottom" },
+      { target: "agent-manual-link", message: "manual", side: "bottom" },
+      { target: "agent-calendar-link", message: "calendar", side: "left" },
+    ],
+  },
+  {
     id: "workflows",
     // Update to the day workflows open to everyone: accounts created until then should see this too.
     releasedAt: "2026-11-06T00:00:00Z",
@@ -175,7 +189,7 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
 ];
 
 export function isFeatureTourId(value: unknown): value is string {
-  return FEATURE_TOURS.some((tour) => tour.id === value);
+  return FEATURE_TOURS.some((tour) => tour.id === value) || isPebbleHintId(value);
 }
 
 /** Whether a tour is meant for an account created at `created` (ms). */

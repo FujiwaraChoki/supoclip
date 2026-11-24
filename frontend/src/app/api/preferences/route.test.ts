@@ -51,7 +51,31 @@ describe("/api/preferences", () => {
       notifyOnPublish: false,
       clipLength: "auto",
       createSettings: {},
+      homeMode: null,
     });
+  });
+
+  it("saves and returns the home screen choice", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "user-1" } } as never);
+    const update = vi.fn().mockResolvedValue({ default_clip_length: "auto", create_settings: {}, home_mode: "agent" });
+    vi.mocked(getPrismaClient).mockReturnValue({ user: { update } } as never);
+
+    const response = await PATCH(new Request("http://localhost/api/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ homeMode: "agent" }),
+    }) as never);
+
+    expect(response.status).toBe(200);
+    expect(update.mock.calls[0][0].data).toEqual({ home_mode: "agent" });
+    await expect(response.json()).resolves.toMatchObject({ homeMode: "agent" });
+
+    const invalid = await PATCH(new Request("http://localhost/api/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ homeMode: "robot" }),
+    }) as never);
+    expect(invalid.status).toBe(400);
   });
 
   it("validates PATCH payloads", async () => {
@@ -154,6 +178,7 @@ describe("/api/preferences", () => {
       notifyOnPublish: true,
       clipLength: "auto",
       createSettings: {},
+      homeMode: null,
     });
   });
   it.each([{ fontSize: 0 }, { fontSize: null }, { fontSize: 24.5 }, { fontFamily: false }, { fontColor: "" }, null, []])("rejects invalid falsy or non-object preferences: %j", async (body) => {

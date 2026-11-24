@@ -57,6 +57,28 @@
       "body": "That’s everything. Paste your first link here and we’ll take it from there."
     }
   },
+  "creator-agent": {
+    "intro": {
+      "title": "Meet your agent",
+      "body": "Your home screen can now do the work for you. Tell the agent what you want and it clips, edits, writes captions, schedules and posts, using the same tools you do."
+    },
+    "talk": {
+      "title": "Say it like you'd say it to an editor",
+      "body": "Paste a link or attach a video and add what you want: “three clips for TikTok this week”, “cut the ums from clip 2”, “post the best one tomorrow at 6”. It shows you choices to tap when there's a decision to make."
+    },
+    "suggestions": {
+      "title": "Ideas made for you",
+      "body": "These come from your own account: post clips from your latest project, turn it into a series, or see what's coming up. One tap and Agent gets to work."
+    },
+    "manual": {
+      "title": "Your controls stay one click away",
+      "body": "Want every setting in front of you for one video? This link opens the create form just this time. You can change which one opens first in Settings."
+    },
+    "calendar": {
+      "title": "Everything on one calendar",
+      "body": "Every scheduled, posted and failed clip in one place. Drag a post to another day to move it, or ask the agent to fill the gaps with your best unposted clips at good times. Posting right away always waits for your OK."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Introducing workflows",

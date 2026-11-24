@@ -43,7 +43,7 @@ from ...services.fx_clip_jobs import stale_job_error
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
-from ...services.billing_service import BillingService, BillingLimitExceeded
+from ...services.billing_service import BillingService, BillingLimitExceeded, grants_paid_access, reduced_media_limits
 from ...auth_headers import AuthContext, resolve_auth_context, resolve_authenticated_user_id
 from ...repositories.team_repository import TeamRepository
 from ...analytics import capture_clip_export, capture_event, request_client, source_kind
@@ -92,6 +92,7 @@ from ...clip_cleanup import (
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user, user_is_admin
+from ...onboarding.preview import PREVIEW_REFUSALS, is_locked_preview, is_preview, preview_eligibility, preview_state
 from ...source_submission import SourceAttempt
 from ...workflows.contracts import workflow_spec_from_task
 from ...workflows.errors import WorkflowRequestError
@@ -500,6 +501,7 @@ async def _require_task_access(
 
     if not await _can_access_task(auth_ctx, db, task):
         raise HTTPException(status_code=403, detail="Not authorized for this task")
+    await _refuse_locked_preview(request, db, auth_ctx.user_id, task)
 
     return auth_ctx, task
 
@@ -510,6 +512,33 @@ async def _require_task_owner(
     """Ensure authenticated user owns the task or actively belongs to its team."""
     _auth_ctx, task = await _require_task_access(request, task_service, db, task_id)
     return task
+
+
+# What a locked free preview still allows without a plan: delete it, cancel it, or unlock it.
+_PREVIEW_ALLOWED = re.compile(r"^/tasks/[^/]+/?(cancel|unlock)?/?$")
+
+
+async def _refuse_locked_preview(request: Request, db: AsyncSession, user_id: str, task: dict) -> None:
+    """A free preview's clip can be watched, downloaded and posted; editing and re-rendering
+    it need a plan (onboarding/preview.py). Unlocked previews are ordinary projects."""
+    if not is_locked_preview(task):
+        return
+    path = request.url.path
+    if request.method == "DELETE" and _PREVIEW_ALLOWED.match(path):
+        return
+    if request.method == "POST" and path.rstrip("/").endswith(("/cancel", "/unlock")):
+        return
+    summary = await BillingService(db).get_usage_summary(user_id)
+    if grants_paid_access(summary.get("plan"), summary.get("subscription_status"), summary.get("subscription_provider")):
+        return
+    raise HTTPException(
+        status_code=402,
+        detail={
+            "code": "PREVIEW_LOCKED",
+            "message": "Editing this clip comes with a plan. Pick one to unlock every clip in this video.",
+            "billing": jsonable_encoder(summary),
+        },
+    )
 
 
 async def _authorize_task_reader(
@@ -750,6 +779,22 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     team_id = auth_ctx.team_id
     attempt.note_user(user_id)
     attempt.note_workflow(data.get("workflow"))
+    # A free preview (onboarding/preview.py): plain highlights of one whole video, never charged.
+    preview = data.get("preview") is True
+    preview_access: Dict[str, Any] | None = None
+    if preview:
+        preview_access = await preview_eligibility(db, user_id, team_id, client_platform(request))
+        if not preview_access["eligible"]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "PREVIEW_UNAVAILABLE",
+                    "reason": preview_access["reason"],
+                    "message": PREVIEW_REFUSALS.get(preview_access["reason"], "A free preview isn't available."),
+                },
+            )
+        if requested_range is not None or data.get("workflow") not in (None, "highlights") or data.get("instructions"):
+            raise HTTPException(status_code=422, detail="A free preview makes highlights from a whole video.")
 
     # Get font options
     font_options = data.get("font_options", {})
@@ -800,6 +845,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     fx_requested = fx_active(edit_style, caption_template)
     if fx_requested and not await _dynamic_edits_enabled(db, request, user_id):
         raise _dynamic_edits_not_available()
+    if fx_requested and preview:
+        raise HTTPException(status_code=422, detail="A free preview doesn't include dynamic edits.")
     # With dynamic edits, an in-flight task for the same video is the same job only
     # if it was made with the same style and caption template. Without them, an
     # in-flight task that renders dynamic edits is never the same job (the lookup skips it).
@@ -870,11 +917,19 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
 
     try:
         billing_service = BillingService(db)
-        billing = (
-            await billing_service.assert_can_create_task(user_id, team_id=team_id)
-            if team_id
-            else await billing_service.assert_can_create_task(user_id)
-        )
+        if preview:
+            preview_seconds = preview_access["max_minutes"] * 60
+            billing = {
+                "plan": "preview",
+                "max_youtube_duration_seconds": preview_seconds,
+                "max_upload_duration_seconds": preview_seconds,
+            }
+        else:
+            billing = (
+                await billing_service.assert_can_create_task(user_id, team_id=team_id)
+                if team_id
+                else await billing_service.assert_can_create_task(user_id)
+            )
 
         task_service = TaskService(db)
 
@@ -936,7 +991,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 replay = await _replay_task(db, user_id, idempotency)
                 if replay is not None:
                     return replay
-            if team_id:
+            if preview:
+                pass  # Free: no minutes are checked or charged.
+            elif team_id:
                 await billing_service.assert_can_create_task(
                     user_id, duration_seconds, team_id=team_id
                 )
@@ -970,6 +1027,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         **({"edit_style": edit_style_json} if edit_style_json else {}),
                         **({"idempotency": idempotency} if idempotency else {}),
                         **({"team_id": team_id} if team_id else {}),
+                        **({"preview": True} if preview else {}),
                     )
                 except TaskIdempotencyReplay:
                     # A concurrent request with this key committed its task first
@@ -1052,6 +1110,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                     "output_format": output_format,
                     "clip_length": clip_length,
                     **({"edit_intensity": edit_style.intensity} if edit_style.active else {}),
+                    **({"preview": True} if preview else {}),
                 },
             )
 
@@ -2141,15 +2200,85 @@ async def resume_task(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     """Retry a cancelled or errored task while preserving completed clips."""
+    return await _run_task_again(task_id, request, db)
+
+
+@router.post("/{task_id}/unlock")
+async def unlock_preview_task(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Render the rest of a free preview's clips in place, now that the account has a plan.
+
+    Charges the video's minutes like a new project. The transcript and analysis are reused, so
+    the clips are the moments the preview listed. On a 1080p plan the preview's own clip is made
+    again at full quality.
+    """
     try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if isinstance(body, dict) and body.get("when_paid") is True:
+        # Asked before checkout: remembered, and the worker unlocks it as soon as the plan is
+        # active, even if this tab is closed by then (onboarding/preview.py).
         task_service = TaskService(db)
         task = await _require_task_owner(request, task_service, db, task_id)
+        summary = await BillingService(db).get_usage_summary(task["user_id"])
+        if not grants_paid_access(summary.get("plan"), summary.get("subscription_status"), summary.get("subscription_provider")):
+            if not is_locked_preview(task):
+                return {"message": "Already unlocked", "job_id": None}
+            await task_service.task_repo.save_preview(
+                db, task_id, {**(preview_state(task) or {}), "unlock_requested_at": datetime.now(timezone.utc).isoformat()}
+            )
+            return {"message": "Unlocks when the plan is active", "job_id": None, "pending": True}
+    return await _run_task_again(task_id, request, db, unlock=True)
+
+
+async def unlock_requested_preview(db: AsyncSession, task_id: str) -> Optional[str]:
+    """The worker's half of "unlock when paid": unlock now if the owner has a plan. Returns the job
+    id, or None when it isn't time yet (no plan) or there's nothing to do."""
+    try:
+        result = await _run_task_again(task_id, None, db, unlock=True)
+    except HTTPException as exc:
+        if exc.status_code == 402:
+            return None
+        raise
+    return (result or {}).get("job_id")
+
+
+async def _unlock_preview_state(db: AsyncSession, task_service: TaskService, task: dict, task_id: str) -> None:
+    summary = await BillingService(db).get_usage_summary(task["user_id"])
+    _quality, short_side = reduced_media_limits(summary)
+    if short_side is None:
+        # Full HD: the 720p preview clip is rendered again with the rest.
+        await task_service.clip_repo.delete_clips_by_task(db, task_id)
+        await task_service.checkpoint_repo.forget_completed_positions(db, task_id)
+    await task_service.task_repo.save_preview(
+        db, task_id, {**(preview_state(task) or {}), "unlocked_at": datetime.now(timezone.utc).isoformat()}
+    )
+
+
+async def _run_task_again(task_id: str, request: Optional[Request], db: AsyncSession, *, unlock: bool = False):
+    """Resume a task, or unlock a free preview. ``request`` is None when the worker unlocks a
+    preview whose owner asked for it before checkout (the owner was checked then)."""
+    try:
+        task_service = TaskService(db)
+        if request is not None:
+            task = await _require_task_owner(request, task_service, db, task_id)
 
         async with task_run_guard(db, task_id):
             task = await task_service.task_repo.get_task_by_id(db, task_id)
+            if unlock and not is_locked_preview(task):
+                if is_preview(task):
+                    return {"message": "Already unlocked", "job_id": None}
+                raise HTTPException(status_code=400, detail="Only a free preview can be unlocked")
             if task.get("status") == "queued":
                 return {"message": "Task already queued"}
-            if task.get("status") not in ["cancelled", "error"]:
+            if unlock and task.get("status") == "processing":
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "PREVIEW_IN_PROGRESS", "message": "The preview is still being made. Unlock it when it's ready."},
+                )
+            if task.get("status") not in (["completed", "cancelled", "error"] if unlock else ["cancelled", "error"]):
                 raise HTTPException(
                     status_code=400,
                     detail="Only cancelled/error/queued tasks can be retried",
@@ -2158,7 +2287,7 @@ async def resume_task(
             # leaving the allowlist) stops a workflow task from running again.
             spec = workflow_spec_from_task(task, "auto")  # the length never decides the gate
             if not spec.legacy and not await workflow_allowed_for(
-                db, task["user_id"], spec.workflow, platform=client_platform(request)
+                db, task["user_id"], spec.workflow, platform=client_platform(request) if request is not None else "web"
             ):
                 error = workflow_not_available()
                 raise HTTPException(status_code=error.status, detail=error.to_detail())
@@ -2204,6 +2333,8 @@ async def resume_task(
                     await BillingService(db).assert_can_resume_task(
                         task["user_id"], task_id
                     )
+                if unlock:
+                    await _unlock_preview_state(db, task_service, task, task_id)
 
                 try:
                     runtime_config = get_config()
@@ -2223,7 +2354,7 @@ async def resume_task(
                         task_id,
                         "queued",
                         progress=0,
-                        progress_message="Re-queued by user",
+                        progress_message="Unlocking every clip" if unlock else "Re-queued by user",
                     )
 
                     processing_mode = (
@@ -2259,7 +2390,7 @@ async def resume_task(
                     )
                     raise
 
-                return {"message": "Generation retry queued", "job_id": job_id}
+                return {"message": "Unlocking every clip" if unlock else "Generation retry queued", "job_id": job_id}
     except GenerationAllowanceBusy as e:
         raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
     except BillingLimitExceeded as e:

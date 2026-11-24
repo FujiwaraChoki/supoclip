@@ -1,0 +1,45 @@
+{
+  "title": "Kalender",
+  "summary": "{scheduled, plural, =0 {Belum ada yang terjadwal} one {# terjadwal} other {# terjadwal}} · {published, plural, =0 {belum ada yang dipublikasikan} one {# dipublikasikan} other {# dipublikasikan}} di tampilan ini",
+  "planWithAgent": "Rencanakan dengan agen",
+  "planPrompt": "Lihat kalenderku untuk dua minggu ke depan dan isi slot kosong dengan clip terbaikku yang belum diposting, di waktu yang pas. Tanya aku dulu kalau kamu ragu soal platform atau seberapa sering posting.",
+  "previous": "Sebelumnya",
+  "next": "Berikutnya",
+  "today": "Hari ini",
+  "filter": "Filter menurut platform",
+  "views": {
+    "month": "Bulan",
+    "week": "Minggu"
+  },
+  "more": "+{count} lagi",
+  "untitled": "Postingan tanpa judul",
+  "unavailable": "Kalender posting akan muncul setelah publikasi sosial aktif di akunmu.",
+  "goHome": "Ke beranda",
+  "toasts": {
+    "past": "Pilih hari yang belum lewat.",
+    "moved": "Dipindah ke {day}",
+    "failed": "Tidak berhasil. Coba lagi.",
+    "saved": "Postingan diperbarui",
+    "cancelled": "Postingan dibatalkan",
+    "retried": "Mencoba lagi"
+  },
+  "empty": {
+    "title": "Kalender masih kosong",
+    "body": "Jadwalkan clip dari sebuah proyek, nanti muncul di sini.",
+    "bodyAgent": "Agenmu bisa memilih clip terbaikmu dan menyebarkannya di waktu-waktu yang pas.",
+    "library": "Buka pustaka"
+  },
+  "sheet": {
+    "when": "Tayang",
+    "wentOut": "Tayang pada",
+    "caption": "Caption",
+    "views": "Tayangan",
+    "likes": "Suka",
+    "comments": "Komentar",
+    "save": "Simpan perubahan",
+    "cancel": "Batalkan postingan",
+    "retry": "Coba lagi",
+    "view": "Lihat postingan",
+    "project": "Buka proyek"
+  }
+}

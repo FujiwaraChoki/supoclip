@@ -1,0 +1,455 @@
+{
+  "greeting": {
+    "upLate": "Masih begadang, {name}?",
+    "morning": "Pagi, {name}.",
+    "afternoon": "Hai {name}.",
+    "evening": "Malam, {name}."
+  },
+  "subtitle": "Masukkan video atau bilang apa yang kamu butuhkan. Aku potong, poles, dan posting.",
+  "manualLink": "Lebih suka isi detailnya sendiri? Buat clip secara manual",
+  "thinking": "Berpikir",
+  "composer": {
+    "label": "Kirim pesan ke agen",
+    "placeholder": "Minta apa saja…",
+    "placeholderHome": "Tempel tautan video, atau minta aku merencanakan minggumu…",
+    "placeholderReply": "Balas…",
+    "placeholderApproval": "Balas, atau jawab di atas…",
+    "attach": "Lampirkan",
+    "send": "Kirim",
+    "stop": "Berhenti",
+    "remove": "Hapus",
+    "videoLink": "Tautan video",
+    "clipThis": "Buat clip dari video ini",
+    "disclaimer": "Agen bisa saja salah. Dia selalu bertanya dulu sebelum langsung memposting apa pun.",
+    "lookAtThis": "Coba lihat ini",
+    "uploading": "Mengunggah",
+    "dropTitle": "Lepaskan di sini",
+    "dropBody": "Video untuk dipotong, gambar, PDF, dan file teks seperti naskah atau caption.",
+    "tooMany": "Maksimal {count} file per pesan.",
+    "unsupported": "{name} bukan jenis file yang bisa dibaca Agent.",
+    "tooBig": "{name} terlalu besar. Gambar maksimal 20 MB, PDF maksimal 10 MB, file teks maksimal 500 KB.",
+    "tooBigTotal": "Itu terlalu banyak untuk satu pesan. Kirim sebagian file di pesan berikutnya.",
+    "readFailed": "Tidak bisa membaca {name}.",
+    "kinds": {
+      "video": "Video",
+      "image": "Gambar",
+      "pdf": "PDF",
+      "text": "Teks"
+    },
+    "placeholderLocked": "Agent termasuk dalam Creator"
+  },
+  "home": {
+    "recentChats": "Chat terbaru",
+    "noChats": "Chat kamu dengan agen akan muncul di sini.",
+    "untitled": "Chat baru",
+    "needsYou": "Menunggumu",
+    "comingUp": "Akan datang",
+    "calendar": "Kalender",
+    "nothingScheduled": "Belum ada yang dijadwalkan. Mau aku rencanakan minggumu?"
+  },
+  "errors": {
+    "send": "Pesan tidak terkirim. Coba lagi.",
+    "load": "Chat ini tidak bisa dimuat.",
+    "retry": "Coba lagi",
+    "rename": "Tidak bisa mengganti nama chat.",
+    "delete": "Tidak bisa menghapus chat."
+  },
+  "chat": {
+    "back": "Kembali ke beranda",
+    "newChat": "Chat baru",
+    "more": "Lainnya",
+    "rename": "Ganti nama",
+    "delete": "Hapus chat"
+  },
+  "options": {
+    "recommended": "Disarankan",
+    "confirmCount": "{count, plural, one {Pilih yang ini} other {Pilih # ini}}",
+    "pickSome": "Pilih satu atau lebih"
+  },
+  "cards": {
+    "noClipsYet": "Belum ada clip.",
+    "newProject": "Proyek baru",
+    "projectReady": "{count, plural, one {# clip siap} other {# clip siap}}",
+    "projectFailed": "Yang ini tidak berhasil. Buka untuk melihat alasannya.",
+    "projectQueued": "Memulai…",
+    "untitledPost": "Postingan tanpa judul",
+    "viewPost": "Lihat postingan",
+    "calendarEmpty": "Tidak ada apa pun di kalender untuk hari-hari ini.",
+    "openCalendar": "Buka kalender",
+    "studioEdit": "Edit di studio",
+    "editFailed": "Editannya tidak berhasil.",
+    "openStudio": "Buka di studio",
+    "download": "Unduh",
+    "whenReady": "Saat “{title}” siap",
+    "thisProject": "proyek ini",
+    "views30": "Tayangan, 30 hari terakhir",
+    "published": "Postingan terpublikasi",
+    "openAnalytics": "Buka analitik",
+    "remembered": "Diingat: {note}",
+    "defaultsSaved": "Pengaturan bawaan barumu tersimpan",
+    "restyled": "Gaya caption di {title} sudah diganti",
+    "trimmed": "Dipangkas"
+  },
+  "postStatus": {
+    "scheduled": "Terjadwal",
+    "queued": "Dalam antrean",
+    "publishing": "Memposting",
+    "published": "Dipublikasikan",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan"
+  },
+  "editStep": {
+    "preparing": "Membuka studio",
+    "ai": "Mengedit",
+    "render": "Merender",
+    "done": "Selesai"
+  },
+  "approval": {
+    "publishTitle": "{count, plural, one {Posting ini sekarang?} other {Posting # ini sekarang?}}",
+    "deleteTitle": "Hapus proyek ini?",
+    "deleteBody": "Proyek dan semua clip-nya akan dihapus permanen.",
+    "decline": "Nanti saja",
+    "publish": "Posting sekarang",
+    "delete": "Hapus"
+  },
+  "notice": {
+    "projectDone": "“{title}” sudah siap",
+    "projectEnded": "“{title}” berhenti",
+    "editDone": "Edit untuk “{title}” selesai",
+    "editEnded": "Edit untuk “{title}” berhenti"
+  },
+  "steps": {
+    "generic": "Sedang dikerjakan",
+    "waiting": "Menunggu OK darimu",
+    "declined": "dilewati",
+    "failed": "tidak berhasil",
+    "lookedAround": "{count, plural, one {Mengecek satu hal} other {Mengecek # hal}}",
+    "get_overview": {
+      "running": "Mengecek akunmu",
+      "done": "Sudah mengecek akunmu"
+    },
+    "list_projects": {
+      "running": "Melihat-lihat proyekmu",
+      "done": "Sudah melihat proyekmu"
+    },
+    "get_project": {
+      "running": "Membuka proyek",
+      "done": "Proyek dibuka"
+    },
+    "find_clips": {
+      "running": "Mencari di clip-mu",
+      "done": "Sudah mencari di clip-mu"
+    },
+    "get_clip_transcript": {
+      "running": "Membaca clip",
+      "done": "Sudah membaca clip"
+    },
+    "create_project": {
+      "running": "Memulai proyek baru",
+      "done": "Proyek baru dimulai"
+    },
+    "when_project_finishes": {
+      "running": "Menyiapkan langkah berikutnya",
+      "done": "Aku lanjutkan begitu siap"
+    },
+    "project_action": {
+      "running": "Memperbarui proyek",
+      "done": "Proyek diperbarui"
+    },
+    "delete_project": {
+      "running": "Menghapus proyek",
+      "done": "Proyek dihapus"
+    },
+    "list_caption_styles": {
+      "running": "Melihat gaya caption",
+      "done": "Sudah melihat gaya caption"
+    },
+    "edit_clip": {
+      "running": "Mengirim editan ke studio",
+      "done": "Mengedit di latar belakang"
+    },
+    "check_background_work": {
+      "running": "Mengecek editan",
+      "done": "Sudah mengecek editan"
+    },
+    "trim_clip": {
+      "running": "Memangkas clip",
+      "done": "Clip dipangkas"
+    },
+    "restyle_project": {
+      "running": "Mengganti gaya caption",
+      "done": "Gaya caption diganti"
+    },
+    "get_calendar": {
+      "running": "Membuka kalendermu",
+      "done": "Sudah mengecek kalendermu"
+    },
+    "suggest_posting_times": {
+      "running": "Mencari waktu posting yang pas",
+      "done": "Ketemu waktu posting yang pas"
+    },
+    "draft_caption": {
+      "running": "Menulis caption",
+      "done": "Caption sudah ditulis"
+    },
+    "schedule_post": {
+      "running": "Menjadwalkan postingan",
+      "done": "Postingan dijadwalkan"
+    },
+    "publish_now": {
+      "running": "Memposting",
+      "done": "Sudah diposting"
+    },
+    "update_post": {
+      "running": "Memperbarui postingan",
+      "done": "Postingan diperbarui"
+    },
+    "post_action": {
+      "running": "Memperbarui postingan",
+      "done": "Postingan diperbarui"
+    },
+    "get_performance": {
+      "running": "Mengambil angka-angkamu",
+      "done": "Angka-angkamu sudah diambil"
+    },
+    "update_create_defaults": {
+      "running": "Menyimpan pengaturan bawaanmu",
+      "done": "Pengaturan bawaanmu tersimpan"
+    },
+    "remember": {
+      "running": "Mencatat",
+      "done": "Sudah dicatat"
+    },
+    "forget": {
+      "running": "Melupakan itu",
+      "done": "Sudah dilupakan"
+    },
+    "show_options": {
+      "running": "Menyiapkan pilihan",
+      "done": "Ini beberapa pilihan"
+    }
+  },
+  "choice": {
+    "title": "Kamu mau kerja dengan cara apa?",
+    "subtitle": "Biarkan Agent membuat clip, mengedit, dan memposting untukmu, atau pegang sendiri semua kendalinya. Kamu bisa ganti kapan saja.",
+    "recommended": "Disarankan",
+    "changeLater": "Kamu bisa ganti kapan saja di Pengaturan, atau sekali saja dari beranda.",
+    "saveFailed": "Tidak bisa disimpan. Coba lagi.",
+    "agent": {
+      "title": "Kerja bareng agen",
+      "body": "Bilang apa yang kamu mau dengan kata-katamu sendiri. Sisanya dia yang urus.",
+      "perks": {
+        "0": "Tempel tautan dan bilang mau dibuat apa",
+        "1": "Dia mengedit, menulis caption, dan menjadwalkan postingan",
+        "2": "Ingat gayamu dan waktu posting terbaikmu"
+      },
+      "cta": "Mulai dengan agen"
+    },
+    "manual": {
+      "title": "Isi detailnya sendiri",
+      "body": "Pilih alur kerja, caption, dan durasi sendiri, setiap kali.",
+      "perks": {
+        "0": "Semua pengaturan ada di depanmu",
+        "1": "Hasil sama, kontrol lebih banyak",
+        "2": "Agen tetap satu klik saja kalau kamu butuh"
+      },
+      "cta": "Pakai formulir pembuatan"
+    },
+    "creatorTag": "Creator",
+    "trial": {
+      "cta": "Coba {count} pesan gratis"
+    },
+    "locked": {
+      "cta": "Lihat Creator"
+    },
+    "subtitleGated": "Keduanya membuat klip yang sama. Isi detailnya sendiri, atau biarkan Agent mengerjakan semuanya dengan Creator.",
+    "includedInPro": "Termasuk di Pro",
+    "proTag": "Pro"
+  },
+  "settings": {
+    "title": "Beranda",
+    "description": "Yang kamu lihat saat membuka SupoClip.",
+    "creatorOnly": "Produser pribadimu: bilang maumu, lalu ia membuat klip, mengedit, menjadwalkan, dan memposting. Bagian dari paket Creator.",
+    "agentHint": "Chat dengan agenmu untuk membuat, mengedit, dan memposting clip",
+    "manualHint": "Formulir pembuatan dengan semua pengaturan",
+    "oneTime": "Apa pun pilihanmu, tautan di bawah kolom pesan membuka yang satunya untuk sekali saja.",
+    "memoryTitle": "Yang diingat agen",
+    "memoryHint": "Catatan tentang kamu yang dia simpan antar-chat. Minta dia mengingat atau melupakan sesuatu, atau hapus catatan di sini.",
+    "memoryEmpty": "Belum ada.",
+    "forget": "Lupakan",
+    "forgetFailed": "Tidak bisa menghapus catatan itu.",
+    "saved": "Beranda diperbarui",
+    "trialUsed": "Pesan gratismu sudah habis. Agent termasuk dalam Creator, dan obrolanmu tetap tersimpan."
+  },
+  "onboarding": {
+    "film": {
+      "online": "Online",
+      "placeholder": "Tanya apa saja ke Agent…",
+      "agentAsk": "Bikin clip dari podcast-ku dan posting 3 terbaik minggu ini",
+      "agentSteps": {
+        "0": "Mencari momen terkuat",
+        "1": "Memilih 3 hook terbaik",
+        "2": "Menulis caption dengan gayamu"
+      },
+      "scheduled": "3 postingan dijadwalkan",
+      "days": {
+        "0": "Sen",
+        "1": "Sel",
+        "2": "Rab",
+        "3": "Kam",
+        "4": "Jum",
+        "5": "Sab",
+        "6": "Min"
+      },
+      "agentReply": "Beres! Tiga postingan sudah dijadwalkan Selasa, Kamis, dan Sabtu jam 7 malam, saat penontonmu paling aktif.",
+      "chips": {
+        "0": "Padatkan clip 2",
+        "1": "Rencanakan minggu depan"
+      },
+      "manualTitle": "Kita mau bikin apa?",
+      "manualPlaceholder": "Tempel tautan YouTube, Twitch, atau Kick",
+      "manualSource": "How I Make $1.2 Million A Year From This Podcast",
+      "whatToMake": "Mau buat apa",
+      "captionStyle": "Gaya caption",
+      "captionSample": "KEBANYAKAN",
+      "captionAccent": "ORANG",
+      "length": "Durasi",
+      "lengths": {
+        "0": "Otomatis",
+        "1": "15–30 dtk",
+        "2": "30–60 dtk",
+        "3": "60–90 dtk"
+      },
+      "generate": "Buat",
+      "processing": {
+        "0": "Mengunduh video",
+        "1": "Mencari momen terbaik",
+        "2": "Framing, caption, dan potongan"
+      },
+      "ready": "3 clip siap",
+      "part": "Bagian {n}",
+      "working": "Sedang dikerjakan",
+      "done": "Semua beres",
+      "thisWeek": "Minggu ini",
+      "agentChips": {
+        "0": "9 momen",
+        "1": "3 terbaik dipilih",
+        "2": "Caption selesai"
+      },
+      "emptyTitle": "Mau bikin apa hari ini?",
+      "emptyChips": {
+        "0": "Potong video",
+        "1": "Rencanakan mingguku",
+        "2": "Gimana performa clip-ku?"
+      },
+      "sourcesHint": "Link YouTube, Twitch dan Kick, atau unggah file"
+    },
+    "welcome": {
+      "skip": "Lewati dulu",
+      "hello": "Hai {name}! Aku Agent dari SupoClip!",
+      "helloNoName": "Hai! Aku Agent dari SupoClip!",
+      "intro": "Kirim video panjang ke aku dan bilang apa yang kamu mau. Aku cari momen terbaiknya, edit, tulis caption-nya, lalu posting saat penontonmu lagi aktif. Mau mulai dari mana?",
+      "choices": {
+        "examples": "Tunjukkan contohnya",
+        "abilities": "Kamu bisa apa saja?",
+        "start": "Ayo mulai"
+      },
+      "examplesIntro": "Ini beberapa clip yang dibuat SupoClip dari video panjang. Masing-masing berawal dari satu tautan saja.",
+      "examplesOutro": "Semuanya menemukan momennya, dibingkai, dan diberi caption tanpa ada yang menyentuh editor. Berikutnya giliran punyamu.",
+      "abilitiesIntro": "Bilang aja pakai kata-katamu sendiri. Beberapa hal yang sering diminta ke aku:",
+      "abilitiesOutro": "Ketuk salah satu untuk mencoba, atau tulis sendiri di bawah.",
+      "abilities": {
+        "series": {
+          "title": "Jadikan video sebuah seri",
+          "prompt": "Bikin seri 5 bagian dari podcast terbaruku"
+        },
+        "schedule": {
+          "title": "Rencanakan postinganmu",
+          "prompt": "Posting 3 clip terbaikku minggu ini jam 7 malam"
+        },
+        "edit": {
+          "title": "Poles sebuah clip",
+          "prompt": "Hapus kata pengisi dan jeda dari clip 2"
+        },
+        "stats": {
+          "title": "Lihat apa yang berhasil",
+          "prompt": "Gimana performa clip-ku bulan ini?"
+        }
+      },
+      "startLine": "Tempel tautan atau taruh video di bawah, lalu bilang apa yang kamu mau. Sisanya biar aku yang urus.",
+      "composerPlaceholder": "Tempel tautan video dan bilang apa yang kamu mau…",
+      "sendFailed": "Pesan tidak terkirim. Coba lagi."
+    },
+    "manual": {
+      "title": "Kamu yang pegang kendali.",
+      "subtitle": "Tiga langkah dari video panjang ke clip yang siap diposting.",
+      "steps": {
+        "paste": {
+          "title": "Tempel tautan",
+          "body": "Tautan YouTube, Twitch, atau Kick, atau unggah file."
+        },
+        "pick": {
+          "title": "Pilih mau buat apa",
+          "body": "Highlight, seri, setiap momen tentang satu topik, ringkasan, atau trailer. Lalu caption dan durasi."
+        },
+        "clips": {
+          "title": "Dapatkan clip-mu",
+          "body": "Sudah dibingkai, diberi caption, dan diberi skor. Edit yang mana saja di studio, lalu posting atau jadwalkan."
+        }
+      },
+      "cta": "Mulai bikin clip",
+      "agentNearby": "Agent cuma satu klik di bawah kolom pesan, kapan pun kamu butuh."
+    }
+  },
+  "suggest": {
+    "post": {
+      "title": "Posting clip terbaiknya",
+      "hint": "{count, plural, one {# clip} other {# clip}} · {ago}",
+      "prompt": "Lihat proyekku “{title}” dan jadwalkan clip terbaiknya minggu ini di waktu yang tepat."
+    },
+    "series": {
+      "title": "Jadikan serial",
+      "hint": "Bagian 1, 2, 3 darinya",
+      "prompt": "Buat serial beberapa bagian dari video di proyekku “{title}”."
+    },
+    "processing": {
+      "title": "Cek progresnya",
+      "prompt": "Bagaimana perkembangan proyekku “{title}”?"
+    },
+    "week": {
+      "title": "Lihat yang akan datang",
+      "hint": "{count, plural, one {# postingan terjadwal} other {# postingan terjadwal}}",
+      "prompt": "Tunjukkan apa yang terjadwal minggu ini dan isi kekosongan dengan clip terbaikku yang belum diposting."
+    },
+    "stats": {
+      "title": "Cek angkaku",
+      "hint": "Penayangan dan hook terbaik",
+      "prompt": "Gimana performa clip-ku belakangan ini? Apa yang berhasil dan apa yang sebaiknya lebih sering kuposting?"
+    },
+    "clip": {
+      "title": "Potong video baru",
+      "hint": "Tempel link atau lepas file",
+      "prompt": "Potong video ini: "
+    },
+    "viral": {
+      "title": "Hook yang ampuh",
+      "hint": "Apa yang bikin clip meledak",
+      "prompt": "Apa yang bikin clip pendek meledak? Beri tahu hal terpenting soal hook, durasi, dan waktu posting."
+    },
+    "rhythm": {
+      "title": "Rencanakan waktu posting",
+      "hint": "Seberapa sering dan jam berapa",
+      "prompt": "Bantu aku merencanakan ritme posting: seberapa sering dan kapan aku harus posting clip di tiap platform?"
+    },
+    "fill": {
+      "prompt": "Rencanakan postinganku untuk 7 hari ke depan dengan clip terbaikku yang belum diposting."
+    }
+  },
+  "trial": {
+    "left": "Sisa {count} pesan gratis",
+    "unlimited": "Tanpa batas dengan Creator",
+    "locked": "Agent termasuk dalam Creator.",
+    "used": "Pesan gratismu sudah habis.",
+    "cta": "Dapatkan Creator"
+  }
+}

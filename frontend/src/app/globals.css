@@ -329,3 +329,34 @@
     transform: none !important;
   }
 }
+
+/* The agent's live step and "Thinking" label: a soft light passing over the text. */
+@keyframes shimmer-text { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.shimmer-text {
+  background: linear-gradient(90deg, currentColor 0%, currentColor 40%, color-mix(in oklch, currentColor 35%, transparent) 50%, currentColor 60%, currentColor 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-text 1.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text { animation: none; -webkit-text-fill-color: currentColor; }
+}
+
+/* Agent: a pebble whose outline slowly shifts, like breathing; faster while it works. */
+@keyframes agent-pebble {
+  0%, 100% { border-radius: 58% 42% 51% 49% / 46% 55% 45% 54%; }
+  33% { border-radius: 45% 55% 40% 60% / 55% 45% 58% 42%; }
+  66% { border-radius: 52% 48% 60% 40% / 40% 58% 42% 60%; }
+}
+.agent-pebble {
+  border-radius: 58% 42% 51% 49% / 46% 55% 45% 54%;
+  animation: agent-pebble 7s ease-in-out infinite;
+}
+.agent-pebble-busy { animation-duration: 2.6s; }
+/* The thought bubble's cloud: lumpy, not a pill. */
+.agent-cloud { border-radius: 55% 45% 52% 48% / 60% 58% 42% 40%; }
+@media (prefers-reduced-motion: reduce) {
+  .agent-pebble { animation: none; }
+}

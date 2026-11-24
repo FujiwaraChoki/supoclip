@@ -88,6 +88,23 @@
     "teamStart": {
       "title": "{team} braucht einen Team-Tarif, um Clips zu erstellen",
       "body": "Clips hier nutzen die gemeinsamen Stunden des Teams. Dafür braucht das Team zuerst einen aktiven Team-Tarif."
+    },
+    "agent": {
+      "eyebrow": "Agent · Creator",
+      "title": "Clippen, planen und posten, einfach per Nachricht",
+      "titleUsed": "Das war deine letzte kostenlose Agent-Nachricht",
+      "body": "Agent gehört zu Creator. Sag ihm, was du willst: Er macht die Clips, plant deine Woche und postet weiter, während du dich um anderes kümmerst.",
+      "bodyUsed": "Wir hoffen, er hat geholfen. Agent gehört zu Creator: Mach genau da weiter, wo du aufgehört hast, alle Unterhaltungen bleiben erhalten.",
+      "perks": {
+        "0": "Agent: clippt, schneidet, plant und postet für dich",
+        "1": "Ein Posting-Kalender, den er füllt und aufräumt",
+        "2": "Dazu alles andere aus Creator, etwa Full HD 1080p"
+      }
+    },
+    "preview": {
+      "eyebrow": "Dein Gratis-Clip",
+      "title": "{count, plural, one {Den anderen Clip freischalten} other {Die anderen # Clips freischalten}}",
+      "body": "Sie sind schon gefunden und warten. Wähl einen Plan und sie werden direkt hier gemacht, in diesem Projekt."
     }
   },
   "illustration": {

@@ -238,6 +238,17 @@ CREATE INDEX IF NOT EXISTS idx_social_posts_team_id ON social_posts (team_id);
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS team_id VARCHAR(36) REFERENCES teams(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_api_keys_team_id ON api_keys (team_id);
 
+-- What the home screen opens on: 'agent', 'manual', or NULL until the person chooses.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS home_mode VARCHAR(10);
+
+-- Pebble onboarding (A/B group, answers, finished) and the one free preview clip (docs/onboarding.md).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_variant VARCHAR(16);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_answers JSONB;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preview_used_at TIMESTAMPTZ;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS preview JSONB;
+CREATE INDEX IF NOT EXISTS ix_tasks_preview_created ON tasks (created_at) WHERE preview IS NOT NULL;
+
 -- Creator commissions (affiliate_referrals, affiliate_commissions, affiliate_payouts) and Connect payout columns.
 ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "stripe_connect_account_id" VARCHAR(255);
 ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "stripe_connect_platform_id" VARCHAR(255);

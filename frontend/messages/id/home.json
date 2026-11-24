@@ -529,5 +529,10 @@
       "title": "Video ini melebihi batas {minutes} menit kamu",
       "body": "Video ini lebih panjang dari yang diizinkan paketmu, dan bagiannya tidak bisa dipilih di sini. Coba rekaman lengkapnya atau video yang lebih pendek. Tidak ada menit yang terpakai."
     }
-  }
+  },
+  "askAgentInstead": "Tanya agen saja",
+  "creatorTag": "Creator",
+  "agentLapsed": "Obrolan Agent-mu tersimpan.",
+  "agentTrialEnded": "Pesan Agent gratismu sudah habis.",
+  "agentBackWithCreator": "Lanjutkan dengan Creator"
 }

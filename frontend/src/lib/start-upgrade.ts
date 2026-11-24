@@ -5,11 +5,11 @@ import { clearCreatorCode, getStoredCreatorCode } from "@/lib/creator-code";
 import { track } from "@/lib/datafast";
 import { EXISTING_SUBSCRIPTION_NEEDS_PAYMENT } from "@/lib/subscription-status";
 
-async function requestCheckout(plan: BillingPlanId, interval: BillingInterval, code: string | null) {
+async function requestCheckout(plan: BillingPlanId, interval: BillingInterval, code: string | null, returnTo?: string) {
   const response = await fetch("/api/billing/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(code ? { plan, interval, code } : { plan, interval }),
+    body: JSON.stringify({ plan, interval, ...(code ? { code } : {}), ...(returnTo ? { return_to: returnTo } : {}) }),
   });
   const data: { url?: string; error?: string; code?: string } = await response.json().catch(() => ({}));
   return { response, data };
@@ -25,9 +25,11 @@ export async function startUpgrade(
   plan: BillingPlanId,
   source: string,
   interval: BillingInterval = "month",
+  /** A path on this site that checkout returns to with `?billing=success|cancelled` (Settings by default). */
+  returnTo?: string,
 ): Promise<void> {
   const code = getStoredCreatorCode();
-  let { response, data } = await requestCheckout(plan, interval, code);
+  let { response, data } = await requestCheckout(plan, interval, code, returnTo);
   if (data.code === EXISTING_SUBSCRIPTION_NEEDS_PAYMENT) {
     const portal = await fetch("/api/billing/portal", { method: "POST" });
     const portalData: { url?: string; error?: string } = await portal.json().catch(() => ({}));
@@ -40,7 +42,7 @@ export async function startUpgrade(
   // Must match INVALID_CREATOR_CODE in server/affiliates.ts (server-only module).
   if (code && data.code === "invalid_creator_code") {
     clearCreatorCode();
-    ({ response, data } = await requestCheckout(plan, interval, null));
+    ({ response, data } = await requestCheckout(plan, interval, null, returnTo));
   }
   if (!response.ok || !data.url) {
     throw new Error(data.error || "We couldn't open checkout. Please try again.");

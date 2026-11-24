@@ -73,6 +73,9 @@ import Link from "next/link";
 import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, sourceTimestamp } from "@/components/app/clip-wall";
 import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/components/app/series-view";
 import { HeroClipView } from "@/components/app/hero-clip-view";
+import { LockedMomentTile, PreviewBanner, usePreviewUnlock } from "@/components/app/preview-locked";
+import { isLockedPreview, previewOf, requestUnlockWhenPaid } from "@/lib/onboarding";
+import { hasPaidAccess } from "@/lib/subscription-status";
 import { DownloadAllButton } from "@/components/app/download-all-button";
 import { buildRecreateBody, createActionId, isWorkflowErrorCode, WorkflowFailure } from "@/components/app/workflow-failure";
 import { availableWorkflows, useWorkflowsInfo } from "@/components/workflow-picker";
@@ -184,6 +187,8 @@ function clipFxNotes(meta: ClipFxMeta | null | undefined): ("approxTiming" | "si
 
 interface TaskDetails extends WorkflowTaskFields {
   id: string;
+  /** Set on a free preview project (onboarding/preview.py). */
+  preview?: unknown;
   user_id: string;
   source_id: string;
   source_title: string;
@@ -335,6 +340,22 @@ export default function TaskPage() {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [billingSummary] = useBillingSummary(Boolean(session?.user?.id));
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
+  // A free preview (onboarding): its best clip is here, the rest are listed until a plan unlocks them.
+  const preview = previewOf(task);
+  const lockedPreview = isLockedPreview(task) && task?.status === "completed";
+  const paidReturn = searchParams.get("billing") === "success";
+  const previewUnlock = usePreviewUnlock(taskId, lockedPreview, paidReturn, () => {
+    window.history.replaceState(null, "", `/tasks/${taskId}`);
+    void taskQuery.refetch();
+  });
+  const askToUnlock = () => {
+    if (hasPaidAccess(billingSummary?.plan, billingSummary?.subscription_status, billingSummary?.subscription_provider)) {
+      void previewUnlock.unlock({ retryUntilPaid: false });
+      return;
+    }
+    void requestUnlockWhenPaid(taskId);
+    setUpgradeReason({ kind: "preview", more: Math.max(1, (preview?.found ?? 2) - 1) });
+  };
   const [sortBy, setSortBy] = useState<"score" | "timeline">("score");
   // The first load picks the workflow's default order; after that the user's choice stays.
   const sortChosen = useRef(false);
@@ -957,7 +978,7 @@ export default function TaskPage() {
       onOpen={() => setFocusIndex(index)}
       onDownload={() => handleDownloadClip(clip)}
       onDelete={readOnly ? undefined : () => setDeletingClipId(clip.id)}
-      editable={task?.status === "completed" && !readOnly}
+      editable={task?.status === "completed" && !readOnly && !lockedPreview}
     />
   );
 
@@ -1074,9 +1095,11 @@ export default function TaskPage() {
                   {shareState === "copied" ? <Check className="size-4" /> : <Share2 className="size-4" />}
                   <span className="max-sm:sr-only">{shareState === "copying" ? t("creatingLink") : shareState === "copied" ? t("linkCopied") : t("copyShare")}</span>
                 </Button>
-                <Button size="sm" asChild>
-                  <Link href={`/tasks/${task.id}/edit`}><Clapperboard className="size-4" />{t("openEditor")}</Link>
-                </Button>
+                {!lockedPreview && (
+                  <Button size="sm" asChild>
+                    <Link href={`/tasks/${task.id}/edit`}><Clapperboard className="size-4" />{t("openEditor")}</Link>
+                  </Button>
+                )}
               </>
             )}
             <DropdownMenu modal={false}>
@@ -1140,10 +1163,10 @@ export default function TaskPage() {
           <div className="space-y-8">
             <ProcessingPanel status={task.status} progress={progress} message={progressMessage} workflow={workflow}
               phaseSince={Date.parse(task.updated_at)} sourceSeconds={task.source_duration_seconds}
-              upload={videoSourceKind(task.source_type) === "upload"} outputs={Math.max(clips.length, expectedTotal)} />
+              upload={videoSourceKind(task.source_type) === "upload"} outputs={preview && !preview.unlocked_at ? 1 : Math.max(clips.length, expectedTotal)} />
             <ProcessingSlots status={task.status} progress={progress} message={progressMessage}
               className={SINGLE_OUTPUT.has(workflow) ? "mx-auto max-w-[16rem] grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1" : undefined}
-              total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedTotal)}>
+              total={preview && !preview.unlocked_at ? 1 : clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedTotal)}>
               {sortedClips.map(renderTile)}
             </ProcessingSlots>
           </div>
@@ -1237,8 +1260,21 @@ export default function TaskPage() {
                 {formatSelect}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {sortedClips.map(renderTile)}
+            {lockedPreview && preview && (
+              <PreviewBanner preview={preview} onUnlock={askToUnlock} unlocking={previewUnlock.unlocking} />
+            )}
+            <div data-tour="task-clips" className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {sortedClips.map((clip, index) => lockedPreview && index === 0 ? <div key={clip.id} data-tour="preview-clip">{renderTile(clip, index)}</div> : renderTile(clip, index))}
+              {lockedPreview && (preview?.locked ?? []).map((moment, index) => (
+                <LockedMomentTile
+                  key={moment.position}
+                  moment={moment}
+                  sourceUrl={task?.source_url}
+                  backdropVideo={sortedClips[0] ? getClipUrl(sortedClips[0].video_url, sortedClips[0].filename) : null}
+                  index={index}
+                  onUnlock={askToUnlock}
+                />
+              ))}
             </div>
           </>
         )}
@@ -1250,7 +1286,7 @@ export default function TaskPage() {
         index={focusIndex ?? 0}
         total={sortedClips.length}
         busy={focusedClip ? pendingAction === focusedClip.id || focusedRendering : false}
-        editable={task?.status === "completed" && !readOnly && !focusedRendering}
+        editable={task?.status === "completed" && !readOnly && !focusedRendering && !lockedPreview}
         onNavigate={(delta) => setFocusIndex((i) => (i === null ? i : (i + delta + sortedClips.length) % sortedClips.length))}
         onClose={() => setFocusIndex(null)}
         onDownload={() => focusedClip && handleDownloadClip(focusedClip)}
@@ -1524,7 +1560,8 @@ export default function TaskPage() {
         onOpenChange={(open) => { if (!open) setUpgradeReason(null); }}
         reason={upgradeReason ?? { kind: "limit" }}
         billing={billingSummary}
-        source="task_resume"
+        source={upgradeReason?.kind === "preview" ? "preview" : "task_resume"}
+        returnTo={upgradeReason?.kind === "preview" ? `/tasks/${taskId}` : undefined}
       />
     </main>
   );

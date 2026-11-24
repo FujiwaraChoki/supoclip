@@ -220,16 +220,24 @@ async def list_posts(
     clip_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 100,
+    starts_at: Optional[str] = None,
+    ends_at: Optional[str] = None,
 ):
+    """Posts, newest first; with ``starts_at``/``ends_at``, the calendar window in time order."""
     ctx = await _allowed_context(request, db)
-    posts = await _service(request, db).list_posts(
-        ctx.user_id,
-        task_id=task_id,
-        clip_id=clip_id,
-        status=status,
-        limit=limit,
-        team_id=ctx.team_id,
-    )
+    try:
+        posts = await _service(request, db).list_posts(
+            ctx.user_id,
+            task_id=task_id,
+            clip_id=clip_id,
+            status=status,
+            limit=limit,
+            team_id=ctx.team_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+    except SocialError as exc:
+        raise _http_error(exc)
     return {"posts": posts, "total": len(posts)}
 
 
@@ -309,6 +317,34 @@ async def get_post(post_id: str, request: Request, db: AsyncSession = Depends(ge
         return {"post": await _service(request, db).get_post(ctx.user_id, post_id, team_id=ctx.team_id)}
     except SocialError as exc:
         raise _http_error(exc)
+
+
+@router.patch("/posts/{post_id}")
+async def update_post(post_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Reschedule or reword a scheduled post."""
+    ctx = await _allowed_context(request, db)
+    body = await _json_body(request)
+    hashtags = body.get("hashtags")
+    if isinstance(hashtags, str):
+        hashtags = [hashtags]
+    for field in ("scheduled_for", "title", "caption"):
+        if field in body and body[field] is not None and not isinstance(body[field], str):
+            raise HTTPException(status_code=422, detail=f"{field} must be a string")
+    if hashtags is not None and not isinstance(hashtags, list):
+        raise HTTPException(status_code=422, detail="hashtags must be a list")
+    try:
+        post = await _service(request, db).update_post(
+            ctx.user_id,
+            post_id,
+            scheduled_for=body.get("scheduled_for"),
+            title=body.get("title"),
+            caption=body.get("caption"),
+            hashtags=hashtags,
+            team_id=ctx.team_id,
+        )
+    except SocialError as exc:
+        raise _http_error(exc)
+    return {"post": post}
 
 
 @router.post("/posts/{post_id}/cancel")
