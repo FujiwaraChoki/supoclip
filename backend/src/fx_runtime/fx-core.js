@@ -3859,6 +3859,9 @@ var KINETIC_SLIDE = 0.06;
 var KINETIC_SLIDE_FROM = 30;
 var KINETIC_OUT = 0.12;
 var KINETIC_FONT = "THEBOLDFONT";
+var KINETIC_MIN_FACE = 0.05;
+var KINETIC_HEAD_GAP = 0.02;
+var KINETIC_MIN_BAND = 0.2;
 var ROW_WORDS = 3;
 var ROW_CHARS = 12;
 var ROW_MIN_CHARS = 6;
@@ -3893,6 +3896,33 @@ function kineticRows(words) {
   if (row.length) rows.push(row);
   return rows;
 }
+function kineticBand(p, cue) {
+  const W = p.width, H = p.height;
+  const homeTop = KINETIC_TOP * H;
+  const limit = H - captionSafe(W, H).bottom;
+  const home = { top: homeTop, bottom: Math.min(homeTop + KINETIC_MAX_STACK * H, limit) };
+  let headTop = Infinity, chin = -Infinity;
+  for (const [t, rows] of p.scene.face_track?.samples ?? []) {
+    if (t < cue.start - 0.2 || t > cue.end + 0.2) continue;
+    const e = Math.min(Math.max(t, cue.start), Math.max(cue.start, cue.end - 1e-3));
+    const clock = { e, o: e, frame: Math.round(e * 30) };
+    const m = pictureMatrix(pictureStateAt(p, clock, p.faceAt(e)), W, H);
+    for (const row of rows ?? []) {
+      if (row.length < 4 || row[3] < KINETIC_MIN_FACE) continue;
+      const r = transformRect(m, { x: row[0] * W, y: row[1] * H, w: row[2] * W, h: row[3] * H });
+      headTop = Math.min(headTop, r.y);
+      chin = Math.max(chin, r.y + r.h);
+    }
+  }
+  if (!(chin > home.top) || !(headTop < home.bottom)) return home;
+  const gap = KINETIC_HEAD_GAP * H;
+  const below = { top: Math.max(home.top, chin + gap), bottom: limit };
+  const above = { top: captionSafe(W, H).top, bottom: Math.min(home.bottom, headTop - gap) };
+  const size = (b) => b.bottom - b.top;
+  const best = size(below) >= size(above) ? below : above;
+  if (size(best) < KINETIC_MIN_BAND * H) return home;
+  return { top: best.top, bottom: Math.min(best.bottom, best.top + KINETIC_MAX_STACK * H) };
+}
 var layouts2 = /* @__PURE__ */ new WeakMap();
 function kineticLayout(p, cue) {
   let map = layouts2.get(p);
@@ -3905,8 +3935,7 @@ function kineticLayout(p, cue) {
   const W = p.width, H = p.height, u = p.u;
   const family = p.family(KINETIC_FONT);
   const words = sentence(p, cue).map((w) => ({ ...w, text: w.text.toLocaleUpperCase() }));
-  const top = KINETIC_TOP * H;
-  const bottom = Math.min(top + KINETIC_MAX_STACK * H, H - captionSafe(W, H).bottom);
+  const { top, bottom } = kineticBand(p, cue);
   const gap = 14 * u;
   const rows = [];
   const screens = [];

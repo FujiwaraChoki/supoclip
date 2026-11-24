@@ -333,7 +333,11 @@ def check_plan(inp: ResolveInput, style: EditStyle, template: str, plan) -> None
         assert plan.grade == expected
         assert plan.grain == (GRAIN[tier] if style.grain else 0.0)
     if template == "kinetic_stack":
-        assert plan.hook_title_suppressed
+        # The stack stands in for the hook title only while it shows during the title's window.
+        window = inp.hook_window
+        stack_in_window = window is not None and any(
+            c.kind == "accent" and c.variant == "kinetic" and c.start < window[1] and c.end > window[0] for c in cues)
+        assert plan.hook_title_suppressed == stack_in_window
 
 
 @pytest.mark.parametrize("block", range(8))

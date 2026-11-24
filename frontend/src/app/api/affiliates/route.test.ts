@@ -15,6 +15,7 @@ const application = {
   platform: "tiktok",
   profile_url: "https://www.tiktok.com/@maya",
   audience_size: "1k-10k",
+  country: "US",
   accept_terms: true,
 };
 const apply = (body: unknown) =>

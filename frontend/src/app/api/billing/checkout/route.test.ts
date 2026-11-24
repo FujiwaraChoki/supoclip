@@ -318,8 +318,9 @@ describe("/api/billing/checkout", () => {
       expect(params).toMatchObject({
         discounts: [{ promotion_code: "promo_maya" }],
         metadata: { app: "supoclip", userId: "user-1", plan: "pro", creator_code: "MAYA" },
+        // Commission follows the subscription after the 3-month discount ends.
+        subscription_data: { metadata: { userId: "user-1", creator_code: "MAYA" } },
       });
-      expect(params.subscription_data).toBeUndefined();
     });
 
     it("applies a typed code", async () => {

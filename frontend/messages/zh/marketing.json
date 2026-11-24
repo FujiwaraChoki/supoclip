@@ -97,6 +97,18 @@
       "title": "用 Docker Compose 自托管 SupoClip",
       "description": "环境要求、环境变量、首次启动、完全本地的安装方式，以及上线前检查。"
     },
+    "blog_supoclip_vs_opusclip_klap_vizard": {
+      "eyebrow": "Comparison",
+      "title": "SupoClip vs OpusClip vs Klap vs Vizard",
+      "label": "SupoClip vs OpusClip, Klap, Vizard",
+      "description": "Free plans, price per hour or clip, exports and publishing across four AI clippers."
+    },
+    "blog_free_opusclip_alternatives": {
+      "eyebrow": "Comparison",
+      "title": "Best free OpusClip alternatives",
+      "label": "Free OpusClip alternatives",
+      "description": "What the free tiers of hosted clippers include, and open-source tools with no watermark."
+    },
     "blog_supoclip_vs_opusclip": {
       "label": "SupoClip vs OpusClip",
       "eyebrow": "对比",

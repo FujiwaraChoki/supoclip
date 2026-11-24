@@ -55,7 +55,34 @@
     "approving": "Approving...",
     "approve": "Approve",
     "storeCodeAdded": "App Store code added",
-    "markStoreCode": "Mark App Store code added"
+    "markStoreCode": "Mark App Store code added",
+    "livesIn": "Lives in {country}",
+    "noCommission": "Lives elsewhere: no commission",
+    "countryUnknown": "Country not given yet"
+  },
+  "creatorPayouts": {
+    "title": "Commission payouts",
+    "description": "Commission that has passed its 30-day hold, paid through Stripe Connect from the platform balance. Creators with less than {minimum} roll over. Run this once a month.",
+    "nothingToPay": "Nothing to pay",
+    "pay": "Pay {count, plural, one {# creator} other {# creators}} {total}",
+    "creator": "Creator",
+    "available": "Available",
+    "pending": "On hold",
+    "payouts": "Payouts",
+    "ready": "Ready",
+    "notSetUp": "Not set up",
+    "confirmTitle": "Pay {total} now?",
+    "confirmBody": "This sends {count, plural, one {one Stripe transfer} other {# Stripe transfers}} from the platform balance. Each is sent once, even if you run payouts again.",
+    "confirm": "Pay creators",
+    "cancel": "Cancel",
+    "outcome": {
+      "paid": "Paid {name} {amount}",
+      "failed": "Stripe refused {amount} to {name}; it stays in their balance",
+      "pending": "{amount} to {name} is unconfirmed; run payouts again to finish it",
+      "skipped": "Skipped {name} ({amount})"
+    },
+    "loadFailed": "Failed to load creator balances",
+    "runFailed": "Payout run failed"
   },
   "processing": {
     "title": "Currently Processing Tasks",

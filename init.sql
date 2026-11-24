@@ -327,8 +327,63 @@ CREATE TABLE affiliates (
     terms_accepted_at TIMESTAMP WITH TIME ZONE NOT NULL,
     reviewed_at TIMESTAMP WITH TIME ZONE,
     reviewed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    -- Stripe Connect Express account that receives commission payouts
+    stripe_connect_account_id VARCHAR(255),
+    stripe_connect_platform_id VARCHAR(255),
+    payout_country VARCHAR(2),
+    payouts_enabled BOOLEAN NOT NULL DEFAULT false,
+    -- Where the creator lives; commission only where Stripe can pay ("ZZ" = elsewhere)
+    country VARCHAR(2),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Creator commissions (frontend/src/server/affiliate-commissions.ts): the creator behind
+-- each referred Stripe subscription, a ledger of commission per paid invoice (negative
+-- rows for refunds/disputes), and the Connect transfers that paid it out.
+CREATE TABLE affiliate_referrals (
+    id VARCHAR(36) PRIMARY KEY,
+    affiliate_user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    customer_user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    stripe_account_id VARCHAR(255) NOT NULL,
+    stripe_subscription_id VARCHAR(255) NOT NULL UNIQUE,
+    code VARCHAR(20) NOT NULL,
+    first_paid_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE affiliate_payouts (
+    id VARCHAR(36) PRIMARY KEY,
+    affiliate_user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    currency VARCHAR(3) NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    stripe_platform_id VARCHAR(255) NOT NULL,
+    stripe_connect_account_id VARCHAR(255) NOT NULL,
+    stripe_transfer_id VARCHAR(255),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    failure_reason VARCHAR(500),
+    created_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE affiliate_commissions (
+    id VARCHAR(36) PRIMARY KEY,
+    idempotency_key VARCHAR(255) NOT NULL UNIQUE,
+    affiliate_user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    referral_id VARCHAR(36) NOT NULL REFERENCES affiliate_referrals(id) ON DELETE CASCADE,
+    kind VARCHAR(20) NOT NULL,
+    stripe_account_id VARCHAR(255) NOT NULL,
+    stripe_invoice_id VARCHAR(255),
+    stripe_charge_id VARCHAR(255),
+    currency VARCHAR(3) NOT NULL,
+    base_amount INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    rate_bps INTEGER NOT NULL,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    available_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    payout_id VARCHAR(36) REFERENCES affiliate_payouts(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS "announcements" (
@@ -363,6 +418,11 @@ ON CONFLICT ("id") DO NOTHING;
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX user_acquisition_utm_source_utm_campaign_idx ON user_acquisition(utm_source, utm_campaign);
 CREATE INDEX affiliates_status_created_at_idx ON affiliates(status, created_at);
+CREATE INDEX affiliate_referrals_affiliate_user_id_idx ON affiliate_referrals(affiliate_user_id);
+CREATE INDEX affiliate_payouts_affiliate_user_id_created_at_idx ON affiliate_payouts(affiliate_user_id, created_at);
+CREATE INDEX affiliate_payouts_status_idx ON affiliate_payouts(status);
+CREATE INDEX affiliate_commissions_affiliate_user_id_payout_id_idx ON affiliate_commissions(affiliate_user_id, payout_id);
+CREATE INDEX affiliate_commissions_stripe_charge_id_idx ON affiliate_commissions(stripe_charge_id);
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_source_id ON tasks(source_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
@@ -748,3 +808,93 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preview_used_at TIMESTAMPTZ;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS preview JSONB;
 CREATE INDEX IF NOT EXISTS ix_tasks_preview_created ON tasks (created_at) WHERE preview IS NOT NULL;
+
+-- Creator commissions (affiliate_referrals, affiliate_commissions, affiliate_payouts) and Connect payout columns.
+ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "stripe_connect_account_id" VARCHAR(255);
+ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "stripe_connect_platform_id" VARCHAR(255);
+ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "payout_country" VARCHAR(2);
+ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "payouts_enabled" BOOLEAN NOT NULL DEFAULT false;
+-- Where the creator lives: commission is only earned where Stripe can pay it ("ZZ" = elsewhere).
+ALTER TABLE "affiliates" ADD COLUMN IF NOT EXISTS "country" VARCHAR(2);
+
+CREATE TABLE IF NOT EXISTS "affiliate_referrals" (
+    "id" VARCHAR(36) PRIMARY KEY,
+    "affiliate_user_id" VARCHAR(36) NOT NULL,
+    "customer_user_id" VARCHAR(36),
+    "stripe_account_id" VARCHAR(255) NOT NULL,
+    "stripe_subscription_id" VARCHAR(255) NOT NULL,
+    "code" VARCHAR(20) NOT NULL,
+    "first_paid_at" TIMESTAMPTZ NOT NULL,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "affiliate_referrals_affiliate_user_id_fkey"
+        FOREIGN KEY ("affiliate_user_id") REFERENCES "users"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "affiliate_referrals_customer_user_id_fkey"
+        FOREIGN KEY ("customer_user_id") REFERENCES "users"("id")
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "affiliate_referrals_stripe_subscription_id_key"
+    ON "affiliate_referrals"("stripe_subscription_id");
+CREATE INDEX IF NOT EXISTS "affiliate_referrals_affiliate_user_id_idx"
+    ON "affiliate_referrals"("affiliate_user_id");
+
+CREATE TABLE IF NOT EXISTS "affiliate_payouts" (
+    "id" VARCHAR(36) PRIMARY KEY,
+    "affiliate_user_id" VARCHAR(36) NOT NULL,
+    "currency" VARCHAR(3) NOT NULL,
+    "amount" INTEGER NOT NULL CHECK ("amount" > 0),
+    "stripe_platform_id" VARCHAR(255) NOT NULL,
+    "stripe_connect_account_id" VARCHAR(255) NOT NULL,
+    "stripe_transfer_id" VARCHAR(255),
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+    "failure_reason" VARCHAR(500),
+    "created_by" VARCHAR(36),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "affiliate_payouts_affiliate_user_id_fkey"
+        FOREIGN KEY ("affiliate_user_id") REFERENCES "users"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "affiliate_payouts_created_by_fkey"
+        FOREIGN KEY ("created_by") REFERENCES "users"("id")
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "affiliate_payouts_affiliate_user_id_created_at_idx"
+    ON "affiliate_payouts"("affiliate_user_id", "created_at");
+CREATE INDEX IF NOT EXISTS "affiliate_payouts_status_idx" ON "affiliate_payouts"("status");
+
+CREATE TABLE IF NOT EXISTS "affiliate_commissions" (
+    "id" VARCHAR(36) PRIMARY KEY,
+    "idempotency_key" VARCHAR(255) NOT NULL,
+    "affiliate_user_id" VARCHAR(36) NOT NULL,
+    "referral_id" VARCHAR(36) NOT NULL,
+    "kind" VARCHAR(20) NOT NULL,
+    "stripe_account_id" VARCHAR(255) NOT NULL,
+    "stripe_invoice_id" VARCHAR(255),
+    "stripe_charge_id" VARCHAR(255),
+    "currency" VARCHAR(3) NOT NULL,
+    "base_amount" INTEGER NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "rate_bps" INTEGER NOT NULL,
+    "occurred_at" TIMESTAMPTZ NOT NULL,
+    "available_at" TIMESTAMPTZ NOT NULL,
+    "payout_id" VARCHAR(36),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "affiliate_commissions_affiliate_user_id_fkey"
+        FOREIGN KEY ("affiliate_user_id") REFERENCES "users"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "affiliate_commissions_referral_id_fkey"
+        FOREIGN KEY ("referral_id") REFERENCES "affiliate_referrals"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "affiliate_commissions_payout_id_fkey"
+        FOREIGN KEY ("payout_id") REFERENCES "affiliate_payouts"("id")
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "affiliate_commissions_idempotency_key_key"
+    ON "affiliate_commissions"("idempotency_key");
+CREATE INDEX IF NOT EXISTS "affiliate_commissions_affiliate_user_id_payout_id_idx"
+    ON "affiliate_commissions"("affiliate_user_id", "payout_id");
+CREATE INDEX IF NOT EXISTS "affiliate_commissions_stripe_charge_id_idx"
+    ON "affiliate_commissions"("stripe_charge_id");

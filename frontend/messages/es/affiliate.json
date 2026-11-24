@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Programa de creadores de SupoClip: obtén Pro gratis por hacer videos",
-    "description": "Haz Shorts, Reels, TikToks o videos sobre SupoClip y obtén SupoClip Pro gratis. Tu audiencia recibe 20% de descuento en sus primeros 3 meses con tu código."
+    "title": "Programa de creadores de SupoClip: gana un {percent} % durante {months} meses",
+    "description": "Haz videos sobre SupoClip y gana el {percent} % de lo que paga tu audiencia en sus primeros {months} meses, directo a tu banco con Stripe. Tu audiencia obtiene un 20 % de descuento en sus primeros 3 meses."
   },
   "badge": "Programa de creadores",
   "nav": {
@@ -10,8 +10,8 @@
     "apply": "Aplicar"
   },
   "hero": {
-    "title": "Haz videos sobre SupoClip. Obtén Pro gratis.",
-    "body": "¿Publicas Shorts, Reels o TikToks sobre clipping, podcasts o herramientas para creadores? Obtén tu propio código. Tu audiencia ahorra en SupoClip y tú tienes Pro mientras estés en el programa.",
+    "title": "Haz videos sobre SupoClip. Gana un {percent} % durante {months} meses.",
+    "body": "¿Publicas Shorts, Reels o TikToks sobre clips, pódcasts o herramientas para creadores? Consigue tu propio código. Tu audiencia ahorra un 20 %, tú ganas el {percent} % de lo que paga en sus primeros {months} meses y recibes SupoClip Pro gratis mientras estés en el programa.",
     "apply": "Aplicar ahora",
     "noMinimum": "Sin mínimo de seguidores."
   },
@@ -22,6 +22,8 @@
   },
   "offer": {
     "heading": "Lo que todos reciben",
+    "earnTitle": "Ganas un {percent} % durante {months} meses",
+    "earnDetail": "De cada pago de quienes se suscriben con tu código, durante sus primeros {months} meses. Son unos ${pro} por suscriptor Pro y ${creator} por suscriptor Creator. Para creadores en EE. UU., Reino Unido, Canadá, Suiza y Europa.",
     "youTitle": "Tú recibes SupoClip Pro, gratis",
     "youDetail": "Pro cuesta normalmente ${price}/mes e incluye {limit} horas de vídeo al mes. Los creadores aprobados lo tienen gratis mientras estén en el programa.",
     "youDetailNoLimit": "Pro normalmente cuesta ${price}/mes. Los creadores aprobados lo reciben gratis mientras estén en el programa.",
@@ -42,7 +44,11 @@
     },
     "share": {
       "title": "Comparte",
-      "detail": "Pon tu enlace en la bio o di tu código en tus videos. Tu cuenta recibe Pro de inmediato."
+      "detail": "Pon tu enlace en tu bio o di tu código en tus videos. Cada pago de tu audiencia te da un {percent} % durante {months} meses."
+    },
+    "paid": {
+      "title": "Cobra",
+      "detail": "Conecta Stripe una vez. La comisión llega a tu banco cada mes, {days} días después de cada pago."
     }
   },
   "rules": {
@@ -50,13 +56,26 @@
     "sponsored": "Marca las publicaciones patrocinadas, por ejemplo con #ad.",
     "ads": "No hagas anuncios con el nombre de SupoClip ni publiques tu código en sitios de cupones o de ofertas.",
     "ownCode": "No uses tu propio código.",
+    "incentive": "No pagues ni premies a nadie por registrarse con tu código.",
     "end": "Podemos terminar el programa o retirar a un creador en cualquier momento."
   },
   "faq": {
     "heading": "Preguntas",
-    "cash": {
-      "question": "¿Me pagan en efectivo?",
-      "answer": "Por ahora no. Los creadores aprobados reciben SupoClip Pro (normalmente ${price}/mes) gratis mientras estén en el programa."
+    "earn": {
+      "question": "¿Cuánto gano?",
+      "answer": "El {percent} % de lo que paga en la web cada cliente que usó tu enlace o código, durante sus primeros {months} meses, sin impuestos. Un suscriptor Pro te deja unos ${pro} en ese tiempo y uno Creator unos ${creator}. Los planes anuales cuentan una vez. Los pagos reembolsados o con contracargo no generan comisión."
+    },
+    "payout": {
+      "question": "¿Cómo me pagan?",
+      "answer": "Con Stripe, directo a tu cuenta bancaria. Lo configuras una vez desde tu página de creador: Stripe te pide nombre, dirección, fecha de nacimiento y datos bancarios. La comisión está disponible {days} días después de cada pago y se paga cada mes cuando tienes ${minimum} o más. Los pagos están disponibles en EE. UU., Reino Unido, Canadá, Suiza y Europa."
+    },
+    "where": {
+      "question": "¿Puedo ganar comisión donde vivo?",
+      "answer": "La comisión se paga a creadores que viven en EE. UU., Reino Unido, Canadá, Suiza y Europa, porque es donde Stripe puede pagarla. Los creadores de cualquier otro lugar pueden unirse igual: recibes SupoClip Pro gratis y un código que da a tu audiencia un 20 % de descuento."
+    },
+    "iphone": {
+      "question": "¿Cuentan las suscripciones en iPhone?",
+      "answer": "Todavía no. Tu audiencia sigue obteniendo el descuento en iPhone con tu código, pero la comisión se gana con suscripciones compradas en la web."
     },
     "followers": {
       "question": "¿Hay un mínimo de seguidores?",

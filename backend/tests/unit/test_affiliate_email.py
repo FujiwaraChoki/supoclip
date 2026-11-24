@@ -29,6 +29,26 @@ def test_approved_email_contains_link_and_code():
     assert "https://supoclip.com/?ref=maya" in content.text
     assert "MAYA" in content.html
     assert "20% off their first 3 months" in content.text
+    assert "30% of what customers who use your code pay on the web, for their first 12 months" in content.text
+    assert "https://supoclip.com/settings/creator-program" in content.html
+
+
+def test_approved_email_leaves_out_commission_where_it_cannot_be_paid():
+    user = SimpleNamespace(email="ravi@example.com", first_name="Ravi", name="Ravi")
+
+    content = configured_service()._build_approved_email(user, "ravi", commission=False)
+
+    assert "You earn" not in content.text
+    assert "You earn" not in content.html
+    assert "SupoClip Pro for free" in content.text
+
+
+def test_applied_email_shows_where_the_creator_lives():
+    user = SimpleNamespace(email="ravi@example.com", first_name="Ravi", name="Ravi")
+
+    content = configured_service()._build_applied_email(user, {"slug": "ravi", "country": "ZZ"})
+
+    assert "Lives in: elsewhere (no commission)" in content.text
 
 
 def test_declined_email_includes_escaped_reason_only_when_given():
@@ -99,7 +119,8 @@ async def test_decisions_go_to_the_applicant(client):
     approved = await http.post("/account/affiliate-email", json={"event": "approved", "slug": "maya"})
 
     assert approved.status_code == 200
-    sent["approved"].assert_awaited_once_with(applicant, "maya")
+    # Without the flag (an older frontend) the email still mentions commission.
+    sent["approved"].assert_awaited_once_with(applicant, "maya", True)
     sent["applied"].assert_not_awaited()
 
 

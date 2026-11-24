@@ -55,7 +55,34 @@
     "approving": "Aprovando...",
     "approve": "Aprovar",
     "storeCodeAdded": "Código da App Store adicionado",
-    "markStoreCode": "Marcar código da App Store como adicionado"
+    "markStoreCode": "Marcar código da App Store como adicionado",
+    "livesIn": "Mora em {country}",
+    "noCommission": "Mora em outro lugar: sem comissão",
+    "countryUnknown": "País ainda não informado"
+  },
+  "creatorPayouts": {
+    "title": "Pagamentos de comissão",
+    "description": "Comissão que já passou pela retenção de 30 dias, paga pelo Stripe Connect a partir do saldo da plataforma. Criadores com menos de {minimum} ficam para o próximo mês. Rode uma vez por mês.",
+    "nothingToPay": "Nada a pagar",
+    "pay": "Pagar {total} a {count, plural, one {# criador} other {# criadores}}",
+    "creator": "Criador",
+    "available": "Disponível",
+    "pending": "Retido",
+    "payouts": "Pagamentos",
+    "ready": "Pronto",
+    "notSetUp": "Não configurado",
+    "confirmTitle": "Pagar {total} agora?",
+    "confirmBody": "Isso envia {count, plural, one {uma transferência do Stripe} other {# transferências do Stripe}} do saldo da plataforma. Cada uma é enviada só uma vez, mesmo se você rodar os pagamentos de novo.",
+    "confirm": "Pagar criadores",
+    "cancel": "Cancelar",
+    "outcome": {
+      "paid": "Pago {amount} para {name}",
+      "failed": "O Stripe recusou {amount} para {name}; fica no saldo",
+      "pending": "{amount} para {name} não confirmado; rode os pagamentos de novo para concluir",
+      "skipped": "{name} ignorado ({amount})"
+    },
+    "loadFailed": "Não foi possível carregar os saldos dos criadores",
+    "runFailed": "Falha ao rodar os pagamentos"
   },
   "processing": {
     "title": "Tarefas em processamento",

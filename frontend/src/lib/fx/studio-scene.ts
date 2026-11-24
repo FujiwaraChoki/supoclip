@@ -348,7 +348,7 @@ export function pictureRect(framing: Framing, sourceWidth: number, sourceHeight:
 export const storedCueId = (id: string): string => id.replace(/@\d+$/, "");
 
 const needsFace = (cues: readonly FxCue[]) => cues.some((c) => (c.kind === "zoom" && c.anchor === "face")
-  || (c.kind === "accent" && c.variant === "doodle") || (c.kind === "bleep" && c.cover !== "none"));
+  || (c.kind === "accent" && (c.variant === "doodle" || c.variant === "kinetic")) || (c.kind === "bleep" && c.cover !== "none"));
 
 function readableTrack(track: unknown): track is FaceTrack {
   if (!track || typeof track !== "object") return false;

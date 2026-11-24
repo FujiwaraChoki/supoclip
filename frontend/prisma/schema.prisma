@@ -116,6 +116,11 @@ model User {
   acquisition   UserAcquisition?
   affiliate     Affiliate?  @relation("AffiliateApplicant")
   reviewed_affiliates Affiliate[] @relation("AffiliateReviewer")
+  affiliate_referrals       AffiliateReferral[]   @relation("ReferralAffiliate")
+  referred_by               AffiliateReferral[]   @relation("ReferralCustomer")
+  affiliate_commissions     AffiliateCommission[]
+  affiliate_payouts         AffiliatePayout[]     @relation("PayoutAffiliate")
+  created_affiliate_payouts AffiliatePayout[]     @relation("PayoutCreator")
   social_accounts     SocialAccount[]
   social_oauth_states SocialOauthState[]
   social_posts        SocialPost[]
@@ -239,6 +244,13 @@ model Affiliate {
   terms_accepted_at        DateTime  @db.Timestamptz
   reviewed_at              DateTime? @db.Timestamptz
   reviewed_by              String?   @db.VarChar(36)
+  /// Stripe Connect Express account that receives commission payouts, and the platform account that owns it.
+  stripe_connect_account_id  String?  @db.VarChar(255)
+  stripe_connect_platform_id String?  @db.VarChar(255)
+  payout_country             String?  @db.VarChar(2)
+  payouts_enabled            Boolean  @default(false)
+  /// Where the creator lives. Commission is only earned in PAYOUT_COUNTRIES; "ZZ" = elsewhere.
+  country                    String?  @db.VarChar(2)
   created_at               DateTime  @default(now()) @db.Timestamptz
   updated_at               DateTime  @default(now()) @updatedAt @db.Timestamptz
 
@@ -247,6 +259,81 @@ model Affiliate {
 
   @@index([status, created_at])
   @@map("affiliates")
+}
+
+/// The creator behind a referred Stripe subscription. Commission is earned on its
+/// invoices for COMMISSION_MONTHS after `first_paid_at` (src/lib/creator-commission.ts).
+model AffiliateReferral {
+  id                     String   @id @db.VarChar(36)
+  affiliate_user_id      String   @db.VarChar(36)
+  customer_user_id       String?  @db.VarChar(36)
+  stripe_account_id      String   @db.VarChar(255)
+  stripe_subscription_id String   @unique @db.VarChar(255)
+  code                   String   @db.VarChar(20)
+  first_paid_at          DateTime @db.Timestamptz
+  created_at             DateTime @default(now()) @db.Timestamptz
+
+  affiliate   User                  @relation("ReferralAffiliate", fields: [affiliate_user_id], references: [id], onDelete: Cascade)
+  customer    User?                 @relation("ReferralCustomer", fields: [customer_user_id], references: [id], onDelete: SetNull)
+  commissions AffiliateCommission[]
+
+  @@index([affiliate_user_id])
+  @@map("affiliate_referrals")
+}
+
+/// Commission ledger. `earned` rows come from paid invoices and become payable at
+/// `available_at`; `refund`/`dispute` rows are negative, `dispute_won` restores one.
+/// Amounts are minor units of the currency the charge settled in.
+model AffiliateCommission {
+  id                String   @id @db.VarChar(36)
+  idempotency_key   String   @unique @db.VarChar(255)
+  affiliate_user_id String   @db.VarChar(36)
+  referral_id       String   @db.VarChar(36)
+  kind              String   @db.VarChar(20)
+  stripe_account_id String   @db.VarChar(255)
+  stripe_invoice_id String?  @db.VarChar(255)
+  stripe_charge_id  String?  @db.VarChar(255)
+  currency          String   @db.VarChar(3)
+  base_amount       Int
+  amount            Int
+  rate_bps          Int
+  occurred_at       DateTime @db.Timestamptz
+  available_at      DateTime @db.Timestamptz
+  payout_id         String?  @db.VarChar(36)
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  affiliate User              @relation(fields: [affiliate_user_id], references: [id], onDelete: Cascade)
+  referral  AffiliateReferral @relation(fields: [referral_id], references: [id], onDelete: Cascade)
+  payout    AffiliatePayout?  @relation(fields: [payout_id], references: [id], onDelete: SetNull)
+
+  @@index([affiliate_user_id, payout_id])
+  @@index([stripe_charge_id])
+  @@map("affiliate_commissions")
+}
+
+/// One Stripe Connect transfer to a creator. `pending` until Stripe confirms; a
+/// failed transfer releases its commissions for the next run.
+model AffiliatePayout {
+  id                        String   @id @db.VarChar(36)
+  affiliate_user_id         String   @db.VarChar(36)
+  currency                  String   @db.VarChar(3)
+  amount                    Int
+  stripe_platform_id        String   @db.VarChar(255)
+  stripe_connect_account_id String   @db.VarChar(255)
+  stripe_transfer_id        String?  @db.VarChar(255)
+  status                    String   @default("pending") @db.VarChar(20)
+  failure_reason            String?  @db.VarChar(500)
+  created_by                String?  @db.VarChar(36)
+  created_at                DateTime @default(now()) @db.Timestamptz
+  updated_at                DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  affiliate   User                  @relation("PayoutAffiliate", fields: [affiliate_user_id], references: [id], onDelete: Cascade)
+  creator     User?                 @relation("PayoutCreator", fields: [created_by], references: [id], onDelete: SetNull)
+  commissions AffiliateCommission[]
+
+  @@index([affiliate_user_id, created_at])
+  @@index([status])
+  @@map("affiliate_payouts")
 }
 
 // Feature flags per platform (backend/src/feature_flags.py), switched in /admin.

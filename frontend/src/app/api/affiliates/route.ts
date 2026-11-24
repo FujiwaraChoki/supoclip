@@ -16,6 +16,7 @@ const APPLICATION_SELECT = {
   audience_size: true,
   video_url: true,
   promotion_plan: true,
+  country: true,
   decline_reason: true,
   app_store_code_added_at: true,
   reviewed_at: true,

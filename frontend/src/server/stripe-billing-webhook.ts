@@ -24,6 +24,7 @@ import { intervalFromPeriod, WebhookAnalytics } from "@/server/analytics";
 import { getPlanIdForStripePrice, hasAnyConfiguredStripePrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
+import { handleAffiliateCommissionEvent } from "@/server/affiliate-commissions";
 import {
   applyPaidUpgradeInvoice,
   getPaidSubscriptionPlan,
@@ -486,7 +487,9 @@ export async function handleAccountBillingWebhook(
     assertMode: assertStripeEventMode,
     claim: inbox.claim,
     finish: inbox.finish,
-    dispatch: (event) => dispatchBillingEvent(event, collect(event)),
+    // Commission runs in afterEvent, which also sees events the migration engine handles.
+    dispatch: (event) => dispatchBillingEvent(event, collect(event), { commissions: false }),
+    afterEvent: (event) => handleAffiliateCommissionEvent(event),
     async dispatchCurrent(event, subscription) {
       if (event.type.startsWith("invoice."))
         await syncSubscriptionUpdate(subscription);
@@ -497,8 +500,9 @@ export async function handleAccountBillingWebhook(
         await dispatchBillingEvent(
           { ...event, data: { ...event.data, object: subscription } },
           collect(event),
+          { commissions: false },
         );
-      } else await dispatchBillingEvent(event, collect(event));
+      } else await dispatchBillingEvent(event, collect(event), { commissions: false });
     },
   })(request, accountId);
   // The handler answers 200 only once the event is finished in the inbox.
@@ -510,7 +514,11 @@ export async function handleAccountBillingWebhook(
  * Dispatch only after account ownership and inbox handling have succeeded.
  * Product events go to `analytics`, which the caller flushes once the delivery succeeded.
  */
-export async function dispatchBillingEvent(event: Stripe.Event, analytics?: WebhookAnalytics) {
+export async function dispatchBillingEvent(
+  event: Stripe.Event,
+  analytics?: WebhookAnalytics,
+  { commissions = true }: { commissions?: boolean } = {},
+) {
   const stripe = getServerStripeClient();
   await handleOwnedBillingRisk(event);
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
@@ -571,6 +579,8 @@ export async function dispatchBillingEvent(event: Stripe.Event, analytics?: Webh
     }
     await applyPaidUpgradeInvoice(invoice);
     await noteSubscriptionRenewal(invoice, analytics);
+    // Last, so a commission problem never holds up the customer's plan.
+    if (commissions) await handleAffiliateCommissionEvent(event);
   }
 
   if (event.type === "invoice.payment_failed") {
@@ -590,5 +600,15 @@ export async function dispatchBillingEvent(event: Stripe.Event, analytics?: Webh
       return;
     }
     await handleSubscriptionDeleted(subscription, analytics);
+  }
+
+  // Refunds and chargebacks take back creator commission (src/server/affiliate-commissions.ts).
+  if (
+    commissions &&
+    (event.type === "charge.refunded" ||
+      event.type === "charge.dispute.created" ||
+      event.type === "charge.dispute.closed")
+  ) {
+    await handleAffiliateCommissionEvent(event);
   }
 }
