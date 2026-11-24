@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-24
 
-- **Fixed:** With dynamic edits, the big stacked words that open a clip no longer cover the speaker's face. They move below the chin (or above the head) when the face is where they would go, and the clip no longer zooms in underneath them. A clip whose big opening words never appear keeps its hook title. (PR_LINK)
+- **Fixed:** With dynamic edits, the big stacked words that open a clip no longer cover the speaker's face. They move below the chin (or above the head) when the face is where they would go, and the clip no longer zooms in underneath them. A clip whose big opening words never appear keeps its hook title. ([#571](https://github.com/FujiwaraChoki/supoclip/pull/571))
 - **New:** Two new comparison articles on the blog: SupoClip vs OpusClip vs Klap vs Vizard (free plans, price per hour of video or per clip, exports, publishing and APIs) and the best free OpusClip alternatives, covering what hosted free tiers really include and open-source clippers with no watermark. Every claim about another product links to that company's own page. ([998d5da](https://github.com/FujiwaraChoki/supoclip/commit/998d5da20eb38846068763c9b08ea146a016c1dc))
 
 ## 2026-11-23
