@@ -199,7 +199,7 @@
   },
   "creator": {
     "title": "Creator program",
-    "intro": "Making videos about SupoClip? Get your own code: your audience gets <em>20% off their first 3 months</em>, and you get SupoClip Pro for free.",
+    "intro": "Making videos about SupoClip? Get your own code: your audience gets <em>20% off their first 3 months</em>, you get SupoClip Pro for free, and creators in the US, the UK, Canada, Switzerland and Europe earn <em>{percent}% of what their audience pays for {months} months</em>.",
     "howItWorks": "How it works",
     "signIn": "Create a free account or sign in to apply to the creator program.",
     "createAccount": "Create account",
@@ -244,6 +244,10 @@
       "from10k": "10,000 – 100,000",
       "from100k": "100,000+"
     },
+    "countryLabel": "Where you live",
+    "countryPlaceholder": "Pick your country",
+    "countryElsewhere": "Somewhere else",
+    "countryHint": "Commission is paid to creators in the US, the UK, Canada, Switzerland and Europe. Creators elsewhere get Pro for free and a code for their audience.",
     "profileLabel": "Profile link",
     "profilePlaceholder": "https://www.tiktok.com/@you",
     "videoLabel": "A video you made about SupoClip",
@@ -251,15 +255,65 @@
     "videoPlaceholder": "https://",
     "planLabel": "How will you promote SupoClip?",
     "termsTitle": "Program terms",
+    "termCommission": "Creators in the US, the UK, Canada, Switzerland and Europe earn {percent}% of what customers who use their code pay on the web, for their first {months} months. Commission is held for {days} days and taken back if a payment is refunded or charged back.",
     "termSponsored": "Mark sponsored posts as such (for example #ad).",
     "termAds": "Don't run ads on the SupoClip name or post your code on coupon or deal sites.",
     "termOwn": "Don't use your own code.",
+    "termTax": "Payouts go through Stripe, which verifies your identity. You're responsible for taxes on what you earn.",
     "termEnd": "We can end the program or remove a creator at any time.",
     "agree": "I agree to the program terms",
     "submit": "Apply",
     "submitting": "Submitting…",
     "loadFailed": "Failed to load your application",
-    "submitFailed": "Failed to submit your application"
+    "submitFailed": "Failed to submit your application",
+    "countryPrompt": {
+      "title": "Where do you live?",
+      "body": "Commission is paid to creators in the US, the UK, Canada, Switzerland and Europe. Tell us where you live to see your earnings and set up payouts. You can set this once.",
+      "save": "Save",
+      "failed": "Couldn't save your country"
+    },
+    "noCommission": {
+      "title": "Commission isn't available where you live",
+      "body": "Stripe can only pay creators in the US, the UK, Canada, Switzerland and Europe. You still have Pro for free, and your audience gets 20% off with your code."
+    },
+    "earnings": {
+      "title": "Your earnings",
+      "terms": "You earn {percent}% of what your customers pay for their first {months} months. Commission becomes available {days} days after each payment, and we pay out monthly once you have {minimum} or more.",
+      "customers": "Paying customers",
+      "pending": "Pending",
+      "pendingHint": "Held for {days} days",
+      "available": "Ready to pay out",
+      "availableHint": "In your next payout",
+      "paid": "Paid out",
+      "payoutsTitle": "Payouts",
+      "payoutsOn": "On",
+      "setupBody": "Commission is paid straight to your bank account through Stripe. Setup takes about 5 minutes: Stripe asks for your name, address, date of birth and bank details.",
+      "payoutCountry": "Payout country: {country}",
+      "setup": "Set up payouts",
+      "incompleteBody": "Stripe still needs a few details before it can pay you.",
+      "reviewBody": "Stripe is checking your details. Payouts turn on as soon as it's done.",
+      "finish": "Finish setup",
+      "enabledBody": "You're paid by bank transfer once a month when you have {minimum} or more ready.",
+      "dashboard": "Open Stripe dashboard",
+      "unavailableBody": "We couldn't reach Stripe. Try again in a few minutes.",
+      "activityTitle": "Activity",
+      "activityEmpty": "Nothing yet. Commission shows up here as soon as someone subscribes with your code.",
+      "kind": {
+        "earned": "Commission",
+        "refund": "Refund",
+        "dispute": "Chargeback",
+        "dispute_won": "Chargeback won"
+      },
+      "status": {
+        "paid": "Paid",
+        "onTheWay": "On the way",
+        "deducted": "Deducted",
+        "heldUntil": "Held until {date}",
+        "available": "Ready"
+      },
+      "loadFailed": "Couldn't load your earnings",
+      "setupFailed": "Couldn't open Stripe. Please try again."
+    }
   },
   "deleteAccount": {
     "title": "Danger zone",

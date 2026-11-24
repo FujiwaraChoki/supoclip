@@ -199,7 +199,7 @@
   },
   "creator": {
     "title": "Programa de criadores",
-    "intro": "Faz vídeos sobre o SupoClip? Pegue seu código: seu público ganha <em>20% de desconto nos 3 primeiros meses</em> e você ganha o SupoClip Pro de graça.",
+    "intro": "Faz vídeos sobre o SupoClip? Pegue seu próprio código: seu público ganha <em>20% de desconto nos primeiros 3 meses</em>, você recebe o SupoClip Pro de graça, e criadores nos EUA, Reino Unido, Canadá, Suíça e Europa ganham <em>{percent}% do que o público paga por {months} meses</em>.",
     "howItWorks": "Como funciona",
     "signIn": "Crie uma conta grátis ou entre para se candidatar ao programa de criadores.",
     "createAccount": "Criar conta",
@@ -244,6 +244,10 @@
       "from10k": "10.000 – 100.000",
       "from100k": "100.000+"
     },
+    "countryLabel": "Onde você mora",
+    "countryPlaceholder": "Escolha seu país",
+    "countryElsewhere": "Em outro lugar",
+    "countryHint": "A comissão é paga a criadores nos EUA, Reino Unido, Canadá, Suíça e Europa. Criadores de outros lugares recebem o Pro de graça e um código para o público.",
     "profileLabel": "Link do perfil",
     "profilePlaceholder": "https://www.tiktok.com/@you",
     "videoLabel": "Um vídeo que você fez sobre o SupoClip",
@@ -251,15 +255,65 @@
     "videoPlaceholder": "https://",
     "planLabel": "Como você vai divulgar o SupoClip?",
     "termsTitle": "Termos do programa",
+    "termCommission": "Criadores nos EUA, Reino Unido, Canadá, Suíça e Europa ganham {percent}% do que os clientes que usam o código deles pagam na web, nos primeiros {months} meses. A comissão fica retida por {days} dias e é descontada se um pagamento for reembolsado ou contestado.",
     "termSponsored": "Marque posts patrocinados (por exemplo #ad).",
     "termAds": "Não anuncie o nome SupoClip nem publique seu código em sites de cupom ou oferta.",
     "termOwn": "Não use o seu próprio código.",
+    "termTax": "Os pagamentos passam pelo Stripe, que verifica sua identidade. Você é responsável pelos impostos sobre o que ganhar.",
     "termEnd": "Podemos encerrar o programa ou remover um criador a qualquer momento.",
     "agree": "Concordo com os termos do programa",
     "submit": "Candidatar",
     "submitting": "Enviando…",
     "loadFailed": "Não foi possível carregar sua candidatura",
-    "submitFailed": "Não foi possível enviar sua candidatura"
+    "submitFailed": "Não foi possível enviar sua candidatura",
+    "countryPrompt": {
+      "title": "Onde você mora?",
+      "body": "A comissão é paga a criadores nos EUA, Reino Unido, Canadá, Suíça e Europa. Diga onde você mora para ver seus ganhos e configurar os pagamentos. Só dá para definir uma vez.",
+      "save": "Salvar",
+      "failed": "Não foi possível salvar seu país"
+    },
+    "noCommission": {
+      "title": "A comissão não está disponível onde você mora",
+      "body": "O Stripe só consegue pagar criadores nos EUA, Reino Unido, Canadá, Suíça e Europa. Você continua com o Pro de graça, e seu público ganha 20% de desconto com seu código."
+    },
+    "earnings": {
+      "title": "Seus ganhos",
+      "terms": "Você ganha {percent}% do que seus clientes pagam nos primeiros {months} meses. A comissão fica disponível {days} dias depois de cada pagamento, e pagamos todo mês quando você tem {minimum} ou mais.",
+      "customers": "Clientes pagantes",
+      "pending": "Pendente",
+      "pendingHint": "Retido por {days} dias",
+      "available": "Pronto para sacar",
+      "availableHint": "No seu próximo pagamento",
+      "paid": "Pago",
+      "payoutsTitle": "Pagamentos",
+      "payoutsOn": "Ativos",
+      "setupBody": "A comissão cai direto na sua conta bancária pelo Stripe. A configuração leva uns 5 minutos: o Stripe pede nome, endereço, data de nascimento e dados bancários.",
+      "payoutCountry": "País de pagamento: {country}",
+      "setup": "Configurar pagamentos",
+      "incompleteBody": "O Stripe ainda precisa de alguns dados antes de poder pagar você.",
+      "reviewBody": "O Stripe está verificando seus dados. Os pagamentos ativam assim que terminar.",
+      "finish": "Concluir configuração",
+      "enabledBody": "Você recebe por transferência uma vez por mês quando tem {minimum} ou mais disponíveis.",
+      "dashboard": "Abrir painel do Stripe",
+      "unavailableBody": "Não conseguimos falar com o Stripe. Tente de novo em alguns minutos.",
+      "activityTitle": "Atividade",
+      "activityEmpty": "Nada ainda. A comissão aparece aqui assim que alguém assina com seu código.",
+      "kind": {
+        "earned": "Comissão",
+        "refund": "Reembolso",
+        "dispute": "Contestação",
+        "dispute_won": "Contestação ganha"
+      },
+      "status": {
+        "paid": "Pago",
+        "onTheWay": "A caminho",
+        "deducted": "Descontado",
+        "heldUntil": "Retido até {date}",
+        "available": "Pronto"
+      },
+      "loadFailed": "Não foi possível carregar seus ganhos",
+      "setupFailed": "Não foi possível abrir o Stripe. Tente de novo."
+    }
   },
   "deleteAccount": {
     "title": "Zona de perigo",

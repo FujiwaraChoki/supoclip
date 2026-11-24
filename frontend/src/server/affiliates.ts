@@ -1,3 +1,4 @@
+import { isPayoutCountry } from "@/lib/creator-commission";
 import { getStripeClient } from "@/lib/stripe";
 import {
   BillingAccountHoldError,
@@ -25,6 +26,13 @@ type PrismaClient = ReturnType<typeof getPrismaClient>;
 export const AFFILIATE_PLATFORMS = ["tiktok", "youtube", "instagram", "x", "other"] as const;
 export const AUDIENCE_SIZES = ["under-1k", "1k-10k", "10k-100k", "100k-plus"] as const;
 export const REAPPLY_AFTER_DAYS = 30;
+/** Country of a creator who lives outside PAYOUT_COUNTRIES (ISO 3166 user-assigned code). */
+export const OTHER_COUNTRY = "ZZ";
+
+/** Cash commission is only earned where Stripe Connect can pay it out. */
+export function earnsCommission(country: string | null | undefined): boolean {
+  return isPayoutCountry(country);
+}
 /** Entitlement owner for Pro granted by the program (see the Stripe/Apple webhooks' provider filters). */
 export const AFFILIATE_PROVIDER = "affiliate";
 /** Error `code` checkout returns when a creator code can't be applied; the client then drops it. */
@@ -87,6 +95,8 @@ export type AffiliateApplication = {
   audience_size: (typeof AUDIENCE_SIZES)[number];
   video_url: string | null;
   promotion_plan: string | null;
+  /** A PAYOUT_COUNTRIES code, or OTHER_COUNTRY. */
+  country: string;
 };
 
 function parseUrl(raw: unknown, label: string, required: boolean): { value: string | null } | { error: string } {
@@ -113,6 +123,9 @@ export function parseApplication(body: unknown): { ok: true; application: Affili
   const audience = AUDIENCE_SIZES.find((value) => value === input.audience_size);
   if (!audience) return { ok: false, error: "Pick your audience size." };
 
+  const country = isPayoutCountry(input.country) || input.country === OTHER_COUNTRY ? (input.country as string) : null;
+  if (!country) return { ok: false, error: "Pick where you live." };
+
   const profile = parseUrl(input.profile_url, "Profile link", true);
   if ("error" in profile) return { ok: false, error: profile.error };
   const video = parseUrl(input.video_url, "Video link", false);
@@ -134,6 +147,7 @@ export function parseApplication(body: unknown): { ok: true; application: Affili
       audience_size: audience,
       video_url: video.value,
       promotion_plan: plan || null,
+      country,
     },
   };
 }
@@ -242,8 +256,8 @@ export async function revokeAffiliatePro(prisma: PrismaClient, userId: string) {
 }
 
 type AffiliateEmail =
-  | { event: "applied"; slug: string; platform: string; profile_url: string; audience_size: string; video_url: string | null; promotion_plan: string | null }
-  | { event: "approved"; slug: string }
+  | { event: "applied"; slug: string; platform: string; profile_url: string; audience_size: string; video_url: string | null; promotion_plan: string | null; country: string }
+  | { event: "approved"; slug: string; commission: boolean }
   | { event: "declined"; slug: string; decline_reason: string | null };
 
 /** Fire-and-forget: a failed email must never fail the application or review. */

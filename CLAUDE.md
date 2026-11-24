@@ -290,6 +290,15 @@ table (one per user, `slug` cleared on decline).
   (20% off for 3 months), added by hand in App Store Connect; admins then mark
   "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
   The app's paywall opens Apple's redeem sheet ("Have a creator code?").
+- **Commission:** only for creators living in a Stripe payout country (US, UK, CA, CH, EEA; asked on the
+  application, `affiliates.country`, `ZZ` = elsewhere: they keep free Pro and their code). 30% of what a referred customer pays on the web (after discount, without tax) for
+  their first 12 months, held 30 days (`lib/creator-commission.ts`). Checkout stores `creator_code` on
+  the subscription; `invoice.paid` writes `affiliate_commissions` rows, `charge.refunded` and disputes
+  write negative ones, all idempotent by Stripe ID (`server/affiliate-commissions.ts`). Creators connect
+  a Stripe Connect Express account on the US account (the checkout account) from their creator page,
+  commission is kept in USD and one 12-month window per customer; admins pay everyone once a month from
+  `/admin` (`server/affiliate-payouts.ts`, one Transfer per creator, payout ID as idempotency key and
+  transfer group). Setup and operations: `docs/creator-program.md`.
 
 ## Pull requests
 

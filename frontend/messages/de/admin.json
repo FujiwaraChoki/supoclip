@@ -55,7 +55,34 @@
     "approving": "Wird freigegeben...",
     "approve": "Freigeben",
     "storeCodeAdded": "App-Store-Code hinzugefügt",
-    "markStoreCode": "App-Store-Code als hinzugefügt markieren"
+    "markStoreCode": "App-Store-Code als hinzugefügt markieren",
+    "livesIn": "Wohnt in {country}",
+    "noCommission": "Wohnt woanders: keine Provision",
+    "countryUnknown": "Land noch nicht angegeben"
+  },
+  "creatorPayouts": {
+    "title": "Provisionsauszahlungen",
+    "description": "Provision nach der 30-tägigen Wartezeit, per Stripe Connect aus dem Plattform-Guthaben ausgezahlt. Creator mit weniger als {minimum} werden übertragen. Einmal im Monat ausführen.",
+    "nothingToPay": "Nichts auszuzahlen",
+    "pay": "{count, plural, one {# Creator} other {# Creators}} {total} auszahlen",
+    "creator": "Creator",
+    "available": "Verfügbar",
+    "pending": "Zurückgehalten",
+    "payouts": "Auszahlungen",
+    "ready": "Bereit",
+    "notSetUp": "Nicht eingerichtet",
+    "confirmTitle": "Jetzt {total} auszahlen?",
+    "confirmBody": "Das sendet {count, plural, one {eine Stripe-Überweisung} other {# Stripe-Überweisungen}} aus dem Plattform-Guthaben. Jede wird nur einmal gesendet, auch wenn du die Auszahlung erneut startest.",
+    "confirm": "Creator auszahlen",
+    "cancel": "Abbrechen",
+    "outcome": {
+      "paid": "{amount} an {name} ausgezahlt",
+      "failed": "Stripe hat {amount} an {name} abgelehnt; der Betrag bleibt im Guthaben",
+      "pending": "{amount} an {name} ist unbestätigt; starte die Auszahlung erneut, um sie abzuschließen",
+      "skipped": "{name} übersprungen ({amount})"
+    },
+    "loadFailed": "Creator-Guthaben konnten nicht geladen werden",
+    "runFailed": "Auszahlung fehlgeschlagen"
   },
   "processing": {
     "title": "Aufgaben in Bearbeitung",

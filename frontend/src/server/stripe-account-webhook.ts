@@ -22,6 +22,8 @@ export type AccountWebhookDependencies = MigrationEngineDependencies & {
     success: boolean,
   ): Promise<void>;
   dispatch(event: Stripe.Event): Promise<void>;
+  /** Runs for every claimed event, also ones the migration engine handled itself. */
+  afterEvent?(event: Stripe.Event): Promise<void>;
 };
 
 /** Same handler is used by Next routes and the signed webhook/database tests. */
@@ -68,6 +70,7 @@ export function createAccountWebhookHandler(
       await runWithStripeAccount({ accountId, client }, async () => {
         if (!(await handleMigrationEvent(accountId, event, dependencies)))
           await dependencies.dispatch(event);
+        await dependencies.afterEvent?.(event);
       });
       await dependencies.finish(claim, true);
       return NextResponse.json({ received: true });

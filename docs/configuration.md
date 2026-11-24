@@ -384,6 +384,12 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
+| `STRIPE_CONNECT_PLATFORM_ACCOUNT_ID` | Optional: the Stripe account that creates creators' Connect Express accounts and pays their commission. Empty = the account new checkouts open in (`STRIPE_CHECKOUT_ACCOUNT_ID`, else the source). See `docs/creator-program.md` |
+
+The billing webhook needs `checkout.session.completed`, `checkout.session.expired`,
+`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`,
+`invoice.payment_succeeded` and `invoice.payment_failed`. Creator commission also needs
+`charge.refunded`, `charge.dispute.created` and `charge.dispute.closed`, on every billing endpoint.
 
 #### Team plan
 

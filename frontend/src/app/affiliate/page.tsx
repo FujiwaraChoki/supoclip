@@ -2,15 +2,28 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { ArrowRight, Gift, Link2, Percent, Search, Send } from "lucide-react";
+import { ArrowRight, Banknote, Gift, Landmark, Link2, Percent, Search, Send } from "lucide-react";
 
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
+import {
+  COMMISSION_HOLD_DAYS,
+  COMMISSION_MONTHS,
+  COMMISSION_PERCENT,
+  MINIMUM_PAYOUT_MINOR,
+  firstYearCommission,
+} from "@/lib/creator-commission";
 import { getSiteUrl } from "@/lib/site";
 
 const APPLY_HREF = "/settings/creator-program";
+const TERMS = {
+  percent: COMMISSION_PERCENT,
+  months: COMMISSION_MONTHS,
+  days: COMMISSION_HOLD_DAYS,
+  minimum: MINIMUM_PAYOUT_MINOR / 100,
+};
 const VIDEO = {
   src: "/videos/creator-program.mp4",
   poster: "/videos/creator-program-poster.jpg",
@@ -20,8 +33,8 @@ const VIDEO = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("affiliate");
-  const title = t("meta.title");
-  const description = t("meta.description");
+  const title = t("meta.title", TERMS);
+  const description = t("meta.description", TERMS);
   const siteUrl = getSiteUrl();
   return {
     title: { absolute: title },
@@ -45,14 +58,23 @@ export default async function AffiliatePage() {
   const siteUrl = getSiteUrl();
   const pro = getPublicBillingPlans().find((plan) => plan.id === "pro");
   const proPrice = pro?.priceMonthly ?? "9.99";
+  const creatorPlan = getPublicBillingPlans().find((plan) => plan.id === "scale");
+  const earnExample = {
+    pro: firstYearCommission(Number(proPrice)),
+    creator: firstYearCommission(Number(creatorPlan?.priceMonthly ?? "24.99")),
+  };
   const steps = [
     { icon: Send, title: t("steps.apply.title"), detail: t("steps.apply.detail") },
     { icon: Search, title: t("steps.review.title"), detail: t("steps.review.detail") },
-    { icon: Link2, title: t("steps.share.title"), detail: t("steps.share.detail") },
+    { icon: Link2, title: t("steps.share.title"), detail: t("steps.share.detail", TERMS) },
+    { icon: Landmark, title: t("steps.paid.title"), detail: t("steps.paid.detail", TERMS) },
   ];
-  const rules = ["sponsored", "ads", "ownCode", "end"].map((id) => t(`rules.${id}`));
+  const rules = ["sponsored", "ads", "ownCode", "incentive", "end"].map((id) => t(`rules.${id}`));
   const faqs = [
-    { question: t("faq.cash.question"), answer: t("faq.cash.answer", { price: proPrice }) },
+    { question: t("faq.earn.question"), answer: t("faq.earn.answer", { ...TERMS, ...earnExample }) },
+    { question: t("faq.payout.question"), answer: t("faq.payout.answer", TERMS) },
+    { question: t("faq.where.question"), answer: t("faq.where.answer") },
+    { question: t("faq.iphone.question"), answer: t("faq.iphone.answer") },
     { question: t("faq.followers.question"), answer: t("faq.followers.answer") },
     { question: t("faq.audience.question"), answer: t("faq.audience.answer") },
     { question: t("faq.code.question"), answer: t("faq.code.answer") },
@@ -109,10 +131,10 @@ export default async function AffiliatePage() {
         <div className="mx-auto max-w-5xl px-6 py-14 md:py-20">
           <Badge variant="secondary">{t("badge")}</Badge>
           <h1 className="mt-5 max-w-4xl text-4xl font-extrabold tracking-tight sm:text-5xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}>
-            {t("hero.title")}
+            {t("hero.title", TERMS)}
           </h1>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-muted-foreground">
-            {t("hero.body")}
+            {t("hero.body", TERMS)}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link href={APPLY_HREF}><Button size="lg">{t("hero.apply")} <ArrowRight className="h-4 w-4" /></Button></Link>
@@ -138,7 +160,14 @@ export default async function AffiliatePage() {
       <div className="mx-auto max-w-5xl px-6 py-12 md:py-16">
         <section aria-labelledby="offer-heading">
           <h2 id="offer-heading" className="text-3xl font-bold tracking-tight">{t("offer.heading")}</h2>
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border p-6">
+              <Banknote className="h-5 w-5" />
+              <h3 className="mt-4 text-lg font-semibold">{t("offer.earnTitle", TERMS)}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {t("offer.earnDetail", { ...TERMS, ...earnExample })}
+              </p>
+            </div>
             <div className="rounded-2xl border p-6">
               <Gift className="h-5 w-5" />
               <h3 className="mt-4 text-lg font-semibold">{t("offer.youTitle")}</h3>
@@ -160,7 +189,7 @@ export default async function AffiliatePage() {
 
         <section className="mt-16" aria-labelledby="how-heading">
           <h2 id="how-heading" className="text-3xl font-bold tracking-tight">{t("how.heading")}</h2>
-          <ol className="mt-8 grid gap-4 sm:grid-cols-3">
+          <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map(({ icon: Icon, title: stepTitle, detail }, index) => (
               <li key={stepTitle} className="rounded-lg border p-5">
                 <div className="flex items-center justify-between">

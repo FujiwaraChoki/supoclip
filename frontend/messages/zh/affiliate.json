@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "SupoClip 创作者计划：做视频即可免费获得 Pro",
-    "description": "制作关于 SupoClip 的 Shorts、Reels、TikToks 或视频，即可免费获得 SupoClip Pro。观众用你的代码，前 3 个月可享 20% 折扣。"
+    "title": "SupoClip 创作者计划：{months} 个月内赚取 {percent}% 佣金",
+    "description": "制作关于 SupoClip 的视频，你的观众在前 {months} 个月支付的金额中，你可获得 {percent}%，通过 Stripe 直接打到你的银行账户。你的观众前 3 个月享 8 折。"
   },
   "badge": "创作者计划",
   "nav": {
@@ -10,8 +10,8 @@
     "apply": "申请"
   },
   "hero": {
-    "title": "做关于 SupoClip 的视频。免费获得 Pro。",
-    "body": "在发关于剪辑、播客或创作者工具的 Shorts、Reels 或 TikToks？领取你自己的代码。观众在 SupoClip 上省钱，你在计划期间享有 Pro。",
+    "title": "做关于 SupoClip 的视频。{months} 个月内赚取 {percent}%。",
+    "body": "你在发布关于剪辑、播客或创作者工具的 Shorts、Reels 或 TikTok 吗？获取你自己的代码。你的观众省 20%，你获得他们前 {months} 个月付款的 {percent}%，并且在计划期间免费使用 SupoClip Pro。",
     "apply": "立即申请",
     "noMinimum": "没有粉丝数量要求。"
   },
@@ -22,6 +22,8 @@
   },
   "offer": {
     "heading": "每个人能得到什么",
+    "earnTitle": "{months} 个月内赚取 {percent}%",
+    "earnDetail": "使用你的代码订阅的人，前 {months} 个月的每一笔付款都算。每位 Pro 订阅者约 ${pro}，每位 Creator 订阅者约 ${creator}。适用于美国、英国、加拿大、瑞士和欧洲的创作者。",
     "youTitle": "你免费获得 SupoClip Pro",
     "youDetail": "Pro 通常为每月 ${price}，每月包含 {limit} 小时视频。获批的创作者在参与计划期间可免费使用。",
     "youDetailNoLimit": "Pro 通常为每月 ${price}。获批的创作者在计划期间免费使用。",
@@ -42,7 +44,11 @@
     },
     "share": {
       "title": "分享",
-      "detail": "把链接放在简介里，或在视频中说出你的代码。你的账号会立刻获得 Pro。"
+      "detail": "把链接放进简介，或在视频里说出你的代码。观众的每一笔付款都让你在 {months} 个月内获得 {percent}%。"
+    },
+    "paid": {
+      "title": "收款",
+      "detail": "连接一次 Stripe。佣金每月打到你的银行账户，在每笔付款 {days} 天后可用。"
     }
   },
   "rules": {
@@ -50,13 +56,26 @@
     "sponsored": "赞助内容请标明，例如使用 #ad。",
     "ads": "不要用 SupoClip 的名称投放广告，也不要把代码发到优惠券或折扣网站。",
     "ownCode": "不要使用你自己的代码。",
+    "incentive": "不要付钱或给奖励让别人用你的代码注册。",
     "end": "我们可以随时结束计划或移除创作者。"
   },
   "faq": {
     "heading": "常见问题",
-    "cash": {
-      "question": "会用现金支付吗？",
-      "answer": "目前不会。获批的创作者在计划期间免费获得 SupoClip Pro（通常为每月 ${price}）。"
+    "earn": {
+      "question": "我能赚多少？",
+      "answer": "使用你的链接或代码的每位客户在网页上支付的金额（不含税），前 {months} 个月的 {percent}%。一位 Pro 订阅者在这段时间约为你带来 ${pro}，一位 Creator 订阅者约 ${creator}。年付方案只计一次。被退款或拒付的付款不产生佣金。"
+    },
+    "payout": {
+      "question": "我怎么收款？",
+      "answer": "通过 Stripe 直接打到你的银行账户。在你的创作者页面设置一次即可：Stripe 会要求你的姓名、地址、出生日期和银行信息。佣金在每笔付款 {days} 天后可用，余额达到 ${minimum} 或以上时每月支付。目前支持美国、英国、加拿大、瑞士和欧洲。"
+    },
+    "where": {
+      "question": "我所在的地方能赚佣金吗？",
+      "answer": "佣金支付给居住在美国、英国、加拿大、瑞士和欧洲的创作者，因为 Stripe 只能向这些地方付款。其他地方的创作者也可以加入：你免费使用 SupoClip Pro，并获得一个让观众享 8 折的代码。"
+    },
+    "iphone": {
+      "question": "iPhone 上的订阅算吗？",
+      "answer": "暂时不算。你的观众在 iPhone 上用你的代码仍可享受折扣，但佣金按网页上购买的订阅计算。"
     },
     "followers": {
       "question": "有最低粉丝数吗？",

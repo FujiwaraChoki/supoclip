@@ -199,7 +199,7 @@
   },
   "creator": {
     "title": "Creator-Programm",
-    "intro": "Du machst Videos über SupoClip? Hol dir deinen Code: Dein Publikum bekommt <em>20 % Rabatt auf die ersten 3 Monate</em>, und du bekommst SupoClip Pro kostenlos.",
+    "intro": "Du machst Videos über SupoClip? Hol dir deinen eigenen Code: Deine Zuschauer bekommen <em>20 % Rabatt auf ihre ersten 3 Monate</em>, du bekommst SupoClip Pro kostenlos, und Creator in den USA, Großbritannien, Kanada, der Schweiz und Europa verdienen <em>{percent} % von dem, was ihre Zuschauer {months} Monate lang zahlen</em>.",
     "howItWorks": "So funktioniert's",
     "signIn": "Erstelle ein kostenloses Konto oder melde dich an, um dich für das Creator-Programm zu bewerben.",
     "createAccount": "Konto erstellen",
@@ -244,6 +244,10 @@
       "from10k": "10.000 – 100.000",
       "from100k": "100.000+"
     },
+    "countryLabel": "Wo du wohnst",
+    "countryPlaceholder": "Wähl dein Land",
+    "countryElsewhere": "Woanders",
+    "countryHint": "Provision gibt es für Creator in den USA, Großbritannien, Kanada, der Schweiz und Europa. Creator anderswo bekommen Pro kostenlos und einen Code für ihre Zuschauer.",
     "profileLabel": "Profil-Link",
     "profilePlaceholder": "https://www.tiktok.com/@you",
     "videoLabel": "Ein Video, das du über SupoClip gemacht hast",
@@ -251,15 +255,65 @@
     "videoPlaceholder": "https://",
     "planLabel": "Wie willst du SupoClip bewerben?",
     "termsTitle": "Programmbedingungen",
+    "termCommission": "Creator in den USA, Großbritannien, Kanada, der Schweiz und Europa verdienen {percent} % von dem, was Kunden mit ihrem Code im Web zahlen, in deren ersten {months} Monaten. Die Provision wird {days} Tage zurückgehalten und abgezogen, wenn eine Zahlung erstattet oder zurückgebucht wird.",
     "termSponsored": "Kennzeichne gesponserte Posts (zum Beispiel #ad).",
     "termAds": "Schalt keine Anzeigen auf den Namen SupoClip und stell deinen Code nicht auf Gutschein- oder Deal-Seiten.",
     "termOwn": "Nutze nicht deinen eigenen Code.",
+    "termTax": "Auszahlungen laufen über Stripe, das deine Identität prüft. Für die Steuern auf deine Einnahmen bist du selbst verantwortlich.",
     "termEnd": "Wir können das Programm beenden oder einen Creator jederzeit entfernen.",
     "agree": "Ich stimme den Programmbedingungen zu",
     "submit": "Bewerben",
     "submitting": "Wird gesendet…",
     "loadFailed": "Deine Bewerbung konnte nicht geladen werden",
-    "submitFailed": "Deine Bewerbung konnte nicht gesendet werden"
+    "submitFailed": "Deine Bewerbung konnte nicht gesendet werden",
+    "countryPrompt": {
+      "title": "Wo wohnst du?",
+      "body": "Provision gibt es für Creator in den USA, Großbritannien, Kanada, der Schweiz und Europa. Sag uns, wo du wohnst, um deine Einnahmen zu sehen und Auszahlungen einzurichten. Das geht nur einmal.",
+      "save": "Speichern",
+      "failed": "Dein Land konnte nicht gespeichert werden"
+    },
+    "noCommission": {
+      "title": "Provision gibt es dort, wo du wohnst, nicht",
+      "body": "Stripe kann nur Creator in den USA, Großbritannien, Kanada, der Schweiz und Europa bezahlen. Du hast weiterhin Pro kostenlos, und deine Zuschauer bekommen mit deinem Code 20 % Rabatt."
+    },
+    "earnings": {
+      "title": "Deine Einnahmen",
+      "terms": "Du verdienst {percent} % von dem, was deine Kunden in ihren ersten {months} Monaten zahlen. Die Provision ist {days} Tage nach jeder Zahlung verfügbar, und wir zahlen monatlich aus, sobald du {minimum} oder mehr hast.",
+      "customers": "Zahlende Kunden",
+      "pending": "Ausstehend",
+      "pendingHint": "{days} Tage zurückgehalten",
+      "available": "Bereit zur Auszahlung",
+      "availableHint": "In deiner nächsten Auszahlung",
+      "paid": "Ausgezahlt",
+      "payoutsTitle": "Auszahlungen",
+      "payoutsOn": "Aktiv",
+      "setupBody": "Die Provision geht über Stripe direkt auf dein Bankkonto. Die Einrichtung dauert etwa 5 Minuten: Stripe fragt nach Name, Adresse, Geburtsdatum und Bankverbindung.",
+      "payoutCountry": "Auszahlungsland: {country}",
+      "setup": "Auszahlungen einrichten",
+      "incompleteBody": "Stripe braucht noch ein paar Angaben, bevor es dich bezahlen kann.",
+      "reviewBody": "Stripe prüft deine Angaben. Auszahlungen starten, sobald das erledigt ist.",
+      "finish": "Einrichtung abschließen",
+      "enabledBody": "Du wirst einmal im Monat per Überweisung bezahlt, wenn du {minimum} oder mehr bereit hast.",
+      "dashboard": "Stripe-Dashboard öffnen",
+      "unavailableBody": "Stripe ist gerade nicht erreichbar. Versuch es in ein paar Minuten noch mal.",
+      "activityTitle": "Aktivität",
+      "activityEmpty": "Noch nichts. Provision erscheint hier, sobald jemand mit deinem Code abonniert.",
+      "kind": {
+        "earned": "Provision",
+        "refund": "Erstattung",
+        "dispute": "Rückbuchung",
+        "dispute_won": "Rückbuchung gewonnen"
+      },
+      "status": {
+        "paid": "Ausgezahlt",
+        "onTheWay": "Unterwegs",
+        "deducted": "Abgezogen",
+        "heldUntil": "Zurückgehalten bis {date}",
+        "available": "Bereit"
+      },
+      "loadFailed": "Deine Einnahmen konnten nicht geladen werden",
+      "setupFailed": "Stripe konnte nicht geöffnet werden. Bitte versuch es noch mal."
+    }
   },
   "deleteAccount": {
     "title": "Gefahrenzone",

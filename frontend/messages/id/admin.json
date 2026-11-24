@@ -55,7 +55,34 @@
     "approving": "Menyetujui...",
     "approve": "Setujui",
     "storeCodeAdded": "Kode App Store ditambahkan",
-    "markStoreCode": "Tandai kode App Store sudah ditambahkan"
+    "markStoreCode": "Tandai kode App Store sudah ditambahkan",
+    "livesIn": "Tinggal di {country}",
+    "noCommission": "Tinggal di tempat lain: tanpa komisi",
+    "countryUnknown": "Negara belum diisi"
+  },
+  "creatorPayouts": {
+    "title": "Pembayaran komisi",
+    "description": "Komisi yang sudah melewati masa tahan 30 hari, dibayar lewat Stripe Connect dari saldo platform. Kreator dengan kurang dari {minimum} dibawa ke bulan berikutnya. Jalankan sebulan sekali.",
+    "nothingToPay": "Tidak ada yang dibayar",
+    "pay": "Bayar {total} ke {count, plural, other {# kreator}}",
+    "creator": "Kreator",
+    "available": "Tersedia",
+    "pending": "Ditahan",
+    "payouts": "Pembayaran",
+    "ready": "Siap",
+    "notSetUp": "Belum diatur",
+    "confirmTitle": "Bayar {total} sekarang?",
+    "confirmBody": "Ini mengirim {count, plural, other {# transfer Stripe}} dari saldo platform. Setiap transfer hanya dikirim sekali, meski kamu menjalankan pembayaran lagi.",
+    "confirm": "Bayar kreator",
+    "cancel": "Batal",
+    "outcome": {
+      "paid": "{amount} dibayar ke {name}",
+      "failed": "Stripe menolak {amount} ke {name}; tetap di saldonya",
+      "pending": "{amount} ke {name} belum terkonfirmasi; jalankan pembayaran lagi untuk menyelesaikannya",
+      "skipped": "{name} dilewati ({amount})"
+    },
+    "loadFailed": "Gagal memuat saldo kreator",
+    "runFailed": "Pembayaran gagal"
   },
   "processing": {
     "title": "Tugas yang sedang diproses",

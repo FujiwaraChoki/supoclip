@@ -7,6 +7,8 @@ export interface CreatorApplication {
   status: "pending" | "approved" | "declined" | "revoked";
   decline_reason: string | null;
   app_store_code_added_at: string | null;
+  /** A payout country code, "ZZ" for elsewhere, or null for creators who applied before it was asked. */
+  country: string | null;
 }
 
 export interface CreatorProgramState {

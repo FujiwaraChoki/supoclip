@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-24
+
+- **New:** Creators in the creator program who live in the US, the UK, Canada, Switzerland or Europe now earn 30% of what the people who subscribe with their code pay, for their first 12 months, on top of free Pro. Creators elsewhere keep free Pro and their code. Creators set up payouts once through Stripe from their creator page and are paid to their bank every month; the page shows what's pending, ready and paid. Refunded or charged-back payments don't count. ([#PR](https://github.com/FujiwaraChoki/supoclip/pulls))
+
 ## 2026-11-23
 
 - **Improved:** In Brazil you can now pay for Pro or Creator with Pix, monthly or yearly. You approve the subscription once in your bank app and renewals are charged from there, with your bank's usual notice a few days before. ([#569](https://github.com/FujiwaraChoki/supoclip/pull/569))

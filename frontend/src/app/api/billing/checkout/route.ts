@@ -249,6 +249,10 @@ export async function POST(request: Request) {
           : {}),
       },
       line_items: [{ price: priceId, quantity: 1 }],
+      // Creator commission follows the subscription after the discount ends.
+      ...(offer?.affiliateUserId
+        ? { subscription_data: { metadata: { userId: session.user.id, creator_code: offer.code } } }
+        : {}),
       branding_settings: CHECKOUT_BRANDING,
       ...(paymentMethodOptions ? { payment_method_options: paymentMethodOptions } : {}),
       ...(offer

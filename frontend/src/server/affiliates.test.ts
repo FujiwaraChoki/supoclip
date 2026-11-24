@@ -22,6 +22,14 @@ describe("validateSlug", () => {
 });
 
 describe("parseApplication", () => {
+  it("accepts creators who live outside the payout countries as elsewhere", () => {
+    const result = parseApplication({
+      slug: "maya", platform: "tiktok", profile_url: "https://www.tiktok.com/@maya", audience_size: "1k-10k",
+      country: "ZZ", accept_terms: true,
+    });
+    expect(result.ok && result.application.country).toBe("ZZ");
+  });
+
   const valid = {
     slug: "Maya",
     platform: "tiktok",
@@ -29,6 +37,7 @@ describe("parseApplication", () => {
     audience_size: "1k-10k",
     video_url: "",
     promotion_plan: "  Weekly editing tips  ",
+    country: "US",
     accept_terms: true,
   };
 
@@ -42,6 +51,7 @@ describe("parseApplication", () => {
         audience_size: "1k-10k",
         video_url: null,
         promotion_plan: "Weekly editing tips",
+        country: "US",
       },
     });
   });
@@ -53,6 +63,8 @@ describe("parseApplication", () => {
     ["javascript profile link", { profile_url: "javascript:alert(1)" }],
     ["relative video link", { video_url: "/watch" }],
     ["terms not accepted", { accept_terms: "yes" }],
+    ["no country", { country: undefined }],
+    ["a country code that is not offered", { country: "IN" }],
   ])("rejects %s", (_label, override) => {
     expect(parseApplication({ ...valid, ...override }).ok).toBe(false);
   });

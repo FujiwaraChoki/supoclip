@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/auth-client";
+import { CreatorCountrySelect } from "@/components/settings/creator-country-select";
+import { CreatorEarnings } from "@/components/settings/creator-earnings";
+import { COMMISSION_HOLD_DAYS, COMMISSION_MONTHS, COMMISSION_PERCENT, isPayoutCountry } from "@/lib/creator-commission";
 import { useCopyText } from "@/lib/copy-text";
 import { appStoreRedeemUrl } from "@/lib/site";
 import {
@@ -31,7 +34,7 @@ const PLATFORMS = ["tiktok", "youtube", "instagram", "x", "other"] as const;
 
 const AUDIENCE_SIZES = ["under-1k", "1k-10k", "10k-100k", "100k-plus"] as const;
 
-const TERM_KEYS = ["termSponsored", "termAds", "termOwn", "termEnd"] as const;
+const TERM_KEYS = ["termCommission", "termSponsored", "termAds", "termOwn", "termTax", "termEnd"] as const;
 
 const AUDIENCE_KEYS = {
   "under-1k": "under1k",
@@ -68,6 +71,41 @@ function CopyField({ label, value, copyLabel }: { label: string; value: string; 
   );
 }
 
+/** Creators who applied before the form asked where they live set it once here. */
+function CountryPrompt({ onSaved }: { onSaved: (country: string) => void }) {
+  const t = useTranslations("settings");
+  const [country, setCountry] = useState("");
+  const save = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/affiliates/country", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ country }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || t("creator.countryPrompt.failed"));
+      return data.country as string;
+    },
+    onSuccess: onSaved,
+  });
+  return (
+    <section className="space-y-3 rounded-2xl border bg-background p-5">
+      <h2 className="text-sm font-semibold">{t("creator.countryPrompt.title")}</h2>
+      <p className="text-sm text-muted-foreground">{t("creator.countryPrompt.body")}</p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="sm:w-72">
+          <CreatorCountrySelect value={country} onChange={setCountry} />
+        </div>
+        <Button onClick={() => save.mutate()} disabled={!country || save.isPending}>
+          {save.isPending && <Loader2 className="size-4 animate-spin" />}
+          {t("creator.countryPrompt.save")}
+        </Button>
+      </div>
+      {save.isError && <p className="text-sm text-red-600">{save.error.message}</p>}
+    </section>
+  );
+}
+
 export default function CreatorProgramPage() {
   const t = useTranslations("settings");
   const { data: session, isPending } = useSession();
@@ -85,6 +123,7 @@ export default function CreatorProgramPage() {
   const [platform, setPlatform] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
   const [audienceSize, setAudienceSize] = useState("");
+  const [country, setCountry] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [promotionPlan, setPromotionPlan] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -124,6 +163,7 @@ export default function CreatorProgramPage() {
           audience_size: audienceSize,
           video_url: videoUrl,
           promotion_plan: promotionPlan,
+          country,
           accept_terms: acceptTerms,
         }),
       });
@@ -169,7 +209,11 @@ export default function CreatorProgramPage() {
 
   const canApply = canApplyAt !== null && new Date(canApplyAt).getTime() <= Date.now();
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const canSubmit = slugState.state === "available" && platform && profileUrl.trim() && audienceSize && acceptTerms && !isSubmitting;
+  const canSubmit = slugState.state === "available" && platform && profileUrl.trim() && audienceSize && country && acceptTerms && !isSubmitting;
+  const setSavedCountry = (saved: string) =>
+    queryClient.setQueryData<CreatorProgramState>(creatorProgramKeys.detail(userId ?? ""), (state) =>
+      state?.application ? { ...state, application: { ...state.application, country: saved } } : state,
+    );
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
@@ -177,6 +221,8 @@ export default function CreatorProgramPage() {
         <h1 className="font-display text-3xl font-bold tracking-tight">{t("creator.title")}</h1>
         <p className="mt-2 text-muted-foreground">
           {t.rich("creator.intro", {
+            percent: COMMISSION_PERCENT,
+            months: COMMISSION_MONTHS,
             em: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
           })}{" "}
           <Link href="/affiliate" className="underline underline-offset-4 hover:text-foreground">{t("creator.howItWorks")}</Link>
@@ -205,6 +251,21 @@ export default function CreatorProgramPage() {
             <p className="text-xs text-muted-foreground">{t("creator.iphonePending")}</p>
           )}
         </section>
+      )}
+
+      {application?.status === "approved" && application.slug && (
+        <div className="mt-6">
+          {application.country === null ? (
+            <CountryPrompt onSaved={setSavedCountry} />
+          ) : isPayoutCountry(application.country) ? (
+            <CreatorEarnings />
+          ) : (
+            <section className="rounded-2xl border bg-background p-5">
+              <h2 className="text-sm font-semibold">{t("creator.noCommission.title")}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{t("creator.noCommission.body")}</p>
+            </section>
+          )}
+        </div>
       )}
 
       {application?.status === "pending" && (
@@ -286,6 +347,12 @@ export default function CreatorProgramPage() {
           </div>
 
           <div>
+            <Label htmlFor="creator-country">{t("creator.countryLabel")}</Label>
+            <CreatorCountrySelect id="creator-country" value={country} onChange={setCountry} />
+            <p className="mt-1.5 text-xs text-muted-foreground">{t("creator.countryHint")}</p>
+          </div>
+
+          <div>
             <Label htmlFor="profile-url">{t("creator.profileLabel")}</Label>
             <Input id="profile-url" type="url" value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder={t("creator.profilePlaceholder")} className="mt-1.5" />
           </div>
@@ -303,7 +370,9 @@ export default function CreatorProgramPage() {
           <div className="rounded-xl bg-muted/40 p-4">
             <p className="text-xs font-medium">{t("creator.termsTitle")}</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-              {TERM_KEYS.map((key) => <li key={key}>{t(`creator.${key}`)}</li>)}
+              {TERM_KEYS.map((key) => (
+                <li key={key}>{t(`creator.${key}`, { percent: COMMISSION_PERCENT, months: COMMISSION_MONTHS, days: COMMISSION_HOLD_DAYS })}</li>
+              ))}
             </ul>
             <label className="mt-3 flex items-center gap-2 text-sm">
               <Checkbox checked={acceptTerms} onCheckedChange={(checked) => setAcceptTerms(checked === true)} />
