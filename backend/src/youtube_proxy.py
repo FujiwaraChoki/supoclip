@@ -138,6 +138,21 @@ class PartialDownloadUnavailable(YouTubeDownloadError):
     """The formats cannot be sliced without an ffmpeg network fetch."""
 
 
+class HlsFormatsMissing(YouTubeDownloadError):
+    """The format list has no HLS formats at all.
+
+    yt-dlp drops every m3u8 format when the HLS manifest fetch fails, which is
+    usually a brief proxy error. A fresh session normally gets them back, so
+    this is retried, and only becomes ``PartialDownloadUnavailable`` once the
+    retry also comes back without them.
+    """
+
+
+def _require_hls_formats(formats: list[dict]) -> None:
+    if not any("m3u8" in (fmt.get("protocol") or "") for fmt in formats):
+        raise HlsFormatsMissing("The format list has no HLS formats; the playlist fetch may have failed")
+
+
 class DownloadDeadlineExceeded(YouTubeDownloadError):
     """One proxy attempt expired; independent providers may still be tried."""
 
@@ -475,7 +490,7 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
     for error in _exception_chain(exc):
         if isinstance(error, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
             return False
-        if isinstance(error, (DownloadDeadlineExceeded, TimeoutError, ConnectionError)):
+        if isinstance(error, (DownloadDeadlineExceeded, HlsFormatsMissing, TimeoutError, ConnectionError)):
             transient = True
         message = str(error).lower()
         if any(marker in message for marker in (
@@ -555,6 +570,9 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
             else:
                 if is_geo:
                     raise YouTubeGeoRestrictedError() from exc
+                if isinstance(exc, HlsFormatsMissing):
+                    # Still no HLS after a fresh session: keep the full-file fallback.
+                    raise PartialDownloadUnavailable(str(exc)) from exc
                 raise
             session = secrets.token_hex(12)
             report_download_recovery(DownloadRecovery.CONNECTION)
@@ -1441,6 +1459,7 @@ def _download_audio_section_attempt(
             original_audio=_original_audio_resolution(formats, source_language),
         )
         if fmt is None:
+            _require_hls_formats(formats)
             raise PartialDownloadUnavailable("No HLS audio format is available for a section")
         duration = info.get("duration") or 0
         fmt = expand_hls_format(fmt, options, counter, duration)
@@ -1541,6 +1560,7 @@ def _download_section_attempt(
         video_window = select_window(video_fmt, start, window_end)
         audio_window = select_window(audio_fmt, start, window_end)
         if not video_window or not audio_window:
+            _require_hls_formats(formats)
             raise PartialDownloadUnavailable(
                 "Selected formats have no timed fragments; refusing an ffmpeg section download"
             )
