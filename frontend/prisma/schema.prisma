@@ -78,6 +78,13 @@ model User {
   default_clip_length  String   @default("auto") @db.VarChar(10)
   // What the create screen remembers between videos (lib/create-settings.ts).
   create_settings      Json     @default("{}") @db.JsonB
+  // What the home screen opens on: "agent" (Creator plans), "manual", or null until chosen.
+  home_mode            String?  @db.VarChar(10)
+  // Pebble onboarding: A/B group, what they make, when it ended, and the free preview clip.
+  onboarding_variant      String?   @db.VarChar(16)
+  onboarding_answers      Json?     @db.JsonB
+  onboarding_completed_at DateTime? @db.Timestamptz
+  preview_used_at         DateTime? @db.Timestamptz
   product_updates_unsubscribed_at DateTime? @db.Timestamptz
 
   // Monetization and billing
@@ -378,6 +385,8 @@ model Task {
   progress             Int?      @default(0)
   progress_message     String?
   source_metadata      Json      @default("{}") @db.JsonB
+  // A free preview project: the best clip rendered, the rest listed as locked moments.
+  preview              Json?     @db.JsonB
   source_duration_seconds Int?
   completion_notification_sent_at DateTime? @db.Timestamptz
   share_token          String?   @unique @db.VarChar(64)

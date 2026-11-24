@@ -258,6 +258,46 @@ async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
+async def unlock_paid_previews(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: unlock free previews whose owner asked to before checkout, once the plan is active.
+
+    The page that came back from checkout usually does this first; this covers a closed tab, an
+    App Store purchase finishing in the background, and a webhook that landed late.
+    """
+    from sqlalchemy import text
+
+    from ..api.routes.tasks import unlock_requested_preview
+    from ..database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT id FROM tasks
+                    WHERE preview IS NOT NULL
+                      AND preview ? 'unlock_requested_at'
+                      AND NOT preview ? 'unlocked_at'
+                      AND status = 'completed'
+                      AND (preview->>'unlock_requested_at')::timestamptz > NOW() - INTERVAL '14 days'
+                    ORDER BY (preview->>'unlock_requested_at') DESC
+                    LIMIT 50
+                    """
+                )
+            )
+        ).fetchall()
+        await db.commit()
+    unlocked = 0
+    for row in rows:
+        async with AsyncSessionLocal() as db:
+            try:
+                if await unlock_requested_preview(db, str(row.id)):
+                    unlocked += 1
+            except Exception:  # noqa: BLE001 - one preview must not stop the others
+                logger.exception("Could not unlock preview %s", row.id)
+    return {"checked": len(rows), "unlocked": unlocked}
+
+
 async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Cron: pull fresh audience metrics for recently published posts."""
     from ..database import AsyncSessionLocal

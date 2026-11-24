@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { UpgradeExamplesGallery } from "@/components/billing/upgrade-examples-gallery";
+import { AgentFilm } from "@/components/agent/onboarding/agent-film";
 import { CountUp, FontIllustration, LengthIllustration } from "@/components/billing/upgrade-illustrations";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
@@ -40,6 +41,10 @@ export type UpgradeReason =
   | { kind: "member_limit"; limit: number; remaining: number; requiredMinutes?: number }
   | { kind: "video_too_long"; durationSeconds: number; maxSeconds: number }
   | { kind: "custom_fonts" }
+  /** Agent is a Creator feature; `trialUsed` when a Pro account has used its free messages. */
+  | { kind: "agent"; trialUsed?: boolean }
+  /** A free preview: `more` clips are waiting to be unlocked. */
+  | { kind: "preview"; more: number }
   | { kind: "explore" };
 
 type UpgradeBilling = Pick<
@@ -277,6 +282,18 @@ function copyFor(
         title: t("upgrade.fonts.title"),
         body: t("upgrade.fonts.body"),
       };
+    case "preview":
+      return {
+        eyebrow: t("upgrade.preview.eyebrow"),
+        title: t("upgrade.preview.title", { count: reason.more }),
+        body: t("upgrade.preview.body"),
+      };
+    case "agent":
+      return {
+        eyebrow: t("upgrade.agent.eyebrow"),
+        title: t(reason.trialUsed ? "upgrade.agent.titleUsed" : "upgrade.agent.title"),
+        body: t(reason.trialUsed ? "upgrade.agent.bodyUsed" : "upgrade.agent.body"),
+      };
     default:
       return {
         eyebrow: t("upgrade.explore.eyebrow"),
@@ -293,9 +310,11 @@ interface UpgradeDialogProps {
   billing: UpgradeBilling | null | undefined;
   /** Where the prompt was shown, for analytics. */
   source: string;
+  /** A page on this site checkout returns to (a free preview project); Settings otherwise. */
+  returnTo?: string;
 }
 
-export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: UpgradeDialogProps) {
+export function UpgradeDialog({ open, onOpenChange, reason, billing, source, returnTo }: UpgradeDialogProps) {
   const text = useBillingPlanText();
   const settings = useTranslations("settings");
   const state = getUpgradeState(billing);
@@ -336,7 +355,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
     if (!target) return;
     setIsRedirecting(true);
     try {
-      await startUpgrade(target.id, `${source}:${reason.kind}`, billingInterval);
+      await startUpgrade(target.id, `${source}:${reason.kind}`, billingInterval, returnTo);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : text.t("checkoutError"));
       setIsRedirecting(false);
@@ -455,6 +474,10 @@ function preferredPlan(reason: UpgradeReason, options: PublicBillingPlan[]): Bil
   if (reason.kind === "video_too_long") {
     const fits = options.find((plan) => plan.youtubeMaxMinutes * 60 >= reason.durationSeconds);
     if (fits) return fits.id;
+  }
+  if (reason.kind === "agent") {
+    const creator = options.find((plan) => plan.id === "scale");
+    if (creator) return creator.id;
   }
   return (options.find((plan) => plan.highlighted) ?? options[0])?.id;
 }
@@ -581,6 +604,24 @@ function PlanShowcase({
 }) {
   const text = useBillingPlanText();
   const isSpecificIllustration = reason.kind === "video_too_long" || reason.kind === "custom_fonts";
+
+  if (reason.kind === "agent") {
+    return (
+      <div className="hidden flex-col justify-center border-l bg-muted/50 p-6 sm:flex">
+        <div className="overflow-hidden rounded-2xl border bg-canvas shadow-[0_24px_60px_-36px_rgb(28_25_23/0.5)]">
+          <AgentFilm active />
+        </div>
+        <ul className="mt-6 space-y-2 border-t pt-5">
+          {[0, 1, 2].map((perk) => (
+            <li key={perk} className="flex items-start gap-2 text-sm">
+              <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              {text.t(`upgrade.agent.perks.${perk}`)}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   if (isSpecificIllustration) {
     return (

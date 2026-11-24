@@ -57,6 +57,28 @@
       "body": "Das war alles. Füge hier deinen ersten Link ein, den Rest erledigen wir."
     }
   },
+  "creator-agent": {
+    "intro": {
+      "title": "Lern deinen Agenten kennen",
+      "body": "Deine Startseite kann dir jetzt die Arbeit abnehmen. Sag dem Agenten, was du willst, und er clippt, bearbeitet, schreibt Beschreibungen, plant und postet, mit denselben Werkzeugen wie du."
+    },
+    "talk": {
+      "title": "Sag es, wie du es einem Cutter sagen würdest",
+      "body": "Füg einen Link ein oder häng ein Video an und schreib dazu, was du willst: „drei Clips für TikTok diese Woche“, „schneid die Ähms aus Clip 2 raus“, „poste den besten morgen um 18 Uhr“. Gibt es etwas zu entscheiden, zeigt er dir Optionen zum Antippen."
+    },
+    "suggestions": {
+      "title": "Ideen nur für dich",
+      "body": "Diese Vorschläge kommen aus deinem eigenen Konto: Clips aus deinem neuesten Projekt posten, eine Serie daraus machen oder sehen, was ansteht. Ein Tipp, und Agent legt los."
+    },
+    "manual": {
+      "title": "Deine Einstellungen bleiben einen Klick entfernt",
+      "body": "Willst du für ein Video jede Einstellung vor dir haben? Dieser Link öffnet das Erstellformular nur dieses eine Mal. Was zuerst aufgeht, legst du in den Einstellungen fest."
+    },
+    "calendar": {
+      "title": "Alles in einem Kalender",
+      "body": "Jeder geplante, gepostete und fehlgeschlagene Clip an einem Ort. Zieh einen Beitrag auf einen anderen Tag, um ihn zu verschieben, oder lass den Agenten die Lücken zu guten Zeiten mit deinen besten ungeposteten Clips füllen. Sofort gepostet wird nur mit deinem OK."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Neu: Workflows",

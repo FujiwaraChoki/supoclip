@@ -1,5 +1,6 @@
 "use client";
 
+import { PebbleIcon } from "@/components/agent/agent-mark";
 import { useState, useRef, useEffect, useCallback, useMemo, useId } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -29,6 +30,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
+import type { LockedAgent } from "@/components/home-router";
+import { emitPebble } from "@/lib/pebble-events";
 import { UpgradeDialog, UpgradeNudge, getUpgradeState, memberLimitReason, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { getPublicBillingPlans, type PublicBillingPlan } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -164,7 +167,16 @@ function greetingText(t: ReturnType<typeof useTranslations<"home">>, name?: stri
   return first ? t("greeting.named", { greeting: part, name: first }) : part;
 }
 
-export default function HomeApp() {
+/**
+ * `agentLink`: where "Ask the agent instead" goes, when the agent is offered to this person.
+ * `agentLocked`: the agent needs Creator here, so the link opens the upgrade dialog instead.
+ */
+export default function HomeApp({ agentLink, agentLocked, preview }: {
+  agentLink?: string;
+  agentLocked?: LockedAgent;
+  /** Agent's onboarding: this account's first clip from its own video is free (onboarding/preview.py). */
+  preview?: { active: boolean };
+} = {}) {
   const t = useTranslations("home");
   const tCommon = useTranslations("common");
   const [url, setUrl] = useState("");
@@ -314,6 +326,14 @@ export default function HomeApp() {
     trackEvent("source_entered", { source_kind: sourceKind });
   }, [file, url, urlSource]);
 
+  // Agent's onboarding looks at a pasted link (title, length, how many clips) once typing stops.
+  useEffect(() => {
+    if (file || !urlSource) return;
+    const link = url.trim();
+    const timer = window.setTimeout(() => emitPebble("pebble:source", { url: link }), 600);
+    return () => window.clearTimeout(timer);
+  }, [file, url, urlSource]);
+
   useEffect(() => {
     let cancelled = false;
     clipLengthEdited.current = false;
@@ -461,7 +481,9 @@ export default function HomeApp() {
     setSourceSeconds(null);
     if (next) {
       void readVideoDuration(next).then((seconds) => {
-        if (durationFile.current === next) setSourceSeconds(seconds);
+        if (durationFile.current !== next) return;
+        setSourceSeconds(seconds);
+        if (seconds) emitPebble("pebble:file", { durationSeconds: seconds });
       });
     }
     if (!next && fileInputRef.current) fileInputRef.current.value = "";
@@ -895,7 +917,9 @@ export default function HomeApp() {
       has_instructions: Boolean(sentInstructions),
       blocked_by_upgrade: generationRequiresUpgrade,
     });
-    if (generationRequiresUpgrade) {
+    // The free preview: plain highlights of one linked video, nothing else on top.
+    const freePreview = Boolean(preview?.active && generationRequiresUpgrade && activeWorkflow === "highlights" && !sentInstructions);
+    if (generationRequiresUpgrade && !freePreview) {
       // A limit a team admin set for this member is not something a plan fixes.
       openUpgrade(memberLimitReason(billingSummary) ?? { kind: upgradeState?.isPaid ? "limit" : "start" });
       return;
@@ -948,7 +972,8 @@ export default function HomeApp() {
         remove_filler_words: removeFillerWords,
         filtered_words: normalizedFilteredWords,
         // Only when intensity isn't off: an off request stays exactly today's.
-        ...(fxFields.edit_style ? { edit_style: fxFields.edit_style } : {}),
+        ...(fxFields.edit_style && !freePreview ? { edit_style: fxFields.edit_style } : {}),
+        ...(freePreview ? { preview: true } : {}),
       };
       // Plain highlights without instructions sends exactly the request it always has.
       const options: WorkflowOptions = {};
@@ -970,6 +995,14 @@ export default function HomeApp() {
 
       if (!startResponse.ok) {
         const info = await parseApiError(startResponse, t("errors.api", { status: startResponse.status }));
+        if (freePreview && (info.code === "VIDEO_TOO_LONG" || info.code === "PREVIEW_UNAVAILABLE")) {
+          // Agent explains (in the dock) and offers the plans; the form shows the same line.
+          emitPebble("pebble:preview-error", { code: info.code ?? null, message: info.message });
+          setError(info.message);
+          setIsLoading(false);
+          setStatusMessage("");
+          return;
+        }
         if (info.code === "VIDEO_DURATION_UNAVAILABLE") {
           setLengthError({ kind: "durationUnavailable" });
           setIsLoading(false);
@@ -1026,6 +1059,7 @@ export default function HomeApp() {
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
+      if (freePreview && startResult.task_id && !alreadyProcessing) emitPebble("pebble:preview-started", { taskId: String(startResult.task_id) });
       window.location.href = taskPathFromCreate(startResult);
     } catch (error) {
       console.error("Error processing video:", error);
@@ -1073,7 +1107,8 @@ export default function HomeApp() {
             {t(`subtitleByWorkflow.${activeWorkflow}`)}
           </p>
 
-          {upgradeState && billingSummary && (billingTeamId
+          {/* While the first clip is free, Agent offers the plans when it's ready; no upsell here. */}
+          {upgradeState && billingSummary && !preview?.active && (billingTeamId
             ? <TeamStatusNudge state={upgradeState} billing={billingSummary} teamRole={teamRole} />
             : <PlanStatusNudge state={upgradeState} onUpgrade={openUpgrade} />)}
 
@@ -1539,6 +1574,7 @@ export default function HomeApp() {
                 <Button
                   type="submit"
                   size="icon"
+                  data-tour="composer-generate"
                   aria-label={t(`generateByWorkflow.${activeWorkflow}`)}
                   disabled={!hasSource || isLoading || lengthLoading || awaitingWorkflows || awaitingEditStyles || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
@@ -1548,6 +1584,28 @@ export default function HomeApp() {
               </div>
             </div>
           </form>
+
+          {agentLink && (
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              <Link href={agentLink} className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
+                <PebbleIcon className="size-3.5" />{t("askAgentInstead")}
+              </Link>
+            </p>
+          )}
+          {agentLocked && (
+            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-xs text-muted-foreground">
+              {agentLocked.lapsed && <span>{t(agentLocked.reason === "trial_used" ? "agentTrialEnded" : "agentLapsed")}</span>}
+              <button
+                type="button"
+                onClick={() => openUpgrade({ kind: "agent", trialUsed: agentLocked.reason === "trial_used" })}
+                className="group inline-flex items-center gap-1.5 underline-offset-2 hover:text-foreground"
+              >
+                <PebbleIcon className="size-3.5" />
+                <span className="group-hover:underline">{t(agentLocked.lapsed ? "agentBackWithCreator" : "askAgentInstead")}</span>
+                <span className="rounded-full border border-brand/25 bg-brand/5 px-1.5 py-px text-[10px] font-medium leading-4 text-brand">{t("creatorTag")}</span>
+              </button>
+            </p>
+          )}
 
           {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
 

@@ -57,6 +57,28 @@
       "body": "Itu saja. Tempel tautan pertamamu di sini dan sisanya serahkan pada kami."
     }
   },
+  "creator-agent": {
+    "intro": {
+      "title": "Kenalan dengan agenmu",
+      "body": "Beranda kamu sekarang bisa mengerjakan semuanya untukmu. Bilang ke agen apa yang kamu mau, dan dia akan membuat clip, mengedit, menulis caption, menjadwalkan, dan memposting, dengan alat yang sama seperti yang kamu pakai."
+    },
+    "talk": {
+      "title": "Bilang saja seperti ke editor",
+      "body": "Tempel tautan atau lampirkan video, lalu tambahkan apa yang kamu mau: “tiga clip untuk TikTok minggu ini”, “potong semua ehm di clip 2”, “posting yang terbaik besok jam 6”. Kalau ada yang perlu diputuskan, dia akan menampilkan pilihan yang tinggal kamu ketuk."
+    },
+    "suggestions": {
+      "title": "Ide khusus untukmu",
+      "body": "Saran ini berasal dari akunmu sendiri: posting clip dari proyek terbarumu, jadikan serial, atau lihat yang akan datang. Sekali ketuk, Agent langsung bekerja."
+    },
+    "manual": {
+      "title": "Kontrolmu tetap satu klik saja",
+      "body": "Mau semua pengaturan ada di depanmu untuk satu video? Tautan ini membuka formulir pembuatan untuk kali ini saja. Kamu bisa memilih mana yang terbuka duluan di Pengaturan."
+    },
+    "calendar": {
+      "title": "Semuanya dalam satu kalender",
+      "body": "Setiap clip yang terjadwal, sudah diposting, dan gagal ada di satu tempat. Seret postingan ke hari lain untuk memindahkannya, atau minta agen mengisi slot kosong dengan clip terbaikmu yang belum diposting, di waktu yang pas. Posting langsung selalu menunggu OK darimu."
+    }
+  },
   "workflows": {
     "intro": {
       "title": "Memperkenalkan alur kerja",

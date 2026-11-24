@@ -88,6 +88,23 @@
     "teamStart": {
       "title": "{team} precisa de um plano Equipe para criar clipes",
       "body": "Os clipes criados aqui usam as horas compartilhadas da equipe, então a equipe precisa primeiro de um plano Equipe ativo."
+    },
+    "agent": {
+      "eyebrow": "Agent · Creator",
+      "title": "Corte, planeje e publique só pedindo",
+      "titleUsed": "Essa foi sua última mensagem grátis do Agent",
+      "body": "O Agent faz parte do Creator. Diga o que você quer e ele cria os clipes, organiza sua semana e continua postando enquanto você segue o seu dia.",
+      "bodyUsed": "Esperamos que tenha ajudado. O Agent faz parte do Creator: continue de onde parou, com todas as conversas guardadas.",
+      "perks": {
+        "0": "Agent: corta, edita, agenda e publica por você",
+        "1": "Um calendário de posts que ele preenche e organiza",
+        "2": "E tudo mais do Creator, como Full HD 1080p"
+      }
+    },
+    "preview": {
+      "eyebrow": "Seu clipe grátis",
+      "title": "{count, plural, one {Desbloqueie o outro clipe} other {Desbloqueie os outros # clipes}}",
+      "body": "Eles já foram encontrados e estão esperando. Escolha um plano e eles são feitos aqui mesmo, neste projeto."
     }
   },
   "illustration": {

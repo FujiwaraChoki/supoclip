@@ -52,8 +52,11 @@ class TaskRepository:
         edit_style: Optional[Dict[str, Any]] = None,
         idempotency: Optional[tuple[str, str]] = None,
         team_id: Optional[str] = None,
+        preview: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create a new task and return its ID.
+
+        ``preview`` marks a free preview project (set in the same transaction, never charged).
 
         ``edit_style`` is ``EditStyle.to_json()``. Only a non-empty style adds the column, with a third INSERT
         shape, so tasks without dynamic edits keep the two legacy statements byte for byte (and NULL in the row).
@@ -149,6 +152,11 @@ class TaskRepository:
                     text("UPDATE tasks SET team_id = :team_id WHERE id = :task_id"),
                     {"team_id": team_id, "task_id": task_id},
                 )
+            if preview is not None:
+                await db.execute(
+                    text("UPDATE tasks SET preview = CAST(:preview AS JSONB) WHERE id = :task_id"),
+                    {"preview": json.dumps(preview), "task_id": task_id},
+                )
             if charge_minutes:
                 await record_minute_usage(
                     db, user_id, task_id, source_duration_seconds, team_id=team_id
@@ -184,6 +192,19 @@ class TaskRepository:
             await db.execute(
                 text("UPDATE tasks SET workflow_plan = CAST(:plan AS JSONB) WHERE id = :task_id"),
                 {"task_id": task_id, "plan": None if plan is None else json.dumps(plan)},
+            )
+            await commit_unless_editing(db)
+        except BaseException:
+            await db.rollback()
+            raise
+
+    @staticmethod
+    async def save_preview(db: AsyncSession, task_id: str, preview: Dict[str, Any]) -> None:
+        """Store a free preview's state (what was found, which clip rendered, the locked rest)."""
+        try:
+            await db.execute(
+                text("UPDATE tasks SET preview = CAST(:preview AS JSONB) WHERE id = :task_id AND preview IS NOT NULL"),
+                {"task_id": task_id, "preview": json.dumps(preview)},
             )
             await commit_unless_editing(db)
         except BaseException:
@@ -458,6 +479,7 @@ class TaskRepository:
             "workflow_options": getattr(row, "workflow_options", None) or {},
             "workflow_plan": getattr(row, "workflow_plan", None),
             "edit_style": getattr(row, "edit_style", None),
+            "preview": getattr(row, "preview", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }

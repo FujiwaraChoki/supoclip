@@ -216,7 +216,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 **Social publishing:**
 - `GET /social/providers`, `GET /social/connections` — configured platforms and connected accounts
 - `POST /social/connections/{provider}/authorize` + `/callback` — OAuth handshake (session auth only)
-- `POST /social/posts` — publish or schedule a clip; `GET /social/posts?task_id=` — list with metrics
+- `POST /social/posts` — publish or schedule a clip; `GET /social/posts?task_id=` — list with metrics (`starts_at`/`ends_at` for the calendar)
+- `PATCH /social/posts/{id}` — move or reword a scheduled post
 - `POST /social/posts/{id}/cancel|retry|refresh-metrics`, `DELETE /social/posts/{id}`
 - `GET /social/performance` — metrics by hook type / platform / clip length (also fed into the AI prompt)
 - `GET /social/performance/timeseries?days=30` — daily new views from metrics snapshots (Analytics chart)
@@ -347,6 +348,12 @@ REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
 UPLOAD_COPY_WAIT_SECONDS=1800        # Worker on another machine: wait for an upload to reach the bucket
 AI_EDIT_DAILY_LIMIT=150              # Studio AI edits per user per day (needs ANTHROPIC_API_KEY)
+AGENT_MODEL=claude-sonnet-5-5        # Agent home screen model (needs ANTHROPIC_API_KEY)
+AGENT_DAILY_TURN_LIMIT=150           # Agent messages per user per 24 hours
+AGENT_TRIAL_MESSAGES=5               # Free Agent messages for paid Pro accounts (lifetime)
+AGENT_ONBOARDING_SINCE=2026-11-24T00:00:00Z # Accounts created since then get the home choice screen
+PEBBLE_ONBOARDING_PERCENT=50         # Share of new accounts in the Agent-guided onboarding (A/B)
+PREVIEW_MAX_MINUTES=90               # Longest video a free preview clip takes (PREVIEW_DAILY_LIMIT caps them per day)
 TEMP_DIR=/tmp                        # Uploads, caches, renders; per machine when MEDIA_STORAGE=s3
 EDIT_PLAN_LLM=                       # Dynamic edits beat tagging model (default: LLM)
 EDIT_PLAN_TIMEOUT_SECONDS=45         # Past it: heuristic beats
@@ -453,6 +460,34 @@ undo history only for the last few saved clips.
 AI worker → Claude Sonnet 5.5 returns typed operations (`keep_ranges`, `remove_words`, `set`, `add_broll`, ...) →
 `apply_plan` clamps and validates → the browser applies the result as one undoable change (never over edits made
 meanwhile). Keep the output schema free of optional fields: the API rejects schemas whose grammar is too large.
+
+### Creator agent and posting calendar
+
+Creator (and Team) plans can make home an agent: a chat where Claude Sonnet 5.5 clips, edits, schedules and
+publishes for them. Full design in `docs/creator-agent.md`.
+
+- **Home:** `users.home_mode` (`agent` | `manual` | NULL = ask once); Settings → Home screen; `?mode=manual|agent`
+  opens the other one once (`homeScreenFor` in `home-router.tsx`). Gate: `agent/access.py` (Creator/Team paid,
+  admins, every self-host; paid Pro gets `AGENT_TRIAL_MESSAGES` free messages; Free sees it locked and gets the
+  upgrade dialog's `agent` reason) plus the `creator_agent` feature flag. The choice screen goes to full access
+  and accounts created since `AGENT_ONBOARDING_SINCE` (`offer_choice`).
+- **Turns run in the API process** (`backend/src/agent/runtime.py`), stream over a Redis stream to SSE
+  (`/agent/conversations/{id}/events`), and call SupoClip's own routes in-process as the user
+  (`agent/api_client.py`), so every limit and check applies. Transcript is append-only content blocks in
+  `agent_messages`; `publish_now`/`delete_project` wait for approval in the chat.
+- **Tools** (`agent/tools.py`): library, create project, follow-up when a project finishes, studio edits in the
+  background (`agent_jobs`), trim, restyle, captions, schedule/publish/move/cancel posts, posting times,
+  performance, defaults, memory, and `show_options` (tappable chips, choice cards, clip and time pickers).
+- **Calendar:** `/calendar`; `GET /social/posts?starts_at&ends_at`, `PATCH /social/posts/{id}` (scheduled only).
+
+### Onboarding guided by Agent and the free preview clip
+
+New accounts are split (A/B, `users.onboarding_variant`, `PEBBLE_ONBOARDING_PERCENT`/`_SINCE`, flag `pebble_onboarding`)
+between the classic onboarding and one guided by Agent: a scripted intro on home, then a docked guide on the real
+pages (`frontend/src/components/onboarding/`). Their first clip is free: `POST /tasks/` with `"preview": true`
+renders only the best clip and lists the rest as locked moments in `tasks.preview` (never charged; edits answer 402
+`PREVIEW_LOCKED`); `POST /tasks/{id}/unlock` charges the minutes and renders the rest in place. Checkout takes
+`return_to` back to the project. Limits: `PREVIEW_MAX_MINUTES`, `PREVIEW_DAILY_LIMIT`. Full design: `docs/onboarding.md`.
 
 ### Workflows (series, topic clips, recap, trailer)
 

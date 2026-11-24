@@ -1,0 +1,171 @@
+{
+  "intro": {
+    "hello": "Hey {name}! Ich bin der Agent von SupoClip!",
+    "helloNoName": "Hey! Ich bin der Agent von SupoClip!",
+    "pitch": "Ich mache aus langen Videos kurze Clips, die wirklich geschaut werden. Lass uns deine ersten machen.",
+    "pitchFree": "Ich mache aus langen Videos kurze Clips, die wirklich geschaut werden. Dein erster geht auf mich, ohne Karte.",
+    "askMakes": "Also, was machst du so?",
+    "makes": {
+      "podcasts": "Podcasts",
+      "streams": "Streams & Gaming",
+      "youtube": "YouTube-Videos",
+      "talks": "Kurse & Vorträge",
+      "other": "Etwas anderes"
+    },
+    "reply": {
+      "podcasts": "Stark. Podcasts stecken voller Momente, die für sich allein funktionieren: Eine pointierte Antwort erreicht oft mehr Leute als die ganze Folge.",
+      "streams": "Cool. In Stunden von Stream verstecken sich ein paar Momente, die Leute teilen würden. Die zu finden ist mein Job.",
+      "youtube": "Super. Deine besten Minuten verdienen ein zweites Leben als Shorts, Reels und TikToks.",
+      "talks": "Perfekt. Ein guter Vortrag hat ein paar Sätze, die zitiert werden. Ich finde sie und schneide sie sauber.",
+      "other": "Gut. Egal was es ist: Wenn darin geredet wird, finde ich die Momente, die sich zu teilen lohnen."
+    },
+    "offer": "Willst du sehen, was aus deinem eigenen Video wird?",
+    "offerFree": "Willst du deins sehen? Füg einen Link ein und ich mache deinen besten Clip, kostenlos.",
+    "start": "Lass uns meins machen",
+    "startFree": "Meinen Gratis-Clip machen",
+    "skip": "Jetzt überspringen",
+    "showcase": "Hier ein Vorgeschmack: ein paar Clips aus echten Podcast-Folgen, jeder in einem anderen Stil."
+  },
+  "plans": {
+    "label": "Pläne",
+    "suggested": "Empfohlen",
+    "proExtra": "Untertitel, B-Roll und eigene Schriften",
+    "creatorExtra": "Agent erledigt alles für dich, plus Planung",
+    "cta": "Weiter mit {plan}",
+    "ctaUnlock": "{count, plural, one {Den anderen Clip freischalten} other {Die anderen # Clips freischalten}}",
+    "checkoutFailed": "Checkout konnte nicht geöffnet werden. Versuch es noch mal."
+  },
+  "dock": {
+    "label": "Agent, dein Guide",
+    "open": "Agent öffnen",
+    "minimize": "Minimieren",
+    "skip": "Tour beenden",
+    "steps": {
+      "link": "Erster Clip",
+      "making": "In Arbeit",
+      "ready": "Dein Clip",
+      "paid": "Freischalten",
+      "choose": "Letzter Schritt",
+      "done": "Fertig"
+    },
+    "link": {
+      "elsewhere": "Dein erster Clip startet auf dem Erstellen-Bildschirm.",
+      "goHome": "Bring mich hin",
+      "paste": "Füg oben einen Link zu einem deiner Videos ein oder lade eine Datei hoch, dann tipp auf den Pfeil.",
+      "pasteFree": "Füg oben einen Link zu einem deiner Videos ein oder lade eine Datei hoch. Ich mache deinen besten Clip kostenlos, ohne Karte.",
+      "lookFailed": "Den Link konnte ich nicht öffnen. Ist das Video öffentlich? Versuch es noch mal.",
+      "untitled": "Dein Video",
+      "estimate": "{count, plural, one {Etwa ein Clip steckt drin} other {Etwa # Clips stecken drin}}",
+      "free": "Hab's, {runtime} lang. Ich sehe darin etwa {count, plural, one {einen Clip} other {# Clips}}. Tipp auf den Pfeil und ich mache dir den besten, kostenlos.",
+      "paid": "Hab's, {runtime} lang, etwa {count, plural, one {ein Clip} other {# Clips}} drin. Tipp auf den Pfeil und ich lege los.",
+      "refused": {
+        "tooLong": "Das hier ist {runtime} lang. Gratis-Clips gehen bei Videos bis {minutes} Minuten. Nimm ein kürzeres, oder wähl einen Plan und ich clippe das ganze Video.",
+        "used": "Deinen Gratis-Clip hattest du schon. Wähl einen Plan und ich clippe dieses Video komplett.",
+        "running": "Dein Gratis-Clip wird schon gemacht. Ich sag Bescheid, wenn er fertig ist.",
+        "busy": "Gratis-Clips sind heute pausiert, sorry. Wähl einen Plan und ich fange sofort an.",
+        "unverified": "Bestätige zuerst deine E-Mail (schau in dein Postfach) und füg den Link dann noch mal ein. Dein Gratis-Clip wartet.",
+        "disabled": "Gratis-Clips gibt es gerade nicht. Wähl einen Plan und ich clippe dieses Video komplett.",
+        "team": "Gratis-Clips gibt es für persönliche Konten. Wähl einen Plan und ich clippe dieses Video komplett.",
+        "not_needed": "Dein Plan deckt das schon ab. Tipp auf den Pfeil und ich lege los.",
+        "unavailable": "Gratis-Clips gibt es gerade nicht. Wähl einen Plan und ich clippe dieses Video komplett."
+      }
+    },
+    "making": {
+      "started": "Bin dran! Ich schaue mir das ganze Video an und suche die Momente, die sich lohnen.",
+      "wait": "Das dauert ein paar Minuten. Schau dich ruhig um, ich schick dir eine E-Mail, wenn er fertig ist.",
+      "failed": "Hm, das hat nicht geklappt. Passiert bei manchen Videos. Willst du ein anderes probieren?",
+      "again": "Anderes Video probieren",
+      "phase": {
+        "fetch": "Hole dein Video",
+        "listen": "Höre jedes Wort",
+        "find": "Suche die besten Momente",
+        "cut": "Schneide deinen Clip",
+        "finish": "Letzter Feinschliff"
+      }
+    },
+    "ready": {
+      "best": "Fertig! Dein bester Moment: **„{hook}“**. Er hat {score} von 100 Punkten.",
+      "bestNoHook": "Fertig! Dein erster Clip ist da.",
+      "show": "Zeig ihn mir",
+      "open": "Clip öffnen",
+      "more": "{count, plural, one {Ich habe noch einen Moment in diesem Video gefunden. Er ist bereit, es fehlt nur ein Plan.} other {Ich habe noch # Momente in diesem Video gefunden. Sie sind bereit, es fehlt nur ein Plan.}}",
+      "later": "Vielleicht später"
+    },
+    "paid": {
+      "thanks": "Du bist dabei! Ich mache jetzt den Rest deiner Clips, direkt hier."
+    },
+    "choose": {
+      "ask": "Eine letzte Sache: Womit soll deine Startseite öffnen?",
+      "allSet": "Alles bereit. Füg jederzeit einen neuen Link ein, den Rest mache ich.",
+      "tryAgent": "{count, plural, one {Agent testen (eine Gratis-Nachricht)} other {Agent testen (# Gratis-Nachrichten)}}",
+      "finish": "Fertig",
+      "saveFailed": "Konnte das nicht speichern. Du kannst es in den Einstellungen ändern.",
+      "agent": {
+        "title": "Agent fragen",
+        "body": "Sag einfach, was du willst"
+      },
+      "manual": {
+        "title": "Details ausfüllen",
+        "body": "Jede Einstellung selbst"
+      }
+    },
+    "done": {
+      "bye": "Das war die Tour! Ich melde mich, wenn du etwas Neues öffnest."
+    }
+  },
+  "hints": {
+    "label": "Agent",
+    "close": "Schließen",
+    "gotIt": "Verstanden",
+    "libraryTitle": "Deine Bibliothek",
+    "library": "Hier liegt jedes Projekt. Öffne eins, um seine Clips anzusehen, herunterzuladen oder zu verfeinern.",
+    "calendarTitle": "Dein Posting-Kalender",
+    "calendar": "Alles, was du geplant hast, Tag für Tag. Zieh einen Post, um ihn zu verschieben.",
+    "socialTitle": "Verbinde deine Konten",
+    "social": "Verknüpf YouTube, TikTok oder Instagram einmal und poste dann jeden Clip mit einem Klick.",
+    "analyticsTitle": "Wie deine Clips laufen",
+    "analytics": "Aufrufe und was funktioniert, damit deine nächsten Clips noch besser ankommen.",
+    "settingsTitle": "Deine Standards",
+    "settings": "Wähl deinen Untertitelstil einmal und jeder neue Clip nutzt ihn.",
+    "assistantsTitle": "SupoClip in anderen Apps",
+    "assistants": "Verbinde Claude, ChatGPT oder Cursor und mach Clips, ohne SupoClip zu öffnen.",
+    "clipsTitle": "Deine Clips",
+    "clips": "Die Zahl auf jedem Clip ist sein Score: Je höher, desto eher geht er rum. Öffne einen, um ihn anzusehen, herunterzuladen oder zu verfeinern.",
+    "studioTitle": "Das Studio",
+    "studio": "Sag der KI, was sie ändern soll, etwa „schneid die Ähms raus“ oder „mach es knackiger“, und sie bearbeitet den Clip für dich."
+  },
+  "preview": {
+    "lockedLabel": "Gesperrter Clip: {hook}",
+    "lockedTag": "Mit einem Plan freischalten",
+    "untitled": "Noch ein starker Moment",
+    "bannerTitle": "{found, plural, one {Dein Gratis-Clip ist fertig} other {Dein Gratis-Clip, aus # gefundenen Momenten}}",
+    "bannerBody": "{count, plural, one {Unten wartet noch ein Moment. Wähl einen Plan und er wird direkt hier gemacht.} other {Unten warten noch # Momente. Wähl einen Plan und sie werden direkt hier gemacht.}}",
+    "bannerBodyOne": "Das ist der beste Moment in diesem Video. Wähl einen Plan, um dein nächstes zu clippen.",
+    "unlock": "{count, plural, one {Freischalten} other {Alle # freischalten}}",
+    "unlockFailed": "Die Clips konnten nicht freigeschaltet werden. Versuch es noch mal.",
+    "unlockWaiting": "Dein Plan wird noch eingerichtet. Lade gleich neu, um deine Clips freizuschalten."
+  },
+  "showcase": {
+    "styles": {
+      "hormozi": "Hormozi-Untertitel",
+      "kinetic": "Kinetische Untertitel",
+      "podcast": "Podcast-Untertitel",
+      "highlighter": "Textmarker-Untertitel"
+    },
+    "dynamic": "dynamischer Schnitt",
+    "clips": {
+      "hormozi": {
+        "hook": "One hypnosis session, 23% quit smoking"
+      },
+      "kinetic": {
+        "hook": "Tesla emailed me a Cybercab order link"
+      },
+      "podcast": {
+        "hook": "Why Earth's gravity makes rockets so hard"
+      },
+      "highlighter": {
+        "hook": "The engineers NVIDIA embeds inside AI labs"
+      }
+    }
+  }
+}

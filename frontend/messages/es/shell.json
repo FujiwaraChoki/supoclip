@@ -7,7 +7,8 @@
     "agents": "Agentes y API",
     "settings": "Ajustes",
     "admin": "Administración",
-    "newGeneration": "Nueva generación"
+    "newGeneration": "Nueva generación",
+    "calendar": "Calendario"
   },
   "search": {
     "generations": "Buscar generaciones",
@@ -27,7 +28,8 @@
     "analyticsHint": "Cómo rinden tus clips publicados",
     "agentsHint": "Claves de API y MCP",
     "team": "Equipo y espacios",
-    "teamHint": "Administra miembros, puestos y horas compartidas"
+    "teamHint": "Administra miembros, puestos y horas compartidas",
+    "calendarHint": "Todo lo programado y publicado"
   },
   "usage": {
     "pickPlan": "Elige un plan para empezar a recortar",

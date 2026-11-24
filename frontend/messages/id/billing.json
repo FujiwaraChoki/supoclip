@@ -88,6 +88,23 @@
     "teamStart": {
       "title": "{team} butuh paket Tim untuk membuat klip",
       "body": "Klip yang dibuat di sini memakai jam bersama tim, jadi tim perlu paket Tim yang aktif lebih dulu."
+    },
+    "agent": {
+      "eyebrow": "Agent · Creator",
+      "title": "Klip, rencanakan, dan posting cukup dengan meminta",
+      "titleUsed": "Itu pesan Agent gratis terakhirmu",
+      "body": "Agent termasuk dalam Creator. Bilang saja maumu, lalu ia membuat klip, menyusun jadwal minggumu, dan terus memposting sementara kamu menjalani harimu.",
+      "bodyUsed": "Semoga membantu. Agent termasuk dalam Creator: lanjutkan dari terakhir kali, semua percakapan tetap tersimpan.",
+      "perks": {
+        "0": "Agent: membuat klip, mengedit, menjadwalkan, dan memposting untukmu",
+        "1": "Kalender posting yang ia isi dan rapikan",
+        "2": "Plus semua fitur Creator lainnya, seperti Full HD 1080p"
+      }
+    },
+    "preview": {
+      "eyebrow": "Klip gratismu",
+      "title": "Buka {count} klip lainnya",
+      "body": "Semuanya sudah ditemukan dan menunggu. Pilih paket dan semuanya dibuat langsung di proyek ini."
     }
   },
   "illustration": {

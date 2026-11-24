@@ -1,0 +1,455 @@
+{
+  "greeting": {
+    "upLate": "这么晚还没睡，{name}？",
+    "morning": "早上好，{name}。",
+    "afternoon": "嗨，{name}。",
+    "evening": "晚上好，{name}。"
+  },
+  "subtitle": "丢个视频进来，或者告诉我你需要什么。我来切片段、打磨，再帮你发出去。",
+  "manualLink": "想自己填细节？手动制作片段",
+  "thinking": "思考中",
+  "composer": {
+    "label": "给智能体发消息",
+    "placeholder": "想做什么尽管说…",
+    "placeholderHome": "粘贴视频链接，或让我帮你规划这周…",
+    "placeholderReply": "回复…",
+    "placeholderApproval": "回复，或在上方作答…",
+    "attach": "附件",
+    "send": "发送",
+    "stop": "停止",
+    "remove": "移除",
+    "videoLink": "视频链接",
+    "clipThis": "用这个视频做片段",
+    "disclaimer": "智能体也会出错。需要立即发布时，它都会先问你。",
+    "lookAtThis": "看看这个",
+    "uploading": "上传中",
+    "dropTitle": "拖到这里",
+    "dropBody": "要剪辑的视频、图片、PDF，以及脚本或字幕等文本文件。",
+    "tooMany": "每条消息最多 {count} 个文件。",
+    "unsupported": "Agent 无法读取 {name} 这种文件类型。",
+    "tooBig": "{name} 太大了。图片最大 20 MB，PDF 最大 10 MB，文本文件最大 500 KB。",
+    "tooBigTotal": "一条消息放不下这么多，剩下的文件请在下一条消息里发送。",
+    "readFailed": "无法读取 {name}。",
+    "kinds": {
+      "video": "视频",
+      "image": "图片",
+      "pdf": "PDF",
+      "text": "文本"
+    },
+    "placeholderLocked": "Agent 包含在 Creator 方案中"
+  },
+  "home": {
+    "recentChats": "最近的对话",
+    "noChats": "你和智能体的对话会显示在这里。",
+    "untitled": "新对话",
+    "needsYou": "等你处理",
+    "comingUp": "即将发布",
+    "calendar": "日历",
+    "nothingScheduled": "还没有排期。要我帮你规划这周吗？"
+  },
+  "errors": {
+    "send": "没发出去，再试一次吧。",
+    "load": "无法加载这个对话。",
+    "retry": "重试",
+    "rename": "无法重命名对话。",
+    "delete": "无法删除对话。"
+  },
+  "chat": {
+    "back": "返回首页",
+    "newChat": "新对话",
+    "more": "更多",
+    "rename": "重命名",
+    "delete": "删除对话"
+  },
+  "options": {
+    "recommended": "推荐",
+    "confirmCount": "{count, plural, one {就选这个} other {就选这 # 个}}",
+    "pickSome": "选一个或多个"
+  },
+  "cards": {
+    "noClipsYet": "还没有片段。",
+    "newProject": "新项目",
+    "projectReady": "{count, plural, one {# 个片段已就绪} other {# 个片段已就绪}}",
+    "projectFailed": "这次没成功。打开看看原因。",
+    "projectQueued": "正在开始…",
+    "untitledPost": "无标题帖子",
+    "viewPost": "查看帖子",
+    "calendarEmpty": "这几天的日历上没有内容。",
+    "openCalendar": "打开日历",
+    "studioEdit": "工作室编辑",
+    "editFailed": "这次编辑没有完成。",
+    "openStudio": "在工作室中打开",
+    "download": "下载",
+    "whenReady": "等“{title}”就绪后",
+    "thisProject": "这个项目",
+    "views30": "播放量，最近 30 天",
+    "published": "已发布的帖子",
+    "openAnalytics": "打开数据分析",
+    "remembered": "已记住：{note}",
+    "defaultsSaved": "已保存你的新默认设置",
+    "restyled": "已更换{title}的字幕样式",
+    "trimmed": "已修剪"
+  },
+  "postStatus": {
+    "scheduled": "已排期",
+    "queued": "排队中",
+    "publishing": "发布中",
+    "published": "已发布",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "editStep": {
+    "preparing": "正在打开工作室",
+    "ai": "编辑中",
+    "render": "渲染中",
+    "done": "完成"
+  },
+  "approval": {
+    "publishTitle": "{count, plural, one {现在发布这个？} other {现在发布这 # 个？}}",
+    "deleteTitle": "删除这个项目？",
+    "deleteBody": "项目及其所有片段都会被永久删除。",
+    "decline": "先不要",
+    "publish": "立即发布",
+    "delete": "删除"
+  },
+  "notice": {
+    "projectDone": "“{title}”已就绪",
+    "projectEnded": "“{title}”已停止",
+    "editDone": "“{title}”的编辑已完成",
+    "editEnded": "“{title}”的编辑已停止"
+  },
+  "steps": {
+    "generic": "正在处理",
+    "waiting": "等你确认",
+    "declined": "已跳过",
+    "failed": "没成功",
+    "lookedAround": "{count, plural, one {查看了一项} other {查看了 # 项}}",
+    "get_overview": {
+      "running": "正在查看你的账号",
+      "done": "看过你的账号了"
+    },
+    "list_projects": {
+      "running": "正在翻看你的项目",
+      "done": "翻看了你的项目"
+    },
+    "get_project": {
+      "running": "正在打开项目",
+      "done": "打开了项目"
+    },
+    "find_clips": {
+      "running": "正在搜索你的片段",
+      "done": "搜索了你的片段"
+    },
+    "get_clip_transcript": {
+      "running": "正在读这个片段",
+      "done": "读完了这个片段"
+    },
+    "create_project": {
+      "running": "正在新建项目",
+      "done": "新建了项目"
+    },
+    "when_project_finishes": {
+      "running": "正在安排后续步骤",
+      "done": "就绪后我会接着处理"
+    },
+    "project_action": {
+      "running": "正在更新项目",
+      "done": "更新了项目"
+    },
+    "delete_project": {
+      "running": "正在删除项目",
+      "done": "删除了项目"
+    },
+    "list_caption_styles": {
+      "running": "正在看字幕样式",
+      "done": "看过字幕样式了"
+    },
+    "edit_clip": {
+      "running": "正在把编辑发到工作室",
+      "done": "正在后台编辑"
+    },
+    "check_background_work": {
+      "running": "正在查看编辑进度",
+      "done": "查看了编辑进度"
+    },
+    "trim_clip": {
+      "running": "正在修剪片段",
+      "done": "修剪好了片段"
+    },
+    "restyle_project": {
+      "running": "正在更换字幕样式",
+      "done": "更换了字幕样式"
+    },
+    "get_calendar": {
+      "running": "正在打开你的日历",
+      "done": "看过你的日历了"
+    },
+    "suggest_posting_times": {
+      "running": "正在找合适的发布时间",
+      "done": "找到了合适的发布时间"
+    },
+    "draft_caption": {
+      "running": "正在写文案",
+      "done": "写好了文案"
+    },
+    "schedule_post": {
+      "running": "正在排期",
+      "done": "排好期了"
+    },
+    "publish_now": {
+      "running": "正在发布",
+      "done": "已发布"
+    },
+    "update_post": {
+      "running": "正在更新帖子",
+      "done": "更新了帖子"
+    },
+    "post_action": {
+      "running": "正在更新帖子",
+      "done": "更新了帖子"
+    },
+    "get_performance": {
+      "running": "正在拉取你的数据",
+      "done": "拉取了你的数据"
+    },
+    "update_create_defaults": {
+      "running": "正在保存你的默认设置",
+      "done": "保存了你的默认设置"
+    },
+    "remember": {
+      "running": "正在记下来",
+      "done": "记下来了"
+    },
+    "forget": {
+      "running": "正在忘掉这条",
+      "done": "忘掉了"
+    },
+    "show_options": {
+      "running": "正在准备选项",
+      "done": "这里有几个选项"
+    }
+  },
+  "choice": {
+    "title": "你想怎么工作？",
+    "subtitle": "让 Agent 替你切片段、剪辑和发布，也可以全部自己掌控。随时都能切换。",
+    "recommended": "推荐",
+    "changeLater": "随时可以在设置里切换，也可以从首页临时换一次。",
+    "saveFailed": "没保存成功，再试一次吧。",
+    "agent": {
+      "title": "和智能体一起工作",
+      "body": "用你自己的话告诉它你想要什么，剩下的交给它。",
+      "perks": {
+        "0": "粘贴链接，说说想做什么",
+        "1": "它会剪辑、写文案、排期发布",
+        "2": "记住你的风格和最佳发布时间"
+      },
+      "cta": "从智能体开始"
+    },
+    "manual": {
+      "title": "自己填细节",
+      "body": "每次都自己选工作流、字幕和时长。",
+      "perks": {
+        "0": "所有设置都摆在眼前",
+        "1": "同样的效果，更多掌控",
+        "2": "想用智能体时，一键就到"
+      },
+      "cta": "使用创建表单"
+    },
+    "creatorTag": "Creator",
+    "trial": {
+      "cta": "免费试用 {count} 条消息"
+    },
+    "locked": {
+      "cta": "查看 Creator"
+    },
+    "subtitleGated": "两种方式剪出的片段完全一样。你可以自己填写细节，也可以升级 Creator 让 Agent 全部搞定。",
+    "includedInPro": "Pro 已包含",
+    "proTag": "Pro"
+  },
+  "settings": {
+    "title": "首页",
+    "description": "打开 SupoClip 时你会看到什么。",
+    "creatorOnly": "你的专属制作人：告诉它你想要什么，它就会剪辑、编辑、排期和发布。包含在 Creator 方案中。",
+    "agentHint": "和你的智能体聊天，制作、编辑和发布片段",
+    "manualHint": "包含所有设置的创建表单",
+    "oneTime": "无论选哪个，输入框下方都有一个链接可以临时打开另一个。",
+    "memoryTitle": "智能体记住的内容",
+    "memoryHint": "它在对话之间保留的关于你的笔记。可以让它记住或忘掉某件事，也可以在这里删除笔记。",
+    "memoryEmpty": "还没有内容。",
+    "forget": "忘掉",
+    "forgetFailed": "无法删除这条笔记。",
+    "saved": "首页已更新",
+    "trialUsed": "免费消息已用完。Agent 包含在 Creator 方案中，你的对话都会保留。"
+  },
+  "onboarding": {
+    "film": {
+      "online": "在线",
+      "placeholder": "问 Agent 任何事…",
+      "agentAsk": "把我的播客剪成片段，这周发最好的 3 条",
+      "agentSteps": {
+        "0": "正在寻找最精彩的时刻",
+        "1": "正在挑选最好的 3 个开头",
+        "2": "正在用你的语气写文案"
+      },
+      "scheduled": "已排期 3 条帖子",
+      "days": {
+        "0": "周一",
+        "1": "周二",
+        "2": "周三",
+        "3": "周四",
+        "4": "周五",
+        "5": "周六",
+        "6": "周日"
+      },
+      "agentReply": "搞定！3 条帖子已排在周二、周四和周六晚上 7 点，正是你的观众最活跃的时候。",
+      "chips": {
+        "0": "把片段 2 剪得更紧凑",
+        "1": "规划下周"
+      },
+      "manualTitle": "我们要做什么？",
+      "manualPlaceholder": "粘贴 YouTube、Twitch 或 Kick 链接",
+      "manualSource": "How I Make $1.2 Million A Year From This Podcast",
+      "whatToMake": "做什么",
+      "captionStyle": "字幕样式",
+      "captionSample": "大多数",
+      "captionAccent": "人",
+      "length": "时长",
+      "lengths": {
+        "0": "自动",
+        "1": "15–30秒",
+        "2": "30–60秒",
+        "3": "60–90秒"
+      },
+      "generate": "生成",
+      "processing": {
+        "0": "正在下载视频",
+        "1": "正在找最精彩的时刻",
+        "2": "构图、字幕和剪辑"
+      },
+      "ready": "3 个片段已就绪",
+      "part": "第 {n} 集",
+      "working": "正在处理",
+      "done": "全部完成",
+      "thisWeek": "本周",
+      "agentChips": {
+        "0": "9 个时刻",
+        "1": "已选出前 3",
+        "2": "文案已写好"
+      },
+      "emptyTitle": "今天想做点什么？",
+      "emptyChips": {
+        "0": "剪辑视频",
+        "1": "规划本周发布",
+        "2": "我的片段表现如何？"
+      },
+      "sourcesHint": "YouTube、Twitch 和 Kick 链接，或上传文件"
+    },
+    "welcome": {
+      "skip": "先跳过",
+      "hello": "嗨，{name}！我是 SupoClip 的 Agent！",
+      "helloNoName": "嗨！我是 SupoClip 的 Agent！",
+      "intro": "发给我一段长视频，告诉我你想要什么。我会找出最精彩的时刻，剪好，写好文案，在你的观众在线时发出去。你想先做什么？",
+      "choices": {
+        "examples": "给我看看例子",
+        "abilities": "你能做什么？",
+        "start": "开始吧"
+      },
+      "examplesIntro": "这是 SupoClip 用长视频做出来的几个片段。每一个都只从一个链接开始。",
+      "examplesOutro": "每一个都自动找到了精彩时刻，完成构图并配上字幕，全程没人打开剪辑软件。接下来就轮到你的了。",
+      "abilitiesIntro": "用你自己的话告诉我就行。大家常让我做这些：",
+      "abilitiesOutro": "点一个试试，或者在下面写你自己的。",
+      "abilities": {
+        "series": {
+          "title": "把一个视频做成系列",
+          "prompt": "把我最新一期播客做成 5 集系列"
+        },
+        "schedule": {
+          "title": "规划你的发布",
+          "prompt": "这周晚上 7 点发布我最好的 3 个片段"
+        },
+        "edit": {
+          "title": "打磨一个片段",
+          "prompt": "把片段 2 里的嗯啊和停顿剪掉"
+        },
+        "stats": {
+          "title": "看看什么最有效",
+          "prompt": "我这个月的片段表现怎么样？"
+        }
+      },
+      "startLine": "在下面粘贴链接或拖入视频，告诉我你想要什么。剩下的交给我。",
+      "composerPlaceholder": "粘贴视频链接，告诉我你想要什么…",
+      "sendFailed": "没发出去，再试一次吧。"
+    },
+    "manual": {
+      "title": "一切由你掌控。",
+      "subtitle": "从长视频到可直接发布的片段，只需三步。",
+      "steps": {
+        "paste": {
+          "title": "粘贴链接",
+          "body": "YouTube、Twitch 或 Kick 链接，也可以上传文件。"
+        },
+        "pick": {
+          "title": "选择要做什么",
+          "body": "精彩片段、系列、某个话题下的所有时刻、回顾或预告。然后选字幕和时长。"
+        },
+        "clips": {
+          "title": "拿到你的片段",
+          "body": "已构图、配好字幕并打好分。在工作室里编辑任意一个，然后发布或排期。"
+        }
+      },
+      "cta": "开始制作片段",
+      "agentNearby": "想用 Agent 时，在输入框下方点一下就到。"
+    }
+  },
+  "suggest": {
+    "post": {
+      "title": "发布最佳片段",
+      "hint": "{count, plural, one {# 个片段} other {# 个片段}} · {ago}",
+      "prompt": "看看我的项目「{title}」，把其中最好的片段安排在本周的合适时间发布。"
+    },
+    "series": {
+      "title": "做成系列",
+      "hint": "拆成第 1、2、3 集",
+      "prompt": "把我的项目「{title}」里的视频做成多集系列。"
+    },
+    "processing": {
+      "title": "看看进度",
+      "prompt": "我的项目「{title}」进展如何？"
+    },
+    "week": {
+      "title": "看看接下来的安排",
+      "hint": "{count, plural, one {已安排 # 条} other {已安排 # 条}}",
+      "prompt": "带我看看本周的发布安排，并用我还没发布的最佳片段填补空档。"
+    },
+    "stats": {
+      "title": "看看我的数据",
+      "hint": "播放量和最佳开头",
+      "prompt": "我最近的片段表现如何？哪些有效，我应该多发哪类？"
+    },
+    "clip": {
+      "title": "剪辑新视频",
+      "hint": "粘贴链接或拖入文件",
+      "prompt": "剪辑这个视频："
+    },
+    "viral": {
+      "title": "好用的开头",
+      "hint": "什么样的片段能火",
+      "prompt": "什么样的短片段能火？告诉我开头、时长和发布时间上最重要的几点。"
+    },
+    "rhythm": {
+      "title": "规划发布时间",
+      "hint": "多久发一次、几点发",
+      "prompt": "帮我规划发布节奏：每个平台应该多久发一次、什么时候发片段？"
+    },
+    "fill": {
+      "prompt": "用我还没发布的最佳片段，规划接下来 7 天的发布。"
+    }
+  },
+  "trial": {
+    "left": "还剩 {count} 条免费消息",
+    "unlimited": "Creator 不限次数",
+    "locked": "Agent 包含在 Creator 方案中。",
+    "used": "免费消息已用完。",
+    "cta": "升级 Creator"
+  }
+}

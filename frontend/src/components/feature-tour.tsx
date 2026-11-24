@@ -51,7 +51,7 @@ const CLEAR_TOP = 72;
 const CLEAR_BOTTOM = 88;
 
 /** Scroll the target clear of the header and tab bar; one taller than the room is shown from its top. */
-function bringIntoView(element: HTMLElement) {
+export function bringIntoView(element: HTMLElement) {
   const rect = element.getBoundingClientRect();
   // Sideways first: the workflow cards scroll horizontally on a phone.
   if (rect.left < 0 || rect.right > window.innerWidth) {
@@ -147,7 +147,7 @@ function requestedTour(): FeatureTour | null {
 }
 
 /** Dims everything but the target, without blocking clicks. It follows the target as the page moves. */
-function Spotlight({ target }: { target: HTMLElement }) {
+export function Spotlight({ target }: { target: HTMLElement }) {
   const [box, setBox] = useState<DOMRect | null>(null);
   useEffect(() => {
     let frame = 0;
@@ -233,8 +233,10 @@ function AnnouncementMedia({ media, variantsUrl }: { media: Media; /** Previews 
  * Mounted by the app shell on every signed-in page. A tour only starts on the create screen; a tour
  * that crosses pages hands itself to the next page's host through session storage.
  */
-export function FeatureTourHost({ enabled, pathname, navigate, canStart = false, busy = false, onWorkflow, onEnd, onSettingsSection, onInspectorTab }: {
+export function FeatureTourHost({ enabled, pathname, navigate, canStart = false, busy = false, onWorkflow, onEnd, onSettingsSection, onInspectorTab, skip }: {
   enabled: boolean;
+  /** Tours this account never gets here (the Pebble onboarding group skips `welcome`). */
+  skip?: readonly string[];
   /** The page this host is on. */
   pathname: string;
   /** Go to another page for the next step. */
@@ -361,7 +363,7 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
       const candidates = preview
         ? [preview]
         // A gated feature's tour waits until the feature is on for this account.
-        : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]).filter((tour) => !tour.requiresFlag || flags[tour.requiresFlag] === true);
+        : dueTours(account.createdAt, [...account.seen, ...seenOnDevice()]).filter((tour) => (!tour.requiresFlag || flags[tour.requiresFlag] === true) && !skip?.includes(tour.id));
       // A tour with nothing to show waits: its feature may not be open to this account yet.
       for (const tour of candidates) {
         const here = tour.steps.filter((step) => onPage(step, pathname) && reachable(step, openers.current));
@@ -385,7 +387,7 @@ export function FeatureTourHost({ enabled, pathname, navigate, canStart = false,
       }
     }, START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [account, flags, busy, canStart, pathname]);
+  }, [account, flags, busy, canStart, pathname, skip]);
 
   useEffect(() => {
     // They started working: keep what they have selected.

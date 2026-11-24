@@ -7,7 +7,8 @@
     "agents": "Agentes e API",
     "settings": "Configurações",
     "admin": "Administração",
-    "newGeneration": "Nova geração"
+    "newGeneration": "Nova geração",
+    "calendar": "Calendário"
   },
   "search": {
     "generations": "Buscar gerações",
@@ -27,7 +28,8 @@
     "analyticsHint": "Como os seus clipes publicados performam",
     "agentsHint": "Chaves de API e MCP",
     "team": "Equipe e espaços",
-    "teamHint": "Gerencie membros, assentos e horas compartilhadas"
+    "teamHint": "Gerencie membros, assentos e horas compartilhadas",
+    "calendarHint": "Tudo que está agendado e publicado"
   },
   "usage": {
     "pickPlan": "Escolha um plano para começar a criar clipes",

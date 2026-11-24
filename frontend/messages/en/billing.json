@@ -88,6 +88,23 @@
     "teamStart": {
       "title": "{team} needs a Team plan to make clips",
       "body": "Clips made here use the team's shared hours, so the team needs an active Team plan first."
+    },
+    "agent": {
+      "eyebrow": "Agent · Creator",
+      "title": "Clip, plan and post just by asking",
+      "titleUsed": "That was your last free Agent message",
+      "body": "Agent is part of Creator. Tell it what you want and it makes the clips, books your week and keeps posting, while you get on with your day.",
+      "bodyUsed": "Hope it helped. Agent is part of Creator: keep chatting where you left off, with every conversation kept.",
+      "perks": {
+        "0": "Agent: clips, edits, schedules and posts for you",
+        "1": "A posting calendar it fills and keeps tidy",
+        "2": "Plus everything else in Creator, like Full HD 1080p"
+      }
+    },
+    "preview": {
+      "eyebrow": "Your free clip",
+      "title": "{count, plural, one {Unlock the other clip} other {Unlock the other # clips}}",
+      "body": "They're already found and waiting. Pick a plan and they're made right here, in this project."
     }
   },
   "illustration": {

@@ -529,5 +529,10 @@
       "title": "这个视频超过了你 {minutes} 分钟的上限",
       "body": "它比你的方案允许的更长，并且这里无法选择其中一段。请使用完整录像或更短的视频。未消耗分钟数。"
     }
-  }
+  },
+  "askAgentInstead": "还是问问智能体",
+  "creatorTag": "Creator",
+  "agentLapsed": "你的 Agent 对话都已保存。",
+  "agentTrialEnded": "你的免费 Agent 消息已用完。",
+  "agentBackWithCreator": "升级 Creator 继续使用"
 }

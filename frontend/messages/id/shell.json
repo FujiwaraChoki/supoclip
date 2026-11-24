@@ -7,7 +7,8 @@
     "agents": "Agen & API",
     "settings": "Pengaturan",
     "admin": "Admin",
-    "newGeneration": "Generasi baru"
+    "newGeneration": "Generasi baru",
+    "calendar": "Kalender"
   },
   "search": {
     "generations": "Cari generasi",
@@ -27,7 +28,8 @@
     "analyticsHint": "Performa clip yang sudah kamu publikasikan",
     "agentsHint": "Kunci API & MCP",
     "team": "Tim & ruang kerja",
-    "teamHint": "Kelola anggota, kursi & jam bersama"
+    "teamHint": "Kelola anggota, kursi & jam bersama",
+    "calendarHint": "Semua yang terjadwal dan sudah dipublikasikan"
   },
   "usage": {
     "pickPlan": "Pilih paket untuk mulai buat clip",

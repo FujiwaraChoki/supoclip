@@ -182,6 +182,7 @@ export function AIPrompt({ endpoint, basis, initialUsage, doc, playhead, update,
   return (
     <div className="px-3 pb-3 sm:px-4">
       <form
+        data-tour="editor-ai"
         className="flex items-center gap-2 rounded-xl bg-stone-100 p-1 pl-3.5 transition-shadow focus-within:ring-2 focus-within:ring-ring/25 dark:bg-stone-900"
         onSubmit={(e) => {
           e.preventDefault();

@@ -1,4 +1,5 @@
 import { destinationCheckoutTax } from "@/lib/stripe-billing-safety";
+import { safeReturnPath, withQuery } from "@/lib/return-path";
 import { accountPortalConfiguration } from "@/lib/stripe-accounts";
 import { stripeAccountsEnabled } from "@/lib/stripe-accounts";
 import { billingAccountRoute } from "@/server/stripe-account-routing";
@@ -53,6 +54,8 @@ export async function POST(request: Request) {
   let requestedPlan = "pro";
   let interval: BillingInterval = "month";
   let enteredCode: string | null = null;
+  // Where checkout comes back to (the onboarding's preview project); Settings otherwise.
+  let returnPath = "/settings";
   try {
     const body = await request.json();
     if (typeof body?.plan === "string") {
@@ -67,6 +70,7 @@ export async function POST(request: Request) {
     if (typeof body?.code === "string" && body.code.trim()) {
       enteredCode = body.code.trim();
     }
+    returnPath = safeReturnPath(body?.return_to) ?? returnPath;
   } catch {
     requestedPlan = "pro";
   }
@@ -258,8 +262,8 @@ export async function POST(request: Request) {
       // checkout.session.expired webhook emails its recovery link while the intent is fresh.
       expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES_AFTER_SECONDS,
       after_expiration: { recovery: { enabled: true } },
-      success_url: `${appUrl}/settings?billing=success`,
-      cancel_url: `${appUrl}/settings?billing=cancelled`,
+      success_url: `${appUrl}${withQuery(returnPath, "billing", "success")}`,
+      cancel_url: `${appUrl}${withQuery(returnPath, "billing", "cancelled")}`,
     });
 
     if (!checkoutSession.url) {

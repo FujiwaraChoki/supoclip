@@ -156,9 +156,11 @@ async def test_evaluated_flags_looks_up_the_user_once():
         admins={"boss"},
     )
     assert await feature_flags.evaluated_flags(db, platform="web", user_id="boss") == {
+        "creator_agent": True,
         "dynamic_edits": True,
         "instagram_publishing": True,
         "other": True,
+        "pebble_onboarding": True,
         "tiktok_publishing": False,
         "workflows": True,
     }

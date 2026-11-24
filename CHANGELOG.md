@@ -4,6 +4,12 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-24
+
+- **New:** On the Creator plan, your home screen can be an agent. Tell it what you want in your own words ("clip this and post the best three this week", "cut the ums from clip 2", "how are my clips doing?") and it does the work: starts projects, edits clips in the studio, writes captions, finds good times and schedules or publishes posts. It shows choices to tap when there's a decision to make, picks up a project when it finishes, remembers your preferences, and always asks before posting anything right away. You choose agent or the create form once, can switch in Settings, and a link under either one opens the other just this time. On Pro you can try the agent with a few free messages. (PR_LINK)
+- **New:** New accounts can be guided by Agent: it asks what you make, shows a few clips made from real podcasts, and walks you to your first clip on the real pages, pointing at what to tap. Your first clip from your own video is free. Agent finds every strong moment in it, makes the best one, and the rest are made right in the same project when you pick a plan. The first time you open a page, Agent pops up to say what it's for. (PR_LINK)
+- **New:** A posting calendar shows everything you've scheduled, posted or that failed, by month or week. Drag a post to another day to move it, open it to change the time or caption, filter by platform, or ask the agent to fill the gaps. (PR_LINK)
+
 ## 2026-11-23
 
 - **Improved:** In Brazil you can now pay for Pro or Creator with Pix, monthly or yearly. You approve the subscription once in your bank app and renewals are charged from there, with your bank's usual notice a few days before. ([#569](https://github.com/FujiwaraChoki/supoclip/pull/569))

@@ -7,7 +7,8 @@
     "agents": "智能体与 API",
     "settings": "设置",
     "admin": "管理",
-    "newGeneration": "新建生成"
+    "newGeneration": "新建生成",
+    "calendar": "日历"
   },
   "search": {
     "generations": "搜索生成记录",
@@ -27,7 +28,8 @@
     "analyticsHint": "已发布短片的表现",
     "agentsHint": "API 密钥与 MCP",
     "team": "团队与工作区",
-    "teamHint": "管理成员、席位与共享时长"
+    "teamHint": "管理成员、席位与共享时长",
+    "calendarHint": "所有已排期和已发布的内容"
   },
   "usage": {
     "pickPlan": "选择套餐，开始剪辑",
