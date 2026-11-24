@@ -523,7 +523,8 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 
 ## Observability
 
-Errors and analytics go to PostHog (project "SupoClip", EU, id `314504`); logs go to
+Errors and analytics go to self-hosted PostHog (`https://ph.supoclip.com`, project "SupoClip", id `1`;
+history before 2026-11-24 is in EU cloud project `314504`); logs go to
 Axiom (dataset `supoclip-prod`). Everything is off unless tokens are set. Details in
 `docs/observability.md`.
 
