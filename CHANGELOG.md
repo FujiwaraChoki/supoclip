@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-24
 
-- **New:** Two new comparison articles on the blog: SupoClip vs OpusClip vs Klap vs Vizard (free plans, price per hour of video or per clip, exports, publishing and APIs) and the best free OpusClip alternatives, covering what hosted free tiers really include and open-source clippers with no watermark. Every claim about another product links to that company's own page.
+- **New:** Two new comparison articles on the blog: SupoClip vs OpusClip vs Klap vs Vizard (free plans, price per hour of video or per clip, exports, publishing and APIs) and the best free OpusClip alternatives, covering what hosted free tiers really include and open-source clippers with no watermark. Every claim about another product links to that company's own page. ([998d5da](https://github.com/FujiwaraChoki/supoclip/commit/998d5da20eb38846068763c9b08ea146a016c1dc))
 
 ## 2026-11-23
 
