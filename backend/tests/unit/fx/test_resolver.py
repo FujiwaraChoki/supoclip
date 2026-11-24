@@ -416,6 +416,18 @@ def test_rule5_hook_band():
     late = mid("wallet", "punchline", strength=3)
     assert not run([late], template="slam", intensity="off", hook_window=window).hook_title_suppressed
     assert not run([hook], template="slam", intensity="off").hook_title_suppressed
+    assert not run([hook], template="kinetic_stack", intensity="off").hook_title_suppressed
+
+
+def test_kinetic_stack_keeps_the_hook_title_when_its_stack_is_gone():
+    hook = mid(HOOK, "hook", strength=3)
+    window = (0.12, 4.0)
+    placed = run([hook], template="kinetic_stack", intensity="off", hook_window=window)
+    kinetic = [c.id for c in placed.cues if c.kind == "accent" and c.variant == "kinetic"]
+    assert kinetic and placed.hook_title_suppressed
+    deleted = run([hook], template="kinetic_stack", intensity="off", hook_window=window, suppressed=frozenset(kinetic))
+    assert not any(c.kind == "accent" and c.variant == "kinetic" for c in deleted.cues)
+    assert not deleted.hook_title_suppressed
 
 
 def test_rule6_transitions_only_at_cuts_never_inside_a_word():
@@ -831,3 +843,19 @@ def test_loop_music_offset_uses_the_emitted_warp():
     assert out < plan.edit_duration
     length = BED_LENGTHS[plan.music.bed]
     assert plan.music.offset == pytest.approx((length - out % length) % length, abs=1e-3)
+
+
+def test_auto_zooms_keep_out_of_a_kinetic_stack():
+    """A punch-in under full-frame type pushes the face up into the text: no automatic zoom starts or holds while
+    the stack plays, and the clip still gets its zooms elsewhere."""
+    beats = [mid("Okay so here is the thing", "hook", strength=2), mid("raining", "emphasis"), mid("wallet", "emphasis"),
+             mid("cried", "emphasis")]
+    for intensity in ("subtle", "bold", "max"):
+        plan = run(beats, template="kinetic_stack", intensity=intensity)
+        stacks = [c for c in cues(plan, "accent") if c.variant == "kinetic"]
+        assert stacks
+        moves = cues(plan, "zoom")
+        assert moves, intensity                       # the clip still zooms, just not under the stack
+        for zoom in moves:
+            for stack in stacks:
+                assert zoom.end <= stack.start + 1e-6 or zoom.start >= stack.end - 1e-6, (intensity, zoom, stack)

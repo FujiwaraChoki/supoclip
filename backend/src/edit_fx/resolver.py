@@ -357,6 +357,7 @@ class _Planner:
         self.group_of: dict[int, int] = {i: k for k, g in enumerate(self.groups) for i in range(g.first, g.last + 1)}
         self.keyword_words: dict[int, str] = {}           # gwords index -> producing beat id ("" = heuristic)
         self.events: list[float] = []                     # reframe event times (E), sorted after place_reframes
+        self.kinetic: list[tuple[float, float]] = []      # where a kinetic stack will play; no auto zoom inside
         self.event_beat: dict[float, str] = {}
         self.forced_events: list[tuple[float, str]] = []  # (t, beat): reframes a behind word lands on
 
@@ -765,13 +766,7 @@ class _Planner:
                 put("highlight", *word_span, text=text)
         elif tpl == "kinetic_stack":
             if b.kind == "hook":
-                first, last = self.sentence_bounds(b.start)
-                if first is not None:
-                    start_i = next((i for i, w in enumerate(self.words) if w["start"] >= b.start - 0.02), first)
-                    last = min(last, start_i + 11)
-                    sentence = self.words[start_i:last + 1] or words
-                else:
-                    sentence = words
+                sentence = self.hook_sentence(b, words)
                 put("kinetic", sentence[0]["start"], sentence[-1]["end"] + 0.3, text=self.text_of(sentence))
             else:
                 put("highlight", *word_span, text=text)
@@ -1066,6 +1061,7 @@ class _Planner:
         tier = self.tier
         cap = per10_cap(REFRAME_RATE[tier], self.dur)
         spacing = REFRAME_GAP[tier]
+        kinetic = self.kinetic
         chosen: list[float] = []
         beats: dict[float, str] = {}
         for t, beat in self.forced_events:
@@ -1077,6 +1073,8 @@ class _Planner:
             if len(chosen) >= max(cap, len(self.forced_events)):
                 break
             if not self.reframe_ok(t, spacing, chosen):
+                continue
+            if any(a - EPS <= t < z + EPS for a, z in kinetic):
                 continue
             chosen.append(t)
             beats[t] = beat
@@ -1092,7 +1090,7 @@ class _Planner:
             nxt = chosen[k + 1] if k + 1 < len(chosen) else self.dur
             cut = next((c for c in cuts if t + EPS < c < nxt - EPS), None)
             end = cut if cut is not None else nxt
-            for a, z in self.excl + self.reaction_windows:
+            for a, z in self.excl + self.reaction_windows + kinetic:
                 if _overlaps(t, end, a, z):
                     end = min(end, a)
             beat_id = beats.get(t, "")
@@ -1116,7 +1114,8 @@ class _Planner:
         tier = self.tier
         cap = per10_cap(NUDGE_RATE[tier], self.dur)
         lo, hi = NUDGE_SCALE[tier]
-        bounds = sorted({*self.events, *(float(c) for c in self.inp.cuts), self.dur})
+        # A kinetic stack's start also ends a nudge's hold, and no nudge starts inside a stack.
+        bounds = sorted({*self.events, *(float(c) for c in self.inp.cuts), *(a for a, _z in self.kinetic), self.dur})
         candidates: list[tuple[float, str]] = []
         for b in sorted(self.beats, key=lambda o: (-o.strength, -PRIORITY[o.kind], o.start, o.id)):
             if b.kind in ACCENT_KINDS:
@@ -1134,6 +1133,8 @@ class _Planner:
             if len(chosen) >= cap:
                 break
             if t < QUIET_HEAD + 0.25 - EPS or t > self.dur - 1.0 or t in chosen:
+                continue
+            if any(a - EPS <= t < z + EPS for a, z in self.kinetic):
                 continue
             if any(abs(t - e) < NUDGE_GAP - EPS for e in [*self.events, *chosen]):
                 continue
@@ -1365,6 +1366,38 @@ class _Planner:
             if style == "flash":
                 self.sfx("", f"{cue_id}.sfx", "whoosh", _frame(max(0.0, c - 2 / FPS)), intrinsic=True)
 
+    def hook_sentence(self, b: Beat, words: Sequence[dict]) -> Sequence[dict]:
+        """The words kinetic_stack sets in big type for a hook beat: its sentence from the hook on, at most 12 words."""
+        first, last = self.sentence_bounds(b.start)
+        if first is None:
+            return words
+        start_i = next((i for i, w in enumerate(self.words) if w["start"] >= b.start - 0.02), first)
+        last = min(last, start_i + 11)
+        return self.words[start_i:last + 1] or words
+
+    def first_sentence(self) -> Sequence[dict]:
+        """Without a hook beat the clip's first sentence (at most 12 words) plays the hook's role."""
+        _first, last = self.sentence_bounds(self.words[0]["start"])
+        return self.words[: min((last or 0), 11) + 1]
+
+    def kinetic_windows(self) -> list[tuple[float, float]]:
+        """Where a kinetic stack will play, known before it is placed (the same sentences `bundle` and
+        `place_kinetic_without_hook` use, plus the user's own stacks). Auto zooms keep out of these windows: a
+        punch-in under full-frame type only pushes the face up into the text and leaves the mic in the middle."""
+        spans = [(c.start, c.end) for c in self.user_cues if c.kind == "accent" and c.variant == "kinetic"]
+        if self.template != "kinetic_stack" or not self.words or self.timing == "none":
+            return spans
+        hooks = [b for b in self.beats if b.kind == "hook"]
+        for b in hooks:
+            sentence = self.hook_sentence(b, self.beat_words(b))
+            if sentence:
+                spans.append((sentence[0]["start"], sentence[-1]["end"] + 0.3))
+        if not hooks and self.hook_beat is None and not spans:
+            sentence = self.first_sentence()
+            if sentence:
+                spans.append((sentence[0]["start"], sentence[-1]["end"] + 0.3))
+        return spans
+
     def place_kinetic_without_hook(self) -> None:
         """kinetic_stack's signature needs a hook sentence; without a hook beat, the first sentence plays that role."""
         if self.template != "kinetic_stack" or not self.words or self.timing == "none":
@@ -1373,8 +1406,7 @@ class _Planner:
             return
         if self.hook_beat is not None:
             return
-        _first, last = self.sentence_bounds(self.words[0]["start"])
-        sentence = self.words[: min((last or 0), 11) + 1]
+        sentence = self.first_sentence()
         c = self.place_accent("g.kinetic", "", "kinetic", sentence[0]["start"], sentence[-1]["end"] + 0.3,
                               text=self.text_of(sentence), hook_bound=True)
         if c is not None:
@@ -1430,6 +1462,7 @@ class _Planner:
         self.place_behind()                    # behind words first: they hide the captions and fix two reframes
         self.place_keywords()
         self.place_emoji()
+        self.kinetic = self.kinetic_windows()
         self.place_reframes()
         self.place_nudges()
         self.place_kinetic_without_hook()      # stands in for the hook treatment, so it goes before the bundles
@@ -1454,12 +1487,16 @@ class _Planner:
             cues = [c for c in cues if c.id in allowed]
 
         music = self.music(cues)
-        hook_title_suppressed = self.template == "kinetic_stack" or (
-            self.inp.hook_window is not None and any(
-                c.kind == "accent" and c.variant == "slam"
-                and self.inp.hook_window[0] - EPS <= c.start < self.inp.hook_window[1]
-                for c in cues
+        # The title gives way to a slam that lands in its window, or to a kinetic stack (the hook sentence in big
+        # type) shown while it would be up. Without either the clip keeps its title: a kinetic_stack clip whose stack
+        # was not placed (no timing) or was deleted in the studio would otherwise lose both.
+        window = self.inp.hook_window
+        hook_title_suppressed = window is not None and any(
+            c.kind == "accent" and (
+                (c.variant == "slam" and window[0] - EPS <= c.start < window[1])
+                or (c.variant == "kinetic" and c.start < window[1] and c.end > window[0])
             )
+            for c in cues
         )
         active = self.style.active
         return FxPlan(
