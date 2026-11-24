@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-24
+
+- **New:** Two new comparison articles on the blog: SupoClip vs OpusClip vs Klap vs Vizard (free plans, price per hour of video or per clip, exports, publishing and APIs) and the best free OpusClip alternatives, covering what hosted free tiers really include and open-source clippers with no watermark. Every claim about another product links to that company's own page.
+
 ## 2026-11-23
 
 - **Improved:** In Brazil you can now pay for Pro or Creator with Pix, monthly or yearly. You approve the subscription once in your bank app and renewals are charged from there, with your bank's usual notice a few days before. ([#569](https://github.com/FujiwaraChoki/supoclip/pull/569))
