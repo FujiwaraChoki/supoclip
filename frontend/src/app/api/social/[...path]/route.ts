@@ -51,3 +51,7 @@ export async function POST(request: Request, context: { params: Promise<{ path: 
 export async function DELETE(request: Request, context: { params: Promise<{ path: string[] }> }) {
   return proxySocialRequest(request, context);
 }
+
+export async function PATCH(request: Request, context: { params: Promise<{ path: string[] }> }) {
+  return proxySocialRequest(request, context);
+}

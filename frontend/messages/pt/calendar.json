@@ -1,0 +1,45 @@
+{
+  "title": "Calendário",
+  "summary": "{scheduled, plural, =0 {Nada agendado} one {# agendada} other {# agendadas}} · {published, plural, =0 {nada publicado ainda} one {# publicada} other {# publicadas}} nesta visualização",
+  "planWithAgent": "Planejar com o agente",
+  "planPrompt": "Olhe meu calendário das próximas duas semanas e preencha os buracos com meus melhores clipes que ainda não foram publicados, em bons horários. Me pergunte antes se não tiver certeza sobre as plataformas ou a frequência de posts.",
+  "previous": "Anterior",
+  "next": "Próximo",
+  "today": "Hoje",
+  "filter": "Filtrar por plataforma",
+  "views": {
+    "month": "Mês",
+    "week": "Semana"
+  },
+  "more": "+{count} a mais",
+  "untitled": "Publicação sem título",
+  "unavailable": "O calendário de publicações aparece quando a publicação em redes estiver ativa na sua conta.",
+  "goHome": "Ir para o início",
+  "toasts": {
+    "past": "Escolha um dia que ainda não passou.",
+    "moved": "Movida para {day}",
+    "failed": "Não deu certo. Tente de novo.",
+    "saved": "Publicação atualizada",
+    "cancelled": "Publicação cancelada",
+    "retried": "Tentando de novo"
+  },
+  "empty": {
+    "title": "Nada no calendário",
+    "body": "Agende clipes de um projeto e eles aparecem aqui.",
+    "bodyAgent": "Seu agente pode escolher seus melhores clipes e distribuí-los em bons horários.",
+    "library": "Abrir biblioteca"
+  },
+  "sheet": {
+    "when": "Sai em",
+    "wentOut": "Saiu em",
+    "caption": "Legenda",
+    "views": "Visualizações",
+    "likes": "Curtidas",
+    "comments": "Comentários",
+    "save": "Salvar alterações",
+    "cancel": "Cancelar publicação",
+    "retry": "Tentar de novo",
+    "view": "Ver publicação",
+    "project": "Abrir projeto"
+  }
+}

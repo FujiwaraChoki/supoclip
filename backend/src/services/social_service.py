@@ -87,6 +87,8 @@ MOBILE_STATE_PREFIX = "m."
 MOBILE_CLIENTS = frozenset({"ios"})
 MAX_TITLE_LENGTH = 255
 MAX_CAPTION_LENGTH = 2200
+# How far ahead a post may be scheduled.
+MAX_SCHEDULE_DAYS = 365
 _HASHTAG_RE = re.compile(r"[^0-9A-Za-z_À-￿]+")
 
 
@@ -675,7 +677,21 @@ class SocialService:
         status: Optional[str] = None,
         limit: int = 100,
         team_id: Optional[str] = None,
+        starts_at: Optional[str] = None,
+        ends_at: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
+        window = {}
+        for name, value in (("starts_at", starts_at), ("ends_at", ends_at)):
+            if value:
+                parsed = _parse_datetime(value)
+                if parsed is None:
+                    raise SocialValidationError(f"{name} must be an ISO-8601 timestamp")
+                window[name] = parsed
+        if "starts_at" in window and "ends_at" in window:
+            if window["ends_at"] <= window["starts_at"]:
+                raise SocialValidationError("ends_at must be after starts_at")
+            if window["ends_at"] - window["starts_at"] > timedelta(days=100):
+                raise SocialValidationError("Ask for at most 100 days of posts at a time")
         return await self.repo.list_posts(
             self.db,
             user_id,
@@ -683,8 +699,65 @@ class SocialService:
             clip_id=clip_id,
             status=status,
             limit=limit,
+            **window,
             **_team_kw(team_id),
         )
+
+    async def update_post(
+        self,
+        user_id: str,
+        post_id: str,
+        *,
+        scheduled_for: Optional[str] = None,
+        title: Optional[str] = None,
+        caption: Optional[str] = None,
+        hashtags: Optional[List[str]] = None,
+        team_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Move or reword a scheduled post (the posting calendar, the agent)."""
+        post = await self.repo.get_user_post(self.db, user_id, post_id, **_team_kw(team_id))
+        if not post:
+            raise SocialNotFound("Post not found")
+        if post["status"] != "scheduled":
+            raise SocialValidationError(
+                f"Only scheduled posts can be changed (status is {post['status']})."
+            )
+        fields: Dict[str, Any] = {}
+        if scheduled_for is not None:
+            when = _parse_schedule(scheduled_for)
+            if when is None or when <= datetime.now(timezone.utc) + timedelta(seconds=30):
+                raise SocialValidationError(
+                    "Pick a time in the future. To post right away, publish the clip instead."
+                )
+            if when > datetime.now(timezone.utc) + timedelta(days=MAX_SCHEDULE_DAYS):
+                raise SocialValidationError(
+                    f"Posts can be scheduled at most {MAX_SCHEDULE_DAYS} days ahead."
+                )
+            if not await self.can_schedule(user_id, team_id=team_id):
+                raise SocialPlanRequired(
+                    "Scheduling posts requires an active Team plan."
+                    if team_id
+                    else "Scheduling posts is available on the Creator plan."
+                )
+            fields["scheduled_for"] = when
+        if title is not None:
+            clean_title = title.strip()[:MAX_TITLE_LENGTH]
+            if not clean_title:
+                raise SocialValidationError("The title can't be empty.")
+            fields["title"] = clean_title
+        if caption is not None:
+            fields["caption"] = caption.strip()[:MAX_CAPTION_LENGTH]
+        if hashtags is not None:
+            fields["hashtags"] = normalize_hashtags(hashtags)
+        if not fields:
+            return post
+        if not await self.repo.update_scheduled_post(
+            self.db, user_id, post_id, fields=fields, **_team_kw(team_id)
+        ):
+            raise SocialValidationError("This post is already going out and can't be changed.")
+        updated = await self.repo.get_post(self.db, post_id)
+        assert updated is not None
+        return updated
 
     async def get_post(
         self, user_id: str, post_id: str, *, team_id: Optional[str] = None

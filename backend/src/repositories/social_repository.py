@@ -56,6 +56,9 @@ _POST_COLUMNS = """
     a.avatar_url AS account_avatar_url, a.status AS account_status
 """
 
+# Where a post sits on the posting calendar.
+_CALENDAR_TIME = "COALESCE(p.scheduled_for, p.published_at, p.created_at)"
+
 _POST_UPDATABLE_COLUMNS = {
     "status",
     "scheduled_for",
@@ -594,7 +597,14 @@ class SocialRepository:
         status: Optional[str] = None,
         limit: int = 100,
         team_id: Optional[str] = None,
+        starts_at: Optional[datetime] = None,
+        ends_at: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
+        """Posts newest first, or in calendar order when a window is given.
+
+        A post sits on the calendar at its scheduled time, else when it was
+        published, else when it was created (queued, failed).
+        """
         clauses = ["p.team_id = :team_id"] if team_id else ["p.user_id = :user_id", "p.team_id IS NULL"]
         params: Dict[str, Any] = {
             "user_id": user_id,
@@ -610,6 +620,16 @@ class SocialRepository:
         if status:
             clauses.append("p.status = :status")
             params["status"] = status
+        order = "p.created_at DESC"
+        if starts_at is not None or ends_at is not None:
+            when = _CALENDAR_TIME
+            if starts_at is not None:
+                clauses.append(f"{when} >= :starts_at")
+                params["starts_at"] = starts_at
+            if ends_at is not None:
+                clauses.append(f"{when} < :ends_at")
+                params["ends_at"] = ends_at
+            order = f"{when} ASC, p.created_at ASC"
         result = await db.execute(
             text(
                 f"""
@@ -617,7 +637,7 @@ class SocialRepository:
                 FROM social_posts p
                 LEFT JOIN social_accounts a ON a.id = p.social_account_id
                 WHERE {' AND '.join(clauses)}
-                ORDER BY p.created_at DESC
+                ORDER BY {order}
                 LIMIT :limit
                 """
             ),
@@ -777,6 +797,46 @@ class SocialRepository:
                 """
             ),
             {"id": post_id, "user_id": user_id, "team_id": team_id},
+        )
+        row = result.fetchone()
+        await db.commit()
+        return row is not None
+
+    @staticmethod
+    async def update_scheduled_post(
+        db: AsyncSession,
+        user_id: str,
+        post_id: str,
+        *,
+        fields: Dict[str, Any],
+        team_id: Optional[str] = None,
+    ) -> bool:
+        """Change a post that is still waiting for its time; ``False`` once it moved on.
+
+        Conditional on ``status = 'scheduled'``, so the dispatcher claiming it at
+        the same moment wins cleanly: the post goes out unchanged instead of half-edited.
+        """
+        allowed = {"scheduled_for", "title", "caption", "hashtags"}
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"Cannot edit scheduled post columns: {sorted(unknown)}")
+        scope = "team_id = :team_id" if team_id else "user_id = :user_id AND team_id IS NULL"
+        params: Dict[str, Any] = {"id": post_id, "user_id": user_id, "team_id": team_id}
+        assignments = []
+        for column, value in fields.items():
+            params[column] = list(value or []) if column == "hashtags" else value
+            assignments.append(f"{column} = :{column}")
+        assignments.append("updated_at = NOW()")
+        result = await db.execute(
+            text(
+                f"""
+                UPDATE social_posts
+                SET {', '.join(assignments)}
+                WHERE id = :id AND {scope} AND status = 'scheduled'
+                RETURNING id
+                """
+            ),
+            params,
         )
         row = result.fetchone()
         await db.commit()

@@ -1,0 +1,45 @@
+{
+  "title": "Calendario",
+  "summary": "{scheduled, plural, =0 {Nada programado} one {# programada} other {# programadas}} · {published, plural, =0 {nada publicado aún} one {# publicada} other {# publicadas}} en esta vista",
+  "planWithAgent": "Planear con el agente",
+  "planPrompt": "Mira mi calendario de las próximas dos semanas y llena los huecos con mis mejores clips que aún no he publicado, en buenos horarios. Pregúntame primero si no tienes claro en qué plataformas o cada cuánto publicar.",
+  "previous": "Anterior",
+  "next": "Siguiente",
+  "today": "Hoy",
+  "filter": "Filtrar por plataforma",
+  "views": {
+    "month": "Mes",
+    "week": "Semana"
+  },
+  "more": "+{count} más",
+  "untitled": "Publicación sin título",
+  "unavailable": "El calendario de publicaciones aparece cuando la publicación en redes esté activa en tu cuenta.",
+  "goHome": "Ir al inicio",
+  "toasts": {
+    "past": "Elige un día que no haya pasado.",
+    "moved": "Movida al {day}",
+    "failed": "Eso no funcionó. Inténtalo de nuevo.",
+    "saved": "Publicación actualizada",
+    "cancelled": "Publicación cancelada",
+    "retried": "Intentándolo de nuevo"
+  },
+  "empty": {
+    "title": "Nada en el calendario",
+    "body": "Programa clips desde un proyecto y aparecerán aquí.",
+    "bodyAgent": "Tu agente puede elegir tus mejores clips y repartirlos en buenos horarios.",
+    "library": "Abrir biblioteca"
+  },
+  "sheet": {
+    "when": "Sale",
+    "wentOut": "Salió",
+    "caption": "Texto",
+    "views": "Vistas",
+    "likes": "Me gusta",
+    "comments": "Comentarios",
+    "save": "Guardar cambios",
+    "cancel": "Cancelar publicación",
+    "retry": "Reintentar",
+    "view": "Ver publicación",
+    "project": "Abrir proyecto"
+  }
+}

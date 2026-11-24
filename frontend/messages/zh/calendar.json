@@ -1,0 +1,45 @@
+{
+  "title": "日历",
+  "summary": "{scheduled, plural, =0 {没有排期} one {# 个已排期} other {# 个已排期}} · {published, plural, =0 {还没有发布} one {# 个已发布} other {# 个已发布}}（当前视图）",
+  "planWithAgent": "让智能体来规划",
+  "planPrompt": "看看我接下来两周的日历，在合适的时间用我还没发布的最佳片段把空档填上。如果不确定发哪些平台或多久发一次，先问我。",
+  "previous": "上一页",
+  "next": "下一页",
+  "today": "今天",
+  "filter": "按平台筛选",
+  "views": {
+    "month": "月",
+    "week": "周"
+  },
+  "more": "还有 {count} 个",
+  "untitled": "无标题帖子",
+  "unavailable": "你的账号开通社交发布后，就能看到发布日历。",
+  "goHome": "回到首页",
+  "toasts": {
+    "past": "选一个还没过去的日子。",
+    "moved": "已改到 {day}",
+    "failed": "没成功，再试一次吧。",
+    "saved": "帖子已更新",
+    "cancelled": "帖子已取消",
+    "retried": "正在重试"
+  },
+  "empty": {
+    "title": "日历上还没有内容",
+    "body": "从项目里给片段排期，它们就会出现在这里。",
+    "bodyAgent": "你的智能体可以挑出最佳片段，并在合适的时间分散发布。",
+    "library": "打开素材库"
+  },
+  "sheet": {
+    "when": "发布时间",
+    "wentOut": "发布于",
+    "caption": "文案",
+    "views": "播放量",
+    "likes": "点赞",
+    "comments": "评论",
+    "save": "保存更改",
+    "cancel": "取消发布",
+    "retry": "重试",
+    "view": "查看帖子",
+    "project": "打开项目"
+  }
+}

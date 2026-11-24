@@ -1,0 +1,45 @@
+{
+  "title": "Kalender",
+  "summary": "{scheduled, plural, =0 {Nichts geplant} one {# geplant} other {# geplant}} · {published, plural, =0 {noch nichts veröffentlicht} one {# veröffentlicht} other {# veröffentlicht}} in dieser Ansicht",
+  "planWithAgent": "Mit dem Agenten planen",
+  "planPrompt": "Schau dir meinen Kalender für die nächsten zwei Wochen an und füll die Lücken zu guten Zeiten mit meinen besten Clips, die noch nicht gepostet sind. Frag mich vorher, wenn du dir bei den Plattformen oder der Häufigkeit unsicher bist.",
+  "previous": "Zurück",
+  "next": "Weiter",
+  "today": "Heute",
+  "filter": "Nach Plattform filtern",
+  "views": {
+    "month": "Monat",
+    "week": "Woche"
+  },
+  "more": "+{count} weitere",
+  "untitled": "Beitrag ohne Titel",
+  "unavailable": "Der Posting-Kalender erscheint, sobald Social-Publishing für dein Konto aktiv ist.",
+  "goHome": "Zur Startseite",
+  "toasts": {
+    "past": "Wähl einen Tag, der noch nicht vorbei ist.",
+    "moved": "Verschoben auf {day}",
+    "failed": "Das hat nicht geklappt. Versuch's noch mal.",
+    "saved": "Beitrag aktualisiert",
+    "cancelled": "Beitrag abgebrochen",
+    "retried": "Neuer Versuch läuft"
+  },
+  "empty": {
+    "title": "Nichts im Kalender",
+    "body": "Plane Clips aus einem Projekt, dann tauchen sie hier auf.",
+    "bodyAgent": "Dein Agent kann deine besten Clips auswählen und sie zu guten Zeiten verteilen.",
+    "library": "Mediathek öffnen"
+  },
+  "sheet": {
+    "when": "Geht raus",
+    "wentOut": "Ging raus",
+    "caption": "Beschreibung",
+    "views": "Aufrufe",
+    "likes": "Likes",
+    "comments": "Kommentare",
+    "save": "Änderungen speichern",
+    "cancel": "Beitrag abbrechen",
+    "retry": "Erneut versuchen",
+    "view": "Beitrag ansehen",
+    "project": "Projekt öffnen"
+  }
+}

@@ -514,3 +514,53 @@ async def test_publish_notification_respects_user_setting_and_stamps_once(
         )
     ).fetchone()
     assert second_row.publish_notification_sent_at is not None
+
+
+@pytest.mark.asyncio
+async def test_calendar_window_and_rescheduling_a_scheduled_post(
+    social_setup, client, db_session, auth_headers,
+):
+    """The posting calendar reads one window in time order and moves or rewords scheduled posts only."""
+    _provider, payload = social_setup
+    when = datetime.now(timezone.utc) + timedelta(days=2)
+    created = await client.post(
+        "/social/posts", headers=auth_headers,
+        json={**payload, "scheduled_for": when.isoformat(), "caption": "first"},
+    )
+    assert created.status_code == 200
+    post_id = created.json()["post"]["id"]
+
+    window = {"starts_at": (when - timedelta(days=1)).isoformat(), "ends_at": (when + timedelta(days=1)).isoformat()}
+    listed = await client.get("/social/posts", headers=auth_headers, params=window)
+    assert [p["id"] for p in listed.json()["posts"]] == [post_id]
+    outside = await client.get(
+        "/social/posts", headers=auth_headers,
+        params={"starts_at": (when + timedelta(days=3)).isoformat(), "ends_at": (when + timedelta(days=4)).isoformat()},
+    )
+    assert outside.json()["posts"] == []
+    too_wide = await client.get(
+        "/social/posts", headers=auth_headers,
+        params={"starts_at": when.isoformat(), "ends_at": (when + timedelta(days=200)).isoformat()},
+    )
+    assert too_wide.status_code == 400
+
+    later = when + timedelta(days=1, hours=3)
+    moved = await client.patch(
+        f"/social/posts/{post_id}", headers=auth_headers,
+        json={"scheduled_for": later.isoformat(), "caption": "  new words  ", "hashtags": ["#Clips", "clips"]},
+    )
+    assert moved.status_code == 200, moved.text
+    post = moved.json()["post"]
+    assert post["caption"] == "new words"
+    assert datetime.fromisoformat(post["scheduled_for"]) == later.replace(microsecond=later.microsecond)
+
+    past = await client.patch(
+        f"/social/posts/{post_id}", headers=auth_headers,
+        json={"scheduled_for": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()},
+    )
+    assert past.status_code == 400
+
+    cancelled = await client.post(f"/social/posts/{post_id}/cancel", headers=auth_headers)
+    assert cancelled.status_code == 200
+    after_cancel = await client.patch(f"/social/posts/{post_id}", headers=auth_headers, json={"caption": "late"})
+    assert after_cancel.status_code == 400
