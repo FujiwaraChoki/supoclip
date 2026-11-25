@@ -481,14 +481,14 @@ export default function LandingPage() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1.5 min-h-10 text-sm text-muted-foreground">{plan.description}</p>
+                  <p className="mt-1.5 text-sm text-muted-foreground lg:min-h-10">{plan.description}</p>
 
-                  <div className="mt-7 @container">
+                  <div className="mt-5 @container">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       {plan.originalPrice && (
                         <span className="text-lg text-muted-foreground line-through">{plan.originalPrice}</span>
                       )}
-                      <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight">
+                      <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight leading-none">
                         {plan.price}
                       </span>
                       <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{plan.period}</span>
@@ -536,7 +536,7 @@ export default function LandingPage() {
                         </a>
                       </div>
                     ) : authEnabled ? (
-                      <Button asChild size="lg" variant={plan.highlighted ? "default" : "outline"} className="h-11 w-full rounded-full text-sm">
+                      <Button asChild size="lg" variant={plan.highlighted ? "default" : "outline"} className="upgrade-cta h-11 w-full rounded-full text-sm">
                         <Link href="/sign-up">
                           {plan.cta}
                           <ArrowRight className="size-4" />
@@ -579,7 +579,7 @@ export default function LandingPage() {
                         ${formatCurrencyAmount(teamPricing.annualFullPrice)}
                       </span>
                     )}
-                    <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight">
+                    <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight leading-none">
                       ${formatCurrencyAmount(teamPricing.totalPrice)}
                     </span>
                     <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
