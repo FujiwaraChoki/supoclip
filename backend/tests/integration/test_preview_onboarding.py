@@ -18,8 +18,21 @@ from tests.integration.test_processing_cancellation import setup_worker
 YOUTUBE = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 
+# Some tests here commit through real sessions (AsyncSessionLocal), so the per-test rollback
+# does not undo them. Remove what they leave for the shared test user, or later billing tests
+# see minutes this file used.
+_COMMITTED_BY_PREVIEWS = ("minute_usage_events", "rejected_source_attempts", "tasks")
+
+
+async def _forget_test_user(engine):
+    async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+        for table in _COMMITTED_BY_PREVIEWS:
+            await session.execute(text(f"DELETE FROM {table} WHERE user_id = 'user-1'"))
+        await session.commit()
+
+
 @pytest.fixture
-async def hosted(app, feature_flag, monkeypatch):
+async def hosted(app, feature_flag, monkeypatch, initialized_database):
     """Hosted billing on, previews switched on, and a YouTube preflight that never calls out."""
     await feature_flag("pebble_onboarding", web_enabled=True, ios_enabled=True)
     app.state.config.monetization_enabled = True
@@ -38,6 +51,7 @@ async def hosted(app, feature_flag, monkeypatch):
     finally:
         app.state.config.monetization_enabled = False
         app.state.config.self_host = True
+        await _forget_test_user(initialized_database)
 
 
 async def _preview(client, headers, url=YOUTUBE):
