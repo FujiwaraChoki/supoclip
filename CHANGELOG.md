@@ -7,6 +7,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-11-25
 
 - **Improved:** Every new account is now guided by Agent and gets its first clip free, from its own video, before choosing a plan. This used to be shown to half of new accounts while we compared it with the old onboarding. ([#579](https://github.com/FujiwaraChoki/supoclip/pull/579))
+- **Fixed:** After you pick a plan from your free preview, the rest of its clips are now always made, even if you closed the page before your payment went through. ([#580](https://github.com/FujiwaraChoki/supoclip/pull/580))
 
 ## 2026-11-24
 

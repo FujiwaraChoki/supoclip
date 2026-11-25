@@ -1023,6 +1023,10 @@ class TaskService(ClipEditingMixin):
                         self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
                     )
                     await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
+                    if preview_index is not None and user_id:
+                        # The free preview is used up by the clip it gives, in the same commit: a preview
+                        # cancelled or failing after this keeps its clip, and mustn't leave another free one.
+                        await mark_preview_used(self.db, user_id)
 
                     await check_cancelled()
                 pending_clip_path = None
@@ -1073,10 +1077,6 @@ class TaskService(ClipEditingMixin):
             )
             if completed is False:
                 raise TaskCancelled()
-            if preview_index is not None and user_id:
-                # A finished preview uses up the account's free one (a failed one doesn't).
-                await mark_preview_used(self.db, user_id)
-                await self.db.commit()
 
             if progress_callback:
                 await progress_callback(100, "Complete!", "completed")

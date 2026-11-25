@@ -278,3 +278,109 @@ async def test_a_paid_preview_unlocks_in_the_background_after_checkout(
     assert row.status == "queued" and row.preview["unlocked_at"]
     # Done once: the next tick has nothing to do.
     assert (await worker_tasks.unlock_paid_previews({}))["checked"] == 0
+
+
+@pytest.mark.asyncio
+async def test_two_previews_at_once_make_only_one(client, auth_headers, db_session, hosted, monkeypatch):
+    """The second request passed the first check before the other one's task existed; the check under
+    the account's lock stops it."""
+    await create_user(db_session, user_id="user-1", email_verified=True)
+    await db_session.execute(
+        text("INSERT INTO tasks (id, user_id, status, preview) VALUES (:id, 'user-1', 'queued', '{\"status\": \"pending\"}'::jsonb)"),
+        {"id": str(uuid4())},
+    )
+    await db_session.commit()
+    from src.onboarding.preview import preview_eligibility as real
+
+    calls = []
+
+    async def passes_before_the_lock(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            return {"eligible": True, "reason": None, "max_minutes": 90}
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr("src.api.routes.tasks.preview_eligibility", passes_before_the_lock)
+    second = await _preview(client, auth_headers, "https://www.youtube.com/watch?v=aaaaaaaaaaa")
+    assert second.status_code == 403, second.text
+    assert second.json()["detail"]["reason"] == "running" and len(calls) == 2
+    made = (await db_session.execute(text("SELECT COUNT(*) FROM tasks WHERE user_id = 'user-1'"))).scalar()
+    assert made == 1
+
+
+@pytest.mark.asyncio
+async def test_a_preview_is_used_up_as_soon_as_its_clip_is_saved(db_session, initialized_database, tmp_path):
+    """Cancelling after the clip appears keeps the clip, so the free preview must already be spent."""
+    task_id, _, original = await make_task(db_session, tmp_path, count=0, status="queued")
+    owner = (await db_session.execute(text("SELECT user_id FROM tasks WHERE id = :id"), {"id": task_id})).scalar()
+    await db_session.execute(text("UPDATE tasks SET preview = '{\"status\": \"pending\"}'::jsonb WHERE id = :id"), {"id": task_id})
+    await db_session.commit()
+    segments = [{"start_time": "00:10", "end_time": "00:40", "virality_score": 80, "hook_title": "The one"}]
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+    seen = []
+
+    async def clip_ready(*_args):
+        async with sessions() as other:
+            seen.append((await other.execute(text("SELECT preview_used_at FROM users WHERE id = :id"), {"id": owner})).scalar())
+
+    async with sessions() as worker:
+        service, _, _ = setup_worker(worker, tmp_path, original)
+        service.video_service.process_video_complete = AsyncMock(return_value={
+            "video_path": str(original), "segments_to_render": segments, "segments": segments,
+        })
+        await service.process_task(task_id, "upload://input.mp4", "upload", user_id=owner, clip_ready_callback=clip_ready)
+    assert len(seen) == 1 and seen[0] is not None
+
+
+@pytest.mark.asyncio
+async def test_an_unlock_that_cannot_be_queued_stays_locked_and_can_be_retried(
+    client, auth_headers, db_session, hosted, tmp_path, monkeypatch
+):
+    task_id, _ = await _preview_task(db_session, tmp_path)
+    await db_session.execute(text("UPDATE users SET plan = 'pro', subscription_status = 'active' WHERE id = 'user-1'"))
+    await db_session.commit()
+    monkeypatch.setattr(
+        "src.api.routes.tasks.JobQueue.enqueue_processing_job", AsyncMock(side_effect=RuntimeError("redis down"))
+    )
+    failed = await client.post(f"/tasks/{task_id}/unlock", headers=auth_headers)
+    assert failed.status_code == 500
+    db_session.expire_all()
+    row = (await db_session.execute(text("SELECT status, preview FROM tasks WHERE id = :id"), {"id": task_id})).fetchone()
+    assert row.status == "completed" and "unlocked_at" not in row.preview
+
+    monkeypatch.setattr("src.api.routes.tasks.JobQueue.enqueue_processing_job", AsyncMock(return_value="retry-job"))
+    retried = await client.post(f"/tasks/{task_id}/unlock", headers=auth_headers)
+    assert retried.status_code == 200, retried.text
+    assert retried.json()["job_id"] == "retry-job"
+    charged = (await db_session.execute(text("SELECT COUNT(*) FROM minute_usage_events WHERE task_id = :id"), {"id": task_id})).scalar()
+    assert charged == 1
+
+
+@pytest.mark.asyncio
+async def test_a_buyer_is_unlocked_even_behind_many_unpaid_requests(
+    client, auth_headers, db_session, hosted, tmp_path, monkeypatch, initialized_database
+):
+    from src.workers import tasks as worker_tasks
+
+    task_id, _ = await _preview_task(db_session, tmp_path)
+    await db_session.execute(
+        text("UPDATE tasks SET preview = preview || CAST(:p AS JSONB) WHERE id = :id"),
+        {"id": task_id, "p": json.dumps({"unlock_requested_at": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()})},
+    )
+    await db_session.execute(text("UPDATE users SET plan = 'pro', subscription_status = 'active' WHERE id = 'user-1'"))
+    newer = json.dumps({"status": "pending", "unlock_requested_at": datetime.now(timezone.utc).isoformat()})
+    for _ in range(worker_tasks.UNLOCKS_PER_RUN + 5):
+        other = await create_user(db_session, email_verified=True)
+        await db_session.execute(
+            text("INSERT INTO tasks (id, user_id, status, preview) VALUES (:id, :u, 'completed', CAST(:p AS JSONB))"),
+            {"id": str(uuid4()), "u": other["id"], "p": newer},
+        )
+    await db_session.commit()
+    enqueue = AsyncMock(return_value="bg-unlock-job")
+    monkeypatch.setattr("src.api.routes.tasks.JobQueue.enqueue_processing_job", enqueue)
+    monkeypatch.setattr("src.database.AsyncSessionLocal", async_sessionmaker(initialized_database, expire_on_commit=False))
+
+    result = await worker_tasks.unlock_paid_previews({})
+    assert result["pending"] == worker_tasks.UNLOCKS_PER_RUN + 6
+    assert result["checked"] == 1 and result["unlocked"] == 1
+    enqueue.assert_awaited_once()

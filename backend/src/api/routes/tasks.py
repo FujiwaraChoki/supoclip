@@ -992,7 +992,18 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 if replay is not None:
                     return replay
             if preview:
-                pass  # Free: no minutes are checked or charged.
+                # Free: no minutes are checked or charged. Checked again under the account's lock: two
+                # requests at once would otherwise both pass the check above and make two free previews.
+                preview_access = await preview_eligibility(db, user_id, team_id, client_platform(request))
+                if not preview_access["eligible"]:
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "code": "PREVIEW_UNAVAILABLE",
+                            "reason": preview_access["reason"],
+                            "message": PREVIEW_REFUSALS.get(preview_access["reason"], "A free preview isn't available."),
+                        },
+                    )
             elif team_id:
                 await billing_service.assert_can_create_task(
                     user_id, duration_seconds, team_id=team_id
@@ -2383,6 +2394,10 @@ async def _run_task_again(task_id: str, request: Optional[Request], db: AsyncSes
                         _job_id=processing_job_id,
                     )
                 except Exception:
+                    if unlock:
+                        # Still locked, so Unlock (or the cron) can try again. The minutes stay charged
+                        # to this task and are reused then, never charged twice.
+                        await task_service.task_repo.save_preview(db, task_id, preview_state(task) or {})
                     await task_service.task_repo.update_task_status(
                         db, task_id, task["status"],
                         progress_message="Could not queue generation. Please try again.",
