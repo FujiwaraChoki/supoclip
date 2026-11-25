@@ -32,6 +32,7 @@ CREATE TABLE users (
     subscription_status VARCHAR(20) NOT NULL DEFAULT 'inactive',
     subscription_provider VARCHAR(20),
     stripe_customer_id VARCHAR(255) UNIQUE,
+    stripe_account_id VARCHAR(255),
     stripe_subscription_id VARCHAR(255) UNIQUE,
     billing_period_start TIMESTAMP WITH TIME ZONE,
     billing_period_end TIMESTAMP WITH TIME ZONE,
@@ -251,7 +252,10 @@ CREATE TABLE verification (
 CREATE TABLE stripe_webhook_events (
     id VARCHAR(255) PRIMARY KEY,
     type VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'processed',
+    claim_token VARCHAR(255),
+    lease_expires_at TIMESTAMPTZ
 );
 
 -- RevenueCat webhook idempotency table
