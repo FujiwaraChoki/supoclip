@@ -18,8 +18,10 @@ export default defineConfig({
   testIgnore: ["polish.spec.ts", "agents-assistants.spec.ts", "broll.spec.ts", "editor-broll.spec.ts", "editor-ai.spec.ts", "editor-studio.spec.ts", "editor-recovery.spec.ts", "local-workflow.spec.ts", "editor-effects.spec.ts", "fx-parity.spec.ts"],
   fullyParallel: false,
   retries: 0,
-  // `next dev` compiles each route on first visit, which can outlast the 5s default.
-  expect: { timeout: 15_000 },
+  // `next dev` compiles each route on first visit, and recompiles one it has evicted for being
+  // idle; home alone takes 20-25s in CI, so a test that opens a few pages outlasts the 30s default.
+  timeout: 90_000,
+  expect: { timeout: 30_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   globalSetup: "./e2e/global-setup.ts",
   use: {
