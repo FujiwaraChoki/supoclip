@@ -21,6 +21,9 @@ async function signedIn(page: Page) {
   await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks } }));
   await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
   await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+  // Home waits for these before it shows the form; stubbed so `next dev` never compiles the proxy mid-test.
+  await page.route("**/api/onboarding/status**", (route) => route.fulfill({ status: 404, json: {} }));
+  await page.route("**/api/agent/status", (route) => route.fulfill({ status: 401, json: {} }));
   await page.route("**/api/fonts", route => route.fulfill({ json: { fonts: [] } }));
   await page.route("**/api/caption-templates", route => route.fulfill({ json: { templates: [{ id: "default", name: "Default", description: "Word captions" }] } }));
   await page.route("**/api/preferences", route => route.fulfill({ json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true } }));

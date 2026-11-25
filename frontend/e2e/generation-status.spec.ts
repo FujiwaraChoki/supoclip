@@ -16,6 +16,9 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/fonts", route => route.fulfill({ json: { fonts: [] } }));
   await page.route("**/api/caption-templates", route => route.fulfill({ json: { templates: [] } }));
   await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+  // Home waits for these before it shows the form; stubbed so `next dev` never compiles the proxy mid-test.
+  await page.route("**/api/onboarding/status**", (route) => route.fulfill({ status: 404, json: {} }));
+  await page.route("**/api/agent/status", (route) => route.fulfill({ status: 401, json: {} }));
   await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: incident } }));
 });
 
