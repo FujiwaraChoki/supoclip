@@ -31,16 +31,22 @@ export function ResetPassword() {
     setLoading(true);
     setMessage("");
 
-    const response = await resetPassword({ newPassword: password, token });
+    try {
+      const response = await resetPassword({ newPassword: password, token });
 
-    setLoading(false);
-    if (response.error) {
-      setMessage(response.error.message || t("reset.failed"));
-      return;
+      if (response.error) {
+        setMessage(response.error.message || t("reset.failed"));
+        return;
+      }
+
+      setDone(true);
+      setTimeout(() => router.push("/sign-in"), 1500);
+    } catch {
+      // Network failure: show the generic message and keep the form usable for a retry.
+      setMessage(t("reset.failed"));
+    } finally {
+      setLoading(false);
     }
-
-    setDone(true);
-    setTimeout(() => router.push("/sign-in"), 1500);
   };
 
   if (!token || linkError) {
