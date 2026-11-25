@@ -42,20 +42,14 @@ def _plan_with_context(samples, evidence, cuts, track_x=960.0):
     )
 
 
-def test_low_webcam_face_is_staged_above_the_lower_half():
-    # Face centre sits at 63% of a 1080p frame: the full-height 9:16 crop
-    # would leave it there and scale the slice about 1.8x.
+def test_low_webcam_face_keeps_the_frame_full():
+    # Face centre sits at 63% of a 1080p frame and cannot be lifted by a tight crop. It used to be shown at
+    # about 60% of the frame height between two blurred bands ("stage"); it keeps the tracked full-height crop.
     layout = choose_talking_head_layout(
         1920, 1080, _frames([(800, 560, 280, 240)]), scene_cuts=[]
     )
 
-    assert layout is not None
-    assert layout["kind"] == "stage"
-    assert layout["upscale"] <= 1.35
-    assert 0.32 <= layout["face_y"] <= 0.46
-    assert layout["caption_y"] > layout["video_bottom"] - 0.02
-    assert "gblur" in layout["video_filter"]
-    assert "[vout]" in layout["video_filter"]
+    assert layout is None
 
 
 def test_side_by_side_webcams_use_a_stacked_layout():
@@ -106,15 +100,17 @@ def test_podcast_two_shot_with_high_faces_is_not_stacked():
     )
 
 
-def test_one_context_cut_still_stages_a_low_webcam(tmp_path):
+def test_a_low_webcam_with_one_context_cut_fills_the_frame_without_blurred_bands(tmp_path):
     samples = _frames([(800, 560, 280, 240)])
     evidence, cuts = _crop_safe_evidence_with_one_context_cut(samples)
-    expected = choose_talking_head_layout(1920, 1080, samples, cuts)
-    assert expected is not None and expected["kind"] == "stage"
+    assert choose_talking_head_layout(1920, 1080, samples, cuts) is None
     duration, analyzed = _plan_with_context(samples, evidence, cuts)
     with duration, analyzed:
-        video_filter, mode, caption_y = build_vertical_filter_plan(tmp_path / "clip.mp4", 1920, 1080)
-    assert (video_filter, mode, caption_y) == (expected["video_filter"], "complex", expected["caption_y"])
+        video_filter, mode, _caption_y = build_vertical_filter_plan(tmp_path / "clip.mp4", 1920, 1080)
+    # The tracked full-height crop: the whole 1080x1920 frame is picture.
+    assert mode == "vf"
+    assert re.match(r"crop=60\d:1080:\d+:0,", video_filter)
+    assert "gblur" not in video_filter and "overlay" not in video_filter
 
 
 def test_one_context_cut_still_stacks_a_call(tmp_path):
@@ -140,10 +136,10 @@ def test_one_context_cut_on_a_static_closeup_still_uses_ken_burns(tmp_path):
     assert "zoompan" in video_filter
 
 
-def test_more_than_four_cuts_skip_stage_and_stack():
+def test_more_than_four_cuts_skip_the_stack():
     low = _frames([(800, 560, 280, 240)])
     call = _frames([(160, 480, 220, 200), (1100, 500, 220, 200)])
-    assert choose_talking_head_layout(1920, 1080, low, scene_cuts=[1, 2, 3, 4])["kind"] == "stage"
+    assert choose_talking_head_layout(1920, 1080, low, scene_cuts=[1, 2, 3, 4]) is None
     assert choose_talking_head_layout(1920, 1080, call, scene_cuts=[1, 2, 3, 4])["kind"] == "stack"
     assert choose_talking_head_layout(1920, 1080, low, scene_cuts=[1, 2, 3, 4, 5]) is None
     assert choose_talking_head_layout(1920, 1080, call, scene_cuts=[1, 2, 3, 4, 5]) is None
@@ -270,41 +266,49 @@ def test_solo_crop_on_a_1080p_source_stays_within_the_sharp_upscale():
     assert crop_h < 1080
 
 
-def test_small_face_with_headroom_is_still_staged():
-    # Under SINGLE_MIN_FACE_H_FRAC (11% of the frame): a crop would invent a
-    # close-up from a few pixels, so the wider stage stays.
-    layout = choose_talking_head_layout(
+# Faces the tight solo crop refuses. Each used to be "staged": shown at about 60% of the frame height on a
+# blurred canvas. None means the tracked full-height crop, which fills the frame.
+
+def test_small_face_with_headroom_keeps_the_full_height_crop():
+    # Under SINGLE_MIN_FACE_H_FRAC (11% of the frame): a tight crop would invent a close-up from a few pixels.
+    assert choose_talking_head_layout(
         1920, 1080, _frames([(900, 300, 90, 100)], count=36), scene_cuts=[]
-    )
-    assert layout is not None and layout["kind"] == "stage"
+    ) is None
 
 
-def test_face_too_low_to_lift_within_the_upscale_cap_is_still_staged():
-    # The webcam face of test_low_webcam_face_is_staged_above_the_lower_half:
-    # the tightest allowed crop would leave its centre below mid-frame.
-    layout = choose_talking_head_layout(
+def test_face_too_low_to_lift_within_the_upscale_cap_keeps_the_full_height_crop():
+    # The webcam face of test_low_webcam_face_keeps_the_frame_full: the tightest allowed crop would leave its
+    # centre below mid-frame.
+    assert choose_talking_head_layout(
         1920, 1080, _frames([(800, 560, 280, 240)], count=36), scene_cuts=[]
-    )
-    assert layout is not None and layout["kind"] == "stage"
+    ) is None
 
 
-def test_low_resolution_source_is_staged_instead_of_cropped_to_mush():
-    # 640x360: any 9:16 crop is a 5x enlargement.
-    layout = choose_talking_head_layout(
+def test_low_resolution_source_keeps_the_full_height_crop():
+    # 640x360: a tight crop is a 5x enlargement; the full-height one is 3x and fills the frame.
+    assert choose_talking_head_layout(
         640, 360, _frames([(273, 81, 91, 124)], count=36), scene_cuts=[]
-    )
-    assert layout is not None and layout["kind"] == "stage"
+    ) is None
 
 
-def test_a_second_person_for_part_of_the_clip_keeps_the_stage():
-    # A guest sits in for four seconds (under the 40% that marks a two-shot
-    # clip): the solo crop would cut them off, so the clip is staged as before.
+def test_a_second_person_for_part_of_the_clip_keeps_the_full_height_crop():
+    # A guest sits in for four seconds (under the 40% that marks a two-shot clip): the solo crop would cut
+    # them off, so the tracked crop stays in charge.
     samples = [
         (i / 3.0, [HOST_720] + ([(120, 170, 170, 230)] if 12 <= i < 24 else []))
         for i in range(36)
     ]
-    layout = choose_talking_head_layout(1280, 720, samples, scene_cuts=[])
-    assert layout is not None and layout["kind"] == "stage"
+    assert choose_talking_head_layout(1280, 720, samples, scene_cuts=[]) is None
+
+
+def test_three_people_in_one_shot_are_not_a_call_gallery():
+    # Three faces at one height (a sofa, a panel) used to count as a gallery and letterbox the whole clip.
+    row = [(300, 120, 150, 180), (880, 130, 150, 180), (1460, 125, 150, 180)]
+    assert choose_talking_head_layout(1920, 1080, _frames(row, count=36), scene_cuts=[]) is None
+    # Tiles on two rows are a call grid: no crop holds them, so the whole frame is shown.
+    grid = [(380, 150, 150, 180), (1380, 150, 150, 180), (380, 700, 150, 180), (1380, 700, 150, 180)]
+    layout = choose_talking_head_layout(1920, 1080, _frames(grid, count=36), scene_cuts=[])
+    assert layout is not None and layout["kind"] == "fit"
 
 
 def test_solo_crop_follows_a_presenter_who_moves():

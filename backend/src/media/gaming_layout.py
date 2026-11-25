@@ -1931,7 +1931,7 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
 
     One self-contained ``filter_complex`` ending in ``[vout]`` (1080x1920): the
     camera panel, the gameplay crop with HUD cut-outs overlaid, and, for spans
-    where the stream shows something else, the whole frame over a blurred fill.
+    where the stream shows something else, a full-height crop of the middle of the frame.
     """
     fallbacks = [(a, b) for a, b in profile.fallback_ranges if b > a]
     # The last span runs to the final frame even when the stream is a little longer than probed.

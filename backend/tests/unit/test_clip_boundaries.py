@@ -209,7 +209,7 @@ def test_filler_before_an_agreement_still_rewinds(tmp_path):
     assert ranges[0][0] == pytest.approx(7.9)
 
 
-def test_rewind_keeps_a_max_length_clip_within_sixty_seconds(tmp_path, monkeypatch):
+def test_a_max_length_clip_skips_a_bare_agreement_and_stays_within_sixty_seconds(tmp_path, monkeypatch):
     video = _transcript(
         tmp_path,
         [
@@ -250,9 +250,11 @@ def test_rewind_keeps_a_max_length_clip_within_sixty_seconds(tmp_path, monkeypat
         )
     ranges = rendered[0]
     played = sum(end - start for start, end in ranges)
-    assert ranges[0][0] == pytest.approx(3.9)
+    # "Yes." answers something the clip does not hold: the clip opens on the sentence after it rather than
+    # reaching back five seconds for the line it agrees with. The cap is kept and both edges are sentences.
+    assert ranges[0][0] == pytest.approx(10.7)
     assert played <= 60.05
-    assert ranges[-1][1] == pytest.approx(62.2 + timeline.CLIP_END_PADDING_SECONDS)
+    assert ranges[-1][1] == pytest.approx(69.2 + timeline.CLIP_END_PADDING_SECONDS)
 
 
 def test_first_person_claim_is_not_rewound(tmp_path):

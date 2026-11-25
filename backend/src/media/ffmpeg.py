@@ -15,6 +15,7 @@ import tempfile
 from .common import (
     AUDIO_BITRATE,
     CLIP_END_AUDIO_FADE_SECONDS,
+    CLIP_START_AUDIO_FADE_SECONDS,
     CROSSFADE_MAX_SECONDS,
     FINAL_VIDEO_CRF,
     FINAL_VIDEO_PRESET,
@@ -365,14 +366,18 @@ def cap_video_short_side(video_path: Path, short_side: int) -> bool:
     return True
 
 
-def audio_fade_out_filter(duration: float, fade_seconds: float = CLIP_END_AUDIO_FADE_SECONDS) -> str:
-    """``afade`` that brings audio of length ``duration`` to silence at its very end.
+def audio_edge_fades(duration: float, fade_seconds: float = CLIP_END_AUDIO_FADE_SECONDS) -> str:
+    """``afade`` pair that brings audio of length ``duration`` up from silence at its very start and down to
+    silence at its very end.
 
-    A clip's cut point is chosen in the silence after its last word, so the
-    fade only removes the click a hard cut can leave.
+    A clip's cut points are chosen in the silence around its first and last word, so the fades only remove
+    the click a hard cut can leave. Where speech runs on without a breath there is no silence, and the fades
+    are what keeps the cut from sounding chopped. The opening fade is half as long as the closing one: a
+    first consonant is shorter than a last one.
     """
     fade = max(0.0, min(fade_seconds, duration / 2))
-    return f"afade=t=out:st={max(0.0, duration - fade):.3f}:d={fade:.3f}"
+    opening = max(0.0, min(CLIP_START_AUDIO_FADE_SECONDS, duration / 2))
+    return f"afade=t=in:st=0:d={opening:.3f},afade=t=out:st={max(0.0, duration - fade):.3f}:d={fade:.3f}"
 
 
 def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]:
@@ -709,7 +714,7 @@ def render_ranges_crossfade_ffmpeg(
                 parts.append(f"{cur_a}[a{i}]concat=n=2:v=0:a=1{out}" if fade <= 1e-6 else f"{cur_a}[a{i}]acrossfade=d={fade:.6f}{out}")
                 cur_a = out
             played = sum(durations) - sum(fade for fade in fades if fade > 1e-6)
-            parts.append(f"{cur_a}{audio_fade_out_filter(played)}[afinal]")
+            parts.append(f"{cur_a}{audio_edge_fades(played)}[afinal]")
             map_args += ["-map", "[afinal]"]
 
         command = [
@@ -793,7 +798,7 @@ def render_source_ranges_ffmpeg(
             str(INTERMEDIATE_CRF),
             "-pix_fmt",
             "yuv420p",
-            *(["-af", audio_fade_out_filter(end - start)] if audio_stream is not None else []),
+            *(["-af", audio_edge_fades(end - start)] if audio_stream is not None else []),
             "-c:a",
             "aac",
             "-b:a",
@@ -847,7 +852,7 @@ def render_source_ranges_ffmpeg(
                 f"{''.join(concat_inputs)}concat=n={len(keep_ranges)}:v=1:a=1[v][joined]"
             )
             total = sum(end - start for start, end in keep_ranges)
-            filter_parts.append(f"[joined]{audio_fade_out_filter(total)}[a]")
+            filter_parts.append(f"[joined]{audio_edge_fades(total)}[a]")
             map_args = ["-map", "[v]", "-map", "[a]"]
         else:
             filter_parts.append(

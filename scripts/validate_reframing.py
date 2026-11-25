@@ -28,19 +28,21 @@ from src.media.reframing import (
     render_reframed_clip_ffmpeg,
 )
 from src.media.scene_context import build_context_layout_plan
+from src.media.screen_text import FrameReader, ocr_available
 
 
-# Labels describe the selected excerpt, not a semantic class inferred by code.
-# Full source attribution/license details live on the Wikimedia file pages.
+# Labels describe the selected excerpt, not a semantic class inferred by code: "fill" = footage, which fills the
+# 9:16 frame (a face crop or a full-height cover crop); "fit" = content (a screen, a document), which keeps the
+# whole picture. Full source attribution/license details live on the Wikimedia file pages.
 CORPUS = [
-    ("basketball", "20130307_Steal_small_sample_(1280).ogv", 0, "fit"),
-    ("basketball-practice", "2012_Team_USA_basketball_practice.ogv", 0, "fit"),
-    ("presenter", "20090124_WeeklyAddress.ogv", 30, "face"),
-    ("group-interview", "STS-107_crew_media_downlink_interview,_18_January_2003_(NASA_sts107fd03a).webm", 5, "fit"),
+    ("basketball", "20130307_Steal_small_sample_(1280).ogv", 0, "fill"),
+    ("basketball-practice", "2012_Team_USA_basketball_practice.ogv", 0, "fill"),
+    ("presenter", "20090124_WeeklyAddress.ogv", 30, "fill"),
+    ("group-interview", "STS-107_crew_media_downlink_interview,_18_January_2003_(NASA_sts107fd03a).webm", 5, "fill"),
     ("desktop", "Firefox_136_on_Fedora_41,_browsing_the_English_Wikipedia_site.webm", 5, "fit"),
-    ("diagram", "3DScapeCS-application-of-three-dimensional-parallel-dynamic-network-visualization-in-Cytoscape-1471-2105-14-322-S5.ogv", 0, "fit"),
-    ("game", "A_box_game_written_in_Python.ogv", 10, "fit"),
-    ("pedestrians", "https://raw.githubusercontent.com/opencv/opencv/master/samples/data/vtest.avi", 0, "fit"),
+    ("diagram", "3DScapeCS-application-of-three-dimensional-parallel-dynamic-network-visualization-in-Cytoscape-1471-2105-14-322-S5.ogv", 0, None),
+    ("game", "A_box_game_written_in_Python.ogv", 10, None),
+    ("pedestrians", "https://raw.githubusercontent.com/opencv/opencv/master/samples/data/vtest.avi", 0, "fill"),
     ("animation", "https://raw.githubusercontent.com/opencv/opencv/master/samples/data/Megamind.avi", 0, None),
 ]
 
@@ -184,13 +186,15 @@ def main():
         started = time.perf_counter()
         track, cuts, faces, evidence = analyze_vertical_clip(clip)
         seconds = time.perf_counter() - started
-        plan = build_context_layout_plan(evidence, cuts, duration, min(1, height * 9 / 16 / width))
+        reader = FrameReader(clip) if ocr_available() else None
+        plan = build_context_layout_plan(evidence, cuts, duration, min(1, height * 9 / 16 / width), reader)
         baseline = build_layout_plan(track, cuts, duration)
         fraction = fit_fraction(plan, duration)
         passed = expected is None or (fraction >= 0.8 if expected == "fit" else fraction <= 0.2)
         if expected == "mixed":
-            passed = all(next(p["kind"] for p in plan if p["start"] <= t < p["end"]) == kind
-                         for t, kind in [(2, "face"), (7, "fit"), (12, "fit"), (17, "face")])
+            # presenter -> desktop -> sports -> presenter: only the desktop keeps the whole picture.
+            passed = all(next(p["kind"] for p in plan if p["start"] <= t < p["end"]) in kinds
+                         for t, kinds in [(2, {"face"}), (7, {"fit"}), (12, {"cover", "face"}), (17, {"face"})])
         failed |= not passed
         render = None
         if args.render:

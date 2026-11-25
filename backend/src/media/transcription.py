@@ -9,6 +9,7 @@ import assemblyai as aai
 from ..config import get_config
 import httpx
 import json
+import threading
 import re
 import time
 from .common import (
@@ -971,8 +972,111 @@ def cache_transcript_data(video_path: Path, transcript) -> None:
     logger.info(f"Cached {len(words_data)} words to {cache_path}")
 
 
+# Corrections to cached transcripts, held in this process: {sidecar path: {a word as cached: what changes}}.
+# A word is named by (start ms, end ms, text) as the file has it. ``media.edge_listen`` finds them by
+# listening to the audio around a clip's cuts; the file itself is shared and is never rewritten. Renders run
+# in worker threads, so every access is under one lock, and a worker that lives for weeks keeps the
+# corrections of the last WORD_FIX_VIDEOS videos only (another process, or this one later, finds them again
+# the same way).
+WORD_FIX_VIDEOS = 32
+_WORD_FIX_LOCK = threading.RLock()
+_WORD_FIXES: Dict[str, Dict[tuple, Dict[str, Any]]] = {}
+_WORD_FIX_ORIGINS: Dict[str, Dict[tuple, tuple]] = {}
+_WORD_FIX_GENERATION: Dict[str, int] = {}
+
+
+def _word_fix_key(video_path: Path) -> str:
+    return str(Path(video_path).with_suffix(".transcript_cache.json"))
+
+
+def register_word_fixes(video_path: Path, fixes: Dict[tuple, Dict[str, Any]]) -> bool:
+    """Record corrections for words of ``video_path``'s transcript: {(start ms, end ms, text) as now loaded:
+    {"start": s, "end": s, "text": str}} with seconds and only the fields that change.
+
+    True when anything new was recorded. Every later ``load_cached_transcript_data`` returns the corrected
+    words; ``word_fix_generation`` changes so caches built on the words can tell.
+    """
+    key = _word_fix_key(video_path)
+    with _WORD_FIX_LOCK:
+        if key not in _WORD_FIXES and len(_WORD_FIXES) >= WORD_FIX_VIDEOS:
+            oldest = next(iter(_WORD_FIXES))
+            _WORD_FIXES.pop(oldest, None)
+            _WORD_FIX_ORIGINS.pop(oldest, None)      # its generation stays: caches must not match again
+        known, origins = _WORD_FIXES.setdefault(key, {}), _WORD_FIX_ORIGINS.setdefault(key, {})
+        changed = False
+        for current, change in fixes.items():
+            current = (int(current[0]), int(current[1]), str(current[2]))
+            origin = origins.get(current, current)
+            before = {name: value for name, value in known.get(origin, {}).items() if name != "applied"}
+            merged = {**before, **{name: value for name, value in change.items() if value is not None and name != "applied"}}
+            if merged == before:
+                continue
+            known[origin] = merged
+            changed = True
+        if changed:
+            _WORD_FIX_GENERATION[key] = _WORD_FIX_GENERATION.get(key, 0) + 1
+        return changed
+
+
+def word_fix_generation(video_path: Path) -> int:
+    """How many times corrections were recorded for ``video_path``'s transcript in this process."""
+    with _WORD_FIX_LOCK:
+        return _WORD_FIX_GENERATION.get(_word_fix_key(video_path), 0)
+
+
+def corrected_word_time(video_path: Path, seconds: float, edge: str) -> float:
+    """Where a word time read from the cached transcript is now: ``seconds`` is a word's ``edge`` ("start" or
+    "end") as the file has it; the corrected time when one was recorded for that word, else ``seconds``."""
+    wanted = int(round(float(seconds) * 1000))
+    with _WORD_FIX_LOCK:
+        for origin, change in (_WORD_FIXES.get(_word_fix_key(video_path)) or {}).items():
+            if abs(origin[0 if edge == "start" else 1] - wanted) <= 2:
+                # As the words were last loaded: a correction gives way to a neighbour it would overlap.
+                applied = change.get("applied") or change
+                if edge in applied:
+                    return float(applied[edge])
+    return seconds
+
+
+def _apply_word_fixes(cache_path: Path, payload: Dict[str, Any]) -> None:
+    words = payload.get("words")
+    with _WORD_FIX_LOCK:
+        fixes = _WORD_FIXES.get(str(cache_path))
+        if not fixes or not isinstance(words, list):
+            return
+        origins = _WORD_FIX_ORIGINS.setdefault(str(cache_path), {})
+        for position, word in enumerate(words):
+            try:
+                origin = (int(word["start"]), int(word["end"]), str(word["text"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            change = fixes.get(origin)
+            if not change:
+                continue
+            fixed = dict(word)
+            if "start" in change:
+                fixed["start"] = int(round(float(change["start"]) * 1000))
+            if "end" in change:
+                fixed["end"] = int(round(float(change["end"]) * 1000))
+            if "text" in change:
+                fixed["text"] = str(change["text"])
+            # Words stay in order and apart: a corrected word gives way to a neighbour that was not corrected.
+            if position > 0:
+                fixed["start"] = max(int(fixed["start"]), int(words[position - 1]["end"]))
+            if position + 1 < len(words):
+                following = words[position + 1]
+                later = fixes.get((int(following["start"]), int(following["end"]), str(following["text"])), {})
+                limit = int(round(float(later["start"]) * 1000)) if "start" in later else int(following["start"])
+                fixed["end"] = min(int(fixed["end"]), max(limit, int(fixed["start"]) + 1))
+            fixed["end"] = max(int(fixed["end"]), int(fixed["start"]) + 1)
+            change["applied"] = {"start": fixed["start"] / 1000.0, "end": fixed["end"] / 1000.0}
+            # The word as it is loaded from now on is the same word: a correction of it lands on this one.
+            origins[(int(fixed["start"]), int(fixed["end"]), str(fixed["text"]))] = origin
+            words[position] = fixed
+
+
 def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:
-    """Load cached AssemblyAI transcript data."""
+    """Load cached transcript data, with the corrections this process has recorded for it."""
     cache_path = video_path.with_suffix(".transcript_cache.json")
 
     if not cache_path.exists():
@@ -984,6 +1088,7 @@ def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:
             if "version" not in payload:
                 payload["version"] = TRANSCRIPT_CACHE_SCHEMA_VERSION
                 payload.setdefault("utterances", [])
+            _apply_word_fixes(cache_path, payload)
             return payload
     except Exception as e:
         logger.warning(f"Failed to load transcript cache: {e}")

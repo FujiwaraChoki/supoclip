@@ -62,10 +62,7 @@ from .media.reframing import (
 )
 from .media.fx_chain import FxRenderInput
 from .edit_fx.contracts import FxPlan
-from .media.source_captions import (
-    band_through_full_height_crop,
-    detect_burned_caption_band,
-)
+from .media.source_captions import band_through_full_height_crop
 from .media.speaker_framing import (
     build_clip_speaker_turns,
 )
@@ -477,20 +474,25 @@ def create_optimized_clip(
                 except Exception as exc:
                     logger.warning("Could not record the vertical layout for the editor: %s", exc)
 
-            # Detect source captions in both polarities, then inspect their
-            # actual composed positions for fit, reaction, stack and split layouts.
+            # The source's own burned-in text: read it, then leave our captions off (the source already captions
+            # the speech and the layout shows it whole), paint the cut-off lines out of cropped shots, or keep
+            # ours clear of its band (media.source_captions).
             source_caption_band = None
+            caption_action = "none"
             if add_subtitles:
                 try:
-                    source_caption_band = detect_burned_caption_band(source_clip_path)
-                    if source_caption_band and reframe_format != "original":
-                        from .media.source_captions import detect_rendered_caption_band
-                        from .media.reframing import caption_probe_plan
-                        probe_filter, probe_mode = caption_probe_plan(source_clip_path, reframe_format, vertical_plan)
-                        source_caption_band = detect_rendered_caption_band(source_clip_path, probe_filter, probe_mode, ffprobe_duration(source_clip_path))
+                    source_caption_band, caption_action = _resolve_source_captions(
+                        video_path, source_clip_path, effective_keep_ranges, output_offsets, reframe_format,
+                        (src_w, src_h), plan_report, vertical_plan,
+                        keep_ours=(caption_override or {}).get("words") is not None,
+                    )
                 except Exception as exc:
                     logger.warning("Burned-in caption detection failed: %s", exc)
-                    source_caption_band = None
+                    source_caption_band, caption_action = None, "none"
+                if caption_action == "suppress":
+                    add_subtitles = False
+            if layout_report is not None and caption_action != "none":
+                layout_report["source_captions"] = caption_action
             if layout_report is not None and source_caption_band is not None:
                 layout_report["source_caption_band"] = source_caption_band
                 if isinstance(layout_report.get("vertical_layout"), dict) and plan_report.get("interview_segments"):
@@ -538,8 +540,12 @@ def create_optimized_clip(
                     **({"template_override": template_override} if template_override else {}),
                     **({"time_map": time_map} if time_map is not None else {}),
                     **({"censor_spans": censor_spans} if censor_spans else {}),
-                    # A game writes its characters' lines on the screen; captions would say them twice.
-                    **({"drop_screen_words": True} if include_captions and plan_report.get("kind") == "gaming" else {}),
+                    # A game writes its characters' lines on the screen; captions would say them twice. The same
+                    # under a reactor: the source panel shows the game's or the video's own subtitles.
+                    # When the source's lines were painted out, every line gets a caption.
+                    **({"drop_screen_words": True}
+                       if include_captions and plan_report.get("kind") in ("gaming", "reaction")
+                       and caption_action != "mask" else {}),
                     # Only stacked interview openings move the hook title.
                     **_interview_hook_kwargs(plan_report),
                     # Lines spoken in a stacked two-shot sit on its seam, clear of both faces.
@@ -816,6 +822,74 @@ def _av_mismatch(path: Path) -> bool:
 # Vertical layouts made of separate panels (reactor over source, call tiles, two speakers at once, a camera over
 # gameplay): no frame zooms. They report no ``panel_windows``: the panels are there for the whole clip.
 FX_PANEL_LAYOUTS = frozenset({"reaction", "stack", "overlap", "gaming"})
+
+
+def _resolve_source_captions(
+    video_path: Path,
+    source_clip_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    output_offsets: Optional[List[float]],
+    reframe_format: str,
+    source_size: Tuple[int, int],
+    plan_report: Dict[str, Any],
+    vertical_plan: Optional[Tuple[str, str]],
+    keep_ours: bool = False,
+) -> Tuple[Optional[Tuple[float, float]], str]:
+    """Deal with text the source burns in: (band our captions must avoid, action taken).
+
+    The action is ``media.source_captions.plan_caption_action``'s: "suppress" (the caller leaves the spoken
+    captions off), "mask" (the cut-off lines were painted out of ``source_clip_path`` here; nothing to avoid),
+    "avoid" (the returned band, in output coordinates) or "none". ``keep_ours`` (captions the user edited)
+    never suppresses.
+    """
+    from .media.reframing import caption_probe_plan
+    from .media.source_captions import (
+        analyze_source_captions,
+        band_in_output,
+        cropped_intervals,
+        cut_intervals,
+        detect_rendered_caption_band,
+        mask_caption_band,
+        plan_caption_action,
+    )
+
+    transcript_data = load_cached_transcript_data(video_path)
+    offsets_kwargs = {"output_offsets": output_offsets} if output_offsets is not None else {}
+    clip_words = get_words_for_keep_ranges(transcript_data, keep_ranges, **offsets_kwargs) if transcript_data else []
+    found = analyze_source_captions(source_clip_path, clip_words)
+    if found is None:
+        return None, "none"
+    src_w, src_h = source_size
+    duration = ffprobe_duration(source_clip_path)
+    kind = plan_report.get("kind") if reframe_format == "vertical" and vertical_plan is not None else None
+    layout = {"kind": kind, "interview_segments": plan_report.get("interview_segments")}
+    cropped = cropped_intervals(
+        reframe_format, src_w, src_h, duration, layout if reframe_format == "vertical" else None)
+    # A crop that holds the source's lines whole does not cut them (a portrait picture set in a 16:9 frame).
+    # Only the scene plan reports its crops; composed layouts (stacked, game, reaction) cut.
+    cut = cut_intervals(found, cropped, plan_report.get("crop_windows") if kind is not None else None)
+    action = plan_caption_action(found, cropped, duration, cut=cut)
+    if action == "suppress" and keep_ours:
+        action = "avoid"
+    if action == "mask":
+        if mask_caption_band(source_clip_path, found, cropped or []):
+            logger.info("Source captions painted out of the cropped shots; one caption layer remains")
+            return None, "mask"
+        action = "avoid"
+    if action == "suppress":
+        logger.info("Source already captions the speech; leaving generated captions off")
+        return None, "suppress"
+    band = band_in_output(found, reframe_format, src_w, src_h, kind)
+    if band is None and reframe_format != "original":
+        # Split, stacked and game layouts move the band: look at the composed picture.
+        try:
+            probe_filter, probe_mode = caption_probe_plan(source_clip_path, reframe_format, vertical_plan)
+            band = detect_rendered_caption_band(source_clip_path, probe_filter, probe_mode, duration)
+        except Exception as exc:  # noqa: BLE001 - fall back to the rows the source wrote in
+            logger.warning("Could not locate the source captions in the composed picture: %s", exc)
+        if band is None and kind not in {"gaming", "reaction", "interview", "stack", "overlap"}:
+            band = band_through_full_height_crop(found.band)
+    return band, action
 
 
 def _interview_hook_kwargs(plan_report: Dict[str, Any]) -> Dict[str, Any]:

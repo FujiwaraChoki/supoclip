@@ -961,7 +961,7 @@ def render_document(
     ``editor_fx_render.render_document_fx`` and returns its outcome; any other
     draft renders exactly as before and returns None."""
     from .clip_editor import _ffprobe_size, _escape_filter_path
-    from .media.ffmpeg import audio_fade_out_filter
+    from .media.ffmpeg import audio_edge_fades
     from .media.broll_overlay import broll_input_args, broll_overlay_graph, normalize_broll_overlays
     from .video_utils import ass_fonts_dir
 
@@ -1083,7 +1083,7 @@ def render_document(
         # fades so it cannot click.
         filters.append(
             f"[audio]volume={0 if document.muted else document.volume},"
-            f"{audio_fade_out_filter(total)}[outa]"
+            f"{audio_edge_fades(total)}[outa]"
         )
     command = [
         "ffmpeg",

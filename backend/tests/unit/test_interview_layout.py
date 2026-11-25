@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -24,6 +25,7 @@ from src.media.interview_layout import (
     precise_cuts,
 )
 from src.media.scene_context import ContextAnalyzer, SceneEvidence
+from src.media.screen_text import ScreenWord
 from src.services.editor_service import PRESERVED_LAYOUT_KINDS
 
 W, H = 1920, 1080
@@ -62,6 +64,28 @@ def plan(shots, cuts, duration, **kwargs):
 
 def kinds(result):
     return [(s["start"], s["end"], s["kind"]) for s in result["segments"]]
+
+
+def composed(faces, context, cuts, duration, **kwargs):
+    """The plan and the segments it was built from: a cover there has its own reason and crop centre
+    (``cover_x``), where the report only says ``single`` / ``cover``."""
+    build = interview_layout.build_interview_filter
+    with patch.object(interview_layout, "build_interview_filter", wraps=build) as built:
+        result = plan_interview_layout(W, H, duration, cuts, faces, context, **kwargs)
+    return result, built.call_args.args[0]
+
+
+def cover_crop(graph, index):
+    """(w, h, x, y) of the still crop of piece ``index``."""
+    return tuple(map(int, re.search(rf"\[s{index}\]trim=[^,]*,crop=(\d+):(\d+):(\d+):(\d+),", graph).groups()))
+
+
+def line(text, left, right, y, height=0.04):
+    """The words of one read line, spread evenly from ``left`` to ``right`` (0-1 of the frame) around ``y``."""
+    parts = text.split()
+    step = (right - left) / len(parts)
+    return [ScreenWord(part, left + i * step, y - height / 2, left + (i + 1) * step - 0.01, y + height / 2, 90.0)
+            for i, part in enumerate(parts)]
 
 
 INTERVIEW = [
@@ -141,18 +165,56 @@ def test_a_stray_paragraph_sample_does_not_flip_the_layout():
     assert {s["kind"] for s in result["segments"]} == {"pair"}
 
 
-def test_b_roll_without_people_fits_and_a_missed_face_flash_does_not():
+def test_b_roll_without_people_fills_the_frame_and_a_missed_face_flash_does_not_split_it():
     shots = [(0, 4, [HOST, GUEST]), (4, 7, []), (7, 7.33, []), (7.33, 12, [HOST, GUEST])]
-    result = plan(shots, [4, 7, 7.33], 12)
-    assert kinds(result)[1] == (4, 7.33, "fit")
-    assert [k for *_, k in kinds(result)] == ["pair", "fit", "pair"]
+    faces, context = samples(shots)
+    result, segments = composed(faces, context, [4, 7, 7.33], 12)
+    assert kinds(result) == [(0, 4, "pair"), (4, 7.33, "single"), (7.33, 12, "pair")]
+    assert result["segments"][1]["reason"] == "cover"
+    # One full-height crop on the middle of the frame (nothing was measured to aim it), not the whole
+    # picture on a blurred background.
+    assert (segments[1].kind, segments[1].reason, segments[1].cover_x) == ("cover", "no_subject", 0.5)
+    assert cover_crop(result["video_filter"], 1) == (606, 1080, 656, 0)
+    assert "gblur" not in result["video_filter"]
 
 
-def test_a_small_lone_face_keeps_the_whole_frame():
-    # A distant figure or a game character is not worth a 2x crop.
-    result = plan([(0, 4, [HOST, GUEST]), (4, 8, [(900.0, 300.0, 80.0, 100.0)])], [4], 8)
-    assert result["segments"][1]["kind"] == "fit"
-    assert result["segments"][1]["reason"] == "small_subject"
+def test_a_small_lone_face_gets_a_full_height_crop_around_it_not_a_tight_one():
+    # A distant figure or a game character is not worth a 2x crop, and the picture is not shown small for
+    # it either: the frame fills with a full-height crop around the figure, moving footage or not.
+    small = (900.0, 300.0, 80.0, 100.0)
+    faces, context = samples([(0, 4, [HOST, GUEST]), (4, 8, [small])])
+    result, segments = composed(faces, context, [4], 8)
+    assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("single", "cover")
+    assert (segments[1].kind, segments[1].reason) == ("cover", "small_subject")
+    w, h, x, y = cover_crop(result["video_filter"], 1)
+    assert (w, h, y) == (606, 1080, 0)
+    assert abs(x + w / 2 - (small[0] + small[2] / 2)) <= 6
+    assert "gblur" not in result["video_filter"]
+
+
+def test_a_stretch_nobody_sampled_fills_the_frame_from_the_centre():
+    # The analysis has no sample for the first two seconds.
+    faces, context = samples([(2, 6, [HOST, GUEST]), (6, 10, [CLOSE])])
+    result, segments = composed(faces, context, [2, 6], 10)
+    assert kinds(result) == [(0, 2, "single"), (2, 6, "pair"), (6, 10, "single")]
+    assert result["segments"][0]["reason"] == "cover"
+    assert (segments[0].kind, segments[0].reason, segments[0].cover_x) == ("cover", "unsampled", 0.5)
+    assert cover_crop(result["video_filter"], 0) == (606, 1080, 656, 0)
+    assert "gblur" not in result["video_filter"]
+
+
+def test_a_glance_at_a_person_between_two_stretches_of_a_graphic_keeps_the_whole_frame():
+    # While a graphic is up, a second and a half of the guest would drop it and bring it back.
+    def shots(seconds):
+        return [PAIR_SHOT, (4, 8, [], "graphic"), (8, 8 + seconds, [CLOSE]), (8 + seconds, 14, [], "graphic"),
+                (14, 18, [HOST, GUEST])]
+
+    glance = plan(shots(1.5), [4, 8, 9.5, 14], 18)
+    assert [(s["start"], s["end"], s["kind"], s["reason"]) for s in glance["segments"]] == [
+        (0, 4, "pair", "two_people"), (4, 14, "fit", "graphic"), (14, 18, "pair", "two_people")]
+    # Three seconds are a shot of their own: the guest gets the crop.
+    assert kinds(plan(shots(3), [4, 8, 11, 14], 18)) == [
+        (0, 4, "pair"), (4, 8, "fit"), (8, 11, "single"), (11, 14, "fit"), (14, 18, "pair")]
 
 
 def test_over_the_shoulder_shot_frames_the_face_not_the_near_shoulder():
@@ -289,7 +351,7 @@ def test_reaction_inset_still_wins(monkeypatch, tmp_path):
     monkeypatch.setattr(reframing, "ffprobe_duration", lambda _p: 18.0)
     monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_a, **_k: ([], [5, 9, 14], faces, context))
     monkeypatch.setattr("src.media.reaction_layout.find_reactor_face", lambda *_a: None)
-    monkeypatch.setattr("src.media.reaction_layout.choose_reaction_layout", lambda *_a: reaction)
+    monkeypatch.setattr("src.media.reaction_layout.choose_reaction_layout", lambda *_a, **_k: reaction)
     assert reframing.describe_vertical_layout(tmp_path / "clip.mp4", W, H)["kind"] == "reaction"
 
 
@@ -436,13 +498,25 @@ def test_a_group_alone_does_not_make_the_clip_an_interview():
     assert plan([(0, 10, [LEFT, MIDDLE, RIGHT])], [5], 10) is None
 
 
-def test_a_call_grid_and_a_crowd_keep_the_whole_frame():
+def test_a_call_grid_and_a_crowd_fill_the_frame_with_the_people_who_share_one_crop():
     grid = [(300.0, 150.0, 160.0, 200.0), (1300.0, 150.0, 160.0, 200.0),
             (300.0, 690.0, 160.0, 200.0), (1300.0, 690.0, 160.0, 200.0)]
     crowd = [(100.0 + 350 * i, 250.0, 150.0, 190.0) for i in range(5)]
     for people in (grid, crowd):
-        result = plan([PAIR_SHOT, (4, 10, people)], [4], 10)
-        assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("fit", "group")
+        faces, context = samples([PAIR_SHOT, (4, 10, people)])
+        result, segments = composed(faces, context, [4], 10)
+        # No two panels hold them, and the whole picture is not shown small for them either.
+        assert (result["segments"][1]["kind"], result["segments"][1]["reason"]) == ("single", "cover")
+        assert (segments[1].kind, segments[1].reason) == ("cover", "group")
+        assert "gblur" not in result["video_filter"]
+        w, h, x, y = cover_crop(result["video_filter"], 1)
+        assert (w, h, y) == (606, 1080, 0)
+        # One column of the grid, two neighbours of the crowd: the most faces one crop holds, centred.
+        whole = [face for face in people if x <= face[0] - 4 and face[0] + face[2] + 4 <= x + w]
+        assert len(whole) == 2
+        centre = (min(face[0] for face in whole) + max(face[0] + face[2] for face in whole)) / 2
+        assert segments[1].cover_x == pytest.approx(centre / W, abs=0.005)
+        assert abs(x + w / 2 - centre) <= 6
 
 
 def test_a_passer_by_does_not_turn_two_people_into_a_group():
@@ -469,7 +543,7 @@ def test_a_panel_at_the_frame_edge_stops_at_the_neighbours_face():
     assert bx >= 820 + 160 and bx + bw <= W
 
 
-def test_moving_b_roll_fills_the_frame_and_a_still_picture_does_not():
+def test_b_roll_fills_the_frame_moving_or_still_and_a_labelled_still_picture_does_not():
     shots = [PAIR_SHOT, (4, 8, [])]
     faces, context = live(shots, focus_center=0.42)
     result = plan_interview_layout(W, H, 8, [4], faces, context)
@@ -479,20 +553,52 @@ def test_moving_b_roll_fills_the_frame_and_a_still_picture_does_not():
     w, h, x, y = map(int, re.search(r"\[s1\]trim=start=4.000,crop=(\d+):(\d+):(\d+):(\d+)", result["video_filter"]).groups())
     assert (w, h, y) == (606, 1080, 0)
     assert abs((x + w / 2) / W - 0.42) < 0.01
-    # A chart or a screenshot does not move: the whole picture stays.
-    still = plan(shots, [4], 8)
-    assert (still["segments"][1]["kind"], still["segments"][1]["reason"]) == ("fit", "no_subject")
-    # A whip pan defeats the motion measurement but not the frame difference.
+    # A photo or a product shot that does not move fills the frame as well, from the middle here (no focus
+    # was measured).
     faces, context = samples(shots)
+    still, segments = composed(faces, context, [4], 8)
+    assert (still["segments"][1]["kind"], still["segments"][1]["reason"]) == ("single", "cover")
+    assert (segments[1].kind, segments[1].reason, segments[1].cover_x) == ("cover", "no_subject", 0.5)
+    assert cover_crop(still["video_filter"], 1) == (606, 1080, 656, 0)
+    assert "gblur" not in still["video_filter"]
+    # A chart or a screenshot: a still picture whose labels the crop would cut. The whole picture stays.
+    labelled = [replace(e, cut_text_lines=2) if e.time >= 4 else e for e in context]
+    chart = plan_interview_layout(W, H, 8, [4], faces, labelled)
+    assert (chart["segments"][1]["kind"], chart["segments"][1]["reason"]) == ("fit", "labelled_still")
+    assert "gblur" in chart["video_filter"]
+    # The same labels over moving footage are signs and captions: the footage fills the frame.
+    signs = plan_interview_layout(W, H, 8, [4], faces, [replace(e, motion=0.1) for e in labelled])
+    assert (signs["segments"][1]["kind"], signs["segments"][1]["reason"]) == ("single", "cover")
+    # A whip pan (no motion measured, every frame different) fills the frame like any other footage.
     whip = plan_interview_layout(W, H, 8, [4], faces, [replace(e, difference=40.0) for e in context])
-    assert whip["segments"][1]["reason"] == "cover"
+    assert (whip["segments"][1]["kind"], whip["segments"][1]["reason"]) == ("single", "cover")
 
 
-def test_b_roll_showing_a_paragraph_keeps_the_whole_frame():
+def test_b_roll_showing_a_paragraph_keeps_the_whole_frame_only_when_it_reads_as_one_or_is_still():
     faces, context = live([PAIR_SHOT, (4, 8, [])])
     context = [replace(e, text_block_lines=3) if e.time >= 4 and i % 2 else e for i, e in enumerate(context)]
-    result = plan_interview_layout(W, H, 8, [4], faces, context)
-    assert "cover" not in [s["reason"] for s in result["segments"]]
+
+    def b_roll(result):
+        return result["segments"][1]["kind"], result["segments"][1]["reason"]
+
+    # Moving footage that cannot be read: brick courses and shelves stack like a paragraph too. It fills.
+    unread = plan_interview_layout(W, H, 8, [4], faces, context)
+    assert b_roll(unread) == ("single", "cover") and "gblur" not in unread["video_filter"]
+    # Read, and it is a page: thirty words on five lines, most of them outside the crop.
+    page = [word for row in range(5) for word in line("the quick brown fox jumps over", 0.1, 0.9, 0.2 + 0.1 * row)]
+    asked = []
+    read = plan_interview_layout(W, H, 8, [4], faces, context, read_words=lambda t: asked.append(t) or page)
+    assert b_roll(read) == ("fit", "graphic") and "gblur" in read["video_filter"]
+    assert asked and all(4 <= moment < 8 for moment in asked)
+    # Read, and nothing is written there: it fills the frame.
+    blank = plan_interview_layout(W, H, 8, [4], faces, context, read_words=lambda _t: [])
+    assert b_roll(blank) == ("single", "cover")
+    # The reader failed: moving footage fills the frame, as without one.
+    failed = plan_interview_layout(W, H, 8, [4], faces, context, read_words=lambda _t: None)
+    assert b_roll(failed) == ("single", "cover")
+    # A picture that does not move, unread: the paragraph is a graphic, shown whole as before.
+    still = plan_interview_layout(W, H, 8, [4], faces, [replace(e, motion=0.0) for e in context])
+    assert b_roll(still) == ("fit", "graphic") and "gblur" in still["video_filter"]
 
 
 def test_a_small_lone_face_in_live_footage_is_covered_around_it():
@@ -738,22 +844,28 @@ RIGHT_FACE = (575.0, 310.0, 180.0, 230.0)       # the next seat: 275 px away, mo
 MID_FACE = (820.0, 280.0, 180.0, 230.0)
 
 
-def test_a_stretch_whose_face_keeps_jumping_across_the_frame_stays_wide():
+def test_a_stretch_whose_face_keeps_jumping_across_the_frame_holds_a_still_crop_where_the_face_mostly_is():
     # A two-shot, a cut, then a handheld scene whose inner cuts were missed: the one face found is on the left,
     # for a moment on the right, left again, right again. A crop that follows "the person" trails behind and
-    # shows the wall between them.
+    # shows the wall between them. The frame stays filled: a full-height crop that does not move, on the seat
+    # the face is in for most of the stretch.
     whip = [(5, 6.7, [LEFT_FACE]), (6.7, 7.4, [RIGHT_FACE]), (7.4, 9, [LEFT_FACE]), (9, 9.7, [RIGHT_FACE]),
             (9.7, 11, [LEFT_FACE])]
-    result = plan([(0, 5, [HOST, GUEST]), *whip], [5.0], 11.0)
-    assert [(s["kind"], s.get("reason")) for s in result["segments"]] == [
-        ("pair", "two_people"), ("fit", "person_moves_across_frame")]
+    faces, context = samples([(0, 5, [HOST, GUEST]), *whip])
+    result, segments = composed(faces, context, [5.0], 11.0)
+    assert [(s["kind"], s.get("reason")) for s in result["segments"]] == [("pair", "two_people"), ("single", "cover")]
+    assert (segments[1].kind, segments[1].reason) == ("cover", "person_moves_across_frame")
+    w, h, x, y = cover_crop(result["video_filter"], 1)
+    assert (w, h, y) == (606, 1080, 0)
+    assert abs(x + w / 2 - (LEFT_FACE[0] + LEFT_FACE[2] / 2)) <= 6
+    assert "gblur" not in result["video_filter"]
     # One move across the frame is a person changing seat or the camera reframing: the crop follows.
     once = plan([(0, 5, [HOST, GUEST]), (5, 8, [LEFT_FACE]), (8, 11, [RIGHT_FACE])], [5.0], 11.0)
-    assert [s["kind"] for s in once["segments"]] == ["pair", "single"]
+    assert [(s["kind"], s["reason"]) for s in once["segments"]] == [("pair", "two_people"), ("single", "one_person")]
     # A person who stays put, or drifts, keeps the crop.
     drift = [(5 + i * 0.5, 5.5 + i * 0.5, [(300.0 + 30 * i, 300.0, 180.0, 230.0)]) for i in range(12)]
     steady = plan([(0, 5, [HOST, GUEST]), *drift], [5.0], 11.0)
-    assert [s["kind"] for s in steady["segments"]] == ["pair", "single"]
+    assert [(s["kind"], s["reason"]) for s in steady["segments"]] == [("pair", "two_people"), ("single", "one_person")]
 
 
 def test_face_jumps_counts_moves_of_half_a_crop_or_more():
@@ -918,3 +1030,20 @@ def test_a_change_without_a_cut_that_lasts_is_kept():
     # Someone walks out of a two-shot and stays out: the single crop holds 3 s, so the change stands.
     shots = [_seg(0, 4, "pair"), _seg(4, 7), _seg(7, 10, "pair")]
     assert len(_steady(shots, cuts=[])) == 3
+
+
+def test_a_card_too_short_to_read_between_people_fills_the_frame():
+    from src.media.interview_layout import Segment, _hold_content
+
+    def segment(start, end, kind, reason="x"):
+        return Segment(start, end, kind=kind, reason=reason)
+
+    # 2.4 s of "content" between two stretches of people: the drop to a third of the screen is what a viewer
+    # would notice, not the card.
+    held = _hold_content([segment(0, 10, "pair"), segment(10, 12.4, "fit", "graphic"), segment(12.4, 20, "single")])
+    assert [(s.kind, s.reason) for s in held][1] == ("cover", "brief_content")
+    # Long enough to read: it stays.
+    kept = _hold_content([segment(0, 10, "pair"), segment(10, 16, "fit", "graphic"), segment(16, 20, "single")])
+    assert [s.kind for s in kept] == ["pair", "fit", "single"]
+    # A clip that is one card throughout is content, however short.
+    assert [s.kind for s in _hold_content([segment(0, 2, "fit", "graphic")])] == ["fit"]

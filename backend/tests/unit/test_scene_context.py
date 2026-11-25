@@ -9,8 +9,10 @@ import pytest
 
 from src.media.scene_context import (
     ContextAnalyzer, SceneEvidence, build_context_layout_plan, context_reason, context_scene_cuts,
+    stabilize_layout_plan,
 )
 from src.media import reframing
+from src.media.screen_text import ScreenWord
 
 
 def subject(time=0.0, **kwargs):
@@ -53,11 +55,16 @@ def test_context_decisions(sample, expected):
 
 
 def test_real_short_shots_are_not_swallowed_by_debounce():
-    # Short crops around a real content shot widen with it; the content shot
-    # itself is never cropped to keep a neighbouring face.
+    # A short shot without a subject between two close-ups keeps its own layout: it fills the frame from
+    # its centre, and the close-ups beside it keep their face crops. Nothing is shown small.
     samples = [subject(0), subject(0.33), SceneEvidence(0.66), subject(1), subject(1.33)]
     plan = build_context_layout_plan(samples, [0.66, 1], 1.6, 0.316)
-    assert [(p["start"], p["end"], p["kind"]) for p in plan] == [(0, 1.6, "fit")]
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 0.66, "face", "confident_subject"),
+        (0.66, 1, "cover", "no_reliable_close_subject"),
+        (1, 1.6, "face", "confident_subject"),
+    ]
+    assert plan[1]["x"] == 0.5
 
 
 def test_single_missed_detection_does_not_widen_interview():
@@ -65,25 +72,51 @@ def test_single_missed_detection_does_not_widen_interview():
     assert build_context_layout_plan(samples, [], 10, 0.316)[0]["kind"] == "face"
 
 
-def test_repeated_risk_widens_entire_continuous_shot_without_flicker():
-    samples = [subject(i / 3) if i % 2 else SceneEvidence(i / 3) for i in range(30)]
+def test_repeated_risk_fills_the_entire_continuous_shot_with_one_still_crop_without_flicker():
+    # The face is lost in every other sample: one full-height crop on the face for the whole shot, instead
+    # of a tracked crop that comes and goes (and instead of the whole picture shown small).
+    samples = [subject(i / 3, face_center=0.6) if i % 2 else SceneEvidence(i / 3) for i in range(30)]
     plan = build_context_layout_plan(samples, [], 10, 0.316)
-    assert len(plan) == 1 and plan[0]["kind"] == "fit"
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 10, "cover", "no_reliable_close_subject")]
+    assert plan[0]["x"] == pytest.approx(0.6)
 
 
-def test_unsampled_shot_is_preserved_and_boundaries_cover_duration():
+def test_unsampled_shot_fills_from_the_centre_and_boundaries_cover_duration():
     plan = build_context_layout_plan([subject(0), subject(1)], [-1, 0.5, 0.5, 0.75, 9], 2, 0.316)
     assert plan[0]["start"] == 0 and plan[-1]["end"] == 2
     assert all(a["end"] == b["start"] for a, b in zip(plan, plan[1:]))
-    # The unsampled shot stays full frame; the brief crops beside it widen
-    # with it instead of flipping layouts twice in two seconds.
-    assert all(p["kind"] == "fit" for p in plan)
+    # Nothing is known about the unsampled shot: it fills the frame from the centre. The close-ups beside
+    # it keep their face crops.
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 0.5, "face", "confident_subject"),
+        (0.5, 0.75, "cover", "analysis_unavailable"),
+        (0.75, 2, "face", "confident_subject"),
+    ]
+    assert plan[1]["x"] == 0.5
 
 
 @pytest.mark.parametrize("duration", [0, -1, 10])
-def test_empty_analysis_fits(duration):
-    assert build_context_layout_plan([], [], duration, 0.316)[0]["kind"] == "fit"
-    assert reframing.build_layout_plan([], [], duration)[0]["kind"] == "fit"
+def test_empty_analysis_fills_the_frame_from_the_centre(duration):
+    # Nothing is known about the picture: the centre of the frame, full height. Never the letterboxed strip.
+    for plan in (build_context_layout_plan([], [], duration, 0.316), reframing.build_layout_plan([], [], duration)):
+        assert [(p["start"], p["end"], p["kind"], p["reason"], p["x"]) for p in plan] == [
+            (0, max(0, duration), "cover", "analysis_unavailable", 0.5)]
+
+
+def test_empty_samples_are_one_centred_cover():
+    assert build_context_layout_plan([], [5], 10, 0.316) == [
+        {"start": 0.0, "end": 10, "kind": "cover", "reason": "analysis_unavailable", "x": 0.5, "fill_x": 0.5}]
+
+
+def test_unmeasured_clip_crops_faces_and_fills_the_rest_from_the_centre():
+    # No scene context, only the face track: ten seconds of a face, then ten without one. The layouts
+    # switch at the scene cut beside the change.
+    track = [(i / 3, 960.0, 0.05) for i in range(30)] + [(i / 3, None, 0.0) for i in range(30, 60)]
+    plan = reframing.build_layout_plan(track, [10.5], 20)
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 10.5, "face", "confident_subject"), (10.5, 20, "cover", "no_face")]
+    assert plan[1]["x"] == 0.5
 
 
 def textured_frame():
@@ -178,14 +211,19 @@ def test_tiny_audience_faces_do_not_override_dominant_presenter():
 
 
 @pytest.mark.parametrize("analysis", [([], [], [], []), RuntimeError("decoder failed")])
-def test_failed_analysis_uses_full_frame_without_second_face_scan(analysis):
+def test_failed_analysis_fills_the_frame_from_the_centre_without_second_face_scan(analysis):
     kwargs = {"side_effect": analysis} if isinstance(analysis, Exception) else {"return_value": analysis}
+    report = {}
     with patch.object(reframing, "ffprobe_duration", return_value=10), \
          patch.object(reframing, "analyze_vertical_clip", **kwargs), \
+         patch("src.media.screen_text.ocr_available", return_value=False), \
          patch.object(reframing, "detect_optimal_crop_region", side_effect=AssertionError("unsafe fallback")):
-        graph, mode, caption_y = reframing.build_vertical_filter_plan(Path("missing.mp4"), 1920, 1080)
-    assert mode == "complex" and "[crsrc]" not in graph
-    assert "force_original_aspect_ratio=decrease" in graph and caption_y == 0.8
+        graph, mode, caption_y = reframing.build_vertical_filter_plan(
+            Path("missing.mp4"), 1920, 1080, report=report)
+    assert report["kind"] == "crop" and mode == "complex" and "[crsrc]" not in graph
+    # A full-height crop on the middle of the frame (960 - 303 = 657 → even 656), not the whole picture small.
+    assert "crop=606:ih:x='656':y=0,scale=1080:-2" in graph
+    assert "force_original_aspect_ratio=decrease" not in graph and caption_y is None
 
 
 def test_context_overrides_faces_and_speaker_turns():
@@ -381,14 +419,26 @@ def test_moving_footage_without_a_face_fills_the_frame_at_its_detail():
     assert plan[0]["x"] == pytest.approx(0.45)
 
 
-@pytest.mark.parametrize("kwargs", [
-    {"motion": 0.0},                                   # a still graphic or a side-by-side comparison
-    {"text_block_lines": 3},                           # a document, a tweet, a slide
-    {"face_count": 3, "face_area": 0.004, "face_span": 0.6},   # a crowd
-], ids=["still", "document", "crowd"])
-def test_content_keeps_the_full_frame(kwargs):
+@pytest.mark.parametrize("kwargs,x", [
+    ({"motion": 0.0}, 0.45),                           # a still picture without text: a photo, a product shot
+    ({"text_block_lines": 3}, 0.45),                   # moving footage in which shapes stack like a paragraph
+    ({"face_count": 3, "face_area": 0.004, "face_span": 0.6}, 0.5),   # a crowd: on its largest face
+], ids=["still", "paragraph-shapes", "crowd"])
+def test_footage_that_is_not_content_fills_the_frame(kwargs, x):
     plan = build_context_layout_plan([footage(i / 3, **kwargs) for i in range(30)], [], 10, 0.316)
-    assert [p["kind"] for p in plan] == ["fit"]
+    assert [(p["kind"], p["reason"]) for p in plan] == [("cover", "no_reliable_close_subject")]
+    assert plan[0]["x"] == pytest.approx(x)
+
+
+@pytest.mark.parametrize("sample,reason", [
+    (footage(0, motion=0.0, text_block_lines=3), "text_block"),          # a document, a tweet, a slide
+    (footage(0, motion=0.0, cut_text_lines=2), "labelled_still"),        # a chart, a side-by-side comparison
+    (subject(face_area=0.03, text_rows=8), "screen_content_outside_crop"),   # a desktop with a webcam on it
+], ids=["document", "chart", "desktop"])
+def test_still_content_keeps_the_full_frame(sample, reason):
+    plan = build_context_layout_plan([replace(sample, time=i / 3) for i in range(30)], [], 10, 0.316)
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [(0, 10, "fit", reason)]
+    assert "x" not in plan[0]
 
 
 def test_a_slow_push_in_over_a_photo_fills_the_frame():
@@ -417,17 +467,34 @@ def test_a_montage_with_one_document_keeps_its_crops():
     assert plan[3]["x"] == pytest.approx(0.7)
 
 
-def test_footage_with_captions_the_crop_would_cut_keeps_the_whole_picture():
+def test_footage_with_captions_the_crop_would_cut_fills_the_frame():
     # An edited video without faces: a two-line caption comes up in a quarter of the shot, wider than the crop.
+    # A line or two over footage is not content; the caption code deals with the source's own text.
     samples = [footage(i / 3, text_block_lines=2, cut_text_lines=2) if i % 4 == 0 else footage(i / 3)
                for i in range(60)]
-    assert build_context_layout_plan(samples, [], 20, 0.316)[0]["kind"] == "fit"
-    # A title card: one line across the frame, in every sample.
-    card = [footage(i / 3, cut_text_lines=1) for i in range(9)]
-    assert build_context_layout_plan(card, [], 3, 0.316)[0]["kind"] == "fit"
+    # One line across the frame in every sample, over moving footage.
+    title = [footage(i / 3, cut_text_lines=1) for i in range(9)]
+    # Labels everywhere, two or more cut in most samples, over moving footage.
+    labels = [footage(i / 3, cut_text_lines=3) for i in range(30)]
+    for evidence, duration in ((samples, 20), (title, 3), (labels, 10)):
+        plan = build_context_layout_plan(evidence, [], duration, 0.316)
+        assert [(p["kind"], p["reason"]) for p in plan] == [("cover", "no_reliable_close_subject")]
+        assert plan[0]["x"] == pytest.approx(0.45)
+
+
+def test_a_still_picture_whose_labels_the_crop_would_cut_keeps_the_whole_picture():
+    # A title card: one line across the frame, in every sample, and nothing moves.
+    card = [footage(i / 3, motion=0.0, cut_text_lines=1) for i in range(9)]
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(card, [], 3, 0.316)] == [
+        ("fit", "labelled_still")]
     # A drawn map: labels everywhere, two or more cut in most samples.
-    drawn = [footage(i / 3, cut_text_lines=3) for i in range(30)]
-    assert build_context_layout_plan(drawn, [], 10, 0.316)[0]["kind"] == "fit"
+    drawn = [footage(i / 3, motion=0.0, cut_text_lines=3) for i in range(30)]
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(drawn, [], 10, 0.316)] == [
+        ("fit", "labelled_still")]
+    # A line cut in half of the samples is a texture, not a label: the picture fills the frame.
+    stray = [footage(i / 3, motion=0.0, cut_text_lines=i % 2) for i in range(30)]
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(stray, [], 10, 0.316)] == [
+        ("cover", "no_reliable_close_subject")]
 
 
 def test_stray_lines_in_plain_footage_do_not_stop_the_crop():
@@ -436,10 +503,14 @@ def test_stray_lines_in_plain_footage_do_not_stop_the_crop():
     assert build_context_layout_plan(samples, [], 20, 0.316)[0]["kind"] == "cover"
 
 
-def test_mostly_fitted_content_still_letterboxes_throughout():
+def test_a_clip_that_is_mostly_content_fits_only_its_content_shots():
+    # Two seconds of b-roll, then ten of a document: the document keeps its full width, the b-roll still
+    # fills the frame. A clip is never letterboxed as a whole because most of it is.
     samples = [footage(i / 3) for i in range(6)] + [SceneEvidence(2 + i / 3, text_block_lines=4) for i in range(30)]
     plan = build_context_layout_plan(samples, [2], 12, 0.316)
-    assert [(p["kind"], p["reason"]) for p in plan] == [("fit", "stable_context")]
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 2, "cover", "no_reliable_close_subject"), (2, 12, "fit", "text_block")]
+    assert plan[0]["x"] == pytest.approx(0.45)
 
 
 def test_cover_shots_render_as_full_height_crops():
@@ -462,3 +533,245 @@ def test_cover_and_face_shots_switch_at_the_cut():
         graph, _, _ = reframing.build_vertical_filter_plan(Path("doc.mp4"), 1920, 1080, report=report)
     assert report["kind"] == "compositor"
     assert "crop=606:ih:x='560'" in graph and "between(t\\,0.000\\,5.000)" in graph
+
+
+# -- Fill first: a shot is shown small only when reading it finds content ---------------------------
+
+def line(text, left, right, y, height=0.04):
+    """The words of one read line, spread evenly from ``left`` to ``right`` (0-1 of the frame) around ``y``."""
+    parts = text.split()
+    step = (right - left) / len(parts)
+    return [ScreenWord(part, left + i * step, y - height / 2, left + (i + 1) * step - 0.01, y + height / 2, 90.0)
+            for i, part in enumerate(parts)]
+
+
+def reader(read):
+    """A ``read_words`` stand-in that answers ``read(time)`` and records the moments it was asked for."""
+    asked = []
+
+    def read_words(moment):
+        asked.append(moment)
+        return read(moment)
+
+    read_words.asked = asked
+    return read_words
+
+
+# A quiz card over a wide shot: the question in the middle, two rows of answers across the frame under it.
+QUESTION = line("Which country has the", 0.25, 0.75, 0.40) + line("most time zones", 0.30, 0.70, 0.46)
+ANSWERS = line("United States France", 0.04, 0.96, 0.54) + line("South Africa Russia", 0.04, 0.96, 0.62)
+
+
+def test_a_talking_head_in_front_of_shapes_that_look_like_text_is_never_letterboxed():
+    # Brickwork, shelves, a barred window behind the speaker: every shape test sees text. Nothing is written
+    # there, so reading the frames finds no words and the shot fills the frame on the speaker.
+    samples = [subject(i / 3, text_block_lines=3, cut_text_lines=3, text_rows=5) for i in range(36)]
+    assert context_reason(samples[0], 0.316) == "text_cut_by_crop"
+    read_words = reader(lambda _moment: [])
+    plan = build_context_layout_plan(samples, [4, 8], 12, 0.316, read_words)
+    assert read_words.asked
+    # The only doubt was text, and there is none: a talking head, followed by the tracked crop like any other.
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [(0, 12, "face", "confident_subject")]
+    # Without OCR a person talking to the camera is the shot, whatever the shapes behind them look like.
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(samples, [4, 8], 12, 0.316)] == [
+        ("face", "confident_subject")]
+    # Two people in front of the same wall are not one face to follow: a still crop on the larger one.
+    pair = [replace(s, face_count=2, face_span=0.3) for s in samples]
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(pair, [], 12, 0.316, read_words)] == [
+        ("cover", "text_cut_by_crop")]
+
+
+def test_a_quiz_card_over_a_wide_shot_keeps_the_full_width_and_so_does_its_question_beside_it():
+    # 0-4 s a close-up with the question already up, 4-8 s the wide shot with the whole card, 8-12 s a close-up.
+    question_shot = [subject(i / 3, cut_text_lines=1) for i in range(12)]
+    card_shot = [footage(4 + i / 3, cut_text_lines=2) for i in range(12)]
+    plain = [subject(8 + i / 3) for i in range(12)]
+    read_words = reader(lambda moment: QUESTION if moment < 4 else QUESTION + ANSWERS)
+    # The card alone: eleven words on four lines, the answers (and more) outside the centre crop.
+    alone = build_context_layout_plan(
+        [replace(s, time=s.time - 4) for s in card_shot], [], 4, 0.316, lambda _moment: QUESTION + ANSWERS)
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in alone] == [(0, 4, "fit", "card")]
+    # Two lines by themselves are a caption: the close-up keeps its face crop and is not even read.
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(
+        question_shot, [], 4, 0.316, lambda _moment: QUESTION)] == [("face", "confident_subject")]
+    # Next to the card, the same two lines are the card: the clip does not drop the full width around it.
+    plan = build_context_layout_plan(question_shot + card_shot + plain, [4, 8], 12, 0.316, read_words)
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 8, "fit", "card"), (8, 12, "face", "confident_subject")]
+    assert any(moment < 4 for moment in read_words.asked) and not any(moment >= 8 for moment in read_words.asked)
+
+
+@pytest.mark.parametrize("subtitle", [
+    line("and that is when I knew", 0.2, 0.8, 0.85),
+    line("and that is when I", 0.2, 0.8, 0.82) + line("knew it was over", 0.25, 0.75, 0.88),
+], ids=["one-line", "two-lines"])
+def test_a_subtitle_over_moving_footage_fills_the_frame(subtitle):
+    samples = [footage(i / 3, cut_text_lines=1) for i in range(30)]
+    read_words = reader(lambda _moment: subtitle)
+    plan = build_context_layout_plan(samples, [], 10, 0.316, read_words)
+    assert read_words.asked
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in plan] == [
+        (0, 10, "cover", "no_reliable_close_subject")]
+    assert plan[0]["x"] == pytest.approx(0.45)
+
+
+def test_a_failed_read_fills_moving_footage_and_keeps_a_still_document():
+    # OCR broke (no binary, a timeout): the planner keeps its no-OCR behaviour. Moving footage fills the
+    # frame whatever the shapes suggest; only a picture that does not move can still be a document.
+    read_words = reader(lambda _moment: None)
+    moving = [footage(i / 3, text_block_lines=3, cut_text_lines=3) for i in range(30)]
+    plan = build_context_layout_plan(moving, [], 10, 0.316, read_words)
+    assert read_words.asked
+    assert [(p["kind"], p["reason"]) for p in plan] == [("cover", "no_reliable_close_subject")]
+    assert plan[0]["x"] == pytest.approx(0.45)
+    still = [replace(sample, motion=0.0) for sample in moving]
+    assert [(p["kind"], p["reason"]) for p in build_context_layout_plan(still, [], 10, 0.316, read_words)] == [
+        ("fit", "text_block")]
+
+
+def entry(start, end, kind, reason, fill_x=0.5):
+    return {"start": start, "end": end, "kind": kind, "reason": reason, "fill_x": fill_x}
+
+
+def test_a_fit_too_short_to_read_between_two_crops_fills_the_frame():
+    plan = [
+        entry(0, 5, "face", "confident_subject"),
+        entry(5, 6.5, "fit", "text_block", fill_x=0.3),
+        entry(6.5, 12, "face", "confident_subject"),
+    ]
+    stable = stabilize_layout_plan(plan)
+    assert [(p["start"], p["end"], p["kind"], p["reason"]) for p in stable] == [
+        (0, 5, "face", "confident_subject"), (5, 6.5, "cover", "brief_content"), (6.5, 12, "face", "confident_subject")]
+    # Its own full-height crop, where the shot would have been cropped had it not been content.
+    assert stable[1]["x"] == 0.3
+
+
+def test_a_fit_long_enough_to_read_between_two_crops_stays():
+    plan = [
+        entry(0, 5, "face", "confident_subject"),
+        entry(5, 11, "fit", "text_block"),
+        entry(11, 16, "face", "confident_subject"),
+    ]
+    assert stabilize_layout_plan(plan) == plan
+
+
+def test_alternating_crops_and_content_are_never_collapsed_into_one_fit():
+    # Forty seconds, five shots of eight: speaker, slide, speaker, slide, speaker.
+    plan = [
+        entry(start, start + 8, *(("fit", "page") if index % 2 else ("face", "confident_subject")))
+        for index, start in enumerate(range(0, 40, 8))
+    ]
+    stable = stabilize_layout_plan(plan)
+    assert stable == plan
+    assert [p["kind"] for p in stable] == ["face", "fit", "face", "fit", "face"]
+
+
+# --- text on footage that is not content (screening real gameplay and explainer clips) ---------------
+
+
+def test_labels_scattered_over_a_game_or_a_map_are_not_content():
+    from src.media.scene_context import content_from_words, text_blocks
+    from src.media.screen_text import text_lines
+
+    # A weapon wheel: a tab row at the top, a counter, a caption in the middle. Nothing is stacked into a block.
+    wheel = (line("WEAPONS ITEMS", 0.42, 0.58, 0.08) + line("6 93", 0.47, 0.53, 0.27)
+             + line("UNARMED", 0.44, 0.56, 0.47) + line("IN HAND", 0.45, 0.55, 0.52)
+             + line("2 15", 0.05, 0.95, 0.36))
+    assert content_from_words([wheel] * 3, 0.342, 0.658) is None
+    # A map with a few place names, still, nobody in it: it fills the frame like any other picture.
+    town = line("VICE CITY", 0.70, 0.90, 0.60) + line("MIAMI BEACH", 0.10, 0.30, 0.20) + line("LOST TOWN", 0.4, 0.6, 0.35)
+    assert content_from_words([town] * 3, 0.342, 0.658) is None
+    # Numbers are not words: a scoreboard of digits never becomes a page.
+    digits = [word for row in range(8) for word in line("12 34 56 78 90", 0.05, 0.95, 0.1 + row * 0.05)]
+    assert content_from_words([digits] * 3, 0.342, 0.658) is None
+    # The same number of words stacked as a list is a card.
+    stacked = [word for row in range(5) for word in line("first second third", 0.05, 0.95, 0.30 + row * 0.06)]
+    assert len(text_blocks(text_lines(stacked))) == 1
+    assert content_from_words([stacked] * 3, 0.342, 0.658) == "card"
+
+
+def test_a_chapter_card_and_a_menu_are_not_text_content_but_a_list_of_sentences_is():
+    from src.media.scene_context import content_from_words
+
+    # Big heading, a slogan, a counter: three "lines", but only one is a line of text.
+    chapter = (line("THE COPS", 0.05, 0.4, 0.40) + line("test the cops today", 0.05, 0.6, 0.47)
+               + line("Lose them", 0.05, 0.3, 0.54) + line("10 stars", 0.7, 0.95, 0.47))
+    assert content_from_words([chapter] * 3, 0.342, 0.658) is None
+    # A pause menu: a column of one- and two-word entries.
+    menu = [word for row, entry in enumerate(["Resume game", "Load game", "Settings", "Online mode", "Quit now"])
+            for word in line(entry, 0.05, 0.3, 0.3 + row * 0.06)]
+    assert content_from_words([menu] * 3, 0.342, 0.658) is None
+    # Bullet points on a slide: lines of text, stacked.
+    slide = [word for row in range(4) for word in line("this point has five words", 0.05, 0.95, 0.3 + row * 0.07)]
+    assert content_from_words([slide] * 3, 0.342, 0.658) == "page"
+
+
+def test_the_columns_each_full_height_crop_shows():
+    from src.media.reframing import FACE_CROP_DRIFT, crop_windows
+
+    plan = [
+        {"start": 0.0, "end": 4.0, "kind": "cover", "x": 0.5, "fill_x": 0.5},
+        {"start": 4.0, "end": 9.0, "kind": "face", "fill_x": 0.8},
+        {"start": 9.0, "end": 12.0, "kind": "fit"},
+        {"start": 12.0, "end": 15.0, "kind": "cover", "x": 0.05, "fill_x": 0.05},
+    ]
+    share = 608 / 1920
+    windows = crop_windows(plan, share)
+    assert [(a, b) for a, b, _, _ in windows] == [(0.0, 4.0), (4.0, 9.0), (12.0, 15.0)]     # a fitted shot crops nothing
+    assert windows[0][2:] == pytest.approx((0.5 - share / 2, 0.5 + share / 2))
+    # A tracked crop moves: it counts as narrower than it is.
+    assert windows[1][2:] == pytest.approx((0.8 - share / 2 + FACE_CROP_DRIFT, 0.8 + share / 2 - FACE_CROP_DRIFT))
+    assert windows[2][2:] == pytest.approx((0.0, share))                                     # kept inside the frame
+    assert crop_windows(plan, 1.0) == []                                                     # a portrait source
+
+
+def _portrait_in_wide(frames=12, left=104, right=215, seed=3):
+    """Grey frames of a moving portrait picture between twinkling decorated bars."""
+    rng = np.random.default_rng(seed)
+    clip = np.empty((frames, 180, 320), dtype=np.uint8)
+    for index in range(frames):
+        clip[index] = rng.integers(16, 24, size=(180, 320))                              # dark, twinkling bars
+        # The picture: a different brightness in every frame, smooth across (a face, a wall, a stage).
+        clip[index, :, left:right] = 90 + 10 * index + rng.integers(0, 5, size=(180, right - left))
+    return clip
+
+
+def test_a_portrait_picture_set_in_a_wide_frame_is_found_by_its_two_lasting_edges():
+    left, right = reframing.inner_picture(_portrait_in_wide())
+    assert left == pytest.approx(104 / 320, abs=0.01) and right == pytest.approx(215 / 320, abs=0.01)
+    # Ordinary footage has no such edges.
+    rng = np.random.default_rng(5)
+    assert reframing.inner_picture(rng.integers(0, 255, size=(12, 180, 320), dtype=np.uint8)) is None
+    # A still camera on a scene full of uprights (people standing, trees, poles) has many, not two.
+    busy = np.tile(np.repeat(np.array([30, 200] * 8, dtype=np.uint8), 20)[None, None, :], (12, 180, 1))
+    assert reframing.inner_picture(busy) is None
+    # An off-centre panel (a split screen, a picture-in-picture) is not a portrait picture in the middle.
+    assert reframing.inner_picture(_portrait_in_wide(left=20, right=140)) is None
+    assert reframing.inner_picture(_portrait_in_wide(frames=2)) is None                  # too little to judge
+
+
+def test_cover_crops_stay_inside_the_portrait_picture():
+    # The crop sat a little to the right of the inner picture: a strip of the side bar showed and the first
+    # letter of the picture's own captions was cut off.
+    share = 608 / 1920
+    plan = [
+        {"start": 0.0, "end": 6.0, "kind": "cover", "x": 0.535, "fill_x": 0.535, "reason": "subjects_spread_across_frame"},
+        {"start": 6.0, "end": 12.0, "kind": "face", "fill_x": 0.52},
+    ]
+    kept = reframing.keep_crops_inside_picture(plan, _portrait_in_wide(), share)
+    left, right = 104 / 320, 215 / 320
+    assert left - 0.01 <= kept[0]["x"] - share / 2 and kept[0]["x"] + share / 2 <= right + 0.01
+    assert kept[0]["fill_x"] == kept[0]["x"] and kept[0]["reason"] == "subjects_spread_across_frame"
+    # A crop that follows a face near the picture's edge showed the bar beside it. In a picture about as
+    # wide as the crop there is nobody to follow: the shot becomes a still crop inside the picture.
+    assert kept[1]["kind"] == "cover" and (kept[1]["start"], kept[1]["end"]) == (6.0, 12.0)
+    assert left - 0.01 <= kept[1]["x"] - share / 2 and kept[1]["x"] + share / 2 <= right + 0.01
+    # A wider inner picture (a 4:3 picture in a 16:9 frame) leaves room to follow a face: tracking stays.
+    wide = reframing.keep_crops_inside_picture(plan, _portrait_in_wide(left=88, right=232), share)
+    assert wide[1] == plan[1]
+    # No inner picture, no frames, or a crop already inside: the plan is untouched.
+    rng = np.random.default_rng(7)
+    assert reframing.keep_crops_inside_picture(plan, rng.integers(0, 255, size=(12, 180, 320), dtype=np.uint8), share) == plan
+    assert reframing.keep_crops_inside_picture(plan, None, share) == plan
+    centred = [{"start": 0.0, "end": 12.0, "kind": "cover", "x": 0.5, "fill_x": 0.5}]
+    assert reframing.keep_crops_inside_picture(centred, _portrait_in_wide(), share) == centred

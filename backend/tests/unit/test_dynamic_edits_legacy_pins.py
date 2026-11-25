@@ -465,7 +465,10 @@ def optimized(source_video, tmp_path, monkeypatch, norm):
         record("build_clip_speaker_turns", ([{"speaker": "A", "start": 0.0, "end": 9.3}], [])),
     )
     monkeypatch.setattr(video_utils, "build_vertical_filter_plan", record("build_vertical_filter_plan", plan))
-    monkeypatch.setattr(video_utils, "detect_burned_caption_band", lambda _path: state["band"])
+    monkeypatch.setattr(
+        video_utils, "_resolve_source_captions",
+        lambda *_a, **_k: (state["band"], "avoid" if state["band"] else "none"),
+    )
     monkeypatch.setattr("src.media.reframing.caption_probe_plan", record("caption_probe_plan", VF_PLAN))
     monkeypatch.setattr(
         "src.media.source_captions.detect_rendered_caption_band",
