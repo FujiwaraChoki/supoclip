@@ -16,6 +16,7 @@ import { useAgentStatus } from "@/hooks/use-agent-status";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { agentKeys, saveHomeMode, trialLeft, type AgentStatus, type HomeMode } from "@/lib/agent";
 import { trackEvent } from "@/lib/analytics";
+import { trackTillyGoal } from "@/lib/datafast";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
 import {
   completeOnboarding,
@@ -186,6 +187,7 @@ export function PebbleDock({ status, userId, pathname, navigate }: { status: Onb
 
   const finish = useCallback((skipped: boolean) => {
     trackEvent("onboarding_completed", { skipped, stage });
+    if (!skipped) trackTillyGoal("onboarding_completed");
     void completeOnboarding();
     queryClient.setQueryData<OnboardingStatus | null>(onboardingKeys.status, (current) => (current ? { ...current, completed: true } : current));
     update({ stage: "done", minimized: false });

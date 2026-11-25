@@ -47,7 +47,7 @@ import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { trackEvent } from "@/lib/analytics";
 import { startUpgrade } from "@/lib/start-upgrade";
-import { track } from "@/lib/datafast";
+import { track, trackTillyGoal } from "@/lib/datafast";
 import { taskPathFromCreate } from "@/lib/task-create";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults, STOCK_FONT_DEFAULTS } from "@/lib/font-options";
@@ -1059,7 +1059,10 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
-      if (freePreview && startResult.task_id && !alreadyProcessing) emitPebble("pebble:preview-started", { taskId: String(startResult.task_id) });
+      if (freePreview && startResult.task_id && !alreadyProcessing) {
+        trackTillyGoal("preview_task_created");
+        emitPebble("pebble:preview-started", { taskId: String(startResult.task_id) });
+      }
       window.location.href = taskPathFromCreate(startResult);
     } catch (error) {
       console.error("Error processing video:", error);
