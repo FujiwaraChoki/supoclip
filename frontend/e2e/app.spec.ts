@@ -18,7 +18,7 @@ async function signIn(page: import("@playwright/test").Page, email: string, pass
 test("regular user can browse seeded tasks and save preferences", async ({ page }) => {
   // This flow compiles several routes (list, task, settings, admin) on its first
   // visit to the dev server; together they can take over a minute in CI.
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   await signIn(page, seed.regular.email, seed.regular.password);
 
   await page.goto("/list");
@@ -51,7 +51,6 @@ test("admin user can access the admin dashboard", async ({ page }) => {
 });
 
 test("social publishing explains missing configuration without breaking task pages", async ({ page }) => {
-  test.setTimeout(60_000);
   await signIn(page, seed.regular.email, seed.regular.password);
 
   // With no provider configured, clips offer no Publish action at all.
