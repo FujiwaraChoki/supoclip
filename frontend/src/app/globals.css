@@ -245,6 +245,58 @@
   .metal-flow, .aura-blob, .title-sheen { animation: none; }
 }
 
+/* Pro and Creator upgrade buttons on the pricing cards: an iridescent edge that
+   drifts slowly and a soft light pass every few seconds. Both sit under the label. */
+@keyframes upgrade-cta-edge { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@keyframes upgrade-cta-sheen {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  40%, 100% { transform: translateX(420%) skewX(-20deg); }
+}
+.upgrade-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.upgrade-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(100deg,
+    oklch(0.83 0.08 245), oklch(0.85 0.09 305), oklch(0.82 0.1 20),
+    oklch(0.9 0.08 75), oklch(0.84 0.08 165), oklch(0.83 0.08 245));
+  background-size: 200% 100%;
+  animation: upgrade-cta-edge 6s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.upgrade-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, oklch(0.88 0.06 260 / 0.45), oklch(0.93 0.06 340 / 0.45), transparent);
+  animation: upgrade-cta-sheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.upgrade-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -14px oklch(0.6 0.12 290 / 0.55);
+}
+.upgrade-cta svg { transition: transform 0.2s ease; }
+.upgrade-cta:hover svg { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-cta::before { animation: none; }
+  .upgrade-cta::after { display: none; }
+  .upgrade-cta:hover { transform: none; }
+}
+
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 

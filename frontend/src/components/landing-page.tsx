@@ -155,10 +155,10 @@ function getPlans(
 type PlanLimits = { monthly: string; perVideo: string };
 
 /** Video a month and the longest single video: the two limits people run into, before the feature list. */
-function PlanLimitsBlock({ limits, note }: { limits: PlanLimits; note?: string | null }) {
+function PlanLimitsBlock({ limits, note, className }: { limits: PlanLimits; note?: string | null; className?: string }) {
   const t = useTranslations("marketing");
   return (
-    <dl className="mt-6 divide-y rounded-xl border text-sm" data-testid="plan-limits">
+    <dl className={cn("mt-6 divide-y rounded-xl border text-sm", className)} data-testid="plan-limits">
       {([["monthly", limits.monthly], ["perVideo", limits.perVideo]] as const).map(([key, value]) => (
         <div key={key} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
           <dt className="flex items-center text-muted-foreground">
@@ -462,7 +462,7 @@ export default function LandingPage() {
             />
           </Reveal>
 
-          <div className="mx-auto mt-14 grid max-w-6xl items-stretch gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="mx-auto mt-14 grid max-w-6xl items-stretch gap-4 lg:grid-cols-3">
             {plans.map((plan, i) => (
               <Reveal key={plan.id} delay={i * 0.08} className="h-full">
                 <div
@@ -481,14 +481,14 @@ export default function LandingPage() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1.5 min-h-10 text-sm text-muted-foreground">{plan.description}</p>
+                  <p className="mt-1.5 text-sm text-muted-foreground lg:min-h-10">{plan.description}</p>
 
-                  <div className="mt-7 @container">
+                  <div className="mt-5 @container">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       {plan.originalPrice && (
                         <span className="text-lg text-muted-foreground line-through">{plan.originalPrice}</span>
                       )}
-                      <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight">
+                      <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight leading-none">
                         {plan.price}
                       </span>
                       <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{plan.period}</span>
@@ -536,7 +536,7 @@ export default function LandingPage() {
                         </a>
                       </div>
                     ) : authEnabled ? (
-                      <Button asChild size="lg" variant={plan.highlighted ? "default" : "outline"} className="h-11 w-full rounded-full text-sm">
+                      <Button asChild size="lg" variant={plan.highlighted ? "default" : "outline"} className="upgrade-cta h-11 w-full rounded-full text-sm">
                         <Link href="/sign-up">
                           {plan.cta}
                           <ArrowRight className="size-4" />
@@ -554,10 +554,12 @@ export default function LandingPage() {
                 </div>
               </Reveal>
             ))}
+          </div>
 
-            {/* Team Plan card with interactive seat selector */}
-            <Reveal delay={plans.length * 0.08} className="h-full">
-              <div className="relative flex h-full flex-col rounded-[26px] border bg-card p-7">
+          {/* Team: one wide card under the individual plans. Below lg the columns stack: pricing, details, button. */}
+          <Reveal delay={plans.length * 0.08} className="mx-auto mt-4 max-w-6xl">
+            <div className="grid gap-8 rounded-[26px] border bg-card p-7 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[1fr_auto] lg:gap-x-12 lg:gap-y-6 lg:p-9">
+              <div>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-display text-xl font-bold tracking-tight">
                     {tCommon("plans.team")}
@@ -566,7 +568,7 @@ export default function LandingPage() {
                     {t("pricing.team.badge")}
                   </span>
                 </div>
-                <p className="mt-1.5 min-h-10 text-sm text-muted-foreground">
+                <p className="mt-1.5 text-sm text-muted-foreground">
                   {t("pricing.team.description")}
                 </p>
 
@@ -577,7 +579,7 @@ export default function LandingPage() {
                         ${formatCurrencyAmount(teamPricing.annualFullPrice)}
                       </span>
                     )}
-                    <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight">
+                    <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight leading-none">
                       ${formatCurrencyAmount(teamPricing.totalPrice)}
                     </span>
                     <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
@@ -596,7 +598,7 @@ export default function LandingPage() {
                 </div>
 
                 {/* Seat selector */}
-                <div className="mt-4 flex items-center justify-between rounded-xl border bg-background px-3 py-2 text-xs">
+                <div className="mt-4 flex items-center justify-between rounded-xl border bg-background px-3 py-2 text-xs lg:max-w-xs">
                   <span className="font-medium text-muted-foreground">
                     {t("pricing.team.seatsLabel", { count: teamPricing.seats })}
                   </span>
@@ -624,10 +626,14 @@ export default function LandingPage() {
                     </button>
                   </div>
                 </div>
+              </div>
 
-                <PlanLimitsBlock limits={{ monthly: planText.formatRuntime(teamPricing.totalHours * 3600), perVideo: planText.formatRuntime(teamConfig.youtubeMaxMinutes * 60) }} />
-
-                <ul className="mt-5 flex-1 space-y-3 border-t pt-5">
+              <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:pl-12">
+                <PlanLimitsBlock
+                  className="mt-0"
+                  limits={{ monthly: planText.formatRuntime(teamPricing.totalHours * 3600), perVideo: planText.formatRuntime(teamConfig.youtubeMaxMinutes * 60) }}
+                />
+                <ul className="mt-6 grid gap-x-8 gap-y-3 border-t pt-6 sm:grid-cols-2">
                   <li className="flex items-start gap-3 text-sm">
                     <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     {t("pricing.team.features.pooledHours", { hours: teamPricing.totalHours })}
@@ -653,27 +659,27 @@ export default function LandingPage() {
                     {t("pricing.team.features.roles")}
                   </li>
                 </ul>
-
-                <div className="mt-6">
-                  {authEnabled ? (
-                    <Button asChild size="lg" variant="outline" className="h-11 w-full rounded-full text-sm">
-                      <Link href="/sign-up?next=/settings/team">
-                        {t("pricing.team.cta")}
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button asChild size="lg" variant="outline" className="h-11 w-full rounded-full text-sm">
-                      <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
-                        {t("hero.useHosted")}
-                        <ExternalLink className="size-4" />
-                      </a>
-                    </Button>
-                  )}
-                </div>
               </div>
-            </Reveal>
-          </div>
+
+              <div className="lg:col-start-1 lg:row-start-2 lg:max-w-xs">
+                {authEnabled ? (
+                  <Button asChild size="lg" variant="outline" className="h-11 w-full rounded-full text-sm">
+                    <Link href="/sign-up?next=/settings/team">
+                      {t("pricing.team.cta")}
+                      <ArrowRight className="size-4" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild size="lg" variant="outline" className="h-11 w-full rounded-full text-sm">
+                    <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
+                      {t("hero.useHosted")}
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Reveal>
 
           <Reveal>
             <p className="mx-auto mt-10 max-w-md text-center text-sm text-muted-foreground">{t("pricing.clipsNote")}</p>
