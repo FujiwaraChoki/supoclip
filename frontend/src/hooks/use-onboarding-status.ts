@@ -19,15 +19,18 @@ function override(): string | null {
 /**
  * Whether the account gets Agent's guided onboarding, and its progress. `undefined` while loading;
  * `null` when it couldn't be read, which shows the standard home.
+ *
+ * A failure is cached as `null` rather than left as a query error: react-query puts an errored
+ * query without data back to `pending` whenever another component mounts it (the app shell and
+ * the guide do), which would flip home back to its skeleton, unmount the form, and start over.
  */
 export function useOnboardingStatus(enabled = true): OnboardingStatus | null | undefined {
-  const { data, isError } = useQuery({
+  const { data } = useQuery({
     queryKey: onboardingKeys.status,
-    queryFn: () => fetchOnboardingStatus(override()),
+    queryFn: () => fetchOnboardingStatus(override()).catch(() => null),
     enabled,
     staleTime: 60_000,
-    retry: 1,
   });
-  if (!enabled || isError) return null;
+  if (!enabled) return null;
   return data;
 }
