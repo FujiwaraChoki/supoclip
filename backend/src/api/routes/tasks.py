@@ -2278,6 +2278,10 @@ async def _run_task_again(task_id: str, request: Optional[Request], db: AsyncSes
 
         async with task_run_guard(db, task_id):
             task = await task_service.task_repo.get_task_by_id(db, task_id)
+            if not unlock and is_locked_preview(task):
+                # Retrying a locked preview after subscribing is an unlock: charged once, and every
+                # clip is made, not the preview's one again.
+                unlock = True
             if unlock and not is_locked_preview(task):
                 if is_preview(task):
                     return {"message": "Already unlocked", "job_id": None}

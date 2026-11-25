@@ -51,7 +51,9 @@ def partial_key(conversation_id: str) -> str:
     return f"agent:conversation:{conversation_id}:partial"
 
 
-async def set_partial(conversation_id: str, run_id: str, text: str, event_id: Optional[str]) -> None:
+async def set_partial(
+    conversation_id: str, run_id: str, text: str, event_id: Optional[str], *, after_message_id: Optional[int] = None
+) -> None:
     """The reply being written right now, with the stream id it reaches. A chat opened mid-reply
     shows this text and listens from that id, so nothing is missed or shown twice."""
     if not event_id:
@@ -60,7 +62,7 @@ async def set_partial(conversation_id: str, run_id: str, text: str, event_id: Op
         redis = await JobQueue.get_pool()
         await redis.set(
             partial_key(conversation_id),
-            json.dumps({"run_id": run_id, "text": text, "event_id": event_id}),
+            json.dumps({"run_id": run_id, "text": text, "event_id": event_id, "after_message_id": after_message_id}),
             ex=PARTIAL_TTL_SECONDS,
         )
     except Exception:  # noqa: BLE001

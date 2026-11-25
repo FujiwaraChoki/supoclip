@@ -391,7 +391,12 @@ async def find_clips(ctx: ToolContext, data: dict) -> ToolOutcome:
     unposted = data.get("unposted_only") is True
     sort = _choice(data.get("sort"), "sort", ("score", "recent"), "score")
     limit = _int(data.get("limit"), "limit", low=1, high=40, default=12)
-    scope = "t.team_id = :team_id" if ctx.team_id else "t.user_id = :user_id AND t.team_id IS NULL"
+    scope = (
+        # Still a member: a turn started before someone left the team must not keep reading its clips.
+        "t.team_id = :team_id AND EXISTS (SELECT 1 FROM team_members tm WHERE tm.team_id = :team_id AND tm.user_id = :user_id)"
+        if ctx.team_id
+        else "t.user_id = :user_id AND t.team_id IS NULL"
+    )
     clauses = [scope, "t.status = 'completed'"]
     params: dict[str, Any] = {"user_id": ctx.user_id, "team_id": ctx.team_id, "limit": limit}
     if query:

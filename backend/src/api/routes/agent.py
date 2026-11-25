@@ -174,7 +174,13 @@ async def get_conversation(conversation_id: str, request: Request, db: AsyncSess
     partial = None
     if open_run and open_run.get("status") in {"queued", "running"}:
         saved = await events.get_partial(conversation_id)
-        if saved and saved.get("run_id") == open_run["id"] and saved.get("text"):
+        last_message_id = rows[-1]["id"] if rows else None
+        # Only while the transcript still ends where this reply began: once the reply (or the next
+        # step) is saved, the saved rows and the stream carry it.
+        if (
+            saved and saved.get("run_id") == open_run["id"] and saved.get("text")
+            and saved.get("after_message_id") == last_message_id
+        ):
             partial = {"text": saved["text"], "event_id": saved.get("event_id")}
 
     return {

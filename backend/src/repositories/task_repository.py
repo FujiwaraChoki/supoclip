@@ -199,6 +199,20 @@ class TaskRepository:
             raise
 
     @staticmethod
+    async def merge_preview(db: AsyncSession, task_id: str, fields: Dict[str, Any]) -> None:
+        """Add or replace some of a free preview's fields, keeping the others (an unlock request made
+        while the worker runs must survive the worker writing what it found)."""
+        try:
+            await db.execute(
+                text("UPDATE tasks SET preview = preview || CAST(:fields AS JSONB) WHERE id = :task_id AND preview IS NOT NULL"),
+                {"task_id": task_id, "fields": json.dumps(fields)},
+            )
+            await commit_unless_editing(db)
+        except BaseException:
+            await db.rollback()
+            raise
+
+    @staticmethod
     async def save_preview(db: AsyncSession, task_id: str, preview: Dict[str, Any]) -> None:
         """Store a free preview's state (what was found, which clip rendered, the locked rest)."""
         try:

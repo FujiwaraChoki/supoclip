@@ -57,7 +57,7 @@ from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings, normalize_source_ranges, source_range_bounds
 from ..media.timeline import seconds_to_mmss
 from ..workflows.boundaries import cleanup_key
-from ..onboarding.preview import is_locked_preview, locked_moments, mark_preview_used, pick_preview, preview_state
+from ..onboarding.preview import is_locked_preview, locked_moments, mark_preview_used, pick_preview
 from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_from_task
 from ..workflows.errors import WorkflowError
 from ..media_storage import MediaStorage, media_work
@@ -777,8 +777,7 @@ class TaskService(ClipEditingMixin):
             if is_locked_preview(task_row) and segments_to_render:
                 preview_index = pick_preview(segments_to_render)
                 async with self._processing_transaction(task_id):
-                    await self.task_repo.save_preview(self.db, task_id, {
-                        **(preview_state(task_row) or {}),
+                    await self.task_repo.merge_preview(self.db, task_id, {
                         "found": len(segments_to_render),
                         "rendered_position": preview_index + 1,
                         "locked": locked_moments(segments_to_render, preview_index),

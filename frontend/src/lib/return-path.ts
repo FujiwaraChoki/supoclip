@@ -9,6 +9,8 @@ export function safeReturnPath(raw: unknown): string | null {
   try {
     const parsed = new URL(raw, "https://supoclip.invalid");
     if (parsed.origin !== "https://supoclip.invalid") return null;
+    // "/.//evil.example" and "/a/..//evil.example" resolve to a protocol-relative path.
+    if (!parsed.pathname.startsWith("/") || parsed.pathname.startsWith("//")) return null;
     return `${parsed.pathname}${parsed.search}`;
   } catch {
     return null;

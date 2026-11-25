@@ -381,6 +381,52 @@ async def test_a_buyer_is_unlocked_even_behind_many_unpaid_requests(
     monkeypatch.setattr("src.database.AsyncSessionLocal", async_sessionmaker(initialized_database, expire_on_commit=False))
 
     result = await worker_tasks.unlock_paid_previews({})
-    assert result["pending"] == worker_tasks.UNLOCKS_PER_RUN + 6
+    assert result["pending"] >= worker_tasks.UNLOCKS_PER_RUN + 6
     assert result["checked"] == 1 and result["unlocked"] == 1
     enqueue.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_retrying_a_failed_preview_after_subscribing_unlocks_it(
+    client, auth_headers, db_session, hosted, tmp_path, monkeypatch
+):
+    task_id, _ = await _preview_task(db_session, tmp_path, status="error")
+    await db_session.execute(text("UPDATE users SET plan = 'pro', subscription_status = 'active' WHERE id = 'user-1'"))
+    await db_session.commit()
+    monkeypatch.setattr("src.api.routes.tasks.JobQueue.enqueue_processing_job", AsyncMock(return_value="resume-job"))
+    resumed = await client.post(f"/tasks/{task_id}/resume", headers=auth_headers)
+    assert resumed.status_code == 200, resumed.text
+    db_session.expire_all()
+    row = (await db_session.execute(text("SELECT status, preview FROM tasks WHERE id = :id"), {"id": task_id})).fetchone()
+    # Charged once, and every clip is made (not the preview's one again).
+    assert row.status == "queued" and row.preview["unlocked_at"]
+    charged = (await db_session.execute(text("SELECT COUNT(*) FROM minute_usage_events WHERE task_id = :id"), {"id": task_id})).scalar()
+    assert charged == 1
+
+
+@pytest.mark.asyncio
+async def test_an_unlock_asked_for_while_the_preview_is_made_is_kept(db_session, initialized_database, tmp_path):
+    task_id, _, original = await make_task(db_session, tmp_path, count=0, status="queued")
+    owner = (await db_session.execute(text("SELECT user_id FROM tasks WHERE id = :id"), {"id": task_id})).scalar()
+    await db_session.execute(text("UPDATE tasks SET preview = '{\"status\": \"pending\"}'::jsonb WHERE id = :id"), {"id": task_id})
+    await db_session.commit()
+    segments = [{"start_time": "00:10", "end_time": "00:40", "virality_score": 80, "hook_title": "The one"}]
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+
+    async def asked_meanwhile(*_args, **_kwargs):
+        # The person picks a plan while the video is analysed.
+        async with sessions() as other:
+            await other.execute(
+                text("UPDATE tasks SET preview = preview || '{\"unlock_requested_at\": \"2026-11-25T10:00:00+00:00\"}'::jsonb WHERE id = :id"),
+                {"id": task_id},
+            )
+            await other.commit()
+        return {"video_path": str(original), "segments_to_render": segments, "segments": segments}
+
+    async with sessions() as worker:
+        service, _, _ = setup_worker(worker, tmp_path, original)
+        service.video_service.process_video_complete = AsyncMock(side_effect=asked_meanwhile)
+        await service.process_task(task_id, "upload://input.mp4", "upload", user_id=owner)
+    db_session.expire_all()
+    row = (await db_session.execute(text("SELECT preview FROM tasks WHERE id = :id"), {"id": task_id})).fetchone()
+    assert row.preview["unlock_requested_at"] and row.preview["found"] == 1

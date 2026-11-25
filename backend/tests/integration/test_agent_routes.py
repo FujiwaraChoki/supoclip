@@ -190,11 +190,32 @@ async def test_a_chat_opened_mid_reply_shows_what_was_written(client, auth_heade
     started = await client.post("/agent/conversations", headers=auth_headers, json={"message": "hi"})
     conversation_id = started.json()["conversation"]["id"]
     run_id = started.json()["run"]["id"]
-    saved = {"run_id": run_id, "text": "Looking at your library", "event_id": "171-0"}
+    from src.agent import store
+
+    last = (await store.list_messages(conversation_id))[-1]["id"]
+    saved = {"run_id": run_id, "text": "Looking at your library", "event_id": "171-0", "after_message_id": last}
     monkeypatch.setattr(events, "get_partial", AsyncMock(return_value=saved))
     opened = (await client.get(f"/agent/conversations/{conversation_id}", headers=auth_headers)).json()
     assert opened["partial"] == {"text": "Looking at your library", "event_id": "171-0"}
 
+    # Saved already (the transcript moved past where it began): shown once, from the transcript.
+    monkeypatch.setattr(events, "get_partial", AsyncMock(return_value={**saved, "after_message_id": last - 1}))
+    assert (await client.get(f"/agent/conversations/{conversation_id}", headers=auth_headers)).json()["partial"] is None
+
     # Another run's leftovers are never shown.
     monkeypatch.setattr(events, "get_partial", AsyncMock(return_value={**saved, "run_id": "other"}))
     assert (await client.get(f"/agent/conversations/{conversation_id}", headers=auth_headers)).json()["partial"] is None
+
+
+@pytest.mark.asyncio
+async def test_two_sends_at_once_start_one_turn(client, auth_headers, agent_app, db_session):
+    import asyncio
+
+    from src.agent import store
+
+    started = await client.post("/agent/conversations", headers=auth_headers, json={"message": "hi"})
+    conversation_id = started.json()["conversation"]["id"]
+    await db_session.execute(text("UPDATE agent_runs SET status = 'completed' WHERE conversation_id = :id"), {"id": conversation_id})
+    await db_session.commit()
+    runs = await asyncio.gather(*(store.create_run(conversation_id, "user-1") for _ in range(6)))
+    assert sum(run is not None for run in runs) == 1

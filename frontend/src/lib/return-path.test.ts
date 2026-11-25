@@ -7,7 +7,7 @@ describe("safeReturnPath", () => {
   });
 
   it("refuses anything that could leave the site", () => {
-    for (const bad of ["https://evil.example/", "//evil.example", "/\\evil.example", "tasks/abc", "/a\nb", "", 42, null]) {
+    for (const bad of ["https://evil.example/", "//evil.example", "/\\evil.example", "/.//evil.example", "/a/..//evil.example", "tasks/abc", "/a\nb", "", 42, null]) {
       expect(safeReturnPath(bad)).toBeNull();
     }
     expect(safeReturnPath(`/${"a".repeat(400)}`)).toBeNull();
