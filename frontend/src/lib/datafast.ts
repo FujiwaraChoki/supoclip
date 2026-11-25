@@ -83,6 +83,12 @@ const sanitizeGoalName = (goalName: string) =>
     .replace(/[^a-z0-9_-]/g, "_")
     .slice(0, 64);
 
+export function trackTillyGoal(goalName: string, metadata?: DataFastMetadata) {
+  if (!isClient()) return;
+  const sanitizedGoalName = sanitizeGoalName(goalName);
+  if (sanitizedGoalName) window.tilly?.(sanitizedGoalName, sanitizeMetadata(metadata));
+}
+
 export function track(goalName: string, metadata?: DataFastMetadata) {
   if (!isClient()) {
     return;

@@ -24,6 +24,7 @@ import { intervalFromPeriod, WebhookAnalytics } from "@/server/analytics";
 import { getPlanIdForStripePrice, hasAnyConfiguredStripePrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
+import { trackTillySubscriptionStarted } from "@/server/tilly";
 import { handleAffiliateCommissionEvent } from "@/server/affiliate-commissions";
 import {
   applyPaidUpgradeInvoice,
@@ -220,6 +221,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, analyti
 
   const paidPlan = getPaidSubscriptionPlan(subscription);
   if (userId && paidPlan) {
+    if (session.payment_status === "paid" || session.payment_status === "no_payment_required") {
+      await trackTillySubscriptionStarted(session.metadata?.tilly_visitor_id, {
+        plan: paidPlan,
+        interval: subscriptionInterval(subscription) ?? undefined,
+        trial: subscription.status === "trialing",
+      });
+    }
     await sendSubscriptionEmailBestEffort(userId, "subscribed");
     analytics?.add({
       event: "subscription_started",

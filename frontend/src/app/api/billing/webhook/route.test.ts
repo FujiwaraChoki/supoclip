@@ -1052,7 +1052,12 @@ describe("/api/billing/webhook analytics", () => {
     },
   };
 
-  it("sends subscription_started once, after checkout is processed", async () => {
+  it("sends subscription_started once, to PostHog and Tilly after checkout is processed", async () => {
+    process.env.TILLY_API_BASE_URL = "https://analytics.example.com/api/v1";
+    process.env.TILLY_API_KEY = "test-key";
+    process.env.NEXT_PUBLIC_TILLY_WEBSITE_ID = "example-site";
+    using goalFetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 201 }));
+
     vi.mocked(getPrismaClient).mockReturnValue({
       stripeWebhookEvent: webhookEvents(),
       user: { update: vi.fn().mockResolvedValue({}), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -1062,9 +1067,10 @@ describe("/api/billing/webhook analytics", () => {
       "checkout.session.completed",
       {
         mode: "subscription",
+        payment_status: "paid",
         customer: "cus_123",
         subscription: "sub_123",
-        metadata: { userId: "user-1", plan: "pro", interval: "year", creator_code: "CREATORCODE" },
+        metadata: { userId: "user-1", plan: "pro", interval: "year", creator_code: "CREATORCODE", tilly_visitor_id: "test-visitor" },
       },
       { subscriptions: { retrieve: vi.fn().mockResolvedValue(activeSubscription) } },
     );
@@ -1072,6 +1078,19 @@ describe("/api/billing/webhook analytics", () => {
     expect((await deliver()).status).toBe(200);
     expect((await deliver()).status).toBe(200);
 
+    expect(goalFetch).toHaveBeenCalledTimes(1);
+    expect(goalFetch).toHaveBeenCalledWith(
+      "https://analytics.example.com/api/v1/sites/example-site/goals",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorId: "test-visitor",
+          name: "subscription_started",
+          metadata: { plan: "pro", interval: "year", trial: false },
+        }),
+      }),
+    );
     expect(capture).toHaveBeenCalledTimes(1);
     expect(capture).toHaveBeenCalledWith(expect.objectContaining({
       distinctId: "user-1",
