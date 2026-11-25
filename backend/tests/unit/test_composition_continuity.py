@@ -6,6 +6,7 @@ solo podcast case 10, tagesschau case 07, Fireship React case 06).
 
 from dataclasses import replace
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -27,8 +28,12 @@ def subject(time=0.0, **kwargs):
     return replace(SceneEvidence(time, face_area=0.05, face_count=1, face_span=0.2), **kwargs)
 
 
-def shot(start, end, kind, reason, soft=False):
-    return {"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft}
+def shot(start, end, kind, reason, x=0.5):
+    """A planned shot. ``x`` is where a cover is cropped, and where any shot would be if it filled the frame."""
+    entry = {"start": start, "end": end, "kind": kind, "reason": reason, "fill_x": x}
+    if kind == "cover":
+        entry["x"] = x
+    return entry
 
 
 def layout(plan):
@@ -37,27 +42,42 @@ def layout(plan):
 
 # -- #283: layout hysteresis -------------------------------------------------
 
-def test_cooking_clip_does_not_flash_a_crop_inside_the_wide_demonstration():
+def test_cooking_clip_fills_the_frame_through_the_wide_demonstration():
     # Per-shot decisions measured on the rebuilt case 05 clip 1: a 0.33s empty
     # opening shot and a 1.33s pan close-up inside 25s of wide kitchen shots.
-    plan = [
-        shot(0.0, 0.333, "fit", "no_reliable_close_subject"),
-        shot(0.333, 4.333, "face", "confident_subject"),
-        shot(4.333, 6.667, "fit", "subjects_spread_across_frame"),
-        shot(6.667, 15.333, "fit", "interaction_exceeds_crop"),
-        shot(15.333, 22.0, "fit", "subjects_spread_across_frame"),
-        shot(22.0, 26.0, "fit", "no_reliable_close_subject"),
-        shot(26.0, 29.667, "fit", "subjects_spread_across_frame"),
-        shot(29.667, 31.0, "face", "confident_subject"),
-        shot(31.0, 33.333, "fit", "subjects_spread_across_frame"),
-        shot(33.333, 34.333, "fit", "no_reliable_close_subject"),
+    # The wide shots used to be shown small, and the whole clip with them.
+    shots = [
+        (0.0, 0.333, "no_reliable_close_subject"),
+        (0.333, 4.333, "confident_subject"),
+        (4.333, 6.667, "subjects_spread_across_frame"),
+        (6.667, 15.333, "interaction_exceeds_crop"),
+        (15.333, 22.0, "subjects_spread_across_frame"),
+        (22.0, 26.0, "no_reliable_close_subject"),
+        (26.0, 29.667, "subjects_spread_across_frame"),
+        (29.667, 31.0, "confident_subject"),
+        (31.0, 33.333, "subjects_spread_across_frame"),
+        (33.333, 34.333, "no_reliable_close_subject"),
     ]
-    stable = stabilize_layout_plan(plan)
-    assert layout(stable) == [(0.0, 34.333, "fit")]
-    assert stable[0]["reason"] == "stable_context"
+    evidence = {
+        "confident_subject": subject(),
+        "no_reliable_close_subject": SceneEvidence(0, motion=0.1),
+        "subjects_spread_across_frame": subject(face_count=4, face_span=0.8, face_center=0.4, motion=0.1),
+        "interaction_exceeds_crop": subject(face_count=2, face_span=0.7, face_area=0.03, face_center=0.6, motion=0.1),
+    }
+    samples = []
+    for i in range(103):
+        reason = next(r for a, b, r in shots if a <= i / 3 < b)
+        samples.append(replace(evidence[reason], time=i / 3))
+    plan = build_context_layout_plan(samples, [a for a, _, _ in shots[1:]], 34.333, 0.316)
+    # Every shot keeps its own decision: the two close-ups are face crops, everything else fills the frame
+    # with a full-height crop where its people are. Nothing is letterboxed.
+    assert [(round(p["start"], 3), round(p["end"], 3), p["reason"]) for p in plan] == shots
+    assert [p["kind"] for p in plan] == [
+        "cover", "face", "cover", "cover", "cover", "cover", "cover", "face", "cover", "cover"]
+    assert [p["x"] for p in plan if p["kind"] == "cover"] == [0.5, 0.4, 0.6, 0.4, 0.5, 0.4, 0.4, 0.5]
 
 
-def test_brief_wide_shot_of_the_same_speaker_keeps_the_face_crop():
+def test_brief_wide_shot_of_the_same_speaker_fills_the_frame_on_the_speaker():
     # Case 10 clip 2 at ~27s: a 2s wide shot of the lone host (face ~0.2% of
     # the frame) between close-ups was shown as a tiny letterboxed strip.
     close = [subject(i / 3) for i in range(0, 78)]
@@ -66,43 +86,81 @@ def test_brief_wide_shot_of_the_same_speaker_keeps_the_face_crop():
     samples = close + wide + after
     assert context_reason(wide[0], 0.316) == "no_reliable_close_subject"
     plan = build_context_layout_plan(samples, [26.0, 28.0], 40.0, 0.316)
-    assert layout(plan) == [(0.0, 40.0, "face")]
+    # A full-height crop on the host, however small the face; the close-ups keep their tracked crop.
+    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 28.0, "cover"), (28.0, 40.0, "face")]
+    assert plan[1]["reason"] == "no_reliable_close_subject" and plan[1]["x"] == pytest.approx(0.42)
 
 
-def test_fast_close_and_wide_cutting_of_one_speaker_stays_cropped():
+def test_fast_close_and_wide_cutting_of_one_speaker_fills_the_frame_throughout():
     # Two-second close-ups alternating with two-second wide shots of the same
-    # host: widening every short crop would letterbox the entire clip.
-    plan = [
-        shot(0, 2, "face", "confident_subject"),
-        shot(2, 4, "fit", "no_reliable_close_subject", soft=True),
-        shot(4, 6, "face", "confident_subject"),
-        shot(6, 8, "fit", "no_reliable_close_subject", soft=True),
-        shot(8, 10, "face", "confident_subject"),
+    # host: each wide shot fills the frame on the host and each close-up keeps
+    # its crop. No shot is shown small, and the clip is not letterboxed for them.
+    samples = [
+        subject(i / 3) if (i // 6) % 2 == 0 else subject(i / 3, face_area=0.0023, face_center=0.42)
+        for i in range(30)
     ]
-    assert layout(stabilize_layout_plan(plan)) == [(0, 10, "face")]
+    plan = build_context_layout_plan(samples, [2, 4, 6, 8], 10, 0.316)
+    assert layout(plan) == [(0, 2, "face"), (2, 4, "cover"), (4, 6, "face"), (6, 8, "cover"), (8, 10, "face")]
+    assert [p["x"] for p in plan if p["kind"] == "cover"] == [pytest.approx(0.42)] * 2
+    # The hysteresis has nothing to do with crops that already fill the frame.
+    assert stabilize_layout_plan(plan) == plan
 
 
-def test_brief_content_shot_between_close_ups_shows_in_full_without_widening_them():
-    # A speaker with a slide cut in: the slide is shown whole, the close-ups around it stay cropped
-    # (a whole-clip letterbox for one slide shrinks the speaker for the entire clip).
+def test_two_second_slide_between_close_ups_fills_the_frame_and_a_longer_one_shows_in_full():
+    # A speaker with a slide cut in for two seconds: nobody reads it in that time, and dropping to a third of
+    # the screen and back is what a viewer notices. The slide fills the frame; the close-ups stay cropped.
     close = [subject(i / 3) for i in range(0, 78)]
-    slide = [SceneEvidence(i / 3, text_rows=6) for i in range(78, 84)]
+    slide = [SceneEvidence(i / 3, text_rows=6, text_block_lines=3) for i in range(78, 84)]
     after = [subject(i / 3) for i in range(84, 120)]
     plan = build_context_layout_plan(close + slide + after, [26.0, 28.0], 40.0, 0.316)
-    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 28.0, "fit"), (28.0, 40.0, "face")]
+    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 28.0, "cover"), (28.0, 40.0, "face")]
+    assert (plan[1]["reason"], plan[1]["x"]) == ("brief_content", 0.5)
+    # Four seconds of the same slide are shown whole, and the close-ups around it still stay cropped
+    # (a whole-clip letterbox for one slide shrinks the speaker for the entire clip).
+    slide = [SceneEvidence(i / 3, text_rows=6, text_block_lines=3) for i in range(78, 90)]
+    plan = build_context_layout_plan(close + slide + after[6:], [26.0, 30.0], 40.0, 0.316)
+    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 30.0, "fit"), (30.0, 40.0, "face")]
+    assert plan[1]["reason"] == "text_block"
+    # Rows of text-like shapes alone (no paragraph, no line the crop cuts) are not a slide: such a shot fills.
+    rows = [SceneEvidence(i / 3, text_rows=6) for i in range(78, 90)]
+    plan = build_context_layout_plan(close + rows + after[6:], [26.0, 30.0], 40.0, 0.316)
+    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 30.0, "cover"), (30.0, 40.0, "face")]
+    assert plan[1]["reason"] == "no_reliable_close_subject"
 
 
-def test_brief_crop_inside_a_wide_two_shot_keeps_speaker_framing_reason():
-    plan = [
-        shot(0, 10, "fit", "interaction_exceeds_crop"),
+def test_brief_crop_inside_a_wide_two_shot_keeps_its_crop_and_the_speaker_framing_reason():
+    # A wide two-shot with a 1.5s close-up cut in. The two-shot fills the frame and keeps the reason that
+    # hands it to the interview layout and speaker framing; the close-up keeps its face crop.
+    def wide(first, last):
+        return [subject(i / 3, face_count=2, face_span=0.7, face_area=0.03, face_center=0.3)
+                for i in range(first, last)]
+
+    samples = wide(0, 30) + [subject(i / 3) for i in range(30, 35)] + wide(35, 60)
+    plan = build_context_layout_plan(samples, [10, 11.5], 20, 0.316)
+    assert plan == [
+        shot(0, 10, "cover", "interaction_exceeds_crop", x=0.3),
         shot(10, 11.5, "face", "confident_subject"),
-        shot(11.5, 20, "fit", "interaction_exceeds_crop"),
+        shot(11.5, 20, "cover", "interaction_exceeds_crop", x=0.3),
     ]
-    stable = stabilize_layout_plan(plan)
-    assert stable == [shot(0, 20, "fit", "interaction_exceeds_crop")]
 
 
-def test_repeated_context_changes_use_one_full_frame_layout():
+def test_flash_of_a_crop_between_two_content_shots_stays_fitted():
+    # One sample of a crop inside ten seconds of a document on each side is a flash: it stays fitted, with
+    # the document's reason. A real 1.5s cutaway keeps its crop.
+    def around(seconds):
+        return [
+            shot(0, 10, "fit", "text_block"),
+            shot(10, 10 + seconds, "cover", "no_reliable_close_subject", x=0.3),
+            shot(10 + seconds, 20, "fit", "text_block"),
+        ]
+
+    assert stabilize_layout_plan(around(0.333)) == [shot(0, 20, "fit", "text_block")]
+    assert stabilize_layout_plan(around(1.5)) == around(1.5)
+
+
+def test_repeated_context_changes_keep_one_layout_per_shot():
+    # Speaker, screen, speaker, screen, speaker: each screen is shown whole and each close-up stays cropped.
+    # The clip is never letterboxed as a whole because parts of it are content.
     plan = [
         shot(0, 3, "face", "confident_subject"),
         shot(3, 6, "fit", "screen_content_outside_crop"),
@@ -110,7 +168,7 @@ def test_repeated_context_changes_use_one_full_frame_layout():
         shot(9, 12, "fit", "screen_content_outside_crop"),
         shot(12, 15, "face", "confident_subject"),
     ]
-    assert layout(stabilize_layout_plan(plan)) == [(0, 15, "fit")]
+    assert stabilize_layout_plan(plan) == plan
 
 
 def test_one_content_cutaway_keeps_the_crops_around_it():
@@ -122,12 +180,19 @@ def test_one_content_cutaway_keeps_the_crops_around_it():
     assert layout(stabilize_layout_plan(plan)) == [(0, 3, "face"), (3, 6, "fit"), (6, 9, "face")]
 
 
-def test_mostly_content_letterboxes_throughout():
+def test_mostly_content_keeps_the_crop_on_its_face_shot():
+    # Two seconds of the speaker before seven of the screen: the speaker is not shrunk to match the screen.
     plan = [
         shot(0, 2, "face", "confident_subject"),
         shot(2, 9, "fit", "screen_content_outside_crop"),
     ]
-    assert layout(stabilize_layout_plan(plan)) == [(0, 9, "fit")]
+    assert stabilize_layout_plan(plan) == plan
+    # Nor is a frame-filling shot at the end of a clip of content.
+    plan = [
+        shot(0, 7, "fit", "screen_content_outside_crop"),
+        shot(7, 7.333, "cover", "no_reliable_close_subject"),
+    ]
+    assert stabilize_layout_plan(plan) == plan
 
 
 # -- #290: text a face crop would cut ----------------------------------------
@@ -285,26 +350,54 @@ def test_fit_window_failure_falls_back_to_the_plain_fit(monkeypatch):
 
     monkeypatch.setattr(reframing, "plan_fit_windows", boom)
     monkeypatch.setattr(reframing, "ffprobe_duration", lambda _p: 10.0)
-    monkeypatch.setattr(reframing, "analyze_vertical_clip",
-                        lambda _p: ([], [], [], [SceneEvidence(t / 2) for t in range(20)]))
+    monkeypatch.setattr("src.media.screen_text.ocr_available", lambda: False)
+    # A still document: content, so the whole picture stays, without the zoom that could not be planned.
+    document = [SceneEvidence(t / 2, text_block_lines=3) for t in range(20)]
+    monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda _p: ([], [], [], document))
     described = reframing.describe_vertical_layout(Path("unused.mp4"), 1920, 1080)
     assert described["kind"] == "fit"
     assert described["video_filter"] == reframing.build_full_frame_filter()
+    # A still picture without text is not content. It fills the frame from its centre (960 - 303 = 657 →
+    # even 656), which needs no fit windows.
+    picture = [SceneEvidence(t / 2) for t in range(20)]
+    monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda _p: ([], [], [], picture))
+    described = reframing.describe_vertical_layout(Path("unused.mp4"), 1920, 1080)
+    assert described["kind"] == "crop" and described["caption_y"] is None
+    assert "crop=606:ih:x='656':y=0,scale=1080:-2" in described["video_filter"]
+    assert "force_original_aspect_ratio=decrease" not in described["video_filter"]
 
 
-@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg required")
-def test_rendered_content_fit_is_larger_and_keeps_both_content_edges(tmp_path):
-    source = tmp_path / "code.mp4"
+needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg required")
+
+CODE = ["const [count, setCount]", "  = useState(0);", "useEffect(() => {", "  document.title = count;", "}, [count]);"]
+
+
+def _code_panel_clip(path, lines=()):
+    """Two still seconds of a 640x360 dark slide: a panel with a red left and a blue right edge, and ``lines`` in it."""
+    frame = np.full((360, 640, 3), (0x1c, 0x17, 0x15), np.uint8)
+    frame[80:280, 192:448] = (0x36, 0x2e, 0x2a)
+    frame[80:280, 192:208] = (0, 0, 255)
+    frame[80:280, 432:448] = (255, 0, 0)
+    for index, text in enumerate(lines):
+        cv2.putText(frame, text, (220, 116 + index * 34), cv2.FONT_HERSHEY_SIMPLEX, 0.56, (230, 230, 230), 1,
+                    cv2.LINE_AA)
     result = subprocess.run([
-        "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
-        "color=0x15171c:s=320x180:r=10:d=2,drawbox=x=96:y=40:w=128:h=100:color=0x2a2e36:t=fill,"
-        "drawbox=x=96:y=40:w=8:h=100:color=red:t=fill,drawbox=x=216:y=40:w=8:h=100:color=blue:t=fill",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(source),
-    ], capture_output=True, timeout=30)
+        "ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", "640x360", "-r", "10", "-i", "-",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+    ], input=frame.tobytes() * 20, capture_output=True, timeout=30)
     assert result.returncode == 0, result.stderr
-    graph, mode, caption_y = reframing.build_vertical_filter_plan(Path(source), 320, 180)
-    assert mode == "complex" and caption_y == 0.80
-    assert "crop=192:ih" in graph
+    return path
+
+
+@needs_ffmpeg
+def test_rendered_content_fit_is_larger_and_keeps_both_content_edges(tmp_path, monkeypatch):
+    # Code on a dark slide (case 06). Judged from its shapes, so the result does not depend on the local OCR.
+    monkeypatch.setattr("src.media.screen_text.ocr_available", lambda: False)
+    source = _code_panel_clip(tmp_path / "code.mp4", CODE)
+    report = {}
+    graph, mode, caption_y = reframing.build_vertical_filter_plan(Path(source), 640, 360, report=report)
+    assert report["kind"] == "fit" and mode == "complex" and caption_y == 0.80
+    assert "crop=384:ih" in graph
     decoded = subprocess.run([
         "ffmpeg", "-v", "error", "-i", str(source), "-filter_complex", graph,
         "-map", "[vout]", "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-",
@@ -318,7 +411,33 @@ def test_rendered_content_fit_is_larger_and_keeps_both_content_edges(tmp_path):
     # Content spans ~720px instead of ~430px in a letterboxed fit.
     assert blue.max() - red.min() > 650
     # The content is taller too: a letterboxed fit puts the box top (source
-    # y=40) at 656 + 40 * 3.375 = 791px; the zoom puts it higher.
+    # y=80) at 656 + 80 * 1.6875 = 791px; the zoom puts it higher.
     column = frame[:, red[len(red) // 2]]
     top = np.flatnonzero((column[:, 0] > 180) & (column[:, 2] < 90)).min()
     assert top < 720
+
+
+@needs_ffmpeg
+def test_rendered_still_picture_without_text_fills_the_frame(tmp_path, monkeypatch):
+    # The same panel with nothing written in it is a picture, not a document: a full-height 9:16 crop from
+    # its middle, top to bottom of the canvas, instead of the whole picture on a blurred background.
+    monkeypatch.setattr("src.media.screen_text.ocr_available", lambda: False)
+    source = _code_panel_clip(tmp_path / "panel.mp4")
+    report = {}
+    graph, mode, caption_y = reframing.build_vertical_filter_plan(Path(source), 640, 360, report=report)
+    assert report["kind"] == "crop" and mode == "complex" and caption_y is None
+    # The crop is as wide as 9:16 allows and sits inside the panel, between its coloured edges (208-432).
+    x = int(re.search(r"crop=202:ih:x='(\d+)':y=0,scale=1080:-2", graph).group(1))
+    assert 208 <= x and x + 202 <= 432
+    assert "force_original_aspect_ratio=decrease" not in graph
+    decoded = subprocess.run([
+        "ffmpeg", "-v", "error", "-i", str(source), "-filter_complex", graph,
+        "-map", "[vout]", "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-",
+    ], capture_output=True, timeout=60)
+    assert decoded.returncode == 0, decoded.stderr
+    frame = np.frombuffer(decoded.stdout, np.uint8).reshape(1920, 1080, 3)
+    # The panel (source rows 80-280 of 360) reaches both sides of the canvas and is 1067px tall, not 337px.
+    panel = (np.abs(frame.astype(int) - (0x2a, 0x2e, 0x36)).max(axis=2) < 12)
+    assert panel[960].all()
+    rows = np.flatnonzero(panel[:, 540])
+    assert rows.max() - rows.min() > 1000

@@ -27,6 +27,7 @@ from ..workflows.durations import WORKFLOW_RENDER_HARD_MAX_SECONDS
 from ..workflows.language import is_no_space
 from .common import logger
 from .fallback_window import fallback_window
+from .sentence_bounds import sentence_bounds
 from .ffmpeg import crossfade_fade_for_ranges
 from .timeline import (
     apply_segment_hook_teaser,
@@ -103,6 +104,7 @@ def _resolve_legacy(
     # is the first chapter in it, or its first seconds. A fallback stored before that carries no target
     # length and keeps its range.
     fallback = segment.get("hook_type") == "fallback" and not provided_keep_ranges and len(source_ranges) == 1
+    on_sentences = False
     if fallback:
         range_start, range_end = source_ranges[0]
         start_seconds, end_seconds = fallback_window(
@@ -121,9 +123,22 @@ def _resolve_legacy(
         if fallback and _kept_seconds(keep_ranges) < min(MIN_CLEANED_CLIP_SECONDS, end_seconds - start_seconds):
             keep_ranges = list(source_ranges)
     else:
-        start_seconds = snap_clip_start_to_sentence(
-            video_path, start_seconds, end_seconds
+        # The labels become a first and a last sentence (media.sentence_bounds): a clip opens on a sentence
+        # that stands alone and closes on a finished one, inside the cap. Without word timings the start
+        # is snapped word by word, as before.
+        reviewed = segment.get("edge_seconds")
+        sentences = sentence_bounds(
+            video_path, start_seconds, end_seconds, max_clip_seconds,
+            **({"edges": (float(reviewed[0]), float(reviewed[1]))}
+               if isinstance(reviewed, (list, tuple)) and len(reviewed) == 2 else {}),
         )
+        on_sentences = sentences is not None
+        if sentences is not None:
+            start_seconds, end_seconds = sentences
+        else:
+            start_seconds = snap_clip_start_to_sentence(
+                video_path, start_seconds, end_seconds
+            )
         keep_ranges = build_clip_keep_ranges(
             video_path,
             start_seconds,
@@ -135,7 +150,9 @@ def _resolve_legacy(
         # Planned ranges never come here, so workflow budgets (SpeechClock) are unaffected.
         if _kept_seconds(keep_ranges) < min(MIN_CLEANED_CLIP_SECONDS, end_seconds - start_seconds):
             keep_ranges = [(start_seconds, end_seconds)]
-    keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+    if not on_sentences:
+        # Sentence bounds already end on a finished sentence; extending again would run into the next one.
+        keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
     clip_text = segment.get("text", "")
     if not provided_keep_ranges and not source_ranges:
         keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)

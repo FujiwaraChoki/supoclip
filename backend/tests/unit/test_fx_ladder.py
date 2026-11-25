@@ -87,7 +87,10 @@ def ladder(monkeypatch, tmp_path):
     monkeypatch.setattr(video_utils, "probe_video_geometry", lambda _path: SimpleNamespace(
         display_width=state["src"][0], display_height=state["src"][1], fps=30.0))
     monkeypatch.setattr(video_utils, "build_vertical_filter_plan", build_plan)
-    monkeypatch.setattr(video_utils, "detect_burned_caption_band", lambda _path: state.get("band"))
+    monkeypatch.setattr(
+        video_utils, "_resolve_source_captions",
+        lambda *_a, **_k: (state.get("band"), "avoid" if state.get("band") else "none"),
+    )
     monkeypatch.setattr("src.media.source_captions.detect_rendered_caption_band",
                         lambda *_args: state.get("band"), raising=False)
     monkeypatch.setattr("src.media.reframing.caption_probe_plan", lambda *_args: ("null", "vf"), raising=False)

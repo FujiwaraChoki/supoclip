@@ -63,8 +63,15 @@ def test_wide_shot_retains_both_guests_and_source_content_is_not_top_cropped():
     assert '[reactor][base1]vstack=inputs=2[vout]' in wide['video_filter']
     _assert_source_crops_fit(wide['video_filter'], 640, 360)
     frames = samples([REACTOR])
-    content = reaction_layout.build_reaction_layout(640, 360, 6, REACTOR, INSET, frames)
-    assert content['source_runs'][0][2] == 'content'
+    # Nobody in the source (a game, b-roll): its middle fills the source panel, beside the inset, instead of
+    # the whole frame sitting as a strip between blurred bands.
+    footage = reaction_layout.build_reaction_layout(640, 360, 6, REACTOR, INSET, frames)
+    assert footage['source_runs'][0][2] == 'content'
+    assert '[part0]crop=302:360:168:0,scale=1080:1280:flags=lanczos,setsar=1[p0]' in footage['video_filter']
+    assert 'force_original_aspect_ratio=decrease' not in footage['video_filter']
+    _assert_source_crops_fit(footage['video_filter'], 640, 360)
+    # Only what the scene plan read as content (a page, a card) keeps the whole source frame.
+    content = reaction_layout.build_reaction_layout(640, 360, 6, REACTOR, INSET, frames, content=[(0.0, 6.0)])
     assert '[part0]format=rgba,drawbox=x=480:y=0:w=160:h=120:color=black@0:t=fill:replace=1,scale=' in content['video_filter']
 
 
@@ -94,7 +101,9 @@ def test_wide_guest_panels_that_exceed_the_frame_fall_back_to_one_crop():
         width, height, 6, reactor, inset, samples([reactor, *guests]),
     )
     assert "split=2" not in plan["video_filter"]
-    assert "crop=1080:1200:0:200" in plan["video_filter"]
+    # One crop below the camera that fills the source panel around both guests.
+    assert "crop=1012:1200:0:200,scale=1080:1280" in plan["video_filter"]
+    assert "force_original_aspect_ratio=decrease" not in plan["video_filter"]
     _assert_source_crops_fit(plan["video_filter"], width, height)
 
 

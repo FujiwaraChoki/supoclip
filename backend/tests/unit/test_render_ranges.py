@@ -139,12 +139,14 @@ def test_resolver_legacy_branch_matches_the_golden(video_path, monkeypatch, name
     assert resolved.group_output_starts == []
 
 
-def test_resolver_legacy_bounds_carry_the_snapped_start(video_path, monkeypatch):
+def test_resolver_legacy_bounds_carry_both_sentence_edges(video_path, monkeypatch):
+    # The labels 00:13-00:32 stand for "Most people ... for me.": the bounds are that sentence run's own edges
+    # (lead-in before its first word, padding after its last), not the whole-second labels.
     monkeypatch.setattr(timeline, "get_config", lambda: SimpleNamespace(hook_first_teaser=False))
 
     resolved = render_ranges.resolve_render_ranges(video_path, _segment(LEGACY_CASES["raw"][0]), None, 60.0)
 
-    assert resolved.bounds == (pytest.approx(11.9), 32.0)
+    assert resolved.bounds == (pytest.approx(11.9), pytest.approx(32.55))
 
 
 def _planned(ranges, **extra):

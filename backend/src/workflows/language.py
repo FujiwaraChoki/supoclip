@@ -1,8 +1,9 @@
 """Language helpers for workflow planning: punctuation, scripts and labels.
 
 Sentence punctuation here covers CJK, Arabic, Devanagari, Armenian and
-Ethiopic marks. ``media.common.SENTENCE_END_RE`` stays ASCII-only on purpose:
-highlights must not change.
+Ethiopic marks. Highlights read it too, through the sentence units
+(``media.sentence_bounds``); ``media.common.SENTENCE_END_RE`` is the ASCII-only
+pattern of the word-level snap that remains for transcripts without word timings.
 """
 
 from __future__ import annotations

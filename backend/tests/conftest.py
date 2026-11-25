@@ -1,5 +1,8 @@
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 import time
 import hmac
 import hashlib
@@ -13,6 +16,20 @@ from sqlalchemy.pool import NullPool
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# A developer machine may have the speech model on disk; tests never listen to audio unless they say so.
+os.environ["CLIP_EDGE_LISTEN"] = "off"
+# A developer's .env may name a real bucket, with its keys, and a media directory that is in use (it is read
+# when src.config is imported, below, and never replaces what is set here). Tests store nothing outside
+# this machine, know no bucket, and keep their scratch in a directory of their own; a test of bucket storage
+# sets what it needs on its own Config.
+os.environ["MEDIA_STORAGE"] = "local"
+for _name in ("MEDIA_S3_BUCKET", "MEDIA_S3_ACCESS_KEY_ID", "MEDIA_S3_SECRET_ACCESS_KEY", "MEDIA_S3_SESSION_TOKEN",
+              "MEDIA_S3_ENDPOINT", "MEDIA_FALLBACK_BUCKET"):
+    os.environ[_name] = ""
+if "TEMP_DIR" not in os.environ:
+    os.environ["TEMP_DIR"] = tempfile.mkdtemp(prefix="supoclip-tests-")
+    atexit.register(shutil.rmtree, os.environ["TEMP_DIR"], ignore_errors=True)
 
 from src.config import Config, set_config_override
 from src.database import configure_database, init_db, reset_database_state

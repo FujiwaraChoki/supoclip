@@ -523,15 +523,16 @@
           ],
           "kwargs": {
             "avoid_band": [
-              0.66,
-              0.78
+              0.7,
+              0.82
             ],
             "caption_layout_report": {
               "caption_y": 0.71,
               "source_caption_band": [
-                0.66,
-                0.78
+                0.7,
+                0.82
               ],
+              "source_captions": "avoid",
               "vertical_layout": {
                 "duration": 18.4,
                 "height": 1080,
@@ -583,30 +584,6 @@
           "kwargs": {
             "report": {}
           }
-        }
-      ],
-      "caption_probe_plan": [
-        {
-          "args": [
-            "<RENDER>/source.mp4",
-            "vertical",
-            [
-              "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
-              "vf"
-            ]
-          ],
-          "kwargs": {}
-        }
-      ],
-      "detect_rendered_caption_band": [
-        {
-          "args": [
-            "<RENDER>/source.mp4",
-            "crop=608:1080:656:0,scale=1080:1920:flags=lanczos,setsar=1",
-            "vf",
-            18.4
-          ],
-          "kwargs": {}
         }
       ],
       "render_reframed_clip_ffmpeg": [
@@ -690,9 +667,10 @@
       "broll_applied": true,
       "caption_y": 0.71,
       "source_caption_band": [
-        0.66,
-        0.78
+        0.7,
+        0.82
       ],
+      "source_captions": "avoid",
       "vertical_layout": {
         "duration": 18.4,
         "height": 1080,

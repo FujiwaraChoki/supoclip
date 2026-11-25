@@ -15,12 +15,15 @@ This module picks a layout from the face boxes already measured for reframing:
   full-height crop gets a tight tracked head-and-shoulders crop (``solo``,
   the interview close-up from ``interview_layout``): up to 2.25x on a 1080p
   source, eyes near the upper third.
-- Only when that face is small (under ~11% of the frame height), cannot be
-  lifted to the upper half within the upscale cap, or the source is too small
-  to crop sharply, is it placed on a blurred frame (``stage``), cropped wide
-  enough to stay under ~1.32x and shifted so the face sits in the upper third.
-- A gallery of three or more faces is shown in full (a downscale) on the blur,
-  instead of zooming into one tiny tile.
+- When that face is small (under ~11% of the frame height), cannot be lifted
+  to the upper half within the upscale cap, or the source is too small to crop
+  sharply, the clip keeps the tracked full-height crop: the frame is full and
+  the captions move under the face. (It used to be shown at about 60% of the
+  frame height on a blurred canvas, ``stage``; a filled frame reads better on
+  a phone than a sharper picture between two blurred bands.)
+- A call gallery (three or more tiles on two rows or more) is shown in full
+  on the blur: no crop holds its tiles, and half-tiles look broken. Three
+  people side by side in one shot are not a gallery; they keep the crop.
 - A face already framed in the upper half, including a close podcast two-shot,
   returns None so the tracked crop and active-speaker cuts stay in charge.
 """
@@ -33,8 +36,6 @@ from .ffmpeg import clamp_even, round_to_even
 
 OUT_W = 1080
 OUT_H = 1920
-STAGE_MAX_UPSCALE = 1.32
-STAGE_FACE_Y = 0.38
 STACK_TOP = 168
 STACK_TILE_H = 800
 STACK_BOTTOM = 1120
@@ -81,11 +82,23 @@ def dominant_face_bottom(samples: Sequence[FaceFrame], height: int) -> Optional[
     return _median(bottoms)
 
 
-def _gallery_frames(samples: Sequence[FaceFrame]) -> bool:
-    counted = [len(faces) for _, faces in samples if faces]
-    if len(counted) < 4:
+# Tiles of a call grid sit on rows: face centres this far apart vertically (as a share of the frame height)
+# are two rows. People sharing one shot (a sofa, a table, a panel) sit at about one height.
+GALLERY_MIN_ROW_GAP = 0.25
+
+
+def _on_rows(faces: Sequence[Box], height: int) -> bool:
+    centres = [y + h / 2 for _x, y, _w, h in faces]
+    return len(faces) >= 3 and max(centres) - min(centres) >= GALLERY_MIN_ROW_GAP * height
+
+
+def _gallery_frames(samples: Sequence[FaceFrame], height: int = 0) -> bool:
+    """A call grid: three or more faces, on two rows or more, in a good share of the clip."""
+    faced = [faces for _, faces in samples if faces]
+    if len(faced) < 4:
         return False
-    crowded = sum(1 for count in counted if count >= 3)
+    counted = [len(faces) for faces in faced]
+    crowded = sum(1 for faces in faced if len(faces) >= 3 and (height <= 0 or _on_rows(faces, height)))
     return crowded >= max(4, int(len(counted) * 0.45)) and _median(counted) >= 3
 
 
@@ -145,61 +158,6 @@ def _foreground(label: str, crop: Tuple[int, int, int, int], out_w: int, out_h: 
         f"{label}crop={w}:{h}:{x}:{y},"
         f"scale={out_w}:{out_h}:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1"
     )
-
-
-def _stage_plan(width: int, height: int, box: Box) -> Dict[str, Any]:
-    x, y, w, h = box
-    cx = x + w / 2
-    cy = y + h / 2
-    min_crop_w = max(2, round_to_even(int(OUT_W / STAGE_MAX_UPSCALE)))
-    preferred = round_to_even(int(width * 0.52))
-    # Keep the face large enough to read, but never zoom past the upscale cap.
-    subject_limit = round_to_even(int(w / 0.16)) if w > 0 else width
-    crop_w = min(width, max(min_crop_w, min(preferred, max(min_crop_w, subject_limit))))
-    crop_w = max(2, round_to_even(crop_w))
-    if crop_w > width:
-        crop_w = round_to_even(width)
-    crop_x = clamp_even(int(cx - crop_w / 2), 0, max(0, width - crop_w))
-
-    def place(crop_y: int, crop_h: int) -> Tuple[int, int, float]:
-        scale = OUT_W / crop_w
-        scaled_h = min(OUT_H, round_to_even(int(round(crop_h * scale))))
-        scaled_h = max(2, scaled_h)
-        face_in = (cy - crop_y) / max(crop_h, 1) * scaled_h
-        overlay = int(STAGE_FACE_Y * OUT_H - face_in)
-        overlay = max(0, min(overlay, OUT_H - scaled_h))
-        overlay = round_to_even(overlay)
-        face_out = (overlay + face_in) / OUT_H
-        return scaled_h, overlay, face_out
-
-    crop_y, crop_h = 0, height
-    scaled_h, overlay, face_out = place(crop_y, crop_h)
-    guard = max(8, int(h * 0.35))
-    if face_out > 0.44 and y > guard + 16:
-        cut = round_to_even(min(int(y - guard), int(height * 0.28)))
-        if cut >= 16 and height - cut >= max(64, int(h * 2)):
-            crop_y, crop_h = cut, round_to_even(height - cut)
-            scaled_h, overlay, face_out = place(crop_y, crop_h)
-
-    video_bottom = (overlay + scaled_h) / OUT_H
-    if video_bottom < 0.82:
-        caption_y = min(0.84, video_bottom + (1 - video_bottom) * 0.45)
-    else:
-        face_bottom = (overlay + (y + h - crop_y) / max(crop_h, 1) * scaled_h) / OUT_H
-        caption_y = caption_y_below_subject(face_bottom)
-    video_filter = (
-        f"{_blur_base(2, '[bgsrc]', '[fgsrc]')}"
-        f"{_foreground('[fgsrc]', (crop_x, crop_y, crop_w, crop_h), OUT_W, scaled_h)}[fg];"
-        f"[bg][fg]overlay=0:{overlay}[vout]"
-    )
-    return {
-        "kind": "stage",
-        "video_filter": video_filter,
-        "caption_y": round(caption_y, 4),
-        "upscale": OUT_W / crop_w,
-        "face_y": face_out,
-        "video_bottom": video_bottom,
-    }
 
 
 def _tile_crop(
@@ -289,7 +247,7 @@ def choose_talking_head_layout(
     duration: Optional[float] = None,
     input_path: Optional[Path] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Return a stack, solo crop, stage, or full-frame fit, or None to keep the tracked crop.
+    """Return a stack, a solo crop or the full frame for a call gallery, or None to keep the tracked crop.
 
     ``samples`` are ``(time, [(x, y, w, h), ...])`` in source pixels. A busy
     cut-heavy clip is left alone: the scene-aware compositor already handles
@@ -305,7 +263,7 @@ def choose_talking_head_layout(
     if scene_cuts and len(scene_cuts) > 4:
         return None
 
-    if _gallery_frames(faced):
+    if _gallery_frames(faced, height):
         return _fit_plan(width, height)
 
     pairs = _call_pairs(faced, width, height)
@@ -330,12 +288,9 @@ def choose_talking_head_layout(
     if cy / height >= 0.48 or y / height >= 0.22:
         # A full-height crop would leave the face low or under a band of
         # empty room. One person big enough to crop gets a tight tracked
-        # crop (the interview close-up); only a small or unreachable face is
-        # staged on the blurred frame.
-        solo = _solo_plan(width, height, samples, scene_cuts or [], duration, input_path)
-        if solo:
-            return solo
-        return _stage_plan(width, height, box)
+        # crop (the interview close-up). A small or unreachable face keeps
+        # the tracked full-height crop: the frame stays full.
+        return _solo_plan(width, height, samples, scene_cuts or [], duration, input_path)
     return None
 
 

@@ -685,6 +685,153 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
     return _rerank_agent
 
 
+class ClipEdges(BaseModel):
+    """Where one clip should open and close, as sentence ids from the lists it was shown."""
+
+    clip: int = Field(description="The clip number as given")
+    opening_problem: str = Field(
+        description="What is wrong with the current opening: none, answers_unseen_line, unnamed_reference, "
+                    "continues_earlier_point, leftover, or mid_sentence")
+    closing_problem: str = Field(
+        description="What is wrong with the current closing: none, unanswered_question, missing_payoff, "
+                    "next_topic, or fragment")
+    opening_id: int = Field(description="Id of the sentence the clip opens on, from its OPENING list")
+    closing_id: int = Field(description="Id of the sentence the clip closes on, from its CLOSING list")
+
+
+class ClipEdgeReview(BaseModel):
+    """Opening and closing sentence for every clip in the request."""
+
+    clips: List[ClipEdges] = Field(description="One entry per clip, in the order given")
+
+
+clip_edge_system_prompt = """You are a short-form video editor checking where a clip starts and ends. A viewer sees only the clip: nothing that was said before it, nothing that is said after it.
+
+The clip was cut from a longer video on whole sentences. You get what the clip is about (its title and why it was picked), then numbered sentences around its current first sentence (OPENING) and around its current last sentence (CLOSING), in the order they are spoken, with the speaker when known. Sentences marked "in clip" are currently part of the clip; the others are just before or just after it. First name what is wrong with each edge, then choose the sentence the clip should open on and the sentence it should close on.
+
+OPENING. The first sentence a viewer hears must make sense on its own and belong to what the clip is about. Problems, and the fix:
+- answers_unseen_line: it answers, echoes or reacts to a line that is not in the clip (a bare reply, a question that repeats what somebody just said, "that is what I mean"). Open on that line.
+- unnamed_reference: it points at someone or something only an earlier sentence names ("he", "she", "they", "their", "it", "that", "in there", "this guy") and the clip's first two sentences never say who or what. Open on the nearest earlier sentence that names it.
+- continues_earlier_point: it starts with a connector that carries on an earlier point ("but", "so", "because", "and then", "which", "that is", and their equivalents in the clip's language) and does not make sense without that point. Open on the sentence it continues.
+- leftover: the first sentence or two belong to the topic before, or are a scrap of it (a bare agreement, a laugh, filler, the end of another story), and what the clip is about starts after them. Open on the sentence where the clip's own subject starts.
+- mid_sentence: it is the second half of a sentence whose first half is just before it. Open on the first half.
+
+CLOSING. The last sentence must finish the thought the clip is about. Problems, and the fix:
+- unanswered_question: it is a question, or a line said to somebody, and the answer or reply follows (a short reply by the other person counts). Close on the answer.
+- missing_payoff: the clip builds to something (what the title promises, a reveal, a punchline, the result of an attempt, a count such as "one..." with "two" right after) and it is said in the sentences that follow. Close on the sentence that delivers it.
+- next_topic: it only announces the next topic, thanks the viewer or asks them to subscribe. Close one sentence earlier.
+- fragment: it is a trailing fragment that is not a finished thought. Close one sentence earlier, or on the sentence that finishes it.
+
+Rules:
+- Make the smallest change that fixes the problem. Never open earlier or close later than needed, and never open on a sentence that itself needs earlier context when a nearby one stands alone.
+- Do not add sentences that start a new, unrelated thought.
+- Use only ids from the clip's own lists: opening_id from OPENING, closing_id from CLOSING.
+- When an edge has no problem, say "none" and return its current id. Many clips need no change; do not move an edge that is fine.
+- Judge only what the sentences say. Stay content-neutral.
+- Return valid JSON only, with a "clips" list holding one entry per clip."""
+
+CLIP_EDGE_TIMEOUT_SECONDS = 60
+CLIP_EDGE_CONCURRENCY = 4
+
+_edge_agent: Optional[Agent[None, ClipEdgeReview]] = None
+_edge_agent_signature: Optional[tuple[str | None, ...]] = None
+
+
+def get_clip_edge_agent() -> Agent[None, ClipEdgeReview]:
+    """Get or create the clip-edge review agent (lazy initialization)."""
+    global _edge_agent, _edge_agent_signature
+    runtime_config = get_config()
+    model_name = (getattr(runtime_config, "clip_edge_llm", None)
+                  or getattr(runtime_config, "rerank_llm", None) or runtime_config.llm)
+    signature = (
+        model_name,
+        runtime_config.openai_api_key,
+        runtime_config.openrouter_api_key,
+        runtime_config.openrouter_fallback_model,
+        runtime_config.google_api_key,
+        runtime_config.anthropic_api_key,
+        runtime_config.ollama_base_url,
+        runtime_config.ollama_api_key,
+    )
+    if _edge_agent is None or _edge_agent_signature != signature:
+        apply_settings_to_process_env(runtime_config.as_runtime_settings())
+        config_error = _get_missing_llm_key_error(model_name, runtime_config)
+        if config_error:
+            raise RuntimeError(config_error)
+        _edge_agent = Agent[None, ClipEdgeReview](
+            model=_build_transcript_model(runtime_config, model_name),
+            output_type=NativeOutput(ClipEdgeReview, strict=True) if _uses_native_output(model_name) else ClipEdgeReview,
+            system_prompt=clip_edge_system_prompt,
+            output_retries=2,
+        )
+        _edge_agent_signature = signature
+    return _edge_agent
+
+
+def build_clip_edge_prompt(clips: List[Dict[str, Any]]) -> str:
+    """The request for ``review_clip_edges``: per clip what it is about and the two sentence lists.
+
+    Each clip is ``{"clip": n, "title": str, "about": str, "opening": [...], "closing": [...], "first": id, "last": id}``
+    with sentences as ``{"id": int, "speaker": str | None, "text": str, "in_clip": bool}``.
+    """
+    def listing(sentences: List[Dict[str, Any]]) -> str:
+        lines = []
+        for sentence in sentences:
+            speaker = f"[{sentence['speaker']}] " if sentence.get("speaker") else ""
+            mark = " (in clip)" if sentence.get("in_clip") else ""
+            lines.append(f"#{sentence['id']}{mark} {speaker}{sentence['text']}")
+        return "\n".join(lines)
+
+    parts = []
+    for clip in clips:
+        about = "".join(
+            f"{label}: {clip[key]}\n" for label, key in (("Title", "title"), ("Why it was picked", "about"))
+            if clip.get(key)
+        )
+        parts.append(
+            f"CLIP {clip['clip']}\n{about}"
+            f"OPENING sentences (current opening: #{clip['first']}):\n{listing(clip['opening'])}\n"
+            f"CLOSING sentences (current closing: #{clip['last']}):\n{listing(clip['closing'])}"
+        )
+    return "Check these clips and return the opening and closing sentence id for each.\n\n" + "\n\n".join(parts)
+
+
+async def review_clip_edges(clips: List[Dict[str, Any]]) -> Dict[int, tuple[int, int]]:
+    """Ask the model where each clip should open and close: {clip number: (opening id, closing id)}.
+
+    One small call per clip, a few at a time: asked about a dozen clips at once the model waves them all
+    through. A clip whose call fails is left out (its resolved edges stand); ids outside a clip's own lists
+    are dropped here, everything else (sentence starts, durations) is checked by the caller.
+    """
+    if not clips:
+        return {}
+    try:
+        agent = get_clip_edge_agent()
+    except Exception as error:
+        logger.warning("Clip edge review unavailable (%s); keeping the resolved edges", type(error).__name__)
+        return {}
+    gate = asyncio.Semaphore(CLIP_EDGE_CONCURRENCY)
+
+    async def review(clip: Dict[str, Any]) -> Optional[tuple[int, int]]:
+        async with gate:
+            try:
+                result = await _run_transcript_analysis(
+                    agent, build_clip_edge_prompt([clip]), timeout_seconds=CLIP_EDGE_TIMEOUT_SECONDS)
+            except Exception as error:
+                # Do not log the error text: provider bodies may contain transcript data.
+                logger.warning("Clip edge review failed (%s); keeping the resolved edges", type(error).__name__)
+                return None
+        opening = {sentence["id"] for sentence in clip["opening"]}
+        closing = {sentence["id"] for sentence in clip["closing"]}
+        for item in result.output.clips:
+            if item.opening_id in opening and item.closing_id in closing:
+                return item.opening_id, item.closing_id
+        return None
+
+    answers = await asyncio.gather(*(review(clip) for clip in clips))
+    return {clip["clip"]: answer for clip, answer in zip(clips, answers) if answer is not None}
+
+
 class BRollCue(BaseModel):
     """One stock-footage cutaway inside a finished clip."""
 

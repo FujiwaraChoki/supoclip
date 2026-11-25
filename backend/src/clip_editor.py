@@ -15,7 +15,7 @@ import uuid
 
 from .caption_templates import get_template
 from .workflows.language import is_no_space
-from .media.ffmpeg import audio_fade_out_filter, ffmpeg_escape_filter_path, ffprobe_video_size
+from .media.ffmpeg import audio_edge_fades, ffmpeg_escape_filter_path, ffprobe_video_size
 from .media.source_limits import FPS_EPSILON, MAX_OUTPUT_FPS, probe_video_geometry
 from .video_utils import (
     ass_fonts_dir,
@@ -154,7 +154,7 @@ def trim_clip_file(
             f"{end - start:.3f}",
             # The new end is wherever the user cut; fade it so it cannot click.
             "-af",
-            audio_fade_out_filter(end - start),
+            audio_edge_fades(end - start),
             *_encode_args(),
             str(output_path),
         ]
@@ -180,7 +180,7 @@ def split_clip_file(
             "-t",
             f"{split_at:.3f}",
             "-af",
-            audio_fade_out_filter(split_at),
+            audio_edge_fades(split_at),
             *_encode_args(),
             str(first_path),
         ]
@@ -196,7 +196,7 @@ def split_clip_file(
             "-t",
             f"{duration - split_at:.3f}",
             "-af",
-            audio_fade_out_filter(duration - split_at),
+            audio_edge_fades(duration - split_at),
             *_encode_args(),
             str(second_path),
         ]

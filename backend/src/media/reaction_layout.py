@@ -135,11 +135,16 @@ def measure_reaction_inset(
 def build_reaction_layout(
     width: int, height: int, duration: float, face: Box, inset: Box,
     samples: Sequence[FaceFrame], scene_cuts: Sequence[float] = (),
+    content: Sequence[Tuple[float, float]] = (),
 ) -> Dict[str, Any]:
     """Reactor above source; source closeups follow faces outside the inset.
 
     Wide shots with two stable source faces use two guest panels, for three
-    faces total. Uncertain and face-free shots keep a wide source view.
+    faces total. Other wide and face-free shots fill the source panel with a
+    crop of the picture (around its people, else its middle), beside the
+    inset where that fits, so the source is never a strip between two blurred
+    bands. Only stretches in ``content`` (clip seconds the scene plan read as
+    a page or a card) keep the whole source frame.
     The source never includes the original inset a second time.
     """
     ix, iy, iw, ih = inset
@@ -199,6 +204,24 @@ def build_reaction_layout(
     ]
     # The space beside the inset contains a full-height, unobstructed closeup.
     safe_x, safe_w = (0, int(ix)) if ix > width / 2 else (int(ix + iw), width - int(ix + iw))
+
+    def is_content(start: float, end: float) -> bool:
+        covered = sum(max(0.0, min(end, b) - max(start, a)) for a, b in content)
+        return covered > 0.5 * max(end - start, 1e-6)
+
+    def panel_cover(cx: float, top: int) -> str:
+        """A crop filling the source panel, centred on ``cx``, from row ``top`` down; beside the inset when
+        the rows it covers include the inset's."""
+        ch = round_to_even(max(2, height - top))
+        cw = round_to_even(int(ch * 1080 / SOURCE_HEIGHT))
+        if cw > width:
+            cw = round_to_even(width)
+            ch = round_to_even(int(min(max(2, height - top), cw * SOURCE_HEIGHT / 1080)))
+        low, high = 0, max(0, width - cw)
+        if top < ih and cw <= safe_w:
+            low, high = safe_x, max(safe_x, safe_x + safe_w - cw)
+        x = clamp_even(int(cx - cw / 2), low, high)
+        return f'crop={cw}:{ch}:{x}:{round_to_even(top)},scale=1080:{SOURCE_HEIGHT}:flags=lanczos'
     for i, (start, end, mode, faces) in enumerate(runs):
         pair = _source_pair(faces, width) if mode == 'wide' else None
         guest_crops = []
@@ -254,15 +277,20 @@ def build_reaction_layout(
                     f'crop={round_to_even(width)}:{round_to_even(height - y)}:0:{y},'
                     f'scale=1080:{SOURCE_HEIGHT}:force_original_aspect_ratio=decrease:flags=lanczos'
                 )
-        elif mode == 'wide' and all(f[1] >= ih for f in faces):
-            # Both guests in a wide shot sit below the upper-corner camera.
-            y = round_to_even(int(ih))
-            crop = f'crop={round_to_even(width)}:{round_to_even(height-y)}:0:{y},scale=1080:{SOURCE_HEIGHT}:force_original_aspect_ratio=decrease:flags=lanczos'
-        else:
-            # Keep source text and slides in full. The webcam already covers
+        elif is_content(start, end):
+            # Source text and slides in full. The webcam already covers
             # this rectangle in the original; mask it instead of duplicating it.
             crop = (f'format=rgba,drawbox=x={int(ix)}:y=0:w={int(iw)}:h={int(ih)}:color=black@0:t=fill:replace=1,'
                     f'scale=1080:{SOURCE_HEIGHT}:force_original_aspect_ratio=decrease:flags=lanczos')
+        elif mode == 'wide' and faces:
+            # The people in a wide shot fill the panel; below the upper-corner camera when they all sit there.
+            left = min(f[0] for f in faces)
+            right = max(f[0] + f[2] for f in faces)
+            top = int(ih) if all(f[1] >= ih for f in faces) and height - ih >= height * .5 else 0
+            crop = panel_cover((left + right) / 2, top)
+        else:
+            # Nobody on screen (a game, a cutscene, b-roll): the middle of the picture fills the panel.
+            crop = panel_cover(width / 2, 0)
         graph.append(f'[part{i}]{crop},setsar=1[p{i}]')
         enable = f'gte(t\\,{start:.3f})*lt(t\\,{end:.3f})'
         graph.append(f"[base{i}][p{i}]overlay=(W-w)/2:(H-h)/2:enable='{enable}'[base{i+1}]")
@@ -273,7 +301,7 @@ def build_reaction_layout(
 
 def choose_reaction_layout(
     path: Path, width: int, height: int, duration: float, samples: Sequence[FaceFrame],
-    scene_cuts: Sequence[float] = (),
+    scene_cuts: Sequence[float] = (), content: Sequence[Tuple[float, float]] = (),
 ) -> Optional[Dict[str, Any]]:
     face = find_reactor_face(width, height, samples)
     if face is None:
@@ -281,4 +309,4 @@ def choose_reaction_layout(
     inset = measure_reaction_inset(path, width, height, duration, face)
     if inset is None:
         return None
-    return build_reaction_layout(width, height, duration, face, inset, samples, scene_cuts)
+    return build_reaction_layout(width, height, duration, face, inset, samples, scene_cuts, content)

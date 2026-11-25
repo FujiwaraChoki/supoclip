@@ -105,7 +105,7 @@ def render_spy(monkeypatch, tmp_path):
     monkeypatch.setattr(video_utils, "probe_video_geometry",
                         lambda _p: SimpleNamespace(display_width=1920, display_height=1080, fps=30.0))
     monkeypatch.setattr(video_utils, "build_vertical_filter_plan", record("build_vertical_filter_plan", plan))
-    monkeypatch.setattr(video_utils, "detect_burned_caption_band", lambda _p: None)
+    monkeypatch.setattr(video_utils, "_resolve_source_captions", lambda *_a, **_k: (None, "none"))
     monkeypatch.setattr(video_utils, "build_assemblyai_ass_subtitles", record("build_assemblyai_ass_subtitles", ass))
     monkeypatch.setattr(video_utils, "render_reframed_clip_ffmpeg", record("render_reframed_clip_ffmpeg", final))
     monkeypatch.setattr(video_service, "resolve_render_ranges", lambda *_a: RenderRanges(

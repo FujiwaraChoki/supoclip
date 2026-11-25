@@ -23,7 +23,7 @@
           "args": [
             "<TMP>/source.mp4",
             9.9,
-            19,
+            19.078,
             "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
             true,
             null,
@@ -34,7 +34,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "I lost forty grand in one night"
@@ -60,7 +60,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "vertical",
@@ -73,7 +73,7 @@
     },
     "info": {
       "clip_id": 1,
-      "duration": 9.1,
+      "duration": 9.177999999999999,
       "end_time": "00:19",
       "engagement_score": 20,
       "filename": "clip_1_0010-0019_<UUID>.mp4",
@@ -84,7 +84,7 @@
       "keep_ranges": [
         [
           9.9,
-          19.0
+          19.078
         ]
       ],
       "output_offsets": null,
@@ -116,7 +116,7 @@
       ],
       "source_ranges": [
         {
-          "end": 19.0,
+          "end": 19.078,
           "start": 9.9
         }
       ],
@@ -148,7 +148,7 @@
           "args": [
             "<TMP>/source.mp4",
             9.9,
-            19,
+            19.078,
             "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
             true,
             null,
@@ -159,7 +159,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "I lost forty grand in one night"
@@ -185,7 +185,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "vertical",
@@ -198,7 +198,7 @@
     },
     "info": {
       "clip_id": 1,
-      "duration": 9.1,
+      "duration": 9.177999999999999,
       "end_time": "00:19",
       "engagement_score": 20,
       "filename": "clip_1_0010-0019_<UUID>.mp4",
@@ -209,7 +209,7 @@
       "keep_ranges": [
         [
           9.9,
-          19.0
+          19.078
         ]
       ],
       "output_offsets": null,
@@ -228,7 +228,7 @@
       ],
       "source_ranges": [
         {
-          "end": 19.0,
+          "end": 19.078,
           "start": 9.9
         }
       ],
@@ -250,7 +250,7 @@
           "args": [
             "<TMP>/source.mp4",
             9.9,
-            19,
+            19.078,
             "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
             true,
             null,
@@ -261,7 +261,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "I lost forty grand in one night"
@@ -276,7 +276,7 @@
     },
     "info": {
       "clip_id": 1,
-      "duration": 9.1,
+      "duration": 9.177999999999999,
       "end_time": "00:19",
       "engagement_score": 20,
       "filename": "clip_1_0010-0019_<UUID>.mp4",
@@ -287,7 +287,7 @@
       "keep_ranges": [
         [
           9.9,
-          19.0
+          19.078
         ]
       ],
       "output_offsets": null,
@@ -306,7 +306,7 @@
       ],
       "source_ranges": [
         {
-          "end": 19.0,
+          "end": 19.078,
           "start": 9.9
         }
       ],
@@ -328,7 +328,7 @@
           "args": [
             "<TMP>/source.mp4",
             9.9,
-            19,
+            19.078,
             "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
             true,
             "Poppins-ExtraBold",
@@ -339,7 +339,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "I lost forty grand in one night"
@@ -354,7 +354,7 @@
     },
     "info": {
       "clip_id": 1,
-      "duration": 9.1,
+      "duration": 9.177999999999999,
       "end_time": "00:19",
       "engagement_score": 20,
       "filename": "clip_1_0010-0019_<UUID>.mp4",
@@ -365,7 +365,7 @@
       "keep_ranges": [
         [
           9.9,
-          19.0
+          19.078
         ]
       ],
       "output_offsets": null,
@@ -388,7 +388,7 @@
       ],
       "source_ranges": [
         {
-          "end": 19.0,
+          "end": 19.078,
           "start": 9.9
         }
       ],
@@ -411,7 +411,7 @@
           "args": [
             "<TMP>/source.mp4",
             9.9,
-            19,
+            19.078,
             "<TMP>/clips/clip_1_0010-0019_<UUID>.mp4",
             false,
             null,
@@ -422,7 +422,7 @@
             [
               [
                 9.9,
-                19.0
+                19.078
               ]
             ],
             "I lost forty grand in one night"
@@ -437,7 +437,7 @@
     },
     "info": {
       "clip_id": 1,
-      "duration": 9.1,
+      "duration": 9.177999999999999,
       "end_time": "00:19",
       "engagement_score": 20,
       "filename": "clip_1_0010-0019_<UUID>.mp4",
@@ -448,7 +448,7 @@
       "keep_ranges": [
         [
           9.9,
-          19.0
+          19.078
         ]
       ],
       "output_offsets": null,
@@ -467,7 +467,7 @@
       ],
       "source_ranges": [
         {
-          "end": 19.0,
+          "end": 19.078,
           "start": 9.9
         }
       ],

@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 import re
 import shutil
+import math
 import subprocess
 import tempfile
 from .common import (
@@ -1122,14 +1123,15 @@ def build_layout_plan(
     scene_cuts: List[float],
     duration: float,
 ) -> List[Dict[str, Any]]:
-    """Classify a clip into 'face' (tracked crop) and 'fit' (full-frame) shots.
+    """Classify a clip into 'face' (tracked crop) and 'cover' (centred full-height crop) shots.
 
-    Talking-head shots become a tracked crop; content shots (tweets, graphs,
-    code — no real face) become a full-frame blurred-background fit so nothing
-    is cropped off. Boundaries are debounced and snapped to scene cuts.
+    Only used when the picture could not be measured (no scene context). Talking-head shots become a
+    tracked crop; shots without a face fill the frame from the centre, where a 16:9 picture keeps its
+    subject. Without measurements nothing can be told apart as content, so nothing is letterboxed.
+    Boundaries are debounced and snapped to scene cuts.
     """
     if duration <= 0 or not track:
-        return [{"start": 0.0, "end": max(0.0, duration), "kind": "fit"}]
+        return [{"start": 0.0, "end": max(0.0, duration), "kind": "cover", "reason": "analysis_unavailable", "x": 0.5}]
 
     times = [t for t, _, _ in track]
     present = [
@@ -1192,7 +1194,8 @@ def build_layout_plan(
             runs[i + 1][0] = snapped
 
     return [
-        {"start": r[0], "end": r[1], "kind": "face" if r[2] == 1 else "fit"}
+        {"start": r[0], "end": r[1], "kind": "face", "reason": "confident_subject"} if r[2] == 1 else
+        {"start": r[0], "end": r[1], "kind": "cover", "reason": "no_face", "x": 0.5}
         for r in runs
     ]
 
@@ -1380,6 +1383,132 @@ def plan_fit_windows(
     return windows
 
 
+FACE_CROP_DRIFT = 0.03        # of the source width a tracked face crop may sit off its shot's centre
+
+# A portrait picture set in a 16:9 frame (a Short re-published wide, between blurred or decorated bars) shows
+# as two edges that run the height of the frame, stay put, and mirror each other about the centre. A crop
+# that leaves that picture shows a strip of bar and cuts the picture's own captions.
+INNER_PICTURE_SIZE = (320, 180)       # frames are looked at this small, one a second
+INNER_EDGE_STEP = 10.0                # grey levels across the edge, in the median over time
+INNER_EDGE_ROWS = 0.6                 # share of the rows that show it
+INNER_WIDTH_RANGE = (0.26, 0.5)       # of the frame width, the picture between the edges
+INNER_CENTRE_TOLERANCE = 0.03
+INNER_MIN_FRAMES = 4
+INNER_MAX_OTHER_EDGES = 1             # more lasting full-height edges than this is a still camera on a busy scene
+INNER_TRACKING_ROOM = 1.25            # a picture wider than this many crop widths leaves room to follow a face
+
+
+def inner_picture(frames: np.ndarray) -> Optional[Tuple[float, float]]:
+    """Columns (left, right; 0-1 of the width) of a portrait picture set in a wide frame, or None.
+
+    ``frames`` are grey frames of one stretch, shape (n, height, width).
+    """
+    if frames is None or len(frames) < INNER_MIN_FRAMES:
+        return None
+    grey = frames.astype(np.float32)
+    width = grey.shape[2]
+    # A step that is there in every frame: the picture moves, its border does not.
+    lasting = np.median(np.abs(grey[:, :, 2:] - grey[:, :, :-2]), axis=0)
+    share = (lasting > INNER_EDGE_STEP).mean(axis=0)            # per column (x + 1), the rows with a step
+    strong = [int(column) for column in np.where(share >= INNER_EDGE_ROWS)[0]]
+    edges: List[Tuple[float, int]] = []                          # (share, column): the best of each run
+    previous = None
+    for column in strong:
+        if previous is not None and column - previous <= 3:
+            if share[column] > edges[-1][0]:
+                edges[-1] = (float(share[column]), column)
+        else:
+            edges.append((float(share[column]), column))
+        previous = column
+    best: Optional[Tuple[float, int, int]] = None
+    for index, (left_share, left) in enumerate(edges):
+        for right_share, right in edges[index + 1:]:
+            span, centre = (right - left) / width, (left + right + 2) / 2 / width
+            if (INNER_WIDTH_RANGE[0] <= span <= INNER_WIDTH_RANGE[1]
+                    and abs(centre - 0.5) <= INNER_CENTRE_TOLERANCE
+                    and (best is None or left_share + right_share > best[0])):
+                best = (left_share + right_share, left, right)
+    if best is None or len(edges) - 2 > INNER_MAX_OTHER_EDGES:
+        return None
+    return (best[1] + 1) / width, (best[2] + 1) / width
+
+
+def read_small_frames(input_path: Path, duration: float) -> Optional[np.ndarray]:
+    """One grey frame a second of ``input_path`` at INNER_PICTURE_SIZE, or None when it cannot be read."""
+    out_w, out_h = INNER_PICTURE_SIZE
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-v", "error", "-nostdin", "-i", str(input_path), "-an", "-sn",
+             "-vf", f"fps=1,scale={out_w}:{out_h},format=gray", "-f", "rawvideo", "-"],
+            capture_output=True, timeout=max(60, int(duration * 2)),
+        )
+    except Exception:  # noqa: BLE001 - the plan stands as it is
+        return None
+    count = len(result.stdout) // (out_w * out_h) if result.returncode == 0 else 0
+    if count < INNER_MIN_FRAMES:
+        return None
+    return np.frombuffer(result.stdout[:count * out_w * out_h], dtype=np.uint8).reshape(count, out_h, out_w)
+
+
+def keep_crops_inside_picture(
+    plan: List[Dict[str, Any]], frames: Optional[np.ndarray], share: float,
+) -> List[Dict[str, Any]]:
+    """``plan`` with each full-height crop kept inside the portrait picture its shot shows, if any.
+
+    ``frames`` are ``read_small_frames`` of the clip (one a second), ``share`` the crop's width as a share of
+    the source's. A shot too short to judge alone uses what the whole clip shows. A ``cover`` crop is moved
+    inside the picture. A tracked ``face`` crop has no room to follow anyone in a picture about as wide as
+    itself, and following a face near its edge shows the bar beside it: it becomes a still crop inside.
+    """
+    if frames is None or not 0 < share < 1 or not any(shot["kind"] in ("cover", "face") for shot in plan):
+        return plan
+    whole = inner_picture(frames)
+    kept = []
+    for shot in plan:
+        if shot["kind"] not in ("cover", "face"):
+            kept.append(shot)
+            continue
+        mine = frames[int(math.ceil(float(shot["start"]))):int(math.floor(float(shot["end"]))) + 1]
+        inner = inner_picture(mine) if len(mine) >= INNER_MIN_FRAMES else whole
+        if inner is None:
+            kept.append(shot)
+            continue
+        left, right = inner
+        wanted = float(shot.get("x", shot.get("fill_x", 0.5)))
+        if right - left >= share:
+            centre = min(max(wanted, left + share / 2), right - share / 2)
+        else:
+            centre = (left + right) / 2
+        inside = {"x": centre, "fill_x": centre, "inner_picture": [round(left, 4), round(right, 4)]}
+        if shot["kind"] == "face":
+            if right - left > share * INNER_TRACKING_ROOM:
+                kept.append(shot)          # a picture wide enough to follow somebody in
+            else:
+                kept.append({**shot, **inside, "kind": "cover"})
+        else:
+            kept.append({**shot, **inside} if abs(centre - wanted) > 1e-4 else shot)
+    return kept
+
+
+
+
+def crop_windows(plan: List[Dict[str, Any]], share: float) -> List[Tuple[float, float, float, float]]:
+    """The columns each full-height crop of ``plan`` shows: (start, end, left, right), 0-1 of the source width.
+
+    ``share`` is the crop's width as a share of the source's. For whoever needs to know what a crop cuts
+    (``media.source_captions.cut_intervals``). A tracked face crop moves, so it counts as a little narrower
+    than it is, around where the shot's people are.
+    """
+    windows = []
+    for shot in plan:
+        if shot["kind"] not in ("cover", "face") or not 0 < share < 1:
+            continue
+        centre = min(max(float(shot.get("x", shot.get("fill_x", 0.5))), share / 2), 1 - share / 2)
+        half = share / 2 - (FACE_CROP_DRIFT if shot["kind"] == "face" else 0.0)
+        windows.append((float(shot["start"]), float(shot["end"]), centre - half, centre + half))
+    return windows
+
+
 def cover_windows(plan: List[Dict[str, Any]], width: int, crop_w: int) -> List[FitWindow]:
     """Full-height 9:16 crops (start, end, crop_w, x) for the plan's ``cover`` shots, centred on their ``x``."""
     if crop_w >= width:
@@ -1563,6 +1692,8 @@ def build_vertical_filter_plan(
             report["gaming"] = described["gaming"]
         if described.get("letterbox"):
             report["letterbox"] = described["letterbox"]
+        if described.get("crop_windows"):
+            report["crop_windows"] = described["crop_windows"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1689,15 +1820,25 @@ def _describe_vertical_layout(
     try:
         analyzed = analyze_vertical_clip(input_path)
     except Exception as exc:
-        logger.warning("Clip analysis failed (%s); preserving full frame", exc)
+        logger.warning("Clip analysis failed (%s); filling the frame from the centre", exc)
         analyzed = ([], [], [])
     track, scene_cuts = analyzed[0], analyzed[1]
     face_samples = analyzed[2] if len(analyzed) > 2 else []
     context = analyzed[3] if len(analyzed) > 3 else []
+    from .screen_text import FrameReader, ocr_available
+
+    # Frames are read (local OCR) only for shots that hint at text: a shot is shown small only when real
+    # words would be lost by the crop. Each frame is read once per clip, within a budget.
+    reader = FrameReader(input_path) if ocr_available() else None
     plan = (
-        build_context_layout_plan(context, scene_cuts, duration, crop_w / width)
+        build_context_layout_plan(context, scene_cuts, duration, crop_w / width, reader)
         if context else build_layout_plan(track, scene_cuts, duration)
     )
+    if context and crop_w < width and any(shot["kind"] in ("cover", "face") for shot in plan):
+        try:
+            plan = keep_crops_inside_picture(plan, read_small_frames(input_path, duration), crop_w / width)
+        except Exception as exc:  # noqa: BLE001 - the plan stands as it is
+            logger.debug("Inner picture not looked for (%s)", exc)
     logger.info("Vertical scene layout: %s", plan)
     try:
         fit_windows = plan_fit_windows(plan, context, width, height) if context else []
@@ -1723,6 +1864,7 @@ def _describe_vertical_layout(
                 {"start": float(s["start"]), "end": float(s["end"]), "kind": "fit" if s["kind"] == "fit" else "single"}
                 for s in plan
             ]
+        result["crop_windows"] = crop_windows(plan, crop_w / width)
         return result
     # Two people who cannot share a 9:16 crop are not slide or sports content.
     # Call/stage layouts and speaker framing still apply; if both decline, that
@@ -1759,7 +1901,9 @@ def _describe_vertical_layout(
         except Exception as exc:
             logger.debug("Reaction detail analysis unavailable: %s", exc)
     reaction = choose_reaction_layout(
-        input_path, width, height, duration, face_samples, scene_cuts
+        input_path, width, height, duration, face_samples, scene_cuts,
+        # Only what the scene plan read as content keeps the whole source frame in the source panel.
+        content=[(s["start"], s["end"]) for s in plan if s["kind"] == "fit"],
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
@@ -1772,7 +1916,8 @@ def _describe_vertical_layout(
 
     try:
         interview = plan_interview_layout(
-            width, height, duration, scene_cuts, face_samples, context, input_path=input_path)
+            width, height, duration, scene_cuts, face_samples, context, input_path=input_path,
+            read_words=reader)
     except Exception as exc:
         logger.warning("Interview layout failed (%s); using the generic layout", exc)
         interview = None
@@ -1792,7 +1937,7 @@ def _describe_vertical_layout(
 
     if all(s["kind"] in ("fit", "cover") for s in plan) and content_fits:
         if all(s["kind"] == "cover" for s in plan):
-            return described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None)
+            return with_shots(described("crop", build_full_frame_filter(fit_windows=fit_windows), "complex", None))
         if covers:
             return with_shots(described(
                 "compositor", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80))
@@ -1863,16 +2008,19 @@ def _describe_vertical_layout(
         # tracked crop and the compositor path keep the plain chain — they
         # already have motion, and zoompan's re-timing would fight overlays.)
         if not moving:
+            still = {"crop_windows": [(0.0, float(duration), static_x / width, (static_x + crop_w) / width)]}
             zoom = kenburns_zoom_fragment(duration)
             if not allow_kenburns:
-                return described("crop", crop_chain, "vf", bleed_caption(face_samples), zoom is not None)
+                return {**described("crop", crop_chain, "vf", bleed_caption(face_samples), zoom is not None),
+                        **still}
             if zoom:
-                return described(
+                return {**described(
                     "crop",
                     f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}",
                     "vf",
                     bleed_caption(face_samples),
-                )
+                ), **still}
+            return {**described("crop", crop_chain, "vf", bleed_caption(face_samples)), **still}
         return described("crop", crop_chain, "vf", bleed_caption(face_samples))
 
     face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]

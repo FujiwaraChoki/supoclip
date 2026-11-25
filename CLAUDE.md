@@ -113,8 +113,21 @@ utils/               → Thread pool helpers for blocking operations (async_help
 2. **Transcription** → AssemblyAI word-level timestamps (cached as `.transcript_cache.json`)
 3. **AI Analysis** → Pydantic AI selects viral segments (15-60s each) with virality scoring. Transcripts over 15 min are analysed in 12-min windows (2-min overlap, 3 concurrent), deduplicated, then reranked together in one comparative call (`RERANK_LLM`, default `LLM`); final count scales ~1 clip per 5 min, capped by `MAX_CLIPS` (default 10)
 4. **Clip Generation** → ffmpeg filter graphs (`media/reframing.py`, `media/ffmpeg.py`) render 9:16 clips with:
+   - Sentence edges: the analysis' whole-second labels become a first and a last sentence unit
+     (`media/sentence_bounds.py`, on `workflows/units.py`), so a highlight opens on a sentence that stands
+     alone and closes on a finished one, in any language; the cap moves the end back a sentence, never into one
+     (`CLIP_EDGE_REVIEW`, on by default: one small model call per clip, `CLIP_EDGE_LLM`, is told what the clip
+     is about and may move an edge a few sentences, off a leftover of the topic before, to the question an
+     opening answers or the payoff a closing stops short of; `apply_edge_review` validates it).
+     `media/edge_listen.py` (`CLIP_EDGE_LISTEN`) has the bundled Whisper listen to the seconds around each cut and
+     corrects word times and a misplaced full stop there, in memory, when the audio confirms it
    - Face-centered cropping: YuNet (`cv2.FaceDetectorYN`, `media/face_detection.py`) → Haar cascade fallback
-   - Word-synced subtitles from AssemblyAI
+   - Fill-first 9:16 framing (`media/scene_context.py`, `docs/automatic-framing.md`): every shot fills the
+     frame (face crop, or a full-height cover crop); the whole 16:9 picture on blur (`fit`) is only for content
+     the local OCR confirms (`media/screen_text.py`: a page or a card, Latin script), never a default
+   - Word-synced subtitles from AssemblyAI. Text the source burns in is read first (`media/source_captions.py`):
+     ours are left off when the source already captions the speech and shows it whole, the source's lines are
+     painted out when the crop cuts them, and otherwise ours move clear of its band
    - Custom fonts (TTF files in `backend/fonts/`)
    - Optional transition effects (`backend/transitions/`)
    - Optional B-roll overlays (Pexels API)
@@ -163,6 +176,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/media_replication_ledger.py`, `src/sync_db.py` | Pending two-bucket replication in PostgreSQL, usable from boto threads |
 | `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
 | `src/video_utils.py` | Clip render composition, FX render ladder (`create_optimized_clip`), subtitles |
+| `src/media/sentence_bounds.py`, `src/media/edge_listen.py` | Highlights' sentence edges; the second listen at each cut (in-process word corrections) |
+| `src/media/scene_context.py`, `src/media/screen_text.py`, `src/media/source_captions.py` | Fill-first 9:16 plan, local OCR, text the source burns in |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
 | `src/editor_document.py` | Clip studio draft model (segments, words, captions, framing, B-roll) and server render |
 | `src/workflows/` | Workflows (series, topic, recap, trailer): contracts, options/gate, units, outline, planners, solvers |
@@ -355,6 +370,10 @@ WORKFLOW_FULL_CONTEXT_MAX_WORDS=0    # Words read in one outline call; 0 = provi
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
+CLIP_EDGE_REVIEW=true                # One small model call per clip checks its first/last sentence (false: rules only)
+CLIP_EDGE_LLM=                       # Model for that call (default: Claude Sonnet 5.5 with ANTHROPIC_API_KEY, else RERANK_LLM/LLM)
+CLIP_EDGE_LISTEN=auto                # Bundled Whisper checks word times at each cut: auto (model on disk) | on | off
+CLIP_EDGE_LISTEN_MODEL=small         # Whisper model for that check; the image bakes this one in (build arg EDGE_LISTEN_MODEL)
 UPLOAD_COPY_WAIT_SECONDS=1800        # Worker on another machine: wait for an upload to reach the bucket
 AI_EDIT_DAILY_LIMIT=150              # Studio AI edits per user per day (needs ANTHROPIC_API_KEY)
 AGENT_MODEL=claude-sonnet-5-5        # Agent home screen model (needs ANTHROPIC_API_KEY)
@@ -511,7 +530,9 @@ story, adjacent parts share one exact cut), `topic` (every strong moment about `
 - **Locked render:** planned segments (`source_ranges`, `planned: True`) skip snapping, end extension and the
   cold-open teaser; multi-range clips use explicit output offsets everywhere. The plan is saved to
   `tasks.workflow_plan` before rendering; clips carry `workflow_role`, `part_number`, `workflow_meta`.
-- **Invariant:** highlights without instructions is byte-identical (prompts, cache keys, job args, render path).
+- **Invariant:** a workflow never changes highlights without instructions (prompts, cache keys, job args,
+  render path). Highlights' own cut and framing rules live in `media/sentence_bounds.py` and
+  `media/scene_context.py`.
 - **Fail loud, refund:** a workflow that can't deliver raises `WorkflowError` (`topic_not_found` with suggested
   topics, `no_story`, `trailer_unbuildable`, …); its clips are deleted so the minutes are refunded, and
   `error_code` drives the task page's next-step screen. Series/recap/trailer are all-or-nothing.

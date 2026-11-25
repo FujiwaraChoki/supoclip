@@ -59,7 +59,7 @@ def render_spies(monkeypatch, tmp_path):
     monkeypatch.setattr(video_utils, "ffprobe_video_size", lambda _path: (1920, 1080))
     monkeypatch.setattr(video_utils, "build_clip_speaker_turns", record("speakers", ([], [])))
     monkeypatch.setattr(video_utils, "build_vertical_filter_plan", lambda *_a, **_k: ("crop", "fill", None))
-    monkeypatch.setattr(video_utils, "detect_burned_caption_band", lambda _path: None)
+    monkeypatch.setattr(video_utils, "_resolve_source_captions", lambda *_a, **_k: (None, "none"))
     monkeypatch.setattr(video_utils, "build_assemblyai_ass_subtitles", record("captions", True))
     monkeypatch.setattr(video_utils, "render_reframed_clip_ffmpeg", render_final)
     return calls

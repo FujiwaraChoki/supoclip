@@ -82,6 +82,9 @@ CLIP_END_NEXT_WORD_GUARD_SECONDS = 0.03
 # clicks. Short enough that it never softens the last word's final consonant.
 CLIP_END_AUDIO_FADE_SECONDS = 0.025
 
+# The same at the clip's first moment, shorter: it must not soften the first consonant.
+CLIP_START_AUDIO_FADE_SECONDS = 0.012
+
 # When the duration cap lands mid-sentence, the end may back off this share of
 # the cap (at least 3s) to the previous sentence end instead of cutting mid-thought.
 CLIP_CAP_SENTENCE_BACKOFF_FRACTION = 0.25

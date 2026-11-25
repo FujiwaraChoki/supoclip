@@ -44,6 +44,14 @@ RUN uv venv .venv && \
 
 # yt-dlp and its PO-token plugin are installed from uv.lock above.
 
+# The small speech model that listens to the audio around each cut and corrects word times the transcript has
+# wrong there (src/media/edge_listen.py). CLIP_EDGE_LISTEN=auto uses it only when the file is already on disk,
+# so a render never waits on a download. About 460 MB; build with --build-arg EDGE_LISTEN_MODEL= to leave it out.
+ARG EDGE_LISTEN_MODEL=small
+RUN if [ -n "$EDGE_LISTEN_MODEL" ]; then \
+      .venv/bin/python -c "import os, whisper; whisper._download(whisper._MODELS['$EDGE_LISTEN_MODEL'], os.path.join(os.path.expanduser('~'), '.cache', 'whisper'), False)"; \
+    fi
+
 # Bake the fx runtime's pinned npm/jsr cache into DENO_DIR before the source (layer cached on the lockfile).
 # At runtime main.ts runs with --cached-only --frozen and never touches the network.
 COPY src/fx_runtime/deno.json src/fx_runtime/deno.lock ./src/fx_runtime/

@@ -9,7 +9,7 @@ No network/model downloads or additional runtime dependencies are required.
 import logging
 from dataclasses import dataclass
 from collections import Counter
-from typing import Optional, Sequence
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -27,45 +27,68 @@ TEXT_BLOCK_LONG_LINE_FRAC = 0.2
 # Every this many candidate lines, a paragraph needs one more line.
 TEXT_BLOCK_CLUTTER_LINES = 8
 
-# Composition hysteresis: a run of one layout shorter than this inherits its
-# neighbours, so a clip does not flip between a full-height crop and a fitted
-# strip within a couple of seconds.
+# Composition hysteresis: a fitted run shorter than this beside a frame-filling
+# shot fills the frame too, so a clip does not drop into a small strip for a
+# couple of seconds and come back.
 LAYOUT_HOLD_SECONDS = 2.5
 
-# A fit run this short is a one-sample flash: it cannot be read anyway.
+# A frame-filling run this short between two fitted shots is a one-sample
+# flash and stays fitted.
 LAYOUT_FLASH_SECONDS = 0.5
 
-# A clip whose crops and fits alternate this often uses one full-context
-# composition, so it does not flicker between them.
-LAYOUT_MAX_RUNS = 5
+# Fill first. A 9:16 clip fills the frame: a tracked crop on a confident
+# subject, otherwise a ``cover`` (a still full-height crop on the shot's
+# subject), the way short-form editors cut b-roll, vlogs, wide shots, groups
+# and gameplay. The whole 16:9 picture on a blurred canvas (``fit``) is a
+# third of the screen, so it is kept for shots that are *content*, where the
+# full width is what the viewer came for: a screen or a document, a card of
+# several lines (a quiz, a list, a comparison's labels). See
+# ``content_from_words``.
+#
+# A line or two of text the crop cuts in footage (a burned-in subtitle, a
+# lower third, a scoreboard) is not content: the shot fills the frame and the
+# caption code deals with the source's own text (``media.source_captions``).
 
-# A small but steady single face (a wide shot of the same speaker) may inherit
-# a neighbouring face crop; an empty or crowded shot never does.
-SOFT_SINGLE_FACE_RATE = 0.6
-
-# Cover: a fitted shot of live footage (b-roll, a POV or handheld vlog, a wide
-# scene) fills the 9:16 frame with a full-height crop instead of a letterboxed
-# strip, the way short-form editors cut it. Only shots whose risk is that no
-# close subject was found qualify (never crowds, cut text, slides or a
-# presenter beside a screen), and only when something in the picture moves: a
-# still shot is a composed graphic, a comparison or a screen, and keeps the
-# full frame. A drone crossing a static wall already moves enough, and so does
-# a slow push-in over a photo (camera motion with nothing moving inside it).
-COVER_REASONS = frozenset({"no_reliable_close_subject", "peripheral_presenter"})
+# Still: neither the picture nor the camera moves (a slide, a chart, a photo).
 COVER_MIN_MOTION = 0.008
 COVER_MIN_CAMERA_MOTION = 0.003
-# Share of a shot's samples that may show an aligned paragraph (a document,
-# a tweet, a slide) before it is content rather than footage. Shelf labels
-# and brick courses in moving footage stay under it.
-COVER_MAX_TEXT_BLOCK_RATE = 0.35
-# Share of samples with two or more faces that makes a shot a group.
-COVER_MAX_GROUP_RATE = 0.3
-# Share of a shot's samples in which the crop would cut text, above which the shot keeps the full frame.
-# Measured: an edited comparison with burned-in captions 0.28 / 0.32 / 0.52, its title card 0.0 / 0.0 / 1.0,
-# a drawn map 0.01 / 0.97 / 1.0; plain gameplay 0.0 / 0.20 / 0.48.
-COVER_MAX_CUT_CAPTION_RATE = 0.15   # an aligned block of two lines or more, cut
-COVER_MAX_CUT_LINES_RATE = 0.6      # two lines or more cut
-COVER_MAX_CUT_ALWAYS_RATE = 0.9     # some line cut, in nearly every sample
+# Share of a shot's samples that must hint at text before its frames are read.
+CONTENT_MIN_RATE = 0.35
+# Without OCR: lines of an aligned paragraph that make a still picture a document.
+TEXT_BLOCK_STILL_LINES = 2
+# Without OCR: share of a still, faceless shot's samples in which the crop cuts a text line (a chart, a map).
+STILL_CUT_TEXT_RATE = 0.6
+# A face this large in most of a shot is a person talking to the camera, whatever is written around them.
+CLOSE_FACE_AREA = 0.02
+CLOSE_FACE_RATE = 0.5
+# A face in this share of a shot's samples is where its full-height crop centres.
+FILL_FACE_RATE = 0.5
+# Risks that are only about text beside or under the subject. When such a shot turns out not to be content and
+# shows one close face in ONE_FACE_RATE of its samples, it is a talking head: the tracked crop follows it.
+TEXT_ONLY_REASONS = frozenset({"text_cut_by_crop", "screen_content_outside_crop"})
+ONE_FACE_RATE = 0.6
+# Share of a still shot's samples without a face that makes it a picture nobody is in.
+STILL_FACELESS_RATE = 0.7
+
+# What the words read off a frame (``screen_text``) must amount to before the frame is content.
+# Measured on reviewed clips: a quiz card over a wide shot reads 8-14 words on 2-3 lines with 5-9 outside a
+# centred crop; a subtitled scene 3-10 words on 1-2 lines; stone walls, barred windows and poster-covered
+# rooms (which the shape tests call paragraphs) read 0-2.
+PAGE_MIN_WORDS = 20
+PAGE_MIN_LOST_WORDS = 6
+PAGE_MIN_BLOCK_LINES = 4
+CARD_MIN_LINES = 3
+CARD_MIN_WORDS = 10
+CARD_MIN_LOST_WORDS = 4
+# Two lines belong to one block when the gap between them is at most this many line heights (a card's question
+# and its rows of answers are about two apart; labels scattered over a picture are further).
+BLOCK_LINE_GAP = 2.4
+BLOCK_LINE_MIN_WORDS = 3
+# Words a read shares with the clip's known content to be the same card in another shot.
+SAME_CARD_WORDS = 4
+
+WordReader = Callable[[float], Optional[Sequence[Any]]]
+
 # A crop centre this close to the last one continues the same composition.
 COVER_SAME_X = 0.05
 # One face away from the frame edge and at least this share of the frame (head
@@ -74,7 +97,7 @@ COVER_SAME_X = 0.05
 PRESENTER_FACE_AREA = 0.03
 # How much less a column at the frame edge counts than one in the middle when looking for the subject of a shot
 # without faces (see ContextAnalyzer._focus_center). Read by the interview layout's covers; the scene plan's
-# covers (_cover_x) keep the detail centre, which suits the handheld POV footage they were tuned on.
+# covers (fill_x) keep the detail centre, which suits the handheld POV footage they were tuned on.
 FOCUS_CENTRE_BIAS = 0.6
 
 
@@ -449,33 +472,173 @@ def context_reason(sample: SceneEvidence, crop_fraction: float) -> Optional[str]
     return None
 
 
-def _cover_x(shot: Sequence[SceneEvidence], reason: str) -> Optional[float]:
-    """Centre (0-1 of the width) of a full-height crop for a fitted shot of live footage, or None to keep the fit.
+def _still(shot: Sequence[SceneEvidence]) -> bool:
+    """Neither the picture nor the camera moves: a slide, a chart, a photo."""
+    return (float(np.median([s.motion for s in shot])) < COVER_MIN_MOTION
+            and float(np.median([s.camera_motion for s in shot])) < COVER_MIN_CAMERA_MOTION)
 
-    A lone face, however small, is the subject: the crop centres on it. Otherwise the crop centres on the visible
-    detail, which is the middle of the frame for most handheld and b-roll footage.
+
+def _rate(shot: Sequence[SceneEvidence], test: Callable[[SceneEvidence], bool]) -> float:
+    return sum(1 for sample in shot if test(sample)) / len(shot)
+
+
+def fill_x(shot: Sequence[SceneEvidence]) -> float:
+    """Centre (0-1 of the width) of the full-height crop that fills the frame with this shot.
+
+    A face seen in half of the shot, however small, is the subject: the crop centres on it (on the largest one
+    of a group). Otherwise the crop centres on the visible detail, which is the middle of the frame for most
+    handheld footage, b-roll and gameplay.
     """
-    if reason not in COVER_REASONS or not shot:
-        return None
-    if (float(np.median([s.motion for s in shot])) < COVER_MIN_MOTION
-            and float(np.median([s.camera_motion for s in shot])) < COVER_MIN_CAMERA_MOTION):
-        return None
-    if sum(s.text_block_lines >= 2 for s in shot) / len(shot) > COVER_MAX_TEXT_BLOCK_RATE:
-        return None
-    # Text the full-height crop would cut through keeps the whole picture: a caption burned into an edited
-    # video (in a seventh of the shot is a caption that comes and goes), a title card, labels across a map.
-    cut_captions = sum(s.text_block_lines >= 2 and s.cut_text_lines >= 1 for s in shot) / len(shot)
-    cut_lines = sum(s.cut_text_lines >= 2 for s in shot) / len(shot)
-    cut_always = sum(s.cut_text_lines >= 1 for s in shot) / len(shot)
-    if (cut_captions >= COVER_MAX_CUT_CAPTION_RATE or cut_lines >= COVER_MAX_CUT_LINES_RATE
-            or cut_always >= COVER_MAX_CUT_ALWAYS_RATE):
-        return None
-    if sum(s.face_count >= 2 for s in shot) / len(shot) >= COVER_MAX_GROUP_RATE:
-        return None
-    faces = [s.face_center for s in shot if s.face_count == 1 and s.face_area > 0]
-    if len(faces) / len(shot) >= SOFT_SINGLE_FACE_RATE:
+    if not shot:
+        return 0.5
+    faces = [s.face_center for s in shot if s.face_count >= 1 and s.face_area > 0]
+    if len(faces) / len(shot) >= FILL_FACE_RATE:
         return float(np.median(faces))
     return float(np.median([(s.detail_left + s.detail_right) / 2 for s in shot]))
+
+
+def _one_close_face(shot: Sequence[SceneEvidence]) -> bool:
+    """One person, close and away from the frame edge, in most of the shot."""
+    return _rate(shot, lambda s: s.face_count == 1 and s.face_area >= CLOSE_FACE_AREA
+                 and 0.18 <= s.face_center <= 0.82) >= ONE_FACE_RATE
+
+
+def _may_hold_text(shot: Sequence[SceneEvidence]) -> bool:
+    """Cheap evidence that a shot shows text worth reading the frame for."""
+    return (
+        _rate(shot, lambda s: s.text_block_lines >= 2) >= CONTENT_MIN_RATE
+        or _rate(shot, lambda s: s.text_rows >= 4) >= CONTENT_MIN_RATE
+        or _rate(shot, lambda s: s.cut_text_lines >= 1) >= CONTENT_MIN_RATE
+    )
+
+
+def _letter_words(words: Sequence[Any]) -> List[Any]:
+    """Words with two letters or more: scores, timers, ammo counts and coordinates are not text to read."""
+    return [word for word in words if sum(char.isalpha() for char in word.text) >= 2]
+
+
+def text_blocks(lines: Sequence[Sequence[Any]]) -> List[List[Sequence[Any]]]:
+    """Lines (top to bottom) grouped into blocks: a line joins the block whose last line sits just above it
+    and over the same columns. A paragraph, a list and a card with its answers are one block; the labels a
+    game or a broadcast scatters over the picture (a counter here, a prompt there) are many blocks of one."""
+    blocks: List[List[Sequence[Any]]] = []
+    for line in lines:
+        top, bottom = min(w.top for w in line), max(w.bottom for w in line)
+        left, right = line[0].left, line[-1].right
+        for block in blocks:
+            above = block[-1]
+            a_top, a_bottom = min(w.top for w in above), max(w.bottom for w in above)
+            height = max(bottom - top, a_bottom - a_top)
+            if (0 <= top - a_bottom + 0.5 * height and top - a_bottom <= BLOCK_LINE_GAP * height
+                    and min(right, above[-1].right) > max(left, above[0].left)):
+                block.append(line)
+                break
+        else:
+            blocks.append([line])
+    return blocks
+
+
+def content_from_words(
+    reads: Sequence[Sequence[Any]], left: float, right: float, known: Optional[set] = None,
+) -> Optional[str]:
+    """Why the frames read in ``reads`` are content a crop to ``left``-``right`` must not cut, or None.
+
+    Each read is the words on one frame (``screen_text.ScreenWord``). Only words with letters count, and what
+    matters is the largest block of lines stacked over each other (``text_blocks``). A read is content when
+    it is
+
+    - a page: many words, several of them outside the crop, in a block of four lines or more (slides, a
+      desktop, a document, a tweet);
+    - a card: a block of three lines or more with words outside the crop (a quiz, a list, a comparison's
+      labels).
+
+    One or two lines (a subtitle, a lower third, a scoreboard) are never content, and neither is text
+    scattered over a picture, moving or still (a game's HUD and menus, a map's place names, a chart's axis
+    labels, shop signs), unless it is the card again:
+    ``known`` holds the words of the clip's content found so far, and a read sharing SAME_CARD_WORDS of them
+    shows the same card in another shot (its question before the answers appear, the card behind a
+    close-up), so the clip does not drop the full width and pick it up again around one graphic. Words of
+    reads judged content are added to ``known``. The shot is content when most of its reads are.
+    """
+    from .screen_text import content_tokens, text_lines, words_outside
+
+    verdicts: List[Optional[str]] = []
+    for words in reads:
+        words = _letter_words(words)
+        lines = [line for line in text_lines(words) if len(line) >= 2]
+        counted = [word for line in lines for word in line]
+        # A block is made of lines of text: three words or more each. A chapter card's "THE COPS" over a
+        # slogan, a menu's column of one- and two-word entries and a HUD's stacked counters are not.
+        blocks = text_blocks([line for line in lines if len(line) >= BLOCK_LINE_MIN_WORDS])
+        block = max(blocks, key=lambda b: sum(len(line) for line in b), default=[])
+        in_block = [word for line in block for word in line]
+        lost = len(words_outside(counted, left, right))
+        block_lost = len(words_outside(in_block, left, right))
+        if len(counted) >= PAGE_MIN_WORDS and lost >= PAGE_MIN_LOST_WORDS and len(block) >= PAGE_MIN_BLOCK_LINES:
+            verdicts.append("page")
+        elif len(block) >= CARD_MIN_LINES and len(in_block) >= CARD_MIN_WORDS and block_lost >= CARD_MIN_LOST_WORDS:
+            verdicts.append("card")
+        elif known and lost >= 1 and len(content_tokens(counted) & known) >= SAME_CARD_WORDS:
+            verdicts.append("card")
+        else:
+            verdicts.append(None)
+    found = [verdict for verdict in verdicts if verdict]
+    if not found or len(found) * 2 <= len(verdicts):
+        return None
+    if known is not None:
+        for words, verdict in zip(reads, verdicts):
+            if verdict:
+                known |= content_tokens(words)
+    return Counter(found).most_common(1)[0][0]
+
+
+def _content_without_reading(shot: Sequence[SceneEvidence], reason: str) -> Optional[str]:
+    """Content judged from shapes alone, for when the frame cannot be read (no OCR on this machine).
+
+    Shapes mistake brick courses and shelves for paragraphs, so only a picture that does not move counts:
+    a slide, a document, a chart. Moving footage fills the frame.
+    """
+    if not _still(shot):
+        return None
+    if _rate(shot, lambda s: s.text_block_lines >= TEXT_BLOCK_STILL_LINES) > CONTENT_MIN_RATE:
+        return "text_block"
+    if reason == "screen_content_outside_crop":
+        return reason
+    faceless = _rate(shot, lambda s: s.face_count == 0) >= STILL_FACELESS_RATE
+    if faceless and _rate(shot, lambda s: s.cut_text_lines >= 1) >= STILL_CUT_TEXT_RATE:
+        return "labelled_still"
+    return None
+
+
+def content_reason(
+    shot: Sequence[SceneEvidence], reason: str, start: float, end: float, x: float, crop_fraction: float,
+    read_words: Optional[WordReader] = None, known: Optional[set] = None,
+) -> Optional[str]:
+    """Why a shot keeps the whole frame, or None when it fills it.
+
+    ``read_words(time)`` returns the words on the frame at ``time`` (``screen_text.FrameReader``), or None
+    when it cannot read it. Shots without a hint of text are not read at all. ``known`` carries the words of
+    content already found in the clip from shot to shot (``content_from_words``).
+    """
+    if not shot or not _may_hold_text(shot):
+        return None
+    close = _rate(shot, lambda s: s.face_count >= 1 and s.face_area >= CLOSE_FACE_AREA
+                  and 0.18 <= s.face_center <= 0.82) >= CLOSE_FACE_RATE
+    if read_words is None:
+        # Shapes cannot tell a poster behind a person from a page: a person talking to the camera is the shot.
+        if close and reason != "screen_content_outside_crop":
+            return None
+        return _content_without_reading(shot, reason)
+    span = end - start
+    moments = [start + span / 2] if span < 1.5 else [start + span * share for share in (0.2, 0.5, 0.8)]
+    reads = [read_words(moment) for moment in moments]
+    if any(words is None for words in reads):
+        if close and reason != "screen_content_outside_crop":
+            return None
+        return _content_without_reading(shot, reason)
+    half = crop_fraction / 2
+    centre = min(max(x, half), 1 - half)
+    return content_from_words(reads, centre - half, centre + half, known)
 
 
 def _same_layout(a: dict, b: dict) -> bool:
@@ -484,132 +647,129 @@ def _same_layout(a: dict, b: dict) -> bool:
     return a["kind"] != "cover" or abs(a["x"] - b["x"]) <= COVER_SAME_X
 
 
-def _soft_fit(shot: Sequence[SceneEvidence], reason: str) -> bool:
-    """A fit chosen only because one steady speaker looks small (a wide shot)."""
-    if reason != "no_reliable_close_subject" or not shot:
-        return False
-    single = sum(s.face_count == 1 and s.face_area > 0 for s in shot)
-    return single / len(shot) >= SOFT_SINGLE_FACE_RATE
+def _merged(plan: List[dict]) -> List[dict]:
+    merged = [dict(plan[0])]
+    for entry in plan[1:]:
+        last = merged[-1]
+        if _same_layout(entry, last):
+            last["end"] = entry["end"]
+        else:
+            merged.append(dict(entry))
+    return merged
 
 
 def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
-    """Give each composition a minimum hold so neighbouring shots stay coherent.
+    """Keep a clip from dropping into a small strip for a moment, or out of one.
 
-    A face crop shorter than LAYOUT_HOLD_SECONDS next to a fitted shot becomes
-    a fit as well: widening never loses content. A short fitted shot between
-    face crops becomes a crop only when it is soft (the same lone speaker in a
-    wider shot) or a sub-second flash. Content, crowds and cut text stay fit.
+    A fitted run shorter than LAYOUT_HOLD_SECONDS beside a frame-filling shot fills the frame as well (its own
+    full-height crop): nobody reads a document in that time, and the jump to a third of the screen and back is
+    what a viewer notices. A frame-filling run shorter than LAYOUT_FLASH_SECONDS between two fitted shots is a
+    flash and stays fitted. Nothing here ever turns a frame-filling shot of any length into a fit, and a clip
+    is never letterboxed as a whole because parts of it are.
     """
     plan = [dict(p) for p in plan]
+    if len(plan) < 2:
+        return plan
 
-    def groups():
-        out, start = [], 0
+    def runs() -> List[Tuple[int, int]]:
+        out, first = [], 0
         for i in range(1, len(plan) + 1):
-            if i == len(plan) or plan[i]["kind"] != plan[start]["kind"]:
-                out.append((start, i))
-                start = i
+            if i == len(plan) or (plan[i]["kind"] == "fit") != (plan[first]["kind"] == "fit"):
+                out.append((first, i))
+                first = i
         return out
 
     while True:
-        runs = groups()
-        candidates = []
-        for index, (a, b) in enumerate(runs):
-            length = plan[b - 1]["end"] - plan[a]["start"]
-            if length >= LAYOUT_HOLD_SECONDS or len(runs) == 1:
-                continue
-            neighbours = [runs[j] for j in (index - 1, index + 1) if 0 <= j < len(runs)]
-            if plan[a]["kind"] == "face":
-                # Widening never loses content; a crop next to a cover already fills the frame like it.
-                flip, rank = any(plan[r[0]]["kind"] == "fit" for r in neighbours), 1
-                neighbours = [r for r in neighbours if plan[r[0]]["kind"] == "fit"]
-            elif plan[a]["kind"] == "cover":
-                flip, rank = length < LAYOUT_FLASH_SECONDS, 2
-            else:
-                soft = all(p.get("soft") for p in plan[a:b])
-                flip = soft or length < LAYOUT_FLASH_SECONDS
-                # A brief wide shot of the lone speaker between two crops
-                # joins them; otherwise fast close/wide cutting would widen
-                # every crop and letterbox the whole clip.
-                rank = 0 if soft and len(neighbours) == 2 else 2
-            if flip:
-                donor = max(neighbours, key=lambda r: plan[r[1] - 1]["end"] - plan[r[0]]["start"])
-                candidates.append((rank, length, a, b, donor))
-        if not candidates:
+        groups = runs()
+        if len(groups) < 2:
             break
-        # Soft wide shots between crops become crops first; then short crops
-        # widen; other short fits only inherit a crop once the crops around
-        # them are known to hold.
-        *_, a, b, donor = min(candidates)
-        # Continue the composition of the shot right next to the flipped run.
-        source = plan[donor[1] - 1] if donor[1] <= a else plan[donor[0]]
+        short = None
+        for index, (a, b) in enumerate(groups):
+            length = plan[b - 1]["end"] - plan[a]["start"]
+            fitted = plan[a]["kind"] == "fit"
+            if fitted and length < LAYOUT_HOLD_SECONDS:
+                short = (a, b, True)
+                break
+            if not fitted and length < LAYOUT_FLASH_SECONDS and 0 < index < len(groups) - 1:
+                short = (a, b, False)
+                break
+        if short is None:
+            break
+        a, b, fitted = short
         for entry in plan[a:b]:
-            entry["kind"] = source["kind"]
-            entry["reason"] = source["reason"]
-            entry["soft"] = source.get("soft", False)
-            entry.pop("x", None)
-            if "x" in source:
-                entry["x"] = source["x"]
-        merged = [plan[0]]
-        for entry in plan[1:]:
-            last = merged[-1]
-            if _same_layout(entry, last):
-                last["end"] = entry["end"]
-                last["soft"] = last.get("soft", False) and entry.get("soft", False)
+            if fitted:
+                entry.update(kind="cover", reason="brief_content", x=float(entry.get("fill_x", 0.5)))
             else:
-                merged.append(entry)
-        plan = merged
-    runs = groups()
-    hard_fit = any(p["kind"] == "fit" and not p.get("soft")
-                   and p["end"] - p["start"] >= LAYOUT_FLASH_SECONDS for p in plan)
-    fit_duration = sum(p["end"] - p["start"] for p in plan if p["kind"] == "fit")
-    duration = plan[-1]["end"] - plan[0]["start"] if plan else 0
-    # Repeated crop/fit changes or a predominantly wide demonstration use one
-    # full-context composition. First resolve soft/brief shots above, so a lone
-    # speaker's wide angle does not needlessly shrink the whole clip.
-    # A speaker with a graph or a document cut in (crop, fit, crop) keeps the crops around it; cover shots fill the
-    # frame like crops. Only a clip that is mostly fitted content, or a speaker that keeps flipping to the screen,
-    # letterboxes throughout. A documentary montage (footage between documents) keeps its covers at every cut.
-    flipping = len(runs) >= LAYOUT_MAX_RUNS and not any(p["kind"] == "cover" for p in plan)
-    if hard_fit and len(runs) > 1 and (fit_duration > duration * .5 or flipping):
-        return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context", "soft": False}]
+                neighbour = plan[a - 1]
+                entry.update(kind="fit", reason=neighbour["reason"])
+                entry.pop("x", None)
+        plan = _merged(plan)
     return plan
 
 
 def build_context_layout_plan(samples: Sequence[SceneEvidence], scene_cuts: Sequence[float],
-                              duration: float, crop_fraction: float) -> list[dict]:
-    """Choose one stable layout per shot; uncertain shots preserve the full image.
+                              duration: float, crop_fraction: float,
+                              read_words: Optional[WordReader] = None) -> list[dict]:
+    """Choose one layout per shot. A shot fills the frame unless it is content.
 
-    A brief missed face in an otherwise confident close-up does not change the
-    layout. Sustained context risk wins over face tracking, including a small
-    webcam over gameplay. A fitted shot of moving footage without a close
-    subject (b-roll, a POV) becomes a ``cover`` shot: a full-height crop
-    centred at ``x`` (see ``_cover_x``). Short shots then inherit their neighbours'
-    composition (see ``stabilize_layout_plan``).
+    - ``face``: a confident subject; the tracked crop follows it. A brief missed face in an otherwise
+      confident close-up does not change the layout.
+    - ``cover``: anything else that is footage (no close subject, a group, a wide shot, b-roll, gameplay,
+      a subtitled scene): a full-height crop centred at ``x`` (``fill_x``).
+    - ``fit``: content, where the full width is the point (``content_reason``): the whole frame on a
+      blurred canvas. Only this kind shows the picture small, and only for the shots that are content.
+
+    ``read_words(time)`` reads the words on a frame; without it only a still picture can be content. Every
+    entry carries ``fill_x``, the crop it would get if it filled the frame.
     """
-    if duration <= 0 or not samples:
-        return [{"start": 0.0, "end": max(0.0, duration), "kind": "fit", "reason": "analysis_unavailable"}]
+    if duration <= 0:
+        return [{"start": 0.0, "end": 0.0, "kind": "cover", "reason": "analysis_unavailable", "x": 0.5, "fill_x": 0.5}]
+    if not samples:
+        # Nothing is known about the picture. The centre of a 16:9 frame is where its subject usually is.
+        return [{"start": 0.0, "end": duration, "kind": "cover", "reason": "analysis_unavailable",
+                 "x": 0.5, "fill_x": 0.5}]
     cuts = sorted({float(c) for c in scene_cuts if 0 < c < duration})
     boundaries = [0.0, *cuts, duration]
-    plan = []
+    shots = []
     for start, end in zip(boundaries, boundaries[1:]):
         shot = [s for s in samples if start <= s.time < end]
-        reasons = [context_reason(s, crop_fraction) for s in shot]
-        risks = [reason for reason in reasons if reason is not None]
-        # Require recurrent evidence, but preserve a short shot with only one
+        risks = [reason for reason in (context_reason(s, crop_fraction) for s in shot) if reason is not None]
+        # Require recurrent evidence, but respect a short shot with only one
         # available sample. This is a fraction of samples, not a speed threshold.
-        fit = not shot or len(risks) / len(shot) >= 0.3
-        reason = Counter(risks).most_common(1)[0][0] if risks and fit else "confident_subject"
-        if not shot:
-            reason = "analysis_unavailable"
-        kind = "fit" if fit else "face"
-        soft = kind == "fit" and _soft_fit(shot, reason)
-        entry = {"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft}
-        x = _cover_x(shot, reason) if fit else None
-        if x is not None:
-            entry.update(kind="cover", soft=False, x=x)
+        risky = bool(shot) and len(risks) / len(shot) >= 0.3
+        reason = Counter(risks).most_common(1)[0][0] if risky else "confident_subject"
+        shots.append({"start": start, "end": end, "shot": shot, "risky": risky, "reason": reason,
+                      "x": fill_x(shot), "content": None})
+    known: set = set()
+    # Shots that are not a confident face crop are read first. Once the clip is known to show content, every
+    # shot that hints at text is read again against it: the same card behind a close-up keeps the full width.
+    for again in (False, True):
+        if again and not known:
+            break
+        for entry in shots:
+            if entry["content"] or not entry["shot"] or not (entry["risky"] or again):
+                continue
+            entry["content"] = content_reason(
+                entry["shot"], entry["reason"], entry["start"], entry["end"], entry["x"], crop_fraction,
+                read_words, known)
+    plan: List[dict] = []
+    for item in shots:
+        start, end, x = item["start"], item["end"], item["x"]
+        if item["content"]:
+            entry = {"start": start, "end": end, "kind": "fit", "reason": item["content"]}
+        elif not item["shot"]:
+            entry = {"start": start, "end": end, "kind": "cover", "reason": "analysis_unavailable", "x": x}
+        elif not item["risky"]:
+            entry = {"start": start, "end": end, "kind": "face", "reason": "confident_subject"}
+        elif item["reason"] in TEXT_ONLY_REASONS and _one_close_face(item["shot"]):
+            # The only doubt was text the crop would cut, and it was not content (posters behind a speaker,
+            # a subtitle under them): a person talking to the camera, followed like any other.
+            entry = {"start": start, "end": end, "kind": "face", "reason": "confident_subject"}
+        else:
+            entry = {"start": start, "end": end, "kind": "cover", "reason": item["reason"], "x": x}
+        entry["fill_x"] = x
         if plan and _same_layout(plan[-1], entry):
             plan[-1]["end"] = end
-            plan[-1]["soft"] = plan[-1]["soft"] and entry["soft"]
         else:
             plan.append(entry)
     try:
