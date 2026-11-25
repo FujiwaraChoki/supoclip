@@ -1,10 +1,37 @@
 from dotenv import load_dotenv
+import ipaddress
 import math
 import os
 
 from .runtime_settings import get_cached_setting, setting_prefers_admin
 
 load_dotenv()
+
+
+def normalize_no_proxy() -> None:
+    # httpx 0.28 turns a bracketed IPv6 bypass host into "all://*[::1]" and raises InvalidURL.
+    for name in ("NO_PROXY", "no_proxy"):
+        value = os.environ.get(name)
+        if not value:
+            continue
+        hosts = []
+        changed = False
+        for host in value.split(","):
+            host = host.strip()
+            if host.startswith("[") and host.endswith("]"):
+                try:
+                    ipaddress.IPv6Address(host[1:-1])
+                except ValueError:
+                    pass
+                else:
+                    host = host[1:-1]
+                    changed = True
+            hosts.append(host)
+        if changed:
+            os.environ[name] = ",".join(hosts)
+
+
+normalize_no_proxy()
 
 _config_override = None
 LOCAL_OLLAMA_BASE_URL = "http://localhost:11434/v1"
