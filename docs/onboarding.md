@@ -1,36 +1,26 @@
 # Onboarding guided by Agent, and the free preview clip
 
-New accounts are split into two groups (an A/B test):
+Every new account is guided by Agent (the Pebble character) to its first clip. That first clip, from
+the person's own video, is free, and the plans are shown next to it.
 
-- **classic:** the "How do you want to work?" screen and the `welcome` feature tour, as before.
-- **pebble:** Agent (the Pebble character) walks them to their first clip. Their first clip from
-  their own video is free, and the plans are shown next to it.
+## Who gets it
 
-Both groups are measured in PostHog: every event carries the `onboarding_variant` property
-(registered in the browser by `PebbleGuide`), so conversion to paid and first clip can be compared by
-group.
+`backend/src/onboarding/variant.py`. Accounts created since the launch (`GUIDED_SINCE`,
+2026-11-24 18:43 UTC) get it the first time home loads. It is stored in `users.onboarding_variant`
+(`pebble`) and `onboarding_assigned` is sent once, with `client` (`web` or `ios`) set to the app it was
+first opened in. Older accounts get the standard home. `GET /onboarding/status` returns `variant`:
+`pebble`, or null for the standard home.
 
-## The PostHog experiment
+The `pebble_onboarding` feature flag turns it off per platform from /admin. Accounts then see the
+standard home, and no new free previews start.
 
-Assignment is ours, not a PostHog flag. The first time an account is put in a group, the backend sends
-`onboarding_assigned` with `$feature/pebble-onboarding` set to the group (and `$set: {onboarding_variant}`).
-In PostHog the experiment uses that as a **custom exposure event**, with the feature flag key
-`pebble-onboarding` and variants `classic` (the baseline) and `pebble`. The flag itself is never evaluated
-by our code, so its rollout settings don't matter. Metrics don't need the variant on them: PostHog counts
-each person's events after their exposure.
+It began as an A/B test against the earlier onboarding (the "How do you want to work?" screen and the
+`welcome` tour), which ended on 2026-11-25: far more new accounts got a finished clip with Agent and
+the free preview, and more of them chose a plan. The few paying accounts stored as `classic` keep the
+standard home.
 
-## Who is in which group
-
-`backend/src/onboarding/variant.py`. Accounts created since `PEBBLE_ONBOARDING_SINCE` are split by
-`PEBBLE_ONBOARDING_PERCENT` (default 50) the first time home loads, using a stable hash of the user id.
-The group is stored in `users.onboarding_variant` and never changes. Older accounts get neither
-(`null`). Self-hosted installs (monetization off) are always `pebble`.
-
-The `pebble_onboarding` feature flag (web on, iOS off, admins bypass) turns the Pebble group off from
-/admin. Accounts already in it then see the classic onboarding, and no new free previews start.
-
-Admins can see either onboarding with `?onboarding=pebble` or `?onboarding=classic`. This is
-remembered for the tab and never stored.
+Admins can see the guided onboarding with `?onboarding=pebble`. This is remembered for the tab and
+never stored.
 
 ## The flow
 
@@ -45,12 +35,12 @@ remembered for the tab and never stored.
 | done | | Says goodbye. The first visit to each page then gets a one-line hint (`pebble-hints.tsx`) |
 
 The step is kept in the browser (`pebble-flow.ts`, localStorage) so it survives reloads and the trip to
-Stripe. The server keeps what matters across devices: the group, the answers, the preview project and
-`users.onboarding_completed_at` (finished or skipped). The create form and the task page talk to the
+Stripe. The server keeps what matters across devices: that the account is guided, the answers, the
+preview project and `users.onboarding_completed_at` (finished or skipped). The create form and the task page talk to the
 docked guide through window events (`lib/pebble-events.ts`).
 
-The Pebble group never gets the "How do you want to work?" screen or the `welcome` tour; Agent asks
-the home question itself after a Creator checkout.
+The guided onboarding never shows the "How do you want to work?" screen or the `welcome` tour; Agent
+asks the home question itself after a Creator checkout.
 
 ## The free preview clip
 
@@ -84,9 +74,8 @@ purchase finishes the job even if nobody comes back to the page or the app was c
 
 ## iOS
 
-The iOS app (separate repository) runs the same test: the group is stored per account, so someone sees
-the same onboarding on web and iPhone. The `pebble_onboarding` flag is off for iOS until the app version
-with it is live; turn it on in /admin then.
+The iOS app (separate repository) shows the same onboarding when `GET /onboarding/status` says
+`pebble`, so someone sees the same onboarding on web and iPhone (since 1.0.11).
 
 The iOS onboarding is one screen per step (`Screens/Pebble/` in the app): Agent says one line, with one
 thing to do. Hello, what do you make, the four showcase clips (bundled), paste a link (Agent reads it),

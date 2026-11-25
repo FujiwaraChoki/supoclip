@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-25
+
+- **Improved:** Every new account is now guided by Agent and gets its first clip free, from its own video, before choosing a plan. This used to be shown to half of new accounts while we compared it with the old onboarding. ([#579](https://github.com/FujiwaraChoki/supoclip/pull/579))
+
 ## 2026-11-24
 
 - **New:** On the Creator plan, your home screen can be an agent. Tell it what you want in your own words ("clip this and post the best three this week", "cut the ums from clip 2", "how are my clips doing?") and it does the work: starts projects, edits clips in the studio, writes captions, finds good times and schedules or publishes posts. It shows choices to tap when there's a decision to make, picks up a project when it finishes, remembers your preferences, and always asks before posting anything right away. You choose agent or the create form once, can switch in Settings, and a link under either one opens the other just this time. On Pro you can try the agent with a few free messages. ([#573](https://github.com/FujiwaraChoki/supoclip/pull/573))

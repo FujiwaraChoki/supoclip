@@ -41,7 +41,7 @@ export type ProductEvents = {
   ai_edit_submitted: { outcome: "accepted" | "limit_reached" };
   clip_downloaded: { surface: ClipExportSurface; format: string };
   clips_zip_downloaded: { surface: ClipExportSurface };
-  /** Pebble onboarding (docs/onboarding.md). Every event also carries `onboarding_variant`. */
+  /** Agent's guided onboarding (docs/onboarding.md). */
   onboarding_step: { step: "intro" | "link" | "making" | "ready" | "paid" | "choose" | "done" };
   onboarding_makes_chosen: { makes: string };
   onboarding_examples_opened: { makes: string };
@@ -67,13 +67,3 @@ export function trackEvent<E extends ProductEventName>(event: E, properties: Pro
   }
 }
 
-/** Adds properties to every later event in this tab (the onboarding group, for the A/B test). */
-export function registerAnalyticsProperties(properties: Record<string, string | number | boolean>): void {
-  if (!isPostHogEnabled || typeof window === "undefined") return;
-  try {
-    posthog.register(properties);
-    posthog.setPersonProperties?.(properties);
-  } catch {
-    // Analytics must never interrupt the product.
-  }
-}

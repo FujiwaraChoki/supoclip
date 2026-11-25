@@ -361,7 +361,6 @@ AGENT_MODEL=claude-sonnet-5-5        # Agent home screen model (needs ANTHROPIC_
 AGENT_DAILY_TURN_LIMIT=150           # Agent messages per user per 24 hours
 AGENT_TRIAL_MESSAGES=5               # Free Agent messages for paid Pro accounts (lifetime)
 AGENT_ONBOARDING_SINCE=2026-11-24T00:00:00Z # Accounts created since then get the home choice screen
-PEBBLE_ONBOARDING_PERCENT=50         # Share of new accounts in the Agent-guided onboarding (A/B)
 PREVIEW_MAX_MINUTES=90               # Longest video a free preview clip takes (PREVIEW_DAILY_LIMIT caps them per day)
 TEMP_DIR=/tmp                        # Uploads, caches, renders; per machine when MEDIA_STORAGE=s3
 EDIT_PLAN_LLM=                       # Dynamic edits beat tagging model (default: LLM)
@@ -491,9 +490,9 @@ publishes for them. Full design in `docs/creator-agent.md`.
 
 ### Onboarding guided by Agent and the free preview clip
 
-New accounts are split (A/B, `users.onboarding_variant`, `PEBBLE_ONBOARDING_PERCENT`/`_SINCE`, flag `pebble_onboarding`)
-between the classic onboarding and one guided by Agent: a scripted intro on home, then a docked guide on the real
-pages (`frontend/src/components/onboarding/`). Their first clip is free: `POST /tasks/` with `"preview": true`
+Every new account (created since the launch, `GUIDED_SINCE` in `onboarding/variant.py`; flag `pebble_onboarding` per
+platform) is guided by Agent: a scripted intro on home, then a docked guide on the real pages
+(`frontend/src/components/onboarding/`). It was an A/B test against the old onboarding until 2026-11-25. Their first clip is free: `POST /tasks/` with `"preview": true`
 renders only the best clip and lists the rest as locked moments in `tasks.preview` (never charged; edits answer 402
 `PREVIEW_LOCKED`); `POST /tasks/{id}/unlock` charges the minutes and renders the rest in place. Checkout takes
 `return_to` back to the project. Limits: `PREVIEW_MAX_MINUTES`, `PREVIEW_DAILY_LIMIT`. Full design: `docs/onboarding.md`.

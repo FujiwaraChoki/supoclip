@@ -1,6 +1,7 @@
 /**
- * Onboarding for new accounts (docs/onboarding.md): the A/B group, what they make, a look at their
- * video, and the free preview clip. Backend routes are /onboarding/* and /tasks/{id}/unlock.
+ * Onboarding for new accounts (docs/onboarding.md): whether they get Agent's guided onboarding,
+ * what they make, a look at their video, and the free preview clip. Backend routes are
+ * /onboarding/* and /tasks/{id}/unlock.
  */
 import type { BillingPlanId, PublicBillingPlan } from "@/lib/billing-plans";
 
@@ -27,7 +28,8 @@ export interface PreviewState {
 export type PreviewRefusal = "disabled" | "not_needed" | "team" | "unverified" | "used" | "running" | "busy";
 
 export interface OnboardingStatus {
-  variant: "pebble" | "classic" | null;
+  /** `pebble`: the account gets Agent's guided onboarding. */
+  variant: "pebble" | null;
   completed: boolean;
   answers: { makes?: Makes };
   monetized: boolean;
@@ -67,9 +69,9 @@ async function json<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** `?onboarding=pebble|classic` lets admins see either one (the server ignores it for others). */
+/** `?onboarding=pebble` lets admins see the guided onboarding (the server ignores it for others). */
 export async function fetchOnboardingStatus(override?: string | null): Promise<OnboardingStatus | null> {
-  const query = override === "pebble" || override === "classic" ? `?variant=${override}` : "";
+  const query = override === "pebble" ? "?variant=pebble" : "";
   const response = await fetch(`/api/onboarding/status${query}`, { cache: "no-store" });
   if (response.status === 404) return null;
   return json<OnboardingStatus>(response);

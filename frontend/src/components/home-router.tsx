@@ -72,8 +72,8 @@ function SignedInHome() {
   const [flow, updateFlow] = usePebbleFlow(session?.user?.id);
   if (status === undefined || onboarding === undefined) return <HomeSkeleton />;
 
-  // The Pebble group of the onboarding test: Agent's intro first, then the create form with Agent
-  // docked beside it. It never gets the "How do you want to work?" screen (Agent asks in the dock).
+  // Agent's guided onboarding: the intro first, then the create form with Agent docked beside it.
+  // It never shows the "How do you want to work?" screen (Agent asks in the dock).
   const pebble = onboarding?.variant === "pebble";
   if (pebble && onboarding && !onboarding.completed && flow.stage === "intro" && params.get("mode") === null) {
     return (
