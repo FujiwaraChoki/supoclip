@@ -19,6 +19,7 @@ from .common import (
     FINAL_VIDEO_CRF,
     FINAL_VIDEO_PRESET,
     INTERMEDIATE_CRF,
+    INTERMEDIATE_VIDEO_PRESET,
     LOUDNORM_FILTER,
     OUTPUT_FPS,
     logger,
@@ -582,7 +583,7 @@ def _range_inputs(
                 "ffmpeg", "-y", "-ss", f"{origin:.3f}", "-i", str(video_path),
                 *audio_stream_map_args(audio_stream),
                 "-t", f"{length:.3f}",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
+                "-c:v", "libx264", "-preset", INTERMEDIATE_VIDEO_PRESET, "-crf", str(INTERMEDIATE_CRF),
                 "-pix_fmt", "yuv420p",
             ]
             if audio_stream is not None:
@@ -717,7 +718,7 @@ def render_ranges_crossfade_ffmpeg(
             "-filter_complex", ";".join(parts),
             *map_args,
             *NO_CHAPTERS,
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
+            "-c:v", "libx264", "-preset", INTERMEDIATE_VIDEO_PRESET, "-crf", str(INTERMEDIATE_CRF),
             "-pix_fmt", "yuv420p",
         ]
         if has_audio:
@@ -788,7 +789,7 @@ def render_source_ranges_ffmpeg(
             "-c:v",
             "libx264",
             "-preset",
-            "veryfast",
+            INTERMEDIATE_VIDEO_PRESET,
             "-crf",
             str(INTERMEDIATE_CRF),
             "-pix_fmt",
@@ -866,7 +867,7 @@ def render_source_ranges_ffmpeg(
             "-c:v",
             "libx264",
             "-preset",
-            "veryfast",
+            INTERMEDIATE_VIDEO_PRESET,
             "-crf",
             str(INTERMEDIATE_CRF),
             "-pix_fmt",
