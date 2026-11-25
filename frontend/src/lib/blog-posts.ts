@@ -29,6 +29,36 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
   {
+    languages: ["en"],
+    slug: "how-to-make-money-clipping",
+    image: {
+      src: "/blog/how-to-make-money-clipping.webp",
+      alt: "Editorial illustration of a horizontal podcast recording with a waveform turning into three vertical captioned short clips with upward view badges and coins",
+      width: 1672,
+      height: 940,
+    },
+    title: "How to Make Money Clipping (Including Whop Content Rewards)",
+    description:
+      "A realistic guide to making money clipping podcasts and streams: how Whop Content Rewards CPM payouts and fees work, platform originality rules, an interactive income calculator, and how to land client retainers.",
+    eyebrow: "Make money clipping",
+    category: "Guide",
+    publishedAt: "2026-11-25",
+    updatedAt: "2026-11-25",
+    readingTime: "12 min read",
+    author: "SupoClip Team",
+    keywords: [
+      "how to make money clipping",
+      "Whop clipping",
+      "Whop Content Rewards",
+      "Content Rewards clipping",
+      "make money clipping podcasts",
+      "clipping agency retainers",
+      "short-form clipping workflow",
+    ],
+    summary:
+      "How clippers actually get paid across Whop Content Rewards, client retainers, TikTok, and YouTube Shorts—with real rates, fee math, platform traps, and a repeatable editing workflow.",
+  },
+  {
     languages: GUIDE_LOCALES,
     slug: "how-to-clip-gta-6",
     image: { src: "/blog/how-to-clip-gta-6.webp", alt: "Illustration of a GTA-style sunset stream with a webcam inset turning into three vertical captioned clips", width: 1672, height: 941 },

@@ -26,10 +26,16 @@ export const OPUSCLIP_COMPARISON_HREF = "/blog/supoclip-vs-opusclip";
 
 export const marketingLinks: MarketingLink[] = [
   {
+    href: "/blog/how-to-make-money-clipping", languages: ["en"], group: "guide", eyebrow: "Make money clipping",
+    title: "How to make money clipping", label: "Make money clipping",
+    description: "How Whop Content Rewards, client retainers, and platform rules actually pay—with an interactive calculator.",
+    related: ["/blog/how-to-clip-gta-6", "/blog/podcast-to-shorts", "/blog/find-best-moments-in-video"],
+  },
+  {
     href: "/blog/how-to-clip-gta-6", languages: GUIDE_LOCALES, group: "guide", eyebrow: "GTA 6 clipping",
     title: "How to clip GTA 6", label: "How to clip GTA 6",
     description: "What clipping campaigns pay, Rockstar's rules, and the workflow from VOD to vertical clips.",
-    related: ["/blog/twitch-vod-to-shorts", "/blog/find-best-moments-in-video", "/blog/tiktok-publishing-is-live"],
+    related: ["/blog/how-to-make-money-clipping", "/blog/twitch-vod-to-shorts", "/blog/find-best-moments-in-video"],
   },
   {
     href: "/blog/tiktok-publishing-is-live", languages: ["en"], group: "guide", eyebrow: "Product update",
