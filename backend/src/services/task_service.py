@@ -57,7 +57,7 @@ from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings, normalize_source_ranges, source_range_bounds
 from ..media.timeline import seconds_to_mmss
 from ..workflows.boundaries import cleanup_key
-from ..onboarding.preview import is_locked_preview, locked_moments, mark_preview_used, pick_preview, preview_state
+from ..onboarding.preview import is_locked_preview, locked_moments, mark_preview_used, pick_preview
 from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_from_task
 from ..workflows.errors import WorkflowError
 from ..media_storage import MediaStorage, media_work
@@ -777,8 +777,7 @@ class TaskService(ClipEditingMixin):
             if is_locked_preview(task_row) and segments_to_render:
                 preview_index = pick_preview(segments_to_render)
                 async with self._processing_transaction(task_id):
-                    await self.task_repo.save_preview(self.db, task_id, {
-                        **(preview_state(task_row) or {}),
+                    await self.task_repo.merge_preview(self.db, task_id, {
                         "found": len(segments_to_render),
                         "rendered_position": preview_index + 1,
                         "locked": locked_moments(segments_to_render, preview_index),
@@ -1023,6 +1022,10 @@ class TaskService(ClipEditingMixin):
                         self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
                     )
                     await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
+                    if preview_index is not None and user_id:
+                        # The free preview is used up by the clip it gives, in the same commit: a preview
+                        # cancelled or failing after this keeps its clip, and mustn't leave another free one.
+                        await mark_preview_used(self.db, user_id)
 
                     await check_cancelled()
                 pending_clip_path = None
@@ -1073,10 +1076,6 @@ class TaskService(ClipEditingMixin):
             )
             if completed is False:
                 raise TaskCancelled()
-            if preview_index is not None and user_id:
-                # A finished preview uses up the account's free one (a failed one doesn't).
-                await mark_preview_used(self.db, user_id)
-                await self.db.commit()
 
             if progress_callback:
                 await progress_callback(100, "Complete!", "completed")

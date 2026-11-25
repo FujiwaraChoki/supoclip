@@ -9,7 +9,7 @@ Who may start one (``preview_eligibility``): the ``pebble_onboarding`` flag is o
 is monetized, the account has no paid plan, isn't in a team workspace, has confirmed its email,
 hasn't finished a preview, has none running, and today's previews across everyone are under
 ``PREVIEW_DAILY_LIMIT`` (a cost brake). The video must be at most ``PREVIEW_MAX_MINUTES`` long.
-A preview that fails doesn't use up the account's preview.
+A preview is used up when its clip is saved; one that fails before that doesn't use it up.
 
 Until unlocked, a preview's clip can be watched, downloaded and posted, but not edited or
 re-rendered (``preview_locked``).

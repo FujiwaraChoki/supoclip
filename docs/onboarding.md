@@ -49,7 +49,8 @@ when the flag is on, the install is monetized, the account has no paid plan, isn
 confirmed its email, hasn't finished a preview (`users.preview_used_at`), has none running, and the
 previews started across everyone in the last 24 hours are under `PREVIEW_DAILY_LIMIT` (default 300). The
 video (a link or an upload) must be at most `PREVIEW_MAX_MINUTES` long (default 90). A preview is plain
-highlights of the whole video. A preview that fails doesn't use up the account's free one.
+highlights of the whole video. The free preview is used up when its clip is saved (so cancelling afterwards doesn't give another);
+a preview that fails before that doesn't use it up.
 
 Nothing is charged. The worker analyses the whole video as usual (so the transcript and analysis are
 cached), renders only the clip with the highest score, and stores the rest in `tasks.preview` as
@@ -70,7 +71,9 @@ workers (the completion email says when it's ready), and the guide picks up wher
 project's state. Before checkout, the plan card and the Unlock button record
 `preview.unlock_requested_at` (`POST /tasks/{id}/unlock` with `{"when_paid": true}`). The cron job
 `unlock_paid_previews` (every minute, cron worker) unlocks those previews once the plan is active, so a
-purchase finishes the job even if nobody comes back to the page or the app was closed.
+purchase finishes the job even if nobody comes back to the page or the app was closed. It looks only at
+requests whose owner now has a plan, oldest first (most requests never pay). If the render can't be
+queued, the preview stays locked and the next try reuses the charge.
 
 ## iOS
 

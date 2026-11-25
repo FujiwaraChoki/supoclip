@@ -258,6 +258,9 @@ async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
+UNLOCKS_PER_RUN = 50
+
+
 async def unlock_paid_previews(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Cron: unlock free previews whose owner asked to before checkout, once the plan is active.
 
@@ -268,25 +271,32 @@ async def unlock_paid_previews(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     from ..api.routes.tasks import unlock_requested_preview
     from ..database import AsyncSessionLocal
+    from ..services.billing_service import grants_paid_access
 
     async with AsyncSessionLocal() as db:
-        rows = (
+        pending = (
             await db.execute(
                 text(
                     """
-                    SELECT id FROM tasks
-                    WHERE preview IS NOT NULL
-                      AND preview ? 'unlock_requested_at'
-                      AND NOT preview ? 'unlocked_at'
-                      AND status = 'completed'
-                      AND (preview->>'unlock_requested_at')::timestamptz > NOW() - INTERVAL '14 days'
-                    ORDER BY (preview->>'unlock_requested_at') DESC
-                    LIMIT 50
+                    SELECT t.id, u.plan, u.subscription_status, u.subscription_provider
+                    FROM tasks t JOIN users u ON u.id = t.user_id
+                    WHERE t.preview IS NOT NULL
+                      AND t.preview ? 'unlock_requested_at'
+                      AND NOT t.preview ? 'unlocked_at'
+                      AND t.status = 'completed'
+                      AND (t.preview->>'unlock_requested_at')::timestamptz > NOW() - INTERVAL '14 days'
+                    ORDER BY (t.preview->>'unlock_requested_at')::timestamptz ASC
                     """
                 )
             )
         ).fetchall()
         await db.commit()
+    # Most people who ask never pay. Only owners with a plan are tried, oldest first, so a buyer is never
+    # stuck behind a page of requests that will never unlock.
+    rows = [
+        row for row in pending
+        if grants_paid_access(row.plan, row.subscription_status, row.subscription_provider)
+    ][:UNLOCKS_PER_RUN]
     unlocked = 0
     for row in rows:
         async with AsyncSessionLocal() as db:
@@ -295,7 +305,7 @@ async def unlock_paid_previews(ctx: Dict[str, Any]) -> Dict[str, Any]:
                     unlocked += 1
             except Exception:  # noqa: BLE001 - one preview must not stop the others
                 logger.exception("Could not unlock preview %s", row.id)
-    return {"checked": len(rows), "unlocked": unlocked}
+    return {"pending": len(pending), "checked": len(rows), "unlocked": unlocked}
 
 
 async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:

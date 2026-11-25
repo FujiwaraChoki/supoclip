@@ -252,6 +252,11 @@ async def create_run(conversation_id: str, user_id: str, trigger: str = "user") 
     """
     run_id = new_id()
     async with AsyncSessionLocal() as db:
+        # NOT EXISTS alone doesn't see a concurrent uncommitted insert: serialize per conversation.
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:conversation_id, 72611))"),
+            {"conversation_id": conversation_id},
+        )
         row = (
             await db.execute(
                 text(

@@ -210,6 +210,9 @@ class Turn:
                 await self.publish("done", {"status": "cancelled"})
                 return
             rows = await store.list_messages(self.conversation_id)
+            # The reply being written follows this message: a chat opened mid-reply shows it only
+            # while the transcript still ends there (not twice once it is saved).
+            self._after_message_id = rows[-1]["id"] if rows else None
             message = await self._call_model(client, system, api_messages(rows))
             content = [block.to_dict(mode="json") for block in message.content]
             if content:
@@ -261,7 +264,10 @@ class Turn:
                 pending_text.clear()
                 written.append(chunk)
                 # Kept so a chat opened mid-reply shows it (the tab may have been closed).
-                await events.set_partial(self.conversation_id, self.run_id, "".join(written), event_id)
+                await events.set_partial(
+                    self.conversation_id, self.run_id, "".join(written), event_id,
+                    after_message_id=getattr(self, "_after_message_id", None),
+                )
             last_flush = time.monotonic()
 
         try:
