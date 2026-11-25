@@ -1,5 +1,6 @@
 import { formatArticleDate } from "@/components/articles/article-shell";
 import { ClipperComparisonArticle } from "@/components/articles/clipper-comparison-article";
+import { MakeMoneyClippingArticle } from "@/components/articles/clipping-income/make-money-clipping-article";
 import { CreatorGuideArticle } from "@/components/articles/creator-guide-article";
 import { FreeOpusClipAlternativesArticle } from "@/components/articles/free-opusclip-alternatives-article";
 import { Gta6ClippingArticle } from "@/components/articles/gta6/gta6-clipping-article";
@@ -74,6 +75,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     notFound();
   }
 
+  if (slug === "how-to-make-money-clipping") {
+    return <MakeMoneyClippingArticle post={basePost} />;
+  }
   if (slug === "tiktok-publishing-is-live") {
     return <TikTokPublishingArticle post={basePost} />;
   }
