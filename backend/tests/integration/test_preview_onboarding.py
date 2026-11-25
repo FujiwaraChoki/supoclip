@@ -21,7 +21,7 @@ YOUTUBE = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 @pytest.fixture
 async def hosted(app, feature_flag, monkeypatch):
     """Hosted billing on, previews switched on, and a YouTube preflight that never calls out."""
-    await feature_flag("pebble_onboarding", web_enabled=True)
+    await feature_flag("pebble_onboarding", web_enabled=True, ios_enabled=True)
     app.state.config.monetization_enabled = True
     app.state.config.self_host = False
     lengths = {"seconds": 30 * 60}
@@ -183,32 +183,33 @@ async def test_a_preview_renders_only_its_best_clip(db_session, initialized_data
 
 
 @pytest.mark.asyncio
-async def test_new_accounts_are_split_between_the_two_onboardings(client, auth_headers, db_session, hosted, monkeypatch):
+async def test_new_accounts_get_the_guided_onboarding(client, auth_headers, db_session, hosted, monkeypatch):
     await create_user(db_session, user_id="user-1", email_verified=True)
     await db_session.execute(
         text('UPDATE users SET "createdAt" = :t WHERE id = \'user-1\''),
-        {"t": datetime.now(timezone.utc) - timedelta(days=400)},
+        {"t": variant_module.GUIDED_SINCE - timedelta(days=1)},
     )
     await db_session.commit()
     old = (await client.get("/onboarding/status", headers=auth_headers)).json()
     assert old["variant"] is None
 
-    monkeypatch.setenv("PEBBLE_ONBOARDING_SINCE", "2020-01-01T00:00:00Z")
-    monkeypatch.setenv("PEBBLE_ONBOARDING_PERCENT", "100")
-    exposures = []
-    monkeypatch.setattr(variant_module, "capture_event", lambda *args, **kw: exposures.append((args, kw)))
-    status = (await client.get("/onboarding/status", headers=auth_headers)).json()
+    await db_session.execute(
+        text('UPDATE users SET "createdAt" = :t WHERE id = \'user-1\''),
+        {"t": variant_module.GUIDED_SINCE + timedelta(minutes=1)},
+    )
+    await db_session.commit()
+    events = []
+    monkeypatch.setattr(variant_module, "capture_event", lambda *args, **kw: events.append((args, kw)))
+    ios = {**auth_headers, "x-supoclip-client": "ios"}
+    status = (await client.get("/onboarding/status", headers=ios)).json()
     assert status["variant"] == "pebble"
-    # The experiment's exposure, sent once, with the variant PostHog reads.
-    (args, kw), = exposures
-    assert args[0] == "onboarding_assigned" and args[1] == "user-1"
-    assert args[2]["$feature/pebble-onboarding"] == "pebble"
-    assert kw["set_properties"] == {"onboarding_variant": "pebble"}
+    # Sent once, saying which app the account was first opened in. Not as `platform`: the PostHog
+    # client's super property of that name would overwrite it.
+    (args, kw), = events
+    assert args == ("onboarding_assigned", "user-1", {"client": "ios"}) and kw == {}
     assert status["preview"]["eligible"] is True and status["preview"]["task"] is None
-    # Stored: changing the split later doesn't move an account.
-    monkeypatch.setenv("PEBBLE_ONBOARDING_PERCENT", "0")
     assert (await client.get("/onboarding/status", headers=auth_headers)).json()["variant"] == "pebble"
-    assert len(exposures) == 1
+    assert len(events) == 1
 
     assert (await client.post("/onboarding/answers", headers=auth_headers, json={"makes": "podcasts"})).status_code == 200
     assert (await client.post("/onboarding/answers", headers=auth_headers, json={"makes": "cats"})).status_code == 422
@@ -217,10 +218,15 @@ async def test_new_accounts_are_split_between_the_two_onboardings(client, auth_h
     assert status["answers"] == {"makes": "podcasts"} and status["completed"] is True
 
 
-def test_the_split_is_stable_and_roughly_even():
-    buckets = [variant_module.bucket(f"user-{n}") for n in range(2000)]
-    assert buckets == [variant_module.bucket(f"user-{n}") for n in range(2000)]
-    assert 900 < sum(1 for b in buckets if b < 50) < 1100
+@pytest.mark.asyncio
+async def test_accounts_from_the_ab_test_control_group_get_the_standard_home(client, auth_headers, db_session, hosted, monkeypatch):
+    await create_user(db_session, user_id="user-1", email_verified=True)
+    await db_session.execute(text("UPDATE users SET onboarding_variant = 'classic' WHERE id = 'user-1'"))
+    await db_session.commit()
+    events = []
+    monkeypatch.setattr(variant_module, "capture_event", lambda *args, **kw: events.append((args, kw)))
+    assert (await client.get("/onboarding/status", headers=auth_headers)).json()["variant"] is None
+    assert events == []
 
 
 @pytest.mark.asyncio

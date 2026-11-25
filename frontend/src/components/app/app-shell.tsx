@@ -74,9 +74,9 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
   const navigate = useCallback((path: string) => router.push(path), [router]);
   const onboarding = useOnboardingStatus(Boolean(session?.user));
   const [pebbleFlow] = usePebbleFlow(session?.user?.id);
-  const pebbleGroup = onboarding?.variant === "pebble";
+  const guided = onboarding?.variant === "pebble";
   // Agent's guide and a feature tour never talk over each other.
-  const pebbleGuiding = pebbleGroup && !onboarding?.completed && pebbleDockActive(pebbleFlow.stage);
+  const pebbleGuiding = guided && !onboarding?.completed && pebbleDockActive(pebbleFlow.stage);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -189,7 +189,7 @@ export function AppShell({ children, tour }: { children: React.ReactNode; /** Se
       <PebbleGuide pathname={pathname} navigate={navigate} immersive={immersive} />
       <FeatureTourHost
         enabled={Boolean(user) && !immersive && !pebbleGuiding}
-        skip={pebbleGroup ? PEBBLE_SKIPS_TOURS : undefined}
+        skip={guided ? PEBBLE_SKIPS_TOURS : undefined}
         pathname={pathname}
         navigate={navigate}
         canStart={tour !== undefined && pathname === "/"}

@@ -17,7 +17,7 @@ const MAKES_ICONS: Record<Makes, LucideIcon> = { podcasts: Mic, streams: Gamepad
 type Beat = "makes" | "after" | "none";
 
 /**
- * The first thing a new account in the Pebble group sees: Agent says hello, asks what they make,
+ * The first thing a new account sees: Agent says hello, asks what they make,
  * shows clips like theirs, and offers to make their first one free. Then it hands over to the
  * docked guide on the real create screen (`onStart`).
  */

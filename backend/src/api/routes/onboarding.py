@@ -1,5 +1,5 @@
-"""Onboarding for new accounts (docs/onboarding.md): which group they're in, what they make, a
-look at their video before they commit, and when the guided onboarding ended."""
+"""Onboarding for new accounts (docs/onboarding.md): whether they get Agent's guided onboarding, what
+they make, a look at their video before they commit, and when the guided onboarding ended."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from ...config import get_config
 from ...database import get_db
 from ...feature_flags import client_platform
 from ...onboarding.preview import latest_preview_task, preview_eligibility
-from ...onboarding.variant import CLASSIC, PEBBLE, onboarding_variant
+from ...onboarding.variant import PEBBLE, onboarding_variant
 from ...services.video_service import VideoService
 from ...youtube_utils import canonical_youtube_url
 from .tasks import _preflight_stream_source, _preflight_youtube_source
@@ -48,14 +48,15 @@ async def _body(request: Request) -> dict[str, Any]:
 
 @router.get("/status")
 async def status(request: Request, db: AsyncSession = Depends(get_db), variant: Optional[str] = None):
-    """The account's onboarding group, its answers, and whether a free preview can start.
+    """Whether the account gets the guided onboarding (``variant``: ``pebble`` or null), its answers,
+    and whether a free preview can start.
 
-    Admins may pass ``?variant=pebble|classic`` to see either one (nothing is stored).
+    Admins may pass ``?variant=pebble`` to see the guided onboarding (nothing is stored).
     """
     ctx = await _ctx(request, db)
     platform = client_platform(request)
     group = await onboarding_variant(db, ctx.user_id, platform)
-    if variant in {PEBBLE, CLASSIC} and await user_is_admin(db, ctx.user_id):
+    if variant == PEBBLE and await user_is_admin(db, ctx.user_id):
         group = variant
     row = (
         await db.execute(

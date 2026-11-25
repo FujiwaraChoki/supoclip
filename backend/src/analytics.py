@@ -25,7 +25,7 @@ EventName = Literal[
     "task_failed",
     "clip_exported",
     "social_post_published",
-    # The account was put in an onboarding group (A/B exposure; docs/onboarding.md).
+    # The account got Agent's guided onboarding, once, from the app it first opened (docs/onboarding.md).
     "onboarding_assigned",
 ]
 
