@@ -18,6 +18,7 @@ from ..config import Config  # noqa: E402
 from ..observability import configure_logging  # noqa: E402
 from ..edit_fx.env import edit_plan_timeout  # noqa: E402
 from .redis_settings import arq_redis_settings, on_arq_startup  # noqa: E402
+from . import arq_resilience
 from ..services.ai_edit_service import (  # noqa: E402
     AI_EDIT_QUEUE,
     AI_EDIT_TIMEOUT_SECONDS,
@@ -26,6 +27,9 @@ from ..services.ai_edit_service import (  # noqa: E402
 )
 
 configure_logging()
+
+
+arq_resilience.install()
 
 
 class AIWorkerSettings:

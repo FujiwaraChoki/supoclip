@@ -403,9 +403,12 @@ from ..services.clip_export_service import (
     export_clip_preset,
 )
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
-from . import host_jobs, overflow
+from . import arq_resilience, host_jobs, overflow
 from .job_queue import DEFAULT_QUEUE_NAME
 from .queue_delay import on_video_job_start
+
+# A Redis blip while claiming a job must not end the worker (arq_resilience.py).
+arq_resilience.install()
 
 
 async def on_video_job_begin(ctx) -> None:

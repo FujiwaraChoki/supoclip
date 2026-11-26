@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-26
+
+- **Fixed:** A short network hiccup between our servers no longer stops new clips and scheduled posts from starting. Before, it could hold up clip generation and publishing for several minutes and interrupt clips already rendering. ([#587](https://github.com/FujiwaraChoki/supoclip/pull/587))
+
 ## 2026-11-25
 
 - **Fixed:** Home opens the standard clip creation form if it cannot load Agent or onboarding status, so you can keep working. ([#585](https://github.com/FujiwaraChoki/supoclip/pull/585))
