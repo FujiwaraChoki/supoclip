@@ -75,23 +75,21 @@ async def test_accepted_task_sends_task_created_without_the_url(monkeypatch, cre
     )]
 
 
-@pytest.mark.parametrize("change,identity", [
-    ({}, ("vertical", "highlights", "auto")),
-    ({"output_format": "vertical_split"}, ("vertical_split", "highlights", "auto")),
-    ({"workflow": "recap"}, ("vertical", "recap", "auto")),
-    ({"clip_length": "medium"}, ("vertical", "highlights", "medium")),
+@pytest.mark.parametrize("change,expected_format", [
+    ({}, "vertical"),
+    ({"output_format": "vertical_split"}, "vertical_split"),
+    ({"output_format": "original"}, "original"),
 ])
-async def test_create_task_checks_render_identity_before_and_during_admission(monkeypatch, creation, change, identity):
+async def test_create_task_checks_output_format_before_and_during_admission(monkeypatch, creation, change, expected_format):
     request, service, queue, _billing = creation
     request.headers = {}
     request.json.return_value = {**request.json.return_value, **change}
-    monkeypatch.setattr(tasks, "workflow_allowed_for", AsyncMock(return_value=True))
     monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 600}))
     monkeypatch.setattr(tasks, "generation_allowance_guard", lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(tasks, "source_admission_lock", lambda *args: nullcontext())
 
-    async def lookup(_db, _user_id, _source_key, *, render_identity, **_kwargs):
-        if render_identity == ("vertical", "highlights", "auto"):
+    async def lookup(_db, _user_id, _source_key, *, output_format, **_kwargs):
+        if output_format == "vertical":
             return SimpleNamespace(id="existing", job_id="existing-job")
         return None
 
@@ -99,7 +97,7 @@ async def test_create_task_checks_render_identity_before_and_during_admission(mo
     monkeypatch.setattr(tasks.TaskRepository, "find_active_source_task", find)
     result = await tasks.create_task(request, db=object())
 
-    assert all(call.kwargs["render_identity"] == identity for call in find.await_args_list)
+    assert all(call.kwargs["output_format"] == expected_format for call in find.await_args_list)
     if not change:
         assert result["task_id"] == "existing" and result["duplicate"] is True
         assert find.await_count == 1
@@ -109,9 +107,8 @@ async def test_create_task_checks_render_identity_before_and_during_admission(mo
         assert result["task_id"] == "task-1"
         assert find.await_count == 2
         kwargs = service.create_task_with_source.await_args.kwargs
-        assert kwargs["workflow"] == identity[1]
         assert kwargs["source_metadata"] == {
-            "source_key": "youtube:abcdefghijk", "output_format": identity[0], "clip_length": identity[2],
+            "source_key": "youtube:abcdefghijk", "output_format": expected_format, "clip_length": "auto",
         }
         queue.enqueue_processing_job.assert_awaited_once()
 

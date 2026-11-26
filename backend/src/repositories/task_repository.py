@@ -292,7 +292,7 @@ class TaskRepository:
         source_key: str,
         *,
         edit_identity: Optional[tuple[Dict[str, Any], str]] = None,
-        render_identity: Optional[tuple[str, str, str]] = None,
+        output_format: Optional[str] = None,
         team_id: Optional[str] = None,
     ):
         """This workspace's queued or processing task for the same video, if any.
@@ -300,8 +300,9 @@ class TaskRepository:
         Tasks created before ``source_key`` was stored are matched by
         recomputing the key from the saved source URL.
 
-        ``render_identity`` = ``(output_format, workflow, clip_length)``.
-        Older rows missing settings use the original creation defaults.
+        ``output_format`` scopes deduplication to the requested layout
+        (``vertical``, ``vertical_split``, ``vertical_fit``, ``original``, etc.); older rows
+        missing ``source_metadata.output_format`` default to ``vertical``.
 
         ``edit_identity`` = ``(EditStyle.to_json(), caption_template)`` for a
         request with dynamic edits: only an in-flight task with that same stored
@@ -313,14 +314,10 @@ class TaskRepository:
             return None
         params = {"user": user_id, "team_id": team_id, "key": source_key}
         render_filter = ""
-        if render_identity is not None:
-            output_format, workflow, clip_length = render_identity
-            params.update(output_format=output_format, workflow=workflow, clip_length=clip_length)
-            # Reading workflow through the row JSON also works before the workflow column was added.
+        if output_format is not None:
+            params["output_format"] = output_format
             render_filter = """
                 AND COALESCE(t.source_metadata->>'output_format', 'vertical') = :output_format
-                AND COALESCE(to_jsonb(t)->>'workflow', 'highlights') = :workflow
-                AND COALESCE(t.source_metadata->>'clip_length', 'auto') = :clip_length
             """
         if edit_identity is not None:
             return await TaskRepository._find_active_source_task_with_style(

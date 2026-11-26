@@ -901,7 +901,6 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     # before preflight and before any minute charge. Callers that unit-test
     # the route without a database skip the lookup.
     source_key = None
-    render_identity = (output_format, workflow_spec.workflow, clip_length)
     if db is not None:
         source_key = await source_key_for_url(db, user_id, raw_source["url"].strip())
         if source_key and requested_range is not None:
@@ -909,7 +908,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         if source_key:
             existing = await TaskRepository.find_active_source_task(
                 db, user_id, source_key, team_id=team_id,
-                render_identity=render_identity, **edit_identity,
+                output_format=output_format, **edit_identity,
             )
             if existing is not None:
                 return await _bind_existing_task(
@@ -1016,7 +1015,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 if source_key:
                     existing = await TaskRepository.find_active_source_task(
                         db, user_id, source_key, team_id=team_id,
-                        render_identity=render_identity, **edit_identity,
+                        output_format=output_format, **edit_identity,
                     )
                     if existing is not None:
                         return await _bind_existing_task(

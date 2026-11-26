@@ -208,14 +208,13 @@ async def test_same_upload_bytes_reuse_the_in_progress_task(client, app, db_sess
 
 @pytest.mark.parametrize("change", [
     {"output_format": "vertical_split"},
-    {"workflow": "recap"},
-    {"clip_length": "medium"},
+    {"output_format": "vertical_fit"},
+    {"output_format": "original"},
 ])
-async def test_same_source_with_different_render_settings_creates_a_task(
+async def test_same_source_with_different_layout_creates_a_task(
     client, db_session, monkeypatch, change,
 ):
     monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 600}))
-    monkeypatch.setattr(tasks, "workflow_allowed_for", AsyncMock(return_value=True))
     # Dedupe must already work before the post-insert metadata and enqueue steps run.
     monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
     owner = str(uuid4())
@@ -264,7 +263,7 @@ async def test_create_immediately_after_cancellation_does_not_reuse_task(
 
 
 @pytest.mark.parametrize("styled", [False, True])
-async def test_render_identity_matches_legacy_source_url_and_default_settings(db_session, styled):
+async def test_output_format_matches_legacy_source_url_and_default_settings(db_session, styled):
     owner = str(uuid4())
     await create_user(db_session, user_id=owner)
     url = "https://youtu.be/abcdefghijk"
@@ -276,12 +275,12 @@ async def test_render_identity_matches_legacy_source_url_and_default_settings(db
     key = await source_key_for_url(db_session, owner, url)
     edit_identity = (style, "default") if style else None
 
-    for identity in [None, ("vertical", "highlights", "auto")]:
+    for fmt in [None, "vertical"]:
         task = await TaskRepository.find_active_source_task(
-            db_session, owner, key, render_identity=identity, edit_identity=edit_identity,
+            db_session, owner, key, output_format=fmt, edit_identity=edit_identity,
         )
         assert task is not None and task.id == task_id
     assert await TaskRepository.find_active_source_task(
-        db_session, owner, key, render_identity=("vertical_split", "highlights", "auto"),
+        db_session, owner, key, output_format="vertical_split",
         edit_identity=edit_identity,
     ) is None
