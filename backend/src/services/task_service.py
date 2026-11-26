@@ -387,6 +387,7 @@ class TaskService(ClipEditingMixin):
         idempotency: Optional[tuple[str, str]] = None,
         team_id: Optional[str] = None,
         preview: bool = False,
+        source_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -457,6 +458,7 @@ class TaskService(ClipEditingMixin):
                 **({"idempotency": idempotency} if idempotency else {}),
                 **({"team_id": team_id} if team_id else {}),
                 **({"preview": {"status": "pending"}} if preview else {}),
+                **({"source_metadata": source_metadata} if source_metadata else {}),
             )
         except TaskIdempotencyReplay:
             # The task insert rolled back. Drop the source made for it.

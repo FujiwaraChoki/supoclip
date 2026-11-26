@@ -1,5 +1,6 @@
 import asyncio
 import subprocess
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,6 +9,7 @@ from fastapi import HTTPException
 
 from src.api.routes import tasks
 from src.config import set_config_override
+from src.repositories import task_repository
 from src.services.video_service import VideoService
 
 
@@ -71,6 +73,69 @@ async def test_accepted_task_sends_task_created_without_the_url(monkeypatch, cre
             "clip_length": "auto",
         },
     )]
+
+
+@pytest.mark.parametrize("change,identity", [
+    ({}, ("vertical", "highlights", "auto")),
+    ({"output_format": "vertical_split"}, ("vertical_split", "highlights", "auto")),
+    ({"workflow": "recap"}, ("vertical", "recap", "auto")),
+    ({"clip_length": "medium"}, ("vertical", "highlights", "medium")),
+])
+async def test_create_task_checks_render_identity_before_and_during_admission(monkeypatch, creation, change, identity):
+    request, service, queue, _billing = creation
+    request.headers = {}
+    request.json.return_value = {**request.json.return_value, **change}
+    monkeypatch.setattr(tasks, "workflow_allowed_for", AsyncMock(return_value=True))
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 600}))
+    monkeypatch.setattr(tasks, "generation_allowance_guard", lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(tasks, "source_admission_lock", lambda *args: nullcontext())
+
+    async def lookup(_db, _user_id, _source_key, *, render_identity, **_kwargs):
+        if render_identity == ("vertical", "highlights", "auto"):
+            return SimpleNamespace(id="existing", job_id="existing-job")
+        return None
+
+    find = AsyncMock(side_effect=lookup)
+    monkeypatch.setattr(tasks.TaskRepository, "find_active_source_task", find)
+    result = await tasks.create_task(request, db=object())
+
+    assert all(call.kwargs["render_identity"] == identity for call in find.await_args_list)
+    if not change:
+        assert result["task_id"] == "existing" and result["duplicate"] is True
+        assert find.await_count == 1
+        service.create_task_with_source.assert_not_awaited()
+        queue.enqueue_processing_job.assert_not_awaited()
+    else:
+        assert result["task_id"] == "task-1"
+        assert find.await_count == 2
+        kwargs = service.create_task_with_source.await_args.kwargs
+        assert kwargs["workflow"] == identity[1]
+        assert kwargs["source_metadata"] == {
+            "source_key": "youtube:abcdefghijk", "output_format": identity[0], "clip_length": identity[2],
+        }
+        queue.enqueue_processing_job.assert_awaited_once()
+
+
+@pytest.mark.parametrize("status", ["queued", "processing"])
+async def test_cancel_task_commits_the_guarded_status_update_before_returning(monkeypatch, status):
+    monkeypatch.setattr(tasks, "_require_task_owner", AsyncMock(return_value={"status": status}))
+    redis = SimpleNamespace(setex=AsyncMock(), aclose=AsyncMock())
+    monkeypatch.setattr(tasks.redis, "Redis", lambda **_kwargs: redis)
+    refund = AsyncMock()
+    monkeypatch.setattr(task_repository, "refund_failed_minute_usage", refund)
+    db = SimpleNamespace(info={}, execute=AsyncMock(return_value=SimpleNamespace(rowcount=1)), commit=AsyncMock())
+
+    result = await tasks.cancel_task("task-1", request=object(), db=db)
+
+    assert result == {"message": "Task cancellation requested"}
+    statement, params = db.execute.await_args.args
+    assert "UPDATE tasks SET status = :status" in str(statement)
+    assert "status = ANY(:expected_statuses)" in str(statement)
+    assert params["status"] == "cancelled"
+    assert params["expected_statuses"] == ["queued", "processing"]
+    redis.setex.assert_awaited_once_with("task_cancel:task-1", 3600, "1")
+    refund.assert_awaited_once_with(db, "task-1")
+    db.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio

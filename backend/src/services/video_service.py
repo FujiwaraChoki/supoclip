@@ -94,7 +94,11 @@ from ..clip_source_map import (
     save_clip_broll,
     save_clip_source_ranges,
 )
-from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..ai import (
+    get_most_relevant_parts_by_transcript,
+    max_final_clips_for_duration,
+    short_source_speech_bounds,
+)
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
@@ -1372,6 +1376,8 @@ class VideoService:
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
         instructions: Optional[str] = None,
+        *,
+        source_duration: Optional[float] = None,
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
@@ -1386,6 +1392,7 @@ class VideoService:
             performance_context=performance_context,
             clip_length=clip_length,
             include_reserve=True,
+            source_duration=source_duration,
             **({"instructions": instructions} if instructions else {}),
         )
         logger.info(
@@ -1942,16 +1949,20 @@ class VideoService:
             try:
                 cached_analysis = json.loads(cached_analysis_json)
                 segments = cached_analysis.get("most_relevant_segments", [])
+                has_checkpoint = any(checkpoint.get(key) for key in ("analysis", "candidates", "segments"))
                 if not segments and not (checkpoint.get("candidates") or checkpoint.get("segments")):
                     logger.info(
                         "Ignoring cached transcript analysis with no clip segments"
                     )
-                elif cached_scores_were_lost(segments) and not (
-                    checkpoint.get("analysis") or checkpoint.get("candidates") or checkpoint.get("segments")
+                elif not has_checkpoint and (
+                    cached_scores_were_lost(segments)
+                    or (
+                        segments
+                        and all(isinstance(segment, dict) and segment.get("hook_type") == "fallback" for segment in segments)
+                        and short_source_speech_bounds(transcript, file_duration, clip_length) is not None
+                    )
                 ):
-                    # Saved by a run that read an earlier cache entry without its scores. The moments are
-                    # still there but their ranking is not, so the video is analysed again.
-                    logger.info("Ignoring cached transcript analysis that lost its scores")
+                    logger.info("Ignoring cached transcript analysis without usable ranked moments")
                 else:
 
                     class _SimpleResult:
@@ -1987,6 +1998,7 @@ class VideoService:
                 clip_signals=clip_signals,
                 performance_context=performance_context,
                 clip_length=clip_length,
+                source_duration=file_duration,
                 **({"instructions": instructions} if instructions else {}),
             )
 

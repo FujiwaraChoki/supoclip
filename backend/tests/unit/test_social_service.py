@@ -29,6 +29,7 @@ from src.social.base import (
     SocialProvider,
     SocialProviderError,
 )
+from src.social.tiktok import TikTokProvider
 
 
 # ----------------------------------------------------------------------
@@ -1575,6 +1576,29 @@ async def test_tiktok_public_is_rejected_before_post_or_job_is_created(service, 
         await service.create_post('user-1', task_id='task-1', clip_id='clip-1', social_account_id=account['id'], title=None, caption=None, hashtags=[], privacy_level='public', scheduled_for=None)
     assert service.repo.posts == {}
     assert service.queue_adapter.jobs == []
+
+
+@pytest.mark.parametrize("audited,allowed,expected", [
+    (True, ["PUBLIC_TO_EVERYONE", "SELF_ONLY"], "public"),
+    (True, ["SELF_ONLY"], "private"),
+    (False, ["PUBLIC_TO_EVERYONE", "SELF_ONLY"], "private"),
+])
+async def test_tiktok_omitted_privacy_uses_a_supported_default(service, monkeypatch, audited, allowed, expected):
+    account = await _connect(service)
+    service.repo.accounts[account["id"]]["provider"] = "tiktok"
+    service.config.tiktok_app_audited = audited
+    service.config.tiktok_client_key = "test-key"
+    service.config.tiktok_client_secret = "test-secret"
+    tiktok = TikTokProvider(service.config)
+    monkeypatch.setattr(social_module, "get_provider", lambda name, config=None: tiktok)
+    monkeypatch.setattr(tiktok, "query_creator_info", lambda token: {"privacy_level_options": allowed})
+
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title=None, caption=None, hashtags=[], privacy_level=None, scheduled_for=None,
+    )
+
+    assert post["privacy_level"] == expected
 
 
 async def test_tiktok_retry_does_not_queue_a_visibility_the_account_no_longer_allows(service, provider):

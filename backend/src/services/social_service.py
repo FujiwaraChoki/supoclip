@@ -592,11 +592,15 @@ class SocialService:
             options = await self.publishing_options(
                 user_id, account["id"], team_id=team_id
             )
-            if normalized_privacy not in options["privacy_levels"]:
-                raise SocialValidationError(
-                    "This TikTok account does not currently allow that visibility. "
-                    "Refresh its publishing options or check its privacy settings in TikTok."
-                )
+            allowed = options["privacy_levels"]
+            if normalized_privacy not in allowed:
+                if privacy_level is None and "private" in allowed:
+                    normalized_privacy = "private"
+                else:
+                    raise SocialValidationError(
+                        "This TikTok account does not currently allow that visibility. "
+                        "Refresh its publishing options or check its privacy settings in TikTok."
+                    )
 
         clean_title = (title or clip.get("hook_title") or f"Clip {clip.get('clip_order', '')}").strip()
         clean_title = clean_title[:MAX_TITLE_LENGTH]
