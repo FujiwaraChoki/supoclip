@@ -8,8 +8,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo, SlidersHorizontal,
-  Info, ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X, Zap,
+  ImagePlus, Info, ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X, Zap,
 } from "lucide-react";
+import { CampaignImagePicker } from "@/components/campaign-image-picker";
+import { uploadCampaignImage } from "@/lib/campaign-image";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { ComposerSettings } from "@/components/composer-settings";
 import { Disclosure } from "@/components/disclosure";
@@ -211,6 +213,8 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
   const clipLengthSave = useRef<Promise<unknown>>(Promise.resolve());
   const [addSubtitles, setAddSubtitles] = useState(true);
   const [includeBroll, setIncludeBroll] = useState(false);
+  // Not remembered with the other settings: a campaign image belongs to one campaign's projects.
+  const [campaignImage, setCampaignImage] = useState<File | null>(null);
   const [cutLongPauses, setCutLongPauses] = useState(true);
   const [pauseThresholdMs, setPauseThresholdMs] = useState("1200");
   const [removeFillerWords, setRemoveFillerWords] = useState(true);
@@ -392,6 +396,7 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
     setAddSubtitles(true);
     setOutputFormat("vertical");
     setIncludeBroll(false);
+    setCampaignImage(null);
     setCutLongPauses(true);
     setPauseThresholdMs("1200");
     setRemoveFillerWords(true);
@@ -811,7 +816,7 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
   ].join(" · ");
   // Cleanup is on by default, so it isn't counted as a change here; its own section shows what's on.
   const changedCount = advancedCount + (includeBroll ? 1 : 0) + (editsActive ? 1 : 0);
-  const settingsChanged = changedCount > 0 || selectedLength !== "auto" || partCount !== "auto" || customized || !addSubtitles;
+  const settingsChanged = changedCount > 0 || selectedLength !== "auto" || partCount !== "auto" || customized || !addSubtitles || campaignImage !== null;
 
   // Only what is valid is remembered, so a half-typed number never comes back to block the form.
   const settingsToSave = JSON.stringify({
@@ -952,6 +957,8 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
           videoUrl = await uploadVideoFile(file, uploadLimitBytes);
         }
       }
+      // A free preview makes plain highlights, so it never carries a campaign image.
+      const campaignImageId = campaignImage && !freePreview ? await uploadCampaignImage(campaignImage) : null;
 
       const request: Record<string, unknown> = {
         source: {
@@ -974,6 +981,8 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
         // Only when intensity isn't off: an off request stays exactly today's.
         ...(fxFields.edit_style && !freePreview ? { edit_style: fxFields.edit_style } : {}),
         ...(freePreview ? { preview: true } : {}),
+        // Only when one was added: a request without it stays exactly as before.
+        ...(campaignImageId ? { campaign_image_id: campaignImageId } : {}),
       };
       // Plain highlights without instructions sends exactly the request it always has.
       const options: WorkflowOptions = {};
@@ -1530,6 +1539,9 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
                     </div>
                   ) },
                   ...(brollAvailable && !brollInEdits ? [{ id: "broll", label: t("broll"), icon: <Clapperboard />, value: includeBroll ? t("composerSettings.on") : t("composerSettings.off"), content: brollRow }] : []),
+                  { id: "campaign", label: t("campaignImage.title"), icon: <ImagePlus />, value: campaignImage ? t("composerSettings.on") : t("composerSettings.off"), count: campaignImage ? 1 : 0, content: (
+                    <CampaignImagePicker file={campaignImage} onChange={setCampaignImage} disabled={controlsDisabled} />
+                  ) },
                   ...(workflowsEnabled && advancedSchema.length > 0 ? [{ id: "advanced", label: t("advanced.chip"), icon: <SlidersHorizontal />, count: advancedCount, content: (
                     <WorkflowAdvancedSettings
                       schema={advancedSchema}

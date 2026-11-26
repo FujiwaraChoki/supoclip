@@ -534,5 +534,18 @@
   "creatorTag": "Creator",
   "agentLapsed": "Your Agent chats are saved.",
   "agentTrialEnded": "You've used your free Agent messages.",
-  "agentBackWithCreator": "Keep going with Creator"
+  "agentBackWithCreator": "Keep going with Creator",
+  "campaignImage": {
+    "title": "Campaign image",
+    "description": "Shown above the video for the whole clip, e.g. a reward campaign's banner. Optional.",
+    "choose": "Add image",
+    "replace": "Replace image",
+    "remove": "Remove campaign image",
+    "previewAlt": "Campaign image preview",
+    "hint": "PNG, JPEG or WebP, up to 8 MB. Works best with Full frame 9:16; replaces the hook title at the top.",
+    "problems": {
+      "type": "Use a PNG, JPEG or WebP image.",
+      "size": "The image is larger than 8 MB."
+    }
+  }
 }

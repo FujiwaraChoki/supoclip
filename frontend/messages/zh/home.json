@@ -534,5 +534,18 @@
   "creatorTag": "Creator",
   "agentLapsed": "你的 Agent 对话都已保存。",
   "agentTrialEnded": "你的免费 Agent 消息已用完。",
-  "agentBackWithCreator": "升级 Creator 继续使用"
+  "agentBackWithCreator": "升级 Creator 继续使用",
+  "campaignImage": {
+    "title": "活动图片",
+    "description": "在整个片段中显示在视频上方，例如奖励活动的横幅。可选。",
+    "choose": "添加图片",
+    "replace": "更换图片",
+    "remove": "移除活动图片",
+    "previewAlt": "活动图片预览",
+    "hint": "PNG、JPEG 或 WebP，最大 8 MB。搭配“完整画面 9:16”效果最佳；会替代顶部的钩子标题。",
+    "problems": {
+      "type": "请使用 PNG、JPEG 或 WebP 图片。",
+      "size": "图片超过 8 MB。"
+    }
+  }
 }

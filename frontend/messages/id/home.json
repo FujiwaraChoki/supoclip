@@ -534,5 +534,18 @@
   "creatorTag": "Creator",
   "agentLapsed": "Obrolan Agent-mu tersimpan.",
   "agentTrialEnded": "Pesan Agent gratismu sudah habis.",
-  "agentBackWithCreator": "Lanjutkan dengan Creator"
+  "agentBackWithCreator": "Lanjutkan dengan Creator",
+  "campaignImage": {
+    "title": "Gambar kampanye",
+    "description": "Ditampilkan di atas video sepanjang klip, misalnya banner kampanye hadiah. Opsional.",
+    "choose": "Tambah gambar",
+    "replace": "Ganti gambar",
+    "remove": "Hapus gambar kampanye",
+    "previewAlt": "Pratinjau gambar kampanye",
+    "hint": "PNG, JPEG, atau WebP, maks. 8 MB. Paling cocok dengan Frame penuh 9:16; menggantikan judul hook di atas.",
+    "problems": {
+      "type": "Gunakan gambar PNG, JPEG, atau WebP.",
+      "size": "Gambar lebih besar dari 8 MB."
+    }
+  }
 }

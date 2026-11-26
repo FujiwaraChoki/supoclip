@@ -59,6 +59,13 @@ from ...font_registry import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
+from ...media.campaign_image import (
+    MAX_CAMPAIGN_IMAGE_UPLOAD_BYTES,
+    SUPPORTED_CAMPAIGN_IMAGE_EXTENSIONS,
+    CampaignImageError,
+    normalize_campaign_image,
+)
+from ...repositories.campaign_image_repository import save_campaign_image
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["media"])
@@ -295,6 +302,27 @@ async def upload_font(
     except Exception as e:
         logger.error(f"Error uploading font: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading font: {str(e)}")
+
+
+@router.post("/campaign-images")
+async def upload_campaign_image(
+    request: Request,
+    uploaded_file: UploadFile = File(..., alias="file"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Store a campaign image; pass the returned id as ``campaign_image_id`` when creating a task."""
+    auth_ctx = await _get_auth_context(request, db)
+    extension = Path(uploaded_file.filename or "").suffix.lower()
+    if extension and extension not in SUPPORTED_CAMPAIGN_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Use a PNG, JPEG or WebP image.")
+    data = await uploaded_file.read(MAX_CAMPAIGN_IMAGE_UPLOAD_BYTES + 1)
+    try:
+        image = await run_in_thread(normalize_campaign_image, data)
+    except CampaignImageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    image_id = await save_campaign_image(db, auth_ctx.user_id, image)
+    logger.info("Stored campaign image %s (%dx%d)", image_id, image.width, image.height)
+    return {"campaign_image": {"id": image_id, "width": image.width, "height": image.height}}
 
 
 @router.delete("/fonts/{font_name}")

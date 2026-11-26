@@ -30,6 +30,7 @@ from ... import clip_archive
 from ...repositories.generation_allowance_guard import generation_allowance_guard, GenerationAllowanceBusy
 from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
 from ...repositories.task_repository import TaskRepository
+from ...repositories.campaign_image_repository import campaign_image_belongs_to
 from ...repositories.task_idempotency_repository import (
     TaskIdempotencyConflict,
     TaskIdempotencyReplay,
@@ -805,6 +806,15 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     font_color = _normalize_font_color(font_options.get("font_color"))
     caption_template = data.get("caption_template", "default")
     include_broll = data.get("include_broll") is True
+    # Optional picture shown above the video on every clip (media/campaign_image.py).
+    campaign_image_id = data.get("campaign_image_id")
+    if campaign_image_id is not None:
+        if (
+            preview
+            or not isinstance(campaign_image_id, str)
+            or not await campaign_image_belongs_to(db, campaign_image_id, user_id)
+        ):
+            raise HTTPException(status_code=422, detail="That campaign image isn't available. Add it again.")
     runtime_config = get_config()
     processing_mode = data.get(
         "processing_mode", runtime_config.default_processing_mode
@@ -1073,6 +1083,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                             **({"source_key": source_key} if source_key else {}),
                             **_stream_resolution_metadata(stream_metadata),
                             **({SOURCE_RANGE_KEY: source_range.to_metadata()} if source_range else {}),
+                            **({"campaign_image_id": campaign_image_id} if campaign_image_id else {}),
                         },
                         source_url=raw_source["url"],
                         source_type=source_type,

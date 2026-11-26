@@ -27,6 +27,8 @@ from ..repositories.task_idempotency_repository import TaskIdempotencyReplay
 from ..repositories.minute_usage_repository import charged_duration
 from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
+from ..repositories.campaign_image_repository import load_campaign_image
+from ..media.campaign_image import apply_campaign_image
 from ..repositories.cache_repository import CacheRepository
 from ..repositories.task_checkpoint_repository import TaskCheckpointRepository, checkpoint_input_key
 from .video_service import VideoService
@@ -877,6 +879,7 @@ class TaskService(ClipEditingMixin):
             clip_previews: list[tuple[int, int, ClipPreview]] = []
             noun = OUTPUT_NOUNS.get(spec.workflow, "clip")
             rendered_meta: list[tuple[Dict[str, Any], list]] = []
+            campaign_image_path = await self._prepare_campaign_image(task_id, clips_output_dir)
 
             for i, segment in enumerate(segments_to_render):
                 # Check cancellation
@@ -899,6 +902,12 @@ class TaskService(ClipEditingMixin):
                 # A partial download is a concatenated timeline. Render against
                 # local timestamps, then store the clip against the source.
                 render_segment = localize_segment(segment, time_map) if time_map else segment
+                if campaign_image_path is not None:
+                    # The campaign image takes the band the hook title would use; the clip keeps its title in the app.
+                    render_segment = {
+                        **render_segment,
+                        "workflow_meta": {**(render_segment.get("workflow_meta") or {}), "burn_hook_title": False},
+                    }
                 # A planned output carries its own cap (a 90s recap is not cut at 60s).
                 max_clip_seconds = (
                     float(segment["max_seconds"])
@@ -953,6 +962,12 @@ class TaskService(ClipEditingMixin):
                 if clip_info is None:
                     failed_positions.append(i + 1)
                     continue
+                if campaign_image_path is not None:
+                    try:
+                        await run_in_thread(apply_campaign_image, Path(clip_info["path"]), campaign_image_path)
+                    except Exception as e:
+                        # The clip without the image beats no clip; the log says which one.
+                        logger.warning("Campaign image not added to %s %d: %s", noun, i + 1, e)
                 # Take the email still now: once saved, the clip may move to S3/R2.
                 if wants_previews is None:
                     wants_previews = await self._completion_email_wanted(task_id)
@@ -1047,6 +1062,8 @@ class TaskService(ClipEditingMixin):
             stage_timings["render_seconds"] = round(
                 perf_counter() - render_start, 3
             )
+            if campaign_image_path is not None:
+                campaign_image_path.unlink(missing_ok=True)
 
             clip_ids = [clip_ids_by_order[order] for order in sorted(clip_ids_by_order)]
             if not clip_ids:
@@ -1322,6 +1339,23 @@ class TaskService(ClipEditingMixin):
                 "Failed to send completion notification for task %s",
                 task_id,
             )
+
+    async def _prepare_campaign_image(self, task_id: str, work_dir: Path) -> Optional[Path]:
+        """Write the task's campaign image to this machine's scratch, or ``None`` when it has none.
+
+        The image is a row, not a file: the API that stored it may be another machine.
+        """
+        metadata = await self.task_repo.load_source_metadata(self.db, task_id)
+        image_id = metadata.get("campaign_image_id") if isinstance(metadata, dict) else None
+        if not isinstance(image_id, str) or not image_id:
+            return None
+        data = await load_campaign_image(self.db, image_id)
+        if data is None:
+            logger.warning("Task %s: its campaign image is gone; rendering without it", task_id)
+            return None
+        path = work_dir / f".campaign-{task_id}.png"
+        await run_in_thread(path.write_bytes, data)
+        return path
 
     async def _completion_email_wanted(self, task_id: str) -> bool:
         """Whether a completion email will go out, so clip stills are worth taking."""

@@ -534,5 +534,18 @@
   "creatorTag": "Creator",
   "agentLapsed": "Tus chats con Agent están guardados.",
   "agentTrialEnded": "Ya usaste tus mensajes gratis de Agent.",
-  "agentBackWithCreator": "Sigue con Creator"
+  "agentBackWithCreator": "Sigue con Creator",
+  "campaignImage": {
+    "title": "Imagen de campaña",
+    "description": "Se muestra sobre el vídeo durante todo el clip, p. ej. el banner de una campaña de recompensas. Opcional.",
+    "choose": "Añadir imagen",
+    "replace": "Cambiar imagen",
+    "remove": "Quitar imagen de campaña",
+    "previewAlt": "Vista previa de la imagen de campaña",
+    "hint": "PNG, JPEG o WebP, hasta 8 MB. Funciona mejor con Imagen completa 9:16; sustituye al título gancho de arriba.",
+    "problems": {
+      "type": "Usa una imagen PNG, JPEG o WebP.",
+      "size": "La imagen supera los 8 MB."
+    }
+  }
 }
