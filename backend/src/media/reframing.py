@@ -599,6 +599,8 @@ def detect_speaker_reframe_plan(
         duration = ffprobe_duration(clip_path)
         face_centers = detect_faces_in_clip(clip_path, 0, min(duration, 12.0))
         regions = cluster_two_face_regions(face_centers, width, height)
+        if output_format == "vertical_split":
+            regions = _split_regions_in_panes(clip_path, width, height, duration, regions)
         if not regions:
             return None
 
@@ -681,6 +683,31 @@ def detect_speaker_reframe_plan(
     except Exception as exc:
         logger.warning("Speaker reframe planning failed: %s", exc)
         return None
+
+
+def _split_regions_in_panes(
+    clip_path: Path, width: int, height: int, duration: float, regions: Optional[Dict[str, Dict[str, int]]],
+) -> Optional[Dict[str, Dict[str, int]]]:
+    """``vertical_split`` tiles kept inside the live picture of each half (no black box under a webcam), and,
+    when only one person's face is found, tiles from the call's two panes (``call_split``)."""
+    from .call_split import analyze_call_split, fit_tiles_to_panes, read_probe_frames, split_regions_from_call
+
+    try:
+        frames = read_probe_frames(clip_path, duration)
+    except Exception as exc:  # noqa: BLE001 - the face tiles stand as they are
+        logger.debug("Split pane probe unavailable (%s)", exc)
+        return regions
+    if frames is None:
+        return regions
+    if regions:
+        return fit_tiles_to_panes(regions, frames, width, height)
+    try:
+        samples = analyze_vertical_clip(clip_path)[2]
+    except Exception as exc:  # noqa: BLE001 - no split without faces
+        logger.debug("Split face samples unavailable (%s)", exc)
+        return None
+    call = analyze_call_split(frames, samples, width, height)
+    return split_regions_from_call(call) if call else None
 
 
 def compute_vertical_crop_dims(
@@ -1922,6 +1949,15 @@ def _describe_vertical_layout(
         if reaction.get("camera_boxes"):
             result["camera_boxes"] = reaction["camera_boxes"]
         return result
+
+    # Two webcams side by side with a seam down the middle (a call, a chat-with-strangers stream): one
+    # stacked layout for the whole clip, each pane trimmed to its picture. Read from the seam, not the faces,
+    # so a masked or turned-away person neither drops the stack nor makes it flip mid-shot (call_split).
+    from .call_split import choose_call_split_layout
+
+    call = choose_call_split_layout(input_path, width, height, duration, face_samples)
+    if call:
+        return described("stack", call["video_filter"], "complex", call["caption_y"])
 
     # A sit-down interview (a two-shot, usually cut with close-ups) is composed
     # shot by shot: both people stacked, one person cropped tight, graphics
