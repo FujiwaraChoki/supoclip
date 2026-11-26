@@ -52,6 +52,23 @@ describe("/api/feature-tours", () => {
     expect(tours.update).toHaveBeenCalledOnce();
   });
 
+  it("saves an ending when another request created the row first", async () => {
+    tours.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ completed_at: null, dismissed_at: null });
+    tours.create.mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }));
+    expect((await post({ id: "workflows", event: "dismissed", step: 2 })).status).toBe(200);
+    expect(tours.update).toHaveBeenCalledWith({
+      where: { user_id_tour_id: { user_id: "user-1", tour_id: "workflows" } },
+      data: { dismissed_at: expect.any(Date), last_step: 2 },
+    });
+  });
+
+  it("treats a duplicate 'shown' as already recorded", async () => {
+    tours.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ completed_at: null, dismissed_at: null });
+    tours.create.mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }));
+    expect((await post({ id: "workflows", event: "shown" })).status).toBe(200);
+    expect(tours.update).not.toHaveBeenCalled();
+  });
+
   it("refuses tours and events it doesn't know", async () => {
     for (const body of [{ id: "montage" }, { id: "workflows", event: "liked" }, null]) {
       expect((await post(body)).status).toBe(400);
