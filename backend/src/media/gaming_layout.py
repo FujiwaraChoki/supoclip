@@ -1957,7 +1957,21 @@ def build_gaming_layout(profile: GamingProfile, duration: float) -> Dict[str, An
         # The hook title sits on the seam under the camera; without a camera it keeps its usual place.
         "hook_center_y": (part["cam_h"] / CANVAS_H) if part["cam_h"] else None,
         "gaming": report,
+        "camera_boxes": camera_boxes([profile]),
     }
+
+
+def camera_boxes(profiles: Sequence[GamingProfile]) -> List[List[float]]:
+    """Every camera rectangle as (x0, y0, x1, y1) fractions of the source frame: what source-caption
+    masking must never paint over (``source_captions.mask_boxes``)."""
+    boxes = []
+    for profile in profiles:
+        cam = profile.facecam
+        if cam is None or profile.width <= 0 or profile.height <= 0:
+            continue
+        boxes.append([round(cam.x / profile.width, 4), round(cam.y / profile.height, 4),
+                      round(cam.x2 / profile.width, 4), round(cam.y2 / profile.height, 4)])
+    return boxes
 
 
 def build_split_layout(profile: GamingProfile, duration: float) -> Dict[str, Any]:
@@ -2062,6 +2076,7 @@ def build_camera_layouts(profiles: Sequence[GamingProfile], duration: float) -> 
         "caption_y": best,
         "hook_center_y": (lead["cam_h"] / CANVAS_H) if lead["cam_h"] else None,
         "gaming": report,
+        "camera_boxes": camera_boxes([profile for profile, _shown, _part, _out in parts]),
     }
 
 

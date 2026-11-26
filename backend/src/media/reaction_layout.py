@@ -296,7 +296,10 @@ def build_reaction_layout(
         graph.append(f"[base{i}][p{i}]overlay=(W-w)/2:(H-h)/2:enable='{enable}'[base{i+1}]")
     graph.append(f'[reactor][base{len(runs)}]vstack=inputs=2[vout]')
     return {'kind': 'reaction', 'video_filter': ';'.join(graph), 'caption_y': REACTOR_HEIGHT / 1920,
-            'inset': inset, 'source_runs': runs, 'upscale': 1080 / rw}
+            'inset': inset, 'source_runs': runs, 'upscale': 1080 / rw,
+            # The reactor's camera, (x0, y0, x1, y1) of the frame: source-caption masking never paints it.
+            'camera_boxes': [[round(ix / width, 4), round(iy / height, 4),
+                              round((ix + iw) / width, 4), round((iy + ih) / height, 4)]]}
 
 
 def choose_reaction_layout(

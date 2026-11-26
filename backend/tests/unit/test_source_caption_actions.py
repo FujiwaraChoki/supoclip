@@ -25,8 +25,9 @@ def clip(tmp_path, monkeypatch):
         state["words"] = words
         return state["found"]
 
-    def mask(path, captions, intervals):
+    def mask(path, captions, intervals, **kwargs):
         state["masked"].append((path, captions, list(intervals)))
+        state["mask_kwargs"] = kwargs
         return state.get("mask_ok", True)
 
     def rendered(*_args):
@@ -135,3 +136,19 @@ def test_whole_captions_that_come_and_go_are_painted_not_doubled(clip):
     clip[2]["found"] = SourceCaptions(band=(0.94, 0.98), left=0.40, right=0.60, kind="speech", coverage=0.19, match=0.67)
     report = {"kind": "crop", "crop_windows": [(0.0, 30.0, 0.342, 0.658)]}
     assert _resolve(clip, "vertical", (1920, 1080), report) == (None, "mask")
+
+
+def test_the_layouts_camera_is_handed_to_the_mask_and_a_refusal_avoids_the_band(clip):
+    # A streamer's webcam in the bottom-left corner of the frame the game panel is cut from: the mask must
+    # know it, or it blurs a stripe across the face in the camera panel.
+    clip[2]["found"] = TRANSLATION
+    report = {"kind": "gaming", "camera_boxes": [[0.0, 0.62, 0.26, 1.0]]}
+    assert _resolve(clip, "vertical", (1920, 1080), report) == (None, "mask")
+    assert clip[2]["mask_kwargs"] == {"exclude_boxes": [(0.0, 0.62, 0.26, 1.0)]}
+    # The lines cross the camera: nothing is painted, ours keep clear of the source's band instead.
+    clip[2]["mask_ok"] = False
+    assert _resolve(clip, "vertical", (1920, 1080), report)[1] == "avoid"
+    # A layout without a camera keeps the call as it was.
+    clip[2]["mask_ok"] = True
+    _resolve(clip, "vertical", (1920, 1080), {"kind": "crop"})
+    assert clip[2]["mask_kwargs"] == {}

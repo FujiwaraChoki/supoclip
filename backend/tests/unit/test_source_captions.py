@@ -675,3 +675,139 @@ def test_a_games_subtitles_stay_one_band_painted_throughout_though_the_streamer_
     found = captions_from_frames(frames, spoken, moments=[float(3 * step) for step in range(len(lines))])
     assert found is not None and found.kind == "text" and not found.mixed
     assert found.coverage == 1.0 and found.paintable == (found,)
+
+
+# --- a camera in the frame is never painted over ------------------------------------------------------------
+
+from src.media.source_captions import faces_in_rows, mask_boxes  # noqa: E402
+
+# A reaction stream: a webcam in the bottom-left corner, the video's own captions in the lower strip to its right.
+BOTTOM_LEFT_CAM = (0.0, 0.62, 0.26, 1.0)
+BOTTOM_RIGHT_CAM = (0.74, 0.62, 1.0, 1.0)
+BESIDE_CAM = SourceCaptions(band=(0.80, 0.86), left=0.40, right=0.85, kind="speech", coverage=0.9, match=0.9)
+
+
+def _spans(boxes):
+    return [(x, x + w) for x, _y, w, _h in boxes]
+
+
+def _overlaps(boxes, camera, width, height):
+    x0, y0, x1, y1 = camera[0] * width, camera[1] * height, camera[2] * width, camera[3] * height
+    return any(min(x + w, x1) > max(x, x0) and min(y + h, y1) > max(y, y0) for x, y, w, h in boxes)
+
+
+@pytest.mark.parametrize("camera", [BOTTOM_LEFT_CAM, BOTTOM_RIGHT_CAM])
+def test_the_painted_row_is_cut_around_a_corner_camera(camera):
+    captions = SourceCaptions(band=(0.80, 0.86), left=0.35, right=0.65, kind="speech", coverage=0.9, match=0.9)
+    boxes = mask_boxes(captions, 1920, 1080, [camera])
+    assert boxes, "the lines beside the camera are still painted"
+    assert not _overlaps(boxes, camera, 1920, 1080)
+    # The lines themselves are inside what is painted.
+    assert any(x <= 0.35 * 1920 and 0.65 * 1920 <= x + w for x, _y, w, _h in boxes)
+
+
+def test_lines_beside_a_bottom_left_camera_are_painted_only_to_its_right():
+    boxes = mask_boxes(BESIDE_CAM, 1920, 1080, [BOTTOM_LEFT_CAM])
+    assert boxes is not None and len(boxes) == 1
+    (left, right), = _spans(boxes)
+    assert left >= 0.26 * 1920 and right <= 1919
+
+
+def test_lines_drawn_across_the_camera_are_not_painted_at_all():
+    # Captions that run over the webcam: painting them would blur the face, so the band is left (and avoided).
+    across = SourceCaptions(band=(0.80, 0.86), left=0.05, right=0.60, kind="speech", coverage=0.9, match=0.9)
+    assert mask_boxes(across, 1920, 1080, [BOTTOM_LEFT_CAM]) is None
+    assert mask_filter(across, 1920, 1080, [(0.0, 30.0)], 30.0, exclude_boxes=[BOTTOM_LEFT_CAM]) is None
+
+
+def test_a_camera_above_the_band_does_not_change_the_full_width_row():
+    top_cam = (0.0, 0.0, 0.26, 0.35)
+    assert mask_boxes(BESIDE_CAM, 1920, 1080, [top_cam]) == [mask_box(BESIDE_CAM, 1920, 1080)]
+    assert mask_boxes(BESIDE_CAM, 1920, 1080) == [mask_box(BESIDE_CAM, 1920, 1080)]
+
+
+def test_the_filter_never_paints_the_camera_rectangle():
+    graph = mask_filter(BESIDE_CAM, 1920, 1080, [(0.0, 30.0)], 30.0, exclude_boxes=[BOTTOM_LEFT_CAM], tag="b0")
+    assert graph is not None
+    for x, w in re.findall(r"delogo=x=(\d+):y=\d+:w=(\d+)", graph):
+        assert int(x) >= 0.26 * 1920 and int(x) + int(w) <= 1920
+    # A camera in the middle of the row: two pieces, each with its own pads.
+    middle = (0.45, 0.7, 0.55, 1.0)
+    wide = SourceCaptions(band=(0.80, 0.86), left=0.1, right=0.9, kind="speech", coverage=0.9, match=0.9)
+    two = mask_filter(wide, 1920, 1080, [(0.0, 30.0)], 30.0, exclude_boxes=[middle], tag="b0")
+    assert two.count("delogo=") == 2 and "[wholeb00]" in two and "[wholeb01]" in two and "[pieceb01]" in two
+    for x, w in re.findall(r"delogo=x=(\d+):y=\d+:w=(\d+)", two):
+        assert int(x) + int(w) <= 0.45 * 1920 or int(x) >= 0.55 * 1920
+
+
+def test_masking_a_reaction_frame_leaves_the_webcam_untouched(tmp_path):
+    # A grey 16:9 picture: a bright, detailed "webcam" in the bottom-left corner and caption-like stripes to its
+    # right in the same rows. The stripes go; every pixel of the webcam stays as it was.
+    video = tmp_path / "reaction.mp4"
+    cam = "drawbox=x=0:y=700:w=500:h=380:color=0xd09060:t=fill"
+    cam += "".join(f",drawbox=x={40 + 40 * i}:y=760:w=12:h=260:color=0x302010:t=fill" for i in range(11))
+    stripes = "".join(f",drawbox=x={900 + 20 * i}:y=880:w=8:h=40:color=white:t=fill" for i in range(30))
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x606060:s=1920x1080:r=10:d=3",
+         "-vf", cam + stripes, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
+        check=True, capture_output=True)
+    captions = SourceCaptions(band=(880 / 1080, 920 / 1080), left=900 / 1920, right=1500 / 1920, kind="speech",
+                              coverage=0.9, match=1.0, shown=(0.5,), absent=())
+    camera = (0.0, 700 / 1080, 500 / 1920, 1.0)
+
+    def frame():
+        capture = cv2.VideoCapture(str(video))
+        capture.set(cv2.CAP_PROP_POS_MSEC, 1000)
+        ok, picture = capture.read()
+        capture.release()
+        assert ok
+        return picture
+
+    before = frame()
+    assert mask_caption_band(video, captions, [(0.0, 3.0)], exclude_boxes=[camera]) is True
+    after = frame()
+    gray_before = cv2.cvtColor(before, cv2.COLOR_BGR2GRAY)
+    gray_after = cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
+    assert text_energy(gray_after[880:920, 880:1520]) < text_energy(gray_before[880:920, 880:1520]) * 0.1
+    webcam_diff = np.abs(after[700:1080, 0:500].astype(int) - before[700:1080, 0:500].astype(int))
+    assert webcam_diff.mean() < 2.0 and np.percentile(webcam_diff, 99) <= 12
+
+
+def test_masking_refuses_when_the_lines_cross_the_camera(tmp_path, monkeypatch):
+    commands = []
+    monkeypatch.setattr("src.media.ffmpeg.run_ffmpeg_command", lambda command: commands.append(command))
+    monkeypatch.setattr("src.media.ffmpeg.ffprobe_video_size", lambda _p: (1920, 1080))
+    monkeypatch.setattr("src.media.ffmpeg.ffprobe_duration", lambda _p: 30.0)
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"source")
+    across = SourceCaptions(band=(0.80, 0.86), left=0.05, right=0.60, kind="speech", coverage=0.9, match=0.9)
+    assert mask_caption_band(video, across, [(0.0, 30.0)], exclude_boxes=[BOTTOM_LEFT_CAM]) is False
+    assert commands == []
+
+
+def test_a_webcam_face_in_the_caption_rows_is_found_without_the_layout_saying_so(tmp_path):
+    video = tmp_path / "stream.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=5:d=4",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)], check=True, capture_output=True)
+    # A face held in the bottom-left corner in every frame, and one that passes through the band once.
+    calls = []
+
+    def detect(frame):
+        calls.append(1)
+        h, w = frame.shape[:2]
+        faces = [(0.05 * w, 0.72 * h, 0.12 * w, 0.2 * h, 0.9)]
+        if len(calls) == 3:
+            faces.append((0.6 * w, 0.75 * h, 0.1 * w, 0.15 * h, 0.9))
+        return faces
+
+    found = faces_in_rows(video, [BESIDE_CAM], 640, 360, 4.0, detect=detect)
+    assert len(found) == 1
+    x0, y0, x1, y1 = found[0]
+    assert x0 <= 0.05 and x1 >= 0.17 and y0 <= 0.72 and y1 >= 0.92
+    # The camera found that way is painted around like a reported one.
+    boxes = mask_boxes(BESIDE_CAM, 640, 360, found)
+    assert boxes and not _overlaps(boxes, found[0], 640, 360)
+    # A face above the band does not count.
+    assert faces_in_rows(video, [BESIDE_CAM], 640, 360, 4.0,
+                         detect=lambda f: [(10, 10, 60, 60, 0.9)]) == []

@@ -1694,6 +1694,9 @@ def build_vertical_filter_plan(
             report["letterbox"] = described["letterbox"]
         if described.get("crop_windows"):
             report["crop_windows"] = described["crop_windows"]
+        if described.get("camera_boxes"):
+            # Camera insets (x0, y0, x1, y1 of the source frame): painting the source's captions out skips them.
+            report["camera_boxes"] = described["camera_boxes"]
     return described["video_filter"], described["mode"], described["caption_y"]
 
 
@@ -1736,6 +1739,12 @@ def describe_vertical_layout(
         return _describe_vertical_layout(input_path, width, height, speaker_turns, speaker_words, **kenburns)
     described["video_filter"] = plan_on_picture(described["video_filter"], described["mode"], width, picture_h, top)
     described["letterbox"] = [top, bottom]
+    if described.get("camera_boxes"):
+        # Measured on the picture between the bars: back to rows of the whole frame.
+        described["camera_boxes"] = [
+            [x0, round((top + y0 * picture_h) / height, 4), x1, round((top + y1 * picture_h) / height, 4)]
+            for x0, y0, x1, y1 in described["camera_boxes"]
+        ]
     logger.info("Letterbox bars removed before layout: %d px top, %d px bottom", top, bottom)
     return described
 
@@ -1813,6 +1822,8 @@ def _describe_vertical_layout(
         if gaming.get("hook_center_y") is not None:
             result["hook_center_y"] = gaming["hook_center_y"]
         result["gaming"] = gaming["gaming"]
+        if gaming.get("camera_boxes"):
+            result["camera_boxes"] = gaming["camera_boxes"]
         return result
     # --- end gaming mode ---
 
@@ -1907,7 +1918,10 @@ def _describe_vertical_layout(
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
-        return described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
+        result = described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
+        if reaction.get("camera_boxes"):
+            result["camera_boxes"] = reaction["camera_boxes"]
+        return result
 
     # A sit-down interview (a two-shot, usually cut with close-ups) is composed
     # shot by shot: both people stacked, one person cropped tight, graphics
