@@ -40,6 +40,12 @@ SCOPES = (
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
 )
+# Full YouTube access covers both scopes above.
+FULL_SCOPE = "https://www.googleapis.com/auth/youtube"
+MISSING_SCOPES_MESSAGE = (
+    "Please tick all YouTube permissions on Google's screen "
+    "(upload + view account) and try again."
+)
 
 PRIVACY_MAP = {
     "public": "public",
@@ -99,7 +105,14 @@ class YouTubeProvider(SocialProvider):
             raise SocialProviderError(
                 f"YouTube token exchange failed: {self._extract_error(response)}"
             )
-        return self._parse_tokens(response.json())
+        tokens = self._parse_tokens(response.json())
+        # Google lets people untick permissions; the exchange still succeeds and
+        # the channel fetch then fails with a bare "insufficient scopes" 403.
+        if tokens.scopes is not None:
+            granted = set(tokens.scopes.split())
+            if FULL_SCOPE not in granted and not granted.issuperset(SCOPES):
+                raise SocialProviderError(MISSING_SCOPES_MESSAGE)
+        return tokens
 
     def refresh_tokens(self, refresh_token: str) -> OAuthTokens:
         response = self.http.post(

@@ -8,6 +8,7 @@ from src.social.base import SocialProviderError, build_caption
 from src.social.instagram import InstagramProvider
 from src.social.registry import get_provider, list_provider_status
 from src.social.tiktok import TikTokProvider
+from src.social.youtube import SCOPES as YOUTUBE_SCOPES
 from src.social.youtube import YouTubeProvider
 
 
@@ -131,6 +132,29 @@ def test_youtube_authorize_url_requests_offline_upload_access():
     assert query["state"] == ["abc"]
     assert query["access_type"] == ["offline"]
     assert "youtube.upload" in query["scope"][0]
+
+
+@pytest.mark.parametrize(
+    "scope, ok",
+    [
+        (" ".join(YOUTUBE_SCOPES), True),
+        ("https://www.googleapis.com/auth/youtube", True),
+        (None, True),
+        ("https://www.googleapis.com/auth/youtube.upload", False),
+        ("https://www.googleapis.com/auth/youtube.readonly", False),
+    ],
+)
+def test_youtube_exchange_rejects_unticked_permissions(scope, ok):
+    payload = {"access_token": "at", "refresh_token": "rt", "expires_in": 3600}
+    if scope is not None:
+        payload["scope"] = scope
+    session = FakeSession({("POST", "oauth2.googleapis.com/token"): FakeResponse(200, payload)})
+    provider = YouTubeProvider(_config(), session=session)
+    if ok:
+        assert provider.exchange_code(code="c", redirect_uri="https://app/cb").access_token == "at"
+    else:
+        with pytest.raises(SocialProviderError, match="tick all YouTube permissions"):
+            provider.exchange_code(code="c", redirect_uri="https://app/cb")
 
 
 def test_youtube_publish_uses_resumable_upload(clip_file):
