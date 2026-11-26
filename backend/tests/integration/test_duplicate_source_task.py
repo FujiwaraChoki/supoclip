@@ -9,6 +9,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 
+from src.api.routes import tasks
+from src.repositories.task_repository import TaskRepository
+from src.source_identity import source_key_for_url
 from tests.fixtures.factories import create_source, create_task, create_user
 
 
@@ -201,3 +204,83 @@ async def test_same_upload_bytes_reuse_the_in_progress_task(client, app, db_sess
     assert await _minutes(db_session, owner) == minutes
     assert await _tasks(db_session, owner) == 1
     assert len(queue.enqueued_jobs) == before
+
+
+@pytest.mark.parametrize("change", [
+    {"output_format": "vertical_split"},
+    {"output_format": "vertical_fit"},
+    {"output_format": "original"},
+])
+async def test_same_source_with_different_layout_creates_a_task(
+    client, db_session, monkeypatch, change,
+):
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 600}))
+    # Dedupe must already work before the post-insert metadata and enqueue steps run.
+    monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
+    owner = str(uuid4())
+    await create_user(db_session, user_id=owner)
+    headers = headers_for(owner)
+    base = {"source": {"url": "https://youtu.be/abcdefghijk"}}
+    original = await client.post("/tasks/", headers=headers, json=base)
+    assert original.status_code == 200, original.text
+
+    changed = await client.post("/tasks/", headers=headers, json={**base, **change})
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["task_id"] != original.json()["task_id"]
+    assert changed.json().get("duplicate") is not True
+
+    identical = await client.post("/tasks/", headers=headers, json={**base, **change})
+    assert identical.status_code == 200, identical.text
+    assert identical.json()["task_id"] == changed.json()["task_id"]
+    assert identical.json()["duplicate"] is True
+    assert await _tasks(db_session, owner) == 2
+
+
+@pytest.mark.parametrize("status", ["queued", "processing"])
+async def test_create_immediately_after_cancellation_does_not_reuse_task(
+    client, db_session, monkeypatch, status,
+):
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 600}))
+    owner = str(uuid4())
+    await create_user(db_session, user_id=owner)
+    headers = headers_for(owner)
+    body = {"source": {"url": "https://youtu.be/abcdefghijk"}, "output_format": "vertical_split"}
+    first = await client.post("/tasks/", headers=headers, json=body)
+    assert first.status_code == 200, first.text
+    task_id = first.json()["task_id"]
+    await db_session.execute(text("UPDATE tasks SET status = :status WHERE id = :id"), {"status": status, "id": task_id})
+    await db_session.commit()
+
+    cancelled = await client.post(f"/tasks/{task_id}/cancel", headers=headers)
+    assert cancelled.status_code == 200, cancelled.text
+    saved_status = await db_session.scalar(text("SELECT status FROM tasks WHERE id = :id"), {"id": task_id})
+    assert saved_status == "cancelled"
+
+    second = await client.post("/tasks/", headers=headers, json=body)
+    assert second.status_code == 200, second.text
+    assert second.json()["task_id"] != task_id
+    assert second.json().get("duplicate") is not True
+
+
+@pytest.mark.parametrize("styled", [False, True])
+async def test_output_format_matches_legacy_source_url_and_default_settings(db_session, styled):
+    owner = str(uuid4())
+    await create_user(db_session, user_id=owner)
+    url = "https://youtu.be/abcdefghijk"
+    source = await create_source(db_session, url=url)
+    style = {"intensity": "bold"} if styled else None
+    task_id = await TaskRepository.create_task(
+        db_session, owner, source["id"], status="processing", source_duration_seconds=600, edit_style=style,
+    )
+    key = await source_key_for_url(db_session, owner, url)
+    edit_identity = (style, "default") if style else None
+
+    for fmt in [None, "vertical"]:
+        task = await TaskRepository.find_active_source_task(
+            db_session, owner, key, output_format=fmt, edit_identity=edit_identity,
+        )
+        assert task is not None and task.id == task_id
+    assert await TaskRepository.find_active_source_task(
+        db_session, owner, key, output_format="vertical_split",
+        edit_identity=edit_identity,
+    ) is None

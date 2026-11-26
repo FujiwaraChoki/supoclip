@@ -74,6 +74,20 @@ def test_clip_selection_prompts_never_ask_for_broll():
     assert "b-roll" not in build_transcript_system_prompt("auto").lower()
 
 
+def test_short_source_prompt_prefers_a_usable_spoken_moment_and_a_grounded_title():
+    transcript = "[00:02 - 00:20] The shortcut saved us a full hour."
+    prompt = build_transcript_analysis_prompt(
+        transcript, clip_length="medium", short_speech_bounds=(2, 20),
+    )
+
+    assert "source is already a short clip" in prompt
+    assert "Choose 1-2 segments total" in prompt
+    assert "full spoken range (00:02 to 00:20)" in prompt
+    assert "grounded hook_title" in prompt
+    assert "shorter than 18 seconds or longer than 60 seconds" in prompt
+    assert "must contain a full setup and payoff" not in prompt
+
+
 def test_ollama_llm_builds_native_ollama_model():
     runtime_config = SimpleNamespace(
         llm="ollama:gpt-oss:20b",

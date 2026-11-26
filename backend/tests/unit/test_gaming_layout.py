@@ -1165,3 +1165,14 @@ def test_a_large_low_head_over_one_watermark_is_not_a_stream():
     low = (16.0, 262.0, 70.0, 90.0)
     profile = classify(frames, times, [[low] for _ in frames])
     assert not profile.is_gaming and not profile.virtual_camera
+
+
+def test_the_streamers_camera_is_reported_for_source_caption_masking():
+    # The caption mask paints the source before the camera panel is cut from it: it must know where the camera is.
+    profile = gl.GamingProfile(width=1920, height=1080, is_gaming=True, reason="facecam_hud",
+                               facecam=gl.Rect(0, 700, 480, 380), face=(150.0, 760.0, 120.0, 150.0))
+    layout = gl.build_gaming_layout(profile, 16.0)
+    assert layout["camera_boxes"] == [[0.0, pytest.approx(700 / 1080, abs=1e-4), 0.25, 1.0]]
+    split = gl.build_split_layout(gl.GamingProfile(width=1920, height=1080, is_gaming=True, reason="split_screen",
+                                                   split_ranges=[(0.0, 16.0)]), 16.0)
+    assert "camera_boxes" not in split

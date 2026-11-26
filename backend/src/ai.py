@@ -102,6 +102,23 @@ def _parse_transcript_lines(transcript: str) -> List[Dict[str, Any]]:
     return lines
 
 
+def short_source_speech_bounds(
+    transcript: str, source_duration: float | None, clip_length: str,
+) -> tuple[int, int] | None:
+    """Return the spoken range when the source is already within the clip length cap."""
+    maximum = clip_duration(clip_length).maximum
+    if source_duration is None or not 0 < source_duration <= maximum:
+        return None
+    lines = [line for line in _parse_transcript_lines(transcript) if line["text"]]
+    if sum(len(line["text"].split()) for line in lines) < 3:
+        return None
+    start = min(line["start_seconds"] for line in lines)
+    end = max(line["end_seconds"] for line in lines)
+    if start < end <= math.ceil(source_duration):
+        return start, end
+    return None
+
+
 def _snap_bounds_to_transcript_lines(
     transcript_lines: List[Dict[str, Any]],
     start_seconds: int,
@@ -432,7 +449,9 @@ SCORING AND OUTPUT RULES:
 - virality_reasoning and reasoning should cite what is actually present in the chosen span
 - summary and key_topics must also stay grounded in the transcript and should not add outside interpretation
 
-Find the number of compelling segments requested in the task (usually 2-5) that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
+Find the number of compelling segments requested in the task (usually 2-5) that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics.
+
+When the task identifies an already-short source, follow its selection target and feasible duration range. Evaluate the speech that is actually available, even if the source begins or ends in the middle of a longer exchange. A modest virality score is valid for an otherwise usable short selection."""
 
 def build_transcript_system_prompt(clip_length: str = "auto") -> str:
     bounds = clip_duration(clip_length)
@@ -984,15 +1003,17 @@ def build_transcript_analysis_prompt(
     clip_length: str = "auto",
     *,
     instructions: str | None = None,
+    short_speech_bounds: tuple[int, int] | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis.
 
     ``window`` marks the prompt as one (start, end) slice of a longer source.
     ``performance_context`` is the creator's measured audience history, if any.
-    ``instructions`` (the creator's steering text) goes just before the
-    transcript; without it the prompt is unchanged.
+    ``short_speech_bounds`` describes the spoken extent of an already-short source.
+    ``instructions`` (the creator's steering text) goes just before the transcript.
     """
     bounds = clip_duration(clip_length)
+    minimum = bounds.minimum
     segment_target = ANALYSIS_WINDOW_SEGMENT_TARGET if window else "2-5"
     window_note = ""
     if window:
@@ -1011,6 +1032,33 @@ def build_transcript_analysis_prompt(
             "must still be a coherent contiguous transcript range."
         )
     instructions_section = f"{instructions_block(instructions)}\n\n" if instructions else ""
+    boundary_guidance = (
+        "start_time must be the first word of a self-contained sentence: never a mid-thought fragment, "
+        "a filler, a bare agreement, or a reference to something this clip does not contain. "
+        "end_time must finish that thought's last sentence and must not include the next thought's opening words."
+    )
+    selection_guidance = f"""- Most selected clips should be {bounds.ideal_minimum}-{bounds.ideal_maximum} seconds.
+- Every clip must contain a full setup and payoff within {bounds.minimum}-{bounds.maximum} seconds.
+- If a strong moment is shorter than {bounds.ideal_minimum} seconds, first try expanding to nearby contiguous transcript lines that add useful context.
+- Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
+- Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video."""
+    if short_speech_bounds is not None and window is None:
+        start, end = short_speech_bounds
+        minimum = min(minimum, end - start)
+        segment_target = "1-2"
+        boundary_guidance = (
+            "Prefer natural openings and endings. If the source begins or ends during an exchange, "
+            "use the available boundaries when the exchange is still understandable."
+        )
+        selection_guidance = (
+            "- The source is already a short clip. Pick its best spoken moment, or use the full "
+            f"spoken range ({_format_minutes_label(start)} to {_format_minutes_label(end)}) "
+            "when it works best together.\n"
+            "- Use the context available in the clip. A quick reaction, exchange, or observation "
+            "can work without a long-form setup and payoff.\n"
+            "- Include a grounded hook_title and score what the clip actually offers. "
+            "Return at least one usable selection when the speech is clear, even at a modest score."
+        )
 
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 {window_note}
@@ -1023,15 +1071,11 @@ Follow this workflow:
 2. Select only contiguous ranges that already exist in the transcript.
 3. Prefer moments with a strong hook, clear payoff, emotional charge, or concrete value.
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.
-5. start_time must be the first word of a self-contained sentence: never a mid-thought fragment, a filler, a bare agreement, or a reference to something this clip does not contain. end_time must finish that thought's last sentence and must not include the next thought's opening words.
+5. {boundary_guidance}
 
 Selection target:
 - Choose {segment_target} segments total.
-- Most selected clips should be {bounds.ideal_minimum}-{bounds.ideal_maximum} seconds.
-- Every clip must contain a full setup and payoff within {bounds.minimum}-{bounds.maximum} seconds.
-- If a strong moment is shorter than {bounds.ideal_minimum} seconds, first try expanding to nearby contiguous transcript lines that add useful context.
-- Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
-- Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
+{selection_guidance}
 
 Critical accuracy requirements:
 - Do not fabricate or embellish content.
@@ -1051,7 +1095,7 @@ JSON-only output requirements:
 - Optional segment keys "hook_start_time"/"hook_end_time": null unless a later 2-5 second line stands alone and the real opening is already a complete setup. The clip is not replayed from that line by default.
 - "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
-- Do not return segments shorter than {bounds.minimum} seconds or longer than {bounds.maximum} seconds.
+- Do not return segments shorter than {minimum} seconds or longer than {bounds.maximum} seconds.
 
 {instructions_section}Transcript:
 {transcript}"""
@@ -1810,9 +1854,15 @@ def _validate_segments(
     transcript_lines: List[Dict[str, Any]],
     transcript_spans: List[Dict[str, Any]],
     clip_length: str = "auto",
+    *,
+    short_speech_bounds: tuple[int, int] | None = None,
 ) -> List[TranscriptSegment]:
     """Ground model segments onto real transcript lines and drop unusable ones."""
     bounds = clip_duration(clip_length)
+    minimum = bounds.minimum
+    if short_speech_bounds is not None:
+        first_speech, last_speech = short_speech_bounds
+        minimum = min(minimum, last_speech - first_speech)
     validated_segments: List[TranscriptSegment] = []
     for segment in segments:
         # Validate text content
@@ -1833,12 +1883,18 @@ def _validate_segments(
         try:
             start_seconds = _parse_transcript_timestamp_seconds(segment.start_time)
             end_seconds = _parse_transcript_timestamp_seconds(segment.end_time)
+            if short_speech_bounds is not None:
+                # Whole-source picks can include silence outside the transcript labels.
+                start_seconds = max(start_seconds, first_speech)
+                end_seconds = min(end_seconds, last_speech)
+            if end_seconds <= start_seconds:
+                continue
             start_seconds, end_seconds = _snap_segment_bounds(
                 segment, transcript_lines, start_seconds, end_seconds
             )
             duration = end_seconds - start_seconds
 
-            if duration < bounds.minimum or duration > bounds.maximum:
+            if duration < minimum or duration > bounds.maximum:
                 repaired_bounds = _repair_segment_bounds(
                     segment,
                     transcript_spans,
@@ -1859,9 +1915,9 @@ def _validate_segments(
                 )
                 continue
 
-            if duration < bounds.minimum:
+            if duration < minimum:
                 logger.warning(
-                    f"Skipping segment too short: {duration}s (min {bounds.minimum}s required)"
+                    f"Skipping segment too short: {duration}s (min {minimum}s required)"
                 )
                 continue
 
@@ -1951,10 +2007,11 @@ async def get_most_relevant_parts_by_transcript(
     include_reserve: bool = False,
     *,
     instructions: str | None = None,
+    source_duration: float | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring.
 
-    Short transcripts are analysed in one call. Long ones are split into
+    Short transcripts are normally analysed in one call. Long ones are split into
     overlapping windows analysed concurrently, then deduplicated and reranked
     in one comparative call so scores are comparable across windows.
     ``instructions`` (the creator's steering text) reaches every user prompt
@@ -1970,18 +2027,18 @@ async def get_most_relevant_parts_by_transcript(
         transcript_lines = _parse_transcript_lines(transcript)
         transcript_spans = _parse_transcript_spans(transcript)
         windows = split_transcript_into_windows(transcript)
+        short_speech_bounds = short_source_speech_bounds(transcript, source_duration, clip_length)
 
         if len(windows) == 1:
-            result = await _run_transcript_analysis(
-                agent,
-                build_transcript_analysis_prompt(
-                    transcript=transcript,
-                    clip_signals=clip_signals,
-                    performance_context=performance_context,
-                    clip_length=clip_length,
-                    **steering,
-                )
+            prompt = build_transcript_analysis_prompt(
+                transcript=transcript,
+                clip_signals=clip_signals,
+                performance_context=performance_context,
+                clip_length=clip_length,
+                short_speech_bounds=short_speech_bounds,
+                **steering,
             )
+            result = await _run_transcript_analysis(agent, prompt)
             analyses = [result.output]
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
@@ -1996,9 +2053,29 @@ async def get_most_relevant_parts_by_transcript(
             )
             candidates.extend(
                 _validate_segments(
-                    analysis.most_relevant_segments, transcript_lines, transcript_spans, clip_length
+                    analysis.most_relevant_segments, transcript_lines, transcript_spans, clip_length,
+                    short_speech_bounds=short_speech_bounds,
                 )
             )
+
+        if not candidates and short_speech_bounds is not None and len(windows) == 1:
+            logger.info("Retrying short-source analysis after no usable selections")
+            try:
+                result = await _run_transcript_analysis(
+                    agent,
+                    prompt + "\n\nThe first pass yielded no usable selection. Evaluate the full spoken range "
+                    "above as one candidate. Use its transcript boundaries, give it a grounded hook_title, "
+                    "and score it on the actual speech, even if it earns a modest score.",
+                )
+            except Exception as exc:
+                logger.warning("Short-source analysis retry failed (%s)", type(exc).__name__)
+            else:
+                candidates = _validate_segments(
+                    result.output.most_relevant_segments, transcript_lines, transcript_spans, clip_length,
+                    short_speech_bounds=short_speech_bounds,
+                )
+                if candidates:
+                    analyses = [result.output]
 
         # Best-first by virality (primary) then relevance (secondary), without
         # near-duplicates; then compare across windows in one rerank call.

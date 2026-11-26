@@ -185,6 +185,7 @@ def _post_summary(post: dict, tz: ZoneInfo) -> dict:
     summary = {
         "post_id": post.get("id"),
         "platform": post.get("provider"),
+        "privacy": post.get("privacy_level"),
         "account": account.get("display_name") or account.get("username"),
         "status": post.get("status"),
         "when": local_text(when, tz),
@@ -208,6 +209,7 @@ def _post_card_item(post: dict) -> dict:
     return {
         "id": post.get("id"),
         "provider": post.get("provider"),
+        "privacy_level": post.get("privacy_level"),
         "status": post.get("status"),
         "scheduled_for": post.get("scheduled_for"),
         "published_at": post.get("published_at"),

@@ -907,7 +907,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             source_key = f"{source_key}|range:{requested_range.key()}"
         if source_key:
             existing = await TaskRepository.find_active_source_task(
-                db, user_id, source_key, team_id=team_id, **edit_identity
+                db, user_id, source_key, team_id=team_id,
+                output_format=output_format, **edit_identity,
             )
             if existing is not None:
                 return await _bind_existing_task(
@@ -1013,7 +1014,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             async with source_admission_lock(db, f"team:{team_id}" if team_id else user_id, source_key):
                 if source_key:
                     existing = await TaskRepository.find_active_source_task(
-                        db, user_id, source_key, team_id=team_id, **edit_identity
+                        db, user_id, source_key, team_id=team_id,
+                        output_format=output_format, **edit_identity,
                     )
                     if existing is not None:
                         return await _bind_existing_task(
@@ -1039,6 +1041,12 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         **({"idempotency": idempotency} if idempotency else {}),
                         **({"team_id": team_id} if team_id else {}),
                         **({"preview": True} if preview else {}),
+                        # Make the render settings visible with the queued row, before releasing the source lock.
+                        **({"source_metadata": {
+                            "source_key": source_key,
+                            "output_format": output_format,
+                            "clip_length": clip_length,
+                        }} if source_key else {}),
                     )
                 except TaskIdempotencyReplay:
                     # A concurrent request with this key committed its task first

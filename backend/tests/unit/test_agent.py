@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from contextlib import nullcontext
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -198,7 +201,7 @@ async def test_schedule_post_refuses_past_times_and_resolves_the_account():
         ("GET", "/social/connections"): {"connections": [
             {"id": "acc-yt", "provider": "youtube", "status": "active", "display_name": "Chan"},
         ]},
-        ("POST", "/social/posts"): {"post": {"id": "post-1", "provider": "youtube", "status": "scheduled",
+        ("POST", "/social/posts"): {"post": {"id": "post-1", "provider": "youtube", "status": "scheduled", "privacy_level": "private",
                                              "scheduled_for": "2099-01-01T17:00:00+00:00", "account": {}}},
     })
     past = await tools.run_tool(ctx(api), "schedule_post", {"project_id": "p", "clip_id": "c", "when": "2020-01-01T10:00"})
@@ -208,11 +211,45 @@ async def test_schedule_post_refuses_past_times_and_resolves_the_account():
         "caption": "Hook first", "hashtags": ["#a", "b"],
     })
     assert done.ok and done.card["type"] == "post"
+    assert done.content["scheduled"]["privacy"] == "private"
+    assert done.card["post"]["privacy_level"] == "private"
     method, path, body = api.calls[-1]
     assert (method, path) == ("POST", "/social/posts")
     assert body["social_account_id"] == "acc-yt"
     assert body["scheduled_for"] == "2099-01-01T17:00:00+00:00"
     assert body["caption"] == "Hook first"
+    assert "privacy_level" not in body
+
+
+def test_bulk_scheduling_prompt_requires_confirmation_and_preserves_explicit_requests():
+    confirmation_rule = next(line for line in SYSTEM_PROMPT.splitlines() if "multi-day calendar fill" in line)
+    assert "more than two posts or any multi-day calendar fill" in confirmation_rule
+    assert "lineup (clips, platforms and times) and posting frequency with show_options, then wait for confirmation" in confirmation_rule
+    assert "current message explicitly specifies both the platforms and the cadence or posting dates" in confirmation_rule
+    assert "existing posts, connected accounts, and remembered preferences do not count" in confirmation_rule
+    assert "Schedule a single explicitly requested clip at the specified time and platform without asking again" in SYSTEM_PROMPT
+
+
+@pytest.mark.asyncio
+async def test_create_project_applies_saved_font_and_honors_explicit_layout(monkeypatch):
+    row = SimpleNamespace(
+        default_font_family="Inter", default_font_size=24, default_font_color="#FFFFFF",
+        default_clip_length="short", create_settings={"outputFormat": "vertical"},
+    )
+    db = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(fetchone=lambda: row)))
+    monkeypatch.setattr(tools, "AsyncSessionLocal", lambda: nullcontext(db))
+    api = FakeAPI({("POST", "/tasks/"): {"task_id": "project-1"}})
+
+    outcome = await tools.run_tool(ctx(api), "create_project", {
+        "url": "https://example.com/video", "title": "Demo", "output_format": "vertical_split",
+    })
+
+    assert outcome.ok
+    [(method, path, body)] = api.calls
+    assert (method, path) == ("POST", "/tasks/")
+    assert body["font_options"] == {"font_family": "Inter", "font_size": 24, "font_color": "#FFFFFF"}
+    assert body["output_format"] == "vertical_split"
+    assert body["clip_length"] == "short"
 
 
 @pytest.mark.asyncio

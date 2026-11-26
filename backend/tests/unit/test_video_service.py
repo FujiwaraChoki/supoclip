@@ -50,7 +50,8 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
     ):
         return "[00:00 - 00:01] hello"
 
-    async def fake_analyze_transcript(_transcript, clip_signals=None, performance_context=None, clip_length="auto"):
+    async def fake_analyze_transcript(_transcript, clip_signals=None, performance_context=None, clip_length="auto", *, source_duration=None):
+        assert source_duration == 42.0
         return _EmptyAnalysis()
 
     async def fake_run_in_thread(_func, *_args, **_kwargs):
@@ -346,6 +347,29 @@ async def test_a_cached_analysis_that_lost_its_scores_is_analysed_again(monkeypa
         cached_analysis_json=json.dumps({"summary": "s", "key_topics": [], "most_relevant_segments": zeroed}))
     analyse.assert_awaited_once()
     assert [(s["virality_score"], s["hook_type"]) for s in result["segments_to_render"]] == [(77, "story")]
+
+
+async def test_short_spoken_source_replaces_a_cached_fallback_with_a_scored_clip(monkeypatch, tmp_path):
+    from unittest.mock import AsyncMock
+
+    _cached_highlights_setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(VideoService, "_get_file_duration", staticmethod(lambda _path: 21.5))
+    transcript = "[00:01 - 00:20] The launch went sideways when the battery came loose."
+    fallback = VideoService._build_fallback_segment(21.5, transcript, 30)
+    selected = {**_CACHED_SEGMENT, "start_time": "00:01", "end_time": "00:20"}
+    analyse = AsyncMock(return_value=SimpleNamespace(summary="s", key_topics=[], most_relevant_segments=[selected]))
+    monkeypatch.setattr(VideoService, "analyze_transcript", analyse)
+
+    result = await VideoService.process_video_complete(
+        "upload://source.mp4", "video_url", processing_mode="fast", cached_transcript=transcript,
+        cached_analysis_json=json.dumps({"summary": "s", "key_topics": [], "most_relevant_segments": [fallback]}),
+    )
+
+    analyse.assert_awaited_once()
+    assert analyse.await_args.kwargs["source_duration"] == 21.5
+    [segment] = result["segments_to_render"]
+    assert segment["virality_score"] == 84
+    assert segment["hook_title"] == selected["hook_title"]
 
 
 def test_stored_segment_scores_reads_both_stored_shapes():

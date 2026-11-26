@@ -28,7 +28,7 @@ import unicodedata
 from difflib import SequenceMatcher
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -216,6 +216,17 @@ SUBTITLE_MAX_OFFSET = 0.12      # ... and their lines are centred to within this
 MASK_MIN_CROPPED_SHARE = 0.5
 MASK_PAD_FRAC = 0.02            # of the frame height, added around the painted-out box
 MASK_SOFTEN_SIGMA = 8           # blur of the painted box: no streaks, no glyph shapes
+# A camera inset (a streamer's or a reactor's webcam) is never painted: the painted row is cut around it.
+MASK_CAMERA_PAD_FRAC = 0.01     # of the frame width, kept clear either side of a camera
+MASK_CAMERA_MAX_TEXT_SHARE = 0.25  # share of the lines' width over a camera past which the band is not painted
+MASK_MIN_PIECE_FRAC = 0.04      # of the frame width: a narrower painted piece beside a camera is left out
+
+# (x0, y0, x1, y1), 0-1 fractions of the source frame: a camera the mask must not paint over.
+CameraBox = Tuple[float, float, float, float]
+# Faces in the painted rows are looked for too, whatever the layout reported: a webcam it did not recognise.
+FACE_CHECK_SAMPLES = 8
+FACE_CHECK_MIN_SHARE = 0.25     # of the sampled frames a face must be in, at about the same place
+FACE_CHECK_PAD = 0.5            # of the face's size, kept clear around it (hair, chin, a hand)
 # Painting replaces picture with a soft patch, so it is kept to where captions live and to a few lines.
 PAINT_BOTTOM_ZONE = 0.66        # a band centred below this height is in the bottom caption zone
 PAINT_TOP_ZONE = 0.24           # ... above this one, in the top caption zone
@@ -889,6 +900,119 @@ def mask_box(captions: SourceCaptions, width: int, height: int) -> Optional[Tupl
     return left, top, right - left, bottom - top
 
 
+def mask_boxes(
+    captions: SourceCaptions, width: int, height: int, exclude_boxes: Sequence[CameraBox] = (),
+) -> Optional[List[Tuple[int, int, int, int]]]:
+    """The boxes (x, y, w, h) that paint the source's lines out without touching a camera; None: do not paint.
+
+    ``exclude_boxes`` are camera insets (``CameraBox``): a streamer's webcam in a corner, a reactor's camera.
+    The layout crops them out of this same frame and shows them in their own panel, so the full-width row
+    ``mask_box`` paints would blur straight across the face in every frame. The row is cut around every
+    camera it crosses. When the lines themselves run over a camera (captions drawn on top of the webcam),
+    nothing can be painted without blurring the face: None, and the caller keeps the band clear instead.
+    """
+    whole = mask_box(captions, width, height)
+    if whole is None:
+        return None
+    if not exclude_boxes:
+        return [whole]
+    x, top, box_w, tall = whole
+    bottom = top + tall
+    pad = MASK_CAMERA_PAD_FRAC * width
+    blocked: List[Tuple[float, float]] = []
+    text_width = max(captions.right - captions.left, 1e-6)
+    for x0, y0, x1, y1 in exclude_boxes:
+        if x1 <= x0 or y1 <= y0:
+            continue
+        if min(bottom, y1 * height) <= max(top, y0 * height):
+            continue        # the camera is above or below the painted row
+        over = max(0.0, min(captions.right, x1) - max(captions.left, x0))
+        if over / text_width > MASK_CAMERA_MAX_TEXT_SHARE:
+            return None
+        blocked.append((x0 * width - pad, x1 * width + pad))
+    pieces = [(float(x), float(x + box_w))]
+    for a, b in blocked:
+        pieces = [piece for lo, hi in pieces for piece in ((lo, min(hi, a)), (max(lo, b), hi)) if piece[1] > piece[0]]
+    boxes = []
+    for lo, hi in pieces:
+        left, right = int(np.ceil(lo)), int(np.floor(hi))
+        if right - left >= max(4, MASK_MIN_PIECE_FRAC * width):
+            boxes.append((left, top, right - left, tall))
+    if not boxes:
+        return None
+    # What is painted must hold the lines beside the camera: a piece too narrow to keep would leave them.
+    text_left, text_right = captions.left * width, captions.right * width
+    covered = sum(max(0.0, min(left + w, text_right) - max(left, text_left)) for left, _t, w, _h in boxes)
+    if covered < (1 - MASK_CAMERA_MAX_TEXT_SHARE) * (text_right - text_left) - 2 * pad:
+        return None
+    return boxes
+
+
+def faces_in_rows(
+    video_path: Path, bands: Sequence[SourceCaptions], width: int, height: int, duration: float,
+    detect: Optional[Callable[[np.ndarray], Sequence[Sequence[float]]]] = None,
+) -> List[CameraBox]:
+    """Faces that stay in the rows ``bands`` would paint (``CameraBox`` each, with room around them).
+
+    A layout that knows its camera reports it (``camera_boxes``). This catches the rest: a corner webcam the
+    layout took for part of the picture, a speaker whose chin reaches the caption strip. A face seen in a few
+    frames only (a face in the video under the captions) does not count. ``detect`` returns (x, y, w, h, ...)
+    boxes in a BGR frame's pixels; YuNet by default. [] when nothing can be told.
+    """
+    rows = [box for box in (mask_box(band, width, height) for band in bands) if box is not None]
+    if not rows or width <= 0 or height <= 0:
+        return []
+    if detect is None:
+        from .face_detection import open_yunet_detector
+
+        detector = open_yunet_detector()
+        if detector is None:
+            return []
+        detect = detector.detect
+    capture = cv2.VideoCapture(str(video_path))
+    seen: List[Tuple[int, Tuple[float, float, float, float]]] = []
+    samples = 0
+    try:
+        if not capture.isOpened():
+            return []
+        for index, moment in enumerate(np.linspace(0.0, max(0.0, duration - 0.1), FACE_CHECK_SAMPLES)):
+            frame = _frame_at(capture, float(moment))
+            if frame is None:
+                continue
+            samples += 1
+            scale_x, scale_y = width / frame.shape[1], height / frame.shape[0]
+            for face in detect(frame):
+                x, y, w, h = (float(face[0]) * scale_x, float(face[1]) * scale_y,
+                              float(face[2]) * scale_x, float(face[3]) * scale_y)
+                pad_x, pad_y = FACE_CHECK_PAD * w, FACE_CHECK_PAD * h
+                if any(min(y + h + pad_y, top + tall) > max(y - pad_y, top) for _x, top, _w, tall in rows):
+                    seen.append((index, (x, y, w, h)))
+    finally:
+        capture.release()
+    if not samples:
+        return []
+    groups: List[List[Tuple[int, Tuple[float, float, float, float]]]] = []
+    for item in seen:
+        x, y, w, h = item[1]
+        for group in groups:
+            gx, gy, gw, gh = group[0][1]
+            if abs((x + w / 2) - (gx + gw / 2)) <= max(w, gw) and abs((y + h / 2) - (gy + gh / 2)) <= max(h, gh):
+                group.append(item)
+                break
+        else:
+            groups.append([item])
+    boxes: List[CameraBox] = []
+    for group in groups:
+        if len({index for index, _box in group}) < FACE_CHECK_MIN_SHARE * samples:
+            continue
+        x0 = min(x - FACE_CHECK_PAD * w for _i, (x, _y, w, _h) in group)
+        y0 = min(y - FACE_CHECK_PAD * h for _i, (_x, y, _w, h) in group)
+        x1 = max(x + w * (1 + FACE_CHECK_PAD) for _i, (x, _y, w, _h) in group)
+        y1 = max(y + h * (1 + FACE_CHECK_PAD) for _i, (_x, y, _w, h) in group)
+        boxes.append((max(0.0, x0 / width), max(0.0, y0 / height), min(1.0, x1 / width), min(1.0, y1 / height)))
+    return boxes
+
+
 def _intersect(
     first: Sequence[Tuple[float, float]], second: Sequence[Tuple[float, float]]
 ) -> List[Tuple[float, float]]:
@@ -1007,26 +1131,36 @@ def _enable(intervals: Sequence[Tuple[float, float]], duration: float) -> Option
 
 def mask_filter(
     captions: SourceCaptions, width: int, height: int, intervals: Sequence[Tuple[float, float]], duration: float,
+    exclude_boxes: Sequence[CameraBox] = (), tag: str = "",
 ) -> Optional[str]:
     """ffmpeg filter that paints one caption box out of ``intervals``.
 
     The box is filled from its edges (``delogo``) and then softened, so what is left is a smooth patch of
-    the surrounding picture instead of streaks with glyph shapes in them.
+    the surrounding picture instead of streaks with glyph shapes in them. With ``exclude_boxes`` (cameras,
+    ``mask_boxes``) the row is painted in pieces beside them; ``tag`` keeps the pads of several stages apart.
     """
-    found = mask_box(captions, width, height)
+    found = mask_boxes(captions, width, height, exclude_boxes)
     enable = _enable(intervals, duration)
-    if found is None or enable is None:
+    if not found or enable is None:
         return None
-    left, top, box_w, box_h = found
-    return (
-        f"delogo=x={left}:y={top}:w={box_w}:h={box_h}{enable},"
-        f"split[whole][patch];[patch]crop={box_w}:{box_h}:{left}:{top},gblur=sigma={MASK_SOFTEN_SIGMA}[soft];"
-        f"[whole][soft]overlay={left}:{top}{enable}"
-    )
+    stages = []
+    for index, (left, top, box_w, box_h) in enumerate(found):
+        name = f"{tag}{index}" if (tag or len(found) > 1) else ""
+        stages.append(
+            f"delogo=x={left}:y={top}:w={box_w}:h={box_h}{enable},"
+            f"split[whole{name}][patch{name}];[patch{name}]crop={box_w}:{box_h}:{left}:{top},"
+            f"gblur=sigma={MASK_SOFTEN_SIGMA}[soft{name}];"
+            f"[whole{name}][soft{name}]overlay={left}:{top}{enable}"
+        )
+    graph = stages[0]
+    for index, stage in enumerate(stages[1:], start=1):
+        graph += f"[piece{tag}{index}];[piece{tag}{index}]" + stage
+    return graph
 
 
 def mask_caption_band(
     video_path: Path, captions: SourceCaptions, intervals: Sequence[Tuple[float, float]],
+    exclude_boxes: Sequence[CameraBox] = (),
 ) -> bool:
     """Paint the source's captions out of ``video_path`` in place (audio untouched). False when it could not.
 
@@ -1035,14 +1169,29 @@ def mask_caption_band(
     a line the presence test missed would show cut off. A band that comes and goes (one of two voices is
     subtitled, a creator's captions jump between the top and the bottom) is painted only while it holds
     text, when that can be told (``caption_presence``).
+
+    ``exclude_boxes`` are the layout's cameras (``mask_boxes``): never painted over. When a band cannot be
+    painted without crossing one, nothing is painted and False is returned: the caller keeps its captions
+    clear of the band instead of blurring a face.
     """
     from .common import INTERMEDIATE_CRF
     from .ffmpeg import ffprobe_duration, ffprobe_video_size, run_ffmpeg_command
 
     width, height = ffprobe_video_size(video_path)
     duration = ffprobe_duration(video_path)
+    try:
+        faces = faces_in_rows(video_path, captions.paintable, width, height, duration)
+    except Exception as exc:  # noqa: BLE001 - the layout's cameras still hold
+        logger.debug("Face check of the caption rows unavailable (%s)", exc)
+        faces = []
+    if faces:
+        logger.info("Faces in the source caption rows %s: painting around them", faces)
+    exclude_boxes = [*exclude_boxes, *faces]
+    if exclude_boxes and any(mask_boxes(band, width, height, exclude_boxes) is None for band in captions.paintable):
+        logger.info("Source captions run over the layout's camera; keeping ours clear of them instead")
+        return False
     stages: List[str] = []
-    for band in captions.paintable:
+    for number, band in enumerate(captions.paintable):
         spans = list(intervals)
         if band.coverage < SUPPRESS_MIN_COVERAGE or not band.in_caption_zone or band.mixed:
             try:
@@ -1062,7 +1211,9 @@ def mask_caption_band(
                         present.append((start, end))
             if present is not None:
                 spans = _intersect(spans, present)
-        stage = mask_filter(band, width, height, spans, duration)
+        stage = mask_filter(
+            band, width, height, spans, duration,
+            **({"exclude_boxes": exclude_boxes, "tag": f"b{number}"} if exclude_boxes else {}))
         if stage:
             stages.append(stage)
     if not stages:

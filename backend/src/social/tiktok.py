@@ -90,8 +90,6 @@ class TikTokProvider(SocialProvider):
     name = "tiktok"
     display_name = "TikTok"
     supported_privacy_levels = ("public", "private")
-    # Legacy API fallback; the web publisher requires an explicit selection.
-    default_privacy_level = "private"
 
     def __init__(self, config: Optional[Config] = None, session=None):
         super().__init__(session)
@@ -104,6 +102,10 @@ class TikTokProvider(SocialProvider):
     @property
     def audited(self) -> bool:
         return bool(self.config.tiktok_app_audited)
+
+    @property
+    def default_privacy_level(self) -> str:
+        return "public" if self.audited else "private"
 
     @property
     def uses_pkce(self) -> bool:

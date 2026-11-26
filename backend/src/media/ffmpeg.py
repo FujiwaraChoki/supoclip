@@ -20,7 +20,7 @@ from .common import (
     FINAL_VIDEO_CRF,
     FINAL_VIDEO_PRESET,
     INTERMEDIATE_CRF,
-    LOUDNORM_FILTER,
+    FINAL_AUDIO_FILTER,
     OUTPUT_FPS,
     logger,
 )
@@ -386,7 +386,7 @@ def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]
         return ["-an"]
     args: List[str] = []
     if loudnorm:
-        args += ["-af", LOUDNORM_FILTER]
+        args += ["-af", FINAL_AUDIO_FILTER]
     args += ["-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", "48000"]
     return args
 

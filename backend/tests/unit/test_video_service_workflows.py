@@ -94,7 +94,7 @@ def _legacy_environment(monkeypatch, tmp_path, *, analysis=None, max_clips=10):
     monkeypatch.setattr(VideoService, "_drop_static_segments", staticmethod(lambda _path, segments: segments))
     calls = []
 
-    async def fake_analyze(transcript, clip_signals=None, performance_context=None, clip_length="auto"):
+    async def fake_analyze(transcript, clip_signals=None, performance_context=None, clip_length="auto", *, source_duration=None):
         calls.append({"transcript": transcript, "performance_context": performance_context, "clip_length": clip_length})
         return analysis or _analysis_object()
 
@@ -446,7 +446,7 @@ async def test_highlights_with_instructions_steer_the_analysis(monkeypatch, tmp_
     _legacy_environment(monkeypatch, tmp_path)
     seen = {}
 
-    async def analyze(transcript, clip_signals=None, performance_context=None, clip_length="auto", instructions=None):
+    async def analyze(transcript, clip_signals=None, performance_context=None, clip_length="auto", instructions=None, *, source_duration=None):
         seen["instructions"] = instructions
         return _analysis_object()
 

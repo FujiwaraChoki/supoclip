@@ -678,13 +678,15 @@ def test_instagram_has_no_revocation_endpoint():
     assert session.calls == []
 
 
-def test_tiktok_offers_public_and_private_only_and_defaults_to_private():
-    provider = TikTokProvider(_config(), session=FakeSession({}))
+@pytest.mark.parametrize("audited,privacy", [(True, "public"), (False, "private")])
+def test_tiktok_offers_public_and_private_only_and_defaults_by_audit(audited, privacy):
+    config = _config(tiktok_app_audited=audited)
+    provider = TikTokProvider(config, session=FakeSession({}))
     assert provider.supported_privacy_levels == ("public", "private")
-    assert provider.default_privacy_level == "private"
-    statuses = {row["provider"]: row for row in list_provider_status(_config())}
+    assert provider.default_privacy_level == privacy
+    statuses = {row["provider"]: row for row in list_provider_status(config)}
     assert statuses["tiktok"]["supported_privacy_levels"] == ["public", "private"]
-    assert statuses["tiktok"]["default_privacy_level"] == "private"
+    assert statuses["tiktok"]["default_privacy_level"] == privacy
     assert statuses["youtube"]["default_privacy_level"] == "public"
 
 

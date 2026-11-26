@@ -872,7 +872,10 @@ def _resolve_source_captions(
     if action == "suppress" and keep_ours:
         action = "avoid"
     if action == "mask":
-        if mask_caption_band(source_clip_path, found, cropped or []):
+        # A streamer's or a reactor's camera sits in this same frame: the paint goes around it, never over the face.
+        cameras = [tuple(box) for box in plan_report.get("camera_boxes") or ()] if kind is not None else []
+        if mask_caption_band(source_clip_path, found, cropped or [],
+                             **({"exclude_boxes": cameras} if cameras else {})):
             logger.info("Source captions painted out of the cropped shots; one caption layer remains")
             return None, "mask"
         action = "avoid"

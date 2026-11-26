@@ -177,3 +177,22 @@ def test_real_reaction_render_separates_inset_and_source_and_keeps_audio(tmp_pat
     # No copy of the red inset may survive anywhere in the source panel.
     lower = pixels[640:]
     assert not np.any((lower[:, :, 0] > 180) & (lower[:, :, 2] < 60))
+
+
+def test_the_reactors_camera_is_reported_for_source_caption_masking():
+    plan = reaction_layout.build_reaction_layout(640, 360, 6, REACTOR, INSET, samples([REACTOR, MAIN]))
+    assert plan['camera_boxes'] == [[0.75, 0.0, 1.0, pytest.approx(120 / 360, abs=1e-4)]]
+
+
+def test_camera_boxes_reach_the_plan_report_in_whole_frame_rows(monkeypatch, tmp_path):
+    # Planned on the picture between letterbox bars, reported in rows of the whole frame: the caption mask
+    # paints the uncropped clip.
+    reported = {"kind": "reaction", "video_filter": "null", "mode": "vf", "caption_y": 1 / 3,
+                "camera_boxes": [[0.75, 0.0, 1.0, 0.5]]}
+    monkeypatch.setattr(reframing, "_describe_vertical_layout", lambda *_a, **_k: dict(reported))
+    monkeypatch.setattr("src.media.letterbox.detect_letterbox", lambda *_a: (60, 60))
+    monkeypatch.setattr("src.media.letterbox.cropped_copy", lambda *_a: True)
+    monkeypatch.setattr("src.media.letterbox.plan_on_picture", lambda video_filter, *_a: video_filter)
+    report = {}
+    reframing.build_vertical_filter_plan(tmp_path / "clip.mp4", 640, 480, report=report)
+    assert report["camera_boxes"] == [[0.75, pytest.approx(60 / 480, abs=1e-4), 1.0, pytest.approx(240 / 480, abs=1e-4)]]
