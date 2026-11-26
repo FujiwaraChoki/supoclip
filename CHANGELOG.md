@@ -6,6 +6,12 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-26
 
+- **Fixed:** TikTok posts scheduled or published through the agent now default to public visibility once TikTok publishing is audited (falling back to private automatically if your TikTok account is set to private), and post cards show the chosen visibility. ([34e7f3c](https://github.com/FujiwaraChoki/supoclip/commit/34e7f3cc))
+- **Fixed:** Asking the agent to fill your posting calendar now confirms your platforms, posting cadence, and lineup before scheduling multiple posts unless you already specified them, and restarting a video in a different layout, workflow, or clip length no longer collides with an in-progress job. ([34e7f3c](https://github.com/FujiwaraChoki/supoclip/commit/34e7f3cc))
+- **Improved:** Short clips under a minute with spoken dialogue now get a real hook title and virality score instead of falling back to an untitled zero-score starter clip. ([34e7f3c](https://github.com/FujiwaraChoki/supoclip/commit/34e7f3cc))
+- **Fixed:** Removing burned-in source captions no longer blurs across a streamer or reactor's facecam in gaming and reaction layouts. ([f38fbe5](https://github.com/FujiwaraChoki/supoclip/commit/f38fbe5a))
+- **Fixed:** Two-person side-by-side video calls and streams now stay stacked cleanly top and bottom—even when one speaker is masked or partially obscured—without falling back to a small letterboxed strip, flipping mid-clip, or leaving large black bars inside split panels. ([0cf7c3b](https://github.com/FujiwaraChoki/supoclip/commit/0cf7c3bd))
+- **Fixed:** Loud screams and sudden peaks in rendered clips no longer clip above 0 dBFS after AAC encoding. ([956cc38](https://github.com/FujiwaraChoki/supoclip/commit/956cc38e))
 - **Fixed:** A short network hiccup between our servers no longer stops new clips and scheduled posts from starting. Before, it could hold up clip generation and publishing for several minutes and interrupt clips already rendering. ([#587](https://github.com/FujiwaraChoki/supoclip/pull/587))
 
 ## 2026-11-25
