@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-27
+
+- **Fixed:** New clips start promptly even when a connection between our servers stops answering. Before, the worker could wait several minutes on one silent connection before it picked up the next video, so clips sat in the queue. It now gives up on that connection after 20 seconds, reconnects and carries on, and a video it was about to start is never lost or made twice.
+
 ## 2026-11-26
 
 - **Fixed:** TikTok posts scheduled or published through the agent now default to public visibility once TikTok publishing is audited (falling back to private automatically if your TikTok account is set to private), and post cards show the chosen visibility. ([#588](https://github.com/FujiwaraChoki/supoclip/pull/588))
