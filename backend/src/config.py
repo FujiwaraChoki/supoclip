@@ -225,13 +225,13 @@ class Config:
         # One account can hold at most this many video renders at once. The
         # worker has a handful of CPU slots, and one render can run for hours,
         # so the default is 1: a second video from the same account waits
-        # instead of taking another slot. Raise it (for example to 2) to let
-        # an account render two videos at the same time.
+        # instead of taking another slot. Raise it (for example to 3) to let
+        # an account render that many videos at the same time.
         self.video_job_user_concurrency = max(
             1, self._get_int_env("VIDEO_JOB_USER_CONCURRENCY", 1)
         )
         self.video_job_team_concurrency = max(
-            1, self._get_int_env("VIDEO_JOB_TEAM_CONCURRENCY", 3)
+            1, self._get_int_env("VIDEO_JOB_TEAM_CONCURRENCY", 4)
         )
         self.video_job_defer_seconds = min(
             300, max(5, self._get_int_env("VIDEO_JOB_DEFER_SECONDS", 20))

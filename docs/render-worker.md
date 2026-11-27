@@ -219,10 +219,11 @@ cannot run the new jobs (`fx_clip_job`, `editor_fx_analysis`,
 
 ## Per-account capacity on the hosted render server
 
-The hosted render server runs eight video-worker slots. Its production environment sets
-`VIDEO_JOB_USER_CONCURRENCY=2`: one account can process two videos at once,
-leaving six slots available for other accounts when both are busy. The global
-worker limit remains eight. This is an initial capacity setting, not a measured
+The hosted render server runs twelve video-worker slots. Its production environment sets
+`VIDEO_JOB_USER_CONCURRENCY=3`: one account can process three videos at once,
+leaving nine slots available for other accounts when it is busy. The global
+worker limit stays at twelve. Team workspaces share `VIDEO_JOB_TEAM_CONCURRENCY`
+(default `4`), so a team can still run more videos than one personal account. This is an initial capacity setting, not a measured
 throughput optimum; review queue waits and active accounts before raising it.
 
 Set the same per-account limit on every video worker sharing the queue. Keep
@@ -236,7 +237,7 @@ requires recreating the video-worker container. First verify that PostgreSQL
 has no queued or processing tasks and Redis has no waiting or ongoing video
 jobs; let active work finish. Keep the existing backend release image, scratch
 mounts and worker hooks when applying the configuration. Roll back by restoring
-`VIDEO_JOB_USER_CONCURRENCY=1` and recreating the worker at another idle window.
+`VIDEO_JOB_USER_CONCURRENCY=2` and recreating the worker at another idle window.
 
 ## Adding workers automatically
 
