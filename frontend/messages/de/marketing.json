@@ -58,7 +58,10 @@
     "pill": "Black Friday: {percent} % Rabatt auf Pro und Creator bis {date}",
     "badge": "{percent} % Rabatt",
     "noteMonthly": "{percent} % Rabatt in den ersten {months} Monaten, danach ${price}/Monat",
-    "noteYearly": "{percent} % Rabatt im ersten Jahr, danach ${price}/Jahr"
+    "noteYearly": "{percent} % Rabatt im ersten Jahr, danach ${price}/Jahr",
+    "headline": "{percent} % Rabatt auf Pro und Creator",
+    "note": "Black Friday, bis {date}. Zu den Preisen",
+    "dismiss": "Schließen"
   },
   "related": {
     "continueExploring": "Weiter stöbern",

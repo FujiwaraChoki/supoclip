@@ -58,7 +58,10 @@
     "pill": "Black Friday: diskon {percent}% untuk Pro dan Creator hingga {date}",
     "badge": "Diskon {percent}%",
     "noteMonthly": "Diskon {percent}% untuk {months} bulan pertama, lalu ${price}/bln",
-    "noteYearly": "Diskon {percent}% untuk tahun pertama, lalu ${price}/thn"
+    "noteYearly": "Diskon {percent}% untuk tahun pertama, lalu ${price}/thn",
+    "headline": "Diskon {percent}% untuk Pro dan Creator",
+    "note": "Black Friday, hingga {date}. Lihat harga",
+    "dismiss": "Tutup"
   },
   "related": {
     "continueExploring": "Lanjut jelajahi",

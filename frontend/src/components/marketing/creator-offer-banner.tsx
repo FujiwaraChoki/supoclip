@@ -5,6 +5,7 @@ import Link from "next/link";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useActiveSale } from "@/components/marketing/sale";
 import { captureCreatorCodeFromUrl } from "@/lib/creator-code";
 
 const DISMISSED_KEY = "supoclip:creator-offer-dismissed";
@@ -13,6 +14,9 @@ const DISMISSED_KEY = "supoclip:creator-offer-dismissed";
 export function CreatorOfferBanner() {
   const t = useTranslations("marketing");
   const [code, setCode] = useState<string | null>(null);
+  // During a sale checkout applies the sale instead (it is the bigger discount), so this
+  // note would promise the wrong price. The code is still remembered for attribution.
+  const sale = useActiveSale();
 
   useEffect(() => {
     let dismissed = false;
@@ -24,7 +28,7 @@ export function CreatorOfferBanner() {
     if (!dismissed) void captureCreatorCodeFromUrl().then(setCode);
   }, []);
 
-  if (!code) return null;
+  if (!code || sale) return null;
 
   const dismiss = () => {
     setCode(null);

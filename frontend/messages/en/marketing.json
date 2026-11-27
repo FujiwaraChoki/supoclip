@@ -58,7 +58,10 @@
     "pill": "Black Friday: {percent}% off Pro and Creator until {date}",
     "badge": "{percent}% off",
     "noteMonthly": "{percent}% off your first {months} months, then ${price}/mo",
-    "noteYearly": "{percent}% off your first year, then ${price}/yr"
+    "noteYearly": "{percent}% off your first year, then ${price}/yr",
+    "headline": "{percent}% off Pro and Creator",
+    "note": "Black Friday, until {date}. See pricing",
+    "dismiss": "Dismiss"
   },
   "related": {
     "continueExploring": "Continue exploring",

@@ -7,6 +7,8 @@
  * On a monthly plan that is the first three months; on a yearly plan, the first year
  * (only the first invoice falls inside the three months).
  */
+export type SaleMedia = { poster: string; webm: string; mp4: string };
+
 export type Sale = {
   id: string;
   couponId: string;
@@ -14,8 +16,10 @@ export type Sale = {
   /** Inclusive start and exclusive end, UTC. */
   startsAt: Date;
   endsAt: Date;
-  /** The sale's 2:1 loop for the landing page (its copy is in the video). */
-  media?: { poster: string; webm: string; mp4: string };
+  /** The sale's 2:1 loop for the band under the hero (its copy is in the video). */
+  media?: SaleMedia;
+  /** The same scene without copy, square, for the corner note. */
+  scene?: SaleMedia;
 };
 
 const SALE_MEDIA_BASE = "https://pub-314b53c7628942c2901e78d15a8ce0b7.r2.dev";
@@ -31,6 +35,11 @@ export const BLACK_FRIDAY_2026: Sale = {
     poster: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio.webp`,
     webm: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio.webm`,
     mp4: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio.mp4`,
+  },
+  scene: {
+    poster: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-scene.webp`,
+    webm: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-scene.webm`,
+    mp4: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-scene.mp4`,
   },
 };
 
