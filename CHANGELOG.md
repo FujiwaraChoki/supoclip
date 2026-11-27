@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-27
 
-- **Fixed:** New clips start promptly even when a connection between our servers stops answering. Before, the worker could wait several minutes on one silent connection before it picked up the next video, so clips sat in the queue. It now gives up on that connection after 20 seconds, reconnects and carries on, and a video it was about to start is never lost or made twice.
+- **Fixed:** New clips start promptly even when a connection between our servers stops answering. Before, the worker could wait several minutes on one silent connection before it picked up the next video, so clips sat in the queue. It now gives up on that connection after 20 seconds, reconnects and carries on, and a video it was about to start is never lost or made twice. ([#592](https://github.com/FujiwaraChoki/supoclip/pull/592))
 
 ## 2026-11-26
 
