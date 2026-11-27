@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-27
 
-- **Improved:** Accounts can process three videos at once (up from two), and team workspaces four, so fewer videos wait in the queue. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Improved:** Accounts can process three videos at once (up from two), and team workspaces four, so fewer videos wait in the queue. ([#593](https://github.com/FujiwaraChoki/supoclip/pull/593))
 
 ## 2026-11-26
 
