@@ -23,6 +23,7 @@ import {
 import type Stripe from "stripe";
 import { HOSTED_APP_URL } from "@/lib/site";
 import { pixPaymentMethodOptions } from "@/server/pix-mandate";
+import { checkoutSale } from "@/server/sale-coupon";
 
 // The Stripe account (Shiori LLC) also sells other products, so SupoClip's look is set per session
 // instead of in the account's branding settings. The icon comes from the hosted site so Stripe can
@@ -237,6 +238,8 @@ export async function POST(request: Request) {
       ?.match(/(?:^|;\s*)tilly_visitor_id=([^;]+)/)?.[1];
 
     const paymentMethodOptions = await pixPaymentMethodOptions(stripe, priceId, interval);
+    // A running sale beats a creator code (Checkout takes one discount); the creator keeps the attribution.
+    const sale = await checkoutSale(stripe);
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -248,6 +251,7 @@ export async function POST(request: Request) {
         plan: billingPlan.id,
         interval,
         ...(offer ? { creator_code: offer.code } : {}),
+        ...(sale ? { sale: sale.id } : {}),
         ...(tillyVisitorId
           ? { tilly_visitor_id: decodeURIComponent(tillyVisitorId).slice(0, 100) }
           : {}),
@@ -259,9 +263,11 @@ export async function POST(request: Request) {
         : {}),
       branding_settings: CHECKOUT_BRANDING,
       ...(paymentMethodOptions ? { payment_method_options: paymentMethodOptions } : {}),
-      ...(offer
-        ? { discounts: [{ promotion_code: offer.promotionCodeId }] }
-        : {}),
+      ...(sale
+        ? { discounts: [{ coupon: sale.couponId }] }
+        : offer
+          ? { discounts: [{ promotion_code: offer.promotionCodeId }] }
+          : {}),
       // An unfinished checkout (often a declined card) expires after an hour, and the
       // checkout.session.expired webhook emails its recovery link while the intent is fresh.
       expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES_AFTER_SECONDS,

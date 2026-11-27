@@ -54,6 +54,12 @@
     "start": "Mulai buat clip",
     "dismiss": "Tutup"
   },
+  "sale": {
+    "pill": "Black Friday: diskon {percent}% untuk Pro dan Creator hingga {date}",
+    "badge": "Diskon {percent}%",
+    "noteMonthly": "Diskon {percent}% untuk {months} bulan pertama, lalu ${price}/bln",
+    "noteYearly": "Diskon {percent}% untuk tahun pertama, lalu ${price}/thn"
+  },
   "related": {
     "continueExploring": "Lanjut jelajahi",
     "keepReading": "Lanjut baca",

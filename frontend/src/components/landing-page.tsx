@@ -30,6 +30,8 @@ import { ProductFilm } from "@/components/landing/product-film";
 import { PublishSection } from "@/components/landing/publish-section";
 import { Reveal, SectionHeading } from "@/components/landing/reveal";
 import { CreatorOfferBanner } from "@/components/marketing/creator-offer-banner";
+import { SalePill, useActiveSale } from "@/components/marketing/sale-pill";
+import { salePrice, SALE_MONTHLY_MONTHS, type Sale } from "@/lib/sale";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { Button } from "@/components/ui/button";
@@ -91,6 +93,7 @@ function getPlans(
   tCommon: Translate,
   interval: BillingInterval,
   planText: ReturnType<typeof useBillingPlanText>,
+  sale: Sale | null = null,
 ) {
   // The landing page states which platforms scheduling reaches, so it swaps the
   // generic billing line for YouTube + TikTok (live) and Instagram (soon).
@@ -102,6 +105,7 @@ function getPlans(
       name: tCommon("plans.selfHost"),
       price: "$0",
       originalPrice: null as string | null,
+      saleBadge: null as string | null,
       period: t("pricing.period.forever"),
       note: null as string | null,
       soon: null as string | null,
@@ -125,10 +129,18 @@ function getPlans(
       return {
         id: plan.id,
         name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
-        price: `$${planPrice(plan, interval)}`,
-        originalPrice: interval === "year" && annualMonthsFree(plan) > 0 ? `$${annualFullPrice(plan)}` : null,
+        // During a sale the regular price is struck through and the note says how long the sale price lasts.
+        price: `$${sale ? salePrice(planPrice(plan, interval), sale) : planPrice(plan, interval)}`,
+        originalPrice: sale
+          ? `$${planPrice(plan, interval)}`
+          : interval === "year" && annualMonthsFree(plan) > 0 ? `$${annualFullPrice(plan)}` : null,
         period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
-        note: interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
+        note: sale
+          ? interval === "year"
+            ? t("sale.noteYearly", { percent: sale.percentOff, price: planPrice(plan, interval) })
+            : t("sale.noteMonthly", { percent: sale.percentOff, months: SALE_MONTHLY_MONTHS, price: planPrice(plan, interval) })
+          : interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
+        saleBadge: sale ? t("sale.badge", { percent: sale.percentOff }) : null,
         soon: scheduling ? t("pricing.schedulingSoon") : null,
         usageExample:
           exampleVideos > 0
@@ -224,7 +236,8 @@ export default function LandingPage() {
   const teamConfig = getTeamBillingConfig();
   const [teamSeats, setTeamSeats] = useState<number>(teamConfig.includedSeats);
   const teamPricing = calculateTeamPricing(teamSeats, billingInterval, teamConfig);
-  const plans = getPlans(t, tCommon, billingInterval, planText);
+  const sale = useActiveSale();
+  const plans = getPlans(t, tCommon, billingInterval, planText, sale);
   const [scrolled, setScrolled] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const authEnabled = !isLandingOnlyModeEnabled;
@@ -346,6 +359,7 @@ export default function LandingPage() {
               className="mb-8 flex flex-wrap items-center justify-center gap-2"
               style={{ animation: "landing-fade-in-up 0.7s ease-out both" }}
             >
+              <SalePill />
               <Announcements landing />
             </div>
 
@@ -475,17 +489,28 @@ export default function LandingPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-display text-xl font-bold tracking-tight">{plan.name}</h3>
-                    {plan.highlighted && (
-                      <span className="rounded-full border px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        {t("pricing.popular")}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {plan.saleBadge && (
+                        <span data-testid="sale-badge" className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand">
+                          {plan.saleBadge}
+                        </span>
+                      )}
+                      {plan.highlighted && (
+                        <span className="rounded-full border px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                          {t("pricing.popular")}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-1.5 text-sm text-muted-foreground lg:min-h-10">{plan.description}</p>
 
                   <div className="mt-5 @container">
+                    {/* A sale price is wide: the regular price goes on its own line so the period never wraps. */}
+                    {plan.saleBadge && plan.originalPrice && (
+                      <p className="mb-1 text-base text-muted-foreground line-through">{plan.originalPrice}</p>
+                    )}
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      {plan.originalPrice && (
+                      {plan.originalPrice && !plan.saleBadge && (
                         <span className="text-lg text-muted-foreground line-through">{plan.originalPrice}</span>
                       )}
                       <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight leading-none">

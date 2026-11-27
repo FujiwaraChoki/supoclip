@@ -659,6 +659,103 @@ describe("/api/billing/checkout", () => {
       await expect(response.json()).resolves.toEqual({ url: "https://portal.example/home" });
     });
   });
+
+  describe("during a sale", () => {
+    const duringSale = new Date("2026-11-28T12:00:00Z");
+    const afterSale = new Date("2026-12-07T08:00:00Z");
+
+    function stripeWithCoupon(coupon: unknown) {
+      return {
+        checkout: {
+          sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/sale" }) },
+        },
+        coupons: {
+          retrieve: coupon instanceof Error ? vi.fn().mockRejectedValue(coupon) : vi.fn().mockResolvedValue(coupon),
+        },
+        promotionCodes: { list: vi.fn().mockResolvedValue({ data: [] }) },
+        subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
+      };
+    }
+
+    function checkout(body: Record<string, unknown>) {
+      return POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("applies the sale coupon to a new subscription", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(duringSale);
+      const stripe = stripeWithCoupon({ id: "blackfriday-2026", valid: true, percent_off: 40 });
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro", interval: "year" });
+
+      expect(response.status).toBe(200);
+      expect(stripe.coupons.retrieve).toHaveBeenCalledWith("blackfriday-2026");
+      expect(stripe.checkout.sessions.create.mock.calls[0][0]).toMatchObject({
+        discounts: [{ coupon: "blackfriday-2026" }],
+        metadata: { plan: "pro", interval: "year", sale: "black-friday-2026" },
+      });
+    });
+
+    it("prefers the sale over a creator code but keeps the creator's attribution", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(duringSale);
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(
+        { user_id: "creator-1", status: "approved", stripe_promotion_code_id: "promo_maya" } as never,
+      );
+      const stripe = stripeWithCoupon({ id: "blackfriday-2026", valid: true, percent_off: 40 });
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "scale", code: "MAYA" });
+
+      expect(response.status).toBe(200);
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params.discounts).toEqual([{ coupon: "blackfriday-2026" }]);
+      expect(params.subscription_data).toEqual({ metadata: { userId: "user-1", creator_code: "MAYA" } });
+    });
+
+    it.each([
+      ["is missing from the Stripe account", new Error("No such coupon")],
+      ["has been deleted or expired", { id: "blackfriday-2026", valid: false, percent_off: 40 }],
+      ["has a different discount", { id: "blackfriday-2026", valid: true, percent_off: 10 }],
+    ])("checks out at full price when the coupon %s", async (_label, coupon) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(duringSale);
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const stripe = stripeWithCoupon(coupon);
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params.discounts).toBeUndefined();
+      expect(params.metadata.sale).toBeUndefined();
+      error.mockRestore();
+    });
+
+    it("stops discounting when the sale ends", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(afterSale);
+      const stripe = stripeWithCoupon({ id: "blackfriday-2026", valid: true, percent_off: 40 });
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      expect(stripe.coupons.retrieve).not.toHaveBeenCalled();
+      expect(stripe.checkout.sessions.create.mock.calls[0][0].discounts).toBeUndefined();
+    });
+  });
 });
 
 describe("/api/billing/checkout analytics", () => {

@@ -54,6 +54,12 @@
     "start": "Start clipping",
     "dismiss": "Dismiss"
   },
+  "sale": {
+    "pill": "Black Friday: {percent}% off Pro and Creator until {date}",
+    "badge": "{percent}% off",
+    "noteMonthly": "{percent}% off your first {months} months, then ${price}/mo",
+    "noteYearly": "{percent}% off your first year, then ${price}/yr"
+  },
   "related": {
     "continueExploring": "Continue exploring",
     "keepReading": "Keep reading",

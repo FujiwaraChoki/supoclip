@@ -54,6 +54,12 @@
     "start": "开始剪辑",
     "dismiss": "关闭"
   },
+  "sale": {
+    "pill": "黑色星期五：Pro 和 Creator 享 {percent}% 折扣，截至 {date}",
+    "badge": "立减 {percent}%",
+    "noteMonthly": "前 {months} 个月优惠 {percent}%，之后 ${price}/月",
+    "noteYearly": "首年优惠 {percent}%，之后 ${price}/年"
+  },
   "related": {
     "continueExploring": "继续探索",
     "keepReading": "继续阅读",

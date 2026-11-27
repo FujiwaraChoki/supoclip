@@ -54,6 +54,12 @@
     "start": "Jetzt clippen",
     "dismiss": "Schließen"
   },
+  "sale": {
+    "pill": "Black Friday: {percent} % Rabatt auf Pro und Creator bis {date}",
+    "badge": "{percent} % Rabatt",
+    "noteMonthly": "{percent} % Rabatt in den ersten {months} Monaten, danach ${price}/Monat",
+    "noteYearly": "{percent} % Rabatt im ersten Jahr, danach ${price}/Jahr"
+  },
   "related": {
     "continueExploring": "Weiter stöbern",
     "keepReading": "Weiterlesen",
