@@ -1,0 +1,69 @@
+<!doctype html>
+<!--
+  The copy for black-friday-studio: a transparent 1600x800 layer set over every
+  rendered frame. Screenshot it with a transparent background (see the README).
+  Geist and the dark-mode brand orange are the web app's own.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1600px; height: 800px; background: transparent; }
+  .copy {
+    position: absolute;
+    left: 912px;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-family: "Geist", sans-serif;
+    color: #f5f4f2;
+    -webkit-font-smoothing: antialiased;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgba(245, 244, 242, 0.62);
+  }
+  .brand img { width: 30px; height: 30px; filter: invert(1); opacity: 0.85; }
+  h1 {
+    margin: 64px 0 0;
+    font-size: 68px;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+  }
+  .offer {
+    margin: 30px 0 0;
+    font-size: 148px;
+    line-height: 0.9;
+    font-weight: 700;
+    letter-spacing: -0.06em;
+    color: oklch(0.7 0.19 42);
+  }
+  .detail {
+    margin: 52px 0 0;
+    font-size: 22px;
+    line-height: 1.5;
+    font-weight: 450;
+    color: rgba(245, 244, 242, 0.55);
+  }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <div class="brand"><img src="../../../frontend/public/logo.png" alt="">SupoClip</div>
+    <h1>Black Friday</h1>
+    <p class="offer">40% off</p>
+    <p class="detail">Pro and Creator plans, until December 6</p>
+  </div>
+</body>
+</html>

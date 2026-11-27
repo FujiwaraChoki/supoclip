@@ -54,6 +54,15 @@
     "start": "Comece a criar clipes",
     "dismiss": "Dispensar"
   },
+  "sale": {
+    "pill": "Black Friday: {percent}% de desconto no Pro e no Creator até {date}",
+    "badge": "{percent}% de desconto",
+    "noteMonthly": "{percent}% de desconto nos primeiros {months} meses, depois ${price}/mês",
+    "noteYearly": "{percent}% de desconto no primeiro ano, depois ${price}/ano",
+    "headline": "{percent}% de desconto no Pro e no Creator",
+    "note": "Black Friday, até {date}. Ver preços",
+    "dismiss": "Fechar"
+  },
   "related": {
     "continueExploring": "Continue explorando",
     "keepReading": "Continue lendo",
