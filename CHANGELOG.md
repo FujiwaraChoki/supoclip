@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-27
 
-- **Fixed:** Making clips no longer fails partway through when saving a finished clip takes a while. Cancelling a video while a clip is being saved now takes effect straight away instead of waiting for the save, and a clip saved for a cancelled or failed run is cleaned up instead of being left behind.
+- **Fixed:** Making clips no longer fails partway through when saving a finished clip takes a while. Cancelling a video while a clip is being saved now takes effect straight away instead of waiting for the save, and a clip saved for a cancelled or failed run is cleaned up instead of being left behind. ([#591](https://github.com/FujiwaraChoki/supoclip/pull/591))
 
 ## 2026-11-26
 
