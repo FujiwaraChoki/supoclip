@@ -1,7 +1,7 @@
 """Media deletion outbox, written in the same transaction as record changes."""
 
 from pathlib import Path
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import wraps
 import inspect
 import logging
@@ -73,13 +73,46 @@ async def queue_clip_delete(db, clip):
         await queue_delete(db, storage.editor_reference(directory), prefix=True)
 
 
-async def persist_clip(db, file_path: str, task_id: str):
+async def upload_clip(file_path: str, task_id: str) -> str:
+    """Copy a rendered clip to object storage, with no database work.
+
+    Call it before the transaction that records the clip: an upload can outlast
+    the database's idle-in-transaction timeout. Pass the result to
+    ``record_uploaded_clip`` inside that transaction, or to
+    ``discard_uploaded_clip`` if it never commits.
+    """
     from ..utils.async_helpers import run_in_thread
 
-    storage = MediaStorage()
-    reference = await run_in_thread(storage.persist_clip, file_path, task_id)
+    return await run_in_thread(MediaStorage().persist_clip, file_path, task_id)
+
+
+async def record_uploaded_clip(db, file_path: str, reference: str) -> None:
     if reference != file_path:
         # The local output is removed only after the new database reference
         # commits. A rollback leaves the previous media intact.
         await queue_delete(db, file_path)
+
+
+async def discard_uploaded_clip(db, file_path: str, reference: str) -> None:
+    """Queue an upload whose clip row never committed, in a transaction of its own.
+
+    The drain checks references before deleting, so a commit that succeeded
+    before its response was lost keeps its media. If even this fails, the
+    orphan sweep reclaims the object after its grace period.
+    """
+    if reference == file_path:
+        return
+    try:
+        await db.rollback()
+        await queue_delete(db, reference)
+        await db.commit()
+    except Exception:
+        logging.getLogger(__name__).warning("Could not queue cleanup of an unsaved clip upload", exc_info=True)
+        with suppress(Exception):
+            await db.rollback()
+
+
+async def persist_clip(db, file_path: str, task_id: str):
+    reference = await upload_clip(file_path, task_id)
+    await record_uploaded_clip(db, file_path, reference)
     return reference

@@ -62,7 +62,13 @@ from ..workflows.contracts import OUTLINE_VERSION, WorkflowSpec, workflow_spec_f
 from ..workflows.errors import WorkflowError
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
-from ..repositories.media_repository import queue_delete, guard_source_creation
+from ..repositories.media_repository import (
+    discard_uploaded_clip,
+    guard_source_creation,
+    queue_delete,
+    record_uploaded_clip,
+    upload_clip,
+)
 from ..stream_source import cleanup_stream_path, cleanup_stream_task, seed_stream_resolution
 from ..edit_fx.jobs import FxJob, fx_active
 from ..edit_fx.settings import read_edit_style
@@ -991,45 +997,56 @@ class TaskService(ClipEditingMixin):
                         "workflow_meta": meta or None,
                     }
 
-                async with self._processing_transaction(task_id):
-                    await check_cancelled()
-                    clip_order = max(clip_ids_by_order, default=0) + 1
-                    # Save to DB immediately
-                    clip_id = await self.clip_repo.create_clip(
-                        self.db,
-                        task_id=task_id,
-                        filename=clip_info["filename"],
-                        file_path=clip_info["path"],
-                        start_time=clip_info["start_time"],
-                        end_time=clip_info["end_time"],
-                        duration=clip_info["duration"],
-                        text=clip_info.get("text", ""),
-                        relevance_score=clip_info.get("relevance_score", 0.0),
-                        reasoning=clip_info.get("reasoning", ""),
-                        clip_order=clip_order,
-                        virality_score=clip_info.get("virality_score", 0),
-                        hook_score=clip_info.get("hook_score", 0),
-                        engagement_score=clip_info.get("engagement_score", 0),
-                        value_score=clip_info.get("value_score", 0),
-                        shareability_score=clip_info.get("shareability_score", 0),
-                        hook_type=clip_info.get("hook_type"),
-                        hook_title=clip_info.get("hook_title"),
-                        **workflow_fields,
-                        **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
-                    )
+                # Upload with no transaction open, then save in a short one that checks the
+                # task again: a task lock held across a slow upload outlived the database's
+                # idle-in-transaction timeout and held off a cancel until it finished.
+                await check_cancelled()
+                await self.db.commit()  # ends any read; writes here already commit on their own
+                clip_reference = await upload_clip(clip_info["path"], task_id)
+                try:
+                    async with self._processing_transaction(task_id):
+                        await check_cancelled()
+                        clip_order = max(clip_ids_by_order, default=0) + 1
+                        # Save to DB immediately
+                        clip_id = await self.clip_repo.create_clip(
+                            self.db,
+                            task_id=task_id,
+                            filename=clip_info["filename"],
+                            file_path=clip_reference,
+                            start_time=clip_info["start_time"],
+                            end_time=clip_info["end_time"],
+                            duration=clip_info["duration"],
+                            text=clip_info.get("text", ""),
+                            relevance_score=clip_info.get("relevance_score", 0.0),
+                            reasoning=clip_info.get("reasoning", ""),
+                            clip_order=clip_order,
+                            virality_score=clip_info.get("virality_score", 0),
+                            hook_score=clip_info.get("hook_score", 0),
+                            engagement_score=clip_info.get("engagement_score", 0),
+                            value_score=clip_info.get("value_score", 0),
+                            shareability_score=clip_info.get("shareability_score", 0),
+                            hook_type=clip_info.get("hook_type"),
+                            hook_title=clip_info.get("hook_title"),
+                            **workflow_fields,
+                            **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
+                        )
+                        await record_uploaded_clip(self.db, clip_info["path"], clip_reference)
 
-                    # Update task's clip IDs array
-                    next_clip_ids = {**clip_ids_by_order, clip_order: clip_id}
-                    await self.task_repo.update_task_clips(
-                        self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
-                    )
-                    await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
-                    if preview_index is not None and user_id:
-                        # The free preview is used up by the clip it gives, in the same commit: a preview
-                        # cancelled or failing after this keeps its clip, and mustn't leave another free one.
-                        await mark_preview_used(self.db, user_id)
+                        # Update task's clip IDs array
+                        next_clip_ids = {**clip_ids_by_order, clip_order: clip_id}
+                        await self.task_repo.update_task_clips(
+                            self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
+                        )
+                        await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
+                        if preview_index is not None and user_id:
+                            # The free preview is used up by the clip it gives, in the same commit: a preview
+                            # cancelled or failing after this keeps its clip, and mustn't leave another free one.
+                            await mark_preview_used(self.db, user_id)
 
-                    await check_cancelled()
+                        await check_cancelled()
+                except BaseException:
+                    await discard_uploaded_clip(self.db, clip_info["path"], clip_reference)
+                    raise
                 pending_clip_path = None
                 clip_ids_by_order[clip_order] = clip_id
                 completed_positions.add(i + 1)
