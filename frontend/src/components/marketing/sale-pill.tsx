@@ -71,11 +71,11 @@ export function SaleFeature() {
   if (!sale?.media) return null;
   const label = t("sale.pill", { percent: sale.percentOff, date: lastDay });
   return (
-    <section aria-label={label} className="px-6 pb-20 md:pb-28" data-testid="sale-feature">
+    <section aria-label={label} className="px-6 pb-16 md:pb-24" data-testid="sale-feature">
       <a
         href="#pricing"
         aria-label={label}
-        className="group mx-auto block max-w-6xl overflow-hidden rounded-[26px] border bg-black shadow-[0_30px_80px_-40px_oklch(0.2_0.01_50/0.6)] transition-transform duration-500 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mx-auto block max-w-2xl overflow-hidden rounded-2xl border bg-black transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {still ? (
           // eslint-disable-next-line @next/next/no-img-element -- a remote poster, shown as is
