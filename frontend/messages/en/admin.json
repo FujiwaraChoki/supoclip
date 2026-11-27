@@ -6,7 +6,7 @@
   "unnamedUser": "Unnamed user",
   "untitledSource": "Untitled source",
   "cancel": "Cancel",
-  "savingDots": "Saving...",
+  "savingDots": "Saving…",
   "gate": {
     "title": "Admin",
     "signIn": "You need to sign in to view this page.",
@@ -52,7 +52,7 @@
     "decline": "Decline",
     "revoke": "Revoke",
     "deactivateStore": "Also deactivate their code in App Store Connect.",
-    "approving": "Approving...",
+    "approving": "Approving…",
     "approve": "Approve",
     "storeCodeAdded": "App Store code added",
     "markStoreCode": "Mark App Store code added",

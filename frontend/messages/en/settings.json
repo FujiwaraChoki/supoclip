@@ -8,9 +8,9 @@
   "intro": "Defaults for new generations, notifications and your plan.",
   "languageDescription": "The language used across SupoClip.",
   "signInRequired": {
-    "title": "Sign In Required",
-    "body": "You need to sign in to access your settings",
-    "action": "Sign In"
+    "title": "Sign in required",
+    "body": "Sign in to manage your settings.",
+    "action": "Sign in"
   },
   "captions": {
     "title": "Caption defaults",
@@ -25,7 +25,7 @@
     "customCaptionColor": "Custom caption color",
     "captionColorHex": "Caption color hex",
     "preview": "Caption preview",
-    "sample": "Your subtitle will look like this"
+    "sample": "Your captions will look like this"
   },
   "notifications": {
     "title": "Notifications",
@@ -48,8 +48,8 @@
     "usedPeriod": "{count} of {limit} videos used this period",
     "appStore": "Managed through the App Store",
     "affiliate": "Free through the creator program",
-    "manage": "Manage Billing",
-    "loading": "Loading...",
+    "manage": "Manage billing",
+    "loading": "Loading…",
     "openingCheckout": "Opening checkout…",
     "upgrade": "Upgrade",
     "upgradeMultiplier": "Get {multiplier}× more video with {plan}",
@@ -92,11 +92,11 @@
     "teamDescription": "Pool monthly video hours, manage seats, and invite editors to a shared workspace"
   },
   "save": {
-    "saved": "Preferences saved successfully!",
+    "saved": "Preferences saved",
     "unsaved": "Unsaved changes",
-    "button": "Save Preferences",
-    "saving": "Saving...",
-    "failed": "Failed to save preferences"
+    "button": "Save preferences",
+    "saving": "Saving…",
+    "failed": "Couldn't save preferences"
   },
   "toasts": {
     "ready": "You're all set. Time to make some clips!"
@@ -124,7 +124,7 @@
     "done": "Done",
     "cancel": "Cancel",
     "signIn": "Sign in to manage your API keys.",
-    "signInAction": "Sign In",
+    "signInAction": "Sign in",
     "verifyTitle": "Verify your email to create API keys",
     "verifyBody": "Confirm that you own {email}. You can still view and revoke existing keys.",
     "verifySent": "Verification email requested. Check your inbox; the link expires in 1 hour.",
@@ -212,7 +212,7 @@
     "iphoneLink": "Your iPhone link",
     "copyLink": "Copy your link",
     "copyCode": "Copy your code",
-    "copyIphone": "Copy your iphone link",
+    "copyIphone": "Copy your iPhone link",
     "iphonePending": "Your iPhone link will show up here once your code is live on the App Store.",
     "pendingTitle": "Application received",
     "pendingBadge": "Under review",
@@ -321,18 +321,18 @@
     "label": "Delete account",
     "hint": "Permanently delete your account, generations, clips and API keys.",
     "action": "Delete account",
-    "deleting": "Deleting...",
+    "deleting": "Deleting…",
     "dialogTitle": "Delete your account?",
     "dialogBody": "This permanently deletes your account, all generations and clips, and revokes your API keys. This can't be undone.",
     "appStore": "Your subscription is managed through the App Store. Deleting your account doesn't cancel it, so cancel it in your App Store subscriptions to stop being charged.",
     "confirm": "Type <strong>{email}</strong> to confirm",
     "password": "Password",
-    "failed": "Failed to delete account"
+    "failed": "Couldn't delete account"
   },
   "paymentFailed": {
     "message": "Your last payment failed. Update your payment method to keep your plan.",
     "action": "Update payment method",
-    "failed": "Unable to open the billing portal",
+    "failed": "Couldn't open the billing portal",
     "paused": "Clipping is paused until this payment goes through.",
     "teamMessage": "Your team's last payment failed. Update the payment method to keep the Team plan.",
     "teamAskOwner": "Ask the team owner to update the payment method."
@@ -347,8 +347,8 @@
     "send": "Send",
     "restarted": "Your subscription will renew as normal.",
     "thanks": "Thanks for letting us know.",
-    "restartFailed": "Unable to restart subscription",
-    "feedbackFailed": "Failed to send feedback",
+    "restartFailed": "Couldn't restart subscription",
+    "feedbackFailed": "Couldn't send feedback",
     "genericError": "Something went wrong"
   },
   "fonts": {

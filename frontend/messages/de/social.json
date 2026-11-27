@@ -89,7 +89,7 @@
     "signIn": "Anmelden",
     "title": "Social-Konten",
     "unavailable": "Veröffentlichen auf YouTube, TikTok und Instagram ist für dein Konto noch nicht verfügbar.",
-    "intro": "Verbinde die Konten, auf denen du postest. Veröffentliche Clips direkt von einer Aufgabenseite, plan sie und lass SupoClip aus ihrer Leistung lernen.",
+    "intro": "Verbinde die Konten, auf denen du postest. Veröffentliche Clips direkt aus deiner Bibliothek, plane sie im Voraus und lass SupoClip lernen, was am besten ankommt.",
     "loadError": "Social-Konten konnten nicht geladen werden",
     "connectedNotice": "{label} verbunden.",
     "connectedAs": "{label} verbunden als {account}.",

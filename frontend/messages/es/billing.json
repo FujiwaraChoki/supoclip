@@ -1,11 +1,11 @@
 {
   "plans": {
     "pro": {
-      "description": "Para creadores que recortan con constancia cada mes.",
+      "description": "Para creadores independientes que recortan cada semana.",
       "cta": "Mejorar a Pro"
     },
     "scale": {
-      "description": "Para creadores que publican cada día.",
+      "description": "Para creadores diarios con 1080p, Agent y programación.",
       "cta": "Mejorar a Creator"
     }
   },

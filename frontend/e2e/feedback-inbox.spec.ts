@@ -84,7 +84,7 @@ async function signIn(page: Page) {
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email").fill(seed.admin.email);
   await page.getByPlaceholder("Password").fill(seed.admin.password);
-  await page.getByRole("button", { name: "Sign In" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/");
 }
 

@@ -1,10 +1,10 @@
 {
   "signInBody": "Sign in to see how your clips perform.",
-  "signIn": "Sign In",
+  "signIn": "Sign in",
   "title": "Analytics",
   "intro": "How your published clips perform. SupoClip pulls views, likes and comments back from each platform and uses them to steer future clip selection toward what works for your audience.",
   "unavailable": "Analytics comes with social publishing, which isn't available on your account yet.",
-  "loadError": "Failed to load analytics",
+  "loadError": "Couldn't load analytics",
   "emptyTitle": "Nothing published yet.",
   "emptyBody": "Connect an account on the <social>Social</social> page, then use Publish on any clip. Results show up here within an hour.",
   "publishedClips": "Published clips",

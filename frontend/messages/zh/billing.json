@@ -1,11 +1,11 @@
 {
   "plans": {
     "pro": {
-      "description": "适合每月稳定剪辑的创作者。",
+      "description": "适合每周稳定产出短片的个人创作者。",
       "cta": "升级到 Pro"
     },
     "scale": {
-      "description": "适合每天发布内容的创作者。",
+      "description": "适合每日更新的创作者，含 1080p、Agent 和定时排期。",
       "cta": "升级到 Creator"
     }
   },

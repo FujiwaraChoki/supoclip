@@ -75,7 +75,7 @@ describe("settings plan section", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     try {
       render(<SettingsPage />);
-      fireEvent.click(await screen.findByRole("button", { name: "Manage Billing" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Manage billing" }));
       fireEvent.click(await screen.findByRole("button", { name: "Cancel subscription" }));
       await waitFor(() => expect(request).toHaveBeenCalledWith("/api/billing/cancel", { method: "POST" }));
       expect(confirm).toHaveBeenCalledOnce();
@@ -127,7 +127,7 @@ describe("settings plan section", () => {
     render(<SettingsPage />);
 
     expect(await screen.findByText(/Your last payment failed/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Manage Billing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Manage billing" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Choose Pro/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Upgrade" })).not.toBeInTheDocument();
   });
@@ -163,7 +163,7 @@ describe("settings plan section", () => {
     fireEvent.click(publishSwitch);
     expect(publishSwitch).toBeChecked();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Save Preferences" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save preferences" }));
 
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(
@@ -204,7 +204,7 @@ describe("settings plan section", () => {
 
     render(<SettingsPage />);
 
-    expect(await screen.findByRole("button", { name: "Manage Billing" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Manage billing" })).toBeInTheDocument();
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     expect(window.location.search).toBe("");
     expect(summaryCalls).toBe(2);

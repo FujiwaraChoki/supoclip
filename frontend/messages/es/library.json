@@ -64,7 +64,7 @@
   "signInTitle": "Debes iniciar sesión",
   "signInBody": "Necesitas iniciar sesión para ver tus generaciones.",
   "signIn": "Iniciar sesión",
-  "loadError": "No se pudieron cargar las tareas",
+  "loadError": "No se pudo cargar tu biblioteca",
   "refreshError": "La acción en lote terminó, pero no se pudo actualizar la lista.",
   "cancel": {
     "empty": "No hay generaciones activas en la selección para cancelar.",

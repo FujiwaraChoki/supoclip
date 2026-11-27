@@ -221,7 +221,7 @@ describe("look", () => {
   it("a picked grade is stored as the style's grade too, so re-resolves keep it", async () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
     const updates = setup(structuredClone(draft));
-    fireEvent.keyDown(screen.getByRole("combobox", { name: "Colour grade" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Color grade" }), { key: "Enter" });
     await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Warm" })));
     expect(updates).toHaveLength(1);
     expect(currentDoc().fx).toMatchObject({ grade: "warm", style: { grade: "warm", intensity: "off" } });

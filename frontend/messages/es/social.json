@@ -89,7 +89,7 @@
     "signIn": "Iniciar sesión",
     "title": "Cuentas sociales",
     "unavailable": "Publicar en YouTube, TikTok e Instagram todavía no está disponible en tu cuenta.",
-    "intro": "Conecta las cuentas donde publicas. Publica clips directo desde la página de una tarea, prográmalos y deja que SupoClip aprenda de cómo rinden.",
+    "intro": "Conecta las cuentas donde publicas. Publica clips directo desde tu biblioteca, prográmalos con antelación y deja que SupoClip aprenda de lo que mejor funciona.",
     "loadError": "No se pudieron cargar las cuentas sociales",
     "connectedNotice": "{label} conectado.",
     "connectedAs": "{label} conectado como {account}.",

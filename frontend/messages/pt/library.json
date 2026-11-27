@@ -64,7 +64,7 @@
   "signInTitle": "É preciso entrar",
   "signInBody": "Você precisa entrar para ver suas gerações.",
   "signIn": "Entrar",
-  "loadError": "Falha ao carregar as tarefas",
+  "loadError": "Não foi possível carregar sua biblioteca",
   "refreshError": "A ação em lote terminou, mas a lista não pôde ser atualizada.",
   "cancel": {
     "empty": "Não há gerações ativas na seleção para cancelar.",

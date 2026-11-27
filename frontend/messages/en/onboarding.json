@@ -1,7 +1,7 @@
 {
   "intro": {
-    "hello": "Hey {name}! I'm SupoClip's Agent!",
-    "helloNoName": "Hey! I'm SupoClip's Agent!",
+    "hello": "Hey {name}, I'm SupoClip's Agent.",
+    "helloNoName": "Hey, I'm SupoClip's Agent.",
     "pitch": "I turn long videos into short clips people actually watch. Let's get your first ones made.",
     "pitchFree": "I turn long videos into short clips people actually watch. Your first one's on me, no card needed.",
     "askMakes": "So, what do you make?",

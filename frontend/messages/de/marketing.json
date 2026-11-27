@@ -230,10 +230,10 @@
     "examples": "Beispiele"
   },
   "hero": {
-    "badge": "Open Source und selbst hostbar. Auch fürs iPhone.",
+    "badge": "Open Source, ohne Wasserzeichen. Auch fürs iPhone.",
     "titleLine1": "Ein langes Video.",
     "titleLine2": "Eine Woche Shorts.",
-    "body": "SupoClip findet die Momente in deinen Videos, VODs und Uploads, die sich zum Posten lohnen, schneidet sie mit wortgenauen Untertiteln auf 9:16 zu und plant sie für YouTube Shorts ein.",
+    "body": "SupoClip findet die Momente in deinen Podcasts, Streams und Uploads, die sich zum Posten lohnen, schneidet sie mit wortgenauen Untertiteln auf 9:16 zu und veröffentlicht oder plant sie für YouTube Shorts und TikTok.",
     "startClipping": "Jetzt clippen",
     "useHosted": "Gehostete App nutzen",
     "viewSource": "Quellcode ansehen",
@@ -265,19 +265,19 @@
   },
   "steps": {
     "eyebrow": "So funktioniert's",
-    "title": "Von der Rohaufnahme zum Post in drei Schritten",
+    "title": "Vom langen Video zum Post, in drei Schritten",
     "items": {
       "drop": {
         "title": "Link oder Datei einfügen",
-        "description": "Füge einen YouTube-, Twitch- oder Kick-Link ein oder zieh deine eigene Aufnahme hinein."
+        "description": "Füge einen YouTube-, Twitch- oder Kick-Link ein oder lade dein eigenes Video hoch."
       },
       "gold": {
         "title": "KI findet die Momente",
-        "description": "Wortgenaue Transkription und Viralitäts-Scoring finden die Passagen, die für sich allein stehen."
+        "description": "Wortgenaue Transkription und Viralitäts-Scoring wählen die Momente aus, die für sich allein stehen."
       },
       "export": {
         "title": "Posten oder planen",
-        "description": "Passe im Editor alles an und lade dann herunter, veröffentliche sofort oder plane für YouTube Shorts."
+        "description": "Gib dem Clip im Editor den letzten Schliff und lade ihn herunter, poste sofort oder plane ihn für YouTube Shorts und TikTok ein."
       }
     }
   },
@@ -296,7 +296,7 @@
   },
   "features": {
     "title": "Das Auge eines Editors, auf Autopilot",
-    "body": "Alles zwischen der Rohaufnahme und einem postbaren Clip wird für dich erledigt, und du kannst trotzdem alles anpassen.",
+    "body": "Alles zwischen dem langen Video und einem Clip, der sich zum Posten lohnt, wird für dich erledigt – und bleibt jederzeit bearbeitbar.",
     "eyebrow": "Funktionen",
     "captionSample": "Untertitel, die jedes einzelne Wort treffen",
     "ownFonts": "Deine Schriften",
@@ -315,19 +315,19 @@
     "items": {
       "reframe": {
         "title": "Gesichtserkennender Zuschnitt",
-        "description": "Gesichter werden in jeder Einstellung verfolgt, damit der Hochformat-Ausschnitt der sprechenden Person folgt, statt sie abzuschneiden."
+        "description": "Verfolgt Sprecher, Zweiergespräche und Gameplay-Facecams Einstellung für Einstellung, damit der Hochformat-Ausschnitt nichts Wichtiges abschneidet."
       },
       "captions": {
         "title": "Untertitel auf jedes Wort",
-        "description": "Wortgenaue Zeitstempel halten animierte Untertitel exakt im Takt der Stimme."
+        "description": "Wortgenaues Timing hält animierte Untertitel in über 99 gesprochenen Sprachen exakt im Takt der Stimme."
       },
       "virality": {
         "title": "Viralitäts-Scoring",
-        "description": "Jeder Moment wird nach Hook, Engagement, Mehrwert und Teilbarkeit bewertet, von 0 bis 100."
+        "description": "Jeder Clip wird auf 100 Punkte für Hook, Engagement, Mehrwert und Teilbarkeit bewertet, damit du die stärksten zuerst postest."
       },
       "hooks": {
         "title": "Hook-Titel",
-        "description": "Ein kurzer KI-Titel steht in den ersten Sekunden oben im Bild und stoppt das Scrollen."
+        "description": "Ein kurzer KI-Titel erscheint in den ersten Sekunden oben im Bild und hält Zuschauer fest, bevor sie weiterscrollen."
       },
       "templates": {
         "title": "Untertitel-Vorlagen",
@@ -335,7 +335,7 @@
       },
       "export": {
         "title": "Export-Presets",
-        "description": "Export per Klick für Shorts, TikTok und Reels, mit Stock-B-Roll, wenn ein Clip es braucht."
+        "description": "Ein-Klick-Exporte für Shorts, TikTok und Reels, mit automatischem Stock-B-Roll, wenn ein Moment danach verlangt."
       }
     }
   },
@@ -397,7 +397,7 @@
   "editor": {
     "eyebrow": "Editor",
     "title": "Ein kompletter Editor, direkt eingebaut",
-    "body": "Jeder Clip öffnet sich in einem Studio für Kurzvideos. Schneiden, ein Wort korrigieren, Untertitel umgestalten, Bildausschnitt anpassen und exportieren, ohne SupoClip zu verlassen.",
+    "body": "Jeder Clip öffnet sich in einem Studio für Kurzvideos. Schneide, korrigiere Wörter, style Untertitel um, lass die KI bearbeiten und exportiere direkt in SupoClip.",
     "tryIt": "Diese Vorschau funktioniert. Klick die Tabs an, wechsle den Ausschnitt, zieh an den Reglern.",
     "points": {
       "timeline": {
@@ -435,7 +435,7 @@
     }
   },
   "publish": {
-    "eyebrow": "Neu: Veröffentlichen",
+    "eyebrow": "Veröffentlichen",
     "title": "Einmal clippen. Die ganze Woche posten.",
     "body": "Verbinde deinen YouTube-Kanal oder dein TikTok-Konto und veröffentliche jeden Clip nach deinem Zeitplan. Wähle eine Uhrzeit, prüfe den von der KI entworfenen Titel und die Beschreibung, und SupoClip postet für dich.",
     "platforms": {
@@ -461,7 +461,7 @@
         "description": "Aufrufe fließen zurück in SupoClip, damit künftige Clips sich an dem orientieren, was auf deinem Kanal funktioniert."
       }
     },
-    "plan": "Planen ist im Creator-Tarif enthalten. Sofort veröffentlichen geht auch mit Pro.",
+    "plan": "Sofortiges Veröffentlichen ist in Pro enthalten. Zeitplanung und der Posting-Kalender sind in Creator und Team dabei.",
     "calendar": {
       "week": "Diese Woche",
       "published": "Veröffentlicht",
@@ -492,11 +492,11 @@
       "setup": "Einrichtung nötig. Du stellst die Hardware und die kostenpflichtigen KI-Dienste, die du nutzen willst."
     },
     "pro": {
-      "description": "Für Creator, die jeden Monat regelmäßig clippen.",
+      "description": "Für Solo-Creator, die jede Woche clippen.",
       "cta": "Auf Pro upgraden"
     },
     "scale": {
-      "description": "Für Creator, die jeden Tag veröffentlichen.",
+      "description": "Für tägliche Creator mit 1080p, Agent und Zeitplanung.",
       "cta": "Auf Creator upgraden"
     },
     "hosted": {
@@ -508,8 +508,8 @@
       "priority": "Bevorzugte Verarbeitung",
       "earlyAccess": "Früher Zugriff auf neue Funktionen"
     },
-    "clipsNote": "Aus jedem Video werden so viele Clips, wie es gute Momente hat.",
-    "selfHostNote": "Selbst hosten? Alle Funktionen sind kostenlos und unbegrenzt.",
+    "clipsNote": "Abgerechnet wird nach Länge des Quellvideos, nicht pro Clip – jeder gute Moment ist dabei.",
+    "selfHostNote": "Selbst hosten? Kostenlos für einzelne Creator und nichtkommerzielle Nutzung, ohne Monatslimit.",
     "selfHostGuide": "Zum Self-Hosting-Guide",
     "billedYearly": "${price}/Monat, jährlich abgerechnet",
     "usageExample": {
@@ -600,7 +600,7 @@
   },
   "cta": {
     "title": "Dein nächstes Video ist schon eine Woche Content.",
-    "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste SupoClip selbst, für nichtkommerzielle Zwecke oder als einzelner Creator."
+    "body": "Füge einen Link ein und sieh, was SupoClip findet. Starte in der gehosteten App oder hoste kostenlos selbst – für nichtkommerzielle Nutzung und einzelne Creator."
   },
   "faqPage": {
     "title": "Sprachen, Untertitel und Clips",

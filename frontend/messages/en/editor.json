@@ -16,19 +16,19 @@
     "recovered": "Recovered local draft"
   },
   "errors": {
-    "saveDraft": "Could not save draft",
+    "saveDraft": "Couldn't save draft",
     "previewFailed": "Preview preparation failed",
     "conflict": "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.",
-    "load": "Could not load editor",
+    "load": "Couldn't load editor",
     "notReady": "Preview is not ready",
     "combineCancelled": "Combine cancelled",
     "combineTimeout": "The combine is still running in the export queue. Refresh your clips when it completes.",
     "prepareTimeout": "Source preparation is taking longer than expected. Reopen the editor to check its status.",
-    "prepareFailed": "Could not prepare clip",
+    "prepareFailed": "Couldn't prepare clip",
     "exportFailed": "Export failed",
     "transcriptTooLong": "Edit this long transcript one word at a time.",
     "cannotEncode": "This browser cannot encode this video. Choose background export to render it on the server.",
-    "cannotLoadSource": "Could not load the source video.",
+    "cannotLoadSource": "Couldn't load the source video.",
     "canvasUnavailable": "Canvas is unavailable. Use background export.",
     "cannotDecode": "This browser cannot decode the source. Use background export.",
     "audioEncodeUnavailable": "Audio encoding is unavailable. Use background export.",
@@ -68,8 +68,8 @@
     },
     "font": "Font",
     "fontAria": "Caption font",
-    "size": "Subtitle size",
-    "position": "Subtitle vertical position",
+    "size": "Caption size",
+    "position": "Caption vertical position",
     "text": "Text",
     "textColor": "Caption text color",
     "highlight": "Highlight",
@@ -94,7 +94,7 @@
     "transcriptDescription": "Correct a word without moving its timing. Click play to hear it in context.",
     "editScript": "Edit script",
     "closeScript": "Close script",
-    "scriptAria": "Subtitle text",
+    "scriptAria": "Caption text",
     "scriptHint": "Existing words keep their timing. Review the timing of inserted words.",
     "applyScript": "Apply script",
     "seekWord": "Seek to word {n}",
@@ -416,7 +416,7 @@
   },
   "captionTemplates": {
     "title": "Template",
-    "description": "Sets how captions move. The font and colours below still apply.",
+    "description": "Sets how captions move. The font and colors below still apply.",
     "classic": "Classic",
     "animated": "Animated",
     "animatedHint": "Drawn frame by frame. Accents land on the moments that matter.",
@@ -484,7 +484,7 @@
       },
       "music": {
         "label": "Music",
-        "hint": "A bed that ducks under the voice"
+        "hint": "Background music that dips under speech"
       },
       "zooms": {
         "label": "Zooms",
@@ -569,7 +569,7 @@
       "text": "Text",
       "mode": "Motion",
       "scale": "Zoom",
-      "anchor": "Centre on",
+      "anchor": "Center on",
       "amount": "Strength",
       "style": "Style",
       "sound": "Sound",
@@ -589,7 +589,7 @@
       },
       "anchors": {
         "face": "Face",
-        "center": "Centre"
+        "center": "Center"
       },
       "covers": {
         "none": "No cover",
@@ -652,9 +652,9 @@
     },
     "face": {
       "title": "Face tracking",
-      "body": "Zooms, doodles and mouth covers follow the speaker's face. Analyse the clip once so they land in the right place.",
-      "action": "Analyse face",
-      "running": "Analysing… about a minute",
+      "body": "Zooms, doodles, and mouth covers follow the speaker's face. Analyze the clip once so they land in the right place.",
+      "action": "Analyze face",
+      "running": "Analyzing… about a minute",
       "ready": "Face tracking is ready.",
       "readyReopen": "Face tracking is ready. Exports use it now; reopen the clip to see it in the preview.",
       "failed": "The analysis failed. Try again."
@@ -666,8 +666,8 @@
     },
     "look": {
       "title": "Look",
-      "description": "A colour grade and film grain over the whole clip.",
-      "grade": "Colour grade",
+      "description": "A color grade and film grain over the whole clip.",
+      "grade": "Color grade",
       "grain": "Film grain",
       "grades": {
         "auto": "Automatic",

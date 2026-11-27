@@ -1,11 +1,11 @@
 {
   "plans": {
     "pro": {
-      "description": "For creators who clip consistently each month.",
+      "description": "For solo creators clipping every week.",
       "cta": "Upgrade to Pro"
     },
     "scale": {
-      "description": "For creators publishing every day.",
+      "description": "For daily creators with 1080p, Agent, and scheduling.",
       "cta": "Upgrade to Creator"
     }
   },

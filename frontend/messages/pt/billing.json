@@ -1,11 +1,11 @@
 {
   "plans": {
     "pro": {
-      "description": "Para criadores que fazem cortes com constância todo mês.",
+      "description": "Para criadores solo que fazem clipes toda semana.",
       "cta": "Fazer upgrade para Pro"
     },
     "scale": {
-      "description": "Para criadores que publicam todos os dias.",
+      "description": "Para criadores diários com 1080p, Agent e agendamento.",
       "cta": "Fazer upgrade para Creator"
     }
   },

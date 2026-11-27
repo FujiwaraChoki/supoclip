@@ -47,7 +47,7 @@
     "creator": "Creator",
     "signOut": "Sign out",
     "signingOut": "Signing out…",
-    "signOutError": "Could not sign out. Please try again."
+    "signOutError": "Couldn't sign out. Try again."
   },
   "theme": {
     "toggle": "Switch light/dark theme"
@@ -61,16 +61,16 @@
     "new": "New"
   },
   "feedback": {
-    "title": "Send Feedback",
+    "title": "Send feedback",
     "category": "Category",
-    "bug": "Bug Report",
-    "feature": "Feature Request",
-    "general": "General Feedback",
-    "sales": "Sales Inquiry",
-    "placeholder": "Tell us what's on your mind...",
+    "bug": "Bug report",
+    "feature": "Feature request",
+    "general": "General feedback",
+    "sales": "Sales inquiry",
+    "placeholder": "Tell us what's on your mind…",
     "submit": "Submit",
-    "success": "Feedback submitted — thank you!",
-    "failed": "Failed to submit feedback",
+    "success": "Thanks for the feedback!",
+    "failed": "Couldn't send feedback",
     "error": "Something went wrong"
   },
   "workspace": {

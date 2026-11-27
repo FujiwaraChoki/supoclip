@@ -130,12 +130,12 @@ test("settings shows Pro users the step up to Creator and yearly billing", async
   await expect(page.getByText("Switch to yearly and get 2 months free")).toBeVisible();
   await expect(page.getByText("1 hour of video left", { exact: false })).toBeVisible();
   await expect(page.getByText("Clips in 720p", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save Preferences" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save preferences" })).toHaveCount(0);
   await page.locator("#plan").screenshot({ path: "test-results/upgrade-settings-pro.png" });
 
   await page.getByRole("switch").first().click();
   await expect(page.getByText("Unsaved changes")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save Preferences" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save preferences" })).toBeVisible();
 });
 
 test("retrying past the limit opens the upgrade dialog", async ({ page }) => {

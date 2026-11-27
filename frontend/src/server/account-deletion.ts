@@ -9,7 +9,7 @@ import { getPrismaClient } from "@/server/prisma";
 const BILLABLE_STRIPE_STATUSES = new Set(["active", "trialing", "past_due", "unpaid"]);
 
 export const ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE =
-  "You have an active subscription. Cancel it from Manage Billing before deleting your account.";
+  "You have an active subscription. Cancel it from Manage billing before deleting your account.";
 
 /**
  * Runs before Better Auth deletes a user (`user.deleteUser.beforeDelete`).
@@ -26,7 +26,7 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
 
   if (stripeAccountsEnabled()) {
     const migration = await prisma.stripeAccountMigration.findUnique({ where: { user_id: userId } });
-    if (migration && !["destination_active", "cancelled", "rollback_verified"].includes(migration.stage)) throw new APIError("BAD_REQUEST", { message: "Cancel the billing transfer from Manage Billing before deleting your account." });
+    if (migration && !["destination_active", "cancelled", "rollback_verified"].includes(migration.stage)) throw new APIError("BAD_REQUEST", { message: "Cancel the billing transfer from Manage billing before deleting your account." });
   }
 
   if (monetizationEnabled) {

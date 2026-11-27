@@ -69,7 +69,7 @@ describe("DeleteAccountSection", () => {
   it("shows the server error and stays signed in when deletion is refused", async () => {
     vi.mocked(authClient.deleteUser).mockResolvedValue({
       data: null,
-      error: { message: "You have an active subscription. Cancel it from Manage Billing before deleting your account." },
+      error: { message: "You have an active subscription. Cancel it from Manage billing before deleting your account." },
     } as never);
     render(<DeleteAccountSection email="user@example.com" />);
     const user = await openDialog();
@@ -78,7 +78,7 @@ describe("DeleteAccountSection", () => {
     await user.type(screen.getByLabelText("Password"), "Password123!");
     await user.click(screen.getByRole("button", { name: "Delete account" }));
 
-    expect(await screen.findByText(/Cancel it from Manage Billing/)).toBeInTheDocument();
+    expect(await screen.findByText(/Cancel it from Manage billing/)).toBeInTheDocument();
     expect(authClient.signOut).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });

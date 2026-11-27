@@ -473,7 +473,7 @@ describe("TeamSettingsPage UI & role matrix", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Team plan is active!"));
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(screen.queryByText("inactive")).not.toBeInTheDocument();
-    expect(screen.getByText("Manage Billing")).toBeInTheDocument();
+    expect(screen.getByText("Manage billing")).toBeInTheDocument();
   });
 });
 

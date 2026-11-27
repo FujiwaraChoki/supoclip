@@ -116,8 +116,8 @@ test("signed-out settings displays the sign-in gate without loading preferences"
     return route.fulfill({ status: 401, json: { error: "Unauthorized" } });
   });
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Sign In Required" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Sign In", exact: true })).toHaveAttribute("href", "/sign-in");
+  await expect(page.getByRole("heading", { name: "Sign in required" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/sign-in");
   await expect(page.getByRole("button", { name: /save preferences/i })).toHaveCount(0);
   expect(preferenceReads).toBe(0);
 });
@@ -136,7 +136,7 @@ test("signed-in settings waits for preferences before showing the form", async (
   await page.goto("/settings");
   await loading;
   await expect(page.getByRole("button", { name: /save preferences/i })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Sign In Required" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Sign in required" })).toHaveCount(0);
   finish();
   await expect(page.getByRole("heading", { name: "Caption defaults" })).toBeVisible();
   // Nothing to save until a preference changes.
@@ -227,7 +227,7 @@ test("signed-out pages hydrate consistently after the shared session resolves", 
   await page.route("**/api/auth/get-session**", route => route.fulfill({ json: null }));
   for (const path of ["/list", "/settings", "/settings/api-keys"]) {
     await page.goto(path);
-    await expect(page.getByRole("link", { name: "Sign In", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
   }
   expect(errors).toEqual([]);
 });

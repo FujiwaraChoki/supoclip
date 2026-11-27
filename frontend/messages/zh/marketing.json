@@ -230,10 +230,10 @@
     "examples": "示例"
   },
   "hero": {
-    "badge": "开源，可自托管。也有 iPhone 版。",
+    "badge": "开源且无水印。也有 iPhone 版。",
     "titleLine1": "一条长视频。",
     "titleLine2": "一周的短视频。",
-    "body": "SupoClip 从你的视频、直播回放和上传文件中找出值得发布的片段，配上逐字同步的字幕裁成 9:16 竖屏，并排期发布到 YouTube Shorts。",
+    "body": "SupoClip 从你的播客、直播回放和上传视频中挑出值得发布的精彩片段，配上逐字同步字幕裁成 9:16 竖屏，并直接发布或排期到 YouTube Shorts 和 TikTok。",
     "startClipping": "开始剪辑",
     "useHosted": "使用托管应用",
     "viewSource": "查看源码",
@@ -265,19 +265,19 @@
   },
   "steps": {
     "eyebrow": "使用流程",
-    "title": "从原始录像到发布，只需三步",
+    "title": "从长视频到发布，只需三步",
     "items": {
       "drop": {
         "title": "粘贴链接或上传文件",
-        "description": "粘贴 YouTube、Twitch 或 Kick 链接，或直接拖入你自己的录像。"
+        "description": "粘贴 YouTube、Twitch 或 Kick 链接，或直接上传你自己的视频。"
       },
       "gold": {
         "title": "AI 找出精彩片段",
-        "description": "逐字转写和爆款评分会挑出能独立成片的段落。"
+        "description": "逐字转写与爆款评分会挑出能独立成片的精彩瞬间。"
       },
       "export": {
         "title": "发布或排期",
-        "description": "在编辑器里随意调整，然后下载、立即发布，或排期到 YouTube Shorts。"
+        "description": "在编辑器里随心微调，然后下载、立即发布，或排期到 YouTube Shorts 和 TikTok。"
       }
     }
   },
@@ -296,7 +296,7 @@
   },
   "features": {
     "title": "剪辑师的眼光，自动运行",
-    "body": "从原始录像到值得发布的片段，中间的一切都替你完成，而且仍然可以随时微调。",
+    "body": "从长视频到值得发布的短片，中间的一切都替你办妥——同时随时保留你的编辑自由。",
     "eyebrow": "功能",
     "captionSample": "每一个字都精准对上的字幕",
     "ownFonts": "你的字体",
@@ -315,19 +315,19 @@
     "items": {
       "reframe": {
         "title": "人脸追踪构图",
-        "description": "每个镜头都会追踪人脸，竖屏画面始终跟随说话的人，不会把人裁掉。"
+        "description": "逐镜头追踪说话人、双人连麦和游戏摄像头，让竖屏裁切始终紧跟画面焦点。"
       },
       "captions": {
         "title": "逐字字幕",
-        "description": "逐字时间戳让动态字幕与声音严丝合缝。"
+        "description": "逐字级时间轴让动态字幕紧跟每一个音节，支持 99 种以上口语语言。"
       },
       "virality": {
         "title": "爆款评分",
-        "description": "每个片段都会按开场吸引力、互动性、价值和分享性打分，满分 100。"
+        "description": "每个片段都会从钩子、互动性、价值和传播力四个维度打出百分制评分，让你优先发布最有力度的内容。"
       },
       "hooks": {
         "title": "开场标题",
-        "description": "AI 撰写的简短标题会在开头几秒显示在画面顶部，留住观众。"
+        "description": "AI 撰写的简短开场标题会停留在片头几秒，在观众划走前迅速抓住注意力。"
       },
       "templates": {
         "title": "字幕模板",
@@ -335,7 +335,7 @@
       },
       "export": {
         "title": "导出预设",
-        "description": "一键导出 Shorts、TikTok 和 Reels 格式，需要时自动加入空镜素材。"
+        "description": "一键导出 Shorts、TikTok 和 Reels 规格，需要画面衬托时自动补足免费 B-roll 素材。"
       }
     }
   },
@@ -397,7 +397,7 @@
   "editor": {
     "eyebrow": "编辑器",
     "title": "内置完整的编辑器",
-    "body": "每个片段都会在专为短视频打造的工作室中打开。剪辑、改字、调整字幕样式、重新构图、导出，全都不用离开 SupoClip。",
+    "body": "每条片段都在专为短视频打造的工作室中打开。剪辑、改字、调整字幕样式、让 AI 帮你修改并直接导出，全程无需离开 SupoClip。",
     "tryIt": "这个预览可以直接操作：点击标签页、切换画幅、拖动滑块试试。",
     "points": {
       "timeline": {
@@ -435,7 +435,7 @@
     }
   },
   "publish": {
-    "eyebrow": "新功能：发布",
+    "eyebrow": "发布与排期",
     "title": "剪一次，发一周。",
     "body": "连接你的 YouTube 频道或 TikTok 账号，为每个片段安排发布时间。选择时间，检查 AI 起草的标题和描述，SupoClip 就会替你发布。",
     "platforms": {
@@ -461,7 +461,7 @@
         "description": "播放数据会回流到 SupoClip，之后的选段会更偏向在你频道表现好的内容。"
       }
     },
-    "plan": "排期发布包含在 Creator 方案中。Pro 方案也可以立即发布。",
+    "plan": "Pro 方案支持立即发布。定时排期与发布日历包含在 Creator 和 Team 方案中。",
     "calendar": {
       "week": "本周",
       "published": "已发布",
@@ -492,11 +492,11 @@
       "setup": "需要自行配置。硬件和你选用的付费 AI 服务由你提供。"
     },
     "pro": {
-      "description": "适合每个月都会稳定剪辑的创作者。",
+      "description": "适合每周稳定产出短片的个人创作者。",
       "cta": "升级到 Pro"
     },
     "scale": {
-      "description": "适合每天发布内容的创作者。",
+      "description": "适合每日更新的创作者，含 1080p、Agent 和定时排期。",
       "cta": "升级到 Creator"
     },
     "hosted": {
@@ -508,8 +508,8 @@
       "priority": "优先处理",
       "earlyAccess": "抢先体验新功能"
     },
-    "clipsNote": "每个视频有多少精彩片段，就能剪出多少条短视频。",
-    "selfHostNote": "自托管？全部功能免费且不限量。",
+    "clipsNote": "按原视频时长计费，不按片段条数收费——每个精彩瞬间都包含在内。",
+    "selfHostNote": "自托管？个人创作者与非商业用途免费使用，无每月时长上限。",
     "selfHostGuide": "查看自托管指南",
     "billedYearly": "${price}/月，按年计费",
     "usageExample": {
@@ -600,7 +600,7 @@
   },
   "cta": {
     "title": "你的下一条视频，已经是一周的内容。",
-    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或以非商业用途或个人创作者身份免费自托管。"
+    "body": "粘贴链接，看看 SupoClip 能为你挑出哪些片段。直接使用托管版，或以个人创作者及非商业用途免费自托管。"
   },
   "faqPage": {
     "title": "语言、字幕与剪辑",

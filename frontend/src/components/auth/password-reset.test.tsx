@@ -64,7 +64,7 @@ describe("ResetPassword", () => {
     await user.type(screen.getByPlaceholderText("Confirm new password"), "Password456!");
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
-    expect(await screen.findByText("Passwords do not match")).toBeInTheDocument();
+    expect(await screen.findByText("Passwords don't match")).toBeInTheDocument();
     expect(resetPassword).not.toHaveBeenCalled();
   });
 
