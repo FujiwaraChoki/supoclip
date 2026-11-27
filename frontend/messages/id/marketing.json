@@ -230,10 +230,10 @@
     "examples": "Contoh"
   },
   "hero": {
-    "badge": "Open source dan bisa di-host sendiri. Juga tersedia di iPhone.",
+    "badge": "Open source, tanpa watermark. Juga tersedia di iPhone.",
     "titleLine1": "Satu video panjang.",
     "titleLine2": "Seminggu konten shorts.",
-    "body": "SupoClip menemukan momen yang layak diposting dari video, VOD, dan unggahanmu, membingkai ulang ke 9:16 dengan subtitle yang sinkron per kata, lalu menjadwalkannya ke YouTube Shorts.",
+    "body": "SupoClip menemukan momen terbaik dari podcast, stream, dan video unggahanmu, membingkainya ke 9:16 dengan subtitle sinkron per kata, lalu memublikasikan atau menjadwalkannya ke YouTube Shorts dan TikTok.",
     "startClipping": "Mulai memotong",
     "useHosted": "Pakai aplikasi yang di-host",
     "viewSource": "Lihat sumber",
@@ -265,19 +265,19 @@
   },
   "steps": {
     "eyebrow": "Cara kerjanya",
-    "title": "Dari rekaman mentah sampai terposting, dalam tiga langkah",
+    "title": "Dari video panjang sampai terposting, dalam tiga langkah",
     "items": {
       "drop": {
         "title": "Tempel tautan atau file",
-        "description": "Tempel tautan YouTube, Twitch, atau Kick, atau seret rekamanmu sendiri."
+        "description": "Tempel tautan YouTube, Twitch, atau Kick, atau unggah videomu sendiri."
       },
       "gold": {
         "title": "AI menemukan momennya",
-        "description": "Transkripsi per kata dan skor viralitas menampilkan bagian yang bisa berdiri sendiri."
+        "description": "Transkripsi per kata dan skor viralitas memilih momen yang kuat saat berdiri sendiri."
       },
       "export": {
         "title": "Posting atau jadwalkan",
-        "description": "Sesuaikan apa pun di editor, lalu unduh, publikasikan sekarang, atau jadwalkan ke YouTube Shorts."
+        "description": "Sempurnakan apa pun di editor, lalu unduh, posting sekarang, atau jadwalkan ke YouTube Shorts dan TikTok."
       }
     }
   },
@@ -296,7 +296,7 @@
   },
   "features": {
     "title": "Mata seorang editor, berjalan otomatis",
-    "body": "Semua yang ada di antara rekaman mentah dan klip yang layak diposting dikerjakan untukmu, dan tetap bisa kamu ubah.",
+    "body": "Semua yang ada di antara video panjang dan klip yang layak diposting dikerjakan untukmu—dan tetap bisa kamu edit.",
     "eyebrow": "Fitur",
     "captionSample": "Subtitle yang pas di setiap kata",
     "ownFonts": "Font milikmu",
@@ -315,19 +315,19 @@
     "items": {
       "reframe": {
         "title": "Pembingkaian ulang mengikuti wajah",
-        "description": "Wajah dilacak di setiap shot, jadi potongan vertikal mengikuti pembicara alih-alih memotongnya."
+        "description": "Melacak pembicara, panggilan dua orang, dan facecam gameplay tiap adegan agar crop vertikal tidak memotong aksinya."
       },
       "captions": {
         "title": "Subtitle di setiap kata",
-        "description": "Stempel waktu per kata membuat subtitle animasi selalu seirama dengan suara."
+        "description": "Penyelarasan per kata menjaga subtitle animasi tetap pas di setiap suku kata, dalam 99+ bahasa lisan."
       },
       "virality": {
         "title": "Skor viralitas",
-        "description": "Setiap momen dinilai dari hook, keterlibatan, nilai, dan daya bagi, dari 100."
+        "description": "Setiap klip dinilai dari 100 untuk hook, engagement, nilai, dan daya baginya, agar kamu bisa memposting yang terkuat lebih dulu."
       },
       "hooks": {
         "title": "Judul hook",
-        "description": "Judul singkat buatan AI muncul di atas pada detik-detik pertama untuk menghentikan scroll."
+        "description": "Judul pembuka singkat buatan AI tampil di bagian atas beberapa detik pertama untuk menahan penonton sebelum menggeser."
       },
       "templates": {
         "title": "Template subtitle",
@@ -335,7 +335,7 @@
       },
       "export": {
         "title": "Preset ekspor",
-        "description": "Ekspor sekali klik untuk Shorts, TikTok, dan Reels, dengan B-roll stok saat klip membutuhkannya."
+        "description": "Ekspor sekali klik untuk Shorts, TikTok, dan Reels, lengkap dengan B-roll stok otomatis saat momennya membutuhkan."
       }
     }
   },
@@ -397,7 +397,7 @@
   "editor": {
     "eyebrow": "Editor",
     "title": "Editor lengkap, sudah termasuk",
-    "body": "Setiap klip terbuka di studio yang dibuat untuk video pendek. Potong, perbaiki kata, ubah gaya subtitle, atur bingkai, dan ekspor tanpa keluar dari SupoClip.",
+    "body": "Setiap klip terbuka di studio khusus video pendek. Potong, perbaiki kata, ubah gaya subtitle, minta AI mengedit, lalu ekspor tanpa meninggalkan SupoClip.",
     "tryIt": "Pratinjau ini berfungsi. Klik tab, ganti bingkai, dan geser slider-nya.",
     "points": {
       "timeline": {
@@ -435,7 +435,7 @@
     }
   },
   "publish": {
-    "eyebrow": "Baru: publikasi",
+    "eyebrow": "Publikasi",
     "title": "Potong sekali. Posting sepanjang minggu.",
     "body": "Hubungkan channel YouTube atau akun TikTok kamu dan atur jadwal untuk setiap klip. Pilih waktu, periksa judul dan deskripsi yang dibuat AI, lalu SupoClip mempostingnya untukmu.",
     "platforms": {
@@ -461,7 +461,7 @@
         "description": "Jumlah tayangan kembali ke SupoClip, jadi pilihan berikutnya condong ke yang berhasil di channel-mu."
       }
     },
-    "plan": "Penjadwalan termasuk dalam paket Creator. Publikasi langsung bisa dengan Pro.",
+    "plan": "Publikasi langsung sudah termasuk di Pro. Penjadwalan dan kalender posting tersedia di Creator dan Team.",
     "calendar": {
       "week": "Minggu ini",
       "published": "Terbit",
@@ -492,11 +492,11 @@
       "setup": "Perlu penyiapan. Kamu menyediakan perangkat dan layanan AI berbayar yang kamu pilih."
     },
     "pro": {
-      "description": "Untuk kreator yang membuat clip secara konsisten tiap bulan.",
+      "description": "Untuk kreator solo yang membuat klip setiap minggu.",
       "cta": "Upgrade ke Pro"
     },
     "scale": {
-      "description": "Untuk kreator yang memublikasikan setiap hari.",
+      "description": "Untuk kreator harian dengan 1080p, Agent, dan penjadwalan.",
       "cta": "Upgrade ke Creator"
     },
     "hosted": {
@@ -508,8 +508,8 @@
       "priority": "Pemrosesan prioritas",
       "earlyAccess": "Akses awal ke fitur baru"
     },
-    "clipsNote": "Setiap video menjadi klip sebanyak momen bagus yang ada di dalamnya.",
-    "selfHostNote": "Host sendiri? Semua fitur gratis dan tanpa batas.",
+    "clipsNote": "Dihitung berdasarkan durasi video sumber, bukan per klip—setiap momen bagus sudah termasuk.",
+    "selfHostNote": "Host sendiri? Gratis untuk kreator individu dan penggunaan nonkomersial, tanpa batas bulanan.",
     "selfHostGuide": "Lihat panduan host sendiri",
     "billedYearly": "${price}/bln, ditagih tahunan",
     "usageExample": {
@@ -600,7 +600,7 @@
   },
   "cta": {
     "title": "Video berikutnya sudah jadi konten seminggu.",
-    "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
+    "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Mulai di aplikasi yang di-host, atau host sendiri gratis untuk penggunaan nonkomersial dan kreator individu."
   },
   "faqPage": {
     "title": "Bahasa, subtitle, dan klip",

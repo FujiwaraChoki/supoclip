@@ -249,7 +249,7 @@ export async function DELETE(
   const activeSubscription = NextResponse.json(
     {
       error:
-        "Cancel the team subscription in Manage Billing before deleting this team.",
+        "Cancel the team subscription in Manage billing before deleting this team.",
       code: "active_subscription",
     },
     { status: 409 },

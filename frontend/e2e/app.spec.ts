@@ -11,7 +11,7 @@ async function signIn(page: import("@playwright/test").Page, email: string, pass
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Sign In" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/");
 }
 
@@ -63,12 +63,12 @@ test("social publishing explains missing configuration without breaking task pag
 
   await page.goto("/settings/social");
   await expect(page.getByRole("heading", { name: "Social accounts", exact: true })).toBeVisible();
-  await expect(page.getByText("Coming Soon", { exact: true })).toHaveCount(3);
+  await expect(page.getByText("Coming soon", { exact: true })).toHaveCount(3);
   await expect(page.getByRole("link", { name: "Connect", exact: true })).toHaveCount(0);
   const details = page.getByRole("button", { name: "YouTube Shorts information", exact: true });
   await details.hover();
   await expect(page.getByRole("tooltip")).toContainText("We are in the process of verifying SupoClip with this platform.");
   await expect(page.getByText("No accounts connected yet.", { exact: true })).toBeVisible();
-  await expect(page.getByText("Failed to load social accounts")).toHaveCount(0);
+  await expect(page.getByText("Couldn't load social accounts")).toHaveCount(0);
   await page.screenshot({ path: "test-results/social-accounts-unconfigured.png", fullPage: true });
 });

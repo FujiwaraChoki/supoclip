@@ -17,7 +17,7 @@ async function signIn(page: Page) {
   await page.goto("/sign-in");
   await page.getByPlaceholder("Email").fill(seed.regular.email);
   await page.getByPlaceholder("Password").fill(seed.regular.password);
-  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL("**/");
 }
 async function waitForTask(page: Page, id: string) {
@@ -61,14 +61,14 @@ test.describe.serial("real local processing and editing", () => {
     await page.goto(`/tasks/${taskId}/edit?clip=${clipId}`);
     await expect(page.getByLabel("Word 1", { exact: true })).toBeVisible({ timeout: 120_000 });
     await page.getByRole("button", { name: "Edit script", exact: true }).click();
-    await page.getByLabel("Subtitle text").fill("These elephants have really long trunks. That is pretty cool.");
+    await page.getByLabel("Caption text").fill("These elephants have really long trunks. That is pretty cool.");
     await page.getByRole("button", { name: "Apply script", exact: true }).click();
-    await page.getByRole("slider", { name: "Subtitle size", exact: true }).press("Home");
-    await page.getByRole("slider", { name: "Subtitle size", exact: true }).press("ArrowRight");
+    await page.getByRole("slider", { name: "Caption size", exact: true }).press("Home");
+    await page.getByRole("slider", { name: "Caption size", exact: true }).press("ArrowRight");
     await expect(page.getByRole("status").filter({ hasText: "All changes saved" })).toBeVisible();
     await page.reload();
     await expect(page.getByLabel("Word 1", { exact: true })).toHaveValue("These");
-    await expect(page.getByRole("slider", { name: "Subtitle size", exact: true })).toHaveAttribute("aria-valuenow", "21");
+    await expect(page.getByRole("slider", { name: "Caption size", exact: true })).toHaveAttribute("aria-valuenow", "21");
     const video = page.locator("video");
     await expect.poll(() => video.evaluate(v => (v as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
     await page.screenshot({ path: info.outputPath("editor.png"), fullPage: true });
@@ -172,11 +172,11 @@ test.describe.serial("real local processing and editing", () => {
 test.describe("accounts and settings with real services", () => {
   test("signup, signout, incorrect password and private route protection", async ({ page }) => {
     await page.goto("/sign-up");
-    await page.getByPlaceholder("Full Name").fill("Local test account");
+    await page.getByPlaceholder("Full name").fill("Local test account");
     const email = `local-${Date.now()}@supoclip.test`;
     await page.getByPlaceholder("Email").fill(email);
     await page.getByPlaceholder("Password").fill("LocalTestPassword123!");
-    await page.getByRole("button", { name: "Sign Up", exact: true }).click();
+    await page.getByRole("button", { name: "Sign up", exact: true }).click();
     await page.waitForURL("**/");
     expect((await page.request.get("/api/preferences")).status()).toBe(200);
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
@@ -185,7 +185,7 @@ test.describe("accounts and settings with real services", () => {
     await page.goto("/sign-in");
     await page.getByPlaceholder("Email").fill(email);
     await page.getByPlaceholder("Password").fill("IncorrectPassword");
-    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.getByText(/invalid email or password/i)).toBeVisible();
   });
 

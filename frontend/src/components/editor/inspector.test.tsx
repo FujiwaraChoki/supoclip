@@ -65,7 +65,7 @@ it("is controlled: tabs report through onTabChange and follow the tab prop", () 
   view.rerender({ tab: "edits" });
   expect(screen.getByRole("group", { name: "Edit intensity" })).toBeInTheDocument();
   view.rerender({ tab: "effects" });
-  expect(screen.getByRole("combobox", { name: "Colour grade" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Color grade" })).toBeInTheDocument();
   expect(screen.getByRole("slider", { name: "Film grain" })).toBeInTheDocument();
 });
 

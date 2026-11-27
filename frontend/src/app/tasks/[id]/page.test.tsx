@@ -426,7 +426,7 @@ describe("task page dynamic edits", () => {
     const sheet = await openRestyle();
     expect(within(sheet).getByRole("combobox", { name: "Edit intensity" })).toHaveTextContent("Bold");
     fireEvent.click(within(sheet).getByRole("switch", { name: "Music" }));
-    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to all clips" }));
 
     await waitFor(() => expect(settingsBodies).toHaveLength(1));
     expect(settingsBodies[0]).toMatchObject({ caption_template: "slam", apply_to_existing: true, edit_style: { intensity: "bold", music: false } });
@@ -442,7 +442,7 @@ describe("task page dynamic edits", () => {
     serveFx(task({ edit_style: { intensity: "subtle" } }), [clip(1)], { settingsStatus: 200 });
     renderPage();
     const sheet = await openRestyle();
-    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to all clips" }));
     await waitFor(() => expect(settingsBodies).toHaveLength(1));
     expect(settingsBodies[0]).not.toHaveProperty("edit_style");
   });
@@ -452,7 +452,7 @@ describe("task page dynamic edits", () => {
     serveFx(task({ edit_style: { intensity: "bold" } }), [clip(1)]);
     renderPage();
     const sheet = await openRestyle();
-    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to all clips" }));
     const alert = await screen.findByRole("alert", undefined, { timeout: 5000 });
     expect(alert).toHaveTextContent("The edits couldn't be applied: The renderer ran out of time.");
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
@@ -468,7 +468,7 @@ describe("task page dynamic edits", () => {
     renderPage();
     let sheet = await openRestyle();
     fireEvent.click(within(sheet).getByRole("switch", { name: "Music" }));
-    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to All Clips" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Apply to all clips" }));
     await waitFor(() => expect(settingsBodies).toHaveLength(1));
     await screen.findAllByText("Rendering edits…");
 

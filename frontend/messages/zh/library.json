@@ -64,7 +64,7 @@
   "signInTitle": "需要登录",
   "signInBody": "登录后才能查看你的生成记录。",
   "signIn": "登录",
-  "loadError": "无法加载任务",
+  "loadError": "无法加载你的素材库",
   "refreshError": "批量操作已完成，但列表无法刷新。",
   "cancel": {
     "empty": "所选内容里没有可取消的进行中生成。",

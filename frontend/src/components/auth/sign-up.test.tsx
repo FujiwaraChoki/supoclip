@@ -24,10 +24,10 @@ describe("SignUp", () => {
 
     render(<SignUp />);
 
-    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Full name"), "Jane Admin");
     await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
 
     expect(await screen.findByText("Account already exists")).toBeInTheDocument();
   });
@@ -38,13 +38,13 @@ describe("SignUp", () => {
 
     render(<SignUp />);
 
-    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Full name"), "Jane Admin");
     await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
 
     expect(
-      await screen.findByText("Account created successfully! Signing you in..."),
+      await screen.findByText("Account created — signing you in…"),
     ).toBeInTheDocument();
   });
 
@@ -55,10 +55,10 @@ describe("SignUp", () => {
 
     render(<SignUp />);
 
-    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Full name"), "Jane Admin");
     await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
 
     expect(await screen.findByText("Check your inbox")).toBeInTheDocument();
     expect(screen.getByText(/We sent a link to admin@example.com/)).toBeInTheDocument();
@@ -74,10 +74,10 @@ describe("SignUp", () => {
 
     render(<SignUp />);
 
-    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Full name"), "Jane Admin");
     await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
 
     expect(await screen.findByText(/frontend log/)).toBeInTheDocument();
   });
@@ -90,11 +90,11 @@ describe("SignUp", () => {
 
     render(<SignUp />);
 
-    await user.type(screen.getByPlaceholderText("Full Name"), "Jane Admin");
+    await user.type(screen.getByPlaceholderText("Full name"), "Jane Admin");
     await user.type(screen.getByPlaceholderText("Email"), "admin@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign Up" }));
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
 
-    expect(await screen.findByText("Failed to create account")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't create account")).toBeInTheDocument();
   });
 });

@@ -202,7 +202,7 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
       resolution: "720p",
       scheduling: false,
       youtubeMaxMinutes: proYoutubeMinutes,
-      description: "For creators who clip consistently each month.",
+      description: "For solo creators clipping every week.",
       highlights: [
         `${formatMinutes(proMinutes)} of video every month`,
         "720p clips",
@@ -221,7 +221,7 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
       resolution: "1080p",
       scheduling: true,
       youtubeMaxMinutes: scaleYoutubeMinutes,
-      description: "For creators publishing every day.",
+      description: "For daily creators with 1080p, Agent, and scheduling.",
       highlights: [
         `${formatMinutes(scaleMinutes)} of video every month`,
         "Full HD 1080p clips",

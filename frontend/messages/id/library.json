@@ -64,7 +64,7 @@
   "signInTitle": "Perlu masuk",
   "signInBody": "Kamu perlu masuk untuk melihat generasimu.",
   "signIn": "Masuk",
-  "loadError": "Gagal memuat tugas",
+  "loadError": "Tidak dapat memuat perpustakaanmu",
   "refreshError": "Aksi massal selesai, tapi daftar tidak bisa disegarkan.",
   "cancel": {
     "empty": "Tidak ada generasi yang sedang berjalan di pilihan untuk dibatalkan.",

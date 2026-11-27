@@ -346,8 +346,8 @@
     },
     "welcome": {
       "skip": "Skip for now",
-      "hello": "Hey {name}! I'm SupoClip's Agent!",
-      "helloNoName": "Hey! I'm SupoClip's Agent!",
+      "hello": "Hey {name}, I'm SupoClip's Agent.",
+      "helloNoName": "Hey, I'm SupoClip's Agent.",
       "intro": "Send me a long video and tell me what you want. I'll find the best moments, edit them, write the captions and post them when your audience is around. What do you want to do first?",
       "choices": {
         "examples": "Show me examples",

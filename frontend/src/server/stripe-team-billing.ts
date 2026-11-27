@@ -416,7 +416,7 @@ export async function createTeamCheckoutSession({
           );
         }
         throw new TeamError(
-          "This team already has an active subscription. Use Manage Seats or Manage Billing instead.",
+          "This team already has an active subscription. Use Manage seats or Manage billing instead.",
           409,
           "already_subscribed",
         );
@@ -610,7 +610,7 @@ export async function updateTeamSeats({
     await restoreSeats();
     if (isStripePaymentError(error)) {
       throw new TeamError(
-        "The payment for the extra seats didn't go through. Update the payment method in Manage Billing and try again.",
+        "The payment for the extra seats didn't go through. Update the payment method in Manage billing and try again.",
         402,
         "payment_failed",
       );

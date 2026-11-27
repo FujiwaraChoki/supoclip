@@ -1,11 +1,11 @@
 {
   "plans": {
     "pro": {
-      "description": "Untuk kreator yang membuat clip secara konsisten tiap bulan.",
+      "description": "Untuk kreator solo yang membuat klip setiap minggu.",
       "cta": "Upgrade ke Pro"
     },
     "scale": {
-      "description": "Untuk kreator yang memublikasikan setiap hari.",
+      "description": "Untuk kreator harian dengan 1080p, Agent, dan penjadwalan.",
       "cta": "Upgrade ke Creator"
     }
   },

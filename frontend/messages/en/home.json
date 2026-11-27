@@ -8,12 +8,12 @@
   },
   "subtitle": "Drop in a long video. Get back captioned, ready-to-post clips.",
   "errors": {
-    "fonts": "Could not load fonts right now.",
+    "fonts": "Couldn't load fonts right now.",
     "notVideo": "That doesn't look like a video file. Try MP4, MOV, MKV or WebM.",
     "fontType": "Only .ttf and .otf files are supported for custom fonts.",
-    "uploadFont": "Failed to upload font",
-    "uploadFontRetry": "Failed to upload font. Please try again.",
-    "processVideo": "Failed to process video. Please try again.",
+    "uploadFont": "Couldn't upload font",
+    "uploadFontRetry": "Couldn't upload font. Try again.",
+    "processVideo": "Couldn't start processing this video. Try again.",
     "fileTooLarge": "This file is {size}, which is over the {limit} upload limit. Try a shorter export or a smaller file.",
     "api": "API error: {status}"
   },
@@ -74,7 +74,7 @@
   "captions": "Captions",
   "noCaptions": "No captions",
   "broll": "B-roll",
-  "brollHint": "Adds stock footage from Pexels where the speaker names something you can show",
+  "brollHint": "Adds matching Pexels stock footage when the speaker mentions something visual",
   "cleanup": "Cleanup",
   "composerSettings": {
     "chip": "Settings",
@@ -151,7 +151,7 @@
     "medium": "Medium (30–60s)",
     "long": "Long (1–2 min)",
     "hint": "Target length before pause and filler removal. Your choice is saved as your default.",
-    "saveError": "Could not save your default. This video will still use your choice."
+    "saveError": "Couldn't save your default. This video will still use your choice."
   },
   "whatToMake": "What do you want to make?",
   "workflows": {
@@ -393,7 +393,7 @@
       },
       "music": {
         "label": "Music",
-        "hint": "A bed that ducks under the voice"
+        "hint": "Background music that dips under speech"
       },
       "musicMood": "Music mood",
       "zooms": {

@@ -64,7 +64,7 @@
   "signInTitle": "Anmeldung nötig",
   "signInBody": "Du musst angemeldet sein, um deine Generierungen zu sehen.",
   "signIn": "Anmelden",
-  "loadError": "Aufgaben konnten nicht geladen werden",
+  "loadError": "Deine Bibliothek konnte nicht geladen werden",
   "refreshError": "Die Sammelaktion ist durch, aber die Liste konnte nicht aktualisiert werden.",
   "cancel": {
     "empty": "In der Auswahl sind keine aktiven Generierungen zum Abbrechen.",

@@ -89,7 +89,7 @@
     "signIn": "登录",
     "title": "社交账号",
     "unavailable": "你的账号还不能发布到 YouTube、TikTok 和 Instagram。",
-    "intro": "连接你用来发布的账号。在任务页直接发布片段、安排时间，并让 SupoClip 从它们的表现中学习。",
+    "intro": "连接你要发布的社交账号。从素材库直接发布片段、提前排期，并让 SupoClip 根据真实表现持续优化选片。",
     "loadError": "无法加载社交账号",
     "connectedNotice": "已连接 {label}。",
     "connectedAs": "已以 {account} 连接 {label}。",

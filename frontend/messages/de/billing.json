@@ -1,11 +1,11 @@
 {
   "plans": {
     "pro": {
-      "description": "Für Creator, die jeden Monat regelmäßig clippen.",
+      "description": "Für Solo-Creator, die jede Woche clippen.",
       "cta": "Auf Pro upgraden"
     },
     "scale": {
-      "description": "Für Creator, die jeden Tag veröffentlichen.",
+      "description": "Für tägliche Creator mit 1080p, Agent und Zeitplanung.",
       "cta": "Auf Creator upgraden"
     }
   },

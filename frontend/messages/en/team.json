@@ -5,9 +5,9 @@
   "backToSettings": "Back to Settings",
   "switchToPersonal": "Switch to Personal",
   "signInRequired": {
-    "title": "Sign In Required",
+    "title": "Sign in required",
     "body": "Sign in to manage your team workspace, seats, and invitations.",
-    "action": "Sign In"
+    "action": "Sign in"
   },
   "roles": {
     "owner": "Owner",
@@ -73,8 +73,8 @@
     "totalLine": "Total ({seats} seats · {hours} pooled hrs/mo)",
     "includedFeatures": "Includes {resolution} clips, videos up to {youtubeHours}h each, social scheduling, and {aiEdits} pooled AI edits/mo.",
     "openingCheckout": "Opening checkout…",
-    "startPlan": "Start Team Plan",
-    "managePortal": "Manage Billing",
+    "startPlan": "Start Team plan",
+    "managePortal": "Manage billing",
     "prorationNote": "Added seats are charged right away for the rest of the billing period. Removing seats takes effect immediately and isn't refunded.",
     "ownerOnlyNotice": "Only the team owner can start a subscription, change seat counts, or manage billing.",
     "paymentFailed": "Your team's last payment failed. Update the payment method to keep clipping.",
@@ -217,7 +217,7 @@
     "teamsUnavailable": "Team workspaces aren't available yet.",
     "subscriptionRequired": "Start the Team subscription first.",
     "inviteRateLimited": "Too many invitations in a short time. Try again later.",
-    "seatPaymentFailed": "The payment for the extra seats didn't go through. Update the payment method in Manage Billing and try again.",
+    "seatPaymentFailed": "The payment for the extra seats didn't go through. Update the payment method in Manage billing and try again.",
     "teamLimitReached": "You've reached the number of teams one account can own. Delete one you no longer use first."
   }
 }

@@ -33,7 +33,7 @@ describe("SignIn", () => {
 
     await user.type(screen.getByPlaceholderText("Email"), "new@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign In" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(
       await screen.findByText("Verify your email first. We sent a new link to new@example.com."),
@@ -50,7 +50,7 @@ describe("SignIn", () => {
 
     await user.type(screen.getByPlaceholderText("Email"), "user@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign In" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Invalid credentials")).toBeInTheDocument();
   });
@@ -63,8 +63,8 @@ describe("SignIn", () => {
 
     await user.type(screen.getByPlaceholderText("Email"), "user@example.com");
     await user.type(screen.getByPlaceholderText("Password"), "Password123!");
-    await user.click(screen.getByRole("button", { name: "Sign In" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Signed in successfully!")).toBeInTheDocument();
+    expect(await screen.findByText("Signed in")).toBeInTheDocument();
   });
 });
