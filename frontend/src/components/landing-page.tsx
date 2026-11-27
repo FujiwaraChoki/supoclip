@@ -30,7 +30,7 @@ import { ProductFilm } from "@/components/landing/product-film";
 import { PublishSection } from "@/components/landing/publish-section";
 import { Reveal, SectionHeading } from "@/components/landing/reveal";
 import { CreatorOfferBanner } from "@/components/marketing/creator-offer-banner";
-import { SalePill, useActiveSale } from "@/components/marketing/sale-pill";
+import { SaleFeature, SalePill, useActiveSale } from "@/components/marketing/sale-pill";
 import { salePrice, SALE_MONTHLY_MONTHS, type Sale } from "@/lib/sale";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
@@ -440,6 +440,9 @@ export default function LandingPage() {
           </Reveal>
         </div>
       </section>
+
+      {/* ─── SALE (only while one runs) ─── */}
+      <SaleFeature />
 
       {/* ─── HOW IT WORKS ─── */}
       <section id="how-it-works" className="scroll-mt-24 border-y bg-canvas py-24 md:py-32">

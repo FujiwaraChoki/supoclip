@@ -50,3 +50,52 @@ export function SalePill() {
     </a>
   );
 }
+
+/**
+ * The sale's loop as a wide card under the hero; the whole card goes to pricing.
+ * The copy is in the video, so the link carries the same line as the pill for
+ * screen readers. Visitors who prefer reduced motion get the still.
+ */
+export function SaleFeature() {
+  const t = useTranslations("marketing");
+  const sale = useActiveSale();
+  const lastDay = useSaleLastDay(sale);
+  const [still, setStill] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setStill(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  if (!sale?.media) return null;
+  const label = t("sale.pill", { percent: sale.percentOff, date: lastDay });
+  return (
+    <section aria-label={label} className="px-6 pb-20 md:pb-28" data-testid="sale-feature">
+      <a
+        href="#pricing"
+        aria-label={label}
+        className="group mx-auto block max-w-6xl overflow-hidden rounded-[26px] border bg-black shadow-[0_30px_80px_-40px_oklch(0.2_0.01_50/0.6)] transition-transform duration-500 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {still ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a remote poster, shown as is
+          <img src={sale.media.poster} alt="" width={1600} height={800} className="block aspect-[2/1] w-full" />
+        ) : (
+          <video
+            className="block aspect-[2/1] w-full"
+            poster={sale.media.poster}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden
+          >
+            <source src={sale.media.webm} type="video/webm" />
+            <source src={sale.media.mp4} type="video/mp4" />
+          </video>
+        )}
+      </a>
+    </section>
+  );
+}

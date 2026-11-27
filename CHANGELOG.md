@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-27
 
-- **New:** Black Friday sale: 40% off Pro and Creator until Sunday, December 6. Monthly plans are 40% off for the first 3 months and yearly plans for the first year. The discount is applied automatically at checkout, and the landing page shows the sale prices. ([#594](https://github.com/FujiwaraChoki/supoclip/pull/594))
+- **New:** Black Friday sale: 40% off Pro and Creator until Sunday, December 6. Monthly plans are 40% off for the first 3 months and yearly plans for the first year. The discount is applied automatically at checkout, and the landing page shows the sale prices and a Black Friday animation. ([#594](https://github.com/FujiwaraChoki/supoclip/pull/594))
 
 ## 2026-11-26
 
