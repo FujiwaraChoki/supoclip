@@ -167,7 +167,7 @@ These settings affect clip generation speed, throughput, and defaults.
 | `CLIP_EDGE_LLM` | Claude Sonnet 5.5 when `ANTHROPIC_API_KEY` is set, else `RERANK_LLM`, else `LLM` | The model for the edge review. A few hundred tokens per clip, so the strongest model is cheap here, and it is the call that decides whether a clip stands on its own |
 | `CLIP_EDGE_LISTEN` | `auto` | The bundled Whisper listens to the four seconds on either side of each cut and corrects word times and a misplaced full stop the transcript has wrong there, so a clip does not end on the first word of the next sentence or lose the start of its first word (`media/edge_listen.py`). Every correction must be confirmed by the audio itself. `auto`: only when the model file is already on the machine (the backend image bakes it in); `on`: load it, downloading if needed; `off`. About 2.5 s of CPU per cut with the default model, and about 1 GB of memory in each process that renders (the model stays loaded). Corrections are held in the process that found them and found again by any other that needs them; nothing is written to the shared transcript |
 | `CLIP_EDGE_LISTEN_MODEL` | `small` | Whisper model for that check (`base` is three times faster and less accurate). Build the image with `--build-arg EDGE_LISTEN_MODEL=<name>` to bake a different one, or empty to leave it out. With `auto`, a model named here that is not the one in the image means the check stays off |
-| `VIDEO_JOB_USER_CONCURRENCY` | `1` | Long video renders one account may run at once. Extra videos from that account wait without taking a worker slot. `1` is the default because a render can occupy a slot for hours; set `2` to allow two at once |
+| `VIDEO_JOB_USER_CONCURRENCY` | `1` | Long video renders one account may run at once. Extra videos from that account wait without taking a worker slot. `1` is the default because a render can occupy a slot for hours; hosted deployments set `3` |
 | `VIDEO_JOB_DEFER_SECONDS` | `20` | How long a video over the per-account cap waits before a worker checks again (5–300). The waiting job is not charged again |
 | `QUEUE_DELAY_ALERT_SECONDS` | `600` | Pickup delay, from enqueue until a worker starts the job, that reports `queue_delay_exceeded` to PostHog |
 | `QUEUE_DELAY_ALERT_INTERVAL_SECONDS` | `900` | Minimum time between those queue-delay reports |
@@ -327,7 +327,7 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `TEAM_EXTRA_SEAT_MINUTE_LIMIT` | `900` | Extra pooled minutes per month added for each seat above `TEAM_PLAN_INCLUDED_SEATS` (+15 hours) |
 | `TEAM_PLAN_AI_EDIT_LIMIT` | `300` | Hosted-mode Team pooled AI edits per month |
 | `TEAM_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum length of one video (any source) in seconds for Team workspaces (180 minutes; hosted mode only) |
-| `VIDEO_JOB_TEAM_CONCURRENCY` | `3` | Maximum simultaneous video jobs running for a single team workspace |
+| `VIDEO_JOB_TEAM_CONCURRENCY` | `4` | Maximum simultaneous video jobs running for a single team workspace |
 | `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the Pro plan |
 | `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `24.99` | Frontend display price for the Creator plan |
 | `NEXT_PUBLIC_PRO_PRICE_ANNUAL` | `99.90` | Frontend display price for a year of Pro |

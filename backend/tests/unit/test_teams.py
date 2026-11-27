@@ -417,6 +417,16 @@ def test_video_admission_uses_team_concurrency_bucket():
     assert _concurrency_limit(config, "team-alpha") == 4
 
 
+def test_team_concurrency_defaults_above_a_personal_account(monkeypatch):
+    monkeypatch.delenv("VIDEO_JOB_TEAM_CONCURRENCY", raising=False)
+    monkeypatch.setenv("VIDEO_JOB_USER_CONCURRENCY", "3")
+    config = Config()
+
+    assert config.video_job_user_concurrency == 3
+    assert config.video_job_team_concurrency == 4
+    assert _concurrency_limit(config, "team-alpha") > _concurrency_limit(config, None)
+
+
 def test_team_email_service_builds_invitation_email():
     content = build_team_invitation_email(
         team_name="Demo Clip Crew",
