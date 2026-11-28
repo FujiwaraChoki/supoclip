@@ -2511,6 +2511,11 @@ class VideoService:
             section_duration = (
                 source_range.source_duration if source_range is not None else file_duration
             )
+            if source_type in {"twitch", "kick"} and source_range is None:
+                # A stream's audio can probe shorter than the VOD (HLS timestamps),
+                # which would clamp away every later section. The provider clamps
+                # against the VOD's own reported or preflight-seeded length instead.
+                section_duration = None
 
             if audio_first:
                 audio_path = video_path
