@@ -508,8 +508,10 @@ async def main():
     c = get_config()
     redis = Redis(host=c.redis_host, port=c.redis_port, password=c.redis_password)
     await redis.ping()
-    if not await redis.exists("supoclip_tasks:health-check"):
-        sys.exit("Redis has no video worker heartbeat; is this the production queue?")
+    # Only SupoClip's ARQ workers write these. The cron worker runs next to Redis, so its key
+    # is there while every video worker is stalled or being rolled: when a worker is needed most.
+    if not await redis.exists("supoclip_tasks:health-check", "supoclip_cron:health-check"):
+        sys.exit("Redis has no SupoClip worker heartbeat; is this the production queue?")
     await redis.aclose()
     print("ok")
 try:

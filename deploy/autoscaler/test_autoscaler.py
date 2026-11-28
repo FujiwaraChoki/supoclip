@@ -577,6 +577,75 @@ def replace_metrics(host, **changes):
     return host
 
 
+class Validate(unittest.TestCase):
+    """Runs the connectivity check script against stand-ins for the backend and Redis."""
+
+    STUBS = {
+        "src/__init__.py": "",
+        "src/database.py": (
+            "class _Result:\n"
+            "    def scalar(self):\n"
+            "        return True\n"
+            "class _Session:\n"
+            "    async def __aenter__(self):\n"
+            "        return self\n"
+            "    async def __aexit__(self, *exc):\n"
+            "        return False\n"
+            "    async def execute(self, query):\n"
+            "        return _Result()\n"
+            "def get_session_maker():\n"
+            "    return _Session\n"
+        ),
+        "src/config.py": (
+            "class _Config:\n"
+            "    redis_host = redis_port = redis_password = None\n"
+            "def get_config():\n"
+            "    return _Config()\n"
+        ),
+        "sqlalchemy.py": "def text(query):\n    return query\n",
+        "redis/__init__.py": "",
+        "redis/asyncio.py": (
+            "import os\n"
+            "class Redis:\n"
+            "    def __init__(self, **kwargs):\n"
+            "        self.keys = set(filter(None, os.environ['FAKE_REDIS_KEYS'].split(',')))\n"
+            "    async def ping(self):\n"
+            "        return True\n"
+            "    async def exists(self, *names):\n"
+            "        return sum(name in self.keys for name in names)\n"
+            "    async def aclose(self):\n"
+            "        pass\n"
+        ),
+    }
+
+    def check(self, *keys: str) -> subprocess.CompletedProcess:
+        with tempfile.TemporaryDirectory() as root:
+            for name, body in self.STUBS.items():
+                path = Path(root) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(body)
+            script = f"import sys; sys.path.insert(0, {root!r})\n" + autoscaler.VALIDATE
+            return subprocess.run(
+                [sys.executable, "-I", "-"], input=script, capture_output=True, text=True, timeout=30,
+                env={"MEDIA_STORAGE": "s3", "FAKE_REDIS_KEYS": ",".join(keys)},
+            )
+
+    def test_passes_on_the_video_workers_heartbeat(self):
+        result = self.check("supoclip_tasks:health-check")
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "ok"), result.stderr)
+
+    def test_passes_on_the_cron_heartbeat_while_no_video_worker_is_polling(self):
+        # A stalled or restarting render host lets its heartbeat expire; that is when the
+        # new worker is needed, so it must not be deleted for it.
+        result = self.check("supoclip_cron:health-check")
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "ok"), result.stderr)
+
+    def test_fails_on_a_redis_without_any_supoclip_heartbeat(self):
+        result = self.check("someone_else:health-check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no SupoClip worker heartbeat", result.stderr)
+
+
 class FailingOpener:
     def open(self, *a, **kw):
         raise AssertionError("no request may be sent")
