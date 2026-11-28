@@ -1375,7 +1375,14 @@ class TaskService(ClipEditingMixin):
     async def _completion_email_wanted(self, task_id: str) -> bool:
         """Whether a completion email will go out, so clip stills are worth taking."""
         try:
-            context = await self.task_repo.get_task_notification_context(self.db, task_id)
+            from ..database import AsyncSessionLocal
+
+            # A short-lived session of its own: on the task's session this read
+            # would leave a transaction open across the clip's preview and
+            # timeline work, long enough for idle_in_transaction_session_timeout
+            # to close the connection before the next clip is saved.
+            async with AsyncSessionLocal() as session:
+                context = await self.task_repo.get_task_notification_context(session, task_id)
         except Exception:
             logger.warning("Could not read notification settings for task %s", task_id, exc_info=True)
             return False
