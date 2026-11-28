@@ -123,7 +123,7 @@ by the same minutes. Watch `stream_provider` / `stream_bytes` and
    that still says live streams aren't supported (`frontend/src/lib/seo-pages.ts`,
    `creator-guides.ts`, `localized-guides/*`, `messages/*/seo.json`, `marketing.json`
    `faq.items.sources`, `blog.json`, the README).
-5. iOS stays off until the app handles `LIVE_STREAM_DETECTED`.
+5. iOS: the app handles `LIVE_STREAM_DETECTED` (live sheet, session card) from its next release. Turn the flag on for iOS once that version is out; older builds show the server's plain message for a live link.
 
 ## Code
 
