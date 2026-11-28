@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
-- **Fixed:** Extra rendering capacity now comes online during busy periods even while our main render server is briefly unresponsive, instead of being turned away and paused for half an hour, so clips wait less in the queue. (PR_LINK)
+- **Fixed:** Extra rendering capacity now comes online during busy periods even while our main render server is briefly unresponsive, instead of being turned away and paused for half an hour, so clips wait less in the queue. ([#596](https://github.com/FujiwaraChoki/supoclip/pull/596))
 
 ## 2026-11-27
 
