@@ -16,11 +16,13 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIResponsesModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.profiles.anthropic import AnthropicModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
@@ -465,7 +467,11 @@ def build_transcript_system_prompt(clip_length: str = "auto") -> str:
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama"}
+# ``openai:`` keeps the SDK's default (Chat Completions); ``openai-responses:``
+# opts in to the Responses API with the same OPENAI_API_KEY.
+SUPPORTED_LLM_PROVIDERS = {
+    "google", "google-gla", "openai", "openai-responses", "openrouter", "anthropic", "ollama",
+}
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -483,7 +489,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*."
+            "Use google-gla:*, openai:*, openai-responses:*, openrouter:*, anthropic:*, or ollama:*."
         )
 
     if not provider_model_name:
@@ -504,7 +510,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider == "openrouter" and "/" not in provider_model_name:
         return "OpenRouter model must include its vendor, for example openrouter:anthropic/claude-sonnet-5.5."
 
-    if provider == "openai" and not runtime_config.openai_api_key:
+    if provider in {"openai", "openai-responses"} and not runtime_config.openai_api_key:
         return (
             "Selected LLM provider is OpenAI, but OPENAI_API_KEY is not set. "
             "Set OPENAI_API_KEY or choose another provider with a matching API key."
@@ -532,7 +538,7 @@ _NATIVE_OUTPUT_ANTHROPIC_MODELS = frozenset({"claude-sonnet-5-5", "claude-haiku-
 
 def _uses_native_output(model_name: str) -> bool:
     provider, name = _split_llm_name(model_name)
-    return provider == "openrouter" or (
+    return provider in {"openrouter", "openai-responses"} or (
         provider == "anthropic" and name in _NATIVE_OUTPUT_ANTHROPIC_MODELS
     )
 
@@ -553,6 +559,30 @@ def _build_transcript_model(
             provider=AnthropicProvider(api_key=runtime_config.anthropic_api_key),
             profile=profile,
             settings={"max_tokens": 8192},
+        )
+    if provider == "openai-responses":
+        if not provider_model_name:
+            raise RuntimeError(
+                "Selected LLM provider is OpenAI Responses, but no model name was provided. "
+                "Use the format openai-responses:<model>."
+            )
+        # Any model name is passed through as given. The installed SDK may not
+        # know a newer model, so its profile is forced to strict JSON schema
+        # output (NativeOutput); reasoning settings stay the API's defaults.
+        profile = OpenAIProvider.model_profile(provider_model_name).update(
+            OpenAIModelProfile(supports_json_schema_output=True)
+        )
+        return OpenAIResponsesModel(
+            provider_model_name,
+            provider=OpenAIProvider(api_key=runtime_config.openai_api_key),
+            profile=profile,
+            settings={
+                # Transcripts are user content: don't keep responses on OpenAI.
+                "openai_store": False,
+                # Unstored item ids can't be referenced on a retry turn.
+                "openai_send_reasoning_ids": False,
+                "max_tokens": 8192,
+            },
         )
     if provider == "openrouter":
         fallback = runtime_config.openrouter_fallback_model

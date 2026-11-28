@@ -80,7 +80,7 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 | Variable | Required | Purpose |
 |---|---|---|
 | `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview` |
-| `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` models |
+| `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` and `openai-responses:*` models. Use `openai-responses:<model>` for models that support structured output via the OpenAI Responses API. |
 | `GOOGLE_API_KEY` | If using Google | Required for `google-gla:*` models |
 | `ANTHROPIC_API_KEY` | If using Anthropic | Required for `anthropic:*` models |
 | `OPENROUTER_API_KEY` | If using OpenRouter | Required for `openrouter:*` models (see [OpenRouter analysis](openrouter-analysis.md)) |

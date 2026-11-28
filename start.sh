@@ -39,11 +39,11 @@ FRONTEND_LOCAL_URL="http://localhost:${FRONTEND_PORT:-3001}"
 
 if [ -n "${LLM:-}" ]; then
     case "$LLM" in
-        google:*|google-gla:*|openai:*|openrouter:*|anthropic:*|ollama:*)
+        google:*|google-gla:*|openai:*|openai-responses:*|openrouter:*|anthropic:*|ollama:*)
             ;;
         *)
             echo -e "${YELLOW}Warning: Unsupported LLM value '$LLM'${NC}"
-            echo "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*"
+            echo "Use google-gla:*, openai:*, openai-responses:*, openrouter:*, anthropic:*, or ollama:*"
             echo ""
             ;;
     esac
