@@ -20,8 +20,8 @@ describe("sale", () => {
   });
 
 
-  it("covers yearly plans only", () => {
+  it("covers monthly and yearly plans", () => {
     expect(saleApplies(BLACK_FRIDAY_2026, "year")).toBe(true);
-    expect(saleApplies(BLACK_FRIDAY_2026, "month")).toBe(false);
+    expect(saleApplies(BLACK_FRIDAY_2026, "month")).toBe(true);
   });
 });
