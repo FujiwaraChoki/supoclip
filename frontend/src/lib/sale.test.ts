@@ -1,4 +1,4 @@
-import { activeSale, BLACK_FRIDAY_2026, salePrice } from "@/lib/sale";
+import { activeSale, BLACK_FRIDAY_2026, saleApplies, salePrice } from "@/lib/sale";
 
 describe("sale", () => {
   it("runs from its start until the end of Sunday 6 December, Pacific time", () => {
@@ -19,4 +19,9 @@ describe("sale", () => {
     expect(salePrice(price, BLACK_FRIDAY_2026)).toBe(expected);
   });
 
+
+  it("covers yearly plans only", () => {
+    expect(saleApplies(BLACK_FRIDAY_2026, "year")).toBe(true);
+    expect(saleApplies(BLACK_FRIDAY_2026, "month")).toBe(false);
+  });
 });

@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
+- **Fixed:** The Black Friday sale is for yearly plans: 40% off the first year of Pro and Creator. Monthly plans are back at their regular price, and pricing opens on yearly while the sale runs. ([#602](https://github.com/FujiwaraChoki/supoclip/pull/602))
 - **Improved:** Clip generation renders roughly 3× faster end-to-end with the same visual quality. Rendering now bounds encoder threads to prevent CPU contention, avoids redundant re-encoding on 720p plans, runs caption detection and layout checks in parallel, and renders multiple clips of a video at the same time. ([#597](https://github.com/FujiwaraChoki/supoclip/pull/597))
 
 ## 2026-11-27

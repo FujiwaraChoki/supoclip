@@ -1,3 +1,4 @@
+import { onTestFinished } from "vitest";
 import { Suspense } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -662,6 +663,12 @@ describe("AcceptInvitePage UI states", () => {
 
 describe("LandingPage Team pricing card", () => {
   it("updates Team price and pooled hours live as seats and billing interval change", () => {
+    // Outside any sale: while a yearly sale runs, pricing opens on yearly.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-01-15T12:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     vi.stubGlobal(
       "IntersectionObserver",
       class {

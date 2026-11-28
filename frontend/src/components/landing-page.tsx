@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
@@ -31,7 +31,7 @@ import { PublishSection } from "@/components/landing/publish-section";
 import { Reveal, SectionHeading } from "@/components/landing/reveal";
 import { CreatorOfferBanner } from "@/components/marketing/creator-offer-banner";
 import { SaleBand, SaleNote, SalePill, useActiveSale } from "@/components/marketing/sale";
-import { salePrice, SALE_MONTHLY_MONTHS, type Sale } from "@/lib/sale";
+import { saleApplies, salePrice, type Sale } from "@/lib/sale";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,7 @@ function getPlans(
       price: "$0",
       originalPrice: null as string | null,
       saleBadge: null as string | null,
+      onSale: false,
       period: t("pricing.period.forever"),
       note: null as string | null,
       soon: null as string | null,
@@ -124,23 +125,24 @@ function getPlans(
       highlighted: false,
     },
     ...getPublicBillingPlans().map((plan) => {
+      // The sale covers some intervals only: elsewhere the card keeps its price and hints at the sale.
+      const onSale = sale !== null && saleApplies(sale, interval);
       const exampleVideos = Math.floor(plan.minuteLimit / PRICING_EXAMPLE_VIDEO_MINUTES);
       const scheduling = plan.scheduling && showScheduling;
       return {
         id: plan.id,
         name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
-        // During a sale the regular price is struck through and the note says how long the sale price lasts.
-        price: `$${sale ? salePrice(planPrice(plan, interval), sale) : planPrice(plan, interval)}`,
-        originalPrice: sale
+        // On sale, the regular price is struck through and the note says how long the sale price lasts.
+        price: `$${onSale && sale ? salePrice(planPrice(plan, interval), sale) : planPrice(plan, interval)}`,
+        originalPrice: onSale
           ? `$${planPrice(plan, interval)}`
           : interval === "year" && annualMonthsFree(plan) > 0 ? `$${annualFullPrice(plan)}` : null,
         period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
-        note: sale
-          ? interval === "year"
-            ? t("sale.noteYearly", { percent: sale.percentOff, price: planPrice(plan, interval) })
-            : t("sale.noteMonthly", { percent: sale.percentOff, months: SALE_MONTHLY_MONTHS, price: planPrice(plan, interval) })
+        note: onSale && sale
+          ? t("sale.noteYearly", { percent: sale.percentOff, price: planPrice(plan, interval) })
           : interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
-        saleBadge: sale ? t("sale.badge", { percent: sale.percentOff }) : null,
+        saleBadge: sale ? t(onSale ? "sale.badge" : "sale.badgeYearly", { percent: sale.percentOff }) : null,
+        onSale,
         soon: scheduling ? t("pricing.schedulingSoon") : null,
         usageExample:
           exampleVideos > 0
@@ -237,6 +239,15 @@ export default function LandingPage() {
   const [teamSeats, setTeamSeats] = useState<number>(teamConfig.includedSeats);
   const teamPricing = calculateTeamPricing(teamSeats, billingInterval, teamConfig);
   const sale = useActiveSale();
+  // While a yearly sale runs, pricing opens on yearly, unless the visitor has already chosen.
+  const intervalChosen = useRef(false);
+  useEffect(() => {
+    if (sale && !intervalChosen.current && saleApplies(sale, "year") && !saleApplies(sale, "month")) setBillingInterval("year");
+  }, [sale]);
+  const chooseInterval = (value: BillingInterval) => {
+    intervalChosen.current = true;
+    setBillingInterval(value);
+  };
   const plans = getPlans(t, tCommon, billingInterval, planText, sale);
   const [scrolled, setScrolled] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -475,7 +486,7 @@ export default function LandingPage() {
             <BillingIntervalToggle
               className="rounded-full bg-background [&_button]:rounded-full"
               value={billingInterval}
-              onChange={setBillingInterval}
+              onChange={chooseInterval}
               plan={getPublicBillingPlans()[0]}
             />
           </Reveal>
@@ -510,11 +521,11 @@ export default function LandingPage() {
 
                   <div className="mt-5 @container">
                     {/* A sale price is wide: the regular price goes on its own line so the period never wraps. */}
-                    {plan.saleBadge && plan.originalPrice && (
+                    {plan.onSale && plan.originalPrice && (
                       <p className="mb-1 text-base text-muted-foreground line-through">{plan.originalPrice}</p>
                     )}
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      {plan.originalPrice && !plan.saleBadge && (
+                      {plan.originalPrice && !plan.onSale && (
                         <span className="text-lg text-muted-foreground line-through">{plan.originalPrice}</span>
                       )}
                       <span className="font-display max-w-full whitespace-nowrap text-[clamp(1.75rem,16cqi,3rem)] font-bold tracking-tight leading-none">

@@ -55,13 +55,13 @@
     "dismiss": "Tutup"
   },
   "sale": {
-    "pill": "Black Friday: diskon {percent}% untuk Pro dan Creator hingga {date}",
+    "pill": "Black Friday: diskon {percent}% untuk Pro dan Creator tahunan hingga {date}",
     "badge": "Diskon {percent}%",
-    "noteMonthly": "Diskon {percent}% untuk {months} bulan pertama, lalu ${price}/bln",
     "noteYearly": "Diskon {percent}% untuk tahun pertama, lalu ${price}/thn",
-    "headline": "Diskon {percent}% untuk Pro dan Creator",
+    "headline": "Diskon {percent}% untuk Pro dan Creator tahunan",
     "note": "Black Friday, hingga {date}. Lihat harga",
-    "dismiss": "Tutup"
+    "dismiss": "Tutup",
+    "badgeYearly": "Diskon {percent}% tahunan"
   },
   "related": {
     "continueExploring": "Lanjut jelajahi",

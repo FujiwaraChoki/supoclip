@@ -1,18 +1,23 @@
 import type Stripe from "stripe";
-import { activeSale, type Sale } from "@/lib/sale";
+import type { BillingInterval } from "@/lib/billing-plans";
+import { activeSale, saleApplies, type Sale } from "@/lib/sale";
 
 const CACHE_MS = 5 * 60 * 1000;
 // Keyed by the Stripe client, which is per account: the coupon must exist in the account that bills.
 const cache = new WeakMap<Stripe, Map<string, { ok: boolean; at: number }>>();
 
 /**
- * The running sale whose coupon this Stripe account can apply, or null.
+ * The running sale whose coupon this Stripe account can apply to this billing interval, or null.
  * A missing or expired coupon never blocks checkout: the customer pays full price
  * and the error is logged so the coupon can be created.
  */
-export async function checkoutSale(stripe: Stripe, now: Date = new Date()): Promise<Sale | null> {
+export async function checkoutSale(
+  stripe: Stripe,
+  interval: BillingInterval,
+  now: Date = new Date(),
+): Promise<Sale | null> {
   const sale = activeSale(now);
-  if (!sale) return null;
+  if (!sale || !saleApplies(sale, interval)) return null;
   let entries = cache.get(stripe);
   if (!entries) {
     entries = new Map();

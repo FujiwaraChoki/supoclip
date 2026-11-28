@@ -238,8 +238,9 @@ export async function POST(request: Request) {
       ?.match(/(?:^|;\s*)tilly_visitor_id=([^;]+)/)?.[1];
 
     const paymentMethodOptions = await pixPaymentMethodOptions(stripe, priceId, interval);
-    // A running sale beats a creator code (Checkout takes one discount); the creator keeps the attribution.
-    const sale = await checkoutSale(stripe);
+    // A running sale beats a creator code on the intervals it covers (Checkout takes one
+    // discount); the creator keeps the attribution.
+    const sale = await checkoutSale(stripe, interval);
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
