@@ -1813,6 +1813,7 @@ class VideoService:
                     words=planned_fx.words,
                     reaction_files=planned_fx.reaction_files,
                 )} if planned_fx is not None else {}),
+                **({"max_short_side": max_short_side} if max_short_side else {}),
             )
 
             if not success:

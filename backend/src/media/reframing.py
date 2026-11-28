@@ -52,6 +52,7 @@ from .ffmpeg import (
     ffprobe_video_size,
     round_to_even,
     run_ffmpeg_command,
+    short_side_scale_filter,
     subtitles_filter_fragment,
 )
 from .broll_overlay import (
@@ -1271,7 +1272,7 @@ def kenburns_zoom_fragment(duration: float) -> Optional[str]:
         f"if(isnan(it)\\,1\\,1+{KENBURNS_ZOOM_DELTA}*min(it/{duration:.3f}\\,1))"
     )
     return (
-        f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=lanczos,"
+        f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=bicubic,"
         f"fps={OUTPUT_FPS},"
         f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{KENBURNS_FOCUS_Y}'"
         f":d=1:s=1080x1920:fps={OUTPUT_FPS},{UPSCALE_SHARPEN_FILTER},setsar=1"
@@ -1598,9 +1599,10 @@ def build_full_frame_filter(
     ``fit_windows`` (see ``plan_fit_windows``) enlarges content whose detail
     leaves empty margins; without them the whole frame is letterboxed.
     """
+    bg_sigma = max(1, blur_sigma // 2)
     background = (
-        "[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
-        f"gblur=sigma={blur_sigma}:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];"
+        "[bgsrc]scale=270:480:force_original_aspect_ratio=increase:flags=fast_bilinear,crop=270:480,"
+        f"gblur=sigma={bg_sigma}:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];"
     )
     if not fit_windows:
         return (
@@ -1641,16 +1643,17 @@ def build_vertical_compositor_filter(
     readable zoomed crops (see ``plan_fit_windows``).
     """
     face_en = _enable_expr(face_intervals)
-    # Smooth Gaussian background: blur at half resolution (plenty of detail for a
-    # heavy blur) with multiple passes for a true Gaussian falloff, then upscale
-    # 2x with bilinear so there's no lanczos ringing/blockiness — a creamy blur.
+    fit_en = _enable_expr(fit_intervals)
+    bg_sigma = max(1, blur_sigma // 2)
+    # Smooth Gaussian background: blur at quarter resolution (270x480 with half
+    # sigma produces the same visual blur radius at ~4x the speed) and gate
+    # gblur to fit intervals so full-screen face shots skip blurring altogether.
     head = (
-        "[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
-        f"gblur=sigma={blur_sigma}:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];"
+        "[bgsrc]scale=270:480:force_original_aspect_ratio=increase:flags=fast_bilinear,crop=270:480,"
+        f"gblur=sigma={bg_sigma}:steps=2:enable='{fit_en}',scale=1080:1920:flags=bilinear,setsar=1[bg];"
         f"[crsrc]{crop_chain}[face];"
     )
     if not fit_windows:
-        fit_en = _enable_expr(fit_intervals)
         return (
             "[0:v]split=3[bgsrc][crsrc][ftsrc];"
             f"{head}"
@@ -2101,6 +2104,7 @@ def render_reframed_clip_ffmpeg(
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
     fx_request: Optional[Any] = None,
     fx_report: Optional[Dict[str, Any]] = None,
+    max_short_side: Optional[int] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -2139,9 +2143,11 @@ def render_reframed_clip_ffmpeg(
                 input_path, output_path, head, head_label, out_w, out_h, overlays,
                 subtitle_ass_path, fonts_dir, fx_request, fx_report, tail=tail,
                 encode_args=build_final_video_encode_args(**encode), has_audio=has_audio,
+                max_short_side=max_short_side,
             )
         graph, label = broll_overlay_graph(head_label, overlays, out_w, out_h)
-        post = ",".join(part for part in (subs, tail) if part)
+        cap_scale = short_side_scale_filter(out_w, out_h, max_short_side)
+        post = ",".join(part for part in (subs, tail, cap_scale) if part)
         if post:
             graph = f"{graph};{label}{post}[v]"
             label = "[v]"
@@ -2156,6 +2162,10 @@ def render_reframed_clip_ffmpeg(
             str(output_path),
         ]
         return run_ffmpeg_command(command).returncode == 0
+
+    def _cap_suffix(out_w: int, out_h: int) -> str:
+        cap_scale = short_side_scale_filter(out_w, out_h, max_short_side)
+        return f",{cap_scale}" if cap_scale else ""
 
     if output_format == "original":
         geometry = probe_video_geometry(input_path)
@@ -2174,9 +2184,9 @@ def render_reframed_clip_ffmpeg(
                 tail="setsar=1",
             )
             return ok, out_w, out_h
-        # A source already within 1080p/60 can be copied. Anything above that is
-        # re-encoded so original-format output cannot exceed the cap.
-        if not subs and not needs_scale and not needs_fps:
+        # A source already within 1080p/60 (and any plan short-side cap) can be copied.
+        cap_scale = short_side_scale_filter(out_w, out_h, max_short_side)
+        if not subs and not needs_scale and not needs_fps and not cap_scale:
             shutil.copyfile(input_path, output_path)
             return True, round_to_even(display_width), round_to_even(display_height)
         filters: List[str] = []
@@ -2186,7 +2196,9 @@ def render_reframed_clip_ffmpeg(
             filters.append(f"fps={MAX_OUTPUT_FPS}")
         if subs:
             filters.append(subs)
-        if not needs_scale:
+        if cap_scale:
+            filters.append(cap_scale)
+        elif not needs_scale:
             filters.append("setsar=1")
         if subs:
             encode_fps: int | str = OUTPUT_FPS
@@ -2234,7 +2246,7 @@ def render_reframed_clip_ffmpeg(
         )
         if overlays or fx_request is not None:
             return composited(f"{stacked}[base]", "[base]", 1080, 1920), 1080, 1920
-        video_filter = f"{stacked}{vstack_tail}[v]"
+        video_filter = f"{stacked}{vstack_tail}{_cap_suffix(1080, 1920)}[v]"
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-filter_complex", video_filter,
@@ -2255,6 +2267,7 @@ def render_reframed_clip_ffmpeg(
             return composited(f"[0:v]{video_filter}[base]", "[base]", 1080, 1920), 1080, 1920
         if subs:
             video_filter = f"{video_filter},{subs}"
+        video_filter = f"{video_filter}{_cap_suffix(1080, 1920)}"
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-vf", video_filter,
@@ -2282,8 +2295,10 @@ def render_reframed_clip_ffmpeg(
             return composited(video_filter, "[vout]", 1080, 1920), 1080, 1920
         return composited(f"[0:v]{video_filter}[base]", "[base]", 1080, 1920), 1080, 1920
     if mode == "complex":
-        if subs:
-            graph = f"{video_filter};[vout]{subs}[v]"
+        cap_scale = short_side_scale_filter(1080, 1920, max_short_side)
+        post = ",".join(part for part in (subs, cap_scale) if part)
+        if post:
+            graph = f"{video_filter};[vout]{post}[v]"
             map_label = "[v]"
         else:
             graph = video_filter
@@ -2301,6 +2316,7 @@ def render_reframed_clip_ffmpeg(
 
     if subs:
         video_filter = f"{video_filter},{subs}"
+    video_filter = f"{video_filter}{_cap_suffix(1080, 1920)}"
     command = [
         "ffmpeg", "-y", "-i", str(input_path),
         "-vf", video_filter,
@@ -2328,6 +2344,7 @@ def _render_fx_chain(
     tail: str,
     encode_args: List[str],
     has_audio: bool,
+    max_short_side: Optional[int] = None,
 ) -> bool:
     """One ``run_fx_chain`` render of a ``composited()`` branch. Per-render files go next to the output."""
     from .fx_chain import run_fx_chain
@@ -2351,6 +2368,7 @@ def _render_fx_chain(
         encode_args=encode_args,
         has_audio=has_audio,
         should_cancel=options.get("should_cancel"),
+        max_short_side=max_short_side,
     )
     options["result"] = result
     return bool(result.ok)

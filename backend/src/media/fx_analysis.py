@@ -71,7 +71,7 @@ MATTE_FFV1_ARGS = ("-c:v", "ffv1", "-pix_fmt", "gray")
 # The studio matte is played by browsers too: plain 4:2:0 H.264 with a grey picture.
 MATTE_H264_ARGS = (
     "-vf", "scale=out_range=tv,format=yuv420p",
-    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-g", str(MATTE_FPS),
+    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-g", str(MATTE_FPS),
     "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709",
     "-color_trc", "bt709", "-color_range", "tv", "-movflags", "+faststart",
 )

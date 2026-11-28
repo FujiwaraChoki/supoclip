@@ -21,7 +21,9 @@ read). Frames are sampled while somebody speaks, which is when captions show.
 A band needs text at the same height in a good share of them.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import math
+import os
 import re
 import subprocess
 import unicodedata
@@ -358,15 +360,12 @@ def _frame_at(capture: "cv2.VideoCapture", seconds: float) -> Optional[np.ndarra
     return frame if ok else None
 
 
-def _frame_lines(
-    video_path: Path, capture: Any, moment: float, read: Any, region: Tuple[float, float] = (READ_TOP, 1.0),
+def _frame_lines_from_words_and_frame(
+    words: Optional[Sequence[Any]], frame: Optional[np.ndarray],
 ) -> List[Dict[str, Any]]:
-    """Text lines of one frame: what the OCR reads anywhere in it (a creator's captions sit at the top as
-    often as at the bottom), plus outlined glyph rows in the lower part that it cannot read."""
     from .screen_text import text_lines
 
     lines: List[Dict[str, Any]] = []
-    words = read(video_path, moment, region) if read else None
     # A box taller than any caption glyph is a misread; left in, it joins a line and stretches the band.
     for line in text_lines([word for word in words or [] if word.height <= MAX_GLYPH_HEIGHT]):
         tokens = [token for word in line for token in _tokens(word.text)]
@@ -376,7 +375,6 @@ def _frame_lines(
             "top": min(word.top for word in line), "bottom": max(word.bottom for word in line),
             "left": line[0].left, "right": line[-1].right, "tokens": tokens, "words": len(line),
         })
-    frame = _frame_at(capture, moment) if capture is not None else None
     if frame is not None:
         for top, bottom in caption_lines_in_frame(frame):
             centre = (top + bottom) / 2
@@ -385,6 +383,16 @@ def _frame_lines(
             lines.append({"top": top, "bottom": bottom, "left": 0.25, "right": 0.75, "tokens": [], "words": 0,
                           "shape": True})
     return [line for line in lines if READ_TOP <= (line["top"] + line["bottom"]) / 2 <= SEARCH_BOTTOM]
+
+
+def _frame_lines(
+    video_path: Path, capture: Any, moment: float, read: Any, region: Tuple[float, float] = (READ_TOP, 1.0),
+) -> List[Dict[str, Any]]:
+    """Text lines of one frame: what the OCR reads anywhere in it (a creator's captions sit at the top as
+    often as at the bottom), plus outlined glyph rows in the lower part that it cannot read."""
+    words = read(video_path, moment, region) if read else None
+    frame = _frame_at(capture, moment) if capture is not None else None
+    return _frame_lines_from_words_and_frame(words, frame)
 
 
 def _band_from_frames(frames: Sequence[Sequence[Dict[str, Any]]]) -> Optional[Tuple[float, List[List[Dict[str, Any]]]]]:
@@ -691,6 +699,66 @@ def strip_jumps(energies: Sequence[float], duration: float) -> List[float]:
     return [min(moment, max(0.0, duration - 0.05)) for moment in moments]
 
 
+def _scan_text_moments(
+    video_path: Path, duration: float, need_strip: bool,
+) -> Tuple[List[float], List[float]]:
+    """Run outlined-glyph and bottom-strip scans in one single 4fps decode instead of two full decodes."""
+    out_w = ANALYSIS_WIDTH
+    probe = cv2.VideoCapture(str(video_path))
+    try:
+        width = int(probe.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(probe.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+    finally:
+        probe.release()
+    if width <= 0 or height <= 0 or duration <= 0:
+        return [], []
+    out_h = max(2, int(round(height * out_w / width)) // 2 * 2)
+    scan_fps = STRIP_FPS if need_strip else SCAN_FPS
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-nostdin", "-i", str(video_path), "-an", "-sn",
+         "-vf", f"fps={scan_fps},scale={out_w}:{out_h}", "-pix_fmt", "bgr24", "-f", "rawvideo", "-"],
+        capture_output=True, timeout=max(120, int(duration * 4)),
+    )
+    size = out_w * out_h * 3
+    count = len(result.stdout) // size if result.returncode == 0 else 0
+    if count < 1:
+        return [], []
+    frames = np.frombuffer(result.stdout[:count * size], dtype=np.uint8).reshape(count, out_h, out_w, 3)
+
+    step = max(1, scan_fps // SCAN_FPS)
+    outlined_frames = frames[::step]
+    hits = [bool(caption_lines_in_frame(frame)) for frame in outlined_frames]
+    outlined_moments: List[float] = []
+    index = 0
+    n_out = len(outlined_frames)
+    while index < n_out:
+        if not hits[index]:
+            index += 1
+            continue
+        stop = index
+        while stop + 1 < n_out and hits[stop + 1]:
+            stop += 1
+        first, last = (index + 0.5) / SCAN_FPS, (stop + 0.5) / SCAN_FPS
+        outlined_moments.append((first + last) / 2)
+        if last - first >= SCAN_SECOND_READ_SECONDS:
+            outlined_moments.append(first + (last - first) * 0.15)
+        index = stop + 1
+    outlined_moments = [min(moment, max(0.0, duration - 0.05)) for moment in outlined_moments]
+
+    strip_moments: List[float] = []
+    if need_strip and count >= 4:
+        top, bottom = int(STRIP_ROWS[0] * out_h), int(STRIP_ROWS[1] * out_h)
+        left, right = int(STRIP_COLUMNS[0] * out_w), int(STRIP_COLUMNS[1] * out_w)
+        strip_w, strip_h = (right - left) // 2 * 2, (bottom - top) // 2 * 2
+        if strip_w > 0 and strip_h > 0:
+            energies = [
+                bright_edge_energy(cv2.cvtColor(frame[top:top + strip_h, left:left + strip_w], cv2.COLOR_BGR2GRAY))
+                for frame in frames
+            ]
+            strip_moments = strip_jumps(energies, duration)
+    return outlined_moments, strip_moments
+
+
 def analyze_source_captions(
     video_path: Path, words: Optional[Sequence[Dict[str, Any]]] = None, read: Any = None,
 ) -> Optional[SourceCaptions]:
@@ -703,7 +771,7 @@ def analyze_source_captions(
     found and their kind is "text".
     """
     from .ffmpeg import ffprobe_duration
-    from .screen_text import ocr_available, read_frame_words
+    from .screen_text import ocr_available, read_frame_words, read_frame_words_from_image
 
     if read is None:
         read = read_frame_words if ocr_available() else None
@@ -711,11 +779,12 @@ def analyze_source_captions(
     sampled = sample_moments(duration, words)
     if not sampled:
         return None
+    outlined: List[float] = []
+    arriving: List[float] = []
     try:
-        outlined = outlined_text_moments(video_path, duration)
+        outlined, arriving = _scan_text_moments(video_path, duration, need_strip=read is not None)
     except Exception as exc:  # noqa: BLE001 - the sampled frames still stand
-        logger.debug("Outlined-text scan unavailable (%s)", exc)
-        outlined = []
+        logger.debug("Text scan unavailable (%s)", exc)
     extra: List[float] = []
     for moment in outlined:
         if len(extra) >= SCAN_MAX_EXTRA_READS:
@@ -724,63 +793,95 @@ def analyze_source_captions(
             extra.append(moment)
     strip: List[float] = []
     if read is not None:
-        try:
-            arriving = strip_text_moments(video_path, duration)
-        except Exception as exc:  # noqa: BLE001 - the sampled frames still stand
-            logger.debug("Bottom-strip scan unavailable (%s)", exc)
-            arriving = []
         for moment in arriving:
             if len(strip) >= STRIP_MAX_READS:
                 break
             if all(abs(moment - other) >= 0.1 for other in strip) and moment not in sampled and moment not in extra:
                 strip.append(moment)
+
+    use_fast_ocr = read is read_frame_words
+    ocr_workers = min(6, max(1, os.cpu_count() or 4))
+
     frames: Dict[float, List[Dict[str, Any]]] = {}
+    grabbed: Dict[float, Optional[np.ndarray]] = {}
     capture = cv2.VideoCapture(str(video_path))
     try:
         if not capture.isOpened():
             capture = None
+
+        def grab_frames(moments_list: Sequence[float]) -> None:
+            if capture is None:
+                return
+            for m in sorted(set(moments_list)):
+                if m not in grabbed:
+                    grabbed[m] = _frame_at(capture, m)
+
+        def read_batch(
+            moments_list: Sequence[float],
+            region: Tuple[float, float] = (READ_TOP, 1.0),
+            include_shape: bool = True,
+        ) -> Dict[float, List[Dict[str, Any]]]:
+            if not moments_list:
+                return {}
+            if include_shape or use_fast_ocr:
+                grab_frames(moments_list)
+
+            def _one(moment: float) -> Tuple[float, List[Dict[str, Any]]]:
+                img = grabbed.get(moment)
+                if read is None:
+                    ocr_words = None
+                elif use_fast_ocr and img is not None:
+                    ocr_words = read_frame_words_from_image(img, region)
+                else:
+                    ocr_words = read(video_path, moment, region)
+                return moment, _frame_lines_from_words_and_frame(ocr_words, img if include_shape else None)
+
+            if read is not None and len(moments_list) > 1 and ocr_workers > 1:
+                with ThreadPoolExecutor(max_workers=min(ocr_workers, len(moments_list))) as pool:
+                    return dict(pool.map(_one, moments_list))
+            return dict(_one(m) for m in moments_list)
+
         first = sorted({sampled[int(len(sampled) * (step + 0.5) / FIRST_LOOK_SAMPLES)]
                         for step in range(min(FIRST_LOOK_SAMPLES, len(sampled)))})
-        for moment in first:
-            frames[moment] = _frame_lines(video_path, capture, moment, read)
+        frames.update(read_batch(first, (READ_TOP, 1.0), include_shape=True))
         # Text that comes up in the bottom strip is read there, enlarged; nothing else in those frames is.
-        for moment in strip:
-            lines = _frame_lines(video_path, None, moment, read, STRIP_READ_REGION)
+        for moment, lines in read_batch(strip, STRIP_READ_REGION, include_shape=False).items():
             if lines:
                 frames[moment] = lines
         if not any(frames.values()) and not extra:
             return None
-        for moment in [*sampled, *extra]:
-            if moment not in frames:
-                frames[moment] = _frame_lines(video_path, capture, moment, read)
+        remaining = [m for m in [*sampled, *extra] if m not in frames]
+        frames.update(read_batch(remaining, (READ_TOP, 1.0), include_shape=True))
+
+        moments = sorted(frames)
+        spoken = [
+            [token for word in words or ()
+             if float(word["start"]) <= moment + SPEECH_REACH_SECONDS and float(word["end"]) >= moment - SPEECH_REACH_SECONDS
+             for token in _tokens(str(word.get("text", "")))]
+            for moment in moments
+        ]
+        found = captions_from_frames([frames[moment] for moment in moments], spoken, moments=moments)
+        if found and read is not None:
+            # Small text over a busy picture is missed in a read of the whole frame. Frames without a line at
+            # the main band's height get a second look at the band alone, enlarged.
+            region = (max(0.0, found.band[0] - SECOND_LOOK_MARGIN), min(1.0, found.band[1] + SECOND_LOOK_MARGIN))
+            centre = (found.band[0] + found.band[1]) / 2
+            second_look = [
+                moment for moment in moments
+                if not any(abs((line["top"] + line["bottom"]) / 2 - centre) <= BAND_TOLERANCE for line in frames[moment])
+            ]
+            again = False
+            for moment, closer in read_batch(second_look, region, include_shape=False).items():
+                if closer:
+                    frames[moment] = frames[moment] + closer
+                    again = True
+            if again:
+                found = captions_from_frames(
+                    [frames[moment] for moment in moments], spoken, moments=moments) or found
     finally:
         if capture is not None:
             capture.release()
             capture = None
-    moments = sorted(frames)
-    spoken = [
-        [token for word in words or ()
-         if float(word["start"]) <= moment + SPEECH_REACH_SECONDS and float(word["end"]) >= moment - SPEECH_REACH_SECONDS
-         for token in _tokens(str(word.get("text", "")))]
-        for moment in moments
-    ]
-    found = captions_from_frames([frames[moment] for moment in moments], spoken, moments=moments)
-    if found and read is not None:
-        # Small text over a busy picture is missed in a read of the whole frame. Frames without a line at
-        # the main band's height get a second look at the band alone, enlarged.
-        region = (max(0.0, found.band[0] - SECOND_LOOK_MARGIN), min(1.0, found.band[1] + SECOND_LOOK_MARGIN))
-        centre = (found.band[0] + found.band[1]) / 2
-        again = False
-        for moment in moments:
-            if any(abs((line["top"] + line["bottom"]) / 2 - centre) <= BAND_TOLERANCE for line in frames[moment]):
-                continue
-            closer = _frame_lines(video_path, None, moment, read, region)
-            if closer:
-                frames[moment] = frames[moment] + closer
-                again = True
-        if again:
-            found = captions_from_frames(
-                [frames[moment] for moment in moments], spoken, moments=moments) or found
     for band in (found.bands if found else ()):
         logger.info(
             "Source text at %.2f-%.2f of the frame height: %s, in %.0f%% of speech moments, %.0f%% of it spoken",
@@ -1174,8 +1275,7 @@ def mask_caption_band(
     painted without crossing one, nothing is painted and False is returned: the caller keeps its captions
     clear of the band instead of blurring a face.
     """
-    from .common import INTERMEDIATE_CRF
-    from .ffmpeg import ffprobe_duration, ffprobe_video_size, run_ffmpeg_command
+    from .ffmpeg import build_intermediate_video_encode_args, ffprobe_duration, ffprobe_video_size, run_ffmpeg_command
 
     width, height = ffprobe_video_size(video_path)
     duration = ffprobe_duration(video_path)
@@ -1225,8 +1325,8 @@ def mask_caption_band(
     masked = video_path.with_name(video_path.stem + ".masked" + video_path.suffix)
     result = run_ffmpeg_command([
         "ffmpeg", "-y", "-i", str(video_path), "-filter_complex", graph,
-        "-map", "[painted]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
-        "-pix_fmt", "yuv420p", "-c:a", "copy", str(masked),
+        "-map", "[painted]", "-map", "0:a?", *build_intermediate_video_encode_args(),
+        "-c:a", "copy", str(masked),
     ])
     if result.returncode != 0 or not masked.exists():
         masked.unlink(missing_ok=True)

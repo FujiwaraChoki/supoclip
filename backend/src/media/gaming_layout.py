@@ -12,6 +12,7 @@ keeps the layout it would have used anyway. ``GAMING_LAYOUT=off`` (the default)
 never reaches the analysis.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -306,13 +307,32 @@ def sample_clip_frames(
 def detect_faces(frames: np.ndarray) -> List[List[Box]]:
     from .face_detection import open_yunet_detector
 
-    detector = open_yunet_detector()
-    if detector is None:
-        return [[] for _ in frames]
-    try:
-        return [[tuple(float(v) for v in box[:4]) for box in detector.detect(frame)] for frame in frames]
-    finally:
-        detector.close()
+    total = len(frames)
+    if total == 0:
+        return []
+    workers = min(4, max(1, (os.cpu_count() or 1) // 2))
+    if total < 24 or workers <= 1:
+        detector = open_yunet_detector()
+        if detector is None:
+            return [[] for _ in frames]
+        try:
+            return [[tuple(float(v) for v in box[:4]) for box in detector.detect(frame)] for frame in frames]
+        finally:
+            detector.close()
+
+    def _run_chunk(chunk: np.ndarray) -> List[List[Box]]:
+        detector = open_yunet_detector()
+        if detector is None:
+            return [[] for _ in chunk]
+        try:
+            return [[tuple(float(v) for v in box[:4]) for box in detector.detect(frame)] for frame in chunk]
+        finally:
+            detector.close()
+
+    chunks = np.array_split(frames, workers)
+    with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+        results = list(pool.map(_run_chunk, chunks))
+    return [boxes for part in results for boxes in part]
 
 
 # ---------------------------------------------------------------------------
@@ -359,12 +379,13 @@ def measure_frames(frames: np.ndarray, times: Sequence[float]) -> FrameEvidence:
     change = np.zeros((h, w), np.float32)
     edges = np.zeros((count, h, w), bool)
     centre_line = np.zeros(count, np.float32)
+    edge_sq = EDGE_MAGNITUDE * EDGE_MAGNITUDE
     previous = None
     for i, frame in enumerate(frames):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
         gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0)
         gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1)
-        edges[i] = np.hypot(gx, gy) > EDGE_MAGNITUDE
+        edges[i] = (gx * gx + gy * gy) > edge_sq
         persist += edges[i]
         lines_v = np.abs(gx) > LINE_MAGNITUDE
         persist_v += lines_v
@@ -1581,8 +1602,10 @@ def analyze_gaming_clip(path: Path, width: int, height: int, duration: float) ->
     times, frames = sample_clip_frames(path, width, height, duration)
     if len(frames) < 2:
         return []
-    faces = detect_faces(frames)
-    evidence = measure_frames(frames, times)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        faces_future = pool.submit(detect_faces, frames)
+        evidence = measure_frames(frames, times)
+        faces = faces_future.result()
     whole = classify_gaming(evidence, faces, width, height, duration)
     if whole.is_gaming and whole.fallback_ranges and len(times) > 1:
         whole.fallback_ranges = refine_fallback_ranges(path, whole, duration, times[1] - times[0])

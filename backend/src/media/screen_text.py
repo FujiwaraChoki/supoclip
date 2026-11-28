@@ -21,6 +21,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
+import cv2
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 READ_WIDTH = 1280            # frames are read at this width: small subtitles need tall letters
@@ -83,7 +86,7 @@ def parse_tsv(tsv: str, width: int, height: int) -> List[ScreenWord]:
     return words
 
 
-def _frame_png(video_path: Path, seconds: float, video_filter: str) -> bytes:
+def _ffmpeg_frame_png(video_path: Path, seconds: float, video_filter: str) -> bytes:
     frame = subprocess.run(
         ["ffmpeg", "-v", "error", "-nostdin", "-ss", f"{max(0.0, seconds):.3f}", "-i", str(video_path),
          "-frames:v", "1", "-an", "-sn", "-filter_complex", video_filter, "-f", "image2pipe", "-c:v", "png", "-"],
@@ -92,6 +95,9 @@ def _frame_png(video_path: Path, seconds: float, video_filter: str) -> bytes:
     if frame.returncode != 0 or not frame.stdout:
         raise RuntimeError(frame.stderr.decode("utf-8", "replace")[-200:] or "no frame")
     return frame.stdout
+
+
+_frame_png = _ffmpeg_frame_png
 
 
 def _tesseract_tsv(png: bytes) -> str:
@@ -107,6 +113,69 @@ def _tesseract_tsv(png: bytes) -> str:
     return read.stdout.decode("utf-8", "replace")
 
 
+def _parse_stacked_words(
+    tsv: str, out_w: int, out_h: int, top: float, bottom: float,
+) -> List[ScreenWord]:
+    found: List[ScreenWord] = []
+    for word in parse_tsv(tsv, out_w, out_h):
+        # The page stacks three readings of the same band: as it is, inverted, and bright ink on white.
+        shift = float(min(2, int(word.top)))
+        if word.bottom > shift + 1.0 + 1e-6:
+            continue        # a box that runs from one reading into the next is not a word
+        placed = ScreenWord(
+            word.text, word.left, top + (word.top - shift) * (bottom - top), word.right,
+            top + (word.bottom - shift) * (bottom - top), word.confidence,
+        )
+        if not any(_same_place(placed, other) for other in found):
+            found.append(placed)
+    return found
+
+
+def build_ocr_page_png(
+    frame_bgr: np.ndarray, region: Optional[Tuple[float, float]] = None,
+) -> Optional[Tuple[bytes, int, int, float, float]]:
+    """Build the 3-way stacked grayscale OCR PNG in memory (plain, inverted, bright-ink)."""
+    if frame_bgr is None or frame_bgr.size == 0:
+        return None
+    height, width = frame_bgr.shape[:2]
+    if width <= 0 or height <= 0:
+        return None
+    top, bottom = region if region else (0.0, 1.0)
+    top, bottom = max(0.0, min(top, 1.0)), max(0.0, min(bottom, 1.0))
+    if bottom - top <= 0.01:
+        return None
+    band_h = max(2, int(round(height * (bottom - top))) // 2 * 2)
+    band_y = min(int(round(height * top)), height - band_h)
+    out_w = READ_WIDTH
+    out_h = max(2, int(round(band_h * out_w / width)) // 2 * 2)
+    cropped = frame_bgr[band_y:band_y + band_h, 0:width]
+    gray = cropped if cropped.ndim == 2 else cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+    interp = cv2.INTER_AREA if out_w < width else cv2.INTER_CUBIC
+    plain = cv2.resize(gray, (out_w, out_h), interpolation=interp)
+    inverted = 255 - plain
+    ink = np.where(plain >= BRIGHT_INK_LEVEL, 0, 255).astype(np.uint8)
+    stacked = np.vstack((plain, inverted, ink))
+    ok, encoded = cv2.imencode(".png", stacked, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+    if not ok:
+        return None
+    return encoded.tobytes(), out_w, out_h, top, bottom
+
+
+def read_frame_words_from_image(
+    frame_bgr: np.ndarray, region: Optional[Tuple[float, float]] = None,
+) -> Optional[List[ScreenWord]]:
+    """OCR a pre-decoded BGR frame without spawning ffprobe or ffmpeg."""
+    try:
+        built = build_ocr_page_png(frame_bgr, region)
+        if built is None:
+            return None
+        png, out_w, out_h, top, bottom = built
+        return _parse_stacked_words(_tesseract_tsv(png), out_w, out_h, top, bottom)
+    except Exception as exc:  # noqa: BLE001 - unknown is an answer; the caller keeps its default
+        logger.debug("Screen text unavailable from frame (%s)", exc)
+        return None
+
+
 def read_frame_words(
     video_path: Path, seconds: float, region: Optional[Tuple[float, float]] = None,
 ) -> Optional[List[ScreenWord]]:
@@ -119,6 +188,24 @@ def read_frame_words(
     as ink (heavy white or yellow display captions with outlines and shadows,
     which the OCR garbles otherwise). A word found more than once counts once.
     """
+    # Fast path: grab the frame in-process with OpenCV (skips ffprobe + ffmpeg spawns)
+    # whenever _frame_png has not been monkeypatched by a test.
+    if _frame_png is _ffmpeg_frame_png:
+        try:
+            path = Path(video_path)
+            if path.is_file():
+                capture = cv2.VideoCapture(str(path))
+                try:
+                    if capture.isOpened():
+                        capture.set(cv2.CAP_PROP_POS_MSEC, max(0.0, float(seconds)) * 1000.0)
+                        ok, frame_bgr = capture.read()
+                        if ok and frame_bgr is not None and frame_bgr.size > 0:
+                            return read_frame_words_from_image(frame_bgr, region)
+                finally:
+                    capture.release()
+        except Exception as exc:  # noqa: BLE001 - fall back to ffmpeg
+            logger.debug("Fast OpenCV OCR grab failed at %.2fs (%s); falling back to ffmpeg", seconds, exc)
+
     try:
         from .ffmpeg import ffprobe_video_size
 
@@ -134,24 +221,12 @@ def read_frame_words(
         out_w = READ_WIDTH
         out_h = max(2, int(round(band_h * out_w / width)) // 2 * 2)
         page = (
-            f"crop={width}:{band_h}:0:{band_y},scale={out_w}:{out_h}:flags=lanczos,format=gray,"
+            f"crop={width}:{band_h}:0:{band_y},scale={out_w}:{out_h}:flags=bicubic,format=gray,"
             "split=3[plain][copy][bright];[copy]negate[inverted];"
             f"[bright]lut=y='if(gte(val,{BRIGHT_INK_LEVEL}),0,255)'[ink];"
             "[plain][inverted][ink]vstack=inputs=3"
         )
-        found: List[ScreenWord] = []
-        for word in parse_tsv(_tesseract_tsv(_frame_png(video_path, seconds, page)), out_w, out_h):
-            # The page stacks three readings of the same band: as it is, inverted, and bright ink on white.
-            shift = float(min(2, int(word.top)))
-            if word.bottom > shift + 1.0 + 1e-6:
-                continue        # a box that runs from one reading into the next is not a word
-            placed = ScreenWord(
-                word.text, word.left, top + (word.top - shift) * (bottom - top), word.right,
-                top + (word.bottom - shift) * (bottom - top), word.confidence,
-            )
-            if not any(_same_place(placed, other) for other in found):
-                found.append(placed)
-        return found
+        return _parse_stacked_words(_tesseract_tsv(_frame_png(video_path, seconds, page)), out_w, out_h, top, bottom)
     except Exception as exc:  # noqa: BLE001 - unknown is an answer; the caller keeps its default
         logger.debug("Screen text unavailable at %.2fs of %s (%s)", seconds, video_path, exc)
         return None

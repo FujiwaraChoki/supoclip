@@ -233,6 +233,11 @@ class Config:
         self.video_job_team_concurrency = max(
             1, self._get_int_env("VIDEO_JOB_TEAM_CONCURRENCY", 3)
         )
+        # How many clips of one task render concurrently on a worker. Keeping this
+        # modest (default 2) cuts per-task wait time without oversubscribing multi-job workers.
+        self.clip_render_concurrency = min(
+            8, max(1, self._get_int_env("CLIP_RENDER_CONCURRENCY", 2))
+        )
         self.video_job_defer_seconds = min(
             300, max(5, self._get_int_env("VIDEO_JOB_DEFER_SECONDS", 20))
         )
